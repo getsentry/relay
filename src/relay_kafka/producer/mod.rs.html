@@ -426,7 +426,7 @@
 <a href=#426 id=426 data-nosnippet>426</a>                )
 <a href=#427 id=427 data-nosnippet>427</a>            });
 <a href=#428 id=428 data-nosnippet>428</a>
-<a href=#429 id=429 data-nosnippet>429</a>            <span class="kw">let </span>config_name = config_name.map(str::to_string);
+<a href=#429 id=429 data-nosnippet>429</a>            <span class="kw">let </span>config_name = config_name.map(str::to_owned);
 <a href=#430 id=430 data-nosnippet>430</a>
 <a href=#431 id=431 data-nosnippet>431</a>            <span class="comment">// Get or create producer for this broker config
 <a href=#432 id=432 data-nosnippet>432</a>            </span><span class="kw">let </span>threaded_producer = <span class="kw">if let </span><span class="prelude-val">Some</span>(producer) = <span class="self">self</span>.reused_producers.get(<span class="kw-2">&amp;</span>config_name)

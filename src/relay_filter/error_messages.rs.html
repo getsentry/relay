@@ -146,7 +146,7 @@
 <a href=#146 id=146 data-nosnippet>146</a>                <span class="kw">let </span>(exc_type, exc_value, logentry_formatted, should_ingest) = case;
 <a href=#147 id=147 data-nosnippet>147</a>                <span class="kw">let </span>event = Event {
 <a href=#148 id=148 data-nosnippet>148</a>                    exceptions: Annotated::new(Values::new(<span class="macro">vec!</span>[Annotated::new(Exception {
-<a href=#149 id=149 data-nosnippet>149</a>                        ty: Annotated::from(exc_type.map(str::to_string)),
+<a href=#149 id=149 data-nosnippet>149</a>                        ty: Annotated::from(exc_type.map(str::to_owned)),
 <a href=#150 id=150 data-nosnippet>150</a>                        value: Annotated::from(exc_value.map(str::to_owned).map(From::from)),
 <a href=#151 id=151 data-nosnippet>151</a>                        ..Default::default()
 <a href=#152 id=152 data-nosnippet>152</a>                    })])),
