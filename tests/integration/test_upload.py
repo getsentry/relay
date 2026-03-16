@@ -282,7 +282,6 @@ def test_create_with_upload_processing(
         headers={
             "Tus-Resumable": "1.0.0",
             "Upload-Length": str(len(data)),
-            "Content-Type": "application/offset+octet-stream",
         },
         data=data,
     )

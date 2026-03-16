@@ -8,8 +8,8 @@
 use std::str::FromStr;
 
 use axum::http::HeaderMap;
-use http::HeaderValue;
 use http::header::AsHeaderName;
+use http::{HeaderValue, header};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -67,10 +67,42 @@ pub const EXPECTED_CONTENT_TYPE: HeaderValue =
 /// Parsed and validated header values.
 #[derive(Debug, PartialEq, Eq)]
 pub struct ParsedHeaders {
-    /// Value of the `Content-Length` header, if given.
-    pub content_length: Option<usize>,
+    /// Body type inferred from headers.
+    pub body_type: BodyType,
     /// Value of the `Upload-Length` header, if given.
     pub upload_length: Option<usize>,
+}
+
+/// Body type inferred from `Content-Length` and `Transfer-Encoding` headers.
+#[derive(Debug, PartialEq, Eq)]
+pub enum BodyType {
+    /// Content-Length: X
+    Sized(usize),
+    /// Transfer-Encoding: Chunked
+    Chunked,
+    /// An empty body.
+    Empty,
+}
+
+impl BodyType {
+    /// Whether the body has bytes to stream.
+    pub fn has_bytes(&self) -> bool {
+        !matches!(self, Self::Empty)
+    }
+
+    fn parse(headers: &HeaderMap) -> Result<Self, Error> {
+        let content_length: Option<usize> = parse_header(headers, http::header::CONTENT_LENGTH);
+        let transfer_encoding = headers
+            .get(header::TRANSFER_ENCODING)
+            .map(HeaderValue::as_bytes);
+
+        match (content_length, transfer_encoding) {
+            (Some(0) | None, None) => Ok(Self::Empty),
+            (Some(size), None) => Ok(Self::Sized(size)),
+            (None, Some(b"chunked")) => Ok(Self::Chunked),
+            _ => return Err(Error::ContentType),
+        }
+    }
 }
 
 /// Validates TUS protocol headers and returns a subset of parsed values.
@@ -83,9 +115,8 @@ pub fn validate_post_headers(
         return Err(Error::Version);
     }
 
-    let content_length = parse_header(headers, http::header::CONTENT_LENGTH);
-
-    if content_length.is_none_or(|v| v > 0) {
+    let body_type = BodyType::parse(headers)?;
+    if body_type.has_bytes() {
         let content_type = headers.get(http::header::CONTENT_TYPE);
         if content_type != Some(&EXPECTED_CONTENT_TYPE) {
             return Err(Error::ContentType);
@@ -106,7 +137,7 @@ pub fn validate_post_headers(
     }?;
 
     Ok(ParsedHeaders {
-        content_length,
+        body_type,
         upload_length,
     })
 }
@@ -176,6 +207,7 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
         headers.insert(UPLOAD_LENGTH, HeaderValue::from_static("1024"));
+        headers.insert(header::CONTENT_LENGTH, HeaderValue::from_static("1024"));
         let result = validate_post_headers(&headers, false);
         assert!(matches!(result, Err(Error::ContentType)));
     }
@@ -193,13 +225,49 @@ mod tests {
     fn test_validate_tus_headers_valid() {
         let mut headers = HeaderMap::new();
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
+        headers.insert(hyper::header::CONTENT_LENGTH, 1024.into());
         headers.insert(hyper::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
         headers.insert(UPLOAD_LENGTH, HeaderValue::from_static("1024"));
         let result = validate_post_headers(&headers, false);
         assert_eq!(
             result.unwrap(),
             ParsedHeaders {
-                content_length: None,
+                body_type: BodyType::Sized(1024),
+                upload_length: Some(1024)
+            }
+        );
+    }
+
+    #[test]
+    fn test_validate_tus_headers_valid_empty() {
+        let mut headers = HeaderMap::new();
+        headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
+        headers.insert(UPLOAD_LENGTH, HeaderValue::from_static("1024"));
+        let result = validate_post_headers(&headers, false);
+        assert_eq!(
+            result.unwrap(),
+            ParsedHeaders {
+                body_type: BodyType::Empty,
+                upload_length: Some(1024)
+            }
+        );
+    }
+
+    #[test]
+    fn test_validate_tus_headers_valid_chunked() {
+        let mut headers = HeaderMap::new();
+        headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
+        headers.insert(
+            hyper::header::TRANSFER_ENCODING,
+            HeaderValue::from_static("chunked"),
+        );
+        headers.insert(hyper::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
+        headers.insert(UPLOAD_LENGTH, HeaderValue::from_static("1024"));
+        let result = validate_post_headers(&headers, false);
+        assert_eq!(
+            result.unwrap(),
+            ParsedHeaders {
+                body_type: BodyType::Chunked,
                 upload_length: Some(1024)
             }
         );
@@ -219,12 +287,16 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
         headers.insert(hyper::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
+        headers.insert(
+            header::TRANSFER_ENCODING,
+            HeaderValue::from_static("chunked"),
+        );
         headers.insert(UPLOAD_DEFER_LENGTH, HeaderValue::from_static("1"));
         let result = validate_post_headers(&headers, true);
         assert!(matches!(
             result,
             Ok(ParsedHeaders {
-                content_length: None,
+                body_type: BodyType::Chunked,
                 upload_length: None
             })
         ));
