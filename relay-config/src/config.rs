@@ -1648,7 +1648,7 @@ impl Default for Upload {
     fn default() -> Self {
         Self {
             max_concurrent_requests: 10,
-            timeout: 60,
+            timeout: 5 * 60, // five minutes
         }
     }
 }
