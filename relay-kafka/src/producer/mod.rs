@@ -426,7 +426,7 @@ impl KafkaClientBuilder {
                 )
             });
 
-            let config_name = config_name.map(str::to_string);
+            let config_name = config_name.map(str::to_owned);
 
             // Get or create producer for this broker config
             let threaded_producer = if let Some(producer) = self.reused_producers.get(&config_name)
