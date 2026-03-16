@@ -86,7 +86,7 @@ pub fn validate_post_headers(
     }
 
     let has_upload = match headers.get(http::header::CONTENT_TYPE) {
-        Some(ct) if ct == &EXPECTED_CONTENT_TYPE => true,
+        Some(ct) if ct == EXPECTED_CONTENT_TYPE => true,
         None => false,
         _ => return Err(Error::ContentType),
     };
