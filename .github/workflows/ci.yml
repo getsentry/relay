@@ -50,7 +50,7 @@ jobs:
 
       - name: Setup SSH agent
         if: env.SSH_PRIVATE_KEY != ''
-        uses: webfactory/ssh-agent@v0.9.0
+        uses: webfactory/ssh-agent@v0.10.0
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
 
@@ -164,7 +164,7 @@ jobs:
       - name: Setup SSH agent
         if: env.SSH_PRIVATE_KEY != ''
         # Windows needs an older versino of the ssh agent: https://github.com/webfactory/ssh-agent/pull/17
-        uses: webfactory/ssh-agent@v0.7.0
+        uses: webfactory/ssh-agent@v0.10.0
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
 
@@ -225,7 +225,7 @@ jobs:
 
       - name: Setup SSH agent
         if: env.SSH_PRIVATE_KEY != ''
-        uses: webfactory/ssh-agent@v0.9.0
+        uses: webfactory/ssh-agent@v0.10.0
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
 
@@ -451,7 +451,7 @@ jobs:
         with:
           key: "${{ github.job }}-${{ matrix.target }}-${{ matrix.image_name }}"
 
-      - uses: webfactory/ssh-agent@v0.9.0
+      - uses: webfactory/ssh-agent@v0.10.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
@@ -800,7 +800,7 @@ jobs:
 
       - name: Setup SSH agent
         if: env.SSH_PRIVATE_KEY != ''
-        uses: webfactory/ssh-agent@v0.9.0
+        uses: webfactory/ssh-agent@v0.10.0
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
 
