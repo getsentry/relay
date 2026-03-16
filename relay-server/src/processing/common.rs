@@ -12,6 +12,7 @@ use crate::processing::spans::SpansProcessor;
 use crate::processing::trace_attachments::TraceAttachmentsProcessor;
 use crate::processing::trace_metrics::TraceMetricsProcessor;
 use crate::processing::transactions::TransactionProcessor;
+use crate::processing::user_reports::UserReportsProcessor;
 use crate::processing::{Forward, Processor};
 
 macro_rules! outputs {
@@ -70,4 +71,5 @@ outputs!(
     TraceMetrics => TraceMetricsProcessor,
     Replays => ReplaysProcessor,
     Attachments => AttachmentProcessor,
+    UserReports => UserReportsProcessor,
 );

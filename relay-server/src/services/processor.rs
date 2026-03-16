@@ -58,6 +58,7 @@ use crate::processing::spans::SpansProcessor;
 use crate::processing::trace_attachments::TraceAttachmentsProcessor;
 use crate::processing::trace_metrics::TraceMetricsProcessor;
 use crate::processing::transactions::TransactionProcessor;
+use crate::processing::user_reports::UserReportsProcessor;
 use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted, event_category,
     event_type,
@@ -187,7 +188,12 @@ processing_group!(ErrorGroup, Error);
 impl EventProcessing for ErrorGroup {}
 
 processing_group!(SessionGroup, Session);
-processing_group!(StandaloneGroup, Standalone, StandaloneAttachments);
+processing_group!(
+    StandaloneGroup,
+    Standalone,
+    StandaloneAttachments,
+    StandaloneUserReports
+);
 processing_group!(ClientReportGroup, ClientReport);
 processing_group!(ReplayGroup, Replay);
 processing_group!(CheckInGroup, CheckIn);
@@ -227,6 +233,10 @@ pub enum ProcessingGroup {
     ///
     /// Attachments that are send without an item that creates an event in the same envelope.
     StandaloneAttachments,
+    /// Standalone user reports
+    ///
+    /// User reports that are send without an item that creates an event in the same envelope.
+    StandaloneUserReports,
     /// Outcomes.
     ClientReport,
     /// Replays and ReplayRecordings.
@@ -376,8 +386,8 @@ impl ProcessingGroup {
             ))
         }
 
-        // Extract the standalone attachments
         if !envelope.items().any(Item::creates_event) {
+            // Extract the standalone attachments
             let standalone_attachments = envelope
                 .take_items_by(|i| i.requires_event() && matches!(i.ty(), ItemType::Attachment));
             if !standalone_attachments.is_empty() {
@@ -385,6 +395,16 @@ impl ProcessingGroup {
                     ProcessingGroup::StandaloneAttachments,
                     Envelope::from_parts(headers.clone(), standalone_attachments),
                 ))
+            }
+
+            // Extract the standalone user reports
+            let standalone_user_reports =
+                envelope.take_items_by(|i| matches!(i.ty(), ItemType::UserReport));
+            if !standalone_user_reports.is_empty() {
+                grouped_envelopes.push((
+                    ProcessingGroup::StandaloneUserReports,
+                    Envelope::from_parts(headers.clone(), standalone_user_reports),
+                ));
             }
         }
 
@@ -465,6 +485,7 @@ impl ProcessingGroup {
             ProcessingGroup::Session => "session",
             ProcessingGroup::Standalone => "standalone",
             ProcessingGroup::StandaloneAttachments => "standalone_attachment",
+            ProcessingGroup::StandaloneUserReports => "standalone_user_reports",
             ProcessingGroup::ClientReport => "client_report",
             ProcessingGroup::Replay => "replay",
             ProcessingGroup::CheckIn => "check_in",
@@ -489,7 +510,9 @@ impl From<ProcessingGroup> for AppFeature {
             ProcessingGroup::Error => AppFeature::Errors,
             ProcessingGroup::Session => AppFeature::Sessions,
             ProcessingGroup::Standalone => AppFeature::UnattributedEnvelope,
-            ProcessingGroup::StandaloneAttachments => AppFeature::UnattributedEnvelope,
+            ProcessingGroup::StandaloneAttachments | ProcessingGroup::StandaloneUserReports => {
+                AppFeature::UnattributedEnvelope
+            }
             ProcessingGroup::ClientReport => AppFeature::ClientReports,
             ProcessingGroup::Replay => AppFeature::Replays,
             ProcessingGroup::CheckIn => AppFeature::CheckIns,
@@ -1168,6 +1191,7 @@ struct Processing {
     replays: ReplaysProcessor,
     client_reports: ClientReportsProcessor,
     attachments: AttachmentProcessor,
+    user_reports: UserReportsProcessor,
 }
 
 impl EnvelopeProcessorService {
@@ -1261,7 +1285,8 @@ impl EnvelopeProcessorService {
                 trace_attachments: TraceAttachmentsProcessor::new(Arc::clone(&quota_limiter)),
                 replays: ReplaysProcessor::new(Arc::clone(&quota_limiter), geoip_lookup.clone()),
                 client_reports: ClientReportsProcessor::new(outcome_aggregator),
-                attachments: AttachmentProcessor::new(quota_limiter),
+                attachments: AttachmentProcessor::new(Arc::clone(&quota_limiter)),
+                user_reports: UserReportsProcessor::new(quota_limiter),
             },
             geoip_lookup,
             config,
@@ -1652,6 +1677,14 @@ impl EnvelopeProcessorService {
             ProcessingGroup::StandaloneAttachments => {
                 self.process_with_processor(
                     &self.inner.processing.attachments,
+                    managed_envelope,
+                    ctx,
+                )
+                .await
+            }
+            ProcessingGroup::StandaloneUserReports => {
+                self.process_with_processor(
+                    &self.inner.processing.user_reports,
                     managed_envelope,
                     ctx,
                 )

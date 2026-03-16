@@ -197,6 +197,21 @@ impl Counted for StoreAttachment {
     }
 }
 
+/// A user report to be stored to Kafka.
+#[derive(Debug)]
+pub struct StoreUserReport {
+    /// The event ID.
+    pub event_id: EventId,
+    /// The user report.
+    pub report: Item,
+}
+
+impl Counted for StoreUserReport {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![(DataCategory::UserReportV2, 1)]
+    }
+}
+
 /// The asynchronous thread pool used for scheduling storing tasks in the envelope store.
 pub type StoreServicePool = AsyncPool<BoxFuture<'static, ()>>;
 
@@ -223,6 +238,8 @@ pub enum Store {
     Replay(Managed<StoreReplay>),
     /// A singular attachment.
     Attachment(Managed<StoreAttachment>),
+    /// A singular user report.
+    UserReport(Managed<StoreUserReport>),
 }
 
 impl Store {
@@ -236,6 +253,7 @@ impl Store {
             Store::ProfileChunk(_) => "profile_chunk",
             Store::Replay(_) => "replay",
             Store::Attachment(_) => "attachment",
+            Store::UserReport(_) => "user_report",
         }
     }
 }
@@ -298,6 +316,14 @@ impl FromMessage<Managed<StoreAttachment>> for Store {
     }
 }
 
+impl FromMessage<Managed<StoreUserReport>> for Store {
+    type Response = NoResponse;
+
+    fn from_message(message: Managed<StoreUserReport>, _: ()) -> Self {
+        Self::UserReport(message)
+    }
+}
+
 /// Service implementing the [`Store`] interface.
 pub struct StoreService {
     pool: StoreServicePool,
@@ -338,6 +364,7 @@ impl StoreService {
                 Store::ProfileChunk(message) => self.handle_store_profile_chunk(message),
                 Store::Replay(message) => self.handle_store_replay(message),
                 Store::Attachment(message) => self.handle_store_attachment(message),
+                Store::UserReport(message) => self.handle_user_report(message),
             }
         })
     }
@@ -777,6 +804,21 @@ impl StoreService {
             // `ChunkedAttachment`.
             debug_assert!(!matches!(result, Ok(Some(_))));
             result
+        });
+    }
+
+    fn handle_user_report(&self, message: Managed<StoreUserReport>) {
+        let scoping = message.scoping();
+        let received_at = message.received_at();
+
+        let _ = message.try_accept(|report| {
+            let kafka_msg = KafkaMessage::UserReport(UserReportKafkaMessage {
+                project_id: scoping.project_id,
+                event_id: report.event_id,
+                start_time: safe_timestamp(received_at),
+                payload: report.report.payload(),
+            });
+            self.produce(KafkaTopic::Attachments, kafka_msg)
         });
     }
 
