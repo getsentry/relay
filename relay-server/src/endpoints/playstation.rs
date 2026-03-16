@@ -5,6 +5,7 @@ use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
+use chrono::Utc;
 use futures::TryStreamExt;
 use futures::stream::BoxStream;
 use http::StatusCode;
@@ -24,7 +25,7 @@ use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::DiscardReason;
 use crate::services::projects::project::ProjectInfo;
-use crate::services::upload::{Stream, Upload};
+use crate::services::upload::{Create, Stream, Upload};
 use crate::utils;
 use crate::utils::{AttachmentStrategy, BadMultipart, BoundedStream};
 
@@ -98,11 +99,23 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
             Box::pin(field.map_err(io::Error::other));
         let stream = BoundedStream::new(stream, 1, config.max_upload_size());
         let byte_counter = stream.byte_counter();
-        let stream = Stream {
-            scoping: self.scoping,
-            stream,
+        let Ok(Ok(location)) = upload
+            .send(Create {
+                scoping: self.scoping,
+                length: None,
+            })
+            .await
+        else {
+            return Ok(None);
         };
-        let result = upload.send(stream).await;
+        let result = upload
+            .send(Stream {
+                received: Utc::now(),
+                scoping: self.scoping,
+                location,
+                stream,
+            })
+            .await;
         if let Ok(result) = result
             && let Ok(location) = result.inspect_err(|e| {
                 relay_log::warn!(error = e as &dyn std::error::Error, "Upload failed");
