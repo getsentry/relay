@@ -544,7 +544,7 @@ impl FromRequestParts<ServiceState> for PartialMeta {
     ) -> Result<Self, Self::Rejection> {
         let mut ua = RawUserAgentInfo::default();
         for (key, value) in &parts.headers {
-            ua.set_ua_field_from_header(key.as_str(), value.to_str().ok().map(str::to_string));
+            ua.set_ua_field_from_header(key.as_str(), value.to_str().ok().map(str::to_owned));
         }
 
         let mut from_internal_relay = false;
