@@ -85,10 +85,13 @@ def test_graceful_shutdown_with_sqlite_buffer(mini_sentry, relay):
         assert mini_sentry.captured_envelopes.empty()
 
         # Check if there's data in the SQLite table `envelopes`.
-        with sqlite3.connect(db_file_path) as conn:
+        conn = sqlite3.connect(db_file_path)
+        try:
             cursor = conn.cursor()
             cursor.execute("SELECT COALESCE(SUM(count), 0) FROM envelopes")
             row_count = cursor.fetchone()[0]
+        finally:
+            conn.close()
 
         assert (
             row_count == n
