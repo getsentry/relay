@@ -1,9 +1,6 @@
-use bytes::Bytes;
 use relay_event_normalization::GeoIpLookup;
-use relay_event_schema::protocol::UserReport;
 use relay_quotas::DataCategory;
 
-use crate::envelope::{ContentType, Item};
 use crate::managed::{Managed, RecordKeeper, Rejected};
 use crate::processing::errors::errors::{self, ErrorKind, SentryError as _};
 use crate::processing::errors::{Error, ExpandedError, Result, SerializedError};
@@ -81,7 +78,7 @@ fn do_expand(
 
 pub fn process(error: &mut Managed<ExpandedError>) -> Result<(), Rejected<Error>> {
     error.try_modify(|error, records| {
-        process_user_reports(&mut error.user_reports, records);
+        processing::utils::user_reports::process_user_reports(&mut error.user_reports, records);
 
         Ok::<_, Error>(())
     })
@@ -143,48 +140,4 @@ pub fn scrub(error: &mut Managed<ExpandedError>, ctx: Context<'_>) -> Result<(),
 
         Ok::<_, Error>(())
     })
-}
-
-/// Validates and normalizes all user report items in the envelope.
-///
-/// User feedback items are removed from the envelope if they contain invalid JSON or if the
-/// JSON violates the schema (basic type validation). Otherwise, their normalized representation
-/// is written back into the item.
-fn process_user_reports(user_reports: &mut Vec<Item>, records: &mut RecordKeeper<'_>) {
-    for mut user_report in std::mem::take(user_reports) {
-        let data = match process_user_report(user_report.payload()) {
-            Ok(data) => data,
-            Err(err) => {
-                records.reject_err(err, user_report);
-                continue;
-            }
-        };
-        user_report.set_payload(ContentType::Json, data);
-        user_reports.push(user_report);
-    }
-}
-
-fn process_user_report(user_report: Bytes) -> Result<Bytes> {
-    // There is a customer SDK which sends invalid reports with a trailing `\n`,
-    // strip it here, even if they update/fix their SDK there will still be many old
-    // versions with the broken SDK out there.
-    let user_report = trim_whitespaces(&user_report);
-
-    let report =
-        serde_json::from_slice::<UserReport>(user_report).map_err(ProcessingError::InvalidJson)?;
-
-    serde_json::to_string(&report)
-        .map(Bytes::from)
-        .map_err(ProcessingError::SerializeFailed)
-        .map_err(Into::into)
-}
-
-fn trim_whitespaces(data: &[u8]) -> &[u8] {
-    let Some(from) = data.iter().position(|x| !x.is_ascii_whitespace()) else {
-        return &[];
-    };
-    let Some(to) = data.iter().rposition(|x| !x.is_ascii_whitespace()) else {
-        return &[];
-    };
-    &data[from..to + 1]
 }
