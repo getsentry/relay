@@ -510,9 +510,8 @@ impl From<ProcessingGroup> for AppFeature {
             ProcessingGroup::Error => AppFeature::Errors,
             ProcessingGroup::Session => AppFeature::Sessions,
             ProcessingGroup::Standalone => AppFeature::UnattributedEnvelope,
-            ProcessingGroup::StandaloneAttachments | ProcessingGroup::StandaloneUserReports => {
-                AppFeature::UnattributedEnvelope
-            }
+            ProcessingGroup::StandaloneAttachments => AppFeature::UnattributedEnvelope,
+            ProcessingGroup::StandaloneUserReports => AppFeature::UserReports,
             ProcessingGroup::ClientReport => AppFeature::ClientReports,
             ProcessingGroup::Replay => AppFeature::Replays,
             ProcessingGroup::CheckIn => AppFeature::CheckIns,
