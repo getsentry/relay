@@ -97,7 +97,10 @@ def test_upload_missing_tus_version(mini_sentry, relay, dummy_upload, project_co
     )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "TUS protocol error: Version Mismatch"
+    assert (
+        response.json()["detail"]
+        == "TUS protocol error: expected Tus-Resumable: 1.0.0, got: (missing)"
+    )
 
 
 def test_upload_unsupported_tus_version(
@@ -119,7 +122,10 @@ def test_upload_unsupported_tus_version(
     )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "TUS protocol error: Version Mismatch"
+    assert (
+        response.json()["detail"]
+        == "TUS protocol error: expected Tus-Resumable: 1.0.0, got: 0.2.0"
+    )
 
 
 def test_upload_missing_upload_length(mini_sentry, relay, dummy_upload, project_config):
@@ -138,7 +144,10 @@ def test_upload_missing_upload_length(mini_sentry, relay, dummy_upload, project_
     )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "TUS protocol error: Invalid Upload-Length"
+    assert response.json()["detail"] == (
+        "TUS protocol error: expected Upload-Length or Upload-Defer-Length=1, "
+        "got Upload-Length=None, Upload-Defer-Length=None"
+    )
 
 
 @pytest.mark.parametrize(
@@ -396,7 +405,10 @@ def test_upload_with_deferred_length(
     expected_detail = (
         "TUS protocol error: Upload-Defer-Length not allowed"
         if defer_length_value == "1"
-        else "TUS protocol error: Invalid Upload-Length"
+        else (
+            "TUS protocol error: expected Upload-Length or Upload-Defer-Length=1, "
+            "got Upload-Length=None, Upload-Defer-Length=Some(2)"
+        )
     )
     assert response.json()["detail"] == expected_detail
 
