@@ -5,6 +5,7 @@ These tests verify that the produce_processing_errors_to_eap function
 handles corrupted/stripped event data structures safely.
 """
 # mypy: ignore-errors
+# flake8: noqa
 
 import os
 import sys
