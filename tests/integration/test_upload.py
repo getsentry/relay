@@ -78,7 +78,10 @@ def test_forward(
 
     assert response.status_code == expected_status_code, response.text
     if not feature_enabled:
-        assert "event submission rejected with_reason:" in response.json()["detail"]
+        assert (
+            response.json()["detail"]
+            == "event submission rejected with_reason: FeatureDisabled(UploadEndpoint)"
+        )
 
 
 def test_upload_missing_tus_version(mini_sentry, relay, dummy_upload, project_config):
@@ -157,15 +160,31 @@ def test_upload_missing_upload_length(mini_sentry, relay, dummy_upload, project_
 
 
 @pytest.mark.parametrize(
-    "size,expected_status_code",
+    "size,expected_status_code,expected_error",
     [
-        pytest.param(9, 400, id="smaller_than_announced"),
-        pytest.param(11, 400, id="larger_than_announced"),
-        pytest.param(101, 413, id="larger_than_allowed"),
+        pytest.param(
+            9,
+            400,
+            "stream shorter than lower bound: received 9 < 10",
+            id="smaller_than_announced",
+        ),
+        pytest.param(
+            11,
+            400,
+            "stream exceeded upper bound: received 11 > 10",
+            id="larger_than_announced",
+        ),
+        pytest.param(101, 413, "length limit exceeded", id="larger_than_allowed"),
     ],
 )
 def test_upload_body_size(
-    mini_sentry, relay, size, expected_status_code, dummy_upload, project_config
+    mini_sentry,
+    relay,
+    size,
+    expected_status_code,
+    expected_error,
+    dummy_upload,
+    project_config,
 ):
 
     project_id = 42
@@ -191,8 +210,9 @@ def test_upload_body_size(
     )
 
     assert response.status_code == expected_status_code
-    if expected_status_code != 413:
-        assert "upload error:" in response.json()["detail"]
+    assert response.text == expected_error or any(
+        expected_error in source for source in response.json()["causes"]
+    ), response.json()
 
 
 @pytest.mark.parametrize("data_category", ["attachment", "attachment_item"])
