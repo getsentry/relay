@@ -62,21 +62,6 @@ enum Error {
 
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
-        // Variants that delegate to their own IntoResponse implementations (with body):
-        match self {
-            Error::Request(e) => return e.into_response(),
-            Error::Upload(upload::Error::UpstreamRequest(e)) => {
-                if let UpstreamRequestError::SendFailed(ref send_err) = e {
-                    if find_error_source(send_err, is_hyper_user_error).is_some() {
-                        return (StatusCode::BAD_REQUEST, ApiErrorResponse::from_error(&e))
-                            .into_response();
-                    }
-                }
-                return e.into_response();
-            }
-            _ => {}
-        }
-
         let body = ApiErrorResponse::from_error(&self);
 
         if let Error::Upload(upload::Error::Internal) = &self {
@@ -87,44 +72,61 @@ impl IntoResponse for Error {
             );
         }
 
-        let status = match self {
-            Error::Tus(tus::Error::DeferLengthNotAllowed) => StatusCode::FORBIDDEN,
-            Error::Tus(_) => StatusCode::BAD_REQUEST,
-            Error::SendError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        match self {
+            Error::Tus(tus::Error::DeferLengthNotAllowed) => {
+                (StatusCode::FORBIDDEN, body).into_response()
+            }
+            Error::Tus(_) => (StatusCode::BAD_REQUEST, body).into_response(),
+            Error::Request(error) => error.into_response(),
+            Error::SendError(_) => (StatusCode::INTERNAL_SERVER_ERROR, body).into_response(),
             Error::Upload(error) => match error {
-                upload::Error::Send(_) => StatusCode::SERVICE_UNAVAILABLE,
-                upload::Error::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
+                upload::Error::Send(_) => (StatusCode::SERVICE_UNAVAILABLE, body).into_response(),
+                upload::Error::UpstreamRequest(e) => match e {
+                    UpstreamRequestError::SendFailed(e)
+                        if find_error_source(&e, is_hyper_user_error).is_some() =>
+                    {
+                        (StatusCode::BAD_REQUEST, body).into_response()
+                    }
+                    _ => e.into_response(),
+                },
+                upload::Error::Timeout(_) => (StatusCode::GATEWAY_TIMEOUT, body).into_response(),
                 upload::Error::Upstream(error) => match error.status() {
-                    _ if error.is_timeout() => StatusCode::GATEWAY_TIMEOUT,
-                    Some(status) => status,
-                    None => StatusCode::INTERNAL_SERVER_ERROR,
+                    _ if error.is_timeout() => (StatusCode::GATEWAY_TIMEOUT, body).into_response(),
+                    Some(status) => (status, body).into_response(),
+                    None => (StatusCode::INTERNAL_SERVER_ERROR, body).into_response(),
                 },
                 upload::Error::InvalidLocation(_) | upload::Error::SigningFailed => {
-                    StatusCode::INTERNAL_SERVER_ERROR
+                    (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
                 }
-                upload::Error::InvalidSignature => StatusCode::BAD_REQUEST,
-                upload::Error::ServiceUnavailable => StatusCode::SERVICE_UNAVAILABLE,
+                upload::Error::InvalidSignature => (StatusCode::BAD_REQUEST, body).into_response(),
+                upload::Error::ServiceUnavailable => {
+                    (StatusCode::SERVICE_UNAVAILABLE, body).into_response()
+                }
                 #[cfg(feature = "processing")]
                 upload::Error::Objectstore(service_error) => match service_error {
-                    objectstore::Error::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
+                    objectstore::Error::LoadShed => {
+                        (StatusCode::SERVICE_UNAVAILABLE, body).into_response()
+                    }
                     objectstore::Error::UploadFailed(error) => match error {
                         objectstore_client::Error::Reqwest(error) => match error.status() {
-                            _ if error.is_timeout() => StatusCode::GATEWAY_TIMEOUT,
-                            Some(status) => status,
-                            None => StatusCode::INTERNAL_SERVER_ERROR,
+                            _ if error.is_timeout() => {
+                                (StatusCode::GATEWAY_TIMEOUT, body).into_response()
+                            }
+                            Some(status) => (status, body).into_response(),
+                            None => (StatusCode::INTERNAL_SERVER_ERROR, body).into_response(),
                         },
-                        _ => StatusCode::INTERNAL_SERVER_ERROR,
+                        _ => (StatusCode::INTERNAL_SERVER_ERROR, body).into_response(),
                     },
-                    objectstore::Error::Uuid(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                    objectstore::Error::Uuid(_) => {
+                        (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
+                    }
                 },
-                upload::Error::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
-                upload::Error::Internal => StatusCode::INTERNAL_SERVER_ERROR,
-                upload::Error::UpstreamRequest(_) => unreachable!(),
+                upload::Error::LoadShed => (StatusCode::SERVICE_UNAVAILABLE, body).into_response(),
+                upload::Error::Internal => {
+                    (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
+                }
             },
-            Error::Request(_) => unreachable!(),
-        };
-
-        (status, body).into_response()
+        }
     }
 }
 
