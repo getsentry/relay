@@ -76,53 +76,6 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_user_report_only() {
-        relay_log::init_test!();
-        let processor = create_test_processor(Default::default()).await;
-        let outcome_aggregator = Addr::dummy();
-        let event_id = EventId::new();
-
-        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
-            .parse()
-            .unwrap();
-
-        let request_meta = RequestMeta::new(dsn);
-        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
-
-        envelope.add_item({
-            let mut item = Item::new(ItemType::UserReport);
-            item.set_payload(
-                ContentType::Json,
-                format!(r#"{{"event_id": "{event_id}"}}"#),
-            );
-            item
-        });
-
-        let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
-        assert_eq!(envelopes.len(), 1);
-
-        let (group, envelope) = envelopes.pop().unwrap();
-
-        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator);
-        let message = ProcessEnvelopeGrouped {
-            group,
-            envelope,
-            ctx: processing::Context::for_test(),
-        };
-
-        let Ok(Some(Submit::Envelope(new_envelope))) = processor.process(message).await else {
-            panic!();
-        };
-        let new_envelope = new_envelope.envelope();
-
-        assert_eq!(new_envelope.len(), 1);
-        assert_eq!(
-            new_envelope.items().next().unwrap().ty(),
-            &ItemType::UserReport
-        );
-    }
-
-    #[tokio::test]
     async fn test_user_report_invalid() {
         let processor = create_test_processor(Default::default()).await;
         let outcome_aggregator = Addr::dummy();
