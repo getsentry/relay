@@ -53,7 +53,37 @@ def project_config(mini_sentry):
         pytest.param(False, 403, id="feature disabled"),
     ],
 )
-def test_forward(
+def test_forward_create(
+    mini_sentry, relay, dummy_upload, feature_enabled, expected_status_code
+):
+    project_id = 42
+    config = mini_sentry.add_full_project_config(project_id)
+    if feature_enabled:
+        config["config"].setdefault("features", []).append(
+            "projects:relay-upload-endpoint"
+        )
+    relay = relay(mini_sentry)
+
+    response = relay.post(
+        "/api/%s/upload/?sentry_key=%s"
+        % (project_id, mini_sentry.get_dsn_public_key(project_id)),
+        headers={
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": "11",
+        },
+    )
+
+    assert response.status_code == expected_status_code, response.text
+
+
+@pytest.mark.parametrize(
+    "feature_enabled,expected_status_code",
+    [
+        pytest.param(True, 201, id="feature enabled"),
+        pytest.param(False, 403, id="feature disabled"),
+    ],
+)
+def test_forward_patch(
     mini_sentry, relay, dummy_upload, feature_enabled, expected_status_code
 ):
     project_id = 42
@@ -65,9 +95,9 @@ def test_forward(
     relay = relay(mini_sentry)
 
     data = b"hello world"
-    response = relay.post(
-        "/api/%s/upload/?sentry_key=%s"
-        % (project_id, mini_sentry.get_dsn_public_key(project_id)),
+    response = relay.patch(
+        "%s&sentry_key=%s"
+        % (UPLOAD_LOCATION, mini_sentry.get_dsn_public_key(project_id)),
         headers={
             "Tus-Resumable": "1.0.0",
             "Upload-Length": str(len(data)),
