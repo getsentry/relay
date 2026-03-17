@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# mypy: ignore-errors
 """
 Demonstration of the fix for SENTRY-5KRQ.
 

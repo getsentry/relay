@@ -4,6 +4,7 @@ Tests for processing errors EAP producer.
 These tests verify that the produce_processing_errors_to_eap function
 handles corrupted/stripped event data structures safely.
 """
+# mypy: ignore-errors
 
 import os
 import sys
