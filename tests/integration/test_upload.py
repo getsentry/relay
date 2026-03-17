@@ -361,7 +361,7 @@ def test_create_processing(
 def test_processing_invalid_length(
     mini_sentry, relay, relay_with_processing, project_config, length
 ):
-    """Create and separate upload via processing relay stores the blob in objectstore."""
+    mini_sentry.fail_on_relay_error = False
     project_id = 42
     project_key = mini_sentry.get_dsn_public_key(project_id)
 
