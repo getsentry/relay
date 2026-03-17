@@ -77,6 +77,8 @@ def test_forward(
     )
 
     assert response.status_code == expected_status_code, response.text
+    if not feature_enabled:
+        assert "detail" in response.json()
 
 
 def test_upload_missing_tus_version(mini_sentry, relay, dummy_upload, project_config):
@@ -95,6 +97,7 @@ def test_upload_missing_tus_version(mini_sentry, relay, dummy_upload, project_co
     )
 
     assert response.status_code == 400
+    assert response.json()["detail"] == "TUS protocol error: Version Mismatch"
 
 
 def test_upload_unsupported_tus_version(
@@ -116,6 +119,7 @@ def test_upload_unsupported_tus_version(
     )
 
     assert response.status_code == 400
+    assert response.json()["detail"] == "TUS protocol error: Version Mismatch"
 
 
 def test_upload_missing_upload_length(mini_sentry, relay, dummy_upload, project_config):
@@ -134,6 +138,7 @@ def test_upload_missing_upload_length(mini_sentry, relay, dummy_upload, project_
     )
 
     assert response.status_code == 400
+    assert response.json()["detail"] == "TUS protocol error: Invalid Upload-Length"
 
 
 @pytest.mark.parametrize(
@@ -171,6 +176,8 @@ def test_upload_body_size(
     )
 
     assert response.status_code == expected_status_code
+    if expected_status_code != 413:
+        assert "detail" in response.json()
 
 
 @pytest.mark.parametrize("data_category", ["attachment", "attachment_item"])
@@ -206,7 +213,9 @@ def test_upload_rate_limited(
             data=b"hello",
         )
 
-    assert request().status_code == 429
+    response = request()
+    assert response.status_code == 429
+    assert "detail" in response.json()
 
 
 @pytest.mark.parametrize(
@@ -254,6 +263,11 @@ def test_timeout(
     )
 
     assert response.status_code == expected_status_code, response.text
+    if expected_status_code == 504:
+        assert (
+            response.json()["detail"]
+            == "upload error: request timeout: deadline has elapsed"
+        )
 
 
 PROCESSING_OPTIONS = {
@@ -379,6 +393,12 @@ def test_upload_with_deferred_length(
 
     expected_status_code = 403 if defer_length_value == "1" else 400
     assert response.status_code == expected_status_code
+    expected_detail = (
+        "TUS protocol error: Upload-Defer-Length not allowed"
+        if defer_length_value == "1"
+        else "TUS protocol error: Invalid Upload-Length"
+    )
+    assert response.json()["detail"] == expected_detail
 
 
 def test_concurrency_limit(mini_sentry, relay, project_config):
@@ -419,3 +439,5 @@ def test_concurrency_limit(mini_sentry, relay, project_config):
 
     # Some requests hit a timeout, the others are loadshed:
     assert status_codes == {503, 504}
+    for r in results:
+        assert "detail" in r.json()

@@ -64,7 +64,7 @@ impl IntoResponse for Error {
     fn into_response(self) -> Response {
         let body = ApiErrorResponse::from_error(&self);
 
-        if let Error::Upload(upload::Error::Internal) = &self {
+        if let Error::Upload(upload::Error::Internal(_)) = &self {
             debug_assert!(false);
             relay_log::error!(
                 error = &self as &dyn std::error::Error,
@@ -99,7 +99,7 @@ impl IntoResponse for Error {
                     (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
                 }
                 upload::Error::InvalidSignature => (StatusCode::BAD_REQUEST, body).into_response(),
-                upload::Error::ServiceUnavailable => {
+                upload::Error::ServiceUnavailable(_) => {
                     (StatusCode::SERVICE_UNAVAILABLE, body).into_response()
                 }
                 #[cfg(feature = "processing")]
@@ -122,7 +122,7 @@ impl IntoResponse for Error {
                     }
                 },
                 upload::Error::LoadShed => (StatusCode::SERVICE_UNAVAILABLE, body).into_response(),
-                upload::Error::Internal => {
+                upload::Error::Internal(_) => {
                     (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
                 }
             },
