@@ -343,6 +343,17 @@ pub enum RelayDistributions {
     ///  - `route`: The matched route pattern.
     ///  - `status_code`: The HTTP response status code.
     ContentLength,
+    /// Size of individual standalone attachments in bytes.
+    ///
+    /// This metric is tagged with:
+    /// - `sdk`: The name of the Sentry SDK sending the attachments.
+    /// - `attachment_type`: The attachment type, if any.
+    StandaloneAttachmentSize,
+    /// Number of standalone attachments per envelope.
+    ///
+    /// This metric is tagged with:
+    ///  - `sdk`: The name of the Sentry SDK sending the attachment.
+    StandaloneAttachmentCount,
 }
 
 impl DistributionMetric for RelayDistributions {
@@ -373,6 +384,8 @@ impl DistributionMetric for RelayDistributions {
             Self::PartitionSplits => "partition_splits",
             Self::TraceItemCanonicalSize => "trace_item.canonical_size",
             Self::ContentLength => "requests.content_length",
+            Self::StandaloneAttachmentSize => "processing.standalone_attachment_size",
+            Self::StandaloneAttachmentCount => "processing.standalone_attachment_count",
         }
     }
 }
