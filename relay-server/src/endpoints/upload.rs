@@ -34,6 +34,7 @@ use crate::services::objectstore;
 use crate::services::projects::cache::Project;
 use crate::services::upload::{self, SignedLocation};
 use crate::services::upstream::UpstreamRequestError;
+use crate::utils::ApiErrorResponse;
 use crate::utils::{BoundedStream, find_error_source, tus};
 
 pub fn route_post(config: &Config) -> MethodRouter<ServiceState> {
@@ -61,7 +62,17 @@ enum Error {
 
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
-        match self {
+        let body = ApiErrorResponse::from_error(&self);
+
+        if let Error::Upload(upload::Error::Internal(_)) = &self {
+            debug_assert!(false);
+            relay_log::error!(
+                error = &self as &dyn std::error::Error,
+                "internal upload error"
+            );
+        }
+
+        let status = match self {
             Error::Tus(tus::Error::DeferLengthNotAllowed) => StatusCode::FORBIDDEN,
             Error::Tus(_) => StatusCode::BAD_REQUEST,
             Error::Request(error) => return error.into_response(),
@@ -72,7 +83,7 @@ impl IntoResponse for Error {
                     UpstreamRequestError::SendFailed(e)
                         if find_error_source(&e, is_hyper_user_error).is_some() =>
                     {
-                        return StatusCode::BAD_REQUEST.into_response();
+                        StatusCode::BAD_REQUEST
                     }
                     _ => return e.into_response(),
                 },
@@ -86,7 +97,7 @@ impl IntoResponse for Error {
                     StatusCode::INTERNAL_SERVER_ERROR
                 }
                 upload::Error::InvalidSignature => StatusCode::BAD_REQUEST,
-                upload::Error::ServiceUnavailable => StatusCode::SERVICE_UNAVAILABLE,
+                upload::Error::ServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
                 #[cfg(feature = "processing")]
                 upload::Error::Objectstore(service_error) => match service_error {
                     objectstore::Error::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
@@ -104,17 +115,11 @@ impl IntoResponse for Error {
                     objectstore::Error::Uuid(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 },
                 upload::Error::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
-                upload::Error::Internal => {
-                    debug_assert!(false);
-                    relay_log::error!(
-                        error = &error as &dyn std::error::Error,
-                        "internal upload error"
-                    );
-                    StatusCode::INTERNAL_SERVER_ERROR
-                }
+                upload::Error::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
             },
-        }
-        .into_response()
+        };
+
+        (status, body).into_response()
     }
 }
 

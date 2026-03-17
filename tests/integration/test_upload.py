@@ -77,6 +77,11 @@ def test_forward(
     )
 
     assert response.status_code == expected_status_code, response.text
+    if not feature_enabled:
+        assert (
+            response.json()["detail"]
+            == "event submission rejected with_reason: FeatureDisabled(UploadEndpoint)"
+        )
 
 
 def test_upload_missing_tus_version(mini_sentry, relay, dummy_upload, project_config):
@@ -95,6 +100,10 @@ def test_upload_missing_tus_version(mini_sentry, relay, dummy_upload, project_co
     )
 
     assert response.status_code == 400
+    assert response.json() == {
+        "detail": "TUS protocol error: expected Tus-Resumable: 1.0.0, got: (missing)",
+        "causes": ["expected Tus-Resumable: 1.0.0, got: (missing)"],
+    }
 
 
 def test_upload_unsupported_tus_version(
@@ -116,6 +125,10 @@ def test_upload_unsupported_tus_version(
     )
 
     assert response.status_code == 400
+    assert response.json() == {
+        "detail": "TUS protocol error: expected Tus-Resumable: 1.0.0, got: 0.2.0",
+        "causes": ["expected Tus-Resumable: 1.0.0, got: 0.2.0"],
+    }
 
 
 def test_upload_missing_upload_length(mini_sentry, relay, dummy_upload, project_config):
@@ -134,18 +147,44 @@ def test_upload_missing_upload_length(mini_sentry, relay, dummy_upload, project_
     )
 
     assert response.status_code == 400
+    assert response.json() == {
+        "detail": (
+            "TUS protocol error: expected Upload-Length or Upload-Defer-Length=1, "
+            "got Upload-Length=None, Upload-Defer-Length=None"
+        ),
+        "causes": [
+            "expected Upload-Length or Upload-Defer-Length=1, "
+            "got Upload-Length=None, Upload-Defer-Length=None"
+        ],
+    }
 
 
 @pytest.mark.parametrize(
-    "size,expected_status_code",
+    "size,expected_status_code,expected_error",
     [
-        pytest.param(9, 400, id="smaller_than_announced"),
-        pytest.param(11, 400, id="larger_than_announced"),
-        pytest.param(101, 413, id="larger_than_allowed"),
+        pytest.param(
+            9,
+            400,
+            "stream shorter than lower bound: received 9 < 10",
+            id="smaller_than_announced",
+        ),
+        pytest.param(
+            11,
+            400,
+            "stream exceeded upper bound: received 11 > 10",
+            id="larger_than_announced",
+        ),
+        pytest.param(101, 413, "length limit exceeded", id="larger_than_allowed"),
     ],
 )
 def test_upload_body_size(
-    mini_sentry, relay, size, expected_status_code, dummy_upload, project_config
+    mini_sentry,
+    relay,
+    size,
+    expected_status_code,
+    expected_error,
+    dummy_upload,
+    project_config,
 ):
 
     project_id = 42
@@ -171,6 +210,9 @@ def test_upload_body_size(
     )
 
     assert response.status_code == expected_status_code
+    assert response.text == expected_error or any(
+        expected_error in source for source in response.json()["causes"]
+    ), response.json()
 
 
 @pytest.mark.parametrize("data_category", ["attachment", "attachment_item"])
@@ -206,7 +248,9 @@ def test_upload_rate_limited(
             data=b"hello",
         )
 
-    assert request().status_code == 429
+    response = request()
+    assert response.status_code == 429
+    assert "rate limit" in response.json()["detail"]
 
 
 @pytest.mark.parametrize(
@@ -254,6 +298,14 @@ def test_timeout(
     )
 
     assert response.status_code == expected_status_code, response.text
+    if expected_status_code == 504:
+        assert response.json() == {
+            "detail": "upload error: request timeout: deadline has elapsed",
+            "causes": [
+                "request timeout: deadline has elapsed",
+                "deadline has elapsed",
+            ],
+        }
 
 
 PROCESSING_OPTIONS = {
@@ -418,6 +470,22 @@ def test_upload_with_deferred_length(
 
     expected_status_code = 403 if defer_length_value == "1" else 400
     assert response.status_code == expected_status_code
+    if defer_length_value == "1":
+        assert response.json() == {
+            "detail": "TUS protocol error: Upload-Defer-Length not allowed",
+            "causes": ["Upload-Defer-Length not allowed"],
+        }
+    else:
+        assert response.json() == {
+            "detail": (
+                "TUS protocol error: expected Upload-Length or Upload-Defer-Length=1, "
+                "got Upload-Length=None, Upload-Defer-Length=Some(2)"
+            ),
+            "causes": [
+                "expected Upload-Length or Upload-Defer-Length=1, "
+                "got Upload-Length=None, Upload-Defer-Length=Some(2)"
+            ],
+        }
 
 
 def test_concurrency_limit(mini_sentry, relay, project_config):
@@ -458,3 +526,17 @@ def test_concurrency_limit(mini_sentry, relay, project_config):
 
     # Some requests hit a timeout, the others are loadshed:
     assert status_codes == {503, 504}
+    for r in results:
+        if r.status_code == 503:
+            assert r.json() == {
+                "detail": "upload error: loadshed",
+                "causes": ["loadshed"],
+            }
+        else:
+            assert r.json() == {
+                "detail": "upload error: request timeout: deadline has elapsed",
+                "causes": [
+                    "request timeout: deadline has elapsed",
+                    "deadline has elapsed",
+                ],
+            }
