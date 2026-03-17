@@ -118,6 +118,7 @@ impl processing::Processor for AttachmentProcessor {
                     content_type = item.content_type().map_or("", |ct| ct.as_str()),
                     size = item.len(),
                     siblings = attachments.attachments.len(),
+                    project_id = attachments.headers.meta().project_id().map(|p| p.value()),
                     "standalone attachment",
                 );
                 log_emitted = true;
