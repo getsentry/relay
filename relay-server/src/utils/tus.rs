@@ -304,7 +304,7 @@ mod tests {
     fn test_validate_patch_headers_missing_version() {
         let headers = HeaderMap::new();
         let result = validate_patch_headers(&headers);
-        assert!(matches!(result, Err(Error::Version)));
+        assert!(matches!(result, Err(Error::Version(_))));
     }
 
     #[test]
@@ -314,7 +314,7 @@ mod tests {
         headers.insert(http::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
         headers.insert(UPLOAD_OFFSET, HeaderValue::from_static("0"));
         let result = validate_patch_headers(&headers);
-        assert!(matches!(result, Err(Error::Version)));
+        assert!(matches!(result, Err(Error::Version(_))));
     }
 
     #[test]
@@ -323,7 +323,7 @@ mod tests {
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
         headers.insert(UPLOAD_OFFSET, HeaderValue::from_static("0"));
         let result = validate_patch_headers(&headers);
-        assert!(matches!(result, Err(Error::ContentType)));
+        assert!(matches!(result, Err(Error::ContentType(_))));
     }
 
     #[test]
@@ -336,7 +336,7 @@ mod tests {
         );
         headers.insert(UPLOAD_OFFSET, HeaderValue::from_static("0"));
         let result = validate_patch_headers(&headers);
-        assert!(matches!(result, Err(Error::ContentType)));
+        assert!(matches!(result, Err(Error::ContentType(_))));
     }
 
     #[test]
