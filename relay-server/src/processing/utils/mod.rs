@@ -5,4 +5,3 @@ pub mod event;
 pub mod normalize;
 #[cfg(feature = "processing")]
 pub mod store;
-pub mod user_reports;

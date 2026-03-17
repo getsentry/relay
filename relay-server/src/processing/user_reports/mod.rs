@@ -11,6 +11,8 @@ use crate::statsd::RelayCounters;
 mod forward;
 mod process;
 
+pub use process::process_user_reports;
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// The user report was rate limited.

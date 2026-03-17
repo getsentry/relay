@@ -78,7 +78,7 @@ fn do_expand(
 
 pub fn process(error: &mut Managed<ExpandedError>) -> Result<(), Rejected<Error>> {
     error.try_modify(|error, records| {
-        processing::utils::user_reports::process_user_reports(&mut error.user_reports, records);
+        processing::user_reports::process_user_reports(&mut error.user_reports, records);
 
         Ok::<_, Error>(())
     })
