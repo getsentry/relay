@@ -109,6 +109,7 @@ impl processing::Processor for AttachmentProcessor {
                 distribution(RelayDistributions::StandaloneAttachmentSize) = item.len() as u64,
                 sdk = client_name,
                 attachment_type = attachment_type_tag,
+                content_type = item.content_type().map_or("", |ct| ct.as_str()),
             );
         }
 
