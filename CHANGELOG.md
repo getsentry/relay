@@ -6,7 +6,7 @@
 
 - Use new processor architecture to process standalone user reports. ([#5731](https://github.com/getsentry/relay/pull/5731))
 
-Bug Fixes:
+**Bug Fixes**:
 
 - Require TLD in email regex to prevent Java identifier false positives. ([#5737](https://github.com/getsentry/relay/pull/5737))
 
