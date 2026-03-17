@@ -99,6 +99,7 @@ impl processing::Processor for AttachmentProcessor {
             sdk = client_name,
         );
 
+        let mut log_emitted = false;
         for item in &attachments.attachments {
             let attachment_type_tag = match item.attachment_type() {
                 Some(t) => &t.to_string(),
@@ -109,8 +110,18 @@ impl processing::Processor for AttachmentProcessor {
                 distribution(RelayDistributions::StandaloneAttachmentSize) = item.len() as u64,
                 sdk = client_name,
                 attachment_type = attachment_type_tag,
-                content_type = item.content_type().map_or("", |ct| ct.as_str()),
             );
+            if !log_emitted {
+                relay_log::info!(
+                    sdk = attachments.headers.meta().client(),
+                    attachment_type = attachment_type_tag,
+                    content_type = item.content_type().map_or("", |ct| ct.as_str()),
+                    size = item.len(),
+                    siblings = attachments.attachments.len(),
+                    "standalone attachment",
+                );
+                log_emitted = true;
+            }
         }
 
         let mut attachments = self.limiter.enforce_quotas(attachments, ctx).await?;
