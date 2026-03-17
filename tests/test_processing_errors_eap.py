@@ -4,6 +4,7 @@ Tests for processing errors EAP producer.
 These tests verify that the produce_processing_errors_to_eap function
 handles corrupted/stripped event data structures safely.
 """
+
 # mypy: ignore-errors
 # flake8: noqa
 
@@ -15,7 +16,9 @@ import pytest
 # Add src to path so we can import the module
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from sentry.processing_errors.eap.producer import produce_processing_errors_to_eap  # noqa: E402
+from sentry.processing_errors.eap.producer import (
+    produce_processing_errors_to_eap,
+)  # noqa: E402
 
 
 class MockEvent:

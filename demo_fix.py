@@ -14,7 +14,9 @@ import os
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
-from sentry.processing_errors.eap.producer import produce_processing_errors_to_eap  # noqa: E402
+from sentry.processing_errors.eap.producer import (
+    produce_processing_errors_to_eap,
+)  # noqa: E402
 
 
 class MockEvent:
