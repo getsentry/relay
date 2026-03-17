@@ -78,9 +78,7 @@ def test_forward(
 
     assert response.status_code == expected_status_code, response.text
     if not feature_enabled:
-        body = response.json()
-        assert set(body.keys()) <= {"detail", "causes"}
-        assert isinstance(body.get("detail"), str)
+        assert "event submission rejected with_reason:" in response.json()["detail"]
 
 
 def test_upload_missing_tus_version(mini_sentry, relay, dummy_upload, project_config):
@@ -194,9 +192,7 @@ def test_upload_body_size(
 
     assert response.status_code == expected_status_code
     if expected_status_code != 413:
-        body = response.json()
-        assert set(body.keys()) <= {"detail", "causes"}
-        assert isinstance(body.get("detail"), str)
+        assert "upload error:" in response.json()["detail"]
 
 
 @pytest.mark.parametrize("data_category", ["attachment", "attachment_item"])
@@ -234,9 +230,7 @@ def test_upload_rate_limited(
 
     response = request()
     assert response.status_code == 429
-    body = response.json()
-    assert set(body.keys()) <= {"detail", "causes"}
-    assert isinstance(body.get("detail"), str)
+    assert "rate limit" in response.json()["detail"]
 
 
 @pytest.mark.parametrize(
