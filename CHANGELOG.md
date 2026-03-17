@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Use new processor architecture to process standalone user reports. ([#5731](https://github.com/getsentry/relay/pull/5731))
+
 ## 26.3.0
 
 **Breaking Changes**:
@@ -31,7 +37,6 @@
 - Stream non-prosperodmp attachments received at `/playstation` to objectstore. ([#5673](https://github.com/getsentry/relay/pull/5673))
 - Use new processor architecture to process client reports. ([#5686](https://github.com/getsentry/relay/pull/5686))
 - Use new processor architecture to process standalone attachments. ([#5703](https://github.com/getsentry/relay/pull/5703))
-- Use new processor architecture to process standalone user reports. ([#5731](https://github.com/getsentry/relay/pull/5731))
 - Prevent timeouts on the `/upload` endpoint. ([#5692](https://github.com/getsentry/relay/pull/5692))
 - Handle traffic bursts in the objectstore service. ([#5689](https://github.com/getsentry/relay/pull/5689))
 - Disable `fetch_materials` on GoCD `pipeline-complete` stages. ([#5697](https://github.com/getsentry/relay/pull/5697))
