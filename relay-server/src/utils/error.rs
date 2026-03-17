@@ -10,11 +10,11 @@ where
     P: Fn(&(dyn Error + 'static)) -> bool,
 {
     let mut source = error.source();
-    while let Some(s) = source {
-        if predicate(s) {
-            return Some(s);
+    while let Some(error) = source {
+        if predicate(error) {
+            return Some(error);
         }
-        source = s.source();
+        source = error.source();
     }
     None
 }
