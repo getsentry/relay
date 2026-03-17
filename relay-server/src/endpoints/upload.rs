@@ -108,13 +108,20 @@ impl IntoResponse for Error {
                         (StatusCode::SERVICE_UNAVAILABLE, body).into_response()
                     }
                     objectstore::Error::UploadFailed(error) => match error {
-                        objectstore_client::Error::Reqwest(error) => match error.status() {
-                            _ if error.is_timeout() => {
-                                (StatusCode::GATEWAY_TIMEOUT, body).into_response()
-                            }
-                            Some(status) => (status, body).into_response(),
-                            None => (StatusCode::INTERNAL_SERVER_ERROR, body).into_response(),
-                        },
+                        objectstore_client::Error::Reqwest(error) => (
+                            match error.status() {
+                                _ if error.is_timeout() => StatusCode::GATEWAY_TIMEOUT,
+                                Some(status) => status,
+                                None if find_error_source(&error, is_hyper_user_error)
+                                    .is_some() =>
+                                {
+                                    StatusCode::BAD_REQUEST
+                                }
+                                None => StatusCode::INTERNAL_SERVER_ERROR,
+                            },
+                            body,
+                        )
+                            .into_response(),
                         _ => (StatusCode::INTERNAL_SERVER_ERROR, body).into_response(),
                     },
                     objectstore::Error::Uuid(_) => {

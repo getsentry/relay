@@ -299,4 +299,72 @@ mod tests {
         let result = validate_post_headers(&headers, true);
         assert!(matches!(result, Err(Error::UploadLength { .. })));
     }
+
+    #[test]
+    fn test_validate_patch_headers_missing_version() {
+        let headers = HeaderMap::new();
+        let result = validate_patch_headers(&headers);
+        assert!(matches!(result, Err(Error::Version)));
+    }
+
+    #[test]
+    fn test_validate_patch_headers_wrong_version() {
+        let mut headers = HeaderMap::new();
+        headers.insert(TUS_RESUMABLE, HeaderValue::from_static("0.2.0"));
+        headers.insert(http::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
+        headers.insert(UPLOAD_OFFSET, HeaderValue::from_static("0"));
+        let result = validate_patch_headers(&headers);
+        assert!(matches!(result, Err(Error::Version)));
+    }
+
+    #[test]
+    fn test_validate_patch_headers_missing_content_type() {
+        let mut headers = HeaderMap::new();
+        headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
+        headers.insert(UPLOAD_OFFSET, HeaderValue::from_static("0"));
+        let result = validate_patch_headers(&headers);
+        assert!(matches!(result, Err(Error::ContentType)));
+    }
+
+    #[test]
+    fn test_validate_patch_headers_wrong_content_type() {
+        let mut headers = HeaderMap::new();
+        headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
+        headers.insert(
+            http::header::CONTENT_TYPE,
+            HeaderValue::from_static("application/octet-stream"),
+        );
+        headers.insert(UPLOAD_OFFSET, HeaderValue::from_static("0"));
+        let result = validate_patch_headers(&headers);
+        assert!(matches!(result, Err(Error::ContentType)));
+    }
+
+    #[test]
+    fn test_validate_patch_headers_missing_upload_offset() {
+        let mut headers = HeaderMap::new();
+        headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
+        headers.insert(http::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
+        let result = validate_patch_headers(&headers);
+        assert!(matches!(result, Err(Error::UploadOffset(None))));
+    }
+
+    #[test]
+    fn test_validate_patch_headers_nonzero_upload_offset() {
+        let mut headers = HeaderMap::new();
+        headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
+        headers.insert(http::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
+        headers.insert(UPLOAD_OFFSET, HeaderValue::from_static("512"));
+        let result = validate_patch_headers(&headers);
+        assert!(matches!(result, Err(Error::UploadOffset(Some(512)))));
+    }
+
+    #[test]
+    fn test_validate_patch_headers_valid() {
+        let mut headers = HeaderMap::new();
+        headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
+        headers.insert(http::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
+        headers.insert(UPLOAD_OFFSET, HeaderValue::from_static("0"));
+        let result = validate_patch_headers(&headers);
+        assert!(result.is_ok());
+    }
 }
