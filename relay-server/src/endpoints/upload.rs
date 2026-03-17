@@ -127,24 +127,16 @@ impl IntoResponse for SignedLocation {
     }
 }
 
-/// Handles TUS upload requests (Creation or Creation With Upload).
+/// Handles TUS creation requests.
 ///
-/// This endpoint accepts POST requests with a body containing the complete upload data.
-/// Unlike the full TUS protocol, this implementation only supports uploading all data
-/// in a single request - partial uploads and resumption are not supported.
-///
-/// The body is processed as a stream to avoid loading the entire upload into memory.
+/// See <https://tus.io/protocols/resumable-upload#creation>.
 async fn handle_post(
     state: ServiceState,
     meta: RequestMeta,
     headers: HeaderMap,
-    body: Body,
 ) -> axum::response::Result<impl IntoResponse> {
     relay_log::trace!("Validating headers");
-    let tus::ParsedHeaders {
-        has_upload,
-        upload_length,
-    } = tus::validate_post_headers(&headers, meta.request_trust().is_trusted())
+    let upload_length = tus::validate_post_headers(&headers, meta.request_trust().is_trusted())
         .map_err(Error::from)?;
     let config = state.config();
 
@@ -166,41 +158,14 @@ async fn handle_post(
 
     // Unconditionally create the upload location:
     let result = create(&state, scoping, upload_length).await;
-    let mut location = result.inspect_err(|e| {
+    let location = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "create failed");
     })?;
-    let mut upload_offset = None;
-
-    // If we already have bytes, upload them:
-    if has_upload {
-        let stream = body
-            .into_data_stream()
-            .map(|result| result.map_err(io::Error::other))
-            .boxed();
-        let (lower_bound, upper_bound) = match upload_length {
-            None => (1, config.max_upload_size()),
-            Some(u) => (u, u),
-        };
-        let stream = BoundedStream::new(stream, lower_bound, upper_bound);
-        let byte_counter = stream.byte_counter();
-
-        relay_log::trace!("Uploading");
-        let result = upload(&state, scoping, location, stream).await;
-        location = result.inspect_err(|e| {
-            relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
-        })?;
-        upload_offset = Some(byte_counter.get());
-    }
 
     let mut response = location.into_response();
     response
         .headers_mut()
         .insert(tus::TUS_RESUMABLE, tus::TUS_VERSION);
-    if let Some(upload_offset) = upload_offset {
-        response
-            .headers_mut()
-            .insert(tus::UPLOAD_OFFSET, upload_offset.into());
-    }
 
     Ok(response)
 }
