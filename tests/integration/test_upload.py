@@ -357,6 +357,45 @@ def test_create_processing(
     assert response.headers["Upload-Offset"] == str(len(data)), response.headers
 
 
+@pytest.mark.parametrize("length", [9, 11])
+def test_processing_invalid_length(
+    mini_sentry, relay, relay_with_processing, project_config, length
+):
+    """Create and separate upload via processing relay stores the blob in objectstore."""
+    project_id = 42
+    project_key = mini_sentry.get_dsn_public_key(project_id)
+
+    relay = relay_with_processing(PROCESSING_OPTIONS)
+
+    response = relay.post(
+        f"/api/{project_id}/upload/?sentry_key={project_key}",
+        headers={
+            "Content-Length": "0",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": "10",
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.headers["Tus-Resumable"] == "1.0.0"
+    assert "Upload-Offset" not in response.headers
+
+    # Use the location to send a PATCH request that is too long // too short
+    data = length * b"X"
+    response = relay.patch(
+        f"{response.headers['Location']}&sentry_key={project_key}",
+        headers={
+            "Content-Length": str(len(data)),
+            "Content-Type": "application/offset+octet-stream",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Offset": "0",
+        },
+        data=data,
+    )
+
+    assert response.status_code == 400
+
+
 @pytest.mark.parametrize("defer_length_value", ["1", "2"])
 def test_upload_with_deferred_length(
     mini_sentry, relay, relay_with_processing, project_config, defer_length_value
