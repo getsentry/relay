@@ -20,7 +20,7 @@ mod process;
 pub enum Error {
     /// Profiles filtered because of a missing feature flag.
     #[error("profile feature flag missing")]
-    FilterFeatureFlag,
+    FeatureDisabled,
 
     /// No profiles to expand.
     ///
@@ -44,7 +44,7 @@ impl OutcomeError for Error {
 
     fn consume(self) -> (Option<Outcome>, Self::Error) {
         let outcome = match &self {
-            Error::FilterFeatureFlag => None,
+            Error::FeatureDisabled => None,
             Error::NoProfiles => Some(Outcome::Invalid(DiscardReason::Internal)),
             Error::InvalidProfile(err) => Some(Outcome::Invalid(DiscardReason::Profiling(
                 relay_profiling::discard_reason(err),
