@@ -264,6 +264,9 @@ pub struct EnvelopeSummary {
 
     /// The number of trace metrics in this envelope.
     pub trace_metric_quantity: usize,
+
+    /// The number of trace metric bytes in this envelope.
+    pub trace_metric_byte_quantity: usize,
 }
 
 impl EnvelopeSummary {
@@ -345,6 +348,7 @@ impl EnvelopeSummary {
                 DataCategory::Monitor => &mut self.monitor_quantity,
                 DataCategory::Span => &mut self.span_quantity,
                 DataCategory::TraceMetric => &mut self.trace_metric_quantity,
+                DataCategory::TraceMetricByte => &mut self.trace_metric_byte_quantity,
                 DataCategory::LogItem => &mut self.log_item_quantity,
                 DataCategory::LogByte => &mut self.log_byte_quantity,
                 DataCategory::ProfileChunk => &mut self.profile_chunk_quantity,
