@@ -5,6 +5,7 @@
 **Internal**:
 
 - Use new processor architecture to process standalone user reports. ([#5731](https://github.com/getsentry/relay/pull/5731))
+- Use new processor architecture to process standalone profiles. ([#5741](https://github.com/getsentry/relay/pull/5741))
 
 ## 26.3.0
 
