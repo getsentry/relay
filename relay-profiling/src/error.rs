@@ -45,7 +45,7 @@ pub enum ProfileError {
     #[error(transparent)]
     InvalidBuildID(#[from] uuid::Error),
     #[error("invalid standalone profile")]
-    InvalidStandaloneProfile,
+    InvalidStandalone,
 }
 
 impl ProfileError {
