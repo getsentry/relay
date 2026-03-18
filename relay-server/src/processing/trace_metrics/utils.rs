@@ -4,7 +4,7 @@ use crate::envelope::WithHeader;
 
 /// Returns the calculated size of a trace metric.
 ///
-/// Unlike [`validate::calculate_size`], this accesses the already materialized byte size
+/// Unlike [`calculate_size`], this accesses the already materialized byte size
 /// from the header, instead of calculating it.
 ///
 /// When compiled with debug assertions the function asserts the presence of a materialized byte size.
