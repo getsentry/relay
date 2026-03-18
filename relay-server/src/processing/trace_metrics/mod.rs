@@ -186,7 +186,10 @@ impl Forward for TraceMetricOutput {
         };
 
         for metric in metrics.split(|metrics| metrics.metrics) {
-            if let Ok(metric) = metric.try_map(|metric, _| store::convert(metric, &ctx)) {
+            if let Ok(metric) = metric.try_map(|metric, r| {
+                r.lenient(DataCategory::TraceMetricByte);
+                store::convert(metric, &ctx)
+            }) {
                 s.send_to_store(metric);
             }
         }

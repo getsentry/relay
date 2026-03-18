@@ -81,3 +81,165 @@ fn validate_trace_metric(metric: &Annotated<TraceMetric>) -> Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::processing::trace_metrics::utils::calculate_size;
+
+    macro_rules! assert_calculated_size_of {
+        ($expected:expr, $json:expr) => {{
+            let json = $json;
+
+            let metric = Annotated::<TraceMetric>::from_json(json)
+                .unwrap()
+                .into_value()
+                .unwrap();
+
+            let size = calculate_size(&metric);
+            assert_eq!(size, $expected, "metric: {json}");
+        }};
+    }
+
+    #[test]
+    fn test_calculate_size_empty_metric_is_1byte() {
+        assert_calculated_size_of!(1, r#"{}"#);
+    }
+
+    #[test]
+    fn test_calculate_size_name_only() {
+        assert_calculated_size_of!(
+            11,
+            r#"{
+            "name": "test.metric"
+        }"#
+        );
+    }
+
+    #[test]
+    fn test_calculate_size_name_and_value() {
+        assert_calculated_size_of!(
+            19,
+            r#"{
+            "name": "test.metric",
+            "value": 123.45
+        }"#
+        );
+    }
+
+    #[test]
+    fn test_calculate_size_string_attribute() {
+        assert_calculated_size_of!(
+            43,
+            r#"{
+            "name": "test.metric",
+            "value": 1.0,
+            "attributes": {
+                "foo": {
+                    "value": "ඞ and some more equals 33 bytes",
+                    "type": "string"
+                }
+            }
+        }"#
+        );
+    }
+
+    #[test]
+    fn test_calculate_size_integer_attribute() {
+        assert_calculated_size_of!(
+            30,
+            r#"{
+            "name": "test.metric",
+            "value": 1.0,
+            "attributes": {
+                "foo": {
+                    "value": 12,
+                    "type": "integer"
+                }
+            }
+        }"#
+        );
+    }
+
+    #[test]
+    fn test_calculate_size_bool_attribute() {
+        assert_calculated_size_of!(
+            23,
+            r#"{
+            "name": "test.metric",
+            "value": 1.0,
+            "attributes": {
+                "foo": {
+                    "value": true,
+                    "type": "boolean"
+                }
+            }
+        }"#
+        );
+    }
+
+    #[test]
+    fn test_calculate_size_null_attribute() {
+        assert_calculated_size_of!(
+            22,
+            r#"{
+            "name": "test.metric",
+            "value": 1.0,
+            "attributes": {
+                "foo": {
+                    "value": null,
+                    "type": "double"
+                }
+            }
+        }"#
+        );
+    }
+
+    #[test]
+    fn test_calculate_size_full_metric() {
+        assert_calculated_size_of!(
+            82,
+            r#"{
+            "timestamp": 946684800.0,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "name": "http.request.duration",
+            "type": "distribution",
+            "value": 123.45,
+            "attributes": {
+                "k1": {
+                    "value": "string value",
+                    "type": "string"
+                },
+                "k2": {
+                    "value": 18446744073709551615,
+                    "type": "integer"
+                },
+                "k3": {
+                    "value": 42.0,
+                    "type": "double"
+                },
+                "k4": {
+                    "value": false,
+                    "type": "boolean"
+                }
+            }
+        }"#
+        );
+    }
+
+    #[test]
+    fn test_calculate_size_ignores_non_counted_fields() {
+        assert_calculated_size_of!(
+            19,
+            r#"{
+            "timestamp": 946684800.0,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b174",
+            "name": "test.metric",
+            "type": "distribution",
+            "unit": "millisecond",
+            "value": 123.45
+        }"#
+        );
+    }
+}
