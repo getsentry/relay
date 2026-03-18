@@ -20,6 +20,6 @@ pub fn discard_reason(err: &ProfileError) -> &'static str {
         ProfileError::DurationIsZero => "profiling_duration_is_zero",
         ProfileError::Filtered(_) => "profiling_filtered",
         ProfileError::InvalidBuildID(_) => "invalid_build_id",
-        ProfileError::InvalidStandaloneProfile => "profiling_invalid_standalone_profile",
+        ProfileError::InvalidStandaloneProfile => "profiling_invalid_standalone",
     }
 }
