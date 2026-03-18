@@ -1,14 +1,16 @@
 # Changelog
 
+## Unreleased
+
+**Breaking Changes**:
+
+- Require TLD in email regex to prevent Java identifier false positives. ([#5737](https://github.com/getsentry/relay/pull/5737))
+
 ## 26.3.1
 
 **Internal**:
 
 - Use new processor architecture to process standalone user reports. ([#5731](https://github.com/getsentry/relay/pull/5731))
-
-**Breaking Changes**:
-
-- Require TLD in email regex to prevent Java identifier false positives. ([#5737](https://github.com/getsentry/relay/pull/5737))
 
 ## 26.3.0
 
