@@ -38,7 +38,6 @@ fn expand_profile(
 
     let meta = relay_profiling::parse_metadata(&profile.payload())?;
     let profile_type = meta.profile_type();
-    profile.set_platform(meta.platform);
 
     // If the profile type is new information, we now count the profile in an additional data category.
     if profile.profile_type().is_none() {
@@ -50,6 +49,7 @@ fn expand_profile(
             1,
         );
     }
+    profile.set_platform(meta.platform);
 
     Ok(ExpandedProfile {
         headers,
