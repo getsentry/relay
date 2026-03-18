@@ -211,4 +211,18 @@ mod tests {
             r#"["organizations:session-replay"]"#
         );
     }
+
+    #[test]
+    fn test_continuous_profiling_perfetto_serde() {
+        // Verify the serialized name matches what Sentry's backend sends.
+        let serialized = serde_json::to_string(&Feature::ContinuousProfilingPerfetto).unwrap();
+        assert_eq!(
+            serialized,
+            r#""organizations:continuous-profiling-perfetto""#
+        );
+
+        let deserialized: Feature =
+            serde_json::from_str(r#""organizations:continuous-profiling-perfetto""#).unwrap();
+        assert_eq!(deserialized, Feature::ContinuousProfilingPerfetto);
+    }
 }

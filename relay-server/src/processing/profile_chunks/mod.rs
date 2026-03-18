@@ -295,4 +295,46 @@ mod tests {
         assert!(raw.is_none());
         assert!(ct.is_none());
     }
+
+    #[test]
+    fn test_split_compound_meta_length_exceeds_payload() {
+        // meta_length is set to more bytes than the payload actually contains.
+        // split_at_checked returns None, so we fall back to the full payload with no split.
+        let body = b"binary-data";
+        let mut item = Item::new(ItemType::ProfileChunk);
+        item.set_payload(ContentType::OctetStream, bytes::Bytes::from(body.as_ref()));
+        item.set_meta_length(body.len() as u32 + 100);
+
+        let (payload, raw, ct) = split_item_payload(&item);
+        assert_eq!(payload.as_ref(), body.as_ref());
+        assert!(raw.is_none());
+        assert!(ct.is_none());
+    }
+
+    #[test]
+    fn test_split_compound_invalid_json_meta() {
+        // meta portion is not valid JSON; content_type should be None.
+        let meta = b"not valid json {{{{";
+        let body = b"binary-data";
+        let item = make_compound_item(meta, body);
+
+        let (payload, raw, ct) = split_item_payload(&item);
+        assert_eq!(payload.as_ref(), meta.as_ref());
+        assert_eq!(raw.as_deref(), Some(b"binary-data".as_ref()));
+        assert!(ct.is_none());
+    }
+
+    #[test]
+    fn test_split_compound_zero_meta_length() {
+        // meta_length = 0: meta slice is empty, entire payload is treated as body.
+        let body = b"binary-data";
+        let mut item = Item::new(ItemType::ProfileChunk);
+        item.set_payload(ContentType::OctetStream, bytes::Bytes::from(body.as_ref()));
+        item.set_meta_length(0);
+
+        let (payload, raw, ct) = split_item_payload(&item);
+        assert_eq!(payload.as_ref(), b"");
+        assert_eq!(raw.as_deref(), Some(b"binary-data".as_ref()));
+        assert!(ct.is_none());
+    }
 }
