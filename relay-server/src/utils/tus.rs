@@ -16,20 +16,25 @@ use crate::http::RequestBuilder;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// The TUS version is missing or does not match the server's version.
-    #[error("Version Mismatch")]
-    Version,
+    #[error("expected Tus-Resumable: 1.0.0, got: {}", .0.as_deref().unwrap_or("(missing)"))]
+    Version(Option<String>),
     /// The `Upload-Length` and `Upload-Defer-Length` headers are both missing, incorrect, or cannot be parsed.
-    #[error("Invalid Upload-Length")]
-    UploadLength,
+    #[error(
+        "expected Upload-Length or Upload-Defer-Length=1, got Upload-Length={upload_length:?}, Upload-Defer-Length={upload_defer_length:?}"
+    )]
+    UploadLength {
+        upload_length: Option<usize>,
+        upload_defer_length: Option<usize>,
+    },
     /// The `Upload-Offset` header is missing or invalid
-    #[error("Invalid Upload-Offset: {0:?}")]
+    #[error("expected Upload-Offset: 0, got: {0:?}")]
     UploadOffset(Option<usize>),
     /// The `Upload-Defer-Length` header is not allowed for external/untrusted requests.
     #[error("Upload-Defer-Length not allowed")]
     DeferLengthNotAllowed,
     /// The `Content-Type` header is not what TUS expects.
-    #[error("Invalid Content-Type")]
-    ContentType,
+    #[error("expected Content-Type: application/offset+octet-stream, got: {}", .0.as_deref().unwrap_or("(missing)"))]
+    ContentType(Option<String>),
 }
 
 /// TUS protocol header for the protocol version.
@@ -82,13 +87,15 @@ pub fn validate_post_headers(
 ) -> Result<ParsedHeaders, Error> {
     let tus_version = headers.get(TUS_RESUMABLE);
     if tus_version != Some(&TUS_VERSION) {
-        return Err(Error::Version);
+        return Err(Error::Version(
+            tus_version.and_then(|v| v.to_str().ok()).map(str::to_owned),
+        ));
     }
 
     let has_upload = match headers.get(http::header::CONTENT_TYPE) {
         Some(ct) if ct == EXPECTED_CONTENT_TYPE => true,
         None => false,
-        _ => return Err(Error::ContentType),
+        Some(ct) => return Err(Error::ContentType(ct.to_str().ok().map(str::to_owned))),
     };
 
     let upload_length: Option<usize> = parse_header(headers, UPLOAD_LENGTH);
@@ -101,7 +108,10 @@ pub fn validate_post_headers(
         (Some(u), None, _) => Ok(Some(u)),
         (None, Some(1), true) => Ok(None),
         (None, Some(1), false) => Err(Error::DeferLengthNotAllowed),
-        _ => Err(Error::UploadLength),
+        _ => Err(Error::UploadLength {
+            upload_length,
+            upload_defer_length,
+        }),
     }?;
 
     Ok(ParsedHeaders {
@@ -114,12 +124,18 @@ pub fn validate_post_headers(
 pub fn validate_patch_headers(headers: &HeaderMap) -> Result<(), Error> {
     let tus_version = headers.get(TUS_RESUMABLE);
     if tus_version != Some(&TUS_VERSION) {
-        return Err(Error::Version);
+        return Err(Error::Version(
+            tus_version.and_then(|v| v.to_str().ok()).map(str::to_owned),
+        ));
     }
 
     let content_type = headers.get(http::header::CONTENT_TYPE);
     if content_type != Some(&EXPECTED_CONTENT_TYPE) {
-        return Err(Error::ContentType);
+        return Err(Error::ContentType(
+            content_type
+                .and_then(|v| v.to_str().ok())
+                .map(str::to_owned),
+        ));
     }
 
     let upload_offset: usize =
@@ -171,7 +187,7 @@ mod tests {
     fn test_validate_tus_headers_missing_version() {
         let headers = HeaderMap::new();
         let result = validate_post_headers(&headers, false);
-        assert!(matches!(result, Err(Error::Version)));
+        assert!(matches!(result, Err(Error::Version(_))));
     }
 
     #[test]
@@ -180,7 +196,7 @@ mod tests {
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
         headers.insert(hyper::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
         let result = validate_post_headers(&headers, false);
-        assert!(matches!(result, Err(Error::UploadLength)));
+        assert!(matches!(result, Err(Error::UploadLength { .. })));
     }
 
     #[test]
@@ -241,7 +257,7 @@ mod tests {
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("0.2.0"));
         headers.insert(UPLOAD_LENGTH, HeaderValue::from_static("1024"));
         let result = validate_post_headers(&headers, false);
-        assert!(matches!(result, Err(Error::Version)));
+        assert!(matches!(result, Err(Error::Version(_))));
     }
 
     #[test]
@@ -281,14 +297,14 @@ mod tests {
         headers.insert(hyper::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
         headers.insert(UPLOAD_DEFER_LENGTH, HeaderValue::from_static("2"));
         let result = validate_post_headers(&headers, true);
-        assert!(matches!(result, Err(Error::UploadLength)));
+        assert!(matches!(result, Err(Error::UploadLength { .. })));
     }
 
     #[test]
     fn test_validate_patch_headers_missing_version() {
         let headers = HeaderMap::new();
         let result = validate_patch_headers(&headers);
-        assert!(matches!(result, Err(Error::Version)));
+        assert!(matches!(result, Err(Error::Version(_))));
     }
 
     #[test]
@@ -298,7 +314,7 @@ mod tests {
         headers.insert(http::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
         headers.insert(UPLOAD_OFFSET, HeaderValue::from_static("0"));
         let result = validate_patch_headers(&headers);
-        assert!(matches!(result, Err(Error::Version)));
+        assert!(matches!(result, Err(Error::Version(_))));
     }
 
     #[test]
@@ -307,7 +323,7 @@ mod tests {
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
         headers.insert(UPLOAD_OFFSET, HeaderValue::from_static("0"));
         let result = validate_patch_headers(&headers);
-        assert!(matches!(result, Err(Error::ContentType)));
+        assert!(matches!(result, Err(Error::ContentType(_))));
     }
 
     #[test]
@@ -320,7 +336,7 @@ mod tests {
         );
         headers.insert(UPLOAD_OFFSET, HeaderValue::from_static("0"));
         let result = validate_patch_headers(&headers);
-        assert!(matches!(result, Err(Error::ContentType)));
+        assert!(matches!(result, Err(Error::ContentType(_))));
     }
 
     #[test]
