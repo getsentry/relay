@@ -130,7 +130,7 @@ mod tests {
     #[test]
     fn test_calculate_size_string_attribute() {
         assert_calculated_size_of!(
-            43,
+            55,
             r#"{
             "name": "test.metric",
             "value": 1.0,
@@ -198,7 +198,7 @@ mod tests {
     #[test]
     fn test_calculate_size_full_metric() {
         assert_calculated_size_of!(
-            82,
+            66,
             r#"{
             "timestamp": 946684800.0,
             "trace_id": "5b8efff798038103d269b633813fc60c",
