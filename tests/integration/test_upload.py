@@ -308,11 +308,6 @@ def test_timeout(
         }
 
 
-PROCESSING_OPTIONS = {
-    "processing": {"upload": {"objectstore_url": "http://127.0.0.1:8888/"}}
-}
-
-
 @pytest.mark.parametrize(
     "chain", [pytest.param(False, id="processing_only"), pytest.param(True, id="chain")]
 )
@@ -321,7 +316,7 @@ def test_create_with_upload_processing(
 ):
     """Upload via processing relay stores the blob in objectstore."""
     project_id = 42
-    processing_relay = relay_with_processing(PROCESSING_OPTIONS)
+    processing_relay = relay_with_processing()
     if chain:
         relay = relay(processing_relay)
     else:
@@ -371,7 +366,7 @@ def test_create_processing(
     project_id = 42
     project_key = mini_sentry.get_dsn_public_key(project_id)
 
-    processing_relay = relay_with_processing(PROCESSING_OPTIONS)
+    processing_relay = relay_with_processing()
     if chain:
         relay = relay(processing_relay)
     else:
@@ -417,7 +412,7 @@ def test_processing_invalid_length(
     project_id = 42
     project_key = mini_sentry.get_dsn_public_key(project_id)
 
-    relay = relay_with_processing(PROCESSING_OPTIONS)
+    relay = relay_with_processing()
 
     response = relay.post(
         f"/api/{project_id}/upload/?sentry_key={project_key}",
@@ -453,7 +448,7 @@ def test_upload_with_deferred_length(
     mini_sentry, relay, relay_with_processing, project_config, defer_length_value
 ):
     project_id = 42
-    processing_relay = relay_with_processing(PROCESSING_OPTIONS)
+    processing_relay = relay_with_processing()
     relay = relay(processing_relay)
 
     data = b"hello world"
