@@ -18,13 +18,10 @@ impl Forward for ProfilesOutput {
         let envelope = profile.map(
             |ExpandedProfile {
                  headers,
-                 meta,
-                 profile: mut item,
+                 profile,
+                 profile_type: _,
              },
-             _| {
-                item.set_platform(meta.platform);
-                Envelope::from_parts(headers, smallvec![item])
-            },
+             _| { Envelope::from_parts(headers, smallvec![profile]) },
         );
 
         Ok(envelope)
@@ -47,15 +44,13 @@ impl Forward for ProfilesOutput {
 
 /// Converts a [`ExpandedProfile`] into a [`StoreProfile`].
 #[cfg(feature = "processing")]
-fn convert(expanded_profile: ExpandedProfile, ctx: &ForwardContext) -> StoreProfile {
+fn convert(profile: ExpandedProfile, ctx: &ForwardContext) -> StoreProfile {
     let retention_days = ctx.event_retention().standard;
-    let quantities = expanded_profile.quantities();
+    let quantities = profile.quantities();
 
-    let mut profile = expanded_profile.profile;
-    profile.set_platform(expanded_profile.meta.platform);
     StoreProfile {
         retention_days,
-        profile,
+        profile: profile.profile,
         quantities,
     }
 }

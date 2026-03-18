@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use relay_profiling::{ProfileError, ProfileMetadata, ProfileType};
+use relay_profiling::{ProfileError, ProfileType};
 use relay_quotas::{DataCategory, RateLimits};
 use smallvec::smallvec;
 
@@ -137,10 +137,10 @@ impl Counted for SerializedProfiles {
 pub struct ExpandedProfile {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
-    /// Parsed metadata from the [`Self::profile`].
-    meta: ProfileMetadata,
     /// The profile received in an envelope.
     profile: Item,
+    /// The type of the profile, inferred from the platform.
+    profile_type: ProfileType,
 }
 
 impl Counted for ExpandedProfile {
@@ -149,7 +149,7 @@ impl Counted for ExpandedProfile {
             (DataCategory::Profile, 1),
             (DataCategory::ProfileIndexed, 1),
             (
-                match self.meta.profile_type() {
+                match self.profile_type {
                     ProfileType::Backend => DataCategory::ProfileBackend,
                     ProfileType::Ui => DataCategory::ProfileUi,
                 },
