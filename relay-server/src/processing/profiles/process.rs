@@ -11,7 +11,7 @@ use crate::services::outcome::{DiscardReason, Outcome};
 pub fn expand(
     profiles: Managed<SerializedProfiles>,
 ) -> Result<Managed<ExpandedProfile>, Rejected<Error>> {
-    profiles.try_map(|profiles, records| expand_profile(profiles, records))
+    profiles.try_map(expand_profile)
 }
 
 fn expand_profile(

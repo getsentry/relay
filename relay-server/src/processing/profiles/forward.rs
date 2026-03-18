@@ -1,10 +1,12 @@
 use smallvec::smallvec;
 
 use crate::Envelope;
+#[cfg(feature = "processing")]
 use crate::managed::Counted;
 use crate::managed::{Managed, Rejected};
 use crate::processing::profiles::{ExpandedProfile, ProfilesOutput};
 use crate::processing::{Forward, ForwardContext};
+#[cfg(feature = "processing")]
 use crate::services::store::StoreProfile;
 
 impl Forward for ProfilesOutput {
@@ -44,7 +46,8 @@ impl Forward for ProfilesOutput {
 }
 
 /// Converts a [`ExpandedProfile`] into a [`StoreProfile`].
-pub fn convert(expanded_profile: ExpandedProfile, ctx: &ForwardContext) -> StoreProfile {
+#[cfg(feature = "processing")]
+fn convert(expanded_profile: ExpandedProfile, ctx: &ForwardContext) -> StoreProfile {
     let retention_days = ctx.event_retention().standard;
     let quantities = expanded_profile.quantities();
 
