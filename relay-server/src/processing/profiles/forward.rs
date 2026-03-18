@@ -13,7 +13,7 @@ impl Forward for ProfilesOutput {
     fn serialize_envelope(
         self,
         _ctx: ForwardContext<'_>,
-    ) -> Result<Managed<Box<crate::Envelope>>, Rejected<()>> {
+    ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         let Self(profile) = self;
         let envelope = profile.map(
             |ExpandedProfile {
