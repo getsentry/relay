@@ -3,6 +3,7 @@
 ## Unreleased
 
 - feat(tracemetric): Add TraceMetricByte datacategory ([#5719](https://github.com/getsentry/relay/pull/5719))
+- **Breaking**:  Require TLD in email regex to prevent Java identifier false positives. ([#5737](https://github.com/getsentry/relay/pull/5737))
 
 ## 0.9.24
 
