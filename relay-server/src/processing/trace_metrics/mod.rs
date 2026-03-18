@@ -247,11 +247,7 @@ pub struct ExpandedTraceMetrics {
 impl Counted for ExpandedTraceMetrics {
     fn quantities(&self) -> Quantities {
         let count = self.metrics.len();
-        let bytes = self
-            .metrics
-            .iter()
-            .map(get_calculated_byte_size)
-            .sum();
+        let bytes = self.metrics.iter().map(get_calculated_byte_size).sum();
 
         smallvec![
             (DataCategory::TraceMetric, count),

@@ -111,7 +111,10 @@ impl Counted for EnvelopeSummary {
             (DataCategory::ProfileChunkUi, self.profile_chunk_ui_quantity),
             (DataCategory::UserReportV2, self.user_report_quantity),
             (DataCategory::TraceMetric, self.trace_metric_quantity),
-            (DataCategory::TraceMetricByte, self.trace_metric_byte_quantity),
+            (
+                DataCategory::TraceMetricByte,
+                self.trace_metric_byte_quantity,
+            ),
             (DataCategory::LogItem, self.log_item_quantity),
             (DataCategory::LogByte, self.log_byte_quantity),
             (DataCategory::Monitor, self.monitor_quantity),
