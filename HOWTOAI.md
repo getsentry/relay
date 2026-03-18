@@ -1,6 +1,8 @@
-# Contributing to Relay with AI Coding Assistants
+# Contributing to Relay with AI Coding Assistants 🤖
 
 Use AI to move faster, not to lower standards. You own every line you submit.
+
+> "I, for one, welcome our new AI overlords." - Kent Brockman, probably talking about Relay contributions
 
 ## Ground Rules
 
