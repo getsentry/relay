@@ -16,7 +16,8 @@ use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_quotas::Scoping;
 use relay_system::{
-    Addr, AsyncResponse, ConcurrentService, FromMessage, Interface, LoadShed, Sender, SimpleService,
+    Addr, AsyncResponse, ConcurrentService, FromMessage, Interface, LoadShed, SendError, Sender,
+    SimpleService,
 };
 use serde::Deserialize;
 use tokio::sync::oneshot;
@@ -54,14 +55,14 @@ pub enum Error {
     #[error("invalid signature")]
     InvalidSignature,
     #[error("service unavailable")]
-    ServiceUnavailable,
+    ServiceUnavailable(#[source] SendError),
     #[cfg(feature = "processing")]
     #[error("objectstore service: {0}")]
     Objectstore(#[from] objectstore::Error),
     #[error("loadshed")]
     LoadShed,
     #[error("internal error")]
-    Internal,
+    Internal(#[source] http::header::InvalidHeaderValue),
 }
 
 /// The message interface for this service.
@@ -227,7 +228,7 @@ impl Service {
                         stream,
                     })
                     .await
-                    .map_err(|_send_error| Error::ServiceUnavailable)??
+                    .map_err(Error::ServiceUnavailable)??
                     .into_inner();
                 let length = Some(byte_counter.get());
 
@@ -361,7 +362,7 @@ impl SignedLocation {
 
     /// Converts the location into an URI for future reference.
     pub fn into_header_value(self) -> Result<HeaderValue, Error> {
-        HeaderValue::from_str(&self.as_uri()).map_err(|_| Error::Internal)
+        HeaderValue::from_str(&self.as_uri()).map_err(Error::Internal)
     }
 
     fn as_uri(&self) -> String {
