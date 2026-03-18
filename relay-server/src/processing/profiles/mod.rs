@@ -137,7 +137,7 @@ impl Counted for SerializedProfiles {
 pub struct ExpandedProfile {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
-    /// Parsed metadata from the [`Self::item`].
+    /// Parsed metadata from the [`Self::profile`].
     meta: ProfileMetadata,
     /// The profile received in an envelope.
     profile: Item,
