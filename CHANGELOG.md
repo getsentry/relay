@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- TUS: Disallow creation with upload. ([#5734](https://github.com/getsentry/relay/pull/5734))
+
 ## 26.3.1
 
 **Internal**:
