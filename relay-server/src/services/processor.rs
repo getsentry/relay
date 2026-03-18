@@ -52,6 +52,7 @@ use crate::processing::client_reports::ClientReportsProcessor;
 use crate::processing::errors::{ErrorsProcessor, SwitchProcessingError};
 use crate::processing::logs::LogsProcessor;
 use crate::processing::profile_chunks::ProfileChunksProcessor;
+use crate::processing::profiles::ProfilesProcessor;
 use crate::processing::replays::ReplaysProcessor;
 use crate::processing::sessions::SessionsProcessor;
 use crate::processing::spans::SpansProcessor;
@@ -192,7 +193,8 @@ processing_group!(
     StandaloneGroup,
     Standalone,
     StandaloneAttachments,
-    StandaloneUserReports
+    StandaloneUserReports,
+    StandaloneProfiles
 );
 processing_group!(ClientReportGroup, ClientReport);
 processing_group!(ReplayGroup, Replay);
@@ -237,6 +239,10 @@ pub enum ProcessingGroup {
     ///
     /// User reports that are send without an item that creates an event in the same envelope.
     StandaloneUserReports,
+    /// Standalone profiles
+    ///
+    /// Profiles which had their transaction sampled.
+    StandaloneProfiles,
     /// Outcomes.
     ClientReport,
     /// Replays and ReplayRecordings.
@@ -406,6 +412,16 @@ impl ProcessingGroup {
                     Envelope::from_parts(headers.clone(), standalone_user_reports),
                 ));
             }
+
+            // Extract the standalone profiles
+            let standalone_profiles =
+                envelope.take_items_by(|i| matches!(i.ty(), ItemType::Profile));
+            if !standalone_profiles.is_empty() {
+                grouped_envelopes.push((
+                    ProcessingGroup::StandaloneProfiles,
+                    Envelope::from_parts(headers.clone(), standalone_profiles),
+                ));
+            }
         }
 
         // Extract all standalone items.
@@ -486,6 +502,7 @@ impl ProcessingGroup {
             ProcessingGroup::Standalone => "standalone",
             ProcessingGroup::StandaloneAttachments => "standalone_attachment",
             ProcessingGroup::StandaloneUserReports => "standalone_user_reports",
+            ProcessingGroup::StandaloneProfiles => "standalone_profiles",
             ProcessingGroup::ClientReport => "client_report",
             ProcessingGroup::Replay => "replay",
             ProcessingGroup::CheckIn => "check_in",
@@ -512,6 +529,7 @@ impl From<ProcessingGroup> for AppFeature {
             ProcessingGroup::Standalone => AppFeature::UnattributedEnvelope,
             ProcessingGroup::StandaloneAttachments => AppFeature::UnattributedEnvelope,
             ProcessingGroup::StandaloneUserReports => AppFeature::UserReports,
+            ProcessingGroup::StandaloneProfiles => AppFeature::Profiles,
             ProcessingGroup::ClientReport => AppFeature::ClientReports,
             ProcessingGroup::Replay => AppFeature::Replays,
             ProcessingGroup::CheckIn => AppFeature::CheckIns,
@@ -1191,6 +1209,7 @@ struct Processing {
     client_reports: ClientReportsProcessor,
     attachments: AttachmentProcessor,
     user_reports: UserReportsProcessor,
+    profiles: ProfilesProcessor,
 }
 
 impl EnvelopeProcessorService {
@@ -1285,7 +1304,8 @@ impl EnvelopeProcessorService {
                 replays: ReplaysProcessor::new(Arc::clone(&quota_limiter), geoip_lookup.clone()),
                 client_reports: ClientReportsProcessor::new(outcome_aggregator),
                 attachments: AttachmentProcessor::new(Arc::clone(&quota_limiter)),
-                user_reports: UserReportsProcessor::new(quota_limiter),
+                user_reports: UserReportsProcessor::new(Arc::clone(&quota_limiter)),
+                profiles: ProfilesProcessor::new(quota_limiter),
             },
             geoip_lookup,
             config,
@@ -1688,6 +1708,10 @@ impl EnvelopeProcessorService {
                     ctx,
                 )
                 .await
+            }
+            ProcessingGroup::StandaloneProfiles => {
+                self.process_with_processor(&self.inner.processing.profiles, managed_envelope, ctx)
+                    .await
             }
             ProcessingGroup::ClientReport => {
                 self.process_with_processor(

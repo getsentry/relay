@@ -212,6 +212,23 @@ impl Counted for StoreUserReport {
     }
 }
 
+/// A profile to be stored to Kafka.
+#[derive(Debug)]
+pub struct StoreProfile {
+    /// Number of days to retain.
+    pub retention_days: u16,
+    /// The profile.
+    pub profile: Item,
+    /// Outcome quantities associated with this profile.
+    pub quantities: Quantities,
+}
+
+impl Counted for StoreProfile {
+    fn quantities(&self) -> Quantities {
+        self.quantities.clone()
+    }
+}
+
 /// The asynchronous thread pool used for scheduling storing tasks in the envelope store.
 pub type StoreServicePool = AsyncPool<BoxFuture<'static, ()>>;
 
@@ -240,6 +257,8 @@ pub enum Store {
     Attachment(Managed<StoreAttachment>),
     /// A singular user report.
     UserReport(Managed<StoreUserReport>),
+    /// A single profile.
+    Profile(Managed<StoreProfile>),
 }
 
 impl Store {
@@ -254,6 +273,7 @@ impl Store {
             Store::Replay(_) => "replay",
             Store::Attachment(_) => "attachment",
             Store::UserReport(_) => "user_report",
+            Store::Profile(_) => "profile",
         }
     }
 }
@@ -324,6 +344,14 @@ impl FromMessage<Managed<StoreUserReport>> for Store {
     }
 }
 
+impl FromMessage<Managed<StoreProfile>> for Store {
+    type Response = NoResponse;
+
+    fn from_message(message: Managed<StoreProfile>, _: ()) -> Self {
+        Self::Profile(message)
+    }
+}
+
 /// Service implementing the [`Store`] interface.
 pub struct StoreService {
     pool: StoreServicePool,
@@ -365,6 +393,7 @@ impl StoreService {
                 Store::Replay(message) => self.handle_store_replay(message),
                 Store::Attachment(message) => self.handle_store_attachment(message),
                 Store::UserReport(message) => self.handle_user_report(message),
+                Store::Profile(message) => self.handle_profile(message),
             }
         })
     }
@@ -819,6 +848,22 @@ impl StoreService {
                 payload: report.report.payload(),
             });
             self.produce(KafkaTopic::Attachments, kafka_msg)
+        });
+    }
+
+    fn handle_profile(&self, message: Managed<StoreProfile>) {
+        let scoping = message.scoping();
+        let received_at = message.received_at();
+
+        let _ = message.try_accept(|profile| {
+            self.produce_profile(
+                scoping.organization_id,
+                scoping.project_id,
+                scoping.key_id,
+                received_at,
+                profile.retention_days,
+                &profile.profile,
+            )
         });
     }
 

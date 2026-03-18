@@ -6,6 +6,7 @@ use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::errors::ErrorsProcessor;
 use crate::processing::logs::LogsProcessor;
 use crate::processing::profile_chunks::ProfileChunksProcessor;
+use crate::processing::profiles::ProfilesProcessor;
 use crate::processing::replays::ReplaysProcessor;
 use crate::processing::sessions::SessionsProcessor;
 use crate::processing::spans::SpansProcessor;
@@ -72,4 +73,5 @@ outputs!(
     Replays => ReplaysProcessor,
     Attachments => AttachmentProcessor,
     UserReports => UserReportsProcessor,
+    Profiles => ProfilesProcessor,
 );
