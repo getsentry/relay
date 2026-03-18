@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Breaking Changes**:
+
+- To prevent false positives, non-public email addresses (e.g. `user@localhost`) are no longer scrubbed by default. ([#5737](https://github.com/getsentry/relay/pull/5737))
+
 ## 26.3.1
 
 **Internal**:
