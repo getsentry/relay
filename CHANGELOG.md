@@ -1,5 +1,11 @@
 # Changelog
 
+## 26.3.1
+
+**Internal**:
+
+- Use new processor architecture to process standalone user reports. ([#5731](https://github.com/getsentry/relay/pull/5731))
+
 ## 26.3.0
 
 **Breaking Changes**:
