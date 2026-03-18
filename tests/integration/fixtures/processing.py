@@ -78,6 +78,9 @@ def processing_config(get_topic_name):
                 f"relay-test-relayconfig-{uuid.uuid4()}"
             )
 
+        if processing.get("objectstore") is None:
+            processing["objectstore"] = {"objectstore_url": "http://127.0.0.1:8888/"}
+
         return options
 
     return inner

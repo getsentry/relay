@@ -135,7 +135,6 @@ def test_attachments_with_objectstore(
     options = {
         "processing": {
             "attachment_chunk_size": "100KB",
-            "upload": {"objectstore_url": "http://127.0.0.1:8888/"},
         }
     }
     relay = relay_with_processing(options)
@@ -636,9 +635,7 @@ def test_event_with_attachment(
             "relay.objectstore-attachments.sample-rate"
         ] = 1.0
 
-    relay = relay_with_processing(
-        {"processing": {"upload": {"objectstore_url": "http://127.0.0.1:8888/"}}}
-    )
+    relay = relay_with_processing()
     attachments_consumer = attachments_consumer()
     transactions_consumer = transactions_consumer()
     objectstore = objectstore("attachments", project_id)
