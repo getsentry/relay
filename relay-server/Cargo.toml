@@ -48,6 +48,7 @@ either = { workspace = true }
 flate2 = { workspace = true }
 futures = { workspace = true, features = ["async-await"] }
 hashbrown = { workspace = true }
+hickory-resolver = { workspace = true }
 http = { workspace = true }
 http-body-util = { workspace = true }
 hyper = { workspace = true }
