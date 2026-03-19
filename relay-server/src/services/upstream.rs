@@ -853,7 +853,7 @@ struct HickoryResolver(TokioResolver);
 
 impl Resolve for HickoryResolver {
     fn resolve(&self, name: Name) -> Resolving {
-        let resolver = self.0.clone(); // cheap, TokioAsyncResolver is Arc-backed
+        let resolver = self.0.clone(); // cheap, TokioResolver is Arc-backed
         Box::pin(async move {
             let addrs = resolver
                 .lookup_ip(name.as_str())
