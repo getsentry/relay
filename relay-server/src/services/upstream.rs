@@ -11,10 +11,13 @@ use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::net::SocketAddr;
 use std::time::Duration;
 
 use axum::response::IntoResponse;
 use bytes::Bytes;
+use hickory_resolver::config::{ResolverConfig, ResolverOpts};
+use hickory_resolver::TokioAsyncResolver;
 use itertools::Itertools;
 use relay_auth::{
     RegisterChallenge, RegisterRequest, RegisterResponse, Registration, SecretKey, Signature,
@@ -29,6 +32,7 @@ use relay_system::{
     AsyncResponse, FromMessage, Interface, MessageResponse, NoResponse, Sender, Service,
 };
 pub use reqwest::Method;
+use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use reqwest::header;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -841,6 +845,24 @@ impl UpstreamQuery for RegisterResponse {
     }
 }
 
+/// A custom DNS resolver backed by hickory, allowing fine-grained control over
+/// resolver options (e.g. NXDOMAIN TTL) that reqwest's `.hickory_dns()` does not expose.
+struct HickoryResolver(TokioAsyncResolver);
+
+impl Resolve for HickoryResolver {
+    fn resolve(&self, name: Name) -> Resolving {
+        let resolver = self.0.clone(); // cheap, TokioAsyncResolver is Arc-backed
+        Box::pin(async move {
+            let addrs = resolver
+                .lookup_ip(name.as_str())
+                .await?
+                .into_iter()
+                .map(|ip| SocketAddr::new(ip, 0));
+            Ok(Box::new(addrs) as Addrs)
+        })
+    }
+}
+
 /// A shared, asynchronous client to build and execute requests.
 ///
 /// The main way to send a request through this client is [`send`](Self::send).
@@ -856,16 +878,23 @@ struct SharedClient {
 impl SharedClient {
     /// Creates a new `SharedClient` instance.
     pub fn build(config: Arc<Config>) -> Self {
-        let reqwest = reqwest::ClientBuilder::new()
+        let mut builder = reqwest::ClientBuilder::new()
             .connect_timeout(config.http_connection_timeout())
             .timeout(config.http_timeout())
             // In the forward endpoint, this means that content negotiation is done twice, and the
             // response body is first decompressed by the client, then re-compressed by the server.
-            .gzip(true)
-            .hickory_dns(config.http_dns_cache())
-            .build()
-            .unwrap();
+            .gzip(true);
 
+        if config.http_dns_cache() {
+            let mut opts = ResolverOpts::default();
+            if !config.http_dns_cache_nxdomain() {
+                opts.negative_max_ttl = Some(Duration::ZERO);
+            }
+            let resolver = TokioAsyncResolver::tokio(ResolverConfig::default(), opts);
+            builder = builder.dns_resolver(Arc::new(HickoryResolver(resolver)));
+        }
+
+        let reqwest = builder.build().unwrap();
         Self { config, reqwest }
     }
 

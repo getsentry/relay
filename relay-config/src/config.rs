@@ -887,6 +887,10 @@ pub struct Http {
     /// the resolved entries. This helps to limit the amount of requests made to the upstream DNS
     /// server (important for K8s infrastructure).
     pub dns_cache: bool,
+    /// When `dns_cache` is enabled, controls whether NXDOMAIN responses are cached.
+    /// Set to `false` to always re-query for failed lookups.
+    /// Only has an effect when `dns_cache` is `true`.
+    pub dns_cache_nxdomain: bool,
 }
 
 impl Default for Http {
@@ -904,6 +908,7 @@ impl Default for Http {
             global_metrics: false,
             forward: true,
             dns_cache: true,
+            dns_cache_nxdomain: true,
         }
     }
 }
@@ -2223,6 +2228,12 @@ impl Config {
     /// Returns `true` if relay should use an in-process cache for DNS lookups.
     pub fn http_dns_cache(&self) -> bool {
         self.values.http.dns_cache
+    }
+
+    /// Returns `true` if relay should cache negative DNS responses (NXDOMAIN).
+    /// Only meaningful when `http_dns_cache()` returns `true`.
+    pub fn http_dns_cache_nxdomain(&self) -> bool {
+        self.values.http.dns_cache_nxdomain
     }
 
     /// Returns the expiry timeout for cached projects.
