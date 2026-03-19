@@ -16,7 +16,7 @@ use std::time::Duration;
 
 use axum::response::IntoResponse;
 use bytes::Bytes;
-use hickory_resolver::config::{LookupIpStrategy, ResolverOpts};
+use hickory_resolver::config::LookupIpStrategy;
 use hickory_resolver::system_conf::read_system_conf;
 use hickory_resolver::TokioAsyncResolver;
 use itertools::Itertools;
