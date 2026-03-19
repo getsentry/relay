@@ -193,13 +193,16 @@ impl ObservableEnvelopeBuffer {
     ///
     /// Returns `false`, if the envelope buffer does not have enough capacity.
     pub fn try_push(&self, envelope: Managed<Box<Envelope>>) -> Result<(), Managed<Box<Envelope>>> {
-        if self.has_capacity() {
-            let envelope = envelope.into();
-            self.addr.send(EnvelopeBuffer::Push(envelope));
-            Ok(())
-        } else {
-            Err(envelope)
+        if self.addr.is_closed() {
+            relay_log::error!("Pushing envelope after envelope buffer dropped");
+            return Err(envelope);
         }
+
+        if !self.has_capacity() {
+            return Err(envelope);
+        }
+
+        Ok(self.addr.send(EnvelopeBuffer::Push(envelope.into())))
     }
 
     /// Returns `true` if the buffer has the capacity to accept more elements.
