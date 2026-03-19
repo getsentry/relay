@@ -23,16 +23,20 @@ pub use self::common::*;
 pub use self::forward::*;
 pub use self::limits::*;
 
+pub mod attachments;
 pub mod check_ins;
 pub mod client_reports;
+pub mod errors;
 pub mod logs;
 pub mod profile_chunks;
+pub mod profiles;
 pub mod replays;
 pub mod sessions;
 pub mod spans;
 pub mod trace_attachments;
 pub mod trace_metrics;
 pub mod transactions;
+pub mod user_reports;
 pub mod utils;
 
 /// A processor, for an arbitrary unit of work extracted from an envelope.
@@ -44,25 +48,24 @@ pub mod utils;
 /// defines all items in an event based envelope to relate to the envelope.
 pub trait Processor {
     /// A unit of work, the processor can process.
-    type UnitOfWork: Counted;
-    /// The result after processing a [`Self::UnitOfWork`].
+    type Input: Counted;
+    /// The result after processing a [`Self::Input`].
     type Output: Forward;
     /// The error returned by [`Self::process`].
     type Error: std::error::Error + 'static;
 
-    /// Extracts a [`Self::UnitOfWork`] from a [`ManagedEnvelope`].
+    /// Extracts a [`Self::Input`] from a [`ManagedEnvelope`].
     ///
     /// This is infallible, if a processor wants to report an error,
-    /// it should return a [`Self::UnitOfWork`] which later, can produce an error when being processed.
+    /// it should return a [`Self::Input`] which later, can produce an error when being processed.
     ///
     /// Returns `None` if nothing in the envelope concerns this processor.
-    fn prepare_envelope(&self, envelope: &mut ManagedEnvelope)
-    -> Option<Managed<Self::UnitOfWork>>;
+    fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>>;
 
-    /// Processes a [`Self::UnitOfWork`].
+    /// Processes a [`Self::Input`].
     async fn process(
         &self,
-        work: Managed<Self::UnitOfWork>,
+        work: Managed<Self::Input>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>>;
 }

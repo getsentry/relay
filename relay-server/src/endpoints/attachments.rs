@@ -1,19 +1,37 @@
 use axum::extract::Path;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
+use multer::Field;
 use relay_config::Config;
 use relay_event_schema::protocol::EventId;
 use serde::Deserialize;
 
 use crate::endpoints::common::{self, BadStoreRequest};
-use crate::envelope::{AttachmentType, Envelope};
+use crate::envelope::{AttachmentType, Envelope, Item};
 use crate::extractors::RequestMeta;
 use crate::service::ServiceState;
-use crate::utils::ConstrainedMultipart;
+use crate::utils::{AttachmentStrategy, ConstrainedMultipart, read_attachment_bytes_into_item};
 
 #[derive(Debug, Deserialize)]
 pub struct AttachmentPath {
     event_id: EventId,
+}
+
+struct AttachmentsAttachmentStrategy;
+
+impl AttachmentStrategy for AttachmentsAttachmentStrategy {
+    fn infer_type(&self, _: &Field) -> AttachmentType {
+        AttachmentType::default()
+    }
+
+    fn add_to_item(
+        &self,
+        field: Field<'static>,
+        item: Item,
+        config: &Config,
+    ) -> impl Future<Output = Result<Option<Item>, multer::Error>> + Send {
+        read_attachment_bytes_into_item(field, item, config, false)
+    }
 }
 
 async fn extract_envelope(
@@ -23,7 +41,7 @@ async fn extract_envelope(
     config: &Config,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
     let items = multipart
-        .items(|_, _| AttachmentType::default(), config)
+        .items(config, AttachmentsAttachmentStrategy)
         .await?;
 
     let mut envelope = Envelope::from_request(Some(path.event_id), meta);

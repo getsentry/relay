@@ -842,7 +842,6 @@ def test_outcome_to_client_report(relay, mini_sentry):
         {
             "outcomes": {
                 "emit_outcomes": True,
-                "emit_client_outcomes": True,
                 "batch_size": 1,
                 "batch_interval": 1,
             }
@@ -1476,8 +1475,7 @@ def test_profile_outcomes_invalid(
     ]
 
     # Make sure the profile will not be counted as accepted:
-    metrics = metrics_by_name(metrics_consumer, 8)
-    assert "has_profile" not in metrics["d:transactions/duration@millisecond"]["tags"]
+    metrics = metrics_by_name(metrics_consumer, 6)
     assert "has_profile" not in metrics["c:transactions/usage@none"]["tags"]
 
 

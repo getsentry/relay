@@ -39,10 +39,6 @@ pub enum Error {
     #[error("rate limited")]
     RateLimited(RateLimits),
 
-    /// Internal error, Pii config could not be loaded.
-    #[error("Pii configuration error")]
-    PiiConfig,
-
     /// A processor failed to process the spans.
     #[error("envelope processor failed")]
     ProcessingFailed(#[from] ProcessingAction),
@@ -51,7 +47,6 @@ pub enum Error {
 impl From<ScrubAttachmentError> for Error {
     fn from(value: ScrubAttachmentError) -> Self {
         match value {
-            ScrubAttachmentError::PiiConfig => Self::PiiConfig,
             ScrubAttachmentError::ProcessingFailed(action) => Self::ProcessingFailed(action),
         }
     }
@@ -71,7 +66,6 @@ impl OutcomeError for Error {
             Self::FeatureDisabled(f) => Outcome::Invalid(DiscardReason::FeatureDisabled(*f)),
             Self::SerializeFailed(_) => Outcome::Invalid(DiscardReason::Internal),
             Self::Sampled(outcome) => outcome.clone(),
-            Self::PiiConfig => Outcome::Invalid(DiscardReason::ProjectStatePii),
             Self::RateLimited(rate_limits) => {
                 let reason_code = rate_limits
                     .longest()
@@ -98,16 +92,13 @@ impl TraceAttachmentsProcessor {
 }
 
 impl Processor for TraceAttachmentsProcessor {
-    type UnitOfWork = SerializedAttachments;
+    type Input = SerializedAttachments;
 
     type Output = Managed<ExpandedAttachments>;
 
     type Error = Error;
 
-    fn prepare_envelope(
-        &self,
-        envelope: &mut ManagedEnvelope,
-    ) -> Option<Managed<Self::UnitOfWork>> {
+    fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
         let items = envelope
             .envelope_mut()
@@ -121,7 +112,7 @@ impl Processor for TraceAttachmentsProcessor {
 
     async fn process(
         &self,
-        work: Managed<Self::UnitOfWork>,
+        work: Managed<Self::Input>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         let work = filter::feature_flag(work, ctx)?;

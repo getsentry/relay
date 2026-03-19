@@ -114,9 +114,7 @@ def test_standalone_attachment_store(
         "projects:span-v2-attachment-processing",
         "projects:trace-attachment-processing",
     ]
-    relay = relay_with_processing(
-        {"processing": {"upload": {"objectstore_url": "http://127.0.0.1:8888/"}}}
-    )
+    relay = relay_with_processing()
 
     attachment_metadata = create_attachment_metadata()
     attachment_body = b"This is some mock attachment content"
@@ -362,9 +360,7 @@ def test_attachment_with_matching_span_store(
         "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
     ]
-    relay = relay_with_processing(
-        {"processing": {"upload": {"objectstore_url": "http://127.0.0.1:8888/"}}}
-    )
+    relay = relay_with_processing()
 
     ts = datetime.now(timezone.utc)
     span_id = "eee19b7ec3c1b174"
@@ -1296,12 +1292,14 @@ def test_attachment_default_pii_scrubbing_meta(
     )
 
     relay.send_envelope(project_id, envelope)
-    forwarded = mini_sentry.get_captured_envelope()
+    forwarded = [mini_sentry.get_captured_envelope()]
     if owned_by == "trace":
         # attachment comes in separate envelope
-        forwarded = mini_sentry.get_captured_envelope()
+        forwarded.append(mini_sentry.get_captured_envelope())
 
-    attachment = next(i for i in forwarded.items if i.type == "attachment")
+    attachment = next(
+        i for envelope in forwarded for i in envelope.items if i.type == "attachment"
+    )
     meta_length = attachment.headers.get("meta_length")
     payload = attachment.payload.bytes
     metadata_part = json.loads(payload[:meta_length].decode("utf-8"))

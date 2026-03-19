@@ -52,6 +52,7 @@ class DataCategory(IntEnum):
     SEER_USER = 34
     PROFILE_BACKEND = 35
     PROFILE_UI = 36
+    TRACE_METRIC_BYTE = 37
     UNKNOWN = -1
     # end generated
 

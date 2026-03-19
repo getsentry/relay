@@ -567,3 +567,6 @@ class SentryLike:
 
     def get(self, path, **kwargs):
         return self.request("get", path, **kwargs)
+
+    def patch(self, path, **kwargs):
+        return self.request("patch", path, **kwargs)

@@ -63,7 +63,6 @@ convention_attributes!(
     OP => "sentry.op",
     ORIGIN => "sentry.origin",
     PLATFORM => "sentry.platform",
-    PROFILE_ID => "sentry.profile_id",
     RELEASE => "sentry.release",
     RESOURCE_RENDER_BLOCKING_STATUS => "resource.render_blocking_status",
     RPC_GRPC_STATUS_CODE => "rpc.grpc.status_code",
@@ -103,5 +102,11 @@ mod not_yet_defined {
     pub const LEGACY_HTTP_REQUEST_METHOD: &str = "http.request_method";
 
     pub const WAS_TRANSACTION: &str = "sentry.was_transaction";
+
+    // TODO(mjq): Evaluate and remove usages of this constant, or restore it in
+    // conventions. This was deleted from conventions in
+    // https://github.com/getsentry/sentry-conventions/pull/256 but is still
+    // used in Relay.
+    pub const PROFILE_ID: &str = "sentry.profile_id";
 }
 pub use self::not_yet_defined::*;

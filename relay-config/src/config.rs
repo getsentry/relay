@@ -883,6 +883,10 @@ pub struct Http {
     ///
     /// The forward endpoint forwards unknown API requests to the upstream.
     pub forward: bool,
+    /// Enables an async DNS resolver through the `hickory-dns` crate, which uses an LRU cache for
+    /// the resolved entries. This helps to limit the amount of requests made to the upstream DNS
+    /// server (important for K8s infrastructure).
+    pub dns_cache: bool,
 }
 
 impl Default for Http {
@@ -899,6 +903,7 @@ impl Default for Http {
             encoding: HttpEncoding::Zstd,
             global_metrics: false,
             forward: true,
+            dns_cache: true,
         }
     }
 }
@@ -1392,8 +1397,6 @@ pub struct Outcomes {
     /// Processing relays always emit outcomes (for backwards compatibility).
     /// Can take the following values: false, "as_client_reports", true
     pub emit_outcomes: EmitOutcomes,
-    /// Controls wheather client reported outcomes should be emitted.
-    pub emit_client_outcomes: bool,
     /// The maximum number of outcomes that are batched before being sent
     /// via http to the upstream (only applies to non processing relays).
     pub batch_size: usize,
@@ -1411,7 +1414,6 @@ impl Default for Outcomes {
     fn default() -> Self {
         Outcomes {
             emit_outcomes: EmitOutcomes::AsClientReports,
-            emit_client_outcomes: true,
             batch_size: 1000,
             batch_interval: 500,
             source: None,
@@ -1640,13 +1642,18 @@ pub struct Upload {
     /// Maximum time spent trying to upload, in seconds.
     /// Currently only used by non-processing relays, as the objectstore service has its own timeout.
     pub timeout: u64,
+    /// The maximum time between creating the upload and uploading the data / the attachment placeholder.
+    ///
+    /// In seconds.
+    pub max_age: i64,
 }
 
 impl Default for Upload {
     fn default() -> Self {
         Self {
             max_concurrent_requests: 10,
-            timeout: 60,
+            timeout: 5 * 60,  // five minutes
+            max_age: 60 * 60, // 1h
         }
     }
 }
@@ -2133,19 +2140,6 @@ impl Config {
         self.values.outcomes.emit_outcomes
     }
 
-    /// Returns whether this Relay should emit client outcomes
-    ///
-    /// Relays that do not emit client outcomes will forward client recieved outcomes
-    /// directly to the next relay in the chain as client report envelope.  This is only done
-    /// if this relay emits outcomes at all. A relay that will not emit outcomes
-    /// will forward the envelope unchanged.
-    ///
-    /// This flag can be explicitly disabled on processing relays as well to prevent the
-    /// emitting of client outcomes to the kafka topic.
-    pub fn emit_client_outcomes(&self) -> bool {
-        self.values.outcomes.emit_client_outcomes
-    }
-
     /// Returns the maximum number of outcomes that are batched before being sent
     pub fn outcome_batch_size(&self) -> usize {
         self.values.outcomes.batch_size
@@ -2224,6 +2218,11 @@ impl Config {
     /// Returns the failed upstream request retry interval.
     pub fn http_max_retry_interval(&self) -> Duration {
         Duration::from_secs(self.values.http.max_retry_interval.into())
+    }
+
+    /// Returns `true` if relay should use an in-process cache for DNS lookups.
+    pub fn http_dns_cache(&self) -> bool {
+        self.values.http.dns_cache
     }
 
     /// Returns the expiry timeout for cached projects.

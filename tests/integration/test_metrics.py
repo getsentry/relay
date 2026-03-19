@@ -850,7 +850,7 @@ def test_transaction_metrics(
     }
     decision = "drop" if discard_data else "keep"
 
-    assert metrics_consumer.get_metrics(n=11, with_headers=False) == [
+    assert metrics_consumer.get_metrics(n=6, with_headers=False) == [
         {
             **common,
             "name": "c:spans/count_per_root_project@none",
@@ -911,57 +911,6 @@ def test_transaction_metrics(
             "tags": {},
             "type": "c",
             "value": 2.0,
-        },
-        {
-            **common,
-            "name": "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
-            "tags": {
-                "platform": "other",
-                "transaction": "/organizations/:orgId/performance/:eventSlug/",
-                "transaction.status": "unknown",
-            },
-            "type": "d",
-            "value": [9.91, 9.91],
-        },
-        {
-            **common,
-            "name": "d:transactions/duration@millisecond",
-            "tags": {
-                "platform": "other",
-                "transaction": "/organizations/:orgId/performance/:eventSlug/",
-                "transaction.status": "unknown",
-            },
-            "type": "d",
-            "value": [500.0, 500.0],
-        },
-        {
-            **common,
-            "name": "d:transactions/duration_light@millisecond",
-            "tags": {"transaction": "/organizations/:orgId/performance/:eventSlug/"},
-            "type": "d",
-            "value": [500.0, 500.0],
-        },
-        {
-            **common,
-            "name": "d:transactions/measurements.bar@none",
-            "tags": {
-                "platform": "other",
-                "transaction": "/organizations/:orgId/performance/:eventSlug/",
-                "transaction.status": "unknown",
-            },
-            "type": "d",
-            "value": [1.3],
-        },
-        {
-            **common,
-            "name": "d:transactions/measurements.foo@none",
-            "tags": {
-                "platform": "other",
-                "transaction": "/organizations/:orgId/performance/:eventSlug/",
-                "transaction.status": "unknown",
-            },
-            "type": "d",
-            "value": [1.2, 2.2],
         },
     ]
 
@@ -1100,19 +1049,9 @@ def test_transaction_metrics_extraction_external_relays(
         assert len(metrics_envelope.items) == 1
 
         payload = json.loads(metrics_envelope.items[0].get_bytes().decode())
-        assert len(payload) == 8
+        assert len(payload) == 6
 
         by_name = {m["name"]: m for m in payload}
-        light_metric = by_name["d:transactions/duration_light@millisecond"]
-        assert (
-            light_metric["tags"]["transaction"]
-            == "/organizations/:orgId/performance/:eventSlug/"
-        )
-        duration_metric = by_name["d:transactions/duration@millisecond"]
-        assert (
-            duration_metric["tags"]["transaction"]
-            == "/organizations/:orgId/performance/:eventSlug/"
-        )
         count_metric = by_name["c:transactions/count_per_root_project@none"]
         assert count_metric["tags"]["transaction"] == "root_transaction"
         assert count_metric["value"] == 1.0
@@ -1159,20 +1098,10 @@ def test_transaction_metrics_extraction_processing_relays(
     tx_consumer.assert_empty()
 
     if expect_metrics_extraction:
-        metrics = metrics_by_name(metrics_consumer, 8)
+        metrics = metrics_by_name(metrics_consumer, 6)
         metric_usage = metrics["c:transactions/usage@none"]
         assert metric_usage["tags"] == {}
         assert metric_usage["value"] == 1.0
-        metric_duration = metrics["d:transactions/duration@millisecond"]
-        assert (
-            metric_duration["tags"]["transaction"]
-            == "/organizations/:orgId/performance/:eventSlug/"
-        )
-        metric_duration_light = metrics["d:transactions/duration_light@millisecond"]
-        assert (
-            metric_duration_light["tags"]["transaction"]
-            == "/organizations/:orgId/performance/:eventSlug/"
-        )
         metric_count_per_project = metrics["c:transactions/count_per_root_project@none"]
         assert metric_count_per_project["value"] == 1.0
     else:
@@ -1408,16 +1337,12 @@ def test_limit_custom_measurements(
 
     expected_metrics = {
         "c:transactions/usage@none",
-        "d:transactions/duration@millisecond",
-        "d:transactions/duration_light@millisecond",
         "c:transactions/count_per_root_project@none",
-        "d:transactions/measurements.foo@none",
-        "d:transactions/measurements.bar@none",
         "c:spans/usage@none",
         "c:spans/count_per_root_project@none",
     }
 
-    metrics = metrics_by_name(metrics_consumer, 10)
+    metrics = metrics_by_name(metrics_consumer, 6)
     metrics.pop("headers")
 
     assert metrics.keys() == expected_metrics
@@ -1778,11 +1703,7 @@ def test_histogram_outliers(mini_sentry, relay):
                     if outlier := bucket.get("tags", {}).get("histogram_outlier"):
                         tags[bucket["name"]] = outlier
 
-    assert tags == {
-        "d:transactions/measurements.fcp@millisecond": "outlier",
-        "d:transactions/duration@millisecond": "inlier",
-        "d:transactions/measurements.lcp@millisecond": "inlier",
-    }
+    assert tags == {}
 
 
 def test_metrics_extraction_with_computed_context_filters(
@@ -1874,7 +1795,7 @@ def test_metrics_extraction_with_computed_context_filters(
     ]
 
     # Verify that all three metrics were extracted
-    metrics = metrics_by_name(metrics_consumer, 11)
+    metrics = metrics_by_name(metrics_consumer, 9)
 
     # Check each extracted metric
     for metric_name in metric_names:

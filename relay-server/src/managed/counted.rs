@@ -111,6 +111,10 @@ impl Counted for EnvelopeSummary {
             (DataCategory::ProfileChunkUi, self.profile_chunk_ui_quantity),
             (DataCategory::UserReportV2, self.user_report_quantity),
             (DataCategory::TraceMetric, self.trace_metric_quantity),
+            (
+                DataCategory::TraceMetricByte,
+                self.trace_metric_byte_quantity,
+            ),
             (DataCategory::LogItem, self.log_item_quantity),
             (DataCategory::LogByte, self.log_byte_quantity),
             (DataCategory::Monitor, self.monitor_quantity),
@@ -141,7 +145,13 @@ impl Counted for WithHeader<OurLog> {
 
 impl Counted for WithHeader<TraceMetric> {
     fn quantities(&self) -> Quantities {
-        smallvec::smallvec![(DataCategory::TraceMetric, 1)]
+        smallvec::smallvec![
+            (DataCategory::TraceMetric, 1),
+            (
+                DataCategory::TraceMetricByte,
+                processing::trace_metrics::get_calculated_byte_size(self)
+            )
+        ]
     }
 }
 
@@ -239,7 +249,7 @@ where
     }
 }
 
-impl<T: Counted> Counted for Vec<T> {
+impl<T: Counted> Counted for [T] {
     fn quantities(&self) -> Quantities {
         let mut quantities = BTreeMap::new();
         for element in self {
@@ -251,14 +261,14 @@ impl<T: Counted> Counted for Vec<T> {
     }
 }
 
+impl<T: Counted> Counted for Vec<T> {
+    fn quantities(&self) -> Quantities {
+        self.as_slice().quantities()
+    }
+}
+
 impl<T: Counted, const N: usize> Counted for SmallVec<[T; N]> {
     fn quantities(&self) -> Quantities {
-        let mut quantities = BTreeMap::new();
-        for element in self {
-            for (category, size) in element.quantities() {
-                *quantities.entry(category).or_default() += size;
-            }
-        }
-        quantities.into_iter().collect()
+        self.as_slice().quantities()
     }
 }

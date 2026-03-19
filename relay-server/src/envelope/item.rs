@@ -66,7 +66,7 @@ impl Item {
         let payload_start = std::cmp::min(headers_end + 1, bytes.len());
 
         let length = headers
-            .try_get::<usize>(&ItemHeaderKey::Length)
+            .try_get::<usize>(ItemHeaderKey::Length)
             .map_err(EnvelopeError::InvalidItemHeader)?;
         let payload_end = match length {
             Some(len) => {
@@ -133,7 +133,10 @@ impl Item {
                 (DataCategory::LogByte, self.len().max(1)),
                 (DataCategory::LogItem, item_count)
             ],
-            ItemType::TraceMetric => smallvec![(DataCategory::TraceMetric, item_count)],
+            ItemType::TraceMetric => smallvec![
+                (DataCategory::TraceMetricByte, self.len().max(1)),
+                (DataCategory::TraceMetric, item_count)
+            ],
             ItemType::FormData => smallvec![],
             ItemType::UserReport => smallvec![(DataCategory::UserReportV2, item_count)],
             ItemType::UserReportV2 => smallvec![(DataCategory::UserReportV2, item_count)],
@@ -207,7 +210,7 @@ impl Item {
     /// This method can be safely used to generate outcomes.
     pub fn item_count(&self) -> Option<u32> {
         match self.ty().can_support_container() {
-            true => self.headers.get(&ItemHeaderKey::ItemCount),
+            true => self.headers.get(ItemHeaderKey::ItemCount),
             false => None,
         }
     }
@@ -221,7 +224,7 @@ impl Item {
     ///
     /// This number does *not* count the transaction itself.
     pub fn span_count(&self) -> u32 {
-        self.headers.get(&ItemHeaderKey::SpanCount).unwrap_or(0)
+        self.headers.get(ItemHeaderKey::SpanCount).unwrap_or(0)
     }
 
     /// Sets the number of spans in the transaction payload.
@@ -240,7 +243,7 @@ impl Item {
 
     /// Returns the `span_count`` header, and computes it if it has not yet been set.
     pub fn ensure_span_count(&mut self) -> usize {
-        match self.headers.get(&ItemHeaderKey::SpanCount) {
+        match self.headers.get(ItemHeaderKey::SpanCount) {
             Some(count) => count,
             None => self.refresh_span_count(),
         }
@@ -249,17 +252,17 @@ impl Item {
     /// Returns the content type of this item's payload.
     #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn content_type(&self) -> Option<ContentType> {
-        self.headers.get(&ItemHeaderKey::ContentType)
+        self.headers.get(ItemHeaderKey::ContentType)
     }
 
     /// Returns the raw (unparsed) content type, as specified by the SDK.
     pub fn raw_content_type(&self) -> Option<&str> {
-        self.headers.get(&ItemHeaderKey::ContentType)
+        self.headers.get(ItemHeaderKey::ContentType)
     }
 
     /// Sets the content type if there isn't already one set.
     pub fn set_default_content_type(&mut self, content_type: ContentType) {
-        if !self.headers.contains(&ItemHeaderKey::ContentType) {
+        if !self.headers.contains(ItemHeaderKey::ContentType) {
             self.headers.set(ItemHeaderKey::ContentType, content_type);
         }
     }
@@ -283,7 +286,22 @@ impl Item {
     /// Returns the attachment type if this item is an attachment.
     pub fn attachment_type(&self) -> Option<AttachmentType> {
         // TODO: consider to replace this with an ItemType?
-        self.headers.get(&ItemHeaderKey::AttachmentType)
+        if let Some(ty) = self.headers.get(ItemHeaderKey::AttachmentType) {
+            return Some(ty);
+        }
+
+        // Unfortunately when the switch protocol was decided on, it was missed to assign it a new
+        // attachment type, that's why we have to infer it here from the filename and contents.
+        if self.ty() == &ItemType::Attachment
+            && self.filename() == Some(crate::constants::NNSWITCH_DYING_MESSAGE_FILENAME)
+            && self
+                .payload
+                .starts_with(crate::constants::NNSWITCH_SENTRY_MAGIC)
+        {
+            return Some(AttachmentType::NintendoSwitchDyingMessage);
+        }
+
+        None
     }
 
     /// Sets the attachment type of this item.
@@ -343,7 +361,7 @@ impl Item {
     /// Returns the file name of this item, if it is an attachment.
     #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn filename(&self) -> Option<&str> {
-        self.headers.get(&ItemHeaderKey::Filename)
+        self.headers.get(ItemHeaderKey::Filename)
     }
 
     /// Sets the file name of this item.
@@ -397,7 +415,7 @@ impl Item {
     /// Returns the metrics extracted flag.
     pub fn metrics_extracted(&self) -> bool {
         self.headers
-            .get(&ItemHeaderKey::MetricsExtracted)
+            .get(ItemHeaderKey::MetricsExtracted)
             .unwrap_or_default()
     }
 
@@ -410,7 +428,7 @@ impl Item {
     /// Returns the spans extracted flag.
     pub fn spans_extracted(&self) -> bool {
         self.headers
-            .get(&ItemHeaderKey::SpansExtracted)
+            .get(ItemHeaderKey::SpansExtracted)
             .unwrap_or_default()
     }
 
@@ -423,7 +441,7 @@ impl Item {
     /// Returns the fully normalized flag.
     pub fn fully_normalized(&self) -> bool {
         self.headers
-            .get(&ItemHeaderKey::FullyNormalized)
+            .get(ItemHeaderKey::FullyNormalized)
             .unwrap_or_default()
     }
 
@@ -437,7 +455,7 @@ impl Item {
     ///
     /// Note: this is currently only used for [`ItemType::ProfileChunk`].
     pub fn platform(&self) -> Option<&str> {
-        self.headers.get(&ItemHeaderKey::Platform)
+        self.headers.get(ItemHeaderKey::Platform)
     }
 
     /// Set the associated platform.
@@ -456,7 +474,7 @@ impl Item {
 
     /// Gets the `sampled` flag.
     pub fn sampled(&self) -> bool {
-        self.headers.get(&ItemHeaderKey::Sampled).unwrap_or(true)
+        self.headers.get(ItemHeaderKey::Sampled).unwrap_or(true)
     }
 
     /// Sets the `sampled` flag.
@@ -466,7 +484,7 @@ impl Item {
 
     /// Returns the length of the item.
     pub fn meta_length(&self) -> Option<u32> {
-        self.headers.get(&ItemHeaderKey::MetaLength)
+        self.headers.get(ItemHeaderKey::MetaLength)
     }
 
     /// Sets the length of the optional meta segment.
@@ -479,7 +497,7 @@ impl Item {
     /// Sets the length of the attachment referenced by this item.
     ///
     /// Only applicable if the item is an attachment with [`ContentType::AttachmentRef`].
-    pub fn set_attachment_length(&mut self, original_length: u64) {
+    pub fn set_attachment_length(&mut self, original_length: usize) {
         debug_assert!(self.is_attachment_ref());
         self.headers
             .set(ItemHeaderKey::AttachmentLength, original_length);
@@ -487,7 +505,7 @@ impl Item {
 
     /// Retrieves the sentry release from an item header.
     pub fn sentry_release(&self) -> Option<&str> {
-        self.headers.get(&ItemHeaderKey::SentryRelease)
+        self.headers.get(ItemHeaderKey::SentryRelease)
     }
 
     /// Sets the sentry release on an item header.
@@ -497,7 +515,7 @@ impl Item {
 
     /// Retrieves the sentry environment from an item header.
     pub fn sentry_environment(&self) -> Option<&str> {
-        self.headers.get(&ItemHeaderKey::SentryEnvironment)
+        self.headers.get(ItemHeaderKey::SentryEnvironment)
     }
 
     /// Sets the sentry environment on an item header.
@@ -511,7 +529,7 @@ impl Item {
     /// Only applicable if the item is an attachment.
     pub fn parent_id(&self) -> Option<ParentId> {
         // Currently only `span_id` supported in `ParentId`.
-        let span_id = self.headers.get(&ItemHeaderKey::SpanId)?;
+        let span_id = self.headers.get(ItemHeaderKey::SpanId)?;
         Some(ParentId::SpanId(span_id))
     }
 
@@ -580,7 +598,7 @@ impl Item {
                 .saturating_sub(self.meta_length().unwrap_or(0) as usize)
         } else if self.is_attachment_ref() {
             self.headers
-                .get(&ItemHeaderKey::AttachmentLength)
+                .get(ItemHeaderKey::AttachmentLength)
                 .unwrap_or(0)
         } else {
             self.len()
@@ -595,7 +613,7 @@ impl Item {
         }
         if self
             .headers
-            .try_get::<AttachmentType>(&ItemHeaderKey::AttachmentType)
+            .try_get::<AttachmentType>(ItemHeaderKey::AttachmentType)
             .is_err()
         {
             return true;
@@ -625,7 +643,8 @@ impl Item {
                         | AttachmentType::Minidump
                         | AttachmentType::EventPayload
                         | AttachmentType::Prosperodump
-                        | AttachmentType::Breadcrumbs,
+                        | AttachmentType::Breadcrumbs
+                        | AttachmentType::NintendoSwitchDyingMessage,
                     ) => true,
                     Some(
                         AttachmentType::Attachment
@@ -968,7 +987,7 @@ impl std::str::FromStr for ItemType {
 relay_common::impl_str_serde!(ItemType, "an envelope item type (see sentry develop docs)");
 
 /// AN item header stored in [`ItemHeaders`].
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ItemHeaderKey {
     /// Content length of the item.
@@ -1052,8 +1071,6 @@ pub enum ItemHeaderKey {
     SentryRelease,
     /// The Sentry environment stored in a header.
     SentryEnvironment,
-    /// An unknown item header.
-    Other(String),
 }
 
 /// The value of an item header.
@@ -1100,27 +1117,29 @@ pub struct ItemHeaders {
 
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
-    inner: BTreeMap<ItemHeaderKey, ItemHeaderValue>,
+    inner: BTreeMap<MaybeKnown<ItemHeaderKey>, ItemHeaderValue>,
 }
 
 impl ItemHeaders {
-    fn contains(&self, key: &ItemHeaderKey) -> bool {
-        self.inner.contains_key(key)
+    fn contains(&self, key: ItemHeaderKey) -> bool {
+        self.inner.contains_key(&MaybeKnown::Known(key))
     }
 
-    fn get<'a, T>(&'a self, key: &ItemHeaderKey) -> Option<T>
-    where
-        T: Deserialize<'a>,
-    {
-        self.inner.get(key).and_then(|v| T::deserialize(&v.0).ok())
-    }
-
-    fn try_get<'a, T>(&'a self, key: &ItemHeaderKey) -> Result<Option<T>, serde_json::Error>
+    fn get<'a, T>(&'a self, key: ItemHeaderKey) -> Option<T>
     where
         T: Deserialize<'a>,
     {
         self.inner
-            .get(key)
+            .get(&MaybeKnown::Known(key))
+            .and_then(|v| T::deserialize(&v.0).ok())
+    }
+
+    fn try_get<'a, T>(&'a self, key: ItemHeaderKey) -> Result<Option<T>, serde_json::Error>
+    where
+        T: Deserialize<'a>,
+    {
+        self.inner
+            .get(&MaybeKnown::Known(key))
             .map(|v| T::deserialize(&v.0))
             .transpose()
     }
@@ -1130,7 +1149,8 @@ impl ItemHeaders {
         T: Serialize,
     {
         let value = serde_json::to_value(value).expect("header value must be json serializable");
-        self.inner.insert(key, ItemHeaderValue(value));
+        self.inner
+            .insert(MaybeKnown::Known(key), ItemHeaderValue(value));
         self
     }
 
@@ -1141,10 +1161,22 @@ impl ItemHeaders {
         if let Some(value) = value {
             self.set(key, value);
         } else {
-            self.inner.remove(&key);
+            self.inner.remove(&MaybeKnown::Known(key));
         }
         self
     }
+}
+
+/// An item key which is potentially known to Relay.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[serde(untagged)]
+pub enum MaybeKnown<T> {
+    /// An item known to this Relay.
+    Known(T),
+    /// An unknown item.
+    ///
+    /// Kept for forward compatibility.
+    Unknown(String),
 }
 
 /// Container for item quantities that the item was derived from.
@@ -1296,5 +1328,79 @@ mod tests {
         assert_eq!(ItemType::Unknown("test".to_owned()).as_str(), "test");
         assert_eq!(&ItemType::Span.to_string(), "span");
         assert_eq!(&ItemType::Unknown("test".to_owned()).to_string(), "test");
+    }
+
+    #[test]
+    fn test_item_headers() {
+        let mut headers: ItemHeaders = serde_json::from_str(
+            r#"{
+            "type":"attachment",
+            "length":42,
+            "content_type": "application/json",
+            "filename":"test.txt"
+        }"#,
+        )
+        .unwrap();
+
+        assert_eq!(headers.ty, ItemType::Attachment);
+        assert!(headers.contains(ItemHeaderKey::Length));
+        assert_eq!(headers.get(ItemHeaderKey::Length), Some(42u32));
+        assert_eq!(headers.get(ItemHeaderKey::Filename), Some("test.txt"));
+        assert_eq!(
+            headers.get(ItemHeaderKey::ContentType),
+            Some("application/json")
+        );
+
+        headers.set_or_remove(ItemHeaderKey::Length, Some(1337u32));
+        assert_eq!(headers.get(ItemHeaderKey::Length), Some(1337));
+        headers.set_or_remove(ItemHeaderKey::Length, None::<u32>);
+        assert!(!headers.contains(ItemHeaderKey::Length));
+
+        let s = serde_json::to_string(&headers).unwrap();
+        insta::assert_snapshot!(s, @r#"{"type":"attachment","content_type":"application/json","filename":"test.txt"}"#);
+    }
+
+    #[test]
+    fn test_item_headers_unknown() {
+        let (item, _) = Item::parse(Bytes::from_static(
+            concat!(
+                r#"{"type":"attachment","unknown1":"foo","unknown2":"bar","length":5}"#,
+                "\n",
+                "12345"
+            )
+            .as_bytes(),
+        ))
+        .unwrap();
+
+        insta::assert_debug_snapshot!(&item.headers, @r#"
+        ItemHeaders {
+            ty: Attachment,
+            stored_key: None,
+            routing_hint: None,
+            rate_limited: false,
+            source_quantities: None,
+            inner: {
+                Known(
+                    Length,
+                ): ItemHeaderValue(
+                    Number(5),
+                ),
+                Unknown(
+                    "unknown1",
+                ): ItemHeaderValue(
+                    String("foo"),
+                ),
+                Unknown(
+                    "unknown2",
+                ): ItemHeaderValue(
+                    String("bar"),
+                ),
+            },
+        }
+        "#);
+
+        // Round trip -> serializes the headers again.
+        let s = serde_json::to_string(&item.headers).unwrap();
+        insta::assert_snapshot!(s, @r#"{"type":"attachment","length":5,"unknown1":"foo","unknown2":"bar"}"#);
     }
 }

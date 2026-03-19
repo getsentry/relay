@@ -300,7 +300,7 @@ impl ContainerItem for relay_event_schema::protocol::TraceMetric {
     const ITEM_TYPE: ItemType = ItemType::TraceMetric;
     const CONTENT_TYPE: ContentType = ContentType::TraceMetricContainer;
 
-    type Header = NoHeader;
+    type Header = relay_event_schema::protocol::TraceMetricHeader;
 }
 
 #[cfg(test)]

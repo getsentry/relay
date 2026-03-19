@@ -34,12 +34,11 @@ use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_threading::AsyncPool;
 
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
-use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, TypedEnvelope};
+use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities};
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::services::processor::Processed;
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
 use crate::utils::{self, FormDataIter};
 
@@ -94,7 +93,7 @@ impl Producer {
 /// Publishes an [`Envelope`](crate::envelope::Envelope) to the Sentry core application through Kafka topics.
 #[derive(Debug)]
 pub struct StoreEnvelope {
-    pub envelope: TypedEnvelope<Processed>,
+    pub envelope: ManagedEnvelope,
 }
 
 /// Publishes a list of [`Bucket`]s to the Sentry core application through Kafka topics.
@@ -188,6 +187,55 @@ impl Counted for StoreReplay {
     }
 }
 
+/// An attachment to be stored to Kafka.
+#[derive(Debug)]
+pub struct StoreAttachment {
+    /// The event ID.
+    pub event_id: EventId,
+    /// That attachment item.
+    pub attachment: Item,
+    /// Outcome quantities associated with this attachment.
+    pub quantities: Quantities,
+}
+
+impl Counted for StoreAttachment {
+    fn quantities(&self) -> Quantities {
+        self.quantities.clone()
+    }
+}
+
+/// A user report to be stored to Kafka.
+#[derive(Debug)]
+pub struct StoreUserReport {
+    /// The event ID.
+    pub event_id: EventId,
+    /// The user report.
+    pub report: Item,
+}
+
+impl Counted for StoreUserReport {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![(DataCategory::UserReportV2, 1)]
+    }
+}
+
+/// A profile to be stored to Kafka.
+#[derive(Debug)]
+pub struct StoreProfile {
+    /// Number of days to retain.
+    pub retention_days: u16,
+    /// The profile.
+    pub profile: Item,
+    /// Outcome quantities associated with this profile.
+    pub quantities: Quantities,
+}
+
+impl Counted for StoreProfile {
+    fn quantities(&self) -> Quantities {
+        self.quantities.clone()
+    }
+}
+
 /// The asynchronous thread pool used for scheduling storing tasks in the envelope store.
 pub type StoreServicePool = AsyncPool<BoxFuture<'static, ()>>;
 
@@ -212,6 +260,12 @@ pub enum Store {
     ProfileChunk(Managed<StoreProfileChunk>),
     /// A singular replay.
     Replay(Managed<StoreReplay>),
+    /// A singular attachment.
+    Attachment(Managed<StoreAttachment>),
+    /// A singular user report.
+    UserReport(Managed<StoreUserReport>),
+    /// A single profile.
+    Profile(Managed<StoreProfile>),
 }
 
 impl Store {
@@ -224,6 +278,9 @@ impl Store {
             Store::Span(_) => "span",
             Store::ProfileChunk(_) => "profile_chunk",
             Store::Replay(_) => "replay",
+            Store::Attachment(_) => "attachment",
+            Store::UserReport(_) => "user_report",
+            Store::Profile(_) => "profile",
         }
     }
 }
@@ -278,6 +335,30 @@ impl FromMessage<Managed<StoreReplay>> for Store {
     }
 }
 
+impl FromMessage<Managed<StoreAttachment>> for Store {
+    type Response = NoResponse;
+
+    fn from_message(message: Managed<StoreAttachment>, _: ()) -> Self {
+        Self::Attachment(message)
+    }
+}
+
+impl FromMessage<Managed<StoreUserReport>> for Store {
+    type Response = NoResponse;
+
+    fn from_message(message: Managed<StoreUserReport>, _: ()) -> Self {
+        Self::UserReport(message)
+    }
+}
+
+impl FromMessage<Managed<StoreProfile>> for Store {
+    type Response = NoResponse;
+
+    fn from_message(message: Managed<StoreProfile>, _: ()) -> Self {
+        Self::Profile(message)
+    }
+}
+
 /// Service implementing the [`Store`] interface.
 pub struct StoreService {
     pool: StoreServicePool,
@@ -317,6 +398,9 @@ impl StoreService {
                 Store::Span(message) => self.handle_store_span(message),
                 Store::ProfileChunk(message) => self.handle_store_profile_chunk(message),
                 Store::Replay(message) => self.handle_store_replay(message),
+                Store::Attachment(message) => self.handle_store_attachment(message),
+                Store::UserReport(message) => self.handle_user_report(message),
+                Store::Profile(message) => self.handle_profile(message),
             }
         })
     }
@@ -741,6 +825,54 @@ impl StoreService {
                     relay_snuba_publish_disabled: true,
                 });
             self.produce(KafkaTopic::ReplayRecordings, kafka_msg)
+        });
+    }
+
+    fn handle_store_attachment(&self, message: Managed<StoreAttachment>) {
+        let scoping = message.scoping();
+        let _ = message.try_accept(|attachment| {
+            let result = self.produce_attachment(
+                attachment.event_id,
+                scoping.project_id,
+                &attachment.attachment,
+                // Hardcoded to `true` since standalone attachments are 'individual attachments'.
+                true,
+            );
+            // Since we are sending an 'individual attachment' this function should never return a
+            // `ChunkedAttachment`.
+            debug_assert!(!matches!(result, Ok(Some(_))));
+            result
+        });
+    }
+
+    fn handle_user_report(&self, message: Managed<StoreUserReport>) {
+        let scoping = message.scoping();
+        let received_at = message.received_at();
+
+        let _ = message.try_accept(|report| {
+            let kafka_msg = KafkaMessage::UserReport(UserReportKafkaMessage {
+                project_id: scoping.project_id,
+                event_id: report.event_id,
+                start_time: safe_timestamp(received_at),
+                payload: report.report.payload(),
+            });
+            self.produce(KafkaTopic::Attachments, kafka_msg)
+        });
+    }
+
+    fn handle_profile(&self, message: Managed<StoreProfile>) {
+        let scoping = message.scoping();
+        let received_at = message.received_at();
+
+        let _ = message.try_accept(|profile| {
+            self.produce_profile(
+                scoping.organization_id,
+                scoping.project_id,
+                scoping.key_id,
+                received_at,
+                profile.retention_days,
+                &profile.profile,
+            )
         });
     }
 

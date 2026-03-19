@@ -1,3 +1,4 @@
+from collections import defaultdict
 from unittest import mock
 import pytest
 import os
@@ -22,7 +23,10 @@ def playstation_project_config():
         "config": {
             # Set to 100 years to prevent normalization from overwriting the timestamp
             "eventRetention": 36500,
-            "features": ["organizations:relay-playstation-ingestion"],
+            "features": [
+                "organizations:relay-playstation-ingestion",
+                "projects:relay-upload-endpoint",
+            ],
         }
     }
 
@@ -212,8 +216,11 @@ def test_playstation_no_feature_flag(
     outcomes_consumer = outcomes_consumer()
     relay = relay_processing_with_playstation()
 
-    response = relay.send_playstation_request(PROJECT_ID, playstation_dump)
-    assert response.ok
+    with pytest.raises(requests.exceptions.HTTPError) as exc_info:
+        _ = relay.send_playstation_request(PROJECT_ID, playstation_dump)
+    response = exc_info.value.response
+
+    assert response.status_code == 403
 
     # Get these outcomes since the feature flag is not enabled:
     outcomes = outcomes_consumer.get_outcomes()
@@ -256,7 +263,7 @@ def test_playstation_wrong_file(
 ):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("unreal_crash")
-    mini_sentry.add_full_project_config(PROJECT_ID)
+    mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
     outcomes_consumer = outcomes_consumer()
     relay = relay_processing_with_playstation()
 
@@ -268,16 +275,17 @@ def test_playstation_wrong_file(
     assert response.json()["detail"] == "invalid prosperodump"
 
 
-def test_playstation_too_large(
+def test_playstation_max_attachments_size_exceeded(
     mini_sentry, relay_processing_with_playstation, outcomes_consumer
 ):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("playstation.prosperodmp")
-    mini_sentry.add_full_project_config(PROJECT_ID)
+    mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
     outcomes_consumer = outcomes_consumer()
     relay = relay_processing_with_playstation(
         {
             "limits": {
+                "max_attachment_size": 1000 * 1024 * 1024,
                 "max_attachments_size": len(playstation_dump) - 1,
             }
         }
@@ -288,6 +296,31 @@ def test_playstation_too_large(
 
     response = exc_info.value.response
     assert response.status_code == 400, "Expected a 400 status code"
+    assert len(outcomes_consumer.get_outcomes()) == 0
+
+
+def test_playstation_max_attachment_size_exceeded(
+    mini_sentry, relay_processing_with_playstation, outcomes_consumer
+):
+    PROJECT_ID = 42
+    playstation_dump = load_dump_file("playstation.prosperodmp")
+    mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
+    outcomes_consumer = outcomes_consumer()
+    relay = relay_processing_with_playstation(
+        {
+            "limits": {
+                "max_attachment_size": len(playstation_dump) - 1,
+                "max_attachments_size": 1000 * 1024 * 1024,
+            }
+        }
+    )
+
+    with pytest.raises(requests.exceptions.HTTPError) as exc_info:
+        _ = relay.send_playstation_request(PROJECT_ID, playstation_dump)
+
+    response = exc_info.value.response
+    assert response.status_code == 400, "Expected a 400 status code"
+    assert len(outcomes_consumer.get_outcomes()) == 0
 
 
 @pytest.mark.parametrize("num_intermediate_relays", [0, 1, 2])
@@ -351,43 +384,74 @@ def test_playstation_user_data_extraction(
     assert len(event["attachments"]) == 3
 
 
-def test_playstation_ignore_large_fields(
+@pytest.mark.parametrize("use_pop_relay", [True, False])
+def test_playstation_large_attachments(
     mini_sentry,
     relay_with_playstation,
+    relay_processing_with_playstation,
+    relay_credentials,
+    objectstore,
+    outcomes_consumer,
+    attachments_consumer,
+    use_pop_relay,
 ):
     PROJECT_ID = 42
-    playstation_dump = load_dump_file("user_data.prosperodmp")
-    mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
-
-    # Make a dummy video that is larger than the dump
-    video_content = "1" * (len(playstation_dump) + 100)
-    relay = relay_with_playstation(
-        mini_sentry,
+    playstation_dump = load_dump_file("playstation.prosperodmp")
+    config = playstation_project_config()
+    config["config"]["features"].append("projects:relay-playstation-uploads")
+    mini_sentry.add_full_project_config(PROJECT_ID, extra=config)
+    outcomes_consumer = outcomes_consumer()
+    attachments_consumer = attachments_consumer()
+    credentials = relay_credentials()
+    relay = relay_processing_with_playstation(
         {
+            # 1 MiB extra for minidump etc.
             "limits": {
-                "max_attachment_size": len(video_content) - 1,
+                "max_attachment_size": len(playstation_dump) + 1 * 1024 * 1024,
+                "max_attachments_size": len(playstation_dump) + 1 * 1024 * 1024,
             },
-            "outcomes": {"emit_outcomes": True, "batch_size": 1, "batch_interval": 1},
         },
+        static_credentials=credentials,
     )
+    if use_pop_relay:
+        relay = relay_with_playstation(relay, credentials=credentials)
+    # Video size exceeds attachment size limits - we expect this to be ignored
+    video_content = "1" * (len(playstation_dump) + 2 * 1024 * 1024)
 
     response = relay.send_playstation_request(
         PROJECT_ID, playstation_dump, video_content
     )
+    # Attachment chunks sent to Kafka
+    chunks = defaultdict(bytes)
+    event = None
+    while not event:
+        _, msg = attachments_consumer.get_message()
+        if msg.get("type") == "attachment_chunk":
+            chunks[msg["id"]] += msg["payload"]
+        elif msg.get("type") == "event":
+            event = msg
+
+    # Successful response
     assert response.ok
-    assert (mini_sentry.captured_outcomes.get(timeout=5)["outcomes"]) == [
-        {
-            "timestamp": mock.ANY,
-            "project_id": 42,
-            "outcome": 3,
-            "reason": "too_large:attachment:attachment",
-            "category": 4,
-            "quantity": len(video_content),
-        }
-    ]
-    assert [
-        item.headers["filename"] for item in mini_sentry.get_captured_envelope().items
-    ] == ["playstation.prosperodmp"]
+
+    # No outcomes
+    assert len(outcomes_consumer.get_outcomes()) == 0
+
+    # Attachment chunks (created from the envelope) don't contain the video attachment, but instead
+    # a location/reference to it in objectstore.
+    video_attachment = [
+        a for a in event["attachments"] if a["name"] == "crash-video.webm"
+    ][0]
+    location_uri = chunks[video_attachment["id"]].decode()
+    video_key = location_uri.split("/upload/")[1].split("/")[0]
+    objectstore_session = objectstore("attachments", PROJECT_ID)
+    assert objectstore_session.get(video_key).payload.read() == video_content.encode()
+
+    # Prospero dump is located in attachment chunks.
+    dump_attachment = [
+        a for a in event["attachments"] if a["name"] == "playstation.prosperodmp"
+    ][0]
+    assert chunks[dump_attachment["id"]] == playstation_dump
 
 
 def test_playstation_attachment(
@@ -496,7 +560,9 @@ def test_playstation_attachment_no_feature_flag(
             "enhancements": "eJybzDhxY05qemJypZWRgaGlroGxrqHRBABbEwcC",
             "id": "legacy:2019-03-12",
         },
-        "_metrics": {"bytes.ingested.event": 137},
+        "_metrics": {
+            "bytes.ingested.event": 137,
+        },
     }
 
     assert event["attachments"] == (

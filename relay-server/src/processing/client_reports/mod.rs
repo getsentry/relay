@@ -64,14 +64,11 @@ impl ClientReportsProcessor {
 }
 
 impl processing::Processor for ClientReportsProcessor {
-    type UnitOfWork = SerializedClientReports;
+    type Input = SerializedClientReports;
     type Output = Nothing;
     type Error = Error;
 
-    fn prepare_envelope(
-        &self,
-        envelope: &mut ManagedEnvelope,
-    ) -> Option<Managed<Self::UnitOfWork>> {
+    fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
         let reports = envelope
             .envelope_mut()
@@ -87,7 +84,7 @@ impl processing::Processor for ClientReportsProcessor {
 
     async fn process(
         &self,
-        reports: Managed<Self::UnitOfWork>,
+        reports: Managed<Self::Input>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         let mut outcomes = process::expand(reports);

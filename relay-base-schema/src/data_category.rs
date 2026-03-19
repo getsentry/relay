@@ -241,6 +241,10 @@ pub enum DataCategory {
     ///
     /// SDK rate limiting behavior: optional, apply to transaction profiles on "ui platforms".
     ProfileUi = 36,
+    /// TraceMetricByte
+    ///
+    /// This is the category for trace metrics for which we store total bytes for users.
+    TraceMetricByte = 37,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -289,6 +293,7 @@ impl DataCategory {
             "size_analysis" => Self::SizeAnalysis,
             "installable_build" => Self::InstallableBuild,
             "trace_metric" => Self::TraceMetric,
+            "trace_metric_byte" => Self::TraceMetricByte,
             "seer_user" => Self::SeerUser,
             "profile_backend" => Self::ProfileBackend,
             "profile_ui" => Self::ProfileUi,
@@ -333,6 +338,7 @@ impl DataCategory {
             Self::SizeAnalysis => "size_analysis",
             Self::InstallableBuild => "installable_build",
             Self::TraceMetric => "trace_metric",
+            Self::TraceMetricByte => "trace_metric_byte",
             Self::SeerUser => "seer_user",
             Self::ProfileBackend => "profile_backend",
             Self::ProfileUi => "profile_ui",
@@ -444,6 +450,7 @@ impl TryFrom<u8> for DataCategory {
             34 => Ok(Self::SeerUser),
             35 => Ok(Self::ProfileBackend),
             36 => Ok(Self::ProfileUi),
+            37 => Ok(Self::TraceMetricByte),
             other => Err(UnknownDataCategory(other as u32)),
         }
     }
@@ -544,7 +551,9 @@ impl CategoryUnit {
             | DataCategory::ProfileBackend
             | DataCategory::ProfileUi => Some(Self::Count),
 
-            DataCategory::Attachment | DataCategory::LogByte => Some(Self::Bytes),
+            DataCategory::Attachment | DataCategory::LogByte | DataCategory::TraceMetricByte => {
+                Some(Self::Bytes)
+            }
 
             DataCategory::ProfileDuration | DataCategory::ProfileDurationUi => {
                 Some(Self::Milliseconds)
@@ -578,8 +587,11 @@ mod tests {
         // If this test fails, update the numeric bounds so that the first assertion
         // maps to the last variant in the enum and the second assertion produces an error
         // that the DataCategory does not exist.
-        assert_eq!(DataCategory::try_from(36u8), Ok(DataCategory::ProfileUi));
-        assert_eq!(DataCategory::try_from(37u8), Err(UnknownDataCategory(37)));
+        assert_eq!(
+            DataCategory::try_from(37u8),
+            Ok(DataCategory::TraceMetricByte)
+        );
+        assert_eq!(DataCategory::try_from(38u8), Err(UnknownDataCategory(38)));
     }
 
     #[test]

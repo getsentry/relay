@@ -123,7 +123,7 @@ def test_trace_metric_extraction(
         "traceId": "5b8efff798038103d269b633813fc60c",
     }
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=1)
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
     assert outcomes == [
         {
             "category": DataCategory.TRACE_METRIC.value,
@@ -132,7 +132,17 @@ def test_trace_metric_extraction(
             "outcome": 0,
             "project_id": 42,
             "quantity": 1,
-        }
+        },
+        {
+            "category": DataCategory.TRACE_METRIC_BYTE.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            # Calculated byte size: name + value + attribute keys/values.
+            # This is a billing relevant number, do not just adjust this because it changed.
+            "quantity": 241,
+        },
     ]
 
 
@@ -165,7 +175,7 @@ def test_trace_metric_validation(
     envelope = envelope_with_trace_metrics(invalid_payload)
     relay.send_envelope(project_id, envelope)
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=1)
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
     assert outcomes == [
         {
             "category": DataCategory.TRACE_METRIC.value,
@@ -175,7 +185,16 @@ def test_trace_metric_validation(
             "project_id": 42,
             "quantity": 1,
             "reason": "invalid_trace_metric",
-        }
+        },
+        {
+            "category": DataCategory.TRACE_METRIC_BYTE.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,  # Invalid
+            "project_id": 42,
+            "quantity": 19,
+            "reason": "invalid_trace_metric",
+        },
     ]
 
 
@@ -261,7 +280,7 @@ def test_trace_metric_pii_scrubbing(
         "traceId": "5b8efff798038103d269b633813fc60c",
     }
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=1)
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
     assert outcomes == [
         {
             "category": DataCategory.TRACE_METRIC.value,
@@ -270,7 +289,15 @@ def test_trace_metric_pii_scrubbing(
             "outcome": 0,
             "project_id": 42,
             "quantity": 1,
-        }
+        },
+        {
+            "category": DataCategory.TRACE_METRIC_BYTE.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 159,
+        },
     ]
 
 
@@ -323,6 +350,15 @@ def test_trace_metric_size_limits(
             "quantity": 1,
             "reason": "too_large:trace_metric",
         },
+        {
+            "category": 37,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,
+            "project_id": 42,
+            "quantity": 608,
+            "reason": "too_large:trace_metric",
+        },
     ]
 
 
@@ -362,6 +398,7 @@ def test_time_corrections(mini_sentry, relay, delta, error):
     envelope = mini_sentry.get_captured_envelope()
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
     assert item_payload["items"][0] == {
+        "__header": mock.ANY,
         "_meta": {
             "timestamp": {
                 "": {
