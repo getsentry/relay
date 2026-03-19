@@ -891,6 +891,9 @@ impl SharedClient {
                 opts.negative_max_ttl = Some(Duration::ZERO);
             }
             let (system_config, mut system_opts) = read_system_conf().unwrap_or_default();
+            // Match reqwest's built-in hickory behaviour which uses Ipv4AndIpv6 (parallel,
+            // "happy eyeballs") instead of the hickory default Ipv4thenIpv6 (sequential).
+            system_opts.ip_strategy = LookupIpStrategy::Ipv4AndIpv6;
             if !config.http_dns_cache_nxdomain() {
                 system_opts.negative_max_ttl = Some(Duration::ZERO);
             }
