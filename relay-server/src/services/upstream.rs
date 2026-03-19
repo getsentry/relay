@@ -18,7 +18,8 @@ use axum::response::IntoResponse;
 use bytes::Bytes;
 use hickory_resolver::config::LookupIpStrategy;
 use hickory_resolver::system_conf::read_system_conf;
-use hickory_resolver::TokioAsyncResolver;
+use hickory_resolver::TokioResolver;
+use hickory_resolver::name_server::TokioConnectionProvider;
 use itertools::Itertools;
 use relay_auth::{
     RegisterChallenge, RegisterRequest, RegisterResponse, Registration, SecretKey, Signature,
@@ -848,7 +849,7 @@ impl UpstreamQuery for RegisterResponse {
 
 /// A custom DNS resolver backed by hickory, allowing fine-grained control over
 /// resolver options (e.g. NXDOMAIN TTL) that reqwest's `.hickory_dns()` does not expose.
-struct HickoryResolver(TokioAsyncResolver);
+struct HickoryResolver(TokioResolver);
 
 impl Resolve for HickoryResolver {
     fn resolve(&self, name: Name) -> Resolving {
@@ -894,7 +895,9 @@ impl SharedClient {
             if !config.http_dns_cache_nxdomain() {
                 system_opts.negative_max_ttl = Some(Duration::ZERO);
             }
-            let resolver = TokioAsyncResolver::tokio(system_config, system_opts);
+            let resolver = TokioResolver::builder_with_config(system_config, TokioConnectionProvider::default())
+                .with_options(system_opts)
+                .build();
             builder = builder.dns_resolver(Arc::new(HickoryResolver(resolver)));
         } else {
             // Explicitly disable hickory so reqwest falls back to the system resolver.
