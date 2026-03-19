@@ -10,6 +10,7 @@
 
 - Calculate and track accepted bytes per individual trace metric item via `TraceMetricByte` data category. ([#5744](https://github.com/getsentry/relay/pull/5744))
 - Use new processor architecture to process standalone profiles. ([#5741](https://github.com/getsentry/relay/pull/5741))
+- TUS: Disallow creation with upload. ([#5734](https://github.com/getsentry/relay/pull/5734))
 
 ## 26.3.1
 

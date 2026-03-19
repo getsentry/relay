@@ -8,13 +8,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from flask import Response
 import pytest
-import urllib
-
-from sentry_relay.auth import PublicKey
 
 
-UPLOAD_PATH = "/api/42/upload/019cdc82ed6c7761ba21fd34b86481c2/"
-UPLOAD_LOCATION = f"{UPLOAD_PATH}?length=11&signature=z_fUMhT0EZqJz6OQtwGHqTlOOLPpTVpvPa-rYTg18FVWZM1OGny-LeVJB5H-sSR_5e--I1xt-FlCmRG2bsmcAQ.eyJ0IjoiMjAyNi0wMy0xMVQxMDo0ODoxMy45NDM1ODNaIn0"
+DUMMY_UPLOAD_PATH = "/api/42/upload/019cdc82ed6c7761ba21fd34b86481c2/"
+DUMMY_UPLOAD_LOCATION = f"{DUMMY_UPLOAD_PATH}?length=11&signature=z_fUMhT0EZqJz6OQtwGHqTlOOLPpTVpvPa-rYTg18FVWZM1OGny-LeVJB5H-sSR_5e--I1xt-FlCmRG2bsmcAQ.eyJ0IjoiMjAyNi0wMy0xMVQxMDo0ODoxMy45NDM1ODNaIn0"
 
 
 @pytest.fixture
@@ -26,7 +23,7 @@ def dummy_upload(mini_sentry):
         return Response(
             "",
             status=201,
-            headers={"Location": UPLOAD_LOCATION},
+            headers={"Location": DUMMY_UPLOAD_LOCATION},
         )
 
     @mini_sentry.app.route("/api/<project>/upload/<key>/", methods=["PATCH"])
@@ -34,7 +31,7 @@ def dummy_upload(mini_sentry):
         return Response(
             "",
             status=204,
-            headers={"Location": UPLOAD_LOCATION},
+            headers={"Location": DUMMY_UPLOAD_LOCATION},
         )
 
 
@@ -53,7 +50,37 @@ def project_config(mini_sentry):
         pytest.param(False, 403, id="feature disabled"),
     ],
 )
-def test_forward(
+def test_forward_create(
+    mini_sentry, relay, dummy_upload, feature_enabled, expected_status_code
+):
+    project_id = 42
+    config = mini_sentry.add_full_project_config(project_id)
+    if feature_enabled:
+        config["config"].setdefault("features", []).append(
+            "projects:relay-upload-endpoint"
+        )
+    relay = relay(mini_sentry)
+
+    response = relay.post(
+        "/api/%s/upload/?sentry_key=%s"
+        % (project_id, mini_sentry.get_dsn_public_key(project_id)),
+        headers={
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": "11",
+        },
+    )
+
+    assert response.status_code == expected_status_code, response.text
+
+
+@pytest.mark.parametrize(
+    "feature_enabled,expected_status_code",
+    [
+        pytest.param(True, 204, id="feature enabled"),
+        pytest.param(False, 403, id="feature disabled"),
+    ],
+)
+def test_forward_patch(
     mini_sentry, relay, dummy_upload, feature_enabled, expected_status_code
 ):
     project_id = 42
@@ -65,13 +92,13 @@ def test_forward(
     relay = relay(mini_sentry)
 
     data = b"hello world"
-    response = relay.post(
-        "/api/%s/upload/?sentry_key=%s"
-        % (project_id, mini_sentry.get_dsn_public_key(project_id)),
+    response = relay.patch(
+        "%s&sentry_key=%s"
+        % (DUMMY_UPLOAD_LOCATION, mini_sentry.get_dsn_public_key(project_id)),
         headers={
             "Tus-Resumable": "1.0.0",
-            "Upload-Length": str(len(data)),
             "Content-Type": "application/offset+octet-stream",
+            "Upload-Offset": "0",
         },
         data=data,
     )
@@ -94,7 +121,6 @@ def test_upload_missing_tus_version(mini_sentry, relay, dummy_upload, project_co
         % (project_id, mini_sentry.get_dsn_public_key(project_id)),
         headers={
             "Upload-Length": "5",
-            "Content-Type": "application/offset+octet-stream",
         },
         data=b"hello",
     )
@@ -119,7 +145,6 @@ def test_upload_unsupported_tus_version(
         headers={
             "Tus-Resumable": "0.2.0",
             "Upload-Length": "5",
-            "Content-Type": "application/offset+octet-stream",
         },
         data=b"hello",
     )
@@ -141,7 +166,6 @@ def test_upload_missing_upload_length(mini_sentry, relay, dummy_upload, project_
         % (project_id, mini_sentry.get_dsn_public_key(project_id)),
         headers={
             "Tus-Resumable": "1.0.0",
-            "Content-Type": "application/offset+octet-stream",
         },
         data=b"hello",
     )
@@ -163,15 +187,15 @@ def test_upload_missing_upload_length(mini_sentry, relay, dummy_upload, project_
     "size,expected_status_code,expected_error",
     [
         pytest.param(
-            9,
+            10,
             400,
-            "stream shorter than lower bound: received 9 < 10",
+            "stream shorter than lower bound: received 10 < 11",
             id="smaller_than_announced",
         ),
         pytest.param(
-            11,
+            12,
             400,
-            "stream exceeded upper bound: received 11 > 10",
+            "stream exceeded upper bound: received 12 > 11",
             id="larger_than_announced",
         ),
         pytest.param(101, 413, "length limit exceeded", id="larger_than_allowed"),
@@ -198,13 +222,13 @@ def test_upload_body_size(
     )
 
     data = "x" * size
-    response = relay.post(
-        "/api/%s/upload/?sentry_key=%s"
-        % (project_id, mini_sentry.get_dsn_public_key(project_id)),
+    response = relay.patch(
+        "%s&sentry_key=%s"
+        % (DUMMY_UPLOAD_LOCATION, mini_sentry.get_dsn_public_key(project_id)),
         headers={
             "Tus-Resumable": "1.0.0",
-            "Upload-Length": "10",
             "Content-Type": "application/offset+octet-stream",
+            "Upload-Offset": "0",
         },
         data=data,
     )
@@ -243,7 +267,6 @@ def test_upload_rate_limited(
             headers={
                 "Tus-Resumable": "1.0.0",
                 "Upload-Length": "5",
-                "Content-Type": "application/offset+octet-stream",
             },
             data=b"hello",
         )
@@ -271,10 +294,10 @@ def test_timeout(
     """Ensure that the general HTTP timeout does not affect the upload endpoint"""
     mini_sentry.allow_chunked = True
 
-    @mini_sentry.app.route(UPLOAD_PATH, methods=["PATCH"])
+    @mini_sentry.app.route(DUMMY_UPLOAD_PATH, methods=["PATCH"])
     def slow_upload(**opts):
         time.sleep(2)
-        return Response("", status=204, headers={"Location": UPLOAD_LOCATION})
+        return Response("", status=204, headers={"Location": DUMMY_UPLOAD_LOCATION})
 
     project_id = 42
     relay = relay(
@@ -288,7 +311,7 @@ def test_timeout(
     data = b"hello world"
     response = relay.patch(
         "%s&sentry_key=%s"
-        % (UPLOAD_LOCATION, mini_sentry.get_dsn_public_key(project_id)),
+        % (DUMMY_UPLOAD_LOCATION, mini_sentry.get_dsn_public_key(project_id)),
         headers={
             "Tus-Resumable": "1.0.0",
             "Upload-Offset": "0",
@@ -306,54 +329,6 @@ def test_timeout(
                 "deadline has elapsed",
             ],
         }
-
-
-@pytest.mark.parametrize(
-    "chain", [pytest.param(False, id="processing_only"), pytest.param(True, id="chain")]
-)
-def test_create_with_upload_processing(
-    mini_sentry, relay, relay_with_processing, chain, project_config
-):
-    """Upload via processing relay stores the blob in objectstore."""
-    project_id = 42
-    processing_relay = relay_with_processing()
-    if chain:
-        relay = relay(processing_relay)
-    else:
-        relay = processing_relay
-
-    data = b"hello world"
-    response = relay.post(
-        "/api/%s/upload/?sentry_key=%s"
-        % (project_id, mini_sentry.get_dsn_public_key(project_id)),
-        headers={
-            "Tus-Resumable": "1.0.0",
-            "Content-Type": "application/offset+octet-stream",
-            "Upload-Length": str(len(data)),
-        },
-        data=data,
-    )
-
-    assert response.status_code == 201
-    assert response.headers["Tus-Resumable"] == "1.0.0"
-    assert response.headers["Upload-Offset"] == str(len(data)), response.headers
-
-    # Validate location:
-    path, query = response.headers["Location"].split("?")
-    base_path, attachment_id = path.rstrip("/").rsplit("/", 1)
-    assert base_path == "/api/42/upload"
-    attachment_id = uuid.UUID(attachment_id).hex
-    query_params = urllib.parse.parse_qs(query)
-    (length,) = query_params["length"]
-    assert length == "11"
-    (signature,) = query_params["signature"]
-
-    # TODO: verify timestamp of signature, add test of outdated signature
-    # TODO: unit tests for signature validation
-    unsigned_uri = f"{base_path}/{attachment_id}/?length=11"
-    assert PublicKey.parse(processing_relay.public_key).verify(
-        unsigned_uri.encode(), signature
-    )
 
 
 @pytest.mark.parametrize(
@@ -451,16 +426,13 @@ def test_upload_with_deferred_length(
     processing_relay = relay_with_processing()
     relay = relay(processing_relay)
 
-    data = b"hello world"
     response = relay.post(
         "/api/%s/upload/?sentry_key=%s"
         % (project_id, mini_sentry.get_dsn_public_key(project_id)),
         headers={
             "Tus-Resumable": "1.0.0",
             "Upload-Defer-Length": defer_length_value,
-            "Content-Type": "application/offset+octet-stream",
         },
-        data=data,
     )
 
     expected_status_code = 403 if defer_length_value == "1" else 400
@@ -487,12 +459,13 @@ def test_concurrency_limit(mini_sentry, relay, project_config):
     """Exceeding upload.max_concurrent_requests results in 503 Service Unavailable."""
 
     project_id = 42
+    project_key = mini_sentry.get_dsn_public_key(project_id)
     timeout = 2
 
     mini_sentry.allow_chunked = True
     relay.capture_logs = True
 
-    @mini_sentry.app.route("/api/<project>/upload/", methods=["POST"])
+    @mini_sentry.app.route("/api/<project>/upload/<key>/", methods=["PATCH"])
     def slow_upstream(**opts):
         time.sleep(timeout + 1)
 
@@ -501,16 +474,18 @@ def test_concurrency_limit(mini_sentry, relay, project_config):
         {"upload": {"max_concurrent_requests": 1, "timeout": 1}},
     )
 
+    data = "hello world"
+
     def do_upload():
-        return relay.post(
-            "/api/%s/upload/?sentry_key=%s"
-            % (project_id, mini_sentry.get_dsn_public_key(project_id)),
+        return relay.patch(
+            f"{DUMMY_UPLOAD_LOCATION}&sentry_key={project_key}",
             headers={
-                "Tus-Resumable": "1.0.0",
-                "Upload-Length": "5",
+                "Content-Length": str(len(data)),
                 "Content-Type": "application/offset+octet-stream",
+                "Tus-Resumable": "1.0.0",
+                "Upload-Offset": "0",
             },
-            data=b"hello",
+            data=data,
         )
 
     with ThreadPoolExecutor(max_workers=10) as pool:
