@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.25
 
 - feat(tracemetric): Add TraceMetricByte datacategory ([#5719](https://github.com/getsentry/relay/pull/5719))
 - **Breaking**:  To prevent false positives, non-public email addresses (e.g. `user@localhost`) are no longer scrubbed by default. ([#5737](https://github.com/getsentry/relay/pull/5737))
