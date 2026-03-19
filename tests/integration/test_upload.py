@@ -10,8 +10,8 @@ from flask import Response
 import pytest
 
 
-UPLOAD_PATH = "/api/42/upload/019cdc82ed6c7761ba21fd34b86481c2/"
-UPLOAD_LOCATION = f"{UPLOAD_PATH}?length=11&signature=z_fUMhT0EZqJz6OQtwGHqTlOOLPpTVpvPa-rYTg18FVWZM1OGny-LeVJB5H-sSR_5e--I1xt-FlCmRG2bsmcAQ.eyJ0IjoiMjAyNi0wMy0xMVQxMDo0ODoxMy45NDM1ODNaIn0"
+DUMMY_UPLOAD_PATH = "/api/42/upload/019cdc82ed6c7761ba21fd34b86481c2/"
+DUMMY_UPLOAD_LOCATION = f"{DUMMY_UPLOAD_PATH}?length=11&signature=z_fUMhT0EZqJz6OQtwGHqTlOOLPpTVpvPa-rYTg18FVWZM1OGny-LeVJB5H-sSR_5e--I1xt-FlCmRG2bsmcAQ.eyJ0IjoiMjAyNi0wMy0xMVQxMDo0ODoxMy45NDM1ODNaIn0"
 
 
 @pytest.fixture
@@ -23,7 +23,7 @@ def dummy_upload(mini_sentry):
         return Response(
             "",
             status=201,
-            headers={"Location": UPLOAD_LOCATION},
+            headers={"Location": DUMMY_UPLOAD_LOCATION},
         )
 
     @mini_sentry.app.route("/api/<project>/upload/<key>/", methods=["PATCH"])
@@ -31,7 +31,7 @@ def dummy_upload(mini_sentry):
         return Response(
             "",
             status=204,
-            headers={"Location": UPLOAD_LOCATION},
+            headers={"Location": DUMMY_UPLOAD_LOCATION},
         )
 
 
@@ -94,7 +94,7 @@ def test_forward_patch(
     data = b"hello world"
     response = relay.patch(
         "%s&sentry_key=%s"
-        % (UPLOAD_LOCATION, mini_sentry.get_dsn_public_key(project_id)),
+        % (DUMMY_UPLOAD_LOCATION, mini_sentry.get_dsn_public_key(project_id)),
         headers={
             "Tus-Resumable": "1.0.0",
             "Content-Type": "application/offset+octet-stream",
@@ -224,7 +224,7 @@ def test_upload_body_size(
     data = "x" * size
     response = relay.patch(
         "%s&sentry_key=%s"
-        % (UPLOAD_LOCATION, mini_sentry.get_dsn_public_key(project_id)),
+        % (DUMMY_UPLOAD_LOCATION, mini_sentry.get_dsn_public_key(project_id)),
         headers={
             "Tus-Resumable": "1.0.0",
             "Content-Type": "application/offset+octet-stream",
@@ -294,10 +294,10 @@ def test_timeout(
     """Ensure that the general HTTP timeout does not affect the upload endpoint"""
     mini_sentry.allow_chunked = True
 
-    @mini_sentry.app.route(UPLOAD_PATH, methods=["PATCH"])
+    @mini_sentry.app.route(DUMMY_UPLOAD_PATH, methods=["PATCH"])
     def slow_upload(**opts):
         time.sleep(2)
-        return Response("", status=204, headers={"Location": UPLOAD_LOCATION})
+        return Response("", status=204, headers={"Location": DUMMY_UPLOAD_LOCATION})
 
     project_id = 42
     relay = relay(
@@ -311,7 +311,7 @@ def test_timeout(
     data = b"hello world"
     response = relay.patch(
         "%s&sentry_key=%s"
-        % (UPLOAD_LOCATION, mini_sentry.get_dsn_public_key(project_id)),
+        % (DUMMY_UPLOAD_LOCATION, mini_sentry.get_dsn_public_key(project_id)),
         headers={
             "Tus-Resumable": "1.0.0",
             "Upload-Offset": "0",
@@ -478,7 +478,7 @@ def test_concurrency_limit(mini_sentry, relay, project_config):
 
     def do_upload():
         return relay.patch(
-            f"{UPLOAD_LOCATION}&sentry_key={project_key}",
+            f"{DUMMY_UPLOAD_LOCATION}&sentry_key={project_key}",
             headers={
                 "Content-Length": str(len(data)),
                 "Content-Type": "application/offset+octet-stream",
