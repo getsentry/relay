@@ -16,7 +16,8 @@ use std::time::Duration;
 
 use axum::response::IntoResponse;
 use bytes::Bytes;
-use hickory_resolver::config::{ResolverConfig, ResolverOpts};
+use hickory_resolver::config::{LookupIpStrategy, ResolverOpts};
+use hickory_resolver::system_conf::read_system_conf;
 use hickory_resolver::TokioAsyncResolver;
 use itertools::Itertools;
 use relay_auth::{
@@ -886,10 +887,6 @@ impl SharedClient {
             .gzip(true);
 
         if config.http_dns_cache() {
-            let mut opts = ResolverOpts::default();
-            if !config.http_dns_cache_nxdomain() {
-                opts.negative_max_ttl = Some(Duration::ZERO);
-            }
             let (system_config, mut system_opts) = read_system_conf().unwrap_or_default();
             // Match reqwest's built-in hickory behaviour which uses Ipv4AndIpv6 (parallel,
             // "happy eyeballs") instead of the hickory default Ipv4thenIpv6 (sequential).
