@@ -6,6 +6,8 @@ use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
 use relay_conventions::IS_REMOTE;
 use relay_conventions::ORIGIN;
 use relay_conventions::PLATFORM;
+use relay_conventions::SEGMENT_ID;
+use relay_conventions::SEGMENT_NAME;
 use relay_conventions::SPAN_KIND;
 use relay_conventions::STATUS_MESSAGE;
 use relay_event_schema::protocol::{Attributes, SpanKind};
@@ -57,7 +59,7 @@ pub fn otel_to_sentry_span(
     let start_timestamp = Utc.timestamp_nanos(start_time_unix_nano as i64);
     let end_timestamp = Utc.timestamp_nanos(end_time_unix_nano as i64);
 
-    let span_id = SpanId::try_from(span_id.as_slice()).into();
+    let span_id: Annotated<SpanId> = SpanId::try_from(span_id.as_slice()).into();
     let trace_id = TraceId::try_from_slice_or_random(trace_id.as_slice());
 
     let parent_span_id = match parent_span_id.as_slice() {
@@ -124,6 +126,15 @@ pub fn otel_to_sentry_span(
     // A span is also a segment if it has no parent span (i.e., it's a root span).
     let is_root_span = parent_span_id.value().is_none();
     let is_segment = is_root_span || is_remote.unwrap_or(false);
+
+    if is_segment {
+        if let Some(span_id) = span_id.value() {
+            sentry_attributes.insert(SEGMENT_ID, span_id.to_string());
+        }
+        if let Some(ref segment_name) = name {
+            sentry_attributes.insert(SEGMENT_NAME, segment_name.clone());
+        }
+    }
 
     SentrySpanV2 {
         name: name.into(),
@@ -863,6 +874,10 @@ mod tests {
             "sentry.origin": {
               "type": "string",
               "value": "auto.otlp.spans"
+            },
+            "sentry.segment.id": {
+              "type": "string",
+              "value": "e342abb1214ca181"
             }
           }
         }
@@ -930,6 +945,50 @@ mod tests {
             "sentry.origin": {
               "type": "string",
               "value": "auto.otlp.spans"
+            },
+            "sentry.segment.id": {
+              "type": "string",
+              "value": "e342abb1214ca181"
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn segment_span_with_name_is_copied_to_attributes() {
+        let json = r#"{
+          "traceId": "89143b0763095bd9c9955e8175d1fb23",
+          "spanId": "e342abb1214ca181",
+          "name": "my segment span",
+          "startTimeUnixNano": "123000000000",
+          "endTimeUnixNano": "123500000000"
+        }"#;
+        let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+        let event_span = otel_to_sentry_span(otel_span, None, None);
+        let annotated_span: Annotated<SentrySpanV2> = Annotated::new(event_span);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
+        {
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "span_id": "e342abb1214ca181",
+          "name": "my segment span",
+          "status": "ok",
+          "is_segment": true,
+          "start_timestamp": 123.0,
+          "end_timestamp": 123.5,
+          "links": [],
+          "attributes": {
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.spans"
+            },
+            "sentry.segment.id": {
+              "type": "string",
+              "value": "e342abb1214ca181"
+            },
+            "sentry.segment.name": {
+              "type": "string",
+              "value": "my segment span"
             }
           }
         }
@@ -1053,6 +1112,10 @@ mod tests {
             "sentry.origin": {
               "type": "string",
               "value": "auto.otlp.spans"
+            },
+            "sentry.segment.id": {
+              "type": "string",
+              "value": "e342abb1214ca181"
             }
           }
         }
@@ -1085,6 +1148,10 @@ mod tests {
             "sentry.origin": {
               "type": "string",
               "value": "auto.otlp.spans"
+            },
+            "sentry.segment.id": {
+              "type": "string",
+              "value": "e342abb1214ca181"
             },
             "sentry.status.message": {
               "type": "string",

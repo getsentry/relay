@@ -689,6 +689,7 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "segment_id": "e342abb1214ca181",
           "is_segment": true,
           "status": "ok",
           "data": {
@@ -817,6 +818,7 @@ mod tests {
           "op": "default",
           "span_id": "e342abb1214ca181",
           "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
+          "segment_id": "e342abb1214ca181",
           "is_segment": true,
           "status": "ok",
           "data": {
@@ -860,6 +862,7 @@ mod tests {
           "op": "default",
           "span_id": "e342abb1214ca181",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "segment_id": "e342abb1214ca181",
           "is_segment": true,
           "status": "internal_error",
           "data": {
