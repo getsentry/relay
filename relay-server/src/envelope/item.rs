@@ -558,7 +558,7 @@ impl Item {
     }
 
     /// Returns `true` if this item is an attachment placeholder.
-    fn is_attachment_ref(&self) -> bool {
+    pub fn is_attachment_ref(&self) -> bool {
         self.ty() == &ItemType::Attachment
             && self.content_type() == Some(ContentType::AttachmentRef)
     }

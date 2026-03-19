@@ -17,7 +17,7 @@ use relay_system::{
 use sentry_protos::snuba::v1::TraceItem;
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
-use crate::envelope::ItemType;
+use crate::envelope::{Item, ItemType};
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
@@ -294,8 +294,7 @@ impl ObjectstoreServiceInner {
             }
             Ok(session) => {
                 for attachment in attachments {
-                    // we are not storing zero-size attachments in objectstore
-                    if attachment.is_empty() {
+                    if Self::should_skip_upload(&attachment) {
                         continue;
                     }
                     let result = self
@@ -326,8 +325,7 @@ impl ObjectstoreServiceInner {
     /// This mutates the attachment item in-place, setting the `stored_key` field to the key in the
     /// objectstore.
     async fn handle_event_attachment(&self, mut attachment: Managed<StoreAttachment>) {
-        // we are not storing zero-size attachments in objectstore
-        if attachment.attachment.is_empty() {
+        if Self::should_skip_upload(&attachment.attachment) {
             self.store.send(attachment);
             return;
         }
@@ -519,5 +517,14 @@ impl ObjectstoreServiceInner {
         relay_log::trace!("Finished attachment upload");
 
         Ok(ObjectstoreKey(response.key))
+    }
+
+    /// Returns `true` if the item should **not** be uploaded to the objectstore.
+    ///
+    /// The case for:
+    /// - Zero-size attachments
+    /// - Attachment placeholders
+    fn should_skip_upload(item: &Item) -> bool {
+        item.is_empty() || item.is_attachment_ref()
     }
 }

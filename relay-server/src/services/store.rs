@@ -33,12 +33,13 @@ use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_threading::AsyncPool;
 
-use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
+use crate::envelope::{AttachmentPlaceholder, AttachmentType, ContentType, Item, ItemType};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities};
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::services::upload::SignedLocation;
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
 use crate::utils::{self, FormDataIter};
 
@@ -55,6 +56,8 @@ pub enum StoreError {
     EncodingFailed(std::io::Error),
     #[error("failed to store event because event id was missing")]
     NoEventId,
+    #[error("invalid attachment reference")]
+    InvalidAttachmentRef,
 }
 
 impl OutcomeError for StoreError {
@@ -958,6 +961,44 @@ impl StoreService {
         Ok(())
     }
 
+    fn produce_attachment_ref(
+        &self,
+        event_id: EventId,
+        project_id: ProjectId,
+        item: &Item,
+        send_individual_attachments: bool,
+    ) -> Result<Option<ChunkedAttachment>, StoreError> {
+        let payload = item.payload();
+        let placeholder: AttachmentPlaceholder<'_> =
+            serde_json::from_slice(&payload).map_err(|_| StoreError::InvalidAttachmentRef)?;
+        let store_key = SignedLocation::try_from_str(&placeholder.location)
+            .ok_or(StoreError::InvalidAttachmentRef)?
+            .unverified_key()
+            .to_owned();
+
+        let attachment = ChunkedAttachment {
+            id: Uuid::new_v4().to_string(),
+            name: item.filename().unwrap_or(UNNAMED_ATTACHMENT).to_owned(),
+            rate_limited: item.rate_limited(),
+            content_type: placeholder.content_type.map(|c| c.as_str().to_owned()),
+            attachment_type: item.attachment_type().unwrap_or_default(),
+            size: item.attachment_body_size(),
+            payload: AttachmentPayload::Stored(store_key),
+        };
+
+        if send_individual_attachments {
+            let message = KafkaMessage::Attachment(AttachmentKafkaMessage {
+                event_id,
+                project_id,
+                attachment,
+            });
+            self.produce(KafkaTopic::Attachments, message)?;
+            Ok(None)
+        } else {
+            Ok(Some(attachment))
+        }
+    }
+
     /// Produces Kafka messages for the content and metadata of an attachment item.
     ///
     /// The `send_individual_attachments` controls whether the metadata of an attachment
@@ -976,6 +1017,17 @@ impl StoreService {
         item: &Item,
         send_individual_attachments: bool,
     ) -> Result<Option<ChunkedAttachment>, StoreError> {
+        // If the attachment is actually a placeholder we need to do some logic that does not neatly
+        // fit into this function.
+        if item.is_attachment_ref() {
+            return self.produce_attachment_ref(
+                event_id,
+                project_id,
+                item,
+                send_individual_attachments,
+            );
+        }
+
         let id = Uuid::new_v4().to_string();
 
         let payload = item.payload();
