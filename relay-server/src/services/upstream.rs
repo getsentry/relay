@@ -892,6 +892,11 @@ impl SharedClient {
             }
             let resolver = TokioAsyncResolver::tokio(ResolverConfig::default(), opts);
             builder = builder.dns_resolver(Arc::new(HickoryResolver(resolver)));
+        } else {
+            // Explicitly disable hickory so reqwest falls back to the system resolver.
+            // Without this, reqwest defaults to hickory when the feature is compiled in,
+            // ignoring the user's opt-out.
+            builder = builder.hickory_dns(false);
         }
 
         let reqwest = builder.build().unwrap();
