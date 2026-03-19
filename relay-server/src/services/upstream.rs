@@ -890,7 +890,11 @@ impl SharedClient {
             if !config.http_dns_cache_nxdomain() {
                 opts.negative_max_ttl = Some(Duration::ZERO);
             }
-            let resolver = TokioAsyncResolver::tokio(ResolverConfig::default(), opts);
+            let (system_config, mut system_opts) = read_system_conf().unwrap_or_default();
+            if !config.http_dns_cache_nxdomain() {
+                system_opts.negative_max_ttl = Some(Duration::ZERO);
+            }
+            let resolver = TokioAsyncResolver::tokio(system_config, system_opts);
             builder = builder.dns_resolver(Arc::new(HickoryResolver(resolver)));
         } else {
             // Explicitly disable hickory so reqwest falls back to the system resolver.
