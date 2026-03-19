@@ -133,7 +133,10 @@ impl Item {
                 (DataCategory::LogByte, self.len().max(1)),
                 (DataCategory::LogItem, item_count)
             ],
-            ItemType::TraceMetric => smallvec![(DataCategory::TraceMetric, item_count)],
+            ItemType::TraceMetric => smallvec![
+                (DataCategory::TraceMetricByte, self.len().max(1)),
+                (DataCategory::TraceMetric, item_count)
+            ],
             ItemType::FormData => smallvec![],
             ItemType::UserReport => smallvec![(DataCategory::UserReportV2, item_count)],
             ItemType::UserReportV2 => smallvec![(DataCategory::UserReportV2, item_count)],

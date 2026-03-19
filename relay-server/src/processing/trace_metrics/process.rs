@@ -1,12 +1,14 @@
 use relay_event_normalization::{RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
-use relay_event_schema::protocol::TraceMetric;
+use relay_event_schema::protocol::{TraceMetric, TraceMetricHeader};
 use relay_pii::{AttributeMode, PiiProcessor};
 use relay_protocol::Annotated;
+use relay_quotas::DataCategory;
 
 use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer};
+use crate::extractors::RequestTrust;
 use crate::processing::Managed;
-use crate::processing::trace_metrics::{Error, Result};
+use crate::processing::trace_metrics::{Error, Result, utils::calculate_size};
 use crate::processing::trace_metrics::{ExpandedTraceMetrics, SerializedTraceMetrics};
 use crate::processing::{Context, utils};
 use crate::services::outcome::DiscardReason;
@@ -15,10 +17,14 @@ use crate::services::outcome::DiscardReason;
 ///
 /// Individual, invalid trace metrics will be discarded.
 pub fn expand(metrics: Managed<SerializedTraceMetrics>) -> Managed<ExpandedTraceMetrics> {
+    let trust = metrics.headers.meta().request_trust();
+
     metrics.map(|metrics, records| {
+        records.lenient(DataCategory::TraceMetricByte);
+
         let mut all_metrics = Vec::new();
         for item in metrics.metrics {
-            let expanded = expand_trace_metric_container(&item);
+            let expanded = expand_trace_metric_container(&item, trust);
             let expanded = records.or_default(expanded, item);
             all_metrics.extend(expanded);
         }
@@ -58,13 +64,27 @@ pub fn scrub(metrics: &mut Managed<ExpandedTraceMetrics>, ctx: Context<'_>) {
 }
 
 /// Parses a trace metric container into its [`ContainerItems<TraceMetric>`] representation.
-fn expand_trace_metric_container(item: &Item) -> Result<ContainerItems<TraceMetric>> {
-    let metrics = ItemContainer::parse(item)
+fn expand_trace_metric_container(
+    item: &Item,
+    trust: RequestTrust,
+) -> Result<ContainerItems<TraceMetric>> {
+    let mut metrics = ItemContainer::parse(item)
         .map_err(|err| {
             relay_log::debug!("failed to parse trace metrics container: {err}");
             Error::Invalid(DiscardReason::InvalidJson)
         })?
         .into_items();
+
+    for metric in &mut metrics {
+        let byte_size = metric
+            .header
+            .as_ref()
+            .and_then(|h: &TraceMetricHeader| h.byte_size);
+        if trust.is_untrusted() || matches!(byte_size, None | Some(0)) {
+            let byte_size = metric.value().map(calculate_size).unwrap_or(1);
+            metric.header.get_or_insert_default().byte_size = Some(byte_size);
+        }
+    }
 
     Ok(metrics)
 }

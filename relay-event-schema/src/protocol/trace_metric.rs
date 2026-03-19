@@ -1,10 +1,11 @@
 use relay_protocol::{
     Annotated, Empty, FromValue, Getter, IntoValue, Object, SkipSerialization, Value,
 };
+use std::collections::BTreeMap;
 use std::fmt::{self, Display};
 
 use relay_base_schema::metrics::MetricUnit;
-use serde::{Serialize, Serializer};
+use serde::{Deserialize, Serialize, Serializer};
 
 use crate::processor::ProcessValue;
 use crate::protocol::{Attributes, SpanId, Timestamp, TraceId};
@@ -49,6 +50,23 @@ pub struct TraceMetric {
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = false)]
     pub other: Object<Value>,
+}
+
+/// Relay specific metadata embedded into the trace metric item.
+///
+/// This metadata is purely an internal protocol extension used by Relay,
+/// no one except Relay should be sending this data, nor should anyone except Relay rely on it.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct TraceMetricHeader {
+    /// Original (calculated) size of the trace metric item when it was first received by a Relay.
+    ///
+    /// If this value exists, Relay uses it as quantity for all outcomes emitted to the
+    /// trace metric byte data category.
+    pub byte_size: Option<u64>,
+
+    /// Forward compatibility for additional headers.
+    #[serde(flatten)]
+    pub other: BTreeMap<String, Value>,
 }
 
 impl Getter for TraceMetric {

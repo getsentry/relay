@@ -866,6 +866,50 @@ mod tests {
     }
 
     #[test]
+    fn test_email_no_false_positive_on_java_identifiers() {
+        let cases: &[(&str, &str)] = &[
+            // Java Object.toString(): should NOT match
+            ("java.lang.Object@4b1c1ea0", "java.lang.Object@4b1c1ea0"),
+            (
+                "com.example.MyClass@74650e52",
+                "com.example.MyClass@74650e52",
+            ),
+            // Java module path: should NOT match
+            (
+                "java.base@25/java.lang.Thread",
+                "java.base@25/java.lang.Thread",
+            ),
+            // Bare hostname without TLD: should NOT match
+            ("user@localhost", "user@localhost"),
+            // Real emails: should be scrubbed
+            (
+                "contact user@sub.domain.co.uk for help",
+                "contact [email] for help",
+            ),
+            ("test+tag@example.org", "[email]"),
+            ("name@company.io", "[email]"),
+        ];
+
+        let config = PiiConfig {
+            applications: {
+                let mut map = BTreeMap::new();
+                map.insert(ValueType::String.into(), vec!["@email:replace".to_owned()]);
+                map
+            },
+            ..PiiConfig::default()
+        };
+
+        let compiled = config.compiled();
+        let mut processor = PiiProcessor::new(compiled);
+
+        for (input, expected) in cases {
+            let mut root = Annotated::new(input.to_string());
+            process_value(&mut root, &mut processor, &processing_state()).unwrap();
+            assert_eq!(root.value().unwrap(), expected, "input: {input}");
+        }
+    }
+
+    #[test]
     fn test_iban_different_rules() {
         assert_text_rule!(
             rule = "@iban";
