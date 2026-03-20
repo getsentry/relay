@@ -48,14 +48,6 @@ impl PolymorphicEnvelopeBuffer {
         }
     }
 
-    /// Returns `true` if spool data might be lost after shutdown.
-    pub fn is_ephemeral(&self) -> bool {
-        match self {
-            Self::InMemory(_) => true,
-            Self::Sqlite(b) => b.stack_provider.ephemeral(),
-        }
-    }
-
     /// Creates either a memory-based or a disk-based envelope buffer,
     /// depending on the given configuration.
     pub async fn from_config(
