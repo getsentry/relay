@@ -159,6 +159,23 @@ impl Managed<Box<Envelope>> {
     }
 }
 
+/// Helper trait to abstract over `Vec` and `SmallVec` in [`Managed::retain`].
+pub trait RetainMut<I> {
+    /// Retains only the elements specified by the predicate.
+    fn retain_mut(&mut self, f: impl FnMut(&mut I) -> bool);
+}
+
+impl<I> RetainMut<I> for Vec<I> {
+    fn retain_mut(&mut self, f: impl FnMut(&mut I) -> bool) {
+        Vec::retain_mut(self, f);
+    }
+}
+impl<I, const N: usize> RetainMut<I> for SmallVec<[I; N]> {
+    fn retain_mut(&mut self, f: impl FnMut(&mut I) -> bool) {
+        SmallVec::retain_mut(self, f);
+    }
+}
+
 impl<T: Counted> Managed<T> {
     /// Creates new [`Managed`] instance with the provided `value` and metadata from a [`ManagedEnvelope`].
     ///
@@ -322,12 +339,13 @@ impl<T: Counted> Managed<T> {
     ///     todo!()
     /// }
     /// ```
-    pub fn retain<S, I, U, E>(&mut self, select: S, mut retain: U)
+    pub fn retain<S, I, U, E, V>(&mut self, select: S, mut retain: U)
     where
-        S: FnOnce(&mut T) -> &mut Vec<I>,
+        S: FnOnce(&mut T) -> &mut V,
         I: Counted,
         U: FnMut(&mut I, &mut RecordKeeper<'_>) -> Result<(), E>,
         E: OutcomeError,
+        V: RetainMut<I>,
     {
         self.retain_with_context(
             |inner| (select(inner), &()),
@@ -371,16 +389,17 @@ impl<T: Counted> Managed<T> {
     ///     todo!()
     /// }
     /// ```
-    pub fn retain_with_context<S, C, I, U, E>(&mut self, select: S, mut retain: U)
+    pub fn retain_with_context<S, C, I, U, E, V>(&mut self, select: S, mut retain: U)
     where
         // Returning `&'a C` here is not optimal, ideally we return C here and express the correct
         // bound of `C: 'a` but this is, to my knowledge, currently not possible to express in stable Rust.
         //
         // This is unfortunately a bit limiting but for most of our purposes it is enough.
-        for<'a> S: FnOnce(&'a mut T) -> (&'a mut Vec<I>, &'a C),
+        for<'a> S: FnOnce(&'a mut T) -> (&'a mut V, &'a C),
         I: Counted,
         U: FnMut(&mut I, &C, &mut RecordKeeper<'_>) -> Result<(), E>,
         E: OutcomeError,
+        V: RetainMut<I>,
     {
         self.modify(|inner, records| {
             let (items, ctx) = select(inner);
