@@ -210,7 +210,8 @@ impl ObservableEnvelopeBuffer {
             return Err(envelope);
         }
 
-        Ok(self.addr.send(EnvelopeBuffer::Push(envelope.into())))
+        self.addr.send(EnvelopeBuffer::Push(envelope.into()));
+        Ok(())
     }
 
     /// Returns `true` if the buffer has the capacity to accept more elements.
