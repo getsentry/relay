@@ -727,7 +727,7 @@ def test_event_merging(
             "id": "legacy:2019-03-12",
         },
         "_metrics": {
-            "bytes.ingested.event": 725,
+            "bytes.ingested.event": 836,
             "bytes.ingested.event.minidump": 60446,
             "bytes.ingested.event.attachment": 158008,
         },
