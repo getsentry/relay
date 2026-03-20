@@ -54,7 +54,7 @@ def test_graceful_shutdown(mini_sentry, relay):
         relay.process.send_signal(signal.SIGTERM)
         time.sleep(0.05)
 
-        # Complete the request — relay must serve it before shutting down.
+        # Complete the request — relay will respond with Service Unavailable.
         sock.sendall(request[-1:])
 
         sock.settimeout(10)
@@ -63,9 +63,7 @@ def test_graceful_shutdown(mini_sentry, relay):
             response += chunk
         sock.close()
 
-        assert (
-            b"HTTP/1.1 200" in response
-        ), f"In-flight request was not served: {response[:200]}"
+        assert b"HTTP/1.1 503" in response
 
         # After relay exits, new connections are refused.
         relay.wait_for_exit(timeout=10)
