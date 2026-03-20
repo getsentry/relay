@@ -11,7 +11,8 @@ import zlib
 from requests import HTTPError
 
 
-def test_graceful_shutdown_with_in_memory_buffer(mini_sentry, relay):
+@pytest.mark.parametrize("backend", ["memory", "disk"])
+def test_graceful_shutdown_with_ephemeral_buffer(mini_sentry, relay, backend):
     from time import sleep
 
     get_project_config_original = mini_sentry.app.view_functions["get_project_config"]
@@ -19,19 +20,27 @@ def test_graceful_shutdown_with_in_memory_buffer(mini_sentry, relay):
     @mini_sentry.app.endpoint("get_project_config")
     def get_project_config():
         sleep(1)  # Causes the process to wait for one second before shutting down
+        print("responding with project config")
         return get_project_config_original()
 
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
 
-    relay = relay(
-        mini_sentry,
-        {"limits": {"shutdown_timeout": 2}},
-    )
+    with tempfile.TemporaryDirectory() as db_dir:
+        db_file_path = (
+            os.path.join(db_dir, "database.db") if backend == "disk" else None
+        )
+        relay = relay(
+            mini_sentry,
+            {
+                "limits": {"shutdown_timeout": 5},
+                "spool": {"envelopes": {"path": db_file_path, "ephemeral": True}},
+            },
+        )
 
-    relay.send_event(project_id)
+        relay.send_event(project_id)
 
-    relay.shutdown(sig=signal.SIGTERM)
+        relay.shutdown(sig=signal.SIGTERM)
 
     # When using the memory envelope buffer, we optimistically do not do anything on shutdown, which means that the
     # buffer will try and pop as always as long as it can (within the shutdown timeout).

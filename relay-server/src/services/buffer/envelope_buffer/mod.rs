@@ -43,8 +43,16 @@ impl PolymorphicEnvelopeBuffer {
     /// Returns true if the implementation stores all envelopes in RAM.
     pub fn is_memory(&self) -> bool {
         match self {
-            PolymorphicEnvelopeBuffer::InMemory(_) => true,
-            PolymorphicEnvelopeBuffer::Sqlite(_) => false,
+            Self::InMemory(_) => true,
+            Self::Sqlite(_) => false,
+        }
+    }
+
+    /// Returns `true` if spool data might be lost after shutdown.
+    pub fn is_ephemeral(&self) -> bool {
+        match self {
+            Self::InMemory(_) => true,
+            Self::Sqlite(b) => b.stack_provider.ephemeral(),
         }
     }
 
@@ -183,13 +191,16 @@ impl PolymorphicEnvelopeBuffer {
         // Currently, we want to flush the buffer only for disk, since the in memory implementation
         // tries to not do anything and pop as many elements as possible within the shutdown
         // timeout.
-        let Self::Sqlite(buffer) = self else {
-            relay_log::trace!("PolymorphicEnvelopeBuffer: shutdown procedure not needed");
-            return false;
-        };
-        buffer.flush().await;
-
-        true
+        match self {
+            Self::Sqlite(buffer) if !buffer.stack_provider.ephemeral() => {
+                buffer.flush().await;
+                true
+            }
+            _ => {
+                relay_log::trace!("shutdown procedure not needed");
+                false
+            }
+        }
     }
 
     /// Returns the partition tag for this [`PolymorphicEnvelopeBuffer`].
