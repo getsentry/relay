@@ -33,13 +33,17 @@ pub fn healthcheck(config: &Config, matches: &ArgMatches) -> Result<()> {
         .get(format!("http://{addr}/api/relay/healthcheck/{mode}/"))
         .send();
 
+    let kill_on_fail = matches.get_flag("kill-on-fail");
+
     match response {
         Ok(response) => {
             if response.status().is_success() {
                 Ok(())
             } else {
                 relay_log::error!("Relay is unhealthy. Status code: {}", response.status());
-                signal::kill(Pid::from_raw(1), Signal::SIGTERM).ok();
+                if kill_on_fail {
+                    signal::kill(Pid::from_raw(1), Signal::SIGTERM).ok();
+                }
                 Err(format_err!(
                     "Relay is unhealthy. Status code: {}",
                     response.status()
@@ -48,7 +52,9 @@ pub fn healthcheck(config: &Config, matches: &ArgMatches) -> Result<()> {
         }
         Err(err) => {
             relay_log::error!("Relay is unhealthy. Error: {err}");
-            signal::kill(Pid::from_raw(1), Signal::SIGTERM).ok();
+            if kill_on_fail {
+                signal::kill(Pid::from_raw(1), Signal::SIGTERM).ok();
+            }
             Err(err.into())
         }
     }

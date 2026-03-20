@@ -344,5 +344,11 @@ pub fn make_app() -> Command {
                         .value_parser(clap::value_parser!(SocketAddr))
                         .required(false),
                 )
+                .arg(
+                    Arg::new("kill-on-fail")
+                        .long("kill-on-fail")
+                        .action(ArgAction::SetTrue)
+                        .help("Send SIGTERM to PID 1 if the healthcheck fails."),
+                )
         )
 }
