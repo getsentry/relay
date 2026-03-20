@@ -294,7 +294,7 @@ impl ObjectstoreServiceInner {
             }
             Ok(session) => {
                 for attachment in attachments {
-                    if Self::should_skip_upload(&attachment) {
+                    if Self::should_skip_upload(attachment) {
                         continue;
                     }
                     let result = self

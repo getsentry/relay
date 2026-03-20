@@ -976,7 +976,7 @@ impl StoreService {
         let payload = item.payload();
         let placeholder: AttachmentPlaceholder<'_> =
             serde_json::from_slice(&payload).map_err(|_| StoreError::InvalidAttachmentRef)?;
-        let store_key = SignedLocation::try_from_str(&placeholder.location)
+        let store_key = SignedLocation::try_from_str(placeholder.location)
             .ok_or(StoreError::InvalidAttachmentRef)?
             .unverified_key()
             .to_owned();

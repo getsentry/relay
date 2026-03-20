@@ -16,7 +16,7 @@ use crate::services::projects::project::ProjectInfo;
 use relay_dynamic_config::Feature;
 
 #[cfg(feature = "processing")]
-pub fn validate<'a>(item: &Item, config: &Config) -> Result<(), ProcessingError> {
+pub fn validate(item: &Item, config: &Config) -> Result<(), ProcessingError> {
     if !item.is_attachment_ref() {
         return Ok(());
     }
