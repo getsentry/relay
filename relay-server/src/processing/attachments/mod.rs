@@ -88,7 +88,7 @@ impl processing::Processor for AttachmentProcessor {
 
     async fn process(
         &self,
-        attachments: Managed<Self::Input>,
+        #[allow(unused_mut)] mut attachments: Managed<Self::Input>,
         ctx: processing::Context<'_>,
     ) -> Result<processing::Output<Self::Output>, Rejected<Self::Error>> {
         let client_name = crate::utils::client_name_tag(attachments.headers.meta().client_name());
@@ -125,6 +125,8 @@ impl processing::Processor for AttachmentProcessor {
             }
         }
 
+        #[cfg(feature = "processing")]
+        process::validate_attachments(&mut attachments, ctx);
         let mut attachments = self.limiter.enforce_quotas(attachments, ctx).await?;
         process::scrub(&mut attachments, ctx)?;
 

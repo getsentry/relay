@@ -445,3 +445,25 @@ impl Counted for IndexedSpans {
         smallvec![(DataCategory::SpanIndexed, self.0)]
     }
 }
+
+/// Validates the attachments and drop any invalid ones.
+///
+/// An attachment might be a placeholder, in which case it needs to be validated.
+#[cfg(feature = "processing")]
+pub fn validate_attachments(transaction: &mut Managed<Box<ExpandedTransaction>>, ctx: Context<'_>) {
+    if !ctx.is_processing() {
+        return;
+    }
+
+    transaction.modify(|transaction, records| {
+        transaction.attachments.retain_mut(|attachment| {
+            match utils::attachments::validate(attachment, ctx.config) {
+                Ok(()) => true,
+                Err(err) => {
+                    records.reject_err(err, &*attachment);
+                    false
+                }
+            }
+        });
+    });
+}

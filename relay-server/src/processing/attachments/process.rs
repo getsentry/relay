@@ -16,3 +16,28 @@ pub fn scrub(
         Ok::<_, Error>(())
     })
 }
+
+/// Validates the attachments and drop any invalid ones.
+///
+/// An attachment might be a placeholder, in which case it needs to be validated.
+#[cfg(feature = "processing")]
+pub fn validate_attachments(
+    attachments: &mut Managed<SerializedAttachments>,
+    ctx: processing::Context<'_>,
+) {
+    if !ctx.is_processing() {
+        return;
+    }
+
+    attachments.modify(|attachments, records| {
+        attachments.attachments.retain_mut(|attachment| {
+            match utils::attachments::validate(attachment, ctx.config) {
+                Ok(()) => true,
+                Err(err) => {
+                    records.reject_err(err, &*attachment);
+                    false
+                }
+            }
+        });
+    });
+}

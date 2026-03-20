@@ -108,6 +108,8 @@ impl processing::Processor for ErrorsProcessor {
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         let mut error = process::expand(error, ctx)?;
+        #[cfg(feature = "processing")]
+        process::validate_attachments(&mut error, ctx);
 
         process::process(&mut error)?;
 
