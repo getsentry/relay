@@ -968,6 +968,11 @@ impl StoreService {
         item: &Item,
         send_individual_attachments: bool,
     ) -> Result<Option<ChunkedAttachment>, StoreError> {
+        debug_assert!(
+            item.stored_key().is_none(),
+            "AttachmentRef should not have been uploaded to objectstore"
+        );
+
         let payload = item.payload();
         let placeholder: AttachmentPlaceholder<'_> =
             serde_json::from_slice(&payload).map_err(|_| StoreError::InvalidAttachmentRef)?;
