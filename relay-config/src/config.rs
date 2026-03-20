@@ -1028,6 +1028,8 @@ pub struct EnvelopeSpool {
     ///
     /// With `ephemeral: true`, Relay does not spool in-flight data to disk
     /// during graceful shutdown. Instead, it attempts to process all data before it terminates.
+    ///
+    /// Defaults to `false`.
     #[serde(default)]
     pub ephemeral: bool,
 }

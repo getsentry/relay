@@ -20,7 +20,6 @@ def test_graceful_shutdown_with_ephemeral_buffer(mini_sentry, relay, backend):
     @mini_sentry.app.endpoint("get_project_config")
     def get_project_config():
         sleep(1)  # Causes the process to wait for one second before shutting down
-        print("responding with project config")
         return get_project_config_original()
 
     project_id = 42
