@@ -6,6 +6,9 @@ use clap::ArgMatches;
 use relay_config::Config;
 use reqwest::blocking::Client;
 
+use nix::sys::signal::{self, Signal};
+use nix::unistd::Pid;
+
 pub fn healthcheck(config: &Config, matches: &ArgMatches) -> Result<()> {
     let mode = matches
         .get_one::<String>("mode")
@@ -36,6 +39,7 @@ pub fn healthcheck(config: &Config, matches: &ArgMatches) -> Result<()> {
                 Ok(())
             } else {
                 relay_log::error!("Relay is unhealthy. Status code: {}", response.status());
+                signal::kill(Pid::from_raw(1), Signal::SIGTERM).ok();
                 Err(format_err!(
                     "Relay is unhealthy. Status code: {}",
                     response.status()
@@ -44,6 +48,7 @@ pub fn healthcheck(config: &Config, matches: &ArgMatches) -> Result<()> {
         }
         Err(err) => {
             relay_log::error!("Relay is unhealthy. Error: {err}");
+            signal::kill(Pid::from_raw(1), Signal::SIGTERM).ok();
             Err(err.into())
         }
     }
