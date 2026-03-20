@@ -348,7 +348,7 @@ pub fn make_app() -> Command {
                     Arg::new("kill-on-fail")
                         .long("kill-on-fail")
                         .action(ArgAction::SetTrue)
-                        .help("Send SIGTERM to PID 1 if the healthcheck fails."),
+                        .help("Send SIGTERM to PID 1 if the healthcheck fails.")
                         .required(false),
                 )
         )
