@@ -6,10 +6,20 @@
 
 - To prevent false positives, non-public email addresses (e.g. `user@localhost`) are no longer scrubbed by default. ([#5737](https://github.com/getsentry/relay/pull/5737))
 
+**Bug Fixes**:
+
+- Explicitly reject in-flight requests during shutdown. ([#5746](https://github.com/getsentry/relay/pull/5746))
+
+**Features**:
+
+- Set `sentry.segment.id` and `sentry.segment.name` attributes on OTLP segment spans. ([#5748](https://github.com/getsentry/relay/pull/5748))
+- Envelope buffer: Add option to disable flush-to-disk on shutdown. ([#5751](https://github.com/getsentry/relay/pull/5751))
+
 **Internal**:
 
 - Calculate and track accepted bytes per individual trace metric item via `TraceMetricByte` data category. ([#5744](https://github.com/getsentry/relay/pull/5744))
 - Use new processor architecture to process standalone profiles. ([#5741](https://github.com/getsentry/relay/pull/5741))
+- TUS: Disallow creation with upload. ([#5734](https://github.com/getsentry/relay/pull/5734))
 
 ## 26.3.1
 

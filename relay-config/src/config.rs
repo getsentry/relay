@@ -1024,6 +1024,14 @@ pub struct EnvelopeSpool {
     /// Defaults to 1.
     #[serde(default = "spool_envelopes_partitions")]
     pub partitions: NonZeroU8,
+    /// Whether the database defined in `path` is on an ephemeral storage disk.
+    ///
+    /// With `ephemeral: true`, Relay does not spool in-flight data to disk
+    /// during graceful shutdown. Instead, it attempts to process all data before it terminates.
+    ///
+    /// Defaults to `false`.
+    #[serde(default)]
+    pub ephemeral: bool,
 }
 
 impl Default for EnvelopeSpool {
@@ -1036,6 +1044,7 @@ impl Default for EnvelopeSpool {
             disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
             max_backpressure_memory_percent: spool_max_backpressure_memory_percent(),
             partitions: spool_envelopes_partitions(),
+            ephemeral: false,
         }
     }
 }
@@ -2345,6 +2354,11 @@ impl Config {
     /// Returns the number of partitions for the buffer.
     pub fn spool_partitions(&self) -> NonZeroU8 {
         self.values.spool.envelopes.partitions
+    }
+
+    /// Returns `true` if the data is stored on ephemeral disks.
+    pub fn spool_ephemeral(&self) -> bool {
+        self.values.spool.envelopes.ephemeral
     }
 
     /// Returns the maximum size of an event payload in bytes.
