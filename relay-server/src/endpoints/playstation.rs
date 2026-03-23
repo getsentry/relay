@@ -246,7 +246,7 @@ async fn check_request(
         meta.clone(),
         items,
         Feature::PlaystationIngestion,
-        &project,
+        project,
     )
     .await
 }
