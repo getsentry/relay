@@ -173,7 +173,12 @@ impl SpanId {
     pub fn random() -> Self {
         let mut span_bytes = [0u8; 8];
         rand::rng().fill_bytes(&mut span_bytes);
-        Self(span_bytes)
+
+        if !span_bytes.iter().all(|&x| x == 0) {
+            Self(span_bytes)
+        } else {
+            Self([42u8; 8])
+        }
     }
 }
 
@@ -334,16 +339,16 @@ pub struct TraceContext {
 }
 
 impl TraceContext {
-    /// Generates a random [`TraceId`] and random [`SpanId`].
+    /// Generates a random [`SpanId`] and takes `[TraceId]` from the event's UUID.
     /// Leaves all other fields blank.
-    pub fn random() -> Self {
+    pub fn random(event_id: Uuid) -> Self {
         let mut trace_meta = Meta::default();
         trace_meta.add_remark(Remark::new(RemarkType::Substituted, "trace_id.missing"));
 
         let mut span_meta = Meta::default();
         span_meta.add_remark(Remark::new(RemarkType::Substituted, "span_id.missing"));
         TraceContext {
-            trace_id: Annotated(Some(TraceId::random()), trace_meta),
+            trace_id: Annotated(Some(TraceId::from(event_id)), trace_meta),
             span_id: Annotated(Some(SpanId::random()), span_meta),
             ..Default::default()
         }
@@ -644,7 +649,7 @@ mod tests {
 
     #[test]
     fn test_random_trace_context() {
-        let rand_context = TraceContext::random();
+        let rand_context = TraceContext::random(Uuid::new_v4());
         assert!(rand_context.trace_id.value().is_some());
         assert_eq!(
             rand_context

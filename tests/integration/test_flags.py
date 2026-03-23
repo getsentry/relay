@@ -1,4 +1,5 @@
 import uuid
+from unittest import mock
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
@@ -37,7 +38,13 @@ def test_event_with_flags(relay, mini_sentry):
             "values": [{"flag": "hello", "result": "world", "key": "value"}],
             "abc": "def",
             "type": "flags",
-        }
+        },
+        "trace": {
+            "span_id": mock.ANY,
+            "trace_id": mock.ANY,
+            "status": "unknown",
+            "type": "trace",
+        },
     }
     assert mini_sentry.captured_envelopes.empty()
 
@@ -66,7 +73,13 @@ def test_event_with_flags_malformed(relay, mini_sentry):
     envelope = mini_sentry.get_captured_envelope()
     assert envelope
     assert envelope.items[0].payload.json["contexts"] == {
-        "flags": {"values": None, "key": "value", "type": "flags"}
+        "flags": {"values": None, "key": "value", "type": "flags"},
+        "trace": {
+            "span_id": mock.ANY,
+            "trace_id": mock.ANY,
+            "status": "unknown",
+            "type": "trace",
+        },
     }
     assert mini_sentry.captured_envelopes.empty()
 
@@ -101,6 +114,12 @@ def test_event_with_flags_malformed_inner_object(relay, mini_sentry):
     envelope = mini_sentry.get_captured_envelope()
     assert envelope
     assert envelope.items[0].payload.json["contexts"] == {
-        "flags": {"values": [{"flag": None, "key": "key"}, None], "type": "flags"}
+        "flags": {"values": [{"flag": None, "key": "key"}, None], "type": "flags"},
+        "trace": {
+            "span_id": mock.ANY,
+            "trace_id": mock.ANY,
+            "status": "unknown",
+            "type": "trace",
+        },
     }
     assert mini_sentry.captured_envelopes.empty()

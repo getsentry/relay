@@ -50,6 +50,12 @@ expression: SerializableAnnotated(& event)
       "kernel_version": "Darwin Kernel Version 17.6.0: Tue May  8 15:22:16 PDT 2018; root:xnu-4570.61.1~1/RELEASE_X86_64",
       "rooted": false,
       "type": "os"
+    },
+    "trace": {
+      "trace_id": "[trace-id]",
+      "span_id": "[span-id]",
+      "status": "unknown",
+      "type": "trace"
     }
   },
   "breadcrumbs": {
@@ -2257,6 +2263,28 @@ expression: SerializableAnnotated(& event)
               [
                 "@anything:remove",
                 "x"
+              ]
+            ]
+          }
+        }
+      },
+      "trace": {
+        "span_id": {
+          "": {
+            "rem": [
+              [
+                "span_id.missing",
+                "s"
+              ]
+            ]
+          }
+        },
+        "trace_id": {
+          "": {
+            "rem": [
+              [
+                "trace_id.missing",
+                "s"
               ]
             ]
           }

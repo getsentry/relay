@@ -311,6 +311,12 @@ expression: SerializableAnnotated(& event)
       "version": "2.0.7",
       "raw_description": ".NET Core 4.6.26328.01",
       "type": "runtime"
+    },
+    "trace": {
+      "trace_id": "[trace-id]",
+      "span_id": "[span-id]",
+      "status": "unknown",
+      "type": "trace"
     }
   },
   "breadcrumbs": {
@@ -838,6 +844,30 @@ expression: SerializableAnnotated(& event)
               ],
               "len": 103
             }
+          }
+        }
+      }
+    },
+    "contexts": {
+      "trace": {
+        "span_id": {
+          "": {
+            "rem": [
+              [
+                "span_id.missing",
+                "s"
+              ]
+            ]
+          }
+        },
+        "trace_id": {
+          "": {
+            "rem": [
+              [
+                "trace_id.missing",
+                "s"
+              ]
+            ]
           }
         }
       }

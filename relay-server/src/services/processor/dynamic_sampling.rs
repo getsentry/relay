@@ -206,7 +206,8 @@ mod tests {
         let new_envelope = process_envelope_with_root_project_state(envelope, None).await;
         let event = extract_first_event_from_envelope(new_envelope);
 
-        assert!(event.contexts.value().is_none());
+        assert_eq!(event.contexts.value().unwrap().0.len(), 1);
+        assert!(event.contexts.value().unwrap().0.contains_key("trace"));
     }
 
     fn project_state_with_single_rule(sample_rate: f64) -> ProjectInfo {
