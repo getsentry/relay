@@ -4,12 +4,42 @@
 
 **Breaking Changes**:
 
-- Use a more mature (dog)statsd backend, with proper support for unix sockets and reservoir sampling.
-  Due to the new backend, all sampling and tag filtering configuration options have been removed. ([#5675](https://github.com/getsentry/relay/pull/5675))
+- To prevent false positives, non-public email addresses (e.g. `user@localhost`) are no longer scrubbed by default. ([#5737](https://github.com/getsentry/relay/pull/5737))
 
 **Bug Fixes**:
 
+- Explicitly reject in-flight requests during shutdown. ([#5746](https://github.com/getsentry/relay/pull/5746))
+
+**Features**:
+
+- Set `sentry.segment.id` and `sentry.segment.name` attributes on OTLP segment spans. ([#5748](https://github.com/getsentry/relay/pull/5748))
+- Envelope buffer: Add option to disable flush-to-disk on shutdown. ([#5751](https://github.com/getsentry/relay/pull/5751))
+
+**Internal**:
+
+- Calculate and track accepted bytes per individual trace metric item via `TraceMetricByte` data category. ([#5744](https://github.com/getsentry/relay/pull/5744))
+- Use new processor architecture to process standalone profiles. ([#5741](https://github.com/getsentry/relay/pull/5741))
+- TUS: Disallow creation with upload. ([#5734](https://github.com/getsentry/relay/pull/5734))
+
+## 26.3.1
+
+**Internal**:
+
+- Use new processor architecture to process standalone user reports. ([#5731](https://github.com/getsentry/relay/pull/5731))
+
+## 26.3.0
+
+**Breaking Changes**:
+
+- Use a more mature (dog)statsd backend, with proper support for unix sockets and reservoir sampling.
+  Due to the new backend, all sampling and tag filtering configuration options have been removed. ([#5675](https://github.com/getsentry/relay/pull/5675))
+- Remove unused `outcomes.emit_client_outcomes` configuration option. ([#5722](https://github.com/getsentry/relay/pull/5722))
+
+**Bug Fixes**:
+
+- Normalize custom metric units to `none` on trace metrics during processing. ([#5718](https://github.com/getsentry/relay/pull/5718))
 - Prevent minidump compression bomb. ([#5613](https://github.com/getsentry/relay/pull/5613))
+- Relay Temporarily rejected unknown headers on envelope items. ([#5709](https://github.com/getsentry/relay/pull/5709))
 
 **Features**:
 
@@ -17,12 +47,17 @@
 - Add support for Unix domain sockets for statsd metrics. ([#5668](https://github.com/getsentry/relay/pull/5668))
 - Support `deployment.environment` OTLP resource attribute for setting the Sentry environment. ([#5691](https://github.com/getsentry/relay/pull/5691))
 - Allow users to opt-out of DNS caching. ([#5700](https://github.com/getsentry/relay/pull/5700))
+- Allow PATCHing resources on the `/upload` endpoint. ([#5685](https://github.com/getsentry/relay/pull/5685))
+- Update device classification for new iPad and iPhone models. ([#5704](https://github.com/getsentry/relay/pull/5704))
+- Add `TraceMetricByte` data category. ([#5719](https://github.com/getsentry/relay/pull/5719))
 
 **Internal**:
 
+- Strip performance metric specs from extraction while keeping extraction interfaces intact. ([#5674](https://github.com/getsentry/relay/pull/5674))
 - Allow deferred lengths to the `/upload` endpoint when the sender is trusted. ([#5658](https://github.com/getsentry/relay/pull/5658))
 - Stream non-prosperodmp attachments received at `/playstation` to objectstore. ([#5673](https://github.com/getsentry/relay/pull/5673))
 - Use new processor architecture to process client reports. ([#5686](https://github.com/getsentry/relay/pull/5686))
+- Use new processor architecture to process standalone attachments. ([#5703](https://github.com/getsentry/relay/pull/5703))
 - Prevent timeouts on the `/upload` endpoint. ([#5692](https://github.com/getsentry/relay/pull/5692))
 - Handle traffic bursts in the objectstore service. ([#5689](https://github.com/getsentry/relay/pull/5689))
 - Disable `fetch_materials` on GoCD `pipeline-complete` stages. ([#5697](https://github.com/getsentry/relay/pull/5697))

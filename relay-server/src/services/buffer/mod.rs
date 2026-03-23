@@ -11,11 +11,11 @@ use ahash::RandomState;
 use chrono::DateTime;
 use chrono::Utc;
 use relay_config::Config;
-use relay_system::Receiver;
 use relay_system::ServiceSpawn;
 use relay_system::ServiceSpawnExt as _;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_system::{Controller, Shutdown};
+use relay_system::{Receiver, ShutdownHandle};
 use tokio::sync::watch;
 use tokio::time::{Instant, timeout};
 
@@ -181,6 +181,7 @@ pub struct EnvelopeBufferMetrics {
 pub struct ObservableEnvelopeBuffer {
     addr: Addr<EnvelopeBuffer>,
     metrics: Arc<EnvelopeBufferMetrics>,
+    shutdown_handle: ShutdownHandle,
 }
 
 impl ObservableEnvelopeBuffer {
@@ -191,15 +192,26 @@ impl ObservableEnvelopeBuffer {
 
     /// Attempts to push an envelope into the envelope buffer.
     ///
-    /// Returns `false`, if the envelope buffer does not have enough capacity.
+    /// Returns `false`, if the envelope buffer does not have enough capacity,
+    /// or if the process is shutting down.
     pub fn try_push(&self, envelope: Managed<Box<Envelope>>) -> Result<(), Managed<Box<Envelope>>> {
-        if self.has_capacity() {
-            let envelope = envelope.into();
-            self.addr.send(EnvelopeBuffer::Push(envelope));
-            Ok(())
-        } else {
-            Err(envelope)
+        if self.shutdown_handle.shutting_down() {
+            relay_log::trace!("Shutting down, envelope rejected");
+            return Err(envelope);
         }
+
+        if self.addr.is_closed() {
+            // This should not happen as it should be covered by the branch above.
+            relay_log::error!("Pushing envelope after envelope buffer dropped");
+            return Err(envelope);
+        }
+
+        if !self.has_capacity() {
+            return Err(envelope);
+        }
+
+        self.addr.send(EnvelopeBuffer::Push(envelope.into()));
+        Ok(())
     }
 
     /// Returns `true` if the buffer has the capacity to accept more elements.
@@ -271,10 +283,14 @@ impl EnvelopeBufferService {
     /// Returns both the [`Addr`] to this service, and references to spooler metrics.
     pub fn start_in(self, services: &dyn ServiceSpawn) -> ObservableEnvelopeBuffer {
         let metrics = self.metrics.clone();
-
         let addr = services.start(self);
+        let shutdown_handle = Controller::shutdown_handle();
 
-        ObservableEnvelopeBuffer { addr, metrics }
+        ObservableEnvelopeBuffer {
+            addr,
+            metrics,
+            shutdown_handle,
+        }
     }
 
     /// Wait for the configured amount of time and make sure the project cache is ready to receive.

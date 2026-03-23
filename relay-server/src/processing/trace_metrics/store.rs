@@ -220,7 +220,10 @@ mod tests {
     macro_rules! trace_metric {
         ($($tt:tt)*) => {{
            WithHeader {
-               header: None,
+               header: Some(relay_event_schema::protocol::TraceMetricHeader {
+                   byte_size: Some(420),
+                   other: Default::default(),
+               }),
                value: TraceMetric::from_value(serde_json::json!($($tt)*).into())
            }
         }};

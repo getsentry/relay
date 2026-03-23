@@ -78,6 +78,9 @@ def processing_config(get_topic_name):
                 f"relay-test-relayconfig-{uuid.uuid4()}"
             )
 
+        if processing.get("objectstore") is None:
+            processing["objectstore"] = {"objectstore_url": "http://127.0.0.1:8888/"}
+
         return options
 
     return inner
@@ -393,11 +396,6 @@ def attachments_consumer(consumer_fixture):
 
 
 @pytest.fixture
-def sessions_consumer(consumer_fixture):
-    yield from consumer_fixture(SessionsConsumer, "sessions")
-
-
-@pytest.fixture
 def metrics_consumer(consumer_fixture):
     yield from consumer_fixture(MetricsConsumer, "metrics")
 
@@ -463,15 +461,6 @@ class MetricsConsumer(ConsumerBase):
         metrics.sort(key=_sort)
 
         return metrics
-
-
-class SessionsConsumer(ConsumerBase):
-    def get_session(self):
-        message = self.poll()
-        assert message is not None
-        assert message.error() is None
-
-        return json.loads(message.value())
 
 
 class EventsConsumer(ConsumerBase):

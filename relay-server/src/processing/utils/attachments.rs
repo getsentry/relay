@@ -5,6 +5,7 @@ use relay_pii::{PiiAttachmentsProcessor, SelectorPathItem, SelectorSpec};
 use relay_statsd::metric;
 
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
+use crate::managed::RecordKeeper;
 use crate::statsd::RelayTimers;
 
 use crate::services::projects::project::ProjectInfo;
@@ -15,7 +16,15 @@ use relay_dynamic_config::Feature;
 /// This only applies the new PII rules that explicitly select `ValueType::Binary` or one of the
 /// attachment types. When special attachments are detected, these are scrubbed with custom
 /// logic; otherwise the entire attachment is treated as a single binary blob.
-pub fn scrub<'a>(attachments: impl Iterator<Item = &'a mut Item>, project_info: &ProjectInfo) {
+///
+/// Requires `record_keeper` since scrubbing a view hierarchy might change the size of it and hence
+/// modifies the attachment quantity.
+pub fn scrub<'a>(
+    attachments: impl Iterator<Item = &'a mut Item>,
+    project_info: &ProjectInfo,
+    mut record_keeper: Option<&mut RecordKeeper>,
+) {
+    let _ = record_keeper;
     if let Some(ref config) = project_info.config.pii_config {
         let view_hierarchy_scrubbing_enabled = project_info
             .config
@@ -26,7 +35,16 @@ pub fn scrub<'a>(attachments: impl Iterator<Item = &'a mut Item>, project_info: 
             if view_hierarchy_scrubbing_enabled
                 && item.attachment_type() == Some(AttachmentType::ViewHierarchy)
             {
-                scrub_view_hierarchy(item, config)
+                let old_size = item.payload().len();
+                scrub_view_hierarchy(item, config);
+                let new_size = item.payload().len();
+
+                if let Some(record_keeper) = record_keeper.as_mut() {
+                    record_keeper.modify_by(
+                        relay_quotas::DataCategory::Attachment,
+                        new_size as isize - old_size as isize,
+                    );
+                }
             } else if item.attachment_type() == Some(AttachmentType::Minidump) {
                 scrub_minidump(item, config)
             } else if item.ty() == &ItemType::Attachment && has_simple_attachment_selector(config) {

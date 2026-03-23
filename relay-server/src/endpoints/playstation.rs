@@ -1,3 +1,6 @@
+//! Implements the PlayStation crash uploading endpoint.
+//!
+//! Crashes are received as multipart uploads in this [format](https://game.develop.playstation.net/resources/documents/SDK/12.000/Core_Dump_System-Overview/ps5-core-dump-file-set-sending-format.html).
 use std::io;
 use std::str::FromStr;
 
@@ -5,8 +8,10 @@ use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
+use chrono::Utc;
 use futures::TryStreamExt;
 use futures::stream::BoxStream;
+use http::StatusCode;
 use multer::{Field, Multipart};
 use relay_config::Config;
 use relay_dynamic_config::Feature;
@@ -17,13 +22,13 @@ use serde::Serialize;
 
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
 use crate::envelope::ContentType::{self, OctetStream};
-use crate::envelope::{AttachmentPlaceholder, AttachmentType, Envelope, Item, ItemType};
+use crate::envelope::{AttachmentPlaceholder, AttachmentType, Envelope, Item};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::middlewares;
 use crate::service::ServiceState;
-use crate::services::projects::cache::Project;
+use crate::services::outcome::DiscardReason;
 use crate::services::projects::project::ProjectInfo;
-use crate::services::upload::{Stream, Upload};
+use crate::services::upload::{Create, Stream, Upload};
 use crate::utils;
 use crate::utils::{AttachmentStrategy, BadMultipart, BoundedStream};
 
@@ -97,11 +102,23 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
             Box::pin(field.map_err(io::Error::other));
         let stream = BoundedStream::new(stream, 1, config.max_upload_size());
         let byte_counter = stream.byte_counter();
-        let stream = Stream {
-            scoping: self.scoping,
-            stream,
+        let Ok(Ok(location)) = upload
+            .send(Create {
+                scoping: self.scoping,
+                length: None,
+            })
+            .await
+        else {
+            return Ok(None);
         };
-        let result = upload.send(stream).await;
+        let result = upload
+            .send(Stream {
+                received: Utc::now(),
+                scoping: self.scoping,
+                location,
+                stream,
+            })
+            .await;
         if let Ok(result) = result
             && let Ok(location) = result.inspect_err(|e| {
                 relay_log::warn!(error = e as &dyn std::error::Error, "Upload failed");
@@ -140,6 +157,7 @@ fn validate_prosperodump(data: &[u8]) -> Result<(), BadStoreRequest> {
 }
 
 async fn extract_multipart(
+    multipart: Multipart<'static>,
     multipart: Multipart<'static>,
     meta: RequestMeta,
     state: &ServiceState,

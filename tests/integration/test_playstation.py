@@ -467,7 +467,6 @@ def test_playstation_large_attachments(
     credentials = relay_credentials()
     relay = relay_processing_with_playstation(
         {
-            "processing": {"upload": {"objectstore_url": "http://127.0.0.1:8888/"}},
             # 1 MiB extra for minidump etc.
             "limits": {
                 "max_attachment_size": len(playstation_dump) + 1 * 1024 * 1024,

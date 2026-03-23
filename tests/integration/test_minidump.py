@@ -405,11 +405,13 @@ def test_minidump_with_processing(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["eventRetention"] = 50000
 
-    options = (
-        {"processing": {"upload": {"objectstore_url": "http://127.0.0.1:8888/"}}}
-        if use_objectstore
-        else None
-    )
+    options = {
+        "processing": {
+            "objectstore": {
+                "objectstore_url": "http://127.0.0.1:8888/" if use_objectstore else None
+            }
+        }
+    }
     relay = relay_with_processing(options)
 
     # Disable scurbbing, the basic and full project configs from the mini_sentry fixture

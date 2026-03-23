@@ -148,7 +148,12 @@ impl IntoResponse for BadStoreRequest {
         };
 
         metric!(counter(RelayCounters::EnvelopeRejected) += 1);
-        if response.status().is_server_error() {
+        if response.status() == http::StatusCode::SERVICE_UNAVAILABLE {
+            relay_log::warn!(
+                error = &self as &dyn std::error::Error,
+                "not handling request: service unavailable"
+            );
+        } else if response.status().is_server_error() {
             relay_log::error!(
                 error = &self as &dyn std::error::Error,
                 "error handling request"

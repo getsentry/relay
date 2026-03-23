@@ -135,7 +135,6 @@ def test_attachments_with_objectstore(
     options = {
         "processing": {
             "attachment_chunk_size": "100KB",
-            "upload": {"objectstore_url": "http://127.0.0.1:8888/"},
         }
     }
     relay = relay_with_processing(options)
@@ -143,19 +142,23 @@ def test_attachments_with_objectstore(
     outcomes_consumer = outcomes_consumer()
 
     chunked_contents = b"heavens no" * 20_000
-    attachments = [
-        ("att_1", "foo.txt", chunked_contents),
-        ("att_2", "foobar.txt", b""),
-    ]
-    relay.send_attachments(project_id, event_id, attachments)
+    relay.send_attachments(
+        project_id,
+        event_id,
+        [("att_1", "foo.txt", chunked_contents), ("att_2", "foobar.txt", b"")],
+    )
 
-    attachment = attachments_consumer.get_individual_attachment()
+    attachments_by_name = {}
+    for _ in range(2):
+        att = attachments_consumer.get_individual_attachment()
+        attachments_by_name[att["attachment"]["name"]] = att
 
-    objectstore_key = attachment["attachment"].pop("stored_id")
+    # Large attachments are stored in objectstore
+    stored = attachments_by_name["foo.txt"]
+    objectstore_key = stored["attachment"].pop("stored_id")
     objectstore = objectstore("attachments", project_id)
     assert objectstore.get(objectstore_key).payload.read() == chunked_contents
-
-    assert attachment == {
+    assert stored == {
         "type": "attachment",
         "attachment": {
             "id": mock.ANY,
@@ -168,11 +171,10 @@ def test_attachments_with_objectstore(
         "project_id": project_id,
     }
 
-    outcomes_consumer.assert_empty()
-
-    # An empty attachment
-    attachment = attachments_consumer.get_individual_attachment()
-    assert attachment == {
+    # Empty attachments are still transmitted with zero chunks,
+    # and not stored on objectstore
+    empty = attachments_by_name["foobar.txt"]
+    assert empty == {
         "type": "attachment",
         "attachment": {
             "id": mock.ANY,
@@ -180,8 +182,6 @@ def test_attachments_with_objectstore(
             "rate_limited": False,
             "attachment_type": "event.attachment",
             "size": 0,
-            # empty attachments are still transmitted with zero chunks,
-            # and not stored on objectstore
             "chunks": 0,
         },
         "event_id": event_id,
@@ -291,6 +291,55 @@ def test_view_hierarchy_scrubbing(mini_sentry, relay, feature_flags, expected):
     relay.send_envelope(project_id, envelope)
     payload = json.loads(mini_sentry.get_captured_envelope().items[0].payload.bytes)
     assert payload == {"rendering_system": "UIKIT", "identifier": expected}
+
+
+@pytest.mark.parametrize(
+    "feature_flags, expected",
+    [
+        ([], b"**************************************************"),
+        (
+            ["organizations:view-hierarchy-scrubbing"],
+            b'{"rendering_system":"UIKIT","password":""}',
+        ),
+    ],
+)
+def test_attachment_scrubbing_with_event_with_fallback(
+    mini_sentry, relay, feature_flags, expected
+):
+    """
+    Like test_attachment_scrubbing_with_fallback, but goes through the ErrorsProcessor
+    """
+    event_id = "515539018c9b4260a6f999572f1661ee"
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).extend(feature_flags)
+    project_config["config"]["piiConfig"] = {
+        "rules": {"0": {"type": "password", "redaction": {"method": "remove"}}},
+        "applications": {
+            "$string": ["@password:remove"],
+            "$attachments.'view-hierarchy.json'": ["0"],
+        },
+    }
+    relay = relay(mini_sentry)
+    json_payload = {
+        "rendering_system": "UIKIT",
+        "password": "hunter42",
+    }
+    envelope = Envelope(headers=[["event_id", event_id]])
+    envelope.add_event({"message": "Hello, World!"})
+    envelope.add_item(
+        Item(
+            headers=[["attachment_type", "event.view_hierarchy"]],
+            type="attachment",
+            payload=PayloadRef(json=json_payload),
+            filename="view-hierarchy.json",
+        )
+    )
+    relay.send_envelope(project_id, envelope)
+    envelope = mini_sentry.get_captured_envelope()
+    attachment = next(item for item in envelope.items if item.type == "attachment")
+    payload = attachment.payload.bytes
+    assert payload == expected
 
 
 @pytest.mark.parametrize(
@@ -567,19 +616,29 @@ def test_view_hierarchy_processing(
     outcomes_consumer.assert_empty()
 
 
+@pytest.mark.parametrize("use_objectstore", [False, True])
 def test_event_with_attachment(
     mini_sentry,
     relay_with_processing,
     attachments_consumer,
     transactions_consumer,
+    use_objectstore,
+    objectstore,
 ):
     project_id = 42
     event_id = "515539018c9b4260a6f999572f1661ee"
 
     mini_sentry.add_full_project_config(project_id)
+
+    if use_objectstore:
+        mini_sentry.global_config["options"][
+            "relay.objectstore-attachments.sample-rate"
+        ] = 1.0
+
     relay = relay_with_processing()
     attachments_consumer = attachments_consumer()
     transactions_consumer = transactions_consumer()
+    objectstore = objectstore("attachments", project_id)
 
     # event attachments are always sent as chunks, and added to events
     envelope = Envelope(headers=[["event_id", event_id]])
@@ -593,8 +652,9 @@ def test_event_with_attachment(
 
     relay.send_envelope(project_id, envelope)
 
-    chunk, _ = attachments_consumer.get_attachment_chunk()
-    assert chunk == b"event attachment"
+    if not use_objectstore:
+        chunk, _ = attachments_consumer.get_attachment_chunk()
+        assert chunk == b"event attachment"
 
     _, event_message = attachments_consumer.get_event()
 
@@ -606,9 +666,13 @@ def test_event_with_attachment(
             "content_type": "application/octet-stream",
             "attachment_type": "event.attachment",
             "size": len(b"event attachment"),
-            "chunks": 1,
+            **({"stored_id": mock.ANY} if use_objectstore else {"chunks": 1}),
         }
     ]
+
+    if use_objectstore:
+        stored_id = event_message["attachments"][0]["stored_id"]
+        assert objectstore.get(stored_id).payload.read() == b"event attachment"
 
     # transaction attachments are sent as individual attachments,
     # either using chunks by default, or contents inlined
@@ -629,11 +693,20 @@ def test_event_with_attachment(
         "content_type": "application/octet-stream",
         "attachment_type": "event.attachment",
         "size": len(b"transaction attachment"),
-        "data": b"transaction attachment",
+        **(
+            {"stored_id": mock.ANY}
+            if use_objectstore
+            else {"data": b"transaction attachment"}
+        ),
     }
 
     attachment = attachments_consumer.get_individual_attachment()
     assert attachment["attachment"].pop("id")
+
+    if use_objectstore:
+        stored_id = attachment["attachment"]["stored_id"]
+        assert objectstore.get(stored_id).payload.read() == b"transaction attachment"
+
     assert attachment == {
         "type": "attachment",
         "attachment": expected_attachment,

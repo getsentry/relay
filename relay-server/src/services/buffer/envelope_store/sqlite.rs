@@ -246,13 +246,9 @@ impl DiskUsage {
 
         let partition_tag = self.partition_tag.clone();
         relay_system::spawn!(async move {
-            loop {
-                // When our `Weak` reference can't be upgraded to an `Arc`, it means that the value
-                // is not referenced anymore by self, meaning that `DiskUsage` was dropped.
-                let Some(last_known_usage) = last_known_usage_weak.upgrade() else {
-                    break;
-                };
-
+            // When our `Weak` reference can't be upgraded to an `Arc`, it means that the value
+            // is not referenced anymore by self, meaning that `DiskUsage` was dropped.
+            while let Some(last_known_usage) = last_known_usage_weak.upgrade() {
                 let usage = Self::estimate_usage(&partition_tag, &db).await;
                 let Ok(usage) = usage else {
                     relay_log::error!("failed to update the disk usage asynchronously");

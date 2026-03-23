@@ -46,17 +46,20 @@ use crate::managed::{InvalidProcessingGroupType, ManagedEnvelope, TypedEnvelope}
 use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
 use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
+use crate::processing::attachments::AttachmentProcessor;
 use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::client_reports::ClientReportsProcessor;
 use crate::processing::errors::{ErrorsProcessor, SwitchProcessingError};
 use crate::processing::logs::LogsProcessor;
 use crate::processing::profile_chunks::ProfileChunksProcessor;
+use crate::processing::profiles::ProfilesProcessor;
 use crate::processing::replays::ReplaysProcessor;
 use crate::processing::sessions::SessionsProcessor;
 use crate::processing::spans::SpansProcessor;
 use crate::processing::trace_attachments::TraceAttachmentsProcessor;
 use crate::processing::trace_metrics::TraceMetricsProcessor;
 use crate::processing::transactions::TransactionProcessor;
+use crate::processing::user_reports::UserReportsProcessor;
 use crate::processing::utils::event::{
     EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted, event_category,
     event_type,
@@ -78,7 +81,7 @@ use relay_threading::AsyncPool;
 #[cfg(feature = "processing")]
 use {
     crate::services::objectstore::Objectstore,
-    crate::services::store::{Store, StoreEnvelope},
+    crate::services::store::Store,
     crate::utils::Enforcement,
     itertools::Itertools,
     relay_cardinality::{
@@ -186,7 +189,13 @@ processing_group!(ErrorGroup, Error);
 impl EventProcessing for ErrorGroup {}
 
 processing_group!(SessionGroup, Session);
-processing_group!(StandaloneGroup, Standalone);
+processing_group!(
+    StandaloneGroup,
+    Standalone,
+    StandaloneAttachments,
+    StandaloneUserReports,
+    StandaloneProfiles
+);
 processing_group!(ClientReportGroup, ClientReport);
 processing_group!(ReplayGroup, Replay);
 processing_group!(CheckInGroup, CheckIn);
@@ -222,6 +231,18 @@ pub enum ProcessingGroup {
     /// Standalone items which can be sent alone without any event attached to it in the current
     /// envelope e.g. some attachments, user reports.
     Standalone,
+    /// Standalone attachments
+    ///
+    /// Attachments that are send without an item that creates an event in the same envelope.
+    StandaloneAttachments,
+    /// Standalone user reports
+    ///
+    /// User reports that are send without an item that creates an event in the same envelope.
+    StandaloneUserReports,
+    /// Standalone profiles
+    ///
+    /// Profiles which had their transaction sampled.
+    StandaloneProfiles,
     /// Outcomes.
     ClientReport,
     /// Replays and ReplayRecordings.
@@ -371,6 +392,38 @@ impl ProcessingGroup {
             ))
         }
 
+        if !envelope.items().any(Item::creates_event) {
+            // Extract the standalone attachments
+            let standalone_attachments = envelope
+                .take_items_by(|i| i.requires_event() && matches!(i.ty(), ItemType::Attachment));
+            if !standalone_attachments.is_empty() {
+                grouped_envelopes.push((
+                    ProcessingGroup::StandaloneAttachments,
+                    Envelope::from_parts(headers.clone(), standalone_attachments),
+                ))
+            }
+
+            // Extract the standalone user reports
+            let standalone_user_reports =
+                envelope.take_items_by(|i| matches!(i.ty(), ItemType::UserReport));
+            if !standalone_user_reports.is_empty() {
+                grouped_envelopes.push((
+                    ProcessingGroup::StandaloneUserReports,
+                    Envelope::from_parts(headers.clone(), standalone_user_reports),
+                ));
+            }
+
+            // Extract the standalone profiles
+            let standalone_profiles =
+                envelope.take_items_by(|i| matches!(i.ty(), ItemType::Profile));
+            if !standalone_profiles.is_empty() {
+                grouped_envelopes.push((
+                    ProcessingGroup::StandaloneProfiles,
+                    Envelope::from_parts(headers.clone(), standalone_profiles),
+                ));
+            }
+        }
+
         // Extract all standalone items.
         //
         // Note: only if there are no items in the envelope which can create events, otherwise they
@@ -447,6 +500,9 @@ impl ProcessingGroup {
             ProcessingGroup::Error => "error",
             ProcessingGroup::Session => "session",
             ProcessingGroup::Standalone => "standalone",
+            ProcessingGroup::StandaloneAttachments => "standalone_attachment",
+            ProcessingGroup::StandaloneUserReports => "standalone_user_reports",
+            ProcessingGroup::StandaloneProfiles => "standalone_profiles",
             ProcessingGroup::ClientReport => "client_report",
             ProcessingGroup::Replay => "replay",
             ProcessingGroup::CheckIn => "check_in",
@@ -471,6 +527,9 @@ impl From<ProcessingGroup> for AppFeature {
             ProcessingGroup::Error => AppFeature::Errors,
             ProcessingGroup::Session => AppFeature::Sessions,
             ProcessingGroup::Standalone => AppFeature::UnattributedEnvelope,
+            ProcessingGroup::StandaloneAttachments => AppFeature::UnattributedEnvelope,
+            ProcessingGroup::StandaloneUserReports => AppFeature::UserReports,
+            ProcessingGroup::StandaloneProfiles => AppFeature::Profiles,
             ProcessingGroup::ClientReport => AppFeature::ClientReports,
             ProcessingGroup::Replay => AppFeature::Replays,
             ProcessingGroup::CheckIn => AppFeature::CheckIns,
@@ -1148,6 +1207,9 @@ struct Processing {
     trace_attachments: TraceAttachmentsProcessor,
     replays: ReplaysProcessor,
     client_reports: ClientReportsProcessor,
+    attachments: AttachmentProcessor,
+    user_reports: UserReportsProcessor,
+    profiles: ProfilesProcessor,
 }
 
 impl EnvelopeProcessorService {
@@ -1239,8 +1301,11 @@ impl EnvelopeProcessorService {
                 ),
                 profile_chunks: ProfileChunksProcessor::new(Arc::clone(&quota_limiter)),
                 trace_attachments: TraceAttachmentsProcessor::new(Arc::clone(&quota_limiter)),
-                replays: ReplaysProcessor::new(quota_limiter, geoip_lookup.clone()),
+                replays: ReplaysProcessor::new(Arc::clone(&quota_limiter), geoip_lookup.clone()),
                 client_reports: ClientReportsProcessor::new(outcome_aggregator),
+                attachments: AttachmentProcessor::new(Arc::clone(&quota_limiter)),
+                user_reports: UserReportsProcessor::new(Arc::clone(&quota_limiter)),
+                profiles: ProfilesProcessor::new(quota_limiter),
             },
             geoip_lookup,
             config,
@@ -1400,7 +1465,7 @@ impl EnvelopeProcessorService {
             .envelope_mut()
             .items_mut()
             .filter(|i| i.ty() == &ItemType::Attachment);
-        processing::utils::attachments::scrub(attachments, ctx.project_info);
+        processing::utils::attachments::scrub(attachments, ctx.project_info, None);
 
         if self.inner.config.processing_enabled() && !event_fully_normalized.0 {
             relay_log::error!(
@@ -1426,6 +1491,7 @@ impl EnvelopeProcessorService {
             };
             relay_statsd::metric!(
                 counter(RelayCounters::StandaloneItem) += 1,
+                processor = "old",
                 item_type = item.ty().name(),
                 attachment_type = attachment_type_tag,
             );
@@ -1446,37 +1512,6 @@ impl EnvelopeProcessorService {
         .await?;
 
         report::process_user_reports(managed_envelope);
-        let attachments = managed_envelope
-            .envelope_mut()
-            .items_mut()
-            .filter(|i| i.ty() == &ItemType::Attachment);
-        processing::utils::attachments::scrub(attachments, ctx.project_info);
-
-        Ok(Some(extracted_metrics))
-    }
-
-    /// Processes user and client reports.
-    async fn process_client_reports(
-        &self,
-        managed_envelope: &mut TypedEnvelope<ClientReportGroup>,
-        ctx: processing::Context<'_>,
-    ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
-        let mut extracted_metrics = ProcessingExtractedMetrics::new();
-
-        self.enforce_quotas(
-            managed_envelope,
-            Annotated::empty(),
-            &mut extracted_metrics,
-            ctx,
-        )
-        .await?;
-
-        report::process_client_reports(
-            managed_envelope,
-            ctx.config,
-            ctx.project_info,
-            self.inner.addrs.outcome_aggregator.clone(),
-        );
 
         Ok(Some(extracted_metrics))
     }
@@ -1658,20 +1693,33 @@ impl EnvelopeProcessorService {
                     .await
             }
             ProcessingGroup::Standalone => run!(process_standalone, ctx),
-            ProcessingGroup::ClientReport => {
-                if ctx
-                    .project_info
-                    .has_feature(Feature::NewClientReportProcessing)
-                {
-                    self.process_with_processor(
-                        &self.inner.processing.client_reports,
-                        managed_envelope,
-                        ctx,
-                    )
+            ProcessingGroup::StandaloneAttachments => {
+                self.process_with_processor(
+                    &self.inner.processing.attachments,
+                    managed_envelope,
+                    ctx,
+                )
+                .await
+            }
+            ProcessingGroup::StandaloneUserReports => {
+                self.process_with_processor(
+                    &self.inner.processing.user_reports,
+                    managed_envelope,
+                    ctx,
+                )
+                .await
+            }
+            ProcessingGroup::StandaloneProfiles => {
+                self.process_with_processor(&self.inner.processing.profiles, managed_envelope, ctx)
                     .await
-                } else {
-                    run!(process_client_reports, ctx)
-                }
+            }
+            ProcessingGroup::ClientReport => {
+                self.process_with_processor(
+                    &self.inner.processing.client_reports,
+                    managed_envelope,
+                    ctx,
+                )
+                .await
             }
             ProcessingGroup::Replay => {
                 self.process_with_processor(&self.inner.processing.replays, managed_envelope, ctx)
@@ -2039,30 +2087,18 @@ impl EnvelopeProcessorService {
             use crate::processing::StoreHandle;
 
             let objectstore = self.inner.addrs.objectstore.as_ref();
-            match submit {
-                Submit::Envelope(envelope) => {
-                    let envelope_has_attachments = envelope
-                        .envelope()
-                        .items()
-                        .any(|item| *item.ty() == ItemType::Attachment);
-                    // Whether Relay will store this attachment in objectstore or use kafka like before.
-                    let use_objectstore = || {
-                        let options = &self.inner.global_config.current().options;
-                        utils::sample(options.objectstore_attachments_sample_rate).is_keep()
-                    };
+            let global_config = &self.inner.global_config.current();
+            let handle = StoreHandle::new(store_forwarder, objectstore, global_config);
 
-                    if let Some(objectstore) = &self.inner.addrs.objectstore
-                        && envelope_has_attachments
-                        && use_objectstore()
-                    {
-                        // the `ObjectstoreService` will upload all attachments, and then forward the envelope to the `StoreService`.
-                        objectstore.send(StoreEnvelope { envelope })
-                    } else {
-                        store_forwarder.send(StoreEnvelope { envelope })
-                    }
-                }
+            match submit {
+                // Once check-ins and errors are fully moved to the new pipeline, this is only
+                // used for metrics forwarding.
+                //
+                // Metrics forwarding will n_never_ forward an envelope in processing, making
+                // this branch here unused.
+                Submit::Envelope(envelope) => handle.send_envelope(envelope.into_inner()),
                 Submit::Output { output, ctx } => output
-                    .forward_store(StoreHandle::new(store_forwarder, objectstore), ctx)
+                    .forward_store(handle, ctx)
                     .unwrap_or_else(|err| err.into_inner()),
             }
             return;
@@ -3175,24 +3211,16 @@ impl<'a> IntoIterator for CombinedQuotas<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
     use insta::assert_debug_snapshot;
-    use relay_base_schema::metrics::{DurationUnit, MetricUnit};
     use relay_common::glob2::LazyGlob;
     use relay_dynamic_config::ProjectConfig;
     use relay_event_normalization::{
-        MeasurementsConfig, NormalizationConfig, RedactionRule, TransactionNameConfig,
-        TransactionNameRule,
+        NormalizationConfig, RedactionRule, TransactionNameConfig, TransactionNameRule,
     };
     use relay_event_schema::protocol::TransactionSource;
     use relay_pii::DataScrubbingConfig;
     use similar_asserts::assert_eq;
 
-    use crate::metrics_extraction::IntoMetric;
-    use crate::metrics_extraction::transactions::types::{
-        CommonTags, TransactionMeasurementTags, TransactionMetric,
-    };
     use crate::testutils::{create_test_processor, create_test_processor_with_addrs};
 
     #[cfg(feature = "processing")]
@@ -3632,39 +3660,6 @@ mod tests {
             "event.transaction_name_changes:1|c|#source_in:route,changes:none,source_out:route,is_404:false",
         ]
         "###);
-    }
-
-    /// Confirms that the hardcoded value we use for the fixed length of the measurement MRI is
-    /// correct. Unit test is placed here because it has dependencies to relay-server and therefore
-    /// cannot be called from relay-metrics.
-    #[test]
-    fn test_mri_overhead_constant() {
-        let hardcoded_value = MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD;
-
-        let derived_value = {
-            let name = "foobar".to_owned();
-            let value = 5.into(); // Arbitrary value.
-            let unit = MetricUnit::Duration(DurationUnit::default());
-            let tags = TransactionMeasurementTags {
-                measurement_rating: None,
-                universal_tags: CommonTags(BTreeMap::new()),
-                score_profile_version: None,
-            };
-
-            let measurement = TransactionMetric::Measurement {
-                name: name.clone(),
-                value,
-                unit,
-                tags,
-            };
-
-            let metric: Bucket = measurement.into_metric(UnixTimestamp::now());
-            metric.name.len() - unit.to_string().len() - name.len()
-        };
-        assert_eq!(
-            hardcoded_value, derived_value,
-            "Update `MEASUREMENT_MRI_OVERHEAD` if the naming scheme changed."
-        );
     }
 
     #[tokio::test]

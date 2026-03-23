@@ -343,6 +343,17 @@ pub enum RelayDistributions {
     ///  - `route`: The matched route pattern.
     ///  - `status_code`: The HTTP response status code.
     ContentLength,
+    /// Size of individual standalone attachments in bytes.
+    ///
+    /// This metric is tagged with:
+    /// - `sdk`: The name of the Sentry SDK sending the attachments.
+    /// - `attachment_type`: The attachment type, if any.
+    StandaloneAttachmentSize,
+    /// Number of standalone attachments per envelope.
+    ///
+    /// This metric is tagged with:
+    ///  - `sdk`: The name of the Sentry SDK sending the attachment.
+    StandaloneAttachmentCount,
 }
 
 impl DistributionMetric for RelayDistributions {
@@ -373,6 +384,8 @@ impl DistributionMetric for RelayDistributions {
             Self::PartitionSplits => "partition_splits",
             Self::TraceItemCanonicalSize => "trace_item.canonical_size",
             Self::ContentLength => "requests.content_length",
+            Self::StandaloneAttachmentSize => "processing.standalone_attachment_size",
+            Self::StandaloneAttachmentCount => "processing.standalone_attachment_count",
         }
     }
 }
@@ -882,8 +895,6 @@ pub enum RelayCounters {
     RefreshStaleProjectCaches,
     /// Number of times that parsing a metrics bucket item from an envelope failed.
     MetricBucketsParsingFailed,
-    /// Count extraction of transaction names. Tag with the decision to drop / replace / use original.
-    MetricsTransactionNameExtracted,
     /// Number of Events with an OpenTelemetry Context
     ///
     /// This metric is tagged with:
@@ -1013,7 +1024,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EvictingStaleProjectCaches => "project_cache.eviction",
             RelayCounters::RefreshStaleProjectCaches => "project_cache.refresh",
             RelayCounters::MetricBucketsParsingFailed => "metrics.buckets.parsing_failed",
-            RelayCounters::MetricsTransactionNameExtracted => "metrics.transaction_name",
             RelayCounters::OpenTelemetryEvent => "event.opentelemetry",
             RelayCounters::GlobalConfigFetched => "global_config.fetch",
             RelayCounters::FeedbackAttachments => "processing.feedback_attachments",

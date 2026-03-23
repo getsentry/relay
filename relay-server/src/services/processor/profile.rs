@@ -54,8 +54,8 @@ mod tests {
     use crate::extractors::RequestMeta;
     use crate::managed::ManagedEnvelope;
     use crate::processing::{self, Outputs};
-    use crate::services::processor::Submit;
     use crate::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup};
+    use crate::services::processor::{ProcessingError, Submit};
     use crate::services::projects::project::ProjectInfo;
     use crate::testutils::create_test_processor;
     use insta::assert_debug_snapshot;
@@ -66,7 +66,7 @@ mod tests {
 
     use super::*;
 
-    async fn process_event(envelope: Box<Envelope>) -> Option<Annotated<Event>> {
+    async fn process_event(envelope: Box<Envelope>) -> Result<Annotated<Event>, ProcessingError> {
         let config = Config::from_json_value(serde_json::json!({
             "processing": {
                 "enabled": true,
@@ -86,8 +86,7 @@ mod tests {
             Some(ErrorBoundary::Ok(TransactionMetricsConfig::new()));
         project_info.config.features.0.insert(Feature::Profiling);
 
-        let mut global_config = GlobalConfig::default();
-        global_config.normalize();
+        let global_config = GlobalConfig::default();
         let message = ProcessEnvelopeGrouped {
             group,
             envelope,
@@ -99,16 +98,16 @@ mod tests {
             },
         };
 
-        let result = processor.process(message).await.unwrap()?;
+        let result = processor.process(message).await?;
 
-        let Submit::Output {
+        let Some(Submit::Output {
             output: Outputs::Transactions(t),
             ctx: _,
-        } = result
+        }) = result
         else {
             panic!();
         };
-        Some(t.event().unwrap())
+        Ok(t.event().unwrap())
     }
 
     #[tokio::test]
@@ -326,7 +325,10 @@ mod tests {
         });
 
         let event = process_event(envelope).await;
-        assert!(event.is_none());
+        assert!(matches!(
+            event.unwrap_err(),
+            ProcessingError::ProcessingFailure
+        ));
     }
 
     #[tokio::test]

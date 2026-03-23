@@ -5,8 +5,6 @@ use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
 use crate::Envelope;
-#[cfg(feature = "processing")]
-use crate::managed::ManagedEnvelope;
 use crate::managed::{Managed, ManagedResult, Rejected};
 #[cfg(feature = "processing")]
 use crate::processing::StoreHandle;
@@ -14,8 +12,6 @@ use crate::processing::spans::Indexed;
 use crate::processing::transactions::types::{ExpandedTransaction, StandaloneProfile};
 use crate::processing::{Forward, ForwardContext};
 use crate::services::outcome::{DiscardReason, Outcome};
-#[cfg(feature = "processing")]
-use crate::services::store::StoreEnvelope;
 
 /// Output of the transaction processor.
 #[derive(Debug)]
@@ -74,12 +70,8 @@ impl Forward for TransactionOutput {
         s: StoreHandle<'_>,
         ctx: ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        let envelope: ManagedEnvelope = self.serialize_envelope(ctx)?.into();
-
-        s.send_to_store(StoreEnvelope {
-            envelope: envelope.into_processed(),
-        });
-
+        let envelope = self.serialize_envelope(ctx)?;
+        s.send_envelope(crate::managed::ManagedEnvelope::from(envelope));
         Ok(())
     }
 }

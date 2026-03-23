@@ -1024,6 +1024,14 @@ pub struct EnvelopeSpool {
     /// Defaults to 1.
     #[serde(default = "spool_envelopes_partitions")]
     pub partitions: NonZeroU8,
+    /// Whether the database defined in `path` is on an ephemeral storage disk.
+    ///
+    /// With `ephemeral: true`, Relay does not spool in-flight data to disk
+    /// during graceful shutdown. Instead, it attempts to process all data before it terminates.
+    ///
+    /// Defaults to `false`.
+    #[serde(default)]
+    pub ephemeral: bool,
 }
 
 impl Default for EnvelopeSpool {
@@ -1036,6 +1044,7 @@ impl Default for EnvelopeSpool {
             disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
             max_backpressure_memory_percent: spool_max_backpressure_memory_percent(),
             partitions: spool_envelopes_partitions(),
+            ephemeral: false,
         }
     }
 }
@@ -1397,8 +1406,6 @@ pub struct Outcomes {
     /// Processing relays always emit outcomes (for backwards compatibility).
     /// Can take the following values: false, "as_client_reports", true
     pub emit_outcomes: EmitOutcomes,
-    /// Controls wheather client reported outcomes should be emitted.
-    pub emit_client_outcomes: bool,
     /// The maximum number of outcomes that are batched before being sent
     /// via http to the upstream (only applies to non processing relays).
     pub batch_size: usize,
@@ -1416,7 +1423,6 @@ impl Default for Outcomes {
     fn default() -> Self {
         Outcomes {
             emit_outcomes: EmitOutcomes::AsClientReports,
-            emit_client_outcomes: true,
             batch_size: 1000,
             batch_interval: 500,
             source: None,
@@ -1645,13 +1651,18 @@ pub struct Upload {
     /// Maximum time spent trying to upload, in seconds.
     /// Currently only used by non-processing relays, as the objectstore service has its own timeout.
     pub timeout: u64,
+    /// The maximum time between creating the upload and uploading the data / the attachment placeholder.
+    ///
+    /// In seconds.
+    pub max_age: i64,
 }
 
 impl Default for Upload {
     fn default() -> Self {
         Self {
             max_concurrent_requests: 10,
-            timeout: 60,
+            timeout: 5 * 60,  // five minutes
+            max_age: 60 * 60, // 1h
         }
     }
 }
@@ -2138,19 +2149,6 @@ impl Config {
         self.values.outcomes.emit_outcomes
     }
 
-    /// Returns whether this Relay should emit client outcomes
-    ///
-    /// Relays that do not emit client outcomes will forward client recieved outcomes
-    /// directly to the next relay in the chain as client report envelope.  This is only done
-    /// if this relay emits outcomes at all. A relay that will not emit outcomes
-    /// will forward the envelope unchanged.
-    ///
-    /// This flag can be explicitly disabled on processing relays as well to prevent the
-    /// emitting of client outcomes to the kafka topic.
-    pub fn emit_client_outcomes(&self) -> bool {
-        self.values.outcomes.emit_client_outcomes
-    }
-
     /// Returns the maximum number of outcomes that are batched before being sent
     pub fn outcome_batch_size(&self) -> usize {
         self.values.outcomes.batch_size
@@ -2356,6 +2354,11 @@ impl Config {
     /// Returns the number of partitions for the buffer.
     pub fn spool_partitions(&self) -> NonZeroU8 {
         self.values.spool.envelopes.partitions
+    }
+
+    /// Returns `true` if the data is stored on ephemeral disks.
+    pub fn spool_ephemeral(&self) -> bool {
+        self.values.spool.envelopes.ephemeral
     }
 
     /// Returns the maximum size of an event payload in bytes.
