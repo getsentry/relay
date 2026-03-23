@@ -229,9 +229,7 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
             Some(Data::StreamingProfilePacket(spp)) => {
                 let mut ts = packet.timestamp.unwrap_or(0);
                 for (i, &cs_iid) in spp.callstack_iid.iter().enumerate() {
-                    if i > 0
-                        && let Some(&delta) = spp.timestamp_delta_us.get(i)
-                    {
+                    if let Some(&delta) = spp.timestamp_delta_us.get(i) {
                         // `delta` is i64 (can be negative for out-of-order samples).
                         // Casting to u64 wraps negative values, which is correct because
                         // `wrapping_add` of a wrapped negative value subtracts as expected.
