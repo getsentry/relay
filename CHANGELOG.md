@@ -21,6 +21,7 @@
 - Use new processor architecture to process standalone profiles. ([#5741](https://github.com/getsentry/relay/pull/5741))
 - TUS: Disallow creation with upload. ([#5734](https://github.com/getsentry/relay/pull/5734))
 - Remove continuous-profiling-beta feature flags. ([#5762](https://github.com/getsentry/relay/pull/5762))
+- Set a trace_id on all events by default for internal use. ([#5759](https://github.com/getsentry/relay/pull/5759))
 
 ## 26.3.1
 

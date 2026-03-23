@@ -4404,6 +4404,7 @@ dependencies = [
  "insta",
  "minidump",
  "opentelemetry-proto",
+ "rand 0.9.2",
  "relay-base-schema",
  "relay-common",
  "relay-conventions",

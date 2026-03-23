@@ -1,3 +1,4 @@
+use rand::RngCore;
 use relay_protocol::{
     Annotated, Array, Empty, Error, FromValue, HexId, IntoValue, Meta, Object, Remark, RemarkType,
     SkipSerialization, Val, Value,
@@ -168,6 +169,14 @@ pub struct SpanId([u8; 8]);
 
 relay_common::impl_str_serde!(SpanId, "a span identifier");
 
+impl SpanId {
+    pub fn random() -> Self {
+        let mut span_bytes = [0u8; 8];
+        rand::rng().fill_bytes(&mut span_bytes);
+        Self(span_bytes)
+    }
+}
+
 impl FromStr for SpanId {
     type Err = Error;
 
@@ -322,6 +331,23 @@ pub struct TraceContext {
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = true, pii = "maybe")]
     pub other: Object<Value>,
+}
+
+impl TraceContext {
+    /// Generates a random [`TraceId`] and random [`SpanId`].
+    /// Leaves all other fields blank.
+    pub fn random() -> Self {
+        let mut trace_meta = Meta::default();
+        trace_meta.add_remark(Remark::new(RemarkType::Substituted, "trace_id.missing"));
+
+        let mut span_meta = Meta::default();
+        span_meta.add_remark(Remark::new(RemarkType::Substituted, "span_id.missing"));
+        TraceContext {
+            trace_id: Annotated(Some(TraceId::random()), trace_meta),
+            span_id: Annotated(Some(SpanId::random()), span_meta),
+            ..Default::default()
+        }
+    }
 }
 
 impl super::DefaultContext for TraceContext {
@@ -614,5 +640,32 @@ mod tests {
         let annotated = TraceId::try_from_slice_or_random(invalid_bytes.as_slice());
         let remark = annotated.meta().iter_remarks().next().unwrap();
         assert_eq!(remark.rule_id(), "trace_id.invalid");
+    }
+
+    #[test]
+    fn test_random_trace_context() {
+        let rand_context = TraceContext::random();
+        assert!(rand_context.trace_id.value().is_some());
+        assert_eq!(
+            rand_context
+                .trace_id
+                .meta()
+                .iter_remarks()
+                .next()
+                .unwrap()
+                .rule_id(),
+            "trace_id.missing"
+        );
+        assert!(rand_context.span_id.value().is_some());
+        assert_eq!(
+            rand_context
+                .span_id
+                .meta()
+                .iter_remarks()
+                .next()
+                .unwrap()
+                .rule_id(),
+            "span_id.missing"
+        );
     }
 }
