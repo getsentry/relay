@@ -119,17 +119,20 @@ def test_normalize_user_agent(must_normalize):
     )
 
     if must_normalize:
-        assert event["contexts"] == {
-            "browser": {
-                "browser": "Firefox 15.0.1",
-                "name": "Firefox",
-                "version": "15.0.1",
-                "type": "browser",
-            },
-            "client_os": {"name": "Ubuntu", "os": "Ubuntu", "type": "os"},
+        assert event["contexts"]["browser"] == {
+            "browser": "Firefox 15.0.1",
+            "name": "Firefox",
+            "version": "15.0.1",
+            "type": "browser",
         }
+        assert event["contexts"]["client_os"] == {
+            "name": "Ubuntu",
+            "os": "Ubuntu",
+            "type": "os",
+        }
+        assert set(event["contexts"].keys()) == {"browser", "client_os", "trace"}
     else:
-        assert "contexts" not in event
+        assert set(event["contexts"].keys()) == {"trace"}
 
 
 def test_validate_pii_selector():

@@ -85,7 +85,9 @@ macro_rules! event_snapshot {
                 process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
                 insta::assert_json_snapshot!("pii_stripping", SerializableAnnotated(&event), {
                     ".received" => "[received]",
-                    ".timestamp" => "[timestamp]"
+                    ".timestamp" => "[timestamp]",
+                    ".contexts.trace.trace_id" => "[trace-id]",
+                    ".contexts.trace.span_id" => "[span-id]",
                 });
             }
         }

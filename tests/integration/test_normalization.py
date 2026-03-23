@@ -25,9 +25,12 @@ def get_test_data(name):
 
 
 def drop_props(payload):
-    props = ["timestamp", "received", "ingest_path", "_metrics"]
+    props = ["timestamp", "received", "ingest_path", "_metrics", "_meta"]
     for prop in props:
         payload.pop(prop, None)
+
+    if payload.get("contexts", {}).get("trace"):
+        payload["contexts"].pop("trace", None)
     return payload
 
 
