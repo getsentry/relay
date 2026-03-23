@@ -207,15 +207,17 @@ async fn handle(
 
     // Never respond with a 429 since clients often retry these
     match check_request(&state, meta.clone(), &project).await {
-        Err(BadStoreRequest::RateLimited(_)) => return Ok(TextResponse(None).into_response()),
+        Err(BadStoreRequest::RateLimited(_)) => {
+            return Ok(TextResponse(Some(EventId::new())).into_response());
+        }
         Err(error) => return Err(error.into()),
         Ok(()) => (),
     }
 
     let multipart = utils::multipart_from_request(request, multer::Constraints::new())
         .map_err(BadMultipart::Multipart)?;
-    let envelope = extract_multipart(multipart, meta, &state, &project_config, scoping).await?;
-
+    let mut envelope = extract_multipart(multipart, meta, &state, &project_config, scoping).await?;
+    envelope.require_feature(Feature::PlaystationIngestion);
     let id = envelope.event_id();
 
     // Never respond with a 429 since clients often retry these

@@ -503,6 +503,8 @@ pub fn full_scoping(
 ///
 /// Useful for endpoints that do significant amounts of work before calling [`handle_envelope`], or
 /// that don't call [`handle_envelope`] at all.
+///
+/// Returns [`Err`] if ANY item is rate limited. Corresponding outcomes are emitted.
 pub async fn check_request(
     state: &ServiceState,
     meta: RequestMeta,
