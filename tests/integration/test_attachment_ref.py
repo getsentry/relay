@@ -24,7 +24,7 @@ def make_invalid_attachment_ref(offense, relay=None, project_id=None, project_ke
                 payload=PayloadRef(bytes=b"not a valid payload"),
                 headers={
                     "type": "attachment",
-                    "content_type": "application/vnd.sentry.attachment-ref",
+                    "content_type": "application/vnd.sentry.attachment-ref+json",
                     "length": 16,
                     "attachment_length": 100,
                     "filename": "test.txt",
@@ -81,7 +81,7 @@ def upload_and_make_ref(
         payload=PayloadRef(bytes=payload.encode()),
         headers={
             "type": "attachment",
-            "content_type": "application/vnd.sentry.attachment-ref",
+            "content_type": "application/vnd.sentry.attachment-ref+json",
             "length": len(payload),
             "attachment_length": len(data),
             "filename": filename,
