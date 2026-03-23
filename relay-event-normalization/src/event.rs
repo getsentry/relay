@@ -1314,6 +1314,12 @@ fn normalize_contexts(contexts: &mut Annotated<Contexts>) {
         // [`normalize`] does not run on renormalization anyway.
         contexts.0.remove("reprocessing");
 
+        // We need a TraceId to ingest the event into EAP.
+        // If the event lacks a TraceContext, add a random one.
+        if !contexts.contains::<TraceContext>() {
+            contexts.add(TraceContext::random())
+        }
+
         for annotated in &mut contexts.0.values_mut() {
             if let Some(ContextInner(Context::Trace(context))) = annotated.value_mut() {
                 context.status.get_or_insert_with(|| SpanStatus::Unknown);
