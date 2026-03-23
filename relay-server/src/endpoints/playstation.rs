@@ -3,12 +3,12 @@
 //! Crashes are received as multipart uploads in this [format](https://game.develop.playstation.net/resources/documents/SDK/12.000/Core_Dump_System-Overview/ps5-core-dump-file-set-sending-format.html).
 use std::io;
 use std::str::FromStr;
+use std::time::Instant;
 
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
-use chrono::Utc;
 use futures::TryStreamExt;
 use futures::stream::BoxStream;
 use http::StatusCode;
@@ -113,7 +113,7 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
         };
         let result = upload
             .send(Stream {
-                received: Utc::now(),
+                received: Instant::now(),
                 scoping: self.scoping,
                 location,
                 stream,

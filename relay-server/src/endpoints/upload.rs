@@ -6,6 +6,7 @@
 //! Reference: <https://tus.io/protocols/resumable-upload#creation-with-upload>
 
 use std::io;
+use std::time::Instant;
 
 use axum::body::Body;
 use axum::extract::{Path, Query};
@@ -13,7 +14,6 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, NoContent, Response};
 use axum::routing::{MethodRouter, patch, post};
 use bytes::Bytes;
-use chrono::Utc;
 use futures::StreamExt;
 use futures::stream::BoxStream;
 use http::header;
@@ -268,7 +268,7 @@ async fn upload(
     let location = state
         .upload()
         .send(upload::Stream {
-            received: Utc::now(),
+            received: Instant::now(),
             scoping,
             location,
             stream,

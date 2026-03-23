@@ -3,6 +3,7 @@
 use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
+use std::time::Instant;
 
 use bytes::Bytes;
 use chrono::DateTime;
@@ -93,7 +94,7 @@ pub struct Create {
 /// A stream of bytes to be uploaded to objectstore or the upstream.
 pub struct Stream {
     /// Time of arrival of the request.
-    pub received: DateTime<Utc>,
+    pub received: Instant,
     /// The organization & project that the stream belongs to.
     pub scoping: Scoping,
     /// The location to upload to.
@@ -214,7 +215,7 @@ impl Service {
                     project_id,
                     key,
                     length,
-                } = location.verify(received, config)?;
+                } = location.verify(Utc::now() - received.elapsed(), config)?;
 
                 debug_assert_eq!(scoping.project_id, project_id);
                 debug_assert!(stream.length().is_none_or(|l| Some(l) == length));
@@ -439,6 +440,7 @@ enum RequestKind {
         length: Option<usize>,
     },
     Upload {
+        received: Instant,
         location: SignedLocation,
         stream: Option<BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>>,
     },
@@ -482,7 +484,7 @@ impl UploadRequest {
         let (sender, rx) = oneshot::channel();
         let Stream {
             scoping,
-            received: _,
+            received,
             location,
             stream,
         } = stream;
@@ -492,6 +494,7 @@ impl UploadRequest {
                 scoping,
                 timeout: None, // will be set by `configure()`
                 kind: RequestKind::Upload {
+                    received,
                     location,
                     stream: Some(stream),
                 },
@@ -588,6 +591,10 @@ impl UpstreamRequest for UploadRequest {
             "timeout should be set by UpstreamRequest::configure()"
         );
         if let Some(timeout) = self.timeout {
+            let timeout = match self.kind {
+                RequestKind::Upload { received, .. } => timeout.saturating_sub(received.elapsed()),
+                RequestKind::Create { .. } => timeout,
+            };
             builder.timeout(timeout);
         }
 
