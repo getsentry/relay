@@ -575,6 +575,7 @@ impl UpstreamRequest for UploadRequest {
 
         let project_key = self.scoping.project_key;
         builder.header("X-Sentry-Auth", format!("Sentry sentry_key={project_key}"));
+        builder.timeout(Duration::MAX); // rely on service timeout to cancel requests
 
         Ok(())
     }
