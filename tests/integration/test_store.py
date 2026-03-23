@@ -201,18 +201,21 @@ def test_store_with_low_memory(mini_sentry, relay):
     mini_sentry.add_basic_project_config(project_id)
 
     try:
-        with pytest.raises(HTTPError):
+        with pytest.raises(HTTPError) as exc:
             relay.send_event(project_id, {"message": "pls ignore"})
+
+        assert exc.value.response.status_code == 503
+
         pytest.raises(queue.Empty, lambda: mini_sentry.get_captured_envelope(timeout=1))
 
-        found_queue_error = False
+        found_memory_error = False
         for _, error in mini_sentry.current_test_failures():
             assert isinstance(error, AssertionError)
-            if "failed to queue envelope" in str(error):
-                found_queue_error = True
+            if "Not enough memory" in str(error):
+                found_memory_error = True
                 break
 
-        assert found_queue_error
+        assert found_memory_error
     finally:
         mini_sentry.clear_test_failures()
 

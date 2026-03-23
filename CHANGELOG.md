@@ -6,6 +6,10 @@
 
 - To prevent false positives, non-public email addresses (e.g. `user@localhost`) are no longer scrubbed by default. ([#5737](https://github.com/getsentry/relay/pull/5737))
 
+**Bug Fixes**:
+
+- Explicitly reject in-flight requests during shutdown. ([#5746](https://github.com/getsentry/relay/pull/5746))
+
 **Features**:
 
 - Set `sentry.segment.id` and `sentry.segment.name` attributes on OTLP segment spans. ([#5748](https://github.com/getsentry/relay/pull/5748))

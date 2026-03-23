@@ -776,6 +776,13 @@ impl<I: Interface> Addr<I> {
         self.len() == 0
     }
 
+    /// Returns wether the queue is closed.
+    ///
+    /// This happens when the receiving service has stopped running.
+    pub fn is_closed(&self) -> bool {
+        self.tx.is_closed()
+    }
+
     /// Returns the current queue size.
     pub fn len(&self) -> u64 {
         self.queue_size.load(Ordering::Relaxed)
