@@ -206,7 +206,7 @@ async fn handle(
     let scoping = common::full_scoping(&meta, &project_config)?;
 
     // Never respond with a 429 since clients often retry these
-    match check_request(&state, &meta, project).await {
+    match check_request(&state, meta.clone(), &project).await {
         Err(BadStoreRequest::RateLimited(_)) => return Ok(TextResponse(None).into_response()),
         Err(error) => return Err(error.into()),
         Ok(()) => (),
@@ -233,8 +233,8 @@ async fn handle(
 
 async fn check_request(
     state: &ServiceState,
-    meta: &RequestMeta,
-    project: Project<'_>,
+    meta: RequestMeta,
+    project: &Project<'_>,
 ) -> Result<(), BadStoreRequest> {
     let items = vec![Item::new(ItemType::Event), {
         let mut item = Item::new(ItemType::Attachment);
@@ -246,7 +246,7 @@ async fn check_request(
         meta.clone(),
         items,
         Feature::PlaystationIngestion,
-        project,
+        &project,
     )
     .await
 }

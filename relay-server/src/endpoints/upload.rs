@@ -155,10 +155,9 @@ async fn handle_post(
     relay_log::trace!("Awaiting project config");
     let project = common::project(&state, &meta, config).await?;
     let project_config = common::project_config(project.state())?;
-    relay_log::trace!("Awaiting scoping");
     let scoping = common::full_scoping(&meta, &project_config)?;
     relay_log::trace!("Checking request");
-    check_request(&state, meta, upload_length, project).await?;
+    check_request(&state, meta, upload_length, &project).await?;
 
     // Unconditionally create the upload location:
     let result = create(&state, scoping, upload_length).await;
@@ -194,10 +193,9 @@ async fn handle_patch(
     relay_log::trace!("Awaiting project config");
     let project = common::project(&state, &meta, config).await?;
     let project_config = common::project_config(project.state())?;
-    relay_log::trace!("Awaiting scoping");
     let scoping = common::full_scoping(&meta, &project_config)?;
     relay_log::trace!("Checking request");
-    check_request(&state, meta, length, project).await?;
+    check_request(&state, meta, length, &project).await?;
 
     let stream = body
         .into_data_stream()
@@ -280,7 +278,7 @@ async fn check_request(
     state: &ServiceState,
     meta: RequestMeta,
     upload_length: Option<usize>,
-    project: Project<'_>,
+    project: &Project<'_>,
 ) -> Result<(), BadStoreRequest> {
     let items = vec![{
         let mut item = Item::new(ItemType::Attachment);

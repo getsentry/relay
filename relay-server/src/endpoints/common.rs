@@ -508,7 +508,7 @@ pub async fn check_request(
     meta: RequestMeta,
     items: Vec<Item>,
     feature: Feature,
-    project: Project<'_>,
+    project: &Project<'_>,
 ) -> Result<(), BadStoreRequest> {
     let mut envelope = Envelope::from_request(None, meta);
     envelope.require_feature(feature);
