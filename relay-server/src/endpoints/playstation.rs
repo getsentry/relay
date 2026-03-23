@@ -243,14 +243,7 @@ async fn check_request(
         item.set_payload_without_content_type(vec![1]);
         item
     }];
-    common::check_request(
-        state,
-        meta.clone(),
-        items,
-        Feature::PlaystationIngestion,
-        project,
-    )
-    .await
+    common::check_request(state, meta, items, Feature::PlaystationIngestion, project).await
 }
 
 pub fn route(config: &Config) -> MethodRouter<ServiceState> {
