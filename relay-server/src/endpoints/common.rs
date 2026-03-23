@@ -1,19 +1,25 @@
 //! Common facilities for ingesting events through store-like endpoints.
 
+use std::sync::Arc;
+
 use axum::http::{StatusCode, header};
 use axum::response::IntoResponse;
-use relay_config::RelayMode;
+use relay_config::{Config, RelayMode};
+use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::{EventId, EventType};
-use relay_quotas::RateLimits;
+use relay_quotas::{RateLimits, Scoping};
 use relay_statsd::metric;
 use serde::Deserialize;
 
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
+use crate::extractors::RequestMeta;
 use crate::managed::{Managed, Rejected};
 use crate::service::ServiceState;
 use crate::services::buffer::ProjectKeyPair;
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
 use crate::services::processor::{BucketSource, MetricData, ProcessMetrics};
+use crate::services::projects::cache::Project;
+use crate::services::projects::project::{ProjectInfo, ProjectState};
 use crate::statsd::{RelayCounters, RelayDistributions};
 use crate::utils::{self, ApiErrorResponse, FormDataIter};
 
@@ -458,6 +464,71 @@ impl IntoResponse for TextResponse {
         let text = id.as_hyphenated().to_string();
         text.into_response()
     }
+}
+
+pub async fn project<'a>(
+    state: &'a ServiceState,
+    meta: &RequestMeta,
+    config: &Config,
+) -> Result<Project<'a>, StatusCode> {
+    state
+        .project_cache_handle()
+        .ready(meta.public_key(), config.query_timeout()) // uses same timeout as `Upstream`
+        .await
+        .ok_or(StatusCode::SERVICE_UNAVAILABLE)
+}
+
+pub fn project_config(project_state: &ProjectState) -> Result<Arc<ProjectInfo>, BadStoreRequest> {
+    project_state
+        .clone()
+        .enabled()
+        .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))
+}
+
+pub fn full_scoping(
+    meta: &RequestMeta,
+    project_state: &ProjectState,
+) -> Result<Scoping, BadStoreRequest> {
+    project_config(project_state)?
+        .scoping(meta.public_key())
+        .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))
+}
+
+/// Check request by converting it into a pseudo-envelope and calling [`handle_envelope`].
+///
+/// Useful for endpoints that do significant amounts of work before calling [`handle_envelope`], or
+/// that don't call [`handle_envelope`] at all.
+pub async fn check_request(
+    state: &ServiceState,
+    meta: RequestMeta,
+    items: Vec<Item>,
+    feature: Feature,
+    project: Project<'_>,
+) -> Result<(), BadStoreRequest> {
+    let mut envelope = Envelope::from_request(None, meta);
+    envelope.require_feature(feature);
+    for i in items {
+        envelope.add_item(i);
+    }
+    let mut envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
+    let rate_limits = project
+        .check_envelope(&mut envelope)
+        .await
+        .map_err(|err| err.map(BadStoreRequest::EventRejected).into_inner())?;
+    if !rate_limits.is_empty() {
+        let reason_code = rate_limits
+            .iter()
+            .next()
+            .and_then(|l| l.reason_code.clone());
+        return Err(envelope
+            .reject_err((
+                Outcome::RateLimited(reason_code),
+                BadStoreRequest::RateLimited(rate_limits),
+            ))
+            .into_inner());
+    }
+    envelope.accept(|x| x);
+    Ok(())
 }
 
 #[cfg(test)]

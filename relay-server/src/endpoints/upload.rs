@@ -15,15 +15,12 @@ use futures::StreamExt;
 use http::header;
 use relay_config::Config;
 use relay_dynamic_config::Feature;
-use relay_quotas::Scoping;
 use relay_system::SendError;
 use tower_http::limit::RequestBodyLimitLayer;
 
-use crate::Envelope;
-use crate::endpoints::common::BadStoreRequest;
+use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::extractors::RequestMeta;
-use crate::managed::Managed;
 use crate::service::ServiceState;
 #[cfg(feature = "processing")]
 use crate::services::objectstore;
@@ -133,13 +130,10 @@ async fn handle(
 
     // There is no real "fast path" for streaming uploads. Always wait for the project config
     // to be loaded:
-    let project = state
-        .project_cache_handle()
-        .ready(meta.public_key(), config.query_timeout()) // uses same timeout as `Upstream`
-        .await
-        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+    let project = common::project(&state, &meta, config).await?;
+    let scoping = common::full_scoping(&meta, project.state())?;
+    check_request(&state, meta, upload_length, project).await?;
 
-    let scoping = check_request(&state, meta, upload_length, project).await?;
     let stream = body
         .into_data_stream()
         .map(|result| result.map_err(io::Error::other))
@@ -179,28 +173,14 @@ async fn check_request(
     meta: RequestMeta,
     upload_length: Option<usize>,
     project: Project<'_>,
-) -> Result<Scoping, BadStoreRequest> {
-    let mut envelope = Envelope::from_request(None, meta);
-    envelope.require_feature(Feature::UploadEndpoint);
-    let mut item = Item::new(ItemType::Attachment);
-    item.set_payload(ContentType::AttachmentRef, vec![]);
-    item.set_attachment_length(upload_length.unwrap_or(1));
-    envelope.add_item(item);
-    let mut envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
-    let rate_limits = project
-        .check_envelope(&mut envelope)
-        .await
-        .map_err(|err| err.map(BadStoreRequest::EventRejected).into_inner())?;
-    if envelope.is_empty() {
-        return Err(envelope
-            .reject_err((None, BadStoreRequest::RateLimited(rate_limits)))
-            .into_inner());
-    }
-
-    // We are not really processing an envelope here, only keep the updated scoping:
-    let scoping = envelope.scoping();
-    envelope.accept(|x| x);
-    Ok(scoping)
+) -> Result<(), BadStoreRequest> {
+    let items = vec![{
+        let mut item = Item::new(ItemType::Attachment);
+        item.set_payload(ContentType::AttachmentRef, vec![]);
+        item.set_attachment_length(upload_length.unwrap_or(1));
+        item
+    }];
+    common::check_request(state, meta, items, Feature::UploadEndpoint, project).await
 }
 
 pub fn route(config: &Config) -> MethodRouter<ServiceState> {

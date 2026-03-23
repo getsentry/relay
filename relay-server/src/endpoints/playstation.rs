@@ -7,7 +7,6 @@ use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
 use futures::TryStreamExt;
 use futures::stream::BoxStream;
-use http::StatusCode;
 use multer::{Field, Multipart};
 use relay_config::Config;
 use relay_dynamic_config::Feature;
@@ -18,11 +17,11 @@ use serde::Serialize;
 
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
 use crate::envelope::ContentType::{self, OctetStream};
-use crate::envelope::{AttachmentPlaceholder, AttachmentType, Envelope, Item};
+use crate::envelope::{AttachmentPlaceholder, AttachmentType, Envelope, Item, ItemType};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::middlewares;
 use crate::service::ServiceState;
-use crate::services::outcome::DiscardReason;
+use crate::services::projects::cache::Project;
 use crate::services::projects::project::ProjectInfo;
 use crate::services::upload::{Stream, Upload};
 use crate::utils;
@@ -145,10 +144,8 @@ async fn extract_multipart(
     meta: RequestMeta,
     state: &ServiceState,
     project_config: &ProjectInfo,
+    scoping: Scoping,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    let scoping = project_config
-        .scoping(meta.public_key())
-        .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
     let upload_service = project_config
         .has_feature(Feature::PlaystationUploads)
         .then_some(state.upload());
@@ -188,20 +185,20 @@ async fn handle(
         return Ok(axum::Json(create_data_request_response()).into_response());
     }
 
-    let project_config = state
-        .project_cache_handle()
-        .ready(meta.public_key(), state.config().query_timeout())
-        .await
-        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?
-        .state()
-        .clone()
-        .enabled()
-        .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
+    let project = common::project(&state, &meta, state.config()).await?;
+    let scoping = common::full_scoping(&meta, project.state())?;
+    let project_config = common::project_config(project.state())?;
+
+    // Never respond with a 429 since clients often retry these
+    match check_request(&state, &meta, project).await {
+        Err(BadStoreRequest::RateLimited(_)) => return Ok(TextResponse(None).into_response()),
+        Err(error) => return Err(error.into()),
+        Ok(()) => (),
+    }
 
     let multipart = utils::multipart_from_request(request, multer::Constraints::new())
         .map_err(BadMultipart::Multipart)?;
-    let mut envelope = extract_multipart(multipart, meta, &state, &project_config).await?;
-    envelope.require_feature(Feature::PlaystationIngestion);
+    let envelope = extract_multipart(multipart, meta, &state, &project_config, scoping).await?;
 
     let id = envelope.event_id();
 
@@ -216,6 +213,26 @@ async fn handle(
 
     // Return here needs to be a 200 with arbitrary text to make the sender happy.
     Ok(TextResponse(id).into_response())
+}
+
+async fn check_request(
+    state: &ServiceState,
+    meta: &RequestMeta,
+    project: Project<'_>,
+) -> Result<(), BadStoreRequest> {
+    let items = vec![Item::new(ItemType::Event), {
+        let mut item = Item::new(ItemType::Attachment);
+        item.set_payload_without_content_type(vec![1]);
+        item
+    }];
+    common::check_request(
+        state,
+        meta.clone(),
+        items,
+        Feature::PlaystationIngestion,
+        project,
+    )
+    .await
 }
 
 pub fn route(config: &Config) -> MethodRouter<ServiceState> {

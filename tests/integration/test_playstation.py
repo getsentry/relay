@@ -207,6 +207,68 @@ def attachments(
     ]
 
 
+@pytest.mark.parametrize("rate_limited_category", ["error", "attachment"])
+def test_playstation_rate_limited(
+    mini_sentry,
+    relay_processing_with_playstation,
+    outcomes_consumer,
+    rate_limited_category,
+):
+    PROJECT_ID = 42
+    playstation_dump = load_dump_file("playstation.prosperodmp")
+    config = playstation_project_config()
+    config["config"]["quotas"] = [
+        {
+            "categories": [rate_limited_category],
+            "limit": 0,
+            "reasonCode": "playstation_rate_limited",
+        }
+    ]
+    mini_sentry.add_full_project_config(PROJECT_ID, extra=config)
+    outcomes_consumer = outcomes_consumer()
+    relay = relay_processing_with_playstation()
+
+    response = relay.send_playstation_request(PROJECT_ID, playstation_dump)
+
+    # PlayStation endpoint returns 200 even when rate limited
+    assert response.status_code == 200
+
+    outcomes = outcomes_consumer.get_outcomes()
+    outcomes.sort(key=lambda o: o["category"])
+    assert outcomes == [
+        {
+            "timestamp": time_within_delta(),
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "outcome": 2,
+            "reason": "playstation_rate_limited",
+            "category": 1,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "outcome": 2,
+            "reason": "playstation_rate_limited",
+            "category": 4,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "outcome": 2,
+            "reason": "playstation_rate_limited",
+            "category": 22,
+            "quantity": 1,
+        },
+    ]
+
+
 def test_playstation_no_feature_flag(
     mini_sentry, relay_processing_with_playstation, outcomes_consumer
 ):
@@ -243,7 +305,7 @@ def test_playstation_no_feature_flag(
             "outcome": 3,
             "reason": "feature_disabled",
             "category": 4,
-            "quantity": 209385,
+            "quantity": 1,
         },
         {
             "timestamp": time_within_delta(),
