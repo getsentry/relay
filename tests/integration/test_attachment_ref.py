@@ -13,7 +13,7 @@ def make_envelope(event_id):
             payload=PayloadRef(bytes=b""),
             headers={
                 "type": "attachment",
-                "content_type": "application/vnd.sentry.attachment-ref",
+                "content_type": "application/vnd.sentry.attachment-ref+json",
                 "attachment_length": 1,
             },
         )
