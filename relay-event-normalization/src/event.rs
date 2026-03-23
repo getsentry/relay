@@ -1308,11 +1308,20 @@ fn remove_logger_word(tokens: &mut Vec<&str>) {
 
 /// Normalizes incoming contexts for the downstream metric extraction.
 fn normalize_contexts(contexts: &mut Annotated<Contexts>) {
+    // We will always need a TraceContext.
+    let _ = contexts.get_or_insert_with(Contexts::new);
+
     let _ = processor::apply(contexts, |contexts, _meta| {
         // Reprocessing context sent from SDKs must not be accepted, it is a Sentry-internal
         // construct.
         // [`normalize`] does not run on renormalization anyway.
         contexts.0.remove("reprocessing");
+
+        // We need a TraceId to ingest the event into EAP.
+        // If the event lacks a TraceContext, add a random one.
+        if !contexts.contains::<TraceContext>() {
+            contexts.add(TraceContext::random())
+        }
 
         for annotated in &mut contexts.0.values_mut() {
             if let Some(ContextInner(Context::Trace(context))) = annotated.value_mut() {
