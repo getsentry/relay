@@ -72,9 +72,16 @@ fn extract_clock_offset(cs: &proto::ClockSnapshot) -> Option<i128> {
 /// Perfetto traces use interned IDs to avoid repeating large strings and
 /// structures in every packet. Each trusted packet sequence maintains its
 /// own set of intern tables that can be cleared on state resets.
+///
+/// Per the Perfetto spec, each `InternedData` field constructs its **own**
+/// interning index — IDs are scoped per field, not shared across string types.
+/// See <https://android.googlesource.com/platform/external/perfetto/+/refs/heads/master/protos/perfetto/trace/interned_data/interned_data.proto>.
 #[derive(Default)]
 struct InternTables {
-    strings: HashMap<u64, String>,
+    function_names: HashMap<u64, String>,
+    mapping_paths: HashMap<u64, String>,
+    /// Build IDs stored as hex-encoded strings (normalized from raw bytes).
+    build_ids: HashMap<u64, String>,
     frames: HashMap<u64, proto::Frame>,
     callstacks: HashMap<u64, proto::Callstack>,
     mappings: HashMap<u64, proto::Mapping>,
@@ -82,14 +89,16 @@ struct InternTables {
 
 impl InternTables {
     fn clear(&mut self) {
-        self.strings.clear();
+        self.function_names.clear();
+        self.mapping_paths.clear();
+        self.build_ids.clear();
         self.frames.clear();
         self.callstacks.clear();
         self.mappings.clear();
     }
 
     fn merge(&mut self, data: &proto::InternedData) {
-        for s in data.function_names.iter().chain(data.mapping_paths.iter()) {
+        for s in &data.function_names {
             if let Some(iid) = s.iid {
                 let value = s
                     .r#str
@@ -97,7 +106,18 @@ impl InternTables {
                     .and_then(|b| std::str::from_utf8(b).ok())
                     .unwrap_or("")
                     .to_owned();
-                self.strings.insert(iid, value);
+                self.function_names.insert(iid, value);
+            }
+        }
+        for s in &data.mapping_paths {
+            if let Some(iid) = s.iid {
+                let value = s
+                    .r#str
+                    .as_deref()
+                    .and_then(|b| std::str::from_utf8(b).ok())
+                    .unwrap_or("")
+                    .to_owned();
+                self.mapping_paths.insert(iid, value);
             }
         }
         // Build IDs are raw bytes in Perfetto traces; normalize to hex for later lookup.
@@ -107,7 +127,7 @@ impl InternTables {
                     Some(bytes) if !bytes.is_empty() => HEXLOWER.encode(bytes),
                     _ => String::new(),
                 };
-                self.strings.insert(iid, value);
+                self.build_ids.insert(iid, value);
             }
         }
         for f in &data.frames {
@@ -151,6 +171,7 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
     // (timestamp_ns, tid, callstack_iid, sequence_id)
     let mut raw_samples: Vec<(u64, u32, u64, u32)> = Vec::new();
     let mut clock_offset_ns: Option<i128> = None;
+    let mut observed_pid: Option<u32> = None;
 
     for packet in &trace.packet {
         let seq_id = trusted_packet_sequence_id(packet);
@@ -199,6 +220,9 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
                 if let Some(callstack_iid) = ps.callstack_iid {
                     let ts = packet.timestamp.unwrap_or(0);
                     let tid = ps.tid.unwrap_or(0);
+                    if observed_pid.is_none() {
+                        observed_pid = ps.pid;
+                    }
                     raw_samples.push((ts, tid, callstack_iid, seq_id));
                 }
             }
@@ -226,6 +250,19 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
 
     if raw_samples.is_empty() {
         return Err(ProfileError::NotEnoughSamples);
+    }
+
+    // On Android/Linux the main thread's tid equals the process pid.
+    // If the trace didn't include a ProcessTree or TrackDescriptor with a name
+    // for that thread, label it "main" so the UI can identify it.
+    if let Some(pid) = observed_pid {
+        let main_tid = pid.to_string();
+        thread_meta
+            .entry(main_tid)
+            .or_insert_with(|| ThreadMetadata {
+                name: Some("main".to_owned()),
+                priority: None,
+            });
     }
 
     let clock_offset_ns = clock_offset_ns.ok_or(ProfileError::InvalidSampledProfile)?;
@@ -256,7 +293,7 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
 
             let function_name = pf
                 .function_name_id
-                .and_then(|id| tables.strings.get(&id))
+                .and_then(|id| tables.function_names.get(&id))
                 .cloned();
 
             if let Some(mid) = pf.mapping_id {
@@ -324,7 +361,7 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
             let parts: Vec<&str> = mapping
                 .path_string_ids
                 .iter()
-                .filter_map(|id| tables.strings.get(id).map(|s| s.as_str()))
+                .filter_map(|id| tables.mapping_paths.get(id).map(|s| s.as_str()))
                 .collect();
             if parts.is_empty() {
                 continue;
@@ -344,7 +381,7 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
 
         let debug_id = mapping
             .build_id
-            .and_then(|bid| tables.strings.get(&bid))
+            .and_then(|bid| tables.build_ids.get(&bid))
             .and_then(|hex_str| build_id_to_debug_id(hex_str));
 
         let Some(debug_id) = debug_id else {
@@ -390,7 +427,7 @@ fn build_frame(
         let parts: Vec<&str> = m
             .path_string_ids
             .iter()
-            .filter_map(|id| tables.strings.get(id).map(|s| s.as_str()))
+            .filter_map(|id| tables.mapping_paths.get(id).map(|s| s.as_str()))
             .collect();
         if parts.is_empty() {
             None
@@ -554,6 +591,31 @@ mod tests {
             data: Some(Data::PerfSample(proto::PerfSample {
                 cpu: None,
                 pid: None,
+                tid: Some(tid),
+                callstack_iid: Some(callstack_iid),
+            })),
+        }
+    }
+
+    fn make_perf_sample_packet_with_pid(
+        timestamp: u64,
+        seq_id: u32,
+        pid: u32,
+        tid: u32,
+        callstack_iid: u64,
+    ) -> proto::TracePacket {
+        proto::TracePacket {
+            timestamp: Some(timestamp),
+            interned_data: None,
+            sequence_flags: None,
+            optional_trusted_packet_sequence_id: Some(
+                proto::trace_packet::OptionalTrustedPacketSequenceId::TrustedPacketSequenceId(
+                    seq_id,
+                ),
+            ),
+            data: Some(Data::PerfSample(proto::PerfSample {
+                cpu: None,
+                pid: Some(pid),
                 tid: Some(tid),
                 callstack_iid: Some(callstack_iid),
             })),
@@ -767,10 +829,7 @@ mod tests {
                     1,
                     true,
                     proto::InternedData {
-                        function_names: vec![
-                            make_interned_string(1, b"my_func"),
-                            make_interned_string(10, b"libfoo.so"),
-                        ],
+                        function_names: vec![make_interned_string(1, b"my_func")],
                         frames: vec![proto::Frame {
                             iid: Some(1),
                             function_name_id: Some(1),
@@ -790,6 +849,7 @@ mod tests {
                             path_string_ids: vec![10],
                             ..Default::default()
                         }],
+                        mapping_paths: vec![make_interned_string(10, b"libfoo.so")],
                         ..Default::default()
                     },
                 ),
@@ -809,6 +869,51 @@ mod tests {
         assert!(frame.module.is_none());
         // No build_id on the mapping, so no debug images.
         assert!(images.is_empty());
+    }
+
+    #[test]
+    fn test_separate_interning_namespaces() {
+        // Perfetto uses separate ID namespaces per InternedData field.
+        // function_names iid=1 and mapping_paths iid=1 must NOT collide.
+        let trace = proto::Trace {
+            packet: vec![
+                make_clock_snapshot_packet(),
+                make_interned_data_packet(
+                    1,
+                    true,
+                    proto::InternedData {
+                        function_names: vec![make_interned_string(1, b"my_func")],
+                        mapping_paths: vec![make_interned_string(1, b"libfoo.so")],
+                        frames: vec![proto::Frame {
+                            iid: Some(1),
+                            function_name_id: Some(1),
+                            mapping_id: Some(1),
+                            rel_pc: Some(0x100),
+                        }],
+                        callstacks: vec![proto::Callstack {
+                            iid: Some(1),
+                            frame_ids: vec![1],
+                        }],
+                        mappings: vec![proto::Mapping {
+                            iid: Some(1),
+                            start: Some(0x7000),
+                            path_string_ids: vec![1],
+                            ..Default::default()
+                        }],
+                        ..Default::default()
+                    },
+                ),
+                make_perf_sample_packet(1_000_000_000, 1, 1, 1),
+            ],
+        };
+        let bytes = trace.encode_to_vec();
+        let (data, _images) = convert(&bytes).unwrap();
+
+        assert_eq!(data.frames.len(), 1);
+        let frame = &data.frames[0];
+        // Both use iid=1 but must resolve independently.
+        assert_eq!(frame.function.as_deref(), Some("my_func"));
+        assert_eq!(frame.package.as_deref(), Some("libfoo.so"));
     }
 
     #[test]
@@ -902,6 +1007,30 @@ mod tests {
         assert!(
             !images.is_empty(),
             "expected debug images from native mappings"
+        );
+
+        // The fixture contains samples from multiple threads.
+        let thread_ids: std::collections::BTreeSet<&str> =
+            data.samples.iter().map(|s| s.thread_id.as_str()).collect();
+        assert!(
+            thread_ids.len() > 1,
+            "expected samples from multiple threads, got: {thread_ids:?}"
+        );
+
+        // The fixture has no ProcessTree/TrackDescriptor, but the main thread
+        // (tid == pid) should still be labeled "main" via pid-based inference.
+        assert!(
+            !data.thread_metadata.is_empty(),
+            "expected main thread metadata from pid inference"
+        );
+        // The lowest tid in PerfSample traces is typically the main thread (tid == pid).
+        let main_tid = thread_ids.iter().next().unwrap();
+        assert_eq!(
+            data.thread_metadata
+                .get(*main_tid)
+                .and_then(|m| m.name.as_deref()),
+            Some("main"),
+            "expected main thread to be labeled via pid inference"
         );
     }
 
@@ -1206,6 +1335,137 @@ mod tests {
                 .get("43")
                 .and_then(|m| m.name.as_deref()),
             Some("RenderThread"),
+        );
+    }
+
+    #[test]
+    fn test_main_thread_inferred_from_pid() {
+        // When no ProcessTree/TrackDescriptor provides a thread name, the main
+        // thread (tid == pid) should be labeled "main" automatically.
+        let trace = proto::Trace {
+            packet: vec![
+                make_clock_snapshot_packet(),
+                make_interned_data_packet(
+                    1,
+                    true,
+                    proto::InternedData {
+                        function_names: vec![make_interned_string(1, b"doWork")],
+                        frames: vec![make_frame(1, 1)],
+                        callstacks: vec![proto::Callstack {
+                            iid: Some(1),
+                            frame_ids: vec![1],
+                        }],
+                        ..Default::default()
+                    },
+                ),
+                make_perf_sample_packet_with_pid(1_000_000_000, 1, 100, 100, 1), // main thread
+                make_perf_sample_packet_with_pid(1_010_000_000, 1, 100, 101, 1), // worker thread
+            ],
+        };
+        let bytes = trace.encode_to_vec();
+        let (data, _images) = convert(&bytes).unwrap();
+
+        // Main thread (tid == pid == 100) should be labeled "main".
+        assert_eq!(
+            data.thread_metadata
+                .get("100")
+                .and_then(|m| m.name.as_deref()),
+            Some("main"),
+        );
+        // Worker thread (tid 101) should have no metadata since no name source exists.
+        assert!(data.thread_metadata.get("101").is_none());
+    }
+
+    #[test]
+    fn test_main_thread_not_overwritten_by_pid_inference() {
+        // If a ProcessTree already provides a name for the main thread,
+        // pid-based inference must NOT overwrite it.
+        let trace = proto::Trace {
+            packet: vec![
+                make_clock_snapshot_packet(),
+                proto::TracePacket {
+                    timestamp: None,
+                    interned_data: None,
+                    sequence_flags: None,
+                    optional_trusted_packet_sequence_id: None,
+                    data: Some(proto::trace_packet::Data::ProcessTree(proto::ProcessTree {
+                        threads: vec![proto::process_tree::Thread {
+                            tid: Some(100),
+                            name: Some("ui-thread".to_owned()),
+                            tgid: Some(100),
+                        }],
+                    })),
+                },
+                make_interned_data_packet(
+                    1,
+                    true,
+                    proto::InternedData {
+                        function_names: vec![make_interned_string(1, b"doWork")],
+                        frames: vec![make_frame(1, 1)],
+                        callstacks: vec![proto::Callstack {
+                            iid: Some(1),
+                            frame_ids: vec![1],
+                        }],
+                        ..Default::default()
+                    },
+                ),
+                make_perf_sample_packet_with_pid(1_000_000_000, 1, 100, 100, 1),
+            ],
+        };
+        let bytes = trace.encode_to_vec();
+        let (data, _images) = convert(&bytes).unwrap();
+
+        // The ProcessTree name "ui-thread" must be preserved, not replaced with "main".
+        assert_eq!(
+            data.thread_metadata
+                .get("100")
+                .and_then(|m| m.name.as_deref()),
+            Some("ui-thread"),
+        );
+    }
+
+    #[test]
+    fn test_main_thread_no_pid_for_streaming_packets() {
+        // StreamingProfilePacket doesn't carry a pid, so no main thread inference
+        // should occur. thread_metadata should be empty.
+        let trace = proto::Trace {
+            packet: vec![
+                make_clock_snapshot_packet(),
+                make_interned_data_packet(
+                    1,
+                    true,
+                    proto::InternedData {
+                        function_names: vec![make_interned_string(1, b"func")],
+                        frames: vec![make_frame(1, 1)],
+                        callstacks: vec![proto::Callstack {
+                            iid: Some(1),
+                            frame_ids: vec![1],
+                        }],
+                        ..Default::default()
+                    },
+                ),
+                proto::TracePacket {
+                    timestamp: Some(2_000_000_000),
+                    interned_data: None,
+                    sequence_flags: None,
+                    optional_trusted_packet_sequence_id: Some(
+                        proto::trace_packet::OptionalTrustedPacketSequenceId::TrustedPacketSequenceId(1),
+                    ),
+                    data: Some(Data::StreamingProfilePacket(
+                        proto::StreamingProfilePacket {
+                            callstack_iid: vec![1],
+                            timestamp_delta_us: vec![0],
+                        },
+                    )),
+                },
+            ],
+        };
+        let bytes = trace.encode_to_vec();
+        let (data, _images) = convert(&bytes).unwrap();
+
+        assert!(
+            data.thread_metadata.is_empty(),
+            "expected no thread metadata for streaming packets without ProcessTree"
         );
     }
 
