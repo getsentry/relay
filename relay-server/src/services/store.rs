@@ -976,10 +976,12 @@ impl StoreService {
         let payload = item.payload();
         let placeholder: AttachmentPlaceholder<'_> =
             serde_json::from_slice(&payload).map_err(|_| StoreError::InvalidAttachmentRef)?;
-        let store_key = SignedLocation::try_from_str(placeholder.location)
+        let location = SignedLocation::try_from_str(placeholder.location)
             .ok_or(StoreError::InvalidAttachmentRef)?
-            .unverified_key()
-            .to_owned();
+            .verify(Utc::now(), &self.config)
+            .map_err(|_| StoreError::InvalidAttachmentRef)?;
+
+        let store_key = location.key;
 
         let attachment = ChunkedAttachment {
             id: Uuid::new_v4().to_string(),

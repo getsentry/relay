@@ -432,10 +432,6 @@ impl SignedLocation {
 
         Some(Self::from_parts(project_id, key, length, signature))
     }
-
-    pub fn unverified_key(&self) -> &str {
-        &self.location.key
-    }
 }
 
 enum RequestKind {
