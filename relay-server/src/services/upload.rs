@@ -447,7 +447,6 @@ enum RequestKind {
 /// An upstream request made to the `/upload` endpoint.
 struct UploadRequest {
     scoping: Scoping,
-    timeout: Option<Duration>,
     kind: RequestKind,
     sender: oneshot::Sender<Result<Response, UpstreamRequestError>>,
 }
@@ -465,7 +464,6 @@ impl UploadRequest {
         (
             Self {
                 scoping,
-                timeout: None, // will be set by `configure()`
                 kind: RequestKind::Create { length },
                 sender,
             },
@@ -490,7 +488,6 @@ impl UploadRequest {
         (
             Self {
                 scoping,
-                timeout: None, // will be set by `configure()`
                 kind: RequestKind::Upload {
                     location,
                     stream: Some(stream),
@@ -542,10 +539,6 @@ impl UpstreamRequest for UploadRequest {
         "upload"
     }
 
-    fn configure(&mut self, config: &Config) {
-        self.timeout = Some(Duration::from_secs(config.upload().timeout));
-    }
-
     fn respond(
         self: Box<Self>,
         result: Result<Response, UpstreamRequestError>,
@@ -582,14 +575,6 @@ impl UpstreamRequest for UploadRequest {
 
         let project_key = self.scoping.project_key;
         builder.header("X-Sentry-Auth", format!("Sentry sentry_key={project_key}"));
-
-        debug_assert!(
-            self.timeout.is_some(),
-            "timeout should be set by UpstreamRequest::configure()"
-        );
-        if let Some(timeout) = self.timeout {
-            builder.timeout(timeout);
-        }
 
         Ok(())
     }
