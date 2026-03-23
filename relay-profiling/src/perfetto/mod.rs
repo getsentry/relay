@@ -1373,7 +1373,7 @@ mod tests {
             Some("main"),
         );
         // Worker thread (tid 101) should have no metadata since no name source exists.
-        assert!(data.thread_metadata.get("101").is_none());
+        assert!(!data.thread_metadata.contains_key("101"));
     }
 
     #[test]
