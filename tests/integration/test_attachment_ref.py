@@ -62,19 +62,29 @@ def upload_and_make_ref(
     content_type="text/plain",
     attachment_type="event.attachment",
 ):
-    """Upload data via TUS, then construct an AttachmentRef item pointing at it."""
-    # TODO: We want to use the new (POST and PATCH) approach here as well or is the old way fine?
-    response = relay.post(
+    """Upload data via TUS (POST + PATCH), then construct an AttachmentRef item pointing at it."""
+    create_response = relay.post(
         f"/api/{project_id}/upload/?sentry_key={project_key}",
         headers={
+            "Content-Length": "0",
             "Tus-Resumable": "1.0.0",
-            "Content-Type": "application/offset+octet-stream",
             "Upload-Length": str(len(data)),
+        },
+    )
+    assert create_response.status_code == 201
+    location = create_response.headers["Location"]
+
+    patch_response = relay.patch(
+        f"{location}&sentry_key={project_key}",
+        headers={
+            "Content-Length": str(len(data)),
+            "Content-Type": "application/offset+octet-stream",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Offset": "0",
         },
         data=data,
     )
-    assert response.status_code == 201
-    location = response.headers["Location"]
+    assert patch_response.status_code == 204
 
     payload = json.dumps({"location": location, "content_type": content_type})
     return Item(
