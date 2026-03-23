@@ -492,14 +492,14 @@ pub fn project_config(project_state: &ProjectState) -> Result<Arc<ProjectInfo>, 
 
 pub fn full_scoping(
     meta: &RequestMeta,
-    project_state: &ProjectState,
+    project_config: &ProjectInfo,
 ) -> Result<Scoping, BadStoreRequest> {
-    project_config(project_state)?
+    project_config
         .scoping(meta.public_key())
         .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))
 }
 
-/// Check request by converting it into a pseudo-envelope and calling [`handle_envelope`].
+/// Check request by converting it into a pseudo-envelope and calling [`Project::check_envelope`].
 ///
 /// Useful for endpoints that do significant amounts of work before calling [`handle_envelope`], or
 /// that don't call [`handle_envelope`] at all.

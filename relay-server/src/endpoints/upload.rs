@@ -19,6 +19,7 @@ use futures::stream::BoxStream;
 use http::header;
 use relay_config::Config;
 use relay_dynamic_config::Feature;
+use relay_quotas::Scoping;
 use relay_system::SendError;
 use tower_http::limit::RequestBodyLimitLayer;
 
@@ -153,11 +154,13 @@ async fn handle_post(
     // to be loaded:
     relay_log::trace!("Awaiting project config");
     let project = common::project(&state, &meta, config).await?;
+    let project_config = common::project_config(project.state())?;
+    relay_log::trace!("Awaiting scoping");
+    let scoping = common::full_scoping(&meta, &project_config)?;
     relay_log::trace!("Checking request");
     check_request(&state, meta, upload_length, project).await?;
 
     // Unconditionally create the upload location:
-    let scoping = common::full_scoping(&meta, project.state())?;
     let result = create(&state, scoping, upload_length).await;
     let location = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "create failed");
@@ -189,14 +192,12 @@ async fn handle_patch(
     // There is no real "fast path" for streaming uploads. Always wait for the project config
     // to be loaded:
     relay_log::trace!("Awaiting project config");
-    let project = state
-        .project_cache_handle()
-        .ready(meta.public_key(), config.query_timeout()) // uses same timeout as `Upstream`
-        .await
-        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
-
+    let project = common::project(&state, &meta, config).await?;
+    let project_config = common::project_config(project.state())?;
+    relay_log::trace!("Awaiting scoping");
+    let scoping = common::full_scoping(&meta, &project_config)?;
     relay_log::trace!("Checking request");
-    let scoping = check_request(&state, meta, length, project).await?;
+    check_request(&state, meta, length, project).await?;
 
     let stream = body
         .into_data_stream()

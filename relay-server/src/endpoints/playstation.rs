@@ -11,7 +11,6 @@ use bytes::Bytes;
 use chrono::Utc;
 use futures::TryStreamExt;
 use futures::stream::BoxStream;
-use http::StatusCode;
 use multer::{Field, Multipart};
 use relay_config::Config;
 use relay_dynamic_config::Feature;
@@ -22,11 +21,11 @@ use serde::Serialize;
 
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
 use crate::envelope::ContentType::{self, OctetStream};
-use crate::envelope::{AttachmentPlaceholder, AttachmentType, Envelope, Item};
+use crate::envelope::{AttachmentPlaceholder, AttachmentType, Envelope, Item, ItemType};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::middlewares;
 use crate::service::ServiceState;
-use crate::services::outcome::DiscardReason;
+use crate::services::projects::cache::Project;
 use crate::services::projects::project::ProjectInfo;
 use crate::services::upload::{Create, Stream, Upload};
 use crate::utils;
@@ -158,7 +157,6 @@ fn validate_prosperodump(data: &[u8]) -> Result<(), BadStoreRequest> {
 
 async fn extract_multipart(
     multipart: Multipart<'static>,
-    multipart: Multipart<'static>,
     meta: RequestMeta,
     state: &ServiceState,
     project_config: &ProjectInfo,
@@ -204,8 +202,8 @@ async fn handle(
     }
 
     let project = common::project(&state, &meta, state.config()).await?;
-    let scoping = common::full_scoping(&meta, project.state())?;
     let project_config = common::project_config(project.state())?;
+    let scoping = common::full_scoping(&meta, &project_config)?;
 
     // Never respond with a 429 since clients often retry these
     match check_request(&state, &meta, project).await {
