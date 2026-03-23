@@ -214,7 +214,8 @@ async fn handle(
 
     let multipart = utils::multipart_from_request(request, multer::Constraints::new())
         .map_err(BadMultipart::Multipart)?;
-    let envelope = extract_multipart(multipart, meta, &state, &project_config, scoping).await?;
+    let mut envelope = extract_multipart(multipart, meta, &state, &project_config, scoping).await?;
+    envelope.require_feature(Feature::PlaystationIngestion);
 
     let id = envelope.event_id();
 

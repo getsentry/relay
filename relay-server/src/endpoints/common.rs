@@ -520,7 +520,7 @@ pub async fn check_request(
         .check_envelope(&mut envelope)
         .await
         .map_err(|err| err.map(BadStoreRequest::EventRejected).into_inner())?;
-    if !rate_limits.is_empty() {
+    if envelope.is_empty() {
         let reason_code = rate_limits
             .iter()
             .next()
