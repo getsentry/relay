@@ -5,17 +5,7 @@ use crate::processing::profile_chunks::{Error, Result};
 
 /// Checks whether the profile ingestion feature flag is enabled for the current project.
 pub fn feature_flag(ctx: Context<'_>) -> Result<()> {
-    let feature = match ctx
-        .project_info
-        .has_feature(Feature::ContinuousProfilingBetaIngest)
-    {
-        // Legacy feature.
-        true => Feature::ContinuousProfilingBeta,
-        // The post release ingestion feature.
-        false => Feature::ContinuousProfiling,
-    };
-
-    match ctx.should_filter(feature) {
+    match ctx.should_filter(Feature::ContinuousProfiling) {
         true => Err(Error::FilterFeatureFlag),
         false => Ok(()),
     }
