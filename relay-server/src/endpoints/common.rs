@@ -89,6 +89,9 @@ pub enum BadStoreRequest {
     #[error("failed to queue envelope")]
     QueueFailed,
 
+    #[error("failed to fetch project")]
+    ProjectUnavailable,
+
     #[error(
         "envelope exceeded size limits for type '{0}' (https://develop.sentry.dev/sdk/envelopes/#size-limits)"
     )]
@@ -126,7 +129,7 @@ impl IntoResponse for BadStoreRequest {
 
                 (StatusCode::TOO_MANY_REQUESTS, headers, body).into_response()
             }
-            BadStoreRequest::QueueFailed => {
+            BadStoreRequest::QueueFailed | BadStoreRequest::ProjectUnavailable => {
                 // These errors indicate that something's wrong with our service system, most likely
                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
                 // client. It might retry event submission at a later time.
@@ -470,7 +473,7 @@ impl IntoResponse for TextResponse {
     }
 }
 
-/// Check request by converting it into a pseudo-envelope and calling [`Project::check_envelope`].
+/// Check request by converting it into a pseudo-envelope and calling [`Project::check_envelope`](crate::services::projects::cache::Project::check_envelope).
 ///
 /// Useful for endpoints that do significant amounts of work before calling [`handle_envelope`], or
 /// that don't call [`handle_envelope`] at all.
@@ -488,7 +491,7 @@ pub async fn check_request(
         .project_cache_handle()
         .ready(meta.public_key(), state.config().query_timeout()) // uses same timeout as `Upstream`
         .await
-        .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
+        .ok_or(BadStoreRequest::ProjectUnavailable)?;
     let project_config = project
         .state()
         .clone()
