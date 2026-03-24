@@ -19,7 +19,7 @@ pub fn scrub(
 
 /// Validates the attachments and drop any invalid ones.
 ///
-/// An attachment might be a placeholder, in which case it needs to be validated.
+/// An attachment might be a placeholder, in which case its signature needs to be verified.
 #[cfg(feature = "processing")]
 pub fn validate_attachments(
     attachments: &mut Managed<SerializedAttachments>,
