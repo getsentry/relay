@@ -521,7 +521,7 @@ impl ObjectstoreServiceInner {
 
     /// Returns `true` if the item should **not** be uploaded to the objectstore.
     ///
-    /// The case for:
+    /// This is the case for:
     /// - Zero-size attachments
     /// - Attachment placeholders
     fn should_skip_upload(item: &Item) -> bool {
