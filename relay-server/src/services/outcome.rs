@@ -485,7 +485,7 @@ pub enum DiscardReason {
     /// (Relay) A trace attachment that has invalid item headers or attachment meta-data.
     InvalidTraceAttachment,
 
-    /// (Relay) A attachment ref that has invalid item headers or payload.
+    /// (Relay) An attachment ref that has invalid item headers or payload.
     #[cfg(feature = "processing")]
     InvalidAttachmentRef,
 
