@@ -268,6 +268,11 @@ def test_playstation_rate_limited(
         },
     ]
 
+    # Response is 200 also when project config is already loaded from previous request
+    response = relay.send_playstation_request(PROJECT_ID, playstation_dump)
+    assert response.status_code == 200
+    assert len(outcomes_consumer.get_outcomes()) == 3
+
 
 def test_playstation_no_feature_flag(
     mini_sentry, relay_processing_with_playstation, outcomes_consumer

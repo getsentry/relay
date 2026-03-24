@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use axum::http::{StatusCode, header};
 use axum::response::IntoResponse;
-use relay_config::{Config, RelayMode};
+use relay_config::RelayMode;
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::{EventId, EventType};
 use relay_quotas::{RateLimits, Scoping};
@@ -18,8 +18,7 @@ use crate::service::ServiceState;
 use crate::services::buffer::ProjectKeyPair;
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
 use crate::services::processor::{BucketSource, MetricData, ProcessMetrics};
-use crate::services::projects::cache::Project;
-use crate::services::projects::project::{ProjectInfo, ProjectState};
+use crate::services::projects::project::ProjectInfo;
 use crate::statsd::{RelayCounters, RelayDistributions};
 use crate::utils::{self, ApiErrorResponse, FormDataIter};
 
@@ -471,47 +470,33 @@ impl IntoResponse for TextResponse {
     }
 }
 
-pub async fn project<'a>(
-    state: &'a ServiceState,
-    meta: &RequestMeta,
-    config: &Config,
-) -> Result<Project<'a>, StatusCode> {
-    state
-        .project_cache_handle()
-        .ready(meta.public_key(), config.query_timeout()) // uses same timeout as `Upstream`
-        .await
-        .ok_or(StatusCode::SERVICE_UNAVAILABLE)
-}
-
-pub fn project_config(project_state: &ProjectState) -> Result<Arc<ProjectInfo>, BadStoreRequest> {
-    project_state
-        .clone()
-        .enabled()
-        .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))
-}
-
-pub fn full_scoping(
-    meta: &RequestMeta,
-    project_config: &ProjectInfo,
-) -> Result<Scoping, BadStoreRequest> {
-    project_config
-        .scoping(meta.public_key())
-        .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))
-}
-
 /// Check request by converting it into a pseudo-envelope and calling [`Project::check_envelope`].
 ///
 /// Useful for endpoints that do significant amounts of work before calling [`handle_envelope`], or
 /// that don't call [`handle_envelope`] at all.
 ///
-/// Returns [`Err`] if ANY item is rate limited. Corresponding outcomes are emitted.
+/// Returns
+///  - `Ok((ProjectInfo, Scoping))` if no item is rate limited and the required feature is enabled.
+///  - `Err(BadStoreRequest)` otherwise. Corresponding outcomes are emitted.
 pub async fn check_request(
     state: &ServiceState,
     meta: RequestMeta,
     items: Vec<Item>,
     feature: Feature,
-    project: &Project<'_>,
-) -> Result<(), BadStoreRequest> {
+) -> Result<(Arc<ProjectInfo>, Scoping), BadStoreRequest> {
+    let project = state
+        .project_cache_handle()
+        .ready(meta.public_key(), state.config().query_timeout()) // uses same timeout as `Upstream`
+        .await
+        .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
+    let project_config = project
+        .state()
+        .clone()
+        .enabled()
+        .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
+    let scoping = project_config
+        .scoping(meta.public_key())
+        .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
     let mut envelope = Envelope::from_request(None, meta);
     envelope.require_feature(feature);
     for i in items {
@@ -535,7 +520,7 @@ pub async fn check_request(
             .into_inner());
     }
     envelope.accept(|x| x);
-    Ok(())
+    Ok((project_config, scoping))
 }
 
 #[cfg(test)]

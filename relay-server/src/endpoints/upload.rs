@@ -29,7 +29,6 @@ use crate::extractors::RequestMeta;
 use crate::service::ServiceState;
 #[cfg(feature = "processing")]
 use crate::services::objectstore;
-use crate::services::projects::cache::Project;
 use crate::services::upload::{self, SignedLocation};
 use crate::services::upstream::UpstreamRequestError;
 use crate::utils::ApiErrorResponse;
@@ -151,13 +150,9 @@ async fn handle_post(
     }
 
     // There is no real "fast path" for streaming uploads. Always wait for the project config
-    // to be loaded:
-    relay_log::trace!("Awaiting project config");
-    let project = common::project(&state, &meta, config).await?;
-    let project_config = common::project_config(project.state())?;
-    let scoping = common::full_scoping(&meta, &project_config)?;
+    // to be loaded inside `check_request`:
     relay_log::trace!("Checking request");
-    check_request(&state, meta, upload_length, &project).await?;
+    let scoping = check_request(&state, meta, upload_length).await?;
 
     // Unconditionally create the upload location:
     let result = create(&state, scoping, upload_length).await;
@@ -189,13 +184,9 @@ async fn handle_patch(
     let config = state.config();
 
     // There is no real "fast path" for streaming uploads. Always wait for the project config
-    // to be loaded:
-    relay_log::trace!("Awaiting project config");
-    let project = common::project(&state, &meta, config).await?;
-    let project_config = common::project_config(project.state())?;
-    let scoping = common::full_scoping(&meta, &project_config)?;
+    // to be loaded inside `check_request`:
     relay_log::trace!("Checking request");
-    check_request(&state, meta, length, &project).await?;
+    let scoping = check_request(&state, meta, length).await?;
 
     let stream = body
         .into_data_stream()
@@ -278,15 +269,15 @@ async fn check_request(
     state: &ServiceState,
     meta: RequestMeta,
     upload_length: Option<usize>,
-    project: &Project<'_>,
-) -> Result<(), BadStoreRequest> {
+) -> Result<Scoping, BadStoreRequest> {
     let items = vec![{
         let mut item = Item::new(ItemType::Attachment);
         item.set_payload(ContentType::AttachmentRef, vec![]);
         item.set_attachment_length(upload_length.unwrap_or(1));
         item
     }];
-    common::check_request(state, meta, items, Feature::UploadEndpoint, project).await
+    let (_, scoping) = common::check_request(state, meta, items, Feature::UploadEndpoint).await?;
+    Ok(scoping)
 }
 
 fn is_hyper_user_error(error: &(dyn std::error::Error + 'static)) -> bool {

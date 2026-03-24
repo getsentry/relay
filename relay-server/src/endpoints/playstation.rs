@@ -3,6 +3,7 @@
 //! Crashes are received as multipart uploads in this [format](https://game.develop.playstation.net/resources/documents/SDK/12.000/Core_Dump_System-Overview/ps5-core-dump-file-set-sending-format.html).
 use std::io;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
@@ -25,7 +26,6 @@ use crate::envelope::{AttachmentPlaceholder, AttachmentType, Envelope, Item, Ite
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::middlewares;
 use crate::service::ServiceState;
-use crate::services::projects::cache::Project;
 use crate::services::projects::project::ProjectInfo;
 use crate::services::upload::{Create, Stream, Upload};
 use crate::utils;
@@ -201,18 +201,14 @@ async fn handle(
         return Ok(axum::Json(create_data_request_response()).into_response());
     }
 
-    let project = common::project(&state, &meta, state.config()).await?;
-    let project_config = common::project_config(project.state())?;
-    let scoping = common::full_scoping(&meta, &project_config)?;
-
     // Never respond with a 429 since clients often retry these
-    match check_request(&state, meta.clone(), &project).await {
+    let (project_config, scoping) = match check_request(&state, meta.clone()).await {
         Err(BadStoreRequest::RateLimited(_)) => {
             return Ok(TextResponse(Some(EventId::new())).into_response());
         }
         Err(error) => return Err(error.into()),
-        Ok(()) => (),
-    }
+        Ok((p, s)) => (p, s),
+    };
 
     let multipart = utils::multipart_from_request(request, multer::Constraints::new())
         .map_err(BadMultipart::Multipart)?;
@@ -236,14 +232,13 @@ async fn handle(
 async fn check_request(
     state: &ServiceState,
     meta: RequestMeta,
-    project: &Project<'_>,
-) -> Result<(), BadStoreRequest> {
+) -> Result<(Arc<ProjectInfo>, Scoping), BadStoreRequest> {
     let items = vec![Item::new(ItemType::Event), {
         let mut item = Item::new(ItemType::Attachment);
-        item.set_payload_without_content_type(vec![1]);
+        item.set_payload_without_content_type(vec![]);
         item
     }];
-    common::check_request(state, meta, items, Feature::PlaystationIngestion, project).await
+    common::check_request(state, meta, items, Feature::PlaystationIngestion).await
 }
 
 pub fn route(config: &Config) -> MethodRouter<ServiceState> {
