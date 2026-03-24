@@ -3,50 +3,40 @@ use std::time::{Duration, Instant};
 
 use futures::{Stream, StreamExt};
 
-/// Times spent waiting for the sending end and the receiving end of the stream.
-#[derive(Clone, Copy, Default)]
-pub struct Latencies {
-    /// Total time spent waiting for the sender.
-    pub sender: Duration,
-    /// Total time spent waiting for the receiver.
-    pub receiver: Duration,
-}
+use crate::statsd::RelayTimers;
 
 /// A stream wrapper that counts the time spent polling / waiting for the next poll.
-pub struct MeteredStream<S, F>
-where
-    F: Fn(Latencies),
-{
+pub struct MeteredStream<S> {
     inner: S,
+    name: &'static str,
     pending_since: Option<Instant>,
-    last_item_produced: Option<Instant>,
-    latencies: Latencies,
-    callback: F,
+    last_item_consumed: Option<Instant>,
+    producer_latency: Duration,
+    consumer_latency: Duration,
 }
 
-impl<S, F> MeteredStream<S, F>
+impl<S> MeteredStream<S>
 where
     S: Stream,
-    F: Fn(Latencies),
 {
     /// Create a new metered stream from an existing stream.
-    pub fn new(inner: S, callback: F) -> Self {
+    pub fn new(inner: S, name: &'static str) -> Self {
         Self {
             inner,
+            name,
             pending_since: None,
-            last_item_produced: None,
-            latencies: Latencies::default(),
-            callback,
+            last_item_consumed: None,
+            producer_latency: Duration::ZERO,
+            consumer_latency: Duration::ZERO,
         }
     }
 }
 
-impl<S: Unpin, F> Unpin for MeteredStream<S, F> where F: Fn(Latencies) {}
+impl<S: Unpin> Unpin for MeteredStream<S> {}
 
-impl<S, F> Stream for MeteredStream<S, F>
+impl<S> Stream for MeteredStream<S>
 where
     S: Stream + Unpin,
-    F: Fn(Latencies),
 {
     type Item = S::Item;
 
@@ -56,14 +46,15 @@ where
     ) -> Poll<Option<Self::Item>> {
         let result = self.inner.poll_next_unpin(cx);
 
-        if let Some(time) = self.last_item_produced.take() {
-            self.latencies.receiver += time.elapsed();
+        if let Some(time) = self.last_item_consumed.take() {
+            // The consumer is back for more.
+            self.consumer_latency += time.elapsed();
         }
 
         match &result {
             Poll::Ready(Some(_)) => {
                 if let Some(time) = self.pending_since.take() {
-                    self.latencies.sender += time.elapsed();
+                    self.producer_latency += time.elapsed();
                 }
             }
             Poll::Ready(None) => {} // nothing to do
@@ -76,11 +67,15 @@ where
     }
 }
 
-impl<S, F> Drop for MeteredStream<S, F>
-where
-    F: Fn(Latencies),
-{
+impl<S> Drop for MeteredStream<S> {
     fn drop(&mut self) {
-        (self.callback)(self.latencies)
+        relay_statsd::metric!(
+            timer(RelayTimers::StreamProducerLatency) = self.producer_latency,
+            name = self.name
+        );
+        relay_statsd::metric!(
+            timer(RelayTimers::StreamConsumerLatency) = self.producer_latency,
+            name = self.name
+        );
     }
 }

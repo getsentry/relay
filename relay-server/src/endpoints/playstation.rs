@@ -29,7 +29,7 @@ use crate::service::ServiceState;
 use crate::services::outcome::DiscardReason;
 use crate::services::projects::project::ProjectInfo;
 use crate::services::upload::{Create, Stream, Upload};
-use crate::utils;
+use crate::utils::{self, MeteredStream};
 use crate::utils::{AttachmentStrategy, BadMultipart, BoundedStream};
 
 /// The extension of a prosperodump in the multipart form-data upload.
@@ -100,6 +100,7 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
         let content_type = field.content_type().cloned();
         let stream: BoxStream<'static, io::Result<Bytes>> =
             Box::pin(field.map_err(io::Error::other));
+        let stream = MeteredStream::new(stream, "playstation");
         let stream = BoundedStream::new(stream, 1, config.max_upload_size());
         let byte_counter = stream.byte_counter();
         let Ok(Ok(location)) = upload

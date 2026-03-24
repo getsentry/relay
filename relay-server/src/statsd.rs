@@ -627,6 +627,17 @@ pub enum RelayTimers {
     /// - `type`: "envelope" or "attachment_v2".
     #[cfg(feature = "processing")]
     AttachmentUploadDuration,
+
+    /// Time spent waiting for the producer of an async stream.
+    ///
+    /// Tagged by:
+    /// - `name`: Name of the stream, for example "upload".
+    StreamProducerLatency,
+    /// Time spent waiting for the consumer of an async stream.
+    ///
+    /// Tagged by:
+    /// - `name`: Name of the stream, for example "upload".
+    StreamConsumerLatency,
 }
 
 impl TimerMetric for RelayTimers {
@@ -682,6 +693,8 @@ impl TimerMetric for RelayTimers {
             RelayTimers::SignatureCreationDuration => "signature.create.duration",
             #[cfg(feature = "processing")]
             RelayTimers::AttachmentUploadDuration => "attachment.upload.duration",
+            RelayTimers::StreamProducerLatency => "stream.producer.latency",
+            RelayTimers::StreamConsumerLatency => "stream.consumer.latency",
         }
     }
 }
