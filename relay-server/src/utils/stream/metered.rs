@@ -119,7 +119,7 @@ mod tests {
             tokio::runtime::Runtime::new().unwrap().block_on(async {
                 let inner = stream::iter([1u8, 2, 3]).boxed();
                 let mut stream = MeteredStream::new(inner, "test");
-                while let Some(_) = stream.next().await {
+                while stream.next().await.is_some() {
                     // Simulate a slow consumer.
                     tokio::time::sleep(Duration::from_millis(10)).await;
                 }
