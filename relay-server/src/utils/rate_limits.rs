@@ -1093,7 +1093,7 @@ where
         }
         if !log_limits.is_limited() && summary.log_byte_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::LogByte);
-            let log_limits = self
+            log_limits = self
                 .check
                 .apply(item_scoping, summary.log_byte_quantity)
                 .await?;
