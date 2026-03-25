@@ -1093,7 +1093,7 @@ where
         }
         if !log_limits.is_limited() && summary.log_byte_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::LogByte);
-            let log_limits = self
+            log_limits = self
                 .check
                 .apply(item_scoping, summary.log_byte_quantity)
                 .await?;
@@ -2251,9 +2251,11 @@ mod tests {
         assert!(limits.is_limited());
         assert_eq!(envelope.envelope().len(), 0);
         mock.lock().await.assert_call(DataCategory::LogItem, 2);
-        mock.lock().await.assert_call(DataCategory::LogByte, 20);
 
-        assert_eq!(get_outcomes(enforcement), vec![(DataCategory::LogItem, 2)]);
+        assert_eq!(
+            get_outcomes(enforcement),
+            vec![(DataCategory::LogItem, 2), (DataCategory::LogByte, 20)]
+        );
     }
 
     #[tokio::test]
@@ -2268,7 +2270,10 @@ mod tests {
         mock.lock().await.assert_call(DataCategory::LogItem, 2);
         mock.lock().await.assert_call(DataCategory::LogByte, 20);
 
-        assert_eq!(get_outcomes(enforcement), vec![(DataCategory::LogByte, 20)]);
+        assert_eq!(
+            get_outcomes(enforcement),
+            vec![(DataCategory::LogItem, 2), (DataCategory::LogByte, 20)]
+        );
     }
 
     #[tokio::test]
