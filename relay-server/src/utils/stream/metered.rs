@@ -81,3 +81,66 @@ impl<S> Drop for MeteredStream<S> {
         );
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use futures::StreamExt as _;
+    use futures::stream;
+    use tokio::time::Duration;
+
+    use super::*;
+
+    fn parse_metric_value(s: &str) -> f64 {
+        regex::Regex::new(r":([0-9.]+)\|")
+            .unwrap()
+            .captures(s)
+            .unwrap()[1]
+            .parse()
+            .unwrap()
+    }
+
+    #[test]
+    fn test_slow_producer() {
+        let captures = relay_statsd::with_capturing_test_client(|| {
+            tokio::runtime::Runtime::new().unwrap().block_on(async {
+                let inner = stream::iter([1u8, 2, 3])
+                    .then(|x| async move {
+                        tokio::time::sleep(Duration::from_millis(10)).await;
+                        x
+                    })
+                    .boxed();
+                MeteredStream::new("test", inner).collect::<Vec<_>>().await;
+            });
+        });
+
+        let producer = captures.iter().find(|s| s.contains("producer")).unwrap();
+        let consumer = captures.iter().find(|s| s.contains("consumer")).unwrap();
+
+        assert!(producer.contains("name:test"));
+        assert!(consumer.contains("name:test"));
+        // Producer was slow (we slept), consumer was immediate.
+        assert!(parse_metric_value(producer) > 30.0); // 3 x 10 milliseconds
+        assert!(parse_metric_value(consumer) < 1.0); // < 1 millisecond
+    }
+
+    #[test]
+    fn test_slow_consumer() {
+        let captures = relay_statsd::with_capturing_test_client(|| {
+            tokio::runtime::Runtime::new().unwrap().block_on(async {
+                let inner = stream::iter([1u8, 2, 3]).boxed();
+                let mut stream = MeteredStream::new("test", inner);
+                while let Some(_) = stream.next().await {
+                    // Simulate a slow consumer (e.g. a backpressured sink).
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+            });
+        });
+
+        let producer = captures.iter().find(|s| s.contains("producer")).unwrap();
+        let consumer = captures.iter().find(|s| s.contains("consumer")).unwrap();
+
+        // Consumer was slow (we slept between polls), producer was immediate.
+        assert!(parse_metric_value(producer) < 1.0); // < 1 millisecond
+        assert!(parse_metric_value(consumer) > 20.0); // 2 x 10 milliseconds (last item has no successor)
+    }
+}
