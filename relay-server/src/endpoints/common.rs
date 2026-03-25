@@ -15,7 +15,7 @@ use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, I
 use crate::extractors::RequestMeta;
 use crate::managed::{Managed, Rejected};
 use crate::service::ServiceState;
-use crate::services::buffer::ProjectKeyPair;
+use crate::services::buffer::{ProjectKeyPair, PushError};
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
 use crate::services::processor::{BucketSource, MetricData, ProcessMetrics};
 use crate::services::projects::project::ProjectInfo;
@@ -87,7 +87,7 @@ pub enum BadStoreRequest {
     InvalidEventId,
 
     #[error("failed to queue envelope")]
-    QueueFailed,
+    QueueFailed(#[source] PushError),
 
     #[error("failed to fetch project")]
     ProjectUnavailable,
@@ -312,14 +312,10 @@ fn queue_envelope(
     }
 
     let pkp = ProjectKeyPair::from_envelope(&envelope);
-    if let Err(envelope) = state.envelope_buffer(pkp).try_push(envelope) {
-        return Err(envelope.reject_err((
-            Outcome::Invalid(DiscardReason::Internal),
-            BadStoreRequest::QueueFailed,
-        )));
-    }
-
-    Ok(())
+    state
+        .envelope_buffer(pkp)
+        .try_push(envelope)
+        .map_err(|e| e.map(BadStoreRequest::QueueFailed))
 }
 
 /// Handles an envelope store request.
@@ -341,7 +337,7 @@ pub async fn handle_envelope(
     if state.memory_checker().check_memory().is_exceeded() {
         return Err(envelope.reject_err((
             Outcome::Invalid(DiscardReason::Internal),
-            BadStoreRequest::QueueFailed,
+            BadStoreRequest::QueueFailed(PushError::OutOfMemory),
         )));
     };
 

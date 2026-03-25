@@ -21,6 +21,7 @@
 - Use new processor architecture to process standalone profiles. ([#5741](https://github.com/getsentry/relay/pull/5741))
 - TUS: Disallow creation with upload. ([#5734](https://github.com/getsentry/relay/pull/5734))
 - Playstation: Enforce limit 0 quotas before multipart processing. ([#5758](https://github.com/getsentry/relay/pull/5758))
+- Remove continuous-profiling-beta feature flags. ([#5762](https://github.com/getsentry/relay/pull/5762))
 
 ## 26.3.1
 
