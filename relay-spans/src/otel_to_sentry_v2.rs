@@ -8,6 +8,7 @@ use relay_conventions::ORIGIN;
 use relay_conventions::PLATFORM;
 use relay_conventions::SEGMENT_ID;
 use relay_conventions::SEGMENT_NAME;
+use relay_conventions::SENTRY_TRANSACTION;
 use relay_conventions::SPAN_KIND;
 use relay_conventions::STATUS_MESSAGE;
 use relay_event_schema::protocol::{Attributes, SpanKind};
@@ -133,6 +134,7 @@ pub fn otel_to_sentry_span(
         }
         if let Some(ref segment_name) = name {
             sentry_attributes.insert(SEGMENT_NAME, segment_name.clone());
+            sentry_attributes.insert(SENTRY_TRANSACTION, segment_name.clone());
         }
     }
 
@@ -987,6 +989,10 @@ mod tests {
               "value": "e342abb1214ca181"
             },
             "sentry.segment.name": {
+              "type": "string",
+              "value": "my segment span"
+            },
+            "sentry.transaction": {
               "type": "string",
               "value": "my segment span"
             }
