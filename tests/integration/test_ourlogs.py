@@ -208,8 +208,6 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
         },
     ]
 
-    # TODO: copy this test to metrics
-
 
 @pytest.mark.parametrize("eap_emits_outcomes", [True, False])
 @pytest.mark.parametrize(
