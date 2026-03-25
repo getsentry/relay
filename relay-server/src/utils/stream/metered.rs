@@ -7,8 +7,8 @@ use crate::statsd::RelayTimers;
 
 /// A stream wrapper that counts the time spent polling / waiting for the next poll.
 pub struct MeteredStream<S> {
-    inner: S,
     name: &'static str,
+    inner: S,
     pending_since: Option<Instant>,
     last_item_consumed: Option<Instant>,
     producer_latency: Duration,
@@ -20,10 +20,10 @@ where
     S: Stream,
 {
     /// Create a new metered stream from an existing stream.
-    pub fn new(inner: S, name: &'static str) -> Self {
+    pub fn new(name: &'static str, inner: S) -> Self {
         Self {
-            inner,
             name,
+            inner,
             pending_since: None,
             last_item_consumed: None,
             producer_latency: Duration::ZERO,
@@ -45,21 +45,23 @@ where
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
         let result = self.inner.poll_next_unpin(cx);
+        let now = Instant::now();
 
         if let Some(time) = self.last_item_consumed.take() {
             // The consumer is back for more.
-            self.consumer_latency += time.elapsed();
+            self.consumer_latency += now.duration_since(time);
         }
 
         match &result {
             Poll::Ready(Some(_)) => {
                 if let Some(time) = self.pending_since.take() {
-                    self.producer_latency += time.elapsed();
+                    self.producer_latency += now.duration_since(time);
                 }
+                self.last_item_consumed.replace(now);
             }
             Poll::Ready(None) => {} // nothing to do
             Poll::Pending => {
-                self.pending_since.get_or_insert_with(Instant::now);
+                self.pending_since.get_or_insert(now);
             }
         };
 
@@ -74,7 +76,7 @@ impl<S> Drop for MeteredStream<S> {
             name = self.name
         );
         relay_statsd::metric!(
-            timer(RelayTimers::StreamConsumerLatency) = self.producer_latency,
+            timer(RelayTimers::StreamConsumerLatency) = self.consumer_latency,
             name = self.name
         );
     }
