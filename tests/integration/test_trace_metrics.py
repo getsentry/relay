@@ -189,7 +189,7 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
 
     assert mini_sentry.get_aggregated_outcomes() == [
         {
-            "category": 23,
+            "category": 33,
             "key_id": 123,
             "org_id": 1,
             "outcome": 2,
@@ -198,13 +198,13 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
             "quantity": 1,
         },
         {
-            "category": 24,
+            "category": 37,
             "key_id": 123,
             "org_id": 1,
             "outcome": 2,
             "project_id": 42,
             "reason": "no_more_quota",
-            "quantity": 162,
+            "quantity": 139,
         },
     ]
 
@@ -213,7 +213,7 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
 
     assert mini_sentry.get_aggregated_outcomes() == [
         {
-            "category": 23,
+            "category": 33,
             "key_id": 123,
             "org_id": 1,
             "outcome": 2,
@@ -222,13 +222,13 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
             "quantity": 1,
         },
         {
-            "category": 24,
+            "category": 37,
             "key_id": 123,
             "org_id": 1,
             "outcome": 2,
             "project_id": 42,
             "reason": "no_more_quota",
-            "quantity": 162,
+            "quantity": 139,
         },
     ]
 

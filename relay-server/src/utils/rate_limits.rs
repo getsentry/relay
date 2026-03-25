@@ -626,7 +626,7 @@ impl Enforcement {
             profile_chunks,
             profile_chunks_ui,
             trace_metrics,
-            trace_attachment_bytes,
+            trace_metrics_bytes,
         ];
 
         limits.into_iter().flat_map(|limit| limit.outcomes())
