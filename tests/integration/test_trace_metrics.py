@@ -98,6 +98,9 @@ def test_trace_metric_extraction(
                     precision="us",
                 )
             },
+            "sentry.payload_size_bytes": {
+                "intValue": "241",
+            },
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
             "sentry.client_sample_rate": {"doubleValue": 0.25},
             "sentry.browser.name": {"stringValue": mock.ANY},
@@ -256,6 +259,9 @@ def test_trace_metric_pii_scrubbing(
                     expect_resolution="ns",
                     precision="us",
                 )
+            },
+            "sentry.payload_size_bytes": {
+                "intValue": "159",
             },
             "sentry.browser.name": {"stringValue": mock.ANY},
             "sentry.browser.version": {"stringValue": mock.ANY},
