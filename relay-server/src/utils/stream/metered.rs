@@ -1,18 +1,16 @@
 use std::task::Poll;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use futures::{Stream, StreamExt};
 
 use crate::statsd::RelayTimers;
 
-/// A stream wrapper that counts the time spent polling / waiting for the next poll.
+/// A stream wrapper that emits a metric per item for producer and consumer latency.
 pub struct MeteredStream<S> {
     name: &'static str,
     inner: S,
     pending_since: Option<Instant>,
     last_item_consumed: Option<Instant>,
-    producer_latency: Duration,
-    consumer_latency: Duration,
 }
 
 impl<S> MeteredStream<S>
@@ -26,8 +24,6 @@ where
             inner,
             pending_since: None,
             last_item_consumed: None,
-            producer_latency: Duration::ZERO,
-            consumer_latency: Duration::ZERO,
         }
     }
 }
@@ -48,14 +44,19 @@ where
         let now = Instant::now();
 
         if let Some(time) = self.last_item_consumed.take() {
-            // The consumer is back for more.
-            self.consumer_latency += now.duration_since(time);
+            relay_statsd::metric!(
+                timer(RelayTimers::StreamConsumerLatency) = now.duration_since(time),
+                name = self.name
+            );
         }
 
         match &result {
             Poll::Ready(Some(_)) => {
                 if let Some(time) = self.pending_since.take() {
-                    self.producer_latency += now.duration_since(time);
+                    relay_statsd::metric!(
+                        timer(RelayTimers::StreamProducerLatency) = now.duration_since(time),
+                        name = self.name
+                    );
                 }
                 self.last_item_consumed.replace(now);
             }
@@ -66,19 +67,6 @@ where
         };
 
         result
-    }
-}
-
-impl<S> Drop for MeteredStream<S> {
-    fn drop(&mut self) {
-        relay_statsd::metric!(
-            timer(RelayTimers::StreamProducerLatency) = self.producer_latency,
-            name = self.name
-        );
-        relay_statsd::metric!(
-            timer(RelayTimers::StreamConsumerLatency) = self.consumer_latency,
-            name = self.name
-        );
     }
 }
 
@@ -113,14 +101,16 @@ mod tests {
             });
         });
 
-        let producer = captures.iter().find(|s| s.contains("producer")).unwrap();
-        let consumer = captures.iter().find(|s| s.contains("consumer")).unwrap();
+        let producers: Vec<_> = captures.iter().filter(|s| s.contains("producer")).collect();
+        let consumers: Vec<_> = captures.iter().filter(|s| s.contains("consumer")).collect();
 
-        assert!(producer.contains("name:test"));
-        assert!(consumer.contains("name:test"));
+        // One producer metric per item; one consumer metric per poll after an item, including the
+        // terminal Ready(None) poll.
+        assert_eq!(producers.len(), 3);
+        assert_eq!(consumers.len(), 3);
         // Producer was slow (we slept), consumer was immediate.
-        assert!(parse_metric_value(producer) > 30.0); // 3 x 10 milliseconds
-        assert!(parse_metric_value(consumer) < 1.0); // < 1 millisecond
+        assert!(producers.iter().all(|s| parse_metric_value(s) > 10.0));
+        assert!(consumers.iter().all(|s| parse_metric_value(s) < 1.0));
     }
 
     #[test]
@@ -136,11 +126,14 @@ mod tests {
             });
         });
 
-        let producer = captures.iter().find(|s| s.contains("producer")).unwrap();
-        let consumer = captures.iter().find(|s| s.contains("consumer")).unwrap();
+        let producers: Vec<_> = captures.iter().filter(|s| s.contains("producer")).collect();
+        let consumers: Vec<_> = captures.iter().filter(|s| s.contains("consumer")).collect();
 
+        // Producer metrics only when pending_since was set; stream::iter never returns Pending.
+        // Consumer metric fires on each poll after an item, including the terminal Ready(None) poll.
+        assert_eq!(producers.len(), 0);
+        assert_eq!(consumers.len(), 3);
         // Consumer was slow (we slept between polls), producer was immediate.
-        assert!(parse_metric_value(producer) < 1.0); // < 1 millisecond
-        assert!(parse_metric_value(consumer) > 20.0); // 2 x 10 milliseconds (last item has no successor)
+        assert!(consumers.iter().all(|s| parse_metric_value(s) > 10.0));
     }
 }
