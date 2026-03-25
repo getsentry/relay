@@ -75,39 +75,40 @@
 <a href=#75 id=75 data-nosnippet>75</a>    SENTRY_GROUP =&gt; <span class="string">"sentry.group"</span>,
 <a href=#76 id=76 data-nosnippet>76</a>    SENTRY_NORMALIZED_DESCRIPTION =&gt; <span class="string">"sentry.normalized_description"</span>,
 <a href=#77 id=77 data-nosnippet>77</a>    SENTRY_STATUS_CODE =&gt; <span class="string">"sentry.status_code"</span>,
-<a href=#78 id=78 data-nosnippet>78</a>    SERVER_ADDRESS =&gt; <span class="string">"server.address"</span>,
-<a href=#79 id=79 data-nosnippet>79</a>    SPAN_KIND =&gt; <span class="string">"sentry.kind"</span>,
-<a href=#80 id=80 data-nosnippet>80</a>    STATUS_MESSAGE =&gt; <span class="string">"sentry.status.message"</span>,
-<a href=#81 id=81 data-nosnippet>81</a>    UI_COMPONENT_NAME =&gt; <span class="string">"ui.component_name"</span>,
-<a href=#82 id=82 data-nosnippet>82</a>    URL_FULL =&gt; <span class="string">"url.full"</span>,
-<a href=#83 id=83 data-nosnippet>83</a>    URL_PATH =&gt; <span class="string">"url.path"</span>,
-<a href=#84 id=84 data-nosnippet>84</a>    URL_SCHEME =&gt; <span class="string">"url.scheme"</span>,
-<a href=#85 id=85 data-nosnippet>85</a>    URL_DOMAIN =&gt; <span class="string">"url.domain"</span>,
-<a href=#86 id=86 data-nosnippet>86</a>    USER_AGENT_ORIGINAL =&gt; <span class="string">"user_agent.original"</span>,
-<a href=#87 id=87 data-nosnippet>87</a>    USER_GEO_CITY =&gt; <span class="string">"user.geo.city"</span>,
-<a href=#88 id=88 data-nosnippet>88</a>    USER_GEO_COUNTRY_CODE =&gt; <span class="string">"user.geo.country_code"</span>,
-<a href=#89 id=89 data-nosnippet>89</a>    USER_GEO_REGION =&gt; <span class="string">"user.geo.region"</span>,
-<a href=#90 id=90 data-nosnippet>90</a>    USER_GEO_SUBDIVISION =&gt; <span class="string">"user.geo.subdivision"</span>,
-<a href=#91 id=91 data-nosnippet>91</a>);
-<a href=#92 id=92 data-nosnippet>92</a>
-<a href=#93 id=93 data-nosnippet>93</a><span class="doccomment">/// Attributes which are in use by Relay but are not yet defined in the Sentry conventions.
-<a href=#94 id=94 data-nosnippet>94</a>///
-<a href=#95 id=95 data-nosnippet>95</a>/// Really do not add to this list, at all, ever. The only reason this opt-out even exists to make a
-<a href=#96 id=96 data-nosnippet>96</a>/// transition easier for attributes which Relay already uses but aren't yet in conventions.
-<a href=#97 id=97 data-nosnippet>97</a></span><span class="kw">mod </span>not_yet_defined {
-<a href=#98 id=98 data-nosnippet>98</a>    <span class="comment">// The legacy http request method attribute used by transactions spans.
-<a href=#99 id=99 data-nosnippet>99</a>    // Could not be added to sentry conventions at the time due to an attribute naming conflict that
-<a href=#100 id=100 data-nosnippet>100</a>    // requires updating the sentry conventions code gen.
-<a href=#101 id=101 data-nosnippet>101</a>    // TODO: replace with conventions defined attribute name once the conventions code gen is updated.
-<a href=#102 id=102 data-nosnippet>102</a>    </span><span class="kw">pub const </span>LEGACY_HTTP_REQUEST_METHOD: <span class="kw-2">&amp;</span>str = <span class="string">"http.request_method"</span>;
-<a href=#103 id=103 data-nosnippet>103</a>
-<a href=#104 id=104 data-nosnippet>104</a>    <span class="kw">pub const </span>WAS_TRANSACTION: <span class="kw-2">&amp;</span>str = <span class="string">"sentry.was_transaction"</span>;
-<a href=#105 id=105 data-nosnippet>105</a>
-<a href=#106 id=106 data-nosnippet>106</a>    <span class="comment">// TODO(mjq): Evaluate and remove usages of this constant, or restore it in
-<a href=#107 id=107 data-nosnippet>107</a>    // conventions. This was deleted from conventions in
-<a href=#108 id=108 data-nosnippet>108</a>    // https://github.com/getsentry/sentry-conventions/pull/256 but is still
-<a href=#109 id=109 data-nosnippet>109</a>    // used in Relay.
-<a href=#110 id=110 data-nosnippet>110</a>    </span><span class="kw">pub const </span>PROFILE_ID: <span class="kw-2">&amp;</span>str = <span class="string">"sentry.profile_id"</span>;
-<a href=#111 id=111 data-nosnippet>111</a>}
-<a href=#112 id=112 data-nosnippet>112</a><span class="kw">pub use </span><span class="self">self</span>::not_yet_defined::<span class="kw-2">*</span>;
+<a href=#78 id=78 data-nosnippet>78</a>    SENTRY_TRANSACTION =&gt; <span class="string">"sentry.transaction"</span>,
+<a href=#79 id=79 data-nosnippet>79</a>    SERVER_ADDRESS =&gt; <span class="string">"server.address"</span>,
+<a href=#80 id=80 data-nosnippet>80</a>    SPAN_KIND =&gt; <span class="string">"sentry.kind"</span>,
+<a href=#81 id=81 data-nosnippet>81</a>    STATUS_MESSAGE =&gt; <span class="string">"sentry.status.message"</span>,
+<a href=#82 id=82 data-nosnippet>82</a>    UI_COMPONENT_NAME =&gt; <span class="string">"ui.component_name"</span>,
+<a href=#83 id=83 data-nosnippet>83</a>    URL_FULL =&gt; <span class="string">"url.full"</span>,
+<a href=#84 id=84 data-nosnippet>84</a>    URL_PATH =&gt; <span class="string">"url.path"</span>,
+<a href=#85 id=85 data-nosnippet>85</a>    URL_SCHEME =&gt; <span class="string">"url.scheme"</span>,
+<a href=#86 id=86 data-nosnippet>86</a>    URL_DOMAIN =&gt; <span class="string">"url.domain"</span>,
+<a href=#87 id=87 data-nosnippet>87</a>    USER_AGENT_ORIGINAL =&gt; <span class="string">"user_agent.original"</span>,
+<a href=#88 id=88 data-nosnippet>88</a>    USER_GEO_CITY =&gt; <span class="string">"user.geo.city"</span>,
+<a href=#89 id=89 data-nosnippet>89</a>    USER_GEO_COUNTRY_CODE =&gt; <span class="string">"user.geo.country_code"</span>,
+<a href=#90 id=90 data-nosnippet>90</a>    USER_GEO_REGION =&gt; <span class="string">"user.geo.region"</span>,
+<a href=#91 id=91 data-nosnippet>91</a>    USER_GEO_SUBDIVISION =&gt; <span class="string">"user.geo.subdivision"</span>,
+<a href=#92 id=92 data-nosnippet>92</a>);
+<a href=#93 id=93 data-nosnippet>93</a>
+<a href=#94 id=94 data-nosnippet>94</a><span class="doccomment">/// Attributes which are in use by Relay but are not yet defined in the Sentry conventions.
+<a href=#95 id=95 data-nosnippet>95</a>///
+<a href=#96 id=96 data-nosnippet>96</a>/// Really do not add to this list, at all, ever. The only reason this opt-out even exists to make a
+<a href=#97 id=97 data-nosnippet>97</a>/// transition easier for attributes which Relay already uses but aren't yet in conventions.
+<a href=#98 id=98 data-nosnippet>98</a></span><span class="kw">mod </span>not_yet_defined {
+<a href=#99 id=99 data-nosnippet>99</a>    <span class="comment">// The legacy http request method attribute used by transactions spans.
+<a href=#100 id=100 data-nosnippet>100</a>    // Could not be added to sentry conventions at the time due to an attribute naming conflict that
+<a href=#101 id=101 data-nosnippet>101</a>    // requires updating the sentry conventions code gen.
+<a href=#102 id=102 data-nosnippet>102</a>    // TODO: replace with conventions defined attribute name once the conventions code gen is updated.
+<a href=#103 id=103 data-nosnippet>103</a>    </span><span class="kw">pub const </span>LEGACY_HTTP_REQUEST_METHOD: <span class="kw-2">&amp;</span>str = <span class="string">"http.request_method"</span>;
+<a href=#104 id=104 data-nosnippet>104</a>
+<a href=#105 id=105 data-nosnippet>105</a>    <span class="kw">pub const </span>WAS_TRANSACTION: <span class="kw-2">&amp;</span>str = <span class="string">"sentry.was_transaction"</span>;
+<a href=#106 id=106 data-nosnippet>106</a>
+<a href=#107 id=107 data-nosnippet>107</a>    <span class="comment">// TODO(mjq): Evaluate and remove usages of this constant, or restore it in
+<a href=#108 id=108 data-nosnippet>108</a>    // conventions. This was deleted from conventions in
+<a href=#109 id=109 data-nosnippet>109</a>    // https://github.com/getsentry/sentry-conventions/pull/256 but is still
+<a href=#110 id=110 data-nosnippet>110</a>    // used in Relay.
+<a href=#111 id=111 data-nosnippet>111</a>    </span><span class="kw">pub const </span>PROFILE_ID: <span class="kw-2">&amp;</span>str = <span class="string">"sentry.profile_id"</span>;
+<a href=#112 id=112 data-nosnippet>112</a>}
+<a href=#113 id=113 data-nosnippet>113</a><span class="kw">pub use </span><span class="self">self</span>::not_yet_defined::<span class="kw-2">*</span>;
 </code></pre></div></section></main></body></html>
