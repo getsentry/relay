@@ -4,6 +4,7 @@ from datetime import datetime, timezone, timedelta
 from unittest import mock
 import uuid
 
+from requests import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 
@@ -127,8 +128,8 @@ def test_ourlog_multiple_containers_not_allowed(
     "categories",
     [
         pytest.param(["log_item"], id="item"),
-        pytest.param(["log_byte"], id="bytes"),
-        pytest.param(["log_item", "log_bytes"], id="both"),
+        pytest.param(["log_byte"], id="byte"),
+        pytest.param(["log_item", "log_byte"], id="both"),
     ],
 )
 def test_fast_path_rate_limits(mini_sentry, relay, categories):
@@ -147,7 +148,7 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
         for category in categories
     ]
 
-    relay = relay(mini_sentry)
+    relay = relay(mini_sentry, TEST_CONFIG)
     start = datetime.now(timezone.utc)
 
     envelope = envelope_with_sentry_logs(
@@ -162,12 +163,52 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
     response = relay.send_envelope(project_id, envelope)
     assert response.status_code == 200  # project config not yet loaded
 
-    # assert mini_sentry.get_aggregated_outcomes() == ["TODO"]
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "category": 23,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 2,
+            "project_id": 42,
+            "reason": "no_more_quota",
+            "quantity": 1,
+        },
+        {
+            "category": 24,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 2,
+            "project_id": 42,
+            "reason": "no_more_quota",
+            "quantity": 162,
+        },
+    ]
 
-    response = relay.send_envelope(project_id, envelope)
-    assert response.status_code == 429  # project config loaded
+    with pytest.raises(HTTPError, match="429 Client Error"):
+        response = relay.send_envelope(project_id, envelope)
 
-    # assert mini_sentry.get_aggregated_outcomes() == ["TODO"]
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "category": 23,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 2,
+            "project_id": 42,
+            "reason": "no_more_quota",
+            "quantity": 1,
+        },
+        {
+            "category": 24,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 2,
+            "project_id": 42,
+            "reason": "no_more_quota",
+            "quantity": 162,
+        },
+    ]
+
+    # TODO: copy this test to metrics
 
 
 @pytest.mark.parametrize("eap_emits_outcomes", [True, False])

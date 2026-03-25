@@ -1073,20 +1073,25 @@ where
         }
 
         // Handle logs.
+        let mut log_limits = RateLimits::new();
         if summary.log_item_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::LogItem);
-            let log_limits = self
+            log_limits = self
                 .check
                 .apply(item_scoping, summary.log_item_quantity)
                 .await?;
+            enforcement.log_bytes = CategoryLimit::new(
+                DataCategory::LogByte,
+                summary.log_byte_quantity,
+                log_limits.longest(),
+            );
             enforcement.log_items = CategoryLimit::new(
                 DataCategory::LogItem,
                 summary.log_item_quantity,
                 log_limits.longest(),
             );
-            rate_limits.merge(log_limits);
         }
-        if summary.log_byte_quantity > 0 {
+        if !log_limits.is_limited() && summary.log_byte_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::LogByte);
             let log_limits = self
                 .check
@@ -1097,8 +1102,13 @@ where
                 summary.log_byte_quantity,
                 log_limits.longest(),
             );
-            rate_limits.merge(log_limits);
+            enforcement.log_items = CategoryLimit::new(
+                DataCategory::LogItem,
+                summary.log_item_quantity,
+                log_limits.longest(),
+            );
         }
+        rate_limits.merge(log_limits);
 
         // Handle profiles.
         if enforcement.is_event_active() {
