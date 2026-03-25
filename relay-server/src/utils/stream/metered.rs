@@ -6,6 +6,18 @@ use futures::{Stream, StreamExt};
 use crate::statsd::RelayTimers;
 
 /// A stream wrapper that emits a metric per item for producer and consumer latency.
+///
+/// ```text
+///   poll()                 ready                  poll()
+///     │                      │                      │
+///     │←─ producer latency ─→│                      │
+///                            │←─ consumer latency ─→│
+/// ```
+///
+/// - **Producer latency**: time from the first `poll()` on an item until the stream returns
+///   `Ready`. Measures how long the producer took to produce the item.
+/// - **Consumer latency**: time from returning `Ready(item)` until the next `poll()`. Measures
+///   how long the consumer took to ask for the next item.
 pub struct MeteredStream<S> {
     inner: S,
     name: &'static str,
