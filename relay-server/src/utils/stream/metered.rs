@@ -1,5 +1,5 @@
 use std::task::Poll;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use futures::{Stream, StreamExt};
 
@@ -7,8 +7,8 @@ use crate::statsd::RelayTimers;
 
 /// A stream wrapper that emits a metric per item for producer and consumer latency.
 pub struct MeteredStream<S> {
-    name: &'static str,
     inner: S,
+    name: &'static str,
     pending_since: Option<Instant>,
     last_item_consumed: Option<Instant>,
 }
@@ -18,10 +18,10 @@ where
     S: Stream,
 {
     /// Create a new metered stream from an existing stream.
-    pub fn new(name: &'static str, inner: S) -> Self {
+    pub fn new(inner: S, name: &'static str) -> Self {
         Self {
-            name,
             inner,
+            name,
             pending_since: None,
             last_item_consumed: None,
         }
@@ -52,12 +52,14 @@ where
 
         match &result {
             Poll::Ready(Some(_)) => {
-                if let Some(time) = self.pending_since.take() {
-                    relay_statsd::metric!(
-                        timer(RelayTimers::StreamProducerLatency) = now.duration_since(time),
-                        name = self.name
-                    );
-                }
+                let producer_latency = match self.pending_since.take() {
+                    Some(t) => now.duration_since(t),
+                    None => Duration::ZERO,
+                };
+                relay_statsd::metric!(
+                    timer(RelayTimers::StreamProducerLatency) = producer_latency,
+                    name = self.name
+                );
                 self.last_item_consumed.replace(now);
             }
             Poll::Ready(None) => {} // nothing to do
@@ -97,15 +99,13 @@ mod tests {
                         x
                     })
                     .boxed();
-                MeteredStream::new("test", inner).collect::<Vec<_>>().await;
+                MeteredStream::new(inner, "test").collect::<Vec<_>>().await;
             });
         });
 
         let producers: Vec<_> = captures.iter().filter(|s| s.contains("producer")).collect();
         let consumers: Vec<_> = captures.iter().filter(|s| s.contains("consumer")).collect();
 
-        // One producer metric per item; one consumer metric per poll after an item, including the
-        // terminal Ready(None) poll.
         assert_eq!(producers.len(), 3);
         assert_eq!(consumers.len(), 3);
         // Producer was slow (we slept), consumer was immediate.
@@ -118,9 +118,9 @@ mod tests {
         let captures = relay_statsd::with_capturing_test_client(|| {
             tokio::runtime::Runtime::new().unwrap().block_on(async {
                 let inner = stream::iter([1u8, 2, 3]).boxed();
-                let mut stream = MeteredStream::new("test", inner);
+                let mut stream = MeteredStream::new(inner, "test");
                 while let Some(_) = stream.next().await {
-                    // Simulate a slow consumer (e.g. a backpressured sink).
+                    // Simulate a slow consumer.
                     tokio::time::sleep(Duration::from_millis(10)).await;
                 }
             });
@@ -129,11 +129,10 @@ mod tests {
         let producers: Vec<_> = captures.iter().filter(|s| s.contains("producer")).collect();
         let consumers: Vec<_> = captures.iter().filter(|s| s.contains("consumer")).collect();
 
-        // Producer metrics only when pending_since was set; stream::iter never returns Pending.
-        // Consumer metric fires on each poll after an item, including the terminal Ready(None) poll.
-        assert_eq!(producers.len(), 0);
+        assert_eq!(producers.len(), 3);
         assert_eq!(consumers.len(), 3);
         // Consumer was slow (we slept between polls), producer was immediate.
+        assert!(producers.iter().all(|s| parse_metric_value(s) < 1.0));
         assert!(consumers.iter().all(|s| parse_metric_value(s) > 10.0));
     }
 }

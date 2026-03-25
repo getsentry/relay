@@ -207,7 +207,7 @@ async fn handle_patch(
         .into_data_stream()
         .map(|result| result.map_err(io::Error::other))
         .boxed();
-    let stream = MeteredStream::new("upload", stream);
+    let stream = MeteredStream::new(stream, "upload");
 
     let (lower_bound, upper_bound) = match length {
         None => (1, config.max_upload_size()),
