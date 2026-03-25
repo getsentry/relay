@@ -15,6 +15,7 @@
 
 - Set `sentry.segment.id` and `sentry.segment.name` attributes on OTLP segment spans. ([#5748](https://github.com/getsentry/relay/pull/5748))
 - Envelope buffer: Add option to disable flush-to-disk on shutdown. ([#5751](https://github.com/getsentry/relay/pull/5751))
+- Healthcheck: Provide a flag to exit container on healthcheck failure. ([#5754](https://github.com/getsentry/relay/pull/5754))
 
 **Internal**:
 

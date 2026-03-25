@@ -6,6 +6,9 @@ use clap::ArgMatches;
 use relay_config::Config;
 use reqwest::blocking::Client;
 
+use nix::sys::signal::{self, Signal};
+use nix::unistd::Pid;
+
 pub fn healthcheck(config: &Config, matches: &ArgMatches) -> Result<()> {
     let mode = matches
         .get_one::<String>("mode")
@@ -30,12 +33,20 @@ pub fn healthcheck(config: &Config, matches: &ArgMatches) -> Result<()> {
         .get(format!("http://{addr}/api/relay/healthcheck/{mode}/"))
         .send();
 
+    let kill_on_fail = matches.get_flag("kill-on-fail");
+
     match response {
         Ok(response) => {
             if response.status().is_success() {
                 Ok(())
             } else {
                 relay_log::error!("Relay is unhealthy. Status code: {}", response.status());
+                if kill_on_fail {
+                    relay_log::error!("Sending SIGTERM to PID 1 to exit container.");
+                    if let Err(err) = signal::kill(Pid::from_raw(1), Signal::SIGTERM) {
+                        relay_log::error!("Failed to send SIGTERM to PID 1: {err}");
+                    }
+                }
                 Err(format_err!(
                     "Relay is unhealthy. Status code: {}",
                     response.status()
@@ -44,6 +55,12 @@ pub fn healthcheck(config: &Config, matches: &ArgMatches) -> Result<()> {
         }
         Err(err) => {
             relay_log::error!("Relay is unhealthy. Error: {err}");
+            if kill_on_fail {
+                relay_log::error!("Sending SIGTERM to PID 1 to exit container.");
+                if let Err(err) = signal::kill(Pid::from_raw(1), Signal::SIGTERM) {
+                    relay_log::error!("Failed to send SIGTERM to PID 1: {err}");
+                }
+            }
             Err(err.into())
         }
     }
