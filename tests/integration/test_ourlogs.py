@@ -2,6 +2,7 @@ import json
 
 from datetime import datetime, timezone, timedelta
 from unittest import mock
+import uuid
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
@@ -120,6 +121,53 @@ def test_ourlog_multiple_containers_not_allowed(
             "reason": "duplicate_item",
         },
     ]
+
+
+@pytest.mark.parametrize(
+    "categories",
+    [
+        pytest.param(["log_item"], id="item"),
+        pytest.param(["log_byte"], id="bytes"),
+        pytest.param(["log_item", "log_bytes"], id="both"),
+    ],
+)
+def test_fast_path_rate_limits(mini_sentry, relay, categories):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+    ]
+    project_config["config"]["quotas"] = [
+        {
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
+            "categories": [category],
+            "limit": 0,
+            "reasonCode": "no_more_quota",
+        }
+        for category in categories
+    ]
+
+    relay = relay(mini_sentry)
+    start = datetime.now(timezone.utc)
+
+    envelope = envelope_with_sentry_logs(
+        {
+            "timestamp": start.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+            "level": "error",
+            "body": "This is really bad",
+        }
+    )
+    response = relay.send_envelope(project_id, envelope)
+    assert response.status_code == 200  # project config not yet loaded
+
+    # assert mini_sentry.get_aggregated_outcomes() == ["TODO"]
+
+    response = relay.send_envelope(project_id, envelope)
+    assert response.status_code == 429  # project config loaded
+
+    # assert mini_sentry.get_aggregated_outcomes() == ["TODO"]
 
 
 @pytest.mark.parametrize("eap_emits_outcomes", [True, False])
