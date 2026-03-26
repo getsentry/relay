@@ -75,6 +75,7 @@ convention_attributes!(
     SENTRY_GROUP => "sentry.group",
     SENTRY_NORMALIZED_DESCRIPTION => "sentry.normalized_description",
     SENTRY_STATUS_CODE => "sentry.status_code",
+    SENTRY_TRANSACTION => "sentry.transaction",
     SERVER_ADDRESS => "server.address",
     SPAN_KIND => "sentry.kind",
     STATUS_MESSAGE => "sentry.status.message",

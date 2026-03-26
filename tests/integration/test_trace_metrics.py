@@ -1,6 +1,8 @@
 from datetime import datetime, timezone, timedelta
 from unittest import mock
+import uuid
 
+from requests import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 
@@ -123,7 +125,7 @@ def test_trace_metric_extraction(
         "traceId": "5b8efff798038103d269b633813fc60c",
     }
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=1)
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
     assert outcomes == [
         {
             "category": DataCategory.TRACE_METRIC.value,
@@ -132,7 +134,102 @@ def test_trace_metric_extraction(
             "outcome": 0,
             "project_id": 42,
             "quantity": 1,
+        },
+        {
+            "category": DataCategory.TRACE_METRIC_BYTE.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            # Calculated byte size: name + value + attribute keys/values.
+            # This is a billing relevant number, do not just adjust this because it changed.
+            "quantity": 241,
+        },
+    ]
+
+
+@pytest.mark.parametrize(
+    "categories",
+    [
+        pytest.param(["trace_metric"], id="item"),
+        pytest.param(["trace_metric_byte"], id="byte"),
+        pytest.param(["trace_metric", "trace_metric_byte"], id="both"),
+    ],
+)
+def test_fast_path_rate_limits(mini_sentry, relay, categories):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:tracemetrics-ingestion",
+    ]
+    project_config["config"]["quotas"] = [
+        {
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
+            "categories": [category],
+            "limit": 0,
+            "reasonCode": "no_more_quota",
         }
+        for category in categories
+    ]
+
+    relay = relay(mini_sentry, TEST_CONFIG)
+    start = datetime.now(timezone.utc).replace(microsecond=0)
+
+    envelope = envelope_with_trace_metrics(
+        {
+            "timestamp": start.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "name": "test.metric",
+            "type": "counter",
+            "value": 1.0,
+        }
+    )
+    response = relay.send_envelope(project_id, envelope)
+    assert response.status_code == 200  # project config not yet loaded
+
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "category": 33,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 2,
+            "project_id": 42,
+            "reason": "no_more_quota",
+            "quantity": 1,
+        },
+        {
+            "category": 37,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 2,
+            "project_id": 42,
+            "reason": "no_more_quota",
+            "quantity": 134,
+        },
+    ]
+
+    with pytest.raises(HTTPError, match="429 Client Error"):
+        response = relay.send_envelope(project_id, envelope)
+
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "category": 33,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 2,
+            "project_id": 42,
+            "reason": "no_more_quota",
+            "quantity": 1,
+        },
+        {
+            "category": 37,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 2,
+            "project_id": 42,
+            "reason": "no_more_quota",
+            "quantity": 134,
+        },
     ]
 
 
@@ -165,7 +262,7 @@ def test_trace_metric_validation(
     envelope = envelope_with_trace_metrics(invalid_payload)
     relay.send_envelope(project_id, envelope)
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=1)
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
     assert outcomes == [
         {
             "category": DataCategory.TRACE_METRIC.value,
@@ -175,7 +272,16 @@ def test_trace_metric_validation(
             "project_id": 42,
             "quantity": 1,
             "reason": "invalid_trace_metric",
-        }
+        },
+        {
+            "category": DataCategory.TRACE_METRIC_BYTE.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,  # Invalid
+            "project_id": 42,
+            "quantity": 19,
+            "reason": "invalid_trace_metric",
+        },
     ]
 
 
@@ -261,7 +367,7 @@ def test_trace_metric_pii_scrubbing(
         "traceId": "5b8efff798038103d269b633813fc60c",
     }
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=1)
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
     assert outcomes == [
         {
             "category": DataCategory.TRACE_METRIC.value,
@@ -270,7 +376,15 @@ def test_trace_metric_pii_scrubbing(
             "outcome": 0,
             "project_id": 42,
             "quantity": 1,
-        }
+        },
+        {
+            "category": DataCategory.TRACE_METRIC_BYTE.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 159,
+        },
     ]
 
 
@@ -323,6 +437,15 @@ def test_trace_metric_size_limits(
             "quantity": 1,
             "reason": "too_large:trace_metric",
         },
+        {
+            "category": 37,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,
+            "project_id": 42,
+            "quantity": 608,
+            "reason": "too_large:trace_metric",
+        },
     ]
 
 
@@ -362,6 +485,7 @@ def test_time_corrections(mini_sentry, relay, delta, error):
     envelope = mini_sentry.get_captured_envelope()
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
     assert item_payload["items"][0] == {
+        "__header": mock.ANY,
         "_meta": {
             "timestamp": {
                 "": {

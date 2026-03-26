@@ -264,6 +264,9 @@ pub struct EnvelopeSummary {
 
     /// The number of trace metrics in this envelope.
     pub trace_metric_quantity: usize,
+
+    /// The number of trace metric bytes in this envelope.
+    pub trace_metric_byte_quantity: usize,
 }
 
 impl EnvelopeSummary {
@@ -345,6 +348,7 @@ impl EnvelopeSummary {
                 DataCategory::Monitor => &mut self.monitor_quantity,
                 DataCategory::Span => &mut self.span_quantity,
                 DataCategory::TraceMetric => &mut self.trace_metric_quantity,
+                DataCategory::TraceMetricByte => &mut self.trace_metric_byte_quantity,
                 DataCategory::LogItem => &mut self.log_item_quantity,
                 DataCategory::LogByte => &mut self.log_byte_quantity,
                 DataCategory::ProfileChunk => &mut self.profile_chunk_quantity,
@@ -535,6 +539,8 @@ pub struct Enforcement {
     pub profile_chunks_ui: CategoryLimit,
     /// The combined trace metric item rate limit.
     pub trace_metrics: CategoryLimit,
+    /// The combined trace metric byte rate limit.
+    pub trace_metrics_bytes: CategoryLimit,
 }
 
 impl Enforcement {
@@ -594,6 +600,7 @@ impl Enforcement {
             profile_chunks,
             profile_chunks_ui,
             trace_metrics,
+            trace_metrics_bytes,
         } = self;
 
         let limits = [
@@ -619,6 +626,7 @@ impl Enforcement {
             profile_chunks,
             profile_chunks_ui,
             trace_metrics,
+            trace_metrics_bytes,
         ];
 
         limits.into_iter().flat_map(|limit| limit.outcomes())
@@ -747,7 +755,7 @@ impl Enforcement {
                 Some(ProfileType::Ui) => !self.profile_chunks_ui.is_active(),
                 None => true,
             },
-            ItemType::TraceMetric => !self.trace_metrics.is_active(),
+            ItemType::TraceMetric => !(self.trace_metrics.is_active() || self.trace_metrics_bytes.is_active()),
             ItemType::Integration => match item.integration() {
                 Some(Integration::Logs(_)) => !(self.log_items.is_active() || self.log_bytes.is_active()),
                 Some(Integration::Spans(_)) => !self.spans_indexed.is_active(),
@@ -1054,9 +1062,10 @@ where
         }
 
         // Handle trace metrics.
+        let mut trace_metric_limits = RateLimits::new();
         if summary.trace_metric_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::TraceMetric);
-            let trace_metric_limits = self
+            trace_metric_limits = self
                 .check
                 .apply(item_scoping, summary.trace_metric_quantity)
                 .await?;
@@ -1065,26 +1074,53 @@ where
                 summary.trace_metric_quantity,
                 trace_metric_limits.longest(),
             );
-            rate_limits.merge(trace_metric_limits);
+            enforcement.trace_metrics_bytes = CategoryLimit::new(
+                DataCategory::TraceMetricByte,
+                summary.trace_metric_byte_quantity,
+                trace_metric_limits.longest(),
+            );
         }
+        if !trace_metric_limits.is_limited() && summary.trace_metric_byte_quantity > 0 {
+            let item_scoping = scoping.item(DataCategory::TraceMetricByte);
+            trace_metric_limits = self
+                .check
+                .apply(item_scoping, summary.trace_metric_byte_quantity)
+                .await?;
+            enforcement.trace_metrics = CategoryLimit::new(
+                DataCategory::TraceMetric,
+                summary.trace_metric_quantity,
+                trace_metric_limits.longest(),
+            );
+            enforcement.trace_metrics_bytes = CategoryLimit::new(
+                DataCategory::TraceMetricByte,
+                summary.trace_metric_byte_quantity,
+                trace_metric_limits.longest(),
+            );
+        }
+        rate_limits.merge(trace_metric_limits);
 
         // Handle logs.
+        let mut log_limits = RateLimits::new();
         if summary.log_item_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::LogItem);
-            let log_limits = self
+            log_limits = self
                 .check
                 .apply(item_scoping, summary.log_item_quantity)
                 .await?;
+            enforcement.log_bytes = CategoryLimit::new(
+                DataCategory::LogByte,
+                summary.log_byte_quantity,
+                log_limits.longest(),
+            );
             enforcement.log_items = CategoryLimit::new(
                 DataCategory::LogItem,
                 summary.log_item_quantity,
                 log_limits.longest(),
             );
-            rate_limits.merge(log_limits);
         }
-        if summary.log_byte_quantity > 0 {
+        if !log_limits.is_limited() && summary.log_byte_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::LogByte);
-            let log_limits = self
+            log_limits = self
                 .check
                 .apply(item_scoping, summary.log_byte_quantity)
                 .await?;
@@ -1093,8 +1129,13 @@ where
                 summary.log_byte_quantity,
                 log_limits.longest(),
             );
-            rate_limits.merge(log_limits);
+            enforcement.log_items = CategoryLimit::new(
+                DataCategory::LogItem,
+                summary.log_item_quantity,
+                log_limits.longest(),
+            );
         }
+        rate_limits.merge(log_limits);
 
         // Handle profiles.
         if enforcement.is_event_active() {
@@ -2237,9 +2278,11 @@ mod tests {
         assert!(limits.is_limited());
         assert_eq!(envelope.envelope().len(), 0);
         mock.lock().await.assert_call(DataCategory::LogItem, 2);
-        mock.lock().await.assert_call(DataCategory::LogByte, 20);
 
-        assert_eq!(get_outcomes(enforcement), vec![(DataCategory::LogItem, 2)]);
+        assert_eq!(
+            get_outcomes(enforcement),
+            vec![(DataCategory::LogItem, 2), (DataCategory::LogByte, 20)]
+        );
     }
 
     #[tokio::test]
@@ -2254,7 +2297,10 @@ mod tests {
         mock.lock().await.assert_call(DataCategory::LogItem, 2);
         mock.lock().await.assert_call(DataCategory::LogByte, 20);
 
-        assert_eq!(get_outcomes(enforcement), vec![(DataCategory::LogByte, 20)]);
+        assert_eq!(
+            get_outcomes(enforcement),
+            vec![(DataCategory::LogItem, 2), (DataCategory::LogByte, 20)]
+        );
     }
 
     #[tokio::test]
