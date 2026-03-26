@@ -170,10 +170,12 @@ async fn extract_multipart(
     let scoping = project_config
         .scoping(meta.public_key())
         .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
-    let attachment_rate_limits = || project.rate_limits().current_limits().check_with_quotas(
-        project_config.get_quotas(),
-        scoping.item(DataCategory::Attachment),
-    );
+    let attachment_rate_limits = || {
+        project.rate_limits().current_limits().check_with_quotas(
+            project_config.get_quotas(),
+            scoping.item(DataCategory::Attachment),
+        )
+    };
     let upload_service = (project_config.has_feature(Feature::PlaystationUploads)
         && !attachment_rate_limits().is_limited())
     .then_some(state.upload());
