@@ -6,7 +6,6 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use futures::StreamExt;
-use futures::stream::BoxStream;
 use objectstore_client::{Client, ExpirationPolicy, PutBuilder, Session, Usecase};
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
@@ -24,8 +23,9 @@ use crate::managed::{
 use crate::processing::utils::store::item_id_to_uuid;
 use crate::services::outcome::DiscardReason;
 use crate::services::store::{Store, StoreAttachment, StoreEnvelope, StoreTraceItem};
+use crate::services::upload::ByteStream;
 use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::BoundedStream;
+use crate::utils::{BoundedStream, MeteredStream};
 
 use super::outcome::Outcome;
 
@@ -92,7 +92,7 @@ pub struct Stream {
     pub organization_id: OrganizationId,
     pub project_id: ProjectId,
     pub key: String,
-    pub stream: BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>,
+    pub stream: BoundedStream<MeteredStream<ByteStream>>,
 }
 
 impl FromMessage<Stream> for Objectstore {

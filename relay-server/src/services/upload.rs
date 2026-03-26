@@ -32,6 +32,7 @@ use crate::services::objectstore::{self, Objectstore};
 use crate::services::upstream::{
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
+use crate::utils::MeteredStream;
 use crate::utils::{BoundedStream, tus};
 
 /// The URL template for uploading bytes to a known location.
@@ -90,6 +91,9 @@ pub struct Create {
     pub length: Option<usize>,
 }
 
+/// The type used to stream a request body.
+pub type ByteStream = BoxStream<'static, std::io::Result<Bytes>>;
+
 /// A stream of bytes to be uploaded to objectstore or the upstream.
 pub struct Stream {
     /// Time of arrival of the request.
@@ -99,7 +103,7 @@ pub struct Stream {
     /// The location to upload to.
     pub location: SignedLocation,
     /// The body to be uploaded to objectstore, with length validation.
-    pub stream: BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>,
+    pub stream: BoundedStream<MeteredStream<ByteStream>>,
 }
 
 impl FromMessage<Create> for Upload {
@@ -440,7 +444,7 @@ enum RequestKind {
     },
     Upload {
         location: SignedLocation,
-        stream: Option<BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>>,
+        stream: Option<BoundedStream<MeteredStream<ByteStream>>>,
     },
 }
 
