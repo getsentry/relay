@@ -23,11 +23,8 @@
 - Use new processor architecture to process standalone profiles. ([#5741](https://github.com/getsentry/relay/pull/5741))
 - TUS: Disallow creation with upload. ([#5734](https://github.com/getsentry/relay/pull/5734))
 - Remove continuous-profiling-beta feature flags. ([#5762](https://github.com/getsentry/relay/pull/5762))
-<<<<<<< matth/objectstore-enable-auth
 - Allow configuring Objectstore client auth parameters. ([#5720](https://github.com/getsentry/relay/pull/5720))
-=======
 - Add payload byte size to trace metrics. ([#5764](https://github.com/getsentry/relay/pull/5764))
->>>>>>> master
 
 ## 26.3.1
 
