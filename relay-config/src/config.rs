@@ -1667,48 +1667,50 @@ impl Default for Upload {
     }
 }
 
+/// All configuration values that can be deserialized from `config.yml`.
 #[derive(Serialize, Deserialize, Debug, Default)]
-struct ConfigValues {
+#[allow(missing_docs)]
+pub struct ConfigValues {
     #[serde(default)]
-    relay: Relay,
+    pub relay: Relay,
     #[serde(default)]
-    http: Http,
+    pub http: Http,
     #[serde(default)]
-    cache: Cache,
+    pub cache: Cache,
     #[serde(default)]
-    spool: Spool,
+    pub spool: Spool,
     #[serde(default)]
-    limits: Limits,
+    pub limits: Limits,
     #[serde(default)]
-    logging: relay_log::LogConfig,
+    pub logging: relay_log::LogConfig,
     #[serde(default)]
-    routing: Routing,
+    pub routing: Routing,
     #[serde(default)]
-    metrics: Metrics,
+    pub metrics: Metrics,
     #[serde(default)]
-    sentry: relay_log::SentryConfig,
+    pub sentry: relay_log::SentryConfig,
     #[serde(default)]
-    processing: Processing,
+    pub processing: Processing,
     #[serde(default)]
-    outcomes: Outcomes,
+    pub outcomes: Outcomes,
     #[serde(default)]
-    aggregator: AggregatorServiceConfig,
+    pub aggregator: AggregatorServiceConfig,
     #[serde(default)]
-    secondary_aggregators: Vec<ScopedAggregatorConfig>,
+    pub secondary_aggregators: Vec<ScopedAggregatorConfig>,
     #[serde(default)]
-    auth: AuthConfig,
+    pub auth: AuthConfig,
     #[serde(default)]
-    geoip: GeoIpConfig,
+    pub geoip: GeoIpConfig,
     #[serde(default)]
-    normalization: Normalization,
+    pub normalization: Normalization,
     #[serde(default)]
-    cardinality_limiter: CardinalityLimiter,
+    pub cardinality_limiter: CardinalityLimiter,
     #[serde(default)]
-    health: Health,
+    pub health: Health,
     #[serde(default)]
-    cogs: Cogs,
+    pub cogs: Cogs,
     #[serde(default)]
-    upload: Upload,
+    pub upload: Upload,
 }
 
 impl ConfigObject for ConfigValues {
