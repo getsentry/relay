@@ -46,6 +46,11 @@ pub struct Context {
 
 pub fn convert(metric: WithHeader<TraceMetric>, ctx: &Context) -> Result<StoreTraceItem> {
     let quantities = metric.quantities();
+    let payload_size_bytes = metric
+        .header
+        .as_ref()
+        .and_then(|h| h.byte_size)
+        .unwrap_or_default();
 
     let metric = required!(metric.value);
     let timestamp = required!(metric.timestamp);
@@ -59,6 +64,7 @@ pub fn convert(metric: WithHeader<TraceMetric>, ctx: &Context) -> Result<StoreTr
         value: extract_numeric_value(required!(metric.value))?,
         timestamp,
         span_id: metric.span_id.into_value(),
+        payload_size_bytes,
     };
 
     let client_sample_rate = extract_client_sample_rate(&attrs).unwrap_or(1.0);
@@ -96,6 +102,7 @@ struct FieldAttributes {
     value: f64,
     timestamp: relay_event_schema::protocol::Timestamp,
     span_id: Option<SpanId>,
+    payload_size_bytes: u64,
 }
 
 fn extract_numeric_value(value: Value) -> Result<f64> {
@@ -125,6 +132,7 @@ fn attributes(
         value,
         timestamp,
         span_id,
+        payload_size_bytes,
     } = fields;
 
     result.insert(
@@ -198,6 +206,13 @@ fn attributes(
             },
         );
     }
+
+    result.insert(
+        "sentry.payload_size_bytes".to_owned(),
+        AnyValue {
+            value: Some(any_value::Value::IntValue(payload_size_bytes as i64)),
+        },
+    );
 
     result
 }
