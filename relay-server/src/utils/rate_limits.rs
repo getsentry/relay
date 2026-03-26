@@ -539,6 +539,8 @@ pub struct Enforcement {
     pub profile_chunks_ui: CategoryLimit,
     /// The combined trace metric item rate limit.
     pub trace_metrics: CategoryLimit,
+    /// The combined trace metric byte rate limit.
+    pub trace_metrics_bytes: CategoryLimit,
 }
 
 impl Enforcement {
@@ -598,6 +600,7 @@ impl Enforcement {
             profile_chunks,
             profile_chunks_ui,
             trace_metrics,
+            trace_metrics_bytes,
         } = self;
 
         let limits = [
@@ -623,6 +626,7 @@ impl Enforcement {
             profile_chunks,
             profile_chunks_ui,
             trace_metrics,
+            trace_metrics_bytes,
         ];
 
         limits.into_iter().flat_map(|limit| limit.outcomes())
@@ -751,7 +755,7 @@ impl Enforcement {
                 Some(ProfileType::Ui) => !self.profile_chunks_ui.is_active(),
                 None => true,
             },
-            ItemType::TraceMetric => !self.trace_metrics.is_active(),
+            ItemType::TraceMetric => !(self.trace_metrics.is_active() || self.trace_metrics_bytes.is_active()),
             ItemType::Integration => match item.integration() {
                 Some(Integration::Logs(_)) => !(self.log_items.is_active() || self.log_bytes.is_active()),
                 Some(Integration::Spans(_)) => !self.spans_indexed.is_active(),
@@ -1058,9 +1062,10 @@ where
         }
 
         // Handle trace metrics.
+        let mut trace_metric_limits = RateLimits::new();
         if summary.trace_metric_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::TraceMetric);
-            let trace_metric_limits = self
+            trace_metric_limits = self
                 .check
                 .apply(item_scoping, summary.trace_metric_quantity)
                 .await?;
@@ -1069,8 +1074,30 @@ where
                 summary.trace_metric_quantity,
                 trace_metric_limits.longest(),
             );
-            rate_limits.merge(trace_metric_limits);
+            enforcement.trace_metrics_bytes = CategoryLimit::new(
+                DataCategory::TraceMetricByte,
+                summary.trace_metric_byte_quantity,
+                trace_metric_limits.longest(),
+            );
         }
+        if !trace_metric_limits.is_limited() && summary.trace_metric_byte_quantity > 0 {
+            let item_scoping = scoping.item(DataCategory::TraceMetricByte);
+            trace_metric_limits = self
+                .check
+                .apply(item_scoping, summary.trace_metric_byte_quantity)
+                .await?;
+            enforcement.trace_metrics = CategoryLimit::new(
+                DataCategory::TraceMetric,
+                summary.trace_metric_quantity,
+                trace_metric_limits.longest(),
+            );
+            enforcement.trace_metrics_bytes = CategoryLimit::new(
+                DataCategory::TraceMetricByte,
+                summary.trace_metric_byte_quantity,
+                trace_metric_limits.longest(),
+            );
+        }
+        rate_limits.merge(trace_metric_limits);
 
         // Handle logs.
         let mut log_limits = RateLimits::new();
