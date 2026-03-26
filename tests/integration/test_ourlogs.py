@@ -149,7 +149,7 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
     ]
 
     relay = relay(mini_sentry, TEST_CONFIG)
-    start = datetime.now(timezone.utc)
+    start = datetime.now(timezone.utc).replace(microsecond=0)
 
     envelope = envelope_with_sentry_logs(
         {
@@ -180,7 +180,7 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
             "outcome": 2,
             "project_id": 42,
             "reason": "no_more_quota",
-            "quantity": 162,
+            "quantity": 157,
         },
     ]
 
@@ -204,7 +204,7 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
             "outcome": 2,
             "project_id": 42,
             "reason": "no_more_quota",
-            "quantity": 162,
+            "quantity": 157,
         },
     ]
 
