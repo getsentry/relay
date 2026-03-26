@@ -78,3 +78,5 @@ def test_graceful_shutdown(mini_sentry, relay, storage):
                 envelope.get_event()["logentry"]["formatted"]
                 == "in-flight during shutdown"
             )
+        else:
+            assert mini_sentry.captured_envelopes.empty()
