@@ -1080,7 +1080,7 @@ where
                 trace_metric_limits.longest(),
             );
         }
-        if !trace_metric_limits.is_limited() && summary.trace_metric_quantity > 0 {
+        if !trace_metric_limits.is_limited() && summary.trace_metric_byte_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::TraceMetricByte);
             trace_metric_limits = self
                 .check
