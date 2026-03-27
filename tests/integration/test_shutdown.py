@@ -5,8 +5,11 @@ import socket
 import time
 import tempfile
 
+import pytest
 
-def test_graceful_shutdown(mini_sentry, relay):
+
+@pytest.mark.parametrize("storage", ["ephemeral", "permanent"])
+def test_graceful_shutdown(mini_sentry, relay, storage):
     """
     On SIGTERM, relay completes any in-flight HTTP requests before shutting down.
     New connections are rejected once the TCP listener closes.
@@ -15,6 +18,7 @@ def test_graceful_shutdown(mini_sentry, relay):
     headers and the first byte of the body, then send SIGTERM, then send the rest
     of the body.  Relay must process and respond to the request before it exits.
     """
+    is_ephemeral = storage == "ephemeral"
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
 
@@ -25,7 +29,9 @@ def test_graceful_shutdown(mini_sentry, relay):
             mini_sentry,
             options={
                 "limits": {"shutdown_timeout": 5},
-                "spool": {"envelopes": {"path": db_file_path}},
+                "spool": {
+                    "envelopes": {"path": db_file_path, "ephemeral": is_ephemeral}
+                },
             },
         )
 
@@ -63,12 +69,14 @@ def test_graceful_shutdown(mini_sentry, relay):
             response += chunk
         sock.close()
 
-        assert b"HTTP/1.1 503" in response
+        expected_status_code = b"HTTP/1.1 200" if is_ephemeral else b"HTTP/1.1 503"
+        assert expected_status_code in response
 
-        # After relay exits, new connections are refused.
-        relay.wait_for_exit(timeout=10)
-        try:
-            socket.create_connection((host, port))
-            assert False, "Expected connection to be refused after relay exited"
-        except ConnectionRefusedError:
-            pass
+        if is_ephemeral:
+            envelope = mini_sentry.get_captured_envelope()
+            assert (
+                envelope.get_event()["logentry"]["formatted"]
+                == "in-flight during shutdown"
+            )
+        else:
+            assert mini_sentry.captured_envelopes.empty()

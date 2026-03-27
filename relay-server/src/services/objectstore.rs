@@ -6,7 +6,9 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use futures::StreamExt;
-use objectstore_client::{Client, ExpirationPolicy, PutBuilder, Session, Usecase};
+use objectstore_client::{
+    Client, ExpirationPolicy, PutBuilder, SecretKey as SigningKey, Session, TokenGenerator, Usecase,
+};
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_config::ObjectstoreServiceConfig;
@@ -182,14 +184,37 @@ impl ObjectstoreService {
             max_concurrent_requests: _,
             max_backlog: _,
             timeout,
+            auth,
         } = config;
         let Some(objectstore_url) = objectstore_url else {
             return Ok(None);
         };
 
-        let objectstore_client = Client::builder(objectstore_url)
-            .configure_reqwest(|builder| builder.timeout(Duration::from_secs(*timeout)))
-            .build()?;
+        let objectstore_client = {
+            let mut builder = Client::builder(objectstore_url)
+                .configure_reqwest(|builder| builder.timeout(Duration::from_secs(*timeout)));
+
+            if let Some(auth) = auth {
+                // TODO(FS-313): when Objectstore starts enforcing auth, propagate error with ?
+                let token_generator = TokenGenerator::new(SigningKey {
+                    kid: auth.key_id.clone(),
+                    secret_key: auth.signing_key.clone(),
+                });
+
+                builder = match token_generator {
+                    Ok(token_generator) => builder.token(token_generator),
+                    Err(error) => {
+                        relay_log::error!(
+                            error = &error as &dyn std::error::Error,
+                            "failed to configure objectstore auth"
+                        );
+                        builder
+                    }
+                };
+            }
+
+            builder.build()?
+        };
         let event_attachments = Usecase::new("attachments")
             .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
         let trace_attachments = Usecase::new("trace_attachments")
