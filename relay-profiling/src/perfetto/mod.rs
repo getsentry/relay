@@ -229,9 +229,7 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
             Some(Data::StreamingProfilePacket(spp)) => {
                 let mut ts = packet.timestamp.unwrap_or(0);
                 for (i, &cs_iid) in spp.callstack_iid.iter().enumerate() {
-                    if i > 0
-                        && let Some(&delta) = spp.timestamp_delta_us.get(i)
-                    {
+                    if let Some(&delta) = spp.timestamp_delta_us.get(i) {
                         // `delta` is i64 (can be negative for out-of-order samples).
                         // Casting to u64 wraps negative values, which is correct because
                         // `wrapping_add` of a wrapped negative value subtracts as expected.
@@ -796,7 +794,7 @@ mod tests {
                     data: Some(Data::StreamingProfilePacket(
                         proto::StreamingProfilePacket {
                             callstack_iid: vec![10, 10],
-                            timestamp_delta_us: vec![0, 10_000], // 0, +10ms
+                            timestamp_delta_us: vec![5_000, 10_000], // +5ms, +10ms
                         },
                     )),
                 },
@@ -812,12 +810,17 @@ mod tests {
         let duration = data.samples[1].timestamp.to_f64() - data.samples[0].timestamp.to_f64();
         assert!(
             (duration - 0.01).abs() < 0.001,
-            "expected ~10ms delta, got {duration}"
+            "expected ~10ms delta between samples, got {duration}"
         );
-        // First sample at 2.0s boottime -> 2.0 + (REALTIME - BOOTTIME)/1e9 in Unix seconds.
+        // First sample: base timestamp 2.0s + first delta 5ms = 2.005s boottime,
+        // then rebased with clock offset.
         let expected_offset = (TEST_REALTIME_NS as f64 - TEST_BOOTTIME_NS as f64) / 1e9;
-        let expected_ts = 2.0 + expected_offset;
-        assert!((data.samples[0].timestamp.to_f64() - expected_ts).abs() < 0.001);
+        let expected_ts = 2.005 + expected_offset;
+        assert!(
+            (data.samples[0].timestamp.to_f64() - expected_ts).abs() < 0.001,
+            "expected first sample at ~{expected_ts}, got {}",
+            data.samples[0].timestamp.to_f64()
+        );
     }
 
     #[test]
@@ -1527,7 +1530,7 @@ mod tests {
                     data: Some(Data::StreamingProfilePacket(
                         proto::StreamingProfilePacket {
                             callstack_iid: vec![10, 10, 10],
-                            timestamp_delta_us: vec![0, 20_000, -5_000], // 0, +20ms, -5ms
+                            timestamp_delta_us: vec![1_000, 20_000, -5_000], // +1ms, +20ms, -5ms
                         },
                     )),
                 },
@@ -1537,7 +1540,7 @@ mod tests {
         let (data, _images) = convert(&bytes).unwrap();
 
         assert_eq!(data.samples.len(), 3);
-        // After sorting: sample at 3.0s, then 3.0+0.015=3.015s, then 3.0+0.020=3.020s
+        // After sorting: sample at 3.001s, then 3.001+0.015=3.016s, then 3.001+0.020=3.021s
         let t0 = data.samples[0].timestamp.to_f64();
         let t1 = data.samples[1].timestamp.to_f64();
         let t2 = data.samples[2].timestamp.to_f64();
