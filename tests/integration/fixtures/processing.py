@@ -585,13 +585,22 @@ class MonitorsConsumer(ConsumerBase):
 
 
 class SpansConsumer(ConsumerBase):
+    @staticmethod
+    def _expected_key(span):
+        trace_id_bytes = bytearray.fromhex(span["trace_id"])
+        org_id = span.get("organization_id", 0)
+        org_id_bytes = org_id.to_bytes(8, byteorder="big")
+        for i, b in enumerate(org_id_bytes):
+            trace_id_bytes[i] ^= b
+        return bytes(trace_id_bytes)
+
     def get_span(self):
         message = self.poll()
         assert message is not None
         assert message.error() is None
 
         span = json.loads(message.value())
-        assert message.key() == bytes.fromhex(span["trace_id"])
+        assert message.key() == self._expected_key(span)
         return span
 
     def get_spans(self, *, timeout=None, n=None):
@@ -600,7 +609,7 @@ class SpansConsumer(ConsumerBase):
         for message in self.poll_many(timeout=timeout, n=n):
             assert message.error() is None
             span = json.loads(message.value())
-            assert message.key() == bytes.fromhex(span["trace_id"])
+            assert message.key() == self._expected_key(span)
             spans.append(span)
 
         return spans
