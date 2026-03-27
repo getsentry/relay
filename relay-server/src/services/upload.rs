@@ -144,7 +144,7 @@ pub fn create_service(
 }
 
 fn create_backend(
-    config: &Arc<Config>,
+    #[allow(unused)] config: &Arc<Config>,
     upstream: &Addr<UpstreamRelay>,
     #[cfg(feature = "processing")] objectstore: &Option<Addr<Objectstore>>,
 ) -> Backend {
