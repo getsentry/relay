@@ -522,7 +522,7 @@ impl ObjectstoreServiceInner {
             request = request.key(key);
         }
 
-        Ok(tokio::time::timeout(self.timeout, self.upload(ty, request)).await??)
+        tokio::time::timeout(self.timeout, self.upload(ty, request)).await?
     }
 
     async fn upload(&self, ty: &str, request: PutBuilder) -> Result<ObjectstoreKey, Error> {

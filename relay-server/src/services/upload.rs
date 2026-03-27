@@ -256,7 +256,7 @@ impl Service {
         &self,
         future: F,
     ) -> Result<SignedLocation, Error> {
-        Ok(tokio::time::timeout(self.timeout, future).await??)
+        tokio::time::timeout(self.timeout, future).await?
     }
 }
 
