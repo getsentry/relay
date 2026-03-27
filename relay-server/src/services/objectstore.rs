@@ -122,6 +122,8 @@ impl Counted for StoreTraceAttachment {
 /// Errors that can occur when trying to upload an attachment.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("timeout: {0}")]
+    Timeout(#[from] tokio::time::error::Elapsed),
     #[error("load shed")]
     LoadShed,
     #[error("upload failed: {0}")]
@@ -133,6 +135,7 @@ pub enum Error {
 impl Error {
     fn as_str(&self) -> &'static str {
         match self {
+            Error::Timeout(_) => "timeout",
             Error::LoadShed => "load-shed",
             Error::UploadFailed(_) => "upload_failed",
             Error::Uuid(_) => "uuid",
@@ -191,8 +194,7 @@ impl ObjectstoreService {
         };
 
         let objectstore_client = {
-            let mut builder = Client::builder(objectstore_url)
-                .configure_reqwest(|builder| builder.timeout(Duration::from_secs(*timeout)));
+            let mut builder = Client::builder(objectstore_url);
 
             if let Some(auth) = auth {
                 // TODO(FS-313): when Objectstore starts enforcing auth, propagate error with ?
@@ -225,6 +227,7 @@ impl ObjectstoreService {
             objectstore_client,
             event_attachments,
             trace_attachments,
+            timeout: Duration::from_secs(*timeout),
         };
 
         Ok(Some(Self {
@@ -274,6 +277,7 @@ struct ObjectstoreServiceInner {
     objectstore_client: Client,
     event_attachments: Usecase,
     trace_attachments: Usecase,
+    timeout: Duration,
 }
 
 impl ObjectstoreServiceInner {
@@ -517,7 +521,8 @@ impl ObjectstoreServiceInner {
         if let Some(key) = key {
             request = request.key(key);
         }
-        self.upload(ty, request).await
+
+        Ok(tokio::time::timeout(self.timeout, self.upload(ty, request)).await??)
     }
 
     async fn upload(&self, ty: &str, request: PutBuilder) -> Result<ObjectstoreKey, Error> {

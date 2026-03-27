@@ -201,8 +201,6 @@ impl Service {
             Service::Upstream { addr, timeout } => {
                 let (request, rx) = UploadRequest::upload(stream);
                 addr.send(SendRequest(request));
-                // We're already passing `timeout` to the reqwest library, but we also want to
-                // limit the time spent waiting for the upstream service:
                 let response = tokio::time::timeout(*timeout, rx).await???;
                 SignedLocation::try_from_response(response)
             }

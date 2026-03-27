@@ -1329,6 +1329,9 @@ pub struct ObjectstoreServiceConfig {
     pub max_backlog: usize,
 
     /// Maximum duration of an attachment upload in seconds. Uploads that take longer are discarded.
+    ///
+    /// NOTE: This timeout applies to attachment uploads, not to streaming uploads
+    /// that might take longer, and are restricted independently by [`Upload::timeout`].
     pub timeout: u64,
 
     /// Configuration values for objectstore's auth scheme.
