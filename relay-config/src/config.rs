@@ -1676,7 +1676,6 @@ pub struct Upload {
     /// Additional uploads will be rejected.
     pub max_concurrent_requests: usize,
     /// Maximum time spent trying to upload, in seconds.
-    /// Currently only used by non-processing relays, as the objectstore service has its own timeout.
     pub timeout: u64,
     /// The maximum time between creating the upload and uploading the data / the attachment placeholder.
     ///
