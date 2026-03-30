@@ -20,6 +20,7 @@ debugid = { workspace = true, features = ["serde"] }
 enumset = { workspace = true }
 minidump = { workspace = true }
 opentelemetry-proto = { workspace = true, features = ["gen-tonic", "trace"] }
+rand = { workspace = true }
 relay-common = { workspace = true }
 relay-conventions = { workspace = true }
 relay-base-schema = { workspace = true }
@@ -31,7 +32,6 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 url = { workspace = true }
 uuid = { workspace = true }
-rand.workspace = true
 
 [dev-dependencies]
 insta = { workspace = true }

@@ -171,9 +171,8 @@ relay_common::impl_str_serde!(SpanId, "a span identifier");
 
 impl SpanId {
     pub fn random() -> Self {
-        let mut span_bytes = [0u8; 8];
-        rand::rng().fill_bytes(&mut span_bytes);
-        Self(span_bytes)
+        let value: u64 = rand::random_range(1..=u64::MAX);
+        Self(value.to_ne_bytes())
     }
 }
 
