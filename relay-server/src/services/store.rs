@@ -64,7 +64,15 @@ impl OutcomeError for StoreError {
     type Error = Self;
 
     fn consume(self) -> (Option<Outcome>, Self::Error) {
-        (Some(Outcome::Invalid(DiscardReason::Internal)), self)
+        let outcome = match self {
+            StoreError::SendFailed(_) | StoreError::EncodingFailed(_) | StoreError::NoEventId => {
+                Some(Outcome::Invalid(DiscardReason::Internal))
+            }
+            StoreError::InvalidAttachmentRef => {
+                Some(Outcome::Invalid(DiscardReason::InvalidAttachmentRef))
+            }
+        };
+        (outcome, self)
     }
 }
 
@@ -975,14 +983,10 @@ impl StoreService {
         Ok(())
     }
 
-    fn produce_attachment_ref(
+    fn chunked_attachment_from_placeholder(
         &self,
-        event_id: EventId,
-        project_id: ProjectId,
-        org_id: OrganizationId,
         item: &Item,
-        send_individual_attachments: bool,
-    ) -> Result<Option<ChunkedAttachment>, StoreError> {
+    ) -> Result<ChunkedAttachment, StoreError> {
         debug_assert!(
             item.stored_key().is_none(),
             "AttachmentRef should not have been uploaded to objectstore"
@@ -998,7 +1002,7 @@ impl StoreService {
 
         let store_key = location.key;
 
-        let attachment = ChunkedAttachment {
+        Ok(ChunkedAttachment {
             id: Uuid::new_v4().to_string(),
             name: item.filename().unwrap_or(UNNAMED_ATTACHMENT).to_owned(),
             rate_limited: item.rate_limited(),
@@ -1006,53 +1010,17 @@ impl StoreService {
             attachment_type: item.attachment_type().unwrap_or_default(),
             size: item.attachment_body_size(),
             payload: AttachmentPayload::Stored(store_key),
-        };
-
-        if send_individual_attachments {
-            let message = KafkaMessage::Attachment(AttachmentKafkaMessage {
-                event_id,
-                project_id,
-                attachment,
-                org_id,
-            });
-            self.produce(KafkaTopic::Attachments, message)?;
-            Ok(None)
-        } else {
-            Ok(Some(attachment))
-        }
+        })
     }
 
-    /// Produces Kafka messages for the content and metadata of an attachment item.
-    ///
-    /// The `send_individual_attachments` controls whether the metadata of an attachment
-    /// is produced directly as an individual `attachment` message, or returned from this function
-    /// to be later sent as part of an `event` message.
-    ///
-    /// Attachment contents are chunked and sent as multiple `attachment_chunk` messages,
-    /// unless the `send_individual_attachments` flag is set, and the content is small enough
-    /// to fit inside a message.
-    /// In that case, no `attachment_chunk` is produced, but the content is sent as part
-    /// of the `attachment` message instead.
-    fn produce_attachment(
+    fn chunked_attachment_from_attachment(
         &self,
         event_id: EventId,
         project_id: ProjectId,
         org_id: OrganizationId,
         item: &Item,
         send_individual_attachments: bool,
-    ) -> Result<Option<ChunkedAttachment>, StoreError> {
-        // If the attachment is actually a placeholder we need to do some logic that does not neatly
-        // fit into this function.
-        if item.is_attachment_ref() {
-            return self.produce_attachment_ref(
-                event_id,
-                project_id,
-                org_id,
-                item,
-                send_individual_attachments,
-            );
-        }
-
+    ) -> Result<ChunkedAttachment, StoreError> {
         let id = Uuid::new_v4().to_string();
 
         let payload = item.payload();
@@ -1097,7 +1065,7 @@ impl StoreService {
             AttachmentPayload::Chunked(chunk_index)
         };
 
-        let attachment = ChunkedAttachment {
+        Ok(ChunkedAttachment {
             id,
             name: match item.filename() {
                 Some(name) => name.to_owned(),
@@ -1108,7 +1076,39 @@ impl StoreService {
             attachment_type: item.attachment_type().unwrap_or_default(),
             size,
             payload,
-        };
+        })
+    }
+
+    /// Produces Kafka messages for the content and metadata of an attachment item.
+    ///
+    /// The `send_individual_attachments` controls whether the metadata of an attachment
+    /// is produced directly as an individual `attachment` message, or returned from this function
+    /// to be later sent as part of an `event` message.
+    ///
+    /// Attachment contents are chunked and sent as multiple `attachment_chunk` messages,
+    /// unless the `send_individual_attachments` flag is set, and the content is small enough
+    /// to fit inside a message.
+    /// In that case, no `attachment_chunk` is produced, but the content is sent as part
+    /// of the `attachment` message instead.
+    fn produce_attachment(
+        &self,
+        event_id: EventId,
+        project_id: ProjectId,
+        org_id: OrganizationId,
+        item: &Item,
+        send_individual_attachments: bool,
+    ) -> Result<Option<ChunkedAttachment>, StoreError> {
+        let attachment = if item.is_attachment_ref() {
+            self.chunked_attachment_from_placeholder(item)
+        } else {
+            self.chunked_attachment_from_attachment(
+                event_id,
+                project_id,
+                org_id,
+                item,
+                send_individual_attachments,
+            )
+        }?;
 
         if send_individual_attachments {
             let message = KafkaMessage::Attachment(AttachmentKafkaMessage {
