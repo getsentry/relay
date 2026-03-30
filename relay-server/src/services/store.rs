@@ -457,6 +457,7 @@ impl StoreService {
                     if let Some(attachment) = self.produce_attachment(
                         event_id.ok_or(StoreError::NoEventId)?,
                         scoping.project_id,
+                        scoping.organization_id,
                         item,
                         send_individual_attachments,
                     )? {
@@ -468,6 +469,7 @@ impl StoreService {
                     self.produce_user_report(
                         event_id.ok_or(StoreError::NoEventId)?,
                         scoping.project_id,
+                        scoping.organization_id,
                         received_at,
                         item,
                     )?;
@@ -477,6 +479,7 @@ impl StoreService {
                     self.produce_user_report_v2(
                         event_id.ok_or(StoreError::NoEventId)?,
                         scoping.project_id,
+                        scoping.organization_id,
                         received_at,
                         item,
                         remote_addr,
@@ -492,7 +495,14 @@ impl StoreService {
                 )?,
                 ItemType::CheckIn => {
                     let client = envelope.meta().client();
-                    self.produce_check_in(scoping.project_id, received_at, client, retention, item)?
+                    self.produce_check_in(
+                        scoping.project_id,
+                        scoping.organization_id,
+                        received_at,
+                        client,
+                        retention,
+                        item,
+                    )?
                 }
                 ItemType::Span if content_type == Some(ContentType::Json) => self.produce_span(
                     scoping,
@@ -566,6 +576,7 @@ impl StoreService {
                     project_id,
                     remote_addr,
                     attachments,
+                    org_id: scoping.organization_id,
                 }),
             )?;
         } else {
@@ -750,6 +761,7 @@ impl StoreService {
                     meta,
                     span: SerializableAnnotated(&item),
                 },
+                org_id: scoping.organization_id,
             };
 
             self.produce(KafkaTopic::Spans, message)
@@ -828,6 +840,7 @@ impl StoreService {
             let result = self.produce_attachment(
                 attachment.event_id,
                 scoping.project_id,
+                scoping.organization_id,
                 &attachment.attachment,
                 // Hardcoded to `true` since standalone attachments are 'individual attachments'.
                 true,
@@ -849,6 +862,7 @@ impl StoreService {
                 event_id: report.event_id,
                 start_time: safe_timestamp(received_at),
                 payload: report.report.payload(),
+                org_id: scoping.organization_id,
             });
             self.produce(KafkaTopic::Attachments, kafka_msg)
         });
@@ -1021,6 +1035,7 @@ impl StoreService {
         &self,
         event_id: EventId,
         project_id: ProjectId,
+        org_id: OrganizationId,
         item: &Item,
         send_individual_attachments: bool,
     ) -> Result<Option<ChunkedAttachment>, StoreError> {
@@ -1063,6 +1078,7 @@ impl StoreService {
                     project_id,
                     id: id.clone(),
                     chunk_index,
+                    org_id,
                 };
 
                 self.produce(
@@ -1096,6 +1112,7 @@ impl StoreService {
                 event_id,
                 project_id,
                 attachment,
+                org_id,
             });
             self.produce(KafkaTopic::Attachments, message)?;
             Ok(None)
@@ -1108,6 +1125,7 @@ impl StoreService {
         &self,
         event_id: EventId,
         project_id: ProjectId,
+        org_id: OrganizationId,
         received_at: DateTime<Utc>,
         item: &Item,
     ) -> Result<(), StoreError> {
@@ -1116,6 +1134,7 @@ impl StoreService {
             event_id,
             start_time: safe_timestamp(received_at),
             payload: item.payload(),
+            org_id,
         });
 
         self.produce(KafkaTopic::Attachments, message)
@@ -1125,6 +1144,7 @@ impl StoreService {
         &self,
         event_id: EventId,
         project_id: ProjectId,
+        org_id: OrganizationId,
         received_at: DateTime<Utc>,
         item: &Item,
         remote_addr: Option<String>,
@@ -1136,6 +1156,7 @@ impl StoreService {
             start_time: safe_timestamp(received_at),
             remote_addr,
             attachments: vec![],
+            org_id,
         });
         self.produce(KafkaTopic::Feedback, message)
     }
@@ -1193,6 +1214,7 @@ impl StoreService {
     fn produce_check_in(
         &self,
         project_id: ProjectId,
+        org_id: OrganizationId,
         received_at: DateTime<Utc>,
         client: Option<&str>,
         retention_days: u16,
@@ -1206,6 +1228,7 @@ impl StoreService {
             sdk: client.map(str::to_owned),
             payload: item.payload(),
             routing_key_hint: item.routing_hint(),
+            org_id,
         });
 
         self.produce(KafkaTopic::Monitors, message)?;
@@ -1273,6 +1296,7 @@ impl StoreService {
                     scoping.project_id.to_string(),
                 )]),
                 message,
+                org_id: organization_id,
             },
         )?;
 
@@ -1399,6 +1423,10 @@ struct EventKafkaMessage {
     remote_addr: Option<String>,
     /// Attachments that are potentially relevant for processing.
     attachments: Vec<ChunkedAttachment>,
+
+    /// Used for [`KafkaMessage::key`]
+    #[serde(skip)]
+    org_id: OrganizationId,
 }
 
 /// Container payload for chunks of attachments.
@@ -1416,6 +1444,10 @@ struct AttachmentChunkKafkaMessage {
     id: String,
     /// Sequence number of chunk. Starts at 0 and ends at `AttachmentKafkaMessage.num_chunks - 1`.
     chunk_index: usize,
+
+    /// Used for [`KafkaMessage::key`]
+    #[serde(skip)]
+    org_id: OrganizationId,
 }
 
 /// A "standalone" attachment.
@@ -1430,6 +1462,10 @@ struct AttachmentKafkaMessage {
     project_id: ProjectId,
     /// The attachment.
     attachment: ChunkedAttachment,
+
+    /// Used for [`KafkaMessage::key`]
+    #[serde(skip)]
+    org_id: OrganizationId,
 }
 
 #[derive(Debug, Serialize)]
@@ -1459,9 +1495,12 @@ struct UserReportKafkaMessage {
     start_time: u64,
     payload: Bytes,
 
-    // Used for KafkaMessage::key
+    /// Used for [`KafkaMessage::key`]
     #[serde(skip)]
     event_id: EventId,
+    /// Used for [`KafkaMessage::key`]
+    #[serde(skip)]
+    org_id: OrganizationId,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -1537,9 +1576,6 @@ enum CheckInMessageType {
 
 #[derive(Debug, Serialize)]
 struct CheckInKafkaMessage {
-    #[serde(skip)]
-    routing_key_hint: Option<Uuid>,
-
     /// Used by the consumer to discrinminate the message.
     message_type: CheckInMessageType,
     /// Raw event payload.
@@ -1552,6 +1588,13 @@ struct CheckInKafkaMessage {
     project_id: ProjectId,
     /// Number of days to retain.
     retention_days: u16,
+
+    /// Used for [`KafkaMessage::key`]
+    #[serde(skip)]
+    routing_key_hint: Option<Uuid>,
+    /// Used for [`KafkaMessage::key`]
+    #[serde(skip)]
+    org_id: OrganizationId,
 }
 
 #[derive(Debug, Serialize)]
@@ -1629,6 +1672,10 @@ enum KafkaMessage<'a> {
         headers: BTreeMap<String, String>,
         #[serde(flatten)]
         message: SpanKafkaMessageRaw<'a>,
+
+        /// Used for [`KafkaMessage::key`]
+        #[serde(skip)]
+        org_id: OrganizationId,
     },
     SpanV2 {
         #[serde(skip)]
@@ -1637,6 +1684,10 @@ enum KafkaMessage<'a> {
         headers: BTreeMap<String, String>,
         #[serde(flatten)]
         message: SpanKafkaMessage<'a>,
+
+        /// Used for [`KafkaMessage::key`]
+        #[serde(skip)]
+        org_id: OrganizationId,
     },
 
     Attachment(AttachmentKafkaMessage),
@@ -1692,18 +1743,27 @@ impl Message for KafkaMessage<'_> {
     /// Returns the partitioning key for this Kafka message determining.
     fn key(&self) -> Option<relay_kafka::Key> {
         match self {
-            Self::Event(message) => Some(message.event_id.0),
-            Self::UserReport(message) => Some(message.event_id.0),
-            Self::SpanRaw { routing_key, .. } | Self::SpanV2 { routing_key, .. } => *routing_key,
+            Self::Event(message) => Some((message.event_id.0, message.org_id)),
+            Self::UserReport(message) => Some((message.event_id.0, message.org_id)),
+            Self::SpanRaw {
+                routing_key,
+                org_id,
+                ..
+            }
+            | Self::SpanV2 {
+                routing_key,
+                org_id,
+                ..
+            } => routing_key.map(|r| (r, *org_id)),
 
             // Monitor check-ins use the hinted UUID passed through from the Envelope.
             //
             // XXX(epurkhiser): In the future it would be better if all KafkaMessage's would
             // recieve the routing_key_hint form their envelopes.
-            Self::CheckIn(message) => message.routing_key_hint,
+            Self::CheckIn(message) => message.routing_key_hint.map(|r| (r, message.org_id)),
 
-            Self::Attachment(message) => Some(message.event_id.0),
-            Self::AttachmentChunk(message) => Some(message.event_id.0),
+            Self::Attachment(message) => Some((message.event_id.0, message.org_id)),
+            Self::AttachmentChunk(message) => Some((message.event_id.0, message.org_id)),
 
             // Random partitioning
             Self::Metric { .. }
@@ -1712,8 +1772,16 @@ impl Message for KafkaMessage<'_> {
             | Self::ProfileChunk(_)
             | Self::ReplayRecordingNotChunked(_) => None,
         }
-        .filter(|uuid| !uuid.is_nil())
-        .map(|uuid| uuid.as_u128())
+        .filter(|(uuid, _)| !uuid.is_nil())
+        .map(|(uuid, org_id)| {
+            // mix key with org id for better paritioning in case of incidents where messages
+            // across orgs get the same id
+            let mut res = uuid.into_bytes();
+            for (i, &b) in org_id.value().to_be_bytes().iter().enumerate() {
+                res[i] ^= b;
+            }
+            u128::from_be_bytes(res)
+        })
     }
 
     fn headers(&self) -> Option<&BTreeMap<String, String>> {

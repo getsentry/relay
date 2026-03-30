@@ -12,10 +12,8 @@ use axum::extract::{Path, Query};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, NoContent, Response};
 use axum::routing::{MethodRouter, patch, post};
-use bytes::Bytes;
 use chrono::Utc;
 use futures::StreamExt;
-use futures::stream::BoxStream;
 use http::header;
 use relay_config::Config;
 use relay_dynamic_config::Feature;
@@ -32,9 +30,9 @@ use crate::service::ServiceState;
 #[cfg(feature = "processing")]
 use crate::services::objectstore;
 use crate::services::projects::cache::Project;
-use crate::services::upload::{self, SignedLocation};
+use crate::services::upload::{self, ByteStream, SignedLocation};
 use crate::services::upstream::UpstreamRequestError;
-use crate::utils::ApiErrorResponse;
+use crate::utils::{ApiErrorResponse, MeteredStream};
 use crate::utils::{BoundedStream, find_error_source, tus};
 
 pub fn route_post(config: &Config) -> MethodRouter<ServiceState> {
@@ -209,6 +207,8 @@ async fn handle_patch(
         .into_data_stream()
         .map(|result| result.map_err(io::Error::other))
         .boxed();
+    let stream = MeteredStream::new(stream, "upload");
+
     let (lower_bound, upper_bound) = match length {
         None => (1, config.max_upload_size()),
         Some(u) => (u, u),
@@ -263,7 +263,7 @@ async fn upload(
     state: &ServiceState,
     scoping: Scoping,
     location: SignedLocation,
-    stream: BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>,
+    stream: BoundedStream<MeteredStream<ByteStream>>,
 ) -> Result<SignedLocation, Error> {
     let location = state
         .upload()
