@@ -119,18 +119,16 @@ def test_normalize_user_agent(must_normalize):
     )
 
     if must_normalize:
-        assert event["contexts"]["browser"] == {
-            "browser": "Firefox 15.0.1",
-            "name": "Firefox",
-            "version": "15.0.1",
-            "type": "browser",
+        assert event["contexts"] == {
+            "browser": {
+                "browser": "Firefox 15.0.1",
+                "name": "Firefox",
+                "version": "15.0.1",
+                "type": "browser",
+            },
+            "client_os": {"name": "Ubuntu", "os": "Ubuntu", "type": "os"},
+            "trace": pytest.mock.ANY,
         }
-        assert event["contexts"]["client_os"] == {
-            "name": "Ubuntu",
-            "os": "Ubuntu",
-            "type": "os",
-        }
-        assert set(event["contexts"].keys()) == {"browser", "client_os", "trace"}
     else:
         assert set(event["contexts"].keys()) == {"trace"}
 
