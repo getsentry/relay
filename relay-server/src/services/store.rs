@@ -979,6 +979,7 @@ impl StoreService {
         &self,
         event_id: EventId,
         project_id: ProjectId,
+        org_id: OrganizationId,
         item: &Item,
         send_individual_attachments: bool,
     ) -> Result<Option<ChunkedAttachment>, StoreError> {
@@ -1012,6 +1013,7 @@ impl StoreService {
                 event_id,
                 project_id,
                 attachment,
+                org_id,
             });
             self.produce(KafkaTopic::Attachments, message)?;
             Ok(None)
@@ -1045,6 +1047,7 @@ impl StoreService {
             return self.produce_attachment_ref(
                 event_id,
                 project_id,
+                org_id,
                 item,
                 send_individual_attachments,
             );
