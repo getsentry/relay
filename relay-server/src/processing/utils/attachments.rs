@@ -1,7 +1,6 @@
 use std::error::Error;
 use std::time::Instant;
 
-#[cfg(feature = "processing")]
 use relay_config::Config;
 use relay_pii::{PiiAttachmentsProcessor, SelectorPathItem, SelectorSpec};
 use relay_statsd::metric;
@@ -10,34 +9,41 @@ use relay_statsd::metric;
 use crate::envelope::AttachmentPlaceholder;
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
 use crate::managed::RecordKeeper;
-#[cfg(feature = "processing")]
 use crate::services::processor::ProcessingError;
 use crate::statsd::RelayTimers;
 
 use crate::services::projects::project::ProjectInfo;
 use relay_dynamic_config::Feature;
 
-#[cfg(feature = "processing")]
+#[cfg_attr(not(feature = "processing"), expect(unused_variables))]
 pub fn validate(item: &Item, config: &Config) -> Result<(), ProcessingError> {
-    if !item.is_attachment_ref() {
-        return Ok(());
-    }
-    let payload = item.payload();
-    let payload: AttachmentPlaceholder =
-        serde_json::from_slice(&payload).map_err(|_| ProcessingError::InvalidAttachmentRef)?;
-    let signed_location = crate::services::upload::SignedLocation::try_from_str(payload.location)
-        .ok_or(ProcessingError::InvalidAttachmentRef)?;
-    // NOTE: Using the received timestamp here breaks tests without a pop-relay.
-    let location = signed_location
-        .verify(chrono::Utc::now(), config)
-        .map_err(|_| ProcessingError::InvalidAttachmentRef)?;
-    let signed_length = location
-        .length
-        .ok_or(ProcessingError::InvalidAttachmentRef)?;
+    #[cfg(not(feature = "processing"))]
+    return Ok(());
 
-    match item.attachment_body_size() == signed_length {
-        true => Ok(()),
-        false => Err(ProcessingError::InvalidAttachmentRef),
+    #[cfg(feature = "processing")]
+    {
+        if !item.is_attachment_ref() {
+            return Ok(());
+        }
+
+        let payload = item.payload();
+        let payload: AttachmentPlaceholder =
+            serde_json::from_slice(&payload).map_err(|_| ProcessingError::InvalidAttachmentRef)?;
+        let signed_location =
+            crate::services::upload::SignedLocation::try_from_str(payload.location)
+                .ok_or(ProcessingError::InvalidAttachmentRef)?;
+        // NOTE: Using the received timestamp here breaks tests without a pop-relay.
+        let location = signed_location
+            .verify(chrono::Utc::now(), config)
+            .map_err(|_| ProcessingError::InvalidAttachmentRef)?;
+        let signed_length = location
+            .length
+            .ok_or(ProcessingError::InvalidAttachmentRef)?;
+
+        match item.attachment_body_size() == signed_length {
+            true => Ok(()),
+            false => Err(ProcessingError::InvalidAttachmentRef),
+        }
     }
 }
 

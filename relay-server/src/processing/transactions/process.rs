@@ -449,7 +449,6 @@ impl Counted for IndexedSpans {
 /// Validates the attachments and drop any invalid ones.
 ///
 /// An attachment might be a placeholder, in which case it needs to be validated.
-#[cfg(feature = "processing")]
 pub fn validate_attachments(transaction: &mut Managed<Box<ExpandedTransaction>>, ctx: Context<'_>) {
     if !ctx.is_processing() {
         return;
