@@ -6,6 +6,8 @@ use relay_config::Config;
 use relay_pii::{PiiAttachmentsProcessor, SelectorPathItem, SelectorSpec};
 use relay_statsd::metric;
 
+#[cfg(feature = "processing")]
+use crate::envelope::AttachmentPlaceholder;
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
 use crate::managed::RecordKeeper;
 #[cfg(feature = "processing")]
