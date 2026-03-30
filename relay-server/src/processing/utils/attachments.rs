@@ -21,7 +21,7 @@ pub fn validate(item: &Item, config: &Config) -> Result<(), ProcessingError> {
         return Ok(());
     }
     let payload = item.payload();
-    let payload: crate::envelope::AttachmentPlaceholder =
+    let payload: AttachmentPlaceholder =
         serde_json::from_slice(&payload).map_err(|_| ProcessingError::InvalidAttachmentRef)?;
     let signed_location = crate::services::upload::SignedLocation::try_from_str(payload.location)
         .ok_or(ProcessingError::InvalidAttachmentRef)?;
