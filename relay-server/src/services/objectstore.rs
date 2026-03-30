@@ -302,6 +302,7 @@ impl ObjectstoreServiceInner {
             .event_attachments
             .for_project(scoping.organization_id.value(), scoping.project_id.value())
             .session(&self.objectstore_client);
+        let retention = envelope.envelope().retention();
 
         let attachments = envelope
             .envelope_mut()
@@ -324,7 +325,13 @@ impl ObjectstoreServiceInner {
                         continue;
                     }
                     let result = self
-                        .upload_bytes("envelope", &session, attachment.payload(), None)
+                        .upload_bytes(
+                            "envelope",
+                            &session,
+                            attachment.payload(),
+                            Some(retention),
+                            None,
+                        )
                         .await;
 
                     relay_statsd::metric!(
@@ -378,6 +385,7 @@ impl ObjectstoreServiceInner {
                         "attachment",
                         &session,
                         attachment.attachment.payload(),
+                        Some(attachment.retention),
                         None,
                     )
                     .await;
@@ -453,7 +461,13 @@ impl ObjectstoreServiceInner {
             let original_key = key.clone();
 
             let _stored_key = self
-                .upload_bytes("attachment_v2", &session, body, Some(key))
+                .upload_bytes(
+                    "attachment_v2",
+                    &session,
+                    body,
+                    None, /* retention */
+                    Some(key),
+                )
                 .await
                 .reject(&trace_item)?;
 
@@ -511,9 +525,15 @@ impl ObjectstoreServiceInner {
         ty: &str,
         session: &Session,
         payload: Bytes,
+        retention: Option<u16>,
         key: Option<String>,
     ) -> Result<ObjectstoreKey, Error> {
         let mut request = session.put(payload);
+        if let Some(retention_hours) = retention.and_then(|retention| retention.checked_mul(24)) {
+            request = request.expiration_policy(ExpirationPolicy::TimeToLive(
+                Duration::from_hours(retention_hours.into()),
+            ));
+        }
         if let Some(key) = key {
             request = request.key(key);
         }
