@@ -111,6 +111,8 @@ pub struct StoreTraceAttachment {
     pub body: Bytes,
     /// The trace item to be published via Kafka.
     pub trace_item: TraceItem,
+    /// Data retention in days for this attachment.
+    pub retention: u16,
 }
 
 impl Counted for StoreTraceAttachment {
@@ -302,6 +304,7 @@ impl ObjectstoreServiceInner {
             .event_attachments
             .for_project(scoping.organization_id.value(), scoping.project_id.value())
             .session(&self.objectstore_client);
+        let retention = envelope.envelope().retention();
 
         let attachments = envelope
             .envelope_mut()
@@ -323,7 +326,7 @@ impl ObjectstoreServiceInner {
                         continue;
                     }
                     let result = self
-                        .upload_bytes("envelope", &session, attachment.payload(), None)
+                        .upload_bytes("envelope", &session, attachment.payload(), retention, None)
                         .await;
 
                     relay_statsd::metric!(
@@ -376,6 +379,7 @@ impl ObjectstoreServiceInner {
                         "attachment",
                         &session,
                         attachment.attachment.payload(),
+                        attachment.retention,
                         None,
                     )
                     .await;
@@ -428,12 +432,14 @@ impl ObjectstoreServiceInner {
             .reject(&managed)?;
 
         let body = Bytes::clone(&managed.body);
+        let retention = managed.retention;
 
         // Make sure that the attachment can be converted into a trace item:
         let trace_item = managed.try_map(|attachment, _record_keeper| {
             let StoreTraceAttachment {
                 trace_item,
                 body: _,
+                retention: _,
             } = attachment;
             Ok::<_, Error>(StoreTraceItem { trace_item })
         })?;
@@ -451,7 +457,7 @@ impl ObjectstoreServiceInner {
             let original_key = key.clone();
 
             let _stored_key = self
-                .upload_bytes("attachment_v2", &session, body, Some(key))
+                .upload_bytes("attachment_v2", &session, body, retention, Some(key))
                 .await
                 .reject(&trace_item)?;
 
@@ -509,9 +515,16 @@ impl ObjectstoreServiceInner {
         ty: &str,
         session: &Session,
         payload: Bytes,
+        retention: u16,
         key: Option<String>,
     ) -> Result<ObjectstoreKey, Error> {
         let mut request = session.put(payload);
+
+        if let Some(retention_hours) = retention.checked_mul(24) {
+            request = request.expiration_policy(ExpirationPolicy::TimeToLive(
+                Duration::from_hours(retention_hours.into()),
+            ));
+        }
         if let Some(key) = key {
             request = request.key(key);
         }

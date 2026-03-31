@@ -202,6 +202,8 @@ pub struct StoreAttachment {
     pub retention_days: u16,
     /// Outcome quantities associated with this attachment.
     pub quantities: Quantities,
+    /// Data retention in days for this attachment.
+    pub retention: u16,
 }
 
 impl Counted for StoreAttachment {

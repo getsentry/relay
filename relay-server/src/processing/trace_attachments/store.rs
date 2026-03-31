@@ -42,7 +42,11 @@ pub fn convert(
         let trace_item = attachment_to_trace_item(meta, quantities, ctx)
             .ok_or(Outcome::Invalid(DiscardReason::InvalidTraceAttachment))?;
 
-        Ok::<_, Outcome>(StoreTraceAttachment { trace_item, body })
+        Ok::<_, Outcome>(StoreTraceAttachment {
+            trace_item,
+            body,
+            retention: retention.standard,
+        })
     })
 }
 

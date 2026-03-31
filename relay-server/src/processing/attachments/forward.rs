@@ -44,6 +44,7 @@ impl Forward for AttachmentsOutput {
                     attachment,
                     retention_days,
                     quantities,
+                    retention: ctx.event_retention().standard,
                 }
             });
             if use_objectstore {
