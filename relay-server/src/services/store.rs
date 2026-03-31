@@ -198,12 +198,10 @@ pub struct StoreAttachment {
     pub event_id: EventId,
     /// That attachment item.
     pub attachment: Item,
-    /// Number of days to retain.
-    pub retention_days: u16,
-    /// Outcome quantities associated with this attachment.
-    pub quantities: Quantities,
     /// Data retention in days for this attachment.
     pub retention: u16,
+    /// Outcome quantities associated with this attachment.
+    pub quantities: Quantities,
 }
 
 impl Counted for StoreAttachment {
@@ -857,7 +855,7 @@ impl StoreService {
                 &attachment.attachment,
                 // Hardcoded to `true` since standalone attachments are 'individual attachments'.
                 true,
-                attachment.retention_days,
+                attachment.retention,
             );
             // Since we are sending an 'individual attachment' this function should never return a
             // `ChunkedAttachment`.
