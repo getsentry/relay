@@ -620,6 +620,10 @@ pub enum ProcessingError {
     ProcessingGroupMismatch,
     #[error("new processing pipeline failed")]
     ProcessingFailure,
+
+    #[cfg(feature = "processing")]
+    #[error("invalid attachment reference")]
+    InvalidAttachmentRef,
 }
 
 impl ProcessingError {
@@ -662,6 +666,10 @@ impl ProcessingError {
             Self::ProcessingGroupMismatch => Some(Outcome::Invalid(DiscardReason::Internal)),
             // Outcomes are emitted in the new processing pipeline already.
             Self::ProcessingFailure => None,
+            #[cfg(feature = "processing")]
+            Self::InvalidAttachmentRef => {
+                Some(Outcome::Invalid(DiscardReason::InvalidAttachmentRef))
+            }
         }
     }
 

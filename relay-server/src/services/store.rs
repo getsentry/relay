@@ -33,12 +33,13 @@ use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_threading::AsyncPool;
 
-use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
+use crate::envelope::{AttachmentPlaceholder, AttachmentType, ContentType, Item, ItemType};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities};
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::services::upload::SignedLocation;
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
 use crate::utils::{self, FormDataIter};
 
@@ -55,13 +56,23 @@ pub enum StoreError {
     EncodingFailed(std::io::Error),
     #[error("failed to store event because event id was missing")]
     NoEventId,
+    #[error("invalid attachment reference")]
+    InvalidAttachmentRef,
 }
 
 impl OutcomeError for StoreError {
     type Error = Self;
 
     fn consume(self) -> (Option<Outcome>, Self::Error) {
-        (Some(Outcome::Invalid(DiscardReason::Internal)), self)
+        let outcome = match self {
+            StoreError::SendFailed(_) | StoreError::EncodingFailed(_) | StoreError::NoEventId => {
+                Some(Outcome::Invalid(DiscardReason::Internal))
+            }
+            StoreError::InvalidAttachmentRef => {
+                Some(Outcome::Invalid(DiscardReason::InvalidAttachmentRef))
+            }
+        };
+        (outcome, self)
     }
 }
 
@@ -976,18 +987,39 @@ impl StoreService {
         Ok(())
     }
 
-    /// Produces Kafka messages for the content and metadata of an attachment item.
-    ///
-    /// The `send_individual_attachments` controls whether the metadata of an attachment
-    /// is produced directly as an individual `attachment` message, or returned from this function
-    /// to be later sent as part of an `event` message.
-    ///
-    /// Attachment contents are chunked and sent as multiple `attachment_chunk` messages,
-    /// unless the `send_individual_attachments` flag is set, and the content is small enough
-    /// to fit inside a message.
-    /// In that case, no `attachment_chunk` is produced, but the content is sent as part
-    /// of the `attachment` message instead.
-    fn produce_attachment(
+    fn chunked_attachment_from_placeholder(
+        &self,
+        item: &Item,
+        retention_days: u16,
+    ) -> Result<ChunkedAttachment, StoreError> {
+        debug_assert!(
+            item.stored_key().is_none(),
+            "AttachmentRef should not have been uploaded to objectstore"
+        );
+
+        let payload = item.payload();
+        let placeholder: AttachmentPlaceholder<'_> =
+            serde_json::from_slice(&payload).map_err(|_| StoreError::InvalidAttachmentRef)?;
+        let location = SignedLocation::try_from_str(placeholder.location)
+            .ok_or(StoreError::InvalidAttachmentRef)?
+            .verify(Utc::now(), &self.config)
+            .map_err(|_| StoreError::InvalidAttachmentRef)?;
+
+        let store_key = location.key;
+
+        Ok(ChunkedAttachment {
+            id: Uuid::new_v4().to_string(),
+            name: item.filename().unwrap_or(UNNAMED_ATTACHMENT).to_owned(),
+            rate_limited: item.rate_limited(),
+            content_type: placeholder.content_type.map(|c| c.as_str().to_owned()),
+            attachment_type: item.attachment_type().unwrap_or_default(),
+            size: item.attachment_body_size(),
+            retention_days,
+            payload: AttachmentPayload::Stored(store_key),
+        })
+    }
+
+    fn chunked_attachment_from_attachment(
         &self,
         event_id: EventId,
         project_id: ProjectId,
@@ -995,7 +1027,7 @@ impl StoreService {
         item: &Item,
         send_individual_attachments: bool,
         retention_days: u16,
-    ) -> Result<Option<ChunkedAttachment>, StoreError> {
+    ) -> Result<ChunkedAttachment, StoreError> {
         let id = Uuid::new_v4().to_string();
 
         let payload = item.payload();
@@ -1040,7 +1072,7 @@ impl StoreService {
             AttachmentPayload::Chunked(chunk_index)
         };
 
-        let attachment = ChunkedAttachment {
+        Ok(ChunkedAttachment {
             id,
             name: match item.filename() {
                 Some(name) => name.to_owned(),
@@ -1052,7 +1084,41 @@ impl StoreService {
             size,
             retention_days,
             payload,
-        };
+        })
+    }
+
+    /// Produces Kafka messages for the content and metadata of an attachment item.
+    ///
+    /// The `send_individual_attachments` controls whether the metadata of an attachment
+    /// is produced directly as an individual `attachment` message, or returned from this function
+    /// to be later sent as part of an `event` message.
+    ///
+    /// Attachment contents are chunked and sent as multiple `attachment_chunk` messages,
+    /// unless the `send_individual_attachments` flag is set, and the content is small enough
+    /// to fit inside a message.
+    /// In that case, no `attachment_chunk` is produced, but the content is sent as part
+    /// of the `attachment` message instead.
+    fn produce_attachment(
+        &self,
+        event_id: EventId,
+        project_id: ProjectId,
+        org_id: OrganizationId,
+        item: &Item,
+        send_individual_attachments: bool,
+        retention_days: u16,
+    ) -> Result<Option<ChunkedAttachment>, StoreError> {
+        let attachment = if item.is_attachment_ref() {
+            self.chunked_attachment_from_placeholder(item, retention_days)
+        } else {
+            self.chunked_attachment_from_attachment(
+                event_id,
+                project_id,
+                org_id,
+                item,
+                send_individual_attachments,
+                retention_days,
+            )
+        }?;
 
         if send_individual_attachments {
             let message = KafkaMessage::Attachment(AttachmentKafkaMessage {

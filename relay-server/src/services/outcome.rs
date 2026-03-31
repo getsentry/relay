@@ -485,6 +485,10 @@ pub enum DiscardReason {
     /// (Relay) A trace attachment that has invalid item headers or attachment meta-data.
     InvalidTraceAttachment,
 
+    /// (Relay) An attachment ref that has invalid item headers or payload.
+    #[cfg(feature = "processing")]
+    InvalidAttachmentRef,
+
     /// (Relay) A required feature is not enabled.
     FeatureDisabled(Feature),
 
@@ -555,6 +559,8 @@ impl DiscardReason {
             DiscardReason::InvalidSpan => "invalid_span",
             DiscardReason::InvalidSpanAttachment => "invalid_span_attachment",
             DiscardReason::InvalidTraceAttachment => "invalid_trace_attachment",
+            #[cfg(feature = "processing")]
+            DiscardReason::InvalidAttachmentRef => "invalid_placeholder_attachment",
             DiscardReason::FeatureDisabled(_) => "feature_disabled",
             DiscardReason::TransactionAttachment => "transaction_attachment",
             DiscardReason::InvalidCheckIn => "invalid_check_in",
