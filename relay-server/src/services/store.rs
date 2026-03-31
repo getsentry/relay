@@ -198,10 +198,10 @@ pub struct StoreAttachment {
     pub event_id: EventId,
     /// That attachment item.
     pub attachment: Item,
-    /// Data retention in days for this attachment.
-    pub retention: u16,
     /// Outcome quantities associated with this attachment.
     pub quantities: Quantities,
+    /// Data retention in days for this attachment.
+    pub retention: u16,
 }
 
 impl Counted for StoreAttachment {
@@ -1401,6 +1401,7 @@ struct ChunkedAttachment {
     /// The size of the attachment in bytes.
     size: usize,
 
+    /// The retention in days for this attachment.
     retention_days: u16,
 
     /// The attachment payload, chunked, inlined, or already stored.
