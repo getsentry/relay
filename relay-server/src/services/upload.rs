@@ -385,7 +385,7 @@ impl SignedLocation {
     ///
     /// Fails if the signature is outdated or incorrect.
     #[cfg(feature = "processing")]
-    fn verify(self, received: DateTime<Utc>, config: &Config) -> Result<Location, Error> {
+    pub fn verify(self, received: DateTime<Utc>, config: &Config) -> Result<Location, Error> {
         let public_key = config.public_key().ok_or(Error::SigningFailed)?;
         let is_valid = self.signature.verify(
             self.location.as_uri().as_bytes(),
@@ -415,7 +415,7 @@ impl SignedLocation {
         }
     }
 
-    fn try_from_str(uri: &str) -> Option<Self> {
+    pub fn try_from_str(uri: &str) -> Option<Self> {
         static ROUTER: std::sync::LazyLock<matchit::Router<()>> = std::sync::LazyLock::new(|| {
             let mut router = matchit::Router::new();
             router
