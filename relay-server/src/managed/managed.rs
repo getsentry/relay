@@ -167,12 +167,12 @@ pub trait RetainMut<I> {
 
 impl<I> RetainMut<I> for Vec<I> {
     fn retain_mut(&mut self, f: impl FnMut(&mut I) -> bool) {
-        Vec::retain_mut(self, f);
+        Vec::retain_mut(self, f)
     }
 }
 impl<I, const N: usize> RetainMut<I> for SmallVec<[I; N]> {
     fn retain_mut(&mut self, f: impl FnMut(&mut I) -> bool) {
-        SmallVec::retain_mut(self, f);
+        SmallVec::retain_mut(self, f)
     }
 }
 
