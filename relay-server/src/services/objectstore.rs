@@ -325,13 +325,7 @@ impl ObjectstoreServiceInner {
                         continue;
                     }
                     let result = self
-                        .upload_bytes(
-                            "envelope",
-                            &session,
-                            attachment.payload(),
-                            Some(retention),
-                            None,
-                        )
+                        .upload_bytes("envelope", &session, attachment.payload(), retention, None)
                         .await;
 
                     relay_statsd::metric!(
@@ -385,7 +379,7 @@ impl ObjectstoreServiceInner {
                         "attachment",
                         &session,
                         attachment.attachment.payload(),
-                        Some(attachment.retention),
+                        attachment.retention,
                         None,
                     )
                     .await;
@@ -465,7 +459,8 @@ impl ObjectstoreServiceInner {
                     "attachment_v2",
                     &session,
                     body,
-                    None, /* retention */
+                    // Use the retention of the trace item so there are no dangling references.
+                    trace_item.trace_item.retention_days as u16,
                     Some(key),
                 )
                 .await
@@ -525,11 +520,12 @@ impl ObjectstoreServiceInner {
         ty: &str,
         session: &Session,
         payload: Bytes,
-        retention: Option<u16>,
+        retention: u16,
         key: Option<String>,
     ) -> Result<ObjectstoreKey, Error> {
         let mut request = session.put(payload);
-        if let Some(retention_hours) = retention.and_then(|retention| retention.checked_mul(24)) {
+
+        if let Some(retention_hours) = retention.checked_mul(24) {
             request = request.expiration_policy(ExpirationPolicy::TimeToLive(
                 Duration::from_hours(retention_hours.into()),
             ));
