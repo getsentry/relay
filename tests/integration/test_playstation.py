@@ -184,6 +184,7 @@ def attachments(
             "content_type": "text/plain",
             "attachment_type": "event.attachment",
             "size": log_size,
+            "retention_days": 36500,
             "chunks": 1,
         },
         {
@@ -193,6 +194,7 @@ def attachments(
             "content_type": "application/x-dmp",
             "attachment_type": "event.minidump",
             "size": generated_dump_size,
+            "retention_days": 36500,
             "chunks": 1,
         },
         {
@@ -202,6 +204,7 @@ def attachments(
             "content_type": "application/octet-stream",
             "attachment_type": "playstation.prosperodump",
             "size": playstation_dump_size,
+            "retention_days": 36500,
             "chunks": 1,
         },
     ]
@@ -573,6 +576,7 @@ def test_playstation_attachment_no_feature_flag(
             "content_type": "application/octet-stream",
             "attachment_type": "playstation.prosperodump",
             "size": 209385,
+            "retention_days": 90,
             "chunks": 1,
         },
     )
