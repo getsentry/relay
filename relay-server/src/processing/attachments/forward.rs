@@ -33,6 +33,8 @@ impl Forward for AttachmentsOutput {
             crate::utils::sample(options.objectstore_attachments_sample_rate).is_keep()
         };
 
+        let retention_days = ctx.event_retention().standard;
+
         for attachment in attachments.split(|attachment| attachment.attachments) {
             let store_attachment = attachment.map(|attachment, _| {
                 use crate::services::store::StoreAttachment;
@@ -40,6 +42,7 @@ impl Forward for AttachmentsOutput {
                 StoreAttachment {
                     event_id,
                     attachment,
+                    retention_days,
                     quantities,
                 }
             });

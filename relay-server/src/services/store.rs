@@ -187,6 +187,8 @@ pub struct StoreAttachment {
     pub event_id: EventId,
     /// That attachment item.
     pub attachment: Item,
+    /// Number of days to retain.
+    pub retention_days: u16,
     /// Outcome quantities associated with this attachment.
     pub quantities: Quantities,
 }
@@ -457,6 +459,7 @@ impl StoreService {
                         scoping.organization_id,
                         item,
                         send_individual_attachments,
+                        retention,
                     )? {
                         attachments.push(attachment);
                     }
@@ -841,6 +844,7 @@ impl StoreService {
                 &attachment.attachment,
                 // Hardcoded to `true` since standalone attachments are 'individual attachments'.
                 true,
+                attachment.retention_days,
             );
             // Since we are sending an 'individual attachment' this function should never return a
             // `ChunkedAttachment`.
@@ -990,6 +994,7 @@ impl StoreService {
         org_id: OrganizationId,
         item: &Item,
         send_individual_attachments: bool,
+        retention_days: u16,
     ) -> Result<Option<ChunkedAttachment>, StoreError> {
         let id = Uuid::new_v4().to_string();
 
@@ -1045,6 +1050,7 @@ impl StoreService {
             content_type: item.raw_content_type().map(|s| s.to_ascii_lowercase()),
             attachment_type: item.attachment_type().unwrap_or_default(),
             size,
+            retention_days,
             payload,
         };
 
@@ -1328,6 +1334,8 @@ struct ChunkedAttachment {
 
     /// The size of the attachment in bytes.
     size: usize,
+
+    retention_days: u16,
 
     /// The attachment payload, chunked, inlined, or already stored.
     #[serde(flatten)]
