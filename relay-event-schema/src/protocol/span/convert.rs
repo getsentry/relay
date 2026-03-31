@@ -195,6 +195,8 @@ mod tests {
                 gen_ai_tool_name: ~,
                 gen_ai_operation_name: ~,
                 gen_ai_operation_type: ~,
+                gen_ai_agent_name: ~,
+                gen_ai_function_id: ~,
                 mcp_prompt_result: ~,
                 mcp_tool_result_content: ~,
                 browser_name: "Chrome",
