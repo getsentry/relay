@@ -501,7 +501,7 @@ def test_concurrency_limit(mini_sentry, relay, project_config):
             assert r.json() == {
                 "detail": "upload error: loadshed",
                 "causes": ["loadshed"],
-            }
+            }, r.text
         else:
             assert r.json() == {
                 "detail": "upload error: request timeout: deadline has elapsed",
@@ -509,4 +509,4 @@ def test_concurrency_limit(mini_sentry, relay, project_config):
                     "request timeout: deadline has elapsed",
                     "deadline has elapsed",
                 ],
-            }
+            }, r.text

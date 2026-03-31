@@ -1024,6 +1024,14 @@ pub struct EnvelopeSpool {
     /// Defaults to 1.
     #[serde(default = "spool_envelopes_partitions")]
     pub partitions: NonZeroU8,
+    /// Whether the database defined in `path` is on an ephemeral storage disk.
+    ///
+    /// With `ephemeral: true`, Relay does not spool in-flight data to disk
+    /// during graceful shutdown. Instead, it attempts to process all data before it terminates.
+    ///
+    /// Defaults to `false`.
+    #[serde(default)]
+    pub ephemeral: bool,
 }
 
 impl Default for EnvelopeSpool {
@@ -1036,6 +1044,7 @@ impl Default for EnvelopeSpool {
             disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
             max_backpressure_memory_percent: spool_max_backpressure_memory_percent(),
             partitions: spool_envelopes_partitions(),
+            ephemeral: false,
         }
     }
 }
@@ -1281,6 +1290,26 @@ impl Default for OutcomeAggregatorConfig {
     }
 }
 
+/// Configuration options for objectstore's auth scheme.
+#[derive(Serialize, Deserialize)]
+pub struct ObjectstoreAuthConfig {
+    /// Identifier for the private key used to sign objectstore's tokens. Must correspond to a
+    /// public key configured in objectstore.
+    pub key_id: String,
+
+    /// EdDSA private key used to sign Objectstore's tokens, in PEM format.
+    pub signing_key: String,
+}
+
+impl fmt::Debug for ObjectstoreAuthConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ObjectstoreAuthConfig")
+            .field("key_id", &self.key_id)
+            .field("signing_key", &"[redacted]")
+            .finish()
+    }
+}
+
 /// Configuration values for the objectstore service.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -1301,6 +1330,9 @@ pub struct ObjectstoreServiceConfig {
 
     /// Maximum duration of an attachment upload in seconds. Uploads that take longer are discarded.
     pub timeout: u64,
+
+    /// Configuration values for objectstore's auth scheme.
+    pub auth: Option<ObjectstoreAuthConfig>,
 }
 
 impl Default for ObjectstoreServiceConfig {
@@ -1310,6 +1342,7 @@ impl Default for ObjectstoreServiceConfig {
             max_concurrent_requests: 10,
             max_backlog: 20,
             timeout: 60,
+            auth: None,
         }
     }
 }
@@ -1658,48 +1691,50 @@ impl Default for Upload {
     }
 }
 
+/// All configuration values that can be deserialized from `config.yml`.
 #[derive(Serialize, Deserialize, Debug, Default)]
-struct ConfigValues {
+#[allow(missing_docs)]
+pub struct ConfigValues {
     #[serde(default)]
-    relay: Relay,
+    pub relay: Relay,
     #[serde(default)]
-    http: Http,
+    pub http: Http,
     #[serde(default)]
-    cache: Cache,
+    pub cache: Cache,
     #[serde(default)]
-    spool: Spool,
+    pub spool: Spool,
     #[serde(default)]
-    limits: Limits,
+    pub limits: Limits,
     #[serde(default)]
-    logging: relay_log::LogConfig,
+    pub logging: relay_log::LogConfig,
     #[serde(default)]
-    routing: Routing,
+    pub routing: Routing,
     #[serde(default)]
-    metrics: Metrics,
+    pub metrics: Metrics,
     #[serde(default)]
-    sentry: relay_log::SentryConfig,
+    pub sentry: relay_log::SentryConfig,
     #[serde(default)]
-    processing: Processing,
+    pub processing: Processing,
     #[serde(default)]
-    outcomes: Outcomes,
+    pub outcomes: Outcomes,
     #[serde(default)]
-    aggregator: AggregatorServiceConfig,
+    pub aggregator: AggregatorServiceConfig,
     #[serde(default)]
-    secondary_aggregators: Vec<ScopedAggregatorConfig>,
+    pub secondary_aggregators: Vec<ScopedAggregatorConfig>,
     #[serde(default)]
-    auth: AuthConfig,
+    pub auth: AuthConfig,
     #[serde(default)]
-    geoip: GeoIpConfig,
+    pub geoip: GeoIpConfig,
     #[serde(default)]
-    normalization: Normalization,
+    pub normalization: Normalization,
     #[serde(default)]
-    cardinality_limiter: CardinalityLimiter,
+    pub cardinality_limiter: CardinalityLimiter,
     #[serde(default)]
-    health: Health,
+    pub health: Health,
     #[serde(default)]
-    cogs: Cogs,
+    pub cogs: Cogs,
     #[serde(default)]
-    upload: Upload,
+    pub upload: Upload,
 }
 
 impl ConfigObject for ConfigValues {
@@ -2345,6 +2380,11 @@ impl Config {
     /// Returns the number of partitions for the buffer.
     pub fn spool_partitions(&self) -> NonZeroU8 {
         self.values.spool.envelopes.partitions
+    }
+
+    /// Returns `true` if the data is stored on ephemeral disks.
+    pub fn spool_ephemeral(&self) -> bool {
+        self.values.spool.envelopes.ephemeral
     }
 
     /// Returns the maximum size of an event payload in bytes.

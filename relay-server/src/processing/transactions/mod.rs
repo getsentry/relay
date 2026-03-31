@@ -134,6 +134,9 @@ impl Processor for TransactionProcessor {
         relay_log::trace!("Expand transaction");
         let mut tx = process::expand(tx)?;
 
+        relay_log::trace!("Validate attachments");
+        process::validate_attachments(&mut tx, ctx);
+
         relay_log::trace!("Prepare transaction data");
         process::prepare_data(&mut tx, &mut ctx, &mut metrics)?;
 

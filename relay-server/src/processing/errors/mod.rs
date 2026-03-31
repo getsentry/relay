@@ -109,6 +109,8 @@ impl processing::Processor for ErrorsProcessor {
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         let mut error = process::expand(error, ctx)?;
 
+        process::validate_attachments(&mut error, ctx);
+
         process::process(&mut error)?;
 
         process::finalize(&mut error, ctx)?;

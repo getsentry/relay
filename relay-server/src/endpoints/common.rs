@@ -11,7 +11,7 @@ use serde::Deserialize;
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 use crate::managed::{Managed, Rejected};
 use crate::service::ServiceState;
-use crate::services::buffer::ProjectKeyPair;
+use crate::services::buffer::{ProjectKeyPair, PushError};
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
 use crate::services::processor::{BucketSource, MetricData, ProcessMetrics};
 use crate::statsd::{RelayCounters, RelayDistributions};
@@ -82,7 +82,7 @@ pub enum BadStoreRequest {
     InvalidEventId,
 
     #[error("failed to queue envelope")]
-    QueueFailed,
+    QueueFailed(#[source] PushError),
 
     #[error(
         "envelope exceeded size limits for type '{0}' (https://develop.sentry.dev/sdk/envelopes/#size-limits)"
@@ -121,7 +121,7 @@ impl IntoResponse for BadStoreRequest {
 
                 (StatusCode::TOO_MANY_REQUESTS, headers, body).into_response()
             }
-            BadStoreRequest::QueueFailed => {
+            BadStoreRequest::QueueFailed(_) => {
                 // These errors indicate that something's wrong with our service system, most likely
                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
                 // client. It might retry event submission at a later time.
@@ -142,7 +142,12 @@ impl IntoResponse for BadStoreRequest {
         };
 
         metric!(counter(RelayCounters::EnvelopeRejected) += 1);
-        if response.status().is_server_error() {
+        if response.status() == http::StatusCode::SERVICE_UNAVAILABLE {
+            relay_log::warn!(
+                error = &self as &dyn std::error::Error,
+                "not handling request: service unavailable"
+            );
+        } else if response.status().is_server_error() {
             relay_log::error!(
                 error = &self as &dyn std::error::Error,
                 "error handling request"
@@ -299,14 +304,10 @@ fn queue_envelope(
     }
 
     let pkp = ProjectKeyPair::from_envelope(&envelope);
-    if let Err(envelope) = state.envelope_buffer(pkp).try_push(envelope) {
-        return Err(envelope.reject_err((
-            Outcome::Invalid(DiscardReason::Internal),
-            BadStoreRequest::QueueFailed,
-        )));
-    }
-
-    Ok(())
+    state
+        .envelope_buffer(pkp)
+        .try_push(envelope)
+        .map_err(|e| e.map(BadStoreRequest::QueueFailed))
 }
 
 /// Handles an envelope store request.
@@ -328,7 +329,7 @@ pub async fn handle_envelope(
     if state.memory_checker().check_memory().is_exceeded() {
         return Err(envelope.reject_err((
             Outcome::Invalid(DiscardReason::Internal),
-            BadStoreRequest::QueueFailed,
+            BadStoreRequest::QueueFailed(PushError::OutOfMemory),
         )));
     };
 

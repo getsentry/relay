@@ -31,7 +31,7 @@ use crate::statsd::RelayCounters;
 
 use crate::MemoryChecker;
 use crate::MemoryStat;
-use crate::managed::{Managed, ManagedEnvelope};
+use crate::managed::{Managed, ManagedEnvelope, OutcomeError, Rejected};
 
 // pub for benchmarks
 pub use envelope_buffer::EnvelopeBufferError;
@@ -171,6 +171,24 @@ pub struct EnvelopeBufferMetrics {
     storage_size: AtomicU64,
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum PushError {
+    #[error("relay is running out of memory")]
+    OutOfMemory,
+    #[error("envelope buffer channel is closed")]
+    ChannelClosed,
+    #[error("envelope buffer does not have capacity")]
+    Capacity,
+}
+
+impl OutcomeError for PushError {
+    type Error = Self;
+
+    fn consume(self) -> (Option<Outcome>, Self::Error) {
+        (Some(Outcome::Invalid(DiscardReason::Internal)), self)
+    }
+}
+
 /// Contains the services [`Addr`] and a watch channel to observe its state.
 ///
 /// This allows outside observers to check the capacity without having to send a message.
@@ -191,15 +209,21 @@ impl ObservableEnvelopeBuffer {
 
     /// Attempts to push an envelope into the envelope buffer.
     ///
-    /// Returns `false`, if the envelope buffer does not have enough capacity.
-    pub fn try_push(&self, envelope: Managed<Box<Envelope>>) -> Result<(), Managed<Box<Envelope>>> {
-        if self.has_capacity() {
-            let envelope = envelope.into();
-            self.addr.send(EnvelopeBuffer::Push(envelope));
-            Ok(())
-        } else {
-            Err(envelope)
+    /// Returns `false`, if the envelope buffer does not have enough capacity,
+    /// or if the process is shutting down.
+    pub fn try_push(&self, envelope: Managed<Box<Envelope>>) -> Result<(), Rejected<PushError>> {
+        if self.addr.is_closed() {
+            // This happens for inflight requests when `ephemeral: false`.
+            relay_log::warn!("Pushing envelope after envelope buffer shutdown");
+            return Err(envelope.reject_err(PushError::ChannelClosed));
         }
+
+        if !self.has_capacity() {
+            return Err(envelope.reject_err(PushError::Capacity));
+        }
+
+        self.addr.send(EnvelopeBuffer::Push(envelope.into()));
+        Ok(())
     }
 
     /// Returns `true` if the buffer has the capacity to accept more elements.
@@ -271,7 +295,6 @@ impl EnvelopeBufferService {
     /// Returns both the [`Addr`] to this service, and references to spooler metrics.
     pub fn start_in(self, services: &dyn ServiceSpawn) -> ObservableEnvelopeBuffer {
         let metrics = self.metrics.clone();
-
         let addr = services.start(self);
 
         ObservableEnvelopeBuffer { addr, metrics }

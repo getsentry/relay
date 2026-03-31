@@ -6,8 +6,9 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use futures::StreamExt;
-use futures::stream::BoxStream;
-use objectstore_client::{Client, ExpirationPolicy, PutBuilder, Session, Usecase};
+use objectstore_client::{
+    Client, ExpirationPolicy, PutBuilder, SecretKey as SigningKey, Session, TokenGenerator, Usecase,
+};
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_config::ObjectstoreServiceConfig;
@@ -17,15 +18,16 @@ use relay_system::{
 use sentry_protos::snuba::v1::TraceItem;
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
-use crate::envelope::ItemType;
+use crate::envelope::{Item, ItemType};
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
 use crate::processing::utils::store::item_id_to_uuid;
 use crate::services::outcome::DiscardReason;
 use crate::services::store::{Store, StoreAttachment, StoreEnvelope, StoreTraceItem};
+use crate::services::upload::ByteStream;
 use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::BoundedStream;
+use crate::utils::{BoundedStream, MeteredStream};
 
 use super::outcome::Outcome;
 
@@ -92,7 +94,7 @@ pub struct Stream {
     pub organization_id: OrganizationId,
     pub project_id: ProjectId,
     pub key: String,
-    pub stream: BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>,
+    pub stream: BoundedStream<MeteredStream<ByteStream>>,
 }
 
 impl FromMessage<Stream> for Objectstore {
@@ -109,6 +111,8 @@ pub struct StoreTraceAttachment {
     pub body: Bytes,
     /// The trace item to be published via Kafka.
     pub trace_item: TraceItem,
+    /// Data retention in days for this attachment.
+    pub retention: u16,
 }
 
 impl Counted for StoreTraceAttachment {
@@ -182,14 +186,37 @@ impl ObjectstoreService {
             max_concurrent_requests: _,
             max_backlog: _,
             timeout,
+            auth,
         } = config;
         let Some(objectstore_url) = objectstore_url else {
             return Ok(None);
         };
 
-        let objectstore_client = Client::builder(objectstore_url)
-            .configure_reqwest(|builder| builder.timeout(Duration::from_secs(*timeout)))
-            .build()?;
+        let objectstore_client = {
+            let mut builder = Client::builder(objectstore_url)
+                .configure_reqwest(|builder| builder.timeout(Duration::from_secs(*timeout)));
+
+            if let Some(auth) = auth {
+                // TODO(FS-313): when Objectstore starts enforcing auth, propagate error with ?
+                let token_generator = TokenGenerator::new(SigningKey {
+                    kid: auth.key_id.clone(),
+                    secret_key: auth.signing_key.clone(),
+                });
+
+                builder = match token_generator {
+                    Ok(token_generator) => builder.token(token_generator),
+                    Err(error) => {
+                        relay_log::error!(
+                            error = &error as &dyn std::error::Error,
+                            "failed to configure objectstore auth"
+                        );
+                        builder
+                    }
+                };
+            }
+
+            builder.build()?
+        };
         let event_attachments = Usecase::new("attachments")
             .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
         let trace_attachments = Usecase::new("trace_attachments")
@@ -277,6 +304,7 @@ impl ObjectstoreServiceInner {
             .event_attachments
             .for_project(scoping.organization_id.value(), scoping.project_id.value())
             .session(&self.objectstore_client);
+        let retention = envelope.envelope().retention();
 
         let attachments = envelope
             .envelope_mut()
@@ -294,12 +322,11 @@ impl ObjectstoreServiceInner {
             }
             Ok(session) => {
                 for attachment in attachments {
-                    // we are not storing zero-size attachments in objectstore
-                    if attachment.is_empty() {
+                    if Self::should_skip_upload(attachment) {
                         continue;
                     }
                     let result = self
-                        .upload_bytes("envelope", &session, attachment.payload(), None)
+                        .upload_bytes("envelope", &session, attachment.payload(), retention, None)
                         .await;
 
                     relay_statsd::metric!(
@@ -326,8 +353,7 @@ impl ObjectstoreServiceInner {
     /// This mutates the attachment item in-place, setting the `stored_key` field to the key in the
     /// objectstore.
     async fn handle_event_attachment(&self, mut attachment: Managed<StoreAttachment>) {
-        // we are not storing zero-size attachments in objectstore
-        if attachment.attachment.is_empty() {
+        if Self::should_skip_upload(&attachment.attachment) {
             self.store.send(attachment);
             return;
         }
@@ -353,6 +379,7 @@ impl ObjectstoreServiceInner {
                         "attachment",
                         &session,
                         attachment.attachment.payload(),
+                        attachment.retention,
                         None,
                     )
                     .await;
@@ -405,12 +432,14 @@ impl ObjectstoreServiceInner {
             .reject(&managed)?;
 
         let body = Bytes::clone(&managed.body);
+        let retention = managed.retention;
 
         // Make sure that the attachment can be converted into a trace item:
         let trace_item = managed.try_map(|attachment, _record_keeper| {
             let StoreTraceAttachment {
                 trace_item,
                 body: _,
+                retention: _,
             } = attachment;
             Ok::<_, Error>(StoreTraceItem { trace_item })
         })?;
@@ -428,7 +457,7 @@ impl ObjectstoreServiceInner {
             let original_key = key.clone();
 
             let _stored_key = self
-                .upload_bytes("attachment_v2", &session, body, Some(key))
+                .upload_bytes("attachment_v2", &session, body, retention, Some(key))
                 .await
                 .reject(&trace_item)?;
 
@@ -486,9 +515,16 @@ impl ObjectstoreServiceInner {
         ty: &str,
         session: &Session,
         payload: Bytes,
+        retention: u16,
         key: Option<String>,
     ) -> Result<ObjectstoreKey, Error> {
         let mut request = session.put(payload);
+
+        if let Some(retention_hours) = retention.checked_mul(24) {
+            request = request.expiration_policy(ExpirationPolicy::TimeToLive(
+                Duration::from_hours(retention_hours.into()),
+            ));
+        }
         if let Some(key) = key {
             request = request.key(key);
         }
@@ -519,5 +555,14 @@ impl ObjectstoreServiceInner {
         relay_log::trace!("Finished attachment upload");
 
         Ok(ObjectstoreKey(response.key))
+    }
+
+    /// Returns `true` if the item should **not** be uploaded to the objectstore.
+    ///
+    /// This is the case for:
+    /// - Zero-size attachments
+    /// - Attachment placeholders
+    fn should_skip_upload(item: &Item) -> bool {
+        item.is_empty() || item.is_attachment_ref()
     }
 }

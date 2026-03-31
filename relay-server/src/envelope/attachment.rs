@@ -1,6 +1,6 @@
 use std::fmt;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::envelope::ContentType;
 
@@ -78,8 +78,9 @@ impl fmt::Display for AttachmentType {
 /// Represents the payload of an [attachment placeholder item](
 /// https://develop.sentry.dev/sdk/telemetry/attachments/#attachment-placeholder-item).
 #[cfg_attr(not(sentry), expect(unused))]
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct AttachmentPlaceholder<'a> {
+    #[serde(borrow)]
     pub location: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_type: Option<ContentType>,
