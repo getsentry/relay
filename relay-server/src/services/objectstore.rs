@@ -111,6 +111,8 @@ pub struct StoreTraceAttachment {
     pub body: Bytes,
     /// The trace item to be published via Kafka.
     pub trace_item: TraceItem,
+    /// Data retention in days for this attachment.
+    pub retention: u16,
 }
 
 impl Counted for StoreTraceAttachment {
@@ -432,12 +434,14 @@ impl ObjectstoreServiceInner {
             .reject(&managed)?;
 
         let body = Bytes::clone(&managed.body);
+        let retention = managed.retention;
 
         // Make sure that the attachment can be converted into a trace item:
         let trace_item = managed.try_map(|attachment, _record_keeper| {
             let StoreTraceAttachment {
                 trace_item,
                 body: _,
+                retention: _,
             } = attachment;
             Ok::<_, Error>(StoreTraceItem { trace_item })
         })?;
@@ -455,14 +459,7 @@ impl ObjectstoreServiceInner {
             let original_key = key.clone();
 
             let _stored_key = self
-                .upload_bytes(
-                    "attachment_v2",
-                    &session,
-                    body,
-                    // Use the retention of the trace item so there are no dangling references.
-                    trace_item.trace_item.retention_days as u16,
-                    Some(key),
-                )
+                .upload_bytes("attachment_v2", &session, body, retention, Some(key))
                 .await
                 .reject(&trace_item)?;
 
