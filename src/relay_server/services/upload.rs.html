@@ -385,7 +385,7 @@
 <a href=#385 id=385 data-nosnippet>385</a>    ///
 <a href=#386 id=386 data-nosnippet>386</a>    /// Fails if the signature is outdated or incorrect.
 <a href=#387 id=387 data-nosnippet>387</a>    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#388 id=388 data-nosnippet>388</a>    </span><span class="kw">fn </span>verify(<span class="self">self</span>, received: DateTime&lt;Utc&gt;, config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Result</span>&lt;Location, Error&gt; {
+<a href=#388 id=388 data-nosnippet>388</a>    </span><span class="kw">pub fn </span>verify(<span class="self">self</span>, received: DateTime&lt;Utc&gt;, config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Result</span>&lt;Location, Error&gt; {
 <a href=#389 id=389 data-nosnippet>389</a>        <span class="kw">let </span>public_key = config.public_key().ok_or(Error::SigningFailed)<span class="question-mark">?</span>;
 <a href=#390 id=390 data-nosnippet>390</a>        <span class="kw">let </span>is_valid = <span class="self">self</span>.signature.verify(
 <a href=#391 id=391 data-nosnippet>391</a>            <span class="self">self</span>.location.as_uri().as_bytes(),
@@ -415,7 +415,7 @@
 <a href=#415 id=415 data-nosnippet>415</a>        }
 <a href=#416 id=416 data-nosnippet>416</a>    }
 <a href=#417 id=417 data-nosnippet>417</a>
-<a href=#418 id=418 data-nosnippet>418</a>    <span class="kw">fn </span>try_from_str(uri: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
+<a href=#418 id=418 data-nosnippet>418</a>    <span class="kw">pub fn </span>try_from_str(uri: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
 <a href=#419 id=419 data-nosnippet>419</a>        <span class="kw">static </span>ROUTER: std::sync::LazyLock&lt;matchit::Router&lt;()&gt;&gt; = std::sync::LazyLock::new(|| {
 <a href=#420 id=420 data-nosnippet>420</a>            <span class="kw">let </span><span class="kw-2">mut </span>router = matchit::Router::new();
 <a href=#421 id=421 data-nosnippet>421</a>            router

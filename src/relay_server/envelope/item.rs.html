@@ -558,7 +558,7 @@
 <a href=#558 id=558 data-nosnippet>558</a>    }
 <a href=#559 id=559 data-nosnippet>559</a>
 <a href=#560 id=560 data-nosnippet>560</a>    <span class="doccomment">/// Returns `true` if this item is an attachment placeholder.
-<a href=#561 id=561 data-nosnippet>561</a>    </span><span class="kw">fn </span>is_attachment_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+<a href=#561 id=561 data-nosnippet>561</a>    </span><span class="kw">pub fn </span>is_attachment_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
 <a href=#562 id=562 data-nosnippet>562</a>        <span class="self">self</span>.ty() == <span class="kw-2">&amp;</span>ItemType::Attachment
 <a href=#563 id=563 data-nosnippet>563</a>            &amp;&amp; <span class="self">self</span>.content_type() == <span class="prelude-val">Some</span>(ContentType::AttachmentRef)
 <a href=#564 id=564 data-nosnippet>564</a>    }
