@@ -174,11 +174,16 @@ fn split_item_payload(item: &Item) -> (bytes::Bytes, Option<bytes::Bytes>, Optio
         return (payload.slice_ref(meta), None, None);
     }
 
-    // Compound profile chunks are only created by `process_compound_item`,
-    // which validates the content type as "perfetto". The content_type is
-    // also present in the expanded JSON metadata, but we avoid re-parsing
-    // the full payload (potentially hundreds of KB) just for this field.
-    let content_type = Some("perfetto".to_owned());
+    // Extract content_type from the expanded JSON metadata using a minimal
+    // deserializer that only reads this single field, skipping the bulk of the
+    // payload (frames, stacks, samples, etc.).
+    #[derive(serde::Deserialize)]
+    struct ContentTypeProbe {
+        content_type: Option<String>,
+    }
+    let content_type = serde_json::from_slice::<ContentTypeProbe>(meta)
+        .ok()
+        .and_then(|v| v.content_type);
 
     (
         payload.slice_ref(meta),
@@ -273,10 +278,7 @@ mod tests {
     }
 
     #[test]
-    fn test_split_compound_content_type_always_perfetto() {
-        // Compound items only reach split_item_payload after process_compound_item
-        // validates content_type == "perfetto", so it's always "perfetto" for any
-        // compound item with a non-empty body.
+    fn test_split_compound_no_content_type() {
         let meta = b"{}";
         let body = b"binary-data";
         let item = make_compound_item(meta, body);
@@ -284,7 +286,7 @@ mod tests {
         let (payload, raw, ct) = split_item_payload(&item);
         assert_eq!(payload.as_ref(), b"{}");
         assert_eq!(raw.as_deref(), Some(b"binary-data".as_ref()));
-        assert_eq!(ct.as_deref(), Some("perfetto"));
+        assert!(ct.is_none());
     }
 
     #[test]
@@ -315,9 +317,7 @@ mod tests {
 
     #[test]
     fn test_split_compound_invalid_json_meta() {
-        // Even with invalid JSON in the meta portion, split_item_payload still
-        // returns "perfetto" because compound items are always perfetto
-        // (validated by process_compound_item before reaching this point).
+        // meta portion is not valid JSON; content_type should be None.
         let meta = b"not valid json {{{{";
         let body = b"binary-data";
         let item = make_compound_item(meta, body);
@@ -325,7 +325,7 @@ mod tests {
         let (payload, raw, ct) = split_item_payload(&item);
         assert_eq!(payload.as_ref(), meta.as_ref());
         assert_eq!(raw.as_deref(), Some(b"binary-data".as_ref()));
-        assert_eq!(ct.as_deref(), Some("perfetto"));
+        assert!(ct.is_none());
     }
 
     #[test]
@@ -339,6 +339,6 @@ mod tests {
         let (payload, raw, ct) = split_item_payload(&item);
         assert_eq!(payload.as_ref(), b"");
         assert_eq!(raw.as_deref(), Some(b"binary-data".as_ref()));
-        assert_eq!(ct.as_deref(), Some("perfetto"));
+        assert!(ct.is_none());
     }
 }

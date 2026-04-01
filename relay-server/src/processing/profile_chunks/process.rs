@@ -147,7 +147,6 @@ fn process_compound_item(
             counter(RelayCounters::ProfileChunksWithoutPlatform) += 1,
             sdk = sdk
         );
-        item.set_platform(expanded.platform.clone());
         match expanded.profile_type() {
             ProfileType::Ui => records.modify_by(DataCategory::ProfileChunkUi, 1),
             ProfileType::Backend => records.modify_by(DataCategory::ProfileChunk, 1),
