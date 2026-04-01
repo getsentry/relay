@@ -76,16 +76,6 @@ pub enum Feature {
     /// Serialized as `organizations:continuous-profiling`.
     #[serde(rename = "organizations:continuous-profiling")]
     ContinuousProfiling,
-    /// Enabled for beta orgs
-    ///
-    /// Serialized as `organizations:continuous-profiling-beta`.
-    #[serde(rename = "organizations:continuous-profiling-beta")]
-    ContinuousProfilingBeta,
-    /// Enabled when only beta orgs are allowed to send continuous profiles.
-    ///
-    /// Serialized as `organizations:continuous-profiling-beta-ingest`.
-    #[serde(rename = "organizations:continuous-profiling-beta-ingest")]
-    ContinuousProfilingBetaIngest,
     /// Enable Perfetto binary trace processing for continuous profiling.
     ///
     /// When enabled, compound profile chunk items with `content_type: "perfetto"` are

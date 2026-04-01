@@ -6,17 +6,30 @@
 
 - To prevent false positives, non-public email addresses (e.g. `user@localhost`) are no longer scrubbed by default. ([#5737](https://github.com/getsentry/relay/pull/5737))
 
+**Bug Fixes**:
+
+- Store segment name in `sentry.transaction` in addition to `sentry.segment.name` on OTLP spans. ([#5765](https://github.com/getsentry/relay/pull/5765))
+- Explicitly handle in-flight requests during shutdown. ([#5746](https://github.com/getsentry/relay/pull/5746), [#5769](https://github.com/getsentry/relay/pull/5769))
+- Emit outcomes in both `log_byte` and `log_item` categories when logs are dropped. ([#5766](https://github.com/getsentry/relay/pull/5766))
+- Propagate an event's retention policy to its attachments ([#5774](https://github.com/getsentry/relay/pull/5774))
+
 **Features**:
 
 - Use separate intern tables per Perfetto field and infer main thread from pid. ([#5659](https://github.com/getsentry/relay/pull/5659))
 - Set `sentry.segment.id` and `sentry.segment.name` attributes on OTLP segment spans. ([#5748](https://github.com/getsentry/relay/pull/5748))
 - Envelope buffer: Add option to disable flush-to-disk on shutdown. ([#5751](https://github.com/getsentry/relay/pull/5751))
+- Allow configuring Objectstore client auth parameters. ([#5720](https://github.com/getsentry/relay/pull/5720))
 
 **Internal**:
 
-- Calculate and track accepted bytes per individual trace metric item via `TraceMetricByte` data category. ([#5744](https://github.com/getsentry/relay/pull/5744))
+- Calculate and track accepted bytes per individual trace metric item via `TraceMetricByte` data category. ([#5744](https://github.com/getsentry/relay/pull/5744), [#5767](https://github.com/getsentry/relay/pull/5767))
 - Use new processor architecture to process standalone profiles. ([#5741](https://github.com/getsentry/relay/pull/5741))
 - TUS: Disallow creation with upload. ([#5734](https://github.com/getsentry/relay/pull/5734))
+- Add logic to verify attachment placeholders and correctly store them. ([#5747](https://github.com/getsentry/relay/pull/5747))
+- Remove continuous-profiling-beta feature flags. ([#5762](https://github.com/getsentry/relay/pull/5762))
+- Playstation: Do not upload attachments if quota is 0. ([#5770](https://github.com/getsentry/relay/pull/5770))
+- Add payload byte size to trace metrics. ([#5764](https://github.com/getsentry/relay/pull/5764))
+- Mix kafka partition key with org id. ([#5772](https://github.com/getsentry/relay/pull/5772))
 
 ## 26.3.1
 

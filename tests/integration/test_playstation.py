@@ -26,6 +26,7 @@ def playstation_project_config():
             "features": [
                 "organizations:relay-playstation-ingestion",
                 "projects:relay-upload-endpoint",
+                "organizations:relay-new-error-processing",
             ],
         }
     }
@@ -442,8 +443,7 @@ def test_playstation_large_attachments(
     video_attachment = [
         a for a in event["attachments"] if a["name"] == "crash-video.webm"
     ][0]
-    location_uri = chunks[video_attachment["id"]].decode()
-    video_key = location_uri.split("/upload/")[1].split("/")[0]
+    video_key = video_attachment["stored_id"]
     objectstore_session = objectstore("attachments", PROJECT_ID)
     assert objectstore_session.get(video_key).payload.read() == video_content.encode()
 
@@ -727,7 +727,7 @@ def test_event_merging(
             "id": "legacy:2019-03-12",
         },
         "_metrics": {
-            "bytes.ingested.event": 725,
+            "bytes.ingested.event": 836,
             "bytes.ingested.event.minidump": 60446,
             "bytes.ingested.event.attachment": 158008,
         },

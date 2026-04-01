@@ -32,6 +32,7 @@ use crate::services::objectstore::{self, Objectstore};
 use crate::services::upstream::{
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
+use crate::utils::MeteredStream;
 use crate::utils::{BoundedStream, tus};
 
 /// The URL template for uploading bytes to a known location.
@@ -90,6 +91,9 @@ pub struct Create {
     pub length: Option<usize>,
 }
 
+/// The type used to stream a request body.
+pub type ByteStream = BoxStream<'static, std::io::Result<Bytes>>;
+
 /// A stream of bytes to be uploaded to objectstore or the upstream.
 pub struct Stream {
     /// Time of arrival of the request.
@@ -99,7 +103,7 @@ pub struct Stream {
     /// The location to upload to.
     pub location: SignedLocation,
     /// The body to be uploaded to objectstore, with length validation.
-    pub stream: BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>,
+    pub stream: BoundedStream<MeteredStream<ByteStream>>,
 }
 
 impl FromMessage<Create> for Upload {
@@ -381,7 +385,7 @@ impl SignedLocation {
     ///
     /// Fails if the signature is outdated or incorrect.
     #[cfg(feature = "processing")]
-    fn verify(self, received: DateTime<Utc>, config: &Config) -> Result<Location, Error> {
+    pub fn verify(self, received: DateTime<Utc>, config: &Config) -> Result<Location, Error> {
         let public_key = config.public_key().ok_or(Error::SigningFailed)?;
         let is_valid = self.signature.verify(
             self.location.as_uri().as_bytes(),
@@ -411,7 +415,7 @@ impl SignedLocation {
         }
     }
 
-    fn try_from_str(uri: &str) -> Option<Self> {
+    pub fn try_from_str(uri: &str) -> Option<Self> {
         static ROUTER: std::sync::LazyLock<matchit::Router<()>> = std::sync::LazyLock::new(|| {
             let mut router = matchit::Router::new();
             router
@@ -440,14 +444,13 @@ enum RequestKind {
     },
     Upload {
         location: SignedLocation,
-        stream: Option<BoundedStream<BoxStream<'static, std::io::Result<Bytes>>>>,
+        stream: Option<BoundedStream<MeteredStream<ByteStream>>>,
     },
 }
 
 /// An upstream request made to the `/upload` endpoint.
 struct UploadRequest {
     scoping: Scoping,
-    timeout: Option<Duration>,
     kind: RequestKind,
     sender: oneshot::Sender<Result<Response, UpstreamRequestError>>,
 }
@@ -465,7 +468,6 @@ impl UploadRequest {
         (
             Self {
                 scoping,
-                timeout: None, // will be set by `configure()`
                 kind: RequestKind::Create { length },
                 sender,
             },
@@ -490,7 +492,6 @@ impl UploadRequest {
         (
             Self {
                 scoping,
-                timeout: None, // will be set by `configure()`
                 kind: RequestKind::Upload {
                     location,
                     stream: Some(stream),
@@ -542,10 +543,6 @@ impl UpstreamRequest for UploadRequest {
         "upload"
     }
 
-    fn configure(&mut self, config: &Config) {
-        self.timeout = Some(Duration::from_secs(config.upload().timeout));
-    }
-
     fn respond(
         self: Box<Self>,
         result: Result<Response, UpstreamRequestError>,
@@ -582,14 +579,7 @@ impl UpstreamRequest for UploadRequest {
 
         let project_key = self.scoping.project_key;
         builder.header("X-Sentry-Auth", format!("Sentry sentry_key={project_key}"));
-
-        debug_assert!(
-            self.timeout.is_some(),
-            "timeout should be set by UpstreamRequest::configure()"
-        );
-        if let Some(timeout) = self.timeout {
-            builder.timeout(timeout);
-        }
+        builder.timeout(Duration::MAX); // rely on service timeout to cancel requests
 
         Ok(())
     }
