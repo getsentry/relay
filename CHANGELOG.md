@@ -19,6 +19,7 @@
 - Envelope buffer: Add option to disable flush-to-disk on shutdown. ([#5751](https://github.com/getsentry/relay/pull/5751))
 - Allow configuring Objectstore client auth parameters. ([#5720](https://github.com/getsentry/relay/pull/5720))
 - Metric size limit per metric default changed to 1mib. ([#5779](https://github.com/getsentry/relay/pull/5779))
+- Use `gen_ai.function_id` as a fallback for `gen_ai.agent.name`. ([#5776](https://github.com/getsentry/relay/pull/5776))
 
 **Internal**:
 

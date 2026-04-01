@@ -390,6 +390,7 @@ def test_ai_spans_example_transaction(
                 "gen_ai.cost.input_tokens": {"type": "double", "value": 2.45},
                 "gen_ai.cost.output_tokens": {"type": "double", "value": 1.3},
                 "gen_ai.cost.total_tokens": {"type": "double", "value": 3.75},
+                "gen_ai.agent.name": {"type": "string", "value": "weather-chat"},
                 "gen_ai.function_id": {"type": "string", "value": "weather-chat"},
                 "gen_ai.operation.type": {"type": "string", "value": "agent"},
                 "gen_ai.prompt": {"type": "string", "value": "Weather Prompt"},
@@ -478,6 +479,7 @@ def test_ai_spans_example_transaction(
                 "gen_ai.cost.input_tokens": {"type": "double", "value": 0.37},
                 "gen_ai.cost.output_tokens": {"type": "double", "value": 0.92},
                 "gen_ai.cost.total_tokens": {"type": "double", "value": 1.29},
+                "gen_ai.agent.name": {"type": "string", "value": "weather-chat"},
                 "gen_ai.function_id": {"type": "string", "value": "weather-chat"},
                 "gen_ai.operation.type": {"type": "string", "value": "ai_client"},
                 "gen_ai.request.available_tools": {
@@ -966,6 +968,7 @@ def test_ai_spans_example_transaction(
                 "gen_ai.cost.input_tokens": {"type": "double", "value": 2.08},
                 "gen_ai.cost.output_tokens": {"type": "double", "value": 0.38},
                 "gen_ai.cost.total_tokens": {"type": "double", "value": 2.46},
+                "gen_ai.agent.name": {"type": "string", "value": "weather-chat"},
                 "gen_ai.function_id": {"type": "string", "value": "weather-chat"},
                 "gen_ai.operation.type": {"type": "string", "value": "ai_client"},
                 "gen_ai.request.available_tools": {

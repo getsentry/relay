@@ -10,6 +10,7 @@ use crate::envelope::ItemType;
 use crate::managed::{Managed, ManagedEnvelope, OutcomeError, Rejected};
 use crate::processing::transactions::process::{SamplingOutput, split_indexed_and_total};
 use crate::processing::transactions::types::{SerializedTransaction, TransactionOutput};
+use crate::processing::utils::attachments;
 use crate::processing::utils::event::event_type;
 use crate::processing::{Context, Output, Processor, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
@@ -135,7 +136,7 @@ impl Processor for TransactionProcessor {
         let mut tx = process::expand(tx)?;
 
         relay_log::trace!("Validate attachments");
-        process::validate_attachments(&mut tx, ctx);
+        attachments::validate_attachments(&mut tx, |t| &mut t.attachments, ctx);
 
         relay_log::trace!("Prepare transaction data");
         process::prepare_data(&mut tx, &mut ctx, &mut metrics)?;

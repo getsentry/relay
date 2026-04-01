@@ -330,6 +330,13 @@ fn enrich_ai_span_data(
         data.gen_ai_response_model.set_value(Some(request_model));
     }
 
+    // Default agent name to function_id if not set.
+    if data.gen_ai_agent_name.value().is_none()
+        && let Some(function_id) = data.gen_ai_function_id.value().cloned()
+    {
+        data.gen_ai_agent_name.set_value(Some(function_id));
+    }
+
     if let Some(model_costs) = model_costs {
         extract_ai_data(data, duration, model_costs, origin, platform);
     } else {
@@ -711,6 +718,43 @@ mod tests {
           "gen_ai.response.model": "gpt-4-abcd",
           "gen_ai.request.model": "gpt-4",
           "gen_ai.operation.type": "ai_client"
+        }
+        "#);
+    }
+
+    /// Test that gen_ai.agent.name is defaulted from gen_ai.function_id.
+    #[test]
+    fn test_default_agent_name_from_function_id() {
+        let mut span = ai_span_with_data(json!({
+            "gen_ai.function_id": "my-agent",
+        }));
+
+        enrich_ai_span(&mut span, None);
+
+        assert_annotated_snapshot!(&span.data, @r#"
+        {
+          "gen_ai.operation.type": "ai_client",
+          "gen_ai.agent.name": "my-agent",
+          "gen_ai.function_id": "my-agent"
+        }
+        "#);
+    }
+
+    /// Test that gen_ai.agent.name is not overridden when already set.
+    #[test]
+    fn test_default_agent_name_not_overridden() {
+        let mut span = ai_span_with_data(json!({
+            "gen_ai.function_id": "my-function",
+            "gen_ai.agent.name": "my-agent",
+        }));
+
+        enrich_ai_span(&mut span, None);
+
+        assert_annotated_snapshot!(&span.data, @r#"
+        {
+          "gen_ai.operation.type": "ai_client",
+          "gen_ai.agent.name": "my-agent",
+          "gen_ai.function_id": "my-function"
         }
         "#);
     }
