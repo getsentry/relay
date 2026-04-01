@@ -227,6 +227,8 @@ impl CountRateLimited for Managed<SerializedProfileChunks> {
 
 #[cfg(test)]
 mod tests {
+    use similar_asserts::assert_eq;
+
     use crate::envelope::ContentType;
 
     use super::*;

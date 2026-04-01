@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 use data_encoding::HEXLOWER;
 use hashbrown::{HashMap, HashSet};
 use prost::Message;
+
 use relay_event_schema::protocol::{Addr, DebugId};
 use relay_protocol::FiniteF64;
 
@@ -76,7 +77,7 @@ fn extract_clock_offset(cs: &proto::ClockSnapshot) -> Option<i128> {
 /// Per the Perfetto spec, each `InternedData` field constructs its **own**
 /// interning index — IDs are scoped per field, not shared across string types.
 /// See <https://android.googlesource.com/platform/external/perfetto/+/refs/heads/master/protos/perfetto/trace/interned_data/interned_data.proto>.
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct InternTables {
     function_names: HashMap<u64, String>,
     mapping_paths: HashMap<u64, String>,
@@ -153,7 +154,7 @@ impl InternTables {
 /// Two Perfetto frames that resolve to the same function, module, package,
 /// and instruction address are considered identical and share a single index
 /// in the output frame list.
-#[derive(Hash, Eq, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 struct FrameKey {
     function: Option<String>,
     module: Option<String>,
@@ -172,6 +173,9 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
     let mut raw_samples: Vec<(u64, u32, u64, u32)> = Vec::new();
     let mut clock_offset_ns: Option<i128> = None;
     let mut observed_pid: Option<u32> = None;
+    // Maps trusted_packet_sequence_id → tid for StreamingProfilePacket,
+    // resolved via the TrackDescriptor → ThreadDescriptor chain.
+    let mut seq_id_to_tid: HashMap<u32, u32> = HashMap::new();
 
     for packet in &trace.packet {
         let seq_id = trusted_packet_sequence_id(packet);
@@ -214,6 +218,11 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
                             name: thread.thread_name.clone(),
                             priority: None,
                         });
+                    // Associate this packet sequence with the thread so that
+                    // StreamingProfilePacket samples can resolve their tid.
+                    if seq_id != 0 {
+                        seq_id_to_tid.entry(seq_id).or_insert(tid as u32);
+                    }
                 }
             }
             Some(Data::PerfSample(ps)) => {
@@ -227,6 +236,7 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
                 }
             }
             Some(Data::StreamingProfilePacket(spp)) => {
+                let tid = seq_id_to_tid.get(&seq_id).copied().unwrap_or(0);
                 let mut ts = packet.timestamp.unwrap_or(0);
                 for (i, &cs_iid) in spp.callstack_iid.iter().enumerate() {
                     if let Some(&delta) = spp.timestamp_delta_us.get(i) {
@@ -235,7 +245,7 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
                         // `wrapping_add` of a wrapped negative value subtracts as expected.
                         ts = ts.wrapping_add((delta * 1000) as u64);
                     }
-                    raw_samples.push((ts, 0, cs_iid, seq_id));
+                    raw_samples.push((ts, tid, cs_iid, seq_id));
                 }
             }
             None => {}
@@ -1603,6 +1613,73 @@ mod tests {
             .collect();
         assert!(frame_names.contains(&"alpha"), "expected alpha frame");
         assert!(frame_names.contains(&"beta"), "expected beta frame");
+    }
+
+    #[test]
+    fn test_streaming_profile_resolves_tid_from_track_descriptor() {
+        // When a TrackDescriptor with a ThreadDescriptor is present for the same
+        // trusted_packet_sequence_id, StreamingProfilePacket samples should
+        // resolve the thread ID from that descriptor instead of defaulting to 0.
+        let trace = proto::Trace {
+            packet: vec![
+                make_clock_snapshot_packet(),
+                make_interned_data_packet(
+                    1,
+                    true,
+                    proto::InternedData {
+                        function_names: vec![make_interned_string(1, b"func_a")],
+                        frames: vec![make_frame(1, 1)],
+                        callstacks: vec![proto::Callstack {
+                            iid: Some(10),
+                            frame_ids: vec![1],
+                        }],
+                        ..Default::default()
+                    },
+                ),
+                // TrackDescriptor associating seq_id=1 with tid=42.
+                proto::TracePacket {
+                    timestamp: None,
+                    interned_data: None,
+                    sequence_flags: None,
+                    optional_trusted_packet_sequence_id: Some(
+                        proto::trace_packet::OptionalTrustedPacketSequenceId::TrustedPacketSequenceId(1),
+                    ),
+                    data: Some(Data::TrackDescriptor(proto::TrackDescriptor {
+                        uuid: None,
+                        thread: Some(proto::ThreadDescriptor {
+                            pid: Some(100),
+                            tid: Some(42),
+                            thread_name: Some("worker".to_owned()),
+                        }),
+                    })),
+                },
+                // StreamingProfilePacket on seq_id=1 should get tid=42.
+                proto::TracePacket {
+                    timestamp: Some(2_000_000_000),
+                    interned_data: None,
+                    sequence_flags: None,
+                    optional_trusted_packet_sequence_id: Some(
+                        proto::trace_packet::OptionalTrustedPacketSequenceId::TrustedPacketSequenceId(1),
+                    ),
+                    data: Some(Data::StreamingProfilePacket(
+                        proto::StreamingProfilePacket {
+                            callstack_iid: vec![10],
+                            timestamp_delta_us: vec![0],
+                        },
+                    )),
+                },
+            ],
+        };
+        let bytes = trace.encode_to_vec();
+        let (data, _images) = convert(&bytes).unwrap();
+
+        assert_eq!(data.samples.len(), 1);
+        assert_eq!(
+            data.samples[0].thread_id, "42",
+            "StreamingProfilePacket should resolve tid from TrackDescriptor"
+        );
+        assert!(data.thread_metadata.contains_key("42"));
+        assert_eq!(data.thread_metadata["42"].name.as_deref(), Some("worker"));
     }
 
     #[test]

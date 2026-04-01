@@ -1,3 +1,5 @@
+use std::net::IpAddr;
+
 use relay_dynamic_config::Feature;
 use relay_profiling::ProfileType;
 use relay_quotas::DataCategory;
@@ -5,7 +7,7 @@ use relay_quotas::DataCategory;
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::processing::Context;
 use crate::processing::Managed;
-use crate::processing::profile_chunks::{Result, SerializedProfileChunks};
+use crate::processing::profile_chunks::{Error, Result, SerializedProfileChunks};
 use crate::statsd::RelayCounters;
 use crate::utils;
 
@@ -98,7 +100,7 @@ fn process_compound_item(
     item: &mut Item,
     meta_length: u32,
     sdk: &str,
-    client_ip: Option<std::net::IpAddr>,
+    client_ip: Option<IpAddr>,
     filter_settings: &relay_filter::ProjectFiltersConfig,
     ctx: Context<'_>,
     records: &mut crate::managed::RecordKeeper,
@@ -120,7 +122,7 @@ fn process_compound_item(
     }
 
     if ctx.should_filter(Feature::ContinuousProfilingPerfetto) {
-        return Err(relay_profiling::ProfileError::PlatformNotSupported.into());
+        return Err(Error::FilterFeatureFlag);
     }
 
     let expanded = relay_profiling::expand_perfetto(raw_profile, meta_json)?;
@@ -171,6 +173,8 @@ fn process_compound_item(
 
 #[cfg(test)]
 mod tests {
+    use similar_asserts::assert_eq;
+
     use relay_dynamic_config::{Feature, FeatureSet, ProjectConfig};
 
     use super::*;
