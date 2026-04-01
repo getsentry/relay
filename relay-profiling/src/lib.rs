@@ -368,8 +368,6 @@ pub struct ExpandedPerfettoChunk {
     pub platform: String,
     /// Release string from the metadata, used for inbound filtering.
     release: Option<String>,
-    /// Content type of the original binary payload (e.g. `"perfetto"`).
-    pub content_type: Option<String>,
 }
 
 impl ExpandedPerfettoChunk {
@@ -423,7 +421,6 @@ pub fn expand_perfetto(
 
     let platform = metadata.platform.clone();
     let release = metadata.release.clone();
-    let content_type = metadata.content_type.clone();
 
     let (profile_data, debug_images) = perfetto::convert(perfetto_bytes)?;
     let mut chunk = sample::v2::ProfileChunk {
@@ -439,7 +436,6 @@ pub fn expand_perfetto(
         payload,
         platform,
         release,
-        content_type,
     })
 }
 

@@ -112,9 +112,15 @@ fn process_compound_item(
         return Err(relay_profiling::ProfileError::InvalidSampledProfile.into());
     };
 
-    let expanded = relay_profiling::expand_perfetto(raw_profile, meta_json)?;
-
-    match expanded.content_type.as_deref() {
+    #[derive(serde::Deserialize)]
+    struct ContentTypeProbe {
+        content_type: Option<String>,
+    }
+    match serde_json::from_slice::<ContentTypeProbe>(meta_json)
+        .ok()
+        .and_then(|v| v.content_type)
+        .as_deref()
+    {
         Some("perfetto") => {}
         _ => return Err(relay_profiling::ProfileError::PlatformNotSupported.into()),
     }
@@ -122,6 +128,8 @@ fn process_compound_item(
     if ctx.should_filter(Feature::ContinuousProfilingPerfetto) {
         return Err(Error::FilterFeatureFlag);
     }
+
+    let expanded = relay_profiling::expand_perfetto(raw_profile, meta_json)?;
 
     if expanded.payload.len() > ctx.config.max_profile_size() {
         return Err(relay_profiling::ProfileError::ExceedSizeLimit.into());
