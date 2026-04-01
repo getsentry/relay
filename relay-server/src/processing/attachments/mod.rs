@@ -4,6 +4,7 @@ use relay_quotas::RateLimits;
 
 use crate::envelope::{EnvelopeHeaders, Item, ItemType, Items};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
+use crate::processing::utils::attachments;
 use crate::processing::{self, CountRateLimited, Output, QuotaRateLimiter};
 #[cfg(feature = "processing")]
 use crate::services::outcome::DiscardReason;
@@ -125,7 +126,7 @@ impl processing::Processor for AttachmentProcessor {
             }
         }
 
-        process::validate_attachments(&mut attachments, ctx);
+        attachments::validate_attachments(&mut attachments, |a| &mut a.attachments, ctx);
         let mut attachments = self.limiter.enforce_quotas(attachments, ctx).await?;
         process::scrub(&mut attachments, ctx)?;
 
