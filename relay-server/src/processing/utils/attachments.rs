@@ -8,15 +8,33 @@ use relay_statsd::metric;
 #[cfg(feature = "processing")]
 use crate::envelope::AttachmentPlaceholder;
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
-use crate::managed::RecordKeeper;
+use crate::managed::{Counted, Managed, RecordKeeper, RetainMut};
+use crate::processing::Context;
 use crate::services::processor::ProcessingError;
 use crate::statsd::RelayTimers;
 
 use crate::services::projects::project::ProjectInfo;
 use relay_dynamic_config::Feature;
 
+/// Validates the attachments and drop any invalid ones.
+///
+/// An attachment might be a placeholder, in which case it needs to be validated.
+pub fn validate_attachments<T, V>(
+    managed: &mut Managed<T>,
+    select: impl FnOnce(&mut T) -> &mut V,
+    ctx: Context<'_>,
+) where
+    T: Counted,
+    V: RetainMut<Item>,
+{
+    if !ctx.is_processing() {
+        return;
+    }
+    managed.retain(select, |attachment, _| validate(attachment, ctx.config));
+}
+
 #[cfg_attr(not(feature = "processing"), expect(unused_variables))]
-pub fn validate(item: &Item, config: &Config) -> Result<(), ProcessingError> {
+fn validate(item: &Item, config: &Config) -> Result<(), ProcessingError> {
     #[cfg(not(feature = "processing"))]
     return Ok(());
 
