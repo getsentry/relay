@@ -169,13 +169,25 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
 
     let mut tables_by_seq: HashMap<u32, InternTables> = HashMap::new();
     let mut thread_meta: BTreeMap<String, ThreadMetadata> = BTreeMap::new();
-    // (timestamp_ns, tid, callstack_iid, sequence_id)
-    let mut raw_samples: Vec<(u64, u32, u64, u32)> = Vec::new();
     let mut clock_offset_ns: Option<i128> = None;
     let mut observed_pid: Option<u32> = None;
     // Maps trusted_packet_sequence_id → tid for StreamingProfilePacket,
     // resolved via the TrackDescriptor → ThreadDescriptor chain.
     let mut seq_id_to_tid: HashMap<u32, u32> = HashMap::new();
+
+    // Samples are resolved eagerly during packet iteration (single-pass) so
+    // that incremental state resets don't cause earlier samples to be resolved
+    // against a post-reset intern table. We collect (ts_ns, tid, stack_id)
+    // tuples and apply clock offset + sorting after the loop.
+    let mut frame_index: HashMap<FrameKey, usize> = HashMap::new();
+    let mut frames: Vec<Frame> = Vec::new();
+    let mut stack_index: HashMap<Vec<usize>, usize> = HashMap::new();
+    let mut stacks: Vec<Vec<usize>> = Vec::new();
+    // (timestamp_ns, tid, stack_id)
+    let mut resolved_samples: Vec<(u64, u32, usize)> = Vec::new();
+    let mut sample_count: usize = 0;
+    let mut debug_images: Vec<DebugImage> = Vec::new();
+    let mut seen_images: HashSet<(String, u64)> = HashSet::new();
 
     for packet in &trace.packet {
         let seq_id = trusted_packet_sequence_id(packet);
@@ -232,7 +244,20 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
                     if observed_pid.is_none() {
                         observed_pid = ps.pid;
                     }
-                    raw_samples.push((ts, tid, callstack_iid, seq_id));
+                    sample_count += 1;
+                    if let Some(stack_id) = resolve_callstack(
+                        callstack_iid,
+                        seq_id,
+                        &tables_by_seq,
+                        &mut frame_index,
+                        &mut frames,
+                        &mut stack_index,
+                        &mut stacks,
+                        &mut debug_images,
+                        &mut seen_images,
+                    ) {
+                        resolved_samples.push((ts, tid, stack_id));
+                    }
                 }
             }
             Some(Data::StreamingProfilePacket(spp)) => {
@@ -245,18 +270,31 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
                         // `wrapping_add` of a wrapped negative value subtracts as expected.
                         ts = ts.wrapping_add((delta * 1000) as u64);
                     }
-                    raw_samples.push((ts, tid, cs_iid, seq_id));
+                    sample_count += 1;
+                    if let Some(stack_id) = resolve_callstack(
+                        cs_iid,
+                        seq_id,
+                        &tables_by_seq,
+                        &mut frame_index,
+                        &mut frames,
+                        &mut stack_index,
+                        &mut stacks,
+                        &mut debug_images,
+                        &mut seen_images,
+                    ) {
+                        resolved_samples.push((ts, tid, stack_id));
+                    }
                 }
             }
             None => {}
         }
 
-        if raw_samples.len() > MAX_SAMPLES {
+        if sample_count > MAX_SAMPLES {
             return Err(ProfileError::ExceedSizeLimit);
         }
     }
 
-    if raw_samples.is_empty() {
+    if resolved_samples.is_empty() {
         return Err(ProfileError::NotEnoughSamples);
     }
 
@@ -275,65 +313,10 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
 
     let clock_offset_ns = clock_offset_ns.ok_or(ProfileError::InvalidSampledProfile)?;
 
-    raw_samples.sort_by_key(|s| s.0);
+    resolved_samples.sort_by_key(|s| s.0);
 
-    let empty_tables = InternTables::default();
-    let mut frame_index: HashMap<FrameKey, usize> = HashMap::new();
-    let mut frames: Vec<Frame> = Vec::new();
-    let mut stack_index: HashMap<Vec<usize>, usize> = HashMap::new();
-    let mut stacks: Vec<Vec<usize>> = Vec::new();
     let mut samples: Vec<Sample> = Vec::new();
-    let mut referenced_mappings: HashSet<(u32, u64)> = HashSet::new();
-
-    for &(ts_ns, tid, cs_iid, seq_id) in &raw_samples {
-        let tables = tables_by_seq.get(&seq_id).unwrap_or(&empty_tables);
-
-        let Some(callstack) = tables.callstacks.get(&cs_iid) else {
-            continue;
-        };
-
-        let mut resolved_frame_indices: Vec<usize> = Vec::with_capacity(callstack.frame_ids.len());
-
-        for &frame_iid in &callstack.frame_ids {
-            let Some(pf) = tables.frames.get(&frame_iid) else {
-                continue;
-            };
-
-            let function_name = pf
-                .function_name_id
-                .and_then(|id| tables.function_names.get(&id))
-                .cloned();
-
-            if let Some(mid) = pf.mapping_id {
-                referenced_mappings.insert((seq_id, mid));
-            }
-
-            let (key, frame) = build_frame(function_name, pf, tables);
-
-            let idx = if let Some(&existing) = frame_index.get(&key) {
-                existing
-            } else {
-                let idx = frames.len();
-                frame_index.insert(key, idx);
-                frames.push(frame);
-                idx
-            };
-
-            resolved_frame_indices.push(idx);
-        }
-
-        // Perfetto stacks are root-first, Sample v2 is leaf-first.
-        resolved_frame_indices.reverse();
-
-        let stack_id = if let Some(&existing) = stack_index.get(&resolved_frame_indices) {
-            existing
-        } else {
-            let id = stacks.len();
-            stack_index.insert(resolved_frame_indices.clone(), id);
-            stacks.push(resolved_frame_indices);
-            id
-        };
-
+    for &(ts_ns, tid, stack_id) in &resolved_samples {
         // Compute absolute timestamp in integer nanoseconds first, then convert
         // to f64 seconds once to avoid precision loss from adding large floats.
         let abs_ns = ts_ns as i128 + clock_offset_ns;
@@ -353,61 +336,6 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
         return Err(ProfileError::NotEnoughSamples);
     }
 
-    // Build debug images from referenced native mappings.
-    let mut debug_images: Vec<DebugImage> = Vec::new();
-    let mut seen_images: HashSet<(String, u64)> = HashSet::new();
-
-    for &(seq_id, mapping_id) in &referenced_mappings {
-        let Some(tables) = tables_by_seq.get(&seq_id) else {
-            continue;
-        };
-        let Some(mapping) = tables.mappings.get(&mapping_id) else {
-            continue;
-        };
-
-        let code_file = {
-            let parts: Vec<&str> = mapping
-                .path_string_ids
-                .iter()
-                .filter_map(|id| tables.mapping_paths.get(id).map(|s| s.as_str()))
-                .collect();
-            if parts.is_empty() {
-                continue;
-            }
-            parts.join("/")
-        };
-
-        if is_java_mapping(&code_file) {
-            continue;
-        }
-
-        let image_addr = mapping.start.unwrap_or(0);
-
-        if !seen_images.insert((code_file.clone(), image_addr)) {
-            continue;
-        }
-
-        let debug_id = mapping
-            .build_id
-            .and_then(|bid| tables.build_ids.get(&bid))
-            .and_then(|hex_str| build_id_to_debug_id(hex_str));
-
-        let Some(debug_id) = debug_id else {
-            continue;
-        };
-
-        let image_size = mapping.end.unwrap_or(0).saturating_sub(image_addr);
-        let image_vmaddr = mapping.load_bias.unwrap_or(0);
-
-        debug_images.push(DebugImage::native_image(
-            code_file,
-            debug_id,
-            image_addr,
-            image_vmaddr,
-            image_size,
-        ));
-    }
-
     Ok((
         ProfileData {
             samples,
@@ -417,6 +345,127 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
         },
         debug_images,
     ))
+}
+
+/// Resolves a callstack iid against the current intern tables, deduplicating
+/// frames and stacks, and collecting debug images for native mappings.
+///
+/// Returns `Some(stack_id)` if the callstack was resolved, or `None` if the
+/// callstack iid was not found in the tables.
+#[allow(clippy::too_many_arguments)]
+fn resolve_callstack(
+    cs_iid: u64,
+    seq_id: u32,
+    tables_by_seq: &HashMap<u32, InternTables>,
+    frame_index: &mut HashMap<FrameKey, usize>,
+    frames: &mut Vec<Frame>,
+    stack_index: &mut HashMap<Vec<usize>, usize>,
+    stacks: &mut Vec<Vec<usize>>,
+    debug_images: &mut Vec<DebugImage>,
+    seen_images: &mut HashSet<(String, u64)>,
+) -> Option<usize> {
+    let empty_tables = InternTables::default();
+    let tables = tables_by_seq.get(&seq_id).unwrap_or(&empty_tables);
+
+    let callstack = tables.callstacks.get(&cs_iid)?;
+
+    let mut resolved_frame_indices: Vec<usize> = Vec::with_capacity(callstack.frame_ids.len());
+
+    for &frame_iid in &callstack.frame_ids {
+        let Some(pf) = tables.frames.get(&frame_iid) else {
+            continue;
+        };
+
+        let function_name = pf
+            .function_name_id
+            .and_then(|id| tables.function_names.get(&id))
+            .cloned();
+
+        if let Some(mid) = pf.mapping_id {
+            collect_debug_image(mid, tables, debug_images, seen_images);
+        }
+
+        let (key, frame) = build_frame(function_name, pf, tables);
+
+        let idx = if let Some(&existing) = frame_index.get(&key) {
+            existing
+        } else {
+            let idx = frames.len();
+            frame_index.insert(key, idx);
+            frames.push(frame);
+            idx
+        };
+
+        resolved_frame_indices.push(idx);
+    }
+
+    // Perfetto stacks are root-first, Sample v2 is leaf-first.
+    resolved_frame_indices.reverse();
+
+    let stack_id = if let Some(&existing) = stack_index.get(&resolved_frame_indices) {
+        existing
+    } else {
+        let id = stacks.len();
+        stack_index.insert(resolved_frame_indices.clone(), id);
+        stacks.push(resolved_frame_indices);
+        id
+    };
+
+    Some(stack_id)
+}
+
+/// Collects a debug image from a native mapping if not already seen.
+fn collect_debug_image(
+    mapping_id: u64,
+    tables: &InternTables,
+    debug_images: &mut Vec<DebugImage>,
+    seen_images: &mut HashSet<(String, u64)>,
+) {
+    let Some(mapping) = tables.mappings.get(&mapping_id) else {
+        return;
+    };
+
+    let code_file = {
+        let parts: Vec<&str> = mapping
+            .path_string_ids
+            .iter()
+            .filter_map(|id| tables.mapping_paths.get(id).map(|s| s.as_str()))
+            .collect();
+        if parts.is_empty() {
+            return;
+        }
+        parts.join("/")
+    };
+
+    if is_java_mapping(&code_file) {
+        return;
+    }
+
+    let image_addr = mapping.start.unwrap_or(0);
+
+    if !seen_images.insert((code_file.clone(), image_addr)) {
+        return;
+    }
+
+    let debug_id = mapping
+        .build_id
+        .and_then(|bid| tables.build_ids.get(&bid))
+        .and_then(|hex_str| build_id_to_debug_id(hex_str));
+
+    let Some(debug_id) = debug_id else {
+        return;
+    };
+
+    let image_size = mapping.end.unwrap_or(0).saturating_sub(image_addr);
+    let image_vmaddr = mapping.load_bias.unwrap_or(0);
+
+    debug_images.push(DebugImage::native_image(
+        code_file,
+        debug_id,
+        image_addr,
+        image_vmaddr,
+        image_size,
+    ));
 }
 
 /// Resolves a Perfetto frame into a [`FrameKey`] and a Sample v2 [`Frame`].
@@ -971,6 +1020,71 @@ mod tests {
         // After reset, "old_func" should be gone; only "new_func" remains.
         assert_eq!(data.frames.len(), 1);
         assert_eq!(data.frames[0].function.as_deref(), Some("new_func"));
+    }
+
+    #[test]
+    fn test_incremental_state_reset_with_samples_before_and_after() {
+        // Samples collected before an incremental state reset must resolve
+        // against the pre-reset intern tables, not the post-reset ones.
+        // This catches the two-pass bug where deferred resolution would use
+        // the final (post-reset) table state for all samples.
+        let trace = proto::Trace {
+            packet: vec![
+                make_clock_snapshot_packet(),
+                // Pre-reset: iid 1 = "old_func".
+                make_interned_data_packet(
+                    1,
+                    true,
+                    proto::InternedData {
+                        function_names: vec![make_interned_string(1, b"old_func")],
+                        frames: vec![make_frame(1, 1)],
+                        callstacks: vec![proto::Callstack {
+                            iid: Some(1),
+                            frame_ids: vec![1],
+                        }],
+                        ..Default::default()
+                    },
+                ),
+                // Sample BEFORE reset — should resolve to "old_func".
+                make_perf_sample_packet(1_000_000_000, 1, 1, 1),
+                // State reset: iid 1 now = "new_func".
+                make_interned_data_packet(
+                    1,
+                    true,
+                    proto::InternedData {
+                        function_names: vec![make_interned_string(1, b"new_func")],
+                        frames: vec![make_frame(1, 1)],
+                        callstacks: vec![proto::Callstack {
+                            iid: Some(1),
+                            frame_ids: vec![1],
+                        }],
+                        ..Default::default()
+                    },
+                ),
+                // Sample AFTER reset — should resolve to "new_func".
+                make_perf_sample_packet(1_010_000_000, 1, 1, 1),
+            ],
+        };
+        let bytes = trace.encode_to_vec();
+        let (data, _images) = convert(&bytes).unwrap();
+
+        assert_eq!(data.samples.len(), 2);
+        // Both functions must be present — the pre-reset sample must NOT
+        // silently resolve to "new_func".
+        assert_eq!(data.frames.len(), 2);
+        let frame_names: Vec<_> = data
+            .frames
+            .iter()
+            .map(|f| f.function.as_deref().unwrap_or(""))
+            .collect();
+        assert!(
+            frame_names.contains(&"old_func"),
+            "expected old_func from pre-reset sample, got: {frame_names:?}"
+        );
+        assert!(
+            frame_names.contains(&"new_func"),
+            "expected new_func from post-reset sample, got: {frame_names:?}"
+        );
     }
 
     #[test]
