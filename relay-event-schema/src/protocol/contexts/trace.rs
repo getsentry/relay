@@ -1,4 +1,3 @@
-use rand::RngCore;
 use relay_protocol::{
     Annotated, Array, Empty, Error, FromValue, HexId, IntoValue, Meta, Object, Remark, RemarkType,
     SkipSerialization, Val, Value,

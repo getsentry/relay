@@ -166,6 +166,9 @@ pub struct NormalizationConfig<'a> {
 
     /// Set a flag to enable performance issue detection on spans.
     pub performance_issues_spans: bool,
+
+    /// Should add a random trace ID to events that lack one.
+    pub should_add_trace_id_by_default: bool,
 }
 
 impl Default for NormalizationConfig<'_> {
@@ -201,6 +204,7 @@ impl Default for NormalizationConfig<'_> {
             span_allowed_hosts: Default::default(),
             span_op_defaults: Default::default(),
             performance_issues_spans: Default::default(),
+            should_add_trace_id_by_default: Default::default(),
         }
     }
 }
@@ -337,7 +341,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     let event_id = event.id.value().unwrap().0;
 
     // Some contexts need to be normalized before metrics extraction takes place.
-    normalize_contexts(&mut event.contexts, event_id);
+    normalize_contexts(&mut event.contexts, event_id, config);
 
     if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
         span::reparent_broken_spans::reparent_broken_spans(event);
@@ -1310,9 +1314,15 @@ fn remove_logger_word(tokens: &mut Vec<&str>) {
 }
 
 /// Normalizes incoming contexts for the downstream metric extraction.
-fn normalize_contexts(contexts: &mut Annotated<Contexts>, event_id: Uuid) {
-    // We will always need a TraceContext.
-    let _ = contexts.get_or_insert_with(Contexts::new);
+fn normalize_contexts(
+    contexts: &mut Annotated<Contexts>,
+    event_id: Uuid,
+    config: &NormalizationConfig,
+) {
+    if config.should_add_trace_id_by_default {
+        // We will always need a TraceContext.
+        let _ = contexts.get_or_insert_with(Contexts::new);
+    }
 
     let _ = processor::apply(contexts, |contexts, _meta| {
         // Reprocessing context sent from SDKs must not be accepted, it is a Sentry-internal
@@ -1323,7 +1333,7 @@ fn normalize_contexts(contexts: &mut Annotated<Contexts>, event_id: Uuid) {
         // We need a TraceId to ingest the event into EAP.
         // If the event lacks a TraceContext, add a random one.
 
-        if !contexts.contains::<TraceContext>() {
+        if config.should_add_trace_id_by_default && !contexts.contains::<TraceContext>() {
             contexts.add(TraceContext::random(event_id))
         }
 
