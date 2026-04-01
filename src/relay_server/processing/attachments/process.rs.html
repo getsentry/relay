@@ -16,28 +16,4 @@
 <a href=#16 id=16 data-nosnippet>16</a>        Ok::&lt;<span class="kw">_</span>, Error&gt;(())
 <a href=#17 id=17 data-nosnippet>17</a>    })
 <a href=#18 id=18 data-nosnippet>18</a>}
-<a href=#19 id=19 data-nosnippet>19</a>
-<a href=#20 id=20 data-nosnippet>20</a><span class="doccomment">/// Validates the attachments and drop any invalid ones.
-<a href=#21 id=21 data-nosnippet>21</a>///
-<a href=#22 id=22 data-nosnippet>22</a>/// An attachment might be a placeholder, in which case its signature needs to be verified.
-<a href=#23 id=23 data-nosnippet>23</a></span><span class="kw">pub fn </span>validate_attachments(
-<a href=#24 id=24 data-nosnippet>24</a>    attachments: <span class="kw-2">&amp;mut </span>Managed&lt;SerializedAttachments&gt;,
-<a href=#25 id=25 data-nosnippet>25</a>    ctx: processing::Context&lt;<span class="lifetime">'_</span>&gt;,
-<a href=#26 id=26 data-nosnippet>26</a>) {
-<a href=#27 id=27 data-nosnippet>27</a>    <span class="kw">if </span>!ctx.is_processing() {
-<a href=#28 id=28 data-nosnippet>28</a>        <span class="kw">return</span>;
-<a href=#29 id=29 data-nosnippet>29</a>    }
-<a href=#30 id=30 data-nosnippet>30</a>
-<a href=#31 id=31 data-nosnippet>31</a>    attachments.modify(|attachments, records| {
-<a href=#32 id=32 data-nosnippet>32</a>        attachments.attachments.retain_mut(|attachment| {
-<a href=#33 id=33 data-nosnippet>33</a>            <span class="kw">match </span>utils::attachments::validate(attachment, ctx.config) {
-<a href=#34 id=34 data-nosnippet>34</a>                <span class="prelude-val">Ok</span>(()) =&gt; <span class="bool-val">true</span>,
-<a href=#35 id=35 data-nosnippet>35</a>                <span class="prelude-val">Err</span>(err) =&gt; {
-<a href=#36 id=36 data-nosnippet>36</a>                    records.reject_err(err, <span class="kw-2">&amp;*</span>attachment);
-<a href=#37 id=37 data-nosnippet>37</a>                    <span class="bool-val">false
-<a href=#38 id=38 data-nosnippet>38</a>                </span>}
-<a href=#39 id=39 data-nosnippet>39</a>            }
-<a href=#40 id=40 data-nosnippet>40</a>        });
-<a href=#41 id=41 data-nosnippet>41</a>    });
-<a href=#42 id=42 data-nosnippet>42</a>}
 </code></pre></div></section></main></body></html>
