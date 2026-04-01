@@ -70,6 +70,7 @@ def test_mixed_attachments_with_processing(
             "rate_limited": False,
             "attachment_type": "event.attachment",
             "size": len(chunked_contents),
+            "retention_days": 90,
             "chunks": attachment_num_chunks[id1],
         },
         "event_id": event_id,
@@ -89,6 +90,7 @@ def test_mixed_attachments_with_processing(
             "rate_limited": False,
             "attachment_type": "event.attachment",
             "size": len(b"hell yeah"),
+            "retention_days": 90,
             "data": b"hell yeah",
         },
         "event_id": event_id,
@@ -110,6 +112,7 @@ def test_mixed_attachments_with_processing(
             "rate_limited": False,
             "attachment_type": "event.attachment",
             "size": 0,
+            "retention_days": 90,
             "chunks": 0,
         },
         "event_id": event_id,
@@ -166,6 +169,7 @@ def test_attachments_with_objectstore(
             "rate_limited": False,
             "attachment_type": "event.attachment",
             "size": len(chunked_contents),
+            "retention_days": 90,
         },
         "event_id": event_id,
         "project_id": project_id,
@@ -182,6 +186,7 @@ def test_attachments_with_objectstore(
             "rate_limited": False,
             "attachment_type": "event.attachment",
             "size": 0,
+            "retention_days": 90,
             "chunks": 0,
         },
         "event_id": event_id,
@@ -607,6 +612,7 @@ def test_view_hierarchy_processing(
             "content_type": "application/json",
             "attachment_type": "event.view_hierarchy",
             "size": len(expected_payload),
+            "retention_days": 90,
             "data": expected_payload,
         },
         "event_id": event_id,
@@ -666,6 +672,7 @@ def test_event_with_attachment(
             "content_type": "application/octet-stream",
             "attachment_type": "event.attachment",
             "size": len(b"event attachment"),
+            "retention_days": 90,
             **({"stored_id": mock.ANY} if use_objectstore else {"chunks": 1}),
         }
     ]
@@ -693,6 +700,7 @@ def test_event_with_attachment(
         "content_type": "application/octet-stream",
         "attachment_type": "event.attachment",
         "size": len(b"transaction attachment"),
+        "retention_days": 90,
         **(
             {"stored_id": mock.ANY}
             if use_objectstore
@@ -749,6 +757,7 @@ def test_form_data_is_rejected(
             "rate_limited": False,
             "attachment_type": "event.attachment",
             "size": len(b"file content"),
+            "retention_days": 90,
             "data": b"file content",
         },
         "event_id": event_id,

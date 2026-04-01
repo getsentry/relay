@@ -206,6 +206,7 @@ def test_attachment_ref(
         "size": len(attachment_data),
         "rate_limited": False,
         "stored_id": mock.ANY,
+        "retention_days": mock.ANY,
     }
 
     if event_type == "event":

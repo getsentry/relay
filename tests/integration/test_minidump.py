@@ -480,6 +480,7 @@ def test_minidump_with_processing(
                 "attachment_type": "event.minidump",
                 "content_type": "application/x-dmp",
                 "size": len(content),
+                "retention_days": 50000,
                 "chunks": num_chunks,
             }
         ]
@@ -497,6 +498,7 @@ def test_minidump_with_processing(
             "attachment_type": "event.minidump",
             "content_type": "application/x-dmp",
             "size": len(content),
+            "retention_days": 50000,
         }
 
     assert "errors" not in event
@@ -563,6 +565,7 @@ def test_minidump_with_processing_invalid(
             "content_type": "application/x-dmp",
             "attachment_type": "event.minidump",
             "size": len(content),
+            "retention_days": 90,
             "chunks": num_chunks,
         }
     ]
