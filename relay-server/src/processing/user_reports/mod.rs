@@ -87,12 +87,6 @@ impl Processor for UserReportsProcessor {
         mut reports: Managed<Self::Input>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
-        relay_statsd::metric!(
-            counter(RelayCounters::StandaloneItem) += reports.reports.len() as u64,
-            processor = "new",
-            item_type = "user_report",
-        );
-
         process::process(&mut reports);
 
         let reports = self.limiter.enforce_quotas(reports, ctx).await?;

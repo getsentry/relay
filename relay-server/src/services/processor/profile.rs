@@ -1,55 +1,9 @@
 //! Profiles related processor code.
 
-use relay_dynamic_config::Feature;
-
-use relay_config::Config;
-use relay_profiling::ProfileError;
-
-use crate::envelope::ItemType;
-use crate::managed::{ItemAction, TypedEnvelope};
-use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::should_filter;
-use crate::services::projects::project::ProjectInfo;
-
-pub fn filter<Group>(
-    managed_envelope: &mut TypedEnvelope<Group>,
-    config: &Config,
-    project_info: &ProjectInfo,
-) {
-    let profiling_disabled = should_filter(config, project_info, Feature::Profiling);
-
-    let mut saw_profile = false;
-    managed_envelope.retain_items(|item| match item.ty() {
-        ItemType::Profile if profiling_disabled => ItemAction::DropSilently,
-        // First profile found in the envelope, we'll keep it if metadata are valid.
-        ItemType::Profile if !saw_profile => {
-            // Drop profile without a transaction in the same envelope,
-            // except if unsampled profiles are allowed for this project.
-            let profile_allowed = !item.sampled();
-            if !profile_allowed {
-                return ItemAction::DropSilently;
-            }
-
-            match relay_profiling::parse_metadata(&item.payload()) {
-                Ok(_) => {
-                    saw_profile = true;
-                    ItemAction::Keep
-                }
-                Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                    relay_profiling::discard_reason(&err),
-                ))),
-            }
-        }
-        // We found another profile, we'll drop it.
-        ItemType::Profile => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-            relay_profiling::discard_reason(&ProfileError::TooManyProfiles),
-        ))),
-        _ => ItemAction::Keep,
-    });
-}
-
+// TODO: Not sure what to do with these tests now
 #[cfg(test)]
 mod tests {
+    use crate::envelope::ItemType;
     use crate::envelope::{ContentType, Envelope, Item};
     use crate::extractors::RequestMeta;
     use crate::managed::ManagedEnvelope;
@@ -59,12 +13,11 @@ mod tests {
     use crate::services::projects::project::ProjectInfo;
     use crate::testutils::create_test_processor;
     use insta::assert_debug_snapshot;
+    use relay_config::Config;
     use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig, TransactionMetricsConfig};
     use relay_event_schema::protocol::{Event, EventId, ProfileContext};
     use relay_protocol::Annotated;
     use relay_system::Addr;
-
-    use super::*;
 
     async fn process_event(envelope: Box<Envelope>) -> Result<Annotated<Event>, ProcessingError> {
         let config = Config::from_json_value(serde_json::json!({

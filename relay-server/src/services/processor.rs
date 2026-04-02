@@ -1507,9 +1507,8 @@ impl EnvelopeProcessorService {
 
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
+        // TODO: Not sure where to best move this logic
         standalone::process(managed_envelope);
-
-        profile::filter(managed_envelope, ctx.config, ctx.project_info);
 
         self.enforce_quotas(
             managed_envelope,
@@ -1518,8 +1517,6 @@ impl EnvelopeProcessorService {
             ctx,
         )
         .await?;
-
-        report::process_user_reports(managed_envelope);
 
         Ok(Some(extracted_metrics))
     }
