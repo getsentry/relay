@@ -118,3 +118,26 @@ def test_timeouts(mini_sentry, relay):
 
     response = relay.get("/api/test/timeout")
     assert response.status_code == 504
+
+
+@pytest.mark.parametrize(
+    "upstream_status",
+    [403, 404, 429, 500, 503],
+    ids=["forbidden", "not_found", "rate_limited", "server_error", "service_unavailable"],
+)
+def test_forwarding_error_status_codes(upstream_status, mini_sentry, relay):
+    """Test that Relay forwards error status codes from the upstream without converting them to 500."""
+    mini_sentry.fail_on_relay_error = False
+
+    @mini_sentry.app.route("/api/test/error-status")
+    def error_response():
+        return Response(
+            b'{"detail": "upstream error"}',
+            status=upstream_status,
+            content_type="application/json",
+        )
+
+    relay = relay(mini_sentry)
+
+    response = relay.get("/api/test/error-status")
+    assert response.status_code == upstream_status
