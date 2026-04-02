@@ -251,6 +251,22 @@ macro_rules! assert_annotated_snapshot {
     };
 }
 
+/// Asserts the snapshot of annotated contexts with common redactions
+#[cfg(feature = "test")]
+#[macro_export]
+macro_rules! assert_redacted_snapshot {
+    ($($arg:tt)*) => {
+        ::insta::assert_json_snapshot!(
+            $($arg)*,
+            {
+                ".event_id" => "[event-id]",
+                ".contexts.trace.trace_id" => "[trace-id]",
+                ".contexts.trace.span_id" => "[span-id]"
+            }
+        )
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use similar_asserts::assert_eq;

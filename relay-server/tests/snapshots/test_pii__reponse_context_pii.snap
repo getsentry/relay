@@ -1,9 +1,9 @@
 ---
 source: relay-server/tests/test_pii.rs
-expression: data
+expression: SerializableAnnotated(&data)
 ---
 {
-  "event_id": "7b9e89cf79ee451986112e0425fa9fd4",
+  "event_id": "[event-id]",
   "level": "error",
   "type": "default",
   "logger": "",
@@ -32,6 +32,12 @@ expression: data
       ],
       "status_code": 200,
       "type": "response"
+    },
+    "trace": {
+      "trace_id": "[trace-id]",
+      "span_id": "[span-id]",
+      "status": "unknown",
+      "type": "trace"
     }
   },
   "_meta": {
@@ -84,6 +90,28 @@ expression: data
                 "len": 8
               }
             }
+          }
+        }
+      },
+      "trace": {
+        "span_id": {
+          "": {
+            "rem": [
+              [
+                "span_id.missing",
+                "s"
+              ]
+            ]
+          }
+        },
+        "trace_id": {
+          "": {
+            "rem": [
+              [
+                "trace_id.missing",
+                "s"
+              ]
+            ]
           }
         }
       }
