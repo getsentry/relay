@@ -667,11 +667,11 @@
 <a href=#667 id=667 data-nosnippet>667</a>            Statement::CreateMacro { .. } =&gt; {}
 <a href=#668 id=668 data-nosnippet>668</a>            Statement::CreateStage { comment, .. } =&gt; <span class="kw-2">*</span>comment = <span class="prelude-val">None</span>,
 <a href=#669 id=669 data-nosnippet>669</a>            Statement::Assert { .. } =&gt; {}
-<a href=#670 id=670 data-nosnippet>670</a>            Statement::Grant {
+<a href=#670 id=670 data-nosnippet>670</a>            Statement::Grant(Grant {
 <a href=#671 id=671 data-nosnippet>671</a>                grantees,
 <a href=#672 id=672 data-nosnippet>672</a>                granted_by,
 <a href=#673 id=673 data-nosnippet>673</a>                ..
-<a href=#674 id=674 data-nosnippet>674</a>            } =&gt; {
+<a href=#674 id=674 data-nosnippet>674</a>            }) =&gt; {
 <a href=#675 id=675 data-nosnippet>675</a>                <span class="kw">for </span>grantee <span class="kw">in </span>grantees {
 <a href=#676 id=676 data-nosnippet>676</a>                    <span class="kw">if let </span><span class="prelude-val">Some</span>(GranteeName::ObjectName(name)) = <span class="kw-2">&amp;mut </span>grantee.name {
 <a href=#677 id=677 data-nosnippet>677</a>                        <span class="self">Self</span>::simplify_object_name(<span class="kw-2">&amp;mut </span>name.<span class="number">0</span>);
@@ -680,11 +680,11 @@
 <a href=#680 id=680 data-nosnippet>680</a>
 <a href=#681 id=681 data-nosnippet>681</a>                <span class="kw-2">*</span>granted_by = <span class="prelude-val">None</span>;
 <a href=#682 id=682 data-nosnippet>682</a>            }
-<a href=#683 id=683 data-nosnippet>683</a>            Statement::Revoke {
+<a href=#683 id=683 data-nosnippet>683</a>            Statement::Revoke(Revoke {
 <a href=#684 id=684 data-nosnippet>684</a>                grantees,
 <a href=#685 id=685 data-nosnippet>685</a>                granted_by,
 <a href=#686 id=686 data-nosnippet>686</a>                ..
-<a href=#687 id=687 data-nosnippet>687</a>            } =&gt; {
+<a href=#687 id=687 data-nosnippet>687</a>            }) =&gt; {
 <a href=#688 id=688 data-nosnippet>688</a>                <span class="kw">for </span>grantee <span class="kw">in </span>grantees {
 <a href=#689 id=689 data-nosnippet>689</a>                    <span class="kw">if let </span><span class="prelude-val">Some</span>(GranteeName::ObjectName(name)) = <span class="kw-2">&amp;mut </span>grantee.name {
 <a href=#690 id=690 data-nosnippet>690</a>                        <span class="self">Self</span>::simplify_object_name(<span class="kw-2">&amp;mut </span>name.<span class="number">0</span>);
