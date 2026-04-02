@@ -12,6 +12,7 @@
 - Explicitly handle in-flight requests during shutdown. ([#5746](https://github.com/getsentry/relay/pull/5746), [#5769](https://github.com/getsentry/relay/pull/5769))
 - Emit outcomes in both `log_byte` and `log_item` categories when logs are dropped. ([#5766](https://github.com/getsentry/relay/pull/5766))
 - Propagate an event's retention policy to its attachments ([#5774](https://github.com/getsentry/relay/pull/5774))
+- Prevent panic in span description normalization. ([#5781](https://github.com/getsentry/relay/pull/5781))
 
 **Features**:
 
