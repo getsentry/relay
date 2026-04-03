@@ -42,6 +42,27 @@ pub struct DebugImage {
     uuid: Option<Uuid>,
 }
 
+impl DebugImage {
+    /// Creates a native (ELF/Symbolic) debug image from Perfetto mapping data.
+    pub fn native_image(
+        code_file: String,
+        debug_id: DebugId,
+        image_addr: u64,
+        image_vmaddr: u64,
+        image_size: u64,
+    ) -> Self {
+        Self {
+            code_file: Some(code_file.into()),
+            debug_id: Some(debug_id),
+            image_type: ImageType::Symbolic,
+            image_addr: Some(Addr(image_addr)),
+            image_vmaddr: Some(Addr(image_vmaddr)),
+            image_size,
+            uuid: None,
+        }
+    }
+}
+
 pub fn get_proguard_image(uuid: &str) -> Result<DebugImage, UuidError> {
     Ok(DebugImage {
         code_file: None,
