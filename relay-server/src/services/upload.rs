@@ -128,32 +128,35 @@ pub fn create_service(
     upstream: &Addr<UpstreamRelay>,
     #[cfg(feature = "processing")] objectstore: &Option<Addr<Objectstore>>,
 ) -> ConcurrentService<Service> {
-    let service = create_service_inner(
+    let backend = create_backend(
         config,
         upstream,
         #[cfg(feature = "processing")]
         objectstore,
     );
+    let service = Service {
+        timeout: Duration::from_secs(config.upload().timeout),
+        backend,
+    };
     ConcurrentService::new(service)
         .with_backlog_limit(0)
         .with_concurrency_limit(config.upload().max_concurrent_requests)
 }
 
-fn create_service_inner(
-    config: &Arc<Config>,
+fn create_backend(
+    #[allow(unused)] config: &Arc<Config>,
     upstream: &Addr<UpstreamRelay>,
     #[cfg(feature = "processing")] objectstore: &Option<Addr<Objectstore>>,
-) -> Service {
+) -> Backend {
     #[cfg(feature = "processing")]
     if let Some(addr) = objectstore.as_ref() {
-        return Service::Objectstore {
+        return Backend::Objectstore {
             addr: addr.clone(),
             config: config.clone(),
         };
     }
-    Service::Upstream {
+    Backend::Upstream {
         addr: upstream.clone(),
-        timeout: Duration::from_secs(config.upload().timeout),
     }
 }
 
@@ -161,10 +164,15 @@ fn create_service_inner(
 ///
 /// Uploads go to either the upstream relay or objectstore.
 #[derive(Debug, Clone)]
-pub enum Service {
+pub struct Service {
+    timeout: Duration,
+    backend: Backend,
+}
+
+#[derive(Debug, Clone)]
+enum Backend {
     Upstream {
         addr: Addr<UpstreamRelay>,
-        timeout: Duration,
     },
     #[cfg(feature = "processing")]
     Objectstore {
@@ -175,15 +183,15 @@ pub enum Service {
 
 impl Service {
     async fn create(&self, Create { scoping, length }: Create) -> Result<SignedLocation, Error> {
-        match self {
-            Self::Upstream { addr, timeout } => {
+        match &self.backend {
+            Backend::Upstream { addr } => {
                 let (request, rx) = UploadRequest::create(scoping, length);
                 addr.send(SendRequest(request));
-                let response = tokio::time::timeout(*timeout, rx).await???;
+                let response = rx.await??;
                 SignedLocation::try_from_response(response)
             }
             #[cfg(feature = "processing")]
-            Self::Objectstore { addr: _, config } => {
+            Backend::Objectstore { addr: _, config } => {
                 // We can create & sign a location right here, no need to query the objectstore service.
                 let key = Uuid::now_v7().as_simple().to_string();
                 Location {
@@ -197,17 +205,15 @@ impl Service {
     }
 
     async fn upload(&self, stream: Stream) -> Result<SignedLocation, Error> {
-        match self {
-            Service::Upstream { addr, timeout } => {
+        match &self.backend {
+            Backend::Upstream { addr } => {
                 let (request, rx) = UploadRequest::upload(stream);
                 addr.send(SendRequest(request));
-                // We're already passing `timeout` to the reqwest library, but we also want to
-                // limit the time spent waiting for the upstream service:
-                let response = tokio::time::timeout(*timeout, rx).await???;
+                let response = rx.await??;
                 SignedLocation::try_from_response(response)
             }
             #[cfg(feature = "processing")]
-            Service::Objectstore { addr, config } => {
+            Backend::Objectstore { addr, config } => {
                 let Stream {
                     received,
                     scoping,
@@ -245,6 +251,13 @@ impl Service {
             }
         }
     }
+
+    async fn timeout<F: IntoFuture<Output = Result<SignedLocation, Error>>>(
+        &self,
+        future: F,
+    ) -> Result<SignedLocation, Error> {
+        tokio::time::timeout(self.timeout, future).await?
+    }
 }
 
 impl SimpleService for Service {
@@ -253,10 +266,10 @@ impl SimpleService for Service {
     async fn handle_message(&self, message: Upload) {
         match message {
             Upload::Create(create, sender) => {
-                sender.send(self.create(create).await);
+                sender.send(self.timeout(self.create(create)).await);
             }
             Upload::Upload(stream, sender) => {
-                sender.send(self.upload(stream).await);
+                sender.send(self.timeout(self.upload(stream)).await);
             }
         }
     }

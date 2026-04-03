@@ -477,6 +477,7 @@ impl StoreService {
                         scoping.organization_id,
                         item,
                         send_individual_attachments,
+                        retention,
                     )? {
                         attachments.push(attachment);
                     }
@@ -863,6 +864,7 @@ impl StoreService {
                 &attachment.attachment,
                 // Hardcoded to `true` since standalone attachments are 'individual attachments'.
                 true,
+                attachment.retention,
             );
             // Since we are sending an 'individual attachment' this function should never return a
             // `ChunkedAttachment`.
@@ -997,6 +999,7 @@ impl StoreService {
     fn chunked_attachment_from_placeholder(
         &self,
         item: &Item,
+        retention_days: u16,
     ) -> Result<ChunkedAttachment, StoreError> {
         debug_assert!(
             item.stored_key().is_none(),
@@ -1020,6 +1023,7 @@ impl StoreService {
             content_type: placeholder.content_type.map(|c| c.as_str().to_owned()),
             attachment_type: item.attachment_type().unwrap_or_default(),
             size: item.attachment_body_size(),
+            retention_days,
             payload: AttachmentPayload::Stored(store_key),
         })
     }
@@ -1031,6 +1035,7 @@ impl StoreService {
         org_id: OrganizationId,
         item: &Item,
         send_individual_attachments: bool,
+        retention_days: u16,
     ) -> Result<ChunkedAttachment, StoreError> {
         let id = Uuid::new_v4().to_string();
 
@@ -1086,6 +1091,7 @@ impl StoreService {
             content_type: item.raw_content_type().map(|s| s.to_ascii_lowercase()),
             attachment_type: item.attachment_type().unwrap_or_default(),
             size,
+            retention_days,
             payload,
         })
     }
@@ -1108,9 +1114,10 @@ impl StoreService {
         org_id: OrganizationId,
         item: &Item,
         send_individual_attachments: bool,
+        retention_days: u16,
     ) -> Result<Option<ChunkedAttachment>, StoreError> {
         let attachment = if item.is_attachment_ref() {
-            self.chunked_attachment_from_placeholder(item)
+            self.chunked_attachment_from_placeholder(item, retention_days)
         } else {
             self.chunked_attachment_from_attachment(
                 event_id,
@@ -1118,6 +1125,7 @@ impl StoreService {
                 org_id,
                 item,
                 send_individual_attachments,
+                retention_days,
             )
         }?;
 
@@ -1401,6 +1409,9 @@ struct ChunkedAttachment {
 
     /// The size of the attachment in bytes.
     size: usize,
+
+    /// The retention in days for this attachment.
+    retention_days: u16,
 
     /// The attachment payload, chunked, inlined, or already stored.
     #[serde(flatten)]

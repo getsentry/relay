@@ -716,7 +716,7 @@ impl Default for Limits {
             max_api_file_upload_size: ByteSize::mebibytes(40),
             max_api_chunk_upload_size: ByteSize::mebibytes(100),
             max_profile_size: ByteSize::mebibytes(50),
-            max_trace_metric_size: ByteSize::kibibytes(2),
+            max_trace_metric_size: ByteSize::mebibytes(1),
             max_log_size: ByteSize::mebibytes(1),
             max_span_size: ByteSize::mebibytes(1),
             max_container_size: ByteSize::mebibytes(12),
@@ -1329,6 +1329,9 @@ pub struct ObjectstoreServiceConfig {
     pub max_backlog: usize,
 
     /// Maximum duration of an attachment upload in seconds. Uploads that take longer are discarded.
+    ///
+    /// NOTE: This timeout applies to attachments that are already in-memory. Streaming uploads
+    /// might take longer and are restricted independently by [`Upload::timeout`].
     pub timeout: u64,
 
     /// Configuration values for objectstore's auth scheme.
@@ -1673,7 +1676,6 @@ pub struct Upload {
     /// Additional uploads will be rejected.
     pub max_concurrent_requests: usize,
     /// Maximum time spent trying to upload, in seconds.
-    /// Currently only used by non-processing relays, as the objectstore service has its own timeout.
     pub timeout: u64,
     /// The maximum time between creating the upload and uploading the data / the attachment placeholder.
     ///

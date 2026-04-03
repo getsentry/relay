@@ -692,6 +692,14 @@ pub struct SpanData {
     #[metastructure(field = "gen_ai.operation.type", pii = "maybe")]
     pub gen_ai_operation_type: Annotated<String>,
 
+    /// The name of the AI agent.
+    #[metastructure(field = "gen_ai.agent.name", pii = "maybe")]
+    pub gen_ai_agent_name: Annotated<String>,
+
+    /// The function ID of the AI agent.
+    #[metastructure(field = "gen_ai.function_id", pii = "maybe")]
+    pub gen_ai_function_id: Annotated<String>,
+
     /// The result of the MCP prompt.
     #[metastructure(field = "mcp.prompt.result", pii = "maybe")]
     pub mcp_prompt_result: Annotated<Value>,
@@ -1519,6 +1527,8 @@ mod tests {
             gen_ai_tool_name: ~,
             gen_ai_operation_name: ~,
             gen_ai_operation_type: ~,
+            gen_ai_agent_name: ~,
+            gen_ai_function_id: ~,
             mcp_prompt_result: ~,
             mcp_tool_result_content: ~,
             browser_name: ~,
