@@ -204,7 +204,7 @@ sha2 = "0.10.9"
 similar-asserts = "1.7.0"
 smallvec = { version = "1.15.1", features = ["serde"] }
 socket2 = "0.6.2"
-sqlparser = "0.60.0"
+sqlparser = { "git" = "https://github.com/apache/datafusion-sqlparser-rs/", "rev" = "6a48f44f99d015a4f7a86275e2521ea2cc45fdae" } # fixes panic, pin to 0.62 once released
 sqlx = { version = "0.8.6", default-features = false }
 symbolic-common = { version = "12.12.3", default-features = false }
 symbolic-unreal = { version = "12.12.3", default-features = false }
