@@ -13,6 +13,7 @@ fn main() {
         .profile("RelWithDebInfo")
         // use the sentry native crash reporting backend
         .define("SENTRY_BACKEND", "native")
+        .define("SENTRY_WITH_LIBUNWIND", "ON")
         // inject a custom transport instead of curl
         .define("SENTRY_TRANSPORT", "none")
         // build a static library
