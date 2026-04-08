@@ -156,7 +156,6 @@ impl processing::Processor for SpansProcessor {
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         let spans = filter::feature_flag_attachment(spans, ctx);
-        filter::feature_flag(ctx).reject(&spans)?;
         validate::container(&spans).reject(&spans)?;
 
         dynamic_sampling::validate_configs(ctx);
