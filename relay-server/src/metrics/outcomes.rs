@@ -77,8 +77,11 @@ impl MetricOutcomes {
 /// Contains the count of total transactions or spans that went into this bucket.
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BucketSummary {
-    Transactions(usize),
-    Spans(usize),
+    Spans {
+        count: usize,
+        is_segment: bool,
+        was_transaction: bool,
+    },
     #[default]
     None,
 }
@@ -127,21 +130,22 @@ impl TrackableBucket for BucketView<'_> {
         };
 
         match mri.namespace {
-            MetricNamespace::Transactions => {
-                let count = match self.value() {
-                    BucketViewValue::Counter(c) if mri.name == "usage" => c.to_f64() as usize,
-                    _ => 0,
-                };
-                BucketSummary::Transactions(count)
-            }
-            MetricNamespace::Spans => BucketSummary::Spans(match self.value() {
-                BucketViewValue::Counter(c) if mri.name == "usage" => c.to_f64() as usize,
-                _ => 0,
-            }),
-            _ => {
-                // Nothing to count
-                BucketSummary::default()
-            }
+            MetricNamespace::Spans => match self.value() {
+                BucketViewValue::Counter(c) if mri.name == "usage" => BucketSummary::Spans {
+                    count: c.to_f64() as usize,
+                    is_segment: self.tags().get("is_segment").is_some_and(|s| s == "true"),
+                    was_transaction: self
+                        .tags()
+                        .get("was_transaction")
+                        .is_some_and(|s| s == "true"),
+                },
+                _ => BucketSummary::Spans {
+                    count: 0,
+                    is_segment: false,
+                    was_transaction: false,
+                },
+            },
+            _ => BucketSummary::default(),
         }
     }
 }
@@ -160,10 +164,16 @@ where
         // Only count metrics for outcomes, where the indexed payload no longer exists.
         let summary = bucket.summary();
         match summary {
-            BucketSummary::Transactions(count) => {
-                quantities.transactions += count;
+            BucketSummary::Spans {
+                count,
+                is_segment,
+                was_transaction,
+            } => {
+                quantities.spans += count;
+                if is_segment && was_transaction {
+                    quantities.transactions += count;
+                }
             }
-            BucketSummary::Spans(count) => quantities.spans += count,
             BucketSummary::None => continue,
         };
     }

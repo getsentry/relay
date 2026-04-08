@@ -20,21 +20,14 @@ pub struct MetricsLimiter<Q: AsRef<Vec<Quota>> = Vec<Quota>> {
     /// Project information.
     scoping: Scoping,
 
-    /// The number of performance items (transactions, spans, profiles) contributing to these metrics.
+    /// The number of performance items (spans) contributing to these metrics.
     #[cfg(feature = "processing")]
     counts: EntityCounts,
 }
 
 fn to_counts(summary: &BucketSummary) -> EntityCounts {
     match *summary {
-        BucketSummary::Transactions(count) => EntityCounts {
-            transactions: Some(count),
-            spans: None,
-        },
-        BucketSummary::Spans(count) => EntityCounts {
-            transactions: None,
-            spans: Some(count),
-        },
+        BucketSummary::Spans { count, .. } => EntityCounts { spans: Some(count) },
         BucketSummary::None => EntityCounts::default(),
     }
 }
@@ -48,19 +41,10 @@ struct SummarizedBucket {
 /// Contains the total counts of limitable entities represented by a batch of metrics.
 #[derive(Debug, Default, Clone)]
 struct EntityCounts {
-    /// The number of transactions represented in the current batch.
-    ///
-    /// - `None` if the batch does not contain any transaction metrics.
-    /// - `Some(0)` if the batch contains transaction metrics, but no `usage` count.
-    /// - `Some(n > 0)` if the batch contains a `usage` count for transactions.
-    ///
-    /// The distinction between `None` and `Some(0)` is needed to decide whether or not a rate limit
-    /// must be checked.
-    transactions: Option<usize>,
     /// The number of spans represented in the current batch.
     ///
-    /// - `None` if the batch does not contain any transaction metrics.
-    /// - `Some(0)` if the batch contains transaction metrics, but no `usage` count.
+    /// - `None` if the batch does not contain any span metrics.
+    /// - `Some(0)` if the batch contains span metrics, but no `usage` count.
     /// - `Some(n > 0)` if the batch contains a `usage` count for spans.
     ///
     /// The distinction between `None` and `Some(0)` is needed to decide whether or not a rate limit
@@ -73,7 +57,6 @@ impl std::ops::Add for EntityCounts {
 
     fn add(self, rhs: EntityCounts) -> Self::Output {
         Self {
-            transactions: add_some(self.transactions, rhs.transactions),
             spans: add_some(self.spans, rhs.spans),
         }
     }
@@ -141,7 +124,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         self.quotas.as_ref()
     }
 
-    /// Counts the number of transactions/spans represented in this batch.
+    /// Counts the number of spans represented in this batch.
     ///
     /// Returns
     /// - `None` if the batch does not contain metrics related to the data category.
@@ -153,7 +136,6 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
     #[cfg(feature = "processing")]
     pub fn count(&self, category: DataCategory) -> Option<usize> {
         match category {
-            DataCategory::Transaction => self.counts.transactions,
             DataCategory::Span => self.counts.spans,
             _ => None,
         }
@@ -167,10 +149,9 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
     ) {
         let buckets = std::mem::take(&mut self.buckets);
         let (buckets, dropped) = utils::split_off_map(buckets, |b| match b.summary {
-            BucketSummary::Transactions { .. } if category == DataCategory::Transaction => {
+            BucketSummary::Spans { .. } if category == DataCategory::Span => {
                 Either::Right(b.bucket)
             }
-            BucketSummary::Spans(_) if category == DataCategory::Span => Either::Right(b.bucket),
             _ => Either::Left(b),
         });
         self.buckets = buckets;
@@ -178,7 +159,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         metric_outcomes.track(self.scoping, &dropped, outcome);
     }
 
-    // Drop transaction-related metrics and create outcomes for any active rate limits.
+    // Drop span -related metrics and create outcomes for any active rate limits.
     //
     // Returns true if any metrics were dropped.
     pub fn enforce_limits(
@@ -186,20 +167,18 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         rate_limits: &RateLimits,
         metric_outcomes: &MetricOutcomes,
     ) -> bool {
-        for category in [DataCategory::Transaction, DataCategory::Span] {
-            let active_rate_limits =
-                rate_limits.check_with_quotas(self.quotas.as_ref(), self.scoping.item(category));
+        let active_rate_limits = rate_limits
+            .check_with_quotas(self.quotas.as_ref(), self.scoping.item(DataCategory::Span));
 
-            // If a rate limit is active, discard relevant buckets.
-            if let Some(limit) = active_rate_limits.longest() {
-                self.drop_with_outcome(
-                    category,
-                    Outcome::RateLimited(limit.reason_code.clone()),
-                    metric_outcomes,
-                );
+        // If a rate limit is active, discard relevant buckets.
+        if let Some(limit) = active_rate_limits.longest() {
+            self.drop_with_outcome(
+                DataCategory::Span,
+                Outcome::RateLimited(limit.reason_code.clone()),
+                metric_outcomes,
+            );
 
-                return true;
-            }
+            return true;
         }
 
         false
@@ -327,22 +306,6 @@ mod tests {
         assert_eq!(
             outcomes,
             vec![(Outcome::RateLimited(None), DataCategory::Span, 90)]
-        );
-    }
-
-    #[test]
-    fn mixed_with_transaction_quota() {
-        let (metrics, outcomes) = run_limiter(mixed_bag(), deny(DataCategory::Transaction));
-
-        assert_eq!(metrics.len(), 4);
-        assert_eq!(&*metrics[0].name, "c:spans/usage@none");
-        assert_eq!(&*metrics[1].name, "c:spans/usage@none");
-        assert_eq!(&*metrics[2].name, "d:spans/exclusive_time@millisecond");
-        assert_eq!(&*metrics[3].name, "d:custom/something@millisecond");
-
-        assert_eq!(
-            outcomes,
-            vec![(Outcome::RateLimited(None), DataCategory::Transaction, 12)]
         );
     }
 }

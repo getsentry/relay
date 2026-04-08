@@ -844,7 +844,7 @@ mod tests {
 
         let entries1 = [Entry::new(EntryId(0), Custom, &m0, 0)];
         let entries2 = [Entry::new(EntryId(0), Spans, &m1, 1)];
-        let entries3 = [Entry::new(EntryId(0), Transactions, &m2, 2)];
+        let entries3 = [Entry::new(EntryId(0), Sessions, &m2, 2)];
 
         let rejected = limiter.test_limits(scoping, limits, entries1).await;
         assert_eq!(rejected.len(), 0);
@@ -908,7 +908,7 @@ mod tests {
                 },
                 limit: 1,
                 scope: CardinalityScope::Unknown,
-                namespace: Some(Transactions),
+                namespace: Some(Sessions),
             },
         ];
 
@@ -924,8 +924,8 @@ mod tests {
             Entry::new(EntryId(1), Custom, &m1, 1),
             Entry::new(EntryId(2), Spans, &m2, 2),
             Entry::new(EntryId(3), Spans, &m3, 3),
-            Entry::new(EntryId(4), Transactions, &m4, 4),
-            Entry::new(EntryId(5), Transactions, &m5, 5),
+            Entry::new(EntryId(4), Sessions, &m4, 4),
+            Entry::new(EntryId(5), Sessions, &m5, 5),
         ];
 
         // Run multiple times to make sure caching does not interfere.

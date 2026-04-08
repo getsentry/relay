@@ -174,8 +174,6 @@ pub enum AppFeature {
     /// User Reports
     UserReports,
 
-    /// Metrics in the transactions namespace.
-    MetricsTransactions,
     /// Metrics in the spans namespace.
     MetricsSpans,
     /// Metrics in the sessions namespace.
@@ -208,7 +206,6 @@ impl AppFeature {
             Self::CheckIns => "check_ins",
             Self::Replays => "replays",
             Self::UserReports => "user_reports",
-            Self::MetricsTransactions => "metrics_transactions",
             Self::MetricsSpans => "metrics_spans",
             Self::MetricsSessions => "metrics_sessions",
             Self::MetricsCustom => "metrics_custom",

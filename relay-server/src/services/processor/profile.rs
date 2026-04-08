@@ -59,7 +59,7 @@ mod tests {
     use crate::services::projects::project::ProjectInfo;
     use crate::testutils::create_test_processor;
     use insta::assert_debug_snapshot;
-    use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig, TransactionMetricsConfig};
+    use relay_dynamic_config::{Feature, GlobalConfig};
     use relay_event_schema::protocol::{Event, EventId, ProfileContext};
     use relay_protocol::Annotated;
     use relay_system::Addr;
@@ -82,8 +82,6 @@ mod tests {
         let envelope = ManagedEnvelope::new(envelope, Addr::dummy());
 
         let mut project_info = ProjectInfo::default().sanitized(false);
-        project_info.config.transaction_metrics =
-            Some(ErrorBoundary::Ok(TransactionMetricsConfig::new()));
         project_info.config.features.0.insert(Feature::Profiling);
 
         let global_config = GlobalConfig::default();

@@ -196,7 +196,7 @@ mod tests {
             "metrics": [
                 {
                     "category": "transaction",
-                    "mri": "c:transactions/counter@none",
+                    "mri": "c:spans/counter@none",
                 }
             ]
         });
@@ -212,7 +212,7 @@ mod tests {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
                 name: MetricName(
-                    "c:transactions/counter@none",
+                    "c:spans/counter@none",
                 ),
                 value: Counter(
                     1.0,
@@ -244,7 +244,7 @@ mod tests {
             "metrics": [
                 {
                     "category": "transaction",
-                    "mri": "d:transactions/duration@none",
+                    "mri": "d:spans/duration@none",
                     "field": "event.duration",
                 }
             ]
@@ -261,7 +261,7 @@ mod tests {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
                 name: MetricName(
-                    "d:transactions/duration@none",
+                    "d:spans/duration@none",
                 ),
                 value: Distribution(
                     [
@@ -297,7 +297,7 @@ mod tests {
             "metrics": [
                 {
                     "category": "transaction",
-                    "mri": "s:transactions/users@none",
+                    "mri": "s:spans/users@none",
                     "field": "event.user.id",
                 }
             ]
@@ -314,7 +314,7 @@ mod tests {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
                 name: MetricName(
-                    "s:transactions/users@none",
+                    "s:spans/users@none",
                 ),
                 value: Set(
                     {
@@ -350,7 +350,7 @@ mod tests {
             "metrics": [
                 {
                     "category": "transaction",
-                    "mri": "s:transactions/users@none",
+                    "mri": "s:spans/users@none",
                     "field": "event.user.id",
                 }
             ]
@@ -367,7 +367,7 @@ mod tests {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
                 name: MetricName(
-                    "s:transactions/users@none",
+                    "s:spans/users@none",
                 ),
                 value: Set(
                     {
@@ -402,7 +402,7 @@ mod tests {
             "metrics": [
                 {
                     "category": "transaction",
-                    "mri": "c:transactions/counter@none",
+                    "mri": "c:spans/counter@none",
                     "tags": [
                         {"key": "id", "value": "4711"},
                         {"key": "release", "field": "event.release"},
@@ -432,7 +432,7 @@ mod tests {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
                 name: MetricName(
-                    "c:transactions/counter@none",
+                    "c:spans/counter@none",
                 ),
                 value: Counter(
                     1.0,
@@ -471,7 +471,7 @@ mod tests {
             "metrics": [
                 {
                     "category": "transaction",
-                    "mri": "c:transactions/counter@none",
+                    "mri": "c:spans/counter@none",
                     "tags": [
                         {
                             "key": "fast",
@@ -498,7 +498,7 @@ mod tests {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
                 name: MetricName(
-                    "c:transactions/counter@none",
+                    "c:spans/counter@none",
                 ),
                 value: Counter(
                     1.0,
@@ -534,11 +534,11 @@ mod tests {
             "version": 1,
             "metrics": [{
                 "category": "transaction",
-                "mri": "c:transactions/counter@none",
+                "mri": "c:spans/counter@none",
             }],
             "tags": [
                 {
-                    "metrics": ["c:transactions/counter@none"],
+                    "metrics": ["c:spans/counter@none"],
                     "tags": [{
                         "key": "fast",
                         "value": "yes",
@@ -546,7 +546,7 @@ mod tests {
                     }],
                 },
                 {
-                    "metrics": ["c:transactions/counter@none"],
+                    "metrics": ["c:spans/counter@none"],
                     "tags": [{
                         "key": "fast",
                         "value": "no",
@@ -566,7 +566,7 @@ mod tests {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
                 name: MetricName(
-                    "c:transactions/counter@none",
+                    "c:spans/counter@none",
                 ),
                 value: Counter(
                     1.0,
@@ -603,7 +603,7 @@ mod tests {
             "metrics": [
                 {
                     "category": "transaction",
-                    "mri": "c:transactions/counter@none",
+                    "mri": "c:spans/counter@none",
                     "tags": [
                         {"key": "flag", "field": "event.extra.flag"},
                     ]
@@ -622,7 +622,7 @@ mod tests {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
                 name: MetricName(
-                    "c:transactions/counter@none",
+                    "c:spans/counter@none",
                 ),
                 value: Counter(
                     1.0,

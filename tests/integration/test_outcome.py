@@ -8,18 +8,12 @@ from pathlib import Path
 from queue import Empty
 
 from pytest_localserver.http import itertools
-from .consts import (
-    TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
-    TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
-)
 
 import pytest
 import requests
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 from .asserts import time_within_delta
-
-from .test_metrics import metrics_by_name
 
 RELAY_ROOT = Path(__file__).parent.parent.parent
 
@@ -818,9 +812,6 @@ def test_outcome_to_client_report(relay, mini_sentry):
     # Create project config
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
-    }
     project_config["config"]["sampling"] = {
         "version": 2,
         "rules": [
@@ -1010,10 +1001,6 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
         ],
     }
 
-    project_config["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
-    }
-
     upstream = relay(
         mini_sentry,
         {
@@ -1116,9 +1103,6 @@ def test_graceful_shutdown(relay, mini_sentry):
     # Create project config
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
-    }
     project_config["config"]["sampling"] = {
         "version": 2,
         "rules": [
@@ -1218,9 +1202,6 @@ def test_profile_outcomes(
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
 
     project_config.setdefault("features", []).append("organizations:profiling")
-    project_config["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
-    }
     project_config["sampling"] = {
         "version": 2,
         "rules": [
@@ -1362,7 +1343,7 @@ def test_profile_outcomes(
     metrics = [
         m
         for m, _ in metrics_consumer.get_metrics()
-        if m["name"] == "c:transactions/usage@none"
+        if m["name"] == "c:spans/usage@none" and m["tags"].get("is_segment") == "true"
     ]
     assert sum(metric["value"] for metric in metrics) == 2
 
@@ -1388,23 +1369,17 @@ def test_profile_outcomes_invalid(
     mini_sentry,
     relay_with_processing,
     outcomes_consumer,
-    metrics_consumer,
     profile_payload,
     expected_outcome,
 ):
     """
     Tests that Relay reports correct outcomes for invalid profiles as `Profile`.
     """
-    outcomes_consumer = outcomes_consumer(timeout=2)
-    metrics_consumer = metrics_consumer()
+    outcomes_consumer = outcomes_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
-
     project_config.setdefault("features", []).append("organizations:profiling")
-    project_config["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
-    }
 
     config = {
         "outcomes": {
@@ -1474,10 +1449,6 @@ def test_profile_outcomes_invalid(
         },
     ]
 
-    # Make sure the profile will not be counted as accepted:
-    metrics = metrics_by_name(metrics_consumer, 6)
-    assert "has_profile" not in metrics["c:transactions/usage@none"]["tags"]
-
 
 def test_profile_outcomes_too_many(
     mini_sentry,
@@ -1495,9 +1466,6 @@ def test_profile_outcomes_too_many(
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
 
     project_config.setdefault("features", []).append("organizations:profiling")
-    project_config["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
-    }
 
     config = {
         "outcomes": {
@@ -1781,9 +1749,6 @@ def test_span_outcomes(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
-    project_config["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
-    }
     project_config["sampling"] = {
         "version": 2,
         "rules": [
@@ -1907,10 +1872,7 @@ def test_span_outcomes_invalid(
     outcomes_consumer = outcomes_consumer(timeout=2)
 
     project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)["config"]
-    project_config["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
-    }
+    mini_sentry.add_full_project_config(project_id)["config"]
 
     config = {
         "outcomes": {

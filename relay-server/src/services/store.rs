@@ -1737,7 +1737,6 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::UserReport(_) => "user_report",
             KafkaMessage::Metric { message, .. } => match message.name.namespace() {
                 MetricNamespace::Sessions => "metric_sessions",
-                MetricNamespace::Transactions => "metric_transactions",
                 MetricNamespace::Spans => "metric_spans",
                 MetricNamespace::Custom => "metric_custom",
                 MetricNamespace::Unsupported => "metric_unsupported",

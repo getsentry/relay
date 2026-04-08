@@ -62,14 +62,14 @@ def test_metric_bucket_encoding_legacy(
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
 
-    relay.send_metrics(project_id, "transactions/foo:1337|d\ntransactions/bar:42|s")
+    relay.send_metrics(project_id, "spans/foo:1337|d\nspans/bar:42|s")
 
     metrics = metrics_by_name(metrics_consumer, 2)
-    assert metrics["d:transactions/foo@none"]["value"] == [1337.0]
-    assert metrics["s:transactions/bar@none"]["value"] == [42.0]
+    assert metrics["d:spans/foo@none"]["value"] == [1337.0]
+    assert metrics["s:spans/bar@none"]["value"] == [42.0]
 
 
-@pytest.mark.parametrize("namespace", [None, "transactions", "custom"])
+@pytest.mark.parametrize("namespace", [None, "spans", "custom"])
 @pytest.mark.parametrize("ty", ["set", "distribution"])
 def test_metric_bucket_encoding_dynamic_global_config_option(
     mini_sentry, relay_with_processing, metrics_consumer, namespace, ty
@@ -127,14 +127,14 @@ def test_metric_bucket_encoding_base64(
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
 
-    relay.send_metrics(project_id, "transactions/foo:3:1:2|d\ntransactions/bar:7:1|s")
+    relay.send_metrics(project_id, "spans/foo:3:1:2|d\nspans/bar:7:1|s")
 
     metrics = metrics_by_name(metrics_consumer, 2)
-    assert metrics["d:transactions/foo@none"]["value"] == {
+    assert metrics["d:spans/foo@none"]["value"] == {
         "format": "base64",
         "data": b64_dist(3, 1, 2),  # values are in order
     }
-    assert metrics["s:transactions/bar@none"]["value"] == {
+    assert metrics["s:spans/bar@none"]["value"] == {
         "format": "base64",
         "data": b64_set(1, 7),
     }
@@ -156,10 +156,8 @@ def test_metric_bucket_encoding_zstd(
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
 
-    relay.send_metrics(project_id, "transactions/foo:3:1:2|d\ntransactions/bar:7:1|s")
+    relay.send_metrics(project_id, "spans/foo:3:1:2|d\nspans/bar:7:1|s")
 
     metrics = metrics_by_name(metrics_consumer, 2)
-    assert_zstd_dist(
-        metrics["d:transactions/foo@none"]["value"], 1, 2, 3
-    )  # values are sorted
-    assert_zstd_set(metrics["s:transactions/bar@none"]["value"], 1, 7)
+    assert_zstd_dist(metrics["d:spans/foo@none"]["value"], 1, 2, 3)  # values are sorted
+    assert_zstd_set(metrics["s:spans/bar@none"]["value"], 1, 7)

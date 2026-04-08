@@ -13,7 +13,7 @@ use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
 use crate::envelope::ClientName;
 use crate::managed::Managed;
-use crate::metrics_extraction::transactions::ExtractedMetrics;
+use crate::metrics_extraction::ExtractedMetrics;
 use crate::processing::Context;
 use crate::processing::spans::{
     Error, ExpandedSpan, ExpandedSpans, Indexed, Result, SerializedSpans,
