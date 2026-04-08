@@ -22,10 +22,12 @@
 - Allow configuring Objectstore client auth parameters. ([#5720](https://github.com/getsentry/relay/pull/5720))
 - Metric size limit per metric default changed to 1mib. ([#5779](https://github.com/getsentry/relay/pull/5779))
 - Use `gen_ai.function_id` as a fallback for `gen_ai.agent.name`. ([#5776](https://github.com/getsentry/relay/pull/5776))
+- Extract `http.query` and `url.query` attributes from `query_string` in transactions' request context. ([#5784](https://github.com/getsentry/relay/pull/5784))
 
 **Internal**:
 
 - Calculate and track accepted bytes per individual trace metric item via `TraceMetricByte` data category. ([#5744](https://github.com/getsentry/relay/pull/5744), [#5767](https://github.com/getsentry/relay/pull/5767))
+- Graduate standalone span ingestion feature flag. ([#5786](https://github.com/getsentry/relay/pull/5786))
 - Use new processor architecture to process standalone profiles. ([#5741](https://github.com/getsentry/relay/pull/5741))
 - TUS: Disallow creation with upload. ([#5734](https://github.com/getsentry/relay/pull/5734))
 - Add logic to verify attachment placeholders and correctly store them. ([#5747](https://github.com/getsentry/relay/pull/5747))

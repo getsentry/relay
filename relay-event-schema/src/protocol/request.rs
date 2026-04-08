@@ -286,6 +286,23 @@ impl Query {
 
         form_urlencoded::parse(string.as_bytes()).collect()
     }
+
+    /// Serializes the query pairs back to a URL-encoded query string without a leading `?`.
+    ///
+    /// Returns `None` if there are no valid pairs.
+    pub fn to_query_string(&self) -> Option<String> {
+        let mut serializer = form_urlencoded::Serializer::new(String::new());
+        let mut has_pairs = false;
+        for pair in self.iter() {
+            if let Some((key, value)) = pair.value()
+                && let (Some(k), Some(v)) = (key.as_str(), value.as_str())
+            {
+                serializer.append_pair(k, v);
+                has_pairs = true;
+            }
+        }
+        has_pairs.then(|| serializer.finish())
+    }
 }
 
 impl std::ops::Deref for Query {
@@ -856,6 +873,47 @@ mod tests {
         let cookies =
             Annotated::<Cookies>::from_error(Error::expected("cookies"), Some(Value::I64(42)));
         assert_eq!(cookies, Annotated::from_json("42").unwrap());
+    }
+
+    #[test]
+    fn test_query_to_query_string() {
+        let query = Query(
+            vec![
+                Annotated::new((
+                    Annotated::new("foo".to_owned()),
+                    Annotated::new("bar".to_owned().into()),
+                )),
+                Annotated::new((
+                    Annotated::new("baz".to_owned()),
+                    Annotated::new("qux".to_owned().into()),
+                )),
+            ]
+            .into(),
+        );
+
+        assert_eq!(query.to_query_string(), Some("foo=bar&baz=qux".to_owned()));
+    }
+
+    #[test]
+    fn test_query_to_query_string_empty() {
+        let query = Query(PairList(vec![]));
+        assert_eq!(query.to_query_string(), None);
+    }
+
+    #[test]
+    fn test_query_to_query_string_special_chars() {
+        let query = Query(
+            vec![Annotated::new((
+                Annotated::new("q".to_owned()),
+                Annotated::new("hello world&more".to_owned().into()),
+            ))]
+            .into(),
+        );
+
+        assert_eq!(
+            query.to_query_string(),
+            Some("q=hello+world%26more".to_owned())
+        );
     }
 
     #[test]

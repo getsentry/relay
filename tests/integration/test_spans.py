@@ -456,8 +456,7 @@ def test_otel_endpoint_disabled(mini_sentry, relay):
         },
     )
     project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)["config"]
-    project_config["features"] = ["organizations:standalone-span-ingestion"]
+    mini_sentry.add_full_project_config(project_id)
 
     end = datetime.now(timezone.utc) - timedelta(seconds=1)
     start = end - timedelta(milliseconds=500)
@@ -535,9 +534,6 @@ def test_span_ingestion_with_performance_scores(
             },
         ],
     }
-    project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-    ]
     project_config["config"]["txNameRules"] = [
         {
             "pattern": "**/interaction/*/**",
@@ -662,9 +658,6 @@ def test_rate_limit_indexed_consistent(
     relay = relay_with_processing()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-    ]
     project_config["config"]["quotas"] = [
         {
             "categories": ["span_indexed"],
@@ -799,9 +792,6 @@ def test_rate_limit_spans_in_envelope(
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-    ]
     project_config["config"]["quotas"] = [
         {
             "categories": ["span"],
@@ -853,9 +843,6 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-    ]
     project_config["config"]["quotas"] = [
         {
             "categories": [category],
@@ -981,8 +968,7 @@ def test_span_filtering_with_generic_inbound_filter(
 
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = ["organizations:standalone-span-ingestion"]
+    mini_sentry.add_full_project_config(project_id)
 
     spans_consumer = spans_consumer()
     outcomes_consumer = outcomes_consumer()
@@ -1038,17 +1024,11 @@ def test_dynamic_sampling(
 
     project_id = 42
     project_config = mini_sentry.add_basic_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-    ]
     project_config["config"]["transactionMetrics"] = {
         "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
     }
 
     sampling_config = mini_sentry.add_basic_project_config(43)
-    sampling_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-    ]
     sampling_public_key = sampling_config["publicKeys"][0]["publicKey"]
     sampling_config["config"]["txNameRules"] = [
         {
