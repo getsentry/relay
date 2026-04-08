@@ -4,7 +4,7 @@ use std::process::Command;
 fn main() {
     if !Path::new("sentry-native/.git").exists() {
         let _ = Command::new("git")
-            .args(["submodule", "update", "--init"])
+            .args(["submodule", "update", "--init", "--recursive"])
             .status();
     }
 
