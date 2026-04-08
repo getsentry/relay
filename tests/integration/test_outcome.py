@@ -1908,12 +1908,6 @@ def test_span_outcomes_invalid(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
-
-    project_config.setdefault("features", []).extend(
-        [
-            "organizations:standalone-span-ingestion",
-        ]
-    )
     project_config["transactionMetrics"] = {
         "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     }

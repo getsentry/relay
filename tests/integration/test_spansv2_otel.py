@@ -50,7 +50,6 @@ def test_span_ingestion(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
         "organizations:relay-otlp-traces-endpoint",
     ]
 

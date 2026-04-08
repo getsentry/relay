@@ -94,8 +94,7 @@ impl SentryError for Unreal {
             }
             if let Some(acr) = &apple_crash_report {
                 crate::utils::process_apple_crash_report(
-                    event.get_or_insert_with(Default::default),
-                    &acr.payload(),
+                    event.get_or_insert_with(Default::default)
                 );
                 metrics.bytes_ingested_event_applecrashreport = (acr.len() as u64).into();
             }
