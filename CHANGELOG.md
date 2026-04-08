@@ -13,6 +13,7 @@
 - Emit outcomes in both `log_byte` and `log_item` categories when logs are dropped. ([#5766](https://github.com/getsentry/relay/pull/5766))
 - Propagate an event's retention policy to its attachments ([#5774](https://github.com/getsentry/relay/pull/5774))
 - Prevent panic in span description normalization. ([#5781](https://github.com/getsentry/relay/pull/5781))
+- Limit overall stream size in playstation multiparts. ([#5791](https://github.com/getsentry/relay/pull/5791))
 
 **Features**:
 
