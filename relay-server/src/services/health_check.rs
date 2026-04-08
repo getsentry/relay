@@ -4,7 +4,7 @@ use relay_config::Config;
 use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
 use std::future::Future;
 use tokio::sync::watch;
-use tokio::time::{Instant, timeout};
+use tokio::time::{Instant, MissedTickBehavior, timeout};
 
 use crate::services::buffer::PartitionedEnvelopeBuffer;
 use crate::services::metrics::RouterHandle;
@@ -198,15 +198,20 @@ impl Service for HealthCheckService {
 
         relay_system::spawn!(async move {
             let shutdown = Controller::shutdown_handle();
+            let mut interval = tokio::time::interval(check_interval);
+            interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
+            // Skip the first tick which completes immediately, to delay the startup slightly,
+            // as dependent services need some time to initialize.
+            interval.tick().await;
 
             while shutdown.get().is_none() {
+                interval.tick().await;
+
                 let _ = update_tx.send(StatusUpdate::new(relay_statsd::metric!(
                     timer(RelayTimers::HealthCheckDuration),
                     type = "readiness",
                     { self.check_readiness().await }
                 )));
-
-                tokio::time::sleep(check_interval).await;
             }
 
             // Shutdown marks readiness health check as unhealthy.
