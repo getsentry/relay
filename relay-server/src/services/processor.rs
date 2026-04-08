@@ -102,6 +102,7 @@ mod metrics;
 mod nel;
 mod profile;
 mod report;
+#[cfg(feature = "processing")]
 mod span;
 
 #[cfg(all(sentry, feature = "processing"))]
@@ -1582,8 +1583,6 @@ impl EnvelopeProcessorService {
         ctx: processing::Context<'_>,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
-
-        span::filter(managed_envelope, ctx.config, ctx.project_info);
 
         if_processing!(self.inner.config, {
             span::process(

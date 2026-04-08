@@ -70,9 +70,8 @@ def test_lcp_span(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = ["organizations:standalone-span-ingestion"]
     if mode == "v2":
-        project_config["config"]["features"].append(
+        project_config["config"].setdefault("features", []).append(
             "projects:span-v2-experimental-processing"
         )
 
@@ -219,9 +218,8 @@ def test_cls_span(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = ["organizations:standalone-span-ingestion"]
     if mode == "v2":
-        project_config["config"]["features"].append(
+        project_config["config"].setdefault("features", []).append(
             "projects:span-v2-experimental-processing"
         )
 
@@ -372,9 +370,8 @@ def test_inp_span(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = ["organizations:standalone-span-ingestion"]
     if mode == "v2":
-        project_config["config"]["features"].append(
+        project_config["config"].setdefault("features", []).append(
             "projects:span-v2-experimental-processing"
         )
 
