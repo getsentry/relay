@@ -968,6 +968,14 @@ pub struct SpanData {
     #[metastructure(field = "url.full")]
     pub url_full: Annotated<String>,
 
+    /// The query string component of the URL, without a leading `?`.
+    #[metastructure(field = "url.query")]
+    pub url_query: Annotated<String>,
+
+    /// The query string component of the URL, with a leading `?`.
+    #[metastructure(field = "http.query")]
+    pub http_query: Annotated<String>,
+
     /// The client's IP address.
     #[metastructure(field = "client.address")]
     pub client_address: Annotated<IpAddr>,
@@ -1052,6 +1060,8 @@ impl Getter for SpanData {
             "thread\\.name" => self.thread_name.as_str()?.into(),
             "ui\\.component_name" => self.ui_component_name.value()?.into(),
             "url\\.scheme" => self.url_scheme.value()?.into(),
+            "url\\.query" => self.url_query.as_str()?.into(),
+            "http\\.query" => self.http_query.as_str()?.into(),
             "user" => self.user.value()?.into(),
             "user\\.email" => self.user_email.as_str()?.into(),
             "user\\.full_name" => self.user_full_name.as_str()?.into(),
@@ -1612,6 +1622,8 @@ mod tests {
             messaging_operation_type: "create",
             user_agent_original: "Chrome",
             url_full: "my_url.com",
+            url_query: ~,
+            http_query: ~,
             client_address: IpAddr(
                 "192.168.0.1",
             ),
