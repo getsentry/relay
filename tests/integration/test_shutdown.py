@@ -58,7 +58,19 @@ def test_graceful_shutdown(mini_sentry, relay, storage):
 
         # Trigger graceful shutdown while the request is in-flight.
         relay.process.send_signal(signal.SIGTERM)
-        time.sleep(0.05)
+
+        # Wait until relay has actually entered shutdown by trying to open new
+        # TCP connections.  The first thing graceful shutdown does is close the
+        # TCP listener, so `create_connection` will raise "connection refused"
+        # once shutdown has started — no arbitrary sleep needed.
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            try:
+                probe = socket.create_connection((host, port), timeout=1)
+                probe.close()
+            except OSError:
+                break  # Connection refused — listener is closed, shutdown started
+            time.sleep(0.01)  # throttle probes to avoid hot-spinning on CI
 
         # Complete the request — relay will respond with Service Unavailable.
         sock.sendall(request[-1:])
