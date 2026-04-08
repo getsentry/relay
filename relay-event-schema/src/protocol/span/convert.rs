@@ -40,6 +40,13 @@ impl From<&Event> for Span {
             span_data.sdk_name = client_sdk.name.clone();
             span_data.sdk_version = client_sdk.version.clone();
         }
+        if let Some(request) = event.request.value()
+            && let Some(query) = request.query_string.value()
+            && let Some(qs) = query.to_query_string()
+        {
+            span_data.http_query = format!("?{qs}").into();
+            span_data.url_query = qs.into();
+        }
 
         Self {
             timestamp: timestamp.clone(),
@@ -120,6 +127,11 @@ mod tests {
                             }
                         ]
                     }
+                },
+                "request": {
+                    "url": "http://example.com/api/0/organizations/",
+                    "method": "GET",
+                    "query_string": "project=1&sort=date"
                 },
                 "measurements": {
                     "memory": {
@@ -257,6 +269,8 @@ mod tests {
                 messaging_operation_type: ~,
                 user_agent_original: ~,
                 url_full: ~,
+                url_query: "project=1&sort=date",
+                http_query: "?project=1&sort=date",
                 client_address: ~,
                 route: ~,
                 previous_route: ~,

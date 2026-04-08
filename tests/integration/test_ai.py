@@ -1205,7 +1205,7 @@ def test_ai_spans_example_transaction(
             "event_id": mock.ANY,
             "is_segment": True,
             "key_id": 123,
-            "name": "Generative AI agent operation",
+            "name": "gen_ai.invoke_agent",
             "organization_id": 1,
             "project_id": 42,
             "received": time_within_delta(),

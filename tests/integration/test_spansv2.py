@@ -66,7 +66,6 @@ def test_spansv2_basic(
     project_config["config"].update(
         {
             "features": [
-                "organizations:standalone-span-ingestion",
                 "projects:span-v2-experimental-processing",
             ],
             "retentions": {"span": {"standard": 42, "downsampled": 1337}},
@@ -230,7 +229,6 @@ def test_spansv2_trimming_basic(
     project_config["config"].update(
         {
             "features": [
-                "organizations:standalone-span-ingestion",
                 "projects:span-v2-experimental-processing",
             ],
             "retentions": {"span": {"standard": 42, "downsampled": 1337}},
@@ -413,7 +411,6 @@ def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
     ]
     # A transaction rule should never apply.
@@ -516,7 +513,6 @@ def test_spansv2_rate_limits(mini_sentry, relay, rate_limit):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
     ]
 
@@ -631,7 +627,6 @@ def test_spansv2_ds_sampled(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
     ]
     add_sampling_config(project_config, sample_rate=0.0, rule_type="trace")
@@ -771,7 +766,6 @@ def test_spansv2_ds_root_in_different_org(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
     ]
     add_sampling_config(project_config, sample_rate=0.0, rule_type="trace")
@@ -910,7 +904,6 @@ def test_spanv2_inbound_filters(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
     ]
 
@@ -994,7 +987,6 @@ def test_spans_v2_multiple_containers_not_allowed(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
     ]
 
@@ -1070,7 +1062,6 @@ def test_spans_v2_dsc_validations(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
     ]
 
@@ -1143,7 +1134,6 @@ def test_spanv2_with_string_pii_scrubbing(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
     ]
 
@@ -1219,7 +1209,6 @@ def test_spanv2_default_pii_scrubbing_attributes(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
     ]
     project_config["config"].setdefault(
@@ -1277,7 +1266,6 @@ def test_spanv2_meta_pii_scrubbing_complex_attribute(mini_sentry, relay):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
     ]
     project_config["config"]["datascrubbingSettings"] = {
@@ -1370,7 +1358,6 @@ def test_spansv2_attribute_normalization(
     project_config["config"].update(
         {
             "features": [
-                "organizations:standalone-span-ingestion",
                 "projects:span-v2-experimental-processing",
             ],
             "retentions": {"span": {"standard": 42, "downsampled": 1337}},
@@ -1542,7 +1529,6 @@ def test_invalid_spans(mini_sentry, relay):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
     ]
 
@@ -1673,7 +1659,6 @@ def test_time_corrections(mini_sentry, relay, delta, error):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
     ]
     project_config["config"]["retentions"] = {
