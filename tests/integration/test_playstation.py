@@ -25,8 +25,9 @@ def playstation_project_config():
             "eventRetention": 36500,
             "features": [
                 "organizations:relay-playstation-ingestion",
-                "projects:relay-upload-endpoint",
                 "organizations:relay-new-error-processing",
+                "projects:relay-upload-endpoint",
+                "projects:relay-playstation-uploads",
             ],
         }
     }
@@ -327,6 +328,35 @@ def test_playstation_max_attachment_size_exceeded(
     assert len(outcomes_consumer.get_outcomes()) == 0
 
 
+def test_playstation_max_stream_size_exceeded(
+    mini_sentry, relay_processing_with_playstation, outcomes_consumer
+):
+    PROJECT_ID = 42
+    playstation_dump = load_dump_file("playstation.prosperodmp")
+    stream_size_limit = len(playstation_dump) - 131
+    relay = relay_processing_with_playstation(
+        {
+            "limits": {
+                "max_upload_size": int(stream_size_limit / 2),
+                "max_attachments_size": int(stream_size_limit / 2),
+            }
+        }
+    )
+    mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
+    outcomes_consumer = outcomes_consumer()
+
+    with pytest.raises(requests.exceptions.HTTPError) as exc_info:
+        _ = relay.send_playstation_request(PROJECT_ID, playstation_dump)
+
+    response = exc_info.value.response
+    assert response.status_code == 400, "Expected a 400 status code"
+    assert (
+        response.content.decode("utf-8")
+        == f'{{"detail":"invalid multipart data","causes":["stream size exceeded limit: {stream_size_limit} bytes"]}}'
+    )
+    assert len(outcomes_consumer.get_outcomes()) == 0
+
+
 @pytest.mark.parametrize("num_intermediate_relays", [0, 1, 2])
 def test_playstation_with_feature_flag(
     mini_sentry,
@@ -401,9 +431,7 @@ def test_playstation_large_attachments(
 ):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("playstation.prosperodmp")
-    config = playstation_project_config()
-    config["config"]["features"].append("projects:relay-playstation-uploads")
-    mini_sentry.add_full_project_config(PROJECT_ID, extra=config)
+    mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
     outcomes_consumer = outcomes_consumer()
     attachments_consumer = attachments_consumer()
     credentials = relay_credentials()
