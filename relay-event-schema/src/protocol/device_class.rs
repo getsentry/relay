@@ -2,7 +2,7 @@ use std::fmt;
 
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue};
 
-use crate::protocol::{Contexts, DeviceContext};
+use crate::protocol::{Attributes, Contexts, DeviceContext};
 
 #[derive(Clone, Copy, Debug, FromValue, IntoValue, Empty, PartialEq)]
 pub struct DeviceClass(pub u64);
@@ -13,6 +13,31 @@ impl DeviceClass {
     pub const LOW: Self = Self(1);
     pub const MEDIUM: Self = Self(2);
     pub const HIGH: Self = Self(3);
+
+    /// Derives the device class from span V2 attributes.
+    ///
+    /// Reads `device.family`, `device.model`, `device.processor_frequency`,
+    /// `device.processor_count`, and `device.memory_size` from the attribute map.
+    pub fn from_attributes(attributes: &Attributes) -> Option<DeviceClass> {
+        let family = attributes.get_value("device.family")?.as_str()?;
+
+        if family == "iPhone" || family == "iOS" || family == "iOS-Device" {
+            let model = attributes.get_value("device.model")?.as_str()?;
+            model_to_class(model)
+        } else {
+            let freq = attributes.get_value("device.processor_frequency")?.as_f64()? as u64;
+            let proc = attributes.get_value("device.processor_count")?.as_f64()? as u64;
+            let mem = attributes.get_value("device.memory_size")?.as_f64()? as u64;
+
+            if freq < 2000 || proc < 8 || mem < 4 * GIB {
+                Some(DeviceClass::LOW)
+            } else if freq < 2500 || mem < 6 * GIB {
+                Some(DeviceClass::MEDIUM)
+            } else {
+                Some(DeviceClass::HIGH)
+            }
+        }
+    }
 
     pub fn from_contexts(contexts: &Contexts) -> Option<DeviceClass> {
         let device = contexts.get::<DeviceContext>()?;

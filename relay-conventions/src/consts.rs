@@ -16,6 +16,9 @@ convention_attributes!(
     BROWSER_NAME => "sentry.browser.name",
     BROWSER_VERSION => "sentry.browser.version",
     CLIENT_ADDRESS => "client.address",
+    DEVICE_BRAND => "device.brand",
+    DEVICE_FAMILY => "device.family",
+    DEVICE_MODEL => "device.model",
     CLIENT_SAMPLE_RATE => "sentry.client_sample_rate",
     DB_QUERY_TEXT => "db.query.text",
     DB_STATEMENT => "db.statement",
@@ -70,6 +73,7 @@ convention_attributes!(
     SEGMENT_ID => "sentry.segment.id",
     SEGMENT_NAME => "sentry.segment.name",
     SENTRY_ACTION => "sentry.action",
+    SENTRY_SDK_NAME => "sentry.sdk.name",
     SENTRY_CATEGORY => "sentry.category",
     SENTRY_DOMAIN => "sentry.domain",
     SENTRY_GROUP => "sentry.group",
@@ -79,6 +83,7 @@ convention_attributes!(
     SERVER_ADDRESS => "server.address",
     SPAN_KIND => "sentry.kind",
     STATUS_MESSAGE => "sentry.status.message",
+    THREAD_NAME => "thread.name",
     UI_COMPONENT_NAME => "ui.component_name",
     URL_FULL => "url.full",
     URL_PATH => "url.path",
@@ -109,5 +114,17 @@ mod not_yet_defined {
     // https://github.com/getsentry/sentry-conventions/pull/256 but is still
     // used in Relay.
     pub const PROFILE_ID: &str = "sentry.profile_id";
+
+    // TODO: Move to convention_attributes! once the corresponding sentry-conventions PRs merge.
+    pub const APP_START_COLD_VALUE: &str = "app.start.cold.value";
+    pub const APP_START_WARM_VALUE: &str = "app.start.warm.value";
+    pub const APP_TTFD_VALUE: &str = "app.ttfd.value";
+    pub const APP_TTID_VALUE: &str = "app.ttid.value";
+    pub const DEVICE_CLASS: &str = "device.class";
+    pub const DEVICE_MEMORY_SIZE: &str = "device.memory_size";
+    pub const DEVICE_PROCESSOR_COUNT: &str = "device.processor_count";
+    pub const DEVICE_PROCESSOR_FREQUENCY: &str = "device.processor_frequency";
+    pub const SENTRY_MAIN_THREAD: &str = "sentry.main_thread";
+    pub const SENTRY_MOBILE: &str = "sentry.mobile";
 }
 pub use self::not_yet_defined::*;

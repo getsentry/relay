@@ -23,12 +23,14 @@ use crate::span::tag_extraction::{
 use crate::{ClientHints, FromUserAgentInfo as _, RawUserAgentInfo};
 
 mod ai;
+mod mobile;
 mod size;
 pub mod time;
 pub mod trace_metric;
 mod trimming;
 
 pub use self::ai::normalize_ai;
+pub use self::mobile::{normalize_device_class, normalize_mobile_attributes};
 pub use self::size::*;
 pub use self::trimming::TrimmingProcessor;
 
@@ -402,6 +404,7 @@ pub fn normalize_attribute_values(
 ) {
     normalize_db_attributes(attributes);
     normalize_http_attributes(attributes, http_span_allowed_hosts);
+    normalize_mobile_attributes(attributes);
 }
 
 /// Normalizes the following db attributes: `db.query.text`, `db.operation.name`, `db.collection.name`
