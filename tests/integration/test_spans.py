@@ -456,6 +456,7 @@ def test_otel_endpoint_disabled(mini_sentry, relay):
         },
     )
     project_id = 42
+    mini_sentry.add_full_project_config(project_id)
 
     end = datetime.now(timezone.utc) - timedelta(seconds=1)
     start = end - timedelta(milliseconds=500)
@@ -967,6 +968,7 @@ def test_span_filtering_with_generic_inbound_filter(
 
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
+    mini_sentry.add_full_project_config(project_id)
 
     spans_consumer = spans_consumer()
     outcomes_consumer = outcomes_consumer()

@@ -102,6 +102,7 @@ mod metrics;
 mod nel;
 mod profile;
 mod report;
+#[cfg(feature = "processing")]
 mod span;
 
 #[cfg(all(sentry, feature = "processing"))]
