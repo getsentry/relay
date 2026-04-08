@@ -37,7 +37,7 @@ pub fn create_placeholders(
     } else if let Some(item) = apple_crash_report_attachment {
         let event = event.get_or_insert_with(Event::default);
         metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() as u64);
-        utils::process_apple_crash_report(event, &item.payload());
+        utils::process_apple_crash_report(event);
         return Some(EventFullyNormalized(false));
     }
 
