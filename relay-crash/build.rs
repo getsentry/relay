@@ -30,6 +30,9 @@ fn main() {
         destination.join("lib").display()
     );
     println!("cargo:rustc-link-lib=static=sentry");
+    if std::env::var("CARGO_CFG_TARGET_OS").unwrap().as_str() == "linux" {
+        println!("cargo:rustc-link-lib=static=unwind");
+    }
 
     let bindings = bindgen::Builder::default()
         .header("sentry-native/include/sentry.h")
