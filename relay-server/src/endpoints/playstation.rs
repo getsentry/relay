@@ -30,7 +30,7 @@ use crate::services::outcome::DiscardReason;
 use crate::services::projects::cache::Project;
 use crate::services::upload::{Create, Stream, Upload};
 use crate::utils::{self, MeteredStream};
-use crate::utils::{AttachmentStrategy, BadMultipart, BoundedStream};
+use crate::utils::{AttachmentStrategy, BoundedStream};
 
 /// The extension of a prosperodump in the multipart form-data upload.
 const PROSPERODUMP_EXTENSION: &str = ".prosperodmp";
@@ -216,14 +216,15 @@ async fn handle(
         return Ok(axum::Json(create_data_request_response()).into_response());
     }
 
+    let config = state.config();
     let project = state
         .project_cache_handle()
-        .ready(meta.public_key(), state.config().query_timeout())
+        .ready(meta.public_key(), config.query_timeout())
         .await
         .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
 
-    let multipart = utils::multipart_from_request(request, multer::Constraints::new())
-        .map_err(BadMultipart::Multipart)?;
+    let stream_size_limit = config.max_upload_size() + config.max_attachments_size();
+    let multipart = utils::multipart_from_request(request, stream_size_limit)?;
     let mut envelope = extract_multipart(multipart, meta, &state, &project).await?;
     envelope.require_feature(Feature::PlaystationIngestion);
 

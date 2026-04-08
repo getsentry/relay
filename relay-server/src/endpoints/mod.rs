@@ -3,11 +3,12 @@
 //! This module contains implementations for all supported relay endpoints, as well as a generic
 //! `forward` endpoint that sends unknown requests to the upstream.
 
+pub(crate) mod common;
+
 mod attachments;
 mod autoscaling;
 mod batch_metrics;
 mod batch_outcomes;
-mod common;
 mod envelope;
 mod forward;
 mod health_check;
