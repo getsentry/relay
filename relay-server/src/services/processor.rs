@@ -1583,8 +1583,6 @@ impl EnvelopeProcessorService {
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
-        span::filter(managed_envelope, ctx.config, ctx.project_info);
-
         if_processing!(self.inner.config, {
             span::process(
                 managed_envelope,

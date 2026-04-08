@@ -9,6 +9,7 @@ pub const GRADUATED_FEATURE_FLAGS: &[Feature] = &[
     Feature::IngestUnsampledProfiles,
     Feature::ScrubMongoDbDescriptions,
     Feature::DeprecatedExtractSpansFromEvent,
+    Feature::DeprecatedStandaloneSpanIngestion,
 ];
 
 /// Features exposed by project config.
@@ -46,11 +47,6 @@ pub enum Feature {
     /// Serialized as `organizations:profiling`.
     #[serde(rename = "organizations:profiling")]
     Profiling,
-    /// Enable standalone span ingestion.
-    ///
-    /// Serialized as `organizations:standalone-span-ingestion`.
-    #[serde(rename = "organizations:standalone-span-ingestion")]
-    StandaloneSpanIngestion,
     /// Enable standalone span ingestion via the `/traces/` OTel endpoint.
     ///
     /// Serialized as `organizations:relay-otlp-traces-endpoint`.
@@ -140,6 +136,13 @@ pub enum Feature {
     #[doc(hidden)]
     #[serde(rename = "organizations:indexed-spans-extraction")]
     DeprecatedExtractSpansFromEvent,
+    /// Enable standalone span ingestion.
+    ///
+    /// Serialized as `organizations:standalone-span-ingestion`.
+    #[doc(hidden)]
+    #[serde(rename = "organizations:standalone-span-ingestion")]
+    DeprecatedStandaloneSpanIngestion,
+
     /// Forward compatibility.
     #[doc(hidden)]
     #[serde(other)]
