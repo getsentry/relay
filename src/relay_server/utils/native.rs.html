@@ -251,7 +251,7 @@
 <a href=#251 id=251 data-nosnippet>251</a>
 <a href=#252 id=252 data-nosnippet>252</a><span class="doccomment">/// Writes minimal information into the event to indicate it is associated with an Apple Crash
 <a href=#253 id=253 data-nosnippet>253</a>/// Report.
-<a href=#254 id=254 data-nosnippet>254</a></span><span class="kw">pub fn </span>process_apple_crash_report(event: <span class="kw-2">&amp;mut </span>Event, _data: <span class="kw-2">&amp;</span>[u8]) {
+<a href=#254 id=254 data-nosnippet>254</a></span><span class="kw">pub fn </span>process_apple_crash_report(event: <span class="kw-2">&amp;mut </span>Event) {
 <a href=#255 id=255 data-nosnippet>255</a>    <span class="kw">let </span>placeholder = NativePlaceholder {
 <a href=#256 id=256 data-nosnippet>256</a>        exception_type: <span class="string">"AppleCrashReport"</span>,
 <a href=#257 id=257 data-nosnippet>257</a>        exception_value: <span class="string">"Invalid Apple Crash Report"</span>,

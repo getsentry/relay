@@ -37,7 +37,7 @@
 <a href=#37 id=37 data-nosnippet>37</a>    } <span class="kw">else if let </span><span class="prelude-val">Some</span>(item) = apple_crash_report_attachment {
 <a href=#38 id=38 data-nosnippet>38</a>        <span class="kw">let </span>event = event.get_or_insert_with(Event::default);
 <a href=#39 id=39 data-nosnippet>39</a>        metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() <span class="kw">as </span>u64);
-<a href=#40 id=40 data-nosnippet>40</a>        utils::process_apple_crash_report(event, <span class="kw-2">&amp;</span>item.payload());
+<a href=#40 id=40 data-nosnippet>40</a>        utils::process_apple_crash_report(event);
 <a href=#41 id=41 data-nosnippet>41</a>        <span class="kw">return </span><span class="prelude-val">Some</span>(EventFullyNormalized(<span class="bool-val">false</span>));
 <a href=#42 id=42 data-nosnippet>42</a>    }
 <a href=#43 id=43 data-nosnippet>43</a>
