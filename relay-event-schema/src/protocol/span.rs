@@ -1039,6 +1039,8 @@ impl Getter for SpanData {
             "gen_ai\\.cost\\.total_tokens" => self.gen_ai_cost_total_tokens.value()?.into(),
             "gen_ai\\.cost\\.input_tokens" => self.gen_ai_cost_input_tokens.value()?.into(),
             "gen_ai\\.cost\\.output_tokens" => self.gen_ai_cost_output_tokens.value()?.into(),
+            "gen_ai\\.input\\.messages" => self.gen_ai_input_messages.value()?.into(),
+            "gen_ai\\.output\\.messages" => self.gen_ai_output_messages.value()?.into(),
             "http\\.decoded_response_content_length" => {
                 self.http_decoded_response_content_length.value()?.into()
             }
