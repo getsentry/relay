@@ -159,7 +159,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         metric_outcomes.track(self.scoping, &dropped, outcome);
     }
 
-    // Drop span -related metrics and create outcomes for any active rate limits.
+    // Drop span-related metrics and create outcomes for any active rate limits.
     //
     // Returns true if any metrics were dropped.
     pub fn enforce_limits(
@@ -255,14 +255,6 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "c:transactions/usage@none".into(),
-                tags: Default::default(),
-                value: BucketValue::counter(12.into()),
-                metadata: BucketMetadata::default(),
-            },
-            Bucket {
-                timestamp: UnixTimestamp::now(),
-                width: 0,
                 name: "c:spans/usage@none".into(),
                 tags: Default::default(),
                 value: BucketValue::counter(34.into()),
@@ -299,9 +291,8 @@ mod tests {
     fn mixed_with_span_quota() {
         let (metrics, outcomes) = run_limiter(mixed_bag(), deny(DataCategory::Span));
 
-        assert_eq!(metrics.len(), 2);
-        assert_eq!(&*metrics[0].name, "c:transactions/usage@none");
-        assert_eq!(&*metrics[1].name, "d:custom/something@millisecond");
+        assert_eq!(metrics.len(), 1);
+        assert_eq!(&*metrics[0].name, "d:custom/something@millisecond");
 
         assert_eq!(
             outcomes,
