@@ -168,7 +168,7 @@ pub struct NormalizationConfig<'a> {
     pub performance_issues_spans: bool,
 
     /// Should add a random trace ID to events that lack one.
-    pub should_add_trace_id_by_default: bool,
+    pub derive_trace_id: bool,
 }
 
 impl Default for NormalizationConfig<'_> {
@@ -204,7 +204,7 @@ impl Default for NormalizationConfig<'_> {
             span_allowed_hosts: Default::default(),
             span_op_defaults: Default::default(),
             performance_issues_spans: Default::default(),
-            should_add_trace_id_by_default: Default::default(),
+            derive_trace_id: Default::default(),
         }
     }
 }
@@ -1319,7 +1319,7 @@ fn normalize_contexts(
     event_id: Uuid,
     config: &NormalizationConfig,
 ) {
-    if config.should_add_trace_id_by_default {
+    if config.derive_trace_id {
         // We will always need a TraceContext.
         let _ = contexts.get_or_insert_with(Contexts::new);
     }
@@ -1333,7 +1333,7 @@ fn normalize_contexts(
         // We need a TraceId to ingest the event into EAP.
         // If the event lacks a TraceContext, add a random one.
 
-        if config.should_add_trace_id_by_default && !contexts.contains::<TraceContext>() {
+        if config.derive_trace_id && !contexts.contains::<TraceContext>() {
             contexts.add(TraceContext::random(event_id))
         }
 
@@ -4068,7 +4068,7 @@ mod tests {
             &mut Meta::default(),
             &NormalizationConfig {
                 performance_score: Some(&performance_score),
-                should_add_trace_id_by_default: true,
+                derive_trace_id: true,
                 ..Default::default()
             },
         );
