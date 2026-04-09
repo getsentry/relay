@@ -251,7 +251,7 @@ pub fn process_minidump(event: &mut Event, data: &[u8]) {
 
 /// Writes minimal information into the event to indicate it is associated with an Apple Crash
 /// Report.
-pub fn process_apple_crash_report(event: &mut Event, _data: &[u8]) {
+pub fn process_apple_crash_report(event: &mut Event) {
     let placeholder = NativePlaceholder {
         exception_type: "AppleCrashReport",
         exception_value: "Invalid Apple Crash Report",

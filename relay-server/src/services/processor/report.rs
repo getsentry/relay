@@ -69,7 +69,7 @@ mod tests {
     use crate::envelope::{Envelope, Item};
     use crate::extractors::RequestMeta;
     use crate::managed::ManagedEnvelope;
-    use crate::processing;
+    use crate::processing::{self, Forward};
     use crate::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup, Submit};
     use crate::testutils::create_test_processor;
 
@@ -111,10 +111,10 @@ mod tests {
             ctx: processing::Context::for_test(),
         };
 
-        let Ok(Some(Submit::Envelope(new_envelope))) = processor.process(message).await else {
+        let Ok(Some(Submit::Output { output, ctx })) = processor.process(message).await else {
             panic!();
         };
-        let new_envelope = new_envelope.envelope();
+        let new_envelope = output.serialize_envelope(ctx).unwrap();
 
         assert_eq!(new_envelope.len(), 1);
         assert_eq!(new_envelope.items().next().unwrap().ty(), &ItemType::Event);

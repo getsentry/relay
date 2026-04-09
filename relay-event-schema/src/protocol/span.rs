@@ -700,6 +700,14 @@ pub struct SpanData {
     #[metastructure(field = "gen_ai.function_id", pii = "maybe")]
     pub gen_ai_function_id: Annotated<String>,
 
+    /// The input messages to the model call.
+    #[metastructure(field = "gen_ai.input.messages", pii = "maybe")]
+    pub gen_ai_input_messages: Annotated<Value>,
+
+    /// The output messages from the model call.
+    #[metastructure(field = "gen_ai.output.messages", pii = "maybe")]
+    pub gen_ai_output_messages: Annotated<Value>,
+
     /// The result of the MCP prompt.
     #[metastructure(field = "mcp.prompt.result", pii = "maybe")]
     pub mcp_prompt_result: Annotated<Value>,
@@ -968,6 +976,14 @@ pub struct SpanData {
     #[metastructure(field = "url.full")]
     pub url_full: Annotated<String>,
 
+    /// The query string component of the URL, without a leading `?`.
+    #[metastructure(field = "url.query")]
+    pub url_query: Annotated<String>,
+
+    /// The query string component of the URL, with a leading `?`.
+    #[metastructure(field = "http.query")]
+    pub http_query: Annotated<String>,
+
     /// The client's IP address.
     #[metastructure(field = "client.address")]
     pub client_address: Annotated<IpAddr>,
@@ -1031,6 +1047,8 @@ impl Getter for SpanData {
             "gen_ai\\.cost\\.total_tokens" => self.gen_ai_cost_total_tokens.value()?.into(),
             "gen_ai\\.cost\\.input_tokens" => self.gen_ai_cost_input_tokens.value()?.into(),
             "gen_ai\\.cost\\.output_tokens" => self.gen_ai_cost_output_tokens.value()?.into(),
+            "gen_ai\\.input\\.messages" => self.gen_ai_input_messages.value()?.into(),
+            "gen_ai\\.output\\.messages" => self.gen_ai_output_messages.value()?.into(),
             "gen_ai\\.operation\\.name" => self.gen_ai_operation_name.as_str()?.into(),
             "gen_ai\\.agent\\.name" => self.gen_ai_agent_name.as_str()?.into(),
             "gen_ai\\.request\\.model" => self.gen_ai_request_model.value()?.into(),
@@ -1052,6 +1070,8 @@ impl Getter for SpanData {
             "thread\\.name" => self.thread_name.as_str()?.into(),
             "ui\\.component_name" => self.ui_component_name.value()?.into(),
             "url\\.scheme" => self.url_scheme.value()?.into(),
+            "url\\.query" => self.url_query.as_str()?.into(),
+            "http\\.query" => self.http_query.as_str()?.into(),
             "user" => self.user.value()?.into(),
             "user\\.email" => self.user_email.as_str()?.into(),
             "user\\.full_name" => self.user_full_name.as_str()?.into(),
@@ -1532,6 +1552,8 @@ mod tests {
             gen_ai_operation_type: ~,
             gen_ai_agent_name: ~,
             gen_ai_function_id: ~,
+            gen_ai_input_messages: ~,
+            gen_ai_output_messages: ~,
             mcp_prompt_result: ~,
             mcp_tool_result_content: ~,
             browser_name: ~,
@@ -1612,6 +1634,8 @@ mod tests {
             messaging_operation_type: "create",
             user_agent_original: "Chrome",
             url_full: "my_url.com",
+            url_query: ~,
+            http_query: ~,
             client_address: IpAddr(
                 "192.168.0.1",
             ),

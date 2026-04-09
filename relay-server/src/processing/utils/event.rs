@@ -33,7 +33,7 @@ use relay_statsd::metric;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::AttachmentType;
-use crate::envelope::{Envelope, EnvelopeHeaders, Item};
+use crate::envelope::{EnvelopeHeaders, Item};
 use crate::processing::Context;
 use crate::services::processor::{MINIMUM_CLOCK_DRIFT, ProcessingError};
 use crate::services::projects::project::ProjectInfo;
@@ -390,18 +390,6 @@ pub fn filter(
 /// New type representing the normalization state of the event.
 #[derive(Debug, Copy, Clone)]
 pub struct EventFullyNormalized(pub bool);
-
-impl EventFullyNormalized {
-    /// Returns `true` if the event is fully normalized, `false` otherwise.
-    pub fn new(envelope: &Envelope) -> Self {
-        let event_fully_normalized = envelope.meta().request_trust().is_trusted()
-            && envelope
-                .items()
-                .any(|item| item.creates_event() && item.fully_normalized());
-
-        Self(event_fully_normalized)
-    }
-}
 
 /// New type representing whether metrics were extracted from transactions/spans.
 #[derive(Debug, Copy, Clone)]
