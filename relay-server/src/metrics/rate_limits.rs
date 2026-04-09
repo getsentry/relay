@@ -134,11 +134,8 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
     /// The distinction between `None` and `Some(0)` is needed to decide whether or not a rate limit
     /// must be checked.
     #[cfg(feature = "processing")]
-    pub fn count(&self, category: DataCategory) -> Option<usize> {
-        match category {
-            DataCategory::Span => self.counts.spans,
-            _ => None,
-        }
+    pub fn count(&self) -> (DataCategory, Option<usize>) {
+        (DataCategory::Span, self.counts.spans)
     }
 
     fn drop_with_outcome(
