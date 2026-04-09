@@ -91,14 +91,11 @@ use {
 pub mod event;
 mod metrics;
 mod nel;
-mod profile;
-mod report;
 #[cfg(feature = "processing")]
 mod span;
 
 #[cfg(all(sentry, feature = "processing"))]
 pub mod playstation;
-mod standalone;
 
 /// Creates the block only if used with `processing` feature.
 ///
@@ -171,7 +168,6 @@ processing_group!(ErrorGroup, Error);
 processing_group!(SessionGroup, Session);
 processing_group!(
     StandaloneGroup,
-    Standalone,
     StandaloneAttachments,
     StandaloneUserReports,
     StandaloneProfiles
@@ -208,9 +204,6 @@ pub enum ProcessingGroup {
     Error,
     /// Session events.
     Session,
-    /// Standalone items which can be sent alone without any event attached to it in the current
-    /// envelope e.g. some attachments, user reports.
-    Standalone,
     /// Standalone attachments
     ///
     /// Attachments that are send without an item that creates an event in the same envelope.
@@ -404,20 +397,6 @@ impl ProcessingGroup {
             }
         }
 
-        // Extract all standalone items.
-        //
-        // Note: only if there are no items in the envelope which can create events, otherwise they
-        // will be in the same envelope with all require event items.
-        if !envelope.items().any(Item::creates_event) {
-            let standalone_items = envelope.take_items_by(Item::requires_event);
-            if !standalone_items.is_empty() {
-                grouped_envelopes.push((
-                    ProcessingGroup::Standalone,
-                    Envelope::from_parts(headers.clone(), standalone_items),
-                ))
-            }
-        };
-
         // Make sure we create separate envelopes for each `RawSecurity` report.
         let security_reports_items = envelope
             .take_items_by(|i| matches!(i.ty(), &ItemType::RawSecurity))
@@ -479,7 +458,6 @@ impl ProcessingGroup {
             ProcessingGroup::Transaction => "transaction",
             ProcessingGroup::Error => "error",
             ProcessingGroup::Session => "session",
-            ProcessingGroup::Standalone => "standalone",
             ProcessingGroup::StandaloneAttachments => "standalone_attachment",
             ProcessingGroup::StandaloneUserReports => "standalone_user_reports",
             ProcessingGroup::StandaloneProfiles => "standalone_profiles",
@@ -506,7 +484,6 @@ impl From<ProcessingGroup> for AppFeature {
             ProcessingGroup::Transaction => AppFeature::Transactions,
             ProcessingGroup::Error => AppFeature::Errors,
             ProcessingGroup::Session => AppFeature::Sessions,
-            ProcessingGroup::Standalone => AppFeature::UnattributedEnvelope,
             ProcessingGroup::StandaloneAttachments => AppFeature::UnattributedEnvelope,
             ProcessingGroup::StandaloneUserReports => AppFeature::UserReports,
             ProcessingGroup::StandaloneProfiles => AppFeature::Profiles,
@@ -604,6 +581,9 @@ pub enum ProcessingError {
     #[cfg(feature = "processing")]
     #[error("invalid attachment reference")]
     InvalidAttachmentRef,
+
+    #[error("could not associate a processing group for the item")]
+    NoProcessingGroup,
 }
 
 impl ProcessingError {
@@ -650,6 +630,7 @@ impl ProcessingError {
             Self::InvalidAttachmentRef => {
                 Some(Outcome::Invalid(DiscardReason::InvalidAttachmentRef))
             }
+            Self::NoProcessingGroup => Some(Outcome::Invalid(DiscardReason::Internal)),
         }
     }
 
@@ -842,17 +823,6 @@ fn send_metrics(
             project_key: sampling_project_key,
             buckets: sampling_metrics,
         });
-    }
-}
-
-/// Function for on-off switches that filter specific item types (profiles, spans)
-/// based on a feature flag.
-///
-/// If the project config did not come from the upstream, we keep the items.
-fn should_filter(config: &Config, project_info: &ProjectInfo, feature: Feature) -> bool {
-    match config.relay_mode() {
-        RelayMode::Proxy => false,
-        RelayMode::Managed => !project_info.has_feature(feature),
     }
 }
 
@@ -1348,44 +1318,6 @@ impl EnvelopeProcessorService {
         } else { Ok(cached_result.event) })
     }
 
-    /// Processes standalone items that require an event ID, but do not have an event on the same envelope.
-    async fn process_standalone(
-        &self,
-        managed_envelope: &mut TypedEnvelope<StandaloneGroup>,
-        ctx: processing::Context<'_>,
-    ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
-        for item in managed_envelope.envelope().items() {
-            let attachment_type_tag = match item.attachment_type() {
-                Some(t) => &t.to_string(),
-                None => "",
-            };
-            relay_statsd::metric!(
-                counter(RelayCounters::StandaloneItem) += 1,
-                processor = "old",
-                item_type = item.ty().name(),
-                attachment_type = attachment_type_tag,
-            );
-        }
-
-        let mut extracted_metrics = ProcessingExtractedMetrics::new();
-
-        standalone::process(managed_envelope);
-
-        profile::filter(managed_envelope, ctx.config, ctx.project_info);
-
-        self.enforce_quotas(
-            managed_envelope,
-            Annotated::empty(),
-            &mut extracted_metrics,
-            ctx,
-        )
-        .await?;
-
-        report::process_user_reports(managed_envelope);
-
-        Ok(Some(extracted_metrics))
-    }
-
     async fn process_nel(
         &self,
         mut managed_envelope: ManagedEnvelope,
@@ -1552,7 +1484,6 @@ impl EnvelopeProcessorService {
                 self.process_with_processor(&self.inner.processing.sessions, managed_envelope, ctx)
                     .await
             }
-            ProcessingGroup::Standalone => run!(process_standalone, ctx),
             ProcessingGroup::StandaloneAttachments => {
                 self.process_with_processor(
                     &self.inner.processing.attachments,
@@ -1647,9 +1578,7 @@ impl EnvelopeProcessorService {
                     "could not identify the processing group based on the envelope's items"
                 );
 
-                Ok(ProcessingResult::no_metrics(
-                    managed_envelope.into_processed(),
-                ))
+                Err(ProcessingError::NoProcessingGroup)
             }
             // Leave this group unchanged.
             //
