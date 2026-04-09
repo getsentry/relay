@@ -254,15 +254,13 @@ pub async fn multipart_items(
     Ok(items)
 }
 
-/// Wrapper around `multer::Field` which consumes the entire underlying stream even when the
-/// size limit is exceeded.
+/// Wrapper around [`multer::Field`] which returns an error when the size limit is exceeded.
 ///
-/// The idea being that you can process fields in a multi-part form even if one fields is too large.
+/// The idea being that you can process fields in a multi-part form even if one field is too large.
 struct LimitedField<'a> {
     field: Field<'a>,
     consumed_size: usize,
     size_limit: usize,
-    inner_finished: bool,
 }
 
 impl<'a> LimitedField<'a> {
@@ -271,7 +269,6 @@ impl<'a> LimitedField<'a> {
             field,
             consumed_size: 0,
             size_limit: limit,
-            inner_finished: false,
         }
     }
 
@@ -292,33 +289,20 @@ impl futures::Stream for LimitedField<'_> {
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        if self.inner_finished {
-            return Poll::Ready(None);
-        }
-
         match self.field.poll_next_unpin(cx) {
             err @ Poll::Ready(Some(Err(_))) => err,
             Poll::Ready(Some(Ok(t))) => {
                 self.consumed_size += t.len();
-                match self.consumed_size <= self.size_limit {
-                    true => Poll::Ready(Some(Ok(t))),
-                    false => {
-                        cx.waker().wake_by_ref();
-                        Poll::Pending
-                    }
+                if self.consumed_size <= self.size_limit {
+                    Poll::Ready(Some(Ok(t)))
+                } else {
+                    Poll::Ready(Some(Err(multer::Error::FieldSizeExceeded {
+                        limit: self.size_limit as u64,
+                        field_name: self.field.name().map(Into::into),
+                    })))
                 }
             }
-            Poll::Ready(None) if self.consumed_size > self.size_limit => {
-                self.inner_finished = true;
-                Poll::Ready(Some(Err(multer::Error::FieldSizeExceeded {
-                    limit: self.consumed_size as u64,
-                    field_name: self.field.name().map(Into::into),
-                })))
-            }
-            Poll::Ready(None) => {
-                self.inner_finished = true;
-                Poll::Ready(None)
-            }
+            Poll::Ready(None) => Poll::Ready(None),
             Poll::Pending => Poll::Pending,
         }
     }

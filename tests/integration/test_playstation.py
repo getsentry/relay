@@ -419,7 +419,7 @@ def test_playstation_user_data_extraction(
 
 
 @pytest.mark.parametrize("use_pop_relay", [True, False])
-def test_playstation_large_attachments(
+def test_playstation_upload_attachments(
     mini_sentry,
     relay_with_playstation,
     relay_processing_with_playstation,
@@ -483,6 +483,36 @@ def test_playstation_large_attachments(
         a for a in event["attachments"] if a["name"] == "playstation.prosperodmp"
     ][0]
     assert chunks[dump_attachment["id"]] == playstation_dump
+
+
+def test_playstation_ignore_large_attachments_when_uploading_disabled(
+    mini_sentry,
+    relay_with_playstation,
+):
+    PROJECT_ID = 42
+    config = playstation_project_config()
+    config["config"]["features"].remove("projects:relay-playstation-uploads")
+    mini_sentry.add_full_project_config(PROJECT_ID, extra=config)
+    playstation_dump = load_dump_file("user_data.prosperodmp")
+    relay = relay_with_playstation(
+        mini_sentry,
+        {
+            "limits": {
+                "max_attachment_size": len(playstation_dump),
+            },
+        },
+    )
+    # Make a dummy video that exceeds max_attachment_size
+    video_content = "1" * 1024 * 1024
+
+    response = relay.send_playstation_request(
+        PROJECT_ID, playstation_dump, video_content
+    )
+
+    assert response.ok
+    assert [
+        item.headers["filename"] for item in mini_sentry.get_captured_envelope().items
+    ] == ["playstation.prosperodmp"]
 
 
 def test_playstation_attachment(
