@@ -115,6 +115,9 @@ pub enum Feature {
     /// Upload non-prosperodmp playstation attachments via the upload-endpoint.
     #[serde(rename = "projects:relay-playstation-uploads")]
     PlaystationUploads,
+    /// Add a random trace ID to events that lack one.
+    #[serde(rename = "organizations:relay-default-trace-id")]
+    AddDefaultTraceID,
 
     /// Enables OTLP spans to use the Span V2 processing pipeline in Relay.
     ///
