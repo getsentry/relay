@@ -1,21 +1,16 @@
-use std::convert::Infallible;
 use std::future::Future;
 use std::io;
 use std::task::Poll;
 
-use axum::extract::{FromRequest, Request};
-use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
+use axum::extract::Request;
 use bytes::{Bytes, BytesMut};
 use futures::{StreamExt, TryStreamExt};
-use multer::{Field, Multipart};
+use multer::{Constraints, Field, Multipart, SizeLimit};
 use relay_config::Config;
 use serde::{Deserialize, Serialize};
 
+use crate::endpoints::common::BadStoreRequest;
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
-use crate::extractors::{BadEventMeta, Remote};
-use crate::service::ServiceState;
-use crate::utils::ApiErrorResponse;
 
 /// Type used for encoding string lengths.
 type Len = u32;
@@ -157,34 +152,6 @@ pub fn get_multipart_boundary(data: &[u8]) -> Option<&str> {
         .filter(|slice| slice.len() > 2 && slice.starts_with(b"--"))
         // Form boundaries must be valid UTF-8 strings
         .and_then(|slice| std::str::from_utf8(&slice[2..]).ok())
-}
-
-#[cfg_attr(not(sentry), allow(dead_code))]
-#[derive(Debug, thiserror::Error)]
-pub enum BadMultipart {
-    #[error("event metadata error: {0}")]
-    EventMeta(#[from] BadEventMeta),
-    #[error("multipart error: {0}")]
-    Multipart(#[from] multer::Error),
-}
-
-impl From<Infallible> for BadMultipart {
-    fn from(infallible: Infallible) -> Self {
-        match infallible {}
-    }
-}
-
-impl IntoResponse for BadMultipart {
-    fn into_response(self) -> Response {
-        let status_code = match self {
-            BadMultipart::Multipart(
-                multer::Error::FieldSizeExceeded { .. } | multer::Error::StreamSizeExceeded { .. },
-            ) => StatusCode::PAYLOAD_TOO_LARGE,
-            _ => StatusCode::BAD_REQUEST,
-        };
-
-        (status_code, ApiErrorResponse::from_error(&self)).into_response()
-    }
 }
 
 /// Strategy for how to infer attachment type and add a multipart attachment to an envelope item.
@@ -357,53 +324,25 @@ impl futures::Stream for LimitedField<'_> {
     }
 }
 
-/// Wrapper around [`multer::Multipart`] that prevents the total stream size from exceeding
-/// [`Config::max_attachments_size`].
-///
-/// Although [`LimitedField`] prevents reading large fields into memory, it still reads
-/// the entire field before returning an error. This led to the incident described in PR
-/// [#4836](https://github.com/getsentry/relay/pull/4836) which necessitated introducing
-/// [`ConstrainedMultipart`]'s stream size limit.
-pub struct ConstrainedMultipart(pub Multipart<'static>);
-
-impl FromRequest<ServiceState> for ConstrainedMultipart {
-    type Rejection = Remote<multer::Error>;
-
-    async fn from_request(request: Request, state: &ServiceState) -> Result<Self, Self::Rejection> {
-        let limits =
-            multer::SizeLimit::new().whole_stream(state.config().max_attachments_size() as u64);
-
-        multipart_from_request(request, multer::Constraints::new().size_limit(limits))
-            .map(Self)
-            .map_err(Remote)
-    }
-}
-
-impl ConstrainedMultipart {
-    pub async fn items(
-        self,
-        config: &Config,
-        attachment_strategy: impl AttachmentStrategy,
-    ) -> Result<Items, multer::Error> {
-        multipart_items(self.0, config, attachment_strategy).await
-    }
-}
-
 pub fn multipart_from_request(
     request: Request,
-    constraints: multer::Constraints,
-) -> Result<Multipart<'static>, multer::Error> {
+    stream_size_limit: usize,
+) -> Result<Multipart<'static>, BadStoreRequest> {
     let content_type = request
         .headers()
         .get("content-type")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
-    let boundary = multer::parse_boundary(content_type)?;
+    let boundary =
+        multer::parse_boundary(content_type).map_err(BadStoreRequest::InvalidMultipart)?;
 
+    // Limits the overall stream size, preventing overly long processing times which can cause
+    // incidents like the one described in [#4836](https://github.com/getsentry/relay/pull/4836).
+    let stream_size_limit = SizeLimit::new().whole_stream(stream_size_limit as u64);
     Ok(Multipart::with_constraints(
         request.into_body().into_data_stream(),
         boundary,
-        constraints,
+        Constraints::new().size_limit(stream_size_limit),
     ))
 }
 
