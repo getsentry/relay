@@ -166,12 +166,6 @@ processing_group!(TransactionGroup, Transaction);
 processing_group!(ErrorGroup, Error);
 
 processing_group!(SessionGroup, Session);
-processing_group!(
-    StandaloneGroup,
-    StandaloneAttachments,
-    StandaloneUserReports,
-    StandaloneProfiles
-);
 processing_group!(ClientReportGroup, ClientReport);
 processing_group!(ReplayGroup, Replay);
 processing_group!(CheckInGroup, CheckIn);
