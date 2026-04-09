@@ -21,7 +21,7 @@ def test_unreal_crash(mini_sentry, relay, dump_file_name):
     """
     project_id = 42
     relay = relay(mini_sentry)
-    mini_sentry.add_full_project_config(project_id)["config"]
+    mini_sentry.add_full_project_config(project_id)
 
     unreal_content = load_dump_file(dump_file_name)
 

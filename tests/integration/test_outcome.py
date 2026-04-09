@@ -1872,7 +1872,7 @@ def test_span_outcomes_invalid(
     outcomes_consumer = outcomes_consumer(timeout=2)
 
     project_id = 42
-    mini_sentry.add_full_project_config(project_id)["config"]
+    mini_sentry.add_full_project_config(project_id)
 
     config = {
         "outcomes": {
