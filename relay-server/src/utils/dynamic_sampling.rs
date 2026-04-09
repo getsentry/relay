@@ -1,9 +1,6 @@
 //! Functionality for calculating if a trace should be processed or dropped.
 use std::ops::ControlFlow;
 
-use chrono::Utc;
-use relay_sampling::config::{RuleType, SamplingConfig};
-use relay_sampling::dsc::DynamicSamplingContext;
 use relay_sampling::evaluation::{SamplingDecision, SamplingEvaluator, SamplingMatch};
 
 use crate::services::outcome::Outcome;
@@ -71,29 +68,6 @@ impl From<ControlFlow<SamplingMatch, SamplingEvaluator<'_>>> for SamplingResult 
     }
 }
 
-/// Runs dynamic sampling if the dsc and root project state are not None and returns whether the
-/// transactions received with such dsc and project state would be kept or dropped by dynamic
-/// sampling.
-pub async fn is_trace_fully_sampled(
-    root_project_config: &SamplingConfig,
-    dsc: &DynamicSamplingContext,
-) -> Option<bool> {
-    // If the sampled field is not set, we prefer to not tag the error since we have no clue on
-    // whether the head of the trace was kept or dropped on the client side.
-    // In addition, if the head of the trace was dropped on the client we will immediately mark
-    // the trace as not fully sampled.
-    if !dsc.sampled? {
-        return Some(false);
-    }
-
-    let evaluator = SamplingEvaluator::new(Utc::now());
-
-    let rules = root_project_config.filter_rules(RuleType::Trace);
-
-    let evaluation = evaluator.match_rules(*dsc.trace_id, dsc, rules).await;
-    Some(SamplingResult::from(evaluation).decision().is_keep())
-}
-
 #[cfg(test)]
 mod tests {
     use relay_base_schema::events::EventType;
@@ -113,6 +87,10 @@ mod tests {
             ..Event::default()
         }
     }
+
+    use chrono::Utc;
+    use relay_sampling::config::RuleType;
+    use relay_sampling::dsc::DynamicSamplingContext;
 
     use super::*;
 
@@ -213,76 +191,5 @@ mod tests {
 
         assert!(result.is_match());
         assert!(result.decision().is_keep());
-    }
-
-    #[tokio::test]
-    async fn test_is_trace_fully_sampled_return_true_with_unsupported_rules() {
-        let config = SamplingConfig {
-            rules: vec![
-                mocked_sampling_rule(1, RuleType::Unsupported, 1.0),
-                mocked_sampling_rule(1, RuleType::Trace, 0.0),
-            ],
-            ..SamplingConfig::new()
-        };
-
-        let dsc = mocked_simple_dynamic_sampling_context(None, None, None, None, Some(true));
-
-        // If processing is enabled, we simply log an error and otherwise proceed as usual.
-        assert_eq!(is_trace_fully_sampled(&config, &dsc).await, Some(false));
-    }
-
-    #[tokio::test]
-    /// Tests that a trace is marked as fully sampled correctly when dsc and project state are set.
-    async fn test_is_trace_fully_sampled_with_valid_dsc_and_sampling_config() {
-        // We test with `sampled = true` and 100% rule.
-
-        let config = SamplingConfig {
-            rules: vec![mocked_sampling_rule(1, RuleType::Trace, 1.0)],
-            ..SamplingConfig::new()
-        };
-
-        let dsc =
-            mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, Some(true));
-
-        let result = is_trace_fully_sampled(&config, &dsc).await.unwrap();
-        assert!(result);
-
-        // We test with `sampled = true` and 0% rule.
-        let config = SamplingConfig {
-            rules: vec![mocked_sampling_rule(1, RuleType::Trace, 0.0)],
-            ..SamplingConfig::new()
-        };
-
-        let dsc =
-            mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, Some(true));
-
-        let result = is_trace_fully_sampled(&config, &dsc).await.unwrap();
-        assert!(!result);
-
-        // We test with `sampled = false` and 100% rule.
-        let config = SamplingConfig {
-            rules: vec![mocked_sampling_rule(1, RuleType::Trace, 1.0)],
-            ..SamplingConfig::new()
-        };
-
-        let dsc =
-            mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, Some(false));
-
-        let result = is_trace_fully_sampled(&config, &dsc).await.unwrap();
-        assert!(!result);
-    }
-
-    #[tokio::test]
-    /// Tests that a trace is not marked as fully sampled or not if inputs are invalid.
-    async fn test_is_trace_fully_sampled_with_invalid_inputs() {
-        // We test with missing `sampled`.
-        let config = SamplingConfig {
-            rules: vec![mocked_sampling_rule(1, RuleType::Trace, 1.0)],
-            ..SamplingConfig::new()
-        };
-        let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, None);
-
-        let result = is_trace_fully_sampled(&config, &dsc).await;
-        assert!(result.is_none());
     }
 }

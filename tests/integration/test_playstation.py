@@ -26,7 +26,6 @@ def playstation_project_config():
             "features": [
                 "organizations:relay-playstation-ingestion",
                 "projects:relay-upload-endpoint",
-                "organizations:relay-new-error-processing",
             ],
         }
     }

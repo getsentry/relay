@@ -2,138 +2,15 @@
 //!
 //! These functions are included only in the processing mode.
 
-use relay_config::Config;
-use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::{
     AppContext, ClientSdkInfo, Context, Contexts, DeviceContext, LenientString, OsContext,
     RuntimeContext, Tags,
 };
 use relay_event_schema::protocol::{Event, TagEntry};
-use relay_prosperoconv::{self, ProsperoDump};
+use relay_prosperoconv::ProsperoDump;
 use relay_protocol::{Annotated, Empty, Object};
 
-use crate::constants::SENTRY_CRASH_PAYLOAD_KEY;
-use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
-use crate::managed::TypedEnvelope;
-use crate::services::processor::metric;
-use crate::services::processor::{ErrorGroup, EventFullyNormalized, ProcessingError};
-use crate::services::projects::project::ProjectInfo;
-use crate::statsd::RelayCounters;
-use crate::utils;
-
-pub fn expand(
-    managed_envelope: &mut TypedEnvelope<ErrorGroup>,
-    config: &Config,
-    project_info: &ProjectInfo,
-) -> Result<(), ProcessingError> {
-    if !project_info.has_feature(Feature::PlaystationIngestion) {
-        return Ok(());
-    }
-    let envelope = managed_envelope.envelope_mut();
-
-    // Get instead of take as we want to keep the dump as an attachment
-    if let Some(item) = envelope.get_item_by(|item| {
-        item.ty() == &ItemType::Attachment
-            && item.attachment_type() == Some(AttachmentType::Prosperodump)
-    }) {
-        let data = relay_prosperoconv::extract_data(&item.payload()).map_err(|err| {
-            ProcessingError::InvalidPlaystationDump(format!("Failed to extract data: {err}"))
-        })?;
-        let prospero_dump = ProsperoDump::parse(&data).map_err(|err| {
-            ProcessingError::InvalidPlaystationDump(format!("Failed to parse dump: {err}"))
-        })?;
-        let minidump_buffer = relay_prosperoconv::write_dump(&prospero_dump).map_err(|err| {
-            ProcessingError::InvalidPlaystationDump(format!("Failed to create minidump: {err}"))
-        })?;
-
-        if let Some(json) = prospero_dump.userdata.get(SENTRY_CRASH_PAYLOAD_KEY) {
-            let event = envelope.take_item_by(|item| item.ty() == &ItemType::Event);
-            let event_item = merge_or_create_event_item(json, event);
-            envelope.add_item(event_item);
-        }
-
-        add_attachments(envelope, prospero_dump, minidump_buffer);
-
-        if let Err(offender) = utils::check_envelope_size_limits(config, envelope) {
-            return Err(ProcessingError::PayloadTooLarge(offender));
-        }
-    }
-    Ok(())
-}
-
-pub fn process(
-    managed_envelope: &mut TypedEnvelope<ErrorGroup>,
-    event: &mut Annotated<Event>,
-    project_info: &ProjectInfo,
-) -> Result<Option<EventFullyNormalized>, ProcessingError> {
-    if !project_info.has_feature(Feature::PlaystationIngestion) {
-        return Ok(None);
-    }
-    let envelope = &mut managed_envelope.envelope_mut();
-
-    if let Some(item) = envelope.get_item_by(|item| {
-        item.ty() == &ItemType::Attachment
-            && item.attachment_type() == Some(AttachmentType::Prosperodump)
-    }) {
-        metric!(counter(RelayCounters::PlaystationProcessing) += 1);
-        let event = event.get_or_insert_with(Event::default);
-
-        // Currently we parse the dump here again, in order to set the contexts on the event
-        // this can not be done in the expand function since we don't have an event at that point.
-        // This is inline with how unreal reports are handled.
-        let data = relay_prosperoconv::extract_data(&item.payload()).map_err(|err| {
-            ProcessingError::InvalidPlaystationDump(format!("Failed to extract data: {err}"))
-        })?;
-        let prospero_dump = ProsperoDump::parse(&data).map_err(|err| {
-            ProcessingError::InvalidPlaystationDump(format!("Failed to parse dump: {err}"))
-        })?;
-
-        // If "__sentry" is not a key in the userdata do the legacy extraction.
-        // This should be removed once all customers migrated to the new format.
-        if !&prospero_dump
-            .userdata
-            .contains_key(SENTRY_CRASH_PAYLOAD_KEY)
-        {
-            legacy_userdata_extraction(event, &prospero_dump);
-        }
-        merge_playstation_context(event, &prospero_dump);
-
-        return Ok(Some(EventFullyNormalized(false)));
-    }
-    Ok(None)
-}
-
-fn add_attachments(
-    envelope: &mut crate::Envelope,
-    prospero_dump: ProsperoDump<'_>,
-    minidump_buffer: Vec<u8>,
-) {
-    let mut item = Item::new(ItemType::Attachment);
-    item.set_filename("generated_minidump.dmp");
-    item.set_payload(ContentType::Minidump, minidump_buffer);
-    item.set_attachment_type(AttachmentType::Minidump);
-    envelope.add_item(item);
-
-    for file in prospero_dump.files {
-        let mut item = Item::new(ItemType::Attachment);
-        item.set_filename(file.name);
-        item.set_attachment_type(AttachmentType::Attachment);
-        item.set_payload(infer_content_type(file.name), file.contents.to_owned());
-        envelope.add_item(item);
-    }
-
-    let mut console_log = prospero_dump.system_log.into_owned();
-    for log_line in prospero_dump.log_lines {
-        console_log.push_str(log_line);
-    }
-    if !console_log.is_empty() {
-        let mut item = Item::new(ItemType::Attachment);
-        item.set_filename("console.log");
-        item.set_payload(ContentType::Text, console_log.into_bytes());
-        item.set_attachment_type(AttachmentType::Attachment);
-        envelope.add_item(item);
-    }
-}
+use crate::envelope::ContentType;
 
 pub fn legacy_userdata_extraction(event: &mut Event, prospero: &ProsperoDump) {
     let contexts = event.contexts.get_or_insert_with(Contexts::default);
@@ -280,30 +157,6 @@ pub fn infer_content_type(filename: &str) -> ContentType {
         Some("json") => ContentType::Json,
         Some("xml") => ContentType::Xml,
         _ => ContentType::OctetStream,
-    }
-}
-
-fn create_item_with_json_payload(payload: &str) -> Item {
-    let mut item = Item::new(ItemType::Event);
-    item.set_payload(ContentType::Json, payload.to_owned());
-    item
-}
-
-fn merge_or_create_event_item(json: &str, event: Option<Item>) -> Item {
-    if let Some(item) = event {
-        let event =
-            serde_json::from_slice::<serde_json::Value>(&item.payload()).unwrap_or_default();
-        let mut base_event = serde_json::from_str::<serde_json::Value>(json).unwrap_or_default();
-
-        utils::merge_values(&mut base_event, event);
-
-        if let Ok(merged_json) = serde_json::to_string(&base_event) {
-            create_item_with_json_payload(&merged_json)
-        } else {
-            item
-        }
-    } else {
-        create_item_with_json_payload(json)
     }
 }
 

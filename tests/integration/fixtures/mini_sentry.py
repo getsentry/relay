@@ -181,7 +181,6 @@ class Sentry(SentryLike):
                 },
                 "blacklistedIps": ["127.43.33.22"],
                 "trustedRelays": [],
-                "features": ["organizations:relay-new-error-processing"],
             },
         }
 
