@@ -582,7 +582,7 @@ pub enum ProcessingError {
     #[error("invalid attachment reference")]
     InvalidAttachmentRef,
 
-    #[error("could not associate a processing group for the item")]
+    #[error("could not determine processing group for envelope items")]
     NoProcessingGroup,
 }
 
