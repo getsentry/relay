@@ -207,6 +207,8 @@ mod tests {
                 gen_ai_operation_type: ~,
                 gen_ai_agent_name: ~,
                 gen_ai_function_id: ~,
+                gen_ai_input_messages: ~,
+                gen_ai_output_messages: ~,
                 mcp_prompt_result: ~,
                 mcp_tool_result_content: ~,
                 browser_name: "Chrome",

@@ -16,6 +16,7 @@
 
 **Features**:
 
+- Transition error processing pipeline to a more modern implementation. ([#5702](https://github.com/getsentry/relay/pull/5702))
 - Set `sentry.segment.id` and `sentry.segment.name` attributes on OTLP segment spans. ([#5748](https://github.com/getsentry/relay/pull/5748))
 - Envelope buffer: Add option to disable flush-to-disk on shutdown. ([#5751](https://github.com/getsentry/relay/pull/5751))
 - Allow configuring Objectstore client auth parameters. ([#5720](https://github.com/getsentry/relay/pull/5720))
@@ -31,6 +32,7 @@
 - Graduate standalone span ingestion feature flag. ([#5786](https://github.com/getsentry/relay/pull/5786))
 - Use new processor architecture to process standalone profiles. ([#5741](https://github.com/getsentry/relay/pull/5741))
 - TUS: Disallow creation with upload. ([#5734](https://github.com/getsentry/relay/pull/5734))
+- Use sentry native's native crash reporting backend instead of breakpad. ([#5789](https://github.com/getsentry/relay/pull/5789))
 - Add logic to verify attachment placeholders and correctly store them. ([#5747](https://github.com/getsentry/relay/pull/5747))
 - Remove continuous-profiling-beta feature flags. ([#5762](https://github.com/getsentry/relay/pull/5762))
 - Playstation: Do not upload attachments if quota is 0. ([#5770](https://github.com/getsentry/relay/pull/5770))

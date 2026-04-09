@@ -23,9 +23,7 @@ use relay_config::{Config, HttpEncoding, RelayMode};
 use relay_dynamic_config::{Feature, GlobalConfig};
 use relay_event_normalization::{ClockDriftProcessor, GeoIpLookup};
 use relay_event_schema::processor::ProcessingAction;
-use relay_event_schema::protocol::{
-    ClientReport, Event, EventId, Metrics, NetworkReportError, SpanV2,
-};
+use relay_event_schema::protocol::{ClientReport, Event, EventId, NetworkReportError, SpanV2};
 use relay_filter::FilterStatKey;
 use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricNamespace};
 use relay_protocol::Annotated;
@@ -37,9 +35,7 @@ use reqwest::header;
 use smallvec::{SmallVec, smallvec};
 use zstd::stream::Encoder as ZstdEncoder;
 
-use crate::envelope::{
-    self, AttachmentType, ContentType, Envelope, EnvelopeError, Item, ItemContainer, ItemType,
-};
+use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemContainer, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta, RequestTrust};
 use crate::integrations::Integration;
 use crate::managed::{InvalidProcessingGroupType, ManagedEnvelope, TypedEnvelope};
@@ -60,10 +56,7 @@ use crate::processing::trace_attachments::TraceAttachmentsProcessor;
 use crate::processing::trace_metrics::TraceMetricsProcessor;
 use crate::processing::transactions::TransactionProcessor;
 use crate::processing::user_reports::UserReportsProcessor;
-use crate::processing::utils::event::{
-    EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted, event_category,
-    event_type,
-};
+use crate::processing::utils::event::event_category;
 use crate::processing::{Forward as _, Output, Outputs, QuotaRateLimiter};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
@@ -95,8 +88,6 @@ use {
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
-mod attachment;
-mod dynamic_sampling;
 pub mod event;
 mod metrics;
 mod nel;
@@ -108,11 +99,6 @@ mod span;
 #[cfg(all(sentry, feature = "processing"))]
 pub mod playstation;
 mod standalone;
-#[cfg(feature = "processing")]
-mod unreal;
-
-#[cfg(feature = "processing")]
-mod nnswitch;
 
 /// Creates the block only if used with `processing` feature.
 ///
@@ -178,16 +164,9 @@ macro_rules! processing_group {
     };
 }
 
-/// A marker trait.
-///
-/// Should be used only with groups which are responsible for processing envelopes with events.
-pub trait EventProcessing {}
-
 processing_group!(TransactionGroup, Transaction);
-impl EventProcessing for TransactionGroup {}
 
 processing_group!(ErrorGroup, Error);
-impl EventProcessing for ErrorGroup {}
 
 processing_group!(SessionGroup, Session);
 processing_group!(
@@ -1197,6 +1176,7 @@ struct InnerProcessor {
     addrs: Addrs,
     #[cfg(feature = "processing")]
     rate_limiter: Option<Arc<RedisRateLimiter>>,
+    #[cfg(feature = "processing")]
     geoip_lookup: GeoIpLookup,
     #[cfg(feature = "processing")]
     cardinality_limiter: Option<CardinalityLimiter>,
@@ -1296,6 +1276,8 @@ impl EnvelopeProcessorService {
                 })
                 .map(CardinalityLimiter::new),
             metric_outcomes,
+            #[cfg(feature = "processing")]
+            geoip_lookup: geoip_lookup.clone(),
             processing: Processing {
                 errors: ErrorsProcessor::new(Arc::clone(&quota_limiter), geoip_lookup.clone()),
                 logs: LogsProcessor::new(Arc::clone(&quota_limiter)),
@@ -1310,13 +1292,12 @@ impl EnvelopeProcessorService {
                 ),
                 profile_chunks: ProfileChunksProcessor::new(Arc::clone(&quota_limiter)),
                 trace_attachments: TraceAttachmentsProcessor::new(Arc::clone(&quota_limiter)),
-                replays: ReplaysProcessor::new(Arc::clone(&quota_limiter), geoip_lookup.clone()),
+                replays: ReplaysProcessor::new(Arc::clone(&quota_limiter), geoip_lookup),
                 client_reports: ClientReportsProcessor::new(outcome_aggregator),
                 attachments: AttachmentProcessor::new(Arc::clone(&quota_limiter)),
                 user_reports: UserReportsProcessor::new(Arc::clone(&quota_limiter)),
                 profiles: ProfilesProcessor::new(quota_limiter),
             },
-            geoip_lookup,
             config,
         };
 
@@ -1365,126 +1346,6 @@ impl EnvelopeProcessorService {
 
             Ok(consistent_result.event)
         } else { Ok(cached_result.event) })
-    }
-
-    /// Processes the general errors, and the items which require or create the events.
-    async fn process_errors(
-        &self,
-        managed_envelope: &mut TypedEnvelope<ErrorGroup>,
-        project_id: ProjectId,
-        mut ctx: processing::Context<'_>,
-    ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
-        let mut event_fully_normalized = EventFullyNormalized::new(managed_envelope.envelope());
-        let mut metrics = Metrics::default();
-        let mut extracted_metrics = ProcessingExtractedMetrics::new();
-
-        // Events can also contain user reports.
-        report::process_user_reports(managed_envelope);
-
-        if_processing!(self.inner.config, {
-            unreal::expand(managed_envelope, &self.inner.config)?;
-            #[cfg(sentry)]
-            playstation::expand(managed_envelope, &self.inner.config, ctx.project_info)?;
-            nnswitch::expand(managed_envelope)?;
-        });
-
-        let mut event = event::extract(
-            managed_envelope,
-            &mut metrics,
-            event_fully_normalized,
-            &self.inner.config,
-        )?;
-
-        if_processing!(self.inner.config, {
-            if let Some(inner_event_fully_normalized) =
-                unreal::process(managed_envelope, &mut event)?
-            {
-                event_fully_normalized = inner_event_fully_normalized;
-            }
-            #[cfg(sentry)]
-            if let Some(inner_event_fully_normalized) =
-                playstation::process(managed_envelope, &mut event, ctx.project_info)?
-            {
-                event_fully_normalized = inner_event_fully_normalized;
-            }
-            if let Some(inner_event_fully_normalized) =
-                attachment::create_placeholders(managed_envelope, &mut event, &mut metrics)
-            {
-                event_fully_normalized = inner_event_fully_normalized;
-            }
-        });
-
-        ctx.sampling_project_info = dynamic_sampling::validate_and_set_dsc(
-            managed_envelope,
-            &mut event,
-            ctx.project_info,
-            ctx.sampling_project_info,
-        );
-
-        let attachments = managed_envelope
-            .envelope()
-            .items()
-            .filter(|item| item.attachment_type() == Some(AttachmentType::Attachment));
-        processing::utils::event::finalize(
-            managed_envelope.envelope().headers(),
-            &mut event,
-            attachments,
-            &mut metrics,
-            ctx.config,
-        )?;
-        event_fully_normalized = processing::utils::event::normalize(
-            managed_envelope.envelope().headers(),
-            &mut event,
-            event_fully_normalized,
-            project_id,
-            ctx,
-            &self.inner.geoip_lookup,
-        )?;
-        let filter_run =
-            processing::utils::event::filter(managed_envelope.envelope().headers(), &event, ctx)
-                .map_err(ProcessingError::EventFiltered)?;
-
-        if self.inner.config.processing_enabled() || matches!(filter_run, FiltersStatus::Ok) {
-            dynamic_sampling::tag_error_with_sampling_decision(
-                managed_envelope,
-                &mut event,
-                ctx.sampling_project_info,
-                &self.inner.config,
-            )
-            .await;
-        }
-
-        event = self
-            .enforce_quotas(managed_envelope, event, &mut extracted_metrics, ctx)
-            .await?;
-
-        if event.value().is_some() {
-            processing::utils::event::scrub(&mut event, ctx.project_info)?;
-            event::serialize(
-                managed_envelope,
-                &mut event,
-                event_fully_normalized,
-                EventMetricsExtracted(false),
-                SpansExtracted(false),
-            )?;
-            event::emit_feedback_metrics(managed_envelope.envelope());
-        }
-
-        let attachments = managed_envelope
-            .envelope_mut()
-            .items_mut()
-            .filter(|i| i.ty() == &ItemType::Attachment);
-        processing::utils::attachments::scrub(attachments, ctx.project_info, None);
-
-        if self.inner.config.processing_enabled() && !event_fully_normalized.0 {
-            relay_log::error!(
-                tags.project = %project_id,
-                tags.ty = event_type(&event).map(|e| e.to_string()).unwrap_or("none".to_owned()),
-                "ingested event without normalizing"
-            );
-        }
-
-        Ok(Some(extracted_metrics))
     }
 
     /// Processes standalone items that require an event ID, but do not have an event on the same envelope.
@@ -1676,16 +1537,8 @@ impl EnvelopeProcessorService {
 
         match group {
             ProcessingGroup::Error => {
-                if ctx.project_info.has_feature(Feature::NewErrorProcessing) {
-                    self.process_with_processor(
-                        &self.inner.processing.errors,
-                        managed_envelope,
-                        ctx,
-                    )
+                self.process_with_processor(&self.inner.processing.errors, managed_envelope, ctx)
                     .await
-                } else {
-                    run!(process_errors, project_id, ctx)
-                }
             }
             ProcessingGroup::Transaction => {
                 self.process_with_processor(
@@ -3454,10 +3307,10 @@ mod tests {
             },
         };
 
-        let Ok(Some(Submit::Envelope(mut new_envelope))) = processor.process(message).await else {
+        let Ok(Some(Submit::Output { output, ctx })) = processor.process(message).await else {
             panic!();
         };
-        let new_envelope = new_envelope.envelope_mut();
+        let new_envelope = output.serialize_envelope(ctx).unwrap().accept(|f| f);
 
         let event_item = new_envelope.items().last().unwrap();
         let annotated_event: Annotated<Event> =
@@ -3537,11 +3390,11 @@ mod tests {
         };
 
         let processor = create_test_processor(Config::from_json_value(config).unwrap()).await;
-        let Ok(Some(Submit::Envelope(envelope))) = processor.process(message).await else {
+        let Ok(Some(Submit::Output { output, ctx })) = processor.process(message).await else {
             panic!();
         };
+        let envelope = output.serialize_envelope(ctx).unwrap();
         let event = envelope
-            .envelope()
             .get_item_by(|item| item.ty() == &ItemType::Event)
             .unwrap();
 

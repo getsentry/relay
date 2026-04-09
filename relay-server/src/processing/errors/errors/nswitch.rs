@@ -120,9 +120,6 @@ impl Counted for Nswitch {
 /// An error returned when parsing the dying message attachment.
 #[derive(Debug, thiserror::Error)]
 pub enum SwitchProcessingError {
-    #[error("invalid json")]
-    #[cfg_attr(not(feature = "processing"), expect(unused))]
-    InvalidJson(#[source] serde_json::Error),
     #[error("envelope parsing failed")]
     EnvelopeParsing(#[from] EnvelopeError),
     #[error("unexpected EOF, expected {expected:?}")]
