@@ -169,7 +169,7 @@ def test_metrics(mini_sentry, relay):
     mini_sentry.add_basic_project_config(project_id)
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    metrics_payload = f"spans/foo:42|c|T{timestamp}\nspans/bar:17|c|T{timestamp}"
+    metrics_payload = f"spans/foo:42|c|T{timestamp}\ntransactions/bar:17|c|T{timestamp}"
     relay.send_metrics(project_id, metrics_payload)
 
     envelope = mini_sentry.get_captured_envelope()
@@ -185,15 +185,15 @@ def test_metrics(mini_sentry, relay):
         {
             "timestamp": time_after(timestamp),
             "width": 1,
-            "name": "c:spans/bar@none",
-            "value": 17.0,
+            "name": "c:spans/foo@none",
+            "value": 42.0,
             "type": "c",
         },
         {
             "timestamp": time_after(timestamp),
             "width": 1,
-            "name": "c:spans/foo@none",
-            "value": 42.0,
+            "name": "c:transactions/bar@none",
+            "value": 17.0,
             "type": "c",
         },
     ]

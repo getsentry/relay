@@ -39,6 +39,7 @@ fn to_app_feature(ns: MetricNamespace) -> AppFeature {
     match ns {
         MetricNamespace::Sessions => AppFeature::MetricsSessions,
         MetricNamespace::Spans => AppFeature::MetricsSpans,
+        MetricNamespace::Transactions => AppFeature::MetricsTransactions,
         MetricNamespace::Custom => AppFeature::MetricsCustom,
         MetricNamespace::Unsupported => AppFeature::MetricsUnsupported,
     }
