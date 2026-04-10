@@ -394,6 +394,164 @@ def test_trace_metric_pii_scrubbing(
     ]
 
 
+def test_trace_metric_string_pii_scrubbing(
+    mini_sentry,
+    relay,
+    scrubbing_rule,
+):
+    rule_type, test_value, expected_scrubbed = scrubbing_rule
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:tracemetrics-ingestion",
+    ]
+
+    project_config["config"]["piiConfig"]["applications"] = {"$string": [rule_type]}
+
+    relay_instance = relay(mini_sentry, options=TEST_CONFIG)
+    start = datetime.now(timezone.utc)
+
+    envelope = envelope_with_trace_metrics(
+        {
+            "timestamp": start.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "name": "test.metric",
+            "type": "counter",
+            "value": 1.0,
+            "attributes": {
+                "test_pii": {"value": test_value, "type": "string"},
+            },
+        }
+    )
+
+    relay_instance.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.get_captured_envelope()
+    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    item = item_payload["items"][0]
+
+    assert item["attributes"]["test_pii"] == {
+        "type": "string",
+        "value": expected_scrubbed,
+    }
+    assert "_meta" in item
+    meta = item["_meta"]["attributes"]["test_pii"]["value"][""]
+    assert "rem" in meta
+    assert meta["rem"][0][0] == rule_type
+
+
+def test_trace_metric_default_pii_scrubbing_attributes(
+    mini_sentry,
+    relay,
+    secret_attribute,
+):
+    attribute_key, attribute_value, expected_value, rule_type = secret_attribute
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:tracemetrics-ingestion",
+    ]
+
+    project_config["config"].setdefault(
+        "datascrubbingSettings",
+        {
+            "scrubData": True,
+            "scrubDefaults": True,
+            "scrubIpAddresses": True,
+        },
+    )
+
+    relay_instance = relay(mini_sentry, options=TEST_CONFIG)
+    start = datetime.now(timezone.utc)
+
+    envelope = envelope_with_trace_metrics(
+        {
+            "timestamp": start.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "name": "test.metric",
+            "type": "counter",
+            "value": 1.0,
+            "attributes": {
+                attribute_key: {"value": attribute_value, "type": "string"},
+            },
+        }
+    )
+
+    relay_instance.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.get_captured_envelope()
+    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    item = item_payload["items"][0]
+    attributes = item["attributes"]
+
+    assert attribute_key in attributes
+    assert attributes[attribute_key]["value"] == expected_value
+    assert "_meta" in item
+    meta = item["_meta"]["attributes"][attribute_key]["value"][""]
+    assert "rem" in meta
+    rem_info = meta["rem"]
+    assert len(rem_info) == 1
+    assert rem_info[0][0] == rule_type
+
+
+def test_trace_metric_default_pii_scrubbing_does_not_scrub_default_attributes(
+    mini_sentry,
+    relay,
+):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:tracemetrics-ingestion",
+    ]
+    project_config["config"].setdefault(
+        "datascrubbingSettings",
+        {
+            "scrubData": True,
+            "scrubDefaults": True,
+            "scrubIpAddresses": True,
+        },
+    )
+
+    project_config["config"]["piiConfig"] = {
+        "rules": {
+            "remove_custom_field": {
+                "type": "anything",
+                "redaction": {"method": "replace", "text": "[REDACTED]"},
+            }
+        },
+        "applications": {"**": ["remove_custom_field"]},
+    }
+
+    relay_instance = relay(mini_sentry, options=TEST_CONFIG)
+    start = datetime.now(timezone.utc)
+
+    envelope = envelope_with_trace_metrics(
+        {
+            "timestamp": start.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "name": "test.metric",
+            "type": "counter",
+            "value": 1.0,
+            "attributes": {
+                "custom_field": {"value": "custom_value", "type": "string"},
+            },
+        }
+    )
+
+    relay_instance.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.get_captured_envelope()
+    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    item = item_payload["items"][0]
+
+    assert item["attributes"]["custom_field"] == {
+        "type": "string",
+        "value": "[REDACTED]",
+    }
+    assert "_meta" in item
+    assert "custom_field" in item["_meta"]["attributes"]
+
+
 def test_trace_metric_size_limits(
     mini_sentry,
     relay,
