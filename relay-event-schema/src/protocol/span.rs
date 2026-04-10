@@ -553,17 +553,15 @@ pub struct SpanData {
     #[metastructure(field = "gen_ai.cost.output_tokens", pii = "maybe")]
     pub gen_ai_cost_output_tokens: Annotated<Value>,
 
-    /// Prompt passed to LLM (Vercel AI SDK)
-    #[metastructure(field = "gen_ai.prompt", pii = "maybe")]
-    pub gen_ai_prompt: Annotated<Value>,
-
-    /// Prompt passed to LLM
+    /// The input messages to the model call.
     #[metastructure(
-        field = "gen_ai.request.messages",
+        field = "gen_ai.input.messages",
         pii = "maybe",
+        legacy_alias = "gen_ai.prompt",
+        legacy_alias = "gen_ai.request.messages",
         legacy_alias = "ai.prompt.messages"
     )]
-    pub gen_ai_request_messages: Annotated<Value>,
+    pub gen_ai_input_messages: Annotated<Value>,
 
     /// Tool call arguments
     #[metastructure(
@@ -590,14 +588,15 @@ pub struct SpanData {
     )]
     pub gen_ai_response_tool_calls: Annotated<Value>,
 
-    /// LLM response text (Vercel AI, generateText)
+    /// The output messages from the model call.
     #[metastructure(
-        field = "gen_ai.response.text",
+        field = "gen_ai.output.messages",
+        legacy_alias = "gen_ai.response.text",
         legacy_alias = "ai.response.text",
         legacy_alias = "ai.responses",
         pii = "maybe"
     )]
-    pub gen_ai_response_text: Annotated<Value>,
+    pub gen_ai_output_messages: Annotated<Value>,
 
     /// LLM response object (Vercel AI, generateObject)
     #[metastructure(field = "gen_ai.response.object", pii = "maybe")]
@@ -699,14 +698,6 @@ pub struct SpanData {
     /// The function ID of the AI agent.
     #[metastructure(field = "gen_ai.function_id", pii = "maybe")]
     pub gen_ai_function_id: Annotated<String>,
-
-    /// The input messages to the model call.
-    #[metastructure(field = "gen_ai.input.messages", pii = "maybe")]
-    pub gen_ai_input_messages: Annotated<Value>,
-
-    /// The output messages from the model call.
-    #[metastructure(field = "gen_ai.output.messages", pii = "maybe")]
-    pub gen_ai_output_messages: Annotated<Value>,
 
     /// The result of the MCP prompt.
     #[metastructure(field = "mcp.prompt.result", pii = "maybe")]
@@ -1526,12 +1517,11 @@ mod tests {
             gen_ai_cost_total_tokens: ~,
             gen_ai_cost_input_tokens: ~,
             gen_ai_cost_output_tokens: ~,
-            gen_ai_prompt: ~,
-            gen_ai_request_messages: ~,
+            gen_ai_input_messages: ~,
             gen_ai_tool_input: ~,
             gen_ai_tool_output: ~,
             gen_ai_response_tool_calls: ~,
-            gen_ai_response_text: ~,
+            gen_ai_output_messages: ~,
             gen_ai_response_object: ~,
             gen_ai_response_streaming: ~,
             gen_ai_response_tokens_per_second: ~,
@@ -1552,8 +1542,6 @@ mod tests {
             gen_ai_operation_type: ~,
             gen_ai_agent_name: ~,
             gen_ai_function_id: ~,
-            gen_ai_input_messages: ~,
-            gen_ai_output_messages: ~,
             mcp_prompt_result: ~,
             mcp_tool_result_content: ~,
             browser_name: ~,
