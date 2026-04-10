@@ -76,11 +76,6 @@ use {
     crate::services::store::Store,
     crate::utils::Enforcement,
     itertools::Itertools,
-    relay_cardinality::{
-        CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
-        RedisSetLimiterOptions,
-    },
-    relay_dynamic_config::CardinalityLimiterMode,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     relay_redis::RedisClients,
     std::time::Instant,
@@ -1120,8 +1115,6 @@ struct InnerProcessor {
     rate_limiter: Option<Arc<RedisRateLimiter>>,
     #[cfg(feature = "processing")]
     geoip_lookup: GeoIpLookup,
-    #[cfg(feature = "processing")]
-    cardinality_limiter: Option<CardinalityLimiter>,
     metric_outcomes: MetricOutcomes,
     processing: Processing,
 }
@@ -1170,20 +1163,8 @@ impl EnvelopeProcessorService {
             .unwrap_or_else(GeoIpLookup::empty);
 
         #[cfg(feature = "processing")]
-        let (cardinality, quotas) = match redis {
-            Some(RedisClients {
-                cardinality,
-                quotas,
-                ..
-            }) => (Some(cardinality), Some(quotas)),
-            None => (None, None),
-        };
-        #[cfg(not(feature = "processing"))]
-        let quotas = None;
-
-        #[cfg(feature = "processing")]
-        let rate_limiter = quotas.clone().map(|redis| {
-            RedisRateLimiter::new(redis)
+        let rate_limiter = redis.as_ref().map(|redis| {
+            RedisRateLimiter::new(redis.quotas.clone())
                 .max_limit(config.max_rate_limit())
                 .cache(config.quota_cache_ratio(), config.quota_cache_max())
         });
@@ -1205,18 +1186,6 @@ impl EnvelopeProcessorService {
             #[cfg(feature = "processing")]
             rate_limiter,
             addrs,
-            #[cfg(feature = "processing")]
-            cardinality_limiter: cardinality
-                .map(|cardinality| {
-                    RedisSetLimiter::new(
-                        RedisSetLimiterOptions {
-                            cache_vacuum_interval: config
-                                .cardinality_limiter_cache_vacuum_interval(),
-                        },
-                        cardinality,
-                    )
-                })
-                .map(CardinalityLimiter::new),
             metric_outcomes,
             #[cfg(feature = "processing")]
             geoip_lookup: geoip_lookup.clone(),
@@ -1230,7 +1199,10 @@ impl EnvelopeProcessorService {
                 transactions: TransactionProcessor::new(
                     Arc::clone(&quota_limiter),
                     geoip_lookup.clone(),
-                    quotas.clone(),
+                    #[cfg(feature = "processing")]
+                    redis.map(|r| r.quotas),
+                    #[cfg(not(feature = "processing"))]
+                    None,
                 ),
                 profile_chunks: ProfileChunksProcessor::new(Arc::clone(&quota_limiter)),
                 trace_attachments: TraceAttachmentsProcessor::new(Arc::clone(&quota_limiter)),
@@ -2143,95 +2115,9 @@ impl EnvelopeProcessorService {
         bucket_limiter.into_buckets()
     }
 
-    /// Cardinality limits the passed buckets and returns a filtered vector of only accepted buckets.
-    #[cfg(feature = "processing")]
-    async fn cardinality_limit_buckets(
-        &self,
-        scoping: Scoping,
-        limits: &[CardinalityLimit],
-        buckets: Vec<Bucket>,
-    ) -> Vec<Bucket> {
-        let global_config = self.inner.global_config.current();
-        let cardinality_limiter_mode = global_config.options.cardinality_limiter_mode;
-
-        if matches!(cardinality_limiter_mode, CardinalityLimiterMode::Disabled) {
-            return buckets;
-        }
-
-        let Some(ref limiter) = self.inner.cardinality_limiter else {
-            return buckets;
-        };
-
-        let scope = relay_cardinality::Scoping {
-            organization_id: scoping.organization_id,
-            project_id: scoping.project_id,
-        };
-
-        let limits = match limiter
-            .check_cardinality_limits(scope, limits, buckets)
-            .await
-        {
-            Ok(limits) => limits,
-            Err((buckets, error)) => {
-                relay_log::error!(
-                    error = &error as &dyn std::error::Error,
-                    "cardinality limiter failed"
-                );
-                return buckets;
-            }
-        };
-
-        let error_sample_rate = global_config.options.cardinality_limiter_error_sample_rate;
-        if !limits.exceeded_limits().is_empty() && utils::sample(error_sample_rate).is_keep() {
-            for limit in limits.exceeded_limits() {
-                relay_log::with_scope(
-                    |scope| {
-                        // Set the organization as user so we can alert on distinct org_ids.
-                        scope.set_user(Some(relay_log::sentry::User {
-                            id: Some(scoping.organization_id.to_string()),
-                            ..Default::default()
-                        }));
-                    },
-                    || {
-                        relay_log::error!(
-                            tags.organization_id = scoping.organization_id.value(),
-                            tags.limit_id = limit.id,
-                            tags.passive = limit.passive,
-                            "Cardinality Limit"
-                        );
-                    },
-                );
-            }
-        }
-
-        for (limit, reports) in limits.cardinality_reports() {
-            for report in reports {
-                self.inner
-                    .metric_outcomes
-                    .cardinality(scoping, limit, report);
-            }
-        }
-
-        if matches!(cardinality_limiter_mode, CardinalityLimiterMode::Passive) {
-            return limits.into_source();
-        }
-
-        let CardinalityLimitsSplit { accepted, rejected } = limits.into_split();
-
-        for (bucket, exceeded) in rejected {
-            self.inner.metric_outcomes.track(
-                scoping,
-                &[bucket],
-                Outcome::CardinalityLimited(exceeded.id.clone()),
-            );
-        }
-        accepted
-    }
-
-    /// Processes metric buckets and sends them to kafka.
+    /// Processes metric buckets and sends them to Kafka.
     ///
     /// This function runs the following steps:
-    ///  - cardinality limiting
     ///  - rate limiting
     ///  - submit to `StoreForwarder`
     #[cfg(feature = "processing")]
@@ -2252,11 +2138,6 @@ impl EnvelopeProcessorService {
         {
             let buckets = self
                 .rate_limit_buckets(scoping, &project_info, buckets)
-                .await;
-
-            let limits = project_info.get_cardinality_limits();
-            let buckets = self
-                .cardinality_limit_buckets(scoping, limits, buckets)
                 .await;
 
             if buckets.is_empty() {
@@ -2286,9 +2167,8 @@ impl EnvelopeProcessorService {
     ///  - serialize to JSON and pack in an envelope
     ///  - submit the envelope to upstream or kafka depending on configuration
     ///
-    /// Cardinality limiting and rate limiting run only in processing Relays as they both require
-    /// access to the central Redis instance. Cached rate limits are applied in the project cache
-    /// already.
+    /// Rate limiting runs only in processing Relays as it requires access to the central Redis instance.
+    /// Cached rate limits are applied in the project cache already.
     fn encode_metrics_envelope(&self, cogs: &mut Token, message: FlushBuckets) {
         let FlushBuckets {
             partition_key,
@@ -2376,10 +2256,6 @@ impl EnvelopeProcessorService {
     ///  - batching by configured size limit
     ///  - serialize to JSON
     ///  - submit directly to the upstream
-    ///
-    /// Cardinality limiting and rate limiting run only in processing Relays as they both require
-    /// access to the central Redis instance. Cached rate limits are applied in the project cache
-    /// already.
     fn encode_metrics_global(&self, message: FlushBuckets) {
         let FlushBuckets {
             partition_key,
@@ -2483,8 +2359,8 @@ impl EnvelopeProcessorService {
                 .values()
                 .map(|s| {
                     if self.inner.config.processing_enabled() {
-                        // Processing does not encode the metrics but instead rate and cardinality
-                        // limits the metrics, which scales by count and not size.
+                        // Processing does not encode the metrics but instead rate limit the metrics,
+                        // which scales by count and not size.
                         relay_metrics::cogs::ByCount(&s.buckets).into()
                     } else {
                         relay_metrics::cogs::BySize(&s.buckets).into()

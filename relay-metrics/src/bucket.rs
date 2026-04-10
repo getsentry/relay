@@ -1,20 +1,17 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::hash::Hash;
 use std::iter::FusedIterator;
 use std::{fmt, mem};
 
-use hash32::{FnvHasher, Hasher as _};
-use relay_cardinality::CardinalityItem;
 use relay_common::time::UnixTimestamp;
 use relay_protocol::FiniteF64;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
+use crate::ParseMetricError;
 use crate::protocol::{
     self, CounterType, DistributionType, GaugeType, MetricName, MetricResourceIdentifier,
     MetricType, SetType, hash_set_value,
 };
-use crate::{MetricNamespace, ParseMetricError};
 
 const VALUE_SEPARATOR: char = ':';
 
@@ -720,23 +717,6 @@ impl Bucket {
     /// If the tag exists, the removed value is returned.
     pub fn remove_tag(&mut self, name: &str) -> Option<String> {
         self.tags.remove(name)
-    }
-}
-
-impl CardinalityItem for Bucket {
-    fn namespace(&self) -> Option<MetricNamespace> {
-        self.name.try_namespace()
-    }
-
-    fn name(&self) -> &MetricName {
-        &self.name
-    }
-
-    fn to_hash(&self) -> u32 {
-        let mut hasher = FnvHasher::default();
-        self.name.hash(&mut hasher);
-        self.tags.hash(&mut hasher);
-        hasher.finish32()
     }
 }
 
