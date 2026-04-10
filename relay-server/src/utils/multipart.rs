@@ -1,13 +1,14 @@
 use std::future::Future;
 use std::io;
-use std::task::Poll;
 
 use axum::extract::Request;
-use bytes::{Bytes, BytesMut};
-use futures::{StreamExt, TryStreamExt};
+use bytes::Bytes;
+use futures::StreamExt;
 use multer::{Constraints, Field, Multipart, SizeLimit};
 use relay_config::Config;
 use serde::{Deserialize, Serialize};
+use tokio::io::AsyncReadExt;
+use tokio_util::io::StreamReader;
 
 use crate::endpoints::common::BadStoreRequest;
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
@@ -185,9 +186,26 @@ pub async fn read_attachment_bytes_into_item(
     ignore_size_exceeded: bool,
 ) -> Result<Option<Item>, multer::Error> {
     let content_type = field.content_type().cloned();
-    let field = LimitedField::new(field, config.max_attachment_size());
-    match field.bytes().await {
-        Ok(bytes) => {
+    let field_name = field.name().map(String::from);
+    let limit = config.max_attachment_size();
+
+    let stream = field.map(|result| result.map_err(io::Error::other));
+    let reader = StreamReader::new(stream);
+    // Extra byte needed to determine if limit was exceeded.
+    let mut take = reader.take((limit + 1) as u64);
+    let mut buf = Vec::new();
+    match take.read_to_end(&mut buf).await {
+        Ok(_) if buf.len() > limit => {
+            if ignore_size_exceeded {
+                return Ok(None);
+            }
+            Err(multer::Error::FieldSizeExceeded {
+                limit: limit as u64,
+                field_name,
+            })
+        }
+        Ok(_) => {
+            let bytes = Bytes::from(buf);
             if let Some(content_type) = content_type {
                 let ct = content_type
                     .as_ref()
@@ -199,8 +217,7 @@ pub async fn read_attachment_bytes_into_item(
             }
             Ok(Some(item))
         }
-        Err(multer::Error::FieldSizeExceeded { .. }) if ignore_size_exceeded => Ok(None),
-        Err(err) => Err(err),
+        Err(io_err) => Err(multer::Error::StreamReadFailed(Box::new(io_err))),
     }
 }
 
@@ -252,60 +269,6 @@ pub async fn multipart_items(
     }
 
     Ok(items)
-}
-
-/// Wrapper around [`multer::Field`] which returns an error when the size limit is exceeded.
-///
-/// The idea being that you can process fields in a multi-part form even if one field is too large.
-struct LimitedField<'a> {
-    field: Field<'a>,
-    consumed_size: usize,
-    size_limit: usize,
-}
-
-impl<'a> LimitedField<'a> {
-    fn new(field: Field<'a>, limit: usize) -> Self {
-        LimitedField {
-            field,
-            consumed_size: 0,
-            size_limit: limit,
-        }
-    }
-
-    async fn bytes(self) -> Result<Bytes, multer::Error> {
-        self.try_fold(BytesMut::new(), |mut acc, x| async move {
-            acc.extend_from_slice(&x);
-            Ok(acc)
-        })
-        .await
-        .map(|x| x.freeze())
-    }
-}
-
-impl futures::Stream for LimitedField<'_> {
-    type Item = Result<Bytes, multer::Error>;
-
-    fn poll_next(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
-        match self.field.poll_next_unpin(cx) {
-            err @ Poll::Ready(Some(Err(_))) => err,
-            Poll::Ready(Some(Ok(t))) => {
-                self.consumed_size += t.len();
-                if self.consumed_size <= self.size_limit {
-                    Poll::Ready(Some(Ok(t)))
-                } else {
-                    Poll::Ready(Some(Err(multer::Error::FieldSizeExceeded {
-                        limit: self.size_limit as u64,
-                        field_name: self.field.name().map(Into::into),
-                    })))
-                }
-            }
-            Poll::Ready(None) => Poll::Ready(None),
-            Poll::Pending => Poll::Pending,
-        }
-    }
 }
 
 pub fn multipart_from_request(

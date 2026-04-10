@@ -352,7 +352,7 @@ def test_playstation_max_stream_size_exceeded(
     assert response.status_code == 400, "Expected a 400 status code"
     assert (
         response.content.decode("utf-8")
-        == f'{{"detail":"invalid multipart data","causes":["stream size exceeded limit: {stream_size_limit} bytes"]}}'
+        == f'{{"detail":"invalid multipart data","causes":["failed to read stream","stream size exceeded limit: {stream_size_limit} bytes"]}}'
     )
     assert len(outcomes_consumer.get_outcomes()) == 0
 
