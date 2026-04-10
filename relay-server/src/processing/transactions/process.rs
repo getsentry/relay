@@ -365,7 +365,7 @@ pub fn split_indexed_and_total(
             //
             // Transactions are counted using a span metric, as transaction payloads should
             // eventually be fully transformed into spans. But this is for now only the case for
-            // metrics, the payloads are lacking behind.
+            // metrics, the payloads are lagging behind.
             //
             // If spans are rate limited, there is no metric to attach the transaction to ->
             // we're losing a transaction here.
