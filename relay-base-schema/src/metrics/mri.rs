@@ -110,6 +110,8 @@ pub enum MetricNamespace {
     Sessions,
     /// Metrics extracted from spans.
     Spans,
+    /// Metrics extracted from transactions.
+    Transactions,
     /// User-defined metrics directly sent by SDKs and applications.
     Custom,
     /// An unknown and unsupported metric.
@@ -126,8 +128,14 @@ pub enum MetricNamespace {
 
 impl MetricNamespace {
     /// Returns all namespaces/variants of this enum.
-    pub fn all() -> [Self; 4] {
-        [Self::Sessions, Self::Spans, Self::Custom, Self::Unsupported]
+    pub fn all() -> [Self; 5] {
+        [
+            Self::Sessions,
+            Self::Spans,
+            Self::Transactions,
+            Self::Custom,
+            Self::Unsupported,
+        ]
     }
 
     /// Returns the string representation for this metric type.
@@ -135,6 +143,7 @@ impl MetricNamespace {
         match self {
             Self::Sessions => "sessions",
             Self::Spans => "spans",
+            Self::Transactions => "transactions",
             Self::Custom => "custom",
             Self::Unsupported => "unsupported",
         }
@@ -148,6 +157,7 @@ impl std::str::FromStr for MetricNamespace {
         match ns {
             "sessions" => Ok(Self::Sessions),
             "spans" => Ok(Self::Spans),
+            "transactions" => Ok(Self::Transactions),
             "custom" => Ok(Self::Custom),
             _ => Ok(Self::Unsupported),
         }

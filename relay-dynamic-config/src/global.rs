@@ -207,6 +207,7 @@ pub enum CardinalityLimiterMode {
 #[serde(default)]
 pub struct BucketEncodings {
     spans: BucketEncoding,
+    transactions: BucketEncoding,
     profiles: BucketEncoding,
     custom: BucketEncoding,
 }
@@ -216,6 +217,7 @@ impl BucketEncodings {
     pub fn for_namespace(&self, namespace: MetricNamespace) -> BucketEncoding {
         match namespace {
             MetricNamespace::Spans => self.spans,
+            MetricNamespace::Transactions => self.transactions,
             MetricNamespace::Custom => self.custom,
             // Always force the legacy encoding for sessions,
             // sessions are not part of the generic metrics platform with different
@@ -249,6 +251,7 @@ where
             let encoding = BucketEncoding::deserialize(de::value::StrDeserializer::new(v))?;
             Ok(BucketEncodings {
                 spans: encoding,
+                transactions: encoding,
                 profiles: encoding,
                 custom: encoding,
             })
@@ -451,6 +454,7 @@ mod tests {
             o.metric_bucket_set_encodings,
             BucketEncodings {
                 spans: BucketEncoding::Legacy,
+                transactions: BucketEncoding::Legacy,
                 profiles: BucketEncoding::Legacy,
                 custom: BucketEncoding::Legacy,
             }
@@ -459,6 +463,7 @@ mod tests {
             o.metric_bucket_dist_encodings,
             BucketEncodings {
                 spans: BucketEncoding::Zstd,
+                transactions: BucketEncoding::Zstd,
                 profiles: BucketEncoding::Zstd,
                 custom: BucketEncoding::Zstd,
             }
@@ -469,6 +474,7 @@ mod tests {
     fn test_metric_bucket_encodings_de_from_obj() {
         let original = BucketEncodings {
             spans: BucketEncoding::Zstd,
+            transactions: BucketEncoding::Zstd,
             profiles: BucketEncoding::Base64,
             custom: BucketEncoding::Zstd,
         };

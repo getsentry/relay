@@ -19,6 +19,8 @@ pub struct ByNamespace<T> {
     pub sessions: T,
     /// Value for the [`MetricNamespace::Spans`] namespace.
     pub spans: T,
+    /// Value for the [`MetricNamespace::Transactions`] namespace.
+    pub transactions: T,
     /// Value for the [`MetricNamespace::Custom`] namespace.
     pub custom: T,
     /// Value for the [`MetricNamespace::Unsupported`] namespace.
@@ -31,6 +33,7 @@ impl<T> ByNamespace<T> {
         match namespace {
             MetricNamespace::Sessions => &self.sessions,
             MetricNamespace::Spans => &self.spans,
+            MetricNamespace::Transactions => &self.transactions,
             MetricNamespace::Custom => &self.custom,
             MetricNamespace::Unsupported => &self.unsupported,
         }
@@ -41,6 +44,7 @@ impl<T> ByNamespace<T> {
         match namespace {
             MetricNamespace::Sessions => &mut self.sessions,
             MetricNamespace::Spans => &mut self.spans,
+            MetricNamespace::Transactions => &mut self.transactions,
             MetricNamespace::Custom => &mut self.custom,
             MetricNamespace::Unsupported => &mut self.unsupported,
         }
@@ -49,12 +53,13 @@ impl<T> ByNamespace<T> {
 
 impl<T> IntoIterator for ByNamespace<T> {
     type Item = (MetricNamespace, T);
-    type IntoIter = std::array::IntoIter<(MetricNamespace, T), 4>;
+    type IntoIter = std::array::IntoIter<(MetricNamespace, T), 5>;
 
     fn into_iter(self) -> Self::IntoIter {
         let Self {
             sessions,
             spans,
+            transactions,
             custom,
             unsupported,
         } = self;
@@ -62,6 +67,7 @@ impl<T> IntoIterator for ByNamespace<T> {
         [
             (MetricNamespace::Sessions, sessions),
             (MetricNamespace::Spans, spans),
+            (MetricNamespace::Transactions, transactions),
             (MetricNamespace::Custom, custom),
             (MetricNamespace::Unsupported, unsupported),
         ]
@@ -104,12 +110,14 @@ macro_rules! impl_op {
                 let Self {
                     sessions,
                     spans,
+                    transactions,
                     custom,
                     unsupported,
                 } = self;
 
                 $op::$opfn(sessions, rhs.sessions);
                 $op::$opfn(spans, rhs.spans);
+                $op::$opfn(transactions, rhs.transactions);
                 $op::$opfn(custom, rhs.custom);
                 $op::$opfn(unsupported, rhs.unsupported);
             }
