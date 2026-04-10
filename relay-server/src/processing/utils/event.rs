@@ -218,9 +218,8 @@ pub fn normalize(
     let request_meta = headers.meta();
     let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
-    let transaction_aggregator_config = ctx
-        .config
-        .aggregator_config_for(MetricNamespace::Transactions);
+    // Inherit from spans, as transactions no longer produce metrics.
+    let transaction_aggregator_config = ctx.config.aggregator_config_for(MetricNamespace::Spans);
 
     let ai_model_costs = ctx.global_config.ai_model_costs.as_ref().ok();
     let http_span_allowed_hosts = ctx.global_config.options.http_span_allowed_hosts.as_slice();
@@ -303,6 +302,7 @@ pub fn normalize(
             performance_issues_spans: ctx
                 .project_info
                 .has_feature(Feature::PerformanceIssuesSpans),
+            derive_trace_id: project_info.has_feature(Feature::AddDefaultTraceID),
         };
 
         metric!(timer(RelayTimers::EventProcessingNormalization), {

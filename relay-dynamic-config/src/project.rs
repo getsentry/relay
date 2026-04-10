@@ -12,10 +12,7 @@ use serde_json::Value;
 
 use crate::error_boundary::ErrorBoundary;
 use crate::feature::FeatureSet;
-use crate::metrics::{
-    self, MetricExtractionConfig, Metrics, SessionMetricsConfig, TaggingRule,
-    TransactionMetricsConfig,
-};
+use crate::metrics::{self, MetricExtractionConfig, Metrics, SessionMetricsConfig, TaggingRule};
 use crate::trusted_relay::TrustedRelayConfig;
 use crate::{GRADUATED_FEATURE_FLAGS, defaults};
 
@@ -72,9 +69,6 @@ pub struct ProjectConfig {
     /// Configuration for extracting metrics from sessions.
     #[serde(skip_serializing_if = "SessionMetricsConfig::is_disabled")]
     pub session_metrics: SessionMetricsConfig,
-    /// Configuration for extracting metrics from transaction events.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub transaction_metrics: Option<ErrorBoundary<TransactionMetricsConfig>>,
     /// Configuration for generic metrics extraction from all data categories.
     #[serde(default, skip_serializing_if = "skip_metrics_extraction")]
     pub metric_extraction: ErrorBoundary<MetricExtractionConfig>,
@@ -169,7 +163,6 @@ impl Default for ProjectConfig {
             breakdowns_v2: None,
             performance_score: Default::default(),
             session_metrics: SessionMetricsConfig::default(),
-            transaction_metrics: None,
             metric_extraction: Default::default(),
             metric_conditional_tagging: Vec::new(),
             features: Default::default(),
@@ -215,8 +208,6 @@ pub struct LimitedProjectConfig {
     pub sampling: Option<ErrorBoundary<SamplingConfig>>,
     #[serde(skip_serializing_if = "SessionMetricsConfig::is_disabled")]
     pub session_metrics: SessionMetricsConfig,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub transaction_metrics: Option<ErrorBoundary<TransactionMetricsConfig>>,
     #[serde(default, skip_serializing_if = "skip_metrics_extraction")]
     pub metric_extraction: ErrorBoundary<MetricExtractionConfig>,
     #[serde(skip_serializing_if = "Vec::is_empty")]

@@ -13,6 +13,7 @@
 - Emit outcomes in both `log_byte` and `log_item` categories when logs are dropped. ([#5766](https://github.com/getsentry/relay/pull/5766))
 - Propagate an event's retention policy to its attachments ([#5774](https://github.com/getsentry/relay/pull/5774))
 - Prevent panic in span description normalization. ([#5781](https://github.com/getsentry/relay/pull/5781))
+- Limit overall stream size in playstation multiparts. ([#5795](https://github.com/getsentry/relay/pull/5795))
 
 **Features**:
 
@@ -35,7 +36,9 @@
 - Remove continuous-profiling-beta feature flags. ([#5762](https://github.com/getsentry/relay/pull/5762))
 - Playstation: Do not upload attachments if quota is 0. ([#5770](https://github.com/getsentry/relay/pull/5770))
 - Add payload byte size to trace metrics. ([#5764](https://github.com/getsentry/relay/pull/5764))
+- Remove transaction metrics extraction. ([#5792](https://github.com/getsentry/relay/pull/5792))
 - Mix kafka partition key with org id. ([#5772](https://github.com/getsentry/relay/pull/5772))
+- Set a trace_id on all events by default for internal use. ([#5759](https://github.com/getsentry/relay/pull/5759))
 
 ## 26.3.1
 

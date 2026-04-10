@@ -9,7 +9,7 @@ use relay_quotas::DataCategory;
 use smallvec::SmallVec;
 
 use crate::envelope::{Item, SourceQuantities, WithHeader};
-use crate::metrics_extraction::transactions::ExtractedMetrics;
+use crate::metrics_extraction::ExtractedMetrics;
 use crate::utils::EnvelopeSummary;
 use crate::{Envelope, metrics, processing};
 

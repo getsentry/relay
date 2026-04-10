@@ -146,7 +146,6 @@ class Sentry(SentryLike):
                         "$object": ["@password"],
                     },
                 },
-                "transactionMetrics": {"version": 3},
             },
         }
 

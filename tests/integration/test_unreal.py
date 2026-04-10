@@ -1,7 +1,6 @@
 import os
 import pytest
 import json
-from .consts import TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION
 
 
 def load_dump_file(base_file_name: str):
@@ -16,19 +15,13 @@ def load_dump_file(base_file_name: str):
 
 
 @pytest.mark.parametrize("dump_file_name", ["unreal_crash", "unreal_crash_apple"])
-@pytest.mark.parametrize("extract_metrics", [True, False])
-def test_unreal_crash(mini_sentry, relay, dump_file_name, extract_metrics):
+def test_unreal_crash(mini_sentry, relay, dump_file_name):
     """
     Asserts that non-processing Relays do not extract and forward the Unreal report.
     """
     project_id = 42
     relay = relay(mini_sentry)
-    config = mini_sentry.add_full_project_config(project_id)["config"]
-    if extract_metrics:
-        # regression: we dropped unreal events in customer relays while metrics extraction was on
-        config["transactionMetrics"] = {
-            "version": TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
-        }
+    mini_sentry.add_full_project_config(project_id)
 
     unreal_content = load_dump_file(dump_file_name)
 
