@@ -53,7 +53,7 @@ pub enum ClientError {
 
     /// Failed to serialize the json message using serde.
     #[error("failed to serialize json message")]
-    InvalidJson(#[source] serde_json::Error),
+    InvalidJson(#[from] serde_json::Error),
 
     /// Failed to run schema validation on message.
     #[cfg(debug_assertions)]
@@ -362,7 +362,7 @@ impl KafkaClient {
     /// Sends the payload to the correct producer for the current topic.
     ///
     /// Returns the name of the Kafka topic to which the message was produced.
-    pub fn send(
+    fn send(
         &self,
         topic: KafkaTopic,
         key: Option<Key>,

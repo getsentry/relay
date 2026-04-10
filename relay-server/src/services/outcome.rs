@@ -27,6 +27,7 @@ use relay_config::{Config, EmitOutcomes};
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::{ClientReport, DiscardedEvent, EventId};
 use relay_filter::FilterStatKey;
+use relay_kafka::SerializationOutput;
 #[cfg(feature = "processing")]
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic};
 use relay_quotas::{DataCategory, ReasonCode, Scoping};
@@ -910,8 +911,6 @@ impl FromMessage<Self> for TrackRawOutcome {
 pub enum OutcomeError {
     #[error("failed to send kafka message")]
     SendFailed(ClientError),
-    #[error("json serialization error")]
-    SerializationError(serde_json::Error),
 }
 
 /// Outcome producer backend via HTTP as [`TrackRawOutcome`].
@@ -1205,14 +1204,6 @@ impl OutcomeBroker {
     ) -> Result<(), OutcomeError> {
         relay_log::trace!("Tracking kafka outcome: {message:?}");
 
-        let payload = serde_json::to_string(&message).map_err(OutcomeError::SerializationError)?;
-
-        // At the moment, we support outcomes with optional EventId.
-        // Here we create a fake EventId, when we don't have the real one, so that we can
-        // create a kafka message key that spreads the events nicely over all the
-        // kafka consumer groups.
-        let key = message.event_id.unwrap_or_default().0;
-
         // Dispatch to the correct topic and cluster based on the kind of outcome.
         let topic = if message.is_billing() {
             KafkaTopic::OutcomesBilling
@@ -1220,13 +1211,7 @@ impl OutcomeBroker {
             KafkaTopic::Outcomes
         };
 
-        let result = producer.client.send(
-            topic,
-            Some(key.as_u128()),
-            None,
-            "outcome",
-            payload.as_bytes(),
-        );
+        let result = producer.client.send_message(topic, &message);
 
         match result {
             Ok(_) => Ok(()),
@@ -1272,6 +1257,26 @@ impl OutcomeBroker {
             Self::ClientReport(_) => (),
             Self::Disabled => (),
         }
+    }
+}
+
+impl relay_kafka::Message for TrackRawOutcome {
+    fn key(&self) -> Option<relay_kafka::Key> {
+        let key = self.event_id.unwrap_or_default().0;
+        Some(key.as_u128())
+    }
+
+    fn variant(&self) -> &'static str {
+        "outcome"
+    }
+
+    fn headers(&self) -> Option<&BTreeMap<String, String>> {
+        None
+    }
+
+    fn serialize(&self) -> Result<SerializationOutput<'_>, ClientError> {
+        let serialized = serde_json::to_vec(self)?;
+        Ok(SerializationOutput::Json(Cow::Owned(serialized)))
     }
 }
 

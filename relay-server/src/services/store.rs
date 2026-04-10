@@ -1885,13 +1885,32 @@ mod tests {
 
     #[test]
     fn disallow_outcomes() {
+        struct TestMessage;
+        impl relay_kafka::Message for TestMessage {
+            fn key(&self) -> Option<relay_kafka::Key> {
+                None
+            }
+
+            fn variant(&self) -> &'static str {
+                "test"
+            }
+
+            fn headers(&self) -> Option<&BTreeMap<String, String>> {
+                None
+            }
+
+            fn serialize(&self) -> Result<SerializationOutput<'_>, ClientError> {
+                Ok(SerializationOutput::Json(Cow::Borrowed(
+                    br#"{"timestamp": "foo", "outcome": 1}"#,
+                )))
+            }
+        }
+
         let config = Config::default();
         let producer = Producer::create(&config).unwrap();
 
         for topic in [KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
-            let res = producer
-                .client
-                .send(topic, Some(0x0123456789abcdef), None, "foo", b"");
+            let res = producer.client.send_message(topic, &TestMessage);
 
             assert!(matches!(res, Err(ClientError::InvalidTopicName)));
         }
