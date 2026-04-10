@@ -25,6 +25,7 @@
 - Use `gen_ai.function_id` as a fallback for `gen_ai.agent.name`. ([#5776](https://github.com/getsentry/relay/pull/5776))
 - Add `gen_ai.input.messages` and `gen_ai.output.messages` as distinct fields for SpanData. ([#5797](https://github.com/getsentry/relay/pull/5797))
 - Extract `http.query` and `url.query` attributes from `query_string` in transactions' request context. ([#5784](https://github.com/getsentry/relay/pull/5784))
+- Add `ModelMetadata` config with context size and utilization. Compute `gen_ai.context.window_size` and `gen_ai.context.utilization` on AI spans. ([#5814](https://github.com/getsentry/relay/pull/5814))
 
 **Internal**:
 
