@@ -904,14 +904,6 @@ impl FromMessage<Self> for TrackRawOutcome {
     }
 }
 
-#[derive(Debug)]
-#[cfg(feature = "processing")]
-#[cfg_attr(feature = "processing", derive(thiserror::Error))]
-pub enum OutcomeError {
-    #[error("failed to send kafka message")]
-    SendFailed(ClientError),
-}
-
 /// Outcome producer backend via HTTP as [`TrackRawOutcome`].
 #[derive(Debug)]
 struct HttpOutcomeProducer {
@@ -1196,11 +1188,7 @@ impl OutcomeBroker {
     }
 
     #[cfg(feature = "processing")]
-    fn send_kafka_message(
-        &self,
-        producer: &KafkaOutcomesProducer,
-        message: TrackRawOutcome,
-    ) -> Result<(), OutcomeError> {
+    fn send_kafka_message(&self, producer: &KafkaOutcomesProducer, message: TrackRawOutcome) {
         relay_log::trace!("Tracking kafka outcome: {message:?}");
 
         // Dispatch to the correct topic and cluster based on the kind of outcome.
@@ -1210,12 +1198,7 @@ impl OutcomeBroker {
             KafkaTopic::Outcomes
         };
 
-        let result = producer.client.send_message(topic, &message);
-
-        match result {
-            Ok(_) => Ok(()),
-            Err(kafka_error) => Err(OutcomeError::SendFailed(kafka_error)),
-        }
+        let _ = producer.client.send_message(topic, &message); // logs error internally
     }
 
     fn handle_track_outcome(&self, message: TrackOutcome, config: &Config) {
@@ -1224,9 +1207,7 @@ impl OutcomeBroker {
             Self::Kafka(kafka_producer) => {
                 send_outcome_metric(&message, "kafka");
                 let raw_message = TrackRawOutcome::from_outcome(message, config);
-                if let Err(error) = self.send_kafka_message(kafka_producer, raw_message) {
-                    relay_log::error!(error = &error as &dyn Error, "failed to produce outcome");
-                }
+                self.send_kafka_message(kafka_producer, raw_message);
             }
             Self::ClientReport(producer) => {
                 send_outcome_metric(&message, "client_report");
@@ -1245,9 +1226,7 @@ impl OutcomeBroker {
             #[cfg(feature = "processing")]
             Self::Kafka(kafka_producer) => {
                 send_outcome_metric(&message, "kafka");
-                if let Err(error) = self.send_kafka_message(kafka_producer, message) {
-                    relay_log::error!(error = &error as &dyn Error, "failed to produce outcome");
-                }
+                self.send_kafka_message(kafka_producer, message);
             }
             Self::Http(producer) => {
                 send_outcome_metric(&message, "http");
