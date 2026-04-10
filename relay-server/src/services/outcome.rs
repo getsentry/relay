@@ -27,9 +27,8 @@ use relay_config::{Config, EmitOutcomes};
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::{ClientReport, DiscardedEvent, EventId};
 use relay_filter::FilterStatKey;
-use relay_kafka::SerializationOutput;
 #[cfg(feature = "processing")]
-use relay_kafka::{ClientError, KafkaClient, KafkaTopic};
+use relay_kafka::{ClientError, KafkaClient, KafkaTopic, SerializationOutput};
 use relay_quotas::{DataCategory, ReasonCode, Scoping};
 use relay_sampling::config::RuleId;
 use relay_sampling::evaluation::MatchedRuleIds;
@@ -1260,6 +1259,7 @@ impl OutcomeBroker {
     }
 }
 
+#[cfg(feature = "processing")]
 impl relay_kafka::Message for TrackRawOutcome {
     fn key(&self) -> Option<relay_kafka::Key> {
         // At the moment, we support outcomes with optional EventId.
