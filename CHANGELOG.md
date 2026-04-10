@@ -24,6 +24,7 @@
 - Metric size limit per metric default changed to 1mib. ([#5779](https://github.com/getsentry/relay/pull/5779))
 - Use `gen_ai.function_id` as a fallback for `gen_ai.agent.name`. ([#5776](https://github.com/getsentry/relay/pull/5776))
 - Add `gen_ai.input.messages` and `gen_ai.output.messages` as distinct fields for SpanData. ([#5797](https://github.com/getsentry/relay/pull/5797))
+- Update several `gen_ai` attributes to their latest representation. ([#5798](https://github.com/getsentry/relay/pull/5798))
 - Extract `http.query` and `url.query` attributes from `query_string` in transactions' request context. ([#5784](https://github.com/getsentry/relay/pull/5784))
 
 **Internal**:

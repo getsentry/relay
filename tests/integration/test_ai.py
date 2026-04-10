@@ -393,9 +393,9 @@ def test_ai_spans_example_transaction(
                 "gen_ai.agent.name": {"type": "string", "value": "weather-chat"},
                 "gen_ai.function_id": {"type": "string", "value": "weather-chat"},
                 "gen_ai.operation.type": {"type": "string", "value": "agent"},
-                "gen_ai.prompt": {"type": "string", "value": "Weather Prompt"},
+                "gen_ai.input.messages": {"type": "string", "value": "Weather Prompt"},
                 "gen_ai.response.model": {"type": "string", "value": "gpt-4o"},
-                "gen_ai.response.text": {
+                "gen_ai.output.messages": {
                     "type": "string",
                     "value": "True. \n\n- London: 61°F \n- San Francisco: 13°C",
                 },
@@ -482,11 +482,11 @@ def test_ai_spans_example_transaction(
                 "gen_ai.agent.name": {"type": "string", "value": "weather-chat"},
                 "gen_ai.function_id": {"type": "string", "value": "weather-chat"},
                 "gen_ai.operation.type": {"type": "string", "value": "ai_client"},
-                "gen_ai.request.available_tools": {
+                "gen_ai.tool.definitions": {
                     "type": "string",
                     "value": '["tools1"]',
                 },
-                "gen_ai.request.messages": {
+                "gen_ai.input.messages": {
                     "type": "string",
                     "value": "Another weather prompt",
                 },
@@ -504,11 +504,11 @@ def test_ai_spans_example_transaction(
                     "value": "gpt-4o-2024-08-06",
                 },
                 "gen_ai.response.tokens_per_second": {"type": "double", "value": 92.0},
-                "gen_ai.response.tool_calls": {
+                "gen_ai.output.messages": {
                     "type": "string",
                     "value": "some_tool_calls",
                 },
-                "gen_ai.system": {"type": "string", "value": "openai.responses"},
+                "gen_ai.provider.name": {"type": "string", "value": "openai.responses"},
                 "gen_ai.usage.input_tokens": {"type": "integer", "value": 37},
                 "gen_ai.usage.output_tokens": {"type": "integer", "value": 46},
                 "gen_ai.usage.total_tokens": {"type": "integer", "value": 83},
@@ -684,12 +684,12 @@ def test_ai_spans_example_transaction(
                     "type": "string",
                     "value": "call_jRcFbOh5zNVeV2l2mEqpRiI4",
                 },
-                "gen_ai.tool.input": {
+                "gen_ai.tool.call.arguments": {
                     "type": "string",
                     "value": '{"city":"San Francisco"}',
                 },
                 "gen_ai.tool.name": {"type": "string", "value": "getWeather"},
-                "gen_ai.tool.output": {
+                "gen_ai.tool.call.result": {
                     "type": "string",
                     "value": '{"location":"San Francisco, '
                     "United States of "
@@ -826,9 +826,12 @@ def test_ai_spans_example_transaction(
                     "type": "string",
                     "value": "call_yXdgMJXsotHOn19VdlDjrc7c",
                 },
-                "gen_ai.tool.input": {"type": "string", "value": '{"city":"London"}'},
+                "gen_ai.tool.call.arguments": {
+                    "type": "string",
+                    "value": '{"city":"London"}',
+                },
                 "gen_ai.tool.name": {"type": "string", "value": "getWeather"},
-                "gen_ai.tool.output": {
+                "gen_ai.tool.call.result": {
                     "type": "string",
                     "value": '{"location":"London, United '
                     'Kingdom","temperature":"16°C '
@@ -971,11 +974,11 @@ def test_ai_spans_example_transaction(
                 "gen_ai.agent.name": {"type": "string", "value": "weather-chat"},
                 "gen_ai.function_id": {"type": "string", "value": "weather-chat"},
                 "gen_ai.operation.type": {"type": "string", "value": "ai_client"},
-                "gen_ai.request.available_tools": {
+                "gen_ai.tool.definitions": {
                     "type": "string",
                     "value": '["tool_1"]',
                 },
-                "gen_ai.request.messages": {
+                "gen_ai.input.messages": {
                     "type": "string",
                     "value": "Some AI Prompt about " "the Wheather",
                 },
@@ -992,7 +995,7 @@ def test_ai_spans_example_transaction(
                     "type": "string",
                     "value": "gpt-4o-2024-08-06",
                 },
-                "gen_ai.response.text": {
+                "gen_ai.output.messages": {
                     "type": "string",
                     "value": "True. \n"
                     "\n"
@@ -1000,7 +1003,7 @@ def test_ai_spans_example_transaction(
                     "- San Francisco: 13°C",
                 },
                 "gen_ai.response.tokens_per_second": {"type": "double", "value": 38.0},
-                "gen_ai.system": {"type": "string", "value": "openai.responses"},
+                "gen_ai.provider.name": {"type": "string", "value": "openai.responses"},
                 "gen_ai.usage.input_tokens": {"type": "integer", "value": 208},
                 "gen_ai.usage.output_tokens": {"type": "integer", "value": 19},
                 "gen_ai.usage.total_tokens": {"type": "integer", "value": 227},

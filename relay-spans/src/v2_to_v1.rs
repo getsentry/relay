@@ -252,7 +252,8 @@ pub fn derive_op_for_v2_span(attributes: &Annotated<Attributes>) -> String {
         return String::from("db");
     }
 
-    if attributes.contains_key(GEN_AI_SYSTEM) {
+    // TODO: `gen_ai.system` is deprecated. This should probably be taken care of during normalization.
+    if attributes.contains_key(GEN_AI_PROVIDER_NAME) || attributes.contains_key("gen_ai.system") {
         return String::from("gen_ai");
     }
 
@@ -1019,7 +1020,7 @@ mod tests {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
           "data": {
-            "gen_ai.system": "openai",
+            "gen_ai.provider.name": "openai",
             "gen_ai.agent.name": "Seer"
           },
           "kind": "client"

@@ -42,7 +42,7 @@ convention_attributes!(
     GEN_AI_REQUEST_MODEL => "gen_ai.request.model",
     GEN_AI_RESPONSE_MODEL => "gen_ai.response.model",
     GEN_AI_RESPONSE_TPS => "gen_ai.response.tokens_per_second",
-    GEN_AI_SYSTEM => "gen_ai.system",
+    GEN_AI_PROVIDER_NAME => "gen_ai.provider.name",
     GEN_AI_USAGE_INPUT_CACHED_TOKENS => "gen_ai.usage.input_tokens.cached",
     GEN_AI_USAGE_INPUT_CACHE_WRITE_TOKENS => "gen_ai.usage.input_tokens.cache_write",
     GEN_AI_USAGE_INPUT_TOKENS => "gen_ai.usage.input_tokens",
