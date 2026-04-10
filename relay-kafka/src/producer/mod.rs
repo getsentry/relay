@@ -214,6 +214,8 @@ impl Producer {
             return Err(ClientError::MissingTopic);
         };
 
+        relay_log::configure_scope(|s| s.set_tag("topic", topic_name));
+
         let producer_name = producer.context().producer_name();
 
         metric!(
@@ -272,12 +274,6 @@ impl Producer {
         });
 
         producer.send(record).map_err(|(error, _message)| {
-            relay_log::error!(
-                error = &error as &dyn std::error::Error,
-                tags.variant = variant,
-                tags.topic = topic_name,
-                "error sending kafka message",
-            );
             metric!(
                 counter(KafkaCounters::ProducerEnqueueError) += 1,
                 variant = variant,
@@ -342,6 +338,22 @@ impl KafkaClient {
         topic: KafkaTopic,
         message: &impl Message,
     ) -> Result<&str, ClientError> {
+        self.send_message_inner(topic, message)
+            .inspect_err(|error| {
+                relay_log::error!(
+                    error = error as &dyn std::error::Error,
+                    tags.variant = message.variant(),
+                    tags.abstract_topic = topic.as_str(),
+                    "error sending kafka message",
+                );
+            })
+    }
+
+    fn send_message_inner(
+        &self,
+        topic: KafkaTopic,
+        message: &impl Message,
+    ) -> Result<&str, ClientError> {
         let serialized = message.serialize()?;
 
         #[cfg(debug_assertions)]
@@ -370,12 +382,10 @@ impl KafkaClient {
         variant: &str,
         payload: &[u8],
     ) -> Result<&str, ClientError> {
-        let producer = self.producers.get(&topic).ok_or_else(|| {
-            relay_log::error!(
-                "attempted to send message to {topic:?} using an unconfigured kafka producer",
-            );
-            ClientError::InvalidTopicName
-        })?;
+        let producer = self
+            .producers
+            .get(&topic)
+            .ok_or_else(|| ClientError::InvalidTopicName)?;
 
         producer.send(key, headers, variant, payload)
     }

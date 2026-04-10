@@ -940,18 +940,7 @@ impl StoreService {
     ) -> Result<(), StoreError> {
         relay_log::trace!("Sending kafka message of type {}", message.variant());
 
-        let topic_name = self
-            .producer
-            .client
-            .send_message(topic, &message)
-            .inspect_err(|err| {
-                relay_log::error!(
-                    error = err as &dyn Error,
-                    tags.topic = ?topic,
-                    tags.message = message.variant(),
-                    "failed to produce to Kafka"
-                )
-            })?;
+        let topic_name = self.producer.client.send_message(topic, &message)?;
 
         match &message {
             KafkaMessage::Metric {
