@@ -1262,6 +1262,10 @@ impl OutcomeBroker {
 
 impl relay_kafka::Message for TrackRawOutcome {
     fn key(&self) -> Option<relay_kafka::Key> {
+        // At the moment, we support outcomes with optional EventId.
+        // Here we create a fake EventId, when we don't have the real one, so that we can
+        // create a kafka message key that spreads the events nicely over all the
+        // kafka consumer groups.
         let key = self.event_id.unwrap_or_default().0;
         Some(key.as_u128())
     }
