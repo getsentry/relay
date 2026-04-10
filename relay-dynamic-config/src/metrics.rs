@@ -102,68 +102,6 @@ pub struct CustomMeasurementConfig {
     limit: usize,
 }
 
-/// Maximum supported version of metrics extraction from transactions.
-///
-/// The version is an integer scalar, incremented by one on each new version:
-///  - 1: Initial version.
-///  - 2: Moves `acceptTransactionNames` to global config.
-///  - 3:
-///      - Emit a `usage` metric and use it for rate limiting.
-///      - Delay metrics extraction for indexed transactions.
-///  - 4: Adds support for `RuleConfigs` with string comparisons.
-///  - 5: No change, bumped together with [`MetricExtractionConfig::MAX_SUPPORTED_VERSION`].
-///  - 6: Bugfix to make transaction metrics extraction apply globally defined tag mappings.
-const TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION: u16 = 6;
-
-/// Minimum supported version of metrics extraction from transaction.
-const TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION: u16 = 3;
-
-/// Deprecated. Defines whether URL transactions should be considered low cardinality.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-#[derive(Default)]
-pub enum AcceptTransactionNames {
-    /// Only accept transaction names with a low-cardinality source.
-    Strict,
-
-    /// For some SDKs, accept all transaction names, while for others, apply strict rules.
-    #[serde(other)]
-    #[default]
-    ClientBased,
-}
-
-/// Configuration for extracting metrics from transaction payloads.
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-pub struct TransactionMetricsConfig {
-    /// The required version to extract transaction metrics.
-    pub version: u16,
-    /// Custom event tags that are transferred from the transaction to metrics.
-    pub extract_custom_tags: BTreeSet<String>,
-    /// Deprecated in favor of top-level config field. Still here to be forwarded to external relays.
-    pub custom_measurements: CustomMeasurementConfig,
-    /// Deprecated. Defines whether URL transactions should be considered low cardinality.
-    /// Keep this around for external Relays.
-    #[serde(rename = "acceptTransactionNames")]
-    pub deprecated1: AcceptTransactionNames,
-}
-
-impl TransactionMetricsConfig {
-    /// Creates an enabled configuration with empty defaults.
-    pub fn new() -> Self {
-        Self {
-            version: TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
-            ..Self::default()
-        }
-    }
-
-    /// Returns `true` if metrics extraction is enabled and compatible with this Relay.
-    pub fn is_enabled(&self) -> bool {
-        self.version >= TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
-            && self.version <= TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION
-    }
-}
-
 /// Combined view of global and project-specific metrics extraction configs.
 #[derive(Debug, Clone, Copy)]
 pub struct CombinedMetricExtractionConfig<'a> {

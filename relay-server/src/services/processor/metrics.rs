@@ -14,7 +14,6 @@ use crate::services::projects::project::ProjectInfo;
 pub fn is_valid_namespace(bucket: &Bucket) -> bool {
     match bucket.name.namespace() {
         MetricNamespace::Sessions => true,
-        MetricNamespace::Transactions => true,
         MetricNamespace::Spans => true,
         MetricNamespace::Custom => true,
         MetricNamespace::Unsupported => false,
@@ -56,7 +55,6 @@ pub fn apply_project_info(
 fn is_metric_namespace_valid(state: &ProjectInfo, namespace: MetricNamespace) -> bool {
     match namespace {
         MetricNamespace::Sessions => true,
-        MetricNamespace::Transactions => true,
         MetricNamespace::Spans => true,
         MetricNamespace::Custom => state.has_feature(Feature::CustomMetrics),
         MetricNamespace::Unsupported => false,

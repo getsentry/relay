@@ -36,6 +36,7 @@
 - Remove continuous-profiling-beta feature flags. ([#5762](https://github.com/getsentry/relay/pull/5762))
 - Playstation: Do not upload attachments if quota is 0. ([#5770](https://github.com/getsentry/relay/pull/5770))
 - Add payload byte size to trace metrics. ([#5764](https://github.com/getsentry/relay/pull/5764))
+- Remove transaction metrics extraction. ([#5792](https://github.com/getsentry/relay/pull/5792))
 - Mix kafka partition key with org id. ([#5772](https://github.com/getsentry/relay/pull/5772))
 - Set a trace_id on all events by default for internal use. ([#5759](https://github.com/getsentry/relay/pull/5759))
 

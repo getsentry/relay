@@ -506,8 +506,8 @@ mod tests {
         let limiter = CardinalityLimiter::new(RejectAllLimiter);
 
         let items = vec![
-            Item::new(0, MetricNamespace::Transactions),
-            Item::new(1, MetricNamespace::Transactions),
+            Item::new(0, MetricNamespace::Sessions),
+            Item::new(1, MetricNamespace::Sessions),
         ];
         let limits = build_limits();
         let result = limiter
@@ -550,7 +550,7 @@ mod tests {
         let limiter = CardinalityLimiter::new(AcceptAllLimiter);
 
         let items = vec![
-            Item::new(0, MetricNamespace::Transactions),
+            Item::new(0, MetricNamespace::Sessions),
             Item::new(1, MetricNamespace::Spans),
         ];
         let limits = build_limits();
@@ -598,11 +598,11 @@ mod tests {
 
         let items = vec![
             Item::new(0, MetricNamespace::Sessions),
-            Item::new(1, MetricNamespace::Transactions),
+            Item::new(1, MetricNamespace::Unsupported),
             Item::new(2, MetricNamespace::Spans),
             Item::new(3, MetricNamespace::Custom),
             Item::new(4, MetricNamespace::Custom),
-            Item::new(5, MetricNamespace::Transactions),
+            Item::new(5, MetricNamespace::Unsupported),
             Item::new(6, MetricNamespace::Spans),
         ];
         let limits = build_limits();
@@ -624,9 +624,9 @@ mod tests {
         assert_eq!(
             split.accepted,
             vec![
-                Item::new(1, MetricNamespace::Transactions),
+                Item::new(1, MetricNamespace::Unsupported),
                 Item::new(3, MetricNamespace::Custom),
-                Item::new(5, MetricNamespace::Transactions),
+                Item::new(5, MetricNamespace::Unsupported),
             ]
         );
     }

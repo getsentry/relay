@@ -40,8 +40,7 @@ use crate::extractors::{PartialDsn, RequestMeta, RequestTrust};
 use crate::integrations::Integration;
 use crate::managed::{InvalidProcessingGroupType, ManagedEnvelope, TypedEnvelope};
 use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
-use crate::metrics_extraction::transactions::ExtractedMetrics;
-use crate::metrics_extraction::transactions::types::ExtractMetricsError;
+use crate::metrics_extraction::ExtractedMetrics;
 use crate::processing::attachments::AttachmentProcessor;
 use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::client_reports::ClientReportsProcessor;
@@ -576,9 +575,6 @@ pub enum ProcessingError {
     #[error("event filtered with reason: {0:?}")]
     EventFiltered(FilterStatKey),
 
-    #[error("missing or invalid required event timestamp")]
-    InvalidTimestamp,
-
     #[error("could not serialize event payload")]
     SerializeFailed(#[source] serde_json::Error),
 
@@ -622,7 +618,6 @@ impl ProcessingError {
             Self::UnsupportedSecurityType => Some(Outcome::Filtered(FilterStatKey::InvalidCsp)),
             Self::InvalidNelReport(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
             Self::InvalidTransaction => Some(Outcome::Invalid(DiscardReason::InvalidTransaction)),
-            Self::InvalidTimestamp => Some(Outcome::Invalid(DiscardReason::Timestamp)),
             Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::NoEventPayload => Some(Outcome::Invalid(DiscardReason::NoEventPayload)),
             Self::InvalidNintendoDyingMessage(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
@@ -665,16 +660,6 @@ impl From<Unreal4Error> for ProcessingError {
         match err.kind() {
             Unreal4ErrorKind::TooLarge => Self::PayloadTooLarge(ItemType::UnrealReport.into()),
             _ => ProcessingError::InvalidUnrealReport(err),
-        }
-    }
-}
-
-impl From<ExtractMetricsError> for ProcessingError {
-    fn from(error: ExtractMetricsError) -> Self {
-        match error {
-            ExtractMetricsError::MissingTimestamp | ExtractMetricsError::InvalidTimestamp => {
-                Self::InvalidTimestamp
-            }
         }
     }
 }
@@ -763,18 +748,11 @@ impl ProcessingExtractedMetrics {
         // flag reset to `false`.
         let mut reset_extracted_from_indexed: SmallVec<[_; 2]> = smallvec![];
 
-        for (namespace, limit, indexed) in [
-            (
-                MetricNamespace::Transactions,
-                &enforcement.event,
-                &enforcement.event_indexed,
-            ),
-            (
-                MetricNamespace::Spans,
-                &enforcement.spans,
-                &enforcement.spans_indexed,
-            ),
-        ] {
+        for (namespace, limit, indexed) in [(
+            MetricNamespace::Spans,
+            &enforcement.spans,
+            &enforcement.spans_indexed,
+        )] {
             if limit.is_active() {
                 drop_namespaces.push(namespace);
             } else if indexed.is_active() && !enforced_consistently {
@@ -2187,44 +2165,42 @@ impl EnvelopeProcessorService {
             let over_accept_once = true;
             let mut rate_limits = RateLimits::new();
 
-            for category in [DataCategory::Transaction, DataCategory::Span] {
-                let count = bucket_limiter.count(category);
+            let (category, count) = bucket_limiter.count();
 
-                let timer = Instant::now();
-                let mut is_limited = false;
+            let timer = Instant::now();
+            let mut is_limited = false;
 
-                if let Some(count) = count {
-                    match rate_limiter
-                        .is_rate_limited(quotas, scoping.item(category), count, over_accept_once)
-                        .await
-                    {
-                        Ok(limits) => {
-                            is_limited = limits.is_limited();
-                            rate_limits.merge(limits)
-                        }
-                        Err(e) => {
-                            relay_log::error!(error = &e as &dyn Error, "rate limiting error")
-                        }
+            if let Some(count) = count {
+                match rate_limiter
+                    .is_rate_limited(quotas, scoping.item(category), count, over_accept_once)
+                    .await
+                {
+                    Ok(limits) => {
+                        is_limited = limits.is_limited();
+                        rate_limits.merge(limits)
+                    }
+                    Err(e) => {
+                        relay_log::error!(error = &e as &dyn Error, "rate limiting error")
                     }
                 }
-
-                relay_statsd::metric!(
-                    timer(RelayTimers::RateLimitBucketsDuration) = timer.elapsed(),
-                    category = category.name(),
-                    limited = if is_limited { "true" } else { "false" },
-                    count = match count {
-                        None => "none",
-                        Some(0) => "0",
-                        Some(1) => "1",
-                        Some(1..=10) => "10",
-                        Some(1..=25) => "25",
-                        Some(1..=50) => "50",
-                        Some(51..=100) => "100",
-                        Some(101..=500) => "500",
-                        _ => "> 500",
-                    },
-                );
             }
+
+            relay_statsd::metric!(
+                timer(RelayTimers::RateLimitBucketsDuration) = timer.elapsed(),
+                category = category.name(),
+                limited = if is_limited { "true" } else { "false" },
+                count = match count {
+                    None => "none",
+                    Some(0) => "0",
+                    Some(1) => "1",
+                    Some(1..=10) => "10",
+                    Some(1..=25) => "25",
+                    Some(1..=50) => "50",
+                    Some(51..=100) => "100",
+                    Some(101..=500) => "500",
+                    _ => "> 500",
+                },
+            );
 
             if rate_limits.is_limited() {
                 let was_enforced =
@@ -3171,7 +3147,7 @@ mod tests {
 
             let project_metrics = |scoping| ProjectBuckets {
                 buckets: vec![Bucket {
-                    name: "d:transactions/bar".into(),
+                    name: "d:spans/bar".into(),
                     value: BucketValue::Counter(FiniteF64::new(1.0).unwrap()),
                     timestamp: UnixTimestamp::now(),
                     tags: Default::default(),
@@ -3540,10 +3516,7 @@ mod tests {
         .await;
 
         let mut item = Item::new(ItemType::Statsd);
-        item.set_payload(
-            ContentType::Text,
-            "transactions/foo:3182887624:4267882815|s",
-        );
+        item.set_payload(ContentType::Text, "spans/foo:3182887624:4267882815|s");
         for (source, expected_received_at) in [
             (
                 BucketSource::External,

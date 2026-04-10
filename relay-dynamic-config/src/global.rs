@@ -206,7 +206,6 @@ pub enum CardinalityLimiterMode {
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct BucketEncodings {
-    transactions: BucketEncoding,
     spans: BucketEncoding,
     profiles: BucketEncoding,
     custom: BucketEncoding,
@@ -216,7 +215,6 @@ impl BucketEncodings {
     /// Returns the configured encoding for a specific namespace.
     pub fn for_namespace(&self, namespace: MetricNamespace) -> BucketEncoding {
         match namespace {
-            MetricNamespace::Transactions => self.transactions,
             MetricNamespace::Spans => self.spans,
             MetricNamespace::Custom => self.custom,
             // Always force the legacy encoding for sessions,
@@ -250,7 +248,6 @@ where
         {
             let encoding = BucketEncoding::deserialize(de::value::StrDeserializer::new(v))?;
             Ok(BucketEncodings {
-                transactions: encoding,
                 spans: encoding,
                 profiles: encoding,
                 custom: encoding,
@@ -453,7 +450,6 @@ mod tests {
         assert_eq!(
             o.metric_bucket_set_encodings,
             BucketEncodings {
-                transactions: BucketEncoding::Legacy,
                 spans: BucketEncoding::Legacy,
                 profiles: BucketEncoding::Legacy,
                 custom: BucketEncoding::Legacy,
@@ -462,7 +458,6 @@ mod tests {
         assert_eq!(
             o.metric_bucket_dist_encodings,
             BucketEncodings {
-                transactions: BucketEncoding::Zstd,
                 spans: BucketEncoding::Zstd,
                 profiles: BucketEncoding::Zstd,
                 custom: BucketEncoding::Zstd,
@@ -473,7 +468,6 @@ mod tests {
     #[test]
     fn test_metric_bucket_encodings_de_from_obj() {
         let original = BucketEncodings {
-            transactions: BucketEncoding::Base64,
             spans: BucketEncoding::Zstd,
             profiles: BucketEncoding::Base64,
             custom: BucketEncoding::Zstd,

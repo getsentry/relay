@@ -1,3 +1,5 @@
+use std::fmt;
+
 use relay_metrics::{CounterType, MetricName, MetricNamespace, MetricResourceIdentifier};
 use serde::Deserialize;
 use serde::de::IgnoredAny;
@@ -11,8 +13,42 @@ use crate::metrics::{BucketSummary, TrackableBucket};
 #[derive(Deserialize)]
 pub struct MinimalTrackableBucket {
     name: MetricName,
+    #[serde(default)]
+    tags: Tags,
     #[serde(flatten)]
     value: MinimalValue,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize)]
+struct Tags {
+    #[serde(default, deserialize_with = "bool_de")]
+    is_segment: bool,
+    #[serde(default, deserialize_with = "bool_de")]
+    was_transaction: bool,
+}
+
+fn bool_de<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<bool, D::Error> {
+    struct Visitor;
+
+    impl<'de> serde::de::Visitor<'de> for Visitor {
+        type Value = bool;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("a boolean or a string representing a boolean")
+        }
+
+        fn visit_bool<E: serde::de::Error>(self, v: bool) -> Result<bool, E> {
+            Ok(v)
+        }
+
+        fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<bool, E> {
+            // Every non true value is considered false.
+            Ok(v == "true")
+        }
+    }
+
+    // Never fail, default to false.
+    Ok(deserializer.deserialize_any(Visitor).unwrap_or(false))
 }
 
 impl TrackableBucket for MinimalTrackableBucket {
@@ -27,17 +63,18 @@ impl TrackableBucket for MinimalTrackableBucket {
         };
 
         match mri.namespace {
-            MetricNamespace::Transactions => {
-                let count = match self.value {
-                    MinimalValue::Counter(c) if mri.name == "usage" => c.to_f64() as usize,
-                    _ => 0,
-                };
-                BucketSummary::Transactions(count)
-            }
-            MetricNamespace::Spans => BucketSummary::Spans(match self.value {
-                MinimalValue::Counter(c) if mri.name == "usage" => c.to_f64() as usize,
-                _ => 0,
-            }),
+            MetricNamespace::Spans => match self.value {
+                MinimalValue::Counter(c) if mri.name == "usage" => BucketSummary::Spans {
+                    count: c.to_f64() as usize,
+                    is_segment: self.tags.is_segment,
+                    was_transaction: self.tags.was_transaction,
+                },
+                _ => BucketSummary::Spans {
+                    count: 0,
+                    is_segment: false,
+                    was_transaction: false,
+                },
+            },
             _ => BucketSummary::default(),
         }
     }
@@ -69,27 +106,19 @@ mod tests {
   {
     "timestamp": 1615889440,
     "width": 10,
-    "name": "d:transactions/duration@none",
-    "type": "d",
-    "value": [
-      36.0,
-      49.0,
-      57.0,
-      68.0
-    ],
+    "name": "c:spans/usage@none",
+    "type": "c",
+    "value": 2.0,
     "tags": {
-      "has_profile": "true"
+      "is_segment": "true"
     }
   },
   {
     "timestamp": 1615889440,
     "width": 10,
-    "name": "c:transactions/usage@none",
+    "name": "c:spans/unrelated@none",
     "type": "c",
-    "value": 3.0,
-    "tags": {
-      "route": "user_index"
-    }
+    "value": 2.0
   },
   {
     "timestamp": 1615889440,
@@ -136,20 +165,26 @@ mod tests {
         }
 
         let summary = min_buckets.iter().map(|b| b.summary()).collect::<Vec<_>>();
-        assert_debug_snapshot!(summary, @r###"
+        assert_debug_snapshot!(summary, @r"
         [
-            Transactions(
-                0,
-            ),
-            Transactions(
-                3,
-            ),
-            Spans(
-                3,
-            ),
+            Spans {
+                count: 2,
+                is_segment: true,
+                was_transaction: false,
+            },
+            Spans {
+                count: 0,
+                is_segment: false,
+                was_transaction: false,
+            },
+            Spans {
+                count: 3,
+                is_segment: false,
+                was_transaction: false,
+            },
             None,
             None,
         ]
-        "###);
+        ");
     }
 }

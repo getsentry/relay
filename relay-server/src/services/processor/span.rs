@@ -107,8 +107,7 @@ pub async fn process(
             relay_log::debug!("failed to normalize span: {}", e);
             return ItemAction::Drop(Outcome::Invalid(match e {
                 ProcessingError::ProcessingFailed(ProcessingAction::InvalidTransaction(_))
-                | ProcessingError::InvalidTransaction
-                | ProcessingError::InvalidTimestamp => DiscardReason::InvalidSpan,
+                | ProcessingError::InvalidTransaction => DiscardReason::InvalidSpan,
                 _ => DiscardReason::Internal,
             }));
         };
