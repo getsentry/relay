@@ -468,10 +468,14 @@ fn is_ai_span(span_data: &Annotated<SpanData>, span_op: Option<&OperationType>) 
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use relay_pattern::Pattern;
     use relay_protocol::{FromValue, assert_annotated_snapshot};
     use serde_json::json;
 
     use super::*;
+    use crate::ModelMetadataEntry;
 
     fn ai_span_with_data(data: serde_json::Value) -> Span {
         Span {
@@ -1095,5 +1099,137 @@ mod tests {
           ]
         }
         "#);
+    }
+
+    fn metadata_with_context_size() -> ModelMetadata {
+        ModelMetadata {
+            version: 1,
+            models: HashMap::from([(
+                Pattern::new("claude-2.1").unwrap(),
+                ModelMetadataEntry {
+                    costs: Some(ModelCostV2 {
+                        input_per_token: 0.01,
+                        output_per_token: 0.02,
+                        output_reasoning_per_token: 0.0,
+                        input_cached_per_token: 0.0,
+                        input_cache_write_per_token: 0.0,
+                    }),
+                    context_size: Some(100_000),
+                },
+            )]),
+        }
+    }
+
+    #[test]
+    fn test_context_utilization_with_total_tokens() {
+        let mut span = Span {
+            op: "gen_ai.test".to_owned().into(),
+            data: SpanData::from_value(
+                json!({
+                    "gen_ai.response.model": "claude-2.1",
+                    "gen_ai.usage.input_tokens": 30000.0,
+                    "gen_ai.usage.output_tokens": 12000.0,
+                    "gen_ai.usage.total_tokens": 42000.0,
+                })
+                .into(),
+            ),
+            ..Default::default()
+        };
+
+        enrich_ai_span(&mut span, Some(&metadata_with_context_size()));
+
+        let data = span.data.value().unwrap();
+        assert_eq!(
+            data.gen_ai_context_window_size
+                .value()
+                .and_then(Value::as_f64),
+            Some(100_000.0)
+        );
+        assert_eq!(
+            data.gen_ai_context_utilization
+                .value()
+                .and_then(Value::as_f64),
+            Some(0.42)
+        );
+    }
+
+    #[test]
+    fn test_context_utilization_no_context_size() {
+        let metadata = ModelMetadata {
+            version: 1,
+            models: HashMap::from([(
+                Pattern::new("claude-2.1").unwrap(),
+                ModelMetadataEntry {
+                    costs: None,
+                    context_size: None,
+                },
+            )]),
+        };
+
+        let mut span = Span {
+            op: "gen_ai.test".to_owned().into(),
+            data: SpanData::from_value(
+                json!({
+                    "gen_ai.response.model": "claude-2.1",
+                    "gen_ai.usage.total_tokens": 1000.0,
+                })
+                .into(),
+            ),
+            ..Default::default()
+        };
+
+        enrich_ai_span(&mut span, Some(&metadata));
+
+        let data = span.data.value().unwrap();
+        assert!(data.gen_ai_context_window_size.value().is_none());
+        assert!(data.gen_ai_context_utilization.value().is_none());
+    }
+
+    #[test]
+    fn test_context_utilization_no_total_tokens() {
+        let mut span = Span {
+            op: "gen_ai.test".to_owned().into(),
+            data: SpanData::from_value(
+                json!({
+                    "gen_ai.response.model": "claude-2.1",
+                })
+                .into(),
+            ),
+            ..Default::default()
+        };
+
+        enrich_ai_span(&mut span, Some(&metadata_with_context_size()));
+
+        let data = span.data.value().unwrap();
+        // window_size should still be set even without tokens.
+        assert_eq!(
+            data.gen_ai_context_window_size
+                .value()
+                .and_then(Value::as_f64),
+            Some(100_000.0)
+        );
+        // But utilization cannot be computed without total_tokens.
+        assert!(data.gen_ai_context_utilization.value().is_none());
+    }
+
+    #[test]
+    fn test_context_utilization_unknown_model() {
+        let mut span = Span {
+            op: "gen_ai.test".to_owned().into(),
+            data: SpanData::from_value(
+                json!({
+                    "gen_ai.response.model": "unknown-model",
+                    "gen_ai.usage.total_tokens": 1000.0,
+                })
+                .into(),
+            ),
+            ..Default::default()
+        };
+
+        enrich_ai_span(&mut span, Some(&metadata_with_context_size()));
+
+        let data = span.data.value().unwrap();
+        assert!(data.gen_ai_context_window_size.value().is_none());
+        assert!(data.gen_ai_context_utilization.value().is_none());
     }
 }

@@ -267,6 +267,25 @@ mod tests {
         }
     }
 
+    fn model_metadata_with_context_size() -> ModelMetadata {
+        ModelMetadata {
+            version: 1,
+            models: HashMap::from([(
+                Pattern::new("claude-2.1").unwrap(),
+                ModelMetadataEntry {
+                    costs: Some(ModelCostV2 {
+                        input_per_token: 0.01,
+                        output_per_token: 0.02,
+                        output_reasoning_per_token: 0.03,
+                        input_cached_per_token: 0.04,
+                        input_cache_write_per_token: 0.0,
+                    }),
+                    context_size: Some(100_000),
+                },
+            )]),
+        }
+    }
+
     #[test]
     fn test_normalize_ai_all_tokens() {
         let mut attributes = Annotated::new(attributes! {
@@ -411,8 +430,7 @@ mod tests {
         normalize_ai(
             &mut attributes,
             Some(Duration::ZERO),
-            Some(&model_costs()),
-            None,
+            Some(&model_metadata()),
         );
 
         assert_annotated_snapshot!(attributes, @r#"
@@ -638,5 +656,142 @@ mod tests {
         );
 
         assert!(attributes.is_empty());
+    }
+
+    #[test]
+    fn test_context_utilization_with_total_tokens() {
+        let mut attributes = Annotated::new(attributes! {
+            "gen_ai.operation.type" => "ai_client".to_owned(),
+            "gen_ai.usage.input_tokens" => 30000,
+            "gen_ai.usage.output_tokens" => 12000,
+            "gen_ai.request.model" => "claude-2.1".to_owned(),
+        });
+
+        normalize_ai(
+            &mut attributes,
+            Some(Duration::from_secs(1)),
+            Some(&model_metadata_with_context_size()),
+        );
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "gen_ai.context.utilization": {
+            "type": "double",
+            "value": 0.42
+          },
+          "gen_ai.context.window_size": {
+            "type": "integer",
+            "value": 100000
+          },
+          "gen_ai.cost.input_tokens": {
+            "type": "double",
+            "value": 300.0
+          },
+          "gen_ai.cost.output_tokens": {
+            "type": "double",
+            "value": 240.0
+          },
+          "gen_ai.cost.total_tokens": {
+            "type": "double",
+            "value": 540.0
+          },
+          "gen_ai.operation.type": {
+            "type": "string",
+            "value": "ai_client"
+          },
+          "gen_ai.request.model": {
+            "type": "string",
+            "value": "claude-2.1"
+          },
+          "gen_ai.response.model": {
+            "type": "string",
+            "value": "claude-2.1"
+          },
+          "gen_ai.response.tokens_per_second": {
+            "type": "double",
+            "value": 12000.0
+          },
+          "gen_ai.usage.input_tokens": {
+            "type": "integer",
+            "value": 30000
+          },
+          "gen_ai.usage.output_tokens": {
+            "type": "integer",
+            "value": 12000
+          },
+          "gen_ai.usage.total_tokens": {
+            "type": "double",
+            "value": 42000.0
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_context_utilization_no_context_size() {
+        let mut attributes = Annotated::new(attributes! {
+            "gen_ai.operation.type" => "ai_client".to_owned(),
+            "gen_ai.usage.input_tokens" => 1000,
+            "gen_ai.usage.output_tokens" => 2000,
+            "gen_ai.request.model" => "claude-2.1".to_owned(),
+        });
+
+        // model_metadata() has no context_size set.
+        normalize_ai(
+            &mut attributes,
+            Some(Duration::from_secs(1)),
+            Some(&model_metadata()),
+        );
+
+        let attrs = attributes.value().unwrap();
+        assert!(attrs.get_value("gen_ai.context.window_size").is_none());
+        assert!(attrs.get_value("gen_ai.context.utilization").is_none());
+    }
+
+    #[test]
+    fn test_context_utilization_no_total_tokens() {
+        // Only context_size is available, but no token counts at all.
+        let mut attributes = Annotated::new(attributes! {
+            "gen_ai.operation.type" => "ai_client".to_owned(),
+            "gen_ai.request.model" => "claude-2.1".to_owned(),
+        });
+
+        normalize_ai(
+            &mut attributes,
+            Some(Duration::from_secs(1)),
+            Some(&model_metadata_with_context_size()),
+        );
+
+        let attrs = attributes.value().unwrap();
+        // window_size should still be set even without tokens.
+        assert_eq!(
+            attrs
+                .get_value("gen_ai.context.window_size")
+                .unwrap()
+                .as_f64(),
+            Some(100_000.0)
+        );
+        // But utilization cannot be computed without total_tokens.
+        assert!(attrs.get_value("gen_ai.context.utilization").is_none());
+    }
+
+    #[test]
+    fn test_context_utilization_unknown_model() {
+        let mut attributes = Annotated::new(attributes! {
+            "gen_ai.operation.type" => "ai_client".to_owned(),
+            "gen_ai.usage.input_tokens" => 1000,
+            "gen_ai.usage.output_tokens" => 2000,
+            "gen_ai.request.model" => "unknown-model".to_owned(),
+        });
+
+        normalize_ai(
+            &mut attributes,
+            Some(Duration::from_secs(1)),
+            Some(&model_metadata_with_context_size()),
+        );
+
+        let attrs = attributes.value().unwrap();
+        assert!(attrs.get_value("gen_ai.context.window_size").is_none());
+        assert!(attrs.get_value("gen_ai.context.utilization").is_none());
     }
 }
