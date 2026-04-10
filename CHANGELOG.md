@@ -28,6 +28,7 @@
 
 **Internal**:
 
+- Update trace metric PII scrubbing to use `relay_pii::eap::scrub`. ([#5815](https://github.com/getsentry/relay/pull/5815))
 - Calculate and track accepted bytes per individual trace metric item via `TraceMetricByte` data category. ([#5744](https://github.com/getsentry/relay/pull/5744), [#5767](https://github.com/getsentry/relay/pull/5767))
 - Graduate standalone span ingestion feature flag. ([#5786](https://github.com/getsentry/relay/pull/5786))
 - Use new processor architecture to process standalone profiles. ([#5741](https://github.com/getsentry/relay/pull/5741))
