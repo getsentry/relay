@@ -160,7 +160,7 @@ fn normalize_span(
     if let Some(span) = span.value_mut() {
         let dsc = headers.dsc();
         let duration = span_duration(span);
-        let model_costs = ctx.global_config.ai_model_costs.as_ref().ok();
+        let model_metadata = ctx.global_config.model_metadata();
         let allowed_hosts = ctx.global_config.options.http_span_allowed_hosts.as_slice();
 
         validate_timestamps(span)?;
@@ -182,7 +182,7 @@ fn normalize_span(
             eap::normalize_dsc(&mut span.attributes, dsc);
         }
         if ctx.is_processing() {
-            eap::normalize_ai(&mut span.attributes, duration, model_costs);
+            eap::normalize_ai(&mut span.attributes, duration, model_metadata.as_ref());
         }
         eap::normalize_attribute_values(&mut span.attributes, allowed_hosts);
         eap::write_legacy_attributes(&mut span.attributes);

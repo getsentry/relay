@@ -19,7 +19,7 @@ use relay_dynamic_config::{
 use relay_event_normalization::span::ai::enrich_ai_span;
 use relay_event_normalization::{
     BorrowedSpanOpDefaults, ClientHints, CombinedMeasurementsConfig, FromUserAgentInfo,
-    GeoIpLookup, MeasurementsConfig, ModelCosts, PerformanceScoreConfig, RawUserAgentInfo,
+    GeoIpLookup, MeasurementsConfig, ModelMetadata, PerformanceScoreConfig, RawUserAgentInfo,
     SchemaProcessor, TimestampProcessor, TransactionNameRule, TransactionsProcessor,
     TrimmingProcessor, normalize_measurements, normalize_performance_score,
     normalize_transaction_name, span::tag_extraction, validate_span,
@@ -235,8 +235,8 @@ struct NormalizeSpanConfig<'a> {
     /// If at least one is provided, then normalization will truncate custom measurements
     /// and add units of known built-in measurements.
     measurements: Option<CombinedMeasurementsConfig<'a>>,
-    /// Configuration for AI model cost calculation
-    ai_model_costs: Option<&'a ModelCosts>,
+    /// Metadata for AI models including costs and context size.
+    ai_model_metadata: Option<ModelMetadata>,
     /// The maximum length for names of custom measurements.
     ///
     /// Measurements with longer names are removed from the transaction event and replaced with a
@@ -280,7 +280,7 @@ impl<'a> NormalizeSpanConfig<'a> {
                 project_config.measurements.as_ref(),
                 global_config.measurements.as_ref(),
             )),
-            ai_model_costs: global_config.ai_model_costs.as_ref().ok(),
+            ai_model_metadata: global_config.model_metadata(),
             max_name_and_unit_len: aggregator_config
                 .max_name_length
                 .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
@@ -342,7 +342,7 @@ fn normalize(
         max_tag_value_size,
         performance_score,
         measurements,
-        ai_model_costs,
+        ai_model_metadata,
         max_name_and_unit_len,
         tx_name_rules,
         user_agent,
@@ -450,7 +450,7 @@ fn normalize(
 
     normalize_performance_score(span, performance_score);
 
-    enrich_ai_span(span, ai_model_costs);
+    enrich_ai_span(span, ai_model_metadata.as_ref());
 
     tag_extraction::extract_measurements(span, is_mobile);
 
@@ -799,7 +799,7 @@ mod tests {
             max_tag_value_size: 200,
             performance_score: None,
             measurements: None,
-            ai_model_costs: None,
+            ai_model_metadata: None,
             max_name_and_unit_len: 200,
             tx_name_rules: &[],
             user_agent: None,
