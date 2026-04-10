@@ -3,7 +3,7 @@ use std::io;
 
 use axum::extract::Request;
 use bytes::Bytes;
-use futures::StreamExt;
+use futures::TryStreamExt;
 use multer::{Constraints, Field, Multipart, SizeLimit};
 use relay_config::Config;
 use serde::{Deserialize, Serialize};
@@ -188,11 +188,8 @@ pub async fn read_attachment_bytes_into_item(
     let content_type = field.content_type().cloned();
     let field_name = field.name().map(String::from);
     let limit = config.max_attachment_size();
-
-    let stream = field.map(|result| result.map_err(io::Error::other));
-    let reader = StreamReader::new(stream);
     // Extra byte needed to determine if limit was exceeded.
-    let mut take = reader.take((limit + 1) as u64);
+    let mut take = StreamReader::new(field.map_err(io::Error::other)).take((limit + 1) as u64);
     let mut buf = Vec::new();
     match take.read_to_end(&mut buf).await {
         Ok(_) if buf.len() > limit => {
