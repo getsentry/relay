@@ -6,7 +6,6 @@ use crate::envelope::{EnvelopeHeaders, Item, ItemType};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
 use crate::processing::{Context, CountRateLimited, Output, Processor, QuotaRateLimiter};
 use crate::services::outcome::Outcome;
-use crate::statsd::RelayCounters;
 
 mod forward;
 mod process;

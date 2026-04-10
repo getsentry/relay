@@ -10,7 +10,6 @@ use crate::managed::{
 };
 use crate::processing::{Context, CountRateLimited, Output, Processor, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::statsd::RelayCounters;
 
 mod filter;
 mod forward;
