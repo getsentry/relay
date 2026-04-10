@@ -927,15 +927,15 @@
 <a href=#927 id=927 data-nosnippet>927</a>
 <a href=#928 id=928 data-nosnippet>928</a>    <span class="attr">#[test]
 <a href=#929 id=929 data-nosnippet>929</a>    </span><span class="kw">fn </span>test_parse_counter() {
-<a href=#930 id=930 data-nosnippet>930</a>        <span class="kw">let </span>s = <span class="string">"transactions/foo:42|c"</span>;
+<a href=#930 id=930 data-nosnippet>930</a>        <span class="kw">let </span>s = <span class="string">"spans/foo:42|c"</span>;
 <a href=#931 id=931 data-nosnippet>931</a>        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
 <a href=#932 id=932 data-nosnippet>932</a>        <span class="kw">let </span>metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-<a href=#933 id=933 data-nosnippet>933</a>        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r###"
+<a href=#933 id=933 data-nosnippet>933</a>        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r#"
 <a href=#934 id=934 data-nosnippet>934</a>        Bucket {
 <a href=#935 id=935 data-nosnippet>935</a>            timestamp: UnixTimestamp(4711),
 <a href=#936 id=936 data-nosnippet>936</a>            width: 0,
 <a href=#937 id=937 data-nosnippet>937</a>            name: MetricName(
-<a href=#938 id=938 data-nosnippet>938</a>                "c:transactions/foo@none",
+<a href=#938 id=938 data-nosnippet>938</a>                "c:spans/foo@none",
 <a href=#939 id=939 data-nosnippet>939</a>            ),
 <a href=#940 id=940 data-nosnippet>940</a>            value: Counter(
 <a href=#941 id=941 data-nosnippet>941</a>                42.0,
@@ -947,12 +947,12 @@
 <a href=#947 id=947 data-nosnippet>947</a>                extracted_from_indexed: false,
 <a href=#948 id=948 data-nosnippet>948</a>            },
 <a href=#949 id=949 data-nosnippet>949</a>        }
-<a href=#950 id=950 data-nosnippet>950</a>        "###</span>);
+<a href=#950 id=950 data-nosnippet>950</a>        "#</span>);
 <a href=#951 id=951 data-nosnippet>951</a>    }
 <a href=#952 id=952 data-nosnippet>952</a>
 <a href=#953 id=953 data-nosnippet>953</a>    <span class="attr">#[test]
 <a href=#954 id=954 data-nosnippet>954</a>    </span><span class="kw">fn </span>test_parse_counter_packed() {
-<a href=#955 id=955 data-nosnippet>955</a>        <span class="kw">let </span>s = <span class="string">"transactions/foo:42:17:21|c"</span>;
+<a href=#955 id=955 data-nosnippet>955</a>        <span class="kw">let </span>s = <span class="string">"spans/foo:42:17:21|c"</span>;
 <a href=#956 id=956 data-nosnippet>956</a>        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
 <a href=#957 id=957 data-nosnippet>957</a>        <span class="kw">let </span>metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
 <a href=#958 id=958 data-nosnippet>958</a>        <span class="macro">assert_eq!</span>(metric.value, BucketValue::Counter(<span class="number">80</span>.into()));
@@ -960,15 +960,15 @@
 <a href=#960 id=960 data-nosnippet>960</a>
 <a href=#961 id=961 data-nosnippet>961</a>    <span class="attr">#[test]
 <a href=#962 id=962 data-nosnippet>962</a>    </span><span class="kw">fn </span>test_parse_distribution() {
-<a href=#963 id=963 data-nosnippet>963</a>        <span class="kw">let </span>s = <span class="string">"transactions/foo:17.5|d"</span>;
+<a href=#963 id=963 data-nosnippet>963</a>        <span class="kw">let </span>s = <span class="string">"spans/foo:17.5|d"</span>;
 <a href=#964 id=964 data-nosnippet>964</a>        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
 <a href=#965 id=965 data-nosnippet>965</a>        <span class="kw">let </span>metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-<a href=#966 id=966 data-nosnippet>966</a>        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r###"
+<a href=#966 id=966 data-nosnippet>966</a>        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r#"
 <a href=#967 id=967 data-nosnippet>967</a>        Bucket {
 <a href=#968 id=968 data-nosnippet>968</a>            timestamp: UnixTimestamp(4711),
 <a href=#969 id=969 data-nosnippet>969</a>            width: 0,
 <a href=#970 id=970 data-nosnippet>970</a>            name: MetricName(
-<a href=#971 id=971 data-nosnippet>971</a>                "d:transactions/foo@none",
+<a href=#971 id=971 data-nosnippet>971</a>                "d:spans/foo@none",
 <a href=#972 id=972 data-nosnippet>972</a>            ),
 <a href=#973 id=973 data-nosnippet>973</a>            value: Distribution(
 <a href=#974 id=974 data-nosnippet>974</a>                [
@@ -982,7 +982,7 @@
 <a href=#982 id=982 data-nosnippet>982</a>                extracted_from_indexed: false,
 <a href=#983 id=983 data-nosnippet>983</a>            },
 <a href=#984 id=984 data-nosnippet>984</a>        }
-<a href=#985 id=985 data-nosnippet>985</a>        "###</span>);
+<a href=#985 id=985 data-nosnippet>985</a>        "#</span>);
 <a href=#986 id=986 data-nosnippet>986</a>    }
 <a href=#987 id=987 data-nosnippet>987</a>
 <a href=#988 id=988 data-nosnippet>988</a>    <span class="attr">#[test]
@@ -1013,15 +1013,15 @@
 <a href=#1013 id=1013 data-nosnippet>1013</a>
 <a href=#1014 id=1014 data-nosnippet>1014</a>    <span class="attr">#[test]
 <a href=#1015 id=1015 data-nosnippet>1015</a>    </span><span class="kw">fn </span>test_parse_set() {
-<a href=#1016 id=1016 data-nosnippet>1016</a>        <span class="kw">let </span>s = <span class="string">"transactions/foo:4267882815|s"</span>;
+<a href=#1016 id=1016 data-nosnippet>1016</a>        <span class="kw">let </span>s = <span class="string">"spans/foo:4267882815|s"</span>;
 <a href=#1017 id=1017 data-nosnippet>1017</a>        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
 <a href=#1018 id=1018 data-nosnippet>1018</a>        <span class="kw">let </span>metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-<a href=#1019 id=1019 data-nosnippet>1019</a>        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r###"
+<a href=#1019 id=1019 data-nosnippet>1019</a>        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r#"
 <a href=#1020 id=1020 data-nosnippet>1020</a>        Bucket {
 <a href=#1021 id=1021 data-nosnippet>1021</a>            timestamp: UnixTimestamp(4711),
 <a href=#1022 id=1022 data-nosnippet>1022</a>            width: 0,
 <a href=#1023 id=1023 data-nosnippet>1023</a>            name: MetricName(
-<a href=#1024 id=1024 data-nosnippet>1024</a>                "s:transactions/foo@none",
+<a href=#1024 id=1024 data-nosnippet>1024</a>                "s:spans/foo@none",
 <a href=#1025 id=1025 data-nosnippet>1025</a>            ),
 <a href=#1026 id=1026 data-nosnippet>1026</a>            value: Set(
 <a href=#1027 id=1027 data-nosnippet>1027</a>                {
@@ -1035,7 +1035,7 @@
 <a href=#1035 id=1035 data-nosnippet>1035</a>                extracted_from_indexed: false,
 <a href=#1036 id=1036 data-nosnippet>1036</a>            },
 <a href=#1037 id=1037 data-nosnippet>1037</a>        }
-<a href=#1038 id=1038 data-nosnippet>1038</a>        "###</span>);
+<a href=#1038 id=1038 data-nosnippet>1038</a>        "#</span>);
 <a href=#1039 id=1039 data-nosnippet>1039</a>    }
 <a href=#1040 id=1040 data-nosnippet>1040</a>
 <a href=#1041 id=1041 data-nosnippet>1041</a>    <span class="attr">#[test]
@@ -1070,15 +1070,15 @@
 <a href=#1070 id=1070 data-nosnippet>1070</a>
 <a href=#1071 id=1071 data-nosnippet>1071</a>    <span class="attr">#[test]
 <a href=#1072 id=1072 data-nosnippet>1072</a>    </span><span class="kw">fn </span>test_parse_gauge() {
-<a href=#1073 id=1073 data-nosnippet>1073</a>        <span class="kw">let </span>s = <span class="string">"transactions/foo:42|g"</span>;
+<a href=#1073 id=1073 data-nosnippet>1073</a>        <span class="kw">let </span>s = <span class="string">"spans/foo:42|g"</span>;
 <a href=#1074 id=1074 data-nosnippet>1074</a>        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
 <a href=#1075 id=1075 data-nosnippet>1075</a>        <span class="kw">let </span>metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-<a href=#1076 id=1076 data-nosnippet>1076</a>        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r###"
+<a href=#1076 id=1076 data-nosnippet>1076</a>        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r#"
 <a href=#1077 id=1077 data-nosnippet>1077</a>        Bucket {
 <a href=#1078 id=1078 data-nosnippet>1078</a>            timestamp: UnixTimestamp(4711),
 <a href=#1079 id=1079 data-nosnippet>1079</a>            width: 0,
 <a href=#1080 id=1080 data-nosnippet>1080</a>            name: MetricName(
-<a href=#1081 id=1081 data-nosnippet>1081</a>                "g:transactions/foo@none",
+<a href=#1081 id=1081 data-nosnippet>1081</a>                "g:spans/foo@none",
 <a href=#1082 id=1082 data-nosnippet>1082</a>            ),
 <a href=#1083 id=1083 data-nosnippet>1083</a>            value: Gauge(
 <a href=#1084 id=1084 data-nosnippet>1084</a>                GaugeValue {
@@ -1096,20 +1096,20 @@
 <a href=#1096 id=1096 data-nosnippet>1096</a>                extracted_from_indexed: false,
 <a href=#1097 id=1097 data-nosnippet>1097</a>            },
 <a href=#1098 id=1098 data-nosnippet>1098</a>        }
-<a href=#1099 id=1099 data-nosnippet>1099</a>        "###</span>);
+<a href=#1099 id=1099 data-nosnippet>1099</a>        "#</span>);
 <a href=#1100 id=1100 data-nosnippet>1100</a>    }
 <a href=#1101 id=1101 data-nosnippet>1101</a>
 <a href=#1102 id=1102 data-nosnippet>1102</a>    <span class="attr">#[test]
 <a href=#1103 id=1103 data-nosnippet>1103</a>    </span><span class="kw">fn </span>test_parse_gauge_packed() {
-<a href=#1104 id=1104 data-nosnippet>1104</a>        <span class="kw">let </span>s = <span class="string">"transactions/foo:25:17:42:220:85|g"</span>;
+<a href=#1104 id=1104 data-nosnippet>1104</a>        <span class="kw">let </span>s = <span class="string">"spans/foo:25:17:42:220:85|g"</span>;
 <a href=#1105 id=1105 data-nosnippet>1105</a>        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
 <a href=#1106 id=1106 data-nosnippet>1106</a>        <span class="kw">let </span>metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-<a href=#1107 id=1107 data-nosnippet>1107</a>        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r###"
+<a href=#1107 id=1107 data-nosnippet>1107</a>        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r#"
 <a href=#1108 id=1108 data-nosnippet>1108</a>        Bucket {
 <a href=#1109 id=1109 data-nosnippet>1109</a>            timestamp: UnixTimestamp(4711),
 <a href=#1110 id=1110 data-nosnippet>1110</a>            width: 0,
 <a href=#1111 id=1111 data-nosnippet>1111</a>            name: MetricName(
-<a href=#1112 id=1112 data-nosnippet>1112</a>                "g:transactions/foo@none",
+<a href=#1112 id=1112 data-nosnippet>1112</a>                "g:spans/foo@none",
 <a href=#1113 id=1113 data-nosnippet>1113</a>            ),
 <a href=#1114 id=1114 data-nosnippet>1114</a>            value: Gauge(
 <a href=#1115 id=1115 data-nosnippet>1115</a>                GaugeValue {
@@ -1127,7 +1127,7 @@
 <a href=#1127 id=1127 data-nosnippet>1127</a>                extracted_from_indexed: false,
 <a href=#1128 id=1128 data-nosnippet>1128</a>            },
 <a href=#1129 id=1129 data-nosnippet>1129</a>        }
-<a href=#1130 id=1130 data-nosnippet>1130</a>        "###</span>);
+<a href=#1130 id=1130 data-nosnippet>1130</a>        "#</span>);
 <a href=#1131 id=1131 data-nosnippet>1131</a>    }
 <a href=#1132 id=1132 data-nosnippet>1132</a>
 <a href=#1133 id=1133 data-nosnippet>1133</a>    <span class="attr">#[test]

@@ -844,7 +844,7 @@
 <a href=#844 id=844 data-nosnippet>844</a>
 <a href=#845 id=845 data-nosnippet>845</a>        <span class="kw">let </span>entries1 = [Entry::new(EntryId(<span class="number">0</span>), Custom, <span class="kw-2">&amp;</span>m0, <span class="number">0</span>)];
 <a href=#846 id=846 data-nosnippet>846</a>        <span class="kw">let </span>entries2 = [Entry::new(EntryId(<span class="number">0</span>), Spans, <span class="kw-2">&amp;</span>m1, <span class="number">1</span>)];
-<a href=#847 id=847 data-nosnippet>847</a>        <span class="kw">let </span>entries3 = [Entry::new(EntryId(<span class="number">0</span>), Transactions, <span class="kw-2">&amp;</span>m2, <span class="number">2</span>)];
+<a href=#847 id=847 data-nosnippet>847</a>        <span class="kw">let </span>entries3 = [Entry::new(EntryId(<span class="number">0</span>), Sessions, <span class="kw-2">&amp;</span>m2, <span class="number">2</span>)];
 <a href=#848 id=848 data-nosnippet>848</a>
 <a href=#849 id=849 data-nosnippet>849</a>        <span class="kw">let </span>rejected = limiter.test_limits(scoping, limits, entries1).<span class="kw">await</span>;
 <a href=#850 id=850 data-nosnippet>850</a>        <span class="macro">assert_eq!</span>(rejected.len(), <span class="number">0</span>);
@@ -908,7 +908,7 @@
 <a href=#908 id=908 data-nosnippet>908</a>                },
 <a href=#909 id=909 data-nosnippet>909</a>                limit: <span class="number">1</span>,
 <a href=#910 id=910 data-nosnippet>910</a>                scope: CardinalityScope::Unknown,
-<a href=#911 id=911 data-nosnippet>911</a>                namespace: <span class="prelude-val">Some</span>(Transactions),
+<a href=#911 id=911 data-nosnippet>911</a>                namespace: <span class="prelude-val">Some</span>(Sessions),
 <a href=#912 id=912 data-nosnippet>912</a>            },
 <a href=#913 id=913 data-nosnippet>913</a>        ];
 <a href=#914 id=914 data-nosnippet>914</a>
@@ -924,8 +924,8 @@
 <a href=#924 id=924 data-nosnippet>924</a>            Entry::new(EntryId(<span class="number">1</span>), Custom, <span class="kw-2">&amp;</span>m1, <span class="number">1</span>),
 <a href=#925 id=925 data-nosnippet>925</a>            Entry::new(EntryId(<span class="number">2</span>), Spans, <span class="kw-2">&amp;</span>m2, <span class="number">2</span>),
 <a href=#926 id=926 data-nosnippet>926</a>            Entry::new(EntryId(<span class="number">3</span>), Spans, <span class="kw-2">&amp;</span>m3, <span class="number">3</span>),
-<a href=#927 id=927 data-nosnippet>927</a>            Entry::new(EntryId(<span class="number">4</span>), Transactions, <span class="kw-2">&amp;</span>m4, <span class="number">4</span>),
-<a href=#928 id=928 data-nosnippet>928</a>            Entry::new(EntryId(<span class="number">5</span>), Transactions, <span class="kw-2">&amp;</span>m5, <span class="number">5</span>),
+<a href=#927 id=927 data-nosnippet>927</a>            Entry::new(EntryId(<span class="number">4</span>), Sessions, <span class="kw-2">&amp;</span>m4, <span class="number">4</span>),
+<a href=#928 id=928 data-nosnippet>928</a>            Entry::new(EntryId(<span class="number">5</span>), Sessions, <span class="kw-2">&amp;</span>m5, <span class="number">5</span>),
 <a href=#929 id=929 data-nosnippet>929</a>        ];
 <a href=#930 id=930 data-nosnippet>930</a>
 <a href=#931 id=931 data-nosnippet>931</a>        <span class="comment">// Run multiple times to make sure caching does not interfere.

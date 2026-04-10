@@ -165,7 +165,7 @@
 <a href=#165 id=165 data-nosnippet>165</a>        <span class="kw">let </span>condition = serde_json::from_value::&lt;Condition&gt;(json).unwrap();
 <a href=#166 id=166 data-nosnippet>166</a>        <span class="macro">assert!</span>(condition.matches(<span class="prelude-val">Some</span>(MetricNamespace::Spans)));
 <a href=#167 id=167 data-nosnippet>167</a>        <span class="macro">assert!</span>(condition.matches(<span class="prelude-val">Some</span>(MetricNamespace::Custom)));
-<a href=#168 id=168 data-nosnippet>168</a>        <span class="macro">assert!</span>(!condition.matches(<span class="prelude-val">Some</span>(MetricNamespace::Transactions)));
+<a href=#168 id=168 data-nosnippet>168</a>        <span class="macro">assert!</span>(!condition.matches(<span class="prelude-val">Some</span>(MetricNamespace::Sessions)));
 <a href=#169 id=169 data-nosnippet>169</a>    }
 <a href=#170 id=170 data-nosnippet>170</a>}
 </code></pre></div></section></main></body></html>
