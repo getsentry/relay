@@ -6,7 +6,7 @@ from requests import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 
-from .asserts import time_within_delta, only_items
+from .asserts import time_within_delta, time_within, only_items
 
 import pytest
 import json
@@ -430,14 +430,35 @@ def test_trace_metric_string_pii_scrubbing(
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
     item = item_payload["items"][0]
 
-    assert item["attributes"]["test_pii"] == {
-        "type": "string",
-        "value": expected_scrubbed,
+    assert item == {
+        "timestamp": time_within(start),
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "name": "test.metric",
+        "type": "counter",
+        "value": 1.0,
+        "attributes": {
+            "test_pii": {"type": "string", "value": expected_scrubbed},
+            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
+            "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(start, expect_resolution="ns"),
+            },
+        },
+        "__header": {"byte_size": mock.ANY},
+        "_meta": {
+            "attributes": {
+                "test_pii": {
+                    "value": {
+                        "": {
+                            "len": mock.ANY,
+                            "rem": [[rule_type, mock.ANY, mock.ANY, mock.ANY]],
+                        }
+                    }
+                }
+            },
+        },
     }
-    assert "_meta" in item
-    meta = item["_meta"]["attributes"]["test_pii"]["value"][""]
-    assert "rem" in meta
-    assert meta["rem"][0][0] == rule_type
 
 
 def test_trace_metric_default_pii_scrubbing_attributes(
@@ -482,16 +503,35 @@ def test_trace_metric_default_pii_scrubbing_attributes(
     envelope = mini_sentry.get_captured_envelope()
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
     item = item_payload["items"][0]
-    attributes = item["attributes"]
-
-    assert attribute_key in attributes
-    assert attributes[attribute_key]["value"] == expected_value
-    assert "_meta" in item
-    meta = item["_meta"]["attributes"][attribute_key]["value"][""]
-    assert "rem" in meta
-    rem_info = meta["rem"]
-    assert len(rem_info) == 1
-    assert rem_info[0][0] == rule_type
+    assert item == {
+        "timestamp": time_within(start),
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "name": "test.metric",
+        "type": "counter",
+        "value": 1.0,
+        "attributes": {
+            attribute_key: {"type": "string", "value": expected_value},
+            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
+            "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(start, expect_resolution="ns"),
+            },
+        },
+        "__header": {"byte_size": mock.ANY},
+        "_meta": {
+            "attributes": {
+                attribute_key: {
+                    "value": {
+                        "": {
+                            "len": mock.ANY,
+                            "rem": [[rule_type, mock.ANY, mock.ANY, mock.ANY]],
+                        }
+                    }
+                }
+            },
+        },
+    }
 
 
 def test_trace_metric_default_pii_scrubbing_does_not_scrub_default_attributes(
@@ -544,12 +584,37 @@ def test_trace_metric_default_pii_scrubbing_does_not_scrub_default_attributes(
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
     item = item_payload["items"][0]
 
-    assert item["attributes"]["custom_field"] == {
-        "type": "string",
-        "value": "[REDACTED]",
+    assert item == {
+        "timestamp": time_within(start),
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "name": "test.metric",
+        "type": "counter",
+        "value": 1.0,
+        "attributes": {
+            "custom_field": {"type": "string", "value": "[REDACTED]"},
+            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
+            "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(start, expect_resolution="ns"),
+            },
+        },
+        "__header": {"byte_size": mock.ANY},
+        "_meta": {
+            "attributes": {
+                "custom_field": {
+                    "value": {
+                        "": {
+                            "len": mock.ANY,
+                            "rem": [
+                                ["remove_custom_field", mock.ANY, mock.ANY, mock.ANY]
+                            ],
+                        }
+                    }
+                }
+            },
+        },
     }
-    assert "_meta" in item
-    assert "custom_field" in item["_meta"]["attributes"]
 
 
 def test_trace_metric_size_limits(
