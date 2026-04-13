@@ -1,5 +1,6 @@
 use std::fmt;
 
+use relay_conventions::consts::*;
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue};
 
 use crate::protocol::{Attributes, Contexts, DeviceContext};
@@ -19,15 +20,15 @@ impl DeviceClass {
     /// Reads `device.family`, `device.model`, `device.processor_frequency`,
     /// `device.processor_count`, and `device.memory_size` from the attribute map.
     pub fn from_attributes(attributes: &Attributes) -> Option<DeviceClass> {
-        let family = attributes.get_value("device.family")?.as_str()?;
+        let family = attributes.get_value(DEVICE_FAMILY)?.as_str()?;
 
         if family == "iPhone" || family == "iOS" || family == "iOS-Device" {
-            let model = attributes.get_value("device.model")?.as_str()?;
+            let model = attributes.get_value(DEVICE_MODEL)?.as_str()?;
             model_to_class(model)
         } else {
-            let freq = attributes.get_value("device.processor_frequency")?.as_f64()? as u64;
-            let proc = attributes.get_value("device.processor_count")?.as_f64()? as u64;
-            let mem = attributes.get_value("device.memory_size")?.as_f64()? as u64;
+            let freq = attributes.get_value(DEVICE_PROCESSOR_FREQUENCY)?.as_f64()? as u64;
+            let proc = attributes.get_value(DEVICE_PROCESSOR_COUNT)?.as_f64()? as u64;
+            let mem = attributes.get_value(DEVICE_MEMORY_SIZE)?.as_f64()? as u64;
 
             if freq < 2000 || proc < 8 || mem < 4 * GIB {
                 Some(DeviceClass::LOW)
