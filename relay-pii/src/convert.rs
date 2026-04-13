@@ -1300,6 +1300,34 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     }
 
     #[test]
+    fn test_api_key_header_scrubbing() {
+        // Ensure that API key headers with hyphens (e.g. Anthropic's x-api-key) are scrubbed,
+        // not just underscore variants (api_key).
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "extra": {
+                    "x-api-key": "sk-ant-secret-value",
+                    "api-key": "secret-value",
+                    "api_key": "secret-value",
+                    "apikey": "secret-value",
+                    "X-Api-Key": "secret-value",
+                }
+            })
+            .into(),
+        );
+
+        let pii_config = to_pii_config(&DataScrubbingConfig {
+            sensitive_fields: vec!["".to_owned()],
+            ..simple_enabled_config()
+        });
+
+        let pii_config = pii_config.unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data);
+    }
+
+    #[test]
     fn test_doesnt_scrub_not_scrubbed() {
         let mut data = Event::from_value(
             serde_json::json!({
