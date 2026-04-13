@@ -79,7 +79,7 @@ pub struct AttachmentPlaceholder<'a> {
     #[serde(borrow)]
     pub location: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub content_type: Option<crate::envelope::ContentType>,
+    pub content_type: Option<String>,
 }
 
 #[derive(Debug)]
