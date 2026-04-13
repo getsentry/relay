@@ -2,7 +2,6 @@
 //!
 //! Crashes are received as multipart uploads in this [format](https://game.develop.playstation.net/resources/documents/SDK/12.000/Core_Dump_System-Overview/ps5-core-dump-file-set-sending-format.html).
 use std::io;
-use std::str::FromStr;
 
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
@@ -12,6 +11,7 @@ use chrono::Utc;
 use futures::TryStreamExt;
 use futures::stream::BoxStream;
 use http::StatusCode;
+use mime::Mime;
 use multer::{Field, Multipart};
 use relay_config::Config;
 use relay_dynamic_config::Feature;
@@ -128,7 +128,7 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
             && let Ok(location) = location.to_str()
             && let Ok(payload) = serde_json::to_vec(&AttachmentPlaceholder {
                 location,
-                content_type: content_type.and_then(|ct| ContentType::from_str(ct.as_ref()).ok()),
+                content_type: content_type.as_ref().map(Mime::to_string),
             })
         {
             item.set_payload(ContentType::AttachmentRef, payload);
