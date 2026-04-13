@@ -6,7 +6,6 @@ use std::convert::Infallible;
 use std::str::FromStr;
 
 use relay_base_schema::data_category::DataCategory;
-use relay_cardinality::CardinalityLimit;
 use relay_common::glob2::LazyGlob;
 use relay_common::impl_str_serde;
 use relay_pattern::{Patterns, TypedPatterns};
@@ -14,22 +13,6 @@ use relay_protocol::RuleCondition;
 use serde::{Deserialize, Serialize};
 
 use crate::project::ProjectConfig;
-
-/// Configuration for metrics filtering.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(default, rename_all = "camelCase")]
-pub struct Metrics {
-    /// List of cardinality limits to enforce for this project.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub cardinality_limits: Vec<CardinalityLimit>,
-}
-
-impl Metrics {
-    /// Returns `true` if there are no changes to the metrics config.
-    pub fn is_empty(&self) -> bool {
-        self.cardinality_limits.is_empty()
-    }
-}
 
 /// Configuration for removing tags matching the `tag` pattern on metrics whose name matches the `name` pattern.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
@@ -605,13 +588,6 @@ where
 mod tests {
     use super::*;
     use similar_asserts::assert_eq;
-
-    #[test]
-    fn test_empty_metrics_deserialize() {
-        let m: Metrics = serde_json::from_str("{}").unwrap();
-        assert!(m.is_empty());
-        assert_eq!(m, Metrics::default());
-    }
 
     #[test]
     fn parse_tag_spec_value() {

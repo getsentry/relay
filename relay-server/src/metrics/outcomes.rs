@@ -7,8 +7,6 @@ use relay_system::Addr;
 
 use crate::envelope::SourceQuantities;
 use crate::services::outcome::{Outcome, TrackOutcome};
-#[cfg(feature = "processing")]
-use relay_cardinality::{CardinalityLimit, CardinalityReport};
 
 /// [`MetricOutcomes`] takes care of creating the right outcomes for metrics at the end of their
 /// lifecycle.
@@ -59,16 +57,6 @@ impl MetricOutcomes {
                 }
             }
         }
-    }
-
-    /// Tracks the cardinality of a metric.
-    #[cfg(feature = "processing")]
-    pub fn cardinality(
-        &self,
-        _scoping: Scoping,
-        _limit: &CardinalityLimit,
-        _report: &CardinalityReport,
-    ) {
     }
 }
 

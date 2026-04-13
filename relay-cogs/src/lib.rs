@@ -176,6 +176,8 @@ pub enum AppFeature {
 
     /// Metrics in the spans namespace.
     MetricsSpans,
+    /// Metrics in the transactions namespace.
+    MetricsTransactions,
     /// Metrics in the sessions namespace.
     MetricsSessions,
     /// Metrics in the custom namespace.
@@ -207,6 +209,7 @@ impl AppFeature {
             Self::Replays => "replays",
             Self::UserReports => "user_reports",
             Self::MetricsSpans => "metrics_spans",
+            Self::MetricsTransactions => "metrics_transactions",
             Self::MetricsSessions => "metrics_sessions",
             Self::MetricsCustom => "metrics_custom",
             Self::MetricsUnsupported => "metrics_unsupported",

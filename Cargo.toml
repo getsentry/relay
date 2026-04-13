@@ -41,7 +41,6 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(sentry)'] }
 [workspace.dependencies]
 relay-auth = { path = "relay-auth" }
 relay-base-schema = { path = "relay-base-schema" }
-relay-cardinality = { path = "relay-cardinality" }
 relay-cogs = { path = "relay-cogs" }
 relay-common = { path = "relay-common" }
 relay-config = { path = "relay-config" }

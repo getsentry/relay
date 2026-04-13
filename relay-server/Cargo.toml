@@ -17,7 +17,6 @@ processing = [
   "dep:prost-types",
   "dep:sentry_protos",
   "dep:symbolic-common",
-  "relay-cardinality/redis",
   "relay-config/processing",
   "relay-kafka/producer",
   "relay-metrics/redis",
@@ -70,7 +69,6 @@ rand = { workspace = true }
 regex = { workspace = true }
 relay-auth = { workspace = true }
 relay-base-schema = { workspace = true }
-relay-cardinality = { workspace = true }
 relay-cogs = { workspace = true }
 relay-common = { workspace = true }
 relay-config = { workspace = true }

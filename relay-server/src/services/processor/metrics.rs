@@ -15,6 +15,7 @@ pub fn is_valid_namespace(bucket: &Bucket) -> bool {
     match bucket.name.namespace() {
         MetricNamespace::Sessions => true,
         MetricNamespace::Spans => true,
+        MetricNamespace::Transactions => true,
         MetricNamespace::Custom => true,
         MetricNamespace::Unsupported => false,
     }
@@ -56,6 +57,7 @@ fn is_metric_namespace_valid(state: &ProjectInfo, namespace: MetricNamespace) ->
     match namespace {
         MetricNamespace::Sessions => true,
         MetricNamespace::Spans => true,
+        MetricNamespace::Transactions => true,
         MetricNamespace::Custom => state.has_feature(Feature::CustomMetrics),
         MetricNamespace::Unsupported => false,
     }
