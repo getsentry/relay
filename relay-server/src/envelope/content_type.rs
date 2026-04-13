@@ -6,8 +6,8 @@ pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 
 /// Payload content types.
 ///
-/// This is an optimized enum intended to reduce allocations for common content types.
-/// Do not use this enum for arbitrary content types.
+/// This is an optimized enum intended to reduce allocations for common content types used by Relay.
+/// When dealing with generic/user provided content types, use a different type instead, e.g. `String`.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum ContentType {
     /// `text/plain`

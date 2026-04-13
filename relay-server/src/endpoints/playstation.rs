@@ -11,7 +11,6 @@ use chrono::Utc;
 use futures::TryStreamExt;
 use futures::stream::BoxStream;
 use http::StatusCode;
-use mime::Mime;
 use multer::{Field, Multipart};
 use relay_config::Config;
 use relay_dynamic_config::Feature;
@@ -128,7 +127,7 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
             && let Ok(location) = location.to_str()
             && let Ok(payload) = serde_json::to_vec(&AttachmentPlaceholder {
                 location,
-                content_type: content_type.as_ref().map(Mime::to_string),
+                content_type: content_type.as_ref().map(|c| c.to_string()),
             })
         {
             item.set_payload(ContentType::AttachmentRef, payload);
