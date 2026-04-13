@@ -39,15 +39,10 @@ fn get_event_item(data: &[u8]) -> Result<Option<Item>, Unreal4Error> {
     Ok(Some(item))
 }
 
-/// Expands an Unreal 4 item and returns the expanded items.
-pub fn expand_unreal(
-    unreal_item: Item,
-    config: &Config,
-) -> Result<UnrealExpansion, ProcessingError> {
+/// Expands an Unreal 4 items payload and returns the expanded items.
+pub fn expand_unreal(payload: Bytes, config: &Config) -> Result<UnrealExpansion, ProcessingError> {
     let mut event = None;
     let mut attachments = Items::new();
-
-    let payload = unreal_item.payload();
     let crash = Unreal4Crash::parse_with_limit(&payload, config.max_envelope_size())?;
 
     for file in crash.files() {
@@ -84,9 +79,35 @@ pub fn expand_unreal(
     Ok(UnrealExpansion { event, attachments })
 }
 
+/// Expands an Unreal 4 report or items previously extracted from a report in the [`UnrealExpansion`]
+/// representation.
+#[cfg_attr(not(feature = "processing"), expect(unused))]
+pub fn expand_unreal_items(
+    items: Items,
+    config: &Config,
+) -> Result<UnrealExpansion, ProcessingError> {
+    // If there is only one item than it must be the report
+    if items.len() == 1 && matches!(items[0].ty(), ItemType::UnrealReport) {
+        return expand_unreal(items[0].payload(), config);
+    }
+
+    let event = items
+        .iter()
+        .find(|&item| matches!(item.attachment_type(), Some(AttachmentType::UnrealContext)))
+        .map(|item| get_event_item(&item.payload()))
+        .transpose()?
+        .flatten();
+
+    Ok(UnrealExpansion {
+        event,
+        attachments: items,
+    })
+}
+
 /// Expansion from an Unreal 4 report.
 pub struct UnrealExpansion {
     /// The error event if the crash contained one.
+    #[cfg_attr(not(feature = "processing"), expect(unused))]
     pub event: Option<Item>,
     /// Files of the report as attachments.
     pub attachments: Items,
@@ -335,6 +356,7 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
 /// Processes an unreal crash report.
 ///
 /// The `user_header` should be extracted from the [`crate::constants::UNREAL_USER_HEADER`] envelope header.
+#[cfg_attr(not(feature = "processing"), expect(unused))]
 pub fn process_unreal<'a>(
     event_id: EventId,
     event: &mut Annotated<Event>,
@@ -382,6 +404,7 @@ pub fn process_unreal<'a>(
 }
 
 /// Result when processing an unreal report.
+#[cfg_attr(not(feature = "processing"), expect(unused))]
 pub struct ProcessedUnrealReport {
     /// User reports contained in the report.
     pub user_reports: Items,

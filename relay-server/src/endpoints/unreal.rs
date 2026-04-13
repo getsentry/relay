@@ -12,6 +12,8 @@ use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::middlewares;
 use crate::service::ServiceState;
+use crate::services::outcome::DiscardItemType;
+use crate::utils;
 
 #[derive(Debug, Deserialize)]
 struct UnrealQuery {
@@ -29,7 +31,7 @@ struct UnrealParams {
 }
 
 impl UnrealParams {
-    fn extract_envelope(self) -> Result<Box<Envelope>, BadStoreRequest> {
+    fn extract_envelope(self, state: &ServiceState) -> Result<Box<Envelope>, BadStoreRequest> {
         let Self { meta, query, data } = self;
 
         if data.is_empty() {
@@ -38,9 +40,31 @@ impl UnrealParams {
 
         let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
 
-        let mut item = Item::new(ItemType::UnrealReport);
-        item.set_payload(ContentType::OctetStream, data);
-        envelope.add_item(item);
+        let global_config = state.global_config_handle().current();
+        let project_id = envelope.meta().project_id().map(|p| p.value()).unwrap_or(0);
+
+        match utils::is_rolled_out(
+            project_id,
+            global_config.options.unreal_report_expansion_rollout_rate,
+        )
+        .is_keep()
+        {
+            true => {
+                // FIXME: Add more fine-grained BadStoreRequest.
+                for mut item in utils::expand_unreal(data, state.config())
+                    .map_err(|_| BadStoreRequest::Overflow(DiscardItemType::UnrealReport))?
+                    .attachments
+                {
+                    item.set_unreal_expanded();
+                    envelope.add_item(item);
+                }
+            }
+            false => {
+                let mut item = Item::new(ItemType::UnrealReport);
+                item.set_payload(ContentType::OctetStream, data);
+                envelope.add_item(item);
+            }
+        }
 
         if let Some(user_id) = query.user_id {
             envelope.set_header(UNREAL_USER_HEADER, user_id);
@@ -54,7 +78,7 @@ async fn handle(
     state: ServiceState,
     params: UnrealParams,
 ) -> Result<impl IntoResponse, BadStoreRequest> {
-    let envelope = params.extract_envelope()?;
+    let envelope = params.extract_envelope(&state)?;
     let id = envelope.event_id();
 
     // Never respond with a 429 since clients often retry these
