@@ -116,10 +116,12 @@ mod not_yet_defined {
     pub const PROFILE_ID: &str = "sentry.profile_id";
 
     // TODO: Move to convention_attributes! once the corresponding sentry-conventions PRs merge.
-    pub const APP_START_COLD_VALUE: &str = "app.start.cold.value";
-    pub const APP_START_WARM_VALUE: &str = "app.start.warm.value";
-    pub const APP_TTFD_VALUE: &str = "app.ttfd.value";
-    pub const APP_TTID_VALUE: &str = "app.ttid.value";
+    pub const APP_VITALS_START_COLD_VALUE: &str = "app.vitals.start.cold.value";
+    pub const APP_VITALS_START_WARM_VALUE: &str = "app.vitals.start.warm.value";
+    pub const APP_VITALS_START_VALUE: &str = "app.vitals.start.value";
+    pub const APP_VITALS_START_TYPE: &str = "app.vitals.start.type";
+    pub const APP_VITALS_TTFD_VALUE: &str = "app.vitals.ttfd.value";
+    pub const APP_VITALS_TTID_VALUE: &str = "app.vitals.ttid.value";
     pub const DEVICE_CLASS: &str = "device.class";
     pub const DEVICE_MEMORY_SIZE: &str = "device.memory_size";
     pub const DEVICE_PROCESSOR_COUNT: &str = "device.processor_count";
