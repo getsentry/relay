@@ -188,34 +188,32 @@ pub async fn read_attachment_bytes_into_item(
     let content_type = field.content_type().cloned();
     let field_name = field.name().map(String::from);
     let limit = config.max_attachment_size();
-    // Extra byte needed to determine if limit was exceeded.
-    let mut take = StreamReader::new(field.map_err(io::Error::other)).take((limit + 1) as u64);
     let mut buf = Vec::new();
-    match take.read_to_end(&mut buf).await {
-        Ok(_) if buf.len() > limit => {
-            if ignore_size_exceeded {
-                return Ok(None);
-            }
-            Err(multer::Error::FieldSizeExceeded {
+    StreamReader::new(field.map_err(io::Error::other))
+        .take((limit + 1) as u64) // Extra byte needed to determine if limit was exceeded.
+        .read_to_end(&mut buf)
+        .await
+        .map_err(|e| multer::Error::StreamReadFailed(Box::new(e)))?;
+    if buf.len() > limit {
+        return match ignore_size_exceeded {
+            true => Ok(None),
+            false => Err(multer::Error::FieldSizeExceeded {
                 limit: limit as u64,
                 field_name,
-            })
-        }
-        Ok(_) => {
-            let bytes = Bytes::from(buf);
-            if let Some(content_type) = content_type {
-                let ct = content_type
-                    .as_ref()
-                    .parse()
-                    .unwrap_or(ContentType::OctetStream);
-                item.set_payload(ct, bytes);
-            } else {
-                item.set_payload_without_content_type(bytes);
-            }
-            Ok(Some(item))
-        }
-        Err(io_err) => Err(multer::Error::StreamReadFailed(Box::new(io_err))),
+            }),
+        };
     }
+    let bytes = Bytes::from(buf);
+    if let Some(content_type) = content_type {
+        let ct = content_type
+            .as_ref()
+            .parse()
+            .unwrap_or(ContentType::OctetStream);
+        item.set_payload(ct, bytes);
+    } else {
+        item.set_payload_without_content_type(bytes);
+    }
+    Ok(Some(item))
 }
 
 pub async fn multipart_items(
