@@ -1011,7 +1011,7 @@
 <a href=#1011 id=1011 data-nosnippet>1011</a>            id: Uuid::new_v4().to_string(),
 <a href=#1012 id=1012 data-nosnippet>1012</a>            name: item.filename().unwrap_or(UNNAMED_ATTACHMENT).to_owned(),
 <a href=#1013 id=1013 data-nosnippet>1013</a>            rate_limited: item.rate_limited(),
-<a href=#1014 id=1014 data-nosnippet>1014</a>            content_type: placeholder.content_type.map(|c| c.as_str().to_owned()),
+<a href=#1014 id=1014 data-nosnippet>1014</a>            content_type: placeholder.content_type,
 <a href=#1015 id=1015 data-nosnippet>1015</a>            attachment_type: item.attachment_type().unwrap_or_default(),
 <a href=#1016 id=1016 data-nosnippet>1016</a>            size: item.attachment_body_size(),
 <a href=#1017 id=1017 data-nosnippet>1017</a>            retention_days,
