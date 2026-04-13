@@ -4,7 +4,7 @@
 use std::io;
 use std::str::FromStr;
 
-use axum::extract::{DefaultBodyLimit, Request};
+use axum::extract::Request;
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
@@ -19,6 +19,7 @@ use relay_event_schema::protocol::EventId;
 use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 use serde::Serialize;
+use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
 use crate::envelope::ContentType::{self, OctetStream};
@@ -223,8 +224,7 @@ async fn handle(
         .await
         .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
 
-    let stream_size_limit = config.max_upload_size() + config.max_attachments_size();
-    let multipart = utils::multipart_from_request(request, stream_size_limit)?;
+    let multipart = utils::multipart_from_request(request)?;
     let mut envelope = extract_multipart(multipart, meta, &state, &project).await?;
     envelope.require_feature(Feature::PlaystationIngestion);
 
@@ -245,6 +245,8 @@ async fn handle(
 
 pub fn route(config: &Config) -> MethodRouter<ServiceState> {
     post(handle)
-        .route_layer(DefaultBodyLimit::max(config.max_attachments_size()))
+        .route_layer(RequestBodyLimitLayer::new(
+            config.max_upload_size() + config.max_attachments_size(),
+        ))
         .route_layer(axum::middleware::from_fn(middlewares::content_length))
 }
