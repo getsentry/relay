@@ -19,7 +19,6 @@ workspace = true
 anyhow = { workspace = true }
 relay-auth = { workspace = true }
 relay-base-schema = { workspace = true }
-relay-cardinality = { workspace = true }
 relay-common = { workspace = true }
 relay-event-normalization = { workspace = true }
 relay-filter = { workspace = true }

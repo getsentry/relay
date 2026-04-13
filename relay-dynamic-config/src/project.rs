@@ -12,7 +12,7 @@ use serde_json::Value;
 
 use crate::error_boundary::ErrorBoundary;
 use crate::feature::FeatureSet;
-use crate::metrics::{self, MetricExtractionConfig, Metrics, SessionMetricsConfig, TaggingRule};
+use crate::metrics::{self, MetricExtractionConfig, SessionMetricsConfig, TaggingRule};
 use crate::trusted_relay::TrustedRelayConfig;
 use crate::{GRADUATED_FEATURE_FLAGS, defaults};
 
@@ -90,9 +90,6 @@ pub struct ProjectConfig {
     /// relays that might still need them.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub span_description_rules: Option<Vec<SpanDescriptionRule>>,
-    /// Configuration for metrics.
-    #[serde(default, skip_serializing_if = "skip_metrics")]
-    pub metrics: ErrorBoundary<Metrics>,
 }
 
 impl ProjectConfig {
@@ -169,7 +166,6 @@ impl Default for ProjectConfig {
             tx_name_rules: Vec::new(),
             tx_name_ready: false,
             span_description_rules: None,
-            metrics: Default::default(),
         }
     }
 }
@@ -178,13 +174,6 @@ fn skip_metrics_extraction(boundary: &ErrorBoundary<MetricExtractionConfig>) -> 
     match boundary {
         ErrorBoundary::Err(_) => true,
         ErrorBoundary::Ok(config) => !config.is_enabled(),
-    }
-}
-
-fn skip_metrics(boundary: &ErrorBoundary<Metrics>) -> bool {
-    match boundary {
-        ErrorBoundary::Err(_) => true,
-        ErrorBoundary::Ok(metrics) => metrics.is_empty(),
     }
 }
 

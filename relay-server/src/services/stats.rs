@@ -183,12 +183,10 @@ impl RelayStats {
     async fn redis_clients(&self) {
         if let Some(RedisClients {
             project_configs,
-            cardinality,
             quotas,
         }) = self.redis_clients.as_ref()
         {
             Self::async_redis_connection(project_configs, "project_configs");
-            Self::async_redis_connection(cardinality, "cardinality");
             Self::async_redis_connection(quotas, "quotas");
         }
     }

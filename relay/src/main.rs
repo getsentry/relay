@@ -34,7 +34,6 @@
 //!  - [`relay-auth`]: Authentication and crypto.
 //!  - [`relay-base-schema`]: Basic types for Relay's API schema used across multiple services.
 //!  - [`relay-cabi`]: C-bindings for exposing functionality to Python.
-//!  - [`relay-cardinality`]: Metrics cardinality limiter.
 //!  - [`relay-cogs`]: Break down the cost of Relay by its features.
 //!  - [`relay-common`]: Common utilities and crate re-exports.
 //!  - [`relay-config`]: Static configuration for the CLI and server.
@@ -79,7 +78,6 @@
 //! [`relay-auth`]: ../relay_auth/index.html
 //! [`relay-base-schema`]: ../relay_base_schema/index.html
 //! [`relay-cabi`]: ../relay_cabi/index.html
-//! [`relay-cardinality`]: ../relay_cardinality/index.html
 //! [`relay-common`]: ../relay_common/index.html
 //! [`relay-config`]: ../relay_config/index.html
 //! [`relay-cogs`]: ../relay_cogs/index.html

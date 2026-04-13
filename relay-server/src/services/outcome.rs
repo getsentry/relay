@@ -183,13 +183,6 @@ pub enum Outcome {
     /// The event has been rate limited.
     RateLimited(Option<ReasonCode>),
 
-    /// The event/metric has been cardinality limited.
-    ///
-    /// Contains the [ID](relay_cardinality::CardinalityLimit::id)
-    /// of the most specific [CardinalityLimit](relay_cardinality::CardinalityLimit) that was exceeded.
-    #[cfg(feature = "processing")]
-    CardinalityLimited(String),
-
     /// The event has been discarded because of invalid data.
     Invalid(DiscardReason),
 
@@ -207,8 +200,6 @@ impl Outcome {
         match self {
             Outcome::Filtered(_) | Outcome::FilteredSampling(_) => OutcomeId::FILTERED,
             Outcome::RateLimited(_) => OutcomeId::RATE_LIMITED,
-            #[cfg(feature = "processing")]
-            Outcome::CardinalityLimited(_) => OutcomeId::CARDINALITY_LIMITED,
             Outcome::Invalid(_) => OutcomeId::INVALID,
             Outcome::Abuse => OutcomeId::ABUSE,
             Outcome::ClientDiscard(_) => OutcomeId::CLIENT_DISCARD,
@@ -228,8 +219,6 @@ impl Outcome {
             Outcome::RateLimited(code_opt) => {
                 code_opt.as_ref().map(|code| Cow::Borrowed(code.as_str()))
             }
-            #[cfg(feature = "processing")]
-            Outcome::CardinalityLimited(id) => Some(Cow::Borrowed(id)),
             Outcome::ClientDiscard(discard_reason) => Some(Cow::Borrowed(discard_reason)),
             Outcome::Abuse => None,
             Outcome::Accepted => None,
@@ -260,8 +249,6 @@ impl fmt::Display for Outcome {
             Outcome::FilteredSampling(rule_ids) => write!(f, "sampling rule {rule_ids}"),
             Outcome::RateLimited(None) => write!(f, "rate limited"),
             Outcome::RateLimited(Some(reason)) => write!(f, "rate limited with reason {reason}"),
-            #[cfg(feature = "processing")]
-            Outcome::CardinalityLimited(id) => write!(f, "cardinality limited ({id})"),
             Outcome::Invalid(DiscardReason::Internal) => write!(f, "internal error"),
             Outcome::Invalid(reason) => write!(f, "invalid data ({reason})"),
             Outcome::Abuse => write!(f, "abuse limit reached"),
