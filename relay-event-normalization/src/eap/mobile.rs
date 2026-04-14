@@ -210,11 +210,15 @@ mod tests {
 
         let attrs = attributes.value().unwrap();
         assert_eq!(
-            attrs.get_value(APP_VITALS_START_VALUE).and_then(|v| v.as_f64()),
+            attrs
+                .get_value(APP_VITALS_START_VALUE)
+                .and_then(|v| v.as_f64()),
             Some(1234.0)
         );
         assert_eq!(
-            attrs.get_value(APP_VITALS_START_TYPE).and_then(|v| v.as_str()),
+            attrs
+                .get_value(APP_VITALS_START_TYPE)
+                .and_then(|v| v.as_str()),
             Some("cold")
         );
     }
@@ -232,11 +236,15 @@ mod tests {
 
         let attrs = attributes.value().unwrap();
         assert_eq!(
-            attrs.get_value(APP_VITALS_START_VALUE).and_then(|v| v.as_f64()),
+            attrs
+                .get_value(APP_VITALS_START_VALUE)
+                .and_then(|v| v.as_f64()),
             Some(567.0)
         );
         assert_eq!(
-            attrs.get_value(APP_VITALS_START_TYPE).and_then(|v| v.as_str()),
+            attrs
+                .get_value(APP_VITALS_START_TYPE)
+                .and_then(|v| v.as_str()),
             Some("warm")
         );
     }
@@ -272,11 +280,15 @@ mod tests {
 
         let attrs = attributes.value().unwrap();
         assert_eq!(
-            attrs.get_value(APP_VITALS_START_VALUE).and_then(|v| v.as_f64()),
+            attrs
+                .get_value(APP_VITALS_START_VALUE)
+                .and_then(|v| v.as_f64()),
             Some(999.0)
         );
         assert_eq!(
-            attrs.get_value(APP_VITALS_START_TYPE).and_then(|v| v.as_str()),
+            attrs
+                .get_value(APP_VITALS_START_TYPE)
+                .and_then(|v| v.as_str()),
             Some("warm")
         );
     }
