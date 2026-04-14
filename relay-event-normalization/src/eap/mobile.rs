@@ -6,21 +6,27 @@ use relay_protocol::Annotated;
 
 use crate::normalize::utils::{MAIN_THREAD_NAME, MAX_DURATION_MOBILE_MS, MOBILE_SDKS};
 
+/// Normalizes mobile-specific attributes on a span.
+///
+/// - Sets `sentry.mobile: "true"` if the SDK is a known mobile SDK.
+/// - Sets `sentry.main_thread: "true"` if `thread.name` is `"main"`.
+/// - Removes mobile measurement attributes that exceed 180 seconds.
+/// - Normalizes V1 `app_start_cold`/`app_start_warm` into unified `app.vitals.start.*` attributes.
 pub fn normalize_mobile_attributes(attributes: &mut Annotated<Attributes>) {
     let Some(attrs) = attributes.value_mut() else {
         return;
     };
 
-    if let Some(sdk_name) = attrs.get_value(SENTRY_SDK_NAME).and_then(|v| v.as_str()) {
-        if MOBILE_SDKS.contains(&sdk_name) {
-            attrs.insert(SENTRY_MOBILE, "true".to_owned());
-        }
+    if let Some(sdk_name) = attrs.get_value(SENTRY_SDK_NAME).and_then(|v| v.as_str())
+        && MOBILE_SDKS.contains(&sdk_name)
+    {
+        attrs.insert(SENTRY_MOBILE, "true".to_owned());
     }
 
-    if let Some(thread_name) = attrs.get_value(THREAD_NAME).and_then(|v| v.as_str()) {
-        if thread_name == MAIN_THREAD_NAME {
-            attrs.insert(SENTRY_MAIN_THREAD, "true".to_owned());
-        }
+    if let Some(thread_name) = attrs.get_value(THREAD_NAME).and_then(|v| v.as_str())
+        && thread_name == MAIN_THREAD_NAME
+    {
+        attrs.insert(SENTRY_MAIN_THREAD, "true".to_owned());
     }
 
     for key in [
@@ -29,32 +35,38 @@ pub fn normalize_mobile_attributes(attributes: &mut Annotated<Attributes>) {
         APP_VITALS_TTID_VALUE,
         APP_VITALS_TTFD_VALUE,
     ] {
-        if let Some(value) = attrs.get_value(key).and_then(|v| v.as_f64()) {
-            if value > MAX_DURATION_MOBILE_MS {
-                attrs.remove(key);
-            }
+        if let Some(value) = attrs.get_value(key).and_then(|v| v.as_f64())
+            && value > MAX_DURATION_MOBILE_MS
+        {
+            attrs.remove(key);
         }
     }
 
     // Normalize app start measurements into unified attributes.
     // V1 spans have measurements `app_start_cold`/`app_start_warm` which become
     // attributes with those names after v1→v2 conversion.
-    // V2 spans will at some point send `app.start.value` + `app.start.type` directly.
+    // V2 spans will at some point send `app.vitals.start.value` + `app.vitals.start.type` directly.
     if !attrs.contains_key(APP_VITALS_START_VALUE) {
-        if let Some(value) = attrs.get_value("app_start_cold").and_then(|v| v.as_f64()) {
-            if value <= MAX_DURATION_MOBILE_MS {
-                attrs.insert(APP_VITALS_START_VALUE, value);
-                attrs.insert_if_missing(APP_VITALS_START_TYPE, || "cold".to_owned());
-            }
-        } else if let Some(value) = attrs.get_value("app_start_warm").and_then(|v| v.as_f64()) {
-            if value <= MAX_DURATION_MOBILE_MS {
-                attrs.insert(APP_VITALS_START_VALUE, value);
-                attrs.insert_if_missing(APP_VITALS_START_TYPE, || "warm".to_owned());
-            }
+        if let Some(value) = attrs.get_value("app_start_cold").and_then(|v| v.as_f64())
+            && value <= MAX_DURATION_MOBILE_MS
+        {
+            attrs.insert(APP_VITALS_START_VALUE, value);
+            attrs.insert_if_missing(APP_VITALS_START_TYPE, || "cold".to_owned());
+        } else if let Some(value) = attrs.get_value("app_start_warm").and_then(|v| v.as_f64())
+            && value <= MAX_DURATION_MOBILE_MS
+        {
+            attrs.insert(APP_VITALS_START_VALUE, value);
+            attrs.insert_if_missing(APP_VITALS_START_TYPE, || "warm".to_owned());
         }
     }
 }
 
+/// Derives the `device.class` attribute from device attributes.
+///
+/// Uses the same classification logic as the V1 pipeline:
+/// - iOS: lookup table from `device.model` (e.g. `"iPhone17,5"` → HIGH)
+/// - Android: thresholds on `device.processor_frequency`, `device.processor_count`,
+///   `device.memory_size`
 pub fn normalize_device_class(attributes: &mut Annotated<Attributes>) {
     let Some(attrs) = attributes.value_mut() else {
         return;
