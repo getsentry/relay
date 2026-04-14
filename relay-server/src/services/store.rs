@@ -404,7 +404,10 @@ impl StoreService {
         relay_statsd::metric!(timer(RelayTimers::StoreServiceDuration), message = ty, {
             let result = match message {
                 Store::Envelope(message) => self.handle_store_envelope(message),
-                Store::Metrics(message) => return self.handle_store_metrics(message),
+                Store::Metrics(message) => {
+                    self.handle_store_metrics(message);
+                    Ok(())
+                }
                 Store::TraceItem(message) => self.handle_store_trace_item(message),
                 Store::Span(message) => self.handle_store_span(message),
                 Store::ProfileChunk(message) => self.handle_store_profile_chunk(message),
