@@ -8,6 +8,7 @@
 
 **Bug Fixes**:
 
+- Recover log containers containing lone Unicode surrogates (`\uD800`–`\uDFFF`) instead of discarding the entire batch. ([#5833](https://github.com/getsentry/relay/pull/5833))
 - Store segment name in `sentry.transaction` in addition to `sentry.segment.name` on OTLP spans. ([#5765](https://github.com/getsentry/relay/pull/5765))
 - Explicitly handle in-flight requests during shutdown. ([#5746](https://github.com/getsentry/relay/pull/5746), [#5769](https://github.com/getsentry/relay/pull/5769))
 - Emit outcomes in both `log_byte` and `log_item` categories when logs are dropped. ([#5766](https://github.com/getsentry/relay/pull/5766))
