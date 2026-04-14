@@ -32,13 +32,17 @@ struct UnrealParams {
 }
 
 impl UnrealParams {
-    fn extract_envelope(self, state: &ServiceState) -> Result<Box<Envelope>, BadStoreRequest> {
+    async fn extract_envelope(
+        self,
+        state: &ServiceState,
+    ) -> Result<Box<Envelope>, BadStoreRequest> {
         let Self { meta, query, data } = self;
 
         if data.is_empty() {
             return Err(BadStoreRequest::EmptyBody);
         }
 
+        let public_key = meta.public_key();
         let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
 
         let global_config = state.global_config_handle().current();
@@ -51,6 +55,13 @@ impl UnrealParams {
 
         match endpoint_expansion_rolled_out {
             true => {
+                // Not yet used but already added to assess the performance implications.
+                let _project = state
+                    .project_cache_handle()
+                    .ready(public_key, state.config().query_timeout())
+                    .await
+                    .ok_or(BadStoreRequest::ProjectUnavailable)?;
+
                 // Only interested in the 'attachments' since the event will be extracted later on
                 // during processing.
                 let UnrealExpansion {
@@ -87,7 +98,7 @@ async fn handle(
     state: ServiceState,
     params: UnrealParams,
 ) -> Result<impl IntoResponse, BadStoreRequest> {
-    let envelope = params.extract_envelope(&state)?;
+    let envelope = params.extract_envelope(&state).await?;
     let id = envelope.event_id();
 
     // Never respond with a 429 since clients often retry these
