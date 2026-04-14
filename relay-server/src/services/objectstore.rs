@@ -27,7 +27,7 @@ use crate::services::outcome::DiscardReason;
 use crate::services::store::{Store, StoreAttachment, StoreEnvelope, StoreTraceItem};
 use crate::services::upload::ByteStream;
 use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::{BoundedStream, MeteredStream};
+use crate::utils::{BoundedStream, MeteredStream, RetriableStream};
 
 use super::outcome::Outcome;
 
@@ -499,7 +499,9 @@ impl ObjectstoreServiceInner {
             }
         };
 
-        let request = session.put_stream(stream.boxed()).key(key);
+        let (retriable, _recovery_handle) = RetriableStream::create(stream);
+        // TODO: actually retry
+        let request = session.put_stream(retriable.boxed()).key(key);
         let result = self.upload("stream", request).await;
 
         relay_statsd::metric!(
