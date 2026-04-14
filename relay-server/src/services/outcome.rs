@@ -1198,7 +1198,9 @@ impl OutcomeBroker {
             KafkaTopic::Outcomes
         };
 
-        let _ = producer.client.send_message(topic, &message); // logs error internally
+        if let Err(error) = producer.client.send_message(topic, &message) {
+            relay_log::error!(error = &error as &dyn Error, "failed to produce outcome");
+        }
     }
 
     fn handle_track_outcome(&self, message: TrackOutcome, config: &Config) {

@@ -338,22 +338,6 @@ impl KafkaClient {
         topic: KafkaTopic,
         message: &impl Message,
     ) -> Result<&str, ClientError> {
-        self.send_message_inner(topic, message)
-            .inspect_err(|error| {
-                relay_log::error!(
-                    error = error as &dyn std::error::Error,
-                    tags.variant = message.variant(),
-                    tags.abstract_topic = topic.as_str(),
-                    "error sending kafka message",
-                );
-            })
-    }
-
-    fn send_message_inner(
-        &self,
-        topic: KafkaTopic,
-        message: &impl Message,
-    ) -> Result<&str, ClientError> {
         let serialized = message.serialize()?;
 
         #[cfg(debug_assertions)]
