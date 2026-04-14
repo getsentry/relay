@@ -9,7 +9,7 @@ use crate::normalize::utils::{MAIN_THREAD_NAME, MAX_DURATION_MOBILE_MS, MOBILE_S
 /// Normalizes mobile-specific attributes on a span.
 ///
 /// - Sets `sentry.mobile: "true"` if the SDK is a known mobile SDK.
-/// - Sets `sentry.main_thread: "true"` if `thread.name` is `"main"`.
+/// - Sets `sentry.main_thread: "true"` if the SDK is mobile and `thread.name` is `"main"`.
 /// - Removes mobile measurement attributes that exceed 180 seconds.
 /// - Normalizes V1 `app_start_cold`/`app_start_warm` into unified `app.vitals.start.*` attributes.
 pub fn normalize_mobile_attributes(attributes: &mut Annotated<Attributes>) {
@@ -21,12 +21,12 @@ pub fn normalize_mobile_attributes(attributes: &mut Annotated<Attributes>) {
         && MOBILE_SDKS.contains(&sdk_name)
     {
         attrs.insert(SENTRY_MOBILE, "true".to_owned());
-    }
 
-    if let Some(thread_name) = attrs.get_value(THREAD_NAME).and_then(|v| v.as_str())
-        && thread_name == MAIN_THREAD_NAME
-    {
-        attrs.insert(SENTRY_MAIN_THREAD, "true".to_owned());
+        if let Some(thread_name) = attrs.get_value(THREAD_NAME).and_then(|v| v.as_str())
+            && thread_name == MAIN_THREAD_NAME
+        {
+            attrs.insert(SENTRY_MAIN_THREAD, "true".to_owned());
+        }
     }
 
     for key in [
@@ -78,8 +78,6 @@ pub fn normalize_device_class(attributes: &mut Annotated<Attributes>) {
 
 #[cfg(test)]
 mod tests {
-    use relay_protocol::SerializableAnnotated;
-
     use super::*;
 
     #[test]
@@ -115,9 +113,10 @@ mod tests {
     }
 
     #[test]
-    fn test_main_thread_tag() {
+    fn test_main_thread_tag_mobile_sdk() {
         let mut attributes = Annotated::<Attributes>::from_json(
             r#"{
+                "sentry.sdk.name": {"type": "string", "value": "sentry.cocoa"},
                 "thread.name": {"type": "string", "value": "main"}
             }"#,
         )
@@ -125,25 +124,35 @@ mod tests {
 
         normalize_mobile_attributes(&mut attributes);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r###"
-        {
-          "sentry.main_thread": {
-            "type": "string",
-            "value": "true"
-          },
-          "thread.name": {
-            "type": "string",
-            "value": "main"
-          }
-        }
-        "###);
+        let attrs = attributes.value().unwrap();
+        assert_eq!(
+            attrs.get_value(SENTRY_MAIN_THREAD).and_then(|v| v.as_str()),
+            Some("true")
+        );
     }
 
     #[test]
     fn test_main_thread_tag_not_main() {
         let mut attributes = Annotated::<Attributes>::from_json(
             r#"{
+                "sentry.sdk.name": {"type": "string", "value": "sentry.cocoa"},
                 "thread.name": {"type": "string", "value": "background"}
+            }"#,
+        )
+        .unwrap();
+
+        normalize_mobile_attributes(&mut attributes);
+
+        let attrs = attributes.value().unwrap();
+        assert!(attrs.get_value(SENTRY_MAIN_THREAD).is_none());
+    }
+
+    #[test]
+    fn test_main_thread_tag_not_set_for_non_mobile_sdk() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"{
+                "sentry.sdk.name": {"type": "string", "value": "sentry.python"},
+                "thread.name": {"type": "string", "value": "main"}
             }"#,
         )
         .unwrap();
