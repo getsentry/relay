@@ -399,7 +399,7 @@ pub struct ModelMetadata {
 
     /// The mappings of model ID => metadata as a dictionary.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub models: BTreeMap<Pattern, ModelMetadataEntry>,
+    pub models: HashMap<Pattern, ModelMetadataEntry>,
 }
 
 impl ModelMetadata {
