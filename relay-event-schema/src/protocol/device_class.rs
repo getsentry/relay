@@ -29,14 +29,7 @@ impl DeviceClass {
             let freq = attributes.get_value(DEVICE_PROCESSOR_FREQUENCY)?.as_f64()? as u64;
             let proc = attributes.get_value(DEVICE_PROCESSOR_COUNT)?.as_f64()? as u64;
             let mem = attributes.get_value(DEVICE_MEMORY_SIZE)?.as_f64()? as u64;
-
-            if freq < 2000 || proc < 8 || mem < 4 * GIB {
-                Some(DeviceClass::LOW)
-            } else if freq < 2500 || mem < 6 * GIB {
-                Some(DeviceClass::MEDIUM)
-            } else {
-                Some(DeviceClass::HIGH)
-            }
+            classify_by_hardware(freq, proc, mem)
         }
     }
 
@@ -51,13 +44,7 @@ impl DeviceClass {
             device.processor_count.value(),
             device.memory_size.value(),
         ) {
-            if freq < 2000 || proc < 8 || mem < 4 * GIB {
-                Some(DeviceClass::LOW)
-            } else if freq < 2500 || mem < 6 * GIB {
-                Some(DeviceClass::MEDIUM)
-            } else {
-                Some(DeviceClass::HIGH)
-            }
+            classify_by_hardware(freq, proc, mem)
         } else {
             None
         }
@@ -67,6 +54,16 @@ impl DeviceClass {
 impl fmt::Display for DeviceClass {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
+    }
+}
+
+fn classify_by_hardware(freq: u64, proc: u64, mem: u64) -> Option<DeviceClass> {
+    if freq < 2000 || proc < 8 || mem < 4 * GIB {
+        Some(DeviceClass::LOW)
+    } else if freq < 2500 || mem < 6 * GIB {
+        Some(DeviceClass::MEDIUM)
+    } else {
+        Some(DeviceClass::HIGH)
     }
 }
 
