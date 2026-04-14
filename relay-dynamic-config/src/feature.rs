@@ -29,13 +29,6 @@ pub enum Feature {
     /// Serialized as `organizations:session-replay-video-disabled`.
     #[serde(rename = "organizations:session-replay-video-disabled")]
     SessionReplayVideoDisabled,
-    /// Enables device.class synthesis
-    ///
-    /// Enables device.class tag synthesis on mobile events.
-    ///
-    /// Serialized as `organizations:device-class-synthesis`.
-    #[serde(rename = "organizations:device-class-synthesis")]
-    DeviceClassSynthesis,
     /// Allow ingestion of metrics in the "custom" namespace.
     ///
     /// Serialized as `organizations:custom-metrics`.
