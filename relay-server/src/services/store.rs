@@ -395,6 +395,11 @@ impl StoreService {
     }
 
     fn handle_message(&self, message: Store) {
+        // relay_kafka configures the scope
+        relay_log::with_scope(|_| {}, || self.handle_message_inner(message))
+    }
+
+    fn handle_message_inner(&self, message: Store) {
         let ty = message.variant();
         relay_statsd::metric!(timer(RelayTimers::StoreServiceDuration), message = ty, {
             let result = match message {

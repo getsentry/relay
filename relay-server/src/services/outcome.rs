@@ -1181,10 +1181,13 @@ enum OutcomeBroker {
 
 impl OutcomeBroker {
     fn handle_message(&self, message: OutcomeProducer, config: &Config) {
-        match message {
-            OutcomeProducer::TrackOutcome(msg) => self.handle_track_outcome(msg, config),
-            OutcomeProducer::TrackRawOutcome(msg) => self.handle_track_raw_outcome(msg),
-        }
+        relay_log::with_scope(
+            |_| {},
+            || match message {
+                OutcomeProducer::TrackOutcome(msg) => self.handle_track_outcome(msg, config),
+                OutcomeProducer::TrackRawOutcome(msg) => self.handle_track_raw_outcome(msg),
+            },
+        )
     }
 
     #[cfg(feature = "processing")]
