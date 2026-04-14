@@ -3,10 +3,6 @@ import uuid
 import json
 
 from .asserts import only_items
-from .consts import (
-    TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
-    TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
-)
 
 import pytest
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
@@ -241,9 +237,6 @@ def test_it_removes_events(mini_sentry, relay):
 
     # create a basic project config
     config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
-    }
 
     public_key = config["publicKeys"][0]["publicKey"]
 
@@ -351,10 +344,7 @@ def test_sample_on_parametrized_root_transaction(mini_sentry, relay):
     # What the transaction is transformed into, which the dynamic sampling rules should respect.
     parametrized_transaction = "/auth/login/*/"
 
-    config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION
-    }
+    mini_sentry.add_basic_project_config(project_id)
 
     sampling_config = mini_sentry.add_basic_project_config(43)
     sampling_public_key = sampling_config["publicKeys"][0]["publicKey"]
@@ -464,18 +454,12 @@ def test_uses_trace_public_key(mini_sentry, relay):
     # create basic project configs
     project_id1 = 42
     config1 = mini_sentry.add_basic_project_config(project_id1)
-    config1["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
-    }
 
     public_key1 = config1["publicKeys"][0]["publicKey"]
     add_sampling_config(config1, sample_rate=0, rule_type="trace")
 
     project_id2 = 43
     config2 = mini_sentry.add_basic_project_config(project_id2)
-    config2["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
-    }
     public_key2 = config2["publicKeys"][0]["publicKey"]
     add_sampling_config(config2, sample_rate=1, rule_type="trace")
 
@@ -540,9 +524,6 @@ def test_multi_item_envelope(mini_sentry, relay, rule_type, event_factory):
 
     # create a basic project config
     config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
-    }
     # add a sampling rule to project config that removes all transactions (sample_rate=0)
     public_key = config["publicKeys"][0]["publicKey"]
     # add a sampling rule to project config that drops all events (sample_rate=0), it should be ignored
@@ -612,9 +593,6 @@ def test_client_sample_rate_adjusted(mini_sentry, relay, rule_type, event_factor
     project_id = 42
     relay = relay(mini_sentry)
     config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
-    }
     public_key = config["publicKeys"][0]["publicKey"]
 
     # the closer to 0, the less flaky the test is
@@ -727,9 +705,6 @@ def test_relay_chain_keep_unsampled_profile(
     else:
         relay = relay_with_processing()
     config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
-    }
     config["config"]["features"] = [
         "organizations:profiling",
     ]
@@ -874,9 +849,6 @@ def test_invalid_global_generic_filters_skip_dynamic_sampling(mini_sentry, relay
 
     project_id = 42
     config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
-    }
     public_key = config["publicKeys"][0]["publicKey"]
 
     # Reject all transactions with dynamic sampling

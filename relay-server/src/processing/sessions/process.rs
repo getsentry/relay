@@ -8,7 +8,7 @@ use relay_quotas::DataCategory;
 use crate::envelope::Item;
 use crate::managed::{Managed, RecordKeeper};
 use crate::metrics_extraction;
-use crate::metrics_extraction::transactions::ExtractedMetrics;
+use crate::metrics_extraction::ExtractedMetrics;
 use crate::processing::Context;
 use crate::processing::sessions::{Error, ExpandedSessions, Result, SerializedSessions};
 use crate::services::processor::MINIMUM_CLOCK_DRIFT;

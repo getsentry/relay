@@ -1,20 +1,17 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::hash::Hash;
 use std::iter::FusedIterator;
 use std::{fmt, mem};
 
-use hash32::{FnvHasher, Hasher as _};
-use relay_cardinality::CardinalityItem;
 use relay_common::time::UnixTimestamp;
 use relay_protocol::FiniteF64;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
+use crate::ParseMetricError;
 use crate::protocol::{
     self, CounterType, DistributionType, GaugeType, MetricName, MetricResourceIdentifier,
     MetricType, SetType, hash_set_value,
 };
-use crate::{MetricNamespace, ParseMetricError};
 
 const VALUE_SEPARATOR: char = ':';
 
@@ -723,23 +720,6 @@ impl Bucket {
     }
 }
 
-impl CardinalityItem for Bucket {
-    fn namespace(&self) -> Option<MetricNamespace> {
-        self.name.try_namespace()
-    }
-
-    fn name(&self) -> &MetricName {
-        &self.name
-    }
-
-    fn to_hash(&self) -> u32 {
-        let mut hasher = FnvHasher::default();
-        self.name.hash(&mut hasher);
-        self.tags.hash(&mut hasher);
-        hasher.finish32()
-    }
-}
-
 /// Relay internal metadata for a metric bucket.
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 pub struct BucketMetadata {
@@ -927,15 +907,15 @@ mod tests {
 
     #[test]
     fn test_parse_counter() {
-        let s = "transactions/foo:42|c";
+        let s = "spans/foo:42|c";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-        insta::assert_debug_snapshot!(metric, @r###"
+        insta::assert_debug_snapshot!(metric, @r#"
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
             name: MetricName(
-                "c:transactions/foo@none",
+                "c:spans/foo@none",
             ),
             value: Counter(
                 42.0,
@@ -947,12 +927,12 @@ mod tests {
                 extracted_from_indexed: false,
             },
         }
-        "###);
+        "#);
     }
 
     #[test]
     fn test_parse_counter_packed() {
-        let s = "transactions/foo:42:17:21|c";
+        let s = "spans/foo:42:17:21|c";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
         assert_eq!(metric.value, BucketValue::Counter(80.into()));
@@ -960,15 +940,15 @@ mod tests {
 
     #[test]
     fn test_parse_distribution() {
-        let s = "transactions/foo:17.5|d";
+        let s = "spans/foo:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-        insta::assert_debug_snapshot!(metric, @r###"
+        insta::assert_debug_snapshot!(metric, @r#"
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
             name: MetricName(
-                "d:transactions/foo@none",
+                "d:spans/foo@none",
             ),
             value: Distribution(
                 [
@@ -982,7 +962,7 @@ mod tests {
                 extracted_from_indexed: false,
             },
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1013,15 +993,15 @@ mod tests {
 
     #[test]
     fn test_parse_set() {
-        let s = "transactions/foo:4267882815|s";
+        let s = "spans/foo:4267882815|s";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-        insta::assert_debug_snapshot!(metric, @r###"
+        insta::assert_debug_snapshot!(metric, @r#"
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
             name: MetricName(
-                "s:transactions/foo@none",
+                "s:spans/foo@none",
             ),
             value: Set(
                 {
@@ -1035,7 +1015,7 @@ mod tests {
                 extracted_from_indexed: false,
             },
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1070,15 +1050,15 @@ mod tests {
 
     #[test]
     fn test_parse_gauge() {
-        let s = "transactions/foo:42|g";
+        let s = "spans/foo:42|g";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-        insta::assert_debug_snapshot!(metric, @r###"
+        insta::assert_debug_snapshot!(metric, @r#"
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
             name: MetricName(
-                "g:transactions/foo@none",
+                "g:spans/foo@none",
             ),
             value: Gauge(
                 GaugeValue {
@@ -1096,20 +1076,20 @@ mod tests {
                 extracted_from_indexed: false,
             },
         }
-        "###);
+        "#);
     }
 
     #[test]
     fn test_parse_gauge_packed() {
-        let s = "transactions/foo:25:17:42:220:85|g";
+        let s = "spans/foo:25:17:42:220:85|g";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-        insta::assert_debug_snapshot!(metric, @r###"
+        insta::assert_debug_snapshot!(metric, @r#"
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
             name: MetricName(
-                "g:transactions/foo@none",
+                "g:spans/foo@none",
             ),
             value: Gauge(
                 GaugeValue {
@@ -1127,7 +1107,7 @@ mod tests {
                 extracted_from_indexed: false,
             },
         }
-        "###);
+        "#);
     }
 
     #[test]

@@ -23,9 +23,7 @@ use relay_config::{Config, HttpEncoding, RelayMode};
 use relay_dynamic_config::{Feature, GlobalConfig};
 use relay_event_normalization::{ClockDriftProcessor, GeoIpLookup};
 use relay_event_schema::processor::ProcessingAction;
-use relay_event_schema::protocol::{
-    ClientReport, Event, EventId, Metrics, NetworkReportError, SpanV2,
-};
+use relay_event_schema::protocol::{ClientReport, Event, EventId, NetworkReportError, SpanV2};
 use relay_filter::FilterStatKey;
 use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricNamespace};
 use relay_protocol::Annotated;
@@ -37,15 +35,12 @@ use reqwest::header;
 use smallvec::{SmallVec, smallvec};
 use zstd::stream::Encoder as ZstdEncoder;
 
-use crate::envelope::{
-    self, AttachmentType, ContentType, Envelope, EnvelopeError, Item, ItemContainer, ItemType,
-};
+use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemContainer, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta, RequestTrust};
 use crate::integrations::Integration;
 use crate::managed::{InvalidProcessingGroupType, ManagedEnvelope, TypedEnvelope};
 use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
-use crate::metrics_extraction::transactions::ExtractedMetrics;
-use crate::metrics_extraction::transactions::types::ExtractMetricsError;
+use crate::metrics_extraction::ExtractedMetrics;
 use crate::processing::attachments::AttachmentProcessor;
 use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::client_reports::ClientReportsProcessor;
@@ -60,10 +55,7 @@ use crate::processing::trace_attachments::TraceAttachmentsProcessor;
 use crate::processing::trace_metrics::TraceMetricsProcessor;
 use crate::processing::transactions::TransactionProcessor;
 use crate::processing::user_reports::UserReportsProcessor;
-use crate::processing::utils::event::{
-    EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted, event_category,
-    event_type,
-};
+use crate::processing::utils::event::event_category;
 use crate::processing::{Forward as _, Output, Outputs, QuotaRateLimiter};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
@@ -84,35 +76,20 @@ use {
     crate::services::store::Store,
     crate::utils::Enforcement,
     itertools::Itertools,
-    relay_cardinality::{
-        CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
-        RedisSetLimiterOptions,
-    },
-    relay_dynamic_config::CardinalityLimiterMode,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     relay_redis::RedisClients,
     std::time::Instant,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
-mod attachment;
-mod dynamic_sampling;
 pub mod event;
 mod metrics;
 mod nel;
-mod profile;
-mod report;
 #[cfg(feature = "processing")]
 mod span;
 
 #[cfg(all(sentry, feature = "processing"))]
 pub mod playstation;
-mod standalone;
-#[cfg(feature = "processing")]
-mod unreal;
-
-#[cfg(feature = "processing")]
-mod nnswitch;
 
 /// Creates the block only if used with `processing` feature.
 ///
@@ -178,25 +155,11 @@ macro_rules! processing_group {
     };
 }
 
-/// A marker trait.
-///
-/// Should be used only with groups which are responsible for processing envelopes with events.
-pub trait EventProcessing {}
-
 processing_group!(TransactionGroup, Transaction);
-impl EventProcessing for TransactionGroup {}
 
 processing_group!(ErrorGroup, Error);
-impl EventProcessing for ErrorGroup {}
 
 processing_group!(SessionGroup, Session);
-processing_group!(
-    StandaloneGroup,
-    Standalone,
-    StandaloneAttachments,
-    StandaloneUserReports,
-    StandaloneProfiles
-);
 processing_group!(ClientReportGroup, ClientReport);
 processing_group!(ReplayGroup, Replay);
 processing_group!(CheckInGroup, CheckIn);
@@ -229,9 +192,6 @@ pub enum ProcessingGroup {
     Error,
     /// Session events.
     Session,
-    /// Standalone items which can be sent alone without any event attached to it in the current
-    /// envelope e.g. some attachments, user reports.
-    Standalone,
     /// Standalone attachments
     ///
     /// Attachments that are send without an item that creates an event in the same envelope.
@@ -425,20 +385,6 @@ impl ProcessingGroup {
             }
         }
 
-        // Extract all standalone items.
-        //
-        // Note: only if there are no items in the envelope which can create events, otherwise they
-        // will be in the same envelope with all require event items.
-        if !envelope.items().any(Item::creates_event) {
-            let standalone_items = envelope.take_items_by(Item::requires_event);
-            if !standalone_items.is_empty() {
-                grouped_envelopes.push((
-                    ProcessingGroup::Standalone,
-                    Envelope::from_parts(headers.clone(), standalone_items),
-                ))
-            }
-        };
-
         // Make sure we create separate envelopes for each `RawSecurity` report.
         let security_reports_items = envelope
             .take_items_by(|i| matches!(i.ty(), &ItemType::RawSecurity))
@@ -500,7 +446,6 @@ impl ProcessingGroup {
             ProcessingGroup::Transaction => "transaction",
             ProcessingGroup::Error => "error",
             ProcessingGroup::Session => "session",
-            ProcessingGroup::Standalone => "standalone",
             ProcessingGroup::StandaloneAttachments => "standalone_attachment",
             ProcessingGroup::StandaloneUserReports => "standalone_user_reports",
             ProcessingGroup::StandaloneProfiles => "standalone_profiles",
@@ -527,7 +472,6 @@ impl From<ProcessingGroup> for AppFeature {
             ProcessingGroup::Transaction => AppFeature::Transactions,
             ProcessingGroup::Error => AppFeature::Errors,
             ProcessingGroup::Session => AppFeature::Sessions,
-            ProcessingGroup::Standalone => AppFeature::UnattributedEnvelope,
             ProcessingGroup::StandaloneAttachments => AppFeature::UnattributedEnvelope,
             ProcessingGroup::StandaloneUserReports => AppFeature::UserReports,
             ProcessingGroup::StandaloneProfiles => AppFeature::Profiles,
@@ -597,9 +541,6 @@ pub enum ProcessingError {
     #[error("event filtered with reason: {0:?}")]
     EventFiltered(FilterStatKey),
 
-    #[error("missing or invalid required event timestamp")]
-    InvalidTimestamp,
-
     #[error("could not serialize event payload")]
     SerializeFailed(#[source] serde_json::Error),
 
@@ -625,6 +566,9 @@ pub enum ProcessingError {
     #[cfg(feature = "processing")]
     #[error("invalid attachment reference")]
     InvalidAttachmentRef,
+
+    #[error("could not determine processing group for envelope items")]
+    NoProcessingGroup,
 }
 
 impl ProcessingError {
@@ -643,7 +587,6 @@ impl ProcessingError {
             Self::UnsupportedSecurityType => Some(Outcome::Filtered(FilterStatKey::InvalidCsp)),
             Self::InvalidNelReport(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
             Self::InvalidTransaction => Some(Outcome::Invalid(DiscardReason::InvalidTransaction)),
-            Self::InvalidTimestamp => Some(Outcome::Invalid(DiscardReason::Timestamp)),
             Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::NoEventPayload => Some(Outcome::Invalid(DiscardReason::NoEventPayload)),
             Self::InvalidNintendoDyingMessage(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
@@ -671,6 +614,7 @@ impl ProcessingError {
             Self::InvalidAttachmentRef => {
                 Some(Outcome::Invalid(DiscardReason::InvalidAttachmentRef))
             }
+            Self::NoProcessingGroup => Some(Outcome::Invalid(DiscardReason::Internal)),
         }
     }
 
@@ -686,16 +630,6 @@ impl From<Unreal4Error> for ProcessingError {
         match err.kind() {
             Unreal4ErrorKind::TooLarge => Self::PayloadTooLarge(ItemType::UnrealReport.into()),
             _ => ProcessingError::InvalidUnrealReport(err),
-        }
-    }
-}
-
-impl From<ExtractMetricsError> for ProcessingError {
-    fn from(error: ExtractMetricsError) -> Self {
-        match error {
-            ExtractMetricsError::MissingTimestamp | ExtractMetricsError::InvalidTimestamp => {
-                Self::InvalidTimestamp
-            }
         }
     }
 }
@@ -784,18 +718,11 @@ impl ProcessingExtractedMetrics {
         // flag reset to `false`.
         let mut reset_extracted_from_indexed: SmallVec<[_; 2]> = smallvec![];
 
-        for (namespace, limit, indexed) in [
-            (
-                MetricNamespace::Transactions,
-                &enforcement.event,
-                &enforcement.event_indexed,
-            ),
-            (
-                MetricNamespace::Spans,
-                &enforcement.spans,
-                &enforcement.spans_indexed,
-            ),
-        ] {
+        for (namespace, limit, indexed) in [(
+            MetricNamespace::Spans,
+            &enforcement.spans,
+            &enforcement.spans_indexed,
+        )] {
             if limit.is_active() {
                 drop_namespaces.push(namespace);
             } else if indexed.is_active() && !enforced_consistently {
@@ -863,17 +790,6 @@ fn send_metrics(
             project_key: sampling_project_key,
             buckets: sampling_metrics,
         });
-    }
-}
-
-/// Function for on-off switches that filter specific item types (profiles, spans)
-/// based on a feature flag.
-///
-/// If the project config did not come from the upstream, we keep the items.
-fn should_filter(config: &Config, project_info: &ProjectInfo, feature: Feature) -> bool {
-    match config.relay_mode() {
-        RelayMode::Proxy => false,
-        RelayMode::Managed => !project_info.has_feature(feature),
     }
 }
 
@@ -1197,9 +1113,8 @@ struct InnerProcessor {
     addrs: Addrs,
     #[cfg(feature = "processing")]
     rate_limiter: Option<Arc<RedisRateLimiter>>,
-    geoip_lookup: GeoIpLookup,
     #[cfg(feature = "processing")]
-    cardinality_limiter: Option<CardinalityLimiter>,
+    geoip_lookup: GeoIpLookup,
     metric_outcomes: MetricOutcomes,
     processing: Processing,
 }
@@ -1248,20 +1163,8 @@ impl EnvelopeProcessorService {
             .unwrap_or_else(GeoIpLookup::empty);
 
         #[cfg(feature = "processing")]
-        let (cardinality, quotas) = match redis {
-            Some(RedisClients {
-                cardinality,
-                quotas,
-                ..
-            }) => (Some(cardinality), Some(quotas)),
-            None => (None, None),
-        };
-        #[cfg(not(feature = "processing"))]
-        let quotas = None;
-
-        #[cfg(feature = "processing")]
-        let rate_limiter = quotas.clone().map(|redis| {
-            RedisRateLimiter::new(redis)
+        let rate_limiter = redis.as_ref().map(|redis| {
+            RedisRateLimiter::new(redis.quotas.clone())
                 .max_limit(config.max_rate_limit())
                 .cache(config.quota_cache_ratio(), config.quota_cache_max())
         });
@@ -1283,19 +1186,9 @@ impl EnvelopeProcessorService {
             #[cfg(feature = "processing")]
             rate_limiter,
             addrs,
-            #[cfg(feature = "processing")]
-            cardinality_limiter: cardinality
-                .map(|cardinality| {
-                    RedisSetLimiter::new(
-                        RedisSetLimiterOptions {
-                            cache_vacuum_interval: config
-                                .cardinality_limiter_cache_vacuum_interval(),
-                        },
-                        cardinality,
-                    )
-                })
-                .map(CardinalityLimiter::new),
             metric_outcomes,
+            #[cfg(feature = "processing")]
+            geoip_lookup: geoip_lookup.clone(),
             processing: Processing {
                 errors: ErrorsProcessor::new(Arc::clone(&quota_limiter), geoip_lookup.clone()),
                 logs: LogsProcessor::new(Arc::clone(&quota_limiter)),
@@ -1306,17 +1199,19 @@ impl EnvelopeProcessorService {
                 transactions: TransactionProcessor::new(
                     Arc::clone(&quota_limiter),
                     geoip_lookup.clone(),
-                    quotas.clone(),
+                    #[cfg(feature = "processing")]
+                    redis.map(|r| r.quotas),
+                    #[cfg(not(feature = "processing"))]
+                    None,
                 ),
                 profile_chunks: ProfileChunksProcessor::new(Arc::clone(&quota_limiter)),
                 trace_attachments: TraceAttachmentsProcessor::new(Arc::clone(&quota_limiter)),
-                replays: ReplaysProcessor::new(Arc::clone(&quota_limiter), geoip_lookup.clone()),
+                replays: ReplaysProcessor::new(Arc::clone(&quota_limiter), geoip_lookup),
                 client_reports: ClientReportsProcessor::new(outcome_aggregator),
                 attachments: AttachmentProcessor::new(Arc::clone(&quota_limiter)),
                 user_reports: UserReportsProcessor::new(Arc::clone(&quota_limiter)),
                 profiles: ProfilesProcessor::new(quota_limiter),
             },
-            geoip_lookup,
             config,
         };
 
@@ -1365,164 +1260,6 @@ impl EnvelopeProcessorService {
 
             Ok(consistent_result.event)
         } else { Ok(cached_result.event) })
-    }
-
-    /// Processes the general errors, and the items which require or create the events.
-    async fn process_errors(
-        &self,
-        managed_envelope: &mut TypedEnvelope<ErrorGroup>,
-        project_id: ProjectId,
-        mut ctx: processing::Context<'_>,
-    ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
-        let mut event_fully_normalized = EventFullyNormalized::new(managed_envelope.envelope());
-        let mut metrics = Metrics::default();
-        let mut extracted_metrics = ProcessingExtractedMetrics::new();
-
-        // Events can also contain user reports.
-        report::process_user_reports(managed_envelope);
-
-        if_processing!(self.inner.config, {
-            unreal::expand(managed_envelope, &self.inner.config)?;
-            #[cfg(sentry)]
-            playstation::expand(managed_envelope, &self.inner.config, ctx.project_info)?;
-            nnswitch::expand(managed_envelope)?;
-        });
-
-        let mut event = event::extract(
-            managed_envelope,
-            &mut metrics,
-            event_fully_normalized,
-            &self.inner.config,
-        )?;
-
-        if_processing!(self.inner.config, {
-            if let Some(inner_event_fully_normalized) =
-                unreal::process(managed_envelope, &mut event)?
-            {
-                event_fully_normalized = inner_event_fully_normalized;
-            }
-            #[cfg(sentry)]
-            if let Some(inner_event_fully_normalized) =
-                playstation::process(managed_envelope, &mut event, ctx.project_info)?
-            {
-                event_fully_normalized = inner_event_fully_normalized;
-            }
-            if let Some(inner_event_fully_normalized) =
-                attachment::create_placeholders(managed_envelope, &mut event, &mut metrics)
-            {
-                event_fully_normalized = inner_event_fully_normalized;
-            }
-        });
-
-        ctx.sampling_project_info = dynamic_sampling::validate_and_set_dsc(
-            managed_envelope,
-            &mut event,
-            ctx.project_info,
-            ctx.sampling_project_info,
-        );
-
-        let attachments = managed_envelope
-            .envelope()
-            .items()
-            .filter(|item| item.attachment_type() == Some(AttachmentType::Attachment));
-        processing::utils::event::finalize(
-            managed_envelope.envelope().headers(),
-            &mut event,
-            attachments,
-            &mut metrics,
-            ctx.config,
-        )?;
-        event_fully_normalized = processing::utils::event::normalize(
-            managed_envelope.envelope().headers(),
-            &mut event,
-            event_fully_normalized,
-            project_id,
-            ctx,
-            &self.inner.geoip_lookup,
-        )?;
-        let filter_run =
-            processing::utils::event::filter(managed_envelope.envelope().headers(), &event, ctx)
-                .map_err(ProcessingError::EventFiltered)?;
-
-        if self.inner.config.processing_enabled() || matches!(filter_run, FiltersStatus::Ok) {
-            dynamic_sampling::tag_error_with_sampling_decision(
-                managed_envelope,
-                &mut event,
-                ctx.sampling_project_info,
-                &self.inner.config,
-            )
-            .await;
-        }
-
-        event = self
-            .enforce_quotas(managed_envelope, event, &mut extracted_metrics, ctx)
-            .await?;
-
-        if event.value().is_some() {
-            processing::utils::event::scrub(&mut event, ctx.project_info)?;
-            event::serialize(
-                managed_envelope,
-                &mut event,
-                event_fully_normalized,
-                EventMetricsExtracted(false),
-                SpansExtracted(false),
-            )?;
-            event::emit_feedback_metrics(managed_envelope.envelope());
-        }
-
-        let attachments = managed_envelope
-            .envelope_mut()
-            .items_mut()
-            .filter(|i| i.ty() == &ItemType::Attachment);
-        processing::utils::attachments::scrub(attachments, ctx.project_info, None);
-
-        if self.inner.config.processing_enabled() && !event_fully_normalized.0 {
-            relay_log::error!(
-                tags.project = %project_id,
-                tags.ty = event_type(&event).map(|e| e.to_string()).unwrap_or("none".to_owned()),
-                "ingested event without normalizing"
-            );
-        }
-
-        Ok(Some(extracted_metrics))
-    }
-
-    /// Processes standalone items that require an event ID, but do not have an event on the same envelope.
-    async fn process_standalone(
-        &self,
-        managed_envelope: &mut TypedEnvelope<StandaloneGroup>,
-        ctx: processing::Context<'_>,
-    ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
-        for item in managed_envelope.envelope().items() {
-            let attachment_type_tag = match item.attachment_type() {
-                Some(t) => &t.to_string(),
-                None => "",
-            };
-            relay_statsd::metric!(
-                counter(RelayCounters::StandaloneItem) += 1,
-                processor = "old",
-                item_type = item.ty().name(),
-                attachment_type = attachment_type_tag,
-            );
-        }
-
-        let mut extracted_metrics = ProcessingExtractedMetrics::new();
-
-        standalone::process(managed_envelope);
-
-        profile::filter(managed_envelope, ctx.config, ctx.project_info);
-
-        self.enforce_quotas(
-            managed_envelope,
-            Annotated::empty(),
-            &mut extracted_metrics,
-            ctx,
-        )
-        .await?;
-
-        report::process_user_reports(managed_envelope);
-
-        Ok(Some(extracted_metrics))
     }
 
     async fn process_nel(
@@ -1676,16 +1413,8 @@ impl EnvelopeProcessorService {
 
         match group {
             ProcessingGroup::Error => {
-                if ctx.project_info.has_feature(Feature::NewErrorProcessing) {
-                    self.process_with_processor(
-                        &self.inner.processing.errors,
-                        managed_envelope,
-                        ctx,
-                    )
+                self.process_with_processor(&self.inner.processing.errors, managed_envelope, ctx)
                     .await
-                } else {
-                    run!(process_errors, project_id, ctx)
-                }
             }
             ProcessingGroup::Transaction => {
                 self.process_with_processor(
@@ -1699,7 +1428,6 @@ impl EnvelopeProcessorService {
                 self.process_with_processor(&self.inner.processing.sessions, managed_envelope, ctx)
                     .await
             }
-            ProcessingGroup::Standalone => run!(process_standalone, ctx),
             ProcessingGroup::StandaloneAttachments => {
                 self.process_with_processor(
                     &self.inner.processing.attachments,
@@ -1794,9 +1522,7 @@ impl EnvelopeProcessorService {
                     "could not identify the processing group based on the envelope's items"
                 );
 
-                Ok(ProcessingResult::no_metrics(
-                    managed_envelope.into_processed(),
-                ))
+                Err(ProcessingError::NoProcessingGroup)
             }
             // Leave this group unchanged.
             //
@@ -2334,44 +2060,42 @@ impl EnvelopeProcessorService {
             let over_accept_once = true;
             let mut rate_limits = RateLimits::new();
 
-            for category in [DataCategory::Transaction, DataCategory::Span] {
-                let count = bucket_limiter.count(category);
+            let (category, count) = bucket_limiter.count();
 
-                let timer = Instant::now();
-                let mut is_limited = false;
+            let timer = Instant::now();
+            let mut is_limited = false;
 
-                if let Some(count) = count {
-                    match rate_limiter
-                        .is_rate_limited(quotas, scoping.item(category), count, over_accept_once)
-                        .await
-                    {
-                        Ok(limits) => {
-                            is_limited = limits.is_limited();
-                            rate_limits.merge(limits)
-                        }
-                        Err(e) => {
-                            relay_log::error!(error = &e as &dyn Error, "rate limiting error")
-                        }
+            if let Some(count) = count {
+                match rate_limiter
+                    .is_rate_limited(quotas, scoping.item(category), count, over_accept_once)
+                    .await
+                {
+                    Ok(limits) => {
+                        is_limited = limits.is_limited();
+                        rate_limits.merge(limits)
+                    }
+                    Err(e) => {
+                        relay_log::error!(error = &e as &dyn Error, "rate limiting error")
                     }
                 }
-
-                relay_statsd::metric!(
-                    timer(RelayTimers::RateLimitBucketsDuration) = timer.elapsed(),
-                    category = category.name(),
-                    limited = if is_limited { "true" } else { "false" },
-                    count = match count {
-                        None => "none",
-                        Some(0) => "0",
-                        Some(1) => "1",
-                        Some(1..=10) => "10",
-                        Some(1..=25) => "25",
-                        Some(1..=50) => "50",
-                        Some(51..=100) => "100",
-                        Some(101..=500) => "500",
-                        _ => "> 500",
-                    },
-                );
             }
+
+            relay_statsd::metric!(
+                timer(RelayTimers::RateLimitBucketsDuration) = timer.elapsed(),
+                category = category.name(),
+                limited = if is_limited { "true" } else { "false" },
+                count = match count {
+                    None => "none",
+                    Some(0) => "0",
+                    Some(1) => "1",
+                    Some(1..=10) => "10",
+                    Some(1..=25) => "25",
+                    Some(1..=50) => "50",
+                    Some(51..=100) => "100",
+                    Some(101..=500) => "500",
+                    _ => "> 500",
+                },
+            );
 
             if rate_limits.is_limited() {
                 let was_enforced =
@@ -2391,95 +2115,9 @@ impl EnvelopeProcessorService {
         bucket_limiter.into_buckets()
     }
 
-    /// Cardinality limits the passed buckets and returns a filtered vector of only accepted buckets.
-    #[cfg(feature = "processing")]
-    async fn cardinality_limit_buckets(
-        &self,
-        scoping: Scoping,
-        limits: &[CardinalityLimit],
-        buckets: Vec<Bucket>,
-    ) -> Vec<Bucket> {
-        let global_config = self.inner.global_config.current();
-        let cardinality_limiter_mode = global_config.options.cardinality_limiter_mode;
-
-        if matches!(cardinality_limiter_mode, CardinalityLimiterMode::Disabled) {
-            return buckets;
-        }
-
-        let Some(ref limiter) = self.inner.cardinality_limiter else {
-            return buckets;
-        };
-
-        let scope = relay_cardinality::Scoping {
-            organization_id: scoping.organization_id,
-            project_id: scoping.project_id,
-        };
-
-        let limits = match limiter
-            .check_cardinality_limits(scope, limits, buckets)
-            .await
-        {
-            Ok(limits) => limits,
-            Err((buckets, error)) => {
-                relay_log::error!(
-                    error = &error as &dyn std::error::Error,
-                    "cardinality limiter failed"
-                );
-                return buckets;
-            }
-        };
-
-        let error_sample_rate = global_config.options.cardinality_limiter_error_sample_rate;
-        if !limits.exceeded_limits().is_empty() && utils::sample(error_sample_rate).is_keep() {
-            for limit in limits.exceeded_limits() {
-                relay_log::with_scope(
-                    |scope| {
-                        // Set the organization as user so we can alert on distinct org_ids.
-                        scope.set_user(Some(relay_log::sentry::User {
-                            id: Some(scoping.organization_id.to_string()),
-                            ..Default::default()
-                        }));
-                    },
-                    || {
-                        relay_log::error!(
-                            tags.organization_id = scoping.organization_id.value(),
-                            tags.limit_id = limit.id,
-                            tags.passive = limit.passive,
-                            "Cardinality Limit"
-                        );
-                    },
-                );
-            }
-        }
-
-        for (limit, reports) in limits.cardinality_reports() {
-            for report in reports {
-                self.inner
-                    .metric_outcomes
-                    .cardinality(scoping, limit, report);
-            }
-        }
-
-        if matches!(cardinality_limiter_mode, CardinalityLimiterMode::Passive) {
-            return limits.into_source();
-        }
-
-        let CardinalityLimitsSplit { accepted, rejected } = limits.into_split();
-
-        for (bucket, exceeded) in rejected {
-            self.inner.metric_outcomes.track(
-                scoping,
-                &[bucket],
-                Outcome::CardinalityLimited(exceeded.id.clone()),
-            );
-        }
-        accepted
-    }
-
-    /// Processes metric buckets and sends them to kafka.
+    /// Processes metric buckets and sends them to Kafka.
     ///
     /// This function runs the following steps:
-    ///  - cardinality limiting
     ///  - rate limiting
     ///  - submit to `StoreForwarder`
     #[cfg(feature = "processing")]
@@ -2500,11 +2138,6 @@ impl EnvelopeProcessorService {
         {
             let buckets = self
                 .rate_limit_buckets(scoping, &project_info, buckets)
-                .await;
-
-            let limits = project_info.get_cardinality_limits();
-            let buckets = self
-                .cardinality_limit_buckets(scoping, limits, buckets)
                 .await;
 
             if buckets.is_empty() {
@@ -2534,9 +2167,8 @@ impl EnvelopeProcessorService {
     ///  - serialize to JSON and pack in an envelope
     ///  - submit the envelope to upstream or kafka depending on configuration
     ///
-    /// Cardinality limiting and rate limiting run only in processing Relays as they both require
-    /// access to the central Redis instance. Cached rate limits are applied in the project cache
-    /// already.
+    /// Rate limiting runs only in processing Relays as it requires access to the central Redis instance.
+    /// Cached rate limits are applied in the project cache already.
     fn encode_metrics_envelope(&self, cogs: &mut Token, message: FlushBuckets) {
         let FlushBuckets {
             partition_key,
@@ -2624,10 +2256,6 @@ impl EnvelopeProcessorService {
     ///  - batching by configured size limit
     ///  - serialize to JSON
     ///  - submit directly to the upstream
-    ///
-    /// Cardinality limiting and rate limiting run only in processing Relays as they both require
-    /// access to the central Redis instance. Cached rate limits are applied in the project cache
-    /// already.
     fn encode_metrics_global(&self, message: FlushBuckets) {
         let FlushBuckets {
             partition_key,
@@ -2731,8 +2359,8 @@ impl EnvelopeProcessorService {
                 .values()
                 .map(|s| {
                     if self.inner.config.processing_enabled() {
-                        // Processing does not encode the metrics but instead rate and cardinality
-                        // limits the metrics, which scales by count and not size.
+                        // Processing does not encode the metrics but instead rate limit the metrics,
+                        // which scales by count and not size.
                         relay_metrics::cogs::ByCount(&s.buckets).into()
                     } else {
                         relay_metrics::cogs::BySize(&s.buckets).into()
@@ -3318,7 +2946,7 @@ mod tests {
 
             let project_metrics = |scoping| ProjectBuckets {
                 buckets: vec![Bucket {
-                    name: "d:transactions/bar".into(),
+                    name: "d:spans/bar".into(),
                     value: BucketValue::Counter(FiniteF64::new(1.0).unwrap()),
                     timestamp: UnixTimestamp::now(),
                     tags: Default::default(),
@@ -3454,10 +3082,10 @@ mod tests {
             },
         };
 
-        let Ok(Some(Submit::Envelope(mut new_envelope))) = processor.process(message).await else {
+        let Ok(Some(Submit::Output { output, ctx })) = processor.process(message).await else {
             panic!();
         };
-        let new_envelope = new_envelope.envelope_mut();
+        let new_envelope = output.serialize_envelope(ctx).unwrap().accept(|f| f);
 
         let event_item = new_envelope.items().last().unwrap();
         let annotated_event: Annotated<Event> =
@@ -3537,11 +3165,11 @@ mod tests {
         };
 
         let processor = create_test_processor(Config::from_json_value(config).unwrap()).await;
-        let Ok(Some(Submit::Envelope(envelope))) = processor.process(message).await else {
+        let Ok(Some(Submit::Output { output, ctx })) = processor.process(message).await else {
             panic!();
         };
+        let envelope = output.serialize_envelope(ctx).unwrap();
         let event = envelope
-            .envelope()
             .get_item_by(|item| item.ty() == &ItemType::Event)
             .unwrap();
 
@@ -3687,10 +3315,7 @@ mod tests {
         .await;
 
         let mut item = Item::new(ItemType::Statsd);
-        item.set_payload(
-            ContentType::Text,
-            "transactions/foo:3182887624:4267882815|s",
-        );
+        item.set_payload(ContentType::Text, "spans/foo:3182887624:4267882815|s");
         for (source, expected_received_at) in [
             (
                 BucketSource::External,

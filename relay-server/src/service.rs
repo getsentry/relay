@@ -469,7 +469,6 @@ impl ServiceState {
 /// is created for each use case.
 #[cfg(feature = "processing")]
 pub fn create_redis_clients(configs: RedisConfigsRef<'_>) -> Result<RedisClients, RedisError> {
-    const CARDINALITY_REDIS_CLIENT: &str = "cardinality";
     const PROJECT_CONFIG_REDIS_CLIENT: &str = "projectconfig";
     const QUOTA_REDIS_CLIENT: &str = "quotas";
     const UNIFIED_REDIS_CLIENT: &str = "unified";
@@ -480,23 +479,19 @@ pub fn create_redis_clients(configs: RedisConfigsRef<'_>) -> Result<RedisClients
 
             Ok(RedisClients {
                 project_configs: client.clone(),
-                cardinality: client.clone(),
                 quotas: client,
             })
         }
         RedisConfigsRef::Individual {
             project_configs,
-            cardinality,
             quotas,
         } => {
             let project_configs =
                 create_async_redis_client(PROJECT_CONFIG_REDIS_CLIENT, &project_configs)?;
-            let cardinality = create_async_redis_client(CARDINALITY_REDIS_CLIENT, &cardinality)?;
             let quotas = create_async_redis_client(QUOTA_REDIS_CLIENT, &quotas)?;
 
             Ok(RedisClients {
                 project_configs,
-                cardinality,
                 quotas,
             })
         }
@@ -525,10 +520,13 @@ async fn initialize_redis_scripts_for_client(
 ) -> Result<(), RedisError> {
     let scripts = RedisScripts::all();
 
-    let clients = [&redis_clients.cardinality, &redis_clients.quotas];
-    for client in clients {
-        initialize_redis_scripts(client, &scripts).await?;
-    }
+    let RedisClients {
+        project_configs,
+        quotas,
+    } = redis_clients;
+
+    initialize_redis_scripts(project_configs, &scripts).await?;
+    initialize_redis_scripts(quotas, &scripts).await?;
 
     Ok(())
 }
@@ -536,7 +534,7 @@ async fn initialize_redis_scripts_for_client(
 #[cfg(feature = "processing")]
 async fn initialize_redis_scripts(
     client: &AsyncRedisClient,
-    scripts: &[&Script; 3],
+    scripts: &[&Script],
 ) -> Result<(), RedisError> {
     let mut connection = client.get_connection().await?;
 

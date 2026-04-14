@@ -10,7 +10,6 @@ use std::slice;
 use std::sync::OnceLock;
 
 use chrono::{DateTime, Utc};
-use relay_cardinality::CardinalityLimit;
 use relay_dynamic_config::{GlobalConfig, ProjectConfig};
 use relay_event_normalization::{
     BreakdownsConfig, ClientHints, EventValidationConfig, GeoIpLookup, NormalizationConfig,
@@ -276,6 +275,7 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         span_allowed_hosts: &[],              // only supported in relay
         span_op_defaults: Default::default(), // only supported in relay
         performance_issues_spans: Default::default(),
+        derive_trace_id: Default::default(),
     };
     normalize_event(&mut event, &normalization_config);
 
@@ -450,17 +450,6 @@ pub unsafe extern "C" fn relay_validate_sampling_configuration(value: *const Rel
 pub unsafe extern "C" fn relay_normalize_project_config(value: *const RelayStr) -> RelayStr {
     let value = unsafe { (*value).as_str() };
     match normalize_json::<ProjectConfig>(value) {
-        Ok(normalized) => RelayStr::from_string(normalized),
-        Err(e) => RelayStr::from_string(e.to_string()),
-    }
-}
-
-/// Normalize a cardinality limit config.
-#[unsafe(no_mangle)]
-#[relay_ffi::catch_unwind]
-pub unsafe extern "C" fn normalize_cardinality_limit_config(value: *const RelayStr) -> RelayStr {
-    let value = unsafe { (*value).as_str() };
-    match normalize_json::<CardinalityLimit>(value) {
         Ok(normalized) => RelayStr::from_string(normalized),
         Err(e) => RelayStr::from_string(e.to_string()),
     }

@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.9.27
+
+### Bug Fixes 🐛
+
+- (pii) Require TLD in email regex to prevent Java identifier false positives by @olksdr in [#5737](https://github.com/getsentry/relay/pull/5737)
+
+### Internal Changes 🔧
+
+- (relay) Remove cardinality limiter by @Dav1dde in [#5809](https://github.com/getsentry/relay/pull/5809)
+
+### Other
+
+- release: 0.9.26 by @getsentry-bot in [8ccf872f](https://github.com/getsentry/relay/commit/8ccf872f4037901384475f9b3a2bd60b11fbf99c)
+- release: 0.9.25 by @getsentry-bot in [8c38b59a](https://github.com/getsentry/relay/commit/8c38b59a152e47285db8a3a607cf5732f1fb3533)
+
+## 0.9.26
+
+### Bug Fixes 🐛
+
+- (pii) Require TLD in email regex to prevent Java identifier false positives by @olksdr in [#5737](https://github.com/getsentry/relay/pull/5737)
+
+### Internal Changes 🔧
+
+- (relay) Remove cardinality limiter by @Dav1dde in [#5809](https://github.com/getsentry/relay/pull/5809)
+
+### Other
+
+- release: 0.9.25 by @getsentry-bot in [8c38b59a](https://github.com/getsentry/relay/commit/8c38b59a152e47285db8a3a607cf5732f1fb3533)
+
 ## 0.9.25
 
 - feat(tracemetric): Add TraceMetricByte datacategory ([#5719](https://github.com/getsentry/relay/pull/5719))

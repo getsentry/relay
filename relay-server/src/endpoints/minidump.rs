@@ -23,9 +23,7 @@ use crate::extractors::{RawContentType, RequestMeta};
 use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType};
-use crate::utils::{
-    self, AttachmentStrategy, ConstrainedMultipart, read_attachment_bytes_into_item,
-};
+use crate::utils::{self, AttachmentStrategy, read_attachment_bytes_into_item};
 
 /// The field name of a minidump in the multipart form-data upload.
 ///
@@ -192,11 +190,11 @@ impl AttachmentStrategy for MinidumpAttachmentStrategy {
 }
 
 async fn extract_multipart(
-    multipart: ConstrainedMultipart,
+    multipart: Multipart<'static>,
     meta: RequestMeta,
     config: &Config,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    let mut items = multipart.items(config, MinidumpAttachmentStrategy).await?;
+    let mut items = utils::multipart_items(multipart, config, MinidumpAttachmentStrategy).await?;
 
     let minidump_item = items
         .iter_mut()
@@ -262,7 +260,8 @@ async fn handle(
     let envelope = if MINIDUMP_RAW_CONTENT_TYPES.contains(&content_type.as_ref()) {
         extract_raw_minidump(request.extract().await?, meta, config.max_attachment_size())?
     } else {
-        let multipart = request.extract_with_state(&state).await?;
+        let multipart =
+            utils::multipart_from_request(request, state.config().max_attachments_size())?;
         extract_multipart(multipart, meta, config).await?
     };
 
@@ -453,11 +452,8 @@ mod tests {
 
         let config = Config::default();
 
-        let multipart = ConstrainedMultipart(
-            utils::multipart_from_request(request, multer::Constraints::new()).unwrap(),
-        );
-        let items = multipart
-            .items(&config, MinidumpAttachmentStrategy)
+        let multipart = utils::multipart_from_request(request, multipart_body.len()).unwrap();
+        let items = utils::multipart_items(multipart, &config, MinidumpAttachmentStrategy)
             .await
             .unwrap();
 
