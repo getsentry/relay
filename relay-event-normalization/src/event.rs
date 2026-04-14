@@ -27,11 +27,10 @@ use relay_protocol::{
 use smallvec::SmallVec;
 use uuid::Uuid;
 
-use crate::eap::MAX_DURATION_MOBILE_MS;
 use crate::normalize::request;
 use crate::span::ai::enrich_ai_event_data;
 use crate::span::tag_extraction::extract_span_tags_from_event;
-use crate::utils::{self, get_event_user_tag};
+use crate::utils::{self, MAX_DURATION_MOBILE_MS, get_event_user_tag};
 use crate::{
     BorrowedSpanOpDefaults, BreakdownsConfig, CombinedMeasurementsConfig, GeoIpLookup, MaxChars,
     ModelCosts, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule,

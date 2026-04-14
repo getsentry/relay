@@ -20,13 +20,14 @@ use sqlparser::ast::{ObjectNamePart, Visit};
 use url::Url;
 
 use crate::GeoIpLookup;
-use crate::eap::{MAIN_THREAD_NAME, MOBILE_SDKS};
 use crate::span::TABLE_NAME_REGEX;
 use crate::span::country_subregion::Subregion;
 use crate::span::description::{
     concatenate_host_and_port, scrub_domain_name, scrub_span_description,
 };
-use crate::utils::{extract_transaction_op, http_status_code_from_span};
+use crate::utils::{
+    MAIN_THREAD_NAME, MOBILE_SDKS, extract_transaction_op, http_status_code_from_span,
+};
 
 /// Render-blocking resources are static files, such as fonts, CSS, and JavaScript that block or
 /// delay the browser from rendering page content to the screen.
