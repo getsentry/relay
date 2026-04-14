@@ -427,11 +427,11 @@ impl StoreService {
                 Ok(())
             }
             Err(error) => {
-                let envelope = envelope.into_envelope();
-                Err(
-                    Managed::from_envelope(envelope, self.outcome_aggregator.clone())
-                        .reject_err(error),
-                )
+                // The envelope is now empty. `ManagedEnvelope` still counts items correctly
+                // through `EnvelopeSummary`, but `Managed<Box<Envelope>>` does not.
+                // -> reject the old way and return a dummy item.
+                envelope.reject(Outcome::Invalid(DiscardReason::Internal));
+                Err(Managed::with_meta_from(&envelope, ()).reject_err(error))
             }
         }
     }

@@ -69,25 +69,6 @@ impl KafkaTopic {
         ];
         TOPICS.iter()
     }
-
-    /// Returns a name for the topic for instrumentation.
-    pub fn as_str(&self) -> &str {
-        match self {
-            KafkaTopic::Events => "events",
-            KafkaTopic::Attachments => "attachments",
-            KafkaTopic::Transactions => "transactions",
-            KafkaTopic::Outcomes => "outcomes",
-            KafkaTopic::OutcomesBilling => "outcomes_billing",
-            KafkaTopic::MetricsSessions => "metrics_sessions",
-            KafkaTopic::MetricsGeneric => "metrics_generic",
-            KafkaTopic::Profiles => "profiles",
-            KafkaTopic::ReplayRecordings => "replay_recordings",
-            KafkaTopic::Monitors => "monitors",
-            KafkaTopic::Spans => "spans",
-            KafkaTopic::Feedback => "feedback",
-            KafkaTopic::Items => "items",
-        }
-    }
 }
 
 macro_rules! define_topic_assignments {
