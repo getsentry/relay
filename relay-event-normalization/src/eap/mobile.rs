@@ -85,9 +85,7 @@ mod tests {
     #[test]
     fn test_mobile_tag_set_for_mobile_sdks() {
         for sdk in MOBILE_SDKS {
-            let json = format!(
-                r#"{{"sentry.sdk.name": {{"type": "string", "value": "{sdk}"}}}}"#
-            );
+            let json = format!(r#"{{"sentry.sdk.name": {{"type": "string", "value": "{sdk}"}}}}"#);
             let mut attributes = Annotated::<Attributes>::from_json(&json).unwrap();
 
             normalize_mobile_attributes(&mut attributes);
