@@ -399,7 +399,7 @@ impl StoreService {
         relay_statsd::metric!(timer(RelayTimers::StoreServiceDuration), message = ty, {
             let result = match message {
                 Store::Envelope(message) => self.handle_store_envelope(message),
-                Store::Metrics(message) => self.handle_store_metrics(message),
+                Store::Metrics(message) => return self.handle_store_metrics(message),
                 Store::TraceItem(message) => self.handle_store_trace_item(message),
                 Store::Span(message) => self.handle_store_span(message),
                 Store::ProfileChunk(message) => self.handle_store_profile_chunk(message),
@@ -429,7 +429,7 @@ impl StoreService {
             Err(error) => {
                 // The envelope is now empty. `ManagedEnvelope` still counts items correctly
                 // through `EnvelopeSummary`, but `Managed<Box<Envelope>>` does not.
-                // -> reject the old way and return a dummy item.
+                // -> Reject the old way and return a dummy item.
                 envelope.reject(Outcome::Invalid(DiscardReason::Internal));
                 Err(Managed::with_meta_from(&envelope, ()).reject_err(error))
             }
@@ -605,7 +605,7 @@ impl StoreService {
         Ok(())
     }
 
-    fn handle_store_metrics(&self, message: StoreMetrics) -> Result<(), Rejected<StoreError>> {
+    fn handle_store_metrics(&self, message: StoreMetrics) {
         let StoreMetrics {
             buckets,
             scoping,
@@ -706,8 +706,6 @@ impl StoreService {
                 namespace = namespace.as_str()
             );
         }
-
-        Ok(())
     }
 
     fn handle_store_trace_item(
