@@ -4,7 +4,22 @@ use relay_conventions::consts::*;
 use relay_event_schema::protocol::{Attributes, DeviceClass};
 use relay_protocol::Annotated;
 
-use crate::normalize::utils::{MAIN_THREAD_NAME, MAX_DURATION_MOBILE_MS, MOBILE_SDKS};
+/// Used to decide when to extract mobile-specific tags.
+pub const MOBILE_SDKS: [&str; 4] = [
+    "sentry.cocoa",
+    "sentry.dart.flutter",
+    "sentry.java.android",
+    "sentry.javascript.react-native",
+];
+
+/// Allowed value for main thread name.
+pub const MAIN_THREAD_NAME: &str = "main";
+
+/// Maximum duration of a mobile measurement in milliseconds.
+///
+/// Mobile measurements (app start, TTID, TTFD) that exceed this threshold are considered
+/// outliers and removed.
+pub const MAX_DURATION_MOBILE_MS: f64 = 180_000.0;
 
 /// Normalizes mobile-specific attributes on a span.
 ///

@@ -185,7 +185,12 @@ fn normalize_span(
             eap::normalize_ai(&mut span.attributes, duration, model_costs);
         }
         eap::normalize_attribute_values(&mut span.attributes, allowed_hosts);
-        eap::normalize_device_class(&mut span.attributes);
+        if ctx
+            .project_info
+            .has_feature(relay_dynamic_config::Feature::DeviceClassSynthesis)
+        {
+            eap::normalize_device_class(&mut span.attributes);
+        }
         eap::write_legacy_attributes(&mut span.attributes);
     };
 
@@ -952,7 +957,7 @@ mod tests {
 
     #[test]
     fn test_mobile_normalizations() {
-        let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
+        let (mut span, headers, geo_lookup, _ctx) = prepare_normalize_span_params(
             &[
                 (SENTRY_SDK_NAME, "sentry.cocoa"),
                 (THREAD_NAME, "main"),
@@ -964,6 +969,20 @@ mod tests {
                 (APP_VITALS_TTFD_VALUE, 200_000.0),
             ],
         );
+
+        let project_info = ProjectInfo {
+            config: relay_dynamic_config::ProjectConfig {
+                features: [relay_dynamic_config::Feature::DeviceClassSynthesis]
+                    .into_iter()
+                    .collect(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let ctx = Context {
+            project_info: &project_info,
+            ..Context::for_test()
+        };
 
         normalize_span(&mut span, &headers, &geo_lookup, ctx).unwrap();
 
@@ -984,6 +1003,22 @@ mod tests {
         );
 
         assert_attributes_contains(&span, &[(DEVICE_CLASS, "3")], &[]);
+    }
+
+    #[test]
+    fn test_device_class_not_set_without_feature_flag() {
+        let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
+            &[(DEVICE_FAMILY, "iPhone"), (DEVICE_MODEL, "iPhone17,5")],
+            &[],
+        );
+
+        normalize_span(&mut span, &headers, &geo_lookup, ctx).unwrap();
+
+        let attrs = span.value().unwrap().attributes.value().unwrap();
+        assert!(
+            attrs.get_value(DEVICE_CLASS).is_none(),
+            "device.class should not be set without DeviceClassSynthesis feature"
+        );
     }
 
     #[test]

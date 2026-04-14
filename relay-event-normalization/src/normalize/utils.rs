@@ -8,23 +8,6 @@ use std::f64::consts::SQRT_2;
 use relay_event_schema::protocol::{Event, ResponseContext, Span, TraceContext, User};
 use relay_protocol::Value;
 
-/// Used to decide when to extract mobile-specific tags.
-pub const MOBILE_SDKS: [&str; 4] = [
-    "sentry.cocoa",
-    "sentry.dart.flutter",
-    "sentry.java.android",
-    "sentry.javascript.react-native",
-];
-
-/// Allowed value for main thread name.
-pub const MAIN_THREAD_NAME: &str = "main";
-
-/// Maximum length of a mobile span or measurement in milliseconds.
-///
-/// Spans like `ui.load` with an `exclusive_time` that exceeds this number will be removed,
-/// as well as mobile measurements (on transactions) such as `app.start.cold`, etc.
-pub const MAX_DURATION_MOBILE_MS: f64 = 180_000.0;
-
 /// Extract the HTTP status code from the span data.
 pub fn http_status_code_from_span(span: &Span) -> Option<String> {
     // For SDKs which put the HTTP status code into the span data.
