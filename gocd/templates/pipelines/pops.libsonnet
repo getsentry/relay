@@ -7,13 +7,10 @@ local canary_region_pops = {
 
 local region_pops = {
   us: [],
-  s4s: [],
 };
 
 // List of datadog monitors to check during the soak time in the different regions
 local soak_monitors = {
-  // (Service Queues are Backlogging), (CrashLoopBackoff Count is High)
-  s4s: '165839949 237862998',
   // (Retry Count for a Single Event is High), (Service Queues are Backlogging), (CrashLoopBackoff Count is High)
   us: '165839953 165839955 237862996',
   default: '',
@@ -21,8 +18,6 @@ local soak_monitors = {
 
 // List of datadog monitors to check during the canary deployment in the different regions
 local canary_monitors = {
-  // (S4S Service Queues are Backlogging), (CrashLoopBackoff Count is High)
-  s4s: '165839949 237862998',
   // (Retry Count for a Single Event is High), (Service Queues are Backlogging), (CrashLoopBackoff Count is High)
   us: '165839953 165839955 237862996',
   // (CrashLoopBackoff Count is High)
@@ -35,7 +30,7 @@ local canary_monitors = {
 // The purpose of this stage is to let the deployment soak for a while and
 // detect any issues that might have been introduced.
 local soak_time(region) =
-  if region == 's4s' || region == 'us' then
+  if region == 'us' then
     [
       {
         'soak-time': {
@@ -218,9 +213,6 @@ local deployment_stages(region) =
   if region == 'us' || region == 'de' then
     // The canary stage is only for the US and DE regions
     [deploy_canary_pops_stage(region), deploy_pops_stage(region)]
-  else if region == 's4s' then
-    // We still want to create a sentry release for s4s
-    [deploy_pops_stage(region)]
   else
     [deploy_generic_pops_stage(region)];
 
