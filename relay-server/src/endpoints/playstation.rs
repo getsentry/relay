@@ -4,7 +4,7 @@
 use std::io;
 use std::str::FromStr;
 
-use axum::extract::Request;
+use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
@@ -248,5 +248,6 @@ pub fn route(config: &Config) -> MethodRouter<ServiceState> {
         .route_layer(RequestBodyLimitLayer::new(
             config.max_upload_size() + config.max_attachments_size(),
         ))
+        .route_layer(DefaultBodyLimit::disable())
         .route_layer(axum::middleware::from_fn(middlewares::content_length))
 }

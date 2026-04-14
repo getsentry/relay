@@ -1,4 +1,4 @@
-use axum::extract::{Path, Request};
+use axum::extract::{DefaultBodyLimit, Path, Request};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
@@ -67,5 +67,7 @@ pub async fn handle(
 }
 
 pub fn route(config: &Config) -> MethodRouter<ServiceState> {
-    post(handle).route_layer(RequestBodyLimitLayer::new(config.max_attachments_size()))
+    post(handle)
+        .route_layer(RequestBodyLimitLayer::new(config.max_attachments_size()))
+        .route_layer(DefaultBodyLimit::disable())
 }
