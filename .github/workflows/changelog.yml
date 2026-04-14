@@ -4,6 +4,10 @@ on:
     types: [opened, synchronize, reopened, edited, ready_for_review, labeled, unlabeled]
   merge_group:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Changelogs
