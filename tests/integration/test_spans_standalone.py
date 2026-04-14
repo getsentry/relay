@@ -121,6 +121,19 @@ def test_lcp_span(
 
     (attributes, fields) = lcp_cls_inp_differences(mode)
 
+    lcp_backfill = {}
+    if mode == "v2":
+        lcp_backfill = {
+            "browser.web_vital.lcp.value": {"type": "double", "value": 548.0},
+            "browser.web_vital.lcp.load_time": {"type": "double", "value": 527.5},
+            "browser.web_vital.lcp.render_time": {"type": "integer", "value": 548},
+            "browser.web_vital.lcp.size": {"type": "integer", "value": 8100},
+            "browser.web_vital.lcp.url": {
+                "type": "string",
+                "value": "https://s1.sentry-cdn.com/../sentry-loader.svg",
+            },
+        }
+
     assert spans_consumer.get_span() == {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
@@ -155,6 +168,7 @@ def test_lcp_span(
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 "
                 "Safari/537.36",
             },
+            **lcp_backfill,
             **attributes,
         },
         "downsampled_retention_days": 90,
@@ -268,6 +282,16 @@ def test_cls_span(
 
     (attributes, fields) = lcp_cls_inp_differences(mode)
 
+    cls_backfill = {}
+    if mode == "v2":
+        cls_backfill = {
+            "browser.web_vital.cls.value": {"type": "double", "value": 0.1},
+            "browser.web_vital.cls.source.<key>": {
+                "type": "string",
+                "value": "AppContainer > NavContent > MobileTopbar > StyledButton",
+            },
+        }
+
     assert spans_consumer.get_span() == {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
@@ -307,6 +331,7 @@ def test_cls_span(
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 "
                 "Safari/537.36",
             },
+            **cls_backfill,
             **attributes,
         },
         "downsampled_retention_days": 90,
@@ -415,6 +440,12 @@ def test_inp_span(
 
     (attributes, fields) = lcp_cls_inp_differences(mode)
 
+    inp_backfill = {}
+    if mode == "v2":
+        inp_backfill = {
+            "browser.web_vital.inp.value": {"type": "double", "value": 104.0},
+        }
+
     assert spans_consumer.get_span() == {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
@@ -443,6 +474,7 @@ def test_inp_span(
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 "
                 "Safari/537.36",
             },
+            **inp_backfill,
             **attributes,
         },
         "downsampled_retention_days": 90,
