@@ -1083,7 +1083,7 @@ pub enum ItemHeaderKey {
     SentryRelease,
     /// The Sentry environment stored in a header.
     SentryEnvironment,
-    /// Whether this attachment item was expanded from an Unreal crash report.
+    /// Whether this item was expanded from an Unreal crash report.
     UnrealExpanded,
 }
 

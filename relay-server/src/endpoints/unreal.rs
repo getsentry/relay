@@ -13,7 +13,8 @@ use crate::extractors::RequestMeta;
 use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::DiscardItemType;
-use crate::utils;
+use crate::services::processor::ProcessingError;
+use crate::utils::{self, UnrealExpansion};
 
 #[derive(Debug, Deserialize)]
 struct UnrealQuery {
@@ -42,19 +43,27 @@ impl UnrealParams {
 
         let global_config = state.global_config_handle().current();
         let project_id = envelope.meta().project_id().map(|p| p.value()).unwrap_or(0);
-
-        match utils::is_rolled_out(
+        let endpoint_expansion_rolled_out = utils::is_rolled_out(
             project_id,
             global_config.options.unreal_report_expansion_rollout_rate,
         )
-        .is_keep()
-        {
+        .is_keep();
+
+        match endpoint_expansion_rolled_out {
             true => {
-                // FIXME: Add more fine-grained BadStoreRequest.
-                for mut item in utils::expand_unreal(data, state.config())
-                    .map_err(|_| BadStoreRequest::Overflow(DiscardItemType::UnrealReport))?
-                    .attachments
-                {
+                // Only interested in the 'attachments' since the event will be extracted later on
+                // during processing.
+                let UnrealExpansion {
+                    event: _,
+                    attachments,
+                } = utils::expand_unreal(data, state.config()).map_err(|error| match error {
+                    ProcessingError::PayloadTooLarge(_) => {
+                        BadStoreRequest::Overflow(DiscardItemType::UnrealReport)
+                    }
+                    _ => BadStoreRequest::InvalidUnrealReport,
+                })?;
+
+                for mut item in attachments {
                     item.set_unreal_expanded();
                     envelope.add_item(item);
                 }

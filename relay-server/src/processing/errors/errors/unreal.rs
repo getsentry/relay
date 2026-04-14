@@ -165,9 +165,7 @@ impl SentryError for Unreal {
 
     fn serialize_into(self, items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
         match self {
-            Self::Forward {
-                report_items: report,
-            } => items.extend(report),
+            Self::Forward { report_items } => items.extend(report_items),
             #[cfg(feature = "processing")]
             Self::Process {
                 minidump,

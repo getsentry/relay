@@ -67,6 +67,9 @@ pub enum BadStoreRequest {
     #[error("missing minidump")]
     MissingMinidump,
 
+    #[error("invalid unreal crash report")]
+    InvalidUnrealReport,
+
     #[cfg(sentry)]
     #[error("invalid prosperodump")]
     InvalidProsperodump,

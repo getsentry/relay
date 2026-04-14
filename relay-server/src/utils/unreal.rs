@@ -39,7 +39,7 @@ fn get_event_item(data: &[u8]) -> Result<Option<Item>, Unreal4Error> {
     Ok(Some(item))
 }
 
-/// Expands an Unreal 4 items payload and returns the expanded items.
+/// Expands an Unreal 4 crash report payload and returns the expanded items.
 pub fn expand_unreal(payload: Bytes, config: &Config) -> Result<UnrealExpansion, ProcessingError> {
     let mut event = None;
     let mut attachments = Items::new();
@@ -86,7 +86,7 @@ pub fn expand_unreal_items(
     items: Items,
     config: &Config,
 ) -> Result<UnrealExpansion, ProcessingError> {
-    // If there is only one item than it must be the report
+    // If there is only one item then it must be the report
     if items.len() == 1 && matches!(items[0].ty(), ItemType::UnrealReport) {
         return expand_unreal(items[0].payload(), config);
     }
