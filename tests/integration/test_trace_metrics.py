@@ -11,7 +11,6 @@ from .asserts import time_within_delta, time_within, only_items
 import pytest
 import json
 
-
 TEST_CONFIG = {
     "outcomes": {
         "emit_outcomes": True,
