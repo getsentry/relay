@@ -371,6 +371,97 @@ pub struct ModelCostV2 {
     pub input_cache_write_per_token: f64,
 }
 
+/// Metadata for AI models including costs and context size.
+///
+/// Example JSON:
+/// ```json
+/// {
+///   "version": 1,
+///   "models": {
+///     "gpt-4": {
+///       "costs": {
+///         "inputPerToken": 0.0000003,
+///         "outputPerToken": 0.00000165,
+///         "outputReasoningPerToken": 0.0,
+///         "inputCachedPerToken": 0.0000015,
+///         "inputCacheWritePerToken": 0.00001875
+///       },
+///       "contextSize": 1000000
+///     }
+///   }
+/// }
+/// ```
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelMetadata {
+    /// The version of the model metadata struct.
+    pub version: u16,
+
+    /// The mappings of model ID => metadata as a dictionary.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub models: HashMap<Pattern, ModelMetadataEntry>,
+}
+
+impl ModelMetadata {
+    const SUPPORTED_VERSION: u16 = 1;
+
+    /// `true` if the model metadata is empty or the version is unsupported.
+    pub fn is_empty(&self) -> bool {
+        self.models.is_empty() || !self.is_enabled()
+    }
+
+    /// `false` if the version is unsupported.
+    pub fn is_enabled(&self) -> bool {
+        self.version == Self::SUPPORTED_VERSION
+    }
+
+    /// Gets the cost per token for a given model, if defined.
+    pub fn cost_per_token(&self, model_id: &str) -> Option<&ModelCostV2> {
+        self.get(model_id).and_then(|entry| entry.costs.as_ref())
+    }
+
+    /// Gets the context window size for a given model, if defined.
+    pub fn context_size(&self, model_id: &str) -> Option<u64> {
+        self.get(model_id).and_then(|entry| entry.context_size)
+    }
+
+    /// Gets the metadata for a given model, if defined.
+    pub fn get(&self, model_id: &str) -> Option<&ModelMetadataEntry> {
+        if !self.is_enabled() {
+            return None;
+        }
+
+        let normalized_model_id = normalize_ai_model_name(model_id);
+
+        // First try exact match.
+        if let Some(value) = self.models.get(normalized_model_id) {
+            return Some(value);
+        }
+
+        // Fall back to glob matching.
+        self.models.iter().find_map(|(key, value)| {
+            if key.is_match(normalized_model_id) {
+                Some(value)
+            } else {
+                None
+            }
+        })
+    }
+}
+
+/// Metadata for a single AI model.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelMetadataEntry {
+    /// Token costs for this model.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub costs: Option<ModelCostV2>,
+
+    /// The context window size in tokens.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_size: Option<u64>,
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Utc};
