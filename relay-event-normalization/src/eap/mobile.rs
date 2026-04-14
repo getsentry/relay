@@ -32,6 +32,7 @@ pub fn normalize_mobile_attributes(attributes: &mut Annotated<Attributes>) {
     for key in [
         APP_VITALS_START_COLD_VALUE,
         APP_VITALS_START_WARM_VALUE,
+        APP_VITALS_START_VALUE,
         APP_VITALS_TTID_VALUE,
         APP_VITALS_TTFD_VALUE,
     ] {
@@ -168,6 +169,7 @@ mod tests {
         for key in [
             APP_VITALS_START_COLD_VALUE,
             APP_VITALS_START_WARM_VALUE,
+            APP_VITALS_START_VALUE,
             APP_VITALS_TTID_VALUE,
             APP_VITALS_TTFD_VALUE,
         ] {
@@ -186,6 +188,7 @@ mod tests {
         for key in [
             APP_VITALS_START_COLD_VALUE,
             APP_VITALS_START_WARM_VALUE,
+            APP_VITALS_START_VALUE,
             APP_VITALS_TTID_VALUE,
             APP_VITALS_TTFD_VALUE,
         ] {
