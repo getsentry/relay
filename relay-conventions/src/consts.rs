@@ -13,12 +13,14 @@ macro_rules! convention_attributes {
 
 // Attributes which can also be found in Sentry conventions.
 convention_attributes!(
+    APP_VITALS_START_COLD_VALUE => "app.vitals.start.cold.value",
+    APP_VITALS_START_TYPE => "app.vitals.start.type",
+    APP_VITALS_START_WARM_VALUE => "app.vitals.start.warm.value",
+    APP_VITALS_TTFD_VALUE => "app.vitals.ttfd.value",
+    APP_VITALS_TTID_VALUE => "app.vitals.ttid.value",
     BROWSER_NAME => "sentry.browser.name",
     BROWSER_VERSION => "sentry.browser.version",
     CLIENT_ADDRESS => "client.address",
-    DEVICE_BRAND => "device.brand",
-    DEVICE_FAMILY => "device.family",
-    DEVICE_MODEL => "device.model",
     CLIENT_SAMPLE_RATE => "sentry.client_sample_rate",
     DB_QUERY_TEXT => "db.query.text",
     DB_STATEMENT => "db.statement",
@@ -27,6 +29,13 @@ convention_attributes!(
     DB_OPERATION_NAME => "db.operation.name",
     DB_COLLECTION_NAME => "db.collection.name",
     DESCRIPTION => "sentry.description",
+    DEVICE_BRAND => "device.brand",
+    DEVICE_CLASS => "device.class",
+    DEVICE_FAMILY => "device.family",
+    DEVICE_MEMORY_SIZE => "device.memory_size",
+    DEVICE_MODEL => "device.model",
+    DEVICE_PROCESSOR_COUNT => "device.processor_count",
+    DEVICE_PROCESSOR_FREQUENCY => "device.processor_frequency",
     DSC_ENVIRONMENT => "sentry.dsc.environment",
     DSC_PUBLIC_KEY => "sentry.dsc.public_key",
     DSC_RELEASE => "sentry.dsc.release",
@@ -73,11 +82,13 @@ convention_attributes!(
     SEGMENT_ID => "sentry.segment.id",
     SEGMENT_NAME => "sentry.segment.name",
     SENTRY_ACTION => "sentry.action",
-    SENTRY_SDK_NAME => "sentry.sdk.name",
     SENTRY_CATEGORY => "sentry.category",
     SENTRY_DOMAIN => "sentry.domain",
     SENTRY_GROUP => "sentry.group",
+    SENTRY_MAIN_THREAD => "sentry.main_thread",
+    SENTRY_MOBILE => "sentry.mobile",
     SENTRY_NORMALIZED_DESCRIPTION => "sentry.normalized_description",
+    SENTRY_SDK_NAME => "sentry.sdk.name",
     SENTRY_STATUS_CODE => "sentry.status_code",
     SENTRY_TRANSACTION => "sentry.transaction",
     SERVER_ADDRESS => "server.address",
@@ -115,18 +126,8 @@ mod not_yet_defined {
     // used in Relay.
     pub const PROFILE_ID: &str = "sentry.profile_id";
 
-    // TODO: Move to convention_attributes! once the corresponding sentry-conventions PRs merge.
-    pub const APP_VITALS_START_COLD_VALUE: &str = "app.vitals.start.cold.value";
-    pub const APP_VITALS_START_WARM_VALUE: &str = "app.vitals.start.warm.value";
+    // TODO(buenaflor): Add as sentry convention once mobile SDKs can migrate to it.
+    // https://github.com/getsentry/sentry-conventions/issues/318
     pub const APP_VITALS_START_VALUE: &str = "app.vitals.start.value";
-    pub const APP_VITALS_START_TYPE: &str = "app.vitals.start.type";
-    pub const APP_VITALS_TTFD_VALUE: &str = "app.vitals.ttfd.value";
-    pub const APP_VITALS_TTID_VALUE: &str = "app.vitals.ttid.value";
-    pub const DEVICE_CLASS: &str = "device.class";
-    pub const DEVICE_MEMORY_SIZE: &str = "device.memory_size";
-    pub const DEVICE_PROCESSOR_COUNT: &str = "device.processor_count";
-    pub const DEVICE_PROCESSOR_FREQUENCY: &str = "device.processor_frequency";
-    pub const SENTRY_MAIN_THREAD: &str = "sentry.main_thread";
-    pub const SENTRY_MOBILE: &str = "sentry.mobile";
 }
 pub use self::not_yet_defined::*;
