@@ -993,6 +993,12 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     /// - `expansion`: What expansion was used to expand the error (e.g. unreal).
     ErrorProcessed,
+    /// Number of log container payloads that required lone surrogate sanitization.
+    ///
+    /// Emitted when a log container JSON payload contains lone Unicode surrogates
+    /// (`\uD800`–`\uDFFF`) that would otherwise cause deserialization to fail and discard
+    /// the entire batch.
+    LogContainerSurrogateSanitized,
 }
 
 impl CounterMetric for RelayCounters {
@@ -1052,6 +1058,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EnvelopeWithLogs => "logs.envelope",
             RelayCounters::ProfileChunksWithoutPlatform => "profile_chunk.no_platform",
             RelayCounters::ErrorProcessed => "event.error.processed",
+            RelayCounters::LogContainerSurrogateSanitized => "logs.container.surrogate_sanitized",
         }
     }
 }

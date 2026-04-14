@@ -4,11 +4,14 @@ use relay_event_schema::protocol::{OurLog, OurLogHeader};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
-use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer};
+use crate::envelope::{
+    ContainerItems, ContentType, EnvelopeHeaders, Item, ItemContainer, sanitize_lone_surrogates,
+};
 use crate::extractors::RequestTrust;
 use crate::processing::logs::{self, Error, ExpandedLogs, Result, SerializedLogs};
 use crate::processing::{Context, Managed, utils};
 use crate::services::outcome::DiscardReason;
+use crate::statsd::RelayCounters;
 
 /// Parses all serialized logs into their [`ExpandedLogs`] representation.
 ///
@@ -63,6 +66,7 @@ pub fn scrub(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
 
 fn expand_log_container(item: &Item, trust: RequestTrust) -> Result<ContainerItems<OurLog>> {
     let mut logs = ItemContainer::parse(item)
+        .or_else(|err| try_sanitize_and_reparse(item, err))
         .map_err(|err| {
             relay_log::debug!("failed to parse logs container: {err}");
             Error::Invalid(DiscardReason::InvalidJson)
@@ -87,6 +91,44 @@ fn expand_log_container(item: &Item, trust: RequestTrust) -> Result<ContainerIte
     }
 
     Ok(logs)
+}
+
+/// Attempts to recover from a log container parse failure caused by lone Unicode surrogates.
+///
+/// When `ItemContainer::parse` fails, this function sanitizes the raw payload by replacing
+/// JSON-escaped lone surrogates (`\uD800`–`\uDFFF`) with the replacement character (`\uFFFD`)
+/// and retries parsing. If the payload had no surrogates to sanitize, the original error is
+/// returned unchanged.
+fn try_sanitize_and_reparse(
+    item: &Item,
+    original_err: crate::envelope::ContainerParseError,
+) -> std::result::Result<ItemContainer<OurLog>, crate::envelope::ContainerParseError> {
+    use crate::envelope::ContainerParseError;
+
+    // Only attempt sanitization for deserialization errors.
+    if !matches!(original_err, ContainerParseError::Deserialize(_)) {
+        return Err(original_err);
+    }
+
+    let payload = item.payload();
+    let sanitized = sanitize_lone_surrogates(&payload);
+
+    if sanitized.as_ref() == payload.as_ref() {
+        // Payload unchanged — the error is not caused by lone surrogates.
+        return Err(original_err);
+    }
+
+    relay_log::debug!("sanitized lone surrogates in log container payload");
+    relay_statsd::metric!(counter(RelayCounters::LogContainerSurrogateSanitized) += 1);
+
+    // Re-parse with a sanitized payload. Content type and item type were already validated
+    // by the original parse attempt, so we re-use the same item with the sanitized payload.
+    let mut sanitized_item = item.clone();
+    sanitized_item.set_payload(ContentType::LogContainer, sanitized.into_owned());
+    ItemContainer::parse(&sanitized_item).map_err(|err| {
+        relay_log::debug!("failed to parse log container after surrogate sanitization: {err}");
+        err
+    })
 }
 
 fn scrub_log(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
@@ -140,6 +182,7 @@ fn normalize_log(
 
 #[cfg(test)]
 mod tests {
+    use bytes::Bytes;
     use relay_pii::PiiConfig;
     use relay_protocol::assert_annotated_snapshot;
 
@@ -423,5 +466,50 @@ mod tests {
           }
         }
         "#);
+    }
+
+    /// Helper to construct a log container [`Item`] from raw JSON item bodies.
+    fn log_container_item(items_json: &str, item_count: u32) -> Item {
+        let header = format!(
+            r#"{{"type":"log","content_type":"application/vnd.sentry.items.log+json","item_count":{item_count}}}"#
+        );
+        let raw = format!("{header}\n{{\"items\":[{items_json}]}}");
+        let (item, _) = Item::parse(Bytes::from(raw)).unwrap();
+        item
+    }
+
+    #[test]
+    fn test_expand_log_container_with_lone_surrogate() {
+        let item = log_container_item(
+            &[
+                r#"{"timestamp":1544719860.0,"trace_id":"5b8efff798038103d269b633813fc60c","level":"info","body":"good log","attributes":{}}"#,
+                r#"{"timestamp":1544719860.0,"trace_id":"5b8efff798038103d269b633813fc60c","level":"error","body":"bad \uD800 char","attributes":{}}"#,
+            ].join(","),
+            2,
+        );
+
+        let logs = expand_log_container(&item, RequestTrust::Untrusted).unwrap();
+        assert_eq!(logs.len(), 2);
+
+        let first = logs[0].value.value().unwrap();
+        assert_eq!(first.body.as_str(), Some("good log"));
+
+        let second = logs[1].value.value().unwrap();
+        assert_eq!(second.body.as_str(), Some("bad \u{FFFD} char"));
+    }
+
+    #[test]
+    fn test_expand_log_container_without_surrogates_unchanged() {
+        let item = log_container_item(
+            r#"{"timestamp":1544719860.0,"trace_id":"5b8efff798038103d269b633813fc60c","level":"info","body":"clean log","attributes":{}}"#,
+            1,
+        );
+
+        let logs = expand_log_container(&item, RequestTrust::Untrusted).unwrap();
+        assert_eq!(logs.len(), 1);
+        assert_eq!(
+            logs[0].value.value().unwrap().body.as_str(),
+            Some("clean log")
+        );
     }
 }

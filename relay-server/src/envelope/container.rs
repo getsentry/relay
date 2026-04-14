@@ -276,6 +276,109 @@ impl<T: ContainerItem> ItemContainer<T> {
     }
 }
 
+/// Sanitizes lone Unicode surrogates in JSON-escaped form within raw bytes.
+///
+/// JSON payloads may contain escaped lone surrogates (`\uD800`–`\uDFFF`) that are not part of
+/// a valid surrogate pair. These are rejected by strict JSON parsers like `serde_json`.
+///
+/// This function scans for such sequences and replaces them with the Unicode replacement
+/// character escape (`\uFFFD`), which is the same byte length (6 bytes), allowing in-place
+/// replacement without shifting offsets.
+///
+/// Valid surrogate pairs (a high surrogate `\uD800`–`\uDBFF` immediately followed by a low
+/// surrogate `\uDC00`–`\uDFFF`) are left intact.
+///
+/// Note: this function does not track whether a `\uDxxx` sequence appears inside a JSON string
+/// value or a key — it replaces lone surrogates everywhere. This is safe because lone surrogates
+/// are equally invalid in both contexts, and no real SDK emits surrogate-containing key names.
+///
+/// This function also does not handle escaped backslashes (`\\uD800` representing the literal
+/// text `\uD800`). This is safe because such sequences are valid JSON and would not cause
+/// `serde_json` to fail — meaning this function would never be called for such payloads.
+///
+/// Returns a `Cow::Borrowed` reference to the original slice if no replacements were needed,
+/// avoiding allocation on the happy path.
+pub(crate) fn sanitize_lone_surrogates(input: &[u8]) -> std::borrow::Cow<'_, [u8]> {
+    use std::borrow::Cow;
+
+    const REPLACEMENT: &[u8] = b"\\uFFFD";
+
+    // Minimum length for a `\uXXXX` escape is 6 bytes.
+    if input.len() < 6 {
+        return Cow::Borrowed(input);
+    }
+
+    let mut result: Option<Vec<u8>> = None;
+    let mut i = 0;
+
+    while i + 5 < input.len() {
+        if let Some(surrogate) = parse_unicode_escape(input, i) {
+            if is_high_surrogate(surrogate) {
+                // Check if followed by a low surrogate (valid pair).
+                if i + 11 < input.len()
+                    && let Some(next) = parse_unicode_escape(input, i + 6)
+                    && is_low_surrogate(next)
+                {
+                    // Valid surrogate pair — keep both escapes as-is.
+                    if let Some(ref mut buf) = result {
+                        buf.extend_from_slice(&input[i..i + 12]);
+                    }
+                    i += 12;
+                    continue;
+                }
+                // Lone high surrogate — replace.
+                let buf = result.get_or_insert_with(|| input[..i].to_vec());
+                buf.extend_from_slice(REPLACEMENT);
+                i += 6;
+                continue;
+            } else if is_low_surrogate(surrogate) {
+                // Lone low surrogate (not preceded by a high surrogate we would have consumed).
+                let buf = result.get_or_insert_with(|| input[..i].to_vec());
+                buf.extend_from_slice(REPLACEMENT);
+                i += 6;
+                continue;
+            }
+        }
+
+        if let Some(ref mut buf) = result {
+            buf.push(input[i]);
+        }
+        i += 1;
+    }
+
+    // Copy remaining bytes.
+    match result {
+        Some(mut buf) => {
+            buf.extend_from_slice(&input[i..]);
+            Cow::Owned(buf)
+        }
+        None => Cow::Borrowed(input),
+    }
+}
+
+/// Attempts to parse a `\uXXXX` escape sequence starting at position `i`.
+///
+/// Returns the parsed 16-bit code point if the bytes at `input[i..i+6]` form a valid
+/// JSON unicode escape (`\u` followed by exactly 4 hex digits), or `None` otherwise.
+fn parse_unicode_escape(input: &[u8], i: usize) -> Option<u16> {
+    if i + 5 >= input.len() {
+        return None;
+    }
+    if input[i] != b'\\' || input[i + 1] != b'u' {
+        return None;
+    }
+    let hex = std::str::from_utf8(&input[i + 2..i + 6]).ok()?;
+    u16::from_str_radix(hex, 16).ok()
+}
+
+fn is_high_surrogate(code: u16) -> bool {
+    (0xD800..=0xDBFF).contains(&code)
+}
+
+fn is_low_surrogate(code: u16) -> bool {
+    (0xDC00..=0xDFFF).contains(&code)
+}
+
 impl<T: ContainerItem> From<ContainerItems<T>> for ItemContainer<T> {
     fn from(items: ContainerItems<T>) -> Self {
         Self { items }
@@ -606,5 +709,80 @@ mod tests {
         // The test is engineered to have a matching serialization as the original test input,
         // e.g. correct order of fields.
         assert_eq!(new_item.payload(), item.payload());
+    }
+
+    #[test]
+    fn test_sanitize_no_surrogates() {
+        let input = br#"{"items":[{"level":"info","message":"hello world"}]}"#;
+        let result = sanitize_lone_surrogates(input);
+        assert!(matches!(result, std::borrow::Cow::Borrowed(_)));
+        assert_eq!(result.as_ref(), input.as_slice());
+    }
+
+    #[test]
+    fn test_sanitize_lone_high_surrogate() {
+        let input = br#"{"items":[{"level":"info","message":"bad \uD800 char"}]}"#;
+        let expected = br#"{"items":[{"level":"info","message":"bad \uFFFD char"}]}"#;
+        let result = sanitize_lone_surrogates(input);
+        assert!(matches!(result, std::borrow::Cow::Owned(_)));
+        assert_eq!(result.as_ref(), expected.as_slice());
+    }
+
+    #[test]
+    fn test_sanitize_lone_low_surrogate() {
+        let input = br#"{"message":"\uDC00"}"#;
+        let expected = br#"{"message":"\uFFFD"}"#;
+        let result = sanitize_lone_surrogates(input);
+        assert_eq!(result.as_ref(), expected.as_slice());
+    }
+
+    #[test]
+    fn test_sanitize_preserves_valid_surrogate_pair() {
+        // \uD83D\uDE00 is the surrogate pair for 😀
+        let input = br#"{"message":"\uD83D\uDE00"}"#;
+        let result = sanitize_lone_surrogates(input);
+        assert!(matches!(result, std::borrow::Cow::Borrowed(_)));
+        assert_eq!(result.as_ref(), input.as_slice());
+    }
+
+    #[test]
+    fn test_sanitize_high_surrogate_followed_by_non_surrogate_escape() {
+        // High surrogate followed by a non-surrogate \u escape — both should be handled.
+        let input = br#"{"message":"\uD800\u0041"}"#;
+        let expected = br#"{"message":"\uFFFD\u0041"}"#;
+        let result = sanitize_lone_surrogates(input);
+        assert_eq!(result.as_ref(), expected.as_slice());
+    }
+
+    #[test]
+    fn test_sanitize_multiple_lone_surrogates() {
+        let input = br#"{"a":"\uD800","b":"\uDBFF","c":"\uDC00"}"#;
+        let expected = br#"{"a":"\uFFFD","b":"\uFFFD","c":"\uFFFD"}"#;
+        let result = sanitize_lone_surrogates(input);
+        assert_eq!(result.as_ref(), expected.as_slice());
+    }
+
+    #[test]
+    fn test_sanitize_surrogate_at_end_of_input() {
+        let input = br#"{"m":"\uD800"}"#;
+        let expected = br#"{"m":"\uFFFD"}"#;
+        let result = sanitize_lone_surrogates(input);
+        assert_eq!(result.as_ref(), expected.as_slice());
+    }
+
+    #[test]
+    fn test_sanitize_mixed_lone_and_valid_pair() {
+        // Lone surrogate followed later by a valid pair — lone gets replaced, pair preserved.
+        let input = br#"{"a":"\uD800","b":"\uD83D\uDE00"}"#;
+        let expected = br#"{"a":"\uFFFD","b":"\uD83D\uDE00"}"#;
+        let result = sanitize_lone_surrogates(input);
+        assert_eq!(result.as_ref(), expected.as_slice());
+    }
+
+    #[test]
+    fn test_sanitize_empty_and_short_inputs() {
+        assert_eq!(sanitize_lone_surrogates(b"").as_ref(), b"");
+        assert_eq!(sanitize_lone_surrogates(b"{}").as_ref(), b"{}");
+        assert_eq!(sanitize_lone_surrogates(b"hello").as_ref(), b"hello");
     }
 }

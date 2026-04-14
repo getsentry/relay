@@ -57,6 +57,7 @@ mod item;
 mod meta;
 
 pub use self::attachment::*;
+pub(crate) use self::container::sanitize_lone_surrogates;
 pub use self::container::*;
 pub use self::content_type::*;
 pub use self::item::*;
