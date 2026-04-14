@@ -25,7 +25,7 @@ impl SentryError for Unreal {
 
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
         // Take the unreal report, or all the items that previously already got expanded from it.
-        let report_items: Items = utils::take_items_by(items, |i| {
+        let mut report_items: Items = utils::take_items_by(items, |i| {
             matches!(i.ty(), ItemType::UnrealReport) || i.is_unreal_expanded()
         });
         if report_items.is_empty() {
@@ -46,6 +46,12 @@ impl SentryError for Unreal {
         } else {
             use crate::envelope::AttachmentType;
             use crate::services::processor::ProcessingError;
+
+            // Unreal expanded is no longer needed and as such is set to false so that the items
+            // behave correctly from here on out.
+            for item in &mut report_items {
+                item.set_unreal_expanded(false);
+            }
 
             let expansion = crate::utils::expand_unreal_items(report_items, ctx.processing.config)?;
             let event = expansion.event;

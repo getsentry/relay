@@ -295,9 +295,18 @@ impl Envelope {
         let mut headers = partial_headers.complete(request_meta)?;
 
         // Event-related envelopes *must* contain an event id.
-        let items = Self::parse_items(&bytes, offset)?;
+        let mut items = Self::parse_items(&bytes, offset)?;
         if items.iter().any(Item::requires_event) {
             headers.event_id.get_or_insert_with(EventId::new);
+        }
+
+        // If the envelope comes from an untrusted source ensure `UnrealExpanded` is never true.
+        if headers.meta().request_trust().is_untrusted() {
+            for item in &mut items {
+                if item.is_unreal_expanded() {
+                    item.set_unreal_expanded(false);
+                }
+            }
         }
 
         Ok(Box::new(Envelope { headers, items }))

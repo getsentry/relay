@@ -15,13 +15,28 @@ def load_dump_file(base_file_name: str):
 
 
 @pytest.mark.parametrize("dump_file_name", ["unreal_crash", "unreal_crash_apple"])
-def test_unreal_crash(mini_sentry, relay, dump_file_name):
+@pytest.mark.parametrize("rollout_rate", [0.0, 1.0])
+def test_unreal_crash(mini_sentry, relay, dump_file_name, rollout_rate):
     """
-    Asserts that non-processing Relays do not extract and forward the Unreal report.
+    Asserts that non-processing Relays forward the Unreal report either as a
+    single unreal_report item or as expanded attachment items depending on
+    the endpoint expansion rollout rate.
     """
     project_id = 42
+    mini_sentry.global_config["options"][
+        "relay.unreal-report-expansion.rollout-rate"
+    ] = rollout_rate
     relay = relay(mini_sentry)
-    mini_sentry.add_full_project_config(project_id)
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["quotas"] = [
+        {
+            "categories": ["attachment"],
+            "limit": 0,
+            "window": 3600,
+            "id": "attachment_limit",
+            "reasonCode": "static_disabled_quota",
+        }
+    ]
 
     unreal_content = load_dump_file(dump_file_name)
 
@@ -33,12 +48,79 @@ def test_unreal_crash(mini_sentry, relay, dump_file_name):
     assert event_id == envelope.headers.get("event_id")
     items = envelope.items
 
-    assert len(items) == 1
-    unreal_item = items[0]
-    assert unreal_item.headers
-    assert unreal_item.headers.get("type") == "unreal_report"
-    assert unreal_item.headers.get("content_type") == "application/octet-stream"
-    assert unreal_item.payload is not None
+    if rollout_rate == 0.0:
+        assert len(items) == 1
+        unreal_item = items[0]
+        assert unreal_item.headers
+        assert unreal_item.headers.get("type") == "unreal_report"
+        assert unreal_item.headers.get("content_type") == "application/octet-stream"
+        assert unreal_item.payload is not None
+    else:
+        assert len(items) == (4 if dump_file_name == "unreal_crash" else 6)
+        for item in items:
+            assert item.headers.get("type") == "attachment"
+            assert item.headers.get("unreal_expanded") is True
+
+
+@pytest.mark.parametrize("dump_file_name", ["unreal_crash", "unreal_crash_apple"])
+@pytest.mark.parametrize("has_quota", [False, True])
+def test_unreal_crash_ratelimiting(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    relay_credentials,
+    attachments_consumer,
+    outcomes_consumer,
+    dump_file_name,
+    has_quota,
+):
+    """
+    Even if items expanded from an unreal report are not rate-limited in pops (see test_unreal_crash)
+    they should still be rat-limited in processing after all the important information has been
+    extracted.
+    """
+    project_id = 42
+    mini_sentry.global_config["options"][
+        "relay.unreal-report-expansion.rollout-rate"
+    ] = 1.0
+
+    credentials = relay_credentials()
+    processing = relay_with_processing(static_credentials=credentials)
+    pop = relay(processing, credentials=credentials)
+
+    project_config = mini_sentry.add_full_project_config(project_id)
+    if has_quota:
+        project_config["config"]["quotas"] = [
+            {
+                "categories": ["attachment"],
+                "limit": 0,
+                "window": 3600,
+                "id": "attachment_limit",
+                "reasonCode": "static_disabled_quota",
+            }
+        ]
+
+    attachments_consumer = attachments_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    unreal_content = load_dump_file(dump_file_name)
+    pop.send_unreal_request(project_id, unreal_content)
+
+    event, payload = attachments_consumer.get_event_only()
+
+    assert event is not None
+    assert event["type"] == "event"
+    assert "unreal" in payload.get("contexts", {})
+
+    if has_quota:
+        outcomes_consumer.assert_rate_limited(
+            "static_disabled_quota",
+            categories=["attachment", "attachment_item"],
+        )
+    else:
+        assert len(event["attachments"]) == (
+            4 if dump_file_name == "unreal_crash" else 6
+        )
 
 
 def test_unreal_minidump_with_processing(

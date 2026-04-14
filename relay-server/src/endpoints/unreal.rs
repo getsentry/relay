@@ -14,7 +14,7 @@ use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::DiscardItemType;
 use crate::services::processor::ProcessingError;
-use crate::utils::{self, UnrealExpansion};
+use crate::utils::{self, extract_items};
 
 #[derive(Debug, Deserialize)]
 struct UnrealQuery {
@@ -62,20 +62,15 @@ impl UnrealParams {
                     .await
                     .ok_or(BadStoreRequest::ProjectUnavailable)?;
 
-                // Only interested in the 'attachments' since the event will be extracted later on
-                // during processing.
-                let UnrealExpansion {
-                    event: _,
-                    attachments,
-                } = utils::expand_unreal(data, state.config()).map_err(|error| match error {
-                    ProcessingError::PayloadTooLarge(_) => {
-                        BadStoreRequest::Overflow(DiscardItemType::UnrealReport)
-                    }
-                    _ => BadStoreRequest::InvalidUnrealReport,
-                })?;
-
-                for mut item in attachments {
-                    item.set_unreal_expanded();
+                for mut item in
+                    extract_items(data, state.config()).map_err(|error| match error {
+                        ProcessingError::PayloadTooLarge(_) => {
+                            BadStoreRequest::Overflow(DiscardItemType::UnrealReport)
+                        }
+                        _ => BadStoreRequest::InvalidUnrealReport,
+                    })?
+                {
+                    item.set_unreal_expanded(true);
                     envelope.add_item(item);
                 }
             }

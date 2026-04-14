@@ -570,9 +570,9 @@ impl Item {
             .unwrap_or(false)
     }
 
-    /// Marks this item as having been expanded from an Unreal report.
-    pub fn set_unreal_expanded(&mut self) {
-        self.headers.set(ItemHeaderKey::UnrealExpanded, true);
+    /// Marks this item as having been extracted from an Unreal report.
+    pub fn set_unreal_expanded(&mut self, expanded: bool) {
+        self.headers.set(ItemHeaderKey::UnrealExpanded, expanded);
     }
 
     /// Returns the [`AttachmentParentType`] of an attachment.

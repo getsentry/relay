@@ -39,10 +39,9 @@ fn get_event_item(data: &[u8]) -> Result<Option<Item>, Unreal4Error> {
     Ok(Some(item))
 }
 
-/// Expands an Unreal 4 crash report payload and returns the expanded items.
-pub fn expand_unreal(payload: Bytes, config: &Config) -> Result<UnrealExpansion, ProcessingError> {
-    let mut event = None;
-    let mut attachments = Items::new();
+/// Extracts the items from an Unreal 4 crash report payload.
+pub fn extract_items(payload: Bytes, config: &Config) -> Result<Items, ProcessingError> {
+    let mut items = Items::new();
     let crash = Unreal4Crash::parse_with_limit(&payload, config.max_envelope_size())?;
 
     for file in crash.files() {
@@ -62,10 +61,6 @@ pub fn expand_unreal(payload: Bytes, config: &Config) -> Result<UnrealExpansion,
             },
         };
 
-        if event.is_none() && attachment_type == AttachmentType::UnrealContext {
-            event = get_event_item(file.data())?;
-        }
-
         let mut item = Item::new(ItemType::Attachment);
         item.set_filename(file.name());
         // TODO: This clones data. Update symbolic to allow moving the bytes out.
@@ -73,8 +68,22 @@ pub fn expand_unreal(payload: Bytes, config: &Config) -> Result<UnrealExpansion,
         // See: <https://github.com/getsentry/symbolic/issues/959>.
         item.set_payload(content_type, file.data().to_owned());
         item.set_attachment_type(attachment_type);
-        attachments.push(item);
+        items.push(item);
     }
+
+    Ok(items)
+}
+
+/// Expands an Unreal 4 crash report payload and returns the expanded items.
+pub fn expand_unreal(payload: Bytes, config: &Config) -> Result<UnrealExpansion, ProcessingError> {
+    let attachments = extract_items(payload, config)?;
+
+    let event = attachments
+        .iter()
+        .find(|item| matches!(item.attachment_type(), Some(AttachmentType::UnrealContext)))
+        .map(|item| get_event_item(&item.payload()))
+        .transpose()?
+        .flatten();
 
     Ok(UnrealExpansion { event, attachments })
 }
