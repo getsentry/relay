@@ -200,7 +200,7 @@ async fn inner(
             let wrapper = ProjectStateWrapper::new(
                 ParsedProjectState {
                     disabled: false,
-                    info: project_info.as_ref().clone(),
+                    info: Arc::clone(project_info),
                 },
                 full,
             );
