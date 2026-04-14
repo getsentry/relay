@@ -76,7 +76,7 @@
 <a href=#76 id=76 data-nosnippet>76</a>        <span class="comment">// TODO: This clones data. Update symbolic to allow moving the bytes out.
 <a href=#77 id=77 data-nosnippet>77</a>        //
 <a href=#78 id=78 data-nosnippet>78</a>        // See: &lt;https://github.com/getsentry/symbolic/issues/959&gt;.
-<a href=#79 id=79 data-nosnippet>79</a>        </span>item.set_payload(content_type, file.data().to_owned());
+<a href=#79 id=79 data-nosnippet>79</a>        </span>item.set_payload(content_type, file.into_bytes());
 <a href=#80 id=80 data-nosnippet>80</a>        item.set_attachment_type(attachment_type);
 <a href=#81 id=81 data-nosnippet>81</a>        attachments.push(item);
 <a href=#82 id=82 data-nosnippet>82</a>    }
