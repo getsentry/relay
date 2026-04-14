@@ -398,14 +398,8 @@ impl StoreService {
         let ty = message.variant();
         relay_statsd::metric!(timer(RelayTimers::StoreServiceDuration), message = ty, {
             let result = match message {
-                Store::Envelope(message) => {
-                    self.handle_store_envelope(message);
-                    Ok(())
-                }
-                Store::Metrics(message) => {
-                    self.handle_store_metrics(message);
-                    Ok(())
-                }
+                Store::Envelope(message) => self.handle_store_envelope(message),
+                Store::Metrics(message) => self.handle_store_metrics(message),
                 Store::TraceItem(message) => self.handle_store_trace_item(message),
                 Store::Span(message) => self.handle_store_span(message),
                 Store::ProfileChunk(message) => self.handle_store_profile_chunk(message),
@@ -418,25 +412,26 @@ impl StoreService {
                 relay_log::error!(
                     error = &error as &dyn Error,
                     tags.message = ty,
-                    "failed to store kafka message"
+                    "failed to store message"
                 );
             }
         })
     }
 
-    fn handle_store_envelope(&self, message: StoreEnvelope) {
+    fn handle_store_envelope(&self, message: StoreEnvelope) -> Result<(), Rejected<StoreError>> {
         let StoreEnvelope { mut envelope } = message;
 
-        let scoping = envelope.scoping();
         match self.store_envelope(&mut envelope) {
-            Ok(()) => envelope.accept(),
+            Ok(()) => {
+                envelope.accept();
+                Ok(())
+            }
             Err(error) => {
-                envelope.reject(Outcome::Invalid(DiscardReason::Internal));
-                relay_log::error!(
-                    error = &error as &dyn Error,
-                    tags.project_key = %scoping.project_key,
-                    "failed to store envelope"
-                );
+                let envelope = envelope.into_envelope();
+                Err(
+                    Managed::from_envelope(envelope, self.outcome_aggregator.clone())
+                        .reject_err(error),
+                )
             }
         }
     }
@@ -610,7 +605,7 @@ impl StoreService {
         Ok(())
     }
 
-    fn handle_store_metrics(&self, message: StoreMetrics) {
+    fn handle_store_metrics(&self, message: StoreMetrics) -> Result<(), Rejected<StoreError>> {
         let StoreMetrics {
             buckets,
             scoping,
@@ -677,7 +672,13 @@ impl StoreService {
                 && let Some(trace_item) = sessions::to_trace_item(scoping, bucket, retention)
             {
                 let message = KafkaMessage::for_item(scoping, trace_item);
-                let _ = self.produce(KafkaTopic::Items, message);
+                let res = self.produce(KafkaTopic::Items, message);
+                if let Err(error) = res {
+                    relay_log::error!(
+                        error = &error as &dyn std::error::Error,
+                        "failed to produce session metrics to EAP"
+                    )
+                }
             }
         }
 
@@ -705,6 +706,8 @@ impl StoreService {
                 namespace = namespace.as_str()
             );
         }
+
+        Ok(())
     }
 
     fn handle_store_trace_item(
