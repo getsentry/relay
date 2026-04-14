@@ -119,7 +119,7 @@ def test_lcp_span(
 
     relay.send_envelope(project_id, envelope)
 
-    (attributes, fields) = lcp_cls_inp_differences(mode)
+    attributes, fields = lcp_cls_inp_differences(mode)
 
     lcp_backfill = {}
     if mode == "v2":
@@ -280,7 +280,7 @@ def test_cls_span(
 
     relay.send_envelope(project_id, envelope)
 
-    (attributes, fields) = lcp_cls_inp_differences(mode)
+    attributes, fields = lcp_cls_inp_differences(mode)
 
     cls_backfill = {}
     if mode == "v2":
@@ -438,7 +438,7 @@ def test_inp_span(
 
     relay.send_envelope(project_id, envelope)
 
-    (attributes, fields) = lcp_cls_inp_differences(mode)
+    attributes, fields = lcp_cls_inp_differences(mode)
 
     inp_backfill = {}
     if mode == "v2":
