@@ -293,7 +293,7 @@ impl EnvelopeSummary {
 
             // If the item has been rate limited before, the quota has been consumed and outcomes
             // emitted. We can skip it here.
-            if item.rate_limited() | item.is_unreal_expanded() {
+            if item.rate_limited() || item.is_unreal_expanded() {
                 continue;
             }
 

@@ -25,6 +25,7 @@ impl SentryError for Unreal {
 
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
         // Take the unreal report, or all the items that previously already got expanded from it.
+        #[cfg_attr(not(feature = "processing"), allow(unused_mut))]
         let mut report_items: Items = utils::take_items_by(items, |i| {
             matches!(i.ty(), ItemType::UnrealReport) || i.is_unreal_expanded()
         });

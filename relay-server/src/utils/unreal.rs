@@ -119,6 +119,7 @@ pub struct UnrealExpansion {
     #[cfg_attr(not(feature = "processing"), expect(unused))]
     pub event: Option<Item>,
     /// Files of the report as attachments.
+    #[cfg_attr(not(feature = "processing"), expect(unused))]
     pub attachments: Items,
 }
 
