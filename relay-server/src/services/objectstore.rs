@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use futures::StreamExt;
+use http::StatusCode;
 use objectstore_client::{
     Client, ExpirationPolicy, PutBuilder, SecretKey as SigningKey, Session, TokenGenerator, Usecase,
 };
@@ -145,6 +146,23 @@ impl Error {
             Error::Uuid(_) => "uuid",
             Error::Internal => "internal",
         }
+    }
+
+    fn is_retriable(&self) -> bool {
+        // For now, only retry connection errors and timeouts
+        if let Error::UploadFailed(objectstore_client::Error::Reqwest(error)) = self {
+            return error.is_connect()
+                || matches!(
+                    error.status(),
+                    Some(
+                        StatusCode::BAD_GATEWAY
+                            | StatusCode::GATEWAY_TIMEOUT
+                            | StatusCode::TOO_MANY_REQUESTS
+                            | StatusCode::SERVICE_UNAVAILABLE
+                    )
+                );
+        }
+        false
     }
 }
 
@@ -511,7 +529,7 @@ impl ObjectstoreServiceInner {
         let retriable = Retriable::new(stream);
         let mut result = Err(Error::Internal);
         let mut attempt = 0;
-        while result.is_err()
+        while result.is_err_and(|e| e.is_retriable())
             && attempt < self.max_attempts
             && let Some(stream) = RetriableStream::new(&retriable)
         {
