@@ -2,11 +2,14 @@
 Tests for the TUS upload endpoint (/api/{project_id}/upload/).
 """
 
+import socket
+import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from flask import Response
+from flask import Flask, Response, jsonify, request as flask_request
+from pytest_localserver.http import WSGIServer
 import pytest
 
 
@@ -510,3 +513,86 @@ def test_concurrency_limit(mini_sentry, relay, project_config):
                     "deadline has elapsed",
                 ],
             }, r.text
+
+
+def test_upload_retries_on_connect_error(
+    mini_sentry, relay_with_processing, project_config, request
+):
+    """Upload succeeds after a transient connection failure thanks to stream retries.
+
+    The first objectstore connection attempt fails (nothing listening yet).
+    The retry delay gives time for the mock objectstore to start, and the
+    second attempt succeeds because the stream has not been consumed yet.
+    """
+    project_id = 42
+    project_key = mini_sentry.get_dsn_public_key(project_id)
+
+    # Find a free port — nothing will be listening on it initially.
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+
+    received_uploads = []
+
+    mock_app = Flask("mock_objectstore")
+
+    @mock_app.route("/v1/objects/<path:rest>", methods=["PUT", "POST"])
+    def handle_upload(rest):
+        _ = flask_request.data
+        key = rest.rsplit("/", 1)[-1]
+        received_uploads.append(key)
+        return jsonify({"key": key})
+
+    mock_server = WSGIServer(
+        host="127.0.0.1", port=port, application=mock_app, threaded=True
+    )
+    request.addfinalizer(mock_server.stop)
+
+    relay = relay_with_processing(
+        options={
+            "processing": {
+                "objectstore": {
+                    "objectstore_url": f"http://127.0.0.1:{port}/",
+                    "retry_delay": 1.0,
+                    "max_attempts": 3,
+                }
+            }
+        }
+    )
+
+    # Create the upload (this does NOT contact objectstore).
+    data = b"hello world"
+    response = relay.post(
+        f"/api/{project_id}/upload/?sentry_key={project_key}",
+        headers={
+            "Content-Length": "0",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": str(len(data)),
+        },
+    )
+    assert response.status_code == 201
+
+    # Start the mock objectstore after a short delay so the first connect attempt
+    # fails with "connection refused" (a retriable error). The stream is not consumed
+    # on a connect error, so the retry can re-use it.
+    def start_delayed():
+        time.sleep(0.3)
+        mock_server.start()
+
+    threading.Thread(target=start_delayed, daemon=True).start()
+
+    # PATCH triggers the objectstore upload — first attempt fails, retry succeeds.
+    response = relay.patch(
+        f"{response.headers['Location']}&sentry_key={project_key}",
+        headers={
+            "Content-Length": str(len(data)),
+            "Content-Type": "application/offset+octet-stream",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Offset": "0",
+        },
+        data=data,
+    )
+
+    assert response.status_code == 204
+    assert len(received_uploads) == 1
