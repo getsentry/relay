@@ -53,7 +53,7 @@ pub struct GetProjectStates {
 ///
 /// A [`ProjectKey`] is either pending or has a result, it can not appear in both and doing
 /// so is undefined.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetProjectStatesResponse {
     /// Map of [`ProjectKey`] to [`ParsedProjectState`] that was fetched from the upstream.

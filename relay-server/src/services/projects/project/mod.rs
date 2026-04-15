@@ -1,14 +1,14 @@
 //! Types that represent the current project state.
 use std::sync::Arc;
 
-use serde::{Deserialize, Serialize};
-
 use relay_base_schema::project::ProjectKey;
 use relay_quotas::Scoping;
 
 mod info;
+mod serialize;
 
 pub use self::info::*;
+pub use self::serialize::*;
 
 /// Representation of a project's current state.
 #[derive(Clone, Debug, Default)]
@@ -40,6 +40,7 @@ impl ProjectState {
             slug: None,
             config: Default::default(),
             organization_id: None,
+            upstream: None,
         }))
     }
 
@@ -97,31 +98,4 @@ impl From<ParsedProjectState> for ProjectState {
             false => Self::Enabled(info),
         }
     }
-}
-
-/// Project state as used in serialization / deserialization.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ParsedProjectState {
-    /// Whether the project state is disabled.
-    #[serde(default)]
-    pub disabled: bool,
-    /// Project info.
-    ///
-    /// This contains no information when `disabled` is `true`.
-    #[serde(flatten)]
-    pub info: Arc<ProjectInfo>,
-}
-
-/// Limited project state for external Relays.
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase", remote = "ParsedProjectState")]
-pub struct LimitedParsedProjectState {
-    /// Whether the project state is disabled.
-    pub disabled: bool,
-    /// Limited project info for external Relays.
-    ///
-    /// This contains no information when `disabled` is `true`.
-    #[serde(with = "LimitedProjectInfo")]
-    #[serde(flatten)]
-    pub info: Arc<ProjectInfo>,
 }
