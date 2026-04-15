@@ -547,7 +547,6 @@ def test_objectstore_retries(mini_sentry, relay_with_processing, project_config)
     )
     assert response.status_code == 201
 
-    # PATCH triggers the objectstore upload — first attempt fails, retry succeeds.
     response = relay.patch(
         f"{response.headers['Location']}&sentry_key={project_key}",
         headers={

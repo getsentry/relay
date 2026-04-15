@@ -112,7 +112,7 @@ impl IntoResponse for Error {
                         _ => StatusCode::INTERNAL_SERVER_ERROR,
                     },
                     objectstore::Error::Uuid(_) => StatusCode::INTERNAL_SERVER_ERROR,
-                    objectstore::Error::ConfigError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                    objectstore::Error::Config(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 },
                 upload::Error::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
                 upload::Error::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,

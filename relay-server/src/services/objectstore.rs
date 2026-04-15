@@ -134,7 +134,7 @@ pub enum Error {
     #[error("UUID conversion failed: {0}")]
     Uuid(#[from] TryFromSliceError),
     #[error("configuration error: {0}")]
-    ConfigError(&'static str),
+    Config(&'static str),
 }
 
 impl Error {
@@ -144,7 +144,7 @@ impl Error {
             Error::LoadShed => "load-shed",
             Error::UploadFailed(_) => "upload_failed",
             Error::Uuid(_) => "uuid",
-            Error::ConfigError(_) => "config_error",
+            Error::Config(_) => "config_error",
         }
     }
 
@@ -532,7 +532,7 @@ impl ObjectstoreServiceInner {
         retention_hours: Option<u16>,
     ) -> Result<ObjectstoreKey, Error> {
         tokio::time::timeout(self.timeout, async {
-            let mut result = Err(Error::ConfigError("zero retries configured"));
+            let mut result = Err(Error::Config("zero retries configured"));
             let mut attempt = 0;
             while attempt < self.max_attempts {
                 let Some(body) = body.try_clone() else {
