@@ -185,7 +185,6 @@ fn normalize_span(
             eap::normalize_ai(&mut span.attributes, duration, model_costs);
         }
         eap::normalize_attribute_values(&mut span.attributes, allowed_hosts);
-        eap::normalize_device_class(&mut span.attributes);
         eap::write_legacy_attributes(&mut span.attributes);
     };
 

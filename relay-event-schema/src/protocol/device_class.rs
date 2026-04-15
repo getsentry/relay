@@ -22,7 +22,7 @@ impl DeviceClass {
     pub fn from_attributes(attributes: &Attributes) -> Option<DeviceClass> {
         let family = attributes.get_value(DEVICE_FAMILY)?.as_str()?;
 
-        if family == "iPhone" || family == "iOS" || family == "iOS-Device" {
+        if is_apple_family(family) {
             let model = attributes.get_value(DEVICE_MODEL)?.as_str()?;
             model_to_class(model)
         } else {
@@ -37,7 +37,7 @@ impl DeviceClass {
         let device = contexts.get::<DeviceContext>()?;
         let family = device.family.value()?;
 
-        if family == "iPhone" || family == "iOS" || family == "iOS-Device" {
+        if is_apple_family(family) {
             model_to_class(device.model.as_str()?)
         } else if let (Some(&freq), Some(&proc), Some(&mem)) = (
             device.processor_frequency.value(),
@@ -57,6 +57,19 @@ impl fmt::Display for DeviceClass {
     }
 }
 
+/// Returns `true` if the device family indicates an Apple device (iPhone/iPad).
+///
+/// Apple devices use model-based classification via [`model_to_class`] rather than
+/// hardware specs, because Apple reports the device family as one of these values
+/// depending on the SDK version and platform context.
+fn is_apple_family(family: &str) -> bool {
+    matches!(family, "iPhone" | "iOS" | "iOS-Device")
+}
+
+/// Classifies a non-Apple device into low/medium/high based on hardware specs.
+///
+/// These classifications are based on an analysis of the mobile devices available
+/// in the market today and are subject to change as the market evolves.
 fn classify_by_hardware(freq: u64, proc: u64, mem: u64) -> Option<DeviceClass> {
     if freq < 2000 || proc < 8 || mem < 4 * GIB {
         Some(DeviceClass::LOW)
@@ -250,21 +263,20 @@ fn model_to_class(model: &str) -> Option<DeviceClass> {
 mod tests {
     use super::*;
 
-    fn make_attributes(json: &str) -> Attributes {
-        Annotated::<Attributes>::from_json(json)
-            .unwrap()
-            .into_value()
-            .unwrap()
+    macro_rules! attributes {
+        ($($key:expr => $value:expr),* $(,)?) => {
+            Attributes::from([
+                $(($key.into(), Annotated::new($value.into())),)*
+            ])
+        };
     }
 
     #[test]
     fn test_from_attributes_iphone17_5() {
-        let attrs = make_attributes(
-            r#"{
-                "device.family": {"type": "string", "value": "iOS"},
-                "device.model": {"type": "string", "value": "iPhone17,5"}
-            }"#,
-        );
+        let attrs = attributes! {
+            DEVICE_FAMILY => "iOS",
+            DEVICE_MODEL => "iPhone17,5",
+        };
         assert_eq!(
             DeviceClass::from_attributes(&attrs),
             Some(DeviceClass::HIGH)
@@ -273,12 +285,10 @@ mod tests {
 
     #[test]
     fn test_from_attributes_iphone99_1() {
-        let attrs = make_attributes(
-            r#"{
-                "device.family": {"type": "string", "value": "iOS"},
-                "device.model": {"type": "string", "value": "iPhone99,1"}
-            }"#,
-        );
+        let attrs = attributes! {
+            DEVICE_FAMILY => "iOS",
+            DEVICE_MODEL => "iPhone99,1",
+        };
         assert_eq!(
             DeviceClass::from_attributes(&attrs),
             Some(DeviceClass::HIGH)
@@ -287,12 +297,10 @@ mod tests {
 
     #[test]
     fn test_from_attributes_ipad99_1() {
-        let attrs = make_attributes(
-            r#"{
-                "device.family": {"type": "string", "value": "iOS"},
-                "device.model": {"type": "string", "value": "iPad99,1"}
-            }"#,
-        );
+        let attrs = attributes! {
+            DEVICE_FAMILY => "iOS",
+            DEVICE_MODEL => "iPad99,1",
+        };
         assert_eq!(
             DeviceClass::from_attributes(&attrs),
             Some(DeviceClass::HIGH)
@@ -301,12 +309,10 @@ mod tests {
 
     #[test]
     fn test_from_attributes_garbage_device_model() {
-        let attrs = make_attributes(
-            r#"{
-                "device.family": {"type": "string", "value": "iOS"},
-                "device.model": {"type": "string", "value": "garbage-device-model"}
-            }"#,
-        );
+        let attrs = attributes! {
+            DEVICE_FAMILY => "iOS",
+            DEVICE_MODEL => "garbage-device-model",
+        };
         assert_eq!(
             DeviceClass::from_attributes(&attrs),
             Some(DeviceClass::HIGH)
@@ -315,38 +321,32 @@ mod tests {
 
     #[test]
     fn test_from_attributes_wrong_family() {
-        let attrs = make_attributes(
-            r#"{
-                "device.family": {"type": "string", "value": "iOSS"},
-                "device.model": {"type": "string", "value": "iPhone17,5"}
-            }"#,
-        );
+        let attrs = attributes! {
+            DEVICE_FAMILY => "iOSS",
+            DEVICE_MODEL => "iPhone17,5",
+        };
         assert_eq!(DeviceClass::from_attributes(&attrs), None);
     }
 
     #[test]
     fn test_from_attributes_android_low() {
-        let attrs = make_attributes(
-            r#"{
-                "device.family": {"type": "string", "value": "Android"},
-                "device.processor_frequency": {"type": "double", "value": 1500.0},
-                "device.processor_count": {"type": "double", "value": 4.0},
-                "device.memory_size": {"type": "double", "value": 2147483648.0}
-            }"#,
-        );
+        let attrs = attributes! {
+            DEVICE_FAMILY => "Android",
+            DEVICE_PROCESSOR_FREQUENCY => 1500.0,
+            DEVICE_PROCESSOR_COUNT => 4.0,
+            DEVICE_MEMORY_SIZE => 2_147_483_648.0,
+        };
         assert_eq!(DeviceClass::from_attributes(&attrs), Some(DeviceClass::LOW));
     }
 
     #[test]
     fn test_from_attributes_android_medium() {
-        let attrs = make_attributes(
-            r#"{
-                "device.family": {"type": "string", "value": "Android"},
-                "device.processor_frequency": {"type": "double", "value": 2200.0},
-                "device.processor_count": {"type": "double", "value": 8.0},
-                "device.memory_size": {"type": "double", "value": 5368709120.0}
-            }"#,
-        );
+        let attrs = attributes! {
+            DEVICE_FAMILY => "Android",
+            DEVICE_PROCESSOR_FREQUENCY => 2200.0,
+            DEVICE_PROCESSOR_COUNT => 8.0,
+            DEVICE_MEMORY_SIZE => 5_368_709_120.0,
+        };
         assert_eq!(
             DeviceClass::from_attributes(&attrs),
             Some(DeviceClass::MEDIUM)
@@ -355,14 +355,12 @@ mod tests {
 
     #[test]
     fn test_from_attributes_android_high() {
-        let attrs = make_attributes(
-            r#"{
-                "device.family": {"type": "string", "value": "Android"},
-                "device.processor_frequency": {"type": "double", "value": 3000.0},
-                "device.processor_count": {"type": "double", "value": 8.0},
-                "device.memory_size": {"type": "double", "value": 8589934592.0}
-            }"#,
-        );
+        let attrs = attributes! {
+            DEVICE_FAMILY => "Android",
+            DEVICE_PROCESSOR_FREQUENCY => 3000.0,
+            DEVICE_PROCESSOR_COUNT => 8.0,
+            DEVICE_MEMORY_SIZE => 8_589_934_592.0,
+        };
         assert_eq!(
             DeviceClass::from_attributes(&attrs),
             Some(DeviceClass::HIGH)
@@ -371,11 +369,9 @@ mod tests {
 
     #[test]
     fn test_from_attributes_android_missing_specs() {
-        let attrs = make_attributes(
-            r#"{
-                "device.family": {"type": "string", "value": "Android"}
-            }"#,
-        );
+        let attrs = attributes! {
+            DEVICE_FAMILY => "Android",
+        };
         assert_eq!(DeviceClass::from_attributes(&attrs), None);
     }
 

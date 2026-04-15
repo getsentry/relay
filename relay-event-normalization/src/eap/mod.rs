@@ -30,7 +30,7 @@ pub mod trace_metric;
 mod trimming;
 
 pub use self::ai::normalize_ai;
-pub use self::mobile::{normalize_device_class, normalize_mobile_attributes};
+pub use self::mobile::normalize_mobile_attributes;
 pub use self::size::*;
 pub use self::trimming::TrimmingProcessor;
 

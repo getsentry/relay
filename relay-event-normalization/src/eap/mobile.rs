@@ -12,6 +12,7 @@ use crate::normalize::utils::{MAIN_THREAD_NAME, MAX_DURATION_MOBILE_MS, MOBILE_S
 /// - Sets `sentry.main_thread: "true"` if the SDK is mobile and `thread.name` is `"main"`.
 /// - Removes mobile measurement attributes that exceed 180 seconds.
 /// - Normalizes V1 `app_start_cold`/`app_start_warm` into unified `app.vitals.start.*` attributes.
+/// - Derives `device.class` from device attributes if not already set.
 pub fn normalize_mobile_attributes(attributes: &mut Annotated<Attributes>) {
     let Some(attrs) = attributes.value_mut() else {
         return;
@@ -60,274 +61,330 @@ pub fn normalize_mobile_attributes(attributes: &mut Annotated<Attributes>) {
             attrs.insert_if_missing(APP_VITALS_START_TYPE, || "warm".to_owned());
         }
     }
-}
 
-/// Derives the `device.class` attribute from device attributes if not already set.
-pub fn normalize_device_class(attributes: &mut Annotated<Attributes>) {
-    let Some(attrs) = attributes.value_mut() else {
-        return;
-    };
-
-    if attrs.contains_key(DEVICE_CLASS) {
-        return;
-    }
-
-    if let Some(device_class) = DeviceClass::from_attributes(attrs) {
-        attrs.insert(DEVICE_CLASS, device_class.to_string());
+    // Derive device.class from device attributes if not already set.
+    if !attrs.contains_key(DEVICE_CLASS) {
+        if let Some(device_class) = DeviceClass::from_attributes(attrs) {
+            attrs.insert(DEVICE_CLASS, device_class.to_string());
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use relay_protocol::assert_annotated_snapshot;
+
     use super::*;
 
-    #[test]
-    fn test_mobile_tag_set_for_mobile_sdks() {
-        for sdk in MOBILE_SDKS {
-            let json = format!(r#"{{"sentry.sdk.name": {{"type": "string", "value": "{sdk}"}}}}"#);
-            let mut attributes = Annotated::<Attributes>::from_json(&json).unwrap();
-
-            normalize_mobile_attributes(&mut attributes);
-
-            let attrs = attributes.value().unwrap();
-            assert_eq!(
-                attrs.get_value(SENTRY_MOBILE).and_then(|v| v.as_str()),
-                Some("true"),
-                "{sdk} should set sentry.mobile"
-            );
-        }
+    macro_rules! attributes {
+        ($($key:expr => $value:expr),* $(,)?) => {
+            Attributes::from([
+                $(($key.into(), Annotated::new($value.into())),)*
+            ])
+        };
     }
+
+    macro_rules! mobile_sdk_test {
+        ($name:ident, $sdk:expr) => {
+            #[test]
+            fn $name() {
+                let mut attributes = Annotated::new(attributes! {
+                    SENTRY_SDK_NAME => $sdk,
+                });
+                normalize_mobile_attributes(&mut attributes);
+                assert_annotated_snapshot!(attributes);
+            }
+        };
+    }
+
+    mobile_sdk_test!(test_mobile_tag_cocoa, "sentry.cocoa");
+    mobile_sdk_test!(test_mobile_tag_flutter, "sentry.dart.flutter");
+    mobile_sdk_test!(test_mobile_tag_android, "sentry.java.android");
+    mobile_sdk_test!(test_mobile_tag_react_native, "sentry.javascript.react-native");
 
     #[test]
     fn test_mobile_tag_not_mobile_sdk() {
-        let mut attributes = Annotated::<Attributes>::from_json(
-            r#"{
-                "sentry.sdk.name": {"type": "string", "value": "sentry.python"}
-            }"#,
-        )
-        .unwrap();
+        let mut attributes = Annotated::new(attributes! {
+            SENTRY_SDK_NAME => "sentry.python",
+        });
 
         normalize_mobile_attributes(&mut attributes);
 
-        let attrs = attributes.value().unwrap();
-        assert!(attrs.get_value(SENTRY_MOBILE).is_none());
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.sdk.name": {
+            "type": "string",
+            "value": "sentry.python"
+          }
+        }
+        "#);
     }
 
     #[test]
     fn test_main_thread_tag_mobile_sdk() {
-        let mut attributes = Annotated::<Attributes>::from_json(
-            r#"{
-                "sentry.sdk.name": {"type": "string", "value": "sentry.cocoa"},
-                "thread.name": {"type": "string", "value": "main"}
-            }"#,
-        )
-        .unwrap();
+        let mut attributes = Annotated::new(attributes! {
+            SENTRY_SDK_NAME => "sentry.cocoa",
+            THREAD_NAME => "main",
+        });
 
         normalize_mobile_attributes(&mut attributes);
 
-        let attrs = attributes.value().unwrap();
-        assert_eq!(
-            attrs.get_value(SENTRY_MAIN_THREAD).and_then(|v| v.as_str()),
-            Some("true")
-        );
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.main_thread": {
+            "type": "string",
+            "value": "true"
+          },
+          "sentry.mobile": {
+            "type": "string",
+            "value": "true"
+          },
+          "sentry.sdk.name": {
+            "type": "string",
+            "value": "sentry.cocoa"
+          },
+          "thread.name": {
+            "type": "string",
+            "value": "main"
+          }
+        }
+        "#);
     }
 
     #[test]
     fn test_main_thread_tag_not_main() {
-        let mut attributes = Annotated::<Attributes>::from_json(
-            r#"{
-                "sentry.sdk.name": {"type": "string", "value": "sentry.cocoa"},
-                "thread.name": {"type": "string", "value": "background"}
-            }"#,
-        )
-        .unwrap();
+        let mut attributes = Annotated::new(attributes! {
+            SENTRY_SDK_NAME => "sentry.cocoa",
+            THREAD_NAME => "background",
+        });
 
         normalize_mobile_attributes(&mut attributes);
 
-        let attrs = attributes.value().unwrap();
-        assert!(attrs.get_value(SENTRY_MAIN_THREAD).is_none());
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.mobile": {
+            "type": "string",
+            "value": "true"
+          },
+          "sentry.sdk.name": {
+            "type": "string",
+            "value": "sentry.cocoa"
+          },
+          "thread.name": {
+            "type": "string",
+            "value": "background"
+          }
+        }
+        "#);
     }
 
     #[test]
     fn test_main_thread_tag_not_set_for_non_mobile_sdk() {
-        let mut attributes = Annotated::<Attributes>::from_json(
-            r#"{
-                "sentry.sdk.name": {"type": "string", "value": "sentry.python"},
-                "thread.name": {"type": "string", "value": "main"}
-            }"#,
-        )
-        .unwrap();
+        let mut attributes = Annotated::new(attributes! {
+            SENTRY_SDK_NAME => "sentry.python",
+            THREAD_NAME => "main",
+        });
 
         normalize_mobile_attributes(&mut attributes);
 
-        let attrs = attributes.value().unwrap();
-        assert!(attrs.get_value(SENTRY_MAIN_THREAD).is_none());
-    }
-
-    #[test]
-    fn test_outlier_filtering_removes_excessive() {
-        for key in [
-            APP_VITALS_START_COLD_VALUE,
-            APP_VITALS_START_WARM_VALUE,
-            APP_VITALS_START_VALUE,
-            APP_VITALS_TTID_VALUE,
-            APP_VITALS_TTFD_VALUE,
-        ] {
-            let json = format!(r#"{{"{key}": {{"type": "double", "value": 200000.0}}}}"#);
-            let mut attributes = Annotated::<Attributes>::from_json(&json).unwrap();
-
-            normalize_mobile_attributes(&mut attributes);
-
-            let attrs = attributes.value().unwrap();
-            assert!(attrs.get_value(key).is_none(), "{key} should be removed");
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.sdk.name": {
+            "type": "string",
+            "value": "sentry.python"
+          },
+          "thread.name": {
+            "type": "string",
+            "value": "main"
+          }
         }
+        "#);
     }
 
-    #[test]
-    fn test_outlier_filtering_keeps_valid() {
-        for key in [
-            APP_VITALS_START_COLD_VALUE,
-            APP_VITALS_START_WARM_VALUE,
-            APP_VITALS_START_VALUE,
-            APP_VITALS_TTID_VALUE,
-            APP_VITALS_TTFD_VALUE,
-        ] {
-            let json = format!(r#"{{"{key}": {{"type": "double", "value": 5000.0}}}}"#);
-            let mut attributes = Annotated::<Attributes>::from_json(&json).unwrap();
-
-            normalize_mobile_attributes(&mut attributes);
-
-            let attrs = attributes.value().unwrap();
-            assert!(attrs.get_value(key).is_some(), "{key} should be kept");
-        }
+    macro_rules! outlier_test {
+        ($name:ident, $key:expr, $value:expr) => {
+            #[test]
+            fn $name() {
+                let mut attributes = Annotated::new(attributes! {
+                    $key => $value,
+                });
+                normalize_mobile_attributes(&mut attributes);
+                assert_annotated_snapshot!(attributes);
+            }
+        };
     }
+
+    outlier_test!(test_outlier_removes_start_cold, APP_VITALS_START_COLD_VALUE, 200_000.0);
+    outlier_test!(test_outlier_removes_start_warm, APP_VITALS_START_WARM_VALUE, 200_000.0);
+    outlier_test!(test_outlier_removes_start_value, APP_VITALS_START_VALUE, 200_000.0);
+    outlier_test!(test_outlier_removes_ttid, APP_VITALS_TTID_VALUE, 200_000.0);
+    outlier_test!(test_outlier_removes_ttfd, APP_VITALS_TTFD_VALUE, 200_000.0);
+
+    outlier_test!(test_outlier_keeps_start_cold, APP_VITALS_START_COLD_VALUE, 5000.0);
+    outlier_test!(test_outlier_keeps_start_warm, APP_VITALS_START_WARM_VALUE, 5000.0);
+    outlier_test!(test_outlier_keeps_start_value, APP_VITALS_START_VALUE, 5000.0);
+    outlier_test!(test_outlier_keeps_ttid, APP_VITALS_TTID_VALUE, 5000.0);
+    outlier_test!(test_outlier_keeps_ttfd, APP_VITALS_TTFD_VALUE, 5000.0);
 
     #[test]
     fn test_app_start_cold_normalized() {
-        let mut attributes = Annotated::<Attributes>::from_json(
-            r#"{
-                "app_start_cold": {"type": "double", "value": 1234.0}
-            }"#,
-        )
-        .unwrap();
+        let mut attributes = Annotated::new(attributes! {
+            "app_start_cold" => 1234.0,
+        });
 
         normalize_mobile_attributes(&mut attributes);
 
-        let attrs = attributes.value().unwrap();
-        assert_eq!(
-            attrs
-                .get_value(APP_VITALS_START_VALUE)
-                .and_then(|v| v.as_f64()),
-            Some(1234.0)
-        );
-        assert_eq!(
-            attrs
-                .get_value(APP_VITALS_START_TYPE)
-                .and_then(|v| v.as_str()),
-            Some("cold")
-        );
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "app.vitals.start.type": {
+            "type": "string",
+            "value": "cold"
+          },
+          "app.vitals.start.value": {
+            "type": "double",
+            "value": 1234.0
+          },
+          "app_start_cold": {
+            "type": "double",
+            "value": 1234.0
+          }
+        }
+        "#);
     }
 
     #[test]
     fn test_app_start_warm_normalized() {
-        let mut attributes = Annotated::<Attributes>::from_json(
-            r#"{
-                "app_start_warm": {"type": "double", "value": 567.0}
-            }"#,
-        )
-        .unwrap();
+        let mut attributes = Annotated::new(attributes! {
+            "app_start_warm" => 567.0,
+        });
 
         normalize_mobile_attributes(&mut attributes);
 
-        let attrs = attributes.value().unwrap();
-        assert_eq!(
-            attrs
-                .get_value(APP_VITALS_START_VALUE)
-                .and_then(|v| v.as_f64()),
-            Some(567.0)
-        );
-        assert_eq!(
-            attrs
-                .get_value(APP_VITALS_START_TYPE)
-                .and_then(|v| v.as_str()),
-            Some("warm")
-        );
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "app.vitals.start.type": {
+            "type": "string",
+            "value": "warm"
+          },
+          "app.vitals.start.value": {
+            "type": "double",
+            "value": 567.0
+          },
+          "app_start_warm": {
+            "type": "double",
+            "value": 567.0
+          }
+        }
+        "#);
     }
 
     #[test]
     fn test_app_start_v2_not_overwritten() {
-        let mut attributes = Annotated::<Attributes>::from_json(
-            r#"{
-                "app.vitals.start.value": {"type": "double", "value": 999.0},
-                "app.vitals.start.type": {"type": "string", "value": "warm"},
-                "app_start_cold": {"type": "double", "value": 1234.0}
-            }"#,
-        )
-        .unwrap();
+        let mut attributes = Annotated::new(attributes! {
+            APP_VITALS_START_VALUE => 999.0,
+            APP_VITALS_START_TYPE => "warm",
+            "app_start_cold" => 1234.0,
+        });
 
         normalize_mobile_attributes(&mut attributes);
 
-        let attrs = attributes.value().unwrap();
-        assert_eq!(
-            attrs
-                .get_value(APP_VITALS_START_VALUE)
-                .and_then(|v| v.as_f64()),
-            Some(999.0)
-        );
-        assert_eq!(
-            attrs
-                .get_value(APP_VITALS_START_TYPE)
-                .and_then(|v| v.as_str()),
-            Some("warm")
-        );
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "app.vitals.start.type": {
+            "type": "string",
+            "value": "warm"
+          },
+          "app.vitals.start.value": {
+            "type": "double",
+            "value": 999.0
+          },
+          "app_start_cold": {
+            "type": "double",
+            "value": 1234.0
+          }
+        }
+        "#);
     }
 
     #[test]
     fn test_device_class_iphone() {
-        let mut attributes = Annotated::<Attributes>::from_json(
-            r#"{
-                "device.family": {"type": "string", "value": "iPhone"},
-                "device.model": {"type": "string", "value": "iPhone17,5"}
-            }"#,
-        )
-        .unwrap();
+        let mut attributes = Annotated::new(attributes! {
+            DEVICE_FAMILY => "iPhone",
+            DEVICE_MODEL => "iPhone17,5",
+        });
 
-        normalize_device_class(&mut attributes);
+        normalize_mobile_attributes(&mut attributes);
 
-        let attrs = attributes.value().unwrap();
-        assert!(attrs.get_value(DEVICE_CLASS).is_some());
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "device.class": {
+            "type": "string",
+            "value": "3"
+          },
+          "device.family": {
+            "type": "string",
+            "value": "iPhone"
+          },
+          "device.model": {
+            "type": "string",
+            "value": "iPhone17,5"
+          }
+        }
+        "#);
     }
 
     #[test]
     fn test_device_class_android() {
-        let mut attributes = Annotated::<Attributes>::from_json(
-            r#"{
-                "device.family": {"type": "string", "value": "Android"},
-                "device.processor_frequency": {"type": "double", "value": 3000.0},
-                "device.processor_count": {"type": "double", "value": 8.0},
-                "device.memory_size": {"type": "double", "value": 8589934592.0}
-            }"#,
-        )
-        .unwrap();
+        let mut attributes = Annotated::new(attributes! {
+            DEVICE_FAMILY => "Android",
+            DEVICE_PROCESSOR_FREQUENCY => 3000.0,
+            DEVICE_PROCESSOR_COUNT => 8.0,
+            DEVICE_MEMORY_SIZE => 8_589_934_592.0,
+        });
 
-        normalize_device_class(&mut attributes);
+        normalize_mobile_attributes(&mut attributes);
 
-        let attrs = attributes.value().unwrap();
-        assert!(attrs.get_value(DEVICE_CLASS).is_some());
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "device.class": {
+            "type": "string",
+            "value": "3"
+          },
+          "device.family": {
+            "type": "string",
+            "value": "Android"
+          },
+          "device.memory_size": {
+            "type": "double",
+            "value": 8589934592.0
+          },
+          "device.processor_count": {
+            "type": "double",
+            "value": 8.0
+          },
+          "device.processor_frequency": {
+            "type": "double",
+            "value": 3000.0
+          }
+        }
+        "#);
     }
 
     #[test]
     fn test_device_class_missing_attrs() {
-        let mut attributes = Annotated::<Attributes>::from_json(
-            r#"{
-                "device.family": {"type": "string", "value": "Android"}
-            }"#,
-        )
-        .unwrap();
+        let mut attributes = Annotated::new(attributes! {
+            DEVICE_FAMILY => "Android",
+        });
 
-        normalize_device_class(&mut attributes);
+        normalize_mobile_attributes(&mut attributes);
 
-        let attrs = attributes.value().unwrap();
-        assert!(attrs.get_value(DEVICE_CLASS).is_none());
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "device.family": {
+            "type": "string",
+            "value": "Android"
+          }
+        }
+        "#);
     }
 }
