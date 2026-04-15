@@ -362,7 +362,10 @@ pub async fn handle_envelope(
         .map_err(|err| err.map(BadStoreRequest::EventRejected))?;
 
     if envelope.is_empty() {
-        return Err(envelope.reject_err((None, BadStoreRequest::RateLimited(rate_limits))));
+        return Ok(HandledEnvelope {
+            event_id,
+            rate_limits,
+        });
     }
 
     if let Err(offender) = utils::check_envelope_size_limits(state.config(), &envelope) {
@@ -412,14 +415,12 @@ impl HandledEnvelope {
         Ok(self.event_id)
     }
 
-    /// Explicitly ignores contained active rate limits.
+    /// Explicitly ignore all rate limits.
     ///
     /// Endpoints which choose to not propagate active rate limits, should use this method to
     /// explicitly state the fact they do not propagate the rate limits.
     ///
     /// Most endpoints ignore active rate limits, they are mostly used in envelope based endpoints.
-    ///
-    /// Note: enforced rate limits are still returned as an error from [`handle_envelope`].
     pub fn ignore_rate_limits(self) -> Option<EventId> {
         self.event_id
     }
