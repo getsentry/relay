@@ -1,4 +1,5 @@
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::task::Poll;
 
 use futures::{Stream, StreamExt};
 
@@ -61,14 +62,14 @@ impl<S> RetriableStream<S> {
     ///
     /// After calling this function, other owners cannot recover the stream.
     /// It is no longer retriable.
-    fn make_used(&mut self) -> &mut S {
+    fn make_used(&mut self) -> Option<&mut S> {
         match self {
             Self::New(s) => {
-                let inner = s.take().expect("should be retriable");
+                let inner = s.take()?;
                 *self = Self::Used(inner);
                 self.make_used() // recurse once
             }
-            Self::Used(s) => s,
+            Self::Used(s) => Some(s),
         }
     }
 }
@@ -80,13 +81,18 @@ impl<S: Stream + Unpin> Stream for RetriableStream<S> {
         self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        let s = self.get_mut().make_used();
-        s.poll_next_unpin(cx)
+        match self.get_mut().make_used() {
+            Some(s) => s.poll_next_unpin(cx),
+            None => {
+                debug_assert!(false, "stream was taken while streaming");
+                Poll::Ready(None)
+            }
+        }
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         match self {
-            Self::New(s) => s.lock().as_ref().expect("should be retriable").size_hint(),
+            Self::New(s) => s.lock().as_ref().map_or((0, None), |s| s.size_hint()),
             Self::Used(s) => s.size_hint(),
         }
     }
