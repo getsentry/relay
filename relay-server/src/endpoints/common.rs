@@ -400,14 +400,8 @@ pub struct HandledEnvelope {
 }
 
 impl HandledEnvelope {
-    /// Ensures all active rate limits are handled as an error.
-    ///
-    /// This is legacy behaviour where active rate limits are returned as an error, instead of
-    /// being added to the usual response.
-    /// The event id in this legacy behaviour is only returned when there are no active rate
-    /// limits.
-    ///
-    /// The functions simplifies this legacy handling by turning rate limits into an error again.
+    /// Check if any rate limits were enforced (i.e. led to one or more items being dropped) and
+    /// return an error if so.
     pub fn check_rate_limits(self) -> Result<Option<EventId>, BadStoreRequest> {
         if self.rate_limits.is_limited() {
             return Err(BadStoreRequest::RateLimited(self.rate_limits));
@@ -415,12 +409,10 @@ impl HandledEnvelope {
         Ok(self.event_id)
     }
 
-    /// Explicitly ignore all rate limits.
+    /// Ignore rate limits, even if they caused items to be dropped from the envelope.
     ///
-    /// Endpoints which choose to not propagate active rate limits, should use this method to
-    /// explicitly state the fact they do not propagate the rate limits.
-    ///
-    /// Most endpoints ignore active rate limits, they are mostly used in envelope based endpoints.
+    /// Endpoints which choose to not propagate rate limits should use this method to explicitly
+    /// state the fact that they do not propagate rate limits.
     pub fn ignore_rate_limits(self) -> Option<EventId> {
         self.event_id
     }
