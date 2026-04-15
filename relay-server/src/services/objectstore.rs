@@ -133,8 +133,8 @@ pub enum Error {
     UploadFailed(#[from] objectstore_client::Error),
     #[error("UUID conversion failed: {0}")]
     Uuid(#[from] TryFromSliceError),
-    #[error("internal error")]
-    Internal,
+    #[error("configuration error: {0}")]
+    ConfigError(&'static str),
 }
 
 impl Error {
@@ -144,7 +144,7 @@ impl Error {
             Error::LoadShed => "load-shed",
             Error::UploadFailed(_) => "upload_failed",
             Error::Uuid(_) => "uuid",
-            Error::Internal => "internal",
+            Error::ConfigError(_) => "config_error",
         }
     }
 
@@ -316,6 +316,7 @@ impl ObjectstoreServiceInner {
                 self.handle_envelope(envelope).await;
             }
             Objectstore::TraceAttachment(attachment) => {
+                // ignore errors, outcomes and errors are reported internally.
                 let _ = self.handle_trace_attachment(attachment).await;
             }
             Objectstore::EventAttachment(attachment) => {
@@ -531,16 +532,17 @@ impl ObjectstoreServiceInner {
         retention_hours: Option<u16>,
     ) -> Result<ObjectstoreKey, Error> {
         tokio::time::timeout(self.timeout, async {
-            let mut result = Err(Error::Internal);
+            let mut result = Err(Error::ConfigError("zero retries configured"));
             let mut attempt = 0;
             while attempt < self.max_attempts {
-                attempt += 1;
                 let Some(body) = body.try_clone() else {
                     break;
                 };
+                attempt += 1;
                 result = self
                     .attempt_upload("stream", session, key.clone(), body, retention_hours)
                     .await;
+
                 match &result {
                     Err(e) if e.is_retriable() => {
                         tokio::time::sleep(self.retry_interval).await;
@@ -579,12 +581,12 @@ impl ObjectstoreServiceInner {
         ty: &str,
         session: &Session,
         key: Option<String>,
-        body: PutBody,
+        body: BodyAttempt,
         retention_hours: Option<u16>,
     ) -> Result<ObjectstoreKey, Error> {
         let mut request = match body {
-            PutBody::Bytes(bytes) => session.put(bytes),
-            PutBody::Stream(stream) => session.put_stream(stream.boxed()),
+            BodyAttempt::Bytes(bytes) => session.put(bytes),
+            BodyAttempt::Stream(stream) => session.put_stream(stream.boxed()),
         };
 
         if let Some(retention_hours) = retention_hours {
@@ -617,21 +619,27 @@ impl ObjectstoreServiceInner {
     }
 }
 
+/// Common interface for calls to [`ObjectstoreServiceInner::upload`].
+///
+/// This type is shared across retries.
 enum Body {
     Bytes(Bytes),
     Stream(TakeOnce<BoundedStream<MeteredStream<ByteStream>>>),
 }
 
 impl Body {
-    fn try_clone(&self) -> Option<PutBody> {
+    fn try_clone(&self) -> Option<BodyAttempt> {
         match self {
-            Self::Bytes(bytes) => Some(PutBody::Bytes(bytes.clone())),
-            Self::Stream(stream) => RetriableStream::new(stream.clone()).map(PutBody::Stream),
+            Self::Bytes(bytes) => Some(BodyAttempt::Bytes(bytes.clone())),
+            Self::Stream(stream) => RetriableStream::new(stream.clone()).map(BodyAttempt::Stream),
         }
     }
 }
 
-enum PutBody {
+/// Common interface for calls to [`ObjectstoreServiceInner::attempt_upload`].
+///
+/// This type is instantiated for every retry.
+enum BodyAttempt {
     Bytes(Bytes),
     Stream(RetriableStream<BoundedStream<MeteredStream<ByteStream>>>),
 }
