@@ -27,7 +27,7 @@ use crate::services::outcome::DiscardReason;
 use crate::services::store::{Store, StoreAttachment, StoreEnvelope, StoreTraceItem};
 use crate::services::upload::ByteStream;
 use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::{BoundedStream, MeteredStream, RetriableStream};
+use crate::utils::{BoundedStream, MeteredStream, Retriable, RetriableStream};
 
 use super::outcome::Outcome;
 
@@ -132,6 +132,8 @@ pub enum Error {
     UploadFailed(#[from] objectstore_client::Error),
     #[error("UUID conversion failed: {0}")]
     Uuid(#[from] TryFromSliceError),
+    #[error("internal error")]
+    Internal,
 }
 
 impl Error {
@@ -141,6 +143,7 @@ impl Error {
             Error::LoadShed => "load-shed",
             Error::UploadFailed(_) => "upload_failed",
             Error::Uuid(_) => "uuid",
+            Error::Internal => "internal",
         }
     }
 }
@@ -189,6 +192,8 @@ impl ObjectstoreService {
             max_concurrent_requests: _,
             max_backlog: _,
             timeout,
+            retry_delay,
+            max_attempts,
             auth,
         } = config;
         let Some(objectstore_url) = objectstore_url else {
@@ -230,6 +235,8 @@ impl ObjectstoreService {
             event_attachments,
             trace_attachments,
             timeout: Duration::from_secs(*timeout),
+            retry_interval: Duration::from_secs_f64(*retry_delay),
+            max_attempts: *max_attempts,
         };
 
         Ok(Some(Self {
@@ -280,6 +287,8 @@ struct ObjectstoreServiceInner {
     event_attachments: Usecase,
     trace_attachments: Usecase,
     timeout: Duration,
+    retry_interval: Duration,
+    max_attempts: usize,
 }
 
 impl ObjectstoreServiceInner {
@@ -499,10 +508,20 @@ impl ObjectstoreServiceInner {
             }
         };
 
-        let (retriable, _recovery_handle) = RetriableStream::create(stream);
-        // TODO: actually retry
-        let request = session.put_stream(retriable.boxed()).key(key);
-        let result = self.upload("stream", request).await;
+        let retriable = Retriable::new(stream);
+        let mut result = Err(Error::Internal);
+        let mut attempt = 0;
+        while result.is_err()
+            && attempt < self.max_attempts
+            && let Some(stream) = RetriableStream::new(&retriable)
+        {
+            let request = session.put_stream(stream.boxed()).key(key.clone());
+            result = self.upload("stream", request).await;
+            attempt += 1;
+            if result.is_err() {
+                tokio::time::sleep(self.retry_interval).await;
+            }
+        }
 
         relay_statsd::metric!(
             counter(RelayCounters::AttachmentUpload) += 1,
@@ -511,6 +530,7 @@ impl ObjectstoreServiceInner {
                 Err(e) => e.as_str(),
             },
             type = "stream",
+            attempts = attempt.to_string()
         );
 
         sender.send(result);
