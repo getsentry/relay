@@ -88,18 +88,9 @@ pub fn expand_unreal(payload: Bytes, config: &Config) -> Result<UnrealExpansion,
     Ok(UnrealExpansion { event, attachments })
 }
 
-/// Expands an Unreal 4 report or items previously extracted from a report in the [`UnrealExpansion`]
-/// representation.
+/// Expands items previously extracted from a report in to the [`UnrealExpansion`] representation.
 #[cfg_attr(not(feature = "processing"), expect(unused))]
-pub fn expand_unreal_items(
-    items: Items,
-    config: &Config,
-) -> Result<UnrealExpansion, ProcessingError> {
-    // If there is only one item then it must be the report
-    if items.len() == 1 && matches!(items[0].ty(), ItemType::UnrealReport) {
-        return expand_unreal(items[0].payload(), config);
-    }
-
+pub fn expand_unreal_items(items: Items) -> Result<UnrealExpansion, ProcessingError> {
     let event = items
         .iter()
         .find(|&item| matches!(item.attachment_type(), Some(AttachmentType::UnrealContext)))

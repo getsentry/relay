@@ -7,10 +7,14 @@ use crate::processing::errors::Result;
 use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
 
 #[derive(Debug)]
+pub enum UnrealReport {
+    Report(Item),
+    Expanded(Box<Items>),
+}
+
+#[derive(Debug)]
 pub enum Unreal {
-    Forward {
-        report_items: Items,
-    },
+    Forward(UnrealReport),
     #[cfg(feature = "processing")]
     Process {
         minidump: Option<Item>,
@@ -24,14 +28,15 @@ impl SentryError for Unreal {
     }
 
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
-        // Take the unreal report, or all the items that previously already got expanded from it.
-        #[cfg_attr(not(feature = "processing"), allow(unused_mut))]
-        let mut report_items: Items = utils::take_items_by(items, |i| {
-            matches!(i.ty(), ItemType::UnrealReport) || i.is_unreal_expanded()
-        });
-        if report_items.is_empty() {
-            return Ok(None);
-        }
+        let report = if let Some(item) = utils::take_item_of_type(items, ItemType::UnrealReport) {
+            UnrealReport::Report(item)
+        } else {
+            let items: Items = utils::take_items_by(items, |i| i.is_unreal_expanded());
+            if items.is_empty() {
+                return Ok(None);
+            }
+            UnrealReport::Expanded(Box::new(items))
+        };
 
         let mut metrics = Default::default();
 
@@ -40,7 +45,7 @@ impl SentryError for Unreal {
                 event: Box::new(utils::take_event_from_crash_items(items, &mut metrics, ctx)?),
                 attachments: utils::take_items_of_type(items, ItemType::Attachment),
                 user_reports: utils::take_items_of_type(items, ItemType::UserReport),
-                error: Self::Forward { report_items },
+                error: Self::Forward(report),
                 metrics,
                 fully_normalized: false,
             }
@@ -48,13 +53,11 @@ impl SentryError for Unreal {
             use crate::envelope::AttachmentType;
             use crate::services::processor::ProcessingError;
 
-            // Unreal expanded is no longer needed and as such is set to false so that the items
-            // behave correctly from here on out.
-            for item in &mut report_items {
-                item.set_unreal_expanded(false);
-            }
+            let expansion = match report {
+                UnrealReport::Report(item) => crate::utils::expand_unreal(item.payload(), ctx.processing.config)?,
+                UnrealReport::Expanded(report_items) => crate::utils::expand_unreal_items(*report_items)?,
+            };
 
-            let expansion = crate::utils::expand_unreal_items(report_items, ctx.processing.config)?;
             let event = expansion.event;
             let mut attachments = expansion.attachments.into_vec();
             attachments.extend(items.extract_if(.., |item| *item.ty() == ItemType::Attachment));
@@ -172,7 +175,8 @@ impl SentryError for Unreal {
 
     fn serialize_into(self, items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
         match self {
-            Self::Forward { report_items } => items.extend(report_items),
+            Self::Forward(UnrealReport::Report(report)) => items.push(report),
+            Self::Forward(UnrealReport::Expanded(report_items)) => items.extend(*report_items),
             #[cfg(feature = "processing")]
             Self::Process {
                 minidump,
@@ -198,7 +202,8 @@ impl SentryError for Unreal {
 impl Counted for Unreal {
     fn quantities(&self) -> Quantities {
         match self {
-            Self::Forward { .. } => Quantities::default(),
+            Self::Forward(UnrealReport::Report(..)) => Quantities::default(),
+            Self::Forward(UnrealReport::Expanded(items)) => items.quantities(),
             #[cfg(feature = "processing")]
             Self::Process {
                 minidump,

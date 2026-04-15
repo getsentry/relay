@@ -28,15 +28,10 @@ def test_unreal_crash(mini_sentry, relay, dump_file_name, rollout_rate):
     ] = rollout_rate
     relay = relay(mini_sentry)
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["quotas"] = [
-        {
-            "categories": ["attachment"],
-            "limit": 0,
-            "window": 3600,
-            "id": "attachment_limit",
-            "reasonCode": "static_disabled_quota",
-        }
-    ]
+    if rollout_rate:
+        project_config["config"].setdefault("features", []).extend(
+            ["organizations:relay-unreal-endpoint-expansion"]
+        )
 
     unreal_content = load_dump_file(dump_file_name)
 
@@ -63,8 +58,8 @@ def test_unreal_crash(mini_sentry, relay, dump_file_name, rollout_rate):
 
 
 @pytest.mark.parametrize("dump_file_name", ["unreal_crash", "unreal_crash_apple"])
-@pytest.mark.parametrize("has_quota", [False, True])
-def test_unreal_crash_ratelimiting(
+@pytest.mark.parametrize("rollout_rate", [0.0, 1.0])
+def test_unreal_crash_full_pipeline(
     mini_sentry,
     relay,
     relay_with_processing,
@@ -72,33 +67,25 @@ def test_unreal_crash_ratelimiting(
     attachments_consumer,
     outcomes_consumer,
     dump_file_name,
-    has_quota,
+    rollout_rate,
 ):
     """
-    Even if items expanded from an unreal report are not rate-limited in pops (see test_unreal_crash)
-    they should still be rat-limited in processing after all the important information has been
-    extracted.
+    Even if unreal report is expanded in the endpoint the end to end logic should remain unchanged.
     """
     project_id = 42
     mini_sentry.global_config["options"][
         "relay.unreal-report-expansion.rollout-rate"
-    ] = 1.0
+    ] = rollout_rate
 
     credentials = relay_credentials()
     processing = relay_with_processing(static_credentials=credentials)
     pop = relay(processing, credentials=credentials)
 
     project_config = mini_sentry.add_full_project_config(project_id)
-    if has_quota:
-        project_config["config"]["quotas"] = [
-            {
-                "categories": ["attachment"],
-                "limit": 0,
-                "window": 3600,
-                "id": "attachment_limit",
-                "reasonCode": "static_disabled_quota",
-            }
-        ]
+    if rollout_rate:
+        project_config["config"].setdefault("features", []).extend(
+            ["organizations:relay-unreal-endpoint-expansion"]
+        )
 
     attachments_consumer = attachments_consumer()
     outcomes_consumer = outcomes_consumer()
@@ -112,15 +99,7 @@ def test_unreal_crash_ratelimiting(
     assert event["type"] == "event"
     assert "unreal" in payload.get("contexts", {})
 
-    if has_quota:
-        outcomes_consumer.assert_rate_limited(
-            "static_disabled_quota",
-            categories=["attachment", "attachment_item"],
-        )
-    else:
-        assert len(event["attachments"]) == (
-            4 if dump_file_name == "unreal_crash" else 6
-        )
+    assert len(event["attachments"]) == (4 if dump_file_name == "unreal_crash" else 6)
 
 
 def test_unreal_minidump_with_processing(
