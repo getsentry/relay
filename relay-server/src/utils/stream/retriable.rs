@@ -79,74 +79,85 @@ impl<S: Stream + Unpin> Stream for RetriableStream<S> {
     }
 }
 
-// // /// A wrapper that sends the contained data back to its creator on destruction, unless it's been used.
-// // pub struct Recoverable<T>(Option<(T, oneshot::Sender<T>)>);
+#[cfg(test)]
+mod tests {
+    use futures::stream;
 
-// // impl<T> Recoverable<T> {
-// //     fn create(inner: T) -> (Self, oneshot::Receiver<T>) {
-// //         let (tx, rx) = oneshot::channel();
-// //         (Self(Some((inner, tx))), rx)
-// //     }
+    use super::*;
 
-// //     fn take(&mut self) -> Option<T> {
-// //         self.0.take().map(|(inner, _)| inner)
-// //     }
-// // }
+    #[tokio::test]
+    async fn test_stream_yields_all_items() {
+        let retriable = Retriable::new(stream::iter(vec![1, 2, 3]));
+        let s = RetriableStream::new(&retriable).unwrap();
+        let items: Vec<_> = s.collect().await;
+        assert_eq!(items, vec![1, 2, 3]);
+    }
 
-// // impl<T> Drop for Recoverable<T> {
-// //     fn drop(&mut self) {
-// //         if let Some((inner, tx)) = self.0.take() {
-// //             let _ = tx.send(inner);
-// //         }
-// //     }
-// // }
+    #[tokio::test]
+    async fn test_empty_stream() {
+        let retriable = Retriable::new(stream::iter(Vec::<i32>::new()));
+        let s = RetriableStream::new(&retriable).unwrap();
+        let items: Vec<_> = s.collect().await;
+        assert!(items.is_empty());
+    }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use futures::stream;
+    #[tokio::test]
+    async fn test_not_retriable_after_use() {
+        let retriable = Retriable::new(stream::iter(vec![1]));
+        let s = RetriableStream::new(&retriable).unwrap();
+        let _: Vec<_> = s.collect().await;
 
-//     #[tokio::test]
-//     async fn recoverable_returns_value_on_drop() {
-//         let (recoverable, rx) = Recoverable::create(42);
-//         drop(recoverable);
-//         assert_eq!(rx.await.unwrap(), 42);
-//     }
+        assert!(RetriableStream::new(&retriable).is_none());
+    }
 
-//     #[tokio::test]
-//     async fn recoverable_take_prevents_recovery() {
-//         let (mut recoverable, rx) = Recoverable::create(42);
-//         assert_eq!(recoverable.take(), Some(42));
-//         drop(recoverable);
-//         assert!(rx.await.is_err());
-//     }
+    #[tokio::test]
+    async fn test_retriable_before_use() {
+        let retriable = Retriable::new(stream::iter(vec![1, 2]));
 
-//     #[tokio::test]
-//     async fn retriable_stream_polls_items() {
-//         let inner = stream::iter(vec![1, 2, 3]);
-//         let (mut retriable, _rx) = RetriableStream::create(inner);
-//         assert_eq!(retriable.next().await, Some(1));
-//         assert_eq!(retriable.next().await, Some(2));
-//         assert_eq!(retriable.next().await, Some(3));
-//         assert_eq!(retriable.next().await, None);
-//     }
+        // First stream is created but never polled — inner is still available.
+        let _s1 = RetriableStream::new(&retriable).unwrap();
 
-//     #[tokio::test]
-//     async fn retriable_stream_recovers_on_drop_before_poll() {
-//         let inner = stream::iter(vec![1, 2, 3]);
-//         let (retriable, rx) = RetriableStream::create(inner);
-//         drop(retriable);
-//         let mut recovered = rx.await.unwrap();
-//         assert_eq!(recovered.next().await, Some(1));
-//     }
+        // A second stream can be created because the first hasn't taken the inner yet.
+        assert!(RetriableStream::new(&retriable).is_some());
+    }
 
-//     #[tokio::test]
-//     async fn retriable_stream_not_recoverable_after_poll() {
-//         let inner = stream::iter(vec![1, 2, 3]);
-//         let (mut retriable, rx) = RetriableStream::create(inner);
-//         // Polling transitions to Taken state.
-//         assert_eq!(retriable.next().await, Some(1));
-//         drop(retriable);
-//         assert!(rx.await.is_err());
-//     }
-// }
+    #[tokio::test]
+    async fn test_first_poll_consumes_inner() {
+        let retriable = Retriable::new(stream::iter(vec![1, 2]));
+
+        let mut s1 = RetriableStream::new(&retriable).unwrap();
+        // Polling the first item transitions s1 from Retriable -> Used.
+        assert_eq!(s1.next().await, Some(1));
+
+        // Now the inner is consumed; no new stream can be created.
+        assert!(RetriableStream::new(&retriable).is_none());
+
+        // But s1 still works.
+        assert_eq!(s1.next().await, Some(2));
+        assert_eq!(s1.next().await, None);
+    }
+
+    #[tokio::test]
+    async fn test_size_hint_before_poll() {
+        let retriable = Retriable::new(stream::iter(vec![1, 2, 3]));
+        let s = RetriableStream::new(&retriable).unwrap();
+        assert_eq!(s.size_hint(), (3, Some(3)));
+    }
+
+    #[tokio::test]
+    async fn test_size_hint_after_poll() {
+        let retriable = Retriable::new(stream::iter(vec![1, 2, 3]));
+        let mut s = RetriableStream::new(&retriable).unwrap();
+        s.next().await;
+        // After consuming one item, the stream is Used and delegates to the inner iter.
+        assert_eq!(s.size_hint(), (2, Some(2)));
+    }
+
+    #[test]
+    fn test_clone_shares_inner() {
+        let retriable = Retriable::new(stream::iter(vec![1]));
+        let clone = retriable.clone();
+        // Both point to the same Arc.
+        assert!(Arc::ptr_eq(&retriable.0, &clone.0));
+    }
+}
