@@ -27,8 +27,7 @@ impl<T> TakeOnce<T> {
         self.lock().take()
     }
 
-    /// Gets locked
-    /// access to the underlying option.
+    /// Gets locked access to the underlying option.
     fn lock(&self) -> MutexGuard<'_, Option<T>> {
         self.0.lock().unwrap_or_else(PoisonError::into_inner)
     }
