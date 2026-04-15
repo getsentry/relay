@@ -540,7 +540,7 @@ impl ObjectstoreServiceInner {
                 };
                 attempt += 1;
                 result = self
-                    .attempt_upload("stream", session, key.clone(), body, retention_hours)
+                    .attempt_upload(ty, session, key.clone(), body, retention_hours)
                     .await;
 
                 match &result {
