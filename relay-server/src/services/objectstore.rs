@@ -28,7 +28,7 @@ use crate::services::outcome::DiscardReason;
 use crate::services::store::{Store, StoreAttachment, StoreEnvelope, StoreTraceItem};
 use crate::services::upload::ByteStream;
 use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::{BoundedStream, MeteredStream, Retriable, RetriableStream};
+use crate::utils::{BoundedStream, MeteredStream, RetriableStream, TakeOnce};
 
 use super::outcome::Outcome;
 
@@ -526,18 +526,21 @@ impl ObjectstoreServiceInner {
             }
         };
 
-        let retriable = Retriable::new(stream);
+        let stream = TakeOnce::new(stream);
         let mut result = Err(Error::Internal);
         let mut attempt = 0;
-        while result.is_err_and(|e| e.is_retriable())
-            && attempt < self.max_attempts
-            && let Some(stream) = RetriableStream::new(&retriable)
-        {
-            let request = session.put_stream(stream.boxed()).key(key.clone());
-            result = self.upload("stream", request).await;
+        while attempt < self.max_attempts {
             attempt += 1;
-            if result.is_err() {
-                tokio::time::sleep(self.retry_interval).await;
+            let Some(s) = RetriableStream::new(stream.clone()) else {
+                break;
+            };
+            let request = session.put_stream(s.boxed()).key(key.clone());
+            result = self.upload("stream", request).await;
+            match &result {
+                Err(e) if e.is_retriable() => {
+                    tokio::time::sleep(self.retry_interval).await;
+                }
+                _ => break,
             }
         }
 
