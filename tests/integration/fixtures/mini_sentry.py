@@ -44,6 +44,7 @@ class Sentry(SentryLike):
         self.captured_metrics = Queue()
         self.test_failures = Queue()
         self.hits = {}
+        self.always_consume_body = True
         self.known_relays = {}
         self.fail_on_relay_error = True
         self.request_log = []
@@ -298,13 +299,14 @@ def mini_sentry(request):  # noqa
 
     @app.before_request
     def count_hits():
-        # Consume POST body even if we don't like this request
-        # to no clobber the socket and buffers
-        try:
-            _ = flask_request.data
-        except Exception:
-            # stream might be invalid
-            pass
+        if sentry.always_consume_body:
+            # Consume POST body even if we don't like this request
+            # to no clobber the socket and buffers
+            try:
+                _ = flask_request.data
+            except Exception:
+                # stream might be invalid
+                pass
 
         if flask_request.url_rule:
             sentry.hit(flask_request.url_rule.rule)

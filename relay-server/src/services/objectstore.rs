@@ -8,7 +8,7 @@ use bytes::Bytes;
 use futures::StreamExt;
 use http::StatusCode;
 use objectstore_client::{
-    Client, ExpirationPolicy, PutBuilder, SecretKey as SigningKey, Session, TokenGenerator, Usecase,
+    Client, ExpirationPolicy, SecretKey as SigningKey, Session, TokenGenerator, Usecase,
 };
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
@@ -316,7 +316,7 @@ impl ObjectstoreServiceInner {
                 self.handle_envelope(envelope).await;
             }
             Objectstore::TraceAttachment(attachment) => {
-                self.handle_trace_attachment(attachment).await
+                let _ = self.handle_trace_attachment(attachment).await;
             }
             Objectstore::EventAttachment(attachment) => {
                 self.handle_event_attachment(attachment).await
@@ -360,14 +360,6 @@ impl ObjectstoreServiceInner {
                         .upload_bytes("envelope", &session, attachment.payload(), retention, None)
                         .await;
 
-                    relay_statsd::metric!(
-                        counter(RelayCounters::AttachmentUpload) += 1,
-                        result = match &result {
-                            Ok(_) => "success",
-                            Err(e) => e.as_str(),
-                        },
-                        type = "envelope",
-                    );
                     if let Ok(stored_key) = result {
                         attachment.set_stored_key(stored_key.into_inner());
                     }
@@ -415,15 +407,6 @@ impl ObjectstoreServiceInner {
                     )
                     .await;
 
-                relay_statsd::metric!(
-                    counter(RelayCounters::AttachmentUpload) += 1,
-                    result = match &result {
-                        Ok(_) => "success",
-                        Err(e) => e.as_str(),
-                    },
-                    type = "attachment",
-                );
-
                 if let Ok(stored_key) = result {
                     attachment.modify(|attachment, _| {
                         attachment
@@ -437,20 +420,7 @@ impl ObjectstoreServiceInner {
         self.store.send(attachment)
     }
 
-    async fn handle_trace_attachment(&self, managed: Managed<StoreTraceAttachment>) {
-        let result = self.do_handle_store_attachment(managed).await;
-
-        relay_statsd::metric!(
-            counter(RelayCounters::AttachmentUpload) += 1,
-            result = match result {
-                Ok(()) => "success",
-                Err(e) => e.into_inner().as_str(),
-            },
-            type = "attachment_v2",
-        );
-    }
-
-    async fn do_handle_store_attachment(
+    async fn handle_trace_attachment(
         &self,
         managed: Managed<StoreTraceAttachment>,
     ) -> Result<(), Rejected<Error>> {
@@ -526,33 +496,15 @@ impl ObjectstoreServiceInner {
             }
         };
 
-        let stream = TakeOnce::new(stream);
-        let mut result = Err(Error::Internal);
-        let mut attempt = 0;
-        while attempt < self.max_attempts {
-            attempt += 1;
-            let Some(s) = RetriableStream::new(stream.clone()) else {
-                break;
-            };
-            let request = session.put_stream(s.boxed()).key(key.clone());
-            result = self.upload("stream", request).await;
-            match &result {
-                Err(e) if e.is_retriable() => {
-                    tokio::time::sleep(self.retry_interval).await;
-                }
-                _ => break,
-            }
-        }
-
-        relay_statsd::metric!(
-            counter(RelayCounters::AttachmentUpload) += 1,
-            result = match &result {
-                Ok(_) => "success",
-                Err(e) => e.as_str(),
-            },
-            type = "stream",
-            attempts = attempt.to_string()
-        );
+        let result = self
+            .upload(
+                "stream",
+                &session,
+                Some(key),
+                Body::Stream(TakeOnce::new(stream)),
+                None,
+            )
+            .await;
 
         sender.send(result);
     }
@@ -565,9 +517,77 @@ impl ObjectstoreServiceInner {
         retention: u16,
         key: Option<String>,
     ) -> Result<ObjectstoreKey, Error> {
-        let mut request = session.put(payload);
+        let retention_hours = retention.checked_mul(24);
+        self.upload(ty, session, key, Body::Bytes(payload), retention_hours)
+            .await
+    }
 
-        if let Some(retention_hours) = retention.checked_mul(24) {
+    async fn upload(
+        &self,
+        ty: &str,
+        session: &Session,
+        key: Option<String>,
+        body: Body,
+        retention_hours: Option<u16>,
+    ) -> Result<ObjectstoreKey, Error> {
+        tokio::time::timeout(self.timeout, async {
+            let mut result = Err(Error::Internal);
+            let mut attempt = 0;
+            while attempt < self.max_attempts {
+                attempt += 1;
+                let Some(body) = body.try_clone() else {
+                    break;
+                };
+                result = self
+                    .attempt_upload("stream", session, key.clone(), body, retention_hours)
+                    .await;
+                match &result {
+                    Err(e) if e.is_retriable() => {
+                        tokio::time::sleep(self.retry_interval).await;
+                    }
+                    _ => break,
+                }
+            }
+
+            if let Err(e) = &result {
+                relay_log::error!(
+                    error = e as &dyn std::error::Error,
+                    attempts = attempt,
+                    type = ty,
+                    "objectstore upload failed in {} attempt(s)",
+                    attempt
+                )
+            }
+
+            relay_statsd::metric!(
+                counter(RelayCounters::AttachmentUpload) += 1,
+                result = match &result {
+                    Ok(_) => "success",
+                    Err(e) => e.as_str(),
+                },
+                type = ty,
+                attempts = attempt.to_string()
+            );
+
+            result
+        })
+        .await?
+    }
+
+    async fn attempt_upload(
+        &self,
+        ty: &str,
+        session: &Session,
+        key: Option<String>,
+        body: PutBody,
+        retention_hours: Option<u16>,
+    ) -> Result<ObjectstoreKey, Error> {
+        let mut request = match body {
+            PutBody::Bytes(bytes) => session.put(bytes),
+            PutBody::Stream(stream) => session.put_stream(stream.boxed()),
+        };
+
+        if let Some(retention_hours) = retention_hours {
             request = request.expiration_policy(ExpirationPolicy::TimeToLive(
                 Duration::from_hours(retention_hours.into()),
             ));
@@ -576,31 +596,13 @@ impl ObjectstoreServiceInner {
             request = request.key(key);
         }
 
-        tokio::time::timeout(self.timeout, self.upload(ty, request)).await?
-    }
-
-    async fn upload(&self, ty: &str, request: PutBuilder) -> Result<ObjectstoreKey, Error> {
-        self.upload_inner(ty, request).await.inspect_err(|e| {
-            relay_log::error!(
-                error = e as &dyn std::error::Error,
-                "objectstore upload failed"
-            )
-        })
-    }
-
-    async fn upload_inner(&self, ty: &str, request: PutBuilder) -> Result<ObjectstoreKey, Error> {
-        relay_log::trace!("Starting attachment upload");
         let response = relay_statsd::metric!(
             timer(RelayTimers::AttachmentUploadDuration),
             type = ty,
             {
-                request.send()
-                    .await
-                    .map_err(Error::UploadFailed)?
+                request.send().await
             }
-        );
-
-        relay_log::trace!("Finished attachment upload");
+        )?;
 
         Ok(ObjectstoreKey(response.key))
     }
@@ -613,4 +615,23 @@ impl ObjectstoreServiceInner {
     fn should_skip_upload(item: &Item) -> bool {
         item.is_empty() || item.is_attachment_ref()
     }
+}
+
+enum Body {
+    Bytes(Bytes),
+    Stream(TakeOnce<BoundedStream<MeteredStream<ByteStream>>>),
+}
+
+impl Body {
+    fn try_clone(&self) -> Option<PutBody> {
+        match self {
+            Self::Bytes(bytes) => Some(PutBody::Bytes(bytes.clone())),
+            Self::Stream(stream) => RetriableStream::new(stream.clone()).map(PutBody::Stream),
+        }
+    }
+}
+
+enum PutBody {
+    Bytes(Bytes),
+    Stream(RetriableStream<BoundedStream<MeteredStream<ByteStream>>>),
 }
