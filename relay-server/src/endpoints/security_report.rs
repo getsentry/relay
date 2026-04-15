@@ -103,7 +103,7 @@ async fn handle(
     let envelope = params.extract_envelope()?;
     common::handle_envelope(&state, envelope)
         .await?
-        .ignore_rate_limits();
+        .silence_rate_limits();
 
     Ok(().into_response())
 }

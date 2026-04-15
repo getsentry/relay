@@ -26,7 +26,7 @@
 - Propagate an event's retention policy to its attachments ([#5774](https://github.com/getsentry/relay/pull/5774))
 - Prevent panic in span description normalization. ([#5781](https://github.com/getsentry/relay/pull/5781))
 - Limit overall stream size in playstation multiparts. ([#5795](https://github.com/getsentry/relay/pull/5795))
-- Respect rate limit ignoration even when all items are rate limited ([#5840](https://github.com/getsentry/relay/pull/5840))
+- Respect rate limit silencing also when all items are rate limited ([#5840](https://github.com/getsentry/relay/pull/5840))
 
 **Features**:
 

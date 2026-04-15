@@ -60,6 +60,6 @@ pub async fn handle(
     let envelope = extract_envelope(meta, path, multipart, state.config()).await?;
     common::handle_envelope(&state, envelope)
         .await?
-        .ignore_rate_limits();
+        .silence_rate_limits();
     Ok(StatusCode::CREATED)
 }

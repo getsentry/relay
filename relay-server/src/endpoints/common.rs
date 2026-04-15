@@ -409,11 +409,11 @@ impl HandledEnvelope {
         Ok(self.event_id)
     }
 
-    /// Ignore rate limits, even if they caused items to be dropped from the envelope.
+    /// Silence rate limits, even if they caused items to be dropped from the envelope.
     ///
     /// Endpoints which choose to not propagate rate limits should use this method to explicitly
-    /// state the fact that they do not propagate rate limits.
-    pub fn ignore_rate_limits(self) -> Option<EventId> {
+    /// state the fact that they do so.
+    pub fn silence_rate_limits(self) -> Option<EventId> {
         self.event_id
     }
 }
