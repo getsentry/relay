@@ -16,7 +16,7 @@
 
 **Features**:
 
-- Use separate intern tables per Perfetto field and infer main thread from pid. ([#5659](https://github.com/getsentry/relay/pull/5659))
+- Add Perfetto trace format support for continuous profiling: convert binary Perfetto traces into Sample v2 format, handle both `PerfSample` and `StreamingProfilePacket` packet types, resolve Java and native frames, extract debug images from mappings, and forward the raw binary profile alongside the expanded JSON payload via compound items. ([#5659](https://github.com/getsentry/relay/pull/5659))
 - Set `sentry.segment.id` and `sentry.segment.name` attributes on OTLP segment spans. ([#5748](https://github.com/getsentry/relay/pull/5748))
 - Envelope buffer: Add option to disable flush-to-disk on shutdown. ([#5751](https://github.com/getsentry/relay/pull/5751))
 - Allow configuring Objectstore client auth parameters. ([#5720](https://github.com/getsentry/relay/pull/5720))

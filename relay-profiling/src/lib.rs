@@ -367,7 +367,7 @@ pub struct ExpandedPerfettoChunk {
     /// Platform string extracted from the metadata (e.g. `"android"`).
     pub platform: String,
     /// Release string from the metadata, used for inbound filtering.
-    release: Option<String>,
+    pub release: Option<String>,
 }
 
 impl ExpandedPerfettoChunk {

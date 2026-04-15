@@ -12,7 +12,7 @@ use prost::Message;
 use relay_event_schema::protocol::{Addr, DebugId};
 use relay_protocol::FiniteF64;
 
-use crate::debug_image::DebugImage;
+use crate::debug_image::{DebugImage, ImageType};
 use crate::error::ProfileError;
 use crate::sample::v2::{ProfileData, Sample};
 use crate::sample::{Frame, ThreadMetadata};
@@ -79,6 +79,7 @@ fn extract_clock_offset(cs: &proto::ClockSnapshot) -> Option<i128> {
 /// See <https://android.googlesource.com/platform/external/perfetto/+/refs/heads/master/protos/perfetto/trace/interned_data/interned_data.proto>.
 #[derive(Debug, Default)]
 struct InternTables {
+    // HashMap over BTreeMap: these tables can grow large (one entry per interned symbol).
     function_names: HashMap<u64, String>,
     mapping_paths: HashMap<u64, String>,
     /// Build IDs stored as hex-encoded strings (normalized from raw bytes).
@@ -89,17 +90,8 @@ struct InternTables {
 }
 
 impl InternTables {
-    fn clear(&mut self) {
-        self.function_names.clear();
-        self.mapping_paths.clear();
-        self.build_ids.clear();
-        self.frames.clear();
-        self.callstacks.clear();
-        self.mappings.clear();
-    }
-
-    fn merge(&mut self, data: &proto::InternedData) {
-        for s in &data.function_names {
+    fn merge(&mut self, data: proto::InternedData) {
+        for s in data.function_names {
             if let Some(iid) = s.iid {
                 let value = s
                     .r#str
@@ -110,7 +102,7 @@ impl InternTables {
                 self.function_names.insert(iid, value);
             }
         }
-        for s in &data.mapping_paths {
+        for s in data.mapping_paths {
             if let Some(iid) = s.iid {
                 let value = s
                     .r#str
@@ -122,7 +114,7 @@ impl InternTables {
             }
         }
         // Build IDs are raw bytes in Perfetto traces; normalize to hex for later lookup.
-        for s in &data.build_ids {
+        for s in data.build_ids {
             if let Some(iid) = s.iid {
                 let value = match s.r#str.as_deref() {
                     Some(bytes) if !bytes.is_empty() => HEXLOWER.encode(bytes),
@@ -131,19 +123,19 @@ impl InternTables {
                 self.build_ids.insert(iid, value);
             }
         }
-        for f in &data.frames {
+        for f in data.frames {
             if let Some(iid) = f.iid {
-                self.frames.insert(iid, *f);
+                self.frames.insert(iid, f);
             }
         }
-        for c in &data.callstacks {
+        for c in data.callstacks {
             if let Some(iid) = c.iid {
-                self.callstacks.insert(iid, c.clone());
+                self.callstacks.insert(iid, c);
             }
         }
-        for m in &data.mappings {
+        for m in data.mappings {
             if let Some(iid) = m.iid {
-                self.mappings.insert(iid, m.clone());
+                self.mappings.insert(iid, m);
             }
         }
     }
@@ -162,76 +154,85 @@ struct FrameKey {
     instruction_addr: Option<u64>,
 }
 
+/// Mutable context for callstack resolution, collecting frames, stacks,
+/// and debug images during a single conversion pass.
+#[derive(Default)]
+struct ResolveContext {
+    // HashMap/HashSet over BTreeMap/BTreeSet: these dedup indexes can grow large.
+    frame_index: HashMap<FrameKey, usize>,
+    frames: Vec<Frame>,
+    stack_index: HashMap<Vec<usize>, usize>,
+    stacks: Vec<Vec<usize>>,
+    debug_images: Vec<DebugImage>,
+    seen_images: HashSet<(String, u64)>,
+}
+
 /// Converts a Perfetto binary trace into Sample v2 [`ProfileData`] and debug images.
 pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), ProfileError> {
     let trace =
         proto::Trace::decode(perfetto_bytes).map_err(|_| ProfileError::InvalidSampledProfile)?;
 
-    let mut tables_by_seq: HashMap<u32, InternTables> = HashMap::new();
-    let mut thread_meta: BTreeMap<String, ThreadMetadata> = BTreeMap::new();
+    let mut tables_by_seq: BTreeMap<u32, InternTables> = BTreeMap::new();
+    let mut thread_meta: BTreeMap<u32, ThreadMetadata> = BTreeMap::new();
     let mut clock_offset_ns: Option<i128> = None;
     let mut observed_pid: Option<u32> = None;
     // Maps trusted_packet_sequence_id → tid for StreamingProfilePacket,
     // resolved via the TrackDescriptor → ThreadDescriptor chain.
-    let mut seq_id_to_tid: HashMap<u32, u32> = HashMap::new();
+    let mut seq_id_to_tid: BTreeMap<u32, u32> = BTreeMap::new();
 
     // Samples are resolved eagerly during packet iteration (single-pass) so
     // that incremental state resets don't cause earlier samples to be resolved
     // against a post-reset intern table. We collect (ts_ns, tid, stack_id)
     // tuples and apply clock offset + sorting after the loop.
-    let mut frame_index: HashMap<FrameKey, usize> = HashMap::new();
-    let mut frames: Vec<Frame> = Vec::new();
-    let mut stack_index: HashMap<Vec<usize>, usize> = HashMap::new();
-    let mut stacks: Vec<Vec<usize>> = Vec::new();
+    let mut ctx = ResolveContext::default();
     // (timestamp_ns, tid, stack_id)
     let mut resolved_samples: Vec<(u64, u32, usize)> = Vec::new();
     let mut sample_count: usize = 0;
-    let mut debug_images: Vec<DebugImage> = Vec::new();
-    let mut seen_images: HashSet<(String, u64)> = HashSet::new();
 
-    for packet in &trace.packet {
-        let seq_id = trusted_packet_sequence_id(packet);
+    for packet in trace.packet {
+        let seq_id = trusted_packet_sequence_id(&packet);
 
-        if has_incremental_state_cleared(packet) {
-            tables_by_seq.entry(seq_id).or_default().clear();
+        if has_incremental_state_cleared(&packet) && tables_by_seq.contains_key(&seq_id) {
+            tables_by_seq.insert(seq_id, InternTables::default());
         }
 
-        if let Some(ref interned) = packet.interned_data {
+        if let Some(interned) = packet.interned_data {
             tables_by_seq.entry(seq_id).or_default().merge(interned);
         }
 
-        match &packet.data {
+        match packet.data {
             Some(Data::ClockSnapshot(cs)) => {
                 if clock_offset_ns.is_none() {
-                    clock_offset_ns = extract_clock_offset(cs);
+                    clock_offset_ns = extract_clock_offset(&cs);
                 }
             }
             Some(Data::ProcessTree(pt)) => {
-                for thread in &pt.threads {
+                for thread in pt.threads {
                     if let Some(tid) = thread.tid {
-                        let tid_str = tid.to_string();
                         thread_meta
-                            .entry(tid_str)
+                            .entry(tid as u32)
                             .or_insert_with(|| ThreadMetadata {
-                                name: thread.name.clone(),
+                                name: thread.name,
                                 priority: None,
                             });
                     }
                 }
             }
             Some(Data::TrackDescriptor(td)) => {
-                if let Some(ref thread) = td.thread
+                if let Some(thread) = td.thread
                     && let Some(tid) = thread.tid
                 {
-                    let tid_str = tid.to_string();
                     thread_meta
-                        .entry(tid_str)
+                        .entry(tid as u32)
                         .or_insert_with(|| ThreadMetadata {
-                            name: thread.thread_name.clone(),
+                            name: thread.thread_name,
                             priority: None,
                         });
                     // Associate this packet sequence with the thread so that
                     // StreamingProfilePacket samples can resolve their tid.
+                    // By producer convention (not a protocol guarantee),
+                    // TrackDescriptor is emitted before data packets on the
+                    // same sequence. If violated, samples fall back to tid 0.
                     if seq_id != 0 {
                         seq_id_to_tid.entry(seq_id).or_insert(tid as u32);
                     }
@@ -245,17 +246,9 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
                         observed_pid = ps.pid;
                     }
                     sample_count += 1;
-                    if let Some(stack_id) = resolve_callstack(
-                        callstack_iid,
-                        seq_id,
-                        &tables_by_seq,
-                        &mut frame_index,
-                        &mut frames,
-                        &mut stack_index,
-                        &mut stacks,
-                        &mut debug_images,
-                        &mut seen_images,
-                    ) {
+                    if let Some(stack_id) =
+                        resolve_callstack(callstack_iid, seq_id, &tables_by_seq, &mut ctx)
+                    {
                         resolved_samples.push((ts, tid, stack_id));
                     }
                 }
@@ -271,17 +264,9 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
                         ts = ts.wrapping_add((delta * 1000) as u64);
                     }
                     sample_count += 1;
-                    if let Some(stack_id) = resolve_callstack(
-                        cs_iid,
-                        seq_id,
-                        &tables_by_seq,
-                        &mut frame_index,
-                        &mut frames,
-                        &mut stack_index,
-                        &mut stacks,
-                        &mut debug_images,
-                        &mut seen_images,
-                    ) {
+                    if let Some(stack_id) =
+                        resolve_callstack(cs_iid, seq_id, &tables_by_seq, &mut ctx)
+                    {
                         resolved_samples.push((ts, tid, stack_id));
                     }
                 }
@@ -302,13 +287,10 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
     // If the trace didn't include a ProcessTree or TrackDescriptor with a name
     // for that thread, label it "main" so the UI can identify it.
     if let Some(pid) = observed_pid {
-        let main_tid = pid.to_string();
-        thread_meta
-            .entry(main_tid)
-            .or_insert_with(|| ThreadMetadata {
-                name: Some("main".to_owned()),
-                priority: None,
-            });
+        thread_meta.entry(pid).or_insert_with(|| ThreadMetadata {
+            name: Some("main".to_owned()),
+            priority: None,
+        });
     }
 
     let clock_offset_ns = clock_offset_ns.ok_or(ProfileError::InvalidSampledProfile)?;
@@ -336,14 +318,20 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
         return Err(ProfileError::NotEnoughSamples);
     }
 
+    // Convert u32 thread keys to String for the output format.
+    let thread_metadata = thread_meta
+        .into_iter()
+        .map(|(tid, meta)| (tid.to_string(), meta))
+        .collect();
+
     Ok((
         ProfileData {
             samples,
-            stacks,
-            frames,
-            thread_metadata: thread_meta,
+            stacks: ctx.stacks,
+            frames: ctx.frames,
+            thread_metadata,
         },
-        debug_images,
+        ctx.debug_images,
     ))
 }
 
@@ -352,17 +340,11 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
 ///
 /// Returns `Some(stack_id)` if the callstack was resolved, or `None` if the
 /// callstack iid was not found in the tables.
-#[allow(clippy::too_many_arguments)]
 fn resolve_callstack(
     cs_iid: u64,
     seq_id: u32,
-    tables_by_seq: &HashMap<u32, InternTables>,
-    frame_index: &mut HashMap<FrameKey, usize>,
-    frames: &mut Vec<Frame>,
-    stack_index: &mut HashMap<Vec<usize>, usize>,
-    stacks: &mut Vec<Vec<usize>>,
-    debug_images: &mut Vec<DebugImage>,
-    seen_images: &mut HashSet<(String, u64)>,
+    tables_by_seq: &BTreeMap<u32, InternTables>,
+    ctx: &mut ResolveContext,
 ) -> Option<usize> {
     let empty_tables = InternTables::default();
     let tables = tables_by_seq.get(&seq_id).unwrap_or(&empty_tables);
@@ -381,18 +363,20 @@ fn resolve_callstack(
             .and_then(|id| tables.function_names.get(&id))
             .cloned();
 
-        if let Some(mid) = pf.mapping_id {
-            collect_debug_image(mid, tables, debug_images, seen_images);
+        if let Some(mid) = pf.mapping_id
+            && let Some(image) = collect_debug_image(mid, tables, &mut ctx.seen_images)
+        {
+            ctx.debug_images.push(image);
         }
 
         let (key, frame) = build_frame(function_name, pf, tables);
 
-        let idx = if let Some(&existing) = frame_index.get(&key) {
+        let idx = if let Some(&existing) = ctx.frame_index.get(&key) {
             existing
         } else {
-            let idx = frames.len();
-            frame_index.insert(key, idx);
-            frames.push(frame);
+            let idx = ctx.frames.len();
+            ctx.frame_index.insert(key, idx);
+            ctx.frames.push(frame);
             idx
         };
 
@@ -402,28 +386,29 @@ fn resolve_callstack(
     // Perfetto stacks are root-first, Sample v2 is leaf-first.
     resolved_frame_indices.reverse();
 
-    let stack_id = if let Some(&existing) = stack_index.get(&resolved_frame_indices) {
+    let stack_id = if let Some(&existing) = ctx.stack_index.get(&resolved_frame_indices) {
         existing
     } else {
-        let id = stacks.len();
-        stack_index.insert(resolved_frame_indices.clone(), id);
-        stacks.push(resolved_frame_indices);
+        let id = ctx.stacks.len();
+        ctx.stack_index.insert(resolved_frame_indices.clone(), id);
+        ctx.stacks.push(resolved_frame_indices);
         id
     };
 
     Some(stack_id)
 }
 
-/// Collects a debug image from a native mapping if not already seen.
+/// Builds a debug image from a native mapping if not already seen.
+///
+/// Returns `Some(DebugImage)` for new native mappings with a valid build ID,
+/// or `None` if the mapping is missing, Java-only, already seen, or lacks
+/// a valid debug ID.
 fn collect_debug_image(
     mapping_id: u64,
     tables: &InternTables,
-    debug_images: &mut Vec<DebugImage>,
     seen_images: &mut HashSet<(String, u64)>,
-) {
-    let Some(mapping) = tables.mappings.get(&mapping_id) else {
-        return;
-    };
+) -> Option<DebugImage> {
+    let mapping = tables.mappings.get(&mapping_id)?;
 
     let code_file = {
         let parts: Vec<&str> = mapping
@@ -432,40 +417,41 @@ fn collect_debug_image(
             .filter_map(|id| tables.mapping_paths.get(id).map(|s| s.as_str()))
             .collect();
         if parts.is_empty() {
-            return;
+            return None;
         }
         parts.join("/")
     };
 
     if is_java_mapping(&code_file) {
-        return;
+        return None;
     }
 
     let image_addr = mapping.start.unwrap_or(0);
 
-    if !seen_images.insert((code_file.clone(), image_addr)) {
-        return;
-    }
-
     let debug_id = mapping
         .build_id
         .and_then(|bid| tables.build_ids.get(&bid))
-        .and_then(|hex_str| build_id_to_debug_id(hex_str));
+        .and_then(|hex_str| build_id_to_debug_id(hex_str))?;
 
-    let Some(debug_id) = debug_id else {
-        return;
-    };
+    // Insert into dedup set only after validating we have a valid debug_id,
+    // so that a mapping first seen without a build_id doesn't block a later
+    // valid encounter from a different packet sequence.
+    if !seen_images.insert((code_file.clone(), image_addr)) {
+        return None;
+    }
 
     let image_size = mapping.end.unwrap_or(0).saturating_sub(image_addr);
     let image_vmaddr = mapping.load_bias.unwrap_or(0);
 
-    debug_images.push(DebugImage::native_image(
-        code_file,
-        debug_id,
-        image_addr,
-        image_vmaddr,
+    Some(DebugImage {
+        code_file: Some(code_file.into()),
+        debug_id: Some(debug_id),
+        image_type: ImageType::Symbolic,
+        image_addr: Some(Addr(image_addr)),
+        image_vmaddr: Some(Addr(image_vmaddr)),
         image_size,
-    ));
+        uuid: None,
+    })
 }
 
 /// Resolves a Perfetto frame into a [`FrameKey`] and a Sample v2 [`Frame`].
@@ -1390,13 +1376,16 @@ mod tests {
         assert_eq!(data.frames.len(), 1);
         assert_eq!(images.len(), 1);
 
-        let img_json = serde_json::to_value(&images[0]).unwrap();
-        assert_eq!(img_json["code_file"], "libexample.so");
-        assert_eq!(img_json["debug_id"], "7f4a3eb0-885e-8d4c-a04b-05fa32cc4cbd");
-        assert_eq!(img_json["image_addr"], "0x70000000");
-        assert_eq!(img_json["image_vmaddr"], "0x1000");
-        assert_eq!(img_json["image_size"], 0x10000);
-        assert_eq!(img_json["type"], "symbolic");
+        insta::assert_json_snapshot!(images[0], @r###"
+        {
+          "code_file": "libexample.so",
+          "debug_id": "7f4a3eb0-885e-8d4c-a04b-05fa32cc4cbd",
+          "type": "symbolic",
+          "image_addr": "0x70000000",
+          "image_vmaddr": "0x1000",
+          "image_size": 65536
+        }
+        "###);
     }
 
     #[test]

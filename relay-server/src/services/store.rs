@@ -147,6 +147,14 @@ impl Counted for StoreSpanV2 {
     }
 }
 
+/// Content type of a raw binary profile blob sent alongside the expanded JSON payload.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RawProfileContentType {
+    /// Perfetto binary trace format.
+    Perfetto,
+}
+
 /// Publishes a singular profile chunk to Kafka.
 #[derive(Debug)]
 pub struct StoreProfileChunk {
@@ -163,8 +171,8 @@ pub struct StoreProfileChunk {
     /// Sent alongside the expanded JSON payload because the expansion only extracts a
     /// minimum of information; the raw profile is preserved for further processing downstream.
     pub raw_profile: Option<Bytes>,
-    /// Content type of `raw_profile` (e.g. `"perfetto"`).
-    pub raw_profile_content_type: Option<String>,
+    /// Content type of `raw_profile`.
+    pub raw_profile_content_type: Option<RawProfileContentType>,
 }
 
 impl Counted for StoreProfileChunk {
@@ -1669,7 +1677,7 @@ struct ProfileChunkKafkaMessage {
     #[serde(skip_serializing_if = "Option::is_none")]
     raw_profile: Option<Bytes>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    raw_profile_content_type: Option<String>,
+    raw_profile_content_type: Option<RawProfileContentType>,
 }
 
 /// An enum over all possible ingest messages.

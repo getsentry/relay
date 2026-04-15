@@ -130,20 +130,24 @@ impl Forward for ProfileChunkOutput {
         s: processing::forward::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        use crate::services::store::StoreProfileChunk;
+        use crate::services::store::{RawProfileContentType, StoreProfileChunk};
 
         let Self(profile_chunks) = self;
         let retention_days = ctx.event_retention().standard;
 
         for item in profile_chunks.split(|pc| pc.profile_chunks) {
-            let (kafka_payload, raw_profile, raw_profile_content_type) = split_item_payload(&item);
+            let (kafka_payload, raw_profile) = split_item_payload(&item);
 
             s.send_to_store(item.map(|item, _| StoreProfileChunk {
                 retention_days,
                 payload: kafka_payload,
                 quantities: item.quantities(),
+                raw_profile_content_type: if raw_profile.is_some() {
+                    Some(RawProfileContentType::Perfetto)
+                } else {
+                    None
+                },
                 raw_profile,
-                raw_profile_content_type,
             }));
         }
 
@@ -154,42 +158,27 @@ impl Forward for ProfileChunkOutput {
 /// Splits a profile chunk item payload into its constituent parts.
 ///
 /// For compound items (those with a `meta_length` header), the payload is
-/// `[expanded JSON][raw binary]`. Returns `(kafka_payload, raw_profile, content_type)`.
+/// `[expanded JSON][raw binary]`. Returns `(kafka_payload, raw_profile)`.
 ///
-/// For plain items, returns `(full_payload, None, None)`.
-#[cfg_attr(not(feature = "processing"), allow(dead_code))]
-fn split_item_payload(item: &Item) -> (bytes::Bytes, Option<bytes::Bytes>, Option<String>) {
+/// For plain items, returns `(full_payload, None)`.
+#[cfg(any(feature = "processing", test))]
+fn split_item_payload(item: &Item) -> (bytes::Bytes, Option<bytes::Bytes>) {
     let payload = item.payload();
 
     let Some(meta_length) = item.meta_length() else {
-        return (payload, None, None);
+        return (payload, None);
     };
 
     let meta_length = meta_length as usize;
     let Some((meta, body)) = payload.split_at_checked(meta_length) else {
-        return (payload, None, None);
+        return (payload, None);
     };
 
     if body.is_empty() {
-        return (payload.slice_ref(meta), None, None);
+        return (payload.slice_ref(meta), None);
     }
 
-    // Extract content_type from the expanded JSON metadata using a minimal
-    // deserializer that only reads this single field, skipping the bulk of the
-    // payload (frames, stacks, samples, etc.).
-    #[derive(serde::Deserialize)]
-    struct ContentTypeProbe {
-        content_type: Option<String>,
-    }
-    let content_type = serde_json::from_slice::<ContentTypeProbe>(meta)
-        .ok()
-        .and_then(|v| v.content_type);
-
-    (
-        payload.slice_ref(meta),
-        Some(payload.slice_ref(body)),
-        content_type,
-    )
+    (payload.slice_ref(meta), Some(payload.slice_ref(body)))
 }
 
 /// Serialized profile chunks extracted from an envelope.
@@ -259,10 +248,9 @@ mod tests {
     #[test]
     fn test_split_plain_chunk() {
         let item = make_chunk_item(b"{}");
-        let (payload, raw, ct) = split_item_payload(&item);
+        let (payload, raw) = split_item_payload(&item);
         assert_eq!(payload.as_ref(), b"{}");
         assert!(raw.is_none());
-        assert!(ct.is_none());
     }
 
     #[test]
@@ -271,22 +259,9 @@ mod tests {
         let body = b"binary-data";
         let item = make_compound_item(meta, body);
 
-        let (payload, raw, ct) = split_item_payload(&item);
+        let (payload, raw) = split_item_payload(&item);
         assert_eq!(payload.as_ref(), meta.as_ref());
         assert_eq!(raw.as_deref(), Some(b"binary-data".as_ref()));
-        assert_eq!(ct.as_deref(), Some("perfetto"));
-    }
-
-    #[test]
-    fn test_split_compound_no_content_type() {
-        let meta = b"{}";
-        let body = b"binary-data";
-        let item = make_compound_item(meta, body);
-
-        let (payload, raw, ct) = split_item_payload(&item);
-        assert_eq!(payload.as_ref(), b"{}");
-        assert_eq!(raw.as_deref(), Some(b"binary-data".as_ref()));
-        assert!(ct.is_none());
     }
 
     #[test]
@@ -294,10 +269,9 @@ mod tests {
         let meta = br#"{"content_type":"perfetto"}"#;
         let item = make_compound_item(meta, b"");
 
-        let (payload, raw, ct) = split_item_payload(&item);
+        let (payload, raw) = split_item_payload(&item);
         assert_eq!(payload.as_ref(), meta.as_ref());
         assert!(raw.is_none());
-        assert!(ct.is_none());
     }
 
     #[test]
@@ -309,23 +283,9 @@ mod tests {
         item.set_payload(ContentType::OctetStream, bytes::Bytes::from(body.as_ref()));
         item.set_meta_length(body.len() as u32 + 100);
 
-        let (payload, raw, ct) = split_item_payload(&item);
+        let (payload, raw) = split_item_payload(&item);
         assert_eq!(payload.as_ref(), body.as_ref());
         assert!(raw.is_none());
-        assert!(ct.is_none());
-    }
-
-    #[test]
-    fn test_split_compound_invalid_json_meta() {
-        // meta portion is not valid JSON; content_type should be None.
-        let meta = b"not valid json {{{{";
-        let body = b"binary-data";
-        let item = make_compound_item(meta, body);
-
-        let (payload, raw, ct) = split_item_payload(&item);
-        assert_eq!(payload.as_ref(), meta.as_ref());
-        assert_eq!(raw.as_deref(), Some(b"binary-data".as_ref()));
-        assert!(ct.is_none());
     }
 
     #[test]
@@ -336,9 +296,8 @@ mod tests {
         item.set_payload(ContentType::OctetStream, bytes::Bytes::from(body.as_ref()));
         item.set_meta_length(0);
 
-        let (payload, raw, ct) = split_item_payload(&item);
+        let (payload, raw) = split_item_payload(&item);
         assert_eq!(payload.as_ref(), b"");
         assert_eq!(raw.as_deref(), Some(b"binary-data".as_ref()));
-        assert!(ct.is_none());
     }
 }
