@@ -120,10 +120,10 @@ mod tests {
     fn test_serialize_full_project_info_upstream_ignored() {
         let s = SerializeProjectState {
             disabled: false,
-            info: ProjectInfo {
+            info: Arc::new(ProjectInfo {
                 upstream: Some("https://sentry.io".parse().unwrap()),
                 ..Default::default()
-            },
+            }),
             upstream: None,
         };
 
@@ -170,10 +170,10 @@ mod tests {
     fn test_serialize_full_correct_upstream_used() {
         let s = SerializeProjectState {
             disabled: false,
-            info: ProjectInfo {
+            info: Arc::new(ProjectInfo {
                 upstream: Some("https://sentry.io".parse().unwrap()),
                 ..Default::default()
-            },
+            }),
             upstream: Some("https://us.sentry.io".parse().unwrap()),
         };
 

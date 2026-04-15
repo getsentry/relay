@@ -336,11 +336,13 @@ def test_unchanged_projects(mini_sentry, relay):
     assert data.get("pending") is None
 
 
-def test_project_config_advertised_upstream_added(mini_sentry, relay):
+def test_project_config_advertised_upstream_added_not_forwarded(mini_sentry, relay):
     """
     The configured advertised upstream should be injected in the project config.
+
+    A Relay receiving an advertised upstream most not forward it further.
     """
-    relay = relay(
+    relay1 = relay(
         mini_sentry,
         {
             "relay": {
@@ -352,24 +354,15 @@ def test_project_config_advertised_upstream_added(mini_sentry, relay):
     public_key = mini_sentry.get_dsn_public_key(42)
 
     body = {"publicKeys": [public_key]}
-    packed, signature = SecretKey.parse(relay.secret_key).pack(body)
+    packed, signature = SecretKey.parse(relay1.secret_key).pack(body)
 
-    data, _ = get_response(relay, packed, signature)
+    data, _ = get_response(relay1, packed, signature)
     assert data["configs"][public_key]["upstream"] == "https://relay.example/"
 
-
-def test_project_config_upstream_not_forwarded(mini_sentry, relay):
-    """
-    The from upstream provided upstream, should not be forwarded to downstream consumers
-    of the project config.
-    """
-    relay = relay(mini_sentry)
-    project_config = mini_sentry.add_basic_project_config(42)
-    project_config["upstream"] = "https://relay.example"
-    public_key = mini_sentry.get_dsn_public_key(42)
+    relay2 = relay(relay1)
 
     body = {"publicKeys": [public_key]}
-    packed, signature = SecretKey.parse(relay.secret_key).pack(body)
+    packed, signature = SecretKey.parse(relay2.secret_key).pack(body)
 
-    data, _ = get_response(relay, packed, signature)
+    data, _ = get_response(relay2, packed, signature)
     assert data["configs"][public_key].get("upstream") is None
