@@ -1,6 +1,7 @@
 //! Objectstore service for uploading attachments.
 use std::array::TryFromSliceError;
 use std::fmt;
+use std::num::NonZeroU16;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -133,8 +134,6 @@ pub enum Error {
     UploadFailed(#[from] objectstore_client::Error),
     #[error("UUID conversion failed: {0}")]
     Uuid(#[from] TryFromSliceError),
-    #[error("configuration error: {0}")]
-    Config(&'static str),
 }
 
 impl Error {
@@ -144,7 +143,6 @@ impl Error {
             Error::LoadShed => "load-shed",
             Error::UploadFailed(_) => "upload_failed",
             Error::Uuid(_) => "uuid",
-            Error::Config(_) => "config_error",
         }
     }
 
@@ -306,7 +304,7 @@ struct ObjectstoreServiceInner {
     trace_attachments: Usecase,
     timeout: Duration,
     retry_interval: Duration,
-    max_attempts: usize,
+    max_attempts: NonZeroU16,
 }
 
 impl ObjectstoreServiceInner {
@@ -531,49 +529,56 @@ impl ObjectstoreServiceInner {
         body: Body,
         retention_hours: Option<u16>,
     ) -> Result<ObjectstoreKey, Error> {
-        tokio::time::timeout(self.timeout, async {
-            let mut result = Err(Error::Config("zero retries configured"));
-            let mut attempt = 0;
-            while attempt < self.max_attempts {
+        let mut attempt = 0;
+
+        let result = tokio::time::timeout(self.timeout, async {
+            let mut result = None;
+            loop {
                 let Some(body) = body.try_clone() else {
                     break;
                 };
                 attempt += 1;
-                result = self
-                    .attempt_upload(ty, session, key.clone(), body, retention_hours)
-                    .await;
+                result.replace(
+                    self.attempt_upload(ty, session, key.clone(), body, retention_hours)
+                        .await,
+                );
 
-                match &result {
-                    Err(e) if e.is_retriable() => {
-                        tokio::time::sleep(self.retry_interval).await;
-                    }
-                    _ => break,
+                if attempt < self.max_attempts.get()
+                    && matches!(&result, Some(Err(e)) if e.is_retriable())
+                {
+                    tokio::time::sleep(self.retry_interval).await;
+                } else {
+                    break;
                 }
             }
 
-            if let Err(e) = &result {
-                relay_log::error!(
-                    error = e as &dyn std::error::Error,
-                    attempts = attempt,
-                    type = ty,
-                    "objectstore upload failed in {} attempt(s)",
-                    attempt
-                )
-            }
-
-            relay_statsd::metric!(
-                counter(RelayCounters::AttachmentUpload) += 1,
-                result = match &result {
-                    Ok(_) => "success",
-                    Err(e) => e.as_str(),
-                },
-                type = ty,
-                attempts = attempt.to_string()
-            );
-
-            result
+            result.expect("try_clone() should succeed at least once")
         })
-        .await?
+        .await
+        .map_err(Error::from)
+        .flatten();
+
+        if let Err(e) = &result {
+            relay_log::error!(
+                error = e as &dyn std::error::Error,
+                attempts = attempt,
+                type = ty,
+                "objectstore upload failed in {} attempt(s)",
+                attempt
+            )
+        }
+
+        relay_statsd::metric!(
+            counter(RelayCounters::AttachmentUpload) += 1,
+            result = match &result {
+                Ok(_) => "success",
+                Err(e) => e.as_str(),
+            },
+            type = ty,
+            attempts = attempt.to_string()
+        );
+
+        result
     }
 
     async fn attempt_upload(
