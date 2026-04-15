@@ -326,7 +326,7 @@ mod tests {
                 }
             },
             "applications": {
-                "** && !$trace_metric.**": ["should_not_remove_normal_field"]
+                "** && !$metric.**": ["should_not_remove_normal_field"]
             }
         }))
         .unwrap();
