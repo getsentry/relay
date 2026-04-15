@@ -63,10 +63,10 @@ pub fn normalize_mobile_attributes(attributes: &mut Annotated<Attributes>) {
     }
 
     // Derive device.class from device attributes if not already set.
-    if !attrs.contains_key(DEVICE_CLASS) {
-        if let Some(device_class) = DeviceClass::from_attributes(attrs) {
-            attrs.insert(DEVICE_CLASS, device_class.to_string());
-        }
+    if !attrs.contains_key(DEVICE_CLASS)
+        && let Some(device_class) = DeviceClass::from_attributes(attrs)
+    {
+        attrs.insert(DEVICE_CLASS, device_class.to_string());
     }
 }
 
@@ -100,7 +100,10 @@ mod tests {
     mobile_sdk_test!(test_mobile_tag_cocoa, "sentry.cocoa");
     mobile_sdk_test!(test_mobile_tag_flutter, "sentry.dart.flutter");
     mobile_sdk_test!(test_mobile_tag_android, "sentry.java.android");
-    mobile_sdk_test!(test_mobile_tag_react_native, "sentry.javascript.react-native");
+    mobile_sdk_test!(
+        test_mobile_tag_react_native,
+        "sentry.javascript.react-native"
+    );
 
     #[test]
     fn test_mobile_tag_not_mobile_sdk() {
@@ -214,15 +217,39 @@ mod tests {
         };
     }
 
-    outlier_test!(test_outlier_removes_start_cold, APP_VITALS_START_COLD_VALUE, 200_000.0);
-    outlier_test!(test_outlier_removes_start_warm, APP_VITALS_START_WARM_VALUE, 200_000.0);
-    outlier_test!(test_outlier_removes_start_value, APP_VITALS_START_VALUE, 200_000.0);
+    outlier_test!(
+        test_outlier_removes_start_cold,
+        APP_VITALS_START_COLD_VALUE,
+        200_000.0
+    );
+    outlier_test!(
+        test_outlier_removes_start_warm,
+        APP_VITALS_START_WARM_VALUE,
+        200_000.0
+    );
+    outlier_test!(
+        test_outlier_removes_start_value,
+        APP_VITALS_START_VALUE,
+        200_000.0
+    );
     outlier_test!(test_outlier_removes_ttid, APP_VITALS_TTID_VALUE, 200_000.0);
     outlier_test!(test_outlier_removes_ttfd, APP_VITALS_TTFD_VALUE, 200_000.0);
 
-    outlier_test!(test_outlier_keeps_start_cold, APP_VITALS_START_COLD_VALUE, 5000.0);
-    outlier_test!(test_outlier_keeps_start_warm, APP_VITALS_START_WARM_VALUE, 5000.0);
-    outlier_test!(test_outlier_keeps_start_value, APP_VITALS_START_VALUE, 5000.0);
+    outlier_test!(
+        test_outlier_keeps_start_cold,
+        APP_VITALS_START_COLD_VALUE,
+        5000.0
+    );
+    outlier_test!(
+        test_outlier_keeps_start_warm,
+        APP_VITALS_START_WARM_VALUE,
+        5000.0
+    );
+    outlier_test!(
+        test_outlier_keeps_start_value,
+        APP_VITALS_START_VALUE,
+        5000.0
+    );
     outlier_test!(test_outlier_keeps_ttid, APP_VITALS_TTID_VALUE, 5000.0);
     outlier_test!(test_outlier_keeps_ttfd, APP_VITALS_TTFD_VALUE, 5000.0);
 
