@@ -74,22 +74,7 @@ pub fn extract_items(payload: Bytes, config: &Config) -> Result<Items, Processin
     Ok(items)
 }
 
-/// Expands an Unreal 4 crash report payload and returns the expanded items.
-pub fn expand_unreal(payload: Bytes, config: &Config) -> Result<UnrealExpansion, ProcessingError> {
-    let attachments = extract_items(payload, config)?;
-
-    let event = attachments
-        .iter()
-        .find(|item| matches!(item.attachment_type(), Some(AttachmentType::UnrealContext)))
-        .map(|item| get_event_item(&item.payload()))
-        .transpose()?
-        .flatten();
-
-    Ok(UnrealExpansion { event, attachments })
-}
-
 /// Expands items previously extracted from a report in to the [`UnrealExpansion`] representation.
-#[cfg_attr(not(feature = "processing"), expect(unused))]
 pub fn expand_unreal_items(items: Items) -> Result<UnrealExpansion, ProcessingError> {
     let event = items
         .iter()
@@ -102,6 +87,13 @@ pub fn expand_unreal_items(items: Items) -> Result<UnrealExpansion, ProcessingEr
         event,
         attachments: items,
     })
+}
+
+/// Expands an Unreal 4 crash report payload and returns the expanded items.
+#[cfg_attr(not(feature = "processing"), expect(unused))]
+pub fn expand_unreal(payload: Bytes, config: &Config) -> Result<UnrealExpansion, ProcessingError> {
+    let attachments = extract_items(payload, config)?;
+    expand_unreal_items(attachments)
 }
 
 /// Expansion from an Unreal 4 report.
