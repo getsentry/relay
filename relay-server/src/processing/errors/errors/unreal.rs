@@ -192,7 +192,7 @@ impl SentryError for Unreal {
 
     fn minidump_mut(&mut self) -> Option<&mut Item> {
         match self {
-            Self::Forward { .. } => None,
+            Self::Forward(..) => None,
             #[cfg(feature = "processing")]
             Self::Process { minidump, .. } => minidump.as_mut(),
         }
