@@ -4,7 +4,9 @@ use std::io::BufReader;
 use std::path::Path;
 
 use relay_base_schema::metrics::MetricNamespace;
-use relay_event_normalization::{MeasurementsConfig, ModelCosts, SpanOpDefaults};
+use relay_event_normalization::{
+    MeasurementsConfig, ModelCosts, ModelMetadata, ModelMetadataEntry, SpanOpDefaults,
+};
 use relay_filter::GenericFiltersConfig;
 use relay_quotas::Quota;
 use serde::{Deserialize, Serialize, de};
@@ -49,6 +51,10 @@ pub struct GlobalConfig {
     #[serde(skip_serializing_if = "is_model_costs_empty")]
     pub ai_model_costs: ErrorBoundary<ModelCosts>,
 
+    /// Metadata for AI models including costs and context size.
+    #[serde(skip_serializing_if = "is_model_metadata_empty")]
+    pub ai_model_metadata: ErrorBoundary<ModelMetadata>,
+
     /// Configuration to derive the `span.op` from other span fields.
     #[serde(
         deserialize_with = "default_on_error",
@@ -73,6 +79,41 @@ impl GlobalConfig {
         }
     }
 
+    /// Returns [`ModelMetadata`], preferring `ai_model_metadata` if present and falling
+    /// back to `ai_model_costs` (adapted to the new format) otherwise.
+    pub fn model_metadata(&self) -> Option<ModelMetadata> {
+        if let Some(metadata) = self
+            .ai_model_metadata
+            .as_ref()
+            .ok()
+            .filter(|m| m.is_enabled())
+        {
+            return Some(metadata.clone());
+        }
+
+        let costs = self
+            .ai_model_costs
+            .as_ref()
+            .ok()
+            .filter(|c| c.is_enabled())?;
+
+        let models = costs
+            .models
+            .iter()
+            .map(|(pattern, cost)| {
+                (
+                    pattern.clone(),
+                    ModelMetadataEntry {
+                        costs: Some(*cost),
+                        context_size: None,
+                    },
+                )
+            })
+            .collect();
+
+        Some(ModelMetadata { version: 1, models })
+    }
+
     /// Returns the generic inbound filters.
     pub fn filters(&self) -> Option<&GenericFiltersConfig> {
         match &self.filters {
@@ -93,25 +134,6 @@ fn is_err_or_empty(filters_config: &ErrorBoundary<GenericFiltersConfig>) -> bool
 #[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Options {
-    /// Kill switch for controlling the cardinality limiter.
-    #[serde(
-        rename = "relay.cardinality-limiter.mode",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub cardinality_limiter_mode: CardinalityLimiterMode,
-
-    /// Sample rate for Cardinality Limiter Sentry errors.
-    ///
-    /// Rate needs to be between `0.0` and `1.0`.
-    /// If set to `1.0` all cardinality limiter rejections will be logged as a Sentry error.
-    #[serde(
-        rename = "relay.cardinality-limiter.error-sample-rate",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub cardinality_limiter_error_sample_rate: f32,
-
     /// Metric bucket encoding configuration for sets by metric namespace.
     #[serde(
         rename = "relay.metric-bucket-set-encodings",
@@ -186,28 +208,12 @@ pub struct Options {
     other: HashMap<String, Value>,
 }
 
-/// Kill switch for controlling the cardinality limiter.
-#[derive(Default, Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "lowercase")]
-pub enum CardinalityLimiterMode {
-    /// Cardinality limiter is enabled.
-    #[default]
-    // De-serialize from the empty string, because the option was added to
-    // Sentry incorrectly which makes Sentry send the empty string as a default.
-    #[serde(alias = "")]
-    Enabled,
-    /// Cardinality limiter is enabled but cardinality limits are not enforced.
-    Passive,
-    /// Cardinality limiter is disabled.
-    Disabled,
-}
-
 /// Configuration container to control [`BucketEncoding`] per namespace.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct BucketEncodings {
-    transactions: BucketEncoding,
     spans: BucketEncoding,
+    transactions: BucketEncoding,
     profiles: BucketEncoding,
     custom: BucketEncoding,
 }
@@ -216,8 +222,8 @@ impl BucketEncodings {
     /// Returns the configured encoding for a specific namespace.
     pub fn for_namespace(&self, namespace: MetricNamespace) -> BucketEncoding {
         match namespace {
-            MetricNamespace::Transactions => self.transactions,
             MetricNamespace::Spans => self.spans,
+            MetricNamespace::Transactions => self.transactions,
             MetricNamespace::Custom => self.custom,
             // Always force the legacy encoding for sessions,
             // sessions are not part of the generic metrics platform with different
@@ -250,8 +256,8 @@ where
         {
             let encoding = BucketEncoding::deserialize(de::value::StrDeserializer::new(v))?;
             Ok(BucketEncodings {
-                transactions: encoding,
                 spans: encoding,
+                transactions: encoding,
                 profiles: encoding,
                 custom: encoding,
             })
@@ -335,6 +341,10 @@ fn is_model_costs_empty(value: &ErrorBoundary<ModelCosts>) -> bool {
     matches!(value, ErrorBoundary::Ok(model_costs) if model_costs.is_empty())
 }
 
+fn is_model_metadata_empty(value: &ErrorBoundary<ModelMetadata>) -> bool {
+    matches!(value, ErrorBoundary::Ok(metadata) if metadata.is_empty())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -401,38 +411,6 @@ mod tests {
     }
 
     #[test]
-    fn test_global_config_invalid_value_is_default() {
-        let options: Options = serde_json::from_str(
-            r#"{
-                "relay.cardinality-limiter.mode": "passive"
-            }"#,
-        )
-        .unwrap();
-
-        let expected = Options {
-            cardinality_limiter_mode: CardinalityLimiterMode::Passive,
-            ..Default::default()
-        };
-
-        assert_eq!(options, expected);
-    }
-
-    #[test]
-    fn test_cardinality_limiter_mode_de_serialize() {
-        let m: CardinalityLimiterMode = serde_json::from_str("\"\"").unwrap();
-        assert_eq!(m, CardinalityLimiterMode::Enabled);
-        let m: CardinalityLimiterMode = serde_json::from_str("\"enabled\"").unwrap();
-        assert_eq!(m, CardinalityLimiterMode::Enabled);
-        let m: CardinalityLimiterMode = serde_json::from_str("\"disabled\"").unwrap();
-        assert_eq!(m, CardinalityLimiterMode::Disabled);
-        let m: CardinalityLimiterMode = serde_json::from_str("\"passive\"").unwrap();
-        assert_eq!(m, CardinalityLimiterMode::Passive);
-
-        let m = serde_json::to_string(&CardinalityLimiterMode::Enabled).unwrap();
-        assert_eq!(m, "\"enabled\"");
-    }
-
-    #[test]
     fn test_minimal_serialization() {
         let config = r#"{"options":{"foo":"bar"}}"#;
         let deserialized: GlobalConfig = serde_json::from_str(config).unwrap();
@@ -453,8 +431,8 @@ mod tests {
         assert_eq!(
             o.metric_bucket_set_encodings,
             BucketEncodings {
-                transactions: BucketEncoding::Legacy,
                 spans: BucketEncoding::Legacy,
+                transactions: BucketEncoding::Legacy,
                 profiles: BucketEncoding::Legacy,
                 custom: BucketEncoding::Legacy,
             }
@@ -462,8 +440,8 @@ mod tests {
         assert_eq!(
             o.metric_bucket_dist_encodings,
             BucketEncodings {
-                transactions: BucketEncoding::Zstd,
                 spans: BucketEncoding::Zstd,
+                transactions: BucketEncoding::Zstd,
                 profiles: BucketEncoding::Zstd,
                 custom: BucketEncoding::Zstd,
             }
@@ -473,8 +451,8 @@ mod tests {
     #[test]
     fn test_metric_bucket_encodings_de_from_obj() {
         let original = BucketEncodings {
-            transactions: BucketEncoding::Base64,
             spans: BucketEncoding::Zstd,
+            transactions: BucketEncoding::Zstd,
             profiles: BucketEncoding::Base64,
             custom: BucketEncoding::Zstd,
         };

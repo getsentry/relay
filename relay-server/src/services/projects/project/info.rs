@@ -4,11 +4,7 @@ use chrono::{DateTime, Duration, Utc};
 
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::{ProjectId, ProjectKey};
-#[cfg(feature = "processing")]
-use relay_cardinality::CardinalityLimit;
 use relay_config::Config;
-#[cfg(feature = "processing")]
-use relay_dynamic_config::ErrorBoundary;
 use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig, SignatureVerification};
 use relay_filter::matches_any_origin;
 use relay_quotas::{Quota, Scoping};
@@ -272,15 +268,6 @@ impl ProjectInfo {
     /// Returns quotas declared in this project state.
     pub fn get_quotas(&self) -> &[Quota] {
         self.config.quotas.as_slice()
-    }
-
-    /// Returns cardinality limits declared in this project state.
-    #[cfg(feature = "processing")]
-    pub fn get_cardinality_limits(&self) -> &[CardinalityLimit] {
-        match self.config.metrics {
-            ErrorBoundary::Ok(ref m) => m.cardinality_limits.as_slice(),
-            _ => &[],
-        }
     }
 
     /// Validates data in this project state and removes values that are partially invalid.

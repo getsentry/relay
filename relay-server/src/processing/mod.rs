@@ -12,7 +12,7 @@ use relay_quotas::RateLimits;
 use relay_sampling::evaluation::ReservoirCounters;
 
 use crate::managed::{Counted, Managed, ManagedEnvelope, Rejected};
-use crate::metrics_extraction::transactions::ExtractedMetrics;
+use crate::metrics_extraction::ExtractedMetrics;
 use crate::services::projects::project::ProjectInfo;
 
 mod common;

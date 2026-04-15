@@ -10,7 +10,6 @@ use crate::managed::{
 };
 use crate::processing::{Context, CountRateLimited, Output, Processor, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::statsd::RelayCounters;
 
 mod filter;
 mod forward;
@@ -101,12 +100,6 @@ impl Processor for ProfilesProcessor {
         profiles: Managed<Self::Input>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
-        relay_statsd::metric!(
-            counter(RelayCounters::StandaloneItem) += profiles.profiles.len() as u64,
-            processor = "new",
-            item_type = "profile",
-        );
-
         filter::feature_flag(ctx).reject(&profiles)?;
 
         let profile = process::expand(profiles)?;

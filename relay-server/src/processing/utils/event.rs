@@ -33,7 +33,7 @@ use relay_statsd::metric;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::AttachmentType;
-use crate::envelope::{Envelope, EnvelopeHeaders, Item};
+use crate::envelope::{EnvelopeHeaders, Item};
 use crate::processing::Context;
 use crate::services::processor::{MINIMUM_CLOCK_DRIFT, ProcessingError};
 use crate::services::projects::project::ProjectInfo;
@@ -218,9 +218,8 @@ pub fn normalize(
     let request_meta = headers.meta();
     let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
-    let transaction_aggregator_config = ctx
-        .config
-        .aggregator_config_for(MetricNamespace::Transactions);
+    // Inherit from spans, as transactions no longer produce metrics.
+    let transaction_aggregator_config = ctx.config.aggregator_config_for(MetricNamespace::Spans);
 
     let ai_model_costs = ctx.global_config.ai_model_costs.as_ref().ok();
     let http_span_allowed_hosts = ctx.global_config.options.http_span_allowed_hosts.as_slice();
@@ -279,7 +278,6 @@ pub fn normalize(
             transaction_name_config: TransactionNameConfig {
                 rules: &project_info.config.tx_name_rules,
             },
-            device_class_synthesis_config: project_info.has_feature(Feature::DeviceClassSynthesis),
             enrich_spans: true,
             max_tag_value_length: ctx
                 .config
@@ -303,6 +301,7 @@ pub fn normalize(
             performance_issues_spans: ctx
                 .project_info
                 .has_feature(Feature::PerformanceIssuesSpans),
+            derive_trace_id: project_info.has_feature(Feature::AddDefaultTraceID),
         };
 
         metric!(timer(RelayTimers::EventProcessingNormalization), {
@@ -390,18 +389,6 @@ pub fn filter(
 /// New type representing the normalization state of the event.
 #[derive(Debug, Copy, Clone)]
 pub struct EventFullyNormalized(pub bool);
-
-impl EventFullyNormalized {
-    /// Returns `true` if the event is fully normalized, `false` otherwise.
-    pub fn new(envelope: &Envelope) -> Self {
-        let event_fully_normalized = envelope.meta().request_trust().is_trusted()
-            && envelope
-                .items()
-                .any(|item| item.creates_event() && item.fully_normalized());
-
-        Self(event_fully_normalized)
-    }
-}
 
 /// New type representing whether metrics were extracted from transactions/spans.
 #[derive(Debug, Copy, Clone)]

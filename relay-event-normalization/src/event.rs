@@ -120,9 +120,6 @@ pub struct NormalizationConfig<'a> {
     /// When enabled, adds errors in the meta to the event's errors.
     pub emit_event_errors: bool,
 
-    /// When `true`, infers the device class from CPU and model.
-    pub device_class_synthesis_config: bool,
-
     /// When `true`, extracts tags from event and spans and materializes them into `span.data`.
     pub enrich_spans: bool,
 
@@ -166,6 +163,9 @@ pub struct NormalizationConfig<'a> {
 
     /// Set a flag to enable performance issue detection on spans.
     pub performance_issues_spans: bool,
+
+    /// Should add a random trace ID to events that lack one.
+    pub derive_trace_id: bool,
 }
 
 impl Default for NormalizationConfig<'_> {
@@ -187,7 +187,6 @@ impl Default for NormalizationConfig<'_> {
             is_renormalize: Default::default(),
             remove_other: Default::default(),
             emit_event_errors: Default::default(),
-            device_class_synthesis_config: Default::default(),
             enrich_spans: Default::default(),
             max_tag_value_length: usize::MAX,
             span_description_rules: Default::default(),
@@ -201,6 +200,7 @@ impl Default for NormalizationConfig<'_> {
             span_allowed_hosts: Default::default(),
             span_op_defaults: Default::default(),
             performance_issues_spans: Default::default(),
+            derive_trace_id: Default::default(),
         }
     }
 }
@@ -305,9 +305,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     normalize_event_tags(event); // Tags are added to every metric
 
     // TODO: Consider moving to store normalization
-    if config.device_class_synthesis_config {
-        normalize_device_class(event);
-    }
+    normalize_device_class(event);
     normalize_stacktraces(event);
     normalize_exceptions(event); // Browser extension filters look at the stacktrace
     normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
@@ -333,8 +331,11 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
         Ok(())
     });
 
+    // We know this exists thanks to normalize_default_attributes.
+    let event_id = event.id.value().unwrap().0;
+
     // Some contexts need to be normalized before metrics extraction takes place.
-    normalize_contexts(&mut event.contexts);
+    normalize_contexts(&mut event.contexts, event_id, config);
 
     if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
         span::reparent_broken_spans::reparent_broken_spans(event);
@@ -1307,12 +1308,28 @@ fn remove_logger_word(tokens: &mut Vec<&str>) {
 }
 
 /// Normalizes incoming contexts for the downstream metric extraction.
-fn normalize_contexts(contexts: &mut Annotated<Contexts>) {
+fn normalize_contexts(
+    contexts: &mut Annotated<Contexts>,
+    event_id: Uuid,
+    config: &NormalizationConfig,
+) {
+    if config.derive_trace_id {
+        // We will always need a TraceContext.
+        let _ = contexts.get_or_insert_with(Contexts::new);
+    }
+
     let _ = processor::apply(contexts, |contexts, _meta| {
         // Reprocessing context sent from SDKs must not be accepted, it is a Sentry-internal
         // construct.
         // [`normalize`] does not run on renormalization anyway.
         contexts.0.remove("reprocessing");
+
+        // We need a TraceId to ingest the event into EAP.
+        // If the event lacks a TraceContext, add a random one.
+
+        if config.derive_trace_id && !contexts.contains::<TraceContext>() {
+            contexts.add(TraceContext::random(event_id))
+        }
 
         for annotated in &mut contexts.0.values_mut() {
             if let Some(ContextInner(Context::Trace(context))) = annotated.value_mut() {
@@ -3977,6 +3994,122 @@ mod tests {
           },
         }
         "###);
+        insta::assert_ron_snapshot!(SerializableAnnotated(&event.measurements), {}, @r###"
+        {
+          "inp": {
+            "value": 120.0,
+            "unit": "millisecond",
+          },
+          "score.inp": {
+            "value": 0.0,
+            "unit": "ratio",
+          },
+          "score.ratio.inp": {
+            "value": 0.0,
+            "unit": "ratio",
+          },
+          "score.total": {
+            "value": 0.0,
+            "unit": "ratio",
+          },
+          "score.weight.inp": {
+            "value": 1.0,
+            "unit": "ratio",
+          },
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_normalize_adds_trace_id() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "inp": {"value": 120.0}
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "inp",
+                            "weight": 1.0,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                    ],
+                    "condition": {
+                        "op":"and",
+                        "inner": []
+                    },
+                    "version": "beta"
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize(
+            &mut event,
+            &mut Meta::default(),
+            &NormalizationConfig {
+                performance_score: Some(&performance_score),
+                derive_trace_id: true,
+                ..Default::default()
+            },
+        );
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&event.contexts), {
+            ".event_id" => "[event-id]",
+            ".trace.trace_id" => "[trace-id]",
+            ".trace.span_id" => "[span-id]"
+        }, @r#"
+        {
+          "performance_score": {
+            "score_profile_version": "beta",
+            "type": "performancescore",
+          },
+          "trace": {
+            "trace_id": "[trace-id]",
+            "span_id": "[span-id]",
+            "status": "unknown",
+            "exclusive_time": 5000.0,
+            "type": "trace",
+          },
+          "_meta": {
+            "trace": {
+              "span_id": {
+                "": Meta(Some(MetaInner(
+                  rem: [
+                    [
+                      "span_id.missing",
+                      s,
+                    ],
+                  ],
+                ))),
+              },
+              "trace_id": {
+                "": Meta(Some(MetaInner(
+                  rem: [
+                    [
+                      "trace_id.missing",
+                      s,
+                    ],
+                  ],
+                ))),
+              },
+            },
+          },
+        }
+        "#);
         insta::assert_ron_snapshot!(SerializableAnnotated(&event.measurements), {}, @r###"
         {
           "inp": {

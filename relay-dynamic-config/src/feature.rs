@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 pub const GRADUATED_FEATURE_FLAGS: &[Feature] = &[
     Feature::UserReportV2Ingest,
     Feature::IngestUnsampledProfiles,
-    Feature::ScrubMongoDbDescriptions,
     Feature::DeprecatedExtractSpansFromEvent,
+    Feature::DeprecatedStandaloneSpanIngestion,
 ];
 
 /// Features exposed by project config.
@@ -29,13 +29,6 @@ pub enum Feature {
     /// Serialized as `organizations:session-replay-video-disabled`.
     #[serde(rename = "organizations:session-replay-video-disabled")]
     SessionReplayVideoDisabled,
-    /// Enables device.class synthesis
-    ///
-    /// Enables device.class tag synthesis on mobile events.
-    ///
-    /// Serialized as `organizations:device-class-synthesis`.
-    #[serde(rename = "organizations:device-class-synthesis")]
-    DeviceClassSynthesis,
     /// Allow ingestion of metrics in the "custom" namespace.
     ///
     /// Serialized as `organizations:custom-metrics`.
@@ -46,11 +39,6 @@ pub enum Feature {
     /// Serialized as `organizations:profiling`.
     #[serde(rename = "organizations:profiling")]
     Profiling,
-    /// Enable standalone span ingestion.
-    ///
-    /// Serialized as `organizations:standalone-span-ingestion`.
-    #[serde(rename = "organizations:standalone-span-ingestion")]
-    StandaloneSpanIngestion,
     /// Enable standalone span ingestion via the `/traces/` OTel endpoint.
     ///
     /// Serialized as `organizations:relay-otlp-traces-endpoint`.
@@ -102,10 +90,6 @@ pub enum Feature {
     #[doc(hidden)]
     #[serde(rename = "organizations:user-feedback-ingest")]
     UserReportV2Ingest,
-    /// This feature has graduated and is hard-coded for external Relays.
-    #[doc(hidden)]
-    #[serde(rename = "organizations:performance-queries-mongodb-extraction")]
-    ScrubMongoDbDescriptions,
     #[doc(hidden)]
     #[serde(rename = "organizations:view-hierarchy-scrubbing")]
     ViewHierarchyScrubbing,
@@ -124,12 +108,12 @@ pub enum Feature {
     /// Enable the upload endpoint for attachments.
     #[serde(rename = "projects:relay-upload-endpoint")]
     UploadEndpoint,
-    /// Enable the new Error processing pipeline in Relay.
-    #[serde(rename = "organizations:relay-new-error-processing")]
-    NewErrorProcessing,
     /// Upload non-prosperodmp playstation attachments via the upload-endpoint.
     #[serde(rename = "projects:relay-playstation-uploads")]
     PlaystationUploads,
+    /// Add a random trace ID to events that lack one.
+    #[serde(rename = "organizations:relay-default-trace-id")]
+    AddDefaultTraceID,
 
     /// Enables OTLP spans to use the Span V2 processing pipeline in Relay.
     ///
@@ -148,6 +132,13 @@ pub enum Feature {
     #[doc(hidden)]
     #[serde(rename = "organizations:indexed-spans-extraction")]
     DeprecatedExtractSpansFromEvent,
+    /// Enable standalone span ingestion.
+    ///
+    /// Serialized as `organizations:standalone-span-ingestion`.
+    #[doc(hidden)]
+    #[serde(rename = "organizations:standalone-span-ingestion")]
+    DeprecatedStandaloneSpanIngestion,
+
     /// Forward compatibility.
     #[doc(hidden)]
     #[serde(other)]

@@ -1480,9 +1480,9 @@ dependencies = [
 
 [[package]]
 name = "flate2"
-version = "1.1.4"
+version = "1.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc5a4e564e38c699f2880d3fda590bedc2e69f3f84cd48b457bd892ce61d0aa9"
+checksum = "843fba2746e448b37e26a819579957415c8cef339bf08564fe8b7ddbd959573c"
 dependencies = [
  "crc32fast",
  "miniz_oxide",
@@ -2512,7 +2512,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -4208,7 +4208,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.9.25"
+version = "0.9.27"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4218,7 +4218,6 @@ dependencies = [
  "regex",
  "relay-auth",
  "relay-base-schema",
- "relay-cardinality",
  "relay-common",
  "relay-dynamic-config",
  "relay-event-normalization",
@@ -4230,27 +4229,6 @@ dependencies = [
  "sentry-release-parser",
  "serde",
  "serde_json",
- "uuid",
-]
-
-[[package]]
-name = "relay-cardinality"
-version = "26.3.1"
-dependencies = [
- "async-trait",
- "criterion",
- "hash32",
- "hashbrown 0.15.4",
- "parking_lot",
- "relay-base-schema",
- "relay-common",
- "relay-log",
- "relay-redis",
- "relay-statsd",
- "serde",
- "serde_json",
- "thiserror 2.0.17",
- "tokio",
  "uuid",
 ]
 
@@ -4329,7 +4307,6 @@ dependencies = [
  "anyhow",
  "relay-auth",
  "relay-base-schema",
- "relay-cardinality",
  "relay-common",
  "relay-event-normalization",
  "relay-filter",
@@ -4404,6 +4381,7 @@ dependencies = [
  "insta",
  "minidump",
  "opentelemetry-proto",
+ "rand 0.9.2",
  "relay-base-schema",
  "relay-common",
  "relay-conventions",
@@ -4502,7 +4480,6 @@ dependencies = [
  "priority-queue",
  "rand 0.9.2",
  "relay-base-schema",
- "relay-cardinality",
  "relay-cogs",
  "relay-common",
  "relay-log",
@@ -4801,7 +4778,6 @@ dependencies = [
  "regex",
  "relay-auth",
  "relay-base-schema",
- "relay-cardinality",
  "relay-cogs",
  "relay-common",
  "relay-config",
@@ -6091,9 +6067,9 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "symbolic-common"
-version = "12.12.3"
+version = "12.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5ba5365997a4e375660bed52f5b42766475d5bc8ceb1bb13fea09c469ea0f49"
+checksum = "6aba7211a1803a826f108af9f4d86d25abe880712f2a6449479279e861b293f8"
 dependencies = [
  "debugid",
  "memmap2",
@@ -6103,20 +6079,19 @@ dependencies = [
 
 [[package]]
 name = "symbolic-unreal"
-version = "12.12.3"
+version = "12.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f48772cdfa3ecd14b5417dda997cae619452e0200599e88999189ab8249dae1"
+checksum = "eee96422e1a2b7cec46123cebe7714c1343713e880f6f8f458b89f67ab6df851"
 dependencies = [
  "anylog",
  "bytes",
  "chrono",
  "elementtree",
  "flate2",
- "lazy_static",
  "regex",
  "scroll",
  "serde",
- "thiserror 1.0.69",
+ "thiserror 2.0.17",
  "time",
 ]
 

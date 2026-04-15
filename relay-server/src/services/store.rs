@@ -1028,7 +1028,7 @@ impl StoreService {
             id: Uuid::new_v4().to_string(),
             name: item.filename().unwrap_or(UNNAMED_ATTACHMENT).to_owned(),
             rate_limited: item.rate_limited(),
-            content_type: placeholder.content_type.map(|c| c.as_str().to_owned()),
+            content_type: placeholder.content_type,
             attachment_type: item.attachment_type().unwrap_or_default(),
             size: item.attachment_body_size(),
             retention_days,
@@ -1758,8 +1758,8 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::UserReport(_) => "user_report",
             KafkaMessage::Metric { message, .. } => match message.name.namespace() {
                 MetricNamespace::Sessions => "metric_sessions",
-                MetricNamespace::Transactions => "metric_transactions",
                 MetricNamespace::Spans => "metric_spans",
+                MetricNamespace::Transactions => "metric_transactions",
                 MetricNamespace::Custom => "metric_custom",
                 MetricNamespace::Unsupported => "metric_unsupported",
             },

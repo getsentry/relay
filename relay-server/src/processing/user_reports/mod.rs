@@ -6,7 +6,6 @@ use crate::envelope::{EnvelopeHeaders, Item, ItemType};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
 use crate::processing::{Context, CountRateLimited, Output, Processor, QuotaRateLimiter};
 use crate::services::outcome::Outcome;
-use crate::statsd::RelayCounters;
 
 mod forward;
 mod process;
@@ -87,12 +86,6 @@ impl Processor for UserReportsProcessor {
         mut reports: Managed<Self::Input>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
-        relay_statsd::metric!(
-            counter(RelayCounters::StandaloneItem) += reports.reports.len() as u64,
-            processor = "new",
-            item_type = "user_report",
-        );
-
         process::process(&mut reports);
 
         let reports = self.limiter.enforce_quotas(reports, ctx).await?;
