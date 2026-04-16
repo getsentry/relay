@@ -39,7 +39,7 @@
 - Merge `gen_ai.request.messages` into `gen_ai.input.messages` and `gen_ai.response.text` into `gen_ai.output.messages`. ([#5813](https://github.com/getsentry/relay/pull/5813))
 - Extract `http.query` and `url.query` attributes from `query_string` in transactions' request context. ([#5784](https://github.com/getsentry/relay/pull/5784))
 - Add `ModelMetadata` global config with context size. ([#5831](https://github.com/getsentry/relay/pull/5831))
-- Add `ModelMetadata` config with context size and utilization. Compute `gen_ai.context.window_size` and `gen_ai.context.utilization` on AI spans. ([#5814](https://github.com/getsentry/relay/pull/5814))
+- Add `ModelMetadata` config with context size and utilization. ([#5814](https://github.com/getsentry/relay/pull/5814))
 
 **Internal**:
 
