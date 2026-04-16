@@ -364,14 +364,12 @@ impl ObjectstoreServiceInner {
                     if Self::should_skip_upload(attachment) {
                         continue;
                     }
-                    match self
+                    let result = self
                         .upload_bytes(&session, attachment.payload(), retention, None)
-                        .await
-                    {
-                        Ok(stored_key) => attachment.set_stored_key(stored_key.into_inner()),
-                        Err(error) => {
-                            log_result("envelope", 1, &Err::<(), _>(error));
-                        }
+                        .await;
+                    log_result("envelope", 1, &result);
+                    if let Ok(stored_key) = result {
+                        attachment.set_stored_key(stored_key.into_inner());
                     }
                 }
             }
@@ -635,17 +633,22 @@ fn is_retryable(error: &objectstore_client::Error) -> bool {
 }
 
 fn log_result<T>(ty: &str, amount: usize, result: &Result<T, Error>) {
-    let Err(error) = result else { return };
-    relay_log::error!(
-        error = error as &dyn std::error::Error,
-        type = ty,
-        attempts = error.attempts(),
-        "objectstore upload failed"
-    );
+    let (msg, attempts) = match result {
+        Ok(_) => ("success", 0),
+        Err(e) => (e.as_str(), e.attempts()),
+    };
+    if let Err(error) = result {
+        relay_log::error!(
+            error = error as &dyn std::error::Error,
+            type = ty,
+            attempts = attempts,
+            "objectstore upload failed"
+        );
+    }
     relay_statsd::metric!(
         counter(RelayCounters::AttachmentUpload) += amount as u64,
-        result = error.as_str(),
+        result = msg,
         type = ty,
-        attempts = error.attempts().to_string(),
+        attempts = attempts.to_string(),
     );
 }
