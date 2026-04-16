@@ -67,6 +67,9 @@ pub enum BadStoreRequest {
     #[error("missing minidump")]
     MissingMinidump,
 
+    #[error("invalid unreal crash report")]
+    InvalidUnrealReport,
+
     #[cfg(sentry)]
     #[error("invalid prosperodump")]
     InvalidProsperodump,
@@ -96,6 +99,9 @@ pub enum BadStoreRequest {
 
     #[error("event submission rejected with_reason: {0:?}")]
     EventRejected(DiscardReason),
+
+    #[error("project not available")]
+    ProjectUnavailable,
 }
 
 impl IntoResponse for BadStoreRequest {
@@ -121,7 +127,7 @@ impl IntoResponse for BadStoreRequest {
 
                 (StatusCode::TOO_MANY_REQUESTS, headers, body).into_response()
             }
-            BadStoreRequest::QueueFailed(_) => {
+            BadStoreRequest::QueueFailed(_) | BadStoreRequest::ProjectUnavailable => {
                 // These errors indicate that something's wrong with our service system, most likely
                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
                 // client. It might retry event submission at a later time.

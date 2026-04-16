@@ -17,7 +17,6 @@ processing = [
   "dep:prost-types",
   "dep:sentry_protos",
   "dep:symbolic-common",
-  "dep:symbolic-unreal",
   "relay-config/processing",
   "relay-kafka/producer",
   "relay-metrics/redis",
@@ -119,7 +118,7 @@ sqlx = { workspace = true, features = [
   "runtime-tokio",
 ], default-features = false }
 symbolic-common = { workspace = true, optional = true, default-features = false }
-symbolic-unreal = { workspace = true, optional = true, default-features = false, features = [
+symbolic-unreal = { workspace = true, default-features = false, features = [
   "serde",
 ] }
 sync_wrapper = { workspace = true }

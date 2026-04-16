@@ -8,7 +8,9 @@ use crate::services::buffer::{
     ObservableEnvelopeBuffer, PartitionedEnvelopeBuffer, ProjectKeyPair,
 };
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
-use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
+use crate::services::global_config::{
+    GlobalConfigHandle, GlobalConfigManager, GlobalConfigService,
+};
 use crate::services::health_check::{HealthCheck, HealthCheckService};
 use crate::services::metrics::RouterService;
 #[cfg(feature = "processing")]
@@ -82,6 +84,7 @@ pub struct Registry {
     #[cfg(feature = "processing")]
     pub objectstore: Option<Addr<Objectstore>>,
     pub upload: Addr<Upload>,
+    pub global_config_handle: GlobalConfigHandle,
 }
 
 /// Constructs a Tokio [`relay_system::Runtime`] configured for running [services](relay_system::Service).
@@ -295,7 +298,7 @@ impl ServiceState {
                     EnvelopeProcessorService::new(
                         processor_pool.clone(),
                         config.clone(),
-                        global_config_handle,
+                        global_config_handle.clone(),
                         project_cache_handle.clone(),
                         cogs,
                         #[cfg(feature = "processing")]
@@ -374,6 +377,7 @@ impl ServiceState {
             #[cfg(feature = "processing")]
             objectstore,
             upload,
+            global_config_handle,
         };
 
         let state = StateInner {
@@ -457,6 +461,10 @@ impl ServiceState {
     /// Returns the address of the [`Upload`] service.
     pub fn upload(&self) -> &Addr<Upload> {
         &self.inner.registry.upload
+    }
+
+    pub fn global_config_handle(&self) -> &GlobalConfigHandle {
+        &self.inner.registry.global_config_handle
     }
 }
 

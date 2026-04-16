@@ -70,6 +70,7 @@ use crate::statsd::{RelayCounters, RelayDistributions, RelayTimers};
 use crate::utils::{self, CheckLimits, EnvelopeLimiter};
 use crate::{http, processing};
 use relay_threading::AsyncPool;
+use symbolic_unreal::{Unreal4Error, Unreal4ErrorKind};
 #[cfg(feature = "processing")]
 use {
     crate::services::objectstore::Objectstore,
@@ -79,7 +80,6 @@ use {
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     relay_redis::RedisClients,
     std::time::Instant,
-    symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
 pub mod event;
@@ -501,7 +501,6 @@ pub enum ProcessingError {
     #[error("invalid message pack event payload")]
     InvalidMsgpack(#[from] rmp_serde::decode::Error),
 
-    #[cfg(feature = "processing")]
     #[error("invalid unreal crash report")]
     InvalidUnrealReport(#[source] Unreal4Error),
 
@@ -592,11 +591,9 @@ impl ProcessingError {
             Self::InvalidNintendoDyingMessage(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
             #[cfg(all(sentry, feature = "processing"))]
             Self::InvalidPlaystationDump(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
-            #[cfg(feature = "processing")]
             Self::InvalidUnrealReport(err) if err.kind() == Unreal4ErrorKind::BadCompression => {
                 Some(Outcome::Invalid(DiscardReason::InvalidCompression))
             }
-            #[cfg(feature = "processing")]
             Self::InvalidUnrealReport(_) => Some(Outcome::Invalid(DiscardReason::ProcessUnreal)),
             Self::SerializeFailed(_) | Self::ProcessingFailed(_) => {
                 Some(Outcome::Invalid(DiscardReason::Internal))
@@ -624,7 +621,6 @@ impl ProcessingError {
     }
 }
 
-#[cfg(feature = "processing")]
 impl From<Unreal4Error> for ProcessingError {
     fn from(err: Unreal4Error) -> Self {
         match err.kind() {
