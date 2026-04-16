@@ -278,7 +278,6 @@ pub fn normalize(
             transaction_name_config: TransactionNameConfig {
                 rules: &project_info.config.tx_name_rules,
             },
-            device_class_synthesis_config: project_info.has_feature(Feature::DeviceClassSynthesis),
             enrich_spans: true,
             max_tag_value_length: ctx
                 .config

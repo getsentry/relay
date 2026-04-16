@@ -10,6 +10,7 @@ local pipedream_config = {
   exclude_regions: [
     'de',
     'us',
+    's4s',
     's4s2',
     'customer-1',
     'customer-2',

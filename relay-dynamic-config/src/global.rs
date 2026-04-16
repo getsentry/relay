@@ -134,25 +134,6 @@ fn is_err_or_empty(filters_config: &ErrorBoundary<GenericFiltersConfig>) -> bool
 #[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Options {
-    /// Kill switch for controlling the cardinality limiter.
-    #[serde(
-        rename = "relay.cardinality-limiter.mode",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub cardinality_limiter_mode: CardinalityLimiterMode,
-
-    /// Sample rate for Cardinality Limiter Sentry errors.
-    ///
-    /// Rate needs to be between `0.0` and `1.0`.
-    /// If set to `1.0` all cardinality limiter rejections will be logged as a Sentry error.
-    #[serde(
-        rename = "relay.cardinality-limiter.error-sample-rate",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub cardinality_limiter_error_sample_rate: f32,
-
     /// Metric bucket encoding configuration for sets by metric namespace.
     #[serde(
         rename = "relay.metric-bucket-set-encodings",
@@ -222,25 +203,19 @@ pub struct Options {
     )]
     pub eap_span_outcomes_rollout_rate: f32,
 
+    /// Rollout rate for expanding the unreal report in the endpoint rather than during processing.
+    ///
+    /// Rate needs to be between `0.0` and `1.0`.
+    #[serde(
+        rename = "relay.unreal-report-expansion.rollout-rate",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub unreal_report_expansion_rollout_rate: f32,
+
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,
-}
-
-/// Kill switch for controlling the cardinality limiter.
-#[derive(Default, Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "lowercase")]
-pub enum CardinalityLimiterMode {
-    /// Cardinality limiter is enabled.
-    #[default]
-    // De-serialize from the empty string, because the option was added to
-    // Sentry incorrectly which makes Sentry send the empty string as a default.
-    #[serde(alias = "")]
-    Enabled,
-    /// Cardinality limiter is enabled but cardinality limits are not enforced.
-    Passive,
-    /// Cardinality limiter is disabled.
-    Disabled,
 }
 
 /// Configuration container to control [`BucketEncoding`] per namespace.
@@ -443,38 +418,6 @@ mod tests {
         let deserialized = serde_json::from_str::<GlobalConfig>(json).unwrap();
         let serialized = serde_json::to_string_pretty(&deserialized).unwrap();
         assert_eq!(json, serialized.as_str());
-    }
-
-    #[test]
-    fn test_global_config_invalid_value_is_default() {
-        let options: Options = serde_json::from_str(
-            r#"{
-                "relay.cardinality-limiter.mode": "passive"
-            }"#,
-        )
-        .unwrap();
-
-        let expected = Options {
-            cardinality_limiter_mode: CardinalityLimiterMode::Passive,
-            ..Default::default()
-        };
-
-        assert_eq!(options, expected);
-    }
-
-    #[test]
-    fn test_cardinality_limiter_mode_de_serialize() {
-        let m: CardinalityLimiterMode = serde_json::from_str("\"\"").unwrap();
-        assert_eq!(m, CardinalityLimiterMode::Enabled);
-        let m: CardinalityLimiterMode = serde_json::from_str("\"enabled\"").unwrap();
-        assert_eq!(m, CardinalityLimiterMode::Enabled);
-        let m: CardinalityLimiterMode = serde_json::from_str("\"disabled\"").unwrap();
-        assert_eq!(m, CardinalityLimiterMode::Disabled);
-        let m: CardinalityLimiterMode = serde_json::from_str("\"passive\"").unwrap();
-        assert_eq!(m, CardinalityLimiterMode::Passive);
-
-        let m = serde_json::to_string(&CardinalityLimiterMode::Enabled).unwrap();
-        assert_eq!(m, "\"enabled\"");
     }
 
     #[test]

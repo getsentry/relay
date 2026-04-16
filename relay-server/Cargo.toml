@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "26.3.1"
+version = "26.4.0"
 edition = "2024"
 build = "build.rs"
 license-file = "../LICENSE.md"
@@ -17,8 +17,6 @@ processing = [
   "dep:prost-types",
   "dep:sentry_protos",
   "dep:symbolic-common",
-  "dep:symbolic-unreal",
-  "relay-cardinality/redis",
   "relay-config/processing",
   "relay-kafka/producer",
   "relay-metrics/redis",
@@ -71,7 +69,6 @@ rand = { workspace = true }
 regex = { workspace = true }
 relay-auth = { workspace = true }
 relay-base-schema = { workspace = true }
-relay-cardinality = { workspace = true }
 relay-cogs = { workspace = true }
 relay-common = { workspace = true }
 relay-config = { workspace = true }
@@ -121,7 +118,7 @@ sqlx = { workspace = true, features = [
   "runtime-tokio",
 ], default-features = false }
 symbolic-common = { workspace = true, optional = true, default-features = false }
-symbolic-unreal = { workspace = true, optional = true, default-features = false, features = [
+symbolic-unreal = { workspace = true, default-features = false, features = [
   "serde",
 ] }
 sync_wrapper = { workspace = true }

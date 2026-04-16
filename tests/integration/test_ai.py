@@ -401,9 +401,9 @@ def test_ai_spans_example_transaction(
                 "gen_ai.agent.name": {"type": "string", "value": "weather-chat"},
                 "gen_ai.function_id": {"type": "string", "value": "weather-chat"},
                 "gen_ai.operation.type": {"type": "string", "value": "agent"},
-                "gen_ai.prompt": {"type": "string", "value": "Weather Prompt"},
+                "gen_ai.input.messages": {"type": "string", "value": "Weather Prompt"},
                 "gen_ai.response.model": {"type": "string", "value": "gpt-4o"},
-                "gen_ai.response.text": {
+                "gen_ai.output.messages": {
                     "type": "string",
                     "value": "True. \n\n- London: 61°F \n- San Francisco: 13°C",
                 },
@@ -499,7 +499,7 @@ def test_ai_spans_example_transaction(
                     "type": "string",
                     "value": '["tools1"]',
                 },
-                "gen_ai.request.messages": {
+                "gen_ai.input.messages": {
                     "type": "string",
                     "value": "Another weather prompt",
                 },
@@ -993,7 +993,7 @@ def test_ai_spans_example_transaction(
                     "type": "string",
                     "value": '["tool_1"]',
                 },
-                "gen_ai.request.messages": {
+                "gen_ai.input.messages": {
                     "type": "string",
                     "value": "Some AI Prompt about " "the Wheather",
                 },
@@ -1010,7 +1010,7 @@ def test_ai_spans_example_transaction(
                     "type": "string",
                     "value": "gpt-4o-2024-08-06",
                 },
-                "gen_ai.response.text": {
+                "gen_ai.output.messages": {
                     "type": "string",
                     "value": "True. \n"
                     "\n"
