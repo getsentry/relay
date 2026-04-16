@@ -101,7 +101,7 @@ pub fn format_constant(attr: &Attribute) -> String {
     let Attribute {
         key,
         brief,
-        pii: _pii,
+        pii,
         deprecation,
         alias,
     } = attr;
@@ -119,6 +119,18 @@ pub fn format_constant(attr: &Attribute) -> String {
 
         writeln!(&mut out).unwrap();
     }
+
+    writeln!(&mut out, "/// * PII: {pii:?}").unwrap();
+    writeln!(
+        &mut out,
+        "/// * Rewriting behavior: {}",
+        deprecation
+            .as_ref()
+            .and_then(|d| d.status)
+            .map(|s| format!("{s:?}"))
+            .unwrap_or("None".to_owned())
+    )
+    .unwrap();
 
     if !alias.is_empty() {
         writeln!(&mut out, "/// # Aliases").unwrap();
