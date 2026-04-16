@@ -19,7 +19,7 @@ use futures::future::BoxFuture;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
-use relay_config::{Config, HttpEncoding, RelayMode};
+use relay_config::{Config, HttpEncoding, RelayMode, UpstreamDescriptor};
 use relay_dynamic_config::{Feature, GlobalConfig};
 use relay_event_normalization::{ClockDriftProcessor, GeoIpLookup};
 use relay_event_schema::processor::ProcessingAction;
@@ -2531,6 +2531,7 @@ pub fn encode_payload(body: &Bytes, http_encoding: HttpEncoding) -> Result<Bytes
 /// An upstream request that submits an envelope via HTTP.
 #[derive(Debug)]
 pub struct SendEnvelope {
+    pub upstream: UpstreamDescriptor,
     pub envelope: TypedEnvelope<Processed>,
     pub body: Bytes,
     pub http_encoding: HttpEncoding,
@@ -2538,6 +2539,10 @@ pub struct SendEnvelope {
 }
 
 impl UpstreamRequest for SendEnvelope {
+    fn upstream(&self) -> Option<&UpstreamDescriptor> {
+        Some(&self.upstream)
+    }
+
     fn method(&self) -> reqwest::Method {
         reqwest::Method::POST
     }
