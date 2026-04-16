@@ -66,13 +66,9 @@ async fn handle(
     envelope.add_item(item);
 
     // Never respond with a 429
-    match common::handle_envelope(&state, envelope)
-        .await
-        .map_err(|err| err.into_inner())
-    {
-        Ok(_) | Err(BadStoreRequest::RateLimited(_)) => (),
-        Err(error) => return Err(error.into()),
-    };
+    common::handle_envelope(&state, envelope)
+        .await?
+        .silence_rate_limits();
 
     // Event will be processed by Sentry, respond with a 202
     Ok(StatusCode::ACCEPTED)

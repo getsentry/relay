@@ -1,4 +1,5 @@
 from collections import defaultdict
+from time import sleep
 from unittest import mock
 import pytest
 import os
@@ -798,3 +799,31 @@ def test_event_merging(
     assert sorted(event["attachments"], key=lambda x: x["name"]) == attachments(
         158008, 60446, 210174
     )
+
+
+@pytest.mark.parametrize("rate_limits", [[], ["error"], ["error", "attachment"]])
+@pytest.mark.parametrize("use_pop_relay", [True, False])
+def test_playstation_rate_limited(
+    mini_sentry,
+    relay_with_playstation,
+    relay_processing_with_playstation,
+    relay_credentials,
+    use_pop_relay,
+    rate_limits,
+):
+    PROJECT_ID = 42
+    playstation_dump = load_dump_file("playstation.prosperodmp")
+    config = playstation_project_config()
+    config["config"]["quotas"] = [
+        {"categories": rate_limits, "limit": 0, "reasonCode": "static_disabled_quota"}
+    ]
+    mini_sentry.add_full_project_config(PROJECT_ID, extra=config)
+    credentials = relay_credentials()
+    relay = relay_processing_with_playstation(static_credentials=credentials)
+    if use_pop_relay:
+        relay = relay_with_playstation(relay, credentials=credentials)
+
+    # Playstation never returns 429
+    relay.send_playstation_request(PROJECT_ID, playstation_dump)
+    sleep(1)
+    relay.send_playstation_request(PROJECT_ID, playstation_dump)
