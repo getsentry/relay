@@ -1,6 +1,6 @@
 use relay_quotas::DataCategory;
 
-use crate::envelope::{Item, ItemType, Items};
+use crate::envelope::{Item, ItemType};
 use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing::ForwardContext;
 use crate::processing::errors::Result;
@@ -9,7 +9,7 @@ use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
 #[derive(Debug)]
 pub enum UnrealReport {
     Report(Item),
-    Expanded(Box<Items>),
+    Expanded(Vec<Item>),
 }
 
 #[derive(Debug)]
@@ -31,11 +31,11 @@ impl SentryError for Unreal {
         let report = if let Some(item) = utils::take_item_of_type(items, ItemType::UnrealReport) {
             UnrealReport::Report(item)
         } else {
-            let items: Items = utils::take_items_by(items, |i| i.is_unreal_expanded());
+            let items: Vec<Item> = utils::take_items_by(items, |i| i.is_unreal_expanded());
             if items.is_empty() {
                 return Ok(None);
             }
-            UnrealReport::Expanded(Box::new(items))
+            UnrealReport::Expanded(items)
         };
 
         let mut metrics = Default::default();
@@ -55,7 +55,7 @@ impl SentryError for Unreal {
 
             let expansion = match report {
                 UnrealReport::Report(item) => crate::utils::expand_unreal(item.payload(), ctx.processing.config)?,
-                UnrealReport::Expanded(report_items) => crate::utils::expand_unreal_items(*report_items)?,
+                UnrealReport::Expanded(report_items) => crate::utils::expand_unreal_items(report_items.into())?,
             };
 
             let event = expansion.event;
@@ -176,7 +176,7 @@ impl SentryError for Unreal {
     fn serialize_into(self, items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
         match self {
             Self::Forward(UnrealReport::Report(report)) => items.push(report),
-            Self::Forward(UnrealReport::Expanded(report_items)) => items.extend(*report_items),
+            Self::Forward(UnrealReport::Expanded(report_items)) => items.extend(report_items),
             #[cfg(feature = "processing")]
             Self::Process {
                 minidump,
