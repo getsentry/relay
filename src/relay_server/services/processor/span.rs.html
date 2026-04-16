@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/processor/span.rs`."><title>span.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-77263533.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.94.1 (e408947bf 2026-03-25)" data-channel="1.94.1" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-c38705f0.js" ><script src="../../../../static.files/storage-e2aeef58.js"></script><script defer src="../../../../static.files/src-script-813739b1.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-7bab91a1.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-ffcac47a.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">relay_server/services/processor/</div>span.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Contains the processing-only functionality.
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/processor/span.rs`."><title>span.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0 (59807616e 2026-04-14)" data-channel="1.95.0" data-search-js="search-63369b7b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../../static.files/src-script-813739b1.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-5013f961.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">relay_server/services/processor/</div>span.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Contains the processing-only functionality.
 <a href=#2 id=2 data-nosnippet>2</a>
 <a href=#3 id=3 data-nosnippet>3</a></span><span class="kw">use </span>std::error::Error;
 <a href=#4 id=4 data-nosnippet>4</a>
@@ -552,8 +552,8 @@
 <a href=#552 id=552 data-nosnippet>552</a>        )
 <a href=#553 id=553 data-nosnippet>553</a>        .unwrap();
 <a href=#554 id=554 data-nosnippet>554</a>        set_segment_attributes(<span class="kw-2">&amp;mut </span>span);
-<a href=#555 id=555 data-nosnippet>555</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.<span class="macro">is_segment!</span>), <span class="kw-2">&amp;</span><span class="bool-val">true</span>);
-<a href=#556 id=556 data-nosnippet>556</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.<span class="macro">segment_id!</span>).to_string(), <span class="string">"fa90fdead5f74052"</span>);
+<a href=#555 id=555 data-nosnippet>555</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.is_segment!), <span class="kw-2">&amp;</span><span class="bool-val">true</span>);
+<a href=#556 id=556 data-nosnippet>556</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.segment_id!).to_string(), <span class="string">"fa90fdead5f74052"</span>);
 <a href=#557 id=557 data-nosnippet>557</a>    }
 <a href=#558 id=558 data-nosnippet>558</a>
 <a href=#559 id=559 data-nosnippet>559</a>    <span class="attr">#[test]
@@ -568,7 +568,7 @@
 <a href=#568 id=568 data-nosnippet>568</a>        )
 <a href=#569 id=569 data-nosnippet>569</a>        .unwrap();
 <a href=#570 id=570 data-nosnippet>570</a>        set_segment_attributes(<span class="kw-2">&amp;mut </span>span);
-<a href=#571 id=571 data-nosnippet>571</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.<span class="macro">is_segment!</span>), <span class="kw-2">&amp;</span><span class="bool-val">true</span>);
+<a href=#571 id=571 data-nosnippet>571</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.is_segment!), <span class="kw-2">&amp;</span><span class="bool-val">true</span>);
 <a href=#572 id=572 data-nosnippet>572</a>    }
 <a href=#573 id=573 data-nosnippet>573</a>
 <a href=#574 id=574 data-nosnippet>574</a>    <span class="attr">#[test]
@@ -581,8 +581,8 @@
 <a href=#581 id=581 data-nosnippet>581</a>        )
 <a href=#582 id=582 data-nosnippet>582</a>        .unwrap();
 <a href=#583 id=583 data-nosnippet>583</a>        set_segment_attributes(<span class="kw-2">&amp;mut </span>span);
-<a href=#584 id=584 data-nosnippet>584</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.<span class="macro">is_segment!</span>), <span class="kw-2">&amp;</span><span class="bool-val">true</span>);
-<a href=#585 id=585 data-nosnippet>585</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.<span class="macro">segment_id!</span>).to_string(), <span class="string">"fa90fdead5f74052"</span>);
+<a href=#584 id=584 data-nosnippet>584</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.is_segment!), <span class="kw-2">&amp;</span><span class="bool-val">true</span>);
+<a href=#585 id=585 data-nosnippet>585</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.segment_id!).to_string(), <span class="string">"fa90fdead5f74052"</span>);
 <a href=#586 id=586 data-nosnippet>586</a>    }
 <a href=#587 id=587 data-nosnippet>587</a>
 <a href=#588 id=588 data-nosnippet>588</a>    <span class="attr">#[test]
@@ -595,8 +595,8 @@
 <a href=#595 id=595 data-nosnippet>595</a>        )
 <a href=#596 id=596 data-nosnippet>596</a>        .unwrap();
 <a href=#597 id=597 data-nosnippet>597</a>        set_segment_attributes(<span class="kw-2">&amp;mut </span>span);
-<a href=#598 id=598 data-nosnippet>598</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.<span class="macro">is_segment!</span>), <span class="kw-2">&amp;</span><span class="bool-val">false</span>);
-<a href=#599 id=599 data-nosnippet>599</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.<span class="macro">segment_id!</span>).to_string(), <span class="string">"ea90fdead5f74051"</span>);
+<a href=#598 id=598 data-nosnippet>598</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.is_segment!), <span class="kw-2">&amp;</span><span class="bool-val">false</span>);
+<a href=#599 id=599 data-nosnippet>599</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.segment_id!).to_string(), <span class="string">"ea90fdead5f74051"</span>);
 <a href=#600 id=600 data-nosnippet>600</a>    }
 <a href=#601 id=601 data-nosnippet>601</a>
 <a href=#602 id=602 data-nosnippet>602</a>    <span class="attr">#[test]
@@ -658,7 +658,7 @@
 <a href=#658 id=658 data-nosnippet>658</a>            <span class="prelude-val">None</span>,
 <a href=#659 id=659 data-nosnippet>659</a>            ClientHints::default(),
 <a href=#660 id=660 data-nosnippet>660</a>        );
-<a href=#661 id=661 data-nosnippet>661</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.data.<span class="macro">browser_name!</span>), <span class="string">"foo"</span>);
+<a href=#661 id=661 data-nosnippet>661</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.data.browser_name!), <span class="string">"foo"</span>);
 <a href=#662 id=662 data-nosnippet>662</a>    }
 <a href=#663 id=663 data-nosnippet>663</a>
 <a href=#664 id=664 data-nosnippet>664</a>    <span class="attr">#[test]
@@ -677,7 +677,7 @@
 <a href=#677 id=677 data-nosnippet>677</a>            <span class="prelude-val">None</span>,
 <a href=#678 id=678 data-nosnippet>678</a>            ClientHints::default(),
 <a href=#679 id=679 data-nosnippet>679</a>        );
-<a href=#680 id=680 data-nosnippet>680</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.data.<span class="macro">browser_name!</span>), <span class="string">"foo"</span>);
+<a href=#680 id=680 data-nosnippet>680</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.data.browser_name!), <span class="string">"foo"</span>);
 <a href=#681 id=681 data-nosnippet>681</a>    }
 <a href=#682 id=682 data-nosnippet>682</a>
 <a href=#683 id=683 data-nosnippet>683</a>    <span class="attr">#[test]
@@ -696,10 +696,10 @@
 <a href=#696 id=696 data-nosnippet>696</a>            ClientHints::default(),
 <a href=#697 id=697 data-nosnippet>697</a>        );
 <a href=#698 id=698 data-nosnippet>698</a>        <span class="macro">assert_eq!</span>(
-<a href=#699 id=699 data-nosnippet>699</a>            <span class="macro">get_value!</span>(span.data.<span class="macro">user_agent_original!</span>),
+<a href=#699 id=699 data-nosnippet>699</a>            <span class="macro">get_value!</span>(span.data.user_agent_original!),
 <a href=#700 id=700 data-nosnippet>700</a>            <span class="string">"Mozilla/5.0 (-; -; -) - Chrome/18.0.1025.133 Mobile Safari/535.19"
 <a href=#701 id=701 data-nosnippet>701</a>        </span>);
-<a href=#702 id=702 data-nosnippet>702</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.data.<span class="macro">browser_name!</span>), <span class="string">"Chrome Mobile"</span>);
+<a href=#702 id=702 data-nosnippet>702</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.data.browser_name!), <span class="string">"Chrome Mobile"</span>);
 <a href=#703 id=703 data-nosnippet>703</a>    }
 <a href=#704 id=704 data-nosnippet>704</a>
 <a href=#705 id=705 data-nosnippet>705</a>    <span class="attr">#[test]
@@ -720,10 +720,10 @@
 <a href=#720 id=720 data-nosnippet>720</a>            ClientHints::default(),
 <a href=#721 id=721 data-nosnippet>721</a>        );
 <a href=#722 id=722 data-nosnippet>722</a>        <span class="macro">assert_eq!</span>(
-<a href=#723 id=723 data-nosnippet>723</a>            <span class="macro">get_value!</span>(span.data.<span class="macro">user_agent_original!</span>),
+<a href=#723 id=723 data-nosnippet>723</a>            <span class="macro">get_value!</span>(span.data.user_agent_original!),
 <a href=#724 id=724 data-nosnippet>724</a>            <span class="string">"Mozilla/5.0 (-; -; -) - Chrome/18.0.1025.133 Mobile Safari/535.19"
 <a href=#725 id=725 data-nosnippet>725</a>        </span>);
-<a href=#726 id=726 data-nosnippet>726</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.data.<span class="macro">browser_name!</span>), <span class="string">"Chrome Mobile"</span>);
+<a href=#726 id=726 data-nosnippet>726</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.data.browser_name!), <span class="string">"Chrome Mobile"</span>);
 <a href=#727 id=727 data-nosnippet>727</a>    }
 <a href=#728 id=728 data-nosnippet>728</a>
 <a href=#729 id=729 data-nosnippet>729</a>    <span class="attr">#[test]
@@ -737,10 +737,10 @@
 <a href=#737 id=737 data-nosnippet>737</a>            ClientHints::default(),
 <a href=#738 id=738 data-nosnippet>738</a>        );
 <a href=#739 id=739 data-nosnippet>739</a>        <span class="macro">assert_eq!</span>(
-<a href=#740 id=740 data-nosnippet>740</a>            <span class="macro">get_value!</span>(span.data.<span class="macro">user_agent_original!</span>),
+<a href=#740 id=740 data-nosnippet>740</a>            <span class="macro">get_value!</span>(span.data.user_agent_original!),
 <a href=#741 id=741 data-nosnippet>741</a>            <span class="string">"Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; ONS Internet Explorer 6.1; .NET CLR 1.1.4322)"
 <a href=#742 id=742 data-nosnippet>742</a>        </span>);
-<a href=#743 id=743 data-nosnippet>743</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.data.<span class="macro">browser_name!</span>), <span class="string">"IE"</span>);
+<a href=#743 id=743 data-nosnippet>743</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.data.browser_name!), <span class="string">"IE"</span>);
 <a href=#744 id=744 data-nosnippet>744</a>    }
 <a href=#745 id=745 data-nosnippet>745</a>
 <a href=#746 id=746 data-nosnippet>746</a>    <span class="attr">#[test]
@@ -762,10 +762,10 @@
 <a href=#762 id=762 data-nosnippet>762</a>            },
 <a href=#763 id=763 data-nosnippet>763</a>        );
 <a href=#764 id=764 data-nosnippet>764</a>        <span class="macro">assert_eq!</span>(
-<a href=#765 id=765 data-nosnippet>765</a>            <span class="macro">get_value!</span>(span.data.<span class="macro">user_agent_original!</span>),
+<a href=#765 id=765 data-nosnippet>765</a>            <span class="macro">get_value!</span>(span.data.user_agent_original!),
 <a href=#766 id=766 data-nosnippet>766</a>            <span class="string">"Mozilla/5.0 (-; -; -) - Chrome/18.0.1025.133 Mobile Safari/535.19"
 <a href=#767 id=767 data-nosnippet>767</a>        </span>);
-<a href=#768 id=768 data-nosnippet>768</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.data.<span class="macro">browser_name!</span>), <span class="string">"Chrome Mobile"</span>);
+<a href=#768 id=768 data-nosnippet>768</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.data.browser_name!), <span class="string">"Chrome Mobile"</span>);
 <a href=#769 id=769 data-nosnippet>769</a>    }
 <a href=#770 id=770 data-nosnippet>770</a>
 <a href=#771 id=771 data-nosnippet>771</a>    <span class="attr">#[test]
@@ -780,7 +780,7 @@
 <a href=#780 id=780 data-nosnippet>780</a>            },
 <a href=#781 id=781 data-nosnippet>781</a>        );
 <a href=#782 id=782 data-nosnippet>782</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.data.user_agent_original), <span class="prelude-val">None</span>);
-<a href=#783 id=783 data-nosnippet>783</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.data.<span class="macro">browser_name!</span>), <span class="string">"Opera"</span>);
+<a href=#783 id=783 data-nosnippet>783</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.data.browser_name!), <span class="string">"Opera"</span>);
 <a href=#784 id=784 data-nosnippet>784</a>    }
 <a href=#785 id=785 data-nosnippet>785</a>
 <a href=#786 id=786 data-nosnippet>786</a>    <span class="kw">static </span>GEO_LOOKUP: LazyLock&lt;GeoIpLookup&gt; = LazyLock::new(|| {
@@ -829,10 +829,10 @@
 <a href=#829 id=829 data-nosnippet>829</a>        normalize(<span class="kw-2">&amp;mut </span>span, normalize_config()).unwrap();
 <a href=#830 id=830 data-nosnippet>830</a>
 <a href=#831 id=831 data-nosnippet>831</a>        <span class="macro">assert_eq!</span>(
-<a href=#832 id=832 data-nosnippet>832</a>            <span class="macro">get_value!</span>(span.data.<span class="macro">client_address!</span>).as_str(),
+<a href=#832 id=832 data-nosnippet>832</a>            <span class="macro">get_value!</span>(span.data.client_address!).as_str(),
 <a href=#833 id=833 data-nosnippet>833</a>            <span class="string">"2.125.160.216"
 <a href=#834 id=834 data-nosnippet>834</a>        </span>);
-<a href=#835 id=835 data-nosnippet>835</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.data.<span class="macro">user_geo_city!</span>), <span class="string">"Boxford"</span>);
+<a href=#835 id=835 data-nosnippet>835</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.data.user_geo_city!), <span class="string">"Boxford"</span>);
 <a href=#836 id=836 data-nosnippet>836</a>    }
 <a href=#837 id=837 data-nosnippet>837</a>
 <a href=#838 id=838 data-nosnippet>838</a>    <span class="attr">#[test]
@@ -853,10 +853,10 @@
 <a href=#853 id=853 data-nosnippet>853</a>        normalize(<span class="kw-2">&amp;mut </span>span, normalize_config()).unwrap();
 <a href=#854 id=854 data-nosnippet>854</a>
 <a href=#855 id=855 data-nosnippet>855</a>        <span class="macro">assert_eq!</span>(
-<a href=#856 id=856 data-nosnippet>856</a>            <span class="macro">get_value!</span>(span.data.<span class="macro">client_address!</span>).as_str(),
+<a href=#856 id=856 data-nosnippet>856</a>            <span class="macro">get_value!</span>(span.data.client_address!).as_str(),
 <a href=#857 id=857 data-nosnippet>857</a>            <span class="string">"2.125.160.216"
 <a href=#858 id=858 data-nosnippet>858</a>        </span>);
-<a href=#859 id=859 data-nosnippet>859</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.data.<span class="macro">user_geo_city!</span>), <span class="string">"Boxford"</span>);
+<a href=#859 id=859 data-nosnippet>859</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.data.user_geo_city!), <span class="string">"Boxford"</span>);
 <a href=#860 id=860 data-nosnippet>860</a>    }
 <a href=#861 id=861 data-nosnippet>861</a>
 <a href=#862 id=862 data-nosnippet>862</a>    <span class="attr">#[test]
@@ -874,10 +874,10 @@
 <a href=#874 id=874 data-nosnippet>874</a>        normalize(<span class="kw-2">&amp;mut </span>span, normalize_config()).unwrap();
 <a href=#875 id=875 data-nosnippet>875</a>
 <a href=#876 id=876 data-nosnippet>876</a>        <span class="macro">assert_eq!</span>(
-<a href=#877 id=877 data-nosnippet>877</a>            <span class="macro">get_value!</span>(span.data.<span class="macro">client_address!</span>).as_str(),
+<a href=#877 id=877 data-nosnippet>877</a>            <span class="macro">get_value!</span>(span.data.client_address!).as_str(),
 <a href=#878 id=878 data-nosnippet>878</a>            <span class="string">"2.125.160.216"
 <a href=#879 id=879 data-nosnippet>879</a>        </span>);
-<a href=#880 id=880 data-nosnippet>880</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.data.<span class="macro">user_geo_city!</span>), <span class="string">"Boxford"</span>);
+<a href=#880 id=880 data-nosnippet>880</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.data.user_geo_city!), <span class="string">"Boxford"</span>);
 <a href=#881 id=881 data-nosnippet>881</a>    }
 <a href=#882 id=882 data-nosnippet>882</a>
 <a href=#883 id=883 data-nosnippet>883</a>    <span class="attr">#[test]
@@ -897,9 +897,9 @@
 <a href=#897 id=897 data-nosnippet>897</a>
 <a href=#898 id=898 data-nosnippet>898</a>        normalize(<span class="kw-2">&amp;mut </span>span, normalize_config()).unwrap();
 <a href=#899 id=899 data-nosnippet>899</a>
-<a href=#900 id=900 data-nosnippet>900</a>        <span class="kw">let </span>data = <span class="macro">get_value!</span>(span.<span class="macro">data!</span>);
+<a href=#900 id=900 data-nosnippet>900</a>        <span class="kw">let </span>data = <span class="macro">get_value!</span>(span.data!);
 <a href=#901 id=901 data-nosnippet>901</a>        <span class="macro">assert_eq!</span>(data.exclusive_time, Annotated::empty());
-<a href=#902 id=902 data-nosnippet>902</a>        <span class="macro">assert_eq!</span>(<span class="kw-2">*</span><span class="macro">get_value!</span>(span.<span class="macro">exclusive_time!</span>), <span class="number">123.0</span>);
+<a href=#902 id=902 data-nosnippet>902</a>        <span class="macro">assert_eq!</span>(<span class="kw-2">*</span><span class="macro">get_value!</span>(span.exclusive_time!), <span class="number">123.0</span>);
 <a href=#903 id=903 data-nosnippet>903</a>    }
 <a href=#904 id=904 data-nosnippet>904</a>
 <a href=#905 id=905 data-nosnippet>905</a>    <span class="attr">#[test]
@@ -919,9 +919,9 @@
 <a href=#919 id=919 data-nosnippet>919</a>
 <a href=#920 id=920 data-nosnippet>920</a>        normalize(<span class="kw-2">&amp;mut </span>span, normalize_config()).unwrap();
 <a href=#921 id=921 data-nosnippet>921</a>
-<a href=#922 id=922 data-nosnippet>922</a>        <span class="kw">let </span>data = <span class="macro">get_value!</span>(span.<span class="macro">data!</span>);
+<a href=#922 id=922 data-nosnippet>922</a>        <span class="kw">let </span>data = <span class="macro">get_value!</span>(span.data!);
 <a href=#923 id=923 data-nosnippet>923</a>        <span class="macro">assert_eq!</span>(data.exclusive_time, Annotated::empty());
-<a href=#924 id=924 data-nosnippet>924</a>        <span class="macro">assert_eq!</span>(<span class="kw-2">*</span><span class="macro">get_value!</span>(span.<span class="macro">exclusive_time!</span>), <span class="number">123.0</span>);
+<a href=#924 id=924 data-nosnippet>924</a>        <span class="macro">assert_eq!</span>(<span class="kw-2">*</span><span class="macro">get_value!</span>(span.exclusive_time!), <span class="number">123.0</span>);
 <a href=#925 id=925 data-nosnippet>925</a>    }
 <a href=#926 id=926 data-nosnippet>926</a>
 <a href=#927 id=927 data-nosnippet>927</a>    <span class="attr">#[test]
@@ -961,14 +961,14 @@
 <a href=#961 id=961 data-nosnippet>961</a>
 <a href=#962 id=962 data-nosnippet>962</a>        normalize(<span class="kw-2">&amp;mut </span>span, normalize_config()).unwrap();
 <a href=#963 id=963 data-nosnippet>963</a>
-<a href=#964 id=964 data-nosnippet>964</a>        <span class="kw">let </span>data = <span class="macro">get_value!</span>(span.<span class="macro">data!</span>);
+<a href=#964 id=964 data-nosnippet>964</a>        <span class="kw">let </span>data = <span class="macro">get_value!</span>(span.data!);
 <a href=#965 id=965 data-nosnippet>965</a>
 <a href=#966 id=966 data-nosnippet>966</a>        <span class="macro">assert_eq!</span>(data.exclusive_time, Annotated::empty());
-<a href=#967 id=967 data-nosnippet>967</a>        <span class="macro">assert_eq!</span>(<span class="kw-2">*</span><span class="macro">get_value!</span>(span.<span class="macro">exclusive_time!</span>), <span class="number">128.0</span>);
+<a href=#967 id=967 data-nosnippet>967</a>        <span class="macro">assert_eq!</span>(<span class="kw-2">*</span><span class="macro">get_value!</span>(span.exclusive_time!), <span class="number">128.0</span>);
 <a href=#968 id=968 data-nosnippet>968</a>
 <a href=#969 id=969 data-nosnippet>969</a>        <span class="macro">assert_eq!</span>(data.profile_id, Annotated::empty());
 <a href=#970 id=970 data-nosnippet>970</a>        <span class="macro">assert_eq!</span>(
-<a href=#971 id=971 data-nosnippet>971</a>            <span class="macro">get_value!</span>(span.<span class="macro">profile_id!</span>),
+<a href=#971 id=971 data-nosnippet>971</a>            <span class="macro">get_value!</span>(span.profile_id!),
 <a href=#972 id=972 data-nosnippet>972</a>            <span class="kw-2">&amp;</span>EventId(<span class="string">"480ffcc911174ade9106b40ffbd822f5"</span>.parse().unwrap())
 <a href=#973 id=973 data-nosnippet>973</a>        );
 <a href=#974 id=974 data-nosnippet>974</a>    }

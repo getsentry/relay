@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-normalization/src/transactions/processor.rs`."><title>processor.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-77263533.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_normalization" data-themes="" data-resource-suffix="" data-rustdoc-version="1.94.1 (e408947bf 2026-03-25)" data-channel="1.94.1" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-c38705f0.js" ><script src="../../../static.files/storage-e2aeef58.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-7bab91a1.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-ffcac47a.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">relay_event_normalization/transactions/</div>processor.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span>std::borrow::Cow;
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-normalization/src/transactions/processor.rs`."><title>processor.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_normalization" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0 (59807616e 2026-04-14)" data-channel="1.95.0" data-search-js="search-63369b7b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-5013f961.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">relay_event_normalization/transactions/</div>processor.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span>std::borrow::Cow;
 <a href=#2 id=2 data-nosnippet>2</a>
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span>regex::Regex;
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>relay_base_schema::events::EventType;
@@ -54,7 +54,7 @@
 <a href=#54 id=54 data-nosnippet>54</a>        });
 <a href=#55 id=55 data-nosnippet>55</a>
 <a href=#56 id=56 data-nosnippet>56</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>((rule, result)) = result
-<a href=#57 id=57 data-nosnippet>57</a>            &amp;&amp; <span class="kw-2">*</span><span class="macro">transaction !</span>= result
+<a href=#57 id=57 data-nosnippet>57</a>            &amp;&amp; <span class="kw-2">*</span>transaction != result
 <a href=#58 id=58 data-nosnippet>58</a>        {
 <a href=#59 id=59 data-nosnippet>59</a>            <span class="comment">// If another rule was applied before, we don't want to
 <a href=#60 id=60 data-nosnippet>60</a>            // rename the transaction name to keep the original one.
@@ -384,7 +384,7 @@
 <a href=#384 id=384 data-nosnippet>384</a>        }
 <a href=#385 id=385 data-nosnippet>385</a>        changed.push_str(<span class="kw-2">&amp;</span>trans[last_end..]);
 <a href=#386 id=386 data-nosnippet>386</a>
-<a href=#387 id=387 data-nosnippet>387</a>        <span class="kw">if </span>!changed.is_empty() &amp;&amp; <span class="macro">changed !</span>= <span class="string">"*" </span>{
+<a href=#387 id=387 data-nosnippet>387</a>        <span class="kw">if </span>!changed.is_empty() &amp;&amp; changed != <span class="string">"*" </span>{
 <a href=#388 id=388 data-nosnippet>388</a>            meta.set_original_value(<span class="prelude-val">Some</span>(trans.to_string()));
 <a href=#389 id=389 data-nosnippet>389</a>            <span class="kw-2">*</span>trans = changed;
 <a href=#390 id=390 data-nosnippet>390</a>        }
@@ -762,7 +762,7 @@
 <a href=#762 id=762 data-nosnippet>762</a>        )
 <a href=#763 id=763 data-nosnippet>763</a>        .unwrap();
 <a href=#764 id=764 data-nosnippet>764</a>
-<a href=#765 id=765 data-nosnippet>765</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.<span class="macro">transaction!</span>), <span class="string">"&lt;unlabeled transaction&gt;"</span>);
+<a href=#765 id=765 data-nosnippet>765</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.transaction!), <span class="string">"&lt;unlabeled transaction&gt;"</span>);
 <a href=#766 id=766 data-nosnippet>766</a>    }
 <a href=#767 id=767 data-nosnippet>767</a>
 <a href=#768 id=768 data-nosnippet>768</a>    <span class="attr">#[test]
@@ -782,7 +782,7 @@
 <a href=#782 id=782 data-nosnippet>782</a>        )
 <a href=#783 id=783 data-nosnippet>783</a>        .unwrap();
 <a href=#784 id=784 data-nosnippet>784</a>
-<a href=#785 id=785 data-nosnippet>785</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.<span class="macro">transaction!</span>), <span class="string">"&lt;unlabeled transaction&gt;"</span>);
+<a href=#785 id=785 data-nosnippet>785</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.transaction!), <span class="string">"&lt;unlabeled transaction&gt;"</span>);
 <a href=#786 id=786 data-nosnippet>786</a>    }
 <a href=#787 id=787 data-nosnippet>787</a>
 <a href=#788 id=788 data-nosnippet>788</a>    <span class="attr">#[test]
@@ -817,13 +817,13 @@
 <a href=#817 id=817 data-nosnippet>817</a>        )
 <a href=#818 id=818 data-nosnippet>818</a>        .unwrap();
 <a href=#819 id=819 data-nosnippet>819</a>
-<a href=#820 id=820 data-nosnippet>820</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.<span class="macro">transaction!</span>), <span class="string">"/foo/*/user/*/0"</span>);
+<a href=#820 id=820 data-nosnippet>820</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.transaction!), <span class="string">"/foo/*/user/*/0"</span>);
 <a href=#821 id=821 data-nosnippet>821</a>        <span class="macro">assert_eq!</span>(
-<a href=#822 id=822 data-nosnippet>822</a>            <span class="macro">get_value!</span>(event.transaction_info.<span class="macro">source!</span>).as_str(),
+<a href=#822 id=822 data-nosnippet>822</a>            <span class="macro">get_value!</span>(event.transaction_info.source!).as_str(),
 <a href=#823 id=823 data-nosnippet>823</a>            <span class="string">"sanitized"
 <a href=#824 id=824 data-nosnippet>824</a>        </span>);
 <a href=#825 id=825 data-nosnippet>825</a>
-<a href=#826 id=826 data-nosnippet>826</a>        <span class="kw">let </span>remarks = <span class="macro">get_value!</span>(<span class="macro">event!</span>)
+<a href=#826 id=826 data-nosnippet>826</a>        <span class="kw">let </span>remarks = <span class="macro">get_value!</span>(event!)
 <a href=#827 id=827 data-nosnippet>827</a>            .transaction
 <a href=#828 id=828 data-nosnippet>828</a>            .meta()
 <a href=#829 id=829 data-nosnippet>829</a>            .iter_remarks()
@@ -921,9 +921,9 @@
 <a href=#921 id=921 data-nosnippet>921</a>        )
 <a href=#922 id=922 data-nosnippet>922</a>        .unwrap();
 <a href=#923 id=923 data-nosnippet>923</a>
-<a href=#924 id=924 data-nosnippet>924</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.<span class="macro">transaction!</span>), <span class="string">"/foo/*/user/*/0"</span>);
+<a href=#924 id=924 data-nosnippet>924</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.transaction!), <span class="string">"/foo/*/user/*/0"</span>);
 <a href=#925 id=925 data-nosnippet>925</a>        <span class="macro">assert_eq!</span>(
-<a href=#926 id=926 data-nosnippet>926</a>            <span class="macro">get_value!</span>(event.transaction_info.<span class="macro">source!</span>).as_str(),
+<a href=#926 id=926 data-nosnippet>926</a>            <span class="macro">get_value!</span>(event.transaction_info.source!).as_str(),
 <a href=#927 id=927 data-nosnippet>927</a>            <span class="string">"sanitized"
 <a href=#928 id=928 data-nosnippet>928</a>        </span>);
 <a href=#929 id=929 data-nosnippet>929</a>    }
@@ -980,13 +980,13 @@
 <a href=#980 id=980 data-nosnippet>980</a>        )
 <a href=#981 id=981 data-nosnippet>981</a>        .unwrap();
 <a href=#982 id=982 data-nosnippet>982</a>
-<a href=#983 id=983 data-nosnippet>983</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.<span class="macro">transaction!</span>), <span class="string">"/foo/*/user/*/0/"</span>);
+<a href=#983 id=983 data-nosnippet>983</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.transaction!), <span class="string">"/foo/*/user/*/0/"</span>);
 <a href=#984 id=984 data-nosnippet>984</a>        <span class="macro">assert_eq!</span>(
-<a href=#985 id=985 data-nosnippet>985</a>            <span class="macro">get_value!</span>(event.transaction_info.<span class="macro">source!</span>).as_str(),
+<a href=#985 id=985 data-nosnippet>985</a>            <span class="macro">get_value!</span>(event.transaction_info.source!).as_str(),
 <a href=#986 id=986 data-nosnippet>986</a>            <span class="string">"sanitized"
 <a href=#987 id=987 data-nosnippet>987</a>        </span>);
 <a href=#988 id=988 data-nosnippet>988</a>
-<a href=#989 id=989 data-nosnippet>989</a>        <span class="kw">let </span>remarks = <span class="macro">get_value!</span>(<span class="macro">event!</span>)
+<a href=#989 id=989 data-nosnippet>989</a>        <span class="kw">let </span>remarks = <span class="macro">get_value!</span>(event!)
 <a href=#990 id=990 data-nosnippet>990</a>            .transaction
 <a href=#991 id=991 data-nosnippet>991</a>            .meta()
 <a href=#992 id=992 data-nosnippet>992</a>            .iter_remarks()
@@ -1063,13 +1063,13 @@
 <a href=#1063 id=1063 data-nosnippet>1063</a>        )
 <a href=#1064 id=1064 data-nosnippet>1064</a>        .unwrap();
 <a href=#1065 id=1065 data-nosnippet>1065</a>
-<a href=#1066 id=1066 data-nosnippet>1066</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.<span class="macro">transaction!</span>), <span class="string">"/foo/*/user/*/0/"</span>);
+<a href=#1066 id=1066 data-nosnippet>1066</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.transaction!), <span class="string">"/foo/*/user/*/0/"</span>);
 <a href=#1067 id=1067 data-nosnippet>1067</a>        <span class="macro">assert_eq!</span>(
-<a href=#1068 id=1068 data-nosnippet>1068</a>            <span class="macro">get_value!</span>(event.transaction_info.<span class="macro">source!</span>).as_str(),
+<a href=#1068 id=1068 data-nosnippet>1068</a>            <span class="macro">get_value!</span>(event.transaction_info.source!).as_str(),
 <a href=#1069 id=1069 data-nosnippet>1069</a>            <span class="string">"sanitized"
 <a href=#1070 id=1070 data-nosnippet>1070</a>        </span>);
 <a href=#1071 id=1071 data-nosnippet>1071</a>
-<a href=#1072 id=1072 data-nosnippet>1072</a>        <span class="kw">let </span>remarks = <span class="macro">get_value!</span>(<span class="macro">event!</span>)
+<a href=#1072 id=1072 data-nosnippet>1072</a>        <span class="kw">let </span>remarks = <span class="macro">get_value!</span>(event!)
 <a href=#1073 id=1073 data-nosnippet>1073</a>            .transaction
 <a href=#1074 id=1074 data-nosnippet>1074</a>            .meta()
 <a href=#1075 id=1075 data-nosnippet>1075</a>            .iter_remarks()
@@ -1130,13 +1130,13 @@
 <a href=#1130 id=1130 data-nosnippet>1130</a>        });
 <a href=#1131 id=1131 data-nosnippet>1131</a>        process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 <a href=#1132 id=1132 data-nosnippet>1132</a>
-<a href=#1133 id=1133 data-nosnippet>1133</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.<span class="macro">transaction!</span>), <span class="string">"/foo/*/user/*/0/"</span>);
+<a href=#1133 id=1133 data-nosnippet>1133</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.transaction!), <span class="string">"/foo/*/user/*/0/"</span>);
 <a href=#1134 id=1134 data-nosnippet>1134</a>        <span class="macro">assert_eq!</span>(
-<a href=#1135 id=1135 data-nosnippet>1135</a>            <span class="macro">get_value!</span>(event.transaction_info.<span class="macro">source!</span>).as_str(),
+<a href=#1135 id=1135 data-nosnippet>1135</a>            <span class="macro">get_value!</span>(event.transaction_info.source!).as_str(),
 <a href=#1136 id=1136 data-nosnippet>1136</a>            <span class="string">"sanitized"
 <a href=#1137 id=1137 data-nosnippet>1137</a>        </span>);
 <a href=#1138 id=1138 data-nosnippet>1138</a>
-<a href=#1139 id=1139 data-nosnippet>1139</a>        <span class="kw">let </span>remarks = <span class="macro">get_value!</span>(<span class="macro">event!</span>)
+<a href=#1139 id=1139 data-nosnippet>1139</a>        <span class="kw">let </span>remarks = <span class="macro">get_value!</span>(event!)
 <a href=#1140 id=1140 data-nosnippet>1140</a>            .transaction
 <a href=#1141 id=1141 data-nosnippet>1141</a>            .meta()
 <a href=#1142 id=1142 data-nosnippet>1142</a>            .iter_remarks()
@@ -1162,20 +1162,20 @@
 <a href=#1162 id=1162 data-nosnippet>1162</a>        "###</span>);
 <a href=#1163 id=1163 data-nosnippet>1163</a>
 <a href=#1164 id=1164 data-nosnippet>1164</a>        <span class="macro">assert_eq!</span>(
-<a href=#1165 id=1165 data-nosnippet>1165</a>            <span class="macro">get_value!</span>(event.transaction_info.<span class="macro">source!</span>).as_str(),
+<a href=#1165 id=1165 data-nosnippet>1165</a>            <span class="macro">get_value!</span>(event.transaction_info.source!).as_str(),
 <a href=#1166 id=1166 data-nosnippet>1166</a>            <span class="string">"sanitized"
 <a href=#1167 id=1167 data-nosnippet>1167</a>        </span>);
 <a href=#1168 id=1168 data-nosnippet>1168</a>
 <a href=#1169 id=1169 data-nosnippet>1169</a>        <span class="comment">// Process again:
 <a href=#1170 id=1170 data-nosnippet>1170</a>        </span>process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 <a href=#1171 id=1171 data-nosnippet>1171</a>
-<a href=#1172 id=1172 data-nosnippet>1172</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.<span class="macro">transaction!</span>), <span class="string">"/foo/*/user/*/0/"</span>);
+<a href=#1172 id=1172 data-nosnippet>1172</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.transaction!), <span class="string">"/foo/*/user/*/0/"</span>);
 <a href=#1173 id=1173 data-nosnippet>1173</a>        <span class="macro">assert_eq!</span>(
-<a href=#1174 id=1174 data-nosnippet>1174</a>            <span class="macro">get_value!</span>(event.transaction_info.<span class="macro">source!</span>).as_str(),
+<a href=#1174 id=1174 data-nosnippet>1174</a>            <span class="macro">get_value!</span>(event.transaction_info.source!).as_str(),
 <a href=#1175 id=1175 data-nosnippet>1175</a>            <span class="string">"sanitized"
 <a href=#1176 id=1176 data-nosnippet>1176</a>        </span>);
 <a href=#1177 id=1177 data-nosnippet>1177</a>
-<a href=#1178 id=1178 data-nosnippet>1178</a>        <span class="kw">let </span>remarks = <span class="macro">get_value!</span>(<span class="macro">event!</span>)
+<a href=#1178 id=1178 data-nosnippet>1178</a>        <span class="kw">let </span>remarks = <span class="macro">get_value!</span>(event!)
 <a href=#1179 id=1179 data-nosnippet>1179</a>            .transaction
 <a href=#1180 id=1180 data-nosnippet>1180</a>            .meta()
 <a href=#1181 id=1181 data-nosnippet>1181</a>            .iter_remarks()
@@ -1201,7 +1201,7 @@
 <a href=#1201 id=1201 data-nosnippet>1201</a>        "###</span>);
 <a href=#1202 id=1202 data-nosnippet>1202</a>
 <a href=#1203 id=1203 data-nosnippet>1203</a>        <span class="macro">assert_eq!</span>(
-<a href=#1204 id=1204 data-nosnippet>1204</a>            <span class="macro">get_value!</span>(event.transaction_info.<span class="macro">source!</span>).as_str(),
+<a href=#1204 id=1204 data-nosnippet>1204</a>            <span class="macro">get_value!</span>(event.transaction_info.source!).as_str(),
 <a href=#1205 id=1205 data-nosnippet>1205</a>            <span class="string">"sanitized"
 <a href=#1206 id=1206 data-nosnippet>1206</a>        </span>);
 <a href=#1207 id=1207 data-nosnippet>1207</a>    }
@@ -1252,11 +1252,11 @@
 <a href=#1252 id=1252 data-nosnippet>1252</a>        .unwrap();
 <a href=#1253 id=1253 data-nosnippet>1253</a>
 <a href=#1254 id=1254 data-nosnippet>1254</a>        <span class="macro">assert_eq!</span>(
-<a href=#1255 id=1255 data-nosnippet>1255</a>            <span class="macro">get_value!</span>(event.<span class="macro">transaction!</span>),
+<a href=#1255 id=1255 data-nosnippet>1255</a>            <span class="macro">get_value!</span>(event.transaction!),
 <a href=#1256 id=1256 data-nosnippet>1256</a>            <span class="string">"/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0"
 <a href=#1257 id=1257 data-nosnippet>1257</a>        </span>);
 <a href=#1258 id=1258 data-nosnippet>1258</a>        <span class="macro">assert!</span>(
-<a href=#1259 id=1259 data-nosnippet>1259</a>            <span class="macro">get_value!</span>(<span class="macro">event!</span>)
+<a href=#1259 id=1259 data-nosnippet>1259</a>            <span class="macro">get_value!</span>(event!)
 <a href=#1260 id=1260 data-nosnippet>1260</a>                .transaction
 <a href=#1261 id=1261 data-nosnippet>1261</a>                .meta()
 <a href=#1262 id=1262 data-nosnippet>1262</a>                .iter_remarks()
@@ -1264,7 +1264,7 @@
 <a href=#1264 id=1264 data-nosnippet>1264</a>                .is_none()
 <a href=#1265 id=1265 data-nosnippet>1265</a>        );
 <a href=#1266 id=1266 data-nosnippet>1266</a>        <span class="macro">assert_eq!</span>(
-<a href=#1267 id=1267 data-nosnippet>1267</a>            <span class="macro">get_value!</span>(event.transaction_info.<span class="macro">source!</span>).as_str(),
+<a href=#1267 id=1267 data-nosnippet>1267</a>            <span class="macro">get_value!</span>(event.transaction_info.source!).as_str(),
 <a href=#1268 id=1268 data-nosnippet>1268</a>            <span class="string">"foobar"
 <a href=#1269 id=1269 data-nosnippet>1269</a>        </span>);
 <a href=#1270 id=1270 data-nosnippet>1270</a>    }
@@ -1317,13 +1317,13 @@
 <a href=#1317 id=1317 data-nosnippet>1317</a>        <span class="comment">// Javascript without source annotation gets sanitized.
 <a href=#1318 id=1318 data-nosnippet>1318</a>        </span><span class="kw">let </span>event = run_with_unknown_source(<span class="string">"sentry.javascript.browser"</span>);
 <a href=#1319 id=1319 data-nosnippet>1319</a>
-<a href=#1320 id=1320 data-nosnippet>1320</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.<span class="macro">transaction!</span>), <span class="string">"/user/*/blog/"</span>);
+<a href=#1320 id=1320 data-nosnippet>1320</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.transaction!), <span class="string">"/user/*/blog/"</span>);
 <a href=#1321 id=1321 data-nosnippet>1321</a>        <span class="macro">assert_eq!</span>(
-<a href=#1322 id=1322 data-nosnippet>1322</a>            <span class="macro">get_value!</span>(event.transaction_info.<span class="macro">source!</span>).as_str(),
+<a href=#1322 id=1322 data-nosnippet>1322</a>            <span class="macro">get_value!</span>(event.transaction_info.source!).as_str(),
 <a href=#1323 id=1323 data-nosnippet>1323</a>            <span class="string">"sanitized"
 <a href=#1324 id=1324 data-nosnippet>1324</a>        </span>);
 <a href=#1325 id=1325 data-nosnippet>1325</a>
-<a href=#1326 id=1326 data-nosnippet>1326</a>        <span class="kw">let </span>remarks = <span class="macro">get_value!</span>(<span class="macro">event!</span>)
+<a href=#1326 id=1326 data-nosnippet>1326</a>        <span class="kw">let </span>remarks = <span class="macro">get_value!</span>(event!)
 <a href=#1327 id=1327 data-nosnippet>1327</a>            .transaction
 <a href=#1328 id=1328 data-nosnippet>1328</a>            .meta()
 <a href=#1329 id=1329 data-nosnippet>1329</a>            .iter_remarks()
@@ -1339,7 +1339,7 @@
 <a href=#1339 id=1339 data-nosnippet>1339</a>        "###</span>);
 <a href=#1340 id=1340 data-nosnippet>1340</a>
 <a href=#1341 id=1341 data-nosnippet>1341</a>        <span class="macro">assert_eq!</span>(
-<a href=#1342 id=1342 data-nosnippet>1342</a>            <span class="macro">get_value!</span>(event.transaction_info.<span class="macro">source!</span>).as_str(),
+<a href=#1342 id=1342 data-nosnippet>1342</a>            <span class="macro">get_value!</span>(event.transaction_info.source!).as_str(),
 <a href=#1343 id=1343 data-nosnippet>1343</a>            <span class="string">"sanitized"
 <a href=#1344 id=1344 data-nosnippet>1344</a>        </span>);
 <a href=#1345 id=1345 data-nosnippet>1345</a>    }
@@ -1349,9 +1349,9 @@
 <a href=#1349 id=1349 data-nosnippet>1349</a>        <span class="comment">// Python without source annotation does not get sanitized, because we assume it to be
 <a href=#1350 id=1350 data-nosnippet>1350</a>        // low cardinality.
 <a href=#1351 id=1351 data-nosnippet>1351</a>        </span><span class="kw">let </span>event = run_with_unknown_source(<span class="string">"sentry.python"</span>);
-<a href=#1352 id=1352 data-nosnippet>1352</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.<span class="macro">transaction!</span>), <span class="string">"/user/jane/blog/"</span>);
+<a href=#1352 id=1352 data-nosnippet>1352</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.transaction!), <span class="string">"/user/jane/blog/"</span>);
 <a href=#1353 id=1353 data-nosnippet>1353</a>        <span class="macro">assert_eq!</span>(
-<a href=#1354 id=1354 data-nosnippet>1354</a>            <span class="macro">get_value!</span>(event.transaction_info.<span class="macro">source!</span>).as_str(),
+<a href=#1354 id=1354 data-nosnippet>1354</a>            <span class="macro">get_value!</span>(event.transaction_info.source!).as_str(),
 <a href=#1355 id=1355 data-nosnippet>1355</a>            <span class="string">"unknown"
 <a href=#1356 id=1356 data-nosnippet>1356</a>        </span>);
 <a href=#1357 id=1357 data-nosnippet>1357</a>    }
@@ -1395,13 +1395,13 @@
 <a href=#1395 id=1395 data-nosnippet>1395</a>        )
 <a href=#1396 id=1396 data-nosnippet>1396</a>        .unwrap();
 <a href=#1397 id=1397 data-nosnippet>1397</a>
-<a href=#1398 id=1398 data-nosnippet>1398</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.<span class="macro">transaction!</span>), <span class="string">"/foo/*/user"</span>);
+<a href=#1398 id=1398 data-nosnippet>1398</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.transaction!), <span class="string">"/foo/*/user"</span>);
 <a href=#1399 id=1399 data-nosnippet>1399</a>        <span class="macro">assert_eq!</span>(
-<a href=#1400 id=1400 data-nosnippet>1400</a>            <span class="macro">get_value!</span>(event.transaction_info.<span class="macro">source!</span>).as_str(),
+<a href=#1400 id=1400 data-nosnippet>1400</a>            <span class="macro">get_value!</span>(event.transaction_info.source!).as_str(),
 <a href=#1401 id=1401 data-nosnippet>1401</a>            <span class="string">"sanitized"
 <a href=#1402 id=1402 data-nosnippet>1402</a>        </span>);
 <a href=#1403 id=1403 data-nosnippet>1403</a>
-<a href=#1404 id=1404 data-nosnippet>1404</a>        <span class="kw">let </span>remarks = <span class="macro">get_value!</span>(<span class="macro">event!</span>)
+<a href=#1404 id=1404 data-nosnippet>1404</a>        <span class="kw">let </span>remarks = <span class="macro">get_value!</span>(event!)
 <a href=#1405 id=1405 data-nosnippet>1405</a>            .transaction
 <a href=#1406 id=1406 data-nosnippet>1406</a>            .meta()
 <a href=#1407 id=1407 data-nosnippet>1407</a>            .iter_remarks()
@@ -1417,7 +1417,7 @@
 <a href=#1417 id=1417 data-nosnippet>1417</a>        "###</span>);
 <a href=#1418 id=1418 data-nosnippet>1418</a>
 <a href=#1419 id=1419 data-nosnippet>1419</a>        <span class="macro">assert_eq!</span>(
-<a href=#1420 id=1420 data-nosnippet>1420</a>            <span class="macro">get_value!</span>(event.transaction_info.<span class="macro">source!</span>).as_str(),
+<a href=#1420 id=1420 data-nosnippet>1420</a>            <span class="macro">get_value!</span>(event.transaction_info.source!).as_str(),
 <a href=#1421 id=1421 data-nosnippet>1421</a>            <span class="string">"sanitized"
 <a href=#1422 id=1422 data-nosnippet>1422</a>        </span>);
 <a href=#1423 id=1423 data-nosnippet>1423</a>    }
@@ -1608,13 +1608,13 @@
 <a href=#1608 id=1608 data-nosnippet>1608</a>        )
 <a href=#1609 id=1609 data-nosnippet>1609</a>        .unwrap();
 <a href=#1610 id=1610 data-nosnippet>1610</a>
-<a href=#1611 id=1611 data-nosnippet>1611</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.<span class="macro">transaction!</span>), <span class="string">"/remains/rule-target/*"</span>);
+<a href=#1611 id=1611 data-nosnippet>1611</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.transaction!), <span class="string">"/remains/rule-target/*"</span>);
 <a href=#1612 id=1612 data-nosnippet>1612</a>        <span class="macro">assert_eq!</span>(
-<a href=#1613 id=1613 data-nosnippet>1613</a>            <span class="macro">get_value!</span>(event.transaction_info.<span class="macro">source!</span>).as_str(),
+<a href=#1613 id=1613 data-nosnippet>1613</a>            <span class="macro">get_value!</span>(event.transaction_info.source!).as_str(),
 <a href=#1614 id=1614 data-nosnippet>1614</a>            <span class="string">"sanitized"
 <a href=#1615 id=1615 data-nosnippet>1615</a>        </span>);
 <a href=#1616 id=1616 data-nosnippet>1616</a>
-<a href=#1617 id=1617 data-nosnippet>1617</a>        <span class="kw">let </span>remarks = <span class="macro">get_value!</span>(<span class="macro">event!</span>)
+<a href=#1617 id=1617 data-nosnippet>1617</a>        <span class="kw">let </span>remarks = <span class="macro">get_value!</span>(event!)
 <a href=#1618 id=1618 data-nosnippet>1618</a>            .transaction
 <a href=#1619 id=1619 data-nosnippet>1619</a>            .meta()
 <a href=#1620 id=1620 data-nosnippet>1620</a>            .iter_remarks()
@@ -1634,7 +1634,7 @@
 <a href=#1634 id=1634 data-nosnippet>1634</a>        ]
 <a href=#1635 id=1635 data-nosnippet>1635</a>        "###</span>);
 <a href=#1636 id=1636 data-nosnippet>1636</a>        <span class="macro">assert_eq!</span>(
-<a href=#1637 id=1637 data-nosnippet>1637</a>            <span class="macro">get_value!</span>(event.transaction_info.<span class="macro">source!</span>).as_str(),
+<a href=#1637 id=1637 data-nosnippet>1637</a>            <span class="macro">get_value!</span>(event.transaction_info.source!).as_str(),
 <a href=#1638 id=1638 data-nosnippet>1638</a>            <span class="string">"sanitized"
 <a href=#1639 id=1639 data-nosnippet>1639</a>        </span>);
 <a href=#1640 id=1640 data-nosnippet>1640</a>    }
@@ -1676,13 +1676,13 @@
 <a href=#1676 id=1676 data-nosnippet>1676</a>        )
 <a href=#1677 id=1677 data-nosnippet>1677</a>        .unwrap();
 <a href=#1678 id=1678 data-nosnippet>1678</a>
-<a href=#1679 id=1679 data-nosnippet>1679</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.<span class="macro">transaction!</span>), <span class="string">"/remains/*/*"</span>);
+<a href=#1679 id=1679 data-nosnippet>1679</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.transaction!), <span class="string">"/remains/*/*"</span>);
 <a href=#1680 id=1680 data-nosnippet>1680</a>        <span class="macro">assert_eq!</span>(
-<a href=#1681 id=1681 data-nosnippet>1681</a>            <span class="macro">get_value!</span>(event.transaction_info.<span class="macro">source!</span>).as_str(),
+<a href=#1681 id=1681 data-nosnippet>1681</a>            <span class="macro">get_value!</span>(event.transaction_info.source!).as_str(),
 <a href=#1682 id=1682 data-nosnippet>1682</a>            <span class="string">"sanitized"
 <a href=#1683 id=1683 data-nosnippet>1683</a>        </span>);
 <a href=#1684 id=1684 data-nosnippet>1684</a>
-<a href=#1685 id=1685 data-nosnippet>1685</a>        <span class="kw">let </span>remarks = <span class="macro">get_value!</span>(<span class="macro">event!</span>)
+<a href=#1685 id=1685 data-nosnippet>1685</a>        <span class="kw">let </span>remarks = <span class="macro">get_value!</span>(event!)
 <a href=#1686 id=1686 data-nosnippet>1686</a>            .transaction
 <a href=#1687 id=1687 data-nosnippet>1687</a>            .meta()
 <a href=#1688 id=1688 data-nosnippet>1688</a>            .iter_remarks()

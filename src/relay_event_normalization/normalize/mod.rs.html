@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-normalization/src/normalize/mod.rs`."><title>mod.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-77263533.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_normalization" data-themes="" data-resource-suffix="" data-rustdoc-version="1.94.1 (e408947bf 2026-03-25)" data-channel="1.94.1" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-c38705f0.js" ><script src="../../../static.files/storage-e2aeef58.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-7bab91a1.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-ffcac47a.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">relay_event_normalization/normalize/</div>mod.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span>std::hash::Hash;
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-normalization/src/normalize/mod.rs`."><title>mod.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_normalization" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0 (59807616e 2026-04-14)" data-channel="1.95.0" data-search-js="search-63369b7b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-5013f961.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">relay_event_normalization/normalize/</div>mod.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span>std::hash::Hash;
 <a href=#2 id=2 data-nosnippet>2</a><span class="kw">use </span>std::{collections::HashMap, sync::LazyLock};
 <a href=#3 id=3 data-nosnippet>3</a>
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>regex::Regex;
@@ -792,7 +792,7 @@
 <a href=#792 id=792 data-nosnippet>792</a>            region: Annotated::new(<span class="string">"United Kingdom"</span>.to_owned()),
 <a href=#793 id=793 data-nosnippet>793</a>            ..Geo::default()
 <a href=#794 id=794 data-nosnippet>794</a>        });
-<a href=#795 id=795 data-nosnippet>795</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.<span class="macro">user!</span>).geo, expected);
+<a href=#795 id=795 data-nosnippet>795</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.user!).geo, expected);
 <a href=#796 id=796 data-nosnippet>796</a>    }
 <a href=#797 id=797 data-nosnippet>797</a>
 <a href=#798 id=798 data-nosnippet>798</a>    <span class="attr">#[test]
@@ -815,7 +815,7 @@
 <a href=#815 id=815 data-nosnippet>815</a>
 <a href=#816 id=816 data-nosnippet>816</a>        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
 <a href=#817 id=817 data-nosnippet>817</a>
-<a href=#818 id=818 data-nosnippet>818</a>        <span class="kw">let </span>ip_addr = <span class="macro">get_value!</span>(event.user.<span class="macro">ip_address!</span>);
+<a href=#818 id=818 data-nosnippet>818</a>        <span class="kw">let </span>ip_addr = <span class="macro">get_value!</span>(event.user.ip_address!);
 <a href=#819 id=819 data-nosnippet>819</a>        <span class="macro">assert_eq!</span>(ip_addr, <span class="kw-2">&amp;</span>IpAddr(<span class="string">"2.125.160.216"</span>.to_owned()));
 <a href=#820 id=820 data-nosnippet>820</a>    }
 <a href=#821 id=821 data-nosnippet>821</a>
@@ -860,7 +860,7 @@
 <a href=#860 id=860 data-nosnippet>860</a>            },
 <a href=#861 id=861 data-nosnippet>861</a>        );
 <a href=#862 id=862 data-nosnippet>862</a>
-<a href=#863 id=863 data-nosnippet>863</a>        <span class="kw">let </span>ip_addr = <span class="macro">get_value!</span>(event.user.<span class="macro">ip_address!</span>);
+<a href=#863 id=863 data-nosnippet>863</a>        <span class="kw">let </span>ip_addr = <span class="macro">get_value!</span>(event.user.ip_address!);
 <a href=#864 id=864 data-nosnippet>864</a>        <span class="macro">assert_eq!</span>(ip_addr, <span class="kw-2">&amp;</span>IpAddr(<span class="string">"2.125.160.216"</span>.to_owned()));
 <a href=#865 id=865 data-nosnippet>865</a>    }
 <a href=#866 id=866 data-nosnippet>866</a>
@@ -887,7 +887,7 @@
 <a href=#887 id=887 data-nosnippet>887</a>            },
 <a href=#888 id=888 data-nosnippet>888</a>        );
 <a href=#889 id=889 data-nosnippet>889</a>
-<a href=#890 id=890 data-nosnippet>890</a>        <span class="kw">let </span>user = <span class="macro">get_value!</span>(event.<span class="macro">user!</span>);
+<a href=#890 id=890 data-nosnippet>890</a>        <span class="kw">let </span>user = <span class="macro">get_value!</span>(event.user!);
 <a href=#891 id=891 data-nosnippet>891</a>        <span class="kw">let </span>ip_addr = user.ip_address.value().expect(<span class="string">"ip address missing"</span>);
 <a href=#892 id=892 data-nosnippet>892</a>
 <a href=#893 id=893 data-nosnippet>893</a>        <span class="macro">assert_eq!</span>(ip_addr, <span class="kw-2">&amp;</span>IpAddr(<span class="string">"2.125.160.216"</span>.to_owned()));
@@ -909,7 +909,7 @@
 <a href=#909 id=909 data-nosnippet>909</a>            },
 <a href=#910 id=910 data-nosnippet>910</a>        );
 <a href=#911 id=911 data-nosnippet>911</a>
-<a href=#912 id=912 data-nosnippet>912</a>        <span class="kw">let </span>user = <span class="macro">get_value!</span>(event.<span class="macro">user!</span>);
+<a href=#912 id=912 data-nosnippet>912</a>        <span class="kw">let </span>user = <span class="macro">get_value!</span>(event.user!);
 <a href=#913 id=913 data-nosnippet>913</a>        <span class="macro">assert!</span>(user.ip_address.value().is_none());
 <a href=#914 id=914 data-nosnippet>914</a>        <span class="macro">assert!</span>(user.geo.value().is_some());
 <a href=#915 id=915 data-nosnippet>915</a>    }
@@ -937,7 +937,7 @@
 <a href=#937 id=937 data-nosnippet>937</a>            },
 <a href=#938 id=938 data-nosnippet>938</a>        );
 <a href=#939 id=939 data-nosnippet>939</a>
-<a href=#940 id=940 data-nosnippet>940</a>        <span class="kw">let </span>user = <span class="macro">get_value!</span>(event.<span class="macro">user!</span>);
+<a href=#940 id=940 data-nosnippet>940</a>        <span class="kw">let </span>user = <span class="macro">get_value!</span>(event.user!);
 <a href=#941 id=941 data-nosnippet>941</a>        <span class="macro">assert!</span>(user.ip_address.value().unwrap().is_auto());
 <a href=#942 id=942 data-nosnippet>942</a>        <span class="macro">assert!</span>(user.geo.value().is_some());
 <a href=#943 id=943 data-nosnippet>943</a>    }
@@ -965,7 +965,7 @@
 <a href=#965 id=965 data-nosnippet>965</a>            },
 <a href=#966 id=966 data-nosnippet>966</a>        );
 <a href=#967 id=967 data-nosnippet>967</a>
-<a href=#968 id=968 data-nosnippet>968</a>        <span class="kw">let </span>user = <span class="macro">get_value!</span>(event.<span class="macro">user!</span>);
+<a href=#968 id=968 data-nosnippet>968</a>        <span class="kw">let </span>user = <span class="macro">get_value!</span>(event.user!);
 <a href=#969 id=969 data-nosnippet>969</a>        <span class="macro">assert_eq!</span>(
 <a href=#970 id=970 data-nosnippet>970</a>            user.ip_address.value(),
 <a href=#971 id=971 data-nosnippet>971</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>IpAddr::parse(<span class="string">"2.125.160.216"</span>).unwrap())
@@ -1087,7 +1087,7 @@
 <a href=#1087 id=1087 data-nosnippet>1087</a>
 <a href=#1088 id=1088 data-nosnippet>1088</a>        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
 <a href=#1089 id=1089 data-nosnippet>1089</a>
-<a href=#1090 id=1090 data-nosnippet>1090</a>        <span class="kw">let </span>environment = <span class="macro">get_path!</span>(event.<span class="macro">environment!</span>);
+<a href=#1090 id=1090 data-nosnippet>1090</a>        <span class="kw">let </span>environment = <span class="macro">get_path!</span>(event.environment!);
 <a href=#1091 id=1091 data-nosnippet>1091</a>        <span class="kw">let </span>expected_original = <span class="kw-2">&amp;</span>Value::String(<span class="string">"none"</span>.to_owned());
 <a href=#1092 id=1092 data-nosnippet>1092</a>
 <a href=#1093 id=1093 data-nosnippet>1093</a>        <span class="macro">assert_eq!</span>(
@@ -1110,7 +1110,7 @@
 <a href=#1110 id=1110 data-nosnippet>1110</a>
 <a href=#1111 id=1111 data-nosnippet>1111</a>        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
 <a href=#1112 id=1112 data-nosnippet>1112</a>
-<a href=#1113 id=1113 data-nosnippet>1113</a>        <span class="kw">let </span>release = <span class="macro">get_path!</span>(event.<span class="macro">release!</span>);
+<a href=#1113 id=1113 data-nosnippet>1113</a>        <span class="kw">let </span>release = <span class="macro">get_path!</span>(event.release!);
 <a href=#1114 id=1114 data-nosnippet>1114</a>        <span class="kw">let </span>expected_original = <span class="kw-2">&amp;</span>Value::String(<span class="string">"Latest"</span>.to_owned());
 <a href=#1115 id=1115 data-nosnippet>1115</a>
 <a href=#1116 id=1116 data-nosnippet>1116</a>        <span class="macro">assert_eq!</span>(
@@ -1145,7 +1145,7 @@
 <a href=#1145 id=1145 data-nosnippet>1145</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.server_name), <span class="prelude-val">None</span>);
 <a href=#1146 id=1146 data-nosnippet>1146</a>
 <a href=#1147 id=1147 data-nosnippet>1147</a>        <span class="macro">assert_eq!</span>(
-<a href=#1148 id=1148 data-nosnippet>1148</a>            <span class="macro">get_value!</span>(event.<span class="macro">tags!</span>),
+<a href=#1148 id=1148 data-nosnippet>1148</a>            <span class="macro">get_value!</span>(event.tags!),
 <a href=#1149 id=1149 data-nosnippet>1149</a>            <span class="kw-2">&amp;</span>Tags(PairList(<span class="macro">vec!</span>[
 <a href=#1150 id=1150 data-nosnippet>1150</a>                Annotated::new(TagEntry(
 <a href=#1151 id=1151 data-nosnippet>1151</a>                    Annotated::new(<span class="string">"site"</span>.to_owned()),
@@ -1193,7 +1193,7 @@
 <a href=#1193 id=1193 data-nosnippet>1193</a>
 <a href=#1194 id=1194 data-nosnippet>1194</a>        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
 <a href=#1195 id=1195 data-nosnippet>1195</a>
-<a href=#1196 id=1196 data-nosnippet>1196</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.<span class="macro">tags!</span>).len(), <span class="number">1</span>);
+<a href=#1196 id=1196 data-nosnippet>1196</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.tags!).len(), <span class="number">1</span>);
 <a href=#1197 id=1197 data-nosnippet>1197</a>    }
 <a href=#1198 id=1198 data-nosnippet>1198</a>
 <a href=#1199 id=1199 data-nosnippet>1199</a>    <span class="attr">#[test]
@@ -1219,7 +1219,7 @@
 <a href=#1219 id=1219 data-nosnippet>1219</a>        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
 <a href=#1220 id=1220 data-nosnippet>1220</a>
 <a href=#1221 id=1221 data-nosnippet>1221</a>        <span class="macro">assert_eq!</span>(
-<a href=#1222 id=1222 data-nosnippet>1222</a>            <span class="macro">get_value!</span>(event.<span class="macro">tags!</span>),
+<a href=#1222 id=1222 data-nosnippet>1222</a>            <span class="macro">get_value!</span>(event.tags!),
 <a href=#1223 id=1223 data-nosnippet>1223</a>            <span class="kw-2">&amp;</span>Tags(PairList(<span class="macro">vec!</span>[
 <a href=#1224 id=1224 data-nosnippet>1224</a>                Annotated::new(TagEntry(
 <a href=#1225 id=1225 data-nosnippet>1225</a>                    Annotated::from_error(Error::nonempty(), <span class="prelude-val">None</span>),
@@ -1269,7 +1269,7 @@
 <a href=#1269 id=1269 data-nosnippet>1269</a>
 <a href=#1270 id=1270 data-nosnippet>1270</a>        <span class="comment">// should keep the first occurrence of every tag
 <a href=#1271 id=1271 data-nosnippet>1271</a>        </span><span class="macro">assert_eq!</span>(
-<a href=#1272 id=1272 data-nosnippet>1272</a>            <span class="macro">get_value!</span>(event.<span class="macro">tags!</span>),
+<a href=#1272 id=1272 data-nosnippet>1272</a>            <span class="macro">get_value!</span>(event.tags!),
 <a href=#1273 id=1273 data-nosnippet>1273</a>            <span class="kw-2">&amp;</span>Tags(PairList(<span class="macro">vec!</span>[
 <a href=#1274 id=1274 data-nosnippet>1274</a>                Annotated::new(TagEntry(
 <a href=#1275 id=1275 data-nosnippet>1275</a>                    Annotated::new(<span class="string">"foo"</span>.to_owned()),
@@ -1324,7 +1324,7 @@
 <a href=#1324 id=1324 data-nosnippet>1324</a>        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
 <a href=#1325 id=1325 data-nosnippet>1325</a>
 <a href=#1326 id=1326 data-nosnippet>1326</a>        <span class="macro">assert_eq!</span>(
-<a href=#1327 id=1327 data-nosnippet>1327</a>            <span class="macro">get_path!</span>(event.<span class="macro">debug_meta!</span>),
+<a href=#1327 id=1327 data-nosnippet>1327</a>            <span class="macro">get_path!</span>(event.debug_meta!),
 <a href=#1328 id=1328 data-nosnippet>1328</a>            <span class="kw-2">&amp;</span>Annotated::new(DebugMeta {
 <a href=#1329 id=1329 data-nosnippet>1329</a>                images: Annotated::new(<span class="macro">vec!</span>[Annotated::from_error(
 <a href=#1330 id=1330 data-nosnippet>1330</a>                    Error::invalid(<span class="string">"unsupported debug image type"</span>),
@@ -1375,11 +1375,11 @@
 <a href=#1375 id=1375 data-nosnippet>1375</a>        normalize_non_raw_frame(<span class="kw-2">&amp;mut </span>frame);
 <a href=#1376 id=1376 data-nosnippet>1376</a>
 <a href=#1377 id=1377 data-nosnippet>1377</a>        <span class="macro">assert_eq!</span>(
-<a href=#1378 id=1378 data-nosnippet>1378</a>            <span class="kw-2">*</span><span class="macro">get_value!</span>(frame.<span class="macro">pre_context!</span>),
+<a href=#1378 id=1378 data-nosnippet>1378</a>            <span class="kw-2">*</span><span class="macro">get_value!</span>(frame.pre_context!),
 <a href=#1379 id=1379 data-nosnippet>1379</a>            <span class="macro">vec!</span>[Annotated::new(<span class="string">""</span>.to_owned()), Annotated::new(<span class="string">""</span>.to_owned())],
 <a href=#1380 id=1380 data-nosnippet>1380</a>        );
 <a href=#1381 id=1381 data-nosnippet>1381</a>        <span class="macro">assert_eq!</span>(
-<a href=#1382 id=1382 data-nosnippet>1382</a>            <span class="kw-2">*</span><span class="macro">get_value!</span>(frame.<span class="macro">post_context!</span>),
+<a href=#1382 id=1382 data-nosnippet>1382</a>            <span class="kw-2">*</span><span class="macro">get_value!</span>(frame.post_context!),
 <a href=#1383 id=1383 data-nosnippet>1383</a>            <span class="macro">vec!</span>[Annotated::new(<span class="string">""</span>.to_owned()), Annotated::new(<span class="string">""</span>.to_owned())],
 <a href=#1384 id=1384 data-nosnippet>1384</a>        );
 <a href=#1385 id=1385 data-nosnippet>1385</a>    }
@@ -1433,7 +1433,7 @@
 <a href=#1433 id=1433 data-nosnippet>1433</a>        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
 <a href=#1434 id=1434 data-nosnippet>1434</a>
 <a href=#1435 id=1435 data-nosnippet>1435</a>        <span class="macro">assert_eq!</span>(
-<a href=#1436 id=1436 data-nosnippet>1436</a>            <span class="macro">get_value!</span>(event.exceptions.values[<span class="number">0</span>].<span class="macro">stacktrace!</span>),
+<a href=#1436 id=1436 data-nosnippet>1436</a>            <span class="macro">get_value!</span>(event.exceptions.values[<span class="number">0</span>].stacktrace!),
 <a href=#1437 id=1437 data-nosnippet>1437</a>            <span class="kw-2">&amp;</span>Stacktrace(RawStacktrace {
 <a href=#1438 id=1438 data-nosnippet>1438</a>                frames: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Frame {
 <a href=#1439 id=1439 data-nosnippet>1439</a>                    module: Annotated::new(<span class="string">"MyModule"</span>.to_owned()),
@@ -1460,7 +1460,7 @@
 <a href=#1460 id=1460 data-nosnippet>1460</a>        );
 <a href=#1461 id=1461 data-nosnippet>1461</a>
 <a href=#1462 id=1462 data-nosnippet>1462</a>        <span class="macro">assert_eq!</span>(
-<a href=#1463 id=1463 data-nosnippet>1463</a>            <span class="macro">get_path!</span>(event.<span class="macro">client_sdk!</span>),
+<a href=#1463 id=1463 data-nosnippet>1463</a>            <span class="macro">get_path!</span>(event.client_sdk!),
 <a href=#1464 id=1464 data-nosnippet>1464</a>            <span class="kw-2">&amp;</span>Annotated::new(ClientSdkInfo {
 <a href=#1465 id=1465 data-nosnippet>1465</a>                name: Annotated::new(<span class="string">"_fooBar"</span>.to_owned()),
 <a href=#1466 id=1466 data-nosnippet>1466</a>                version: Annotated::new(<span class="string">"0.0.0"</span>.to_owned()),
@@ -1479,7 +1479,7 @@
 <a href=#1479 id=1479 data-nosnippet>1479</a>        validate_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default()).unwrap();
 <a href=#1480 id=1480 data-nosnippet>1480</a>        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
 <a href=#1481 id=1481 data-nosnippet>1481</a>
-<a href=#1482 id=1482 data-nosnippet>1482</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.<span class="macro">received!</span>), <span class="macro">get_value!</span>(event.<span class="macro">timestamp!</span>));
+<a href=#1482 id=1482 data-nosnippet>1482</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.received!), <span class="macro">get_value!</span>(event.timestamp!));
 <a href=#1483 id=1483 data-nosnippet>1483</a>    }
 <a href=#1484 id=1484 data-nosnippet>1484</a>
 <a href=#1485 id=1485 data-nosnippet>1485</a>    <span class="attr">#[test]
