@@ -145,25 +145,6 @@ impl Error {
             Error::Uuid(_) => "uuid",
         }
     }
-
-    fn is_retryable(&self) -> bool {
-        if let Error::UploadFailed(objectstore_client::Error::Reqwest(error)) = self {
-            return error.is_connect()
-                || error.is_timeout()
-                || matches!(
-                    error.status(),
-                    Some(
-                        // TODO(follow-up): Does retrying 429 actually help, or does it cascade?
-                        // Might need a larger retry delay for 429 (ideally objectstore sends Retry-After header).
-                        StatusCode::TOO_MANY_REQUESTS
-                            | StatusCode::BAD_GATEWAY
-                            | StatusCode::SERVICE_UNAVAILABLE
-                            | StatusCode::GATEWAY_TIMEOUT
-                    )
-                );
-        }
-        false
-    }
 }
 
 impl OutcomeError for Error {
@@ -316,8 +297,7 @@ impl ObjectstoreServiceInner {
                 self.handle_envelope(envelope).await;
             }
             Objectstore::TraceAttachment(attachment) => {
-                // ignore errors, outcomes and errors are reported internally.
-                let _ = self.handle_trace_attachment(attachment).await;
+                self.handle_trace_attachment(attachment).await
             }
             Objectstore::EventAttachment(attachment) => {
                 self.handle_event_attachment(attachment).await
@@ -421,7 +401,24 @@ impl ObjectstoreServiceInner {
         self.store.send(attachment)
     }
 
-    async fn handle_trace_attachment(
+    async fn handle_trace_attachment(&self, managed: Managed<StoreTraceAttachment>) {
+        let result = self.do_handle_trace_attachment(managed).await;
+
+        match result.map_err(Rejected::into_inner) {
+            Ok(_) => (),                       //all good
+            Err(Error::UploadFailed(_)) => (), // logged in upload()
+            Err(e) => {
+                // TODO(follow-up): clean up error handling so we do not need to log in multiple places.
+                relay_statsd::metric!(
+                    counter(RelayCounters::AttachmentUpload) += 1,
+                    result = e.as_str(),
+                    type = "attachment_v2",
+                );
+            }
+        }
+    }
+
+    async fn do_handle_trace_attachment(
         &self,
         managed: Managed<StoreTraceAttachment>,
     ) -> Result<(), Rejected<Error>> {
@@ -546,7 +543,7 @@ impl ObjectstoreServiceInner {
                 );
 
                 if attempt < self.max_attempts.get()
-                    && matches!(&result, Some(Err(e)) if e.is_retryable())
+                    && matches!(&result, Some(Err(e)) if is_retryable(e))
                 {
                     tokio::time::sleep(self.retry_interval).await;
                 } else {
@@ -554,7 +551,9 @@ impl ObjectstoreServiceInner {
                 }
             }
 
-            result.expect("try_clone() should succeed at least once")
+            result
+                .expect("try_clone() should succeed at least once")
+                .map_err(Error::from)
         })
         .await
         .map_err(Error::from)
@@ -590,7 +589,7 @@ impl ObjectstoreServiceInner {
         key: Option<String>,
         body: BodyAttempt,
         retention_hours: Option<u16>,
-    ) -> Result<ObjectstoreKey, Error> {
+    ) -> Result<ObjectstoreKey, objectstore_client::Error> {
         let mut request = match body {
             BodyAttempt::Bytes(bytes) => session.put(bytes),
             BodyAttempt::Stream(stream) => session.put_stream(stream.boxed()),
@@ -649,4 +648,25 @@ impl Body {
 enum BodyAttempt {
     Bytes(Bytes),
     Stream(RetryableStream<BoundedStream<MeteredStream<ByteStream>>>),
+}
+
+fn is_retryable(error: &objectstore_client::Error) -> bool {
+    match error {
+        objectstore_client::Error::Reqwest(error) => {
+            error.is_connect()
+                || error.is_timeout()
+                || matches!(
+                    error.status(),
+                    Some(
+                        // TODO(follow-up): Does retrying 429 actually help, or does it cascade?
+                        // Might need a larger retry delay for 429 (ideally objectstore sends Retry-After header).
+                        StatusCode::TOO_MANY_REQUESTS
+                            | StatusCode::BAD_GATEWAY
+                            | StatusCode::SERVICE_UNAVAILABLE
+                            | StatusCode::GATEWAY_TIMEOUT
+                    )
+                )
+        }
+        _ => false,
+    }
 }
