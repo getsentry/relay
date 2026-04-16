@@ -76,7 +76,7 @@
 <a href=#76 id=76 data-nosnippet>76</a>
 <a href=#77 id=77 data-nosnippet>77</a>        common::handle_envelope(<span class="kw-2">&amp;</span>state, envelope)
 <a href=#78 id=78 data-nosnippet>78</a>            .<span class="kw">await</span><span class="question-mark">?
-<a href=#79 id=79 data-nosnippet>79</a>            </span>.ignore_rate_limits();
+<a href=#79 id=79 data-nosnippet>79</a>            </span>.check_rate_limits()<span class="question-mark">?</span>;
 <a href=#80 id=80 data-nosnippet>80</a>
 <a href=#81 id=81 data-nosnippet>81</a>        <span class="prelude-val">Ok</span>(StatusCode::OK)
 <a href=#82 id=82 data-nosnippet>82</a>    }
