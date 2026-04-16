@@ -8,6 +8,8 @@ use std::path::{Path, PathBuf};
 
 use walkdir::WalkDir;
 
+use crate::attributes::{Attribute, format_constant};
+
 const ATTRIBUTE_DIR: &str = "sentry-conventions/model/attributes";
 const NAME_DIR: &str = "sentry-conventions/model/name";
 
@@ -20,6 +22,32 @@ fn main() {
     // Ideally this would only run when compiling for tests, but #[cfg(test)] doesn't seem to work
     // here.
     write_test_name_rs();
+    let attr: Attribute = serde_json::from_str(
+        r#"{
+  "key": "ai.tools",
+  "brief": "For an AI model call, the functions that are available",
+  "type": "string[]",
+  "pii": {
+    "key": "maybe"
+  },
+  "is_in_otel": false,
+  "example": ["function_1", "function_2"],
+  "deprecation": {
+    "_status": null,
+    "replacement": "gen_ai.request.available_tools"
+  },
+  "changelog": [
+    {
+      "version": "0.1.0",
+      "prs": [55, 65, 127]
+    }
+  ]
+}"#,
+    )
+    .unwrap();
+
+    let mut out = std::fs::File::create("test.txt").unwrap();
+    write!(&mut out, "{}", format_constant(&attr)).unwrap();
 
     println!("cargo::rerun-if-changed=.");
 }
@@ -37,17 +65,17 @@ fn write_attribute_rs(crate_dir: &Path) {
         {
             let contents = std::fs::read_to_string(file.path()).unwrap();
             let attr: Attribute = serde_json::from_str(&contents).unwrap();
-            let (key, value) = format_attribute_info(attr);
+            let info = format_attribute_info(&attr);
 
             let mut node = &mut root;
-            let mut parts = parse_segments(&key).peekable();
+            let mut parts = parse_segments(&attr.key).peekable();
             while let Some(part) = parts.next() {
                 node = node
                     .children
                     .entry(part.to_owned())
                     .or_insert_with(RawNode::default);
                 if parts.peek().is_none() {
-                    node.info = Some(value);
+                    node.info = Some(info);
                     break;
                 }
             }
@@ -58,7 +86,7 @@ fn write_attribute_rs(crate_dir: &Path) {
     let mut out_file = BufWriter::new(File::create(&out_path).unwrap());
 
     write!(&mut out_file, "static ATTRIBUTES: Node<AttributeInfo> = ",).unwrap();
-    root.build(&mut out_file).unwrap();
+    root.write(&mut out_file).unwrap();
     write!(&mut out_file, ";").unwrap();
 }
 
