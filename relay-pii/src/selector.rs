@@ -673,4 +673,15 @@ mod tests {
         assert_matches_pii_true!(body_state, "$log.body",);
         assert_matches_pii_true!(attributes_state, "$log.attributes",);
     }
+
+    #[test]
+    fn test_trace_metric_matching() {
+        let event_state = ProcessingState::new_root(None, None);
+        let metric_state = event_state.enter_borrowed("", None, Some(ValueType::TraceMetric));
+        let attributes_state =
+            metric_state.enter_borrowed("attributes", None, Some(ValueType::Object));
+
+        assert_matches_pii_maybe!(metric_state, "$metric",);
+        assert_matches_pii_true!(attributes_state, "$metric.attributes",);
+    }
 }
