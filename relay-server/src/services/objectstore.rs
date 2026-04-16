@@ -365,7 +365,7 @@ impl ObjectstoreServiceInner {
                         continue;
                     }
                     let result = self
-                        .upload_bytes(&session, attachment.payload(), retention, None)
+                        .upload_bytes("envelope", &session, attachment.payload(), retention, None)
                         .await;
                     log_result("envelope", 1, &result);
                     if let Ok(stored_key) = result {
@@ -400,6 +400,7 @@ impl ObjectstoreServiceInner {
                 Err(error) => Err(Error::Session(error)),
                 Ok(session) => self
                     .upload_bytes(
+                        "attachment",
                         &session,
                         attachment.attachment.payload(),
                         attachment.retention,
@@ -459,7 +460,7 @@ impl ObjectstoreServiceInner {
             let original_key = key.clone();
 
             let _stored_key = self
-                .upload_bytes(&session, body, retention, Some(key))
+                .upload_bytes("attachment_v2", &session, body, retention, Some(key))
                 .await
                 .map_err(Error::from)
                 .reject(&trace_item)?;
@@ -488,6 +489,7 @@ impl ObjectstoreServiceInner {
             .map_err(Error::Session)?;
 
         self.upload(
+            "stream",
             &session,
             Some(key),
             Body::Stream(TakeOnce::new(stream)),
@@ -499,18 +501,20 @@ impl ObjectstoreServiceInner {
 
     async fn upload_bytes(
         &self,
+        ty: &str,
         session: &Session,
         payload: Bytes,
         retention: u16,
         key: Option<String>,
     ) -> Result<ObjectstoreKey, Error> {
         let retention_hours = retention.checked_mul(24);
-        self.upload(session, key, Body::Bytes(payload), retention_hours)
+        self.upload(ty, session, key, Body::Bytes(payload), retention_hours)
             .await
     }
 
     async fn upload(
         &self,
+        ty: &str,
         session: &Session,
         key: Option<String>,
         body: Body,
@@ -526,7 +530,7 @@ impl ObjectstoreServiceInner {
                 };
                 attempts += 1;
                 result.replace(
-                    self.attempt_upload(session, key.clone(), body, retention_hours)
+                    self.attempt_upload(ty, session, key.clone(), body, retention_hours)
                         .await,
                 );
 
@@ -550,6 +554,7 @@ impl ObjectstoreServiceInner {
 
     async fn attempt_upload(
         &self,
+        ty: &str,
         session: &Session,
         key: Option<String>,
         body: BodyAttempt,
@@ -569,7 +574,7 @@ impl ObjectstoreServiceInner {
             request = request.key(key);
         }
 
-        let response = relay_statsd::metric!(timer(RelayTimers::AttachmentUploadDuration), {
+        let response = relay_statsd::metric!(timer(RelayTimers::AttachmentUploadDuration), type = ty, {
             request.send().await
         })?;
 
