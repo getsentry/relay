@@ -405,8 +405,8 @@ impl ObjectstoreServiceInner {
         let result = self.do_handle_trace_attachment(managed).await;
 
         match result.map_err(Rejected::into_inner) {
-            Ok(_) => (),                       //all good
-            Err(Error::UploadFailed(_)) => (), // logged in upload()
+            Ok(_) => (),                                           //all good
+            Err(Error::UploadFailed(_) | Error::Timeout(_)) => (), // logged in upload()
             Err(e) => {
                 // TODO(follow-up): clean up error handling so we do not need to log in multiple places.
                 relay_statsd::metric!(
