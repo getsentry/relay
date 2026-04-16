@@ -103,21 +103,31 @@ pub fn format_constant(attr: &Attribute) -> String {
         brief,
         pii: _pii,
         deprecation,
-        alias: _alias,
+        alias,
     } = attr;
 
     let name = name_constant(key);
 
     let mut out = String::new();
+
     if !brief.is_empty() {
-        // Put `<key>` in backticks so rustdoc doesn't complain about HTML tags.
-        write!(&mut out, "/// {}", brief.replace("<key>", "`<key>`")).unwrap();
+        write!(&mut out, "/// {brief}").unwrap();
 
         if !brief.ends_with('.') {
             write!(&mut out, ".").unwrap();
         }
 
         writeln!(&mut out).unwrap();
+    }
+
+    if !alias.is_empty() {
+        writeln!(&mut out, "/// # Aliases").unwrap();
+
+        for a in alias {
+            writeln!(&mut out, r#"/// * [`{}`] (`{a}`)"#, name_constant(a)).unwrap();
+        }
+
+        writeln!(&mut out, "///").unwrap();
     }
 
     if let Some(deprecation) = deprecation {
