@@ -72,7 +72,7 @@ pub struct ProjectInfo {
     /// As this is purely a mechanism to route and shape traffic authentication credentials will
     /// be re-used.
     #[serde(skip_serializing)]
-    pub upstream: Option<UpstreamDescriptor<'static>>,
+    pub upstream: Option<UpstreamDescriptor>,
 }
 
 /// Controls how we serialize a ProjectState for an external Relay
