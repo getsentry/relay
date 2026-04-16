@@ -1,10 +1,12 @@
-use axum::extract::{Path, Request};
+use axum::extract::{DefaultBodyLimit, Path, Request};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
+use axum::routing::{MethodRouter, post};
 use multer::{Field, Multipart};
 use relay_config::Config;
 use relay_event_schema::protocol::EventId;
 use serde::Deserialize;
+use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{AttachmentType, Envelope, Item};
@@ -56,10 +58,16 @@ pub async fn handle(
     Path(path): Path<AttachmentPath>,
     request: Request,
 ) -> axum::response::Result<impl IntoResponse> {
-    let multipart = utils::multipart_from_request(request, state.config().max_attachments_size())?;
+    let multipart = utils::multipart_from_request(request)?;
     let envelope = extract_envelope(meta, path, multipart, state.config()).await?;
     common::handle_envelope(&state, envelope)
         .await?
         .ignore_rate_limits();
     Ok(StatusCode::CREATED)
+}
+
+pub fn route(config: &Config) -> MethodRouter<ServiceState> {
+    post(handle)
+        .route_layer(RequestBodyLimitLayer::new(config.max_attachments_size()))
+        .route_layer(DefaultBodyLimit::disable())
 }

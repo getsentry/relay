@@ -94,7 +94,7 @@ impl From<ParsedProjectState> for ProjectState {
         let ParsedProjectState { disabled, info } = value;
         match disabled {
             true => Self::Disabled,
-            false => Self::Enabled(Arc::new(info)),
+            false => Self::Enabled(info),
         }
     }
 }
@@ -109,7 +109,7 @@ pub struct ParsedProjectState {
     ///
     /// This contains no information when `disabled` is `true`.
     #[serde(flatten)]
-    pub info: ProjectInfo,
+    pub info: Arc<ProjectInfo>,
 }
 
 /// Limited project state for external Relays.
@@ -123,5 +123,5 @@ pub struct LimitedParsedProjectState {
     /// This contains no information when `disabled` is `true`.
     #[serde(with = "LimitedProjectInfo")]
     #[serde(flatten)]
-    pub info: ProjectInfo,
+    pub info: Arc<ProjectInfo>,
 }

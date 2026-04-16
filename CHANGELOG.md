@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add `ModelMetadata` config with context size and utilization. ([#5814](https://github.com/getsentry/relay/pull/5814))
+
+**Internal**:
+
+- Move unreal crash report expansion from processing into endpoint. ([#5825](https://github.com/getsentry/relay/pull/5825))
+- Retry failing objectstore requests. ([#5836](https://github.com/getsentry/relay/pull/5836))
+
+**Bug Fixes**:
+
+- Respond with 429 if otlp logs are rate limited, as per spec. ([#5841](https://github.com/getsentry/relay/pull/5841))
+
+## 26.4.0
+
 **Breaking Changes**:
 
 - To prevent false positives, non-public email addresses (e.g. `user@localhost`) are no longer scrubbed by default. ([#5737](https://github.com/getsentry/relay/pull/5737))
@@ -31,6 +46,7 @@
 
 **Internal**:
 
+- Update trace metric PII scrubbing to use `relay_pii::eap::scrub`. ([#5815](https://github.com/getsentry/relay/pull/5815))
 - Calculate and track accepted bytes per individual trace metric item via `TraceMetricByte` data category. ([#5744](https://github.com/getsentry/relay/pull/5744), [#5767](https://github.com/getsentry/relay/pull/5767))
 - Graduate standalone span ingestion feature flag. ([#5786](https://github.com/getsentry/relay/pull/5786))
 - Remove cardinality limiter. ([#5809](https://github.com/getsentry/relay/pull/5809))

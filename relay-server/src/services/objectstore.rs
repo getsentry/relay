@@ -1,13 +1,15 @@
 //! Objectstore service for uploading attachments.
 use std::array::TryFromSliceError;
 use std::fmt;
+use std::num::NonZeroU16;
 use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::Bytes;
 use futures::StreamExt;
+use http::StatusCode;
 use objectstore_client::{
-    Client, ExpirationPolicy, PutBuilder, SecretKey as SigningKey, Session, TokenGenerator, Usecase,
+    Client, ExpirationPolicy, SecretKey as SigningKey, Session, TokenGenerator, Usecase,
 };
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
@@ -27,7 +29,7 @@ use crate::services::outcome::DiscardReason;
 use crate::services::store::{Store, StoreAttachment, StoreEnvelope, StoreTraceItem};
 use crate::services::upload::ByteStream;
 use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::{BoundedStream, MeteredStream};
+use crate::utils::{BoundedStream, MeteredStream, RetryableStream, TakeOnce};
 
 use super::outcome::Outcome;
 
@@ -189,6 +191,8 @@ impl ObjectstoreService {
             max_concurrent_requests: _,
             max_backlog: _,
             timeout,
+            retry_delay,
+            max_attempts,
             auth,
         } = config;
         let Some(objectstore_url) = objectstore_url else {
@@ -230,6 +234,8 @@ impl ObjectstoreService {
             event_attachments,
             trace_attachments,
             timeout: Duration::from_secs(*timeout),
+            retry_interval: Duration::from_secs_f64(*retry_delay),
+            max_attempts: *max_attempts,
         };
 
         Ok(Some(Self {
@@ -280,6 +286,8 @@ struct ObjectstoreServiceInner {
     event_attachments: Usecase,
     trace_attachments: Usecase,
     timeout: Duration,
+    retry_interval: Duration,
+    max_attempts: NonZeroU16,
 }
 
 impl ObjectstoreServiceInner {
@@ -333,14 +341,6 @@ impl ObjectstoreServiceInner {
                         .upload_bytes("envelope", &session, attachment.payload(), retention, None)
                         .await;
 
-                    relay_statsd::metric!(
-                        counter(RelayCounters::AttachmentUpload) += 1,
-                        result = match &result {
-                            Ok(_) => "success",
-                            Err(e) => e.as_str(),
-                        },
-                        type = "envelope",
-                    );
                     if let Ok(stored_key) = result {
                         attachment.set_stored_key(stored_key.into_inner());
                     }
@@ -388,15 +388,6 @@ impl ObjectstoreServiceInner {
                     )
                     .await;
 
-                relay_statsd::metric!(
-                    counter(RelayCounters::AttachmentUpload) += 1,
-                    result = match &result {
-                        Ok(_) => "success",
-                        Err(e) => e.as_str(),
-                    },
-                    type = "attachment",
-                );
-
                 if let Ok(stored_key) = result {
                     attachment.modify(|attachment, _| {
                         attachment
@@ -411,19 +402,23 @@ impl ObjectstoreServiceInner {
     }
 
     async fn handle_trace_attachment(&self, managed: Managed<StoreTraceAttachment>) {
-        let result = self.do_handle_store_attachment(managed).await;
+        let result = self.do_handle_trace_attachment(managed).await;
 
-        relay_statsd::metric!(
-            counter(RelayCounters::AttachmentUpload) += 1,
-            result = match result {
-                Ok(()) => "success",
-                Err(e) => e.into_inner().as_str(),
-            },
-            type = "attachment_v2",
-        );
+        match result.map_err(Rejected::into_inner) {
+            Ok(_) => (),                                           //all good
+            Err(Error::UploadFailed(_) | Error::Timeout(_)) => (), // logged in upload()
+            Err(e) => {
+                // TODO(follow-up): clean up error handling so we do not need to log in multiple places.
+                relay_statsd::metric!(
+                    counter(RelayCounters::AttachmentUpload) += 1,
+                    result = e.as_str(),
+                    type = "attachment_v2",
+                );
+            }
+        }
     }
 
-    async fn do_handle_store_attachment(
+    async fn do_handle_trace_attachment(
         &self,
         managed: Managed<StoreTraceAttachment>,
     ) -> Result<(), Rejected<Error>> {
@@ -499,17 +494,15 @@ impl ObjectstoreServiceInner {
             }
         };
 
-        let request = session.put_stream(stream.boxed()).key(key);
-        let result = self.upload("stream", request).await;
-
-        relay_statsd::metric!(
-            counter(RelayCounters::AttachmentUpload) += 1,
-            result = match &result {
-                Ok(_) => "success",
-                Err(e) => e.as_str(),
-            },
-            type = "stream",
-        );
+        let result = self
+            .upload(
+                "stream",
+                &session,
+                Some(key),
+                Body::Stream(TakeOnce::new(stream)),
+                None,
+            )
+            .await;
 
         sender.send(result);
     }
@@ -522,9 +515,87 @@ impl ObjectstoreServiceInner {
         retention: u16,
         key: Option<String>,
     ) -> Result<ObjectstoreKey, Error> {
-        let mut request = session.put(payload);
+        let retention_hours = retention.checked_mul(24);
+        self.upload(ty, session, key, Body::Bytes(payload), retention_hours)
+            .await
+    }
 
-        if let Some(retention_hours) = retention.checked_mul(24) {
+    async fn upload(
+        &self,
+        ty: &str,
+        session: &Session,
+        key: Option<String>,
+        body: Body,
+        retention_hours: Option<u16>,
+    ) -> Result<ObjectstoreKey, Error> {
+        let mut attempt = 0;
+
+        let result = tokio::time::timeout(self.timeout, async {
+            let mut result = None;
+            loop {
+                let Some(body) = body.try_clone() else {
+                    break;
+                };
+                attempt += 1;
+                result.replace(
+                    self.attempt_upload(ty, session, key.clone(), body, retention_hours)
+                        .await,
+                );
+
+                if attempt < self.max_attempts.get()
+                    && matches!(&result, Some(Err(e)) if is_retryable(e))
+                {
+                    tokio::time::sleep(self.retry_interval).await;
+                } else {
+                    break;
+                }
+            }
+
+            result
+                .expect("try_clone() should succeed at least once")
+                .map_err(Error::from)
+        })
+        .await
+        .map_err(Error::from)
+        .flatten();
+
+        if let Err(e) = &result {
+            relay_log::error!(
+                error = e as &dyn std::error::Error,
+                attempts = attempt,
+                type = ty,
+                "objectstore upload failed in {} attempt(s)",
+                attempt
+            )
+        }
+
+        relay_statsd::metric!(
+            counter(RelayCounters::AttachmentUpload) += 1,
+            result = match &result {
+                Ok(_) => "success",
+                Err(e) => e.as_str(),
+            },
+            type = ty,
+            attempts = attempt.to_string()
+        );
+
+        result
+    }
+
+    async fn attempt_upload(
+        &self,
+        ty: &str,
+        session: &Session,
+        key: Option<String>,
+        body: BodyAttempt,
+        retention_hours: Option<u16>,
+    ) -> Result<ObjectstoreKey, objectstore_client::Error> {
+        let mut request = match body {
+            BodyAttempt::Bytes(bytes) => session.put(bytes),
+            BodyAttempt::Stream(stream) => session.put_stream(stream.boxed()),
+        };
+
+        if let Some(retention_hours) = retention_hours {
             request = request.expiration_policy(ExpirationPolicy::TimeToLive(
                 Duration::from_hours(retention_hours.into()),
             ));
@@ -533,31 +604,13 @@ impl ObjectstoreServiceInner {
             request = request.key(key);
         }
 
-        tokio::time::timeout(self.timeout, self.upload(ty, request)).await?
-    }
-
-    async fn upload(&self, ty: &str, request: PutBuilder) -> Result<ObjectstoreKey, Error> {
-        self.upload_inner(ty, request).await.inspect_err(|e| {
-            relay_log::error!(
-                error = e as &dyn std::error::Error,
-                "objectstore upload failed"
-            )
-        })
-    }
-
-    async fn upload_inner(&self, ty: &str, request: PutBuilder) -> Result<ObjectstoreKey, Error> {
-        relay_log::trace!("Starting attachment upload");
         let response = relay_statsd::metric!(
             timer(RelayTimers::AttachmentUploadDuration),
             type = ty,
             {
-                request.send()
-                    .await
-                    .map_err(Error::UploadFailed)?
+                request.send().await
             }
-        );
-
-        relay_log::trace!("Finished attachment upload");
+        )?;
 
         Ok(ObjectstoreKey(response.key))
     }
@@ -569,5 +622,51 @@ impl ObjectstoreServiceInner {
     /// - Attachment placeholders
     fn should_skip_upload(item: &Item) -> bool {
         item.is_empty() || item.is_attachment_ref()
+    }
+}
+
+/// Common interface for calls to [`ObjectstoreServiceInner::upload`].
+///
+/// This type is shared across retries.
+enum Body {
+    Bytes(Bytes),
+    Stream(TakeOnce<BoundedStream<MeteredStream<ByteStream>>>),
+}
+
+impl Body {
+    fn try_clone(&self) -> Option<BodyAttempt> {
+        match self {
+            Self::Bytes(bytes) => Some(BodyAttempt::Bytes(bytes.clone())),
+            Self::Stream(stream) => RetryableStream::new(stream.clone()).map(BodyAttempt::Stream),
+        }
+    }
+}
+
+/// Common interface for calls to [`ObjectstoreServiceInner::attempt_upload`].
+///
+/// This type is instantiated for every retry.
+enum BodyAttempt {
+    Bytes(Bytes),
+    Stream(RetryableStream<BoundedStream<MeteredStream<ByteStream>>>),
+}
+
+fn is_retryable(error: &objectstore_client::Error) -> bool {
+    match error {
+        objectstore_client::Error::Reqwest(error) => {
+            error.is_connect()
+                || error.is_timeout()
+                || matches!(
+                    error.status(),
+                    Some(
+                        // TODO(follow-up): Does retrying 429 actually help, or does it cascade?
+                        // Might need a larger retry delay for 429 (ideally objectstore sends Retry-After header).
+                        StatusCode::TOO_MANY_REQUESTS
+                            | StatusCode::BAD_GATEWAY
+                            | StatusCode::SERVICE_UNAVAILABLE
+                            | StatusCode::GATEWAY_TIMEOUT
+                    )
+                )
+        }
+        _ => false,
     }
 }

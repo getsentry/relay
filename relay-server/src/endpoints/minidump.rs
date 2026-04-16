@@ -13,6 +13,7 @@ use std::convert::Infallible;
 use std::error::Error;
 use std::io::Cursor;
 use std::io::Read;
+use tower_http::limit::RequestBodyLimitLayer;
 use zstd::stream::Decoder as ZstdDecoder;
 
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
@@ -260,8 +261,7 @@ async fn handle(
     let envelope = if MINIDUMP_RAW_CONTENT_TYPES.contains(&content_type.as_ref()) {
         extract_raw_minidump(request.extract().await?, meta, config.max_attachment_size())?
     } else {
-        let multipart =
-            utils::multipart_from_request(request, state.config().max_attachments_size())?;
+        let multipart = utils::multipart_from_request(request)?;
         extract_multipart(multipart, meta, config).await?
     };
 
@@ -282,10 +282,9 @@ async fn handle(
 }
 
 pub fn route(config: &Config) -> MethodRouter<ServiceState> {
-    // Set the single-attachment limit that applies only for raw minidumps. Multipart bypasses the
-    // limited body and applies its own limits.
     post(handle)
-        .route_layer(DefaultBodyLimit::max(config.max_attachment_size()))
+        .route_layer(RequestBodyLimitLayer::new(config.max_attachments_size()))
+        .route_layer(DefaultBodyLimit::disable())
         .route_layer(axum::middleware::from_fn(middlewares::content_length))
 }
 
@@ -452,7 +451,7 @@ mod tests {
 
         let config = Config::default();
 
-        let multipart = utils::multipart_from_request(request, multipart_body.len()).unwrap();
+        let multipart = utils::multipart_from_request(request).unwrap();
         let items = utils::multipart_items(multipart, &config, MinidumpAttachmentStrategy)
             .await
             .unwrap();
