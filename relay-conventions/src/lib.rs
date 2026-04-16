@@ -6,7 +6,10 @@
 //! It also exposes a number of constants for attribute names that Relay has specific logic for. It is recommended
 //! to use these constants instead of the bare attribute names to ensure consistency.
 
-pub mod consts;
+pub mod consts {
+    #![allow(non_snake_case)]
+    include!(concat!(env!("OUT_DIR"), "/attribute_consts.rs"));
+}
 
 pub use consts::*;
 

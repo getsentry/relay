@@ -8,8 +8,6 @@ use std::path::{Path, PathBuf};
 
 use walkdir::WalkDir;
 
-use crate::attributes::{Attribute, format_constant};
-
 const ATTRIBUTE_DIR: &str = "sentry-conventions/model/attributes";
 const NAME_DIR: &str = "sentry-conventions/model/name";
 
@@ -22,38 +20,16 @@ fn main() {
     // Ideally this would only run when compiling for tests, but #[cfg(test)] doesn't seem to work
     // here.
     write_test_name_rs();
-    let attr: Attribute = serde_json::from_str(
-        r#"{
-  "key": "ai.tools",
-  "brief": "For an AI model call, the functions that are available",
-  "type": "string[]",
-  "pii": {
-    "key": "maybe"
-  },
-  "is_in_otel": false,
-  "example": ["function_1", "function_2"],
-  "deprecation": {
-    "_status": null,
-    "replacement": "gen_ai.request.available_tools"
-  },
-  "changelog": [
-    {
-      "version": "0.1.0",
-      "prs": [55, 65, 127]
-    }
-  ]
-}"#,
-    )
-    .unwrap();
-
-    let mut out = std::fs::File::create("test.txt").unwrap();
-    write!(&mut out, "{}", format_constant(&attr)).unwrap();
 
     println!("cargo::rerun-if-changed=.");
 }
 
 fn write_attribute_rs(crate_dir: &Path) {
-    use attributes::{Attribute, RawNode, format_attribute_info, parse_segments};
+    use attributes::{Attribute, RawNode, format_attribute_info, format_constant, parse_segments};
+
+    let attribute_consts_path =
+        Path::new(&env::var("OUT_DIR").unwrap()).join("attribute_consts.rs");
+    let mut attribute_consts_file = BufWriter::new(File::create(&attribute_consts_path).unwrap());
 
     let mut root = RawNode::default();
 
@@ -65,6 +41,11 @@ fn write_attribute_rs(crate_dir: &Path) {
         {
             let contents = std::fs::read_to_string(file.path()).unwrap();
             let attr: Attribute = serde_json::from_str(&contents).unwrap();
+
+            // Write attribute constant
+            writeln!(&mut attribute_consts_file, "{}\n", format_constant(&attr)).unwrap();
+
+            // Put attribute info in the hierarchical map
             let info = format_attribute_info(&attr);
 
             let mut node = &mut root;
@@ -82,12 +63,16 @@ fn write_attribute_rs(crate_dir: &Path) {
         }
     }
 
-    let out_path = Path::new(&env::var("OUT_DIR").unwrap()).join("attribute_map.rs");
-    let mut out_file = BufWriter::new(File::create(&out_path).unwrap());
+    let attribute_map_path = Path::new(&env::var("OUT_DIR").unwrap()).join("attribute_map.rs");
+    let mut attribute_map_file = BufWriter::new(File::create(&attribute_map_path).unwrap());
 
-    write!(&mut out_file, "static ATTRIBUTES: Node<AttributeInfo> = ",).unwrap();
-    root.write(&mut out_file).unwrap();
-    write!(&mut out_file, ";").unwrap();
+    write!(
+        &mut attribute_map_file,
+        "static ATTRIBUTES: Node<AttributeInfo> = ",
+    )
+    .unwrap();
+    root.write(&mut attribute_map_file).unwrap();
+    write!(&mut attribute_map_file, ";").unwrap();
 }
 
 fn write_name_rs(crate_dir: &Path) {

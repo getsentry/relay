@@ -110,7 +110,8 @@ pub fn format_constant(attr: &Attribute) -> String {
 
     let mut out = String::new();
     if !brief.is_empty() {
-        write!(&mut out, "/// {brief}").unwrap();
+        // Put `<key>` in backticks so rustdoc doesn't complain about HTML tags.
+        write!(&mut out, "/// {}", brief.replace("<key>", "`<key>`")).unwrap();
 
         if !brief.ends_with('.') {
             write!(&mut out, ".").unwrap();
@@ -126,21 +127,24 @@ pub fn format_constant(attr: &Attribute) -> String {
             let replacement_name = name_constant(replacement);
             write!(
                 &mut out,
-                r#"(note="Use [`{replacement_name}`] ({replacement}) instead.")"#
+                r#"(note="Use [`{replacement_name}`] (`{replacement}`) instead.")"#
             )
             .unwrap();
         }
         writeln!(&mut out, "]").unwrap();
     }
 
-    writeln!(&mut out, r#"const {name}: &str = "{key}";"#).unwrap();
+    writeln!(&mut out, r#"pub const {name}: &str = "{key}";"#).unwrap();
 
     out
 }
 
 /// Formats an attributes name as a constant identifier.
 fn name_constant(name: &str) -> String {
-    name.replace('.', "__").to_ascii_uppercase()
+    name.replace(['<', '>'], "")
+        .replace('.', "__")
+        .replace('-', "_")
+        .to_ascii_uppercase()
 }
 
 /// Parse a path-like attribute key into individual segments.

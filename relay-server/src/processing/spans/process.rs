@@ -296,10 +296,9 @@ fn span_duration(span: &SpanV2) -> Option<Duration> {
 mod tests {
     use chrono::DateTime;
     use relay_conventions::{
-        APP_VITALS_START_TYPE, APP_VITALS_START_VALUE, APP_VITALS_TTFD_VALUE, DB_QUERY_TEXT,
-        DB_SYSTEM, DB_SYSTEM_NAME, DESCRIPTION, DEVICE_CLASS, DEVICE_FAMILY, DEVICE_MODEL,
-        HTTP_REQUEST_METHOD, OP, SENTRY_ACTION, SENTRY_CATEGORY, SENTRY_DOMAIN, SENTRY_MAIN_THREAD,
-        SENTRY_MOBILE, SENTRY_NORMALIZED_DESCRIPTION, SENTRY_SDK_NAME, THREAD_NAME, URL_FULL,
+        DB__QUERY__TEXT, DB__SYSTEM, DB__SYSTEM__NAME, HTTP__REQUEST__METHOD, SENTRY__ACTION,
+        SENTRY__CATEGORY, SENTRY__DESCRIPTION, SENTRY__DOMAIN, SENTRY__NORMALIZED_DESCRIPTION,
+        SENTRY__OP, URL__FULL,
     };
     use relay_event_schema::protocol::{Attributes, EventId, SpanKind};
     use relay_pii::PiiConfig;
@@ -852,8 +851,8 @@ mod tests {
     fn test_insights_backend_queries_support_modern() {
         let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
             &[
-                (DB_SYSTEM_NAME, "postgresql"),
-                (DB_QUERY_TEXT, "select * from users where id = 1"),
+                (DB__SYSTEM__NAME, "postgresql"),
+                (DB__QUERY__TEXT, "select * from users where id = 1"),
             ],
             &[],
         );
@@ -863,15 +862,15 @@ mod tests {
         assert_attributes_contains(
             &span,
             &[
-                (DESCRIPTION, "select * from users where id = 1"),
+                (SENTRY__DESCRIPTION, "select * from users where id = 1"),
                 (
-                    SENTRY_NORMALIZED_DESCRIPTION,
+                    SENTRY__NORMALIZED_DESCRIPTION,
                     "SELECT * FROM users WHERE id = %s",
                 ),
-                (SENTRY_CATEGORY, "db"),
-                (DB_SYSTEM, "postgresql"),
-                (SENTRY_ACTION, "SELECT"),
-                (SENTRY_DOMAIN, ",users,"),
+                (SENTRY__CATEGORY, "db"),
+                (DB__SYSTEM, "postgresql"),
+                (SENTRY__ACTION, "SELECT"),
+                (SENTRY__DOMAIN, ",users,"),
             ],
             &[],
         );
@@ -881,8 +880,8 @@ mod tests {
     fn test_insights_backend_queries_support_legacy() {
         let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
             &[
-                (DB_SYSTEM, "postgresql"),
-                (DESCRIPTION, "select * from users where id = 1"),
+                (DB__SYSTEM, "postgresql"),
+                (SENTRY__DESCRIPTION, "select * from users where id = 1"),
             ],
             &[],
         );
@@ -892,15 +891,15 @@ mod tests {
         assert_attributes_contains(
             &span,
             &[
-                (DESCRIPTION, "select * from users where id = 1"),
+                (SENTRY__DESCRIPTION, "select * from users where id = 1"),
                 (
-                    SENTRY_NORMALIZED_DESCRIPTION,
+                    SENTRY__NORMALIZED_DESCRIPTION,
                     "SELECT * FROM users WHERE id = %s",
                 ),
-                (SENTRY_CATEGORY, "db"),
-                (DB_SYSTEM, "postgresql"),
-                (SENTRY_ACTION, "SELECT"),
-                (SENTRY_DOMAIN, ",users,"),
+                (SENTRY__CATEGORY, "db"),
+                (DB__SYSTEM, "postgresql"),
+                (SENTRY__ACTION, "SELECT"),
+                (SENTRY__DOMAIN, ",users,"),
             ],
             &[],
         );
@@ -911,8 +910,8 @@ mod tests {
         let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
             &[
                 ("sentry.kind", SpanKind::Client.as_str()),
-                (HTTP_REQUEST_METHOD, "GET"),
-                (URL_FULL, "https://www.example.com/path?param=value"),
+                (HTTP__REQUEST__METHOD, "GET"),
+                (URL__FULL, "https://www.example.com/path?param=value"),
             ],
             &[("http.response.status_code", 502.)],
         );
@@ -922,11 +921,14 @@ mod tests {
         assert_attributes_contains(
             &span,
             &[
-                (SENTRY_CATEGORY, "http"),
-                (OP, "http.client"),
-                (DESCRIPTION, "GET https://www.example.com/path?param=value"),
-                (SENTRY_ACTION, "GET"),
-                (SENTRY_DOMAIN, "*.example.com"),
+                (SENTRY__CATEGORY, "http"),
+                (SENTRY__OP, "http.client"),
+                (
+                    SENTRY__DESCRIPTION,
+                    "GET https://www.example.com/path?param=value",
+                ),
+                (SENTRY__ACTION, "GET"),
+                (SENTRY__DOMAIN, "*.example.com"),
             ],
             &[("sentry.status_code", 502.)],
         );
@@ -936,8 +938,11 @@ mod tests {
     fn test_insights_backend_outbound_api_requests_support_legacy_absolute() {
         let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
             &[
-                (OP, "http.client"),
-                (DESCRIPTION, "GET https://www.example.com/path?param=value"),
+                (SENTRY__OP, "http.client"),
+                (
+                    SENTRY__DESCRIPTION,
+                    "GET https://www.example.com/path?param=value",
+                ),
             ],
             &[("http.response.status_code", 502.)],
         );
@@ -947,11 +952,14 @@ mod tests {
         assert_attributes_contains(
             &span,
             &[
-                (SENTRY_CATEGORY, "http"),
-                (OP, "http.client"),
-                (DESCRIPTION, "GET https://www.example.com/path?param=value"),
-                (SENTRY_ACTION, "GET"),
-                (SENTRY_DOMAIN, "*.example.com"),
+                (SENTRY__CATEGORY, "http"),
+                (SENTRY__OP, "http.client"),
+                (
+                    SENTRY__DESCRIPTION,
+                    "GET https://www.example.com/path?param=value",
+                ),
+                (SENTRY__ACTION, "GET"),
+                (SENTRY__DOMAIN, "*.example.com"),
             ],
             &[("sentry.status_code", 502.)],
         );
@@ -997,8 +1005,8 @@ mod tests {
     fn test_insights_backend_outbound_api_requests_support_legacy_relative() {
         let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
             &[
-                (OP, "http.client"),
-                (DESCRIPTION, "GET /path?param=value"),
+                (SENTRY__OP, "http.client"),
+                (SENTRY__DESCRIPTION, "GET /path?param=value"),
                 ("server.address", "www.example.com"),
             ],
             &[("http.response.status_code", 502.)],
@@ -1009,11 +1017,11 @@ mod tests {
         assert_attributes_contains(
             &span,
             &[
-                (SENTRY_CATEGORY, "http"),
-                (OP, "http.client"),
-                (DESCRIPTION, "GET /path?param=value"),
-                (SENTRY_ACTION, "GET"),
-                (SENTRY_DOMAIN, "*.example.com"),
+                (SENTRY__CATEGORY, "http"),
+                (SENTRY__OP, "http.client"),
+                (SENTRY__DESCRIPTION, "GET /path?param=value"),
+                (SENTRY__ACTION, "GET"),
+                (SENTRY__DOMAIN, "*.example.com"),
             ],
             &[("sentry.status_code", 502.)],
         );

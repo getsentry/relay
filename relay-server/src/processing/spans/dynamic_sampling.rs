@@ -364,14 +364,14 @@ fn create_metrics(
 /// Asserts all segments spans are not marked as being created from a transaction.
 #[cfg(debug_assertions)]
 fn assert_segments_not_was_transaction(spans: &[ExpandedSpan]) {
-    use relay_conventions::WAS_TRANSACTION;
     use relay_protocol::Value;
 
     for span in spans.iter().flat_map(|s| s.span.value()) {
         let was_transaction = span
             .attributes
             .value()
-            .and_then(|attr| attr.get_value(WAS_TRANSACTION));
+            // TODO: Fix this
+            .and_then(|attr| attr.get_value("sentry.was_transaction"));
 
         debug_assert!(matches!(was_transaction, None | Some(&Value::Bool(false))));
     }

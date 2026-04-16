@@ -20,15 +20,17 @@ impl DeviceClass {
     /// Reads `device.family`, `device.model`, `device.processor_frequency`,
     /// `device.processor_count`, and `device.memory_size` from the attribute map.
     pub fn from_attributes(attributes: &Attributes) -> Option<DeviceClass> {
-        let family = attributes.get_value(DEVICE_FAMILY)?.as_str()?;
+        let family = attributes.get_value(DEVICE__FAMILY)?.as_str()?;
 
         if is_apple_family(family) {
-            let model = attributes.get_value(DEVICE_MODEL)?.as_str()?;
+            let model = attributes.get_value(DEVICE__MODEL)?.as_str()?;
             model_to_class(model)
         } else {
-            let freq = attributes.get_value(DEVICE_PROCESSOR_FREQUENCY)?.as_f64()? as u64;
-            let proc = attributes.get_value(DEVICE_PROCESSOR_COUNT)?.as_f64()? as u64;
-            let mem = attributes.get_value(DEVICE_MEMORY_SIZE)?.as_f64()? as u64;
+            let freq = attributes
+                .get_value(DEVICE__PROCESSOR_FREQUENCY)?
+                .as_f64()? as u64;
+            let proc = attributes.get_value(DEVICE__PROCESSOR_COUNT)?.as_f64()? as u64;
+            let mem = attributes.get_value(DEVICE__MEMORY_SIZE)?.as_f64()? as u64;
             classify_by_hardware(freq, proc, mem)
         }
     }

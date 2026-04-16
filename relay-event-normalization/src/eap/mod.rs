@@ -38,13 +38,13 @@ pub use self::trimming::TrimmingProcessor;
 pub fn normalize_sentry_op(attributes: &mut Annotated<Attributes>) {
     if attributes
         .value()
-        .is_some_and(|attrs| attrs.contains_key(OP))
+        .is_some_and(|attrs| attrs.contains_key(SENTRY__OP))
     {
         return;
     }
     let inferred_op = derive_op_for_v2_span(attributes);
     let attrs = attributes.get_or_insert_with(Default::default);
-    attrs.insert_if_missing(OP, || inferred_op);
+    attrs.insert_if_missing(SENTRY__OP, || inferred_op);
 }
 
 /// Infers the sentry.category attribute and inserts it into `attributes` if not
@@ -56,33 +56,33 @@ pub fn normalize_span_category(attributes: &mut Annotated<Attributes>) {
     };
 
     // Clients can explicitly set the category.
-    if attribute_is_nonempty_string(attributes_val, SENTRY_CATEGORY) {
+    if attribute_is_nonempty_string(attributes_val, SENTRY__CATEGORY) {
         return;
     }
 
     // Try to derive category from sentry.op.
-    if let Some(op_value) = attributes_val.get_value(OP)
+    if let Some(op_value) = attributes_val.get_value(SENTRY__OP)
         && let Some(op_str) = op_value.as_str()
     {
         let op_lowercase = op_str.to_lowercase();
         if let Some(category) = span_op_to_category(&op_lowercase) {
             let attrs = attributes.get_or_insert_with(Default::default);
-            attrs.insert(SENTRY_CATEGORY, category.to_owned());
+            attrs.insert(SENTRY__CATEGORY, category.to_owned());
             return;
         }
     }
 
     // Without an op, rely on attributes typically found only on spans of the given category.
-    let category = if attribute_is_nonempty_string(attributes_val, DB_SYSTEM_NAME) {
+    let category = if attribute_is_nonempty_string(attributes_val, DB__SYSTEM__NAME) {
         Some("db")
-    } else if attribute_is_nonempty_string(attributes_val, HTTP_REQUEST_METHOD) {
+    } else if attribute_is_nonempty_string(attributes_val, HTTP__REQUEST__METHOD) {
         Some("http")
-    } else if attribute_is_nonempty_string(attributes_val, UI_COMPONENT_NAME) {
+    } else if attribute_is_nonempty_string(attributes_val, UI__COMPONENT_NAME) {
         Some("ui")
-    } else if attribute_is_nonempty_string(attributes_val, RESOURCE_RENDER_BLOCKING_STATUS) {
+    } else if attribute_is_nonempty_string(attributes_val, RESOURCE__RENDER_BLOCKING_STATUS) {
         Some("resource")
     } else if attributes_val
-        .get_value(ORIGIN)
+        .get_value(SENTRY__ORIGIN)
         .and_then(|v| v.as_str())
         .is_some_and(|v| v == "auto.ui.browser.metrics")
     {
@@ -94,7 +94,7 @@ pub fn normalize_span_category(attributes: &mut Annotated<Attributes>) {
     // Write the derived category to attributes
     if let Some(category) = category {
         let attrs = attributes.get_or_insert_with(Default::default);
-        attrs.insert(SENTRY_CATEGORY, category.to_owned());
+        attrs.insert(SENTRY__CATEGORY, category.to_owned());
     }
 }
 
@@ -212,7 +212,7 @@ fn is_supported_array(arr: &[Annotated<Value>]) -> bool {
 pub fn normalize_received(attributes: &mut Annotated<Attributes>, received: DateTime<Utc>) {
     attributes
         .get_or_insert_with(Default::default)
-        .insert_if_missing(OBSERVED_TIMESTAMP_NANOS, || {
+        .insert_if_missing(SENTRY__OBSERVED_TIMESTAMP_NANOS, || {
             received
                 .timestamp_nanos_opt()
                 .unwrap_or_else(|| UnixTimestamp::now().as_nanos() as i64)
@@ -231,13 +231,15 @@ pub fn normalize_user_agent(
 ) {
     let attributes = attributes.get_or_insert_with(Default::default);
 
-    if attributes.contains_key(BROWSER_NAME) || attributes.contains_key(BROWSER_VERSION) {
+    if attributes.contains_key(SENTRY__BROWSER__NAME)
+        || attributes.contains_key(SENTRY__BROWSER__VERSION)
+    {
         return;
     }
 
     // Prefer the stored/explicitly sent user agent over the user agent from the client/transport.
     let user_agent = attributes
-        .get_value(USER_AGENT_ORIGINAL)
+        .get_value(USER_AGENT__ORIGINAL)
         .and_then(|v| v.as_str())
         .or(client_user_agent);
 
@@ -248,8 +250,8 @@ pub fn normalize_user_agent(
         return;
     };
 
-    attributes.insert_if_missing(BROWSER_NAME, || context.name);
-    attributes.insert_if_missing(BROWSER_VERSION, || context.version);
+    attributes.insert_if_missing(SENTRY__BROWSER__NAME, || context.name);
+    attributes.insert_if_missing(SENTRY__BROWSER__VERSION, || context.version);
 }
 
 /// Normalizes the client address into [`Attributes`].
@@ -266,11 +268,11 @@ pub fn normalize_client_address(attributes: &mut Annotated<Attributes>, client_i
     let Some(client_ip) = client_ip else { return };
 
     let client_address = attributes
-        .get_value(CLIENT_ADDRESS)
+        .get_value(CLIENT__ADDRESS)
         .and_then(|v| v.as_str());
 
     if client_address == Some("{{auto}}") {
-        attributes.insert(CLIENT_ADDRESS, client_ip.to_string());
+        attributes.insert(CLIENT__ADDRESS, client_ip.to_string());
     }
 }
 
@@ -285,10 +287,10 @@ pub fn normalize_user_geo(
     let attributes = attributes.get_or_insert_with(Default::default);
 
     if [
-        USER_GEO_COUNTRY_CODE,
-        USER_GEO_CITY,
-        USER_GEO_SUBDIVISION,
-        USER_GEO_REGION,
+        USER__GEO__COUNTRY_CODE,
+        USER__GEO__CITY,
+        USER__GEO__SUBDIVISION,
+        USER__GEO__REGION,
     ]
     .into_iter()
     .any(|a| attributes.contains_key(a))
@@ -300,10 +302,10 @@ pub fn normalize_user_geo(
         return;
     };
 
-    attributes.insert_if_missing(USER_GEO_COUNTRY_CODE, || geo.country_code);
-    attributes.insert_if_missing(USER_GEO_CITY, || geo.city);
-    attributes.insert_if_missing(USER_GEO_SUBDIVISION, || geo.subdivision);
-    attributes.insert_if_missing(USER_GEO_REGION, || geo.region);
+    attributes.insert_if_missing(USER__GEO__COUNTRY_CODE, || geo.country_code);
+    attributes.insert_if_missing(USER__GEO__CITY, || geo.city);
+    attributes.insert_if_missing(USER__GEO__SUBDIVISION, || geo.subdivision);
+    attributes.insert_if_missing(USER__GEO__REGION, || geo.region);
 }
 
 /// Normalizes the [DSC](DynamicSamplingContext) into [`Attributes`].
@@ -313,26 +315,26 @@ pub fn normalize_dsc(attributes: &mut Annotated<Attributes>, dsc: Option<&Dynami
     let attributes = attributes.get_or_insert_with(Default::default);
 
     // Check if DSC attributes are already set, the trace id is always required and must always be set.
-    if attributes.contains_key(DSC_TRACE_ID) {
+    if attributes.contains_key(SENTRY__DSC__TRACE_ID) {
         return;
     }
 
-    attributes.insert(DSC_TRACE_ID, dsc.trace_id.to_string());
-    attributes.insert(DSC_PUBLIC_KEY, dsc.public_key.to_string());
+    attributes.insert(SENTRY__DSC__TRACE_ID, dsc.trace_id.to_string());
+    attributes.insert(SENTRY__DSC__PUBLIC_KEY, dsc.public_key.to_string());
     if let Some(release) = &dsc.release {
-        attributes.insert(DSC_RELEASE, release.clone());
+        attributes.insert(SENTRY__DSC__RELEASE, release.clone());
     }
     if let Some(environment) = &dsc.environment {
-        attributes.insert(DSC_ENVIRONMENT, environment.clone());
+        attributes.insert(SENTRY__DSC__ENVIRONMENT, environment.clone());
     }
     if let Some(transaction) = &dsc.transaction {
-        attributes.insert(DSC_TRANSACTION, transaction.clone());
+        attributes.insert(SENTRY__DSC__TRANSACTION, transaction.clone());
     }
     if let Some(sample_rate) = dsc.sample_rate {
-        attributes.insert(DSC_SAMPLE_RATE, sample_rate);
+        attributes.insert(SENTRY__DSC__SAMPLE_RATE, sample_rate);
     }
     if let Some(sampled) = dsc.sampled {
-        attributes.insert(DSC_SAMPLED, sampled);
+        attributes.insert(SENTRY__DSC__SAMPLED, sampled);
     }
 }
 
@@ -421,21 +423,21 @@ fn normalize_db_attributes(annotated_attributes: &mut Annotated<Attributes>) {
     };
 
     // Skip normalization if the normalized db query attribute is already set.
-    if attributes.get_value(NORMALIZED_DB_QUERY).is_some() {
+    if attributes.get_value(SENTRY__NORMALIZED_DB_QUERY).is_some() {
         return;
     }
 
     let (op, sub_op) = attributes
-        .get_value(OP)
+        .get_value(SENTRY__OP)
         .and_then(|v| v.as_str())
         .map(|op| op.split_once('.').unwrap_or((op, "")))
         .unwrap_or_default();
 
     let raw_query = attributes
-        .get_value(DB_QUERY_TEXT)
+        .get_value(DB__QUERY__TEXT)
         .or_else(|| {
             if op == "db" {
-                attributes.get_value(DESCRIPTION)
+                attributes.get_value(SENTRY__DESCRIPTION)
             } else {
                 None
             }
@@ -443,18 +445,20 @@ fn normalize_db_attributes(annotated_attributes: &mut Annotated<Attributes>) {
         .and_then(|v| v.as_str());
 
     let db_system = attributes
-        .get_value(DB_SYSTEM_NAME)
+        .get_value(DB__SYSTEM__NAME)
         .and_then(|v| v.as_str());
 
     let db_operation = attributes
-        .get_value(DB_OPERATION_NAME)
+        .get_value(DB__OPERATION__NAME)
         .and_then(|v| v.as_str());
 
     let collection_name = attributes
-        .get_value(DB_COLLECTION_NAME)
+        .get_value(DB__COLLECTION__NAME)
         .and_then(|v| v.as_str());
 
-    let span_origin = attributes.get_value(ORIGIN).and_then(|v| v.as_str());
+    let span_origin = attributes
+        .get_value(SENTRY__ORIGIN)
+        .and_then(|v| v.as_str());
 
     let (normalized_db_query, parsed_sql) = if let Some(raw_query) = raw_query {
         scrub_db_query(
@@ -518,14 +522,14 @@ fn normalize_db_attributes(annotated_attributes: &mut Annotated<Attributes>) {
             let mut normalized_db_query_hash = format!("{:x}", md5::compute(&normalized_db_query));
             normalized_db_query_hash.truncate(16);
 
-            attributes.insert(NORMALIZED_DB_QUERY, normalized_db_query);
-            attributes.insert(NORMALIZED_DB_QUERY_HASH, normalized_db_query_hash);
+            attributes.insert(SENTRY__NORMALIZED_DB_QUERY, normalized_db_query);
+            attributes.insert(SENTRY__NORMALIZED_DB_QUERY__HASH, normalized_db_query_hash);
         }
         if let Some(db_operation_name) = db_operation {
-            attributes.insert(DB_OPERATION_NAME, db_operation_name)
+            attributes.insert(DB__OPERATION__NAME, db_operation_name)
         }
         if let Some(db_collection_name) = db_collection_name {
-            attributes.insert(DB_COLLECTION_NAME, db_collection_name);
+            attributes.insert(DB__COLLECTION__NAME, db_collection_name);
         }
     }
 }
@@ -544,16 +548,16 @@ fn normalize_http_attributes(
 
     // Skip normalization if not an http span.
     if attributes
-        .get_value(SENTRY_CATEGORY)
+        .get_value(SENTRY__CATEGORY)
         .is_none_or(|category| category.as_str().unwrap_or_default() != "http")
     {
         return;
     }
 
-    let op = attributes.get_value(OP).and_then(|v| v.as_str());
+    let op = attributes.get_value(SENTRY__OP).and_then(|v| v.as_str());
 
     let (description_method, description_url) = match attributes
-        .get_value(DESCRIPTION)
+        .get_value(SENTRY__DESCRIPTION)
         .and_then(|v| v.as_str())
         .and_then(|description| description.split_once(' '))
     {
@@ -562,20 +566,21 @@ fn normalize_http_attributes(
     };
 
     let method = attributes
-        .get_value(HTTP_REQUEST_METHOD)
-        .or_else(|| attributes.get_value(LEGACY_HTTP_REQUEST_METHOD))
+        .get_value(HTTP__REQUEST__METHOD)
+        //TODO: Fix this
+        .or_else(|| attributes.get_value("http.request_method"))
         .and_then(|v| v.as_str())
         .or(description_method);
 
     let server_address = attributes
-        .get_value(SERVER_ADDRESS)
+        .get_value(SERVER__ADDRESS)
         .and_then(|v| v.as_str());
 
     let url: Option<&str> = attributes
-        .get_value(URL_FULL)
+        .get_value(URL__FULL)
         .and_then(|v| v.as_str())
         .or(description_url);
-    let url_scheme = attributes.get_value(URL_SCHEME).and_then(|v| v.as_str());
+    let url_scheme = attributes.get_value(URL__SCHEME).and_then(|v| v.as_str());
 
     // If the span op is "http.client" and the method and url are present,
     // extract a normalized domain to be stored in the "server.address" attribute.
@@ -598,15 +603,15 @@ fn normalize_http_attributes(
 
     if let Some(attributes) = annotated_attributes.value_mut() {
         if let Some(method) = method {
-            attributes.insert(HTTP_REQUEST_METHOD, method);
+            attributes.insert(HTTP__REQUEST__METHOD, method);
         }
 
         if let Some(normalized_server_address) = normalized_server_address {
-            attributes.insert(SERVER_ADDRESS, normalized_server_address);
+            attributes.insert(SERVER__ADDRESS, normalized_server_address);
         }
 
         if let Some(raw_url) = raw_url {
-            attributes.insert_if_missing(URL_FULL, || raw_url);
+            attributes.insert_if_missing(URL__FULL, || raw_url);
         }
     }
 }
@@ -626,14 +631,14 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
     // Map of new sentry conventions attributes to legacy SpanV1 attributes
     let current_to_legacy_attributes = [
         // DB attributes
-        (DB_QUERY_TEXT, DESCRIPTION),
-        (NORMALIZED_DB_QUERY, SENTRY_NORMALIZED_DESCRIPTION),
-        (DB_OPERATION_NAME, SENTRY_ACTION),
-        (DB_SYSTEM_NAME, DB_SYSTEM),
+        (DB__QUERY__TEXT, SENTRY__DESCRIPTION),
+        (SENTRY__NORMALIZED_DB_QUERY, SENTRY__NORMALIZED_DESCRIPTION),
+        (DB__OPERATION__NAME, SENTRY__ACTION),
+        (DB__SYSTEM__NAME, DB__SYSTEM),
         // HTTP attributes
-        (SERVER_ADDRESS, SENTRY_DOMAIN),
-        (HTTP_REQUEST_METHOD, SENTRY_ACTION),
-        (HTTP_RESPONSE_STATUS_CODE, SENTRY_STATUS_CODE),
+        (SERVER__ADDRESS, SENTRY__DOMAIN),
+        (HTTP__REQUEST__METHOD, SENTRY__ACTION),
+        (HTTP__RESPONSE__STATUS_CODE, SENTRY__STATUS_CODE),
     ];
 
     for (current_attribute, legacy_attribute) in current_to_legacy_attributes {
@@ -645,15 +650,15 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
         }
     }
 
-    if !attributes.contains_key(SENTRY_DOMAIN)
+    if !attributes.contains_key(SENTRY__DOMAIN)
         && let Some(db_domain) = attributes
-            .get_value(DB_COLLECTION_NAME)
+            .get_value(DB__COLLECTION__NAME)
             .and_then(|value| value.as_str())
             .map(|collection_name| collection_name.to_owned())
     {
         // sentry.domain must be wrapped in preceding and trailing commas, for old hacky reasons.
         attributes.insert(
-            SENTRY_DOMAIN,
+            SENTRY__DOMAIN,
             match (db_domain.starts_with(','), db_domain.ends_with(',')) {
                 (true, true) => db_domain,
                 (true, false) => format!("{db_domain},"),
@@ -663,10 +668,10 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
         );
     }
 
-    if let Some(&Value::String(method)) = attributes.get_value(HTTP_REQUEST_METHOD).as_ref()
-        && let Some(&Value::String(url)) = attributes.get_value(URL_FULL).as_ref()
+    if let Some(&Value::String(method)) = attributes.get_value(HTTP__REQUEST__METHOD).as_ref()
+        && let Some(&Value::String(url)) = attributes.get_value(URL__FULL).as_ref()
     {
-        attributes.insert(DESCRIPTION, format!("{method} {url}"))
+        attributes.insert(SENTRY__DESCRIPTION, format!("{method} {url}"))
     }
 }
 
