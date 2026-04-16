@@ -996,6 +996,8 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     /// - `expansion`: What expansion was used to expand the error (e.g. unreal).
     ErrorProcessed,
+    /// The number of times the new unreal expansion logic in the endpoint is hit.
+    UnrealEndpointExpansion,
 }
 
 impl CounterMetric for RelayCounters {
@@ -1055,6 +1057,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EnvelopeWithLogs => "logs.envelope",
             RelayCounters::ProfileChunksWithoutPlatform => "profile_chunk.no_platform",
             RelayCounters::ErrorProcessed => "event.error.processed",
+            RelayCounters::UnrealEndpointExpansion => "unreal.endpoint_expansion",
         }
     }
 }
