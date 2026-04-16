@@ -18,6 +18,7 @@ use relay_system::{
     Addr, AsyncResponse, FromMessage, Interface, LoadShed, NoResponse, Sender, SimpleService,
 };
 use sentry_protos::snuba::v1::TraceItem;
+use tokio::time::error::Elapsed;
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
 use crate::envelope::{Item, ItemType};
@@ -128,69 +129,38 @@ impl Counted for StoreTraceAttachment {
 pub enum Error {
     #[error("load shed")]
     LoadShed,
-    #[error("upload failed: {0}")]
-    UploadFailed(#[from] UploadError),
+    #[error("session creation failed: {0}")]
+    Session(#[source] objectstore_client::Error),
+    #[error("timeout: {source}")]
+    Timeout {
+        #[source]
+        source: Elapsed,
+        attempts: u16,
+    },
+    #[error("upload failed: {source}")]
+    UploadFailed {
+        #[source]
+        source: objectstore_client::Error,
+        attempts: u16,
+    },
     #[error("UUID conversion failed: {0}")]
     Uuid(#[from] TryFromSliceError),
-}
-
-/// Upload errors that occur during the upload retry loop.
-#[derive(Debug, thiserror::Error)]
-#[error("{kind}")]
-pub struct UploadError {
-    #[source]
-    kind: UploadErrorKind,
-    attempts: u16,
-}
-
-impl UploadError {
-    fn new(source: impl Into<UploadErrorKind>) -> Self {
-        Self {
-            kind: source.into(),
-            attempts: 0,
-        }
-    }
-
-    fn with_attempts(mut self, attempts: u16) -> Self {
-        self.attempts = attempts;
-        self
-    }
-
-    /// Returns the number of upload attempts made.
-    pub fn attempts(&self) -> u16 {
-        self.attempts
-    }
-
-    /// Returns a reference to the error kind.
-    pub fn kind(&self) -> &UploadErrorKind {
-        &self.kind
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum UploadErrorKind {
-    #[error("{0}")]
-    Objectstore(#[from] objectstore_client::Error),
-    #[error("{0}")]
-    Timeout(#[from] tokio::time::error::Elapsed),
 }
 
 impl Error {
     fn as_str(&self) -> &'static str {
         match self {
             Error::LoadShed => "load-shed",
-            Error::UploadFailed(UploadError {
-                kind: UploadErrorKind::Timeout(_),
-                ..
-            }) => "timeout",
-            Error::UploadFailed(_) => "upload_failed",
+            Error::Session(_) => "session",
+            Error::Timeout { .. } => "timeout",
+            Error::UploadFailed { .. } => "upload_failed",
             Error::Uuid(_) => "uuid",
         }
     }
 
     fn attempts(&self) -> u16 {
         match self {
-            Error::UploadFailed(e) => e.attempts(),
+            Error::Timeout { attempts, .. } | Error::UploadFailed { attempts, .. } => *attempts,
             _ => 0,
         }
     }
@@ -377,14 +347,14 @@ impl ObjectstoreServiceInner {
         let retention = envelope.envelope().retention();
 
         let result = match session {
-            Err(error) => Err(UploadError::new(error).into()),
+            Err(error) => Err(Error::Session(error)),
             Ok(session) => {
                 let attachments = envelope
                     .envelope_mut()
                     .items_mut()
                     .filter(|item| *item.ty() == ItemType::Attachment);
 
-                let mut first_error = None;
+                let mut first_error = Ok(());
                 for attachment in attachments {
                     if Self::should_skip_upload(attachment) {
                         continue;
@@ -395,12 +365,12 @@ impl ObjectstoreServiceInner {
                     {
                         Ok(stored_key) => attachment.set_stored_key(stored_key.into_inner()),
                         Err(error) => {
-                            first_error.get_or_insert(error);
+                            first_error = Err(error);
                         }
                     }
                 }
 
-                first_error.map_or(Ok(()), |e| Err(e.into()))
+                first_error
             }
         };
 
@@ -427,7 +397,7 @@ impl ObjectstoreServiceInner {
                 .session(&self.objectstore_client);
 
             match session {
-                Err(error) => Err(UploadError::new(error).into()),
+                Err(error) => Err(Error::Session(error)),
                 Ok(session) => self
                     .upload_bytes(
                         &session,
@@ -460,7 +430,7 @@ impl ObjectstoreServiceInner {
             .trace_attachments
             .for_project(scoping.organization_id.value(), scoping.project_id.value())
             .session(&self.objectstore_client)
-            .map_err(|e| UploadError::new(e).into())
+            .map_err(Error::Session)
             .reject(&managed)?;
 
         let body = Bytes::clone(&managed.body);
@@ -515,7 +485,7 @@ impl ObjectstoreServiceInner {
             .event_attachments
             .for_project(organization_id.value(), project_id.value())
             .session(&self.objectstore_client)
-            .map_err(|e| UploadError::new(e).into())?;
+            .map_err(Error::Session)?;
 
         self.upload(
             &session,
@@ -533,7 +503,7 @@ impl ObjectstoreServiceInner {
         payload: Bytes,
         retention: u16,
         key: Option<String>,
-    ) -> Result<ObjectstoreKey, UploadError> {
+    ) -> Result<ObjectstoreKey, Error> {
         let retention_hours = retention.checked_mul(24);
         self.upload(session, key, Body::Bytes(payload), retention_hours)
             .await
@@ -545,8 +515,8 @@ impl ObjectstoreServiceInner {
         key: Option<String>,
         body: Body,
         retention_hours: Option<u16>,
-    ) -> Result<ObjectstoreKey, UploadError> {
-        let mut attempt: u16 = 0;
+    ) -> Result<ObjectstoreKey, Error> {
+        let mut attempts: u16 = 0;
 
         tokio::time::timeout(self.timeout, async {
             let mut result = None;
@@ -554,13 +524,13 @@ impl ObjectstoreServiceInner {
                 let Some(body) = body.try_clone() else {
                     break;
                 };
-                attempt += 1;
+                attempts += 1;
                 result.replace(
                     self.attempt_upload(session, key.clone(), body, retention_hours)
                         .await,
                 );
 
-                if attempt < self.max_attempts.get()
+                if attempts < self.max_attempts.get()
                     && matches!(&result, Some(Err(e)) if is_retryable(e))
                 {
                     tokio::time::sleep(self.retry_interval).await;
@@ -571,12 +541,11 @@ impl ObjectstoreServiceInner {
 
             result
                 .expect("try_clone() should succeed at least once")
-                .map_err(UploadError::new)
+                .map_err(|source| Error::UploadFailed { source, attempts })
         })
         .await
-        .map_err(UploadError::new)
+        .map_err(|source| Error::Timeout { source, attempts })
         .flatten()
-        .map_err(|e| e.with_attempts(attempt))
     }
 
     async fn attempt_upload(
