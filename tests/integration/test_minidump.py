@@ -758,8 +758,8 @@ def test_minidump_placeholder(
         "project": 42,
         "received": mock.ANY,
         "sdk": {
-            "name": "raven-node",
-            "version": "2.6.3",
+            "name": "minidump.upload",
+            "version": "0.0.0",
         },
         "timestamp": mock.ANY,
         "type": "error",
