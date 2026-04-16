@@ -6,6 +6,10 @@
 
 - Move unreal crash report expansion from processing into endpoint. ([#5825](https://github.com/getsentry/relay/pull/5825))
 
+**Bug Fixes**:
+
+- Respond with 429 if otlp logs are rate limited, as per spec. ([#5841](https://github.com/getsentry/relay/pull/5841))
+
 ## 26.4.0
 
 **Breaking Changes**:
@@ -21,7 +25,6 @@
 - Propagate an event's retention policy to its attachments ([#5774](https://github.com/getsentry/relay/pull/5774))
 - Prevent panic in span description normalization. ([#5781](https://github.com/getsentry/relay/pull/5781))
 - Limit overall stream size in playstation multiparts. ([#5795](https://github.com/getsentry/relay/pull/5795))
-- Respond with 429 if otlp logs are rate limited, as per spec ([#5841](https://github.com/getsentry/relay/pull/5841))
 
 **Features**:
 
