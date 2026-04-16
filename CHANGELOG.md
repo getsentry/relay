@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 26.4.0
 
 **Breaking Changes**:
 
@@ -8,6 +8,7 @@
 
 **Bug Fixes**:
 
+- Scrub API key headers with hyphens (e.g. `x-api-key`) in default PII scrubbing. ([#5829](https://github.com/getsentry/relay/pull/5829))
 - Store segment name in `sentry.transaction` in addition to `sentry.segment.name` on OTLP spans. ([#5765](https://github.com/getsentry/relay/pull/5765))
 - Explicitly handle in-flight requests during shutdown. ([#5746](https://github.com/getsentry/relay/pull/5746), [#5769](https://github.com/getsentry/relay/pull/5769))
 - Emit outcomes in both `log_byte` and `log_item` categories when logs are dropped. ([#5766](https://github.com/getsentry/relay/pull/5766))
@@ -26,9 +27,11 @@
 - Add `gen_ai.input.messages` and `gen_ai.output.messages` as distinct fields for SpanData. ([#5797](https://github.com/getsentry/relay/pull/5797))
 - Merge `gen_ai.request.messages` into `gen_ai.input.messages` and `gen_ai.response.text` into `gen_ai.output.messages`. ([#5813](https://github.com/getsentry/relay/pull/5813))
 - Extract `http.query` and `url.query` attributes from `query_string` in transactions' request context. ([#5784](https://github.com/getsentry/relay/pull/5784))
+- Add `ModelMetadata` global config with context size. ([#5831](https://github.com/getsentry/relay/pull/5831))
 
 **Internal**:
 
+- Update trace metric PII scrubbing to use `relay_pii::eap::scrub`. ([#5815](https://github.com/getsentry/relay/pull/5815))
 - Calculate and track accepted bytes per individual trace metric item via `TraceMetricByte` data category. ([#5744](https://github.com/getsentry/relay/pull/5744), [#5767](https://github.com/getsentry/relay/pull/5767))
 - Graduate standalone span ingestion feature flag. ([#5786](https://github.com/getsentry/relay/pull/5786))
 - Remove cardinality limiter. ([#5809](https://github.com/getsentry/relay/pull/5809))

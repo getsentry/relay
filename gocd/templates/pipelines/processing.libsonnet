@@ -4,8 +4,6 @@ local gocdtasks = import 'github.com/getsentry/gocd-jsonnet/libs/gocd-tasks.libs
 // List of datadog monitors to check during the soak time in the different regions
 local soak_monitors = {
   // (The Number of Pending Projects is High), (Service Queues are Backlogging), (CrashLoopBackoff Count is High)
-  s4s: '14146876 154096678 237863001',
-  // (The Number of Pending Projects is High), (Service Queues are Backlogging), (CrashLoopBackoff Count is High)
   us: '14146876 154096671 237862997',
   // (The Number of Pending Projects is High)
   default: '14146876',
@@ -32,7 +30,7 @@ local sentry_create_env_vars(region) = {
 // The purpose of this stage is to let the deployment soak for a while and
 // detect any issues that might have been introduced.
 local soak_time(region) =
-  if region == 's4s' || region == 'us' then
+  if region == 'us' then
     [
       {
         'soak-time': {

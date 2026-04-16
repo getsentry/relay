@@ -4,7 +4,9 @@ use std::io::BufReader;
 use std::path::Path;
 
 use relay_base_schema::metrics::MetricNamespace;
-use relay_event_normalization::{MeasurementsConfig, ModelCosts, SpanOpDefaults};
+use relay_event_normalization::{
+    MeasurementsConfig, ModelCosts, ModelMetadata, ModelMetadataEntry, SpanOpDefaults,
+};
 use relay_filter::GenericFiltersConfig;
 use relay_quotas::Quota;
 use serde::{Deserialize, Serialize, de};
@@ -49,6 +51,10 @@ pub struct GlobalConfig {
     #[serde(skip_serializing_if = "is_model_costs_empty")]
     pub ai_model_costs: ErrorBoundary<ModelCosts>,
 
+    /// Metadata for AI models including costs and context size.
+    #[serde(skip_serializing_if = "is_model_metadata_empty")]
+    pub ai_model_metadata: ErrorBoundary<ModelMetadata>,
+
     /// Configuration to derive the `span.op` from other span fields.
     #[serde(
         deserialize_with = "default_on_error",
@@ -71,6 +77,41 @@ impl GlobalConfig {
         } else {
             Ok(None)
         }
+    }
+
+    /// Returns [`ModelMetadata`], preferring `ai_model_metadata` if present and falling
+    /// back to `ai_model_costs` (adapted to the new format) otherwise.
+    pub fn model_metadata(&self) -> Option<ModelMetadata> {
+        if let Some(metadata) = self
+            .ai_model_metadata
+            .as_ref()
+            .ok()
+            .filter(|m| m.is_enabled())
+        {
+            return Some(metadata.clone());
+        }
+
+        let costs = self
+            .ai_model_costs
+            .as_ref()
+            .ok()
+            .filter(|c| c.is_enabled())?;
+
+        let models = costs
+            .models
+            .iter()
+            .map(|(pattern, cost)| {
+                (
+                    pattern.clone(),
+                    ModelMetadataEntry {
+                        costs: Some(*cost),
+                        context_size: None,
+                    },
+                )
+            })
+            .collect();
+
+        Some(ModelMetadata { version: 1, models })
     }
 
     /// Returns the generic inbound filters.
@@ -308,6 +349,10 @@ fn is_ok_and_empty(value: &ErrorBoundary<MetricExtractionGroups>) -> bool {
 
 fn is_model_costs_empty(value: &ErrorBoundary<ModelCosts>) -> bool {
     matches!(value, ErrorBoundary::Ok(model_costs) if model_costs.is_empty())
+}
+
+fn is_model_metadata_empty(value: &ErrorBoundary<ModelMetadata>) -> bool {
+    matches!(value, ErrorBoundary::Ok(metadata) if metadata.is_empty())
 }
 
 #[cfg(test)]

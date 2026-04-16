@@ -66,7 +66,7 @@ pub fn extract_items(payload: Bytes, config: &Config) -> Result<Items, Processin
         // TODO: This clones data. Update symbolic to allow moving the bytes out.
         //
         // See: <https://github.com/getsentry/symbolic/issues/959>.
-        item.set_payload(content_type, file.data().to_owned());
+        item.set_payload(content_type, file.into_bytes());
         item.set_attachment_type(attachment_type);
         items.push(item);
     }

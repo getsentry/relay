@@ -120,9 +120,6 @@ pub struct NormalizationConfig<'a> {
     /// When enabled, adds errors in the meta to the event's errors.
     pub emit_event_errors: bool,
 
-    /// When `true`, infers the device class from CPU and model.
-    pub device_class_synthesis_config: bool,
-
     /// When `true`, extracts tags from event and spans and materializes them into `span.data`.
     pub enrich_spans: bool,
 
@@ -190,7 +187,6 @@ impl Default for NormalizationConfig<'_> {
             is_renormalize: Default::default(),
             remove_other: Default::default(),
             emit_event_errors: Default::default(),
-            device_class_synthesis_config: Default::default(),
             enrich_spans: Default::default(),
             max_tag_value_length: usize::MAX,
             span_description_rules: Default::default(),
@@ -309,9 +305,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     normalize_event_tags(event); // Tags are added to every metric
 
     // TODO: Consider moving to store normalization
-    if config.device_class_synthesis_config {
-        normalize_device_class(event);
-    }
+    normalize_device_class(event);
     normalize_stacktraces(event);
     normalize_exceptions(event); // Browser extension filters look at the stacktrace
     normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter

@@ -12,7 +12,6 @@ processing:
   enabled: true
   kafka_config:
     - { name: "bootstrap.servers", value: "kafka:9093" }
-    # The maximum attachment chunk size is 1MB. Together with some meta data,
-    # messages will never get larger than 2MB in total.
-    - { name: "message.max.bytes", value: 2097176 }
+    # Align with Relay's default `max_envelope_size` size (200 MiB -> 209,715,200 bytes).
+    - { name: "message.max.bytes", value: 209715200 }
   redis: redis://redis:6379
