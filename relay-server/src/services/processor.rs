@@ -19,7 +19,7 @@ use futures::future::BoxFuture;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
-use relay_config::{Config, HttpEncoding};
+use relay_config::{Config, HttpEncoding, UpstreamDescriptor};
 use relay_dynamic_config::Feature;
 use relay_event_normalization::{ClockDriftProcessor, GeoIpLookup};
 use relay_event_schema::processor::ProcessingAction;
@@ -1528,13 +1528,19 @@ impl EnvelopeProcessorService {
         match output.serialize_envelope(ctx) {
             Ok(envelope) => {
                 let envelope = ManagedEnvelope::from(envelope);
-                self.submit_envelope_upstream(envelope);
+                self.submit_envelope_upstream(envelope, ctx.project_info.upstream.clone());
             }
             Err(_) => relay_log::error!("failed to serialize output to an envelope"),
         };
     }
 
-    fn submit_envelope_upstream(&self, mut envelope: ManagedEnvelope) {
+    fn submit_envelope_upstream(
+        &self,
+        mut envelope: ManagedEnvelope,
+        // Currently allowed to be optional as code is migrated to respect the upstream override
+        // provided from the project config. Eventually must available and is required.
+        upstream: Option<UpstreamDescriptor>,
+    ) {
         if envelope.envelope_mut().is_empty() {
             envelope.accept();
             return;
@@ -1571,6 +1577,7 @@ impl EnvelopeProcessorService {
                     .addrs
                     .upstream_relay
                     .send(SendRequest(SendEnvelope {
+                        upstream,
                         envelope,
                         body,
                         http_encoding,
@@ -1618,7 +1625,7 @@ impl EnvelopeProcessorService {
         }
 
         let envelope = ManagedEnvelope::new(envelope, self.inner.addrs.outcome_aggregator.clone());
-        self.submit_envelope_upstream(envelope);
+        self.submit_envelope_upstream(envelope, None);
     }
 
     fn check_buckets(
@@ -1906,7 +1913,7 @@ impl EnvelopeProcessorService {
                     distribution(RelayDistributions::BucketsPerBatch) = batch.len() as u64
                 );
 
-                self.submit_envelope_upstream(envelope);
+                self.submit_envelope_upstream(envelope, None);
                 num_batches += 1;
             }
 
@@ -2120,6 +2127,7 @@ pub fn encode_payload(body: &Bytes, http_encoding: HttpEncoding) -> Result<Bytes
 /// An upstream request that submits an envelope via HTTP.
 #[derive(Debug)]
 pub struct SendEnvelope {
+    pub upstream: Option<UpstreamDescriptor>,
     pub envelope: ManagedEnvelope,
     pub body: Bytes,
     pub http_encoding: HttpEncoding,
@@ -2127,6 +2135,10 @@ pub struct SendEnvelope {
 }
 
 impl UpstreamRequest for SendEnvelope {
+    fn upstream(&self) -> Option<&UpstreamDescriptor> {
+        self.upstream.as_ref()
+    }
+
     fn method(&self) -> reqwest::Method {
         reqwest::Method::POST
     }

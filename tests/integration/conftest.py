@@ -12,6 +12,7 @@ import pytest
 # all tests fixtures must be imported so that pytest finds them
 from .fixtures.gobetween import gobetween  # noqa
 from .fixtures.haproxy import haproxy  # noqa
+from .fixtures.mini_proxy import mini_proxy  # noqa
 from .fixtures.mini_sentry import mini_sentry  # noqa
 from .fixtures.relay import (  # noqa
     relay,
