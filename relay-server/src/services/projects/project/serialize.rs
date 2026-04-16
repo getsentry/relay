@@ -7,9 +7,9 @@ use crate::services::projects::project::{LimitedProjectInfo, ProjectInfo};
 
 /// Project state as used in de-serialization.
 ///
-/// Use [`SerializeProjectState`] to serialize a project state.
+/// Use [`OutgoingProjectState`] to serialize a project state.
 #[derive(Debug, Clone, Deserialize)]
-pub struct ParsedProjectState {
+pub struct IncomingProjectState {
     /// Whether the project state is disabled.
     #[serde(default)]
     pub disabled: bool,
@@ -22,9 +22,9 @@ pub struct ParsedProjectState {
 
 /// Project state as used in serialization.
 ///
-/// Use [`ParsedProjectState`] to de-serialize a project state.
+/// Use [`IncomingProjectState`] to de-serialize a project state.
 #[derive(Debug, Clone, Serialize)]
-pub struct SerializeProjectState {
+pub struct OutgoingProjectState {
     /// Whether the project state is disabled.
     #[serde(default)]
     pub disabled: bool,
@@ -42,8 +42,8 @@ pub struct SerializeProjectState {
 
 /// Limited project state for external Relays.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase", remote = "SerializeProjectState")]
-pub struct LimitedSerializeProjectState {
+#[serde(rename_all = "camelCase", remote = "OutgoingProjectState")]
+pub struct LimitedOutgoingProjectState {
     /// Whether the project state is disabled.
     pub disabled: bool,
     /// Limited project info for external Relays.
@@ -67,11 +67,11 @@ mod tests {
 
     #[derive(Debug, Serialize)]
     #[serde(transparent)]
-    struct Limited(#[serde(with = "LimitedSerializeProjectState")] SerializeProjectState);
+    struct Limited(#[serde(with = "LimitedOutgoingProjectState")] OutgoingProjectState);
 
     #[test]
     fn test_serialize_full_no_upstream() {
-        let s = SerializeProjectState {
+        let s = OutgoingProjectState {
             disabled: false,
             info: Default::default(),
             upstream: None,
@@ -118,7 +118,7 @@ mod tests {
 
     #[test]
     fn test_serialize_full_project_info_upstream_ignored() {
-        let s = SerializeProjectState {
+        let s = OutgoingProjectState {
             disabled: false,
             info: Arc::new(ProjectInfo {
                 upstream: Some("https://sentry.io".parse().unwrap()),
@@ -168,7 +168,7 @@ mod tests {
 
     #[test]
     fn test_serialize_full_correct_upstream_used() {
-        let s = SerializeProjectState {
+        let s = OutgoingProjectState {
             disabled: false,
             info: Arc::new(ProjectInfo {
                 upstream: Some("https://sentry.io".parse().unwrap()),
@@ -220,7 +220,7 @@ mod tests {
 
     #[test]
     fn test_serialize_full_upstream_used() {
-        let s = SerializeProjectState {
+        let s = OutgoingProjectState {
             disabled: false,
             info: Default::default(),
             upstream: Some("https://us.sentry.io".parse().unwrap()),

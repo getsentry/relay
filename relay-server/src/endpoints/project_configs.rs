@@ -16,7 +16,7 @@ use crate::extractors::SignedJson;
 use crate::service::ServiceState;
 use crate::services::global_config::{self, StatusResponse};
 use crate::services::projects::project::{
-    LimitedSerializeProjectState, ProjectState, Revision, SerializeProjectState,
+    LimitedOutgoingProjectState, OutgoingProjectState, ProjectState, Revision,
 };
 use crate::utils::ApiErrorResponse;
 
@@ -55,13 +55,13 @@ struct VersionQuery {
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 enum ProjectStateWrapper {
-    Full(SerializeProjectState),
-    Limited(#[serde(with = "LimitedSerializeProjectState")] SerializeProjectState),
+    Full(OutgoingProjectState),
+    Limited(#[serde(with = "LimitedOutgoingProjectState")] OutgoingProjectState),
 }
 
 impl ProjectStateWrapper {
     /// Create a wrapper which forces serialization into external or internal format.
-    pub fn new(state: SerializeProjectState, full: bool) -> Self {
+    pub fn new(state: OutgoingProjectState, full: bool) -> Self {
         match full {
             true => Self::Full(state),
             false => Self::Limited(state),
@@ -197,7 +197,7 @@ async fn inner(
         if has_access {
             let full = relay.internal && inner.full_config;
             let wrapper = ProjectStateWrapper::new(
-                SerializeProjectState {
+                OutgoingProjectState {
                     disabled: false,
                     info: Arc::clone(project_info),
                     upstream: state

@@ -90,9 +90,9 @@ impl ProjectState {
     }
 }
 
-impl From<ParsedProjectState> for ProjectState {
-    fn from(value: ParsedProjectState) -> Self {
-        let ParsedProjectState { disabled, info } = value;
+impl From<IncomingProjectState> for ProjectState {
+    fn from(value: IncomingProjectState) -> Self {
+        let IncomingProjectState { disabled, info } = value;
         match disabled {
             true => Self::Disabled,
             false => Self::Enabled(info),

@@ -5,7 +5,7 @@ use relay_statsd::metric;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use crate::services::projects::project::{ParsedProjectState, ProjectState, Revision};
+use crate::services::projects::project::{IncomingProjectState, ProjectState, Revision};
 use crate::services::projects::source::SourceProjectState;
 use crate::statsd::{RelayCounters, RelayDistributions, RelayTimers};
 use relay_redis::redis::cmd;
@@ -25,7 +25,7 @@ pub enum RedisProjectError {
     Redis(#[from] RedisError),
 }
 
-fn parse_redis_response(raw_response: &[u8]) -> Result<ParsedProjectState, RedisProjectError> {
+fn parse_redis_response(raw_response: &[u8]) -> Result<IncomingProjectState, RedisProjectError> {
     let decompression_result = metric!(timer(RelayTimers::ProjectStateDecompression), {
         zstd::decode_all(raw_response)
     });
