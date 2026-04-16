@@ -147,16 +147,18 @@ impl Error {
     }
 
     fn is_retriable(&self) -> bool {
-        // For now, only retry connection errors and timeouts
         if let Error::UploadFailed(objectstore_client::Error::Reqwest(error)) = self {
             return error.is_connect()
+                || error.is_timeout()
                 || matches!(
                     error.status(),
                     Some(
-                        StatusCode::BAD_GATEWAY
-                            | StatusCode::GATEWAY_TIMEOUT
-                            | StatusCode::TOO_MANY_REQUESTS
+                        // TODO(follow-up): Does retrying 429 actually help, or does it cascade?
+                        // Might need a larger retry delay for 429 (ideally objectstore sends Retry-After header).
+                        StatusCode::TOO_MANY_REQUESTS
+                            | StatusCode::BAD_GATEWAY
                             | StatusCode::SERVICE_UNAVAILABLE
+                            | StatusCode::GATEWAY_TIMEOUT
                     )
                 );
         }

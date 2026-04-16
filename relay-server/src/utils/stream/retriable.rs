@@ -24,7 +24,9 @@ impl<T> TakeOnce<T> {
     }
 
     /// Takes the item, making it inaccessible for other owners.
-    pub fn take(&mut self) -> Option<T> {
+    ///
+    /// Returns `None` if the item was already taken by somebody else.
+    pub fn take(&self) -> Option<T> {
         self.lock().take()
     }
 
