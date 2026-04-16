@@ -972,7 +972,7 @@ mod tests {
             ],
         );
 
-        normalize_span(&mut span, &headers, &geo_lookup, ctx).unwrap();
+        normalize_span(&mut span, &headers, &geo_lookup, None, ctx).unwrap();
 
         assert_attributes_contains(
             &span,

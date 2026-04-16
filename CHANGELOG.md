@@ -5,6 +5,7 @@
 **Features**:
 
 - Add `ModelMetadata` config with context size and utilization. ([#5814](https://github.com/getsentry/relay/pull/5814))
+- Apply mobile normalizations (device class synthesis, app start type, frame rates, TTID/TTFD vitals) to `SpanV2`. ([#5824](https://github.com/getsentry/relay/pull/5824))
 
 **Internal**:
 
