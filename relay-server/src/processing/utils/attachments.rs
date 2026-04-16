@@ -86,7 +86,10 @@ pub fn scrub<'a>(
             .has(Feature::ViewHierarchyScrubbing);
         for item in attachments {
             debug_assert_eq!(item.ty(), &ItemType::Attachment);
-            if view_hierarchy_scrubbing_enabled
+            if item.is_attachment_ref() {
+                relay_log::trace!("Skip attachment scrubbing for placeholder");
+                continue;
+            } else if view_hierarchy_scrubbing_enabled
                 && item.attachment_type() == Some(AttachmentType::ViewHierarchy)
             {
                 let old_size = item.payload().len();

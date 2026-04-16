@@ -213,6 +213,7 @@ pub fn process_minidump(event: &mut Event, item: &Item) {
             version: "0.0.0".to_owned().into(),
             ..Default::default()
         });
+        return;
     }
 
     let data = item.payload();
