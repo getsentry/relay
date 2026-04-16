@@ -623,6 +623,9 @@ pub enum RelayTimers {
     SignatureCreationDuration,
     /// Time needed to upload an attachment to objectstore.
     ///
+    /// This metric measures the duration of a download attempt.
+    /// Every retry contributes to the metric individually.
+    ///
     /// Tagged by:
     /// - `type`: "envelope" or "attachment_v2".
     #[cfg(feature = "processing")]

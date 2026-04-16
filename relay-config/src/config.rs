@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::io::Write;
 use std::net::{IpAddr, SocketAddr};
-use std::num::NonZeroU8;
+use std::num::{NonZeroU8, NonZeroU16};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::Duration;
@@ -1334,6 +1334,12 @@ pub struct ObjectstoreServiceConfig {
     /// might take longer and are restricted independently by [`Upload::timeout`].
     pub timeout: u64,
 
+    /// Time between upload attempts.
+    pub retry_delay: f64,
+
+    /// Maximum number of attempts made to upload.
+    pub max_attempts: NonZeroU16,
+
     /// Configuration values for objectstore's auth scheme.
     pub auth: Option<ObjectstoreAuthConfig>,
 }
@@ -1345,6 +1351,8 @@ impl Default for ObjectstoreServiceConfig {
             max_concurrent_requests: 10,
             max_backlog: 20,
             timeout: 60,
+            retry_delay: 1.0,
+            max_attempts: NonZeroU16::new(5).unwrap(),
             auth: None,
         }
     }
