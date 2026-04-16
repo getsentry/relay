@@ -31,7 +31,7 @@ pipelines:
                 - script: |
                     checks-gocd-pipeline-status \
                     deploy-relay-processing \
-                    deploy-relay-pop
+                    deploy-edge-relay
       - deploy-relay:
           approval:
             type: success
