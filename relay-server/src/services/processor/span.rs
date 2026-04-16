@@ -68,6 +68,7 @@ pub async fn process(
         ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
         _ => None,
     };
+    let ai_model_metadata = ctx.global_config.model_metadata();
     let normalize_span_config = NormalizeSpanConfig::new(
         ctx.config,
         ctx.global_config,
@@ -79,6 +80,7 @@ pub async fn process(
             .client_addr()
             .map(IpAddr::from),
         geo_lookup,
+        ai_model_metadata.as_ref(),
     );
 
     let client_ip = managed_envelope.envelope().meta().client_addr();
@@ -236,7 +238,7 @@ struct NormalizeSpanConfig<'a> {
     /// and add units of known built-in measurements.
     measurements: Option<CombinedMeasurementsConfig<'a>>,
     /// Metadata for AI models including costs and context size.
-    ai_model_metadata: Option<ModelMetadata>,
+    ai_model_metadata: Option<&'a ModelMetadata>,
     /// The maximum length for names of custom measurements.
     ///
     /// Measurements with longer names are removed from the transaction event and replaced with a
@@ -268,6 +270,7 @@ impl<'a> NormalizeSpanConfig<'a> {
         managed_envelope: &ManagedEnvelope,
         client_ip: Option<IpAddr>,
         geo_lookup: &'a GeoIpLookup,
+        ai_model_metadata: Option<&'a ModelMetadata>,
     ) -> Self {
         let aggregator_config = config.aggregator_config_for(MetricNamespace::Spans);
 
@@ -280,7 +283,7 @@ impl<'a> NormalizeSpanConfig<'a> {
                 project_config.measurements.as_ref(),
                 global_config.measurements.as_ref(),
             )),
-            ai_model_metadata: global_config.model_metadata(),
+            ai_model_metadata,
             max_name_and_unit_len: aggregator_config
                 .max_name_length
                 .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
@@ -450,7 +453,7 @@ fn normalize(
 
     normalize_performance_score(span, performance_score);
 
-    enrich_ai_span(span, ai_model_metadata.as_ref());
+    enrich_ai_span(span, ai_model_metadata);
 
     tag_extraction::extract_measurements(span, is_mobile);
 
