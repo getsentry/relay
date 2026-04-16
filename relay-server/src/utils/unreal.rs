@@ -39,15 +39,9 @@ fn get_event_item(data: &[u8]) -> Result<Option<Item>, Unreal4Error> {
     Ok(Some(item))
 }
 
-/// Expands an Unreal 4 item and returns the expanded items.
-pub fn expand_unreal(
-    unreal_item: Item,
-    config: &Config,
-) -> Result<UnrealExpansion, ProcessingError> {
-    let mut event = None;
-    let mut attachments = Items::new();
-
-    let payload = unreal_item.payload();
+/// Extracts the items from an Unreal 4 crash report payload.
+pub fn extract_items(payload: Bytes, config: &Config) -> Result<Items, ProcessingError> {
+    let mut items = Items::new();
     let crash = Unreal4Crash::parse_with_limit(&payload, config.max_envelope_size())?;
 
     for file in crash.files() {
@@ -67,10 +61,6 @@ pub fn expand_unreal(
             },
         };
 
-        if event.is_none() && attachment_type == AttachmentType::UnrealContext {
-            event = get_event_item(file.data())?;
-        }
-
         let mut item = Item::new(ItemType::Attachment);
         item.set_filename(file.name());
         // TODO: This clones data. Update symbolic to allow moving the bytes out.
@@ -78,17 +68,41 @@ pub fn expand_unreal(
         // See: <https://github.com/getsentry/symbolic/issues/959>.
         item.set_payload(content_type, file.into_bytes());
         item.set_attachment_type(attachment_type);
-        attachments.push(item);
+        items.push(item);
     }
 
-    Ok(UnrealExpansion { event, attachments })
+    Ok(items)
+}
+
+/// Expands items previously extracted from a report in to the [`UnrealExpansion`] representation.
+pub fn expand_unreal_items(items: Items) -> Result<UnrealExpansion, ProcessingError> {
+    let event = items
+        .iter()
+        .find(|&item| matches!(item.attachment_type(), Some(AttachmentType::UnrealContext)))
+        .map(|item| get_event_item(&item.payload()))
+        .transpose()?
+        .flatten();
+
+    Ok(UnrealExpansion {
+        event,
+        attachments: items,
+    })
+}
+
+/// Expands an Unreal 4 crash report payload and returns the expanded items.
+#[cfg_attr(not(feature = "processing"), expect(unused))]
+pub fn expand_unreal(payload: Bytes, config: &Config) -> Result<UnrealExpansion, ProcessingError> {
+    let attachments = extract_items(payload, config)?;
+    expand_unreal_items(attachments)
 }
 
 /// Expansion from an Unreal 4 report.
 pub struct UnrealExpansion {
     /// The error event if the crash contained one.
+    #[cfg_attr(not(feature = "processing"), expect(unused))]
     pub event: Option<Item>,
     /// Files of the report as attachments.
+    #[cfg_attr(not(feature = "processing"), expect(unused))]
     pub attachments: Items,
 }
 
@@ -335,6 +349,7 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
 /// Processes an unreal crash report.
 ///
 /// The `user_header` should be extracted from the [`crate::constants::UNREAL_USER_HEADER`] envelope header.
+#[cfg_attr(not(feature = "processing"), expect(unused))]
 pub fn process_unreal<'a>(
     event_id: EventId,
     event: &mut Annotated<Event>,
@@ -382,6 +397,7 @@ pub fn process_unreal<'a>(
 }
 
 /// Result when processing an unreal report.
+#[cfg_attr(not(feature = "processing"), expect(unused))]
 pub struct ProcessedUnrealReport {
     /// User reports contained in the report.
     pub user_reports: Items,

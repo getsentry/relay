@@ -6,11 +6,10 @@ from requests import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 
-from .asserts import time_within_delta, only_items
+from .asserts import time_within_delta, time_within, only_items
 
 import pytest
 import json
-
 
 TEST_CONFIG = {
     "outcomes": {
@@ -392,6 +391,229 @@ def test_trace_metric_pii_scrubbing(
             "quantity": 159,
         },
     ]
+
+
+def test_trace_metric_string_pii_scrubbing(
+    mini_sentry,
+    relay,
+    scrubbing_rule,
+):
+    rule_type, test_value, expected_scrubbed = scrubbing_rule
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:tracemetrics-ingestion",
+    ]
+
+    project_config["config"]["piiConfig"]["applications"] = {"$string": [rule_type]}
+
+    relay_instance = relay(mini_sentry, options=TEST_CONFIG)
+    start = datetime.now(timezone.utc)
+
+    envelope = envelope_with_trace_metrics(
+        {
+            "timestamp": start.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "name": "test.metric",
+            "type": "counter",
+            "value": 1.0,
+            "attributes": {
+                "test_pii": {"value": test_value, "type": "string"},
+            },
+        }
+    )
+
+    relay_instance.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.get_captured_envelope()
+    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    item = item_payload["items"][0]
+
+    assert item == {
+        "timestamp": time_within(start),
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "name": "test.metric",
+        "type": "counter",
+        "value": 1.0,
+        "attributes": {
+            "test_pii": {"type": "string", "value": expected_scrubbed},
+            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
+            "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(start, expect_resolution="ns"),
+            },
+        },
+        "__header": {"byte_size": mock.ANY},
+        "_meta": {
+            "attributes": {
+                "test_pii": {
+                    "value": {
+                        "": {
+                            "len": mock.ANY,
+                            "rem": [[rule_type, mock.ANY, mock.ANY, mock.ANY]],
+                        }
+                    }
+                }
+            },
+        },
+    }
+
+
+def test_trace_metric_default_pii_scrubbing_attributes(
+    mini_sentry,
+    relay,
+    secret_attribute,
+):
+    attribute_key, attribute_value, expected_value, rule_type = secret_attribute
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:tracemetrics-ingestion",
+    ]
+
+    project_config["config"].setdefault(
+        "datascrubbingSettings",
+        {
+            "scrubData": True,
+            "scrubDefaults": True,
+            "scrubIpAddresses": True,
+        },
+    )
+
+    relay_instance = relay(mini_sentry, options=TEST_CONFIG)
+    start = datetime.now(timezone.utc)
+
+    envelope = envelope_with_trace_metrics(
+        {
+            "timestamp": start.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "name": "test.metric",
+            "type": "counter",
+            "value": 1.0,
+            "attributes": {
+                attribute_key: {"value": attribute_value, "type": "string"},
+            },
+        }
+    )
+
+    relay_instance.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.get_captured_envelope()
+    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    item = item_payload["items"][0]
+    assert item == {
+        "timestamp": time_within(start),
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "name": "test.metric",
+        "type": "counter",
+        "value": 1.0,
+        "attributes": {
+            attribute_key: {"type": "string", "value": expected_value},
+            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
+            "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(start, expect_resolution="ns"),
+            },
+        },
+        "__header": {"byte_size": mock.ANY},
+        "_meta": {
+            "attributes": {
+                attribute_key: {
+                    "value": {
+                        "": {
+                            "len": mock.ANY,
+                            "rem": [[rule_type, mock.ANY, mock.ANY, mock.ANY]],
+                        }
+                    }
+                }
+            },
+        },
+    }
+
+
+def test_trace_metric_default_pii_scrubbing_does_not_scrub_default_attributes(
+    mini_sentry,
+    relay,
+):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:tracemetrics-ingestion",
+    ]
+    project_config["config"].setdefault(
+        "datascrubbingSettings",
+        {
+            "scrubData": True,
+            "scrubDefaults": True,
+            "scrubIpAddresses": True,
+        },
+    )
+
+    project_config["config"]["piiConfig"] = {
+        "rules": {
+            "remove_custom_field": {
+                "type": "anything",
+                "redaction": {"method": "replace", "text": "[REDACTED]"},
+            }
+        },
+        "applications": {"**": ["remove_custom_field"]},
+    }
+
+    relay_instance = relay(mini_sentry, options=TEST_CONFIG)
+    start = datetime.now(timezone.utc)
+
+    envelope = envelope_with_trace_metrics(
+        {
+            "timestamp": start.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "name": "test.metric",
+            "type": "counter",
+            "value": 1.0,
+            "attributes": {
+                "custom_field": {"value": "custom_value", "type": "string"},
+            },
+        }
+    )
+
+    relay_instance.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.get_captured_envelope()
+    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    item = item_payload["items"][0]
+
+    assert item == {
+        "timestamp": time_within(start),
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "name": "test.metric",
+        "type": "counter",
+        "value": 1.0,
+        "attributes": {
+            "custom_field": {"type": "string", "value": "[REDACTED]"},
+            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
+            "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(start, expect_resolution="ns"),
+            },
+        },
+        "__header": {"byte_size": mock.ANY},
+        "_meta": {
+            "attributes": {
+                "custom_field": {
+                    "value": {
+                        "": {
+                            "len": mock.ANY,
+                            "rem": [
+                                ["remove_custom_field", mock.ANY, mock.ANY, mock.ANY]
+                            ],
+                        }
+                    }
+                }
+            },
+        },
+    }
 
 
 def test_trace_metric_size_limits(

@@ -203,6 +203,16 @@ pub struct Options {
     )]
     pub eap_span_outcomes_rollout_rate: f32,
 
+    /// Rollout rate for expanding the unreal report in the endpoint rather than during processing.
+    ///
+    /// Rate needs to be between `0.0` and `1.0`.
+    #[serde(
+        rename = "relay.unreal-report-expansion.rollout-rate",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub unreal_report_expansion_rollout_rate: f32,
+
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,

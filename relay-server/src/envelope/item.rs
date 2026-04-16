@@ -563,6 +563,18 @@ impl Item {
             && self.content_type() == Some(ContentType::AttachmentRef)
     }
 
+    /// Returns `true` if this item was extracted from an Unreal report.
+    pub fn is_unreal_expanded(&self) -> bool {
+        self.headers
+            .get(ItemHeaderKey::UnrealExpanded)
+            .unwrap_or(false)
+    }
+
+    /// Marks this item as having been extracted from an Unreal report.
+    pub fn set_unreal_expanded(&mut self, expanded: bool) {
+        self.headers.set(ItemHeaderKey::UnrealExpanded, expanded);
+    }
+
     /// Returns the [`AttachmentParentType`] of an attachment.
     ///
     /// For standard attachments (V1) always returns [`AttachmentParentType::Event`].
@@ -1071,6 +1083,8 @@ pub enum ItemHeaderKey {
     SentryRelease,
     /// The Sentry environment stored in a header.
     SentryEnvironment,
+    /// Whether this item was expanded from an Unreal crash report.
+    UnrealExpanded,
 }
 
 /// The value of an item header.
