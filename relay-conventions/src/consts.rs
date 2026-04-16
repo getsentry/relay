@@ -34,6 +34,8 @@ convention_attributes!(
     ENVIRONMENT => "sentry.environment",
     EVENT_NAME => "event.name",
     FAAS_TRIGGER => "faas.trigger",
+    GEN_AI_CONTEXT_UTILIZATION => "gen_ai.context.utilization",
+    GEN_AI_CONTEXT_WINDOW_SIZE => "gen_ai.context.window_size",
     GEN_AI_COST_INPUT_TOKENS => "gen_ai.cost.input_tokens",
     GEN_AI_COST_OUTPUT_TOKENS => "gen_ai.cost.output_tokens",
     GEN_AI_COST_TOTAL_TOKENS => "gen_ai.cost.total_tokens",
