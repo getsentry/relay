@@ -29,7 +29,7 @@ use crate::services::outcome::DiscardReason;
 use crate::services::store::{Store, StoreAttachment, StoreEnvelope, StoreTraceItem};
 use crate::services::upload::ByteStream;
 use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::{BoundedStream, MeteredStream, RetriableStream, TakeOnce};
+use crate::utils::{BoundedStream, MeteredStream, RetryableStream, TakeOnce};
 
 use super::outcome::Outcome;
 
@@ -146,7 +146,7 @@ impl Error {
         }
     }
 
-    fn is_retriable(&self) -> bool {
+    fn is_retryable(&self) -> bool {
         if let Error::UploadFailed(objectstore_client::Error::Reqwest(error)) = self {
             return error.is_connect()
                 || error.is_timeout()
@@ -546,7 +546,7 @@ impl ObjectstoreServiceInner {
                 );
 
                 if attempt < self.max_attempts.get()
-                    && matches!(&result, Some(Err(e)) if e.is_retriable())
+                    && matches!(&result, Some(Err(e)) if e.is_retryable())
                 {
                     tokio::time::sleep(self.retry_interval).await;
                 } else {
@@ -638,7 +638,7 @@ impl Body {
     fn try_clone(&self) -> Option<BodyAttempt> {
         match self {
             Self::Bytes(bytes) => Some(BodyAttempt::Bytes(bytes.clone())),
-            Self::Stream(stream) => RetriableStream::new(stream.clone()).map(BodyAttempt::Stream),
+            Self::Stream(stream) => RetryableStream::new(stream.clone()).map(BodyAttempt::Stream),
         }
     }
 }
@@ -648,5 +648,5 @@ impl Body {
 /// This type is instantiated for every retry.
 enum BodyAttempt {
     Bytes(Bytes),
-    Stream(RetriableStream<BoundedStream<MeteredStream<ByteStream>>>),
+    Stream(RetryableStream<BoundedStream<MeteredStream<ByteStream>>>),
 }

@@ -1,9 +1,9 @@
 mod bounded;
 mod metered;
 #[cfg(feature = "processing")]
-mod retriable;
+mod retryable;
 
 pub use bounded::*;
 pub use metered::*;
 #[cfg(feature = "processing")]
-pub use retriable::*;
+pub use retryable::*;

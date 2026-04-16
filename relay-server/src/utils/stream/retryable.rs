@@ -37,19 +37,19 @@ impl<T> TakeOnce<T> {
 }
 
 /// A stream that can be retried as long as it hasn't been polled.
-pub enum RetriableStream<S> {
+pub enum RetryableStream<S> {
     /// The stream has not been polled.
     /// Other owners of `S` can recover it by calling [`TakeOnce::take`].
     New(TakeOnce<S>),
-    /// The stream has been polled at least once and is no longer retriable.
+    /// The stream has been polled at least once and is no longer retryable.
     ///
     /// This state is an optimization such that the stream does not have to lock a mutex
     /// on every poll.
     Used(S),
 }
 
-impl<S> RetriableStream<S> {
-    /// Creates a new retriable stream.
+impl<S> RetryableStream<S> {
+    /// Creates a new retryable stream.
     ///
     /// Returns `None` if the underlying item has already been consumed.
     pub fn new(inner: TakeOnce<S>) -> Option<Self> {
@@ -63,7 +63,7 @@ impl<S> RetriableStream<S> {
     /// Marks the underlying stream as used and returns a mutable reference to it.
     ///
     /// After calling this function, other owners cannot recover the stream.
-    /// It is no longer retriable.
+    /// It is no longer retryable.
     fn make_used(&mut self) -> Option<&mut S> {
         match self {
             Self::New(s) => {
@@ -76,7 +76,7 @@ impl<S> RetriableStream<S> {
     }
 }
 
-impl<S: Stream + Unpin> Stream for RetriableStream<S> {
+impl<S: Stream + Unpin> Stream for RetryableStream<S> {
     type Item = S::Item;
 
     fn poll_next(
@@ -109,7 +109,7 @@ mod tests {
     #[tokio::test]
     async fn test_stream_yields_all_items() {
         let inner = TakeOnce::new(stream::iter(vec![1, 2, 3]));
-        let s = RetriableStream::new(inner.clone()).unwrap();
+        let s = RetryableStream::new(inner.clone()).unwrap();
         let items: Vec<_> = s.collect().await;
         assert_eq!(items, vec![1, 2, 3]);
     }
@@ -117,41 +117,41 @@ mod tests {
     #[tokio::test]
     async fn test_empty_stream() {
         let inner = TakeOnce::new(stream::iter(Vec::<i32>::new()));
-        let s = RetriableStream::new(inner.clone()).unwrap();
+        let s = RetryableStream::new(inner.clone()).unwrap();
         let items: Vec<_> = s.collect().await;
         assert!(items.is_empty());
     }
 
     #[tokio::test]
-    async fn test_not_retriable_after_use() {
+    async fn test_not_retryable_after_use() {
         let inner = TakeOnce::new(stream::iter(vec![1]));
-        let s = RetriableStream::new(inner.clone()).unwrap();
+        let s = RetryableStream::new(inner.clone()).unwrap();
         let _: Vec<_> = s.collect().await;
 
-        assert!(RetriableStream::new(inner).is_none());
+        assert!(RetryableStream::new(inner).is_none());
     }
 
     #[tokio::test]
-    async fn test_retriable_before_use() {
+    async fn test_retryable_before_use() {
         let inner = TakeOnce::new(stream::iter(vec![1, 2]));
 
         // First stream is created but never polled — inner is still available.
-        let _s1 = RetriableStream::new(inner.clone()).unwrap();
+        let _s1 = RetryableStream::new(inner.clone()).unwrap();
 
         // A second stream can be created because the first hasn't taken the inner yet.
-        assert!(RetriableStream::new(inner).is_some());
+        assert!(RetryableStream::new(inner).is_some());
     }
 
     #[tokio::test]
     async fn test_first_poll_consumes_inner() {
         let inner = TakeOnce::new(stream::iter(vec![1, 2]));
 
-        let mut s1 = RetriableStream::new(inner.clone()).unwrap();
-        // Polling the first item transitions s1 from Retriable -> Used.
+        let mut s1 = RetryableStream::new(inner.clone()).unwrap();
+        // Polling the first item transitions s1 from Retryable -> Used.
         assert_eq!(s1.next().await, Some(1));
 
         // Now the inner is consumed; no new stream can be created.
-        assert!(RetriableStream::new(inner).is_none());
+        assert!(RetryableStream::new(inner).is_none());
 
         // But s1 still works.
         assert_eq!(s1.next().await, Some(2));
@@ -161,14 +161,14 @@ mod tests {
     #[tokio::test]
     async fn test_size_hint_before_poll() {
         let inner = TakeOnce::new(stream::iter(vec![1, 2, 3]));
-        let s = RetriableStream::new(inner).unwrap();
+        let s = RetryableStream::new(inner).unwrap();
         assert_eq!(s.size_hint(), (3, Some(3)));
     }
 
     #[tokio::test]
     async fn test_size_hint_after_poll() {
         let inner = TakeOnce::new(stream::iter(vec![1, 2, 3]));
-        let mut s = RetriableStream::new(inner).unwrap();
+        let mut s = RetryableStream::new(inner).unwrap();
         s.next().await;
         // After consuming one item, the stream is Used and delegates to the inner iter.
         assert_eq!(s.size_hint(), (2, Some(2)));
