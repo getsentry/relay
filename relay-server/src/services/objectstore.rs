@@ -42,7 +42,7 @@ pub enum Objectstore {
 }
 
 impl Objectstore {
-    fn ty(&self) -> &str {
+    fn ty(&self) -> &'static str {
         match self {
             Objectstore::Envelope(_) => "envelope",
             Objectstore::TraceAttachment(_) => "attachment_v2",
@@ -126,23 +126,72 @@ impl Counted for StoreTraceAttachment {
 /// Errors that can occur when trying to upload an attachment.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("timeout: {0}")]
-    Timeout(#[from] tokio::time::error::Elapsed),
     #[error("load shed")]
     LoadShed,
     #[error("upload failed: {0}")]
-    UploadFailed(#[from] objectstore_client::Error),
+    UploadFailed(#[from] UploadError),
     #[error("UUID conversion failed: {0}")]
     Uuid(#[from] TryFromSliceError),
+}
+
+/// Upload errors that occur during the upload retry loop.
+#[derive(Debug, thiserror::Error)]
+#[error("{kind}")]
+pub struct UploadError {
+    #[source]
+    kind: UploadErrorKind,
+    attempts: u16,
+}
+
+impl UploadError {
+    fn new(source: impl Into<UploadErrorKind>) -> Self {
+        Self {
+            kind: source.into(),
+            attempts: 0,
+        }
+    }
+
+    fn with_attempts(mut self, attempts: u16) -> Self {
+        self.attempts = attempts;
+        self
+    }
+
+    /// Returns the number of upload attempts made.
+    pub fn attempts(&self) -> u16 {
+        self.attempts
+    }
+
+    /// Returns a reference to the error kind.
+    pub fn kind(&self) -> &UploadErrorKind {
+        &self.kind
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum UploadErrorKind {
+    #[error("{0}")]
+    Objectstore(#[from] objectstore_client::Error),
+    #[error("{0}")]
+    Timeout(#[from] tokio::time::error::Elapsed),
 }
 
 impl Error {
     fn as_str(&self) -> &'static str {
         match self {
-            Error::Timeout(_) => "timeout",
             Error::LoadShed => "load-shed",
+            Error::UploadFailed(UploadError {
+                kind: UploadErrorKind::Timeout(_),
+                ..
+            }) => "timeout",
             Error::UploadFailed(_) => "upload_failed",
             Error::Uuid(_) => "uuid",
+        }
+    }
+
+    fn attempts(&self) -> u16 {
+        match self {
+            Error::UploadFailed(e) => e.attempts(),
+            _ => 0,
         }
     }
 }
@@ -292,25 +341,34 @@ struct ObjectstoreServiceInner {
 
 impl ObjectstoreServiceInner {
     async fn handle_message(&self, message: Objectstore) {
-        match message {
+        let ty = message.ty();
+
+        let res = match message {
             Objectstore::Envelope(StoreEnvelope { envelope }) => {
-                self.handle_envelope(envelope).await;
+                self.handle_envelope(envelope).await
             }
-            Objectstore::TraceAttachment(attachment) => {
-                self.handle_trace_attachment(attachment).await
-            }
+            Objectstore::TraceAttachment(attachment) => self
+                .handle_trace_attachment(attachment)
+                .await
+                .map_err(Rejected::into_inner),
             Objectstore::EventAttachment(attachment) => {
                 self.handle_event_attachment(attachment).await
             }
-            Objectstore::Stream(message, sender) => self.handle_stream(message, sender).await,
-        }
+            Objectstore::Stream(stream, sender) => {
+                let result = self.upload_stream(stream).await;
+                log_result(ty, &result);
+                return sender.send(result);
+            }
+        };
+
+        log_result(ty, &res);
     }
 
     /// Uploads all attachments belonging to the given envelope.
     ///
     /// This mutates the attachment items in-place, setting their `stored_key` field to the key
-    /// in objectstore.
-    async fn handle_envelope(&self, mut envelope: ManagedEnvelope) -> () {
+    /// in objectstore. The envelope is always forwarded to the store regardless of upload errors.
+    async fn handle_envelope(&self, mut envelope: ManagedEnvelope) -> Result<(), Error> {
         let scoping = envelope.scoping();
         let session = self
             .event_attachments
@@ -318,107 +376,82 @@ impl ObjectstoreServiceInner {
             .session(&self.objectstore_client);
         let retention = envelope.envelope().retention();
 
-        let attachments = envelope
-            .envelope_mut()
-            .items_mut()
-            .filter(|item| *item.ty() == ItemType::Attachment);
-
-        match session {
-            Err(error) => {
-                relay_log::error!(error = &error as &dyn std::error::Error, "session error");
-                relay_statsd::metric!(
-                    counter(RelayCounters::AttachmentUpload) += attachments.count() as u64,
-                    result = error.to_string().as_str(),
-                    type = "envelope",
-                );
-            }
+        let result = match session {
+            Err(error) => Err(UploadError::new(error).into()),
             Ok(session) => {
+                let attachments = envelope
+                    .envelope_mut()
+                    .items_mut()
+                    .filter(|item| *item.ty() == ItemType::Attachment);
+
+                let mut first_error = None;
                 for attachment in attachments {
                     if Self::should_skip_upload(attachment) {
                         continue;
                     }
-                    let result = self
-                        .upload_bytes("envelope", &session, attachment.payload(), retention, None)
-                        .await;
-
-                    if let Ok(stored_key) = result {
-                        attachment.set_stored_key(stored_key.into_inner());
+                    match self
+                        .upload_bytes(&session, attachment.payload(), retention, None)
+                        .await
+                    {
+                        Ok(stored_key) => attachment.set_stored_key(stored_key.into_inner()),
+                        Err(error) => {
+                            first_error.get_or_insert(error);
+                        }
                     }
                 }
-            }
-        }
 
-        // last but not least, forward the envelope to the store endpoint
+                first_error.map_or(Ok(()), |e| Err(e.into()))
+            }
+        };
+
+        // Always forward the envelope to the store endpoint.
         self.store.send(StoreEnvelope { envelope });
+        result
     }
 
     /// Uploads the attachment.
     ///
     /// This mutates the attachment item in-place, setting the `stored_key` field to the key in the
-    /// objectstore.
-    async fn handle_event_attachment(&self, mut attachment: Managed<StoreAttachment>) {
-        if Self::should_skip_upload(&attachment.attachment) {
-            self.store.send(attachment);
-            return;
-        }
+    /// objectstore. The attachment is always forwarded to the store regardless of upload errors.
+    async fn handle_event_attachment(
+        &self,
+        mut attachment: Managed<StoreAttachment>,
+    ) -> Result<(), Error> {
+        let result = if Self::should_skip_upload(&attachment.attachment) {
+            Ok(())
+        } else {
+            let scoping = attachment.scoping();
+            let session = self
+                .event_attachments
+                .for_project(scoping.organization_id.value(), scoping.project_id.value())
+                .session(&self.objectstore_client);
 
-        let scoping = attachment.scoping();
-        let session = self
-            .event_attachments
-            .for_project(scoping.organization_id.value(), scoping.project_id.value())
-            .session(&self.objectstore_client);
-
-        match session {
-            Err(error) => {
-                relay_log::error!(error = &error as &dyn std::error::Error, "session error");
-                relay_statsd::metric!(
-                    counter(RelayCounters::AttachmentUpload) += 1,
-                    result = error.to_string().as_str(),
-                    type = "attachment",
-                );
-            }
-            Ok(session) => {
-                let result = self
+            match session {
+                Err(error) => Err(UploadError::new(error).into()),
+                Ok(session) => self
                     .upload_bytes(
-                        "attachment",
                         &session,
                         attachment.attachment.payload(),
                         attachment.retention,
                         None,
                     )
-                    .await;
-
-                if let Ok(stored_key) = result {
-                    attachment.modify(|attachment, _| {
-                        attachment
-                            .attachment
-                            .set_stored_key(stored_key.into_inner());
-                    });
-                }
+                    .await
+                    .map(|stored_key| {
+                        attachment.modify(|attachment, _| {
+                            attachment
+                                .attachment
+                                .set_stored_key(stored_key.into_inner());
+                        });
+                    })
+                    .map_err(Error::from),
             }
-        }
+        };
 
-        self.store.send(attachment)
+        self.store.send(attachment);
+        result
     }
 
-    async fn handle_trace_attachment(&self, managed: Managed<StoreTraceAttachment>) {
-        let result = self.do_handle_trace_attachment(managed).await;
-
-        match result.map_err(Rejected::into_inner) {
-            Ok(_) => (),                                           //all good
-            Err(Error::UploadFailed(_) | Error::Timeout(_)) => (), // logged in upload()
-            Err(e) => {
-                // TODO(follow-up): clean up error handling so we do not need to log in multiple places.
-                relay_statsd::metric!(
-                    counter(RelayCounters::AttachmentUpload) += 1,
-                    result = e.as_str(),
-                    type = "attachment_v2",
-                );
-            }
-        }
-    }
-
-    async fn do_handle_trace_attachment(
+    async fn handle_trace_attachment(
         &self,
         managed: Managed<StoreTraceAttachment>,
     ) -> Result<(), Rejected<Error>> {
@@ -427,7 +460,7 @@ impl ObjectstoreServiceInner {
             .trace_attachments
             .for_project(scoping.organization_id.value(), scoping.project_id.value())
             .session(&self.objectstore_client)
-            .map_err(Error::UploadFailed)
+            .map_err(|e| UploadError::new(e).into())
             .reject(&managed)?;
 
         let body = Bytes::clone(&managed.body);
@@ -447,7 +480,7 @@ impl ObjectstoreServiceInner {
         if !body.is_empty() {
             relay_log::trace!("Starting attachment upload");
             let key = item_id_to_uuid(&trace_item.trace_item.item_id)
-                .map_err(Error::from)
+                .map_err(|e| Error::from(e))
                 .reject(&trace_item)?
                 .as_simple()
                 .to_string();
@@ -456,8 +489,9 @@ impl ObjectstoreServiceInner {
             let original_key = key.clone();
 
             let _stored_key = self
-                .upload_bytes("attachment_v2", &session, body, retention, Some(key))
+                .upload_bytes(&session, body, retention, Some(key))
                 .await
+                .map_err(Error::from)
                 .reject(&trace_item)?;
 
             #[cfg(debug_assertions)]
@@ -470,67 +504,51 @@ impl ObjectstoreServiceInner {
         Ok(())
     }
 
-    async fn handle_stream(&self, stream: Stream, sender: Sender<Result<ObjectstoreKey, Error>>) {
+    async fn upload_stream(&self, stream: Stream) -> Result<ObjectstoreKey, Error> {
         let Stream {
             organization_id,
             project_id,
             key,
             stream,
         } = stream;
-        let session = match self
+        let session = self
             .event_attachments
             .for_project(organization_id.value(), project_id.value())
             .session(&self.objectstore_client)
-        {
-            Ok(session) => session,
-            Err(error) => {
-                relay_statsd::metric!(
-                    counter(RelayCounters::AttachmentUpload) += 1,
-                    result = error.to_string().as_str(),
-                    type = "stream",
-                );
-                sender.send(Err(Error::UploadFailed(error)));
-                return;
-            }
-        };
+            .map_err(|e| UploadError::new(e).into())?;
 
-        let result = self
-            .upload(
-                "stream",
-                &session,
-                Some(key),
-                Body::Stream(TakeOnce::new(stream)),
-                None,
-            )
-            .await;
-
-        sender.send(result);
+        self.upload(
+            &session,
+            Some(key),
+            Body::Stream(TakeOnce::new(stream)),
+            None,
+        )
+        .await
+        .map_err(Error::from)
     }
 
     async fn upload_bytes(
         &self,
-        ty: &str,
         session: &Session,
         payload: Bytes,
         retention: u16,
         key: Option<String>,
-    ) -> Result<ObjectstoreKey, Error> {
+    ) -> Result<ObjectstoreKey, UploadError> {
         let retention_hours = retention.checked_mul(24);
-        self.upload(ty, session, key, Body::Bytes(payload), retention_hours)
+        self.upload(session, key, Body::Bytes(payload), retention_hours)
             .await
     }
 
     async fn upload(
         &self,
-        ty: &str,
         session: &Session,
         key: Option<String>,
         body: Body,
         retention_hours: Option<u16>,
-    ) -> Result<ObjectstoreKey, Error> {
-        let mut attempt = 0;
+    ) -> Result<ObjectstoreKey, UploadError> {
+        let mut attempt: u16 = 0;
 
-        let result = tokio::time::timeout(self.timeout, async {
+        tokio::time::timeout(self.timeout, async {
             let mut result = None;
             loop {
                 let Some(body) = body.try_clone() else {
@@ -538,7 +556,7 @@ impl ObjectstoreServiceInner {
                 };
                 attempt += 1;
                 result.replace(
-                    self.attempt_upload(ty, session, key.clone(), body, retention_hours)
+                    self.attempt_upload(session, key.clone(), body, retention_hours)
                         .await,
                 );
 
@@ -553,38 +571,16 @@ impl ObjectstoreServiceInner {
 
             result
                 .expect("try_clone() should succeed at least once")
-                .map_err(Error::from)
+                .map_err(UploadError::new)
         })
         .await
-        .map_err(Error::from)
-        .flatten();
-
-        if let Err(e) = &result {
-            relay_log::error!(
-                error = e as &dyn std::error::Error,
-                attempts = attempt,
-                type = ty,
-                "objectstore upload failed in {} attempt(s)",
-                attempt
-            )
-        }
-
-        relay_statsd::metric!(
-            counter(RelayCounters::AttachmentUpload) += 1,
-            result = match &result {
-                Ok(_) => "success",
-                Err(e) => e.as_str(),
-            },
-            type = ty,
-            attempts = attempt.to_string()
-        );
-
-        result
+        .map_err(UploadError::new)
+        .flatten()
+        .map_err(|e| e.with_attempts(attempt))
     }
 
     async fn attempt_upload(
         &self,
-        ty: &str,
         session: &Session,
         key: Option<String>,
         body: BodyAttempt,
@@ -604,13 +600,9 @@ impl ObjectstoreServiceInner {
             request = request.key(key);
         }
 
-        let response = relay_statsd::metric!(
-            timer(RelayTimers::AttachmentUploadDuration),
-            type = ty,
-            {
-                request.send().await
-            }
-        )?;
+        let response = relay_statsd::metric!(timer(RelayTimers::AttachmentUploadDuration), {
+            request.send().await
+        })?;
 
         Ok(ObjectstoreKey(response.key))
     }
@@ -669,4 +661,20 @@ fn is_retryable(error: &objectstore_client::Error) -> bool {
         }
         _ => false,
     }
+}
+
+fn log_result<T>(ty: &str, result: &Result<T, Error>) {
+    let Err(error) = result else { return };
+    relay_log::error!(
+        error = error as &dyn std::error::Error,
+        type = ty,
+        attempts = error.attempts(),
+        "objectstore upload failed"
+    );
+    relay_statsd::metric!(
+        counter(RelayCounters::AttachmentUpload) += 1,
+        result = error.as_str(),
+        type = ty,
+        attempts = error.attempts().to_string(),
+    );
 }

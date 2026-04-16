@@ -98,18 +98,20 @@ impl IntoResponse for Error {
                 upload::Error::ServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
                 #[cfg(feature = "processing")]
                 upload::Error::Objectstore(service_error) => match service_error {
-                    objectstore::Error::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
                     objectstore::Error::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
-                    objectstore::Error::UploadFailed(error) => match error {
-                        objectstore_client::Error::Reqwest(error) => match error.status() {
-                            _ if error.is_timeout() => StatusCode::GATEWAY_TIMEOUT,
-                            Some(status) => status,
-                            None if find_error_source(&error, is_hyper_user_error).is_some() => {
-                                StatusCode::BAD_REQUEST
-                            }
-                            None => StatusCode::INTERNAL_SERVER_ERROR,
+                    objectstore::Error::UploadFailed(upload_error) => match upload_error.kind() {
+                        objectstore::UploadErrorKind::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
+                        objectstore::UploadErrorKind::Objectstore(error) => match error {
+                            objectstore_client::Error::Reqwest(error) => match error.status() {
+                                _ if error.is_timeout() => StatusCode::GATEWAY_TIMEOUT,
+                                Some(status) => *status,
+                                None if find_error_source(error, is_hyper_user_error).is_some() => {
+                                    StatusCode::BAD_REQUEST
+                                }
+                                None => StatusCode::INTERNAL_SERVER_ERROR,
+                            },
+                            _ => StatusCode::INTERNAL_SERVER_ERROR,
                         },
-                        _ => StatusCode::INTERNAL_SERVER_ERROR,
                     },
                     objectstore::Error::Uuid(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 },
