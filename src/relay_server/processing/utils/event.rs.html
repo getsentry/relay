@@ -221,7 +221,7 @@
 <a href=#221 id=221 data-nosnippet>221</a>    <span class="comment">// Inherit from spans, as transactions no longer produce metrics.
 <a href=#222 id=222 data-nosnippet>222</a>    </span><span class="kw">let </span>transaction_aggregator_config = ctx.config.aggregator_config_for(MetricNamespace::Spans);
 <a href=#223 id=223 data-nosnippet>223</a>
-<a href=#224 id=224 data-nosnippet>224</a>    <span class="kw">let </span>ai_model_costs = ctx.global_config.ai_model_costs.as_ref().ok();
+<a href=#224 id=224 data-nosnippet>224</a>    <span class="kw">let </span>ai_model_metadata = ctx.global_config.model_metadata();
 <a href=#225 id=225 data-nosnippet>225</a>    <span class="kw">let </span>http_span_allowed_hosts = ctx.global_config.options.http_span_allowed_hosts.as_slice();
 <a href=#226 id=226 data-nosnippet>226</a>
 <a href=#227 id=227 data-nosnippet>227</a>    <span class="kw">let </span>project_info = ctx.project_info;
@@ -288,7 +288,7 @@
 <a href=#288 id=288 data-nosnippet>288</a>            emit_event_errors: full_normalization,
 <a href=#289 id=289 data-nosnippet>289</a>            span_description_rules: project_info.config.span_description_rules.as_ref(),
 <a href=#290 id=290 data-nosnippet>290</a>            geoip_lookup: <span class="prelude-val">Some</span>(geoip_lookup),
-<a href=#291 id=291 data-nosnippet>291</a>            ai_model_costs,
+<a href=#291 id=291 data-nosnippet>291</a>            ai_model_metadata: ai_model_metadata.as_ref(),
 <a href=#292 id=292 data-nosnippet>292</a>            enable_trimming: <span class="bool-val">true</span>,
 <a href=#293 id=293 data-nosnippet>293</a>            measurements: <span class="prelude-val">Some</span>(CombinedMeasurementsConfig::new(
 <a href=#294 id=294 data-nosnippet>294</a>                ctx.project_info.config().measurements.as_ref(),
