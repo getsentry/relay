@@ -101,10 +101,10 @@ impl IntoResponse for Error {
                 upload::Error::InvalidSignature => StatusCode::BAD_REQUEST,
                 upload::Error::ServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
                 #[cfg(feature = "processing")]
-                upload::Error::Objectstore(service_error) => match service_error {
-                    objectstore::Error::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
-                    objectstore::Error::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
-                    objectstore::Error::UploadFailed(error) => match error {
+                upload::Error::Objectstore(service_error) => match service_error.kind {
+                    objectstore::ErrorKind::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
+                    objectstore::ErrorKind::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
+                    objectstore::ErrorKind::UploadFailed(error) => match error {
                         objectstore_client::Error::Reqwest(error) => match error.status() {
                             _ if error.is_timeout() => StatusCode::GATEWAY_TIMEOUT,
                             Some(status) => status,
@@ -115,7 +115,7 @@ impl IntoResponse for Error {
                         },
                         _ => StatusCode::INTERNAL_SERVER_ERROR,
                     },
-                    objectstore::Error::Uuid(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                    objectstore::ErrorKind::Uuid(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 },
                 upload::Error::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
                 upload::Error::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
