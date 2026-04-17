@@ -968,10 +968,10 @@ pub enum EnvelopeSpoolPartitioning {
     ProjectKeyPair,
     /// Envelopes are distributed across partitions in a round-robin fashion.
     ///
-    /// This removes hot-partition risk when a single project pair dominates traffic, but has
-    /// - Per-`ProjectKeyPair` LIFO ordering is no longer preserved across partitions.
+    /// This "hot" partitions when a single project pair dominates traffic, but has
     /// trade-offs:
-    /// - Per-partition project-state footprint grows since every partition sees every project.
+    /// - Per-project LIFO ordering is no longer preserved across partitions.
+    /// - Per-partition memory footprint grows since every partition sees every project.
     RoundRobin,
 }
 
