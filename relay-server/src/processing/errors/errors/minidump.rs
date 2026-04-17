@@ -27,7 +27,7 @@ impl SentryError for Minidump {
 
         utils::if_processing!(ctx, {
             crate::utils::process_minidump(event.get_or_insert_with(Default::default), &minidump);
-            metrics.bytes_ingested_event_minidump = (minidump.len() as u64).into();
+            metrics.bytes_ingested_event_minidump = (minidump.attachment_body_size() as u64).into();
         });
 
         Ok(Some(Expansion {

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Handle minidump placeholders. ([#5849](https://github.com/getsentry/relay/pull/5849))
+
 **Internal**:
 
 - Move unreal crash report expansion from processing into endpoint. ([#5825](https://github.com/getsentry/relay/pull/5825))

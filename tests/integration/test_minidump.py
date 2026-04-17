@@ -735,7 +735,9 @@ def test_minidump_placeholder(
     event, message = attachments_consumer.get_event()
 
     assert event == {
-        "_metrics": mock.ANY,
+        "_metrics": {
+            "bytes.ingested.event.minidump": len(minidump_data),
+        },
         "event_id": "515539018c9b4260a6f999572f1661ee",
         "exception": {
             "values": [
