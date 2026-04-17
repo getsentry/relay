@@ -102,9 +102,9 @@
 <a href=#102 id=102 data-nosnippet>102</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(minidump) = <span class="kw-2">&amp;</span>minidump {
 <a href=#103 id=103 data-nosnippet>103</a>                <span class="kw">crate</span>::utils::process_minidump(
 <a href=#104 id=104 data-nosnippet>104</a>                    event.get_or_insert_with(Default::default),
-<a href=#105 id=105 data-nosnippet>105</a>                    <span class="kw-2">&amp;</span>minidump.payload(),
+<a href=#105 id=105 data-nosnippet>105</a>                    minidump,
 <a href=#106 id=106 data-nosnippet>106</a>                );
-<a href=#107 id=107 data-nosnippet>107</a>                metrics.bytes_ingested_event_minidump = (minidump.len() <span class="kw">as </span>u64).into();
+<a href=#107 id=107 data-nosnippet>107</a>                metrics.bytes_ingested_event_minidump = (minidump.attachment_body_size() <span class="kw">as </span>u64).into();
 <a href=#108 id=108 data-nosnippet>108</a>            }
 <a href=#109 id=109 data-nosnippet>109</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(acr) = <span class="kw-2">&amp;</span>apple_crash_report {
 <a href=#110 id=110 data-nosnippet>110</a>                <span class="kw">crate</span>::utils::process_apple_crash_report(
