@@ -2058,12 +2058,12 @@ impl Config {
     }
 
     /// Returns the upstream target as descriptor.
-    pub fn upstream_descriptor(&self) -> &UpstreamDescriptor<'_> {
+    pub fn upstream(&self) -> &UpstreamDescriptor<'_> {
         &self.values.relay.upstream
     }
 
     /// Returns the advertised upstream for downstream instances as descriptor.
-    pub fn advertised_upstream_descriptor(&self) -> Option<&UpstreamDescriptor<'_>> {
+    pub fn advertised_upstream(&self) -> Option<&UpstreamDescriptor<'_>> {
         self.values.relay.advertised_upstream.as_ref()
     }
 

@@ -202,7 +202,7 @@ async fn inner(
                     info: Arc::clone(project_info),
                     upstream: state
                         .config()
-                        .advertised_upstream_descriptor()
+                        .advertised_upstream()
                         .map(|u| u.as_ref().into_owned()),
                 },
                 full,
