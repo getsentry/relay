@@ -14,6 +14,7 @@
 **Internal**:
 
 - Move unreal crash report expansion from processing into endpoint. ([#5825](https://github.com/getsentry/relay/pull/5825))
+- Ports legacy standalone span processing to the processing framework. ([#5852](https://github.com/getsentry/relay/pull/5852))
 - Retry failing objectstore requests. ([#5836](https://github.com/getsentry/relay/pull/5836))
 
 **Bug Fixes**:
