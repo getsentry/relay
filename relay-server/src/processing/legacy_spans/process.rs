@@ -44,6 +44,7 @@ pub fn normalize(
     geo_lookup: &GeoIpLookup,
 ) {
     let aggregator_config = ctx.config.aggregator_config_for(MetricNamespace::Spans);
+    let model_data = ctx.global_config.model_metadata();
     let norm = NormalizeSpanConfig {
         received_at: spans.received_at(),
         timestamp_range: aggregator_config.timestamp_range(),
@@ -53,7 +54,7 @@ pub fn normalize(
             ctx.project_info.config.measurements.as_ref(),
             ctx.global_config.measurements.as_ref(),
         )),
-        ai_model_metadata: ctx.global_config.ai_model_metadata.as_ref().ok(),
+        ai_model_metadata: model_data.as_ref(),
         max_name_and_unit_len: aggregator_config
             .max_name_length
             .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
