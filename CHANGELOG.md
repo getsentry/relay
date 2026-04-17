@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Breaking Changes**:
+
+- Stop publishing to Docker Hub. ([#5845](https://github.com/getsentry/relay/pull/5845))
+
 **Features**:
 
 - Add `ModelMetadata` config with context size and utilization. ([#5814](https://github.com/getsentry/relay/pull/5814))
@@ -10,7 +14,6 @@
 
 - Move unreal crash report expansion from processing into endpoint. ([#5825](https://github.com/getsentry/relay/pull/5825))
 - Retry failing objectstore requests. ([#5836](https://github.com/getsentry/relay/pull/5836))
-- Stop publishing to Docker Hub. ([#5845](https://github.com/getsentry/relay/pull/5845))
 
 **Bug Fixes**:
 
