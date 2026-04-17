@@ -82,7 +82,7 @@ pub struct PartitionedEnvelopeBuffer {
 /// Internal representation of the partition-selection strategy.
 #[derive(Debug, Clone)]
 enum Partitioning {
-    /// Partition by `ProjectKeyPair`, using a fixed-seed hasher for deterministic placement.
+    /// Partition by project key pair, using a fixed-seed hasher for deterministic placement.
     ProjectKeyPair(RandomState),
     /// Distribute envelopes round-robin across partitions using a shared atomic counter.
     RoundRobin(Arc<AtomicUsize>),

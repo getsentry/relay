@@ -957,11 +957,11 @@ fn spool_envelopes_partitions() -> NonZeroU8 {
     NonZeroU8::new(1).unwrap()
 }
 
-/// Strategy used to assign envelopes to buffer partitions in [`PartitionedEnvelopeBuffer`].
+/// Strategy used to assign envelopes to buffer partitions.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EnvelopeSpoolPartitioning {
-    /// Envelopes with the same [`ProjectKeyPair`] land on the same partition (default).
+    /// Envelopes with the same project key pair land on the same partition (default).
     ///
     /// Keeps per-project state, disk files, and event ordering co-located on one partition.
     #[default]
