@@ -957,6 +957,24 @@ fn spool_envelopes_partitions() -> NonZeroU8 {
     NonZeroU8::new(1).unwrap()
 }
 
+/// Strategy used to assign envelopes to buffer partitions.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EnvelopeSpoolPartitioning {
+    /// Envelopes with the same project key pair land on the same partition (default).
+    ///
+    /// Keeps per-project state, disk files, and event ordering co-located on one partition.
+    #[default]
+    ProjectKeyPair,
+    /// Envelopes are distributed across partitions in a round-robin fashion.
+    ///
+    /// This "hot" partitions when a single project pair dominates traffic, but has
+    /// trade-offs:
+    /// - Per-project LIFO ordering is no longer preserved across partitions.
+    /// - Per-partition memory footprint grows since every partition sees every project.
+    RoundRobin,
+}
+
 /// Persistent buffering configuration for incoming envelopes.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EnvelopeSpool {
@@ -1034,6 +1052,13 @@ pub struct EnvelopeSpool {
     /// Defaults to 1.
     #[serde(default = "spool_envelopes_partitions")]
     pub partitions: NonZeroU8,
+    /// Strategy used to assign envelopes to buffer partitions.
+    ///
+    /// Defaults to partitioning by `ProjectKeyPair`, which keeps all envelopes of a given project
+    /// pair on the same partition. See [`EnvelopeSpoolPartitioning`] for alternatives and
+    /// trade-offs.
+    #[serde(default)]
+    pub partitioning: EnvelopeSpoolPartitioning,
     /// Whether the database defined in `path` is on an ephemeral storage disk.
     ///
     /// With `ephemeral: true`, Relay does not spool in-flight data to disk
@@ -1054,6 +1079,7 @@ impl Default for EnvelopeSpool {
             disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
             max_backpressure_memory_percent: spool_max_backpressure_memory_percent(),
             partitions: spool_envelopes_partitions(),
+            partitioning: EnvelopeSpoolPartitioning::default(),
             ephemeral: false,
         }
     }
@@ -2405,6 +2431,11 @@ impl Config {
     /// Returns the number of partitions for the buffer.
     pub fn spool_partitions(&self) -> NonZeroU8 {
         self.values.spool.envelopes.partitions
+    }
+
+    /// Returns the strategy used to assign envelopes to buffer partitions.
+    pub fn spool_partitioning(&self) -> EnvelopeSpoolPartitioning {
+        self.values.spool.envelopes.partitioning
     }
 
     /// Returns `true` if the data is stored on ephemeral disks.
