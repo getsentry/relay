@@ -64,6 +64,14 @@ pub enum Feature {
     /// Serialized as `organizations:continuous-profiling`.
     #[serde(rename = "organizations:continuous-profiling")]
     ContinuousProfiling,
+    /// Enable Perfetto binary trace processing for continuous profiling.
+    ///
+    /// When enabled, compound profile chunk items with `content_type: "perfetto"` are
+    /// expanded from binary Perfetto format into the Sample v2 JSON format.
+    ///
+    /// Serialized as `organizations:continuous-profiling-perfetto`.
+    #[serde(rename = "organizations:continuous-profiling-perfetto")]
+    ContinuousProfilingPerfetto,
     /// Enable log ingestion for our log product (this is not internal logging).
     ///
     /// Serialized as `organizations:ourlogs-ingestion`.
@@ -190,5 +198,19 @@ mod tests {
             serde_json::to_string(&features).unwrap(),
             r#"["organizations:session-replay"]"#
         );
+    }
+
+    #[test]
+    fn test_continuous_profiling_perfetto_serde() {
+        // Verify the serialized name matches what Sentry's backend sends.
+        let serialized = serde_json::to_string(&Feature::ContinuousProfilingPerfetto).unwrap();
+        assert_eq!(
+            serialized,
+            r#""organizations:continuous-profiling-perfetto""#
+        );
+
+        let deserialized: Feature =
+            serde_json::from_str(r#""organizations:continuous-profiling-perfetto""#).unwrap();
+        assert_eq!(deserialized, Feature::ContinuousProfilingPerfetto);
     }
 }
