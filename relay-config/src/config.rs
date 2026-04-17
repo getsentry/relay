@@ -486,12 +486,21 @@ pub enum ReadinessCondition {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 pub struct Relay {
-    /// The operation mode of this relay.
+    /// The operation mode of this Relay.
     pub mode: RelayMode,
-    /// The instance type of this relay.
+    /// The instance type of this Relay.
     pub instance: RelayInstance,
-    /// The upstream relay or sentry instance.
+    /// The upstream Relay or Sentry instance.
     pub upstream: UpstreamDescriptor<'static>,
+    /// The upstream advertised to downstream Relay instances.
+    ///
+    /// This value will be advertised to downstream Relays as the upstream to use when forwarding
+    /// data. It can be used for traffic routing and balancing, it must not redirect to a different
+    /// Sentry instance.
+    ///
+    /// Downstream Relays will treat the advertised upstream as the same logical component as this instance
+    /// and re-use already established authentication keys.
+    pub advertised_upstream: Option<UpstreamDescriptor<'static>>,
     /// The host the relay should bind to (network interface).
     pub host: IpAddr,
     /// The port to bind for the unencrypted relay HTTP server.
@@ -537,6 +546,7 @@ impl Default for Relay {
             mode: RelayMode::Managed,
             instance: RelayInstance::Default,
             upstream: "https://sentry.io/".parse().unwrap(),
+            advertised_upstream: None,
             host: default_host(),
             port: 3000,
             internal_host: None,
@@ -2058,6 +2068,11 @@ impl Config {
     /// Returns the upstream target as descriptor.
     pub fn upstream_descriptor(&self) -> &UpstreamDescriptor<'_> {
         &self.values.relay.upstream
+    }
+
+    /// Returns the advertised upstream for downstream instances as descriptor.
+    pub fn advertised_upstream_descriptor(&self) -> Option<&UpstreamDescriptor<'_>> {
+        self.values.relay.advertised_upstream.as_ref()
     }
 
     /// Returns the custom HTTP "Host" header.
