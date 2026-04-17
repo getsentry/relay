@@ -327,10 +327,10 @@ impl LoadShed<Objectstore> for ObjectstoreService {
                 self.inner.store.send(message);
             }
             Objectstore::TraceAttachment(managed) => {
-                let _ = managed.reject_err(Error::from(ErrorKind::LoadShed));
+                let _ = managed.reject_err(error);
             }
             Objectstore::Stream(_, sender) => {
-                sender.send(Err(Error::from(ErrorKind::LoadShed)));
+                sender.send(Err(error));
             }
         }
     }
