@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Breaking Changes**:
+
+- Docker images are no longer published to Docker Hub, use the Github Container Registry instead ([see documentation](https://github.com/getsentry/relay/pkgs/container/relay)). ([#5845](https://github.com/getsentry/relay/pull/5845))
+
 **Features**:
 
 - Add `ModelMetadata` config with context size and utilization. ([#5814](https://github.com/getsentry/relay/pull/5814))
