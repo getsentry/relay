@@ -14,6 +14,7 @@
 **Bug Fixes**:
 
 - Respond with 429 if otlp logs are rate limited, as per spec. ([#5841](https://github.com/getsentry/relay/pull/5841))
+- Respect rate limit silencing also when all items are rate limited. ([#5840](https://github.com/getsentry/relay/pull/5840))
 
 ## 26.4.0
 

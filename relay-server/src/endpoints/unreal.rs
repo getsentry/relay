@@ -102,18 +102,14 @@ impl UnrealParams {
 async fn handle(
     state: ServiceState,
     params: UnrealParams,
-) -> Result<impl IntoResponse, BadStoreRequest> {
+) -> axum::response::Result<impl IntoResponse> {
     let envelope = params.extract_envelope(&state).await?;
     let id = envelope.event_id();
 
     // Never respond with a 429 since clients often retry these
-    match common::handle_envelope(&state, envelope)
-        .await
-        .map_err(|err| err.into_inner())
-    {
-        Ok(_) | Err(BadStoreRequest::RateLimited(_)) => (),
-        Err(error) => return Err(error),
-    };
+    common::handle_envelope(&state, envelope)
+        .await?
+        .ignore_rate_limits();
 
     // The return here is only useful for consistency because the UE4 crash reporter doesn't
     // care about it.
