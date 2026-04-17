@@ -20,14 +20,14 @@ use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding, RelayMode};
-use relay_dynamic_config::{Feature, GlobalConfig};
+use relay_dynamic_config::Feature;
 use relay_event_normalization::{ClockDriftProcessor, GeoIpLookup};
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{ClientReport, Event, EventId, NetworkReportError, SpanV2};
 use relay_filter::FilterStatKey;
 use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricNamespace};
 use relay_protocol::Annotated;
-use relay_quotas::{DataCategory, Quota, RateLimits, Scoping};
+use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_sampling::evaluation::{ReservoirCounters, SamplingDecision};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -76,7 +76,8 @@ use {
     crate::services::objectstore::Objectstore,
     crate::services::store::Store,
     itertools::Itertools,
-    relay_quotas::{RateLimitingError, RedisRateLimiter},
+    relay_dynamic_config::GlobalConfig,
+    relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
     relay_redis::RedisClients,
     std::time::Instant,
 };
@@ -2534,11 +2535,13 @@ impl UpstreamRequest for SendMetricsRequest {
 
 /// Container for global and project level [`Quota`].
 #[derive(Copy, Clone, Debug)]
+#[cfg(feature = "processing")]
 struct CombinedQuotas<'a> {
     global_quotas: &'a [Quota],
     project_quotas: &'a [Quota],
 }
 
+#[cfg(feature = "processing")]
 impl<'a> CombinedQuotas<'a> {
     /// Returns a new [`CombinedQuotas`].
     pub fn new(global_config: &'a GlobalConfig, project_quotas: &'a [Quota]) -> Self {
@@ -2549,6 +2552,7 @@ impl<'a> CombinedQuotas<'a> {
     }
 }
 
+#[cfg(feature = "processing")]
 impl<'a> IntoIterator for CombinedQuotas<'a> {
     type Item = &'a Quota;
     type IntoIter = std::iter::Chain<std::slice::Iter<'a, Quota>, std::slice::Iter<'a, Quota>>;
@@ -2598,7 +2602,7 @@ mod tests {
     #[cfg(feature = "processing")]
     #[test]
     fn test_dynamic_quotas() {
-        let global_config = GlobalConfig {
+        let global_config = relay_dynamic_config::GlobalConfig {
             quotas: vec![mock_quota("foo"), mock_quota("bar")],
             ..Default::default()
         };

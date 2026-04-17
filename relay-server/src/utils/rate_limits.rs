@@ -833,16 +833,6 @@ where
         }
     }
 
-    /// Assume an event with the given category, even if no item is present in the envelope.
-    ///
-    /// This ensures that rate limits for the given data category are checked even if there is no
-    /// matching item in the envelope. Other items are handled according to the rules as if the
-    /// event item were present.
-    #[cfg(test)]
-    pub fn assume_event(&mut self, category: DataCategory) {
-        self.event_category = Some(category);
-    }
-
     /// Process rate limits for the envelope, returning applied limits.
     ///
     /// Returns a tuple of `Enforcement` and `RateLimits`:
@@ -1675,7 +1665,6 @@ mod tests {
     async fn enforce_and_apply(
         mock: Arc<Mutex<MockLimiter>>,
         envelope: Box<Envelope>,
-        #[allow(unused_variables)] assume_event: Option<DataCategory>,
     ) -> (Box<Envelope>, Enforcement, RateLimits) {
         let mut envelope = Managed::from_envelope(envelope, Addr::custom().0);
         let scoping = envelope.scoping();
@@ -1688,10 +1677,6 @@ mod tests {
                 mock.check(s, q)
             }
         });
-        #[cfg(feature = "processing")]
-        if let Some(assume_event) = assume_event {
-            limiter.assume_event(assume_event);
-        }
 
         let (enforcement, limits) = limiter.compute(&envelope, &scoping).await.unwrap();
 
@@ -1717,7 +1702,7 @@ mod tests {
         let envelope = envelope![];
 
         let mock = mock_limiter(&[]);
-        let (envelope, _, limits) = enforce_and_apply(mock, envelope, None).await;
+        let (envelope, _, limits) = enforce_and_apply(mock, envelope).await;
 
         assert!(!limits.is_limited());
         assert!(envelope.is_empty());
@@ -1728,7 +1713,7 @@ mod tests {
         let envelope = envelope![Event];
 
         let mock = mock_limiter(&[DataCategory::Error]);
-        let (envelope, _, limits) = enforce_and_apply(mock.clone(), envelope, None).await;
+        let (envelope, _, limits) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(limits.is_limited());
         assert!(envelope.is_empty());
@@ -1740,7 +1725,7 @@ mod tests {
         let envelope = envelope![Event, Attachment];
 
         let mock = mock_limiter(&[DataCategory::Error]);
-        let (envelope, _, limits) = enforce_and_apply(mock.clone(), envelope, None).await;
+        let (envelope, _, limits) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(limits.is_limited());
         assert!(envelope.is_empty());
@@ -1752,7 +1737,7 @@ mod tests {
         let envelope = envelope![Attachment::Minidump];
 
         let mock = mock_limiter(&[DataCategory::Error]);
-        let (envelope, _, limits) = enforce_and_apply(mock.clone(), envelope, None).await;
+        let (envelope, _, limits) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(limits.is_limited());
         assert!(envelope.is_empty());
@@ -1764,7 +1749,7 @@ mod tests {
         let envelope = envelope![Attachment::Minidump, Attachment];
 
         let mock = mock_limiter(&[DataCategory::Attachment]);
-        let (envelope, _, limits) = enforce_and_apply(mock.clone(), envelope, None).await;
+        let (envelope, _, limits) = enforce_and_apply(mock.clone(), envelope).await;
 
         // Attachments would be limited, but crash reports create events and are thus allowed.
         assert!(limits.is_limited());
@@ -1779,7 +1764,7 @@ mod tests {
         let envelope = envelope![Profile, Profile];
 
         let mock = mock_limiter(&[DataCategory::Profile]);
-        let (envelope, enforcement, limits) = enforce_and_apply(mock.clone(), envelope, None).await;
+        let (envelope, enforcement, limits) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(limits.is_limited());
         assert_eq!(envelope.len(), 0);
@@ -1802,12 +1787,12 @@ mod tests {
         let envelope = envelope![ProfileChunk, ProfileChunk];
 
         let mock = mock_limiter(&[DataCategory::ProfileChunk]);
-        let (envelope, enforcement, limits) = enforce_and_apply(mock.clone(), envelope, None).await;
+        let (envelope, enforcement, limits) = enforce_and_apply(mock.clone(), envelope).await;
         assert!(!limits.is_limited());
         assert_eq!(get_outcomes(enforcement), vec![]);
 
         let mock = mock_limiter(&[DataCategory::ProfileChunkUi]);
-        let (envelope, enforcement, limits) = enforce_and_apply(mock.clone(), envelope, None).await;
+        let (envelope, enforcement, limits) = enforce_and_apply(mock.clone(), envelope).await;
         assert!(!limits.is_limited());
         assert_eq!(get_outcomes(enforcement), vec![]);
 
@@ -1826,7 +1811,7 @@ mod tests {
         envelope.add_item(item);
 
         let mock = mock_limiter(&[DataCategory::ProfileChunkUi]);
-        let (envelope, enforcement, limits) = enforce_and_apply(mock.clone(), envelope, None).await;
+        let (envelope, enforcement, limits) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(limits.is_limited());
         assert_eq!(envelope.len(), 1);
@@ -1853,7 +1838,7 @@ mod tests {
         envelope.add_item(item);
 
         let mock = mock_limiter(&[DataCategory::ProfileChunk]);
-        let (envelope, enforcement, limits) = enforce_and_apply(mock.clone(), envelope, None).await;
+        let (envelope, enforcement, limits) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(limits.is_limited());
         assert_eq!(envelope.len(), 1);
@@ -1874,7 +1859,7 @@ mod tests {
         let envelope = envelope![ReplayEvent, ReplayRecording, ReplayVideo];
 
         let mock = mock_limiter(&[DataCategory::Replay]);
-        let (envelope, enforcement, limits) = enforce_and_apply(mock.clone(), envelope, None).await;
+        let (envelope, enforcement, limits) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(limits.is_limited());
         assert_eq!(envelope.len(), 0);
@@ -1889,7 +1874,7 @@ mod tests {
         let envelope = envelope![CheckIn];
 
         let mock = mock_limiter(&[DataCategory::Monitor]);
-        let (envelope, enforcement, limits) = enforce_and_apply(mock.clone(), envelope, None).await;
+        let (envelope, enforcement, limits) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(limits.is_limited());
         assert_eq!(envelope.len(), 0);
@@ -1903,7 +1888,7 @@ mod tests {
         let envelope = envelope![Attachment::Minidump];
 
         let mock = mock_limiter(&[DataCategory::Attachment]);
-        let (envelope, _, limits) = enforce_and_apply(mock.clone(), envelope, None).await;
+        let (envelope, _, limits) = enforce_and_apply(mock.clone(), envelope).await;
 
         // If only crash report attachments are present, we don't emit a rate limit.
         assert!(!limits.is_limited());
@@ -1922,7 +1907,7 @@ mod tests {
         envelope.add_item(item);
 
         let mock = mock_limiter(&[DataCategory::Error]);
-        let (envelope, _, limits) = enforce_and_apply(mock, envelope, None).await;
+        let (envelope, _, limits) = enforce_and_apply(mock, envelope).await;
 
         assert!(!limits.is_limited()); // No new rate limits applied.
         assert_eq!(envelope.len(), 1); // The item was retained
@@ -1933,7 +1918,7 @@ mod tests {
         let envelope = envelope![Session, Session, Session];
 
         let mock = mock_limiter(&[DataCategory::Error]);
-        let (envelope, _, limits) = enforce_and_apply(mock.clone(), envelope, None).await;
+        let (envelope, _, limits) = enforce_and_apply(mock.clone(), envelope).await;
 
         // If only crash report attachments are present, we don't emit a rate limit.
         assert!(!limits.is_limited());
@@ -1946,7 +1931,7 @@ mod tests {
         let envelope = envelope![Session, Session, Event];
 
         let mock = mock_limiter(&[DataCategory::Session]);
-        let (envelope, _, limits) = enforce_and_apply(mock.clone(), envelope, None).await;
+        let (envelope, _, limits) = enforce_and_apply(mock.clone(), envelope).await;
 
         // If only crash report attachments are present, we don't emit a rate limit.
         assert!(limits.is_limited());
@@ -1961,8 +1946,7 @@ mod tests {
         let envelope = envelope![Transaction];
 
         let mock = mock_limiter(&[DataCategory::Transaction]);
-        let (envelope, _, limits) =
-            enforce_and_apply(mock.clone(), envelope, Some(DataCategory::Transaction)).await;
+        let (envelope, _, limits) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(limits.is_limited());
         assert!(envelope.is_empty()); // obviously
@@ -1975,8 +1959,7 @@ mod tests {
         let envelope = envelope![Event, Attachment, Attachment];
 
         let mock = mock_limiter(&[DataCategory::Error]);
-        let (envelope, _, limits) =
-            enforce_and_apply(mock.clone(), envelope, Some(DataCategory::Error)).await;
+        let (envelope, _, limits) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(limits.is_limited());
         assert!(envelope.is_empty());
@@ -1988,7 +1971,7 @@ mod tests {
         let envelope = envelope![Transaction];
 
         let mock = mock_limiter(&[DataCategory::Transaction]);
-        let (_, enforcement, limits) = enforce_and_apply(mock.clone(), envelope, None).await;
+        let (_, enforcement, limits) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(limits.is_limited());
         assert!(enforcement.event_indexed.is_active());
@@ -2044,7 +2027,7 @@ mod tests {
         let envelope = envelope![Transaction];
 
         let mock = mock_limiter(&[DataCategory::TransactionIndexed]);
-        let (_, enforcement, limits) = enforce_and_apply(mock.clone(), envelope, None).await;
+        let (_, enforcement, limits) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(!limits.is_limited());
         assert!(!enforcement.event_indexed.is_active());
@@ -2058,7 +2041,7 @@ mod tests {
         let envelope = envelope![Transaction, Attachment];
 
         let mock = mock_limiter(&[DataCategory::Transaction]);
-        let (_, enforcement, _) = enforce_and_apply(mock.clone(), envelope, None).await;
+        let (_, enforcement, _) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(enforcement.event.is_active());
         assert!(enforcement.attachments_limits.event.is_active());
@@ -2077,7 +2060,7 @@ mod tests {
         let envelope = envelope![Transaction, Profile];
 
         let mock = mock_limiter(&[DataCategory::Transaction]);
-        let (_, enforcement, _) = enforce_and_apply(mock.clone(), envelope, None).await;
+        let (_, enforcement, _) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(enforcement.event.is_active());
         assert!(enforcement.profiles.is_active());
@@ -2102,7 +2085,7 @@ mod tests {
         let envelope = envelope![Profile];
 
         let mock = mock_limiter(&[DataCategory::Transaction]);
-        let (_, enforcement, _) = enforce_and_apply(mock.clone(), envelope, None).await;
+        let (_, enforcement, _) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(enforcement.profiles.is_active());
         mock.lock().await.assert_call(DataCategory::Profile, 1);
@@ -2122,7 +2105,7 @@ mod tests {
         let envelope = envelope![Transaction, Attachment];
 
         let mock = mock_limiter(&[DataCategory::TransactionIndexed]);
-        let (_, enforcement, _) = enforce_and_apply(mock.clone(), envelope, None).await;
+        let (_, enforcement, _) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(!enforcement.event.is_active());
         assert!(!enforcement.event_indexed.is_active());
@@ -2142,7 +2125,7 @@ mod tests {
         let envelope = envelope![Span, Span];
 
         let mock = mock_limiter(&[DataCategory::Span]);
-        let (_, enforcement, limits) = enforce_and_apply(mock.clone(), envelope, None).await;
+        let (_, enforcement, limits) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(limits.is_limited());
         assert!(enforcement.spans_indexed.is_active());
@@ -2160,7 +2143,7 @@ mod tests {
         let envelope = envelope![Span, Span];
 
         let mock = mock_limiter(&[DataCategory::SpanIndexed]);
-        let (_, enforcement, limits) = enforce_and_apply(mock.clone(), envelope, None).await;
+        let (_, enforcement, limits) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(!limits.is_limited());
         assert!(!enforcement.spans_indexed.is_active());
@@ -2205,7 +2188,7 @@ mod tests {
         let envelope = envelope![Log, Log];
 
         let mock = mock_limiter(&[DataCategory::LogItem]);
-        let (envelope, enforcement, limits) = enforce_and_apply(mock.clone(), envelope, None).await;
+        let (envelope, enforcement, limits) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(limits.is_limited());
         assert_eq!(envelope.len(), 0);
@@ -2222,7 +2205,7 @@ mod tests {
         let envelope = envelope![Log, Log];
 
         let mock = mock_limiter(&[DataCategory::LogByte]);
-        let (envelope, enforcement, limits) = enforce_and_apply(mock.clone(), envelope, None).await;
+        let (envelope, enforcement, limits) = enforce_and_apply(mock.clone(), envelope).await;
 
         assert!(limits.is_limited());
         assert_eq!(envelope.len(), 0);
@@ -2330,7 +2313,7 @@ mod tests {
             envelope.add_item(trace_attachment_item(7, Some(ParentId::SpanId(None))));
 
             let mock = mock_limiter(denied_categories);
-            let (_, enforcement, _) = enforce_and_apply(mock.clone(), envelope, None).await;
+            let (_, enforcement, _) = enforce_and_apply(mock.clone(), envelope).await;
 
             for &(category, quantity) in *expected_limiter_calls {
                 mock.lock().await.assert_call(category, quantity);
@@ -2451,7 +2434,7 @@ mod tests {
             envelope.add_item(trace_attachment_item(7, Some(ParentId::SpanId(None))));
 
             let mock = mock_limiter(denied_categories);
-            let (_, enforcement, _) = enforce_and_apply(mock.clone(), envelope, None).await;
+            let (_, enforcement, _) = enforce_and_apply(mock.clone(), envelope).await;
 
             for &(category, quantity) in *expected_limiter_calls {
                 mock.lock().await.assert_call(category, quantity);
@@ -2531,7 +2514,7 @@ mod tests {
             envelope.add_item(trace_attachment_item(7, Some(ParentId::SpanId(None))));
 
             let mock = mock_limiter(denied_categories);
-            let (_, enforcement, _) = enforce_and_apply(mock.clone(), envelope, None).await;
+            let (_, enforcement, _) = enforce_and_apply(mock.clone(), envelope).await;
 
             for &(category, quantity) in *expected_limiter_calls {
                 mock.lock().await.assert_call(category, quantity);
@@ -2616,7 +2599,7 @@ mod tests {
             envelope.add_item(trace_attachment_item(7, None));
 
             let mock = mock_limiter(denied_categories);
-            let (_, enforcement, _) = enforce_and_apply(mock.clone(), envelope, None).await;
+            let (_, enforcement, _) = enforce_and_apply(mock.clone(), envelope).await;
 
             for &(category, quantity) in *expected_limiter_calls {
                 mock.lock().await.assert_call(category, quantity);

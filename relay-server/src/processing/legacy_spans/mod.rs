@@ -170,6 +170,15 @@ impl Forward for LegacySpanOutput {
         s: processing::forward::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
+        #[derive(Debug)]
+        struct IndexedOnly(Annotated<Span>);
+
+        impl Counted for IndexedOnly {
+            fn quantities(&self) -> Quantities {
+                smallvec::smallvec![(DataCategory::SpanIndexed, 1)]
+            }
+        }
+
         let spans = match self {
             Self::Serialized(spans) => {
                 return Err(spans
@@ -308,13 +317,5 @@ impl RateLimited for Managed<ExpandedLegacySpans<TotalAndIndexed>> {
         }
 
         Ok(self.map(|s, _| Either::Left(s)))
-    }
-}
-
-struct IndexedOnly(Annotated<Span>);
-
-impl Counted for IndexedOnly {
-    fn quantities(&self) -> Quantities {
-        smallvec::smallvec![(DataCategory::SpanIndexed, 1)]
     }
 }
