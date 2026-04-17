@@ -5,7 +5,7 @@
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>std::fmt::Debug;
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>std::sync::Arc;
 <a href=#7 id=7 data-nosnippet>7</a>
-<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span><span class="kw">crate</span>::services::projects::project::{ParsedProjectState, ProjectState, Revision};
+<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span><span class="kw">crate</span>::services::projects::project::{IncomingProjectState, ProjectState, Revision};
 <a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span><span class="kw">crate</span>::services::projects::source::SourceProjectState;
 <a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayDistributions, RelayTimers};
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>relay_redis::redis::cmd;
@@ -25,7 +25,7 @@
 <a href=#25 id=25 data-nosnippet>25</a>    </span>Redis(<span class="attr">#[from] </span>RedisError),
 <a href=#26 id=26 data-nosnippet>26</a>}
 <a href=#27 id=27 data-nosnippet>27</a>
-<a href=#28 id=28 data-nosnippet>28</a><span class="kw">fn </span>parse_redis_response(raw_response: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;ParsedProjectState, RedisProjectError&gt; {
+<a href=#28 id=28 data-nosnippet>28</a><span class="kw">fn </span>parse_redis_response(raw_response: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;IncomingProjectState, RedisProjectError&gt; {
 <a href=#29 id=29 data-nosnippet>29</a>    <span class="kw">let </span>decompression_result = <span class="macro">metric!</span>(timer(RelayTimers::ProjectStateDecompression), {
 <a href=#30 id=30 data-nosnippet>30</a>        zstd::decode_all(raw_response)
 <a href=#31 id=31 data-nosnippet>31</a>    });

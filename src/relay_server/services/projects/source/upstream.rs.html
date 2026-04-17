@@ -19,7 +19,7 @@
 <a href=#19 id=19 data-nosnippet>19</a><span class="kw">use </span>tokio::time::Instant;
 <a href=#20 id=20 data-nosnippet>20</a>
 <a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span><span class="kw">crate</span>::services::projects::project::Revision;
-<a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span><span class="kw">crate</span>::services::projects::project::{ParsedProjectState, ProjectState};
+<a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span><span class="kw">crate</span>::services::projects::project::{IncomingProjectState, ProjectState};
 <a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span><span class="kw">crate</span>::services::projects::source::{FetchProjectState, SourceProjectState};
 <a href=#24 id=24 data-nosnippet>24</a><span class="kw">use </span><span class="kw">crate</span>::services::upstream::{
 <a href=#25 id=25 data-nosnippet>25</a>    Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
@@ -53,12 +53,12 @@
 <a href=#53 id=53 data-nosnippet>53</a>///
 <a href=#54 id=54 data-nosnippet>54</a>/// A [`ProjectKey`] is either pending or has a result, it can not appear in both and doing
 <a href=#55 id=55 data-nosnippet>55</a>/// so is undefined.
-<a href=#56 id=56 data-nosnippet>56</a></span><span class="attr">#[derive(Debug, Deserialize, Serialize)]
+<a href=#56 id=56 data-nosnippet>56</a></span><span class="attr">#[derive(Debug, Deserialize)]
 <a href=#57 id=57 data-nosnippet>57</a>#[serde(rename_all = <span class="string">"camelCase"</span>)]
 <a href=#58 id=58 data-nosnippet>58</a></span><span class="kw">pub struct </span>GetProjectStatesResponse {
-<a href=#59 id=59 data-nosnippet>59</a>    <span class="doccomment">/// Map of [`ProjectKey`] to [`ParsedProjectState`] that was fetched from the upstream.
+<a href=#59 id=59 data-nosnippet>59</a>    <span class="doccomment">/// Map of [`ProjectKey`] to [`IncomingProjectState`] that was fetched from the upstream.
 <a href=#60 id=60 data-nosnippet>60</a>    </span><span class="attr">#[serde(default)]
-<a href=#61 id=61 data-nosnippet>61</a>    </span>configs: HashMap&lt;ProjectKey, ErrorBoundary&lt;<span class="prelude-ty">Option</span>&lt;ParsedProjectState&gt;&gt;&gt;,
+<a href=#61 id=61 data-nosnippet>61</a>    </span>configs: HashMap&lt;ProjectKey, ErrorBoundary&lt;<span class="prelude-ty">Option</span>&lt;IncomingProjectState&gt;&gt;&gt;,
 <a href=#62 id=62 data-nosnippet>62</a>    <span class="doccomment">/// The [`ProjectKey`]'s that couldn't be immediately retrieved from the upstream.
 <a href=#63 id=63 data-nosnippet>63</a>    </span><span class="attr">#[serde(default)]
 <a href=#64 id=64 data-nosnippet>64</a>    </span>pending: HashSet&lt;ProjectKey&gt;,
@@ -208,7 +208,7 @@
 <a href=#208 id=208 data-nosnippet>208</a>
 <a href=#209 id=209 data-nosnippet>209</a><span class="doccomment">/// This is the [`UpstreamProjectSourceService`] interface.
 <a href=#210 id=210 data-nosnippet>210</a>///
-<a href=#211 id=211 data-nosnippet>211</a>/// The service is responsible for fetching the [`ParsedProjectState`] from the upstream.
+<a href=#211 id=211 data-nosnippet>211</a>/// The service is responsible for fetching the [`IncomingProjectState`] from the upstream.
 <a href=#212 id=212 data-nosnippet>212</a>/// Internally it maintains the buffer queue of the incoming requests, which got scheduled to fetch the
 <a href=#213 id=213 data-nosnippet>213</a>/// state and takes care of the backoff in case there is a problem with the requests.
 <a href=#214 id=214 data-nosnippet>214</a></span><span class="attr">#[derive(Debug)]
@@ -236,7 +236,7 @@
 <a href=#236 id=236 data-nosnippet>236</a>    response: <span class="prelude-ty">Result</span>&lt;GetProjectStatesResponse, UpstreamRequestError&gt;,
 <a href=#237 id=237 data-nosnippet>237</a>}
 <a href=#238 id=238 data-nosnippet>238</a>
-<a href=#239 id=239 data-nosnippet>239</a><span class="doccomment">/// The service which handles the fetching of the [`ParsedProjectState`] from upstream.
+<a href=#239 id=239 data-nosnippet>239</a><span class="doccomment">/// The service which handles the fetching of the [`IncomingProjectState`] from upstream.
 <a href=#240 id=240 data-nosnippet>240</a></span><span class="attr">#[derive(Debug)]
 <a href=#241 id=241 data-nosnippet>241</a></span><span class="kw">pub struct </span>UpstreamProjectSourceService {
 <a href=#242 id=242 data-nosnippet>242</a>    backoff: RetryBackoff,
