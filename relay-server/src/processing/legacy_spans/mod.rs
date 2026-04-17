@@ -96,6 +96,10 @@ impl processing::Processor for LegacySpansProcessor {
             .take_items_by(|item| matches!(item.ty(), ItemType::Span))
             .into_vec();
 
+        if spans.is_empty() {
+            return None;
+        }
+
         let work = SerializedLegacySpans { headers, spans };
         Some(Managed::with_meta_from(envelope, work))
     }
