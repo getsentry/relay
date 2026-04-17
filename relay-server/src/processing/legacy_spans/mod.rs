@@ -180,8 +180,8 @@ impl Forward for LegacySpanOutput {
 
         let retention = ctx.retention(|r| r.span.as_ref());
 
-        for span in spans.split(|spans| spans.spans) {
-            if let Ok(span) = span.try_map(|span, _| store::convert(span, retention)) {
+        for span in spans.split(|spans| spans.spans.into_iter().map(IndexedOnly)) {
+            if let Ok(span) = span.try_map(|span, _| store::convert(span.0, retention)) {
                 s.send_to_store(span)
             };
         }
@@ -308,5 +308,13 @@ impl RateLimited for Managed<ExpandedLegacySpans<TotalAndIndexed>> {
         }
 
         Ok(self.map(|s, _| Either::Left(s)))
+    }
+}
+
+struct IndexedOnly(Annotated<Span>);
+
+impl Counted for IndexedOnly {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![(DataCategory::SpanIndexed, 1)]
     }
 }
