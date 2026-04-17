@@ -68,7 +68,7 @@ async fn handle(
     // Never respond with a 429
     common::handle_envelope(&state, envelope)
         .await?
-        .silence_rate_limits();
+        .ignore_rate_limits();
 
     // Event will be processed by Sentry, respond with a 202
     Ok(StatusCode::ACCEPTED)

@@ -105,7 +105,7 @@ async fn handle(
     // Never respond with a 429 since clients often retry these
     common::handle_envelope(&state, envelope)
         .await?
-        .silence_rate_limits();
+        .ignore_rate_limits();
 
     // The return here is only useful for consistency because the UE4 crash reporter doesn't
     // care about it.

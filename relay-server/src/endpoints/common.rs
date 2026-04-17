@@ -413,7 +413,7 @@ impl HandledEnvelope {
     ///
     /// Endpoints which choose to not propagate rate limits should use this method to explicitly
     /// state the fact that they do so.
-    pub fn silence_rate_limits(self) -> Option<EventId> {
+    pub fn ignore_rate_limits(self) -> Option<EventId> {
         self.event_id
     }
 }

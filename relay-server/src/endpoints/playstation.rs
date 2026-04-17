@@ -232,7 +232,7 @@ async fn handle(
     // Never respond with a 429 since clients often retry these
     common::handle_envelope(&state, envelope)
         .await?
-        .silence_rate_limits();
+        .ignore_rate_limits();
 
     // Return here needs to be a 200 with arbitrary text to make the sender happy.
     Ok(TextResponse(id).into_response())
