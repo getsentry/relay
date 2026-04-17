@@ -1894,7 +1894,7 @@ impl EnvelopeProcessorService {
             scoping,
         } = message;
 
-        let upstream = self.inner.config.upstream_descriptor();
+        let upstream = self.inner.config.upstream();
         let dsn = PartialDsn::outbound(&scoping, upstream);
 
         let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
@@ -2172,7 +2172,7 @@ impl EnvelopeProcessorService {
         } = message;
 
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
-        let upstream = self.inner.config.upstream_descriptor();
+        let upstream = self.inner.config.upstream();
 
         for ProjectBuckets {
             buckets, scoping, ..
