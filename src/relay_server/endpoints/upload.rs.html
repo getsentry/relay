@@ -101,10 +101,10 @@
 <a href=#101 id=101 data-nosnippet>101</a>                upload::Error::InvalidSignature =&gt; StatusCode::BAD_REQUEST,
 <a href=#102 id=102 data-nosnippet>102</a>                upload::Error::ServiceUnavailable(<span class="kw">_</span>) =&gt; StatusCode::SERVICE_UNAVAILABLE,
 <a href=#103 id=103 data-nosnippet>103</a>                <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#104 id=104 data-nosnippet>104</a>                </span>upload::Error::Objectstore(service_error) =&gt; <span class="kw">match </span>service_error {
-<a href=#105 id=105 data-nosnippet>105</a>                    objectstore::Error::Timeout(<span class="kw">_</span>) =&gt; StatusCode::GATEWAY_TIMEOUT,
-<a href=#106 id=106 data-nosnippet>106</a>                    objectstore::Error::LoadShed =&gt; StatusCode::SERVICE_UNAVAILABLE,
-<a href=#107 id=107 data-nosnippet>107</a>                    objectstore::Error::UploadFailed(error) =&gt; <span class="kw">match </span>error {
+<a href=#104 id=104 data-nosnippet>104</a>                </span>upload::Error::Objectstore(service_error) =&gt; <span class="kw">match </span>service_error.kind {
+<a href=#105 id=105 data-nosnippet>105</a>                    objectstore::ErrorKind::Timeout(<span class="kw">_</span>) =&gt; StatusCode::GATEWAY_TIMEOUT,
+<a href=#106 id=106 data-nosnippet>106</a>                    objectstore::ErrorKind::LoadShed =&gt; StatusCode::SERVICE_UNAVAILABLE,
+<a href=#107 id=107 data-nosnippet>107</a>                    objectstore::ErrorKind::UploadFailed(error) =&gt; <span class="kw">match </span>error {
 <a href=#108 id=108 data-nosnippet>108</a>                        objectstore_client::Error::Reqwest(error) =&gt; <span class="kw">match </span>error.status() {
 <a href=#109 id=109 data-nosnippet>109</a>                            <span class="kw">_ if </span>error.is_timeout() =&gt; StatusCode::GATEWAY_TIMEOUT,
 <a href=#110 id=110 data-nosnippet>110</a>                            <span class="prelude-val">Some</span>(status) =&gt; status,
@@ -115,7 +115,7 @@
 <a href=#115 id=115 data-nosnippet>115</a>                        },
 <a href=#116 id=116 data-nosnippet>116</a>                        <span class="kw">_ </span>=&gt; StatusCode::INTERNAL_SERVER_ERROR,
 <a href=#117 id=117 data-nosnippet>117</a>                    },
-<a href=#118 id=118 data-nosnippet>118</a>                    objectstore::Error::Uuid(<span class="kw">_</span>) =&gt; StatusCode::INTERNAL_SERVER_ERROR,
+<a href=#118 id=118 data-nosnippet>118</a>                    objectstore::ErrorKind::Uuid(<span class="kw">_</span>) =&gt; StatusCode::INTERNAL_SERVER_ERROR,
 <a href=#119 id=119 data-nosnippet>119</a>                },
 <a href=#120 id=120 data-nosnippet>120</a>                upload::Error::LoadShed =&gt; StatusCode::SERVICE_UNAVAILABLE,
 <a href=#121 id=121 data-nosnippet>121</a>                upload::Error::Internal(<span class="kw">_</span>) =&gt; StatusCode::INTERNAL_SERVER_ERROR,
