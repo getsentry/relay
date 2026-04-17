@@ -102,27 +102,23 @@
 <a href=#102 id=102 data-nosnippet>102</a><span class="kw">async fn </span>handle(
 <a href=#103 id=103 data-nosnippet>103</a>    state: ServiceState,
 <a href=#104 id=104 data-nosnippet>104</a>    params: UnrealParams,
-<a href=#105 id=105 data-nosnippet>105</a>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">impl </span>IntoResponse, BadStoreRequest&gt; {
+<a href=#105 id=105 data-nosnippet>105</a>) -&gt; axum::response::Result&lt;<span class="kw">impl </span>IntoResponse&gt; {
 <a href=#106 id=106 data-nosnippet>106</a>    <span class="kw">let </span>envelope = params.extract_envelope(<span class="kw-2">&amp;</span>state).<span class="kw">await</span><span class="question-mark">?</span>;
 <a href=#107 id=107 data-nosnippet>107</a>    <span class="kw">let </span>id = envelope.event_id();
 <a href=#108 id=108 data-nosnippet>108</a>
 <a href=#109 id=109 data-nosnippet>109</a>    <span class="comment">// Never respond with a 429 since clients often retry these
-<a href=#110 id=110 data-nosnippet>110</a>    </span><span class="kw">match </span>common::handle_envelope(<span class="kw-2">&amp;</span>state, envelope)
-<a href=#111 id=111 data-nosnippet>111</a>        .<span class="kw">await
-<a href=#112 id=112 data-nosnippet>112</a>        </span>.map_err(|err| err.into_inner())
-<a href=#113 id=113 data-nosnippet>113</a>    {
-<a href=#114 id=114 data-nosnippet>114</a>        <span class="prelude-val">Ok</span>(<span class="kw">_</span>) | <span class="prelude-val">Err</span>(BadStoreRequest::RateLimited(<span class="kw">_</span>)) =&gt; (),
-<a href=#115 id=115 data-nosnippet>115</a>        <span class="prelude-val">Err</span>(error) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(error),
-<a href=#116 id=116 data-nosnippet>116</a>    };
-<a href=#117 id=117 data-nosnippet>117</a>
-<a href=#118 id=118 data-nosnippet>118</a>    <span class="comment">// The return here is only useful for consistency because the UE4 crash reporter doesn't
-<a href=#119 id=119 data-nosnippet>119</a>    // care about it.
-<a href=#120 id=120 data-nosnippet>120</a>    </span><span class="prelude-val">Ok</span>(TextResponse(id))
-<a href=#121 id=121 data-nosnippet>121</a>}
-<a href=#122 id=122 data-nosnippet>122</a>
-<a href=#123 id=123 data-nosnippet>123</a><span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState&gt; {
-<a href=#124 id=124 data-nosnippet>124</a>    post(handle)
-<a href=#125 id=125 data-nosnippet>125</a>        .route_layer(DefaultBodyLimit::max(config.max_attachments_size()))
-<a href=#126 id=126 data-nosnippet>126</a>        .route_layer(axum::middleware::from_fn(middlewares::content_length))
-<a href=#127 id=127 data-nosnippet>127</a>}
+<a href=#110 id=110 data-nosnippet>110</a>    </span>common::handle_envelope(<span class="kw-2">&amp;</span>state, envelope)
+<a href=#111 id=111 data-nosnippet>111</a>        .<span class="kw">await</span><span class="question-mark">?
+<a href=#112 id=112 data-nosnippet>112</a>        </span>.ignore_rate_limits();
+<a href=#113 id=113 data-nosnippet>113</a>
+<a href=#114 id=114 data-nosnippet>114</a>    <span class="comment">// The return here is only useful for consistency because the UE4 crash reporter doesn't
+<a href=#115 id=115 data-nosnippet>115</a>    // care about it.
+<a href=#116 id=116 data-nosnippet>116</a>    </span><span class="prelude-val">Ok</span>(TextResponse(id))
+<a href=#117 id=117 data-nosnippet>117</a>}
+<a href=#118 id=118 data-nosnippet>118</a>
+<a href=#119 id=119 data-nosnippet>119</a><span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState&gt; {
+<a href=#120 id=120 data-nosnippet>120</a>    post(handle)
+<a href=#121 id=121 data-nosnippet>121</a>        .route_layer(DefaultBodyLimit::max(config.max_attachments_size()))
+<a href=#122 id=122 data-nosnippet>122</a>        .route_layer(axum::middleware::from_fn(middlewares::content_length))
+<a href=#123 id=123 data-nosnippet>123</a>}
 </code></pre></div></section></main></body></html>

@@ -103,7 +103,7 @@
 <a href=#103 id=103 data-nosnippet>103</a>    <span class="kw">let </span>envelope = params.extract_envelope()<span class="question-mark">?</span>;
 <a href=#104 id=104 data-nosnippet>104</a>    common::handle_envelope(<span class="kw-2">&amp;</span>state, envelope)
 <a href=#105 id=105 data-nosnippet>105</a>        .<span class="kw">await</span><span class="question-mark">?
-<a href=#106 id=106 data-nosnippet>106</a>        </span>.ignore_rate_limits();
+<a href=#106 id=106 data-nosnippet>106</a>        </span>.check_rate_limits()<span class="question-mark">?</span>;
 <a href=#107 id=107 data-nosnippet>107</a>
 <a href=#108 id=108 data-nosnippet>108</a>    <span class="prelude-val">Ok</span>(().into_response())
 <a href=#109 id=109 data-nosnippet>109</a>}
