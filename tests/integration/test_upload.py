@@ -559,5 +559,7 @@ def test_objectstore_retries(mini_sentry, relay_with_processing, project_config)
     )
 
     failure = mini_sentry.test_failures.get(timeout=10)
-    assert "objectstore upload failed in 3 attempt(s)" in str(failure)
+    assert "failed to upload 1 attachment(s) to objectstore in 3 attempt(s)" in str(
+        failure
+    )
     assert response.status_code == 500

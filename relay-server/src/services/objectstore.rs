@@ -50,19 +50,6 @@ impl Objectstore {
             Self::Stream { .. } => MessageKind::Stream,
         }
     }
-
-    fn attachment_count(&self) -> usize {
-        match self {
-            Self::Envelope(StoreEnvelope { envelope }) => envelope
-                .envelope()
-                .items()
-                .filter(|item| *item.ty() == ItemType::Attachment)
-                .count(),
-            Self::TraceAttachment(_) => 1,
-            Self::EventAttachment(_) => 1,
-            Self::Stream { .. } => 1,
-        }
-    }
 }
 
 impl Interface for Objectstore {}
@@ -150,7 +137,11 @@ pub struct Error {
     #[source]
     pub kind: ErrorKind,
     /// The number of upload attempts.
+    ///
+    /// Zero for errors that occur before the first upload attempt.
     pub attempts: u16,
+    /// The amount of attachments that failed.
+    pub amount: u64,
 }
 
 impl Error {
@@ -159,12 +150,25 @@ impl Error {
         self
     }
 
+    fn with_amount(mut self, amount: usize) -> Self {
+        self.amount = amount as u64;
+        self
+    }
+
     fn log(&self, kind: MessageKind) {
+        relay_statsd::metric!(
+            counter(RelayCounters::AttachmentUpload) += self.amount,
+            result = self.kind.as_str(),
+            type = kind.as_str(),
+            attempts = self.attempts.to_string(),
+        );
         relay_log::error!(
             error = &self.kind as &dyn std::error::Error,
+            amount = self.amount,
             attempts = self.attempts,
             type = kind.as_str(),
-            "objectstore upload failed in {} attempt(s)",
+            "failed to upload {} attachment(s) to objectstore in {} attempt(s)",
+            self.amount,
             self.attempts
         )
     }
@@ -175,6 +179,7 @@ impl<E: Into<ErrorKind>> From<E> for Error {
         Self {
             kind: value.into(),
             attempts: 0,
+            amount: 1,
         }
     }
 }
@@ -310,15 +315,11 @@ impl SimpleService for ObjectstoreService {
 
 impl LoadShed<Objectstore> for ObjectstoreService {
     fn handle_loadshed(&self, message: Objectstore) {
-        relay_statsd::metric!(
-            counter(RelayCounters::AttachmentUpload) += message.attachment_count() as u64,
-            result = "load_shed",
-            type = message.kind().as_str(),
-        );
+        let error = Error::from(ErrorKind::LoadShed);
+        error.log(message.kind());
         match message {
             Objectstore::Envelope(envelope) => {
                 // Event attachments can still go the old route.
-
                 self.inner.store.send(envelope);
             }
             Objectstore::EventAttachment(message) => {
@@ -392,14 +393,9 @@ impl ObjectstoreServiceInner {
             .filter(|item| *item.ty() == ItemType::Attachment);
 
         match session {
-            Err(error) => {
-                relay_log::error!(error = &error as &dyn std::error::Error, "session error");
-                relay_statsd::metric!(
-                    counter(RelayCounters::AttachmentUpload) += attachments.count() as u64,
-                    result = error.to_string().as_str(),
-                    type = "envelope",
-                );
-            }
+            Err(error) => Error::from(error)
+                .with_amount(attachments.count())
+                .log(MessageKind::Envelope),
             Ok(session) => {
                 for attachment in attachments {
                     if Self::should_skip_upload(attachment) {
@@ -448,14 +444,7 @@ impl ObjectstoreServiceInner {
             .session(&self.objectstore_client);
 
         match session {
-            Err(error) => {
-                relay_log::error!(error = &error as &dyn std::error::Error, "session error");
-                relay_statsd::metric!(
-                    counter(RelayCounters::AttachmentUpload) += 1,
-                    result = error.to_string().as_str(),
-                    type = MessageKind::EventAttachment.as_str(),
-                );
-            }
+            Err(error) => Error::from(error).log(MessageKind::EventAttachment),
             Ok(session) => {
                 let result = self
                     .upload_bytes(
@@ -551,14 +540,7 @@ impl ObjectstoreServiceInner {
         let session = self
             .event_attachments
             .for_project(organization_id.value(), project_id.value())
-            .session(&self.objectstore_client)
-            .inspect_err(|error| {
-                relay_statsd::metric!(
-                    counter(RelayCounters::AttachmentUpload) += 1,
-                    result = error.to_string().as_str(),
-                    type = "stream",
-                );
-            })?;
+            .session(&self.objectstore_client)?;
 
         self.upload(
             MessageKind::Stream,
@@ -621,15 +603,14 @@ impl ObjectstoreServiceInner {
         .map_err(Error::from)
         .flatten();
 
-        relay_statsd::metric!(
-            counter(RelayCounters::AttachmentUpload) += 1,
-            result = match &result {
-                Ok(_) => "success",
-                Err(e) => e.kind.as_str(),
-            },
-            type = kind.as_str(),
-            attempts = attempts.to_string()
-        );
+        if result.is_ok() {
+            relay_statsd::metric!(
+                counter(RelayCounters::AttachmentUpload) += 1,
+                result = "success",
+                type = kind.as_str(),
+                attempts = attempts.to_string()
+            );
+        }
 
         result.map_err(|e| e.with_attempts(attempts))
     }
