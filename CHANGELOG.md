@@ -4,7 +4,7 @@
 
 **Breaking Changes**:
 
-- Stop publishing to Docker Hub. ([#5845](https://github.com/getsentry/relay/pull/5845))
+- Docker images are no longer published to Docker Hub, use the Github Container Registry instead ([see documentation](https://github.com/getsentry/relay/pkgs/container/relay)). ([#5845](https://github.com/getsentry/relay/pull/5845))
 
 **Features**:
 
