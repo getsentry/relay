@@ -50,6 +50,19 @@ impl Objectstore {
             Self::Stream { .. } => MessageKind::Stream,
         }
     }
+
+    fn attachment_count(&self) -> usize {
+        match self {
+            Self::Envelope(StoreEnvelope { envelope }) => envelope
+                .envelope()
+                .items()
+                .filter(|item| *item.ty() == ItemType::Attachment)
+                .count(),
+            Self::TraceAttachment(_) => 1,
+            Self::EventAttachment(_) => 1,
+            Self::Stream { .. } => 1,
+        }
+    }
 }
 
 impl Interface for Objectstore {}
@@ -201,7 +214,7 @@ impl ErrorKind {
     fn as_str(&self) -> &'static str {
         match self {
             Self::Timeout(_) => "timeout",
-            Self::LoadShed => "load-shed",
+            Self::LoadShed => "load_shed",
             Self::UploadFailed(_) => "upload_failed",
             Self::Uuid(_) => "uuid",
         }
@@ -315,7 +328,7 @@ impl SimpleService for ObjectstoreService {
 
 impl LoadShed<Objectstore> for ObjectstoreService {
     fn handle_loadshed(&self, message: Objectstore) {
-        let error = Error::from(ErrorKind::LoadShed);
+        let error = Error::from(ErrorKind::LoadShed).with_amount(message.attachment_count());
         error.log(message.kind());
         match message {
             Objectstore::Envelope(envelope) => {
