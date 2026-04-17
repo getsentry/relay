@@ -42,12 +42,12 @@ pub enum Objectstore {
 }
 
 impl Objectstore {
-    fn ty(&self) -> &str {
+    fn kind(&self) -> MessageKind {
         match self {
-            Objectstore::Envelope(_) => "envelope",
-            Objectstore::TraceAttachment(_) => "attachment_v2",
-            Objectstore::EventAttachment(_) => "attachment",
-            Objectstore::Stream { .. } => "stream",
+            Self::Envelope(_) => MessageKind::Envelope,
+            Self::TraceAttachment(_) => MessageKind::TraceAttachment,
+            Self::EventAttachment(_) => MessageKind::EventAttachment,
+            Self::Stream { .. } => MessageKind::Stream,
         }
     }
 
@@ -88,6 +88,26 @@ impl FromMessage<Managed<StoreAttachment>> for Objectstore {
 
     fn from_message(message: Managed<StoreAttachment>, _sender: ()) -> Self {
         Self::EventAttachment(message)
+    }
+}
+
+/// A type tag used for logging.
+#[derive(Debug, Clone, Copy)]
+enum MessageKind {
+    Envelope,
+    EventAttachment,
+    TraceAttachment,
+    Stream,
+}
+
+impl MessageKind {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Self::Envelope => "envelope",
+            Self::EventAttachment => "attachment",
+            Self::TraceAttachment => "attachment_v2",
+            Self::Stream => "stream",
+        }
     }
 }
 
@@ -283,7 +303,7 @@ impl LoadShed<Objectstore> for ObjectstoreService {
         relay_statsd::metric!(
             counter(RelayCounters::AttachmentUpload) += message.attachment_count() as u64,
             result = "load_shed",
-            type = message.ty(),
+            type = message.kind().as_str(),
         );
         match message {
             Objectstore::Envelope(envelope) => {
@@ -323,10 +343,10 @@ impl ObjectstoreServiceInner {
                 self.handle_envelope(envelope).await;
             }
             Objectstore::TraceAttachment(attachment) => {
-                self.handle_trace_attachment(attachment).await
+                self.handle_trace_attachment(attachment).await // TODO
             }
             Objectstore::EventAttachment(attachment) => {
-                self.handle_event_attachment(attachment).await
+                self.handle_event_attachment(attachment).await // TODO
             }
             Objectstore::Stream(message, sender) => self.handle_stream(message, sender).await,
         }
@@ -364,11 +384,28 @@ impl ObjectstoreServiceInner {
                         continue;
                     }
                     let result = self
-                        .upload_bytes("envelope", &session, attachment.payload(), retention, None)
+                        .upload_bytes(
+                            MessageKind::Envelope,
+                            &session,
+                            attachment.payload(),
+                            retention,
+                            None,
+                        )
                         .await;
 
-                    if let Ok(stored_key) = result {
-                        attachment.set_stored_key(stored_key.into_inner());
+                    match result {
+                        Ok(stored_key) => {
+                            attachment.set_stored_key(stored_key.into_inner());
+                        }
+                        Err(Error { kind, attempts }) => {
+                            relay_log::error!(
+                                error = &kind as &dyn std::error::Error,
+                                attempts = attempts,
+                                type = MessageKind::Envelope.as_str(),
+                                "objectstore upload failed in {} attempt(s)",
+                                attempts
+                            )
+                        }
                     }
                 }
             }
@@ -400,13 +437,13 @@ impl ObjectstoreServiceInner {
                 relay_statsd::metric!(
                     counter(RelayCounters::AttachmentUpload) += 1,
                     result = error.to_string().as_str(),
-                    type = "attachment",
+                    type = MessageKind::EventAttachment.as_str(),
                 );
             }
             Ok(session) => {
                 let result = self
                     .upload_bytes(
-                        "attachment",
+                        MessageKind::EventAttachment,
                         &session,
                         attachment.attachment.payload(),
                         attachment.retention,
@@ -484,7 +521,13 @@ impl ObjectstoreServiceInner {
             let original_key = key.clone();
 
             let _stored_key = self
-                .upload_bytes("attachment_v2", &session, body, retention, Some(key))
+                .upload_bytes(
+                    MessageKind::TraceAttachment,
+                    &session,
+                    body,
+                    retention,
+                    Some(key),
+                )
                 .await
                 .reject(&trace_item)?;
 
@@ -524,7 +567,7 @@ impl ObjectstoreServiceInner {
 
         let result = self
             .upload(
-                "stream",
+                MessageKind::Stream,
                 &session,
                 Some(key),
                 Body::Stream(TakeOnce::new(stream)),
@@ -537,20 +580,20 @@ impl ObjectstoreServiceInner {
 
     async fn upload_bytes(
         &self,
-        ty: &str,
+        kind: MessageKind,
         session: &Session,
         payload: Bytes,
         retention: u16,
         key: Option<String>,
     ) -> Result<ObjectstoreKey, Error> {
         let retention_hours = retention.checked_mul(24);
-        self.upload(ty, session, key, Body::Bytes(payload), retention_hours)
+        self.upload(kind, session, key, Body::Bytes(payload), retention_hours)
             .await
     }
 
     async fn upload(
         &self,
-        ty: &str,
+        kind: MessageKind,
         session: &Session,
         key: Option<String>,
         body: Body,
@@ -565,7 +608,7 @@ impl ObjectstoreServiceInner {
                 };
                 attempts += 1;
                 result.replace(
-                    self.attempt_upload(ty, session, key.clone(), body, retention_hours)
+                    self.attempt_upload(kind, session, key.clone(), body, retention_hours)
                         .await,
                 );
 
@@ -586,23 +629,13 @@ impl ObjectstoreServiceInner {
         .map_err(Error::from)
         .flatten();
 
-        if let Err(e) = &result {
-            relay_log::error!(
-                error = e as &dyn std::error::Error,
-                attempts = attempts,
-                type = ty,
-                "objectstore upload failed in {} attempt(s)",
-                attempts
-            )
-        }
-
         relay_statsd::metric!(
             counter(RelayCounters::AttachmentUpload) += 1,
             result = match &result {
                 Ok(_) => "success",
                 Err(e) => e.kind.as_str(),
             },
-            type = ty,
+            type = kind.as_str(),
             attempts = attempts.to_string()
         );
 
@@ -611,7 +644,7 @@ impl ObjectstoreServiceInner {
 
     async fn attempt_upload(
         &self,
-        ty: &str,
+        kind: MessageKind,
         session: &Session,
         key: Option<String>,
         body: BodyAttempt,
@@ -633,7 +666,7 @@ impl ObjectstoreServiceInner {
 
         let response = relay_statsd::metric!(
             timer(RelayTimers::AttachmentUploadDuration),
-            type = ty,
+            type = kind.as_str(),
             {
                 request.send().await
             }
