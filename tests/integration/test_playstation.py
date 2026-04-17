@@ -333,7 +333,7 @@ def test_playstation_max_stream_size_exceeded(
 ):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("playstation.prosperodmp")
-    stream_size_limit = len(playstation_dump) - 131
+    stream_size_limit = len(playstation_dump) - 100
     relay = relay_processing_with_playstation(
         {
             "limits": {
@@ -349,11 +349,8 @@ def test_playstation_max_stream_size_exceeded(
         _ = relay.send_playstation_request(PROJECT_ID, playstation_dump)
 
     response = exc_info.value.response
-    assert response.status_code == 400, "Expected a 400 status code"
-    assert (
-        response.content.decode("utf-8")
-        == f'{{"detail":"invalid multipart data","causes":["failed to read stream","stream size exceeded limit: {stream_size_limit} bytes"]}}'
-    )
+    assert response.status_code == 413, "Expected a 413 status code"
+    assert response.content.decode("utf-8") == "length limit exceeded"
     assert len(outcomes_consumer.get_outcomes()) == 0
 
 

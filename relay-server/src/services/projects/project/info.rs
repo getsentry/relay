@@ -4,7 +4,7 @@ use chrono::{DateTime, Duration, Utc};
 
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::{ProjectId, ProjectKey};
-use relay_config::Config;
+use relay_config::{Config, UpstreamDescriptor};
 use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig, SignatureVerification};
 use relay_filter::matches_any_origin;
 use relay_quotas::{Quota, Scoping};
@@ -39,14 +39,40 @@ pub struct ProjectInfo {
     #[serde(default)]
     pub public_keys: SmallVec<[PublicKeyConfig; 1]>,
     /// The project's slug if available.
-    #[serde(default)]
     pub slug: Option<String>,
     /// The project's current config.
     #[serde(default)]
     pub config: ProjectConfig,
     /// The organization id.
-    #[serde(default)]
     pub organization_id: Option<OrganizationId>,
+
+    /// The upstream this Relay should use to forward/send data to.
+    ///
+    /// A Relay can advertise an upstream override per project to Relays which request
+    /// a project config.
+    ///
+    /// The upstream specified here acts as a, per project, override for the locally configured
+    /// (default) upstream.
+    ///
+    /// An upstream received with a project config must never be forwarded to a downstream Relay,
+    /// instead each Relay instance must (optionally) inject an upstream value to be used by the next
+    /// downstream Relay in the chain.
+    ///
+    /// ```text
+    /// /-----------\     /-----------\     /-----------\
+    /// |  Relay 3  |---->|  Relay 2  |---->|  Relay 1  |
+    /// \-----------?     \-----------/     \-----------?
+    ///        ^               | ^               |
+    ///        \---------------/ \---------------/
+    ///           r2.upstream       r1.upstream
+    /// ```
+    ///
+    /// Every upstream communicated must be reachable from the Relay receiving the upstream, and
+    /// every upstream must be part of the same Sentry installation.
+    /// As this is purely a mechanism to route and shape traffic authentication credentials will
+    /// be re-used.
+    #[serde(skip_serializing)]
+    pub upstream: Option<UpstreamDescriptor<'static>>,
 }
 
 /// Controls how we serialize a ProjectState for an external Relay

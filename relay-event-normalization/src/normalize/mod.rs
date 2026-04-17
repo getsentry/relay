@@ -421,8 +421,12 @@ impl ModelMetadata {
     }
 
     /// Gets the context window size for a given model, if defined.
+    ///
+    /// Returns `None` for a zero context size, as it is not a meaningful value.
     pub fn context_size(&self, model_id: &str) -> Option<u64> {
-        self.get(model_id).and_then(|entry| entry.context_size)
+        self.get(model_id)
+            .and_then(|entry| entry.context_size)
+            .filter(|&size| size > 0)
     }
 
     /// Gets the metadata for a given model, if defined.

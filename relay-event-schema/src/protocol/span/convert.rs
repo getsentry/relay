@@ -180,6 +180,8 @@ mod tests {
                 gen_ai_usage_output_tokens_prediction_rejected: ~,
                 gen_ai_response_model: ~,
                 gen_ai_request_model: ~,
+                gen_ai_context_window_size: ~,
+                gen_ai_context_utilization: ~,
                 gen_ai_cost_total_tokens: ~,
                 gen_ai_cost_input_tokens: ~,
                 gen_ai_cost_output_tokens: ~,

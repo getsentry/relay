@@ -107,6 +107,15 @@ impl<'a> UpstreamDescriptor<'a> {
             scheme: self.scheme,
         }
     }
+
+    /// Converts from `&UpstreamDescriptor<'_>` to `UpstreamDescriptor<'_>`.
+    pub fn as_ref(&self) -> UpstreamDescriptor<'_> {
+        UpstreamDescriptor {
+            host: Cow::Borrowed(&self.host),
+            port: self.port,
+            scheme: self.scheme,
+        }
+    }
 }
 
 impl Default for UpstreamDescriptor<'static> {

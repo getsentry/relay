@@ -15,6 +15,7 @@ use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::{DiscardItemType, DiscardReason};
 use crate::services::processor::ProcessingError;
+use crate::statsd::RelayCounters;
 use crate::utils::{self, extract_items};
 
 #[derive(Debug, Deserialize)]
@@ -59,6 +60,9 @@ impl UnrealParams {
         .is_keep();
 
         if endpoint_expansion_rolled_out {
+            // Ensure that we really make it here.
+            relay_statsd::metric!(counter(RelayCounters::UnrealEndpointExpansion) += 1);
+
             let project = state
                 .project_cache_handle()
                 .ready(public_key, state.config().query_timeout())
