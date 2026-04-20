@@ -491,7 +491,7 @@
 <a href=#491 id=491 data-nosnippet>491</a>    <span class="doccomment">/// The instance type of this Relay.
 <a href=#492 id=492 data-nosnippet>492</a>    </span><span class="kw">pub </span>instance: RelayInstance,
 <a href=#493 id=493 data-nosnippet>493</a>    <span class="doccomment">/// The upstream Relay or Sentry instance.
-<a href=#494 id=494 data-nosnippet>494</a>    </span><span class="kw">pub </span>upstream: UpstreamDescriptor&lt;<span class="lifetime">'static</span>&gt;,
+<a href=#494 id=494 data-nosnippet>494</a>    </span><span class="kw">pub </span>upstream: UpstreamDescriptor,
 <a href=#495 id=495 data-nosnippet>495</a>    <span class="doccomment">/// The upstream advertised to downstream Relay instances.
 <a href=#496 id=496 data-nosnippet>496</a>    ///
 <a href=#497 id=497 data-nosnippet>497</a>    /// This value will be advertised to downstream Relays as the upstream to use when forwarding
@@ -500,7 +500,7 @@
 <a href=#500 id=500 data-nosnippet>500</a>    ///
 <a href=#501 id=501 data-nosnippet>501</a>    /// Downstream Relays will treat the advertised upstream as the same logical component as this instance
 <a href=#502 id=502 data-nosnippet>502</a>    /// and re-use already established authentication keys.
-<a href=#503 id=503 data-nosnippet>503</a>    </span><span class="kw">pub </span>advertised_upstream: <span class="prelude-ty">Option</span>&lt;UpstreamDescriptor&lt;<span class="lifetime">'static</span>&gt;&gt;,
+<a href=#503 id=503 data-nosnippet>503</a>    </span><span class="kw">pub </span>advertised_upstream: <span class="prelude-ty">Option</span>&lt;UpstreamDescriptor&gt;,
 <a href=#504 id=504 data-nosnippet>504</a>    <span class="doccomment">/// The host the relay should bind to (network interface).
 <a href=#505 id=505 data-nosnippet>505</a>    </span><span class="kw">pub </span>host: IpAddr,
 <a href=#506 id=506 data-nosnippet>506</a>    <span class="doccomment">/// The port to bind for the unencrypted relay HTTP server.
@@ -1854,7 +1854,7 @@
 <a href=#1854 id=1854 data-nosnippet>1854</a>        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(upstream_dsn) = overrides.upstream_dsn {
 <a href=#1855 id=1855 data-nosnippet>1855</a>            relay.upstream = upstream_dsn
 <a href=#1856 id=1856 data-nosnippet>1856</a>                .parse::&lt;Dsn&gt;()
-<a href=#1857 id=1857 data-nosnippet>1857</a>                .map(|dsn| UpstreamDescriptor::from_dsn(<span class="kw-2">&amp;</span>dsn).into_owned())
+<a href=#1857 id=1857 data-nosnippet>1857</a>                .map(|dsn| UpstreamDescriptor::from_dsn(<span class="kw-2">&amp;</span>dsn))
 <a href=#1858 id=1858 data-nosnippet>1858</a>                .with_context(|| ConfigError::field(<span class="string">"upstream_dsn"</span>))<span class="question-mark">?</span>;
 <a href=#1859 id=1859 data-nosnippet>1859</a>        }
 <a href=#1860 id=1860 data-nosnippet>1860</a>
@@ -2066,12 +2066,12 @@
 <a href=#2066 id=2066 data-nosnippet>2066</a>    }
 <a href=#2067 id=2067 data-nosnippet>2067</a>
 <a href=#2068 id=2068 data-nosnippet>2068</a>    <span class="doccomment">/// Returns the upstream target as descriptor.
-<a href=#2069 id=2069 data-nosnippet>2069</a>    </span><span class="kw">pub fn </span>upstream_descriptor(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>UpstreamDescriptor&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#2069 id=2069 data-nosnippet>2069</a>    </span><span class="kw">pub fn </span>upstream_descriptor(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>UpstreamDescriptor {
 <a href=#2070 id=2070 data-nosnippet>2070</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.values.relay.upstream
 <a href=#2071 id=2071 data-nosnippet>2071</a>    }
 <a href=#2072 id=2072 data-nosnippet>2072</a>
 <a href=#2073 id=2073 data-nosnippet>2073</a>    <span class="doccomment">/// Returns the advertised upstream for downstream instances as descriptor.
-<a href=#2074 id=2074 data-nosnippet>2074</a>    </span><span class="kw">pub fn </span>advertised_upstream_descriptor(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>UpstreamDescriptor&lt;<span class="lifetime">'_</span>&gt;&gt; {
+<a href=#2074 id=2074 data-nosnippet>2074</a>    </span><span class="kw">pub fn </span>advertised_upstream_descriptor(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>UpstreamDescriptor&gt; {
 <a href=#2075 id=2075 data-nosnippet>2075</a>        <span class="self">self</span>.values.relay.advertised_upstream.as_ref()
 <a href=#2076 id=2076 data-nosnippet>2076</a>    }
 <a href=#2077 id=2077 data-nosnippet>2077</a>
