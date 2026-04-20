@@ -15,6 +15,7 @@
 
 - Move unreal crash report expansion from processing into endpoint. ([#5825](https://github.com/getsentry/relay/pull/5825))
 - Retry failing objectstore requests. ([#5836](https://github.com/getsentry/relay/pull/5836))
+- Add mobile normalizations to SpanV2 processing pipeline (mobile tag, main thread, outlier filtering, app start backfill from V1 transactions, device class). ([#5824](https://github.com/getsentry/relay/pull/5824))
 
 **Bug Fixes**:
 
