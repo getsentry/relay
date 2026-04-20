@@ -491,7 +491,7 @@ pub struct Relay {
     /// The instance type of this Relay.
     pub instance: RelayInstance,
     /// The upstream Relay or Sentry instance.
-    pub upstream: UpstreamDescriptor<'static>,
+    pub upstream: UpstreamDescriptor,
     /// The upstream advertised to downstream Relay instances.
     ///
     /// This value will be advertised to downstream Relays as the upstream to use when forwarding
@@ -500,7 +500,7 @@ pub struct Relay {
     ///
     /// Downstream Relays will treat the advertised upstream as the same logical component as this instance
     /// and re-use already established authentication keys.
-    pub advertised_upstream: Option<UpstreamDescriptor<'static>>,
+    pub advertised_upstream: Option<UpstreamDescriptor>,
     /// The host the relay should bind to (network interface).
     pub host: IpAddr,
     /// The port to bind for the unencrypted relay HTTP server.
@@ -1854,7 +1854,7 @@ impl Config {
         } else if let Some(upstream_dsn) = overrides.upstream_dsn {
             relay.upstream = upstream_dsn
                 .parse::<Dsn>()
-                .map(|dsn| UpstreamDescriptor::from_dsn(&dsn).into_owned())
+                .map(|dsn| UpstreamDescriptor::from_dsn(&dsn))
                 .with_context(|| ConfigError::field("upstream_dsn"))?;
         }
 
@@ -2066,12 +2066,12 @@ impl Config {
     }
 
     /// Returns the upstream target as descriptor.
-    pub fn upstream_descriptor(&self) -> &UpstreamDescriptor<'_> {
+    pub fn upstream_descriptor(&self) -> &UpstreamDescriptor {
         &self.values.relay.upstream
     }
 
     /// Returns the advertised upstream for downstream instances as descriptor.
-    pub fn advertised_upstream_descriptor(&self) -> Option<&UpstreamDescriptor<'_>> {
+    pub fn advertised_upstream_descriptor(&self) -> Option<&UpstreamDescriptor> {
         self.values.relay.advertised_upstream.as_ref()
     }
 

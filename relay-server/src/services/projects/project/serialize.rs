@@ -37,7 +37,7 @@ pub struct OutgoingProjectState {
     ///
     /// See also: [`ProjectInfo::upstream`].
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub upstream: Option<UpstreamDescriptor<'static>>,
+    pub upstream: Option<UpstreamDescriptor>,
 }
 
 /// Limited project state for external Relays.
@@ -56,7 +56,7 @@ pub struct LimitedOutgoingProjectState {
     ///
     /// See also: [`ProjectInfo::upstream`].
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub upstream: Option<UpstreamDescriptor<'static>>,
+    pub upstream: Option<UpstreamDescriptor>,
 }
 
 #[cfg(test)]
