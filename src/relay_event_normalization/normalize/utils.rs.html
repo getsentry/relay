@@ -19,10 +19,10 @@
 <a href=#19 id=19 data-nosnippet>19</a><span class="doccomment">/// Allowed value for main thread name.
 <a href=#20 id=20 data-nosnippet>20</a></span><span class="kw">pub const </span>MAIN_THREAD_NAME: <span class="kw-2">&amp;</span>str = <span class="string">"main"</span>;
 <a href=#21 id=21 data-nosnippet>21</a>
-<a href=#22 id=22 data-nosnippet>22</a><span class="doccomment">/// Maximum length of a mobile span or measurement in milliseconds.
+<a href=#22 id=22 data-nosnippet>22</a><span class="doccomment">/// Maximum duration of a mobile measurement in milliseconds.
 <a href=#23 id=23 data-nosnippet>23</a>///
-<a href=#24 id=24 data-nosnippet>24</a>/// Spans like `ui.load` with an `exclusive_time` that exceeds this number will be removed,
-<a href=#25 id=25 data-nosnippet>25</a>/// as well as mobile measurements (on transactions) such as `app.start.cold`, etc.
+<a href=#24 id=24 data-nosnippet>24</a>/// Mobile measurements (app start, TTID, TTFD) that exceed this threshold are considered
+<a href=#25 id=25 data-nosnippet>25</a>/// outliers and removed.
 <a href=#26 id=26 data-nosnippet>26</a></span><span class="kw">pub const </span>MAX_DURATION_MOBILE_MS: f64 = <span class="number">180_000.0</span>;
 <a href=#27 id=27 data-nosnippet>27</a>
 <a href=#28 id=28 data-nosnippet>28</a><span class="doccomment">/// Extract the HTTP status code from the span data.
