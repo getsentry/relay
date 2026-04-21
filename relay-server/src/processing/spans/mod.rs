@@ -472,7 +472,7 @@ pub struct TotalAndIndexed;
 /// Once metric extraction happened, spans no longer track/represent the total category, this was
 /// transferred over to the metrics.
 ///
-/// Every which is stored, must have metrics extracted and transferred this ownership.
+/// Every stored span, must have metrics extracted and transferred this ownership.
 #[derive(Copy, Clone, Debug)]
 pub struct Indexed;
 

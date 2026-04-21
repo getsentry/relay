@@ -1,6 +1,4 @@
 use relay_dynamic_config::{CombinedMetricExtractionConfig, ErrorBoundary};
-use relay_event_schema::protocol::Span;
-use relay_metrics::Bucket;
 use relay_quotas::DataCategory;
 use relay_sampling::evaluation::SamplingDecision;
 
@@ -73,13 +71,14 @@ fn split_indexed_and_total(
 ) {
     let scoping = spans.scoping();
     let transaction_from_dsc = spans.headers.dsc().and_then(|dsc| dsc.transaction.clone());
+    let mec = metrics_extraction_config(ctx);
 
     spans.split_once(|spans, r| {
         r.lenient(DataCategory::MetricBucket);
 
         let mut metrics = ProcessingExtractedMetrics::new();
         for span in spans.spans.iter().filter_map(|s| s.value()) {
-            if let Some(buckets) = extract_generic_metrics(span, ctx) {
+            if let Some(buckets) = mec.map(|config| generic::extract_metrics(span, config)) {
                 metrics.extend_project_metrics(buckets, Some(sampling_decision));
             }
 
@@ -98,15 +97,11 @@ fn split_indexed_and_total(
     })
 }
 
-fn extract_generic_metrics(span: &Span, ctx: Context<'_>) -> Option<Vec<Bucket>> {
-    let config = {
-        let local = match ctx.project_info.config.metric_extraction {
-            ErrorBoundary::Ok(ref config) if config.is_enabled() => config,
-            _ => return None,
-        };
-        let global = ctx.global_config.metric_extraction.as_ref().ok()?;
-        CombinedMetricExtractionConfig::new(global, local)
+fn metrics_extraction_config(ctx: Context<'_>) -> Option<CombinedMetricExtractionConfig<'_>> {
+    let local = match ctx.project_info.config.metric_extraction {
+        ErrorBoundary::Ok(ref config) if config.is_enabled() => config,
+        _ => return None,
     };
-
-    Some(generic::extract_metrics(span, config))
+    let global = ctx.global_config.metric_extraction.as_ref().ok()?;
+    Some(CombinedMetricExtractionConfig::new(global, local))
 }
