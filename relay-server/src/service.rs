@@ -78,7 +78,7 @@ pub struct Registry {
     pub relay_cache: Addr<RelayCache>,
     pub global_config: Addr<GlobalConfigManager>,
     pub upstream_relay: Addr<UpstreamRelay>,
-    pub envelope_buffer: PartitionedEnvelopeBuffer,
+    pub envelope_buffer: Arc<PartitionedEnvelopeBuffer>,
     pub project_cache_handle: ProjectCacheHandle,
     pub autoscaling: Option<Addr<AutoscalingMetrics>>,
     #[cfg(feature = "processing")]

@@ -10,10 +10,12 @@
 
 - Use `ModelMetadata` config with context size and utilization. ([#5814](https://github.com/getsentry/relay/pull/5814))
 - Handle minidump placeholders. ([#5849](https://github.com/getsentry/relay/pull/5849))
+- Add config option to spread envelopes evenly across buffer partitions. ([#5853](https://github.com/getsentry/relay/pull/5853))
 
 **Internal**:
 
 - Move unreal crash report expansion from processing into endpoint. ([#5825](https://github.com/getsentry/relay/pull/5825))
+- Ports legacy standalone span processing to the processing framework. ([#5852](https://github.com/getsentry/relay/pull/5852))
 - Retry failing objectstore requests. ([#5836](https://github.com/getsentry/relay/pull/5836))
 - Add mobile normalizations to SpanV2 processing pipeline (mobile tag, main thread, outlier filtering, app start backfill from V1 transactions, device class). ([#5824](https://github.com/getsentry/relay/pull/5824))
 - Remove the deprecated `aiModelCosts` global config, superseded by `aiModelMetadata`. ([#5862](https://github.com/getsentry/relay/pull/5862))
