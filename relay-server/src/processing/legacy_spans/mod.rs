@@ -170,6 +170,17 @@ impl Forward for LegacySpanOutput {
         s: processing::forward::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
+        let spans = match self {
+            Self::Serialized(spans) => {
+                return Err(spans
+                    .internal_error("a span must have metrics extracted in order to be stored"));
+            }
+            Self::Indexed(spans) => spans,
+        };
+
+        // We're dealing with indexed only spans here, but each individual span has a default
+        // `Counted` implementation which counts in the total and indexed categories, to make sure
+        // we stay in the indexed category, this wrapper is needed.
         #[derive(Debug)]
         struct IndexedOnly(Annotated<Span>);
 
@@ -178,14 +189,6 @@ impl Forward for LegacySpanOutput {
                 smallvec::smallvec![(DataCategory::SpanIndexed, 1)]
             }
         }
-
-        let spans = match self {
-            Self::Serialized(spans) => {
-                return Err(spans
-                    .internal_error("a span must have metrics extracted in order to be stored"));
-            }
-            Self::Indexed(spans) => spans,
-        };
 
         let retention = ctx.retention(|r| r.span.as_ref());
 
