@@ -416,7 +416,9 @@ class SentryLike:
         response.raise_for_status()
         return response
 
-    def send_minidump(self, project_id, params=None, files=None, dsn_key_idx=0):
+    def send_minidump(
+        self, project_id, params=None, files=None, dsn_key_idx=0, raise_for_status=True
+    ):
         """
         :param project_id: the project id
         :param params: a list of tuples (param_name, param_value)
@@ -446,7 +448,8 @@ class SentryLike:
             files=all_files,
         )
 
-        response.raise_for_status()
+        if raise_for_status:
+            response.raise_for_status()
         return response
 
     def send_unreal_request(self, project_id, file_content, dsn_key_idx=0):
