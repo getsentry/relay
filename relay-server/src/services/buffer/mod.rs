@@ -79,15 +79,6 @@ pub struct PartitionedEnvelopeBuffer {
     partitioning: Partitioning,
 }
 
-/// Internal representation of the partition-selection strategy.
-#[derive(Debug, Clone)]
-enum Partitioning {
-    /// Partition by project key pair, using a fixed-seed hasher for deterministic placement.
-    ProjectKeyPair(RandomState),
-    /// Distribute envelopes round-robin across partitions using a shared atomic counter.
-    RoundRobin(Arc<AtomicUsize>),
-}
-
 impl PartitionedEnvelopeBuffer {
     /// Creates a new [`PartitionedEnvelopeBuffer`] by instantiating inside all the necessary
     /// [`ObservableEnvelopeBuffer`]s.
@@ -180,6 +171,15 @@ impl PartitionedEnvelopeBuffer {
 
         RandomState::with_seeds(K0, K1, K2, K3)
     }
+}
+
+/// Internal representation of the partition-selection strategy.
+#[derive(Debug, Clone)]
+enum Partitioning {
+    /// Partition by project key pair, using a fixed-seed hasher for deterministic placement.
+    ProjectKeyPair(RandomState),
+    /// Distribute envelopes round-robin across partitions using a shared atomic counter.
+    RoundRobin(Arc<AtomicUsize>),
 }
 
 impl Partitioning {
