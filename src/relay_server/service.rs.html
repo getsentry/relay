@@ -78,7 +78,7 @@
 <a href=#78 id=78 data-nosnippet>78</a>    <span class="kw">pub </span>relay_cache: Addr&lt;RelayCache&gt;,
 <a href=#79 id=79 data-nosnippet>79</a>    <span class="kw">pub </span>global_config: Addr&lt;GlobalConfigManager&gt;,
 <a href=#80 id=80 data-nosnippet>80</a>    <span class="kw">pub </span>upstream_relay: Addr&lt;UpstreamRelay&gt;,
-<a href=#81 id=81 data-nosnippet>81</a>    <span class="kw">pub </span>envelope_buffer: PartitionedEnvelopeBuffer,
+<a href=#81 id=81 data-nosnippet>81</a>    <span class="kw">pub </span>envelope_buffer: Arc&lt;PartitionedEnvelopeBuffer&gt;,
 <a href=#82 id=82 data-nosnippet>82</a>    <span class="kw">pub </span>project_cache_handle: ProjectCacheHandle,
 <a href=#83 id=83 data-nosnippet>83</a>    <span class="kw">pub </span>autoscaling: <span class="prelude-ty">Option</span>&lt;Addr&lt;AutoscalingMetrics&gt;&gt;,
 <a href=#84 id=84 data-nosnippet>84</a>    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
