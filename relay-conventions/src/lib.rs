@@ -8,6 +8,7 @@
 
 pub mod consts {
     #![allow(rustdoc::bare_urls)]
+    #![allow(non_upper_case_globals)]
     include!(concat!(env!("OUT_DIR"), "/attribute_consts.rs"));
 }
 
