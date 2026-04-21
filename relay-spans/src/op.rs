@@ -16,14 +16,13 @@ pub fn derive_op_for_v2_span(attributes: &Annotated<Attributes>) -> String {
         return op;
     };
 
-    // TODO: `http.method` is deprecated. This should probably be taken care of during normalization.
-    if attributes.contains_key(HTTP_REQUEST_METHOD) || attributes.contains_key("http.method") {
-        let kind = attributes.get_value(SPAN_KIND).and_then(|v| v.as_str());
+    if attributes.contains_key(HTTP__REQUEST__METHOD) || attributes.contains_key(HTTP__METHOD) {
+        let kind = attributes.get_value(SENTRY__KIND).and_then(|v| v.as_str());
         return match kind {
             Some(kind) if kind == SpanKind::Client.as_str() => String::from("http.client"),
             Some(kind) if kind == SpanKind::Server.as_str() => String::from("http.server"),
             _ => {
-                if attributes.contains_key(HTTP_PREFETCH) {
+                if attributes.contains_key(SENTRY__HTTP__PREFETCH) {
                     String::from("http.prefetch")
                 } else {
                     String::from("http")
@@ -32,24 +31,23 @@ pub fn derive_op_for_v2_span(attributes: &Annotated<Attributes>) -> String {
         };
     }
 
-    // TODO: `db.system` is deprecated. This should probably be taken care of during normalization.
-    if attributes.contains_key(DB_SYSTEM_NAME) || attributes.contains_key("db.system") {
+    if attributes.contains_key(DB__SYSTEM__NAME) || attributes.contains_key(DB__SYSTEM) {
         return String::from("db");
     }
 
-    if attributes.contains_key(GEN_AI_SYSTEM) {
+    if attributes.contains_key(GEN_AI__SYSTEM) {
         return String::from("gen_ai");
     }
 
-    if attributes.contains_key(RPC_SERVICE) {
+    if attributes.contains_key(RPC__SERVICE) {
         return String::from("rpc");
     }
 
-    if attributes.contains_key(MESSAGING_SYSTEM) {
+    if attributes.contains_key(MESSAGING__SYSTEM) {
         return String::from("message");
     }
 
-    if let Some(faas_trigger) = attributes.get_value(FAAS_TRIGGER).and_then(|v| v.as_str()) {
+    if let Some(faas_trigger) = attributes.get_value(FAAS__TRIGGER).and_then(|v| v.as_str()) {
         return faas_trigger.to_owned();
     }
 
