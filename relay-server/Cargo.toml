@@ -35,7 +35,7 @@ arc-swap = { workspace = true }
 axum = { workspace = true, features = ["macros", "matched-path", "tracing"] }
 axum-extra = { workspace = true }
 axum-server = { workspace = true }
-backon = { workspace = true }
+backon = { workspace = true, default-features = false }
 brotli = { workspace = true }
 bytecount = { workspace = true }
 bytes = { workspace = true, features = ["serde"] }
