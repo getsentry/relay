@@ -417,7 +417,13 @@ class SentryLike:
         return response
 
     def send_minidump(
-        self, project_id, params=None, files=None, dsn_key_idx=0, raise_for_status=True
+        self,
+        project_id,
+        params=None,
+        files=None,
+        *,
+        dsn_key_idx=0,
+        raise_for_status=True,
     ):
         """
         :param project_id: the project id
@@ -526,7 +532,9 @@ class SentryLike:
         response.raise_for_status()
         return response
 
-    def send_attachments(self, project_id, event_id, files, dsn_key_idx=0):
+    def send_attachments(
+        self, project_id, event_id, files, *, dsn_key_idx=0, raise_for_status=True
+    ):
         files = {
             name: (file_name, file_content) for (name, file_name, file_content) in files
         }
@@ -545,7 +553,8 @@ class SentryLike:
             },
             files=files,
         )
-        response.raise_for_status()
+        if raise_for_status:
+            response.raise_for_status()
         return response
 
     def send_check_in(self, project_id, check_in):

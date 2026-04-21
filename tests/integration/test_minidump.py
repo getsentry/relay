@@ -789,8 +789,11 @@ def test_minidump_placeholder(
     assert objectstore_session.get(stored_id).payload.read() == minidump_data
 
 
-@pytest.mark.parametrize("limit", ["max_attachment_size", "max_attachments_size"])
-def test_minidump_multipart_too_large(mini_sentry, relay, limit):
+@pytest.mark.parametrize(
+    "limit,expected_status_code",
+    [("max_attachment_size", 400), ("max_attachments_size", 413)],
+)
+def test_size_limits(mini_sentry, relay, limit, expected_status_code):
     project_id = 42
     relay = relay(
         mini_sentry,
@@ -814,4 +817,4 @@ def test_minidump_multipart_too_large(mini_sentry, relay, limit):
     response = relay.send_minidump(
         project_id=project_id, files=attachments, params=params, raise_for_status=False
     )
-    assert response.status_code == 413
+    assert response.status_code == expected_status_code
