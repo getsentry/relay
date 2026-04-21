@@ -296,9 +296,11 @@ fn span_duration(span: &SpanV2) -> Option<Duration> {
 mod tests {
     use chrono::DateTime;
     use relay_conventions::{
-        DB__QUERY__TEXT, DB__SYSTEM, DB__SYSTEM__NAME, HTTP__REQUEST__METHOD, SENTRY__ACTION,
-        SENTRY__CATEGORY, SENTRY__DESCRIPTION, SENTRY__DOMAIN, SENTRY__NORMALIZED_DESCRIPTION,
-        SENTRY__OP, URL__FULL,
+        APP__VITALS__START__TYPE, APP__VITALS__TTFD__VALUE, DB__QUERY__TEXT, DB__SYSTEM,
+        DB__SYSTEM__NAME, DEVICE__CLASS, DEVICE__FAMILY, DEVICE__MODEL, HTTP__REQUEST__METHOD,
+        SENTRY__ACTION, SENTRY__CATEGORY, SENTRY__DESCRIPTION, SENTRY__DOMAIN, SENTRY__MAIN_THREAD,
+        SENTRY__MOBILE, SENTRY__NORMALIZED_DESCRIPTION, SENTRY__OP, SENTRY__SDK__NAME,
+        THREAD__NAME, URL__FULL,
     };
     use relay_event_schema::protocol::{Attributes, EventId, SpanKind};
     use relay_pii::PiiConfig;
@@ -969,14 +971,14 @@ mod tests {
     fn test_mobile_normalizations() {
         let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
             &[
-                (SENTRY_SDK_NAME, "sentry.cocoa"),
-                (THREAD_NAME, "main"),
-                (DEVICE_FAMILY, "iPhone"),
-                (DEVICE_MODEL, "iPhone17,5"),
+                (SENTRY__SDK__NAME, "sentry.cocoa"),
+                (THREAD__NAME, "main"),
+                (DEVICE__FAMILY, "iPhone"),
+                (DEVICE__MODEL, "iPhone17,5"),
             ],
             &[
                 ("app_start_cold", 1234.0),
-                (APP_VITALS_TTFD_VALUE, 200_000.0),
+                (APP__VITALS__TTFD__VALUE, 200_000.0),
             ],
         );
 
@@ -985,20 +987,20 @@ mod tests {
         assert_attributes_contains(
             &span,
             &[
-                (SENTRY_MOBILE, "true"),
-                (SENTRY_MAIN_THREAD, "true"),
-                (APP_VITALS_START_TYPE, "cold"),
+                (SENTRY__MOBILE, "true"),
+                (SENTRY__MAIN_THREAD, "true"),
+                (APP__VITALS__START__TYPE, "cold"),
             ],
-            &[(APP_VITALS_START_VALUE, 1234.0)],
+            &[("app.vitals.start.value", 1234.0)],
         );
 
         let attrs = span.value().unwrap().attributes.value().unwrap();
         assert!(
-            attrs.get_value(APP_VITALS_TTFD_VALUE).is_none(),
+            attrs.get_value(APP__VITALS__TTFD__VALUE).is_none(),
             "outlier ttfd value should be removed"
         );
 
-        assert_attributes_contains(&span, &[(DEVICE_CLASS, "3")], &[]);
+        assert_attributes_contains(&span, &[(DEVICE__CLASS, "3")], &[]);
     }
 
     #[test]

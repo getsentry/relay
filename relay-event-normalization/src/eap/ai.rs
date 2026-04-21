@@ -131,7 +131,7 @@ fn normalize_context_utilization(
     model_metadata: Option<&ModelMetadata>,
 ) {
     let model_id = attributes
-        .get_value(GEN_AI_RESPONSE_MODEL)
+        .get_value(GEN_AI__RESPONSE__MODEL)
         .and_then(|v| v.as_str());
 
     let context_size = model_id.and_then(|id| model_metadata.and_then(|m| m.context_size(id)));
@@ -140,15 +140,15 @@ fn normalize_context_utilization(
         return;
     };
 
-    attributes.insert(GEN_AI_CONTEXT_WINDOW_SIZE, context_size as i64);
+    attributes.insert(GEN_AI__CONTEXT__WINDOW_SIZE, context_size as i64);
 
     let total_tokens = attributes
-        .get_value(GEN_AI_USAGE_TOTAL_TOKENS)
+        .get_value(GEN_AI__USAGE__TOTAL_TOKENS)
         .and_then(|v| v.as_f64());
 
     if let Some(total_tokens) = total_tokens {
         attributes.insert(
-            GEN_AI_CONTEXT_UTILIZATION,
+            GEN_AI__CONTEXT__UTILIZATION,
             total_tokens / context_size as f64,
         );
     }

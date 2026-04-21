@@ -276,8 +276,8 @@ mod tests {
     #[test]
     fn test_from_attributes_iphone17_5() {
         let attrs = attributes! {
-            DEVICE_FAMILY => "iOS",
-            DEVICE_MODEL => "iPhone17,5",
+            DEVICE__FAMILY => "iOS",
+            DEVICE__MODEL => "iPhone17,5",
         };
         assert_eq!(
             DeviceClass::from_attributes(&attrs),
@@ -288,8 +288,8 @@ mod tests {
     #[test]
     fn test_from_attributes_iphone99_1() {
         let attrs = attributes! {
-            DEVICE_FAMILY => "iOS",
-            DEVICE_MODEL => "iPhone99,1",
+            DEVICE__FAMILY => "iOS",
+            DEVICE__MODEL => "iPhone99,1",
         };
         assert_eq!(
             DeviceClass::from_attributes(&attrs),
@@ -300,8 +300,8 @@ mod tests {
     #[test]
     fn test_from_attributes_ipad99_1() {
         let attrs = attributes! {
-            DEVICE_FAMILY => "iOS",
-            DEVICE_MODEL => "iPad99,1",
+            DEVICE__FAMILY => "iOS",
+            DEVICE__MODEL => "iPad99,1",
         };
         assert_eq!(
             DeviceClass::from_attributes(&attrs),
@@ -312,8 +312,8 @@ mod tests {
     #[test]
     fn test_from_attributes_garbage_device_model() {
         let attrs = attributes! {
-            DEVICE_FAMILY => "iOS",
-            DEVICE_MODEL => "garbage-device-model",
+            DEVICE__FAMILY => "iOS",
+            DEVICE__MODEL => "garbage-device-model",
         };
         assert_eq!(
             DeviceClass::from_attributes(&attrs),
@@ -324,8 +324,8 @@ mod tests {
     #[test]
     fn test_from_attributes_wrong_family() {
         let attrs = attributes! {
-            DEVICE_FAMILY => "iOSS",
-            DEVICE_MODEL => "iPhone17,5",
+            DEVICE__FAMILY => "iOSS",
+            DEVICE__MODEL => "iPhone17,5",
         };
         assert_eq!(DeviceClass::from_attributes(&attrs), None);
     }
@@ -333,10 +333,10 @@ mod tests {
     #[test]
     fn test_from_attributes_android_low() {
         let attrs = attributes! {
-            DEVICE_FAMILY => "Android",
-            DEVICE_PROCESSOR_FREQUENCY => 1500.0,
-            DEVICE_PROCESSOR_COUNT => 4.0,
-            DEVICE_MEMORY_SIZE => 2_147_483_648.0,
+            DEVICE__FAMILY => "Android",
+            DEVICE__PROCESSOR_FREQUENCY => 1500.0,
+            DEVICE__PROCESSOR_COUNT => 4.0,
+            DEVICE__MEMORY_SIZE => 2_147_483_648.0,
         };
         assert_eq!(DeviceClass::from_attributes(&attrs), Some(DeviceClass::LOW));
     }
@@ -344,10 +344,10 @@ mod tests {
     #[test]
     fn test_from_attributes_android_medium() {
         let attrs = attributes! {
-            DEVICE_FAMILY => "Android",
-            DEVICE_PROCESSOR_FREQUENCY => 2200.0,
-            DEVICE_PROCESSOR_COUNT => 8.0,
-            DEVICE_MEMORY_SIZE => 5_368_709_120.0,
+            DEVICE__FAMILY => "Android",
+            DEVICE__PROCESSOR_FREQUENCY => 2200.0,
+            DEVICE__PROCESSOR_COUNT => 8.0,
+            DEVICE__MEMORY_SIZE => 5_368_709_120.0,
         };
         assert_eq!(
             DeviceClass::from_attributes(&attrs),
@@ -358,10 +358,10 @@ mod tests {
     #[test]
     fn test_from_attributes_android_high() {
         let attrs = attributes! {
-            DEVICE_FAMILY => "Android",
-            DEVICE_PROCESSOR_FREQUENCY => 3000.0,
-            DEVICE_PROCESSOR_COUNT => 8.0,
-            DEVICE_MEMORY_SIZE => 8_589_934_592.0,
+            DEVICE__FAMILY => "Android",
+            DEVICE__PROCESSOR_FREQUENCY => 3000.0,
+            DEVICE__PROCESSOR_COUNT => 8.0,
+            DEVICE__MEMORY_SIZE => 8_589_934_592.0,
         };
         assert_eq!(
             DeviceClass::from_attributes(&attrs),
@@ -372,7 +372,7 @@ mod tests {
     #[test]
     fn test_from_attributes_android_missing_specs() {
         let attrs = attributes! {
-            DEVICE_FAMILY => "Android",
+            DEVICE__FAMILY => "Android",
         };
         assert_eq!(DeviceClass::from_attributes(&attrs), None);
     }
