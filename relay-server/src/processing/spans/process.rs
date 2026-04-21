@@ -295,12 +295,17 @@ fn span_duration(span: &SpanV2) -> Option<Duration> {
 #[cfg(test)]
 mod tests {
     use chrono::DateTime;
+    #[allow(
+        deprecated,
+        reason = "This deprecated attribute is intentionally used in some legacy tests."
+    )]
+    use relay_conventions::DB__SYSTEM;
     use relay_conventions::{
         APP__VITALS__START__TYPE, APP__VITALS__START__VALUE, APP__VITALS__TTFD__VALUE,
-        DB__QUERY__TEXT, DB__SYSTEM, DB__SYSTEM__NAME, DEVICE__CLASS, DEVICE__FAMILY,
-        DEVICE__MODEL, HTTP__REQUEST__METHOD, SENTRY__ACTION, SENTRY__CATEGORY,
-        SENTRY__DESCRIPTION, SENTRY__DOMAIN, SENTRY__MAIN_THREAD, SENTRY__MOBILE,
-        SENTRY__NORMALIZED_DESCRIPTION, SENTRY__OP, SENTRY__SDK__NAME, THREAD__NAME, URL__FULL,
+        DB__QUERY__TEXT, DB__SYSTEM__NAME, DEVICE__CLASS, DEVICE__FAMILY, DEVICE__MODEL,
+        HTTP__REQUEST__METHOD, SENTRY__ACTION, SENTRY__CATEGORY, SENTRY__DESCRIPTION,
+        SENTRY__DOMAIN, SENTRY__MAIN_THREAD, SENTRY__MOBILE, SENTRY__NORMALIZED_DESCRIPTION,
+        SENTRY__OP, SENTRY__SDK__NAME, THREAD__NAME, URL__FULL,
     };
     use relay_event_schema::protocol::{Attributes, EventId, SpanKind};
     use relay_pii::PiiConfig;
@@ -850,6 +855,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated, reason = "This test is meant to access legacy attributes.")]
     fn test_insights_backend_queries_support_modern() {
         let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
             &[
@@ -879,6 +885,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated, reason = "This test is meant to access legacy attributes.")]
     fn test_insights_backend_queries_support_legacy() {
         let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
             &[

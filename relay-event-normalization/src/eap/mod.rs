@@ -567,6 +567,7 @@ fn normalize_http_attributes(
 
     let method = attributes
         .get_value(HTTP__REQUEST__METHOD)
+        // TODO: This can be removed once HTTP_REQUEST_METHOD is defined in `sentry-conventions`.
         .or_else(|| attributes.get_value(HTTP__REQUEST_METHOD))
         .and_then(|v| v.as_str())
         .or(description_method);
@@ -633,6 +634,10 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
         (DB__QUERY__TEXT, SENTRY__DESCRIPTION),
         (SENTRY__NORMALIZED_DB_QUERY, SENTRY__NORMALIZED_DESCRIPTION),
         (DB__OPERATION__NAME, SENTRY__ACTION),
+        #[allow(
+            deprecated,
+            reason = "Writing possibly deprecated legacy attributes is the point of this function."
+        )]
         (DB__SYSTEM__NAME, DB__SYSTEM),
         // HTTP attributes
         (SERVER__ADDRESS, SENTRY__DOMAIN),

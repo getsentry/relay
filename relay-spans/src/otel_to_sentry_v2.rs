@@ -126,6 +126,8 @@ pub fn otel_to_sentry_span(
 
     if is_segment {
         if let Some(span_id) = span_id.value() {
+            // TODO: It should be fine to use SENTRY__SEGMENT__ID here, it gets normalized in `sentry`:
+            // https://github.com/getsentry/sentry/blob/0bb54f81a56c68bba25487f0f081ffd31ea5a3c7/src/sentry/spans/consumers/process_segments/convert.py#L38
             sentry_attributes.insert(SENTRY__SEGMENT_ID, span_id.to_string());
         }
         if let Some(ref segment_name) = name {
