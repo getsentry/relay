@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use either::Either;
 use relay_event_normalization::GeoIpLookup;
-use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::Span;
 use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits};
@@ -31,9 +30,6 @@ pub enum Error {
     /// Spans filtered due to a filtering rule.
     #[error("spans filtered")]
     Filtered(relay_filter::FilterStatKey),
-    /// A processor failed to process the spans.
-    #[error("envelope processor failed")]
-    ProcessingFailed(#[from] ProcessingAction),
     /// The span is invalid.
     #[error("invalid: {0}")]
     Invalid(DiscardReason),
@@ -49,7 +45,6 @@ impl OutcomeError for Error {
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
                 Some(Outcome::RateLimited(reason_code))
             }
-            Self::ProcessingFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
             Self::Invalid(reason) => Some(Outcome::Invalid(*reason)),
         };
         (outcome, self)
