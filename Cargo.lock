@@ -3165,7 +3165,7 @@ dependencies = [
  "objectstore-types",
  "percent-encoding",
  "reqwest",
- "sentry-core 0.41.0",
+ "sentry-core",
  "serde",
  "thiserror 2.0.17",
  "tokio",
@@ -4436,7 +4436,7 @@ dependencies = [
  "relay-common",
  "relay-crash",
  "sentry",
- "sentry-core 0.41.0",
+ "sentry-core",
  "serde",
  "tracing",
  "tracing-subscriber",
@@ -5262,7 +5262,7 @@ dependencies = [
  "reqwest",
  "sentry-backtrace",
  "sentry-contexts",
- "sentry-core 0.47.0",
+ "sentry-core",
  "sentry-debug-images",
  "sentry-log",
  "sentry-panic",
@@ -5280,7 +5280,7 @@ checksum = "46a8c2c1bd5c1f735e84f28b48e7d72efcaafc362b7541bc8253e60e8fcdffc6"
 dependencies = [
  "backtrace",
  "regex",
- "sentry-core 0.47.0",
+ "sentry-core",
 ]
 
 [[package]]
@@ -5293,20 +5293,8 @@ dependencies = [
  "libc",
  "os_info",
  "rustc_version",
- "sentry-core 0.47.0",
+ "sentry-core",
  "uname",
-]
-
-[[package]]
-name = "sentry-core"
-version = "0.41.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "00e9bd2cadaeda3af41e9fa5d14645127d6f6a4aec73da3ae38e477ecafd3682"
-dependencies = [
- "rand 0.9.2",
- "sentry-types 0.41.0",
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -5329,7 +5317,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd9646a972b57896d4a92ed200cf76139f8e30b3cfd03b6662ae59926d26633c"
 dependencies = [
  "findshlibs",
- "sentry-core 0.47.0",
+ "sentry-core",
 ]
 
 [[package]]
@@ -5356,7 +5344,7 @@ checksum = "235865e639f1d72414fa5d35374e105c292e2ee3a2f90919d961bbb486626ee6"
 dependencies = [
  "bitflags 2.9.4",
  "log",
- "sentry-core 0.47.0",
+ "sentry-core",
 ]
 
 [[package]]
@@ -5366,7 +5354,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6127d3d304ba5ce0409401e85aae538e303a569f8dbb031bf64f9ba0f7174346"
 dependencies = [
  "sentry-backtrace",
- "sentry-core 0.47.0",
+ "sentry-core",
 ]
 
 [[package]]
@@ -5389,7 +5377,7 @@ checksum = "61c5253dc4ad89863a866b93aeaaac1c9d60f2f774663b5024afe2d57e0a101c"
 dependencies = [
  "http",
  "pin-project",
- "sentry-core 0.47.0",
+ "sentry-core",
  "tower-layer",
  "tower-service",
  "url",
@@ -5403,7 +5391,7 @@ checksum = "27701acc51e68db5281802b709010395bfcbcb128b1d0a4e5873680d3b47ff0c"
 dependencies = [
  "bitflags 2.9.4",
  "sentry-backtrace",
- "sentry-core 0.47.0",
+ "sentry-core",
  "tracing-core",
  "tracing-subscriber",
 ]
