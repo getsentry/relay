@@ -4,7 +4,7 @@ use std::io::BufReader;
 use std::path::Path;
 
 use relay_base_schema::metrics::MetricNamespace;
-use relay_event_normalization::{MeasurementsConfig, ModelCosts, ModelMetadata, SpanOpDefaults};
+use relay_event_normalization::{MeasurementsConfig, ModelMetadata, SpanOpDefaults};
 use relay_filter::GenericFiltersConfig;
 use relay_quotas::Quota;
 use serde::{Deserialize, Serialize, de};
@@ -44,10 +44,6 @@ pub struct GlobalConfig {
     /// applying.
     #[serde(skip_serializing_if = "is_ok_and_empty")]
     pub metric_extraction: ErrorBoundary<MetricExtractionGroups>,
-
-    /// Configuration for AI span measurements.
-    #[serde(skip_serializing_if = "is_model_costs_empty")]
-    pub ai_model_costs: ErrorBoundary<ModelCosts>,
 
     /// Metadata for AI models including costs and context size.
     #[serde(skip_serializing_if = "is_model_metadata_empty")]
@@ -308,10 +304,6 @@ fn is_ok_and_empty(value: &ErrorBoundary<MetricExtractionGroups>) -> bool {
         value,
         &ErrorBoundary::Ok(MetricExtractionGroups { ref groups }) if groups.is_empty()
     )
-}
-
-fn is_model_costs_empty(value: &ErrorBoundary<ModelCosts>) -> bool {
-    matches!(value, ErrorBoundary::Ok(model_costs) if model_costs.is_empty())
 }
 
 fn is_model_metadata_empty(value: &ErrorBoundary<ModelMetadata>) -> bool {
