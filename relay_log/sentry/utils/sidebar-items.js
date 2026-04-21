@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["is_sensitive_header"]};
+window.SIDEBAR_ITEMS = {"fn":["is_sensitive_header","scrub_pii_from_url"]};
