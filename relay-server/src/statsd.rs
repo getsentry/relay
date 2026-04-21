@@ -998,6 +998,11 @@ pub enum RelayCounters {
     ErrorProcessed,
     /// The number of times the new unreal expansion logic in the endpoint is hit.
     UnrealEndpointExpansion,
+    /// Amount of rate limiting retries.
+    ///
+    /// Incremented for each retry, does not count to first attempt.
+    #[cfg(feature = "processing")]
+    RateLimitingRetries,
 }
 
 impl CounterMetric for RelayCounters {
@@ -1058,6 +1063,8 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProfileChunksWithoutPlatform => "profile_chunk.no_platform",
             RelayCounters::ErrorProcessed => "event.error.processed",
             RelayCounters::UnrealEndpointExpansion => "unreal.endpoint_expansion",
+            #[cfg(feature = "processing")]
+            RelayCounters::RateLimitingRetries => "event_processing.rate_limiting.retries",
         }
     }
 }

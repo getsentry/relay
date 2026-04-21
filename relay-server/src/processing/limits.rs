@@ -195,9 +195,23 @@ impl RateLimiter for CachedRateLimiter<'_> {
 
 #[cfg(feature = "processing")]
 mod redis {
+    use std::time::Duration;
+
+    use backon::{ConstantBuilder, Retryable};
+
     use crate::services::projects::cache::Project;
+    use crate::statsd::RelayCounters;
 
     use super::*;
+
+    /// Retry applied to the Redis rate limiting requests.
+    ///
+    /// Redis is a fundamental dependency of Relay which must be reliable, that being sad, to
+    /// compensate for spurious failures and connection issues we want to retry very quickly and not
+    /// very often, expecting the retry to succeed.
+    const REDIS_RETRY: ConstantBuilder = ConstantBuilder::new()
+        .with_max_times(3)
+        .with_delay(Duration::ZERO);
 
     /// A [`RateLimiter`] implementation which enforces quotas with Redis.
     pub struct RedisRateLimiter<'a> {
@@ -209,9 +223,16 @@ mod redis {
 
     impl RateLimiter for RedisRateLimiter<'_> {
         async fn try_consume(&mut self, scope: ItemScoping, quantity: usize) -> RateLimits {
-            let limits = self
-                .redis
-                .is_rate_limited(self.quotas, scope, quantity, false)
+            let is_rate_limited = || {
+                self.redis
+                    .is_rate_limited(self.quotas, scope, quantity, false)
+            };
+
+            let limits = is_rate_limited
+                .retry(REDIS_RETRY)
+                .notify(|_, _| {
+                    relay_statsd::metric!(counter(RelayCounters::RateLimitingRetries) += 1)
+                })
                 .await
                 .inspect_err(|err| {
                     relay_log::error!(
