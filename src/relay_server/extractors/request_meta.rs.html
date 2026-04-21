@@ -721,7 +721,7 @@
 <a href=#721 id=721 data-nosnippet>721</a>        <span class="kw">let </span>(public_key, key_flags) = ProjectKey::parse_with_flags(auth.public_key())<span class="question-mark">?</span>;
 <a href=#722 id=722 data-nosnippet>722</a>
 <a href=#723 id=723 data-nosnippet>723</a>        <span class="kw">let </span>config = state.config();
-<a href=#724 id=724 data-nosnippet>724</a>        <span class="kw">let </span>upstream = config.upstream_descriptor();
+<a href=#724 id=724 data-nosnippet>724</a>        <span class="kw">let </span>upstream = config.upstream();
 <a href=#725 id=725 data-nosnippet>725</a>
 <a href=#726 id=726 data-nosnippet>726</a>        <span class="kw">let </span>dsn = PartialDsn {
 <a href=#727 id=727 data-nosnippet>727</a>            scheme: upstream.scheme(),

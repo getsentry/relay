@@ -2066,12 +2066,12 @@
 <a href=#2066 id=2066 data-nosnippet>2066</a>    }
 <a href=#2067 id=2067 data-nosnippet>2067</a>
 <a href=#2068 id=2068 data-nosnippet>2068</a>    <span class="doccomment">/// Returns the upstream target as descriptor.
-<a href=#2069 id=2069 data-nosnippet>2069</a>    </span><span class="kw">pub fn </span>upstream_descriptor(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>UpstreamDescriptor {
+<a href=#2069 id=2069 data-nosnippet>2069</a>    </span><span class="kw">pub fn </span>upstream(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>UpstreamDescriptor {
 <a href=#2070 id=2070 data-nosnippet>2070</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.values.relay.upstream
 <a href=#2071 id=2071 data-nosnippet>2071</a>    }
 <a href=#2072 id=2072 data-nosnippet>2072</a>
 <a href=#2073 id=2073 data-nosnippet>2073</a>    <span class="doccomment">/// Returns the advertised upstream for downstream instances as descriptor.
-<a href=#2074 id=2074 data-nosnippet>2074</a>    </span><span class="kw">pub fn </span>advertised_upstream_descriptor(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>UpstreamDescriptor&gt; {
+<a href=#2074 id=2074 data-nosnippet>2074</a>    </span><span class="kw">pub fn </span>advertised_upstream(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>UpstreamDescriptor&gt; {
 <a href=#2075 id=2075 data-nosnippet>2075</a>        <span class="self">self</span>.values.relay.advertised_upstream.as_ref()
 <a href=#2076 id=2076 data-nosnippet>2076</a>    }
 <a href=#2077 id=2077 data-nosnippet>2077</a>

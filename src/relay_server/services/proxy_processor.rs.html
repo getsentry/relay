@@ -57,7 +57,7 @@
 <a href=#57 id=57 data-nosnippet>57</a>            scoping,
 <a href=#58 id=58 data-nosnippet>58</a>        } = message;
 <a href=#59 id=59 data-nosnippet>59</a>
-<a href=#60 id=60 data-nosnippet>60</a>        <span class="kw">let </span>upstream = <span class="self">self</span>.config.upstream_descriptor();
+<a href=#60 id=60 data-nosnippet>60</a>        <span class="kw">let </span>upstream = <span class="self">self</span>.config.upstream();
 <a href=#61 id=61 data-nosnippet>61</a>        <span class="kw">let </span>dsn = PartialDsn::outbound(<span class="kw-2">&amp;</span>scoping, upstream);
 <a href=#62 id=62 data-nosnippet>62</a>
 <a href=#63 id=63 data-nosnippet>63</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">None</span>, RequestMeta::outbound(dsn));
