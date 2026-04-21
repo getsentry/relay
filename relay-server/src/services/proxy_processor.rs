@@ -17,6 +17,9 @@ use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::upstream::{SendRequest, UpstreamRelay};
 use crate::statsd::RelayTimers;
 
+#[cfg(feature = "fanout-http")]
+use crate::services::fanout_http::{FanoutEnvelope, FanoutHttpHandle};
+
 /// Service implementing the [`EnvelopeProcessor`] interface.
 ///
 /// Analog to [`crate::services::processor::EnvelopeProcessorService`] this service handles messages when Relay is run in
@@ -33,6 +36,13 @@ pub struct ProxyAddrs {
     pub outcome_aggregator: Addr<TrackOutcome>,
     /// Address of the service used for forwarding envelopes to the upstream.
     pub upstream_relay: Addr<UpstreamRelay>,
+    /// Optional handle for the fire-and-forget HTTP fanout tee.
+    ///
+    /// `None` when the `fanout-http` feature is compiled in but disabled in config, or when
+    /// the tee is being constructed and falls back. The tee never affects the primary
+    /// upstream forward.
+    #[cfg(feature = "fanout-http")]
+    pub fanout_http: Option<FanoutHttpHandle>,
 }
 
 impl ProxyProcessorService {
@@ -95,6 +105,24 @@ impl ProxyProcessorService {
 
         match result {
             Ok(body) => {
+                // Fire-and-forget HTTP fanout tee. Runs strictly in parallel with the primary
+                // forward; any failure is counted in statsd and never affects the upstream send.
+                #[cfg(feature = "fanout-http")]
+                if let Some(handle) = self.addrs.fanout_http.as_ref() {
+                    let item_types: smallvec::SmallVec<[ItemType; 4]> =
+                        envelope.envelope().items().map(|i| i.ty().clone()).collect();
+                    if handle.should_send(body.len(), &item_types) {
+                        handle.dispatch(FanoutEnvelope {
+                            body: body.clone(),
+                            content_encoding: http_encoding,
+                            scoping: envelope.scoping(),
+                            event_id: envelope.envelope().event_id(),
+                            received_at: envelope.received_at(),
+                            item_types,
+                        });
+                    }
+                }
+
                 self.addrs.upstream_relay.send(SendRequest(SendEnvelope {
                     envelope: envelope.into_processed(),
                     body,

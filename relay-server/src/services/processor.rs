@@ -1084,6 +1084,12 @@ pub struct Addrs {
     #[cfg(feature = "processing")]
     pub store_forwarder: Option<Addr<Store>>,
     pub aggregator: Addr<Aggregator>,
+    /// Optional handle for the fire-and-forget HTTP fanout tee.
+    ///
+    /// `None` when the `fanout-http` feature is compiled in but disabled in config. The tee
+    /// never affects the primary upstream forward.
+    #[cfg(feature = "fanout-http")]
+    pub fanout_http: Option<crate::services::fanout_http::FanoutHttpHandle>,
 }
 
 impl Default for Addrs {
@@ -1096,6 +1102,8 @@ impl Default for Addrs {
             #[cfg(feature = "processing")]
             store_forwarder: None,
             aggregator: Addr::dummy(),
+            #[cfg(feature = "fanout-http")]
+            fanout_http: None,
         }
     }
 }
@@ -1864,6 +1872,25 @@ impl EnvelopeProcessorService {
 
         match result {
             Ok(body) => {
+                // Fire-and-forget HTTP fanout tee. Runs strictly in parallel with the primary
+                // forward; any failure is counted in statsd and never affects the upstream send.
+                #[cfg(feature = "fanout-http")]
+                if let Some(handle) = self.inner.addrs.fanout_http.as_ref() {
+                    use crate::services::fanout_http::FanoutEnvelope;
+                    let item_types: smallvec::SmallVec<[ItemType; 4]> =
+                        envelope.envelope().items().map(|i| i.ty().clone()).collect();
+                    if handle.should_send(body.len(), &item_types) {
+                        handle.dispatch(FanoutEnvelope {
+                            body: body.clone(),
+                            content_encoding: http_encoding,
+                            scoping: envelope.scoping(),
+                            event_id: envelope.envelope().event_id(),
+                            received_at: envelope.received_at(),
+                            item_types,
+                        });
+                    }
+                }
+
                 self.inner
                     .addrs
                     .upstream_relay

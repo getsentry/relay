@@ -12,6 +12,10 @@ publish = false
 
 [features]
 default = []
+# Enables the fire-and-forget HTTP fanout tee. Zero new dependencies; reuses
+# the already-present `reqwest` and `tokio` primitives. When disabled (the
+# default) the tee code is compiled out completely.
+fanout-http = []
 processing = [
   "dep:minidump",
   "dep:prost-types",

@@ -30,6 +30,8 @@
 pub mod autoscaling;
 pub mod buffer;
 pub mod cogs;
+#[cfg(feature = "fanout-http")]
+pub mod fanout_http;
 pub mod global_config;
 pub mod health_check;
 pub mod metrics;

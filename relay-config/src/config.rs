@@ -1711,6 +1711,62 @@ impl Default for Upload {
     }
 }
 
+/// Configuration for sidecar fanout targets that receive a copy of every envelope.
+///
+/// Fanout happens fire-and-forget after the primary upstream submission is scheduled
+/// and never affects the primary Sentry ingest path.
+#[derive(Serialize, Deserialize, Debug, Default)]
+#[serde(default)]
+pub struct Fanout {
+    /// HTTP tee target; typically an internal endpoint that republishes envelopes to Kafka.
+    pub http: FanoutHttp,
+}
+
+/// Configuration for a fire-and-forget HTTP tee of every envelope.
+///
+/// When [`Self::enabled`] is `true`, Relay POSTs the serialized envelope bytes to
+/// [`Self::url`] in parallel with the primary upstream forward. Failures, timeouts
+/// and full queues are counted in statsd but never block or fail the primary path.
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
+pub struct FanoutHttp {
+    /// Whether the HTTP fanout is enabled. Disabled by default.
+    pub enabled: bool,
+    /// Target URL for the tee. Required when [`Self::enabled`] is `true`.
+    pub url: String,
+    /// Per-request timeout in milliseconds.
+    pub timeout_ms: u64,
+    /// Maximum number of outstanding outbound requests.
+    pub max_concurrent: usize,
+    /// Bounded queue size between the tee call site and the outbound worker.
+    /// Envelopes are dropped when the queue is full.
+    pub queue_size: usize,
+    /// Sampling rate in `[0.0, 1.0]`. Values at or above `1.0` send every envelope.
+    pub sample_rate: f32,
+    /// Optional bearer token attached to every request as `Authorization: Bearer <value>`.
+    pub header_auth: Option<String>,
+    /// Optional allowlist of envelope item type strings. `None` forwards all item types.
+    pub include_item_types: Option<Vec<String>>,
+    /// Hard upper bound on serialized envelope size (bytes). Larger envelopes are dropped.
+    pub max_body_bytes: usize,
+}
+
+impl Default for FanoutHttp {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            url: String::new(),
+            timeout_ms: 500,
+            max_concurrent: 32,
+            queue_size: 1024,
+            sample_rate: 1.0,
+            header_auth: None,
+            include_item_types: None,
+            max_body_bytes: 10 * 1024 * 1024,
+        }
+    }
+}
+
 /// All configuration values that can be deserialized from `config.yml`.
 #[derive(Serialize, Deserialize, Debug, Default)]
 #[allow(missing_docs)]
@@ -1755,6 +1811,8 @@ pub struct ConfigValues {
     pub cogs: Cogs,
     #[serde(default)]
     pub upload: Upload,
+    #[serde(default)]
+    pub fanout: Fanout,
 }
 
 impl ConfigObject for ConfigValues {
@@ -2664,6 +2722,17 @@ impl Config {
     /// Configuration of the upload service.
     pub fn upload(&self) -> &Upload {
         &self.values.upload
+    }
+
+    /// Configuration of all sidecar fanout targets.
+    pub fn fanout(&self) -> &Fanout {
+        &self.values.fanout
+    }
+
+    /// Returns the HTTP fanout configuration if the tee is enabled, otherwise `None`.
+    pub fn fanout_http(&self) -> Option<&FanoutHttp> {
+        let http = &self.values.fanout.http;
+        http.enabled.then_some(http)
     }
 
     /// Redis servers to connect to for project configs, cardinality limits,

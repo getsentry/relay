@@ -263,6 +263,12 @@ impl ServiceState {
             services,
         );
 
+        // The fanout HTTP tee is spawned once and shared by both proxy and managed processors.
+        // Returns `None` when the feature is disabled in config; we then pass `None` to both
+        // addrs structs and the tee call sites compile out to no-ops.
+        #[cfg(feature = "fanout-http")]
+        let fanout_http = crate::services::fanout_http::spawn(config.as_ref());
+
         let (processor_pool, aggregator_handle, autoscaling) = match config.relay_mode() {
             relay_config::RelayMode::Proxy => {
                 services.start_with(
@@ -272,6 +278,8 @@ impl ServiceState {
                         ProxyAddrs {
                             outcome_aggregator: outcome_aggregator.clone(),
                             upstream_relay: upstream_relay.clone(),
+                            #[cfg(feature = "fanout-http")]
+                            fanout_http: fanout_http.clone(),
                         },
                     ),
                     processor_rx,
@@ -311,6 +319,8 @@ impl ServiceState {
                             #[cfg(feature = "processing")]
                             store_forwarder: store,
                             aggregator: aggregator.clone(),
+                            #[cfg(feature = "fanout-http")]
+                            fanout_http: fanout_http.clone(),
                         },
                         metric_outcomes.clone(),
                     ),

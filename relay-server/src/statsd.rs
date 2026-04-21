@@ -354,6 +354,13 @@ pub enum RelayDistributions {
     /// This metric is tagged with:
     ///  - `sdk`: The name of the Sentry SDK sending the attachment.
     StandaloneAttachmentCount,
+    /// Current bounded-queue depth of the HTTP fanout tee.
+    ///
+    /// Sampled at send time so it reflects the queue state when a new envelope was enqueued.
+    /// When the queue saturates, [`RelayCounters::FanoutHttpDropped`] with `reason=queue_full`
+    /// will tick up.
+    #[cfg(feature = "fanout-http")]
+    FanoutHttpQueueDepth,
 }
 
 impl DistributionMetric for RelayDistributions {
@@ -386,6 +393,8 @@ impl DistributionMetric for RelayDistributions {
             Self::ContentLength => "requests.content_length",
             Self::StandaloneAttachmentSize => "processing.standalone_attachment_size",
             Self::StandaloneAttachmentCount => "processing.standalone_attachment_count",
+            #[cfg(feature = "fanout-http")]
+            Self::FanoutHttpQueueDepth => "fanout.http.queue_depth",
         }
     }
 }
@@ -641,6 +650,12 @@ pub enum RelayTimers {
     /// Tagged by:
     /// - `name`: Name of the stream, for example "upload".
     StreamConsumerLatency,
+    /// Wall-clock duration of a single HTTP fanout tee request, including connect + send + receive.
+    ///
+    /// This metric is tagged with:
+    /// - `outcome`: One of `ok`, `timeout`, `status_4xx`, `status_5xx`, `transport`.
+    #[cfg(feature = "fanout-http")]
+    FanoutHttpRequest,
 }
 
 impl TimerMetric for RelayTimers {
@@ -698,6 +713,8 @@ impl TimerMetric for RelayTimers {
             RelayTimers::AttachmentUploadDuration => "attachment.upload.duration",
             RelayTimers::StreamProducerLatency => "stream.producer.latency",
             RelayTimers::StreamConsumerLatency => "stream.consumer.latency",
+            #[cfg(feature = "fanout-http")]
+            RelayTimers::FanoutHttpRequest => "fanout.http.request",
         }
     }
 }
@@ -998,6 +1015,24 @@ pub enum RelayCounters {
     ErrorProcessed,
     /// The number of times the new unreal expansion logic in the endpoint is hit.
     UnrealEndpointExpansion,
+    /// Number of envelopes successfully dispatched to the HTTP fanout tee.
+    ///
+    /// Incremented once per envelope that was handed to the fanout service, regardless of whether
+    /// the eventual POST succeeded. Pair with [`Self::FanoutHttpFailed`] to derive success rate.
+    #[cfg(feature = "fanout-http")]
+    FanoutHttpSent,
+    /// Number of envelopes that were not dispatched to the HTTP fanout tee.
+    ///
+    /// This metric is tagged with:
+    /// - `reason`: One of `queue_full`, `sampled`, `item_type`, `too_large`.
+    #[cfg(feature = "fanout-http")]
+    FanoutHttpDropped,
+    /// Number of HTTP fanout tee requests that failed.
+    ///
+    /// This metric is tagged with:
+    /// - `reason`: One of `timeout`, `status_4xx`, `status_5xx`, `transport`.
+    #[cfg(feature = "fanout-http")]
+    FanoutHttpFailed,
 }
 
 impl CounterMetric for RelayCounters {
@@ -1058,6 +1093,12 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProfileChunksWithoutPlatform => "profile_chunk.no_platform",
             RelayCounters::ErrorProcessed => "event.error.processed",
             RelayCounters::UnrealEndpointExpansion => "unreal.endpoint_expansion",
+            #[cfg(feature = "fanout-http")]
+            RelayCounters::FanoutHttpSent => "fanout.http.sent",
+            #[cfg(feature = "fanout-http")]
+            RelayCounters::FanoutHttpDropped => "fanout.http.dropped",
+            #[cfg(feature = "fanout-http")]
+            RelayCounters::FanoutHttpFailed => "fanout.http.failed",
         }
     }
 }
