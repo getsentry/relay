@@ -68,7 +68,12 @@ pub async fn process(
         ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
         _ => None,
     };
-    let ai_model_metadata = ctx.global_config.model_metadata();
+    let ai_model_metadata = ctx
+        .global_config
+        .ai_model_metadata
+        .as_ref()
+        .ok()
+        .filter(|m| m.is_enabled());
     let normalize_span_config = NormalizeSpanConfig::new(
         ctx.config,
         ctx.global_config,
@@ -80,7 +85,7 @@ pub async fn process(
             .client_addr()
             .map(IpAddr::from),
         geo_lookup,
-        ai_model_metadata.as_ref(),
+        ai_model_metadata,
     );
 
     let client_ip = managed_envelope.envelope().meta().client_addr();

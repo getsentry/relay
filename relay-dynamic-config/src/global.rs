@@ -4,9 +4,7 @@ use std::io::BufReader;
 use std::path::Path;
 
 use relay_base_schema::metrics::MetricNamespace;
-use relay_event_normalization::{
-    MeasurementsConfig, ModelCosts, ModelMetadata, ModelMetadataEntry, SpanOpDefaults,
-};
+use relay_event_normalization::{MeasurementsConfig, ModelCosts, ModelMetadata, SpanOpDefaults};
 use relay_filter::GenericFiltersConfig;
 use relay_quotas::Quota;
 use serde::{Deserialize, Serialize, de};
@@ -77,41 +75,6 @@ impl GlobalConfig {
         } else {
             Ok(None)
         }
-    }
-
-    /// Returns [`ModelMetadata`], preferring `ai_model_metadata` if present and falling
-    /// back to `ai_model_costs` (adapted to the new format) otherwise.
-    pub fn model_metadata(&self) -> Option<ModelMetadata> {
-        if let Some(metadata) = self
-            .ai_model_metadata
-            .as_ref()
-            .ok()
-            .filter(|m| m.is_enabled())
-        {
-            return Some(metadata.clone());
-        }
-
-        let costs = self
-            .ai_model_costs
-            .as_ref()
-            .ok()
-            .filter(|c| c.is_enabled())?;
-
-        let models = costs
-            .models
-            .iter()
-            .map(|(pattern, cost)| {
-                (
-                    pattern.clone(),
-                    ModelMetadataEntry {
-                        costs: Some(*cost),
-                        context_size: None,
-                    },
-                )
-            })
-            .collect();
-
-        Some(ModelMetadata { version: 1, models })
     }
 
     /// Returns the generic inbound filters.
