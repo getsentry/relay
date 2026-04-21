@@ -206,7 +206,7 @@ mod redis {
 
     /// Retry applied to the Redis rate limiting requests.
     ///
-    /// Redis is a fundamental dependency of Relay which must be reliable, that being sad, to
+    /// Redis is a fundamental dependency of Relay which must be reliable, that being said, to
     /// compensate for spurious failures and connection issues we want to retry very quickly and not
     /// very often, expecting the retry to succeed.
     const REDIS_RETRY: ConstantBuilder = ConstantBuilder::new()
