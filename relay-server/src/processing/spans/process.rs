@@ -134,12 +134,7 @@ fn parse_and_validate_span_attachment(item: &Item) -> Result<(Option<SpanId>, Ex
 
 /// Normalizes individual spans.
 pub fn normalize(spans: &mut Managed<ExpandedSpans>, geo_lookup: &GeoIpLookup, ctx: Context<'_>) {
-    let model_metadata = ctx
-        .global_config
-        .ai_model_metadata
-        .as_ref()
-        .ok()
-        .filter(|m| m.is_enabled());
+    let model_metadata = ctx.global_config.ai_model_metadata();
     spans.retain_with_context(
         |spans| (&mut spans.spans, &spans.headers),
         |span, headers, _| {

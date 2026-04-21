@@ -80,6 +80,14 @@ impl GlobalConfig {
             ErrorBoundary::Ok(f) => Some(f),
         }
     }
+
+    /// Returns the AI model metadata if configured and enabled.
+    pub fn ai_model_metadata(&self) -> Option<&ModelMetadata> {
+        self.ai_model_metadata
+            .as_ref()
+            .ok()
+            .filter(|m| m.is_enabled())
+    }
 }
 
 fn is_err_or_empty(filters_config: &ErrorBoundary<GenericFiltersConfig>) -> bool {

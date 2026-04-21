@@ -221,12 +221,7 @@ pub fn normalize(
     // Inherit from spans, as transactions no longer produce metrics.
     let transaction_aggregator_config = ctx.config.aggregator_config_for(MetricNamespace::Spans);
 
-    let ai_model_metadata = ctx
-        .global_config
-        .ai_model_metadata
-        .as_ref()
-        .ok()
-        .filter(|m| m.is_enabled());
+    let ai_model_metadata = ctx.global_config.ai_model_metadata();
     let http_span_allowed_hosts = ctx.global_config.options.http_span_allowed_hosts.as_slice();
 
     let project_info = ctx.project_info;
