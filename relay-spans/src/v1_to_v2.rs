@@ -368,10 +368,6 @@ mod tests {
               "type": "string",
               "value": "{\"numbers\":[1,2,3]}"
             },
-            "sentry._internal.performance_issues_spans": {
-              "type": "boolean",
-              "value": true
-            },
             "sentry.client_sample_rate": {
               "type": "double",
               "value": 0.11
@@ -429,6 +425,7 @@ mod tests {
               "value": true
             }
           },
+          "_performance_issues_spans": true,
           "_meta": {
             "attributes": {
               "my.array": {
