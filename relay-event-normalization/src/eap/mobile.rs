@@ -33,8 +33,7 @@ pub fn normalize_mobile_attributes(attributes: &mut Annotated<Attributes>) {
     for key in [
         APP__VITALS__START__COLD__VALUE,
         APP__VITALS__START__WARM__VALUE,
-        // TODO: Fix this
-        "app.vitals.start.value",
+        APP__VITALS__START__VALUE,
         APP__VITALS__TTID__VALUE,
         APP__VITALS__TTFD__VALUE,
     ] {
@@ -49,16 +48,16 @@ pub fn normalize_mobile_attributes(attributes: &mut Annotated<Attributes>) {
     // V1 spans have measurements `app_start_cold`/`app_start_warm` which become
     // attributes with those names after v1→v2 conversion.
     // V2 spans will at some point send `app.vitals.start.value` + `app.vitals.start.type` directly.
-    if !attrs.contains_key("app.vitals.start.value") {
+    if !attrs.contains_key(APP__VITALS__START__VALUE) {
         if let Some(value) = attrs.get_value("app_start_cold").and_then(|v| v.as_f64())
             && value <= MAX_DURATION_MOBILE_MS
         {
-            attrs.insert("app.vitals.start.value", value);
+            attrs.insert(APP__VITALS__START__VALUE, value);
             attrs.insert_if_missing(APP__VITALS__START__TYPE, || "cold".to_owned());
         } else if let Some(value) = attrs.get_value("app_start_warm").and_then(|v| v.as_f64())
             && value <= MAX_DURATION_MOBILE_MS
         {
-            attrs.insert("app.vitals.start.value", value);
+            attrs.insert(APP__VITALS__START__VALUE, value);
             attrs.insert_if_missing(APP__VITALS__START__TYPE, || "warm".to_owned());
         }
     }
@@ -230,7 +229,7 @@ mod tests {
     );
     outlier_test!(
         test_outlier_removes_start_value,
-        "app.vitals.start.value",
+        APP__VITALS__START__VALUE,
         200_000.0
     );
     outlier_test!(
@@ -256,7 +255,7 @@ mod tests {
     );
     outlier_test!(
         test_outlier_keeps_start_value,
-        "app.vitals.start.value",
+        APP__VITALS__START__VALUE,
         5000.0
     );
     outlier_test!(test_outlier_keeps_ttid, APP__VITALS__TTID__VALUE, 5000.0);
@@ -317,7 +316,7 @@ mod tests {
     #[test]
     fn test_app_start_v2_not_overwritten() {
         let mut attributes = Annotated::new(attributes! {
-            "app.vitals.start.value" => 999.0,
+            APP__VITALS__START__VALUE => 999.0,
             APP__VITALS__START__TYPE => "warm",
             "app_start_cold" => 1234.0,
         });

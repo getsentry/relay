@@ -296,11 +296,11 @@ fn span_duration(span: &SpanV2) -> Option<Duration> {
 mod tests {
     use chrono::DateTime;
     use relay_conventions::{
-        APP__VITALS__START__TYPE, APP__VITALS__TTFD__VALUE, DB__QUERY__TEXT, DB__SYSTEM,
-        DB__SYSTEM__NAME, DEVICE__CLASS, DEVICE__FAMILY, DEVICE__MODEL, HTTP__REQUEST__METHOD,
-        SENTRY__ACTION, SENTRY__CATEGORY, SENTRY__DESCRIPTION, SENTRY__DOMAIN, SENTRY__MAIN_THREAD,
-        SENTRY__MOBILE, SENTRY__NORMALIZED_DESCRIPTION, SENTRY__OP, SENTRY__SDK__NAME,
-        THREAD__NAME, URL__FULL,
+        APP__VITALS__START__TYPE, APP__VITALS__START__VALUE, APP__VITALS__TTFD__VALUE,
+        DB__QUERY__TEXT, DB__SYSTEM, DB__SYSTEM__NAME, DEVICE__CLASS, DEVICE__FAMILY,
+        DEVICE__MODEL, HTTP__REQUEST__METHOD, SENTRY__ACTION, SENTRY__CATEGORY,
+        SENTRY__DESCRIPTION, SENTRY__DOMAIN, SENTRY__MAIN_THREAD, SENTRY__MOBILE,
+        SENTRY__NORMALIZED_DESCRIPTION, SENTRY__OP, SENTRY__SDK__NAME, THREAD__NAME, URL__FULL,
     };
     use relay_event_schema::protocol::{Attributes, EventId, SpanKind};
     use relay_pii::PiiConfig;
@@ -991,7 +991,7 @@ mod tests {
                 (SENTRY__MAIN_THREAD, "true"),
                 (APP__VITALS__START__TYPE, "cold"),
             ],
-            &[("app.vitals.start.value", 1234.0)],
+            &[(APP__VITALS__START__VALUE, 1234.0)],
         );
 
         let attrs = span.value().unwrap().attributes.value().unwrap();

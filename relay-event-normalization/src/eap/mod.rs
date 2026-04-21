@@ -567,8 +567,7 @@ fn normalize_http_attributes(
 
     let method = attributes
         .get_value(HTTP__REQUEST__METHOD)
-        //TODO: Fix this
-        .or_else(|| attributes.get_value("http.request_method"))
+        .or_else(|| attributes.get_value(HTTP__REQUEST_METHOD))
         .and_then(|v| v.as_str())
         .or(description_method);
 

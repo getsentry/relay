@@ -370,8 +370,7 @@ fn assert_segments_not_was_transaction(spans: &[ExpandedSpan]) {
         let was_transaction = span
             .attributes
             .value()
-            // TODO: Fix this
-            .and_then(|attr| attr.get_value("sentry.was_transaction"));
+            .and_then(|attr| attr.get_value(relay_conventions::SENTRY__WAS_TRANSACTION));
 
         debug_assert!(matches!(was_transaction, None | Some(&Value::Bool(false))));
     }
