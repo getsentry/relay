@@ -1,8 +1,23 @@
 //! Contains type definitions for deserializing attribute definitions from JSON files in `sentry-conventions/model`.
 
-use std::{collections::BTreeMap, fmt::Write};
+use std::collections::BTreeMap;
+use std::fmt::Write;
+use std::sync::LazyLock;
 
+use regex::Regex;
 use serde::Deserialize;
+
+/// Regex to find "unfenced" attribute names containing `<key>`.
+///
+/// Capture groups:
+/// 1. Character before
+/// 2. Attribute name
+/// 3. Character after
+static KEY_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    r"(^|[^`])((?:[a-zA-Z_]+\.)*<key>(?:\.[a-zA-Z_]+)*)($|[^`])"
+        .parse()
+        .unwrap()
+});
 
 /// Whether an attribute can contain PII.
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -111,6 +126,9 @@ pub fn format_constant(attr: &Attribute) -> String {
     let mut out = String::new();
 
     if !brief.is_empty() {
+        // Surround attribute names containing `<key>` with backticks, otherwise
+        // rustdoc complains about unclosed html tags
+        let brief = KEY_REGEX.replace_all(brief, "$1`$2`$3");
         write!(&mut out, "/// {brief}").unwrap();
 
         if !brief.ends_with('.') {
