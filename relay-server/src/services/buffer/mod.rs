@@ -73,9 +73,11 @@ impl FromMessage<Self> for EnvelopeBuffer {
 
 /// Abstraction that wraps a list of [`ObservableEnvelopeBuffer`]s to which [`Envelope`] are routed
 /// based on the configured [`EnvelopeSpoolPartitioning`] strategy.
-#[derive(Debug, Clone)]
+///
+/// Share between owners via `Arc<PartitionedEnvelopeBuffer>`.
+#[derive(Debug)]
 pub struct PartitionedEnvelopeBuffer {
-    buffers: Arc<Vec<ObservableEnvelopeBuffer>>,
+    buffers: Vec<ObservableEnvelopeBuffer>,
     partitioning: Partitioning,
 }
 
@@ -92,7 +94,7 @@ impl PartitionedEnvelopeBuffer {
         envelope_processor: Addr<EnvelopeProcessor>,
         outcome_aggregator: Addr<TrackOutcome>,
         services: &dyn ServiceSpawn,
-    ) -> Self {
+    ) -> Arc<Self> {
         let partitioning = Partitioning::new(config.spool_partitioning());
 
         let mut envelope_buffers = Vec::with_capacity(partitions.get() as usize);
@@ -113,10 +115,10 @@ impl PartitionedEnvelopeBuffer {
             envelope_buffers.push(envelope_buffer);
         }
 
-        Self {
-            buffers: Arc::new(envelope_buffers),
+        Arc::new(Self {
+            buffers: envelope_buffers,
             partitioning,
-        }
+        })
     }
 
     /// Returns the [`ObservableEnvelopeBuffer`] to which the [`Envelope`] for the supplied
@@ -174,12 +176,12 @@ impl PartitionedEnvelopeBuffer {
 }
 
 /// Internal representation of the partition-selection strategy.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 enum Partitioning {
     /// Partition by project key pair, using a fixed-seed hasher for deterministic placement.
     ProjectKeyPair(RandomState),
     /// Distribute envelopes round-robin across partitions using a shared atomic counter.
-    RoundRobin(Arc<AtomicUsize>),
+    RoundRobin(AtomicUsize),
 }
 
 impl Partitioning {
@@ -188,9 +190,7 @@ impl Partitioning {
             EnvelopeSpoolPartitioning::ProjectKeyPair => {
                 Self::ProjectKeyPair(PartitionedEnvelopeBuffer::build_hasher())
             }
-            EnvelopeSpoolPartitioning::RoundRobin => {
-                Self::RoundRobin(Arc::new(AtomicUsize::new(0)))
-            }
+            EnvelopeSpoolPartitioning::RoundRobin => Self::RoundRobin(AtomicUsize::new(0)),
         }
     }
 }
@@ -1044,7 +1044,7 @@ mod tests {
         let observable2 = buffer2.start_in(&TokioServiceSpawn);
 
         let partitioned = PartitionedEnvelopeBuffer {
-            buffers: Arc::new(vec![observable1, observable2]),
+            buffers: vec![observable1, observable2],
             partitioning: Partitioning::new(EnvelopeSpoolPartitioning::ProjectKeyPair),
         };
 
@@ -1107,7 +1107,7 @@ mod tests {
         )
         .start_in(&TokioServiceSpawn);
 
-        let buffers = Arc::new(vec![observable1, observable2]);
+        let buffers = vec![observable1, observable2];
         let pair = ProjectKeyPair::from_envelope(new_managed_envelope(false, "foo").envelope());
 
         // Default strategy: same pair always maps to the same partition.
