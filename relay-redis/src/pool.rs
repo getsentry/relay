@@ -2,6 +2,7 @@ use deadpool::managed::{Manager, Metrics, Object, Pool, RecycleError, RecycleRes
 use futures::FutureExt;
 use redis::AsyncConnectionConfig;
 use redis::cluster::ClusterClientBuilder;
+use redis::cluster_read_routing::RandomReplicaStrategy;
 use redis::io::tcp::{TcpSettings, socket2::TcpKeepalive};
 use std::ops::{Deref, DerefMut};
 use std::time::Duration;
@@ -161,7 +162,7 @@ impl CustomClusterManager {
         let mut client = ClusterClientBuilder::new(params).tcp_settings(create_tcp_settings());
 
         if read_from_replicas {
-            client = client.read_from_replicas();
+            client = client.read_routing_strategy(RandomReplicaStrategy);
         }
         if let Some(response_timeout) = options.response_timeout {
             client = client.response_timeout(Duration::from_secs(response_timeout));
