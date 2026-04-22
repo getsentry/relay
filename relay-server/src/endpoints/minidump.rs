@@ -279,7 +279,7 @@ fn project_fetching_rolled_out(state: &ServiceState, project_id: Option<ProjectI
 }
 
 /// Creates an [UploadContext] for a given project, returns none if the project does not have
-/// the [Feature::MinidumpAttachmentsUploads] enabled or there are rate limits for attachments.
+/// the [Feature::MinidumpAttachmentUploads] enabled or there are rate limits for attachments.
 fn upload_context_for_project<'a>(
     meta: &RequestMeta,
     state: &'a ServiceState,
