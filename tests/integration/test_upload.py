@@ -563,3 +563,50 @@ def test_objectstore_retries(mini_sentry, relay_with_processing, project_config)
         failure
     )
     assert response.status_code == 500
+
+
+def test_objectstore_timeout(mini_sentry, relay_with_processing, project_config):
+    mini_sentry.allow_chunked = True
+    project_id = 42
+    project_key = mini_sentry.get_dsn_public_key(project_id)
+
+    @mini_sentry.app.route("/v1/objects/attachments/<scope>/<key>", methods=["PUT"])
+    def slow_objectstore(**opts):
+        time.sleep(2)
+        return 204
+
+    relay = relay_with_processing(
+        options={
+            "processing": {
+                "objectstore": {
+                    "objectstore_url": mini_sentry.url,
+                    "timeout": 1,
+                }
+            }
+        }
+    )
+
+    # Create the upload (this does NOT contact objectstore).
+    data = b"hello world"
+    response = relay.post(
+        f"/api/{project_id}/upload/?sentry_key={project_key}",
+        headers={
+            "Content-Length": "0",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": str(len(data)),
+        },
+    )
+    assert response.status_code == 201
+
+    response = relay.patch(
+        f"{response.headers['Location']}&sentry_key={project_key}",
+        headers={
+            "Content-Length": str(len(data)),
+            "Content-Type": "application/offset+octet-stream",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Offset": "0",
+        },
+        data=data,
+    )
+
+    assert response.status_code == 204
