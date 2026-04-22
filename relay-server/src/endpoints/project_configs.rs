@@ -200,10 +200,7 @@ async fn inner(
                 OutgoingProjectState {
                     disabled: false,
                     info: Arc::clone(project_info),
-                    upstream: state
-                        .config()
-                        .advertised_upstream_descriptor()
-                        .map(|u| u.as_ref().into_owned()),
+                    upstream: state.config().advertised_upstream().cloned(),
                 },
                 full,
             );

@@ -133,16 +133,11 @@ impl AsyncRedisClient {
     /// Returns a new [`AsyncRedisConnection`] that can be used to execute Redis commands.
     /// The connection is automatically returned to the pool when dropped.
     pub async fn get_connection(&self) -> Result<AsyncRedisConnection, RedisError> {
-        let connection = match self {
-            Self::Cluster(pool) => {
-                AsyncRedisConnection::Cluster(pool.get().await.map_err(RedisError::Pool)?)
-            }
-            Self::Single(pool) => {
-                AsyncRedisConnection::Single(pool.get().await.map_err(RedisError::Pool)?)
-            }
-        };
-
-        Ok(connection)
+        match self {
+            Self::Cluster(pool) => pool.get().await.map(AsyncRedisConnection::Cluster),
+            Self::Single(pool) => pool.get().await.map(AsyncRedisConnection::Single),
+        }
+        .map_err(RedisError::Pool)
     }
 
     /// Returns statistics about the current state of the connection pool.

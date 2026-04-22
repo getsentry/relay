@@ -771,3 +771,23 @@ def test_form_data_is_rejected(
 
     # Verify no more attachments were processed
     attachments_consumer.assert_empty()
+
+
+@pytest.mark.parametrize(
+    "limit,expected_status_code",
+    [("max_attachment_size", 400), ("max_attachments_size", 413)],
+)
+def test_size_limits(mini_sentry, relay, limit, expected_status_code):
+    proj_id = 42
+    relay = relay(mini_sentry, {"limits": {limit: 10}})
+    mini_sentry.add_full_project_config(proj_id)
+
+    event_id = "515539018c9b4260a6f999572f1661ee"
+    response = relay.send_attachments(
+        proj_id,
+        event_id,
+        [("some_field", "myfile.txt", "hello world!")],
+        raise_for_status=False,
+    )
+
+    assert response.status_code == expected_status_code

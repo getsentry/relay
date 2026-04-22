@@ -57,7 +57,7 @@ impl ProxyProcessorService {
             scoping,
         } = message;
 
-        let upstream = self.config.upstream_descriptor();
+        let upstream = self.config.upstream();
         let dsn = PartialDsn::outbound(&scoping, upstream);
 
         let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));

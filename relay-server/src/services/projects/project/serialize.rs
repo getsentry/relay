@@ -9,6 +9,7 @@ use crate::services::projects::project::{LimitedProjectInfo, ProjectInfo};
 ///
 /// Use [`OutgoingProjectState`] to serialize a project state.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct IncomingProjectState {
     /// Whether the project state is disabled.
     #[serde(default)]
@@ -24,6 +25,7 @@ pub struct IncomingProjectState {
 ///
 /// Use [`IncomingProjectState`] to de-serialize a project state.
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OutgoingProjectState {
     /// Whether the project state is disabled.
     #[serde(default)]
@@ -37,7 +39,7 @@ pub struct OutgoingProjectState {
     ///
     /// See also: [`ProjectInfo::upstream`].
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub upstream: Option<UpstreamDescriptor<'static>>,
+    pub upstream: Option<UpstreamDescriptor>,
 }
 
 /// Limited project state for external Relays.
@@ -56,7 +58,7 @@ pub struct LimitedOutgoingProjectState {
     ///
     /// See also: [`ProjectInfo::upstream`].
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub upstream: Option<UpstreamDescriptor<'static>>,
+    pub upstream: Option<UpstreamDescriptor>,
 }
 
 #[cfg(test)]

@@ -1,306 +1,60 @@
 //! Contains the processing-only functionality.
 
-use std::error::Error;
-
-use crate::envelope::ItemType;
-use crate::managed::{ItemAction, ManagedEnvelope, TypedEnvelope};
-use crate::metrics_extraction::{event, generic};
-use crate::processing;
-use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics, SpanGroup};
-use crate::statsd::RelayCounters;
-use crate::utils::SamplingResult;
+use crate::services::processor::ProcessingError;
 use chrono::{DateTime, Utc};
-use relay_base_schema::project::ProjectId;
-use relay_config::Config;
-use relay_dynamic_config::{
-    CombinedMetricExtractionConfig, ErrorBoundary, GlobalConfig, ProjectConfig,
-};
 use relay_event_normalization::span::ai::enrich_ai_span;
 use relay_event_normalization::{
     BorrowedSpanOpDefaults, ClientHints, CombinedMeasurementsConfig, FromUserAgentInfo,
-    GeoIpLookup, MeasurementsConfig, ModelMetadata, PerformanceScoreConfig, RawUserAgentInfo,
-    SchemaProcessor, TimestampProcessor, TransactionNameRule, TransactionsProcessor,
-    TrimmingProcessor, normalize_measurements, normalize_performance_score,
-    normalize_transaction_name, span::tag_extraction, validate_span,
+    GeoIpLookup, ModelMetadata, PerformanceScoreConfig, RawUserAgentInfo, SchemaProcessor,
+    TimestampProcessor, TransactionNameRule, TransactionsProcessor, TrimmingProcessor,
+    normalize_measurements, normalize_performance_score, normalize_transaction_name,
+    span::tag_extraction, validate_span,
 };
-use relay_event_schema::processor::{ProcessingAction, ProcessingState, process_value};
-use relay_event_schema::protocol::{BrowserContext, Event, EventId, IpAddr, Span, SpanData};
-use relay_metrics::{MetricNamespace, UnixTimestamp};
-use relay_pii::PiiProcessor;
+use relay_event_schema::processor::{ProcessingState, process_value};
+use relay_event_schema::protocol::{BrowserContext, EventId, IpAddr, Span, SpanData};
+use relay_metrics::UnixTimestamp;
 use relay_protocol::{Annotated, Empty, Value};
-use relay_quotas::DataCategory;
-
-pub async fn process(
-    managed_envelope: &mut TypedEnvelope<SpanGroup>,
-    event: &mut Annotated<Event>,
-    extracted_metrics: &mut ProcessingExtractedMetrics,
-    project_id: ProjectId,
-    ctx: processing::Context<'_>,
-    geo_lookup: &GeoIpLookup,
-) {
-    use relay_event_normalization::RemoveOtherProcessor;
-
-    // If no metrics could be extracted, do not sample anything.
-    let should_sample = matches!(&ctx.project_info.config().metric_extraction, ErrorBoundary::Ok(c) if c.is_supported());
-    let sampling_result = match should_sample {
-        true => {
-            // We only implement trace-based sampling rules for now, which can be computed
-            // once for all spans in the envelope.
-            processing::utils::dynamic_sampling::run(
-                managed_envelope.envelope().headers().dsc(),
-                event.value(),
-                &ctx,
-                None,
-            )
-            .await
-        }
-        false => SamplingResult::Pending,
-    };
-
-    relay_statsd::metric!(
-        counter(RelayCounters::SamplingDecision) += 1,
-        decision = sampling_result.decision().as_str(),
-        item = "span"
-    );
-
-    let span_metrics_extraction_config = match ctx.project_info.config.metric_extraction {
-        ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
-        _ => None,
-    };
-    let ai_model_metadata = ctx.global_config.model_metadata();
-    let normalize_span_config = NormalizeSpanConfig::new(
-        ctx.config,
-        ctx.global_config,
-        ctx.project_info.config(),
-        managed_envelope,
-        managed_envelope
-            .envelope()
-            .meta()
-            .client_addr()
-            .map(IpAddr::from),
-        geo_lookup,
-        ai_model_metadata.as_ref(),
-    );
-
-    let client_ip = managed_envelope.envelope().meta().client_addr();
-    let filter_settings = &ctx.project_info.config.filter_settings;
-    let sampling_decision = sampling_result.decision();
-    let transaction_from_dsc = managed_envelope
-        .envelope()
-        .dsc()
-        .and_then(|dsc| dsc.transaction.clone());
-
-    let mut span_count = 0;
-    managed_envelope.retain_items(|item| {
-        let mut annotated_span = match item.ty() {
-            ItemType::Span => match Annotated::<Span>::from_json_bytes(&item.payload()) {
-                Ok(span) => span,
-                Err(err) => {
-                    relay_log::debug!("failed to parse span: {}", err);
-                    return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidJson));
-                }
-            },
-
-            _ => return ItemAction::Keep,
-        };
-
-        if let Err(e) = normalize(&mut annotated_span, normalize_span_config.clone()) {
-            relay_log::debug!("failed to normalize span: {}", e);
-            return ItemAction::Drop(Outcome::Invalid(match e {
-                ProcessingError::ProcessingFailed(ProcessingAction::InvalidTransaction(_))
-                | ProcessingError::InvalidTransaction => DiscardReason::InvalidSpan,
-                _ => DiscardReason::Internal,
-            }));
-        };
-
-        if let Some(span) = annotated_span.value() {
-            span_count += 1;
-
-            if let Err(filter_stat_key) = relay_filter::should_filter(
-                span,
-                client_ip,
-                filter_settings,
-                ctx.global_config.filters(),
-            ) {
-                relay_log::trace!(
-                    "filtering span {:?} that matched an inbound filter",
-                    span.span_id
-                );
-                return ItemAction::Drop(Outcome::Filtered(filter_stat_key));
-            }
-        }
-
-        if let Some(config) = span_metrics_extraction_config {
-            let Some(span) = annotated_span.value_mut() else {
-                return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
-            };
-            relay_log::trace!("extracting metrics from standalone span {:?}", span.span_id);
-
-            let ErrorBoundary::Ok(global_metrics_config) = &ctx.global_config.metric_extraction
-            else {
-                return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
-            };
-
-            let metrics = generic::extract_metrics(
-                span,
-                CombinedMetricExtractionConfig::new(global_metrics_config, config),
-            );
-
-            extracted_metrics.extend_project_metrics(metrics, Some(sampling_decision));
-
-            let bucket = event::create_span_root_counter(
-                span,
-                transaction_from_dsc.clone(),
-                1,
-                span.is_segment.value().is_some_and(|s| *s),
-                sampling_decision,
-                project_id,
-            );
-            extracted_metrics.extend_sampling_metrics(bucket, Some(sampling_decision));
-
-            item.set_metrics_extracted(true);
-        }
-
-        if sampling_decision.is_drop() {
-            // Drop silently and not with an outcome, we only want to emit an outcome for the
-            // indexed category if the span was dropped by dynamic sampling.
-            // Dropping through the envelope will emit for both categories.
-            return ItemAction::DropSilently;
-        }
-
-        if let Err(e) = scrub(&mut annotated_span, &ctx.project_info.config) {
-            relay_log::error!("failed to scrub span: {e}");
-        }
-
-        // Remove additional fields.
-        process_value(
-            &mut annotated_span,
-            &mut RemoveOtherProcessor,
-            ProcessingState::root(),
-        )
-        .ok();
-
-        // Validate for kafka (TODO: this should be moved to kafka producer)
-        match processing::transactions::spans::validate(&mut annotated_span) {
-            Ok(res) => res,
-            Err(err) => {
-                relay_log::debug!(
-                    error = &err as &dyn Error,
-                    source = "standalone",
-                    "invalid span"
-                );
-                return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidSpan));
-            }
-        };
-
-        let Ok(mut new_item) =
-            processing::transactions::spans::create_span_item(annotated_span, ctx.config)
-        // TODO: move function
-        else {
-            return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
-        };
-
-        new_item.set_metrics_extracted(item.metrics_extracted());
-        *item = new_item;
-
-        ItemAction::Keep
-    });
-
-    if sampling_decision.is_drop() {
-        relay_log::trace!(
-            span_count,
-            ?sampling_result,
-            "Dropped spans because of sampling rule",
-        );
-    }
-
-    if let Some(outcome) = sampling_result.into_dropped_outcome() {
-        managed_envelope.track_outcome(outcome, DataCategory::SpanIndexed, span_count);
-    }
-}
 
 /// Config needed to normalize a standalone span.
 #[derive(Clone, Debug)]
-struct NormalizeSpanConfig<'a> {
+pub struct NormalizeSpanConfig<'a> {
     /// The time at which the event was received in this Relay.
-    received_at: DateTime<Utc>,
+    pub received_at: DateTime<Utc>,
     /// Allowed time range for spans.
-    timestamp_range: std::ops::Range<UnixTimestamp>,
+    pub timestamp_range: std::ops::Range<UnixTimestamp>,
     /// The maximum allowed size of tag values in bytes. Longer values will be cropped.
-    max_tag_value_size: usize,
+    pub max_tag_value_size: usize,
     /// Configuration for generating performance score measurements for web vitals
-    performance_score: Option<&'a PerformanceScoreConfig>,
+    pub performance_score: Option<&'a PerformanceScoreConfig>,
     /// Configuration for measurement normalization in transaction events.
     ///
     /// Has an optional [`relay_event_normalization::MeasurementsConfig`] from both the project and the global level.
     /// If at least one is provided, then normalization will truncate custom measurements
     /// and add units of known built-in measurements.
-    measurements: Option<CombinedMeasurementsConfig<'a>>,
+    pub measurements: Option<CombinedMeasurementsConfig<'a>>,
     /// Metadata for AI models including costs and context size.
-    ai_model_metadata: Option<&'a ModelMetadata>,
+    pub ai_model_metadata: Option<&'a ModelMetadata>,
     /// The maximum length for names of custom measurements.
     ///
     /// Measurements with longer names are removed from the transaction event and replaced with a
     /// metadata entry.
-    max_name_and_unit_len: usize,
+    pub max_name_and_unit_len: usize,
     /// Transaction name normalization rules.
-    tx_name_rules: &'a [TransactionNameRule],
+    pub tx_name_rules: &'a [TransactionNameRule],
     /// The user agent parsed from the request.
-    user_agent: Option<String>,
+    pub user_agent: Option<String>,
     /// Client hints parsed from the request.
-    client_hints: ClientHints<String>,
+    pub client_hints: ClientHints<String>,
     /// Hosts that are not replaced by "*" in HTTP span grouping.
-    allowed_hosts: &'a [String],
+    pub allowed_hosts: &'a [String],
     /// The IP address of the SDK that sent the event.
     ///
     /// When `{{auto}}` is specified and there is no other IP address in the payload, such as in the
     /// `request` context, this IP address gets added to `span.data.client_address`.
-    client_ip: Option<IpAddr>,
+    pub client_ip: Option<IpAddr>,
     /// An initialized GeoIP lookup.
-    geo_lookup: &'a GeoIpLookup,
-    span_op_defaults: BorrowedSpanOpDefaults<'a>,
-}
-
-impl<'a> NormalizeSpanConfig<'a> {
-    fn new(
-        config: &'a Config,
-        global_config: &'a GlobalConfig,
-        project_config: &'a ProjectConfig,
-        managed_envelope: &ManagedEnvelope,
-        client_ip: Option<IpAddr>,
-        geo_lookup: &'a GeoIpLookup,
-        ai_model_metadata: Option<&'a ModelMetadata>,
-    ) -> Self {
-        let aggregator_config = config.aggregator_config_for(MetricNamespace::Spans);
-
-        Self {
-            received_at: managed_envelope.received_at(),
-            timestamp_range: aggregator_config.timestamp_range(),
-            max_tag_value_size: aggregator_config.max_tag_value_length,
-            performance_score: project_config.performance_score.as_ref(),
-            measurements: Some(CombinedMeasurementsConfig::new(
-                project_config.measurements.as_ref(),
-                global_config.measurements.as_ref(),
-            )),
-            ai_model_metadata,
-            max_name_and_unit_len: aggregator_config
-                .max_name_length
-                .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
-
-            tx_name_rules: &project_config.tx_name_rules,
-            user_agent: managed_envelope
-                .envelope()
-                .meta()
-                .user_agent()
-                .map(Into::into),
-            client_hints: managed_envelope.meta().client_hints().to_owned(),
-            allowed_hosts: global_config.options.http_span_allowed_hosts.as_slice(),
-            client_ip,
-            geo_lookup,
-            span_op_defaults: global_config.span_op_defaults.borrow(),
-        }
-    }
+    pub geo_lookup: &'a GeoIpLookup,
+    pub span_op_defaults: BorrowedSpanOpDefaults<'a>,
 }
 
 fn set_segment_attributes(span: &mut Annotated<Span>) {
@@ -335,7 +89,7 @@ fn set_segment_attributes(span: &mut Annotated<Span>) {
 }
 
 /// Normalizes a standalone span.
-fn normalize(
+pub fn normalize(
     annotated_span: &mut Annotated<Span>,
     config: NormalizeSpanConfig,
 ) -> Result<(), ProcessingError> {
@@ -515,23 +269,6 @@ fn promote_span_data_fields(span: &mut Span) {
             data.profile_id.set_value(None);
         }
     }
-}
-
-fn scrub(
-    annotated_span: &mut Annotated<Span>,
-    project_config: &ProjectConfig,
-) -> Result<(), ProcessingError> {
-    if let Some(ref config) = project_config.pii_config {
-        let mut processor = PiiProcessor::new(config.compiled());
-        process_value(annotated_span, &mut processor, ProcessingState::root())?;
-    }
-    let pii_config = project_config.datascrubbing_settings.pii_config();
-    if let Some(config) = pii_config {
-        let mut processor = PiiProcessor::new(config.compiled());
-        process_value(annotated_span, &mut processor, ProcessingState::root())?;
-    }
-
-    Ok(())
 }
 
 #[cfg(test)]
