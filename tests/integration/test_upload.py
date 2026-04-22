@@ -519,7 +519,6 @@ def test_objectstore_retries(mini_sentry, relay_with_processing, project_config)
     The retry delay gives time for the mock objectstore to start, and the
     second attempt succeeds because the stream has not been consumed yet.
     """
-    mini_sentry.fail_on_relay_error = False
     project_id = 42
     project_key = mini_sentry.get_dsn_public_key(project_id)
 
