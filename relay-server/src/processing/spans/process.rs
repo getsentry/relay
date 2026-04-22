@@ -290,13 +290,7 @@ fn span_duration(span: &SpanV2) -> Option<Duration> {
 #[cfg(test)]
 mod tests {
     use chrono::DateTime;
-    use relay_conventions::{
-        APP_VITALS_START_TYPE, APP_VITALS_START_VALUE, APP_VITALS_TTFD_VALUE, DB_QUERY_TEXT,
-        DB_SYSTEM, DB_SYSTEM_NAME, DESCRIPTION, DEVICE_CLASS, DEVICE_FAMILY, DEVICE_MODEL,
-        GEN_AI_PROVIDER_NAME, GEN_AI_SYSTEM, HTTP_REQUEST_METHOD, OP, SENTRY_ACTION,
-        SENTRY_CATEGORY, SENTRY_DOMAIN, SENTRY_MAIN_THREAD, SENTRY_MOBILE,
-        SENTRY_NORMALIZED_DESCRIPTION, SENTRY_SDK_NAME, SPAN_KIND, THREAD_NAME, URL_FULL,
-    };
+    use relay_conventions::*;
     use relay_event_schema::protocol::{Attributes, EventId, SpanKind};
     use relay_pii::PiiConfig;
     use relay_protocol::SerializableAnnotated;
