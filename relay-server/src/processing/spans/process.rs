@@ -293,8 +293,9 @@ mod tests {
     use relay_conventions::{
         APP_VITALS_START_TYPE, APP_VITALS_START_VALUE, APP_VITALS_TTFD_VALUE, DB_QUERY_TEXT,
         DB_SYSTEM, DB_SYSTEM_NAME, DESCRIPTION, DEVICE_CLASS, DEVICE_FAMILY, DEVICE_MODEL,
-        HTTP_REQUEST_METHOD, OP, SENTRY_ACTION, SENTRY_CATEGORY, SENTRY_DOMAIN, SENTRY_MAIN_THREAD,
-        SENTRY_MOBILE, SENTRY_NORMALIZED_DESCRIPTION, SENTRY_SDK_NAME, THREAD_NAME, URL_FULL,
+        GEN_AI_PROVIDER_NAME, GEN_AI_SYSTEM, HTTP_REQUEST_METHOD, OP, SENTRY_ACTION,
+        SENTRY_CATEGORY, SENTRY_DOMAIN, SENTRY_MAIN_THREAD, SENTRY_MOBILE,
+        SENTRY_NORMALIZED_DESCRIPTION, SENTRY_SDK_NAME, SPAN_KIND, THREAD_NAME, URL_FULL,
     };
     use relay_event_schema::protocol::{Attributes, EventId, SpanKind};
     use relay_pii::PiiConfig;
@@ -836,10 +837,18 @@ mod tests {
     ) {
         let attrs = span.value().unwrap().attributes.value().unwrap();
         string_attributes.iter().for_each(|(key, value)| {
-            assert_eq!(attrs.get_value(*key).and_then(|v| v.as_str()), Some(*value),)
+            assert_eq!(
+                attrs.get_value(*key).and_then(|v| v.as_str()),
+                Some(*value),
+                "attribute mismatch for {key}"
+            )
         });
         float_attributes.iter().for_each(|(key, value)| {
-            assert_eq!(attrs.get_value(*key).and_then(|v| v.as_f64()), Some(*value),)
+            assert_eq!(
+                attrs.get_value(*key).and_then(|v| v.as_f64()),
+                Some(*value),
+                "attribute mismatch for {key}"
+            )
         });
     }
 
@@ -1011,6 +1020,68 @@ mod tests {
                 (SENTRY_DOMAIN, "*.example.com"),
             ],
             &[("sentry.status_code", 502.)],
+        );
+    }
+    #[test]
+    fn test_op_from_deprecated_db_system() {
+        let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
+            &[
+                (DB_SYSTEM, "postgresql"),
+                (DB_QUERY_TEXT, "select * from users where id = 1"),
+            ],
+            &[],
+        );
+
+        normalize_span(&mut span, &headers, &geo_lookup, None, ctx).unwrap();
+
+        assert_attributes_contains(
+            &span,
+            &[
+                (OP, "db"),
+                (DESCRIPTION, "select * from users where id = 1"),
+                (
+                    SENTRY_NORMALIZED_DESCRIPTION,
+                    "SELECT * FROM users WHERE id = %s",
+                ),
+                (SENTRY_CATEGORY, "db"),
+                (DB_SYSTEM_NAME, "postgresql"),
+                (SENTRY_ACTION, "SELECT"),
+                (SENTRY_DOMAIN, ",users,"),
+            ],
+            &[],
+        );
+    }
+
+    #[test]
+    fn test_op_from_deprecated_http_method() {
+        let (mut span, headers, geo_lookup, ctx) =
+            prepare_normalize_span_params(&[("http.method", "GET"), (SPAN_KIND, "server")], &[]);
+
+        normalize_span(&mut span, &headers, &geo_lookup, None, ctx).unwrap();
+
+        assert_attributes_contains(
+            &span,
+            &[
+                (OP, "http.server"),
+                (SENTRY_CATEGORY, "http.server"),
+                (HTTP_REQUEST_METHOD, "GET"),
+                (SPAN_KIND, "server"),
+            ],
+            &[],
+        );
+    }
+
+    #[test]
+    fn test_op_from_deprecated_gen_ai_system() {
+        let (mut span, headers, geo_lookup, ctx) =
+            prepare_normalize_span_params(&[(GEN_AI_SYSTEM, "some system")], &[]);
+
+        normalize_span(&mut span, &headers, &geo_lookup, None, ctx).unwrap();
+
+        assert_attributes_contains(
+            &span,
+            &[(OP, "gen_ai"), (GEN_AI_PROVIDER_NAME, "some system")],
+            &[],
         );
     }
 }
