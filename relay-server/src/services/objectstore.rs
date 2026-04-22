@@ -656,7 +656,7 @@ impl ObjectstoreServiceInner {
             timer(RelayTimers::AttachmentUploadDuration),
             type = kind.as_str(),
             {
-                dbg!(request.send().await)
+                request.send().await
             }
         )?;
 
