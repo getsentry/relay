@@ -586,7 +586,7 @@ def upload_something(relay, project_id, project_key):
     )
     assert response.status_code == 201
 
-    response = relay.patch(
+    return relay.patch(
         f"{response.headers['Location']}&sentry_key={project_key}",
         headers={
             "Content-Length": str(len(data)),
@@ -596,27 +596,3 @@ def upload_something(relay, project_id, project_key):
         },
         data=data,
     )
-    # Create the upload (this does NOT contact objectstore).
-    data = b"hello world"
-    response = relay.post(
-        f"/api/{project_id}/upload/?sentry_key={project_key}",
-        headers={
-            "Content-Length": "0",
-            "Tus-Resumable": "1.0.0",
-            "Upload-Length": str(len(data)),
-        },
-    )
-    assert response.status_code == 201
-
-    response = relay.patch(
-        f"{response.headers['Location']}&sentry_key={project_key}",
-        headers={
-            "Content-Length": str(len(data)),
-            "Content-Type": "application/offset+octet-stream",
-            "Tus-Resumable": "1.0.0",
-            "Upload-Offset": "0",
-        },
-        data=data,
-    )
-
-    return response

@@ -574,13 +574,8 @@ impl ObjectstoreServiceInner {
         key: Option<String>,
     ) -> Result<ObjectstoreKey, Error> {
         let retention_hours = retention.checked_mul(24);
-        tokio::time::timeout(
-            self.timeout,
-            self.upload(kind, session, key, Body::Bytes(payload), retention_hours),
-        )
-        .await
-        .map_err(Error::from)
-        .flatten()
+        self.upload(kind, session, key, Body::Bytes(payload), retention_hours)
+            .await
     }
 
     async fn upload(
@@ -592,7 +587,11 @@ impl ObjectstoreServiceInner {
         retention_hours: Option<u16>,
     ) -> Result<ObjectstoreKey, Error> {
         let mut attempts = 0;
-        let result = {
+        let timeout = match &body {
+            Body::Bytes(_) => self.timeout,
+            Body::Stream(_) => Duration::MAX,
+        };
+        let result = tokio::time::timeout(timeout, async {
             let mut result = None;
             loop {
                 let Some(body) = body.try_clone() else {
@@ -616,7 +615,10 @@ impl ObjectstoreServiceInner {
             result
                 .expect("try_clone() should succeed at least once")
                 .map_err(Error::from)
-        };
+        })
+        .await
+        .map_err(Error::from)
+        .flatten();
 
         if result.is_ok() {
             relay_statsd::metric!(
