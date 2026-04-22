@@ -1,4 +1,5 @@
 import os
+from collections import defaultdict
 from unittest import mock
 
 import msgpack
@@ -787,3 +788,73 @@ def test_minidump_placeholder(
     stored_id = attachment["stored_id"]
     objectstore_session = objectstore("attachments", project_id)
     assert objectstore_session.get(stored_id).payload.read() == minidump_data
+
+
+@pytest.mark.parametrize(
+    "rollout_enabled,feature_enabled",
+    [
+        (False, False),
+        (True, False),
+        (True, True),
+    ],
+    ids=["no-option", "no-feature", "both-enabled"],
+)
+def test_minidump_object_store_uploads(
+    mini_sentry,
+    relay_with_processing,
+    attachments_consumer,
+    outcomes_consumer,
+    objectstore,
+    rollout_enabled,
+    feature_enabled,
+):
+    project_id = 42
+    minidump_content = b"MDMP content"
+    log_content = b"Some log file content"
+
+    project_config = mini_sentry.add_full_project_config(project_id)
+    if feature_enabled:
+        project_config["config"].setdefault("features", []).append(
+            "projects:relay-minidump-attachment-uploads"
+        )
+    mini_sentry.global_config["options"][
+        "relay.minidump-endpoint-fetch-config.rollout-rate"
+    ] = (1.0 if rollout_enabled else 0.0)
+
+    relay = relay_with_processing()
+    attachments_consumer = attachments_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    response = relay.send_minidump(
+        project_id=project_id,
+        files=[
+            (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", minidump_content),
+            ("logs", "log.txt", log_content),
+        ],
+    )
+    assert response.ok
+
+    chunks = defaultdict(bytes)
+    event = None
+    while not event:
+        _, msg = attachments_consumer.get_message()
+        if msg.get("type") == "attachment_chunk":
+            chunks[msg["id"]] += msg["payload"]
+        elif msg.get("type") == "event":
+            event = msg
+
+    by_name = {a["name"]: a for a in event["attachments"]}
+    minidump = by_name["minidump.dmp"]
+    logs = by_name["log.txt"]
+
+    assert "stored_id" not in minidump
+    assert chunks[minidump["id"]] == minidump_content
+
+    if rollout_enabled and feature_enabled:
+        assert "stored_id" in logs
+        store = objectstore("attachments", project_id)
+        assert store.get(logs["stored_id"]).payload.read() == log_content
+        assert logs["id"] not in chunks
+    else:
+        assert "stored_id" not in logs
+        assert chunks[logs["id"]] == log_content
