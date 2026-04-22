@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::MemoryStat;
 use crate::services::buffer::PartitionedEnvelopeBuffer;
 use crate::services::processor::EnvelopeProcessorServicePool;
@@ -11,7 +13,7 @@ pub struct AutoscalingMetricService {
     /// For exposing internal memory usage of relay.
     memory_stat: MemoryStat,
     /// Reference to the spooler to get item count and total used size.
-    envelope_buffer: PartitionedEnvelopeBuffer,
+    envelope_buffer: Arc<PartitionedEnvelopeBuffer>,
     /// Runtime handle to expose service utilization metrics.
     handle: Handle,
     /// Gives access to runtime metrics.
@@ -27,7 +29,7 @@ pub struct AutoscalingMetricService {
 impl AutoscalingMetricService {
     pub fn new(
         memory_stat: MemoryStat,
-        envelope_buffer: PartitionedEnvelopeBuffer,
+        envelope_buffer: Arc<PartitionedEnvelopeBuffer>,
         handle: Handle,
         async_pool: EnvelopeProcessorServicePool,
     ) -> Self {
