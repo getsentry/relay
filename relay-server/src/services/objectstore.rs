@@ -265,6 +265,7 @@ impl ObjectstoreService {
             max_concurrent_requests: _,
             max_backlog: _,
             timeout,
+            stream_timeout,
             retry_delay,
             max_attempts,
             auth,
@@ -308,6 +309,7 @@ impl ObjectstoreService {
             event_attachments,
             trace_attachments,
             timeout: Duration::from_secs(*timeout),
+            stream_timeout: Duration::from_secs(*stream_timeout),
             retry_interval: Duration::from_secs_f64(*retry_delay),
             max_attempts: *max_attempts,
         };
@@ -356,6 +358,7 @@ struct ObjectstoreServiceInner {
     event_attachments: Usecase,
     trace_attachments: Usecase,
     timeout: Duration,
+    stream_timeout: Duration,
     retry_interval: Duration,
     max_attempts: NonZeroU16,
 }
@@ -589,7 +592,7 @@ impl ObjectstoreServiceInner {
         let mut attempts = 0;
         let timeout = match &body {
             Body::Bytes(_) => self.timeout,
-            Body::Stream(_) => Duration::MAX,
+            Body::Stream(_) => self.stream_timeout,
         };
         let result = tokio::time::timeout(timeout, async {
             let mut result = None;
