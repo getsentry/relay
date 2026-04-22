@@ -535,28 +535,7 @@ def test_objectstore_retries(mini_sentry, relay_with_processing, project_config)
         }
     )
 
-    # Create the upload (this does NOT contact objectstore).
-    data = b"hello world"
-    response = relay.post(
-        f"/api/{project_id}/upload/?sentry_key={project_key}",
-        headers={
-            "Content-Length": "0",
-            "Tus-Resumable": "1.0.0",
-            "Upload-Length": str(len(data)),
-        },
-    )
-    assert response.status_code == 201
-
-    response = relay.patch(
-        f"{response.headers['Location']}&sentry_key={project_key}",
-        headers={
-            "Content-Length": str(len(data)),
-            "Content-Type": "application/offset+octet-stream",
-            "Tus-Resumable": "1.0.0",
-            "Upload-Offset": "0",
-        },
-        data=data,
-    )
+    response = upload_something(relay, project_id, project_key)
 
     failure = mini_sentry.test_failures.get(timeout=10)
     assert "failed to upload 1 attachment(s) to objectstore in 3 attempt(s)" in str(
@@ -586,6 +565,34 @@ def test_objectstore_timeout(mini_sentry, relay_with_processing, project_config)
         }
     )
 
+    response = upload_something(relay, project_id, project_key)
+
+    assert response.status_code == 204
+
+
+def upload_something(relay, project_id, project_key):
+    # Create the upload (this does NOT contact objectstore).
+    data = b"hello world"
+    response = relay.post(
+        f"/api/{project_id}/upload/?sentry_key={project_key}",
+        headers={
+            "Content-Length": "0",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": str(len(data)),
+        },
+    )
+    assert response.status_code == 201
+
+    response = relay.patch(
+        f"{response.headers['Location']}&sentry_key={project_key}",
+        headers={
+            "Content-Length": str(len(data)),
+            "Content-Type": "application/offset+octet-stream",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Offset": "0",
+        },
+        data=data,
+    )
     # Create the upload (this does NOT contact objectstore).
     data = b"hello world"
     response = relay.post(
@@ -609,4 +616,4 @@ def test_objectstore_timeout(mini_sentry, relay_with_processing, project_config)
         data=data,
     )
 
-    assert response.status_code == 204
+    return response
