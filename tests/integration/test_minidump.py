@@ -793,7 +793,7 @@ def test_minidump_placeholder(
     "limit,expected_status_code",
     [("max_attachment_size", 400), ("max_attachments_size", 413)],
 )
-def test_size_limits(mini_sentry, relay, limit, expected_status_code):
+def test_size_limits_multipart(mini_sentry, relay, limit, expected_status_code):
     project_id = 42
     relay = relay(
         mini_sentry,
@@ -807,6 +807,112 @@ def test_size_limits(mini_sentry, relay, limit, expected_status_code):
 
     attachments = [
         (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", "MDMP content"),
+    ]
+
+    params = [
+        ("sentry[event_id]", "2dd132e467174db48dbaddabd3cbed57"),
+        ("sentry[user][id]", "123"),
+    ]
+
+    response = relay.send_minidump(
+        project_id=project_id, files=attachments, params=params, raise_for_status=False
+    )
+    assert response.status_code == expected_status_code
+
+
+@pytest.mark.parametrize(
+    "content_type", ("application/octet-stream", "application/x-dmp")
+)
+@pytest.mark.parametrize(
+    "limit,expected_status_code",
+    [("max_attachment_size", 413), ("max_attachments_size", 413)],
+)
+def test_size_limits_raw(mini_sentry, relay, content_type, limit, expected_status_code):
+    project_id = 42
+    relay = relay(
+        mini_sentry,
+        {
+            "limits": {
+                limit: 10,
+            }
+        },
+    )
+    mini_sentry.add_full_project_config(project_id)
+
+    response = relay.request(
+        "post",
+        "/api/{}/minidump?sentry_key={}".format(
+            project_id, mini_sentry.get_dsn_public_key(project_id)
+        ),
+        headers={"Content-Type": content_type},
+        data="MDMP content",
+    )
+    assert response.status_code == expected_status_code, response.json()
+
+
+@pytest.mark.parametrize(
+    "limit_name,expected_status_code",
+    [("max_attachment_size", 413), ("max_attachments_size", 413)],
+)
+@pytest.mark.parametrize("limit_value", [10, 69000])
+def test_size_limits_raw_compressed(
+    mini_sentry, relay, limit_name, expected_status_code, limit_value
+):
+    project_id = 42
+    relay = relay(
+        mini_sentry,
+        {
+            "limits": {
+                limit_name: limit_value,
+            }
+        },
+    )
+    mini_sentry.add_full_project_config(project_id)
+
+    compressed_dmp_path = os.path.join(
+        os.path.dirname(__file__), "fixtures/native/minidump.dmp.gz"
+    )
+    with open(compressed_dmp_path, "rb") as f:
+        compressed_content = f.read()
+
+    response = relay.request(
+        "post",
+        "/api/{}/minidump?sentry_key={}".format(
+            project_id, mini_sentry.get_dsn_public_key(project_id)
+        ),
+        headers={"Content-Type": "application/x-dmp"},
+        data=compressed_content,
+    )
+    assert response.status_code == expected_status_code, response.json()
+
+
+@pytest.mark.parametrize(
+    "limit_name,expected_status_code",
+    [("max_attachment_size", 400), ("max_attachments_size", 413)],
+)
+@pytest.mark.parametrize("limit_value", [10, 69000])
+def test_size_limits_multipart_compressed(
+    mini_sentry, relay, limit_name, expected_status_code, limit_value
+):
+    project_id = 42
+    relay = relay(
+        mini_sentry,
+        {
+            "limits": {
+                limit_name: limit_value,
+            }
+        },
+    )
+    mini_sentry.add_full_project_config(project_id)
+
+    compressed_dmp_path = os.path.join(
+        os.path.dirname(__file__), "fixtures/native/minidump.dmp.gz"
+    )
+    with open(compressed_dmp_path, "rb") as f:
+        compressed_content = f.read()
+
+    attachments = [
+        (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", compressed_content),
     ]
 
     params = [
