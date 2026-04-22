@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Implement client/sdk controlled ingestion settings for v2 span containers. ([#5881](https://github.com/getsentry/relay/pull/5881))
+
+
 ## 26.4.1
 
 **Breaking Changes**:
