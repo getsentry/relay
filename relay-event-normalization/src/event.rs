@@ -1371,15 +1371,6 @@ fn normalize_mobile_measurements(measurements: &mut Measurements) {
 const APP_START_SOURCES: [(&str, &str); 2] =
     [("app_start_cold", "cold"), ("app_start_warm", "warm")];
 
-fn get_duration_measurement_ms(event: &Event, name: &str) -> Option<FiniteF64> {
-    let measurement = event.measurements.value()?.get(name)?.value()?;
-    if measurement.unit.value() != Some(&MetricUnit::Duration(DurationUnit::MilliSecond)) {
-        return None;
-    }
-
-    Some(*measurement.value.value()?)
-}
-
 fn backfill_app_vitals_start(event: &mut Event) {
     if event.ty.value() != Some(&EventType::Transaction) {
         return;
@@ -1400,8 +1391,19 @@ fn backfill_app_vitals_start(event: &mut Event) {
     let Some((start_type, value)) =
         APP_START_SOURCES
             .iter()
-            .find_map(|(measurement, start_type)| {
-                let value = get_duration_measurement_ms(event, measurement)?;
+            .find_map(|(measurement_name, start_type)| {
+                let measurement = event
+                    .measurements
+                    .value()?
+                    .get(*measurement_name)?
+                    .value()?;
+                if measurement.unit.value()
+                    != Some(&MetricUnit::Duration(DurationUnit::MilliSecond))
+                {
+                    return None;
+                }
+
+                let value = *measurement.value.value()?;
                 Some((*start_type, value))
             })
     else {
