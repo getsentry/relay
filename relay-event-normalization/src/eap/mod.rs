@@ -224,6 +224,10 @@ pub fn normalize_received(attributes: &mut Annotated<Attributes>, received: Date
 ///
 /// Does not modify the attributes if there is already browser information present,
 /// to preserve original values.
+///
+/// This function writes information to both the `browser.name` and `browser.version`
+/// attributes and to the deprecated `sentry.browser.name` and `sentry.browser.version`
+/// variants. This is because the latter are still used further on in the pipeline.
 pub fn normalize_user_agent(
     attributes: &mut Annotated<Attributes>,
     client_user_agent: Option<&str>,
@@ -231,8 +235,24 @@ pub fn normalize_user_agent(
 ) {
     let attributes = attributes.get_or_insert_with(Default::default);
 
-    if attributes.contains_key(BROWSER_NAME) || attributes.contains_key(BROWSER_VERSION) {
+    if attributes.contains_key(SENTRY_BROWSER_NAME)
+        || attributes.contains_key(SENTRY_BROWSER_VERSION)
+    {
         return;
+    }
+
+    // Backfill `sentry.browser.name` from `sentry.browser.name`, if available.
+    if let Some(name) = attributes.get_attribute(BROWSER_NAME) {
+        attributes
+            .0
+            .insert(SENTRY_BROWSER_NAME.to_owned(), name.clone().into());
+    }
+
+    // Backfill `sentry.browser.version` from `sentry.browser.version`, if available.
+    if let Some(version) = attributes.get_attribute(BROWSER_VERSION) {
+        attributes
+            .0
+            .insert(SENTRY_BROWSER_VERSION.to_owned(), version.clone().into());
     }
 
     // Prefer the stored/explicitly sent user agent over the user agent from the client/transport.
@@ -248,6 +268,9 @@ pub fn normalize_user_agent(
         return;
     };
 
+    // Set both the current and deprecated attributes if necessary.
+    attributes.insert_if_missing(SENTRY_BROWSER_NAME, || context.name.clone());
+    attributes.insert_if_missing(SENTRY_BROWSER_VERSION, || context.version.clone());
     attributes.insert_if_missing(BROWSER_NAME, || context.name);
     attributes.insert_if_missing(BROWSER_VERSION, || context.version);
 }
@@ -981,6 +1004,14 @@ mod tests {
 
         insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
         {
+          "browser.name": {
+            "type": "string",
+            "value": "Chrome"
+          },
+          "browser.version": {
+            "type": "string",
+            "value": "131.0.0"
+          },
           "sentry.browser.name": {
             "type": "string",
             "value": "Chrome"
@@ -993,8 +1024,14 @@ mod tests {
         "#);
     }
 
+    /// Tests that attribute name + user agent normalization works correctly
+    /// if user agent information is present in the deprecated attributes
+    /// `sentry.browser.name` and `sentry.browser.version`.
+    ///
+    /// The desired end state is that the information is present in both
+    /// the current and deprecated attributes.
     #[test]
-    fn test_normalize_user_agent_existing() {
+    fn test_normalize_user_agent_existing_deprecated() {
         let mut attributes = Annotated::from_json(
             r#"{
           "sentry.browser.name": {
@@ -1009,6 +1046,8 @@ mod tests {
         )
         .unwrap();
 
+        normalize_attribute_names(&mut attributes);
+
         normalize_user_agent(
             &mut attributes,
             Some(
@@ -1019,6 +1058,69 @@ mod tests {
 
         insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
         {
+          "browser.name": {
+            "type": "string",
+            "value": "Very Special"
+          },
+          "browser.version": {
+            "type": "string",
+            "value": "13.3.7"
+          },
+          "sentry.browser.name": {
+            "type": "string",
+            "value": "Very Special"
+          },
+          "sentry.browser.version": {
+            "type": "string",
+            "value": "13.3.7"
+          }
+        }
+        "#,
+        );
+    }
+
+    /// Tests that attribute name + user agent normalization works correctly
+    /// if user agent information is present in the current attributes
+    /// `browser.name` and `browser.version`.
+    ///
+    /// The desired end state is that the information is present in both
+    /// the current and deprecated attributes.
+    #[test]
+    fn test_normalize_user_agent_existing_current() {
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "browser.name": {
+            "type": "string",
+            "value": "Very Special"
+          },
+          "browser.version": {
+            "type": "string",
+            "value": "13.3.7"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_attribute_names(&mut attributes);
+
+        normalize_user_agent(
+            &mut attributes,
+            Some(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            ),
+            ClientHints::default(),
+        );
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "browser.name": {
+            "type": "string",
+            "value": "Very Special"
+          },
+          "browser.version": {
+            "type": "string",
+            "value": "13.3.7"
+          },
           "sentry.browser.name": {
             "type": "string",
             "value": "Very Special"
