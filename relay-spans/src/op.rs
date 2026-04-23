@@ -37,7 +37,8 @@ pub fn derive_op_for_v2_span(attributes: &Annotated<Attributes>) -> String {
         return String::from("db");
     }
 
-    if attributes.contains_key(GEN_AI_SYSTEM) {
+    // TODO: `gen_ai.system` is deprecated. This should probably be taken care of during normalization.
+    if attributes.contains_key(GEN_AI_PROVIDER_NAME) || attributes.contains_key("gen_ai.system") {
         return String::from("gen_ai");
     }
 

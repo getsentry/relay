@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Update several `gen_ai` attributes to their latest representation. ([#5798](https://github.com/getsentry/relay/pull/5798))
+
 ## 26.4.1
 
 **Breaking Changes**:
