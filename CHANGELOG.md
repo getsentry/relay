@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Update several `gen_ai` attributes to their latest representation. ([#5798](https://github.com/getsentry/relay/pull/5798))
+
 ## 26.4.1
 
 **Breaking Changes**:
@@ -11,7 +17,6 @@
 - Use `ModelMetadata` config with context size and utilization. ([#5814](https://github.com/getsentry/relay/pull/5814))
 - Handle minidump placeholders. ([#5849](https://github.com/getsentry/relay/pull/5849))
 - Add config option to spread envelopes evenly across buffer partitions. ([#5853](https://github.com/getsentry/relay/pull/5853))
-- Update several `gen_ai` attributes to their latest representation. ([#5798](https://github.com/getsentry/relay/pull/5798))
 
 **Internal**:
 
