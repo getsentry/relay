@@ -1057,7 +1057,7 @@ mod tests {
             &span,
             &[
                 (OP, "http.server"),
-                (SENTRY_CATEGORY, "http.server"),
+                (SENTRY_CATEGORY, "http"),
                 (HTTP_REQUEST_METHOD, "GET"),
                 (SPAN_KIND, "server"),
             ],
