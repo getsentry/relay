@@ -13,6 +13,7 @@ use regex::Regex;
 use relay_base_schema::metrics::{
     DurationUnit, FractionUnit, MetricUnit, can_be_valid_metric_name,
 };
+use relay_conventions::consts::{APP_VITALS_START_TYPE, APP_VITALS_START_VALUE};
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
     AsPair, AutoInferSetting, ClientSdkInfo, Context, ContextInner, Contexts, DebugImage,
@@ -314,6 +315,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
         config.measurements.clone(),
         config.max_name_and_unit_len,
     ); // Measurements are part of the metric extraction
+    backfill_app_vitals_start(event);
     if let Some(version) = normalize_performance_score(event, config.performance_score) {
         event
             .contexts
@@ -1364,6 +1366,69 @@ fn filter_mobile_outliers(measurements: &mut Measurements) {
 fn normalize_mobile_measurements(measurements: &mut Measurements) {
     normalize_app_start_measurements(measurements);
     filter_mobile_outliers(measurements);
+}
+
+const APP_START_SOURCES: [(&str, &str); 2] =
+    [("app_start_cold", "cold"), ("app_start_warm", "warm")];
+
+fn get_duration_measurement_ms(event: &Event, name: &str) -> Option<FiniteF64> {
+    let measurement = event.measurements.value()?.get(name)?.value()?;
+    if measurement.unit.value() != Some(&MetricUnit::Duration(DurationUnit::MilliSecond)) {
+        return None;
+    }
+
+    Some(*measurement.value.value()?)
+}
+
+/// Backfills the unified `app.vitals.start.{value,type}` attributes. Cold wins over warm.
+fn backfill_app_vitals_start(event: &mut Event) {
+    if event.ty.value() != Some(&EventType::Transaction) {
+        return;
+    }
+
+    let already_set = event
+        .tags
+        .value()
+        .is_some_and(|tags| tags.get(APP_VITALS_START_TYPE).is_some())
+        || event
+            .measurements
+            .value()
+            .is_some_and(|m| m.contains_key(APP_VITALS_START_VALUE));
+    if already_set {
+        return;
+    }
+
+    let Some((start_type, value)) =
+        APP_START_SOURCES
+            .iter()
+            .find_map(|(measurement, start_type)| {
+                let value = get_duration_measurement_ms(event, measurement)?;
+                Some((*start_type, value))
+            })
+    else {
+        return;
+    };
+
+    event
+        .measurements
+        .get_or_insert_with(Default::default)
+        .insert(
+            APP_VITALS_START_VALUE.to_owned(),
+            Annotated::new(Measurement {
+                value: Annotated::new(value),
+                unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
+            }),
+        );
+
+    event
+        .tags
+        .value_mut()
+        .get_or_insert_with(Tags::default)
+        .0
+        .insert(
+            String::from(APP_VITALS_START_TYPE),
+            Annotated::new(start_type.to_owned()),
+        );
 }
 
 fn normalize_units(measurements: &mut Measurements) {
@@ -2858,6 +2923,260 @@ mod tests {
         assert_eq!(measurements.len(), 1);
         filter_mobile_outliers(&mut measurements);
         assert_eq!(measurements.len(), 0);
+    }
+
+    fn mobile_measurements_event(measurements_json: &str) -> Event {
+        let json = format!(
+            r#"{{
+                "type": "transaction",
+                "timestamp": "2021-04-26T08:00:05+0100",
+                "start_timestamp": "2021-04-26T08:00:00+0100",
+                "measurements": {measurements_json}
+            }}"#
+        );
+        Annotated::<Event>::from_json(&json)
+            .unwrap()
+            .into_value()
+            .unwrap()
+    }
+
+    fn normalize_mobile_measurements_pipeline(event: &mut Event) {
+        normalize_event_measurements(event, None, None);
+        backfill_app_vitals_start(event);
+    }
+
+    fn normalize_mobile_measurements_only(event: &mut Event) {
+        if let Some(measurements) = event.measurements.value_mut() {
+            normalize_mobile_measurements(measurements);
+        }
+    }
+
+    /// Renders the relevant parts of an event for snapshot assertions.
+    ///
+    /// Returns a single JSON object containing `measurements` (via the annotated serializer)
+    /// and `tags` (flattened into a plain map so insta's inline snapshots can flatten it —
+    /// the PairList<TagEntry> serializes as a sequence otherwise).
+    fn measurements_and_tags(event: &Event) -> serde_json::Value {
+        let tags = event.tags.value().map(|tags| {
+            tags.0
+                .iter()
+                .flat_map(Annotated::value)
+                .filter_map(|entry| {
+                    let k = entry.0.value()?.clone();
+                    let v = entry.1.value()?.clone();
+                    Some((k, serde_json::Value::String(v)))
+                })
+                .collect::<serde_json::Map<_, _>>()
+        });
+        serde_json::json!({
+            "measurements": serde_json::to_value(SerializableAnnotated(&event.measurements)).unwrap(),
+            "tags": tags,
+        })
+    }
+
+    fn assert_app_start_backfill(
+        event: &Event,
+        source_measurement: &str,
+        expected_type: &str,
+        expected_value: f64,
+    ) {
+        let rendered = measurements_and_tags(event);
+        let measurements = rendered["measurements"].as_object().unwrap();
+        let tags = rendered["tags"].as_object().unwrap();
+
+        assert_eq!(
+            measurements.get(APP_VITALS_START_VALUE),
+            Some(&json!({"unit": "millisecond", "value": expected_value}))
+        );
+        assert_eq!(
+            measurements.get(source_measurement),
+            Some(&json!({"unit": "millisecond", "value": expected_value}))
+        );
+        assert_eq!(tags.get(APP_VITALS_START_TYPE), Some(&json!(expected_type)));
+    }
+
+    #[test]
+    fn test_normalize_mobile_measurements_backfills_cold_and_warm() {
+        for (name, expected_type, expected_value) in [
+            ("app_start_cold", "cold", 1234.0),
+            ("app_start_warm", "warm", 567.0),
+        ] {
+            let mut event = mobile_measurements_event(&format!(
+                r#"{{"{name}": {{"value": {expected_value}, "unit": "millisecond"}}}}"#
+            ));
+            normalize_mobile_measurements_pipeline(&mut event);
+            assert_app_start_backfill(&event, name, expected_type, expected_value);
+        }
+    }
+
+    #[test]
+    fn test_normalize_mobile_measurements_cold_preferred_over_warm() {
+        let mut event = mobile_measurements_event(
+            r#"{
+                "app_start_cold": {"value": 100.0, "unit": "millisecond"},
+                "app_start_warm": {"value": 200.0, "unit": "millisecond"}
+            }"#,
+        );
+        normalize_mobile_measurements_pipeline(&mut event);
+        insta::assert_json_snapshot!(measurements_and_tags(&event), @r#"
+        {
+          "measurements": {
+            "app.vitals.start.value": {
+              "unit": "millisecond",
+              "value": 100.0
+            },
+            "app_start_cold": {
+              "unit": "millisecond",
+              "value": 100.0
+            },
+            "app_start_warm": {
+              "unit": "millisecond",
+              "value": 200.0
+            }
+          },
+          "tags": {
+            "app.vitals.start.type": "cold"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_mobile_measurements_no_app_start_noop() {
+        let mut event = mobile_measurements_event(r#"{"lcp": {"value": 100.0}}"#);
+        normalize_mobile_measurements_only(&mut event);
+        insta::assert_json_snapshot!(measurements_and_tags(&event), @r#"
+        {
+          "measurements": {
+            "lcp": {
+              "value": 100.0
+            }
+          },
+          "tags": null
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_mobile_measurements_respects_outlier_filter() {
+        // An `app_start_cold` value exceeding `MAX_DURATION_MOBILE_MS` must be dropped by
+        // `filter_mobile_outliers` first, so the backfill finds nothing to copy.
+        let mut event = mobile_measurements_event(
+            r#"{"app_start_cold": {"value": 180001.0, "unit": "millisecond"}}"#,
+        );
+        normalize_mobile_measurements_pipeline(&mut event);
+        insta::assert_json_snapshot!(measurements_and_tags(&event), @r#"
+        {
+          "measurements": {},
+          "tags": null
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_mobile_measurements_non_transaction_payload_noop() {
+        // Measurements-only normalization is agnostic to event type.
+        let json = r#"{
+            "type": "error",
+            "measurements": {
+                "app_start_cold": {"value": 1234.0, "unit": "millisecond"}
+            }
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        normalize_mobile_measurements_only(&mut event);
+        insta::assert_json_snapshot!(measurements_and_tags(&event), @r#"
+        {
+          "measurements": {
+            "app_start_cold": {
+              "unit": "millisecond",
+              "value": 1234.0
+            }
+          },
+          "tags": null
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_mobile_measurements_does_not_overwrite_value() {
+        let mut event = mobile_measurements_event(
+            r#"{
+                "app_start_cold": {"value": 100.0, "unit": "millisecond"},
+                "app.vitals.start.value": {"value": 999.0, "unit": "millisecond"}
+            }"#,
+        );
+        normalize_mobile_measurements_pipeline(&mut event);
+        insta::assert_json_snapshot!(measurements_and_tags(&event), @r#"
+        {
+          "measurements": {
+            "app.vitals.start.value": {
+              "unit": "millisecond",
+              "value": 999.0
+            },
+            "app_start_cold": {
+              "unit": "millisecond",
+              "value": 100.0
+            }
+          },
+          "tags": null
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_mobile_measurements_does_not_overwrite_type() {
+        // The `already_set` guard also fires when only the type tag is pre-set: the value must
+        // not be backfilled in that case either.
+        let mut event = mobile_measurements_event(
+            r#"{"app_start_cold": {"value": 100.0, "unit": "millisecond"}}"#,
+        );
+        event
+            .tags
+            .value_mut()
+            .get_or_insert_with(Tags::default)
+            .0
+            .insert(
+                String::from(APP_VITALS_START_TYPE),
+                Annotated::new("warm".to_owned()),
+            );
+
+        normalize_mobile_measurements_pipeline(&mut event);
+
+        insta::assert_json_snapshot!(measurements_and_tags(&event), @r#"
+        {
+          "measurements": {
+            "app_start_cold": {
+              "unit": "millisecond",
+              "value": 100.0
+            }
+          },
+          "tags": {
+            "app.vitals.start.type": "warm"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_mobile_measurements_invalid_unit_not_backfilled() {
+        let mut event =
+            mobile_measurements_event(r#"{"app_start_cold": {"value": 1.5, "unit": "second"}}"#);
+        normalize_mobile_measurements_pipeline(&mut event);
+
+        insta::assert_json_snapshot!(measurements_and_tags(&event), @r#"
+        {
+          "measurements": {
+            "app_start_cold": {
+              "unit": "second",
+              "value": 1.5
+            }
+          },
+          "tags": null
+        }
+        "#);
     }
 
     #[test]

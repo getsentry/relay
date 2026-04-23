@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Bug Fixes**:
+
+- Backfill `app.vitals.start.value` and `app.vitals.start.type` for V1 transactions from `app_start_cold` and `app_start_warm`, matching existing V2 behavior.
+
 ## 26.4.1
 
 **Breaking Changes**:
