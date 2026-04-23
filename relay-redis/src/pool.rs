@@ -38,7 +38,7 @@ macro_rules! connect {
         while result
             .as_ref()
             .is_err_and(|e| matches!(e.retry_method(), RetryMethod::Reconnect))
-            && retries <= RECONNECT_RETRIES
+            && retries < RECONNECT_RETRIES
         {
             retries += 1;
             result = $connect.await;
