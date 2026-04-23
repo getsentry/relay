@@ -1,5 +1,4 @@
 import os
-from collections import defaultdict
 from unittest import mock
 
 import msgpack
@@ -11,6 +10,7 @@ from uuid import UUID
 
 from sentry_relay.consts import DataCategory
 from .test_attachment_ref import upload_and_make_ref
+from .test_upload import dummy_upload  # noqa
 
 MINIDUMP_ATTACHMENT_NAME = "upload_file_minidump"
 EVENT_ATTACHMENT_NAME = "__sentry-event"
@@ -832,10 +832,8 @@ def test_size_limits(mini_sentry, relay, limit, expected_status_code):
 )
 def test_minidump_object_store_uploads(
     mini_sentry,
-    relay_with_processing,
-    attachments_consumer,
-    outcomes_consumer,
-    objectstore,
+    relay,
+    dummy_upload,  # noqa
     rollout_enabled,
     feature_enabled,
 ):
@@ -852,9 +850,7 @@ def test_minidump_object_store_uploads(
         "relay.minidump-endpoint-fetch-config.rollout-rate"
     ] = (1.0 if rollout_enabled else 0.0)
 
-    relay = relay_with_processing()
-    attachments_consumer = attachments_consumer()
-    outcomes_consumer = outcomes_consumer()
+    relay = relay(mini_sentry)
 
     response = relay.send_minidump(
         project_id=project_id,
@@ -865,27 +861,28 @@ def test_minidump_object_store_uploads(
     )
     assert response.ok
 
-    chunks = defaultdict(bytes)
-    event = None
-    while not event:
-        _, msg = attachments_consumer.get_message()
-        if msg.get("type") == "attachment_chunk":
-            chunks[msg["id"]] += msg["payload"]
-        elif msg.get("type") == "event":
-            event = msg
-
-    by_name = {a["name"]: a for a in event["attachments"]}
+    envelope = mini_sentry.get_captured_envelope()
+    by_name = {
+        i.headers.get("filename"): i
+        for i in envelope.items
+        if i.headers.get("type") == "attachment"
+    }
     minidump = by_name["minidump.dmp"]
     logs = by_name["log.txt"]
 
-    assert "stored_id" not in minidump
-    assert chunks[minidump["id"]] == minidump_content
+    assert (
+        minidump.headers.get("content_type")
+        != "application/vnd.sentry.attachment-ref+json"
+    )
+    assert minidump.payload.bytes == minidump_content
 
     if rollout_enabled and feature_enabled:
-        assert "stored_id" in logs
-        store = objectstore("attachments", project_id)
-        assert store.get(logs["stored_id"]).payload.read() == log_content
-        assert logs["id"] not in chunks
+        assert (
+            logs.headers["content_type"] == "application/vnd.sentry.attachment-ref+json"
+        )
     else:
-        assert "stored_id" not in logs
-        assert chunks[logs["id"]] == log_content
+        assert (
+            logs.headers.get("content_type")
+            != "application/vnd.sentry.attachment-ref+json"
+        )
+        assert logs.payload.bytes == log_content

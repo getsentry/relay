@@ -193,7 +193,7 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
     ) -> Result<Option<Item>, multer::Error> {
         match self.upload_context {
             Some(UploadContext { upload, scoping })
-                if self.infer_type(&field) == AttachmentType::Attachment =>
+                if item.attachment_type() == Some(AttachmentType::Attachment) =>
             {
                 Ok(upload_to_object_store(field, item, config, scoping, upload, "minidump").await)
             }
@@ -220,7 +220,7 @@ async fn extract_multipart(
 ) -> Result<Box<Envelope>, BadStoreRequest> {
     let config = state.config();
 
-    let upload_context = if project_fetching_rolled_out(state, meta.project_id()) {
+    let upload_context = if should_fetch_project_config(state, meta.project_id()) {
         let project = state
             .project_cache_handle()
             .ready(meta.public_key(), config.query_timeout())
@@ -266,7 +266,7 @@ async fn extract_multipart(
     Ok(envelope)
 }
 
-fn project_fetching_rolled_out(state: &ServiceState, project_id: Option<ProjectId>) -> bool {
+fn should_fetch_project_config(state: &ServiceState, project_id: Option<ProjectId>) -> bool {
     let global_config = state.global_config_handle().current();
     let project_id = project_id.map(|p| p.value()).unwrap_or(0);
     utils::is_rolled_out(
