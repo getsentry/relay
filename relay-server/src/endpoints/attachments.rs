@@ -1,16 +1,18 @@
-use axum::extract::Path;
+use axum::extract::{DefaultBodyLimit, Path, Request};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use multer::Field;
+use axum::routing::{MethodRouter, post};
+use multer::{Field, Multipart};
 use relay_config::Config;
 use relay_event_schema::protocol::EventId;
 use serde::Deserialize;
+use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{AttachmentType, Envelope, Item};
 use crate::extractors::RequestMeta;
 use crate::service::ServiceState;
-use crate::utils::{AttachmentStrategy, ConstrainedMultipart, read_attachment_bytes_into_item};
+use crate::utils::{self, AttachmentStrategy, read_attachment_bytes_into_item};
 
 #[derive(Debug, Deserialize)]
 pub struct AttachmentPath {
@@ -37,12 +39,10 @@ impl AttachmentStrategy for AttachmentsAttachmentStrategy {
 async fn extract_envelope(
     meta: RequestMeta,
     path: AttachmentPath,
-    multipart: ConstrainedMultipart,
+    multipart: Multipart<'static>,
     config: &Config,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    let items = multipart
-        .items(config, AttachmentsAttachmentStrategy)
-        .await?;
+    let items = utils::multipart_items(multipart, config, AttachmentsAttachmentStrategy).await?;
 
     let mut envelope = Envelope::from_request(Some(path.event_id), meta);
     for item in items {
@@ -56,11 +56,18 @@ pub async fn handle(
     state: ServiceState,
     meta: RequestMeta,
     Path(path): Path<AttachmentPath>,
-    multipart: ConstrainedMultipart,
+    request: Request,
 ) -> axum::response::Result<impl IntoResponse> {
+    let multipart = utils::multipart_from_request(request)?;
     let envelope = extract_envelope(meta, path, multipart, state.config()).await?;
     common::handle_envelope(&state, envelope)
         .await?
-        .ignore_rate_limits();
+        .check_rate_limits()?;
     Ok(StatusCode::CREATED)
+}
+
+pub fn route(config: &Config) -> MethodRouter<ServiceState> {
+    post(handle)
+        .route_layer(RequestBodyLimitLayer::new(config.max_attachments_size()))
+        .route_layer(DefaultBodyLimit::disable())
 }

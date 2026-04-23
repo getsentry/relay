@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::time::Duration;
 
-use relay_event_normalization::{GeoIpLookup, RequiredMode, SchemaProcessor, eap};
+use relay_event_normalization::{GeoIpLookup, ModelMetadata, RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{Span, SpanId, SpanV2};
 use relay_protocol::Annotated;
@@ -134,12 +134,15 @@ fn parse_and_validate_span_attachment(item: &Item) -> Result<(Option<SpanId>, Ex
 
 /// Normalizes individual spans.
 pub fn normalize(spans: &mut Managed<ExpandedSpans>, geo_lookup: &GeoIpLookup, ctx: Context<'_>) {
+    let model_metadata = ctx.global_config.ai_model_metadata();
     spans.retain_with_context(
         |spans| (&mut spans.spans, &spans.headers),
         |span, headers, _| {
-            normalize_span(&mut span.span, headers, geo_lookup, ctx).inspect_err(|err| {
-                relay_log::debug!("failed to normalize span: {err}");
-            })
+            normalize_span(&mut span.span, headers, geo_lookup, model_metadata, ctx).inspect_err(
+                |err| {
+                    relay_log::debug!("failed to normalize span: {err}");
+                },
+            )
         },
     );
 }
@@ -148,6 +151,7 @@ fn normalize_span(
     span: &mut Annotated<SpanV2>,
     headers: &EnvelopeHeaders,
     geo_lookup: &GeoIpLookup,
+    model_metadata: Option<&ModelMetadata>,
     ctx: Context<'_>,
 ) -> Result<()> {
     let meta = headers.meta();
@@ -160,7 +164,6 @@ fn normalize_span(
     if let Some(span) = span.value_mut() {
         let dsc = headers.dsc();
         let duration = span_duration(span);
-        let model_costs = ctx.global_config.ai_model_costs.as_ref().ok();
         let allowed_hosts = ctx.global_config.options.http_span_allowed_hosts.as_slice();
 
         validate_timestamps(span)?;
@@ -182,7 +185,7 @@ fn normalize_span(
             eap::normalize_dsc(&mut span.attributes, dsc);
         }
         if ctx.is_processing() {
-            eap::normalize_ai(&mut span.attributes, duration, model_costs);
+            eap::normalize_ai(&mut span.attributes, duration, model_metadata);
         }
         eap::normalize_attribute_values(&mut span.attributes, allowed_hosts);
         eap::write_legacy_attributes(&mut span.attributes);
@@ -288,8 +291,10 @@ fn span_duration(span: &SpanV2) -> Option<Duration> {
 mod tests {
     use chrono::DateTime;
     use relay_conventions::{
-        DB_QUERY_TEXT, DB_SYSTEM, DB_SYSTEM_NAME, DESCRIPTION, HTTP_REQUEST_METHOD, OP,
-        SENTRY_ACTION, SENTRY_CATEGORY, SENTRY_DOMAIN, SENTRY_NORMALIZED_DESCRIPTION, URL_FULL,
+        APP_VITALS_START_TYPE, APP_VITALS_START_VALUE, APP_VITALS_TTFD_VALUE, DB_QUERY_TEXT,
+        DB_SYSTEM, DB_SYSTEM_NAME, DESCRIPTION, DEVICE_CLASS, DEVICE_FAMILY, DEVICE_MODEL,
+        HTTP_REQUEST_METHOD, OP, SENTRY_ACTION, SENTRY_CATEGORY, SENTRY_DOMAIN, SENTRY_MAIN_THREAD,
+        SENTRY_MOBILE, SENTRY_NORMALIZED_DESCRIPTION, SENTRY_SDK_NAME, THREAD_NAME, URL_FULL,
     };
     use relay_event_schema::protocol::{Attributes, EventId, SpanKind};
     use relay_pii::PiiConfig;
@@ -848,7 +853,7 @@ mod tests {
             &[],
         );
 
-        normalize_span(&mut span, &headers, &geo_lookup, ctx).unwrap();
+        normalize_span(&mut span, &headers, &geo_lookup, None, ctx).unwrap();
 
         assert_attributes_contains(
             &span,
@@ -877,7 +882,7 @@ mod tests {
             &[],
         );
 
-        normalize_span(&mut span, &headers, &geo_lookup, ctx).unwrap();
+        normalize_span(&mut span, &headers, &geo_lookup, None, ctx).unwrap();
 
         assert_attributes_contains(
             &span,
@@ -907,7 +912,7 @@ mod tests {
             &[("http.response.status_code", 502.)],
         );
 
-        normalize_span(&mut span, &headers, &geo_lookup, ctx).unwrap();
+        normalize_span(&mut span, &headers, &geo_lookup, None, ctx).unwrap();
 
         assert_attributes_contains(
             &span,
@@ -932,7 +937,7 @@ mod tests {
             &[("http.response.status_code", 502.)],
         );
 
-        normalize_span(&mut span, &headers, &geo_lookup, ctx).unwrap();
+        normalize_span(&mut span, &headers, &geo_lookup, None, ctx).unwrap();
 
         assert_attributes_contains(
             &span,
@@ -948,6 +953,42 @@ mod tests {
     }
 
     #[test]
+    fn test_mobile_normalizations() {
+        let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
+            &[
+                (SENTRY_SDK_NAME, "sentry.cocoa"),
+                (THREAD_NAME, "main"),
+                (DEVICE_FAMILY, "iPhone"),
+                (DEVICE_MODEL, "iPhone17,5"),
+            ],
+            &[
+                ("app_start_cold", 1234.0),
+                (APP_VITALS_TTFD_VALUE, 200_000.0),
+            ],
+        );
+
+        normalize_span(&mut span, &headers, &geo_lookup, None, ctx).unwrap();
+
+        assert_attributes_contains(
+            &span,
+            &[
+                (SENTRY_MOBILE, "true"),
+                (SENTRY_MAIN_THREAD, "true"),
+                (APP_VITALS_START_TYPE, "cold"),
+            ],
+            &[(APP_VITALS_START_VALUE, 1234.0)],
+        );
+
+        let attrs = span.value().unwrap().attributes.value().unwrap();
+        assert!(
+            attrs.get_value(APP_VITALS_TTFD_VALUE).is_none(),
+            "outlier ttfd value should be removed"
+        );
+
+        assert_attributes_contains(&span, &[(DEVICE_CLASS, "3")], &[]);
+    }
+
+    #[test]
     fn test_insights_backend_outbound_api_requests_support_legacy_relative() {
         let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
             &[
@@ -958,7 +999,7 @@ mod tests {
             &[("http.response.status_code", 502.)],
         );
 
-        normalize_span(&mut span, &headers, &geo_lookup, ctx).unwrap();
+        normalize_span(&mut span, &headers, &geo_lookup, None, ctx).unwrap();
 
         assert_attributes_contains(
             &span,

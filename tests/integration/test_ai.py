@@ -35,15 +35,18 @@ def test_ai_spans_example_transaction(
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
 
-    mini_sentry.global_config["aiModelCosts"] = {
-        "version": 2,
+    mini_sentry.global_config["aiModelMetadata"] = {
+        "version": 1,
         "models": {
             "gpt-4o": {
-                "inputPerToken": 0.01,
-                "outputPerToken": 0.02,
-                "outputReasoningPerToken": 0.03,
-                "inputCachedPerToken": 0.0,
-                "inputCacheWritePerToken": 0.0,
+                "costs": {
+                    "inputPerToken": 0.01,
+                    "outputPerToken": 0.02,
+                    "outputReasoningPerToken": 0.03,
+                    "inputCachedPerToken": 0.0,
+                    "inputCacheWritePerToken": 0.0,
+                },
+                "contextSize": 128000,
             },
         },
     }
@@ -387,6 +390,11 @@ def test_ai_spans_example_transaction(
                     "type": "string",
                     "value": "resp_0c1c943ef2dc8bf9006909e7b8e3e88197bffb4d0e80187ca1",
                 },
+                "gen_ai.context.utilization": {
+                    "type": "double",
+                    "value": mock.ANY,
+                },
+                "gen_ai.context.window_size": {"type": "integer", "value": 128000},
                 "gen_ai.cost.input_tokens": {"type": "double", "value": 2.45},
                 "gen_ai.cost.output_tokens": {"type": "double", "value": 1.3},
                 "gen_ai.cost.total_tokens": {"type": "double", "value": 3.75},
@@ -476,6 +484,11 @@ def test_ai_spans_example_transaction(
                     "type": "string",
                     "value": "resp_0c1c943ef2dc8bf9006909e7b649008197a541a144de019abf",
                 },
+                "gen_ai.context.utilization": {
+                    "type": "double",
+                    "value": mock.ANY,
+                },
+                "gen_ai.context.window_size": {"type": "integer", "value": 128000},
                 "gen_ai.cost.input_tokens": {"type": "double", "value": 0.37},
                 "gen_ai.cost.output_tokens": {"type": "double", "value": 0.92},
                 "gen_ai.cost.total_tokens": {"type": "double", "value": 1.29},
@@ -968,6 +981,11 @@ def test_ai_spans_example_transaction(
                     "type": "string",
                     "value": "resp_0c1c943ef2dc8bf9006909e7b8e3e88197bffb4d0e80187ca1",
                 },
+                "gen_ai.context.utilization": {
+                    "type": "double",
+                    "value": mock.ANY,
+                },
+                "gen_ai.context.window_size": {"type": "integer", "value": 128000},
                 "gen_ai.cost.input_tokens": {"type": "double", "value": 2.08},
                 "gen_ai.cost.output_tokens": {"type": "double", "value": 0.38},
                 "gen_ai.cost.total_tokens": {"type": "double", "value": 2.46},

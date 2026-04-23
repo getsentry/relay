@@ -218,11 +218,10 @@ pub fn normalize(
     let request_meta = headers.meta();
     let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
-    let transaction_aggregator_config = ctx
-        .config
-        .aggregator_config_for(MetricNamespace::Transactions);
+    // Inherit from spans, as transactions no longer produce metrics.
+    let transaction_aggregator_config = ctx.config.aggregator_config_for(MetricNamespace::Spans);
 
-    let ai_model_costs = ctx.global_config.ai_model_costs.as_ref().ok();
+    let ai_model_metadata = ctx.global_config.ai_model_metadata();
     let http_span_allowed_hosts = ctx.global_config.options.http_span_allowed_hosts.as_slice();
 
     let project_info = ctx.project_info;
@@ -279,7 +278,6 @@ pub fn normalize(
             transaction_name_config: TransactionNameConfig {
                 rules: &project_info.config.tx_name_rules,
             },
-            device_class_synthesis_config: project_info.has_feature(Feature::DeviceClassSynthesis),
             enrich_spans: true,
             max_tag_value_length: ctx
                 .config
@@ -290,7 +288,7 @@ pub fn normalize(
             emit_event_errors: full_normalization,
             span_description_rules: project_info.config.span_description_rules.as_ref(),
             geoip_lookup: Some(geoip_lookup),
-            ai_model_costs,
+            ai_model_metadata,
             enable_trimming: true,
             measurements: Some(CombinedMeasurementsConfig::new(
                 ctx.project_info.config().measurements.as_ref(),
@@ -303,6 +301,7 @@ pub fn normalize(
             performance_issues_spans: ctx
                 .project_info
                 .has_feature(Feature::PerformanceIssuesSpans),
+            derive_trace_id: project_info.has_feature(Feature::AddDefaultTraceID),
         };
 
         metric!(timer(RelayTimers::EventProcessingNormalization), {

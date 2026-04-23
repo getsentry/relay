@@ -38,15 +38,12 @@ pub enum RedisError {
 
 /// A collection of Redis clients used by Relay for different purposes.
 ///
-/// This struct manages separate Redis connection clients for different functionalities
-/// within the Relay system, such as project configurations, cardinality limits,
-/// and rate limiting.
+/// This type manages separate Redis connection clients for different functionalities
+/// within the Relay system, such as project configurations and rate limiting.
 #[derive(Debug, Clone)]
 pub struct RedisClients {
     /// The client used for project configurations
     pub project_configs: AsyncRedisClient,
-    /// The client used for cardinality limits.
-    pub cardinality: AsyncRedisClient,
     /// The client used for rate limiting/quotas.
     pub quotas: AsyncRedisClient,
 }
@@ -136,16 +133,11 @@ impl AsyncRedisClient {
     /// Returns a new [`AsyncRedisConnection`] that can be used to execute Redis commands.
     /// The connection is automatically returned to the pool when dropped.
     pub async fn get_connection(&self) -> Result<AsyncRedisConnection, RedisError> {
-        let connection = match self {
-            Self::Cluster(pool) => {
-                AsyncRedisConnection::Cluster(pool.get().await.map_err(RedisError::Pool)?)
-            }
-            Self::Single(pool) => {
-                AsyncRedisConnection::Single(pool.get().await.map_err(RedisError::Pool)?)
-            }
-        };
-
-        Ok(connection)
+        match self {
+            Self::Cluster(pool) => pool.get().await.map(AsyncRedisConnection::Cluster),
+            Self::Single(pool) => pool.get().await.map(AsyncRedisConnection::Single),
+        }
+        .map_err(RedisError::Pool)
     }
 
     /// Returns statistics about the current state of the connection pool.

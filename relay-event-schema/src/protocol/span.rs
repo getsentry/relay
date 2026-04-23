@@ -541,6 +541,14 @@ pub struct SpanData {
     #[metastructure(field = "gen_ai.request.model", legacy_alias = "ai.model_id")]
     pub gen_ai_request_model: Annotated<Value>,
 
+    /// The context window size of the model in tokens.
+    #[metastructure(field = "gen_ai.context.window_size")]
+    pub gen_ai_context_window_size: Annotated<Value>,
+
+    /// The fraction of the context window used by total tokens.
+    #[metastructure(field = "gen_ai.context.utilization")]
+    pub gen_ai_context_utilization: Annotated<Value>,
+
     /// The total cost for the tokens used (duplicate field for migration)
     #[metastructure(field = "gen_ai.cost.total_tokens", pii = "maybe")]
     pub gen_ai_cost_total_tokens: Annotated<Value>,
@@ -1516,6 +1524,8 @@ mod tests {
             gen_ai_usage_output_tokens_prediction_rejected: ~,
             gen_ai_response_model: ~,
             gen_ai_request_model: ~,
+            gen_ai_context_window_size: ~,
+            gen_ai_context_utilization: ~,
             gen_ai_cost_total_tokens: ~,
             gen_ai_cost_input_tokens: ~,
             gen_ai_cost_output_tokens: ~,

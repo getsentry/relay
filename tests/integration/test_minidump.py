@@ -1,12 +1,15 @@
 import os
+from unittest import mock
 
 import msgpack
 
 import pytest
 from requests import HTTPError
+from sentry_sdk.envelope import Envelope
 from uuid import UUID
 
 from sentry_relay.consts import DataCategory
+from .test_attachment_ref import upload_and_make_ref
 
 MINIDUMP_ATTACHMENT_NAME = "upload_file_minidump"
 EVENT_ATTACHMENT_NAME = "__sentry-event"
@@ -685,3 +688,133 @@ def test_chromium_stability_report(
             }
         },
     }
+
+
+def test_minidump_placeholder(
+    mini_sentry, relay_with_processing, attachments_consumer, objectstore
+):
+    """
+    When a minidump comes in as an attachment placeholder (attachment ref),
+    verify that:
+    - The event placeholder is created with correct default values
+    - The placeholder payload is not parsed as a minidump
+    - Default values are used instead of values extracted from a real minidump
+    """
+    event_id = "515539018c9b4260a6f999572f1661ee"
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).append(
+        "projects:relay-upload-endpoint"
+    )
+    mini_sentry.global_config["options"][
+        "relay.objectstore-attachments.sample-rate"
+    ] = 1.0
+
+    relay = relay_with_processing()
+    attachments_consumer = attachments_consumer()
+    project_key = mini_sentry.get_dsn_public_key(project_id)
+
+    # Upload data via TUS and create an attachment ref (placeholder) for a minidump.
+    # The actual bytes here are irrelevant — the key point is that the attachment ref
+    # payload (JSON with a signed location) must not be parsed as minidump binary data.
+    minidump_data = b"MDMP fake minidump content"
+    envelope = Envelope(headers=[["event_id", event_id]])
+    envelope.add_item(
+        upload_and_make_ref(
+            relay,
+            project_id,
+            project_key,
+            minidump_data,
+            filename="minidump.dmp",
+            content_type="application/x-dmp",
+            attachment_type="event.minidump",
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+    event, message = attachments_consumer.get_event()
+
+    assert event == {
+        "_metrics": {
+            "bytes.ingested.event.minidump": len(minidump_data),
+        },
+        "event_id": "515539018c9b4260a6f999572f1661ee",
+        "exception": {
+            "values": [
+                {
+                    "mechanism": {
+                        "handled": False,
+                        "synthetic": True,
+                        "type": "minidump",
+                    },
+                    "type": "Minidump",
+                    "value": "Invalid Minidump",
+                },
+            ],
+        },
+        "grouping_config": mock.ANY,
+        "key_id": "123",
+        "level": "fatal",
+        "logger": "",
+        "platform": "native",
+        "project": 42,
+        "received": mock.ANY,
+        "sdk": {
+            "name": "minidump.upload",
+            "version": "0.0.0",
+        },
+        "timestamp": mock.ANY,
+        "type": "error",
+        "version": "5",
+    }
+
+    # The attachment metadata must reference the minidump stored via the placeholder.
+    assert len(message["attachments"]) == 1
+    attachment = message["attachments"][0]
+
+    assert attachment == {
+        "attachment_type": "event.minidump",
+        "content_type": "application/x-dmp",
+        "id": mock.ANY,
+        "name": "minidump.dmp",
+        "rate_limited": False,
+        "retention_days": 90,
+        "size": 26,
+        "stored_id": mock.ANY,
+    }
+
+    # Verify the actual data is retrievable from the objectstore.
+    stored_id = attachment["stored_id"]
+    objectstore_session = objectstore("attachments", project_id)
+    assert objectstore_session.get(stored_id).payload.read() == minidump_data
+
+
+@pytest.mark.parametrize(
+    "limit,expected_status_code",
+    [("max_attachment_size", 400), ("max_attachments_size", 413)],
+)
+def test_size_limits(mini_sentry, relay, limit, expected_status_code):
+    project_id = 42
+    relay = relay(
+        mini_sentry,
+        {
+            "limits": {
+                limit: 10,
+            }
+        },
+    )
+    mini_sentry.add_full_project_config(project_id)
+
+    attachments = [
+        (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", "MDMP content"),
+    ]
+
+    params = [
+        ("sentry[event_id]", "2dd132e467174db48dbaddabd3cbed57"),
+        ("sentry[user][id]", "123"),
+    ]
+
+    response = relay.send_minidump(
+        project_id=project_id, files=attachments, params=params, raise_for_status=False
+    )
+    assert response.status_code == expected_status_code

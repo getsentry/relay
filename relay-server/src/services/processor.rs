@@ -20,14 +20,14 @@ use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding, RelayMode};
-use relay_dynamic_config::{Feature, GlobalConfig};
+use relay_dynamic_config::Feature;
 use relay_event_normalization::{ClockDriftProcessor, GeoIpLookup};
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{ClientReport, Event, EventId, NetworkReportError, SpanV2};
 use relay_filter::FilterStatKey;
 use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricNamespace};
 use relay_protocol::Annotated;
-use relay_quotas::{DataCategory, Quota, RateLimits, Scoping};
+use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_sampling::evaluation::{ReservoirCounters, SamplingDecision};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -40,12 +40,12 @@ use crate::extractors::{PartialDsn, RequestMeta, RequestTrust};
 use crate::integrations::Integration;
 use crate::managed::{InvalidProcessingGroupType, ManagedEnvelope, TypedEnvelope};
 use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
-use crate::metrics_extraction::transactions::ExtractedMetrics;
-use crate::metrics_extraction::transactions::types::ExtractMetricsError;
+use crate::metrics_extraction::ExtractedMetrics;
 use crate::processing::attachments::AttachmentProcessor;
 use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::client_reports::ClientReportsProcessor;
 use crate::processing::errors::{ErrorsProcessor, SwitchProcessingError};
+use crate::processing::legacy_spans::LegacySpansProcessor;
 use crate::processing::logs::LogsProcessor;
 use crate::processing::profile_chunks::ProfileChunksProcessor;
 use crate::processing::profiles::ProfilesProcessor;
@@ -56,7 +56,6 @@ use crate::processing::trace_attachments::TraceAttachmentsProcessor;
 use crate::processing::trace_metrics::TraceMetricsProcessor;
 use crate::processing::transactions::TransactionProcessor;
 use crate::processing::user_reports::UserReportsProcessor;
-use crate::processing::utils::event::event_category;
 use crate::processing::{Forward as _, Output, Outputs, QuotaRateLimiter};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
@@ -68,58 +67,28 @@ use crate::services::upstream::{
     SendRequest, Sign, SignatureType, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
 use crate::statsd::{RelayCounters, RelayDistributions, RelayTimers};
-use crate::utils::{self, CheckLimits, EnvelopeLimiter};
+use crate::utils;
 use crate::{http, processing};
 use relay_threading::AsyncPool;
+use symbolic_unreal::{Unreal4Error, Unreal4ErrorKind};
 #[cfg(feature = "processing")]
 use {
     crate::services::objectstore::Objectstore,
     crate::services::store::Store,
-    crate::utils::Enforcement,
     itertools::Itertools,
-    relay_cardinality::{
-        CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
-        RedisSetLimiterOptions,
-    },
-    relay_dynamic_config::CardinalityLimiterMode,
-    relay_quotas::{RateLimitingError, RedisRateLimiter},
+    relay_dynamic_config::GlobalConfig,
+    relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
     relay_redis::RedisClients,
     std::time::Instant,
-    symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
 pub mod event;
 mod metrics;
 mod nel;
-mod profile;
-mod report;
-#[cfg(feature = "processing")]
-mod span;
+pub mod span;
 
 #[cfg(all(sentry, feature = "processing"))]
 pub mod playstation;
-mod standalone;
-
-/// Creates the block only if used with `processing` feature.
-///
-/// Provided code block will be executed only if the provided config has `processing_enabled` set.
-macro_rules! if_processing {
-    ($config:expr, $if_true:block) => {
-        #[cfg(feature = "processing")] {
-            if $config.processing_enabled() $if_true
-        }
-    };
-    ($config:expr, $if_true:block else $if_false:block) => {
-        {
-            #[cfg(feature = "processing")] {
-                if $config.processing_enabled() $if_true else $if_false
-            }
-            #[cfg(not(feature = "processing"))] {
-                $if_false
-            }
-        }
-    };
-}
 
 /// The minimum clock drift for correction to apply.
 pub const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
@@ -169,13 +138,6 @@ processing_group!(TransactionGroup, Transaction);
 processing_group!(ErrorGroup, Error);
 
 processing_group!(SessionGroup, Session);
-processing_group!(
-    StandaloneGroup,
-    Standalone,
-    StandaloneAttachments,
-    StandaloneUserReports,
-    StandaloneProfiles
-);
 processing_group!(ClientReportGroup, ClientReport);
 processing_group!(ReplayGroup, Replay);
 processing_group!(CheckInGroup, CheckIn);
@@ -208,9 +170,6 @@ pub enum ProcessingGroup {
     Error,
     /// Session events.
     Session,
-    /// Standalone items which can be sent alone without any event attached to it in the current
-    /// envelope e.g. some attachments, user reports.
-    Standalone,
     /// Standalone attachments
     ///
     /// Attachments that are send without an item that creates an event in the same envelope.
@@ -404,20 +363,6 @@ impl ProcessingGroup {
             }
         }
 
-        // Extract all standalone items.
-        //
-        // Note: only if there are no items in the envelope which can create events, otherwise they
-        // will be in the same envelope with all require event items.
-        if !envelope.items().any(Item::creates_event) {
-            let standalone_items = envelope.take_items_by(Item::requires_event);
-            if !standalone_items.is_empty() {
-                grouped_envelopes.push((
-                    ProcessingGroup::Standalone,
-                    Envelope::from_parts(headers.clone(), standalone_items),
-                ))
-            }
-        };
-
         // Make sure we create separate envelopes for each `RawSecurity` report.
         let security_reports_items = envelope
             .take_items_by(|i| matches!(i.ty(), &ItemType::RawSecurity))
@@ -479,7 +424,6 @@ impl ProcessingGroup {
             ProcessingGroup::Transaction => "transaction",
             ProcessingGroup::Error => "error",
             ProcessingGroup::Session => "session",
-            ProcessingGroup::Standalone => "standalone",
             ProcessingGroup::StandaloneAttachments => "standalone_attachment",
             ProcessingGroup::StandaloneUserReports => "standalone_user_reports",
             ProcessingGroup::StandaloneProfiles => "standalone_profiles",
@@ -506,7 +450,6 @@ impl From<ProcessingGroup> for AppFeature {
             ProcessingGroup::Transaction => AppFeature::Transactions,
             ProcessingGroup::Error => AppFeature::Errors,
             ProcessingGroup::Session => AppFeature::Sessions,
-            ProcessingGroup::Standalone => AppFeature::UnattributedEnvelope,
             ProcessingGroup::StandaloneAttachments => AppFeature::UnattributedEnvelope,
             ProcessingGroup::StandaloneUserReports => AppFeature::UserReports,
             ProcessingGroup::StandaloneProfiles => AppFeature::Profiles,
@@ -536,7 +479,6 @@ pub enum ProcessingError {
     #[error("invalid message pack event payload")]
     InvalidMsgpack(#[from] rmp_serde::decode::Error),
 
-    #[cfg(feature = "processing")]
     #[error("invalid unreal crash report")]
     InvalidUnrealReport(#[source] Unreal4Error),
 
@@ -576,9 +518,6 @@ pub enum ProcessingError {
     #[error("event filtered with reason: {0:?}")]
     EventFiltered(FilterStatKey),
 
-    #[error("missing or invalid required event timestamp")]
-    InvalidTimestamp,
-
     #[error("could not serialize event payload")]
     SerializeFailed(#[source] serde_json::Error),
 
@@ -604,6 +543,9 @@ pub enum ProcessingError {
     #[cfg(feature = "processing")]
     #[error("invalid attachment reference")]
     InvalidAttachmentRef,
+
+    #[error("could not determine processing group for envelope items")]
+    NoProcessingGroup,
 }
 
 impl ProcessingError {
@@ -622,17 +564,14 @@ impl ProcessingError {
             Self::UnsupportedSecurityType => Some(Outcome::Filtered(FilterStatKey::InvalidCsp)),
             Self::InvalidNelReport(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
             Self::InvalidTransaction => Some(Outcome::Invalid(DiscardReason::InvalidTransaction)),
-            Self::InvalidTimestamp => Some(Outcome::Invalid(DiscardReason::Timestamp)),
             Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::NoEventPayload => Some(Outcome::Invalid(DiscardReason::NoEventPayload)),
             Self::InvalidNintendoDyingMessage(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
             #[cfg(all(sentry, feature = "processing"))]
             Self::InvalidPlaystationDump(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
-            #[cfg(feature = "processing")]
             Self::InvalidUnrealReport(err) if err.kind() == Unreal4ErrorKind::BadCompression => {
                 Some(Outcome::Invalid(DiscardReason::InvalidCompression))
             }
-            #[cfg(feature = "processing")]
             Self::InvalidUnrealReport(_) => Some(Outcome::Invalid(DiscardReason::ProcessUnreal)),
             Self::SerializeFailed(_) | Self::ProcessingFailed(_) => {
                 Some(Outcome::Invalid(DiscardReason::Internal))
@@ -650,6 +589,7 @@ impl ProcessingError {
             Self::InvalidAttachmentRef => {
                 Some(Outcome::Invalid(DiscardReason::InvalidAttachmentRef))
             }
+            Self::NoProcessingGroup => Some(Outcome::Invalid(DiscardReason::Internal)),
         }
     }
 
@@ -659,22 +599,11 @@ impl ProcessingError {
     }
 }
 
-#[cfg(feature = "processing")]
 impl From<Unreal4Error> for ProcessingError {
     fn from(err: Unreal4Error) -> Self {
         match err.kind() {
             Unreal4ErrorKind::TooLarge => Self::PayloadTooLarge(ItemType::UnrealReport.into()),
             _ => ProcessingError::InvalidUnrealReport(err),
-        }
-    }
-}
-
-impl From<ExtractMetricsError> for ProcessingError {
-    fn from(error: ExtractMetricsError) -> Self {
-        match error {
-            ExtractMetricsError::MissingTimestamp | ExtractMetricsError::InvalidTimestamp => {
-                Self::InvalidTimestamp
-            }
         }
     }
 }
@@ -750,66 +679,6 @@ impl ProcessingExtractedMetrics {
                 bucket
             }));
     }
-
-    /// Applies rate limits to the contained metrics.
-    ///
-    /// This is used to apply rate limits which have been enforced on sampled items of an envelope
-    /// to also consistently apply to the metrics extracted from these items.
-    #[cfg(feature = "processing")]
-    fn apply_enforcement(&mut self, enforcement: &Enforcement, enforced_consistently: bool) {
-        // Metric namespaces which need to be dropped.
-        let mut drop_namespaces: SmallVec<[_; 2]> = smallvec![];
-        // Metrics belonging to this metric namespace need to have the `extracted_from_indexed`
-        // flag reset to `false`.
-        let mut reset_extracted_from_indexed: SmallVec<[_; 2]> = smallvec![];
-
-        for (namespace, limit, indexed) in [
-            (
-                MetricNamespace::Transactions,
-                &enforcement.event,
-                &enforcement.event_indexed,
-            ),
-            (
-                MetricNamespace::Spans,
-                &enforcement.spans,
-                &enforcement.spans_indexed,
-            ),
-        ] {
-            if limit.is_active() {
-                drop_namespaces.push(namespace);
-            } else if indexed.is_active() && !enforced_consistently {
-                // If the enforcement was not computed by consistently checking the limits,
-                // the quota for the metrics has not yet been incremented.
-                // In this case we have a dropped indexed payload but a metric which still needs to
-                // be accounted for, make sure the metric will still be rate limited.
-                reset_extracted_from_indexed.push(namespace);
-            }
-        }
-
-        if !drop_namespaces.is_empty() || !reset_extracted_from_indexed.is_empty() {
-            self.retain_mut(|bucket| {
-                let Some(namespace) = bucket.name.try_namespace() else {
-                    return true;
-                };
-
-                if drop_namespaces.contains(&namespace) {
-                    return false;
-                }
-
-                if reset_extracted_from_indexed.contains(&namespace) {
-                    bucket.metadata.extracted_from_indexed = false;
-                }
-
-                true
-            });
-        }
-    }
-
-    #[cfg(feature = "processing")]
-    fn retain_mut(&mut self, mut f: impl FnMut(&mut Bucket) -> bool) {
-        self.metrics.project_metrics.retain_mut(&mut f);
-        self.metrics.sampling_metrics.retain_mut(&mut f);
-    }
 }
 
 fn send_metrics(
@@ -842,17 +711,6 @@ fn send_metrics(
             project_key: sampling_project_key,
             buckets: sampling_metrics,
         });
-    }
-}
-
-/// Function for on-off switches that filter specific item types (profiles, spans)
-/// based on a feature flag.
-///
-/// If the project config did not come from the upstream, we keep the items.
-fn should_filter(config: &Config, project_info: &ProjectInfo, feature: Feature) -> bool {
-    match config.relay_mode() {
-        RelayMode::Proxy => false,
-        RelayMode::Managed => !project_info.has_feature(feature),
     }
 }
 
@@ -1176,10 +1034,6 @@ struct InnerProcessor {
     addrs: Addrs,
     #[cfg(feature = "processing")]
     rate_limiter: Option<Arc<RedisRateLimiter>>,
-    #[cfg(feature = "processing")]
-    geoip_lookup: GeoIpLookup,
-    #[cfg(feature = "processing")]
-    cardinality_limiter: Option<CardinalityLimiter>,
     metric_outcomes: MetricOutcomes,
     processing: Processing,
 }
@@ -1189,6 +1043,7 @@ struct Processing {
     logs: LogsProcessor,
     trace_metrics: TraceMetricsProcessor,
     spans: SpansProcessor,
+    legacy_spans: LegacySpansProcessor,
     check_ins: CheckInsProcessor,
     sessions: SessionsProcessor,
     transactions: TransactionProcessor,
@@ -1228,20 +1083,8 @@ impl EnvelopeProcessorService {
             .unwrap_or_else(GeoIpLookup::empty);
 
         #[cfg(feature = "processing")]
-        let (cardinality, quotas) = match redis {
-            Some(RedisClients {
-                cardinality,
-                quotas,
-                ..
-            }) => (Some(cardinality), Some(quotas)),
-            None => (None, None),
-        };
-        #[cfg(not(feature = "processing"))]
-        let quotas = None;
-
-        #[cfg(feature = "processing")]
-        let rate_limiter = quotas.clone().map(|redis| {
-            RedisRateLimiter::new(redis)
+        let rate_limiter = redis.as_ref().map(|redis| {
+            RedisRateLimiter::new(redis.quotas.clone())
                 .max_limit(config.max_rate_limit())
                 .cache(config.quota_cache_ratio(), config.quota_cache_max())
         });
@@ -1263,32 +1106,25 @@ impl EnvelopeProcessorService {
             #[cfg(feature = "processing")]
             rate_limiter,
             addrs,
-            #[cfg(feature = "processing")]
-            cardinality_limiter: cardinality
-                .map(|cardinality| {
-                    RedisSetLimiter::new(
-                        RedisSetLimiterOptions {
-                            cache_vacuum_interval: config
-                                .cardinality_limiter_cache_vacuum_interval(),
-                        },
-                        cardinality,
-                    )
-                })
-                .map(CardinalityLimiter::new),
             metric_outcomes,
-            #[cfg(feature = "processing")]
-            geoip_lookup: geoip_lookup.clone(),
             processing: Processing {
                 errors: ErrorsProcessor::new(Arc::clone(&quota_limiter), geoip_lookup.clone()),
                 logs: LogsProcessor::new(Arc::clone(&quota_limiter)),
                 trace_metrics: TraceMetricsProcessor::new(Arc::clone(&quota_limiter)),
                 spans: SpansProcessor::new(Arc::clone(&quota_limiter), geoip_lookup.clone()),
+                legacy_spans: LegacySpansProcessor::new(
+                    Arc::clone(&quota_limiter),
+                    geoip_lookup.clone(),
+                ),
                 check_ins: CheckInsProcessor::new(Arc::clone(&quota_limiter)),
                 sessions: SessionsProcessor::new(Arc::clone(&quota_limiter)),
                 transactions: TransactionProcessor::new(
                     Arc::clone(&quota_limiter),
                     geoip_lookup.clone(),
-                    quotas.clone(),
+                    #[cfg(feature = "processing")]
+                    redis.map(|r| r.quotas),
+                    #[cfg(not(feature = "processing"))]
+                    None,
                 ),
                 profile_chunks: ProfileChunksProcessor::new(Arc::clone(&quota_limiter)),
                 trace_attachments: TraceAttachmentsProcessor::new(Arc::clone(&quota_limiter)),
@@ -1304,86 +1140,6 @@ impl EnvelopeProcessorService {
         Self {
             inner: Arc::new(inner),
         }
-    }
-
-    async fn enforce_quotas<Group>(
-        &self,
-        managed_envelope: &mut TypedEnvelope<Group>,
-        event: Annotated<Event>,
-        extracted_metrics: &mut ProcessingExtractedMetrics,
-        ctx: processing::Context<'_>,
-    ) -> Result<Annotated<Event>, ProcessingError> {
-        // Cached quotas first, they are quick to evaluate and some quotas (indexed) are not
-        // applied in the fast path, all cached quotas can be applied here.
-        let cached_result = RateLimiter::Cached
-            .enforce(managed_envelope, event, extracted_metrics, ctx)
-            .await?;
-
-        if_processing!(self.inner.config, {
-            let rate_limiter = match self.inner.rate_limiter.clone() {
-                Some(rate_limiter) => rate_limiter,
-                None => return Ok(cached_result.event),
-            };
-
-            // Enforce all quotas consistently with Redis.
-            let consistent_result = RateLimiter::Consistent(rate_limiter)
-                .enforce(
-                    managed_envelope,
-                    cached_result.event,
-                    extracted_metrics,
-                    ctx
-                )
-                .await?;
-
-            // Update cached rate limits with the freshly computed ones.
-            if !consistent_result.rate_limits.is_empty() {
-                self.inner
-                    .project_cache
-                    .get(managed_envelope.scoping().project_key)
-                    .rate_limits()
-                    .merge(consistent_result.rate_limits);
-            }
-
-            Ok(consistent_result.event)
-        } else { Ok(cached_result.event) })
-    }
-
-    /// Processes standalone items that require an event ID, but do not have an event on the same envelope.
-    async fn process_standalone(
-        &self,
-        managed_envelope: &mut TypedEnvelope<StandaloneGroup>,
-        ctx: processing::Context<'_>,
-    ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
-        for item in managed_envelope.envelope().items() {
-            let attachment_type_tag = match item.attachment_type() {
-                Some(t) => &t.to_string(),
-                None => "",
-            };
-            relay_statsd::metric!(
-                counter(RelayCounters::StandaloneItem) += 1,
-                processor = "old",
-                item_type = item.ty().name(),
-                attachment_type = attachment_type_tag,
-            );
-        }
-
-        let mut extracted_metrics = ProcessingExtractedMetrics::new();
-
-        standalone::process(managed_envelope);
-
-        profile::filter(managed_envelope, ctx.config, ctx.project_info);
-
-        self.enforce_quotas(
-            managed_envelope,
-            Annotated::empty(),
-            &mut extracted_metrics,
-            ctx,
-        )
-        .await?;
-
-        report::process_user_reports(managed_envelope);
-
-        Ok(Some(extracted_metrics))
     }
 
     async fn process_nel(
@@ -1434,40 +1190,6 @@ impl EnvelopeProcessorService {
             .map(ProcessingResult::Output)
     }
 
-    /// Processes standalone spans.
-    ///
-    /// This function does *not* run for spans extracted from transactions.
-    async fn process_standalone_spans(
-        &self,
-        managed_envelope: &mut TypedEnvelope<SpanGroup>,
-        _project_id: ProjectId,
-        ctx: processing::Context<'_>,
-    ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
-        let mut extracted_metrics = ProcessingExtractedMetrics::new();
-
-        if_processing!(self.inner.config, {
-            span::process(
-                managed_envelope,
-                &mut Annotated::empty(),
-                &mut extracted_metrics,
-                _project_id,
-                ctx,
-                &self.inner.geoip_lookup,
-            )
-            .await;
-        });
-
-        self.enforce_quotas(
-            managed_envelope,
-            Annotated::empty(),
-            &mut extracted_metrics,
-            ctx,
-        )
-        .await?;
-
-        Ok(Some(extracted_metrics))
-    }
-
     async fn process_envelope(
         &self,
         project_id: ProjectId,
@@ -1511,28 +1233,6 @@ impl EnvelopeProcessorService {
             .meta_mut()
             .set_project_id(project_id);
 
-        macro_rules! run {
-            ($fn_name:ident $(, $args:expr)*) => {
-                async {
-                    let mut managed_envelope = (managed_envelope, group).try_into()?;
-                    match self.$fn_name(&mut managed_envelope, $($args),*).await {
-                        Ok(extracted_metrics) => Ok(ProcessingResult::Envelope {
-                            managed_envelope: managed_envelope.into_processed(),
-                            extracted_metrics: extracted_metrics.map_or(ProcessingExtractedMetrics::new(), |e| e)
-                        }),
-                        Err(error) => {
-                            relay_log::trace!("Executing {fn} failed: {error}", fn = stringify!($fn_name), error = error);
-                            if let Some(outcome) = error.to_outcome() {
-                                managed_envelope.reject(outcome);
-                            }
-
-                            return Err(error);
-                        }
-                    }
-                }.await
-            };
-        }
-
         relay_log::trace!("Processing {group} group", group = group.variant());
 
         match group {
@@ -1552,7 +1252,6 @@ impl EnvelopeProcessorService {
                 self.process_with_processor(&self.inner.processing.sessions, managed_envelope, ctx)
                     .await
             }
-            ProcessingGroup::Standalone => run!(process_standalone, ctx),
             ProcessingGroup::StandaloneAttachments => {
                 self.process_with_processor(
                     &self.inner.processing.attachments,
@@ -1614,7 +1313,14 @@ impl EnvelopeProcessorService {
                 )
                 .await
             }
-            ProcessingGroup::Span => run!(process_standalone_spans, project_id, ctx),
+            ProcessingGroup::Span => {
+                self.process_with_processor(
+                    &self.inner.processing.legacy_spans,
+                    managed_envelope,
+                    ctx,
+                )
+                .await
+            }
             ProcessingGroup::ProfileChunk => {
                 self.process_with_processor(
                     &self.inner.processing.profile_chunks,
@@ -1647,9 +1353,7 @@ impl EnvelopeProcessorService {
                     "could not identify the processing group based on the envelope's items"
                 );
 
-                Ok(ProcessingResult::no_metrics(
-                    managed_envelope.into_processed(),
-                ))
+                Err(ProcessingError::NoProcessingGroup)
             }
             // Leave this group unchanged.
             //
@@ -2025,7 +1729,7 @@ impl EnvelopeProcessorService {
             scoping,
         } = message;
 
-        let upstream = self.inner.config.upstream_descriptor();
+        let upstream = self.inner.config.upstream();
         let dsn = PartialDsn::outbound(&scoping, upstream);
 
         let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
@@ -2187,44 +1891,42 @@ impl EnvelopeProcessorService {
             let over_accept_once = true;
             let mut rate_limits = RateLimits::new();
 
-            for category in [DataCategory::Transaction, DataCategory::Span] {
-                let count = bucket_limiter.count(category);
+            let (category, count) = bucket_limiter.count();
 
-                let timer = Instant::now();
-                let mut is_limited = false;
+            let timer = Instant::now();
+            let mut is_limited = false;
 
-                if let Some(count) = count {
-                    match rate_limiter
-                        .is_rate_limited(quotas, scoping.item(category), count, over_accept_once)
-                        .await
-                    {
-                        Ok(limits) => {
-                            is_limited = limits.is_limited();
-                            rate_limits.merge(limits)
-                        }
-                        Err(e) => {
-                            relay_log::error!(error = &e as &dyn Error, "rate limiting error")
-                        }
+            if let Some(count) = count {
+                match rate_limiter
+                    .is_rate_limited(quotas, scoping.item(category), count, over_accept_once)
+                    .await
+                {
+                    Ok(limits) => {
+                        is_limited = limits.is_limited();
+                        rate_limits.merge(limits)
+                    }
+                    Err(e) => {
+                        relay_log::error!(error = &e as &dyn Error, "rate limiting error")
                     }
                 }
-
-                relay_statsd::metric!(
-                    timer(RelayTimers::RateLimitBucketsDuration) = timer.elapsed(),
-                    category = category.name(),
-                    limited = if is_limited { "true" } else { "false" },
-                    count = match count {
-                        None => "none",
-                        Some(0) => "0",
-                        Some(1) => "1",
-                        Some(1..=10) => "10",
-                        Some(1..=25) => "25",
-                        Some(1..=50) => "50",
-                        Some(51..=100) => "100",
-                        Some(101..=500) => "500",
-                        _ => "> 500",
-                    },
-                );
             }
+
+            relay_statsd::metric!(
+                timer(RelayTimers::RateLimitBucketsDuration) = timer.elapsed(),
+                category = category.name(),
+                limited = if is_limited { "true" } else { "false" },
+                count = match count {
+                    None => "none",
+                    Some(0) => "0",
+                    Some(1) => "1",
+                    Some(1..=10) => "10",
+                    Some(1..=25) => "25",
+                    Some(1..=50) => "50",
+                    Some(51..=100) => "100",
+                    Some(101..=500) => "500",
+                    _ => "> 500",
+                },
+            );
 
             if rate_limits.is_limited() {
                 let was_enforced =
@@ -2244,95 +1946,9 @@ impl EnvelopeProcessorService {
         bucket_limiter.into_buckets()
     }
 
-    /// Cardinality limits the passed buckets and returns a filtered vector of only accepted buckets.
-    #[cfg(feature = "processing")]
-    async fn cardinality_limit_buckets(
-        &self,
-        scoping: Scoping,
-        limits: &[CardinalityLimit],
-        buckets: Vec<Bucket>,
-    ) -> Vec<Bucket> {
-        let global_config = self.inner.global_config.current();
-        let cardinality_limiter_mode = global_config.options.cardinality_limiter_mode;
-
-        if matches!(cardinality_limiter_mode, CardinalityLimiterMode::Disabled) {
-            return buckets;
-        }
-
-        let Some(ref limiter) = self.inner.cardinality_limiter else {
-            return buckets;
-        };
-
-        let scope = relay_cardinality::Scoping {
-            organization_id: scoping.organization_id,
-            project_id: scoping.project_id,
-        };
-
-        let limits = match limiter
-            .check_cardinality_limits(scope, limits, buckets)
-            .await
-        {
-            Ok(limits) => limits,
-            Err((buckets, error)) => {
-                relay_log::error!(
-                    error = &error as &dyn std::error::Error,
-                    "cardinality limiter failed"
-                );
-                return buckets;
-            }
-        };
-
-        let error_sample_rate = global_config.options.cardinality_limiter_error_sample_rate;
-        if !limits.exceeded_limits().is_empty() && utils::sample(error_sample_rate).is_keep() {
-            for limit in limits.exceeded_limits() {
-                relay_log::with_scope(
-                    |scope| {
-                        // Set the organization as user so we can alert on distinct org_ids.
-                        scope.set_user(Some(relay_log::sentry::User {
-                            id: Some(scoping.organization_id.to_string()),
-                            ..Default::default()
-                        }));
-                    },
-                    || {
-                        relay_log::error!(
-                            tags.organization_id = scoping.organization_id.value(),
-                            tags.limit_id = limit.id,
-                            tags.passive = limit.passive,
-                            "Cardinality Limit"
-                        );
-                    },
-                );
-            }
-        }
-
-        for (limit, reports) in limits.cardinality_reports() {
-            for report in reports {
-                self.inner
-                    .metric_outcomes
-                    .cardinality(scoping, limit, report);
-            }
-        }
-
-        if matches!(cardinality_limiter_mode, CardinalityLimiterMode::Passive) {
-            return limits.into_source();
-        }
-
-        let CardinalityLimitsSplit { accepted, rejected } = limits.into_split();
-
-        for (bucket, exceeded) in rejected {
-            self.inner.metric_outcomes.track(
-                scoping,
-                &[bucket],
-                Outcome::CardinalityLimited(exceeded.id.clone()),
-            );
-        }
-        accepted
-    }
-
-    /// Processes metric buckets and sends them to kafka.
+    /// Processes metric buckets and sends them to Kafka.
     ///
     /// This function runs the following steps:
-    ///  - cardinality limiting
     ///  - rate limiting
     ///  - submit to `StoreForwarder`
     #[cfg(feature = "processing")]
@@ -2353,11 +1969,6 @@ impl EnvelopeProcessorService {
         {
             let buckets = self
                 .rate_limit_buckets(scoping, &project_info, buckets)
-                .await;
-
-            let limits = project_info.get_cardinality_limits();
-            let buckets = self
-                .cardinality_limit_buckets(scoping, limits, buckets)
                 .await;
 
             if buckets.is_empty() {
@@ -2387,9 +1998,8 @@ impl EnvelopeProcessorService {
     ///  - serialize to JSON and pack in an envelope
     ///  - submit the envelope to upstream or kafka depending on configuration
     ///
-    /// Cardinality limiting and rate limiting run only in processing Relays as they both require
-    /// access to the central Redis instance. Cached rate limits are applied in the project cache
-    /// already.
+    /// Rate limiting runs only in processing Relays as it requires access to the central Redis instance.
+    /// Cached rate limits are applied in the project cache already.
     fn encode_metrics_envelope(&self, cogs: &mut Token, message: FlushBuckets) {
         let FlushBuckets {
             partition_key,
@@ -2397,7 +2007,7 @@ impl EnvelopeProcessorService {
         } = message;
 
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
-        let upstream = self.inner.config.upstream_descriptor();
+        let upstream = self.inner.config.upstream();
 
         for ProjectBuckets {
             buckets, scoping, ..
@@ -2477,10 +2087,6 @@ impl EnvelopeProcessorService {
     ///  - batching by configured size limit
     ///  - serialize to JSON
     ///  - submit directly to the upstream
-    ///
-    /// Cardinality limiting and rate limiting run only in processing Relays as they both require
-    /// access to the central Redis instance. Cached rate limits are applied in the project cache
-    /// already.
     fn encode_metrics_global(&self, message: FlushBuckets) {
         let FlushBuckets {
             partition_key,
@@ -2584,8 +2190,8 @@ impl EnvelopeProcessorService {
                 .values()
                 .map(|s| {
                     if self.inner.config.processing_enabled() {
-                        // Processing does not encode the metrics but instead rate and cardinality
-                        // limits the metrics, which scales by count and not size.
+                        // Processing does not encode the metrics but instead rate limit the metrics,
+                        // which scales by count and not size.
                         relay_metrics::cogs::ByCount(&s.buckets).into()
                     } else {
                         relay_metrics::cogs::BySize(&s.buckets).into()
@@ -2612,112 +2218,6 @@ impl Service for EnvelopeProcessorService {
                     .boxed(),
                 )
                 .await;
-        }
-    }
-}
-
-/// Result of the enforcement of rate limiting.
-///
-/// If the event is already `None` or it's rate limited, it will be `None`
-/// within the [`Annotated`].
-struct EnforcementResult {
-    event: Annotated<Event>,
-    #[cfg_attr(not(feature = "processing"), expect(dead_code))]
-    rate_limits: RateLimits,
-}
-
-impl EnforcementResult {
-    /// Creates a new [`EnforcementResult`].
-    pub fn new(event: Annotated<Event>, rate_limits: RateLimits) -> Self {
-        Self { event, rate_limits }
-    }
-}
-
-#[derive(Clone)]
-enum RateLimiter {
-    Cached,
-    #[cfg(feature = "processing")]
-    Consistent(Arc<RedisRateLimiter>),
-}
-
-impl RateLimiter {
-    async fn enforce<Group>(
-        &self,
-        managed_envelope: &mut TypedEnvelope<Group>,
-        event: Annotated<Event>,
-        _extracted_metrics: &mut ProcessingExtractedMetrics,
-        ctx: processing::Context<'_>,
-    ) -> Result<EnforcementResult, ProcessingError> {
-        if managed_envelope.envelope().is_empty() && event.value().is_none() {
-            return Ok(EnforcementResult::new(event, RateLimits::default()));
-        }
-
-        let quotas = CombinedQuotas::new(ctx.global_config, ctx.project_info.get_quotas());
-        if quotas.is_empty() {
-            return Ok(EnforcementResult::new(event, RateLimits::default()));
-        }
-
-        let event_category = event_category(&event);
-
-        // We extract the rate limiters, in case we perform consistent rate limiting, since we will
-        // need Redis access.
-        //
-        // When invoking the rate limiter, capture if the event item has been rate limited to also
-        // remove it from the processing state eventually.
-        let this = self.clone();
-        let mut envelope_limiter =
-            EnvelopeLimiter::new(CheckLimits::All, move |item_scope, _quantity| {
-                let this = this.clone();
-
-                async move {
-                    match this {
-                        #[cfg(feature = "processing")]
-                        RateLimiter::Consistent(rate_limiter) => Ok::<_, ProcessingError>(
-                            rate_limiter
-                                .is_rate_limited(quotas, item_scope, _quantity, false)
-                                .await?,
-                        ),
-                        _ => Ok::<_, ProcessingError>(
-                            ctx.rate_limits.check_with_quotas(quotas, item_scope),
-                        ),
-                    }
-                }
-            });
-
-        // Tell the envelope limiter about the event, since it has been removed from the Envelope at
-        // this stage in processing.
-        if let Some(category) = event_category {
-            envelope_limiter.assume_event(category);
-        }
-
-        let scoping = managed_envelope.scoping();
-        let (enforcement, rate_limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), type = self.name(), {
-            envelope_limiter
-                .compute(managed_envelope.envelope_mut(), &scoping)
-                .await
-        })?;
-        let event_active = enforcement.is_event_active();
-
-        // Use the same rate limits as used for the envelope on the metrics.
-        // Those rate limits should not be checked for expiry or similar to ensure a consistent
-        // limiting of envelope items and metrics.
-        #[cfg(feature = "processing")]
-        _extracted_metrics.apply_enforcement(&enforcement, matches!(self, Self::Consistent(_)));
-        enforcement.apply_with_outcomes(managed_envelope);
-
-        if event_active {
-            debug_assert!(managed_envelope.envelope().is_empty());
-            return Ok(EnforcementResult::new(Annotated::empty(), rate_limits));
-        }
-
-        Ok(EnforcementResult::new(event, rate_limits))
-    }
-
-    fn name(&self) -> &'static str {
-        match self {
-            Self::Cached => "cached",
-            #[cfg(feature = "processing")]
-            Self::Consistent(_) => "consistent",
         }
     }
 }
@@ -3035,11 +2535,13 @@ impl UpstreamRequest for SendMetricsRequest {
 
 /// Container for global and project level [`Quota`].
 #[derive(Copy, Clone, Debug)]
+#[cfg(feature = "processing")]
 struct CombinedQuotas<'a> {
     global_quotas: &'a [Quota],
     project_quotas: &'a [Quota],
 }
 
+#[cfg(feature = "processing")]
 impl<'a> CombinedQuotas<'a> {
     /// Returns a new [`CombinedQuotas`].
     pub fn new(global_config: &'a GlobalConfig, project_quotas: &'a [Quota]) -> Self {
@@ -3048,18 +2550,9 @@ impl<'a> CombinedQuotas<'a> {
             project_quotas,
         }
     }
-
-    /// Returns `true` if both global quotas and project quotas are empty.
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    /// Returns the number of both global and project quotas.
-    pub fn len(&self) -> usize {
-        self.global_quotas.len() + self.project_quotas.len()
-    }
 }
 
+#[cfg(feature = "processing")]
 impl<'a> IntoIterator for CombinedQuotas<'a> {
     type Item = &'a Quota;
     type IntoIter = std::iter::Chain<std::slice::Iter<'a, Quota>, std::slice::Iter<'a, Quota>>;
@@ -3109,7 +2602,7 @@ mod tests {
     #[cfg(feature = "processing")]
     #[test]
     fn test_dynamic_quotas() {
-        let global_config = GlobalConfig {
+        let global_config = relay_dynamic_config::GlobalConfig {
             quotas: vec![mock_quota("foo"), mock_quota("bar")],
             ..Default::default()
         };
@@ -3117,9 +2610,6 @@ mod tests {
         let project_quotas = vec![mock_quota("baz"), mock_quota("qux")];
 
         let dynamic_quotas = CombinedQuotas::new(&global_config, &project_quotas);
-
-        assert_eq!(dynamic_quotas.len(), 4);
-        assert!(!dynamic_quotas.is_empty());
 
         let quota_ids = dynamic_quotas.into_iter().filter_map(|q| q.id.as_deref());
         assert!(quota_ids.eq(["foo", "bar", "baz", "qux"]));
@@ -3171,7 +2661,7 @@ mod tests {
 
             let project_metrics = |scoping| ProjectBuckets {
                 buckets: vec![Bucket {
-                    name: "d:transactions/bar".into(),
+                    name: "d:spans/bar".into(),
                     value: BucketValue::Counter(FiniteF64::new(1.0).unwrap()),
                     timestamp: UnixTimestamp::now(),
                     tags: Default::default(),
@@ -3540,10 +3030,7 @@ mod tests {
         .await;
 
         let mut item = Item::new(ItemType::Statsd);
-        item.set_payload(
-            ContentType::Text,
-            "transactions/foo:3182887624:4267882815|s",
-        );
+        item.set_payload(ContentType::Text, "spans/foo:3182887624:4267882815|s");
         for (source, expected_received_at) in [
             (
                 BucketSource::External,

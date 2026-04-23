@@ -287,7 +287,7 @@ mod tests {
         let mut bucket = Bucket {
             timestamp: UnixTimestamp::from_secs(5000),
             width: 0,
-            name: "c:transactions/hergus.bergus".into(),
+            name: "c:spans/hergus.bergus".into(),
             value: BucketValue::Counter(0.into()),
             tags: {
                 let mut tags = MetricTags::new();
@@ -319,7 +319,7 @@ mod tests {
         {
           "timestamp": 5000,
           "width": 0,
-          "name": "c:transactions/hergus.bergus@none",
+          "name": "c:spans/hergus.bergus@none",
           "type": "c",
           "value": 0.0,
           "tags": {

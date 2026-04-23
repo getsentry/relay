@@ -1,4 +1,5 @@
 from collections import defaultdict
+from time import sleep
 from unittest import mock
 import pytest
 import os
@@ -25,7 +26,9 @@ def playstation_project_config():
             "eventRetention": 36500,
             "features": [
                 "organizations:relay-playstation-ingestion",
+                "organizations:relay-new-error-processing",
                 "projects:relay-upload-endpoint",
+                "projects:relay-playstation-uploads",
             ],
         }
     }
@@ -326,6 +329,32 @@ def test_playstation_max_attachment_size_exceeded(
     assert len(outcomes_consumer.get_outcomes()) == 0
 
 
+def test_playstation_max_stream_size_exceeded(
+    mini_sentry, relay_processing_with_playstation, outcomes_consumer
+):
+    PROJECT_ID = 42
+    playstation_dump = load_dump_file("playstation.prosperodmp")
+    stream_size_limit = len(playstation_dump) - 100
+    relay = relay_processing_with_playstation(
+        {
+            "limits": {
+                "max_upload_size": int(stream_size_limit / 2),
+                "max_attachments_size": int(stream_size_limit / 2),
+            }
+        }
+    )
+    mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
+    outcomes_consumer = outcomes_consumer()
+
+    with pytest.raises(requests.exceptions.HTTPError) as exc_info:
+        _ = relay.send_playstation_request(PROJECT_ID, playstation_dump)
+
+    response = exc_info.value.response
+    assert response.status_code == 413, "Expected a 413 status code"
+    assert response.content.decode("utf-8") == "length limit exceeded"
+    assert len(outcomes_consumer.get_outcomes()) == 0
+
+
 @pytest.mark.parametrize("num_intermediate_relays", [0, 1, 2])
 def test_playstation_with_feature_flag(
     mini_sentry,
@@ -388,7 +417,7 @@ def test_playstation_user_data_extraction(
 
 
 @pytest.mark.parametrize("use_pop_relay", [True, False])
-def test_playstation_large_attachments(
+def test_playstation_upload_attachments(
     mini_sentry,
     relay_with_playstation,
     relay_processing_with_playstation,
@@ -400,9 +429,7 @@ def test_playstation_large_attachments(
 ):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("playstation.prosperodmp")
-    config = playstation_project_config()
-    config["config"]["features"].append("projects:relay-playstation-uploads")
-    mini_sentry.add_full_project_config(PROJECT_ID, extra=config)
+    mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
     outcomes_consumer = outcomes_consumer()
     attachments_consumer = attachments_consumer()
     credentials = relay_credentials()
@@ -454,6 +481,36 @@ def test_playstation_large_attachments(
         a for a in event["attachments"] if a["name"] == "playstation.prosperodmp"
     ][0]
     assert chunks[dump_attachment["id"]] == playstation_dump
+
+
+def test_playstation_ignore_large_attachments_when_uploading_disabled(
+    mini_sentry,
+    relay_with_playstation,
+):
+    PROJECT_ID = 42
+    config = playstation_project_config()
+    config["config"]["features"].remove("projects:relay-playstation-uploads")
+    mini_sentry.add_full_project_config(PROJECT_ID, extra=config)
+    playstation_dump = load_dump_file("user_data.prosperodmp")
+    relay = relay_with_playstation(
+        mini_sentry,
+        {
+            "limits": {
+                "max_attachment_size": len(playstation_dump),
+            },
+        },
+    )
+    # Make a dummy video that exceeds max_attachment_size
+    video_content = "1" * 1024 * 1024
+
+    response = relay.send_playstation_request(
+        PROJECT_ID, playstation_dump, video_content
+    )
+
+    assert response.ok
+    assert [
+        item.headers["filename"] for item in mini_sentry.get_captured_envelope().items
+    ] == ["playstation.prosperodmp"]
 
 
 def test_playstation_attachment(
@@ -739,3 +796,31 @@ def test_event_merging(
     assert sorted(event["attachments"], key=lambda x: x["name"]) == attachments(
         158008, 60446, 210174
     )
+
+
+@pytest.mark.parametrize("rate_limits", [[], ["error"], ["error", "attachment"]])
+@pytest.mark.parametrize("use_pop_relay", [True, False])
+def test_playstation_rate_limited(
+    mini_sentry,
+    relay_with_playstation,
+    relay_processing_with_playstation,
+    relay_credentials,
+    use_pop_relay,
+    rate_limits,
+):
+    PROJECT_ID = 42
+    playstation_dump = load_dump_file("playstation.prosperodmp")
+    config = playstation_project_config()
+    config["config"]["quotas"] = [
+        {"categories": rate_limits, "limit": 0, "reasonCode": "static_disabled_quota"}
+    ]
+    mini_sentry.add_full_project_config(PROJECT_ID, extra=config)
+    credentials = relay_credentials()
+    relay = relay_processing_with_playstation(static_credentials=credentials)
+    if use_pop_relay:
+        relay = relay_with_playstation(relay, credentials=credentials)
+
+    # Playstation never returns 429
+    relay.send_playstation_request(PROJECT_ID, playstation_dump)
+    sleep(1)
+    relay.send_playstation_request(PROJECT_ID, playstation_dump)

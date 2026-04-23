@@ -67,6 +67,9 @@ pub enum BadStoreRequest {
     #[error("missing minidump")]
     MissingMinidump,
 
+    #[error("invalid unreal crash report")]
+    InvalidUnrealReport,
+
     #[cfg(sentry)]
     #[error("invalid prosperodump")]
     InvalidProsperodump,
@@ -96,6 +99,9 @@ pub enum BadStoreRequest {
 
     #[error("event submission rejected with_reason: {0:?}")]
     EventRejected(DiscardReason),
+
+    #[error("project not available")]
+    ProjectUnavailable,
 }
 
 impl IntoResponse for BadStoreRequest {
@@ -121,7 +127,7 @@ impl IntoResponse for BadStoreRequest {
 
                 (StatusCode::TOO_MANY_REQUESTS, headers, body).into_response()
             }
-            BadStoreRequest::QueueFailed(_) => {
+            BadStoreRequest::QueueFailed(_) | BadStoreRequest::ProjectUnavailable => {
                 // These errors indicate that something's wrong with our service system, most likely
                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
                 // client. It might retry event submission at a later time.
@@ -356,7 +362,10 @@ pub async fn handle_envelope(
         .map_err(|err| err.map(BadStoreRequest::EventRejected))?;
 
     if envelope.is_empty() {
-        return Err(envelope.reject_err((None, BadStoreRequest::RateLimited(rate_limits))));
+        return Ok(HandledEnvelope {
+            event_id,
+            rate_limits,
+        });
     }
 
     if let Err(offender) = utils::check_envelope_size_limits(state.config(), &envelope) {
@@ -391,14 +400,8 @@ pub struct HandledEnvelope {
 }
 
 impl HandledEnvelope {
-    /// Ensures all active rate limits are handled as an error.
-    ///
-    /// This is legacy behaviour where active rate limits are returned as an error, instead of
-    /// being added to the usual response.
-    /// The event id in this legacy behaviour is only returned when there are no active rate
-    /// limits.
-    ///
-    /// The functions simplifies this legacy handling by turning rate limits into an error again.
+    /// Check if any rate limits were enforced (i.e. led to one or more items being dropped) and
+    /// return an error if so.
     pub fn check_rate_limits(self) -> Result<Option<EventId>, BadStoreRequest> {
         if self.rate_limits.is_limited() {
             return Err(BadStoreRequest::RateLimited(self.rate_limits));
@@ -406,14 +409,10 @@ impl HandledEnvelope {
         Ok(self.event_id)
     }
 
-    /// Explicitly ignores contained active rate limits.
+    /// Silence rate limits, even if they caused items to be dropped from the envelope.
     ///
-    /// Endpoints which choose to not propagate active rate limits, should use this method to
-    /// explicitly state the fact they do not propagate the rate limits.
-    ///
-    /// Most endpoints ignore active rate limits, they are mostly used in envelope based endpoints.
-    ///
-    /// Note: enforced rate limits are still returned as an error from [`handle_envelope`].
+    /// Endpoints which choose to not propagate rate limits should use this method to explicitly
+    /// state the fact that they do so.
     pub fn ignore_rate_limits(self) -> Option<EventId> {
         self.event_id
     }

@@ -13,6 +13,11 @@ macro_rules! convention_attributes {
 
 // Attributes which can also be found in Sentry conventions.
 convention_attributes!(
+    APP_VITALS_START_COLD_VALUE => "app.vitals.start.cold.value",
+    APP_VITALS_START_TYPE => "app.vitals.start.type",
+    APP_VITALS_START_WARM_VALUE => "app.vitals.start.warm.value",
+    APP_VITALS_TTFD_VALUE => "app.vitals.ttfd.value",
+    APP_VITALS_TTID_VALUE => "app.vitals.ttid.value",
     BROWSER_NAME => "sentry.browser.name",
     BROWSER_VERSION => "sentry.browser.version",
     CLIENT_ADDRESS => "client.address",
@@ -24,6 +29,13 @@ convention_attributes!(
     DB_OPERATION_NAME => "db.operation.name",
     DB_COLLECTION_NAME => "db.collection.name",
     DESCRIPTION => "sentry.description",
+    DEVICE_BRAND => "device.brand",
+    DEVICE_CLASS => "device.class",
+    DEVICE_FAMILY => "device.family",
+    DEVICE_MEMORY_SIZE => "device.memory_size",
+    DEVICE_MODEL => "device.model",
+    DEVICE_PROCESSOR_COUNT => "device.processor_count",
+    DEVICE_PROCESSOR_FREQUENCY => "device.processor_frequency",
     DSC_ENVIRONMENT => "sentry.dsc.environment",
     DSC_PUBLIC_KEY => "sentry.dsc.public_key",
     DSC_RELEASE => "sentry.dsc.release",
@@ -34,6 +46,8 @@ convention_attributes!(
     ENVIRONMENT => "sentry.environment",
     EVENT_NAME => "event.name",
     FAAS_TRIGGER => "faas.trigger",
+    GEN_AI_CONTEXT_UTILIZATION => "gen_ai.context.utilization",
+    GEN_AI_CONTEXT_WINDOW_SIZE => "gen_ai.context.window_size",
     GEN_AI_COST_INPUT_TOKENS => "gen_ai.cost.input_tokens",
     GEN_AI_COST_OUTPUT_TOKENS => "gen_ai.cost.output_tokens",
     GEN_AI_COST_TOTAL_TOKENS => "gen_ai.cost.total_tokens",
@@ -73,12 +87,16 @@ convention_attributes!(
     SENTRY_CATEGORY => "sentry.category",
     SENTRY_DOMAIN => "sentry.domain",
     SENTRY_GROUP => "sentry.group",
+    SENTRY_MAIN_THREAD => "sentry.main_thread",
+    SENTRY_MOBILE => "sentry.mobile",
     SENTRY_NORMALIZED_DESCRIPTION => "sentry.normalized_description",
+    SENTRY_SDK_NAME => "sentry.sdk.name",
     SENTRY_STATUS_CODE => "sentry.status_code",
     SENTRY_TRANSACTION => "sentry.transaction",
     SERVER_ADDRESS => "server.address",
     SPAN_KIND => "sentry.kind",
     STATUS_MESSAGE => "sentry.status.message",
+    THREAD_NAME => "thread.name",
     UI_COMPONENT_NAME => "ui.component_name",
     URL_FULL => "url.full",
     URL_PATH => "url.path",
@@ -109,5 +127,9 @@ mod not_yet_defined {
     // https://github.com/getsentry/sentry-conventions/pull/256 but is still
     // used in Relay.
     pub const PROFILE_ID: &str = "sentry.profile_id";
+
+    // TODO(buenaflor): Add as sentry convention once mobile SDKs can migrate to it.
+    // https://github.com/getsentry/sentry-conventions/issues/318
+    pub const APP_VITALS_START_VALUE: &str = "app.vitals.start.value";
 }
 pub use self::not_yet_defined::*;

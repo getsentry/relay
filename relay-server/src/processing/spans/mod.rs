@@ -14,7 +14,7 @@ use crate::integrations::Integration;
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
-use crate::metrics_extraction::transactions::ExtractedMetrics;
+use crate::metrics_extraction::ExtractedMetrics;
 use crate::processing::trace_attachments::forward::attachment_to_item;
 use crate::processing::trace_attachments::process::ScrubAttachmentError;
 use crate::processing::trace_attachments::types::ExpandedAttachment;
@@ -472,7 +472,7 @@ pub struct TotalAndIndexed;
 /// Once metric extraction happened, spans no longer track/represent the total category, this was
 /// transferred over to the metrics.
 ///
-/// Every which is stored, must have metrics extracted and transferred this ownership.
+/// Every stored span, must have metrics extracted and transferred this ownership.
 #[derive(Copy, Clone, Debug)]
 pub struct Indexed;
 

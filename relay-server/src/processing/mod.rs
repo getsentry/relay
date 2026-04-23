@@ -12,7 +12,7 @@ use relay_quotas::RateLimits;
 use relay_sampling::evaluation::ReservoirCounters;
 
 use crate::managed::{Counted, Managed, ManagedEnvelope, Rejected};
-use crate::metrics_extraction::transactions::ExtractedMetrics;
+use crate::metrics_extraction::ExtractedMetrics;
 use crate::services::projects::project::ProjectInfo;
 
 mod common;
@@ -27,6 +27,7 @@ pub mod attachments;
 pub mod check_ins;
 pub mod client_reports;
 pub mod errors;
+pub mod legacy_spans;
 pub mod logs;
 pub mod profile_chunks;
 pub mod profiles;

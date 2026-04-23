@@ -1,9 +1,5 @@
-use std::sync::Once;
-
 use relay_base_schema::project::ProjectId;
-use relay_dynamic_config::{
-    CombinedMetricExtractionConfig, ErrorBoundary, Feature, MetricExtractionGroups,
-};
+use relay_dynamic_config::{CombinedMetricExtractionConfig, ErrorBoundary, MetricExtractionGroups};
 use relay_event_normalization::span::tag_extraction;
 use relay_event_schema::protocol::{Event, Span};
 use relay_metrics::MetricNamespace;
@@ -11,7 +7,6 @@ use relay_protocol::Annotated;
 use relay_sampling::DynamicSamplingContext;
 use relay_sampling::evaluation::SamplingDecision;
 
-use crate::metrics_extraction::transactions::TransactionExtractor;
 use crate::processing::Context;
 use crate::processing::utils::event::EventMetricsExtracted;
 use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
@@ -95,33 +90,6 @@ pub fn extract_metrics(
         CombinedMetricExtractionConfig::new(global_config, config)
     };
 
-    // Require a valid transaction metrics config.
-    let tx_config = match &ctx.project_info.config.transaction_metrics {
-        Some(ErrorBoundary::Ok(tx_config)) => tx_config,
-        Some(ErrorBoundary::Err(e)) => {
-            relay_log::debug!("Failed to parse legacy transaction metrics config: {e}");
-            return Ok(EventMetricsExtracted(false));
-        }
-        None => {
-            relay_log::debug!("Legacy transaction metrics config is missing");
-            return Ok(EventMetricsExtracted(false));
-        }
-    };
-
-    if !tx_config.is_enabled() {
-        static TX_CONFIG_ERROR: Once = Once::new();
-        TX_CONFIG_ERROR.call_once(|| {
-                if ctx.config.processing_enabled() {
-                    relay_log::error!(
-                        "Processing Relay outdated, received tx config in version {}, which is not supported",
-                        tx_config.version
-                    );
-                }
-            });
-
-        return Ok(EventMetricsExtracted(false));
-    }
-
     let metrics = crate::metrics_extraction::event::extract_metrics(
         event,
         crate::metrics_extraction::event::ExtractMetricsConfig {
@@ -136,21 +104,7 @@ pub fn extract_metrics(
             transaction_from_dsc: dsc.and_then(|dsc| dsc.transaction.as_deref()),
         },
     );
-
     extracted_metrics.extend(metrics, Some(sampling_decision));
-
-    if !ctx.project_info.has_feature(Feature::DiscardTransaction) {
-        let transaction_from_dsc = dsc.and_then(|dsc| dsc.transaction.as_deref());
-
-        let extractor = TransactionExtractor {
-            generic_config: Some(combined_config),
-            transaction_from_dsc,
-            sampling_decision,
-            target_project_id: project_id,
-        };
-
-        extracted_metrics.extend(extractor.extract(event)?, Some(sampling_decision));
-    }
 
     Ok(EventMetricsExtracted(true))
 }

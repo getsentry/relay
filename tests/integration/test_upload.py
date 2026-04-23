@@ -9,7 +9,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Response
 import pytest
 
-
 DUMMY_UPLOAD_PATH = "/api/42/upload/019cdc82ed6c7761ba21fd34b86481c2/"
 DUMMY_UPLOAD_LOCATION = f"{DUMMY_UPLOAD_PATH}?length=11&signature=z_fUMhT0EZqJz6OQtwGHqTlOOLPpTVpvPa-rYTg18FVWZM1OGny-LeVJB5H-sSR_5e--I1xt-FlCmRG2bsmcAQ.eyJ0IjoiMjAyNi0wMy0xMVQxMDo0ODoxMy45NDM1ODNaIn0"
 
@@ -20,6 +19,7 @@ def dummy_upload(mini_sentry):
 
     @mini_sentry.app.route("/api/<project>/upload/", methods=["POST"])
     def create(**opts):
+
         return Response(
             "",
             status=201,
@@ -510,3 +510,88 @@ def test_concurrency_limit(mini_sentry, relay, project_config):
                     "deadline has elapsed",
                 ],
             }, r.text
+
+
+def test_objectstore_retries(mini_sentry, relay_with_processing, project_config):
+    """Upload succeeds after a transient connection failure thanks to stream retries.
+
+    The first objectstore connection attempt fails (nothing listening yet).
+    The retry delay gives time for the mock objectstore to start, and the
+    second attempt succeeds because the stream has not been consumed yet.
+    """
+    project_id = 42
+    project_key = mini_sentry.get_dsn_public_key(project_id)
+
+    relay = relay_with_processing(
+        options={
+            "processing": {
+                "objectstore": {
+                    "objectstore_url": "http://127.0.0.1:8889/",  # wrong port
+                    "retry_delay": 1.0,
+                    "max_attempts": 3,
+                }
+            }
+        }
+    )
+
+    response = upload_something(relay, project_id, project_key)
+
+    failure = mini_sentry.test_failures.get(timeout=10)
+    assert "failed to upload 1 attachment(s) to objectstore in 3 attempt(s)" in str(
+        failure
+    )
+    assert response.status_code == 500
+
+
+def test_objectstore_timeout(
+    mini_sentry, relay_with_processing, project_config, objectstore
+):
+    mini_sentry.allow_chunked = True
+    mini_sentry.fail_on_relay_error = False
+    project_id = 42
+    project_key = mini_sentry.get_dsn_public_key(project_id)
+
+    @mini_sentry.app.route("/v1/objects/attachments/<scope>/<key>", methods=["PUT"])
+    def slow_objectstore(**opts):
+        time.sleep(2)
+        raise NotImplementedError
+
+    relay = relay_with_processing(
+        options={
+            "processing": {
+                "objectstore": {
+                    "objectstore_url": mini_sentry.url,
+                    "timeout": 1,
+                }
+            }
+        }
+    )
+
+    response = upload_something(relay, project_id, project_key)
+
+    assert response.status_code == 500  # not 504
+
+
+def upload_something(relay, project_id, project_key):
+    # Create the upload (this does NOT contact objectstore).
+    data = b"hello world"
+    response = relay.post(
+        f"/api/{project_id}/upload/?sentry_key={project_key}",
+        headers={
+            "Content-Length": "0",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": str(len(data)),
+        },
+    )
+    assert response.status_code == 201
+
+    return relay.patch(
+        f"{response.headers['Location']}&sentry_key={project_key}",
+        headers={
+            "Content-Length": str(len(data)),
+            "Content-Type": "application/offset+octet-stream",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Offset": "0",
+        },
+        data=data,
+    )

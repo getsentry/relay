@@ -2,6 +2,7 @@ use deadpool::managed::{Manager, Metrics, Object, Pool, RecycleError, RecycleRes
 use futures::FutureExt;
 use redis::AsyncConnectionConfig;
 use redis::cluster::ClusterClientBuilder;
+use redis::cluster_read_routing::RandomReplicaStrategy;
 use redis::io::tcp::{TcpSettings, socket2::TcpKeepalive};
 use std::ops::{Deref, DerefMut};
 use std::time::Duration;
@@ -14,7 +15,7 @@ use crate::redis::cluster_async::ClusterConnection;
 use crate::redis::{
     Cmd, IntoConnectionInfo, Pipeline, RedisError, RedisFuture, RedisResult, Value,
 };
-use crate::statsd::RedisTimers;
+use crate::statsd::{RedisCounters, RedisTimers};
 
 use relay_statsd::metric;
 
@@ -64,7 +65,7 @@ impl<C: redis::aio::ConnectionLike + Send> redis::aio::ConnectionLike for Tracke
             let elapsed = start.elapsed();
 
             self.detach |= Self::should_be_detached(result.as_ref());
-            emit_metrics(result.as_ref(), elapsed, self.client_name, cmd_name(cmd));
+            emit_cmd_metrics(result.as_ref(), elapsed, self.client_name, cmd_name(cmd));
 
             result
         }
@@ -86,7 +87,7 @@ impl<C: redis::aio::ConnectionLike + Send> redis::aio::ConnectionLike for Tracke
             let elapsed = start.elapsed();
 
             self.detach |= Self::should_be_detached(result.as_ref());
-            emit_metrics(result.as_ref(), elapsed, self.client_name, "pipeline");
+            emit_cmd_metrics(result.as_ref(), elapsed, self.client_name, "pipeline");
 
             result
         }
@@ -161,7 +162,7 @@ impl CustomClusterManager {
         let mut client = ClusterClientBuilder::new(params).tcp_settings(create_tcp_settings());
 
         if read_from_replicas {
-            client = client.read_from_replicas();
+            client = client.read_routing_strategy(RandomReplicaStrategy);
         }
         if let Some(response_timeout) = options.response_timeout {
             client = client.response_timeout(Duration::from_secs(response_timeout));
@@ -179,10 +180,15 @@ impl Manager for CustomClusterManager {
     type Error = RedisError;
 
     async fn create(&self) -> Result<TrackedConnection<ClusterConnection>, RedisError> {
-        self.client
+        let result = self
+            .client
             .get_async_connection()
             .await
-            .map(|c| TrackedConnection::new(self.name, c))
+            .map(|c| TrackedConnection::new(self.name, c));
+
+        emit_connection_create_metric(&result, self.name);
+
+        result
     }
 
     async fn recycle(
@@ -193,6 +199,7 @@ impl Manager for CustomClusterManager {
         // If the connection is marked to be detached, we return and error, signaling that this
         // connection must be detached from the pool.
         if conn.detach {
+            emit_connection_recycle_metric(self.name);
             return Err(RecycleError::Message(
                 "the tracked connection was marked as detached".into(),
             ));
@@ -277,10 +284,15 @@ impl Manager for CustomSingleManager {
     type Error = RedisError;
 
     async fn create(&self) -> Result<TrackedConnection<MultiplexedConnection>, RedisError> {
-        self.client
+        let result = self
+            .client
             .get_multiplexed_async_connection_with_config(&self.connection_config)
             .await
-            .map(|c| TrackedConnection::new(self.name, c))
+            .map(|c| TrackedConnection::new(self.name, c));
+
+        emit_connection_create_metric(&result, self.name);
+
+        result
     }
 
     async fn recycle(
@@ -291,6 +303,7 @@ impl Manager for CustomSingleManager {
         // If the connection is marked to be detached, we return and error, signaling that this
         // connection must be detached from the pool.
         if conn.detach {
+            emit_connection_recycle_metric(self.name);
             return Err(RecycleError::Message(
                 "the tracked connection was marked as detached".into(),
             ));
@@ -306,7 +319,7 @@ impl From<Object<CustomSingleManager>> for CustomSingleConnection {
     }
 }
 
-fn emit_metrics<T>(result: Result<T, &RedisError>, elapsed: Duration, client: &str, cmd: &str) {
+fn emit_cmd_metrics<T>(result: Result<T, &RedisError>, elapsed: Duration, client: &str, cmd: &str) {
     let result = match result {
         Ok(_) => "ok",
         Err(e) if e.is_timeout() => "timeout",
@@ -329,6 +342,26 @@ fn cmd_name(cmd: &Cmd) -> &str {
         // Non exhaustive enum.
         Some(_) | None => "<unknown>",
     }
+}
+
+fn emit_connection_create_metric<T>(result: &Result<T, RedisError>, client: &str) {
+    let result = match result {
+        Ok(_) => "ok",
+        Err(_) => "error",
+    };
+
+    metric!(
+        counter(RedisCounters::CreateConnection) += 1,
+        client = client,
+        result = result,
+    )
+}
+
+fn emit_connection_recycle_metric(client: &str) {
+    metric!(
+        counter(RedisCounters::RecycleConnection) += 1,
+        client = client,
+    )
 }
 
 /// Creates TCP settings configured with tcp `nodelay` and `keepalive`.
