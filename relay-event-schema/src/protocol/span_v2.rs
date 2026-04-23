@@ -50,6 +50,19 @@ pub struct SpanV2 {
     #[metastructure(pii = "true", trim = true)]
     pub attributes: Annotated<Attributes>,
 
+    /// Temporary flag that controls where performance issues are detected.
+    ///
+    /// When the flag is set to true, performance issues will be detected on this span provided it
+    /// is a root (segment) instead of the transaction event.
+    ///
+    /// Only set on root spans extracted from transactions.
+    #[metastructure(
+        field = "_performance_issues_spans",
+        skip_serialization = "empty",
+        trim = false
+    )]
+    pub performance_issues_spans: Annotated<bool>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii = "maybe")]
     pub other: Object<Value>,
