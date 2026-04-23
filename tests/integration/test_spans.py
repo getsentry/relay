@@ -332,9 +332,6 @@ def test_span_extraction_mobile_app_start_backfill(
     expected_value,
     expected_absent_keys,
 ):
-    """App-start measurements backfill `app.vitals.start.*` for normal values and skip
-    backfill for outliers.
-    """
     attrs = _send_transaction_with_measurements(
         mini_sentry,
         relay_with_processing,

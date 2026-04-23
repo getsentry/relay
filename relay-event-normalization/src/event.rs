@@ -1380,7 +1380,6 @@ fn get_duration_measurement_ms(event: &Event, name: &str) -> Option<FiniteF64> {
     Some(*measurement.value.value()?)
 }
 
-/// Backfills the unified `app.vitals.start.{value,type}` attributes. Cold wins over warm.
 fn backfill_app_vitals_start(event: &mut Event) {
     if event.ty.value() != Some(&EventType::Transaction) {
         return;
@@ -2951,11 +2950,6 @@ mod tests {
         }
     }
 
-    /// Renders the relevant parts of an event for snapshot assertions.
-    ///
-    /// Returns a single JSON object containing `measurements` (via the annotated serializer)
-    /// and `tags` (flattened into a plain map so insta's inline snapshots can flatten it —
-    /// the PairList<TagEntry> serializes as a sequence otherwise).
     fn measurements_and_tags(event: &Event) -> serde_json::Value {
         let tags = event.tags.value().map(|tags| {
             tags.0
@@ -3059,8 +3053,6 @@ mod tests {
 
     #[test]
     fn test_normalize_mobile_measurements_respects_outlier_filter() {
-        // An `app_start_cold` value exceeding `MAX_DURATION_MOBILE_MS` must be dropped by
-        // `filter_mobile_outliers` first, so the backfill finds nothing to copy.
         let mut event = mobile_measurements_event(
             r#"{"app_start_cold": {"value": 180001.0, "unit": "millisecond"}}"#,
         );
@@ -3075,7 +3067,6 @@ mod tests {
 
     #[test]
     fn test_normalize_mobile_measurements_non_transaction_payload_noop() {
-        // Measurements-only normalization is agnostic to event type.
         let json = r#"{
             "type": "error",
             "measurements": {
@@ -3128,8 +3119,6 @@ mod tests {
 
     #[test]
     fn test_normalize_mobile_measurements_does_not_overwrite_type() {
-        // The `already_set` guard also fires when only the type tag is pre-set: the value must
-        // not be backfilled in that case either.
         let mut event = mobile_measurements_event(
             r#"{"app_start_cold": {"value": 100.0, "unit": "millisecond"}}"#,
         );
