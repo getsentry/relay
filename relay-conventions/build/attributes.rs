@@ -1,8 +1,23 @@
 //! Contains type definitions for deserializing attribute definitions from JSON files in `sentry-conventions/model`.
 
 use std::collections::BTreeMap;
+use std::fmt::Write;
+use std::sync::LazyLock;
 
+use regex::Regex;
 use serde::Deserialize;
+
+/// Regex to find "unfenced" attribute names containing `<key>`.
+///
+/// Capture groups:
+/// 1. Character before
+/// 2. Attribute name
+/// 3. Character after
+static KEY_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    r"(^|[^`])((?:[a-zA-Z_]+\.)*<key>(?:\.[a-zA-Z_]+)*)($|[^`])"
+        .parse()
+        .unwrap()
+});
 
 /// Whether an attribute can contain PII.
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -43,7 +58,9 @@ struct Deprecation {
 #[derive(Debug, Clone, Deserialize)]
 pub struct Attribute {
     /// The attribute's name.
-    key: String,
+    pub key: String,
+    /// Short description of the attribute.
+    brief: String,
     /// Whether the attribute can contain PII.
     pii: Pii,
     /// If the attribute is deprecated, this contains
@@ -74,22 +91,100 @@ fn format_write_behavior(deprecation: Option<&Deprecation>) -> String {
 }
 
 /// Format an attribute as an `AttributeInfo`.
-pub fn format_attribute_info(attr: Attribute) -> (String, String) {
+pub fn format_attribute_info(attr: &Attribute) -> String {
     let Attribute {
-        key,
+        key: _key,
+        brief: _brief,
         pii,
         deprecation,
         alias,
     } = attr;
+
     let write_behavior = format_write_behavior(deprecation.as_ref());
-    let value = format!(
+
+    format!(
         "AttributeInfo {{
             write_behavior: {write_behavior},
             pii: Pii::{pii:?},
             aliases: &{alias:?},
         }}"
-    );
-    (key, value)
+    )
+}
+
+/// Formats an attribute as a constant definition.
+pub fn format_constant(attr: &Attribute) -> String {
+    let Attribute {
+        key,
+        brief,
+        pii,
+        deprecation,
+        alias,
+    } = attr;
+
+    let name = name_constant(key);
+
+    let mut out = String::new();
+
+    if !brief.is_empty() {
+        // Surround attribute names containing `<key>` with backticks, otherwise
+        // rustdoc complains about unclosed html tags
+        let brief = KEY_REGEX.replace_all(brief, "$1`$2`$3");
+        write!(&mut out, "/// {brief}").unwrap();
+
+        if !brief.ends_with('.') {
+            write!(&mut out, ".").unwrap();
+        }
+
+        writeln!(&mut out).unwrap();
+    }
+
+    writeln!(&mut out, "/// * PII: {pii:?}").unwrap();
+    writeln!(
+        &mut out,
+        "/// * Rewriting behavior: {}",
+        deprecation
+            .as_ref()
+            .and_then(|d| d.status)
+            .map(|s| format!("{s:?}"))
+            .unwrap_or("None".to_owned())
+    )
+    .unwrap();
+
+    if !alias.is_empty() {
+        writeln!(&mut out, "/// # Aliases").unwrap();
+
+        for a in alias {
+            writeln!(&mut out, r#"/// * [`{}`] (`{a}`)"#, name_constant(a)).unwrap();
+        }
+
+        writeln!(&mut out, "///").unwrap();
+    }
+
+    if let Some(deprecation) = deprecation {
+        write!(&mut out, "#[deprecated").unwrap();
+
+        if let Some(ref replacement) = deprecation.replacement {
+            let replacement_name = name_constant(replacement);
+            write!(
+                &mut out,
+                r#"(note="Use [`{replacement_name}`] (`{replacement}`) instead.")"#
+            )
+            .unwrap();
+        }
+        writeln!(&mut out, "]").unwrap();
+    }
+
+    writeln!(&mut out, r#"pub const {name}: &str = "{key}";"#).unwrap();
+
+    out
+}
+
+/// Formats an attributes name as a constant identifier.
+fn name_constant(name: &str) -> String {
+    name.replace(['<', '>'], "")
+        .replace('.', "__")
+        .replace('-', "_")
+        .to_ascii_uppercase()
 }
 
 /// Parse a path-like attribute key into individual segments.
@@ -107,7 +202,7 @@ pub struct RawNode {
 }
 
 impl RawNode {
-    pub fn build(&self, w: &mut impl std::io::Write) -> Result<(), std::io::Error> {
+    pub fn write(&self, w: &mut impl std::io::Write) -> Result<(), std::io::Error> {
         let Self { children, info } = self;
         write!(w, "Node {{ info: ")?;
         match info {
@@ -117,7 +212,7 @@ impl RawNode {
         write!(w, ", children: ::phf::phf_map!{{",)?;
         for (segment, child) in children {
             write!(w, "\"{segment}\" => ")?;
-            child.build(w)?;
+            child.write(w)?;
             write!(w, ",")?;
         }
         write!(w, "}} }}")

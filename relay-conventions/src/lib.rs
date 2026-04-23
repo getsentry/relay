@@ -6,7 +6,44 @@
 //! It also exposes a number of constants for attribute names that Relay has specific logic for. It is recommended
 //! to use these constants instead of the bare attribute names to ensure consistency.
 
-pub mod consts;
+pub mod consts {
+    #![allow(rustdoc::bare_urls)]
+    #![allow(non_upper_case_globals)]
+    include!(concat!(env!("OUT_DIR"), "/attribute_consts.rs"));
+
+    mod not_yet_defined {
+        // The legacy http request method attribute used by transactions spans.
+        // Could not be added to sentry conventions at the time due to an attribute naming conflict that
+        // requires updating the sentry conventions code gen.
+        // TODO: replace with conventions defined attribute name once the conventions code gen is updated.
+        // See https://github.com/getsentry/sentry-conventions/issues/50.
+        #[deprecated(note = "Needs to be defined in sentry-conventions")]
+        pub const HTTP__REQUEST_METHOD: &str = "http.request_method";
+
+        #[deprecated(note = "Needs to be defined in sentry-conventions")]
+        pub const SENTRY__WAS_TRANSACTION: &str = "sentry.was_transaction";
+
+        // TODO(mjq): Evaluate and remove usages of this constant, or restore it in
+        // conventions. This was deleted from conventions in
+        // https://github.com/getsentry/sentry-conventions/pull/256 but is still
+        // used in Relay.
+        // According to the PR this should probably be replaced with `SENTRY__PROFILER_ID`.
+        #[deprecated(note = "Needs to be defined in sentry-conventions")]
+        pub const SENTRY__PROFILE_ID: &str = "sentry.profile_id";
+
+        // TODO(buenaflor): Add as sentry convention once mobile SDKs can migrate to it.
+        // https://github.com/getsentry/sentry-conventions/issues/318
+        #[deprecated(note = "Needs to be defined in sentry-conventions")]
+        pub const APP__VITALS__START__VALUE: &str = "app.vitals.start.value";
+
+        /// We might promote this to a top-level field, there's no real use
+        /// to it being an attribute.
+        #[deprecated(note = "Needs to be defined in sentry-conventions")]
+        pub const SENTRY___INTERNAL__PERFORMANCE_ISSUES_SPANS: &str =
+            "sentry._internal.performance_issues_spans";
+    }
+    pub use self::not_yet_defined::*;
+}
 
 pub use consts::*;
 

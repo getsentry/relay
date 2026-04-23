@@ -4268,6 +4268,7 @@ dependencies = [
  "phf_codegen",
  "proc-macro2",
  "quote",
+ "regex",
  "relay-protocol",
  "serde",
  "serde_json",

@@ -45,17 +45,17 @@ pub fn normalize_ai(
 /// Returns whether the item is should have AI normalizations applied.
 fn is_ai_item(attributes: &mut Attributes) -> bool {
     // The product indicator whether we consider an item to be an EAP item.
-    if attributes.get_value(GEN_AI_OPERATION_TYPE).is_some() {
+    if attributes.get_value(GEN_AI__OPERATION__TYPE).is_some() {
         return true;
     }
 
     // We use the operation name to infer the operation type.
-    if attributes.get_value(GEN_AI_OPERATION_NAME).is_some() {
+    if attributes.get_value(GEN_AI__OPERATION__NAME).is_some() {
         return true;
     }
 
     // Older SDKs may only send a (span) op which we also use to infer the operation type.
-    let op = attributes.get_value(OP).and_then(|op| op.as_str());
+    let op = attributes.get_value(SENTRY__OP).and_then(|op| op.as_str());
     if op.is_some_and(|op| op.starts_with("gen_ai.") || op.starts_with("ai.")) {
         return true;
     }
@@ -63,41 +63,41 @@ fn is_ai_item(attributes: &mut Attributes) -> bool {
     false
 }
 
-/// Normalizes the [`GEN_AI_RESPONSE_MODEL`] attribute by defaulting to the [`GEN_AI_REQUEST_MODEL`] if it is missing.
+/// Normalizes the [`GEN_AI__RESPONSE__MODEL`] attribute by defaulting to the [`GEN_AI__REQUEST_MODEL`] if it is missing.
 fn normalize_model(attributes: &mut Attributes) {
-    if attributes.contains_key(GEN_AI_RESPONSE_MODEL) {
+    if attributes.contains_key(GEN_AI__RESPONSE__MODEL) {
         return;
     }
     let Some(model) = attributes
-        .get_value(GEN_AI_REQUEST_MODEL)
+        .get_value(GEN_AI__REQUEST__MODEL)
         .and_then(|v| v.as_str())
     else {
         return;
     };
-    attributes.insert(GEN_AI_RESPONSE_MODEL, model.to_owned());
+    attributes.insert(GEN_AI__RESPONSE__MODEL, model.to_owned());
 }
 
-/// Normalizes the [`GEN_AI_OPERATION_TYPE`] and infers it from the AI operation if it is missing.
+/// Normalizes the [`GEN_AI__OPERATION_TYPE`] and infers it from the AI operation if it is missing.
 fn normalize_ai_type(attributes: &mut Attributes) {
     let op_name = attributes
-        .get_value(GEN_AI_OPERATION_NAME)
-        .or_else(|| attributes.get_value(OP))
+        .get_value(GEN_AI__OPERATION__NAME)
+        .or_else(|| attributes.get_value(SENTRY__OP))
         .and_then(|op| op.as_str())
         .and_then(|op| ai::infer_ai_operation_type(op))
         // This is fine, this normalization only happens for known AI spans.
         .unwrap_or(ai::DEFAULT_AI_OPERATION);
 
-    attributes.insert(GEN_AI_OPERATION_TYPE, op_name.to_owned());
+    attributes.insert(GEN_AI__OPERATION__TYPE, op_name.to_owned());
 }
 
-/// Calculates the [`GEN_AI_USAGE_TOTAL_TOKENS`] attribute.
+/// Calculates the [`GEN_AI__USAGE_TOTAL_TOKENS`] attribute.
 fn normalize_total_tokens(attributes: &mut Attributes) {
     let input_tokens = attributes
-        .get_value(GEN_AI_USAGE_INPUT_TOKENS)
+        .get_value(GEN_AI__USAGE__INPUT_TOKENS)
         .and_then(|v| v.as_f64());
 
     let output_tokens = attributes
-        .get_value(GEN_AI_USAGE_OUTPUT_TOKENS)
+        .get_value(GEN_AI__USAGE__OUTPUT_TOKENS)
         .and_then(|v| v.as_f64());
 
     if input_tokens.is_none() && output_tokens.is_none() {
@@ -105,23 +105,23 @@ fn normalize_total_tokens(attributes: &mut Attributes) {
     }
 
     let total_tokens = input_tokens.unwrap_or(0.0) + output_tokens.unwrap_or(0.0);
-    attributes.insert(GEN_AI_USAGE_TOTAL_TOKENS, total_tokens);
+    attributes.insert(GEN_AI__USAGE__TOTAL_TOKENS, total_tokens);
 }
 
-/// Calculates the [`GEN_AI_RESPONSE_TPS`] attribute.
+/// Calculates the [`GEN_AI__RESPONSE__TPS`] attribute.
 fn normalize_tokens_per_second(attributes: &mut Attributes, duration: Option<Duration>) {
     let Some(duration) = duration.filter(|d| !d.is_zero()) else {
         return;
     };
 
     let output_tokens = attributes
-        .get_value(GEN_AI_USAGE_OUTPUT_TOKENS)
+        .get_value(GEN_AI__USAGE__OUTPUT_TOKENS)
         .and_then(|v| v.as_f64())
         .filter(|v| *v > 0.0);
 
     if let Some(output_tokens) = output_tokens {
         let tps = output_tokens / duration.as_secs_f64();
-        attributes.insert(GEN_AI_RESPONSE_TPS, tps);
+        attributes.insert(GEN_AI__RESPONSE__TOKENS_PER_SECOND, tps);
     }
 }
 
@@ -131,7 +131,7 @@ fn normalize_context_utilization(
     model_metadata: Option<&ModelMetadata>,
 ) {
     let model_id = attributes
-        .get_value(GEN_AI_RESPONSE_MODEL)
+        .get_value(GEN_AI__RESPONSE__MODEL)
         .and_then(|v| v.as_str());
 
     let context_size = model_id.and_then(|id| model_metadata.and_then(|m| m.context_size(id)));
@@ -140,15 +140,15 @@ fn normalize_context_utilization(
         return;
     };
 
-    attributes.insert(GEN_AI_CONTEXT_WINDOW_SIZE, context_size as i64);
+    attributes.insert(GEN_AI__CONTEXT__WINDOW_SIZE, context_size as i64);
 
     let total_tokens = attributes
-        .get_value(GEN_AI_USAGE_TOTAL_TOKENS)
+        .get_value(GEN_AI__USAGE__TOTAL_TOKENS)
         .and_then(|v| v.as_f64());
 
     if let Some(total_tokens) = total_tokens {
         attributes.insert(
-            GEN_AI_CONTEXT_UTILIZATION,
+            GEN_AI__CONTEXT__UTILIZATION,
             total_tokens / context_size as f64,
         );
     }
@@ -156,14 +156,14 @@ fn normalize_context_utilization(
 
 /// Calculates model costs and serializes them into attributes.
 fn normalize_ai_costs(attributes: &mut Attributes, model_metadata: Option<&ModelMetadata>) {
-    let origin = extract_string_value(attributes, ORIGIN);
-    let platform = extract_string_value(attributes, PLATFORM);
+    let origin = extract_string_value(attributes, SENTRY__ORIGIN);
+    let platform = extract_string_value(attributes, SENTRY__PLATFORM);
 
     let integration = map_origin_to_integration(origin);
     let platform_tag = platform_tag(platform);
 
     let Some(model_id) = attributes
-        .get_value(GEN_AI_RESPONSE_MODEL)
+        .get_value(GEN_AI__RESPONSE__MODEL)
         .and_then(|v| v.as_str())
     else {
         relay_statsd::metric!(
@@ -193,11 +193,11 @@ fn normalize_ai_costs(attributes: &mut Attributes, model_metadata: Option<&Model
     };
 
     let tokens = ai::UsedTokens {
-        input_tokens: get_tokens(GEN_AI_USAGE_INPUT_TOKENS),
-        input_cached_tokens: get_tokens(GEN_AI_USAGE_INPUT_CACHED_TOKENS),
-        input_cache_write_tokens: get_tokens(GEN_AI_USAGE_INPUT_CACHE_WRITE_TOKENS),
-        output_tokens: get_tokens(GEN_AI_USAGE_OUTPUT_TOKENS),
-        output_reasoning_tokens: get_tokens(GEN_AI_USAGE_OUTPUT_REASONING_TOKENS),
+        input_tokens: get_tokens(GEN_AI__USAGE__INPUT_TOKENS),
+        input_cached_tokens: get_tokens(GEN_AI__USAGE__INPUT_TOKENS__CACHED),
+        input_cache_write_tokens: get_tokens(GEN_AI__USAGE__INPUT_TOKENS__CACHE_WRITE),
+        output_tokens: get_tokens(GEN_AI__USAGE__OUTPUT_TOKENS),
+        output_reasoning_tokens: get_tokens(GEN_AI__USAGE__OUTPUT_TOKENS__REASONING),
     };
 
     let Some(costs) = ai::calculate_costs(model_cost, tokens, integration, platform_tag) else {
@@ -205,9 +205,9 @@ fn normalize_ai_costs(attributes: &mut Attributes, model_metadata: Option<&Model
     };
 
     // Overwrite all values, the attributes should reflect the values we used to calculate the total.
-    attributes.insert(GEN_AI_COST_INPUT_TOKENS, costs.input);
-    attributes.insert(GEN_AI_COST_OUTPUT_TOKENS, costs.output);
-    attributes.insert(GEN_AI_COST_TOTAL_TOKENS, costs.total());
+    attributes.insert(GEN_AI__COST__INPUT_TOKENS, costs.input);
+    attributes.insert(GEN_AI__COST__OUTPUT_TOKENS, costs.output);
+    attributes.insert(GEN_AI__COST__TOTAL_TOKENS, costs.total());
 }
 
 fn extract_string_value<'a>(attributes: &'a Attributes, key: &str) -> Option<&'a str> {

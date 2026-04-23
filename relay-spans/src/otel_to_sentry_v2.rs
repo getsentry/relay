@@ -3,14 +3,10 @@ use opentelemetry_proto::tonic::common::v1::InstrumentationScope;
 use opentelemetry_proto::tonic::resource::v1::Resource;
 use opentelemetry_proto::tonic::trace::v1::span::Link as OtelLink;
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
-use relay_conventions::IS_REMOTE;
-use relay_conventions::ORIGIN;
-use relay_conventions::PLATFORM;
-use relay_conventions::SEGMENT_ID;
-use relay_conventions::SEGMENT_NAME;
-use relay_conventions::SENTRY_TRANSACTION;
-use relay_conventions::SPAN_KIND;
-use relay_conventions::STATUS_MESSAGE;
+use relay_conventions::{
+    SENTRY__IS_REMOTE, SENTRY__KIND, SENTRY__ORIGIN, SENTRY__PLATFORM, SENTRY__SEGMENT__NAME,
+    SENTRY__SEGMENT_ID, SENTRY__STATUS__MESSAGE, SENTRY__TRANSACTION,
+};
 use relay_event_schema::protocol::{Attributes, SpanKind};
 use relay_otel::otel_resource_to_platform;
 use relay_otel::otel_value_to_attribute;
@@ -72,11 +68,11 @@ pub fn otel_to_sentry_span(
 
     relay_otel::otel_scope_into_attributes(&mut sentry_attributes, resource, scope);
 
-    sentry_attributes.insert(ORIGIN, "auto.otlp.spans".to_owned());
+    sentry_attributes.insert(SENTRY__ORIGIN, "auto.otlp.spans".to_owned());
     if let Some(resource) = resource
         && let Some(platform) = otel_resource_to_platform(resource)
     {
-        sentry_attributes.insert(PLATFORM, platform.to_owned());
+        sentry_attributes.insert(SENTRY__PLATFORM, platform.to_owned());
     }
 
     let mut name = if name.is_empty() { None } else { Some(name) };
@@ -110,16 +106,16 @@ pub fn otel_to_sentry_span(
         .collect();
 
     if let Some(status_message) = status.clone().map(|status| status.message) {
-        sentry_attributes.insert(STATUS_MESSAGE.to_owned(), status_message);
+        sentry_attributes.insert(SENTRY__STATUS__MESSAGE.to_owned(), status_message);
     }
 
     let is_remote = otel_flags_is_remote(flags);
     if let Some(is_remote) = is_remote {
-        sentry_attributes.insert(IS_REMOTE, is_remote);
+        sentry_attributes.insert(SENTRY__IS_REMOTE, is_remote);
     }
 
     sentry_attributes.insert(
-        SPAN_KIND,
+        SENTRY__KIND,
         otel_to_sentry_kind(kind).map_value(|v| v.to_string()),
     );
 
@@ -130,11 +126,13 @@ pub fn otel_to_sentry_span(
 
     if is_segment {
         if let Some(span_id) = span_id.value() {
-            sentry_attributes.insert(SEGMENT_ID, span_id.to_string());
+            // TODO: It should be fine to use SENTRY__SEGMENT__ID here, it gets normalized in `sentry`:
+            // https://github.com/getsentry/sentry/blob/0bb54f81a56c68bba25487f0f081ffd31ea5a3c7/src/sentry/spans/consumers/process_segments/convert.py#L38
+            sentry_attributes.insert(SENTRY__SEGMENT_ID, span_id.to_string());
         }
         if let Some(ref segment_name) = name {
-            sentry_attributes.insert(SEGMENT_NAME, segment_name.clone());
-            sentry_attributes.insert(SENTRY_TRANSACTION, segment_name.clone());
+            sentry_attributes.insert(SENTRY__SEGMENT__NAME, segment_name.clone());
+            sentry_attributes.insert(SENTRY__TRANSACTION, segment_name.clone());
         }
     }
 

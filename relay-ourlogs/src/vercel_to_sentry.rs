@@ -3,7 +3,7 @@
 use std::str::FromStr;
 
 use chrono::{TimeZone, Utc};
-use relay_conventions::{ENVIRONMENT, ORIGIN, SERVER_ADDRESS};
+use relay_conventions::{SENTRY__ENVIRONMENT, SENTRY__ORIGIN, SERVER__ADDRESS};
 use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId, Timestamp, TraceId};
 use relay_protocol::{Annotated, Meta, Remark, RemarkType};
 use serde::{Deserialize, Deserializer};
@@ -221,11 +221,12 @@ pub fn vercel_log_to_sentry_log(vercel_log: VercelLog) -> OurLog {
         }};
     }
 
-    add_attribute!(ORIGIN, "auto.log_drain.vercel".to_owned());
+    // TODO: A bunch of literal attribute names here that should be replace by constants
+    add_attribute!(SENTRY__ORIGIN, "auto.log_drain.vercel".to_owned());
     add_attribute!("vercel.id", id);
     add_attribute!("vercel.deployment_id", deployment_id);
     add_attribute!("vercel.source", source);
-    add_attribute!(SERVER_ADDRESS, host);
+    add_attribute!(SERVER__ADDRESS, host);
     add_attribute!("vercel.project_id", project_id);
 
     add_optional_attribute!("vercel.build_id", build_id);
@@ -235,7 +236,7 @@ pub fn vercel_log_to_sentry_log(vercel_log: VercelLog) -> OurLog {
     add_optional_attribute!("vercel.log_type", ty);
     add_optional_attribute!("vercel.status_code", status_code);
     add_optional_attribute!("vercel.request_id", request_id);
-    add_optional_attribute!(ENVIRONMENT, environment);
+    add_optional_attribute!(SENTRY__ENVIRONMENT, environment);
     add_optional_attribute!("vercel.branch", branch);
     add_optional_attribute!("vercel.ja3_digest", ja3_digest);
     add_optional_attribute!("vercel.ja4_digest", ja4_digest);

@@ -1,7 +1,8 @@
 //! This module contains the trait for items that can be filtered by Inbound Filters, plus
 //! the implementation for [`Event`].
 use relay_conventions::{
-    BROWSER_NAME, BROWSER_VERSION, RELEASE, SEGMENT_NAME, USER_AGENT_ORIGINAL,
+    SENTRY__BROWSER__NAME, SENTRY__BROWSER__VERSION, SENTRY__RELEASE, SENTRY__SEGMENT__NAME,
+    USER_AGENT__ORIGINAL,
 };
 use url::Url;
 
@@ -198,11 +199,17 @@ impl Filterable for Span {
 
 impl Filterable for SpanV2 {
     fn release(&self) -> Option<&str> {
-        self.attributes.value()?.get_value(RELEASE)?.as_str()
+        self.attributes
+            .value()?
+            .get_value(SENTRY__RELEASE)?
+            .as_str()
     }
 
     fn transaction(&self) -> Option<&str> {
-        self.attributes.value()?.get_value(SEGMENT_NAME)?.as_str()
+        self.attributes
+            .value()?
+            .get_value(SENTRY__SEGMENT__NAME)?
+            .as_str()
     }
 
     fn user_agent(&self) -> UserAgent<'_> {
@@ -252,7 +259,10 @@ impl Filterable for SessionAggregates {
 
 impl Filterable for OurLog {
     fn release(&self) -> Option<&str> {
-        self.attributes.value()?.get_value(RELEASE)?.as_str()
+        self.attributes
+            .value()?
+            .get_value(SENTRY__RELEASE)?
+            .as_str()
     }
 
     fn user_agent(&self) -> UserAgent<'_> {
@@ -262,7 +272,10 @@ impl Filterable for OurLog {
 
 impl Filterable for TraceMetric {
     fn release(&self) -> Option<&str> {
-        self.attributes.value()?.get_value(RELEASE)?.as_str()
+        self.attributes
+            .value()?
+            .get_value(SENTRY__RELEASE)?
+            .as_str()
     }
 
     fn user_agent(&self) -> UserAgent<'_> {
@@ -274,8 +287,8 @@ fn user_agent_from_attributes(attributes: &relay_protocol::Annotated<Attributes>
     let parsed = (|| {
         let attributes = attributes.value()?;
 
-        let family = attributes.get_value(BROWSER_NAME)?.as_str()?;
-        let version = attributes.get_value(BROWSER_VERSION)?.as_str()?;
+        let family = attributes.get_value(SENTRY__BROWSER__NAME)?.as_str()?;
+        let version = attributes.get_value(SENTRY__BROWSER__VERSION)?.as_str()?;
         let mut parts = version.splitn(3, '.');
 
         Some(relay_ua::UserAgent {
@@ -288,7 +301,7 @@ fn user_agent_from_attributes(attributes: &relay_protocol::Annotated<Attributes>
 
     let raw = attributes
         .value()
-        .and_then(|attr| attr.get_value(USER_AGENT_ORIGINAL))
+        .and_then(|attr| attr.get_value(USER_AGENT__ORIGINAL))
         .and_then(|ua| ua.as_str());
 
     UserAgent { raw, parsed }
