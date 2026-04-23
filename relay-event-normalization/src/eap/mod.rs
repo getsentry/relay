@@ -296,13 +296,12 @@ pub fn normalize_inject_client_address(
     attributes: &mut Annotated<Attributes>,
     client_ip: Option<IpAddr>,
 ) {
-    let Some(attributes) = attributes.value_mut() else {
+    let Some(client_ip) = client_ip else {
         return;
     };
 
-    if let Some(client_ip) = client_ip {
-        attributes.insert_if_missing(CLIENT_ADDRESS, || client_ip.to_string());
-    }
+    let attributes = attributes.get_or_insert_with(Default::default);
+    attributes.insert_if_missing(CLIENT_ADDRESS, || client_ip.to_string());
 }
 
 /// Normalizes the user's geographical information into [`Attributes`].
@@ -713,7 +712,7 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
 
 #[cfg(test)]
 mod tests {
-    use relay_protocol::SerializableAnnotated;
+    use relay_protocol::{Empty, SerializableAnnotated};
 
     use super::*;
 
@@ -2173,7 +2172,7 @@ mod tests {
     #[test]
     fn test_normalize_span_category_from_browser_origin() {
         // Category derived from sentry.origin with browser metrics value
-        let mut attributes = Annotated::<Attributes>::from_json(
+        let mut attributes = Annotated::from_json(
             r#"{
           "sentry.origin": {
             "type": "string",
@@ -2194,6 +2193,173 @@ mod tests {
           "sentry.origin": {
             "type": "string",
             "value": "auto.ui.browser.metrics"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_client_address_auto_with_ip() {
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "client.address": {
+            "type": "string",
+            "value": "{{auto}}"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_client_address(&mut attributes, Some("192.168.1.1".parse().unwrap()));
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "client.address": {
+            "type": "string",
+            "value": "192.168.1.1"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_client_address_auto_without_ip() {
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "client.address": {
+            "type": "string",
+            "value": "{{auto}}"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_client_address(&mut attributes, None);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {}
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_client_address_explicit_not_replaced() {
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "client.address": {
+            "type": "string",
+            "value": "10.0.0.1"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_client_address(&mut attributes, Some("192.168.1.1".parse().unwrap()));
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "client.address": {
+            "type": "string",
+            "value": "10.0.0.1"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_client_address_missing_attribute() {
+        let mut attributes = Annotated::empty();
+
+        normalize_client_address(&mut attributes, Some("192.168.1.1".parse().unwrap()));
+
+        assert!(attributes.is_empty());
+    }
+
+    #[test]
+    fn test_normalize_client_address_auto_with_ipv6() {
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "client.address": {
+            "type": "string",
+            "value": "{{auto}}"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_client_address(&mut attributes, Some("2001:db8::1".parse().unwrap()));
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "client.address": {
+            "type": "string",
+            "value": "2001:db8::1"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_inject_client_address_inserts_when_missing() {
+        let mut attributes = Annotated::empty();
+
+        normalize_inject_client_address(&mut attributes, Some("192.168.1.1".parse().unwrap()));
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "client.address": {
+            "type": "string",
+            "value": "192.168.1.1"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_inject_client_address_does_not_overwrite() {
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "client.address": {
+            "type": "string",
+            "value": "10.0.0.1"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_inject_client_address(&mut attributes, Some("192.168.1.1".parse().unwrap()));
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "client.address": {
+            "type": "string",
+            "value": "10.0.0.1"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_inject_client_address_none_ip() {
+        let mut attributes = Annotated::from_json(r#"{}"#).unwrap();
+
+        normalize_inject_client_address(&mut attributes, None);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {}
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_inject_client_address_ipv6() {
+        let mut attributes = Annotated::empty();
+
+        normalize_inject_client_address(&mut attributes, Some("2001:db8::1".parse().unwrap()));
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "client.address": {
+            "type": "string",
+            "value": "2001:db8::1"
           }
         }
         "#);
