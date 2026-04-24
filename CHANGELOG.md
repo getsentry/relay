@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+**Features**:
+
+- Implement client/sdk controlled ingestion settings for v2 span containers. ([#5881](https://github.com/getsentry/relay/pull/5881))
+- Update several `gen_ai` attributes to their latest representation. ([#5798](https://github.com/getsentry/relay/pull/5798))
+
+## 26.4.1
+
 **Breaking Changes**:
 
 - Docker images are no longer published to Docker Hub, use the Github Container Registry instead ([see documentation](https://github.com/getsentry/relay/pkgs/container/relay)). ([#5845](https://github.com/getsentry/relay/pull/5845))
@@ -18,6 +25,7 @@
 - Ports legacy standalone span processing to the processing framework. ([#5852](https://github.com/getsentry/relay/pull/5852))
 - Retry failing objectstore requests. ([#5836](https://github.com/getsentry/relay/pull/5836))
 - Add mobile normalizations to SpanV2 processing pipeline (mobile tag, main thread, outlier filtering, app start backfill from V1 transactions, device class). ([#5824](https://github.com/getsentry/relay/pull/5824))
+- Remove the deprecated `aiModelCosts` global config, superseded by `aiModelMetadata`. ([#5862](https://github.com/getsentry/relay/pull/5862))
 
 **Bug Fixes**:
 

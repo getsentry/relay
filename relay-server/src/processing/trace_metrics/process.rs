@@ -1,3 +1,4 @@
+use relay_event_normalization::eap::ClientUserAgentInfo;
 use relay_event_normalization::{RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{TraceMetric, TraceMetricHeader};
@@ -116,17 +117,18 @@ fn normalize_trace_metric(
     );
 
     if let Some(metric_value) = metric.value_mut() {
+        let client_ua_info = Some(ClientUserAgentInfo {
+            user_agent: meta.user_agent(),
+            hints: meta.client_hints(),
+        });
+
         eap::trace_metric::normalize_metric_name(metric_value)?;
         if ctx.is_processing() {
             eap::trace_metric::normalize_metric_unit(metric_value);
         }
         eap::normalize_received(&mut metric_value.attributes, meta.received_at());
         eap::normalize_client_address(&mut metric_value.attributes, meta.client_addr());
-        eap::normalize_user_agent(
-            &mut metric_value.attributes,
-            meta.user_agent(),
-            meta.client_hints(),
-        );
+        eap::normalize_user_agent(&mut metric_value.attributes, client_ua_info);
         eap::normalize_attribute_types(&mut metric_value.attributes);
     };
 

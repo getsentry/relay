@@ -1,18 +1,18 @@
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
-use backoff::ExponentialBackoff;
-use backoff::backoff::Backoff;
+use backon::BackoffBuilder;
+use backon::ExponentialBackoff;
+use backon::ExponentialBuilder;
 
 /// Backoff multiplier (1.5 which is 50% increase per backoff).
-const DEFAULT_MULTIPLIER: f64 = 1.5;
-/// Randomization factor (0 which is no randomization).
-const DEFAULT_RANDOMIZATION: f64 = 0.0;
+const DEFAULT_MULTIPLIER: f32 = 1.5;
 /// Initial interval in milliseconds (1 second).
-const INITIAL_INTERVAL: u64 = 1000;
+const INITIAL_INTERVAL: Duration = Duration::from_millis(1000);
 
 /// A retry interval generator that increases timeouts with exponential backoff.
 #[derive(Debug)]
 pub struct RetryBackoff {
+    builder: ExponentialBuilder,
     backoff: ExponentialBackoff,
     attempt: usize,
 }
@@ -20,26 +20,22 @@ pub struct RetryBackoff {
 impl RetryBackoff {
     /// Creates a new retry backoff based on configured thresholds.
     pub fn new(max_interval: Duration) -> Self {
-        let backoff = ExponentialBackoff {
-            current_interval: Duration::from_millis(INITIAL_INTERVAL),
-            initial_interval: Duration::from_millis(INITIAL_INTERVAL),
-            randomization_factor: DEFAULT_RANDOMIZATION,
-            multiplier: DEFAULT_MULTIPLIER,
-            max_interval,
-            max_elapsed_time: None,
-            clock: Default::default(),
-            start_time: Instant::now(),
-        };
+        let builder = ExponentialBuilder::new()
+            .with_factor(DEFAULT_MULTIPLIER)
+            .with_min_delay(INITIAL_INTERVAL)
+            .with_max_delay(max_interval)
+            .without_max_times();
 
         RetryBackoff {
-            backoff,
+            backoff: builder.build(),
+            builder,
             attempt: 0,
         }
     }
 
     /// Resets this backoff to its initial state.
     pub fn reset(&mut self) {
-        self.backoff.reset();
+        self.backoff = self.builder.build();
         self.attempt = 0;
     }
 
@@ -56,8 +52,8 @@ impl RetryBackoff {
     /// Returns the next backoff duration.
     pub fn next_backoff(&mut self) -> Duration {
         let duration = match self.attempt {
-            0 => Duration::new(0, 0),
-            _ => self.backoff.next_backoff().unwrap(),
+            0 => Duration::ZERO,
+            _ => self.backoff.next().unwrap(),
         };
 
         self.attempt += 1;

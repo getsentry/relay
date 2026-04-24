@@ -1,8 +1,9 @@
 use deadpool::managed::{Manager, Metrics, Object, Pool, RecycleError, RecycleResult};
 use futures::FutureExt;
-use redis::AsyncConnectionConfig;
 use redis::cluster::ClusterClientBuilder;
+use redis::cluster_read_routing::RandomReplicaStrategy;
 use redis::io::tcp::{TcpSettings, socket2::TcpKeepalive};
+use redis::{AsyncConnectionConfig, RetryMethod};
 use std::ops::{Deref, DerefMut};
 use std::time::Duration;
 use tokio::time::Instant;
@@ -23,6 +24,31 @@ pub type CustomClusterPool = Pool<CustomClusterManager, CustomClusterConnection>
 
 /// A connection pool for single Redis instance deployments.
 pub type CustomSinglePool = Pool<CustomSingleManager, CustomSingleConnection>;
+
+/// Amount of times establishing a connection to Redis is re-tried.
+///
+/// The maximum amount of connection attempts is this amount + 1.
+const RECONNECT_RETRIES: u32 = 2;
+
+/// Helper macro which retries Redis connections and emits connection metrics.
+macro_rules! connect {
+    ($name:expr, $connect:expr) => {{
+        let mut retries = 0;
+        let mut result = $connect.await;
+        while result
+            .as_ref()
+            .is_err_and(|e| matches!(e.retry_method(), RetryMethod::Reconnect))
+            && retries < RECONNECT_RETRIES
+        {
+            retries += 1;
+            result = $connect.await;
+        }
+
+        let name = $name;
+        emit_connection_create_metric(&result, name, retries);
+        result.map(|c| TrackedConnection::new(name, c))
+    }};
+}
 
 /// A wrapper for a connection that can be tracked with metadata.
 ///
@@ -161,7 +187,7 @@ impl CustomClusterManager {
         let mut client = ClusterClientBuilder::new(params).tcp_settings(create_tcp_settings());
 
         if read_from_replicas {
-            client = client.read_from_replicas();
+            client = client.read_routing_strategy(RandomReplicaStrategy);
         }
         if let Some(response_timeout) = options.response_timeout {
             client = client.response_timeout(Duration::from_secs(response_timeout));
@@ -179,15 +205,7 @@ impl Manager for CustomClusterManager {
     type Error = RedisError;
 
     async fn create(&self) -> Result<TrackedConnection<ClusterConnection>, RedisError> {
-        let result = self
-            .client
-            .get_async_connection()
-            .await
-            .map(|c| TrackedConnection::new(self.name, c));
-
-        emit_connection_create_metric(&result, self.name);
-
-        result
+        connect!(self.name, self.client.get_async_connection())
     }
 
     async fn recycle(
@@ -283,15 +301,11 @@ impl Manager for CustomSingleManager {
     type Error = RedisError;
 
     async fn create(&self) -> Result<TrackedConnection<MultiplexedConnection>, RedisError> {
-        let result = self
-            .client
-            .get_multiplexed_async_connection_with_config(&self.connection_config)
-            .await
-            .map(|c| TrackedConnection::new(self.name, c));
-
-        emit_connection_create_metric(&result, self.name);
-
-        result
+        connect!(
+            self.name,
+            self.client
+                .get_multiplexed_async_connection_with_config(&self.connection_config)
+        )
     }
 
     async fn recycle(
@@ -343,7 +357,7 @@ fn cmd_name(cmd: &Cmd) -> &str {
     }
 }
 
-fn emit_connection_create_metric<T>(result: &Result<T, RedisError>, client: &str) {
+fn emit_connection_create_metric<T>(result: &Result<T, RedisError>, client: &str, retries: u32) {
     let result = match result {
         Ok(_) => "ok",
         Err(_) => "error",
@@ -353,6 +367,15 @@ fn emit_connection_create_metric<T>(result: &Result<T, RedisError>, client: &str
         counter(RedisCounters::CreateConnection) += 1,
         client = client,
         result = result,
+        retries = match retries {
+            0 => "none",
+            1 => "1",
+            2 => "2",
+            3 => "3",
+            4 => "4",
+            5 => "5",
+            _ => "many",
+        }
     )
 }
 
