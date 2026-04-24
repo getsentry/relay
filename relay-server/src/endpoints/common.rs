@@ -497,7 +497,14 @@ pub async fn upload_to_objectstore(
 
     let location = result
         .inspect_err(|e| {
-            relay_log::warn!(error = e as &dyn std::error::Error, "Upload failed");
+            relay_log::warn!(
+                error = e as &dyn std::error::Error,
+                referrer = referrer,
+                organization_id = scoping.organization_id.value(),
+                project_id = scoping.project_id.value(),
+                bytes_uploaded = byte_counter.get(),
+                "object store upload failed",
+            );
         })
         .ok()?;
     let location = location.into_header_value().ok()?;
