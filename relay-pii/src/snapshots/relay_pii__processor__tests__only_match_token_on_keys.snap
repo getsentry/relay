@@ -1,0 +1,73 @@
+---
+source: relay-pii/src/processor.rs
+expression: "&data"
+---
+{
+  "request": {
+    "headers": [
+      [
+        "X-Token",
+        "[Filtered]"
+      ],
+      [
+        "Token",
+        "[Filtered]"
+      ]
+    ]
+  },
+  "extra": {
+    "foo-token-bar": "[Filtered]",
+    "llm": "token count"
+  },
+  "_meta": {
+    "extra": {
+      "foo-token-bar": {
+        "": {
+          "rem": [
+            [
+              "@password:filter",
+              "s",
+              0,
+              10
+            ]
+          ],
+          "len": 9
+        }
+      }
+    },
+    "request": {
+      "headers": {
+        "0": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 26
+            }
+          }
+        },
+        "1": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 8
+            }
+          }
+        }
+      }
+    }
+  }
+}

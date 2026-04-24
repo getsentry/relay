@@ -463,26 +463,19 @@ fn apply_rule_to_value(
     }
 
     for (pattern_type, regex, replace_behavior) in regexes::get_regex_for_rule_type(&rule.ty) {
-        match pattern_type {
-            PatternType::KeyValue => {
-                if regex.is_match(key.unwrap_or("")) {
-                    if value.is_some() && should_redact_chunks {
-                        // If we're given a string value here, redact the value like we would with
-                        // @anything.
-                        apply_regex!(&ANYTHING_REGEX, replace_behavior);
-                    } else {
-                        meta.add_remark(Remark::new(RemarkType::Removed, rule.origin.clone()));
-                        return Err(ProcessingAction::DeleteValueHard);
-                    }
-                } else {
-                    // If we did not redact using the key, we will redact the entire value if the key
-                    // appears in it.
-                    apply_regex!(regex, replace_behavior);
-                }
+        if matches!(pattern_type, PatternType::Key | PatternType::KeyValue)
+            && key.is_some_and(|key| regex.is_match(key))
+        {
+            if value.is_some() && should_redact_chunks {
+                // If we're given a string value here, redact the value like we would with
+                // @anything.
+                apply_regex!(&ANYTHING_REGEX, replace_behavior);
+            } else {
+                meta.add_remark(Remark::new(RemarkType::Removed, rule.origin.clone()));
+                return Err(ProcessingAction::DeleteValueHard);
             }
-            PatternType::Value => {
-                apply_regex!(regex, replace_behavior);
-            }
+        } else if matches!(pattern_type, PatternType::Value | PatternType::KeyValue) {
+            apply_regex!(regex, replace_behavior);
         }
     }
 
@@ -1005,6 +998,39 @@ mod tests {
         let mut processor = PiiProcessor::new(config.compiled());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
         assert_annotated_snapshot!(event);
+    }
+
+    #[test]
+    fn test_only_match_token_on_keys() {
+        let mut data = Event::from_value(
+            json!({
+                "request": {
+                    "headers": [
+                        ["X-Token", "oof this is very sensitive"],
+                        ["Token", "also bad"],
+                    ]
+                },
+                "extra": {
+                    "foo-token-bar": "sensitive",
+                    "llm": "token count",
+                },
+            })
+            .into(),
+        );
+
+        let scrubbing_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_ip_addresses: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+
+        let pii_config = to_pii_config(&scrubbing_config).unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+
+        assert_annotated_snapshot!(&data);
     }
 
     #[test]

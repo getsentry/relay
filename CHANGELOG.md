@@ -7,6 +7,12 @@
 - Implement client/sdk controlled ingestion settings for v2 span containers. ([#5881](https://github.com/getsentry/relay/pull/5881))
 - Update several `gen_ai` attributes to their latest representation. ([#5798](https://github.com/getsentry/relay/pull/5798))
 
+**Bug Fixes**:
+
+- Only enforce the `token` PII rule on keys instead of also values, 
+  allowing `token` to be used in LLM contexts without removing the entire value. ([#5886](https://github.com/getsentry/relay/pull/5886))
+
+
 ## 26.4.1
 
 **Breaking Changes**:
