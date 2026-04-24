@@ -87,18 +87,20 @@ static REPLACE_ONLY_SELECTOR: LazyLock<SelectorSpec> = LazyLock::new(|| {
         "attributes.'gen_ai.input.messages'.value",
         "attributes.'gen_ai.prompt'.value",
         "attributes.'gen_ai.request.messages'.value",
-        "$span.data.'gen_ai.tool.input'",
+        "$span.data.'gen_ai.tool.call.arguments'",
+        "attributes.'gen_ai.tool.call.arguments'.value",
         "attributes.'gen_ai.tool.input'.value",
-        "$span.data.'gen_ai.tool.output'",
+        "$span.data.'gen_ai.tool.call.result'",
+        "attributes.'gen_ai.tool.call.result'.value",
         "attributes.'gen_ai.tool.output'.value",
-        "$span.data.'gen_ai.response.tool_calls'",
-        "attributes.'gen_ai.response.tool_calls'.value",
         "$span.data.'gen_ai.output.messages'",
         "attributes.'gen_ai.output.messages'.value",
+        "attributes.'gen_ai.response.tool_calls'.value",
         "attributes.'gen_ai.response.text'.value",
         "$span.data.'gen_ai.response.object'",
         "attributes.'gen_ai.response.object'.value",
-        "$span.data.'gen_ai.request.available_tools'",
+        "$span.data.'gen_ai.tool.definitions'",
+        "attributes.'gen_ai.tool.definitions'.value",
         "attributes.'gen_ai.request.available_tools'.value",
         "$span.data.'gen_ai.tool.name'",
         "attributes.'gen_ai.tool.name'.value",
@@ -359,7 +361,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
               "@anything:remove"
             ],
-            "$logentry.formatted || $log.body || $span.data.'gen_ai.input.messages' || attributes.'gen_ai.input.messages'.value || attributes.'gen_ai.prompt'.value || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.input' || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.output' || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.response.tool_calls' || attributes.'gen_ai.response.tool_calls'.value || $span.data.'gen_ai.output.messages' || attributes.'gen_ai.output.messages'.value || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.request.available_tools' || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
+            "$logentry.formatted || $log.body || $span.data.'gen_ai.input.messages' || attributes.'gen_ai.input.messages'.value || attributes.'gen_ai.prompt'.value || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.call.arguments' || attributes.'gen_ai.tool.call.arguments'.value || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.call.result' || attributes.'gen_ai.tool.call.result'.value || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.output.messages' || attributes.'gen_ai.output.messages'.value || attributes.'gen_ai.response.tool_calls'.value || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.tool.definitions' || attributes.'gen_ai.tool.definitions'.value || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
               "@email:replace",
               "@creditcard:replace",
               "@iban:replace",
@@ -391,7 +393,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
               "@anything:remove"
             ],
-            "$logentry.formatted || $log.body || $span.data.'gen_ai.input.messages' || attributes.'gen_ai.input.messages'.value || attributes.'gen_ai.prompt'.value || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.input' || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.output' || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.response.tool_calls' || attributes.'gen_ai.response.tool_calls'.value || $span.data.'gen_ai.output.messages' || attributes.'gen_ai.output.messages'.value || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.request.available_tools' || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
+            "$logentry.formatted || $log.body || $span.data.'gen_ai.input.messages' || attributes.'gen_ai.input.messages'.value || attributes.'gen_ai.prompt'.value || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.call.arguments' || attributes.'gen_ai.tool.call.arguments'.value || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.call.result' || attributes.'gen_ai.tool.call.result'.value || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.output.messages' || attributes.'gen_ai.output.messages'.value || attributes.'gen_ai.response.tool_calls'.value || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.tool.definitions' || attributes.'gen_ai.tool.definitions'.value || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
               "@email:replace",
               "@creditcard:replace",
               "@iban:replace",
@@ -434,7 +436,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
               "@anything:remove"
             ],
-            "$logentry.formatted || $log.body || $span.data.'gen_ai.input.messages' || attributes.'gen_ai.input.messages'.value || attributes.'gen_ai.prompt'.value || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.input' || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.output' || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.response.tool_calls' || attributes.'gen_ai.response.tool_calls'.value || $span.data.'gen_ai.output.messages' || attributes.'gen_ai.output.messages'.value || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.request.available_tools' || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
+            "$logentry.formatted || $log.body || $span.data.'gen_ai.input.messages' || attributes.'gen_ai.input.messages'.value || attributes.'gen_ai.prompt'.value || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.call.arguments' || attributes.'gen_ai.tool.call.arguments'.value || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.call.result' || attributes.'gen_ai.tool.call.result'.value || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.output.messages' || attributes.'gen_ai.output.messages'.value || attributes.'gen_ai.response.tool_calls'.value || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.tool.definitions' || attributes.'gen_ai.tool.definitions'.value || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
               "@email:replace",
               "@creditcard:replace",
               "@iban:replace",
@@ -466,7 +468,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
               "@anything:remove"
             ],
-            "$logentry.formatted || $log.body || $span.data.'gen_ai.input.messages' || attributes.'gen_ai.input.messages'.value || attributes.'gen_ai.prompt'.value || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.input' || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.output' || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.response.tool_calls' || attributes.'gen_ai.response.tool_calls'.value || $span.data.'gen_ai.output.messages' || attributes.'gen_ai.output.messages'.value || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.request.available_tools' || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
+            "$logentry.formatted || $log.body || $span.data.'gen_ai.input.messages' || attributes.'gen_ai.input.messages'.value || attributes.'gen_ai.prompt'.value || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.call.arguments' || attributes.'gen_ai.tool.call.arguments'.value || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.call.result' || attributes.'gen_ai.tool.call.result'.value || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.output.messages' || attributes.'gen_ai.output.messages'.value || attributes.'gen_ai.response.tool_calls'.value || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.tool.definitions' || attributes.'gen_ai.tool.definitions'.value || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
               "@email:replace",
               "@creditcard:replace",
               "@iban:replace",
@@ -1415,7 +1417,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
               "@anything:remove"
             ],
-            "$logentry.formatted || $log.body || $span.data.'gen_ai.input.messages' || attributes.'gen_ai.input.messages'.value || attributes.'gen_ai.prompt'.value || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.input' || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.output' || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.response.tool_calls' || attributes.'gen_ai.response.tool_calls'.value || $span.data.'gen_ai.output.messages' || attributes.'gen_ai.output.messages'.value || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.request.available_tools' || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
+            "$logentry.formatted || $log.body || $span.data.'gen_ai.input.messages' || attributes.'gen_ai.input.messages'.value || attributes.'gen_ai.prompt'.value || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.call.arguments' || attributes.'gen_ai.tool.call.arguments'.value || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.call.result' || attributes.'gen_ai.tool.call.result'.value || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.output.messages' || attributes.'gen_ai.output.messages'.value || attributes.'gen_ai.response.tool_calls'.value || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.tool.definitions' || attributes.'gen_ai.tool.definitions'.value || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
               "@email:replace",
               "@creditcard:replace",
               "@iban:replace",

@@ -9,7 +9,6 @@ use crate::processing::{self, CountRateLimited, Output, QuotaRateLimiter};
 #[cfg(feature = "processing")]
 use crate::services::outcome::DiscardReason;
 use crate::services::outcome::Outcome;
-use crate::statsd::RelayDistributions;
 
 mod forward;
 mod process;
@@ -92,40 +91,6 @@ impl processing::Processor for AttachmentProcessor {
         mut attachments: Managed<Self::Input>,
         ctx: processing::Context<'_>,
     ) -> Result<processing::Output<Self::Output>, Rejected<Self::Error>> {
-        let client_name = crate::utils::client_name_tag(attachments.headers.meta().client_name());
-
-        relay_statsd::metric!(
-            distribution(RelayDistributions::StandaloneAttachmentCount) =
-                attachments.attachments.len() as u64,
-            sdk = client_name,
-        );
-
-        let mut log_emitted = false;
-        for item in &attachments.attachments {
-            let attachment_type_tag = match item.attachment_type() {
-                Some(t) => &t.to_string(),
-                None => "",
-            };
-
-            relay_statsd::metric!(
-                distribution(RelayDistributions::StandaloneAttachmentSize) = item.len() as u64,
-                sdk = client_name,
-                attachment_type = attachment_type_tag,
-            );
-            if !log_emitted {
-                relay_log::info!(
-                    sdk = attachments.headers.meta().client(),
-                    attachment_type = attachment_type_tag,
-                    content_type = item.content_type().map_or("", |ct| ct.as_str()),
-                    size = item.len(),
-                    siblings = attachments.attachments.len(),
-                    project_id = attachments.headers.meta().project_id().map(|p| p.value()),
-                    "standalone attachment",
-                );
-                log_emitted = true;
-            }
-        }
-
         attachments::validate_attachments(&mut attachments, |a| &mut a.attachments, ctx);
         let mut attachments = self.limiter.enforce_quotas(attachments, ctx).await?;
         process::scrub(&mut attachments, ctx)?;
