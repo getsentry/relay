@@ -1012,6 +1012,7 @@ mod tests {
                 },
                 "extra": {
                     "url": "foo.bar/endpoint?token=sensitive",
+                    "url2": "foo.bar/endpoint?token_foobar=sensitive",
                     "foo-token-bar": "sensitive",
                     "llm": "token count",
                 },

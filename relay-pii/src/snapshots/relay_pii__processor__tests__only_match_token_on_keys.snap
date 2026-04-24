@@ -18,7 +18,8 @@ expression: "&data"
   "extra": {
     "foo-token-bar": "[Filtered]",
     "llm": "token count",
-    "url": "[Filtered]"
+    "url": "[Filtered]",
+    "url2": "[Filtered]"
   },
   "_meta": {
     "extra": {
@@ -46,6 +47,19 @@ expression: "&data"
             ]
           ],
           "len": 32
+        }
+      },
+      "url2": {
+        "": {
+          "rem": [
+            [
+              "@password:filter",
+              "s",
+              0,
+              10
+            ]
+          ],
+          "len": 39
         }
       }
     },
