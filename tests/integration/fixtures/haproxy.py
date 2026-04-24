@@ -5,7 +5,6 @@ import pytest
 
 from . import SentryLike
 
-
 HAPROXY_BIN = [os.environ.get("HAPROXY_BIN") or "haproxy"]
 
 
