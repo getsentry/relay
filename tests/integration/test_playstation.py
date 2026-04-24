@@ -394,7 +394,7 @@ def test_playstation_max_stream_size_exceeded_chunked(
         data=iter([body]),
     )
     assert response.status_code == 413, "Expected a 413 status code"
-    assert response.content.decode("utf-8") == "length limit exceeded"
+    assert response.json() == {"detail": "request content exceeded size limits"}
 
 
 @pytest.mark.parametrize("num_intermediate_relays", [0, 1, 2])

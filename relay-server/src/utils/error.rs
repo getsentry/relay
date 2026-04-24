@@ -18,3 +18,10 @@ where
     }
     None
 }
+
+/// Returns whether an error was raised by [`RequestSizeBodyLimit`].
+pub fn is_length_limit_error(error: &(dyn Error + 'static)) -> bool {
+    error
+        .downcast_ref::<http_body_util::LengthLimitError>()
+        .is_some()
+}

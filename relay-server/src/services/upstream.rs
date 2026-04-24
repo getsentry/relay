@@ -6,7 +6,6 @@
 
 use std::borrow::Cow;
 use std::collections::VecDeque;
-use std::error::Error;
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
@@ -37,7 +36,10 @@ use tokio::time::Instant;
 
 use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
 use crate::statsd::{RelayDistributions, RelayTimers};
-use crate::utils::{self, ApiErrorResponse, RelayErrorAction, RetryBackoff, find_error_source};
+use crate::utils::{
+    self, ApiErrorResponse, RelayErrorAction, RetryBackoff, find_error_source,
+    is_length_limit_error,
+};
 
 /// Rate limits returned by the upstream.
 ///
@@ -229,12 +231,6 @@ impl IntoResponse for UpstreamRequestError {
             _ => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         }
     }
-}
-
-fn is_length_limit_error(error: &(dyn Error + 'static)) -> bool {
-    error
-        .downcast_ref::<http_body_util::LengthLimitError>()
-        .is_some()
 }
 
 /// Checks the authentication state with the upstream.
