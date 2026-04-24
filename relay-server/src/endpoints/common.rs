@@ -150,7 +150,10 @@ impl IntoResponse for BadStoreRequest {
                 // now executed asynchronously in `EnvelopeProcessor`.
                 (StatusCode::FORBIDDEN, body).into_response()
             }
-            BadStoreRequest::Overflow(_) => (StatusCode::PAYLOAD_TOO_LARGE, body).into_response(),
+            BadStoreRequest::Overflow(_)
+            | BadStoreRequest::InvalidMultipart(multer::Error::StreamSizeExceeded { .. }) => {
+                (StatusCode::PAYLOAD_TOO_LARGE, body).into_response()
+            }
             _ => {
                 // In all other cases, we indicate a generic bad request to the client and render
                 // the cause. This was likely the client's fault.
