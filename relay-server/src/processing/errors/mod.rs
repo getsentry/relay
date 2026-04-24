@@ -6,6 +6,7 @@ use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult as _, OutcomeError, Quantities, Rejected,
 };
 use crate::processing::errors::errors::SentryError as _;
+use crate::processing::utils::attachments;
 use crate::processing::utils::event::EventFullyNormalized;
 use crate::processing::{self, Context, Forward, Output, QuotaRateLimiter};
 use crate::services::outcome::Outcome;
@@ -108,6 +109,8 @@ impl processing::Processor for ErrorsProcessor {
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         let mut error = process::expand(error, ctx)?;
+
+        attachments::validate_attachments(&mut error, |e| &mut e.attachments, ctx);
 
         process::process(&mut error)?;
 

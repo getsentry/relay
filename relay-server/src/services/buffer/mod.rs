@@ -4,13 +4,13 @@ use std::error::Error;
 use std::num::NonZeroU8;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
-use std::sync::atomic::{AtomicBool, AtomicU64};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize};
 use std::time::Duration;
 
 use ahash::RandomState;
 use chrono::DateTime;
 use chrono::Utc;
-use relay_config::Config;
+use relay_config::{Config, EnvelopeSpoolPartitioning};
 use relay_system::Receiver;
 use relay_system::ServiceSpawn;
 use relay_system::ServiceSpawnExt as _;
@@ -31,7 +31,7 @@ use crate::statsd::RelayCounters;
 
 use crate::MemoryChecker;
 use crate::MemoryStat;
-use crate::managed::{Managed, ManagedEnvelope};
+use crate::managed::{Managed, ManagedEnvelope, OutcomeError, Rejected};
 
 // pub for benchmarks
 pub use envelope_buffer::EnvelopeBufferError;
@@ -72,11 +72,13 @@ impl FromMessage<Self> for EnvelopeBuffer {
 }
 
 /// Abstraction that wraps a list of [`ObservableEnvelopeBuffer`]s to which [`Envelope`] are routed
-/// based on their [`ProjectKeyPair`].
-#[derive(Debug, Clone)]
+/// based on the configured [`EnvelopeSpoolPartitioning`] strategy.
+///
+/// Share between owners via `Arc<PartitionedEnvelopeBuffer>`.
+#[derive(Debug)]
 pub struct PartitionedEnvelopeBuffer {
-    buffers: Arc<Vec<ObservableEnvelopeBuffer>>,
-    hasher: RandomState,
+    buffers: Vec<ObservableEnvelopeBuffer>,
+    partitioning: Partitioning,
 }
 
 impl PartitionedEnvelopeBuffer {
@@ -92,7 +94,9 @@ impl PartitionedEnvelopeBuffer {
         envelope_processor: Addr<EnvelopeProcessor>,
         outcome_aggregator: Addr<TrackOutcome>,
         services: &dyn ServiceSpawn,
-    ) -> Self {
+    ) -> Arc<Self> {
+        let partitioning = Partitioning::new(config.spool_partitioning());
+
         let mut envelope_buffers = Vec::with_capacity(partitions.get() as usize);
         for partition_id in 0..partitions.get() {
             let envelope_buffer = EnvelopeBufferService::new(
@@ -111,20 +115,27 @@ impl PartitionedEnvelopeBuffer {
             envelope_buffers.push(envelope_buffer);
         }
 
-        Self {
-            buffers: Arc::new(envelope_buffers),
-            hasher: Self::build_hasher(),
-        }
+        Arc::new(Self {
+            buffers: envelope_buffers,
+            partitioning,
+        })
     }
 
-    /// Returns the [`ObservableEnvelopeBuffer`] to which [`Envelope`]s having the supplied
-    /// [`ProjectKeyPair`] will be sent.
+    /// Returns the [`ObservableEnvelopeBuffer`] to which the [`Envelope`] for the supplied
+    /// [`ProjectKeyPair`] should be sent.
     ///
-    /// The rationale of using this partitioning strategy is to reduce memory usage across buffers
-    /// since each individual buffer will only take care of a subset of projects.
+    /// With [`EnvelopeSpoolPartitioning::ProjectKeyPair`], envelopes for a given pair always land
+    /// on the same partition, which keeps per-project state, on-disk files, and LIFO ordering
+    /// co-located. With [`EnvelopeSpoolPartitioning::RoundRobin`], envelopes are spread evenly
+    /// across partitions and `project_key_pair` is ignored for routing purposes.
     pub fn buffer(&self, project_key_pair: ProjectKeyPair) -> &ObservableEnvelopeBuffer {
-        let buffer_index =
-            (self.hasher.hash_one(project_key_pair) % self.buffers.len() as u64) as usize;
+        let len = self.buffers.len();
+        let buffer_index = match &self.partitioning {
+            Partitioning::ProjectKeyPair(hasher) => {
+                (hasher.hash_one(project_key_pair) % len as u64) as usize
+            }
+            Partitioning::RoundRobin(counter) => counter.fetch_add(1, Ordering::Relaxed) % len,
+        };
         self.buffers
             .get(buffer_index)
             .expect("buffers should not be empty")
@@ -164,11 +175,49 @@ impl PartitionedEnvelopeBuffer {
     }
 }
 
+/// Internal representation of the partition-selection strategy.
+#[derive(Debug)]
+enum Partitioning {
+    /// Partition by project key pair, using a fixed-seed hasher for deterministic placement.
+    ProjectKeyPair(RandomState),
+    /// Distribute envelopes round-robin across partitions using a shared atomic counter.
+    RoundRobin(AtomicUsize),
+}
+
+impl Partitioning {
+    fn new(strategy: EnvelopeSpoolPartitioning) -> Self {
+        match strategy {
+            EnvelopeSpoolPartitioning::ProjectKeyPair => {
+                Self::ProjectKeyPair(PartitionedEnvelopeBuffer::build_hasher())
+            }
+            EnvelopeSpoolPartitioning::RoundRobin => Self::RoundRobin(AtomicUsize::new(0)),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct EnvelopeBufferMetrics {
     has_capacity: AtomicBool,
     item_count: AtomicU64,
     storage_size: AtomicU64,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum PushError {
+    #[error("relay is running out of memory")]
+    OutOfMemory,
+    #[error("envelope buffer channel is closed")]
+    ChannelClosed,
+    #[error("envelope buffer does not have capacity")]
+    Capacity,
+}
+
+impl OutcomeError for PushError {
+    type Error = Self;
+
+    fn consume(self) -> (Option<Outcome>, Self::Error) {
+        (Some(Outcome::Invalid(DiscardReason::Internal)), self)
+    }
 }
 
 /// Contains the services [`Addr`] and a watch channel to observe its state.
@@ -191,15 +240,21 @@ impl ObservableEnvelopeBuffer {
 
     /// Attempts to push an envelope into the envelope buffer.
     ///
-    /// Returns `false`, if the envelope buffer does not have enough capacity.
-    pub fn try_push(&self, envelope: Managed<Box<Envelope>>) -> Result<(), Managed<Box<Envelope>>> {
-        if self.has_capacity() {
-            let envelope = envelope.into();
-            self.addr.send(EnvelopeBuffer::Push(envelope));
-            Ok(())
-        } else {
-            Err(envelope)
+    /// Returns `false`, if the envelope buffer does not have enough capacity,
+    /// or if the process is shutting down.
+    pub fn try_push(&self, envelope: Managed<Box<Envelope>>) -> Result<(), Rejected<PushError>> {
+        if self.addr.is_closed() {
+            // This happens for inflight requests when `ephemeral: false`.
+            relay_log::warn!("Pushing envelope after envelope buffer shutdown");
+            return Err(envelope.reject_err(PushError::ChannelClosed));
         }
+
+        if !self.has_capacity() {
+            return Err(envelope.reject_err(PushError::Capacity));
+        }
+
+        self.addr.send(EnvelopeBuffer::Push(envelope.into()));
+        Ok(())
     }
 
     /// Returns `true` if the buffer has the capacity to accept more elements.
@@ -271,7 +326,6 @@ impl EnvelopeBufferService {
     /// Returns both the [`Addr`] to this service, and references to spooler metrics.
     pub fn start_in(self, services: &dyn ServiceSpawn) -> ObservableEnvelopeBuffer {
         let metrics = self.metrics.clone();
-
         let addr = services.start(self);
 
         ObservableEnvelopeBuffer { addr, metrics }
@@ -990,8 +1044,8 @@ mod tests {
         let observable2 = buffer2.start_in(&TokioServiceSpawn);
 
         let partitioned = PartitionedEnvelopeBuffer {
-            buffers: Arc::new(vec![observable1, observable2]),
-            hasher: PartitionedEnvelopeBuffer::build_hasher(),
+            buffers: vec![observable1, observable2],
+            partitioning: Partitioning::new(EnvelopeSpoolPartitioning::ProjectKeyPair),
         };
 
         // Create two envelopes with different project keys
@@ -1018,5 +1072,63 @@ mod tests {
         assert!(envelope_processor_rx.recv().await.is_some());
         assert!(envelope_processor_rx.recv().await.is_some());
         assert!(envelope_processor_rx.is_empty());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_partitioned_buffer_routing() {
+        let (_global_tx, global_rx) = watch::channel(global_config::Status::Ready(Arc::new(
+            GlobalConfig::default(),
+        )));
+        let (outcome_aggregator, _outcome_rx) = Addr::custom();
+        let project_cache_handle = ProjectCacheHandle::for_test();
+        let (envelope_processor, _envelope_processor_rx) = Addr::custom();
+
+        let services = Services {
+            envelope_processor,
+            project_cache_handle: project_cache_handle.clone(),
+            outcome_aggregator,
+        };
+
+        let config = Arc::new(Config::default());
+        let observable1 = EnvelopeBufferService::new(
+            0,
+            config.clone(),
+            MemoryStat::default(),
+            global_rx.clone(),
+            services.clone(),
+        )
+        .start_in(&TokioServiceSpawn);
+        let observable2 = EnvelopeBufferService::new(
+            1,
+            config.clone(),
+            MemoryStat::default(),
+            global_rx.clone(),
+            services.clone(),
+        )
+        .start_in(&TokioServiceSpawn);
+
+        let buffers = vec![observable1, observable2];
+        let pair = ProjectKeyPair::from_envelope(new_managed_envelope(false, "foo").envelope());
+
+        // Default strategy: same pair always maps to the same partition.
+        let by_pair = PartitionedEnvelopeBuffer {
+            buffers: buffers.clone(),
+            partitioning: Partitioning::new(EnvelopeSpoolPartitioning::ProjectKeyPair),
+        };
+        let expected = by_pair.buffer(pair) as *const _;
+        for _ in 0..8 {
+            assert_eq!(expected, by_pair.buffer(pair) as *const _);
+        }
+
+        // Round-robin: same pair cycles through both partitions.
+        let round_robin = PartitionedEnvelopeBuffer {
+            buffers,
+            partitioning: Partitioning::new(EnvelopeSpoolPartitioning::RoundRobin),
+        };
+        let first = round_robin.buffer(pair) as *const _;
+        let second = round_robin.buffer(pair) as *const _;
+        let third = round_robin.buffer(pair) as *const _;
+        assert_ne!(first, second);
+        assert_eq!(first, third);
     }
 }

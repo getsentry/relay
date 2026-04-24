@@ -133,7 +133,10 @@ impl Item {
                 (DataCategory::LogByte, self.len().max(1)),
                 (DataCategory::LogItem, item_count)
             ],
-            ItemType::TraceMetric => smallvec![(DataCategory::TraceMetric, item_count)],
+            ItemType::TraceMetric => smallvec![
+                (DataCategory::TraceMetricByte, self.len().max(1)),
+                (DataCategory::TraceMetric, item_count)
+            ],
             ItemType::FormData => smallvec![],
             ItemType::UserReport => smallvec![(DataCategory::UserReportV2, item_count)],
             ItemType::UserReportV2 => smallvec![(DataCategory::UserReportV2, item_count)],
@@ -555,9 +558,21 @@ impl Item {
     }
 
     /// Returns `true` if this item is an attachment placeholder.
-    fn is_attachment_ref(&self) -> bool {
+    pub fn is_attachment_ref(&self) -> bool {
         self.ty() == &ItemType::Attachment
             && self.content_type() == Some(ContentType::AttachmentRef)
+    }
+
+    /// Returns `true` if this item was extracted from an Unreal report.
+    pub fn is_unreal_expanded(&self) -> bool {
+        self.headers
+            .get(ItemHeaderKey::UnrealExpanded)
+            .unwrap_or(false)
+    }
+
+    /// Marks this item as having been extracted from an Unreal report.
+    pub fn set_unreal_expanded(&mut self, expanded: bool) {
+        self.headers.set(ItemHeaderKey::UnrealExpanded, expanded);
     }
 
     /// Returns the [`AttachmentParentType`] of an attachment.
@@ -1068,6 +1083,8 @@ pub enum ItemHeaderKey {
     SentryRelease,
     /// The Sentry environment stored in a header.
     SentryEnvironment,
+    /// Whether this item was expanded from an Unreal crash report.
+    UnrealExpanded,
 }
 
 /// The value of an item header.

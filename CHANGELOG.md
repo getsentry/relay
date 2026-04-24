@@ -2,6 +2,89 @@
 
 ## Unreleased
 
+**Features**:
+
+- Implement client/sdk controlled ingestion settings for v2 span containers. ([#5881](https://github.com/getsentry/relay/pull/5881))
+- Update several `gen_ai` attributes to their latest representation. ([#5798](https://github.com/getsentry/relay/pull/5798))
+
+## 26.4.1
+
+**Breaking Changes**:
+
+- Docker images are no longer published to Docker Hub, use the Github Container Registry instead ([see documentation](https://github.com/getsentry/relay/pkgs/container/relay)). ([#5845](https://github.com/getsentry/relay/pull/5845))
+
+**Features**:
+
+- Use `ModelMetadata` config with context size and utilization. ([#5814](https://github.com/getsentry/relay/pull/5814))
+- Handle minidump placeholders. ([#5849](https://github.com/getsentry/relay/pull/5849))
+- Add config option to spread envelopes evenly across buffer partitions. ([#5853](https://github.com/getsentry/relay/pull/5853))
+
+**Internal**:
+
+- Move unreal crash report expansion from processing into endpoint. ([#5825](https://github.com/getsentry/relay/pull/5825))
+- Ports legacy standalone span processing to the processing framework. ([#5852](https://github.com/getsentry/relay/pull/5852))
+- Retry failing objectstore requests. ([#5836](https://github.com/getsentry/relay/pull/5836))
+- Add mobile normalizations to SpanV2 processing pipeline (mobile tag, main thread, outlier filtering, app start backfill from V1 transactions, device class). ([#5824](https://github.com/getsentry/relay/pull/5824))
+- Remove the deprecated `aiModelCosts` global config, superseded by `aiModelMetadata`. ([#5862](https://github.com/getsentry/relay/pull/5862))
+
+**Bug Fixes**:
+
+- Respond with 429 if otlp logs are rate limited, as per spec. ([#5841](https://github.com/getsentry/relay/pull/5841))
+- Respect rate limit silencing also when all items are rate limited. ([#5840](https://github.com/getsentry/relay/pull/5840))
+
+## 26.4.0
+
+**Breaking Changes**:
+
+- To prevent false positives, non-public email addresses (e.g. `user@localhost`) are no longer scrubbed by default. ([#5737](https://github.com/getsentry/relay/pull/5737))
+
+**Bug Fixes**:
+
+- Scrub API key headers with hyphens (e.g. `x-api-key`) in default PII scrubbing. ([#5829](https://github.com/getsentry/relay/pull/5829))
+- Store segment name in `sentry.transaction` in addition to `sentry.segment.name` on OTLP spans. ([#5765](https://github.com/getsentry/relay/pull/5765))
+- Explicitly handle in-flight requests during shutdown. ([#5746](https://github.com/getsentry/relay/pull/5746), [#5769](https://github.com/getsentry/relay/pull/5769))
+- Emit outcomes in both `log_byte` and `log_item` categories when logs are dropped. ([#5766](https://github.com/getsentry/relay/pull/5766))
+- Propagate an event's retention policy to its attachments ([#5774](https://github.com/getsentry/relay/pull/5774))
+- Prevent panic in span description normalization. ([#5781](https://github.com/getsentry/relay/pull/5781))
+- Limit overall stream size in playstation multiparts. ([#5795](https://github.com/getsentry/relay/pull/5795))
+
+**Features**:
+
+- Transition error processing pipeline to a more modern implementation. ([#5702](https://github.com/getsentry/relay/pull/5702))
+- Set `sentry.segment.id` and `sentry.segment.name` attributes on OTLP segment spans. ([#5748](https://github.com/getsentry/relay/pull/5748))
+- Envelope buffer: Add option to disable flush-to-disk on shutdown. ([#5751](https://github.com/getsentry/relay/pull/5751))
+- Allow configuring Objectstore client auth parameters. ([#5720](https://github.com/getsentry/relay/pull/5720))
+- Metric size limit per metric default changed to 1mib. ([#5779](https://github.com/getsentry/relay/pull/5779))
+- Use `gen_ai.function_id` as a fallback for `gen_ai.agent.name`. ([#5776](https://github.com/getsentry/relay/pull/5776))
+- Add `gen_ai.input.messages` and `gen_ai.output.messages` as distinct fields for SpanData. ([#5797](https://github.com/getsentry/relay/pull/5797))
+- Merge `gen_ai.request.messages` into `gen_ai.input.messages` and `gen_ai.response.text` into `gen_ai.output.messages`. ([#5813](https://github.com/getsentry/relay/pull/5813))
+- Extract `http.query` and `url.query` attributes from `query_string` in transactions' request context. ([#5784](https://github.com/getsentry/relay/pull/5784))
+- Add `ModelMetadata` global config with context size. ([#5831](https://github.com/getsentry/relay/pull/5831))
+
+**Internal**:
+
+- Update trace metric PII scrubbing to use `relay_pii::eap::scrub`. ([#5815](https://github.com/getsentry/relay/pull/5815))
+- Calculate and track accepted bytes per individual trace metric item via `TraceMetricByte` data category. ([#5744](https://github.com/getsentry/relay/pull/5744), [#5767](https://github.com/getsentry/relay/pull/5767))
+- Graduate standalone span ingestion feature flag. ([#5786](https://github.com/getsentry/relay/pull/5786))
+- Remove cardinality limiter. ([#5809](https://github.com/getsentry/relay/pull/5809))
+- Use new processor architecture to process standalone profiles. ([#5741](https://github.com/getsentry/relay/pull/5741))
+- TUS: Disallow creation with upload. ([#5734](https://github.com/getsentry/relay/pull/5734))
+- Add logic to verify attachment placeholders and correctly store them. ([#5747](https://github.com/getsentry/relay/pull/5747))
+- Remove continuous-profiling-beta feature flags. ([#5762](https://github.com/getsentry/relay/pull/5762))
+- Playstation: Do not upload attachments if quota is 0. ([#5770](https://github.com/getsentry/relay/pull/5770))
+- Add payload byte size to trace metrics. ([#5764](https://github.com/getsentry/relay/pull/5764))
+- Remove transaction metrics extraction. ([#5792](https://github.com/getsentry/relay/pull/5792))
+- Mix kafka partition key with org id. ([#5772](https://github.com/getsentry/relay/pull/5772))
+- Set a trace_id on all events by default for internal use. ([#5759](https://github.com/getsentry/relay/pull/5759))
+
+## 26.3.1
+
+**Internal**:
+
+- Use new processor architecture to process standalone user reports. ([#5731](https://github.com/getsentry/relay/pull/5731))
+
+## 26.3.0
+
 **Breaking Changes**:
 
 - Use a more mature (dog)statsd backend, with proper support for unix sockets and reservoir sampling.
@@ -20,6 +103,7 @@
 - Add support for Unix domain sockets for statsd metrics. ([#5668](https://github.com/getsentry/relay/pull/5668))
 - Support `deployment.environment` OTLP resource attribute for setting the Sentry environment. ([#5691](https://github.com/getsentry/relay/pull/5691))
 - Allow users to opt-out of DNS caching. ([#5700](https://github.com/getsentry/relay/pull/5700))
+- Allow PATCHing resources on the `/upload` endpoint. ([#5685](https://github.com/getsentry/relay/pull/5685))
 - Update device classification for new iPad and iPhone models. ([#5704](https://github.com/getsentry/relay/pull/5704))
 - Add `TraceMetricByte` data category. ([#5719](https://github.com/getsentry/relay/pull/5719))
 

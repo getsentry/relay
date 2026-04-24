@@ -6,7 +6,6 @@ use std::convert::Infallible;
 use std::str::FromStr;
 
 use relay_base_schema::data_category::DataCategory;
-use relay_cardinality::CardinalityLimit;
 use relay_common::glob2::LazyGlob;
 use relay_common::impl_str_serde;
 use relay_pattern::{Patterns, TypedPatterns};
@@ -14,22 +13,6 @@ use relay_protocol::RuleCondition;
 use serde::{Deserialize, Serialize};
 
 use crate::project::ProjectConfig;
-
-/// Configuration for metrics filtering.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(default, rename_all = "camelCase")]
-pub struct Metrics {
-    /// List of cardinality limits to enforce for this project.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub cardinality_limits: Vec<CardinalityLimit>,
-}
-
-impl Metrics {
-    /// Returns `true` if there are no changes to the metrics config.
-    pub fn is_empty(&self) -> bool {
-        self.cardinality_limits.is_empty()
-    }
-}
 
 /// Configuration for removing tags matching the `tag` pattern on metrics whose name matches the `name` pattern.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
@@ -100,68 +83,6 @@ impl SessionMetricsConfig {
 pub struct CustomMeasurementConfig {
     /// The maximum number of custom measurements to extract. Defaults to zero.
     limit: usize,
-}
-
-/// Maximum supported version of metrics extraction from transactions.
-///
-/// The version is an integer scalar, incremented by one on each new version:
-///  - 1: Initial version.
-///  - 2: Moves `acceptTransactionNames` to global config.
-///  - 3:
-///      - Emit a `usage` metric and use it for rate limiting.
-///      - Delay metrics extraction for indexed transactions.
-///  - 4: Adds support for `RuleConfigs` with string comparisons.
-///  - 5: No change, bumped together with [`MetricExtractionConfig::MAX_SUPPORTED_VERSION`].
-///  - 6: Bugfix to make transaction metrics extraction apply globally defined tag mappings.
-const TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION: u16 = 6;
-
-/// Minimum supported version of metrics extraction from transaction.
-const TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION: u16 = 3;
-
-/// Deprecated. Defines whether URL transactions should be considered low cardinality.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-#[derive(Default)]
-pub enum AcceptTransactionNames {
-    /// Only accept transaction names with a low-cardinality source.
-    Strict,
-
-    /// For some SDKs, accept all transaction names, while for others, apply strict rules.
-    #[serde(other)]
-    #[default]
-    ClientBased,
-}
-
-/// Configuration for extracting metrics from transaction payloads.
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-pub struct TransactionMetricsConfig {
-    /// The required version to extract transaction metrics.
-    pub version: u16,
-    /// Custom event tags that are transferred from the transaction to metrics.
-    pub extract_custom_tags: BTreeSet<String>,
-    /// Deprecated in favor of top-level config field. Still here to be forwarded to external relays.
-    pub custom_measurements: CustomMeasurementConfig,
-    /// Deprecated. Defines whether URL transactions should be considered low cardinality.
-    /// Keep this around for external Relays.
-    #[serde(rename = "acceptTransactionNames")]
-    pub deprecated1: AcceptTransactionNames,
-}
-
-impl TransactionMetricsConfig {
-    /// Creates an enabled configuration with empty defaults.
-    pub fn new() -> Self {
-        Self {
-            version: TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
-            ..Self::default()
-        }
-    }
-
-    /// Returns `true` if metrics extraction is enabled and compatible with this Relay.
-    pub fn is_enabled(&self) -> bool {
-        self.version >= TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
-            && self.version <= TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION
-    }
 }
 
 /// Combined view of global and project-specific metrics extraction configs.
@@ -667,13 +588,6 @@ where
 mod tests {
     use super::*;
     use similar_asserts::assert_eq;
-
-    #[test]
-    fn test_empty_metrics_deserialize() {
-        let m: Metrics = serde_json::from_str("{}").unwrap();
-        assert!(m.is_empty());
-        assert_eq!(m, Metrics::default());
-    }
 
     #[test]
     fn parse_tag_spec_value() {

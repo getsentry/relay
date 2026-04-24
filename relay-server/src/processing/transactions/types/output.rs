@@ -1,7 +1,3 @@
-#[cfg(test)]
-use relay_event_schema::protocol::Event;
-#[cfg(test)]
-use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
 use crate::Envelope;
@@ -24,17 +20,6 @@ pub enum TransactionOutput {
     ///
     /// This is used in processing relays.
     Indexed(Managed<Box<ExpandedTransaction<Indexed>>>),
-}
-
-impl TransactionOutput {
-    #[cfg(test)]
-    pub fn event(self) -> Option<Annotated<Event>> {
-        match self {
-            TransactionOutput::Full(managed) => Some(managed.accept(|x| x).event),
-            TransactionOutput::Profile(_) => None,
-            TransactionOutput::Indexed(managed) => Some(managed.accept(|x| x).event),
-        }
-    }
 }
 
 impl Forward for TransactionOutput {

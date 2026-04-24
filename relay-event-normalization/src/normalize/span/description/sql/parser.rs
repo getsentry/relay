@@ -667,11 +667,11 @@ impl VisitorMut for NormalizeVisitor {
             Statement::CreateMacro { .. } => {}
             Statement::CreateStage { comment, .. } => *comment = None,
             Statement::Assert { .. } => {}
-            Statement::Grant {
+            Statement::Grant(Grant {
                 grantees,
                 granted_by,
                 ..
-            } => {
+            }) => {
                 for grantee in grantees {
                     if let Some(GranteeName::ObjectName(name)) = &mut grantee.name {
                         Self::simplify_object_name(&mut name.0);
@@ -680,11 +680,11 @@ impl VisitorMut for NormalizeVisitor {
 
                 *granted_by = None;
             }
-            Statement::Revoke {
+            Statement::Revoke(Revoke {
                 grantees,
                 granted_by,
                 ..
-            } => {
+            }) => {
                 for grantee in grantees {
                     if let Some(GranteeName::ObjectName(name)) = &mut grantee.name {
                         Self::simplify_object_name(&mut name.0);

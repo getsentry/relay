@@ -70,6 +70,7 @@ def test_mixed_attachments_with_processing(
             "rate_limited": False,
             "attachment_type": "event.attachment",
             "size": len(chunked_contents),
+            "retention_days": 90,
             "chunks": attachment_num_chunks[id1],
         },
         "event_id": event_id,
@@ -89,6 +90,7 @@ def test_mixed_attachments_with_processing(
             "rate_limited": False,
             "attachment_type": "event.attachment",
             "size": len(b"hell yeah"),
+            "retention_days": 90,
             "data": b"hell yeah",
         },
         "event_id": event_id,
@@ -110,6 +112,7 @@ def test_mixed_attachments_with_processing(
             "rate_limited": False,
             "attachment_type": "event.attachment",
             "size": 0,
+            "retention_days": 90,
             "chunks": 0,
         },
         "event_id": event_id,
@@ -135,7 +138,6 @@ def test_attachments_with_objectstore(
     options = {
         "processing": {
             "attachment_chunk_size": "100KB",
-            "upload": {"objectstore_url": "http://127.0.0.1:8888/"},
         }
     }
     relay = relay_with_processing(options)
@@ -167,6 +169,7 @@ def test_attachments_with_objectstore(
             "rate_limited": False,
             "attachment_type": "event.attachment",
             "size": len(chunked_contents),
+            "retention_days": 90,
         },
         "event_id": event_id,
         "project_id": project_id,
@@ -183,6 +186,7 @@ def test_attachments_with_objectstore(
             "rate_limited": False,
             "attachment_type": "event.attachment",
             "size": 0,
+            "retention_days": 90,
             "chunks": 0,
         },
         "event_id": event_id,
@@ -450,9 +454,7 @@ password=mysupersecretpassword123"""
 
     scrubbed_payload = mini_sentry.get_captured_envelope().items[0].payload.bytes
 
-    assert (
-        scrubbed_payload
-        == rb"""Alice Johnson
+    assert scrubbed_payload == rb"""Alice Johnson
 *************************
 +1234567890
 4111 1111 1111 1111
@@ -461,7 +463,6 @@ Charlie Brown ************************* +1928374650 3782 822463 10005
 Dana White ************************ +1029384756 6011 0009 9013 9424
 path=c:\Users\***\mylogfile.txt
 password=mysupersecretpassword123"""
-    )
 
 
 def test_attachments_quotas(
@@ -608,6 +609,7 @@ def test_view_hierarchy_processing(
             "content_type": "application/json",
             "attachment_type": "event.view_hierarchy",
             "size": len(expected_payload),
+            "retention_days": 90,
             "data": expected_payload,
         },
         "event_id": event_id,
@@ -636,9 +638,7 @@ def test_event_with_attachment(
             "relay.objectstore-attachments.sample-rate"
         ] = 1.0
 
-    relay = relay_with_processing(
-        {"processing": {"upload": {"objectstore_url": "http://127.0.0.1:8888/"}}}
-    )
+    relay = relay_with_processing()
     attachments_consumer = attachments_consumer()
     transactions_consumer = transactions_consumer()
     objectstore = objectstore("attachments", project_id)
@@ -669,6 +669,7 @@ def test_event_with_attachment(
             "content_type": "application/octet-stream",
             "attachment_type": "event.attachment",
             "size": len(b"event attachment"),
+            "retention_days": 90,
             **({"stored_id": mock.ANY} if use_objectstore else {"chunks": 1}),
         }
     ]
@@ -696,6 +697,7 @@ def test_event_with_attachment(
         "content_type": "application/octet-stream",
         "attachment_type": "event.attachment",
         "size": len(b"transaction attachment"),
+        "retention_days": 90,
         **(
             {"stored_id": mock.ANY}
             if use_objectstore
@@ -752,6 +754,7 @@ def test_form_data_is_rejected(
             "rate_limited": False,
             "attachment_type": "event.attachment",
             "size": len(b"file content"),
+            "retention_days": 90,
             "data": b"file content",
         },
         "event_id": event_id,
@@ -760,3 +763,23 @@ def test_form_data_is_rejected(
 
     # Verify no more attachments were processed
     attachments_consumer.assert_empty()
+
+
+@pytest.mark.parametrize(
+    "limit,expected_status_code",
+    [("max_attachment_size", 400), ("max_attachments_size", 413)],
+)
+def test_size_limits(mini_sentry, relay, limit, expected_status_code):
+    proj_id = 42
+    relay = relay(mini_sentry, {"limits": {limit: 10}})
+    mini_sentry.add_full_project_config(proj_id)
+
+    event_id = "515539018c9b4260a6f999572f1661ee"
+    response = relay.send_attachments(
+        proj_id,
+        event_id,
+        [("some_field", "myfile.txt", "hello world!")],
+        raise_for_status=False,
+    )
+
+    assert response.status_code == expected_status_code

@@ -1,15 +1,69 @@
 use std::error::Error;
 use std::time::Instant;
 
+use relay_config::Config;
 use relay_pii::{PiiAttachmentsProcessor, SelectorPathItem, SelectorSpec};
 use relay_statsd::metric;
 
+#[cfg(feature = "processing")]
+use crate::envelope::AttachmentPlaceholder;
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
-use crate::managed::RecordKeeper;
+use crate::managed::{Counted, Managed, RecordKeeper, RetainMut};
+use crate::processing::Context;
+use crate::services::processor::ProcessingError;
 use crate::statsd::RelayTimers;
 
 use crate::services::projects::project::ProjectInfo;
 use relay_dynamic_config::Feature;
+
+/// Validates the attachments and drop any invalid ones.
+///
+/// An attachment might be a placeholder, in which case it needs to be validated.
+pub fn validate_attachments<T, V>(
+    managed: &mut Managed<T>,
+    select: impl FnOnce(&mut T) -> &mut V,
+    ctx: Context<'_>,
+) where
+    T: Counted,
+    V: RetainMut<Item>,
+{
+    if !ctx.is_processing() {
+        return;
+    }
+    managed.retain(select, |attachment, _| validate(attachment, ctx.config));
+}
+
+#[cfg_attr(not(feature = "processing"), expect(unused_variables))]
+fn validate(item: &Item, config: &Config) -> Result<(), ProcessingError> {
+    #[cfg(not(feature = "processing"))]
+    return Ok(());
+
+    #[cfg(feature = "processing")]
+    {
+        if !item.is_attachment_ref() {
+            return Ok(());
+        }
+
+        let payload = item.payload();
+        let payload: AttachmentPlaceholder =
+            serde_json::from_slice(&payload).map_err(|_| ProcessingError::InvalidAttachmentRef)?;
+        let signed_location =
+            crate::services::upload::SignedLocation::try_from_str(payload.location)
+                .ok_or(ProcessingError::InvalidAttachmentRef)?;
+        // NOTE: Using the received timestamp here breaks tests without a pop-relay.
+        let location = signed_location
+            .verify(chrono::Utc::now(), config)
+            .map_err(|_| ProcessingError::InvalidAttachmentRef)?;
+        let signed_length = location
+            .length
+            .ok_or(ProcessingError::InvalidAttachmentRef)?;
+
+        match item.attachment_body_size() == signed_length {
+            true => Ok(()),
+            false => Err(ProcessingError::InvalidAttachmentRef),
+        }
+    }
+}
 
 /// Apply data privacy rules to attachments in the envelope.
 ///
@@ -32,7 +86,10 @@ pub fn scrub<'a>(
             .has(Feature::ViewHierarchyScrubbing);
         for item in attachments {
             debug_assert_eq!(item.ty(), &ItemType::Attachment);
-            if view_hierarchy_scrubbing_enabled
+            if item.is_attachment_ref() {
+                relay_log::trace!("Skip attachment scrubbing for placeholder");
+                continue;
+            } else if view_hierarchy_scrubbing_enabled
                 && item.attachment_type() == Some(AttachmentType::ViewHierarchy)
             {
                 let old_size = item.payload().len();

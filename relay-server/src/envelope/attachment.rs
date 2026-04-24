@@ -1,9 +1,5 @@
 use std::fmt;
 
-use serde::Serialize;
-
-use crate::envelope::ContentType;
-
 /// The type of an event attachment.
 ///
 /// These item types must align with the Sentry processing pipeline.
@@ -77,12 +73,13 @@ impl fmt::Display for AttachmentType {
 
 /// Represents the payload of an [attachment placeholder item](
 /// https://develop.sentry.dev/sdk/telemetry/attachments/#attachment-placeholder-item).
-#[cfg_attr(not(sentry), expect(unused))]
-#[derive(Serialize)]
+#[cfg(any(sentry, feature = "processing"))]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct AttachmentPlaceholder<'a> {
+    #[serde(borrow)]
     pub location: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub content_type: Option<ContentType>,
+    pub content_type: Option<String>,
 }
 
 #[derive(Debug)]

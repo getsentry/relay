@@ -17,7 +17,10 @@ mod filter;
 mod process;
 #[cfg(feature = "processing")]
 mod store;
+mod utils;
 mod validate;
+
+pub use self::utils::get_calculated_byte_size;
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, thiserror::Error)]
@@ -154,7 +157,8 @@ impl Forward for TraceMetricOutput {
         self,
         _: processing::ForwardContext<'_>,
     ) -> Result<Managed<Box<crate::Envelope>>, Rejected<()>> {
-        self.0.try_map(|metrics, _| {
+        self.0.try_map(|metrics, r| {
+            r.lenient(DataCategory::TraceMetricByte);
             metrics
                 .serialize_envelope()
                 .map_err(|error| {
@@ -182,7 +186,10 @@ impl Forward for TraceMetricOutput {
         };
 
         for metric in metrics.split(|metrics| metrics.metrics) {
-            if let Ok(metric) = metric.try_map(|metric, _| store::convert(metric, &ctx)) {
+            if let Ok(metric) = metric.try_map(|metric, r| {
+                r.lenient(DataCategory::TraceMetricByte);
+                store::convert(metric, &ctx)
+            }) {
                 s.send_to_store(metric);
             }
         }
@@ -211,7 +218,12 @@ impl Counted for SerializedTraceMetrics {
             .map(|item| item.item_count().unwrap_or(1) as usize)
             .sum();
 
-        smallvec![(DataCategory::TraceMetric, count)]
+        let bytes = self.metrics.iter().map(|item| item.len()).sum();
+
+        smallvec![
+            (DataCategory::TraceMetric, count),
+            (DataCategory::TraceMetricByte, bytes)
+        ]
     }
 }
 
@@ -234,7 +246,13 @@ pub struct ExpandedTraceMetrics {
 
 impl Counted for ExpandedTraceMetrics {
     fn quantities(&self) -> Quantities {
-        smallvec![(DataCategory::TraceMetric, self.metrics.len())]
+        let count = self.metrics.len();
+        let bytes = self.metrics.iter().map(get_calculated_byte_size).sum();
+
+        smallvec![
+            (DataCategory::TraceMetric, count),
+            (DataCategory::TraceMetricByte, bytes)
+        ]
     }
 }
 

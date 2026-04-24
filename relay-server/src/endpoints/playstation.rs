@@ -1,10 +1,13 @@
+//! Implements the PlayStation crash uploading endpoint.
+//!
+//! Crashes are received as multipart uploads in this [format](https://game.develop.playstation.net/resources/documents/SDK/12.000/Core_Dump_System-Overview/ps5-core-dump-file-set-sending-format.html).
 use std::io;
-use std::str::FromStr;
 
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
+use chrono::Utc;
 use futures::TryStreamExt;
 use futures::stream::BoxStream;
 use http::StatusCode;
@@ -12,9 +15,10 @@ use multer::{Field, Multipart};
 use relay_config::Config;
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::EventId;
-use relay_quotas::Scoping;
+use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 use serde::Serialize;
+use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
 use crate::envelope::ContentType::{self, OctetStream};
@@ -23,10 +27,10 @@ use crate::extractors::{RawContentType, RequestMeta};
 use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::DiscardReason;
-use crate::services::projects::project::ProjectInfo;
-use crate::services::upload::{Stream, Upload};
-use crate::utils;
-use crate::utils::{AttachmentStrategy, BadMultipart, BoundedStream};
+use crate::services::projects::cache::Project;
+use crate::services::upload::{Create, Stream, Upload};
+use crate::utils::{self, MeteredStream};
+use crate::utils::{AttachmentStrategy, BoundedStream};
 
 /// The extension of a prosperodump in the multipart form-data upload.
 const PROSPERODUMP_EXTENSION: &str = ".prosperodmp";
@@ -96,13 +100,26 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
         let content_type = field.content_type().cloned();
         let stream: BoxStream<'static, io::Result<Bytes>> =
             Box::pin(field.map_err(io::Error::other));
+        let stream = MeteredStream::new(stream, "playstation");
         let stream = BoundedStream::new(stream, 1, config.max_upload_size());
         let byte_counter = stream.byte_counter();
-        let stream = Stream {
-            scoping: self.scoping,
-            stream,
+        let Ok(Ok(location)) = upload
+            .send(Create {
+                scoping: self.scoping,
+                length: None,
+            })
+            .await
+        else {
+            return Ok(None);
         };
-        let result = upload.send(stream).await;
+        let result = upload
+            .send(Stream {
+                received: Utc::now(),
+                scoping: self.scoping,
+                location,
+                stream,
+            })
+            .await;
         if let Ok(result) = result
             && let Ok(location) = result.inspect_err(|e| {
                 relay_log::warn!(error = e as &dyn std::error::Error, "Upload failed");
@@ -111,7 +128,7 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
             && let Ok(location) = location.to_str()
             && let Ok(payload) = serde_json::to_vec(&AttachmentPlaceholder {
                 location,
-                content_type: content_type.and_then(|ct| ContentType::from_str(ct.as_ref()).ok()),
+                content_type: content_type.as_ref().map(|c| c.to_string()),
             })
         {
             item.set_payload(ContentType::AttachmentRef, payload);
@@ -144,14 +161,25 @@ async fn extract_multipart(
     multipart: Multipart<'static>,
     meta: RequestMeta,
     state: &ServiceState,
-    project_config: &ProjectInfo,
+    project: &Project<'_>,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
+    let project_config = project
+        .state()
+        .clone()
+        .enabled()
+        .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
     let scoping = project_config
         .scoping(meta.public_key())
         .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
-    let upload_service = project_config
-        .has_feature(Feature::PlaystationUploads)
-        .then_some(state.upload());
+    let attachment_rate_limits = || {
+        project.rate_limits().current_limits().check_with_quotas(
+            project_config.get_quotas(),
+            scoping.item(DataCategory::Attachment),
+        )
+    };
+    let upload_service = (project_config.has_feature(Feature::PlaystationUploads)
+        && !attachment_rate_limits().is_limited())
+    .then_some(state.upload());
     let attachment_strategy = PlaystationAttachmentStrategy {
         scoping,
         upload_service,
@@ -188,31 +216,23 @@ async fn handle(
         return Ok(axum::Json(create_data_request_response()).into_response());
     }
 
-    let project_config = state
+    let config = state.config();
+    let project = state
         .project_cache_handle()
-        .ready(meta.public_key(), state.config().query_timeout())
+        .ready(meta.public_key(), config.query_timeout())
         .await
-        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?
-        .state()
-        .clone()
-        .enabled()
-        .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
+        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
 
-    let multipart = utils::multipart_from_request(request, multer::Constraints::new())
-        .map_err(BadMultipart::Multipart)?;
-    let mut envelope = extract_multipart(multipart, meta, &state, &project_config).await?;
+    let multipart = utils::multipart_from_request(request)?;
+    let mut envelope = extract_multipart(multipart, meta, &state, &project).await?;
     envelope.require_feature(Feature::PlaystationIngestion);
 
     let id = envelope.event_id();
 
     // Never respond with a 429 since clients often retry these
-    match common::handle_envelope(&state, envelope)
-        .await
-        .map_err(|err| err.into_inner())
-    {
-        Ok(_) | Err(BadStoreRequest::RateLimited(_)) => (),
-        Err(error) => return Err(error.into()),
-    };
+    common::handle_envelope(&state, envelope)
+        .await?
+        .ignore_rate_limits();
 
     // Return here needs to be a 200 with arbitrary text to make the sender happy.
     Ok(TextResponse(id).into_response())
@@ -220,6 +240,9 @@ async fn handle(
 
 pub fn route(config: &Config) -> MethodRouter<ServiceState> {
     post(handle)
-        .route_layer(DefaultBodyLimit::max(config.max_attachments_size()))
+        .route_layer(RequestBodyLimitLayer::new(
+            config.max_upload_size() + config.max_attachments_size(),
+        ))
+        .route_layer(DefaultBodyLimit::disable())
         .route_layer(axum::middleware::from_fn(middlewares::content_length))
 }

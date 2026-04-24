@@ -218,76 +218,6 @@ pub struct PerformanceScoreConfig {
     pub profiles: Vec<PerformanceScoreProfile>,
 }
 
-/// A mapping of AI model types (like GPT-4) to their respective costs.
-///
-/// This struct uses a dictionary-based cost structure with exact model ID keys and granular
-/// token pricing.
-///
-/// Example JSON:
-/// ```json
-/// {
-///   "version": 2,
-///   "models": {
-///     "gpt-4": {
-///       "inputPerToken": 0.03,
-///       "outputPerToken": 0.06,
-///       "outputReasoningPerToken": 0.12,
-///       "inputCachedPerToken": 0.015
-///     }
-///   }
-/// }
-/// ```
-#[derive(Clone, Default, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ModelCosts {
-    /// The version of the model cost struct
-    pub version: u16,
-
-    /// The mappings of model ID => cost as a dictionary
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub models: HashMap<Pattern, ModelCostV2>,
-}
-
-impl ModelCosts {
-    const SUPPORTED_VERSION: u16 = 2;
-
-    /// `true` if the model costs are empty and the version is supported.
-    pub fn is_empty(&self) -> bool {
-        self.models.is_empty() || !self.is_enabled()
-    }
-
-    /// `false` if measurement and metrics extraction should be skipped.
-    pub fn is_enabled(&self) -> bool {
-        self.version == Self::SUPPORTED_VERSION
-    }
-
-    /// Gets the cost per token, if defined for the given model.
-    pub fn cost_per_token(&self, model_id: &str) -> Option<&ModelCostV2> {
-        if !self.is_enabled() {
-            return None;
-        }
-
-        let normalized_model_id = normalize_ai_model_name(model_id);
-
-        // First try exact match by creating a Pattern from the model_id
-        if let Some(value) = self.models.get(normalized_model_id) {
-            return Some(value);
-        }
-
-        // if there is not a direct match, try to find the match using a pattern
-        // since the name is already normalized, there are still patterns where the
-        // model name can have a prefix e.g. "us.antrophic.claude-sonnet-4" and this
-        // will be matched via glob "*claude-sonnet-4"
-        self.models.iter().find_map(|(key, value)| {
-            if key.is_match(normalized_model_id) {
-                Some(value)
-            } else {
-                None
-            }
-        })
-    }
-}
-
 /// Regex that matches version and/or date patterns at the end of a model name.
 ///
 /// Examples matched:
@@ -371,6 +301,101 @@ pub struct ModelCostV2 {
     pub input_cache_write_per_token: f64,
 }
 
+/// Metadata for AI models including costs and context size.
+///
+/// Example JSON:
+/// ```json
+/// {
+///   "version": 1,
+///   "models": {
+///     "gpt-4": {
+///       "costs": {
+///         "inputPerToken": 0.0000003,
+///         "outputPerToken": 0.00000165,
+///         "outputReasoningPerToken": 0.0,
+///         "inputCachedPerToken": 0.0000015,
+///         "inputCacheWritePerToken": 0.00001875
+///       },
+///       "contextSize": 1000000
+///     }
+///   }
+/// }
+/// ```
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelMetadata {
+    /// The version of the model metadata struct.
+    pub version: u16,
+
+    /// The mappings of model ID => metadata as a dictionary.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub models: HashMap<Pattern, ModelMetadataEntry>,
+}
+
+impl ModelMetadata {
+    const SUPPORTED_VERSION: u16 = 1;
+
+    /// `true` if the model metadata is empty or the version is unsupported.
+    pub fn is_empty(&self) -> bool {
+        self.models.is_empty() || !self.is_enabled()
+    }
+
+    /// `false` if the version is unsupported.
+    pub fn is_enabled(&self) -> bool {
+        self.version == Self::SUPPORTED_VERSION
+    }
+
+    /// Gets the cost per token for a given model, if defined.
+    pub fn cost_per_token(&self, model_id: &str) -> Option<&ModelCostV2> {
+        self.get(model_id).and_then(|entry| entry.costs.as_ref())
+    }
+
+    /// Gets the context window size for a given model, if defined.
+    ///
+    /// Returns `None` for a zero context size, as it is not a meaningful value.
+    pub fn context_size(&self, model_id: &str) -> Option<u64> {
+        self.get(model_id)
+            .and_then(|entry| entry.context_size)
+            .filter(|&size| size > 0)
+    }
+
+    /// Gets the metadata for a given model, if defined.
+    pub fn get(&self, model_id: &str) -> Option<&ModelMetadataEntry> {
+        if !self.is_enabled() {
+            return None;
+        }
+
+        let normalized_model_id = normalize_ai_model_name(model_id);
+
+        // First try exact match.
+        if let Some(value) = self.models.get(normalized_model_id) {
+            return Some(value);
+        }
+
+        // Fall back to glob matching.
+        self.models.iter().find_map(|(key, value)| {
+            if key.is_match(normalized_model_id) {
+                Some(value)
+            } else {
+                None
+            }
+        })
+    }
+}
+
+/// Metadata for a single AI model.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelMetadataEntry {
+    /// Token costs for this model.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub costs: Option<ModelCostV2>,
+
+    /// The context window size in tokens.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_size: Option<u64>,
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Utc};
@@ -397,187 +422,6 @@ mod tests {
     use crate::{EventValidationConfig, GeoIpLookup, NormalizationConfig, normalize_event};
 
     use super::*;
-
-    /// Test that integer versions are handled correctly in the struct format
-    #[test]
-    fn test_model_cost_version_sent_as_number() {
-        // Test integer version 2
-        let original_v2 = r#"{"version":2,"models":{"gpt-4":{"inputPerToken":0.03,"outputPerToken":0.06,"outputReasoningPerToken":0.12,"inputCachedPerToken":0.015,"inputCacheWritePerToken":0.0}}}"#;
-        let deserialized_v2: ModelCosts = serde_json::from_str(original_v2).unwrap();
-        assert_debug_snapshot!(
-            deserialized_v2,
-            @r#"
-        ModelCosts {
-            version: 2,
-            models: {
-                Pattern {
-                    pattern: "gpt-4",
-                    options: Options {
-                        case_insensitive: false,
-                    },
-                    strategy: Literal(
-                        Literal(
-                            "gpt-4",
-                        ),
-                    ),
-                }: ModelCostV2 {
-                    input_per_token: 0.03,
-                    output_per_token: 0.06,
-                    output_reasoning_per_token: 0.12,
-                    input_cached_per_token: 0.015,
-                    input_cache_write_per_token: 0.0,
-                },
-            },
-        }
-        "#,
-        );
-
-        // Test unknown integer version
-        let original_unknown = r#"{"version":99,"models":{}}"#;
-        let deserialized_unknown: ModelCosts = serde_json::from_str(original_unknown).unwrap();
-        assert_eq!(deserialized_unknown.version, 99);
-        assert!(!deserialized_unknown.is_enabled());
-    }
-
-    #[test]
-    fn test_model_cost_config_v2() {
-        let original = r#"{"version":2,"models":{"gpt-4":{"inputPerToken":0.03,"outputPerToken":0.06,"outputReasoningPerToken":0.12,"inputCachedPerToken":0.015,"inputCacheWritePerToken":0.0}}}"#;
-        let deserialized: ModelCosts = serde_json::from_str(original).unwrap();
-        assert_debug_snapshot!(deserialized, @r#"
-        ModelCosts {
-            version: 2,
-            models: {
-                Pattern {
-                    pattern: "gpt-4",
-                    options: Options {
-                        case_insensitive: false,
-                    },
-                    strategy: Literal(
-                        Literal(
-                            "gpt-4",
-                        ),
-                    ),
-                }: ModelCostV2 {
-                    input_per_token: 0.03,
-                    output_per_token: 0.06,
-                    output_reasoning_per_token: 0.12,
-                    input_cached_per_token: 0.015,
-                    input_cache_write_per_token: 0.0,
-                },
-            },
-        }
-        "#);
-
-        let serialized = serde_json::to_string(&deserialized).unwrap();
-        assert_eq!(&serialized, original);
-    }
-
-    #[test]
-    fn test_model_cost_functionality_v2() {
-        // Test V2 functionality
-        let mut models_map = HashMap::new();
-        models_map.insert(
-            Pattern::new("gpt-4").unwrap(),
-            ModelCostV2 {
-                input_per_token: 0.03,
-                output_per_token: 0.06,
-                output_reasoning_per_token: 0.12,
-                input_cached_per_token: 0.015,
-                input_cache_write_per_token: 0.0,
-            },
-        );
-        let v2_config = ModelCosts {
-            version: 2,
-            models: models_map,
-        };
-        assert!(v2_config.is_enabled());
-        let cost = v2_config.cost_per_token("gpt-4").unwrap();
-        assert_eq!(
-            cost,
-            &ModelCostV2 {
-                input_per_token: 0.03,
-                output_per_token: 0.06,
-                output_reasoning_per_token: 0.12,
-                input_cached_per_token: 0.015,
-                input_cache_write_per_token: 0.0,
-            }
-        );
-    }
-
-    #[test]
-    fn test_model_cost_glob_matching() {
-        // Test glob matching functionality in cost_per_token
-        let mut models_map = HashMap::new();
-        models_map.insert(
-            Pattern::new("gpt-4*").unwrap(),
-            ModelCostV2 {
-                input_per_token: 0.03,
-                output_per_token: 0.06,
-                output_reasoning_per_token: 0.12,
-                input_cached_per_token: 0.015,
-                input_cache_write_per_token: 0.0,
-            },
-        );
-        models_map.insert(
-            Pattern::new("gpt-4-2xxx").unwrap(),
-            ModelCostV2 {
-                input_per_token: 0.0007,
-                output_per_token: 0.0008,
-                output_reasoning_per_token: 0.0016,
-                input_cached_per_token: 0.00035,
-                input_cache_write_per_token: 0.0,
-            },
-        );
-
-        let v2_config = ModelCosts {
-            version: 2,
-            models: models_map,
-        };
-        assert!(v2_config.is_enabled());
-
-        // Test glob matching with gpt-4 variants (prefix matching)
-        let cost = v2_config.cost_per_token("gpt-4-v1").unwrap();
-        assert_eq!(
-            cost,
-            &ModelCostV2 {
-                input_per_token: 0.03,
-                output_per_token: 0.06,
-                output_reasoning_per_token: 0.12,
-                input_cached_per_token: 0.015,
-                input_cache_write_per_token: 0.0,
-            }
-        );
-
-        let cost = v2_config.cost_per_token("gpt-4-2xxx").unwrap();
-        assert_eq!(
-            cost,
-            &ModelCostV2 {
-                input_per_token: 0.0007,
-                output_per_token: 0.0008,
-                output_reasoning_per_token: 0.0016,
-                input_cached_per_token: 0.00035,
-                input_cache_write_per_token: 0.0,
-            }
-        );
-
-        assert_eq!(v2_config.cost_per_token("unknown-model"), None);
-    }
-
-    #[test]
-    fn test_model_cost_unknown_version() {
-        // Test that unknown versions are handled properly
-        let unknown_version_json = r#"{"version":3,"models":{"some-model":{"inputPerToken":0.01,"outputPerToken":0.02,"outputReasoningPerToken":0.03,"inputCachedPerToken":0.005,"inputCacheWritePerToken":0.0}}}"#;
-        let deserialized: ModelCosts = serde_json::from_str(unknown_version_json).unwrap();
-        assert_eq!(deserialized.version, 3);
-        assert!(!deserialized.is_enabled());
-        assert_eq!(deserialized.cost_per_token("some-model"), None);
-
-        // Test version 0 (invalid)
-        let version_zero_json = r#"{"version":0,"models":{}}"#;
-        let deserialized: ModelCosts = serde_json::from_str(version_zero_json).unwrap();
-        assert_eq!(deserialized.version, 0);
-        assert!(!deserialized.is_enabled());
-    }
 
     #[test]
     fn test_normalize_ai_model_name() {

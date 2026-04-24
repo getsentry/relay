@@ -541,6 +541,14 @@ pub struct SpanData {
     #[metastructure(field = "gen_ai.request.model", legacy_alias = "ai.model_id")]
     pub gen_ai_request_model: Annotated<Value>,
 
+    /// The context window size of the model in tokens.
+    #[metastructure(field = "gen_ai.context.window_size")]
+    pub gen_ai_context_window_size: Annotated<Value>,
+
+    /// The fraction of the context window used by total tokens.
+    #[metastructure(field = "gen_ai.context.utilization")]
+    pub gen_ai_context_utilization: Annotated<Value>,
+
     /// The total cost for the tokens used (duplicate field for migration)
     #[metastructure(field = "gen_ai.cost.total_tokens", pii = "maybe")]
     pub gen_ai_cost_total_tokens: Annotated<Value>,
@@ -553,51 +561,46 @@ pub struct SpanData {
     #[metastructure(field = "gen_ai.cost.output_tokens", pii = "maybe")]
     pub gen_ai_cost_output_tokens: Annotated<Value>,
 
-    /// Prompt passed to LLM (Vercel AI SDK)
-    #[metastructure(field = "gen_ai.prompt", pii = "maybe")]
-    pub gen_ai_prompt: Annotated<Value>,
-
-    /// Prompt passed to LLM
+    /// The input messages to the model call.
     #[metastructure(
-        field = "gen_ai.request.messages",
+        field = "gen_ai.input.messages",
         pii = "maybe",
+        legacy_alias = "gen_ai.prompt",
+        legacy_alias = "gen_ai.request.messages",
         legacy_alias = "ai.prompt.messages"
     )]
-    pub gen_ai_request_messages: Annotated<Value>,
+    pub gen_ai_input_messages: Annotated<Value>,
 
-    /// Tool call arguments
+    /// Tool call arguments.
     #[metastructure(
-        field = "gen_ai.tool.input",
+        field = "gen_ai.tool.call.arguments",
         pii = "maybe",
+        legacy_alias = "gen_ai.tool.input",
         legacy_alias = "ai.toolCall.args"
     )]
-    pub gen_ai_tool_input: Annotated<Value>,
+    pub gen_ai_tool_call_arguments: Annotated<Value>,
 
-    /// Tool call result
+    /// Tool call result.
     #[metastructure(
-        field = "gen_ai.tool.output",
+        field = "gen_ai.tool.call.result",
         pii = "maybe",
+        legacy_alias = "gen_ai.tool.output",
         legacy_alias = "ai.toolCall.result"
     )]
-    pub gen_ai_tool_output: Annotated<Value>,
+    pub gen_ai_tool_call_result: Annotated<Value>,
 
-    /// LLM decisions to use tools
+    /// The output messages from the model call.
     #[metastructure(
-        field = "gen_ai.response.tool_calls",
+        field = "gen_ai.output.messages",
+        legacy_alias = "gen_ai.response.tool_calls",
         legacy_alias = "ai.response.toolCalls",
         legacy_alias = "ai.tool_calls",
-        pii = "maybe"
-    )]
-    pub gen_ai_response_tool_calls: Annotated<Value>,
-
-    /// LLM response text (Vercel AI, generateText)
-    #[metastructure(
-        field = "gen_ai.response.text",
+        legacy_alias = "gen_ai.response.text",
         legacy_alias = "ai.response.text",
         legacy_alias = "ai.responses",
         pii = "maybe"
     )]
-    pub gen_ai_response_text: Annotated<Value>,
+    pub gen_ai_output_messages: Annotated<Value>,
 
     /// LLM response object (Vercel AI, generateObject)
     #[metastructure(field = "gen_ai.response.object", pii = "maybe")]
@@ -615,13 +618,14 @@ pub struct SpanData {
     #[metastructure(field = "gen_ai.response.time_to_first_token", pii = "maybe")]
     pub gen_ai_response_time_to_first_token: Annotated<Value>,
 
-    /// The available tools for a request to an LLM
+    /// The tool definitions available for a request to an LLM.
     #[metastructure(
-        field = "gen_ai.request.available_tools",
+        field = "gen_ai.tool.definitions",
+        legacy_alias = "gen_ai.request.available_tools",
         legacy_alias = "ai.tools",
         pii = "maybe"
     )]
-    pub gen_ai_request_available_tools: Annotated<Value>,
+    pub gen_ai_tool_definitions: Annotated<Value>,
 
     /// The frequency penalty for a request to an LLM
     #[metastructure(
@@ -653,20 +657,25 @@ pub struct SpanData {
     #[metastructure(field = "gen_ai.request.top_p", legacy_alias = "ai.top_p")]
     pub gen_ai_request_top_p: Annotated<Value>,
 
-    /// The finish reason for a response from an LLM
+    /// The finish reasons for a response from an LLM.
     #[metastructure(
-        field = "gen_ai.response.finish_reason",
+        field = "gen_ai.response.finish_reasons",
+        legacy_alias = "gen_ai.response.finish_reason",
         legacy_alias = "ai.finish_reason"
     )]
-    pub gen_ai_response_finish_reason: Annotated<Value>,
+    pub gen_ai_response_finish_reasons: Annotated<Value>,
 
     /// The unique identifier for a response from an LLM
     #[metastructure(field = "gen_ai.response.id", legacy_alias = "ai.generation_id")]
     pub gen_ai_response_id: Annotated<Value>,
 
-    /// The GenAI system identifier
-    #[metastructure(field = "gen_ai.system", legacy_alias = "ai.model.provider")]
-    pub gen_ai_system: Annotated<Value>,
+    /// The GenAI provider name.
+    #[metastructure(
+        field = "gen_ai.provider.name",
+        legacy_alias = "gen_ai.system",
+        legacy_alias = "ai.model.provider"
+    )]
+    pub gen_ai_provider_name: Annotated<Value>,
 
     /// The system instructions passed to the model.
     #[metastructure(
@@ -691,6 +700,14 @@ pub struct SpanData {
     /// The type of the operation being performed.
     #[metastructure(field = "gen_ai.operation.type", pii = "maybe")]
     pub gen_ai_operation_type: Annotated<String>,
+
+    /// The name of the AI agent.
+    #[metastructure(field = "gen_ai.agent.name", pii = "maybe")]
+    pub gen_ai_agent_name: Annotated<String>,
+
+    /// The function ID of the AI agent.
+    #[metastructure(field = "gen_ai.function_id", pii = "maybe")]
+    pub gen_ai_function_id: Annotated<String>,
 
     /// The result of the MCP prompt.
     #[metastructure(field = "mcp.prompt.result", pii = "maybe")]
@@ -960,6 +977,14 @@ pub struct SpanData {
     #[metastructure(field = "url.full")]
     pub url_full: Annotated<String>,
 
+    /// The query string component of the URL, without a leading `?`.
+    #[metastructure(field = "url.query")]
+    pub url_query: Annotated<String>,
+
+    /// The query string component of the URL, with a leading `?`.
+    #[metastructure(field = "http.query")]
+    pub http_query: Annotated<String>,
+
     /// The client's IP address.
     #[metastructure(field = "client.address")]
     pub client_address: Annotated<IpAddr>,
@@ -1023,6 +1048,11 @@ impl Getter for SpanData {
             "gen_ai\\.cost\\.total_tokens" => self.gen_ai_cost_total_tokens.value()?.into(),
             "gen_ai\\.cost\\.input_tokens" => self.gen_ai_cost_input_tokens.value()?.into(),
             "gen_ai\\.cost\\.output_tokens" => self.gen_ai_cost_output_tokens.value()?.into(),
+            "gen_ai\\.input\\.messages" => self.gen_ai_input_messages.value()?.into(),
+            "gen_ai\\.output\\.messages" => self.gen_ai_output_messages.value()?.into(),
+            "gen_ai\\.operation\\.name" => self.gen_ai_operation_name.as_str()?.into(),
+            "gen_ai\\.agent\\.name" => self.gen_ai_agent_name.as_str()?.into(),
+            "gen_ai\\.request\\.model" => self.gen_ai_request_model.value()?.into(),
             "http\\.decoded_response_content_length" => {
                 self.http_decoded_response_content_length.value()?.into()
             }
@@ -1041,6 +1071,8 @@ impl Getter for SpanData {
             "thread\\.name" => self.thread_name.as_str()?.into(),
             "ui\\.component_name" => self.ui_component_name.value()?.into(),
             "url\\.scheme" => self.url_scheme.value()?.into(),
+            "url\\.query" => self.url_query.as_str()?.into(),
+            "http\\.query" => self.http_query.as_str()?.into(),
             "user" => self.user.value()?.into(),
             "user\\.email" => self.user_email.as_str()?.into(),
             "user\\.full_name" => self.user_full_name.as_str()?.into(),
@@ -1492,33 +1524,35 @@ mod tests {
             gen_ai_usage_output_tokens_prediction_rejected: ~,
             gen_ai_response_model: ~,
             gen_ai_request_model: ~,
+            gen_ai_context_window_size: ~,
+            gen_ai_context_utilization: ~,
             gen_ai_cost_total_tokens: ~,
             gen_ai_cost_input_tokens: ~,
             gen_ai_cost_output_tokens: ~,
-            gen_ai_prompt: ~,
-            gen_ai_request_messages: ~,
-            gen_ai_tool_input: ~,
-            gen_ai_tool_output: ~,
-            gen_ai_response_tool_calls: ~,
-            gen_ai_response_text: ~,
+            gen_ai_input_messages: ~,
+            gen_ai_tool_call_arguments: ~,
+            gen_ai_tool_call_result: ~,
+            gen_ai_output_messages: ~,
             gen_ai_response_object: ~,
             gen_ai_response_streaming: ~,
             gen_ai_response_tokens_per_second: ~,
             gen_ai_response_time_to_first_token: ~,
-            gen_ai_request_available_tools: ~,
+            gen_ai_tool_definitions: ~,
             gen_ai_request_frequency_penalty: ~,
             gen_ai_request_presence_penalty: ~,
             gen_ai_request_seed: ~,
             gen_ai_request_temperature: ~,
             gen_ai_request_top_k: ~,
             gen_ai_request_top_p: ~,
-            gen_ai_response_finish_reason: ~,
+            gen_ai_response_finish_reasons: ~,
             gen_ai_response_id: ~,
-            gen_ai_system: ~,
+            gen_ai_provider_name: ~,
             gen_ai_system_instructions: ~,
             gen_ai_tool_name: ~,
             gen_ai_operation_name: ~,
             gen_ai_operation_type: ~,
+            gen_ai_agent_name: ~,
+            gen_ai_function_id: ~,
             mcp_prompt_result: ~,
             mcp_tool_result_content: ~,
             browser_name: ~,
@@ -1599,6 +1633,8 @@ mod tests {
             messaging_operation_type: "create",
             user_agent_original: "Chrome",
             url_full: "my_url.com",
+            url_query: ~,
+            http_query: ~,
             client_address: IpAddr(
                 "192.168.0.1",
             ),

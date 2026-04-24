@@ -1,0 +1,117 @@
+use std::io;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::task::{Context, Poll};
+
+use bytes::Bytes;
+use futures::Stream;
+use sync_wrapper::SyncWrapper;
+
+/// A streaming body that validates the total byte count against an expected length if provided.
+///
+/// Returns an error if the stream provides more bytes than `expected_length` (checked per chunk)
+/// or fewer bytes than `expected_length` (checked when the stream ends).
+///
+/// This type is `Sync` via [`SyncWrapper`], allowing it to be sent across thread boundaries
+/// as required by the upload service.
+#[derive(Debug)]
+pub struct BoundedStream<S> {
+    pub lower_bound: usize,
+    pub upper_bound: usize,
+    inner: Option<SyncWrapper<S>>,
+    byte_counter: ByteCounter,
+}
+
+/// A shared counter that can be read after the [`BoundedStream`] has been moved.
+#[derive(Clone, Debug)]
+pub struct ByteCounter(Arc<AtomicUsize>);
+
+impl ByteCounter {
+    fn new() -> Self {
+        Self(Arc::new(AtomicUsize::new(0)))
+    }
+
+    fn add(&self, n: usize) -> usize {
+        n + self.0.fetch_add(n, Ordering::Relaxed)
+    }
+
+    pub fn get(&self) -> usize {
+        self.0.load(Ordering::Relaxed)
+    }
+}
+
+impl<S> BoundedStream<S> {
+    /// Creates a new [`BoundedStream`] wrapping the given stream with the expected total length.
+    pub fn new(stream: S, lower_bound: usize, upper_bound: usize) -> Self {
+        Self {
+            inner: Some(SyncWrapper::new(stream)),
+            lower_bound,
+            upper_bound,
+            byte_counter: ByteCounter::new(),
+        }
+    }
+
+    /// Returns the exact length of the stream.
+    ///
+    /// Returns `None` if `lower_bound != upper_bound`.
+    pub fn length(&self) -> Option<usize> {
+        (self.lower_bound == self.upper_bound).then_some(self.lower_bound)
+    }
+
+    /// Returns a shared handle to read the byte count after the stream is consumed.
+    pub fn byte_counter(&self) -> ByteCounter {
+        self.byte_counter.clone()
+    }
+}
+
+impl<S, E> Stream for BoundedStream<S>
+where
+    S: Stream<Item = Result<Bytes, E>> + Send + Unpin,
+    E: Into<io::Error>,
+{
+    type Item = io::Result<Bytes>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let this = self.get_mut();
+        let Some(inner) = &mut this.inner else {
+            return Poll::Ready(None);
+        };
+        let inner = Pin::new(inner.get_mut());
+
+        match inner.poll_next(cx) {
+            Poll::Ready(Some(Ok(bytes))) => {
+                let bytes_received = this.byte_counter.add(bytes.len());
+                if bytes_received > this.upper_bound {
+                    this.inner = None;
+                    Poll::Ready(Some(Err(io::Error::new(
+                        io::ErrorKind::FileTooLarge,
+                        format!(
+                            "stream exceeded upper bound: received {} > {}",
+                            bytes_received, this.upper_bound
+                        ),
+                    ))))
+                } else {
+                    Poll::Ready(Some(Ok(bytes)))
+                }
+            }
+            Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e.into()))),
+            Poll::Ready(None) => {
+                let bytes_received = this.byte_counter.get();
+                if bytes_received < this.lower_bound {
+                    this.inner = None;
+                    Poll::Ready(Some(Err(io::Error::new(
+                        io::ErrorKind::UnexpectedEof,
+                        format!(
+                            "stream shorter than lower bound: received {} < {}",
+                            bytes_received, this.lower_bound
+                        ),
+                    ))))
+                } else {
+                    Poll::Ready(None)
+                }
+            }
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}

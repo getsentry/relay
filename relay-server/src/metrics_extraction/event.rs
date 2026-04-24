@@ -8,8 +8,8 @@ use relay_metrics::{Bucket, BucketMetadata, BucketValue};
 use relay_quotas::DataCategory;
 use relay_sampling::evaluation::SamplingDecision;
 
+use crate::metrics_extraction::ExtractedMetrics;
 use crate::metrics_extraction::generic::{self, Extractable};
-use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::processing::transactions::extraction::extract_segment_span;
 use crate::statsd::RelayTimers;
 

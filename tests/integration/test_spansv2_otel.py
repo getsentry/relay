@@ -50,7 +50,6 @@ def test_span_ingestion(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
         "organizations:relay-otlp-traces-endpoint",
     ]
 
@@ -111,8 +110,6 @@ def test_span_ingestion(
             "instrumentation.name": {"type": "string", "value": "my_scope_name"},
             "instrumentation.version": {"type": "string", "value": "13.37"},
             "resource.company": {"type": "string", "value": "Relay Corp"},
-            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
-            "sentry.browser.version": {"type": "string", "value": "2.32"},
             "sentry.category": {"type": "string", "value": "ui"},
             "sentry.is_remote": {"type": "boolean", "value": True},
             "sentry.observed_timestamp_nanos": {
@@ -121,6 +118,9 @@ def test_span_ingestion(
             },
             "sentry.op": {"type": "string", "value": "default"},
             "sentry.origin": {"type": "string", "value": "auto.otlp.spans"},
+            "sentry.segment.id": {"type": "string", "value": "f0b809703e783d00"},
+            "sentry.segment.name": {"type": "string", "value": "A Proto Span"},
+            "sentry.transaction": {"type": "string", "value": "A Proto Span"},
             "sentry.kind": {"type": "string", "value": "server"},
             "ui.component_name": {"type": "string", "value": "MyComponent"},
         },

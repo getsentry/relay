@@ -16,6 +16,8 @@ use relay_event_schema::protocol::{
 };
 use relay_protocol::{Annotated, Value};
 
+use crate::envelope::{Item, ItemType};
+
 type Minidump<'a> = minidump::Minidump<'a, &'a [u8]>;
 
 /// Placeholder payload fragments indicating a native event.
@@ -194,7 +196,8 @@ fn write_crashpad_annotations(
 ///
 /// This function operates at best-effort. It always attaches the placeholder and returns
 /// successfully, even if the minidump or part of its data cannot be parsed.
-pub fn process_minidump(event: &mut Event, data: &[u8]) {
+pub fn process_minidump(event: &mut Event, item: &Item) {
+    debug_assert_eq!(item.ty(), &ItemType::Attachment);
     let placeholder = NativePlaceholder {
         exception_type: "Minidump",
         exception_value: "Invalid Minidump",
@@ -202,7 +205,19 @@ pub fn process_minidump(event: &mut Event, data: &[u8]) {
     };
     write_native_placeholder(event, placeholder);
 
-    let minidump = match Minidump::read(data) {
+    if item.is_attachment_ref() {
+        // We don't have a full minidump, just a placeholder for something that was uploaded
+        // through the upload endpoint.
+        event.client_sdk.get_or_insert_with(|| ClientSdkInfo {
+            name: "minidump.upload".to_owned().into(),
+            version: "0.0.0".to_owned().into(),
+            ..Default::default()
+        });
+        return;
+    }
+
+    let data = item.payload();
+    let minidump = match Minidump::read(&data) {
         Ok(minidump) => minidump,
         Err(err) => {
             relay_log::debug!(error = &err as &dyn Error, "failed to parse minidump");
@@ -251,7 +266,7 @@ pub fn process_minidump(event: &mut Event, data: &[u8]) {
 
 /// Writes minimal information into the event to indicate it is associated with an Apple Crash
 /// Report.
-pub fn process_apple_crash_report(event: &mut Event, _data: &[u8]) {
+pub fn process_apple_crash_report(event: &mut Event) {
     let placeholder = NativePlaceholder {
         exception_type: "AppleCrashReport",
         exception_value: "Invalid Apple Crash Report",

@@ -2,14 +2,15 @@ import json
 
 from datetime import datetime, timezone, timedelta
 from unittest import mock
+import uuid
 
+from requests import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 
 from .asserts import time_within_delta, time_within, matches
 
 import pytest
-
 
 TEST_CONFIG = {
     "outcomes": {
@@ -118,6 +119,91 @@ def test_ourlog_multiple_containers_not_allowed(
             "project_id": 42,
             "quantity": matches(lambda x: 300 < x < 400),
             "reason": "duplicate_item",
+        },
+    ]
+
+
+@pytest.mark.parametrize(
+    "categories",
+    [
+        pytest.param(["log_item"], id="item"),
+        pytest.param(["log_byte"], id="byte"),
+        pytest.param(["log_item", "log_byte"], id="both"),
+    ],
+)
+def test_fast_path_rate_limits(mini_sentry, relay, categories):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+    ]
+    project_config["config"]["quotas"] = [
+        {
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
+            "categories": [category],
+            "limit": 0,
+            "reasonCode": "no_more_quota",
+        }
+        for category in categories
+    ]
+
+    relay = relay(mini_sentry, TEST_CONFIG)
+    start = datetime.now(timezone.utc).replace(microsecond=0)
+
+    envelope = envelope_with_sentry_logs(
+        {
+            "timestamp": start.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+            "level": "error",
+            "body": "This is really bad",
+        }
+    )
+    response = relay.send_envelope(project_id, envelope)
+    assert response.status_code == 200  # project config not yet loaded
+
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "category": 23,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 2,
+            "project_id": 42,
+            "reason": "no_more_quota",
+            "quantity": 1,
+        },
+        {
+            "category": 24,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 2,
+            "project_id": 42,
+            "reason": "no_more_quota",
+            "quantity": 157,
+        },
+    ]
+
+    with pytest.raises(HTTPError, match="429 Client Error"):
+        response = relay.send_envelope(project_id, envelope)
+
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "category": 23,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 2,
+            "project_id": 42,
+            "reason": "no_more_quota",
+            "quantity": 1,
+        },
+        {
+            "category": 24,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 2,
+            "project_id": 42,
+            "reason": "no_more_quota",
+            "quantity": 157,
         },
     ]
 

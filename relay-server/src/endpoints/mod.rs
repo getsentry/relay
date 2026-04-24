@@ -3,11 +3,12 @@
 //! This module contains implementations for all supported relay endpoints, as well as a generic
 //! `forward` endpoint that sends unknown requests to the upstream.
 
+pub(crate) mod common;
+
 mod attachments;
 mod autoscaling;
 mod batch_metrics;
 mod batch_outcomes;
-mod common;
 mod envelope;
 mod forward;
 mod health_check;
@@ -32,6 +33,7 @@ use relay_config::Config;
 
 use crate::middlewares;
 use crate::service::ServiceState;
+use crate::services::upload::UPLOAD_PATCH_PATH;
 
 /// Size limit for internal batch endpoints.
 const BATCH_JSON_BODY_LIMIT: usize = 50_000_000; // 50 MB
@@ -98,9 +100,10 @@ fn public_routes_raw(config: &Config) -> Router<ServiceState> {
         // No mandatory trailing slash here because people already use it like this.
         .route("/api/{project_id}/minidump", minidump::route(config))
         .route("/api/{project_id}/minidump/", minidump::route(config))
-        .route("/api/{project_id}/events/{event_id}/attachments/", post(attachments::handle))
+        .route("/api/{project_id}/events/{event_id}/attachments/", attachments::route(config))
         .route("/api/{project_id}/unreal/{sentry_key}/", unreal::route(config))
-        .route("/api/{project_id}/upload/", upload::route(config));
+        .route("/api/{project_id}/upload/", upload::route_post(config))
+        .route(UPLOAD_PATCH_PATH, upload::route_patch(config));
 
     #[cfg(sentry)]
     let store_routes = store_routes.route("/api/{project_id}/playstation/", playstation::route(config));

@@ -121,7 +121,7 @@ impl PartialDsn {
     }
 
     /// Creates a new [`PartialDsn`] for a Relay outbound request.
-    pub fn outbound(scoping: &Scoping, upstream: &UpstreamDescriptor<'_>) -> Self {
+    pub fn outbound(scoping: &Scoping, upstream: &UpstreamDescriptor) -> Self {
         Self {
             scheme: upstream.scheme(),
             public_key: scoping.project_key,
@@ -544,7 +544,7 @@ impl FromRequestParts<ServiceState> for PartialMeta {
     ) -> Result<Self, Self::Rejection> {
         let mut ua = RawUserAgentInfo::default();
         for (key, value) in &parts.headers {
-            ua.set_ua_field_from_header(key.as_str(), value.to_str().ok().map(str::to_string));
+            ua.set_ua_field_from_header(key.as_str(), value.to_str().ok().map(str::to_owned));
         }
 
         let mut from_internal_relay = false;
@@ -721,7 +721,7 @@ impl FromRequestParts<ServiceState> for RequestMeta {
         let (public_key, key_flags) = ProjectKey::parse_with_flags(auth.public_key())?;
 
         let config = state.config();
-        let upstream = config.upstream_descriptor();
+        let upstream = config.upstream();
 
         let dsn = PartialDsn {
             scheme: upstream.scheme(),
