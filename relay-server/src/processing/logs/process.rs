@@ -27,7 +27,7 @@ pub fn expand(logs: Managed<SerializedLogs>) -> Managed<ExpandedLogs> {
             all_logs.extend(expanded);
         }
 
-        logs::integrations::expand_into(&mut all_logs, records, logs.integrations);
+        logs::integrations::expand_into(&mut all_logs, records, logs.integrations, &logs.headers);
 
         ExpandedLogs {
             headers: logs.headers,

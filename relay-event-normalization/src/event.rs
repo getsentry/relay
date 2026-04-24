@@ -1182,8 +1182,6 @@ fn infer_event_type(event: &Event) -> EventType {
         EventType::ExpectCt
     } else if event.expectstaple.value().is_some() {
         EventType::ExpectStaple
-    } else if event.context::<NelContext>().is_some() {
-        EventType::Nel
     } else {
         EventType::Default
     }
