@@ -240,12 +240,9 @@ async fn multipart_to_envelope(
     };
     minidump_item.set_attachment_payload(Some(ContentType::Minidump), decoded);
 
-    match validate_minidump(&minidump_item.payload()) {
-        Ok(m) => m,
-        Err(e) => {
-            managed::reject_all(&items, Outcome::Invalid(DiscardReason::InvalidMinidump));
-            return Err(e);
-        }
+    if let Err(e) = validate_minidump(&minidump_item.payload()) {
+        managed::reject_all(&items, Outcome::Invalid(DiscardReason::InvalidMinidump));
+        return Err(e);
     };
 
     if let Some(minidump_filename) = minidump_item.filename() {
