@@ -274,15 +274,14 @@ fn raw_minidump_to_envelope(
     ));
     let mut item = Managed::from_parts(item, outcome_meta);
     item.set_attachment_payload(Some(ContentType::Minidump), data.clone());
-    let payload = match decode_minidump(data, state.config().max_attachment_size()) {
-        Ok(d) => d,
+    match decode_minidump(data, state.config().max_attachment_size()) {
+        Ok(d) => item.set_attachment_payload(Some(ContentType::Minidump), d),
         Err(e) => {
             let (error, outcome) = e;
             let _ = item.reject_err(outcome);
             return Err(error);
         }
     };
-    item.set_attachment_payload(Some(ContentType::Minidump), payload);
     validate_minidump(&item.payload()).inspect_err(|_| {
         let _ = item.reject_err(Outcome::Invalid(DiscardReason::InvalidMinidump));
     })?;
