@@ -8,7 +8,7 @@ use relay_quotas::RateLimits;
 use relay_statsd::metric;
 use serde::Deserialize;
 
-use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
+use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, ManagedItems};
 use crate::managed::{Managed, Rejected};
 use crate::service::ServiceState;
 use crate::services::buffer::{ProjectKeyPair, PushError};
@@ -262,7 +262,7 @@ pub fn event_id_from_formdata(data: &[u8]) -> Result<Option<EventId>, BadStoreRe
 ///
 /// Extracting the event id from chunked formdata fields on the Minidump endpoint (`sentry__1`,
 /// `sentry__2`, ...) is not supported. In this case, `None` is returned.
-pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreRequest> {
+pub fn event_id_from_items(items: &ManagedItems) -> Result<Option<EventId>, BadStoreRequest> {
     if let Some(item) = items.iter().find(|item| item.ty() == &ItemType::Event)
         && let Some(event_id) = event_id_from_json(&item.payload())?
     {

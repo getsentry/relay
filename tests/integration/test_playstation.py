@@ -267,7 +267,7 @@ def test_playstation_no_feature_flag(
     ]
 
 
-def test_playstation_wrong_file(
+def test_playstation_invalid_prosperodump(
     mini_sentry, relay_processing_with_playstation, outcomes_consumer
 ):
     PROJECT_ID = 42
@@ -282,6 +282,62 @@ def test_playstation_wrong_file(
     response = exc_info.value.response
     assert response.status_code == 400, "Expected a 400 status code"
     assert response.json()["detail"] == "invalid prosperodump"
+    outcomes = outcomes_consumer.get_outcomes()
+    assert outcomes == [
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "invalid_prosperodump",
+            "category": 4,
+            "quantity": len(playstation_dump),
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "invalid_prosperodump",
+            "category": 22,
+            "quantity": 1,
+        },
+    ]
+
+
+def test_playstation_missing_prosperodump(
+    mini_sentry, relay_processing_with_playstation, outcomes_consumer
+):
+    PROJECT_ID = 42
+    video_content = b"yo"
+    prosperodump = None
+    mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
+    outcomes_consumer = outcomes_consumer()
+    relay = relay_processing_with_playstation()
+
+    with pytest.raises(requests.exceptions.HTTPError) as exc_info:
+        _ = relay.send_playstation_request(PROJECT_ID, prosperodump, video_content)
+
+    response = exc_info.value.response
+    assert response.status_code == 400, "Expected a 400 status code"
+    assert response.json()["detail"] == "missing prosperodump"
+    outcomes = outcomes_consumer.get_outcomes()
+    assert outcomes == [
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "missing_prosperodump_upload",
+            "category": 4,
+            "quantity": len(video_content),
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "missing_prosperodump_upload",
+            "category": 22,
+            "quantity": 1,
+        },
+    ]
 
 
 def test_playstation_max_attachments_size_exceeded(
@@ -306,7 +362,25 @@ def test_playstation_max_attachments_size_exceeded(
     response = exc_info.value.response
     assert response.status_code == 413, response.json()
     assert response.json() == {"detail": "request content exceeded size limits"}
-    outcomes_consumer.assert_empty()
+    outcomes = outcomes_consumer.get_outcomes()
+    assert outcomes == [
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "too_large:attachment:attachment",
+            "category": 4,
+            "quantity": len(playstation_dump),
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "too_large:attachment:attachment",
+            "category": 22,
+            "quantity": 1,
+        },
+    ]
 
 
 def test_playstation_max_attachment_size_exceeded(
@@ -330,7 +404,25 @@ def test_playstation_max_attachment_size_exceeded(
 
     response = exc_info.value.response
     assert response.status_code == 400, "Expected a 400 status code"
-    assert len(outcomes_consumer.get_outcomes()) == 0
+    outcomes = outcomes_consumer.get_outcomes()
+    assert outcomes == [
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "too_large:attachment:prosperodump",
+            "category": 4,
+            "quantity": len(playstation_dump),
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "too_large:attachment:prosperodump",
+            "category": 22,
+            "quantity": 1,
+        },
+    ]
 
 
 def test_playstation_max_stream_size_exceeded(
