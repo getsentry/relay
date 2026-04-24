@@ -36,8 +36,6 @@ pub enum EventType {
     ExpectCt,
     /// An ExpectStaple violation payload.
     ExpectStaple,
-    /// Network Error Logging report.
-    Nel,
     /// Performance monitoring transactions carrying spans.
     Transaction,
     /// User feedback payload.
@@ -60,7 +58,6 @@ impl EventType {
             EventType::Hpkp => "hpkp",
             EventType::ExpectCt => "expectct",
             EventType::ExpectStaple => "expectstaple",
-            EventType::Nel => "nel",
             EventType::Transaction => "transaction",
             EventType::UserReportV2 => "feedback",
         }
@@ -90,7 +87,6 @@ impl FromStr for EventType {
             "hpkp" => EventType::Hpkp,
             "expectct" => EventType::ExpectCt,
             "expectstaple" => EventType::ExpectStaple,
-            "nel" => EventType::Nel,
             "transaction" => EventType::Transaction,
             "feedback" => EventType::UserReportV2,
             _ => return Err(ParseEventTypeError),
