@@ -225,14 +225,7 @@ pub async fn multipart_items(
     let mut form_data = FormDataWriter::new();
     let mut attachments_size = 0;
 
-    while let Some(field) = multipart.next_field().await.inspect_err(|e| {
-        // let mut source = Some(e);
-        let mut current = e as &dyn std::error::Error;
-        while let Some(source) = current.source() {
-            dbg!(&source);
-            current = source as &dyn std::error::Error;
-        }
-    })? {
+    while let Some(field) = multipart.next_field().await? {
         if let Some(file_name) = field.file_name() {
             let mut item = Item::new(ItemType::Attachment);
             let attachment_type = attachment_strategy.infer_type(&field);
