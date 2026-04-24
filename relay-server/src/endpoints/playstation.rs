@@ -127,13 +127,13 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
             })
             && let Ok(location) = location.into_header_value()
             && let Ok(location) = location.to_str()
-            && let Ok(payload) = serde_json::to_vec(&AttachmentPlaceholder {
+            && let Ok(placeholder) = serde_json::to_vec(&AttachmentPlaceholder {
                 location,
                 content_type: content_type.as_ref().map(|c| c.to_string()),
             })
         {
-            let byte_count = byte_counter.get();
-            item.set_attachment_ref_placeholder(payload, byte_count);
+            let attachment_size = byte_counter.get();
+            item.set_attachment_ref_placeholder(placeholder, attachment_size);
             Ok(Some(item))
         } else {
             Ok(None)
