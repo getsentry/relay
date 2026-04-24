@@ -2927,7 +2927,7 @@ mod tests {
     }
 
     #[test]
-    fn test_normalize_mobile_measurements_backfills_cold() {
+    fn test_backfill_app_vitals_start_cold() {
         let json = r#"{
             "type": "transaction",
             "timestamp": "2021-04-26T08:00:05+0100",
@@ -2972,7 +2972,7 @@ mod tests {
     }
 
     #[test]
-    fn test_normalize_mobile_measurements_backfills_warm() {
+    fn test_backfill_app_vitals_start_warm() {
         let json = r#"{
             "type": "transaction",
             "timestamp": "2021-04-26T08:00:05+0100",
@@ -3017,7 +3017,7 @@ mod tests {
     }
 
     #[test]
-    fn test_normalize_mobile_measurements_cold_preferred_over_warm() {
+    fn test_backfill_app_vitals_start_cold_preferred_over_warm() {
         let json = r#"{
             "type": "transaction",
             "timestamp": "2021-04-26T08:00:05+0100",
@@ -3071,7 +3071,7 @@ mod tests {
     }
 
     #[test]
-    fn test_normalize_mobile_measurements_no_app_start_noop() {
+    fn test_backfill_app_vitals_start_no_app_start_noop() {
         let json = r#"{
             "type": "transaction",
             "timestamp": "2021-04-26T08:00:05+0100",
@@ -3097,7 +3097,7 @@ mod tests {
     }
 
     #[test]
-    fn test_normalize_mobile_measurements_respects_outlier_filter() {
+    fn test_backfill_app_vitals_start_respects_outlier_filter() {
         let json = r#"{
             "type": "transaction",
             "timestamp": "2021-04-26T08:00:05+0100",
@@ -3119,7 +3119,7 @@ mod tests {
     }
 
     #[test]
-    fn test_normalize_mobile_measurements_non_transaction_payload_noop() {
+    fn test_backfill_app_vitals_start_non_transaction_payload_noop() {
         let json = r#"{
             "type": "error",
             "measurements": {
@@ -3147,7 +3147,7 @@ mod tests {
     }
 
     #[test]
-    fn test_normalize_mobile_measurements_does_not_overwrite_value() {
+    fn test_backfill_app_vitals_start_does_not_overwrite_value() {
         let json = r#"{
             "type": "transaction",
             "timestamp": "2021-04-26T08:00:05+0100",
@@ -3184,7 +3184,7 @@ mod tests {
     }
 
     #[test]
-    fn test_normalize_mobile_measurements_does_not_overwrite_type() {
+    fn test_backfill_app_vitals_start_does_not_overwrite_type() {
         let json = r#"{
             "type": "transaction",
             "timestamp": "2021-04-26T08:00:05+0100",
@@ -3234,7 +3234,7 @@ mod tests {
     }
 
     #[test]
-    fn test_normalize_mobile_measurements_invalid_unit_not_backfilled() {
+    fn test_backfill_app_vitals_start_invalid_unit_noop() {
         let json = r#"{
             "type": "transaction",
             "timestamp": "2021-04-26T08:00:05+0100",
