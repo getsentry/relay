@@ -2926,26 +2926,18 @@ mod tests {
         assert_eq!(measurements.len(), 0);
     }
 
-    fn mobile_measurements_event(measurements_json: &str) -> Event {
-        let json = format!(
-            r#"{{
-                "type": "transaction",
-                "timestamp": "2021-04-26T08:00:05+0100",
-                "start_timestamp": "2021-04-26T08:00:00+0100",
-                "measurements": {measurements_json}
-            }}"#
-        );
-        Annotated::<Event>::from_json(&json)
-            .unwrap()
-            .into_value()
-            .unwrap()
-    }
-
     #[test]
     fn test_normalize_mobile_measurements_backfills_cold() {
-        let mut event = mobile_measurements_event(
-            r#"{"app_start_cold": {"value": 1234.0, "unit": "millisecond"}}"#,
-        );
+        let json = r#"{
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {"app_start_cold": {"value": 1234.0, "unit": "millisecond"}}
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
         backfill_app_vitals_start(&mut event);
         assert_debug_snapshot!(event.measurements, @r#"
         Measurements(
@@ -2981,9 +2973,16 @@ mod tests {
 
     #[test]
     fn test_normalize_mobile_measurements_backfills_warm() {
-        let mut event = mobile_measurements_event(
-            r#"{"app_start_warm": {"value": 567.0, "unit": "millisecond"}}"#,
-        );
+        let json = r#"{
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {"app_start_warm": {"value": 567.0, "unit": "millisecond"}}
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
         backfill_app_vitals_start(&mut event);
         assert_debug_snapshot!(event.measurements, @r#"
         Measurements(
@@ -3019,12 +3018,19 @@ mod tests {
 
     #[test]
     fn test_normalize_mobile_measurements_cold_preferred_over_warm() {
-        let mut event = mobile_measurements_event(
-            r#"{
+        let json = r#"{
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
                 "app_start_cold": {"value": 100.0, "unit": "millisecond"},
                 "app_start_warm": {"value": 200.0, "unit": "millisecond"}
-            }"#,
-        );
+            }
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
         backfill_app_vitals_start(&mut event);
         assert_debug_snapshot!(event.measurements, @r#"
         Measurements(
@@ -3066,7 +3072,16 @@ mod tests {
 
     #[test]
     fn test_normalize_mobile_measurements_no_app_start_noop() {
-        let mut event = mobile_measurements_event(r#"{"lcp": {"value": 100.0}}"#);
+        let json = r#"{
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {"lcp": {"value": 100.0}}
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
         backfill_app_vitals_start(&mut event);
         assert_debug_snapshot!(event.measurements, @r#"
         Measurements(
@@ -3083,9 +3098,16 @@ mod tests {
 
     #[test]
     fn test_normalize_mobile_measurements_respects_outlier_filter() {
-        let mut event = mobile_measurements_event(
-            r#"{"app_start_cold": {"value": 180001.0, "unit": "millisecond"}}"#,
-        );
+        let json = r#"{
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {"app_start_cold": {"value": 180001.0, "unit": "millisecond"}}
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
         normalize_event_measurements(&mut event, None, None);
         backfill_app_vitals_start(&mut event);
         assert_debug_snapshot!(event.measurements, @"
@@ -3126,12 +3148,19 @@ mod tests {
 
     #[test]
     fn test_normalize_mobile_measurements_does_not_overwrite_value() {
-        let mut event = mobile_measurements_event(
-            r#"{
+        let json = r#"{
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
                 "app_start_cold": {"value": 100.0, "unit": "millisecond"},
                 "app.vitals.start.value": {"value": 999.0, "unit": "millisecond"}
-            }"#,
-        );
+            }
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
         backfill_app_vitals_start(&mut event);
         assert_debug_snapshot!(event.measurements, @r#"
         Measurements(
@@ -3156,9 +3185,16 @@ mod tests {
 
     #[test]
     fn test_normalize_mobile_measurements_does_not_overwrite_type() {
-        let mut event = mobile_measurements_event(
-            r#"{"app_start_cold": {"value": 100.0, "unit": "millisecond"}}"#,
-        );
+        let json = r#"{
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {"app_start_cold": {"value": 100.0, "unit": "millisecond"}}
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
         event
             .tags
             .value_mut()
@@ -3199,8 +3235,16 @@ mod tests {
 
     #[test]
     fn test_normalize_mobile_measurements_invalid_unit_not_backfilled() {
-        let mut event =
-            mobile_measurements_event(r#"{"app_start_cold": {"value": 1.5, "unit": "second"}}"#);
+        let json = r#"{
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {"app_start_cold": {"value": 1.5, "unit": "second"}}
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
         backfill_app_vitals_start(&mut event);
         assert_debug_snapshot!(event.measurements, @r#"
         Measurements(
