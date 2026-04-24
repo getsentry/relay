@@ -7,6 +7,9 @@
 - Implement client/sdk controlled ingestion settings for v2 span containers. ([#5881](https://github.com/getsentry/relay/pull/5881))
 - Update several `gen_ai` attributes to their latest representation. ([#5798](https://github.com/getsentry/relay/pull/5798))
 
+**Bug Fixes**:
+- Add missing outcomes for the Playstation, Minidump, and Attachments endpoints. ([#5866](https://github.com/getsentry/relay/pull/5866))
+
 ## 26.4.1
 
 **Breaking Changes**:
