@@ -377,6 +377,12 @@ pub enum DiscardReason {
     /// since it resolves the project first, and then checks for the valid project key.
     MultiProjectId,
 
+    /// (Relay) A request was made to the playstation endpoint without a prosperodump file.
+    MissingProsperodumpUpload,
+
+    /// (Relay) The file submitted as prosperodump is not a valid prosperodump file.
+    InvalidProsperodump,
+
     /// (Relay) A minidump file was missing for the minidump endpoint.
     MissingMinidumpUpload,
 
@@ -509,6 +515,8 @@ impl DiscardReason {
             DiscardReason::DisallowedMethod => "disallowed_method",
             DiscardReason::ContentType => "content_type",
             DiscardReason::MultiProjectId => "multi_project_id",
+            DiscardReason::MissingProsperodumpUpload => "missing_prosperodump_upload",
+            DiscardReason::InvalidProsperodump => "invalid_prosperodump",
             DiscardReason::MissingMinidumpUpload => "missing_minidump_upload",
             DiscardReason::InvalidMinidump => "invalid_minidump",
             DiscardReason::SecurityReportType => "security_report_type",
