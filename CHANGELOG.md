@@ -12,6 +12,7 @@
 - Backfill `app.vitals.start.value` and `app.vitals.start.type` for V1 transactions from `app_start_cold` and `app_start_warm`, matching existing V2 behavior. ([#5883](https://github.com/getsentry/relay/pull/5883))
 - The PII rule for `token` is less strict to not always scrub usage in LLM contexts. ([#5886](https://github.com/getsentry/relay/pull/5886))
 - Respond with status code 413 when chunked multipart requests are too large. ([#5880](https://github.com/getsentry/relay/pull/5880))
+- Add missing outcomes for the Playstation, Minidump, and Attachments endpoints. ([#5866](https://github.com/getsentry/relay/pull/5866))
 
 ## 26.4.1
 
