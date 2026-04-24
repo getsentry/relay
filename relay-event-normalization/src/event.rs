@@ -33,7 +33,7 @@ use crate::span::tag_extraction::extract_span_tags_from_event;
 use crate::utils::{self, MAX_DURATION_MOBILE_MS, get_event_user_tag};
 use crate::{
     BorrowedSpanOpDefaults, BreakdownsConfig, CombinedMeasurementsConfig, GeoIpLookup, MaxChars,
-    ModelCosts, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule,
+    ModelMetadata, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule,
     TransactionNameConfig, breakdowns, event_error, legacy, mechanism, remove_other, schema, span,
     stacktrace, transactions, trimming, user_agent,
 };
@@ -120,9 +120,6 @@ pub struct NormalizationConfig<'a> {
     /// When enabled, adds errors in the meta to the event's errors.
     pub emit_event_errors: bool,
 
-    /// When `true`, infers the device class from CPU and model.
-    pub device_class_synthesis_config: bool,
-
     /// When `true`, extracts tags from event and spans and materializes them into `span.data`.
     pub enrich_spans: bool,
 
@@ -137,8 +134,8 @@ pub struct NormalizationConfig<'a> {
     /// Configuration for generating performance score measurements for web vitals
     pub performance_score: Option<&'a PerformanceScoreConfig>,
 
-    /// Configuration for calculating the cost of AI model runs
-    pub ai_model_costs: Option<&'a ModelCosts>,
+    /// Metadata for AI models including costs and context size.
+    pub ai_model_metadata: Option<&'a ModelMetadata>,
 
     /// An initialized GeoIP lookup.
     pub geoip_lookup: Option<&'a GeoIpLookup>,
@@ -190,13 +187,12 @@ impl Default for NormalizationConfig<'_> {
             is_renormalize: Default::default(),
             remove_other: Default::default(),
             emit_event_errors: Default::default(),
-            device_class_synthesis_config: Default::default(),
             enrich_spans: Default::default(),
             max_tag_value_length: usize::MAX,
             span_description_rules: Default::default(),
             performance_score: Default::default(),
             geoip_lookup: Default::default(),
-            ai_model_costs: Default::default(),
+            ai_model_metadata: Default::default(),
             enable_trimming: false,
             measurements: None,
             normalize_spans: true,
@@ -309,9 +305,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     normalize_event_tags(event); // Tags are added to every metric
 
     // TODO: Consider moving to store normalization
-    if config.device_class_synthesis_config {
-        normalize_device_class(event);
-    }
+    normalize_device_class(event);
     normalize_stacktraces(event);
     normalize_exceptions(event); // Browser extension filters look at the stacktrace
     normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
@@ -327,7 +321,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
             .get_or_default::<PerformanceScoreContext>()
             .score_profile_version = Annotated::new(version);
     }
-    enrich_ai_event_data(event, config.ai_model_costs);
+    enrich_ai_event_data(event, config.ai_model_metadata);
     normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
     normalize_default_attributes(event, meta, config);
     normalize_trace_context_tags(event);
@@ -344,7 +338,6 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     normalize_contexts(&mut event.contexts, event_id, config);
 
     if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
-        span::reparent_broken_spans::reparent_broken_spans(event);
         crate::normalize::normalize_app_start_spans(event);
         span::exclusive_time::compute_span_exclusive_time(event);
     }
@@ -1546,7 +1539,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::{ClientHints, MeasurementsConfig, ModelCostV2};
+    use crate::{ClientHints, MeasurementsConfig, ModelCostV2, ModelMetadataEntry};
 
     const IOS_MOBILE_EVENT: &str = r#"
         {
@@ -2312,27 +2305,33 @@ mod tests {
         normalize_event(
             &mut event,
             &NormalizationConfig {
-                ai_model_costs: Some(&ModelCosts {
-                    version: 2,
+                ai_model_metadata: Some(&ModelMetadata {
+                    version: 1,
                     models: HashMap::from([
                         (
                             Pattern::new("claude-2.1").unwrap(),
-                            ModelCostV2 {
-                                input_per_token: 0.01,
-                                output_per_token: 0.02,
-                                output_reasoning_per_token: 0.03,
-                                input_cached_per_token: 0.0,
-                                input_cache_write_per_token: 0.0,
+                            ModelMetadataEntry {
+                                costs: Some(ModelCostV2 {
+                                    input_per_token: 0.01,
+                                    output_per_token: 0.02,
+                                    output_reasoning_per_token: 0.03,
+                                    input_cached_per_token: 0.0,
+                                    input_cache_write_per_token: 0.0,
+                                }),
+                                context_size: None,
                             },
                         ),
                         (
                             Pattern::new("gpt4-21-04").unwrap(),
-                            ModelCostV2 {
-                                input_per_token: 0.02,
-                                output_per_token: 0.03,
-                                output_reasoning_per_token: 0.04,
-                                input_cached_per_token: 0.0,
-                                input_cache_write_per_token: 0.0,
+                            ModelMetadataEntry {
+                                costs: Some(ModelCostV2 {
+                                    input_per_token: 0.02,
+                                    output_per_token: 0.03,
+                                    output_reasoning_per_token: 0.04,
+                                    input_cached_per_token: 0.0,
+                                    input_cache_write_per_token: 0.0,
+                                }),
+                                context_size: None,
                             },
                         ),
                     ]),
@@ -2431,27 +2430,33 @@ mod tests {
         normalize_event(
             &mut event,
             &NormalizationConfig {
-                ai_model_costs: Some(&ModelCosts {
-                    version: 2,
+                ai_model_metadata: Some(&ModelMetadata {
+                    version: 1,
                     models: HashMap::from([
                         (
                             Pattern::new("claude-2.1").unwrap(),
-                            ModelCostV2 {
-                                input_per_token: 0.01,
-                                output_per_token: 0.02,
-                                output_reasoning_per_token: 0.03,
-                                input_cached_per_token: 0.04,
-                                input_cache_write_per_token: 0.0,
+                            ModelMetadataEntry {
+                                costs: Some(ModelCostV2 {
+                                    input_per_token: 0.01,
+                                    output_per_token: 0.02,
+                                    output_reasoning_per_token: 0.03,
+                                    input_cached_per_token: 0.04,
+                                    input_cache_write_per_token: 0.0,
+                                }),
+                                context_size: None,
                             },
                         ),
                         (
                             Pattern::new("gpt4-21-04").unwrap(),
-                            ModelCostV2 {
-                                input_per_token: 0.09,
-                                output_per_token: 0.05,
-                                output_reasoning_per_token: 0.0,
-                                input_cached_per_token: 0.0,
-                                input_cache_write_per_token: 0.0,
+                            ModelMetadataEntry {
+                                costs: Some(ModelCostV2 {
+                                    input_per_token: 0.09,
+                                    output_per_token: 0.05,
+                                    output_reasoning_per_token: 0.0,
+                                    input_cached_per_token: 0.0,
+                                    input_cache_write_per_token: 0.0,
+                                }),
+                                context_size: None,
                             },
                         ),
                     ]),
@@ -2533,16 +2538,19 @@ mod tests {
         normalize_event(
             &mut event,
             &NormalizationConfig {
-                ai_model_costs: Some(&ModelCosts {
-                    version: 2,
+                ai_model_metadata: Some(&ModelMetadata {
+                    version: 1,
                     models: HashMap::from([(
                         Pattern::new("claude-2.1").unwrap(),
-                        ModelCostV2 {
-                            input_per_token: 0.01,
-                            output_per_token: 0.02,
-                            output_reasoning_per_token: 0.03,
-                            input_cached_per_token: 0.0,
-                            input_cache_write_per_token: 0.0,
+                        ModelMetadataEntry {
+                            costs: Some(ModelCostV2 {
+                                input_per_token: 0.01,
+                                output_per_token: 0.02,
+                                output_reasoning_per_token: 0.03,
+                                input_cached_per_token: 0.0,
+                                input_cache_write_per_token: 0.0,
+                            }),
+                            context_size: None,
                         },
                     )]),
                 }),
@@ -2605,27 +2613,33 @@ mod tests {
         normalize_event(
             &mut event,
             &NormalizationConfig {
-                ai_model_costs: Some(&ModelCosts {
-                    version: 2,
+                ai_model_metadata: Some(&ModelMetadata {
+                    version: 1,
                     models: HashMap::from([
                         (
                             Pattern::new("claude-2.1").unwrap(),
-                            ModelCostV2 {
-                                input_per_token: 0.01,
-                                output_per_token: 0.02,
-                                output_reasoning_per_token: 0.0,
-                                input_cached_per_token: 0.04,
-                                input_cache_write_per_token: 0.0,
+                            ModelMetadataEntry {
+                                costs: Some(ModelCostV2 {
+                                    input_per_token: 0.01,
+                                    output_per_token: 0.02,
+                                    output_reasoning_per_token: 0.0,
+                                    input_cached_per_token: 0.04,
+                                    input_cache_write_per_token: 0.0,
+                                }),
+                                context_size: None,
                             },
                         ),
                         (
                             Pattern::new("gpt4-21-04").unwrap(),
-                            ModelCostV2 {
-                                input_per_token: 0.09,
-                                output_per_token: 0.05,
-                                output_reasoning_per_token: 0.06,
-                                input_cached_per_token: 0.0,
-                                input_cache_write_per_token: 0.0,
+                            ModelMetadataEntry {
+                                costs: Some(ModelCostV2 {
+                                    input_per_token: 0.09,
+                                    output_per_token: 0.05,
+                                    output_reasoning_per_token: 0.06,
+                                    input_cached_per_token: 0.0,
+                                    input_cache_write_per_token: 0.0,
+                                }),
+                                context_size: None,
                             },
                         ),
                     ]),
@@ -2692,8 +2706,8 @@ mod tests {
         normalize_event(
             &mut event,
             &NormalizationConfig {
-                ai_model_costs: Some(&ModelCosts {
-                    version: 2,
+                ai_model_metadata: Some(&ModelMetadata {
+                    version: 1,
                     models: HashMap::new(),
                 }),
                 ..NormalizationConfig::default()
@@ -2736,8 +2750,8 @@ mod tests {
         normalize_event(
             &mut event,
             &NormalizationConfig {
-                ai_model_costs: Some(&ModelCosts {
-                    version: 2,
+                ai_model_metadata: Some(&ModelMetadata {
+                    version: 1,
                     models: HashMap::new(),
                 }),
                 ..NormalizationConfig::default()

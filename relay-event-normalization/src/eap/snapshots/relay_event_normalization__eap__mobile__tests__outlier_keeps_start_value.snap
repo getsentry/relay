@@ -1,0 +1,10 @@
+---
+source: relay-event-normalization/src/eap/mobile.rs
+expression: attributes
+---
+{
+  "app.vitals.start.value": {
+    "type": "double",
+    "value": 5000.0
+  }
+}

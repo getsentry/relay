@@ -343,17 +343,6 @@ pub enum RelayDistributions {
     ///  - `route`: The matched route pattern.
     ///  - `status_code`: The HTTP response status code.
     ContentLength,
-    /// Size of individual standalone attachments in bytes.
-    ///
-    /// This metric is tagged with:
-    /// - `sdk`: The name of the Sentry SDK sending the attachments.
-    /// - `attachment_type`: The attachment type, if any.
-    StandaloneAttachmentSize,
-    /// Number of standalone attachments per envelope.
-    ///
-    /// This metric is tagged with:
-    ///  - `sdk`: The name of the Sentry SDK sending the attachment.
-    StandaloneAttachmentCount,
 }
 
 impl DistributionMetric for RelayDistributions {
@@ -384,8 +373,6 @@ impl DistributionMetric for RelayDistributions {
             Self::PartitionSplits => "partition_splits",
             Self::TraceItemCanonicalSize => "trace_item.canonical_size",
             Self::ContentLength => "requests.content_length",
-            Self::StandaloneAttachmentSize => "processing.standalone_attachment_size",
-            Self::StandaloneAttachmentCount => "processing.standalone_attachment_count",
         }
     }
 }
@@ -622,6 +609,9 @@ pub enum RelayTimers {
     /// trusted relays and for register challenges.
     SignatureCreationDuration,
     /// Time needed to upload an attachment to objectstore.
+    ///
+    /// This metric measures the duration of a download attempt.
+    /// Every retry contributes to the metric individually.
     ///
     /// Tagged by:
     /// - `type`: "envelope" or "attachment_v2".
@@ -993,6 +983,8 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     /// - `expansion`: What expansion was used to expand the error (e.g. unreal).
     ErrorProcessed,
+    /// The number of times the new unreal expansion logic in the endpoint is hit.
+    UnrealEndpointExpansion,
 }
 
 impl CounterMetric for RelayCounters {
@@ -1052,6 +1044,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EnvelopeWithLogs => "logs.envelope",
             RelayCounters::ProfileChunksWithoutPlatform => "profile_chunk.no_platform",
             RelayCounters::ErrorProcessed => "event.error.processed",
+            RelayCounters::UnrealEndpointExpansion => "unreal.endpoint_expansion",
         }
     }
 }

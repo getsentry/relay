@@ -1,13 +1,14 @@
 use std::future::Future;
 use std::io;
-use std::task::Poll;
 
 use axum::extract::Request;
-use bytes::{Bytes, BytesMut};
-use futures::{StreamExt, TryStreamExt};
-use multer::{Constraints, Field, Multipart, SizeLimit};
+use bytes::Bytes;
+use futures::TryStreamExt;
+use multer::{Field, Multipart};
 use relay_config::Config;
 use serde::{Deserialize, Serialize};
+use tokio::io::AsyncReadExt;
+use tokio_util::io::StreamReader;
 
 use crate::endpoints::common::BadStoreRequest;
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
@@ -185,23 +186,34 @@ pub async fn read_attachment_bytes_into_item(
     ignore_size_exceeded: bool,
 ) -> Result<Option<Item>, multer::Error> {
     let content_type = field.content_type().cloned();
-    let field = LimitedField::new(field, config.max_attachment_size());
-    match field.bytes().await {
-        Ok(bytes) => {
-            if let Some(content_type) = content_type {
-                let ct = content_type
-                    .as_ref()
-                    .parse()
-                    .unwrap_or(ContentType::OctetStream);
-                item.set_payload(ct, bytes);
-            } else {
-                item.set_payload_without_content_type(bytes);
-            }
-            Ok(Some(item))
-        }
-        Err(multer::Error::FieldSizeExceeded { .. }) if ignore_size_exceeded => Ok(None),
-        Err(err) => Err(err),
+    let field_name = field.name().map(String::from);
+    let limit = config.max_attachment_size();
+    let mut buf = Vec::new();
+    StreamReader::new(field.map_err(io::Error::other))
+        .take((limit + 1) as u64) // Extra byte needed to determine if limit was exceeded.
+        .read_to_end(&mut buf)
+        .await
+        .map_err(|e| multer::Error::StreamReadFailed(Box::new(e)))?;
+    if buf.len() > limit {
+        return match ignore_size_exceeded {
+            true => Ok(None),
+            false => Err(multer::Error::FieldSizeExceeded {
+                limit: limit as u64,
+                field_name,
+            }),
+        };
     }
+    let bytes = Bytes::from(buf);
+    if let Some(content_type) = content_type {
+        let ct = content_type
+            .as_ref()
+            .parse()
+            .unwrap_or(ContentType::OctetStream);
+        item.set_payload(ct, bytes);
+    } else {
+        item.set_payload_without_content_type(bytes);
+    }
+    Ok(Some(item))
 }
 
 pub async fn multipart_items(
@@ -254,80 +266,7 @@ pub async fn multipart_items(
     Ok(items)
 }
 
-/// Wrapper around `multer::Field` which consumes the entire underlying stream even when the
-/// size limit is exceeded.
-///
-/// The idea being that you can process fields in a multi-part form even if one fields is too large.
-struct LimitedField<'a> {
-    field: Field<'a>,
-    consumed_size: usize,
-    size_limit: usize,
-    inner_finished: bool,
-}
-
-impl<'a> LimitedField<'a> {
-    fn new(field: Field<'a>, limit: usize) -> Self {
-        LimitedField {
-            field,
-            consumed_size: 0,
-            size_limit: limit,
-            inner_finished: false,
-        }
-    }
-
-    async fn bytes(self) -> Result<Bytes, multer::Error> {
-        self.try_fold(BytesMut::new(), |mut acc, x| async move {
-            acc.extend_from_slice(&x);
-            Ok(acc)
-        })
-        .await
-        .map(|x| x.freeze())
-    }
-}
-
-impl futures::Stream for LimitedField<'_> {
-    type Item = Result<Bytes, multer::Error>;
-
-    fn poll_next(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
-        if self.inner_finished {
-            return Poll::Ready(None);
-        }
-
-        match self.field.poll_next_unpin(cx) {
-            err @ Poll::Ready(Some(Err(_))) => err,
-            Poll::Ready(Some(Ok(t))) => {
-                self.consumed_size += t.len();
-                match self.consumed_size <= self.size_limit {
-                    true => Poll::Ready(Some(Ok(t))),
-                    false => {
-                        cx.waker().wake_by_ref();
-                        Poll::Pending
-                    }
-                }
-            }
-            Poll::Ready(None) if self.consumed_size > self.size_limit => {
-                self.inner_finished = true;
-                Poll::Ready(Some(Err(multer::Error::FieldSizeExceeded {
-                    limit: self.consumed_size as u64,
-                    field_name: self.field.name().map(Into::into),
-                })))
-            }
-            Poll::Ready(None) => {
-                self.inner_finished = true;
-                Poll::Ready(None)
-            }
-            Poll::Pending => Poll::Pending,
-        }
-    }
-}
-
-pub fn multipart_from_request(
-    request: Request,
-    stream_size_limit: usize,
-) -> Result<Multipart<'static>, BadStoreRequest> {
+pub fn multipart_from_request(request: Request) -> Result<Multipart<'static>, BadStoreRequest> {
     let content_type = request
         .headers()
         .get("content-type")
@@ -335,14 +274,9 @@ pub fn multipart_from_request(
         .unwrap_or("");
     let boundary =
         multer::parse_boundary(content_type).map_err(BadStoreRequest::InvalidMultipart)?;
-
-    // Limits the overall stream size, preventing overly long processing times which can cause
-    // incidents like the one described in [#4836](https://github.com/getsentry/relay/pull/4836).
-    let stream_size_limit = SizeLimit::new().whole_stream(stream_size_limit as u64);
-    Ok(Multipart::with_constraints(
+    Ok(Multipart::new(
         request.into_body().into_data_stream(),
         boundary,
-        Constraints::new().size_limit(stream_size_limit),
     ))
 }
 

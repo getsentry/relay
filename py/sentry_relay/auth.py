@@ -13,7 +13,6 @@ from sentry_relay.utils import (
 )
 from sentry_relay.exceptions import UnpackErrorBadSignature
 
-
 __all__ = [
     "PublicKey",
     "SecretKey",

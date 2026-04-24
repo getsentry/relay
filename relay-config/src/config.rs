@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::io::Write;
 use std::net::{IpAddr, SocketAddr};
-use std::num::NonZeroU8;
+use std::num::{NonZeroU8, NonZeroU16};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::Duration;
@@ -486,12 +486,21 @@ pub enum ReadinessCondition {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 pub struct Relay {
-    /// The operation mode of this relay.
+    /// The operation mode of this Relay.
     pub mode: RelayMode,
-    /// The instance type of this relay.
+    /// The instance type of this Relay.
     pub instance: RelayInstance,
-    /// The upstream relay or sentry instance.
-    pub upstream: UpstreamDescriptor<'static>,
+    /// The upstream Relay or Sentry instance.
+    pub upstream: UpstreamDescriptor,
+    /// The upstream advertised to downstream Relay instances.
+    ///
+    /// This value will be advertised to downstream Relays as the upstream to use when forwarding
+    /// data. It can be used for traffic routing and balancing, it must not redirect to a different
+    /// Sentry instance.
+    ///
+    /// Downstream Relays will treat the advertised upstream as the same logical component as this instance
+    /// and re-use already established authentication keys.
+    pub advertised_upstream: Option<UpstreamDescriptor>,
     /// The host the relay should bind to (network interface).
     pub host: IpAddr,
     /// The port to bind for the unencrypted relay HTTP server.
@@ -537,6 +546,7 @@ impl Default for Relay {
             mode: RelayMode::Managed,
             instance: RelayInstance::Default,
             upstream: "https://sentry.io/".parse().unwrap(),
+            advertised_upstream: None,
             host: default_host(),
             port: 3000,
             internal_host: None,
@@ -947,6 +957,24 @@ fn spool_envelopes_partitions() -> NonZeroU8 {
     NonZeroU8::new(1).unwrap()
 }
 
+/// Strategy used to assign envelopes to buffer partitions.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EnvelopeSpoolPartitioning {
+    /// Envelopes with the same project key pair land on the same partition (default).
+    ///
+    /// Keeps per-project state, disk files, and event ordering co-located on one partition.
+    #[default]
+    ProjectKeyPair,
+    /// Envelopes are distributed across partitions in a round-robin fashion.
+    ///
+    /// This prevents "hot" partitions when a single project pair dominates traffic, but has
+    /// trade-offs:
+    /// - Per-project LIFO ordering is no longer preserved across partitions.
+    /// - Per-partition memory footprint grows since every partition sees every project.
+    RoundRobin,
+}
+
 /// Persistent buffering configuration for incoming envelopes.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EnvelopeSpool {
@@ -1024,6 +1052,13 @@ pub struct EnvelopeSpool {
     /// Defaults to 1.
     #[serde(default = "spool_envelopes_partitions")]
     pub partitions: NonZeroU8,
+    /// Strategy used to assign envelopes to buffer partitions.
+    ///
+    /// Defaults to partitioning by `ProjectKeyPair`, which keeps all envelopes of a given project
+    /// pair on the same partition. See [`EnvelopeSpoolPartitioning`] for alternatives and
+    /// trade-offs.
+    #[serde(default)]
+    pub partitioning: EnvelopeSpoolPartitioning,
     /// Whether the database defined in `path` is on an ephemeral storage disk.
     ///
     /// With `ephemeral: true`, Relay does not spool in-flight data to disk
@@ -1044,6 +1079,7 @@ impl Default for EnvelopeSpool {
             disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
             max_backpressure_memory_percent: spool_max_backpressure_memory_percent(),
             partitions: spool_envelopes_partitions(),
+            partitioning: EnvelopeSpoolPartitioning::default(),
             ephemeral: false,
         }
     }
@@ -1334,6 +1370,12 @@ pub struct ObjectstoreServiceConfig {
     /// might take longer and are restricted independently by [`Upload::timeout`].
     pub timeout: u64,
 
+    /// Time between upload attempts.
+    pub retry_delay: f64,
+
+    /// Maximum number of attempts made to upload.
+    pub max_attempts: NonZeroU16,
+
     /// Configuration values for objectstore's auth scheme.
     pub auth: Option<ObjectstoreAuthConfig>,
 }
@@ -1345,6 +1387,8 @@ impl Default for ObjectstoreServiceConfig {
             max_concurrent_requests: 10,
             max_backlog: 20,
             timeout: 60,
+            retry_delay: 1.0,
+            max_attempts: NonZeroU16::new(5).unwrap(),
             auth: None,
         }
     }
@@ -1836,7 +1880,7 @@ impl Config {
         } else if let Some(upstream_dsn) = overrides.upstream_dsn {
             relay.upstream = upstream_dsn
                 .parse::<Dsn>()
-                .map(|dsn| UpstreamDescriptor::from_dsn(&dsn).into_owned())
+                .map(|dsn| UpstreamDescriptor::from_dsn(&dsn))
                 .with_context(|| ConfigError::field("upstream_dsn"))?;
         }
 
@@ -2048,8 +2092,13 @@ impl Config {
     }
 
     /// Returns the upstream target as descriptor.
-    pub fn upstream_descriptor(&self) -> &UpstreamDescriptor<'_> {
+    pub fn upstream(&self) -> &UpstreamDescriptor {
         &self.values.relay.upstream
+    }
+
+    /// Returns the advertised upstream for downstream instances as descriptor.
+    pub fn advertised_upstream(&self) -> Option<&UpstreamDescriptor> {
+        self.values.relay.advertised_upstream.as_ref()
     }
 
     /// Returns the custom HTTP "Host" header.
@@ -2382,6 +2431,11 @@ impl Config {
     /// Returns the number of partitions for the buffer.
     pub fn spool_partitions(&self) -> NonZeroU8 {
         self.values.spool.envelopes.partitions
+    }
+
+    /// Returns the strategy used to assign envelopes to buffer partitions.
+    pub fn spool_partitioning(&self) -> EnvelopeSpoolPartitioning {
+        self.values.spool.envelopes.partitioning
     }
 
     /// Returns `true` if the data is stored on ephemeral disks.

@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 pub const GRADUATED_FEATURE_FLAGS: &[Feature] = &[
     Feature::UserReportV2Ingest,
     Feature::IngestUnsampledProfiles,
-    Feature::ScrubMongoDbDescriptions,
     Feature::DeprecatedExtractSpansFromEvent,
     Feature::DeprecatedStandaloneSpanIngestion,
 ];
@@ -30,13 +29,6 @@ pub enum Feature {
     /// Serialized as `organizations:session-replay-video-disabled`.
     #[serde(rename = "organizations:session-replay-video-disabled")]
     SessionReplayVideoDisabled,
-    /// Enables device.class synthesis
-    ///
-    /// Enables device.class tag synthesis on mobile events.
-    ///
-    /// Serialized as `organizations:device-class-synthesis`.
-    #[serde(rename = "organizations:device-class-synthesis")]
-    DeviceClassSynthesis,
     /// Allow ingestion of metrics in the "custom" namespace.
     ///
     /// Serialized as `organizations:custom-metrics`.
@@ -90,10 +82,6 @@ pub enum Feature {
     #[doc(hidden)]
     #[serde(rename = "organizations:user-feedback-ingest")]
     UserReportV2Ingest,
-    /// This feature has graduated and is hard-coded for external Relays.
-    #[doc(hidden)]
-    #[serde(rename = "organizations:performance-queries-mongodb-extraction")]
-    ScrubMongoDbDescriptions,
     #[doc(hidden)]
     #[serde(rename = "organizations:view-hierarchy-scrubbing")]
     ViewHierarchyScrubbing,
@@ -118,6 +106,10 @@ pub enum Feature {
     /// Add a random trace ID to events that lack one.
     #[serde(rename = "organizations:relay-default-trace-id")]
     AddDefaultTraceID,
+    /// Enable experimental expansion of the unreal report in the endpoint rather than in the
+    /// processor. Only enable for organizations with sufficient attachment quota.
+    #[serde(rename = "organizations:relay-unreal-endpoint-expansion")]
+    UnrealEndpointExpansion,
 
     /// Enables OTLP spans to use the Span V2 processing pipeline in Relay.
     ///

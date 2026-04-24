@@ -121,7 +121,7 @@ impl PartialDsn {
     }
 
     /// Creates a new [`PartialDsn`] for a Relay outbound request.
-    pub fn outbound(scoping: &Scoping, upstream: &UpstreamDescriptor<'_>) -> Self {
+    pub fn outbound(scoping: &Scoping, upstream: &UpstreamDescriptor) -> Self {
         Self {
             scheme: upstream.scheme(),
             public_key: scoping.project_key,
@@ -721,7 +721,7 @@ impl FromRequestParts<ServiceState> for RequestMeta {
         let (public_key, key_flags) = ProjectKey::parse_with_flags(auth.public_key())?;
 
         let config = state.config();
-        let upstream = config.upstream_descriptor();
+        let upstream = config.upstream();
 
         let dsn = PartialDsn {
             scheme: upstream.scheme(),
