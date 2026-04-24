@@ -1,16 +1,20 @@
 use crate::Envelope;
 use crate::managed::{Managed, Rejected};
 use crate::processing::ForwardContext;
+use crate::processing::attachments::AttachmentProcessor;
 use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::errors::ErrorsProcessor;
+use crate::processing::legacy_spans::LegacySpansProcessor;
 use crate::processing::logs::LogsProcessor;
 use crate::processing::profile_chunks::ProfileChunksProcessor;
+use crate::processing::profiles::ProfilesProcessor;
 use crate::processing::replays::ReplaysProcessor;
 use crate::processing::sessions::SessionsProcessor;
 use crate::processing::spans::SpansProcessor;
 use crate::processing::trace_attachments::TraceAttachmentsProcessor;
 use crate::processing::trace_metrics::TraceMetricsProcessor;
 use crate::processing::transactions::TransactionProcessor;
+use crate::processing::user_reports::UserReportsProcessor;
 use crate::processing::{Forward, Processor};
 
 macro_rules! outputs {
@@ -65,7 +69,11 @@ outputs!(
     Sessions => SessionsProcessor,
     Transactions => TransactionProcessor,
     Spans => SpansProcessor,
+    LegacySpans => LegacySpansProcessor,
     TraceAttachments => TraceAttachmentsProcessor,
     TraceMetrics => TraceMetricsProcessor,
     Replays => ReplaysProcessor,
+    Attachments => AttachmentProcessor,
+    UserReports => UserReportsProcessor,
+    Profiles => ProfilesProcessor,
 );

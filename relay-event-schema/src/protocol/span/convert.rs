@@ -40,6 +40,13 @@ impl From<&Event> for Span {
             span_data.sdk_name = client_sdk.name.clone();
             span_data.sdk_version = client_sdk.version.clone();
         }
+        if let Some(request) = event.request.value()
+            && let Some(query) = request.query_string.value()
+            && let Some(qs) = query.to_query_string()
+        {
+            span_data.http_query = format!("?{qs}").into();
+            span_data.url_query = qs.into();
+        }
 
         Self {
             timestamp: timestamp.clone(),
@@ -121,6 +128,11 @@ mod tests {
                         ]
                     }
                 },
+                "request": {
+                    "url": "http://example.com/api/0/organizations/",
+                    "method": "GET",
+                    "query_string": "project=1&sort=date"
+                },
                 "measurements": {
                     "memory": {
                         "value": 9001.0,
@@ -168,33 +180,35 @@ mod tests {
                 gen_ai_usage_output_tokens_prediction_rejected: ~,
                 gen_ai_response_model: ~,
                 gen_ai_request_model: ~,
+                gen_ai_context_window_size: ~,
+                gen_ai_context_utilization: ~,
                 gen_ai_cost_total_tokens: ~,
                 gen_ai_cost_input_tokens: ~,
                 gen_ai_cost_output_tokens: ~,
-                gen_ai_prompt: ~,
-                gen_ai_request_messages: ~,
-                gen_ai_tool_input: ~,
-                gen_ai_tool_output: ~,
-                gen_ai_response_tool_calls: ~,
-                gen_ai_response_text: ~,
+                gen_ai_input_messages: ~,
+                gen_ai_tool_call_arguments: ~,
+                gen_ai_tool_call_result: ~,
+                gen_ai_output_messages: ~,
                 gen_ai_response_object: ~,
                 gen_ai_response_streaming: ~,
                 gen_ai_response_tokens_per_second: ~,
                 gen_ai_response_time_to_first_token: ~,
-                gen_ai_request_available_tools: ~,
+                gen_ai_tool_definitions: ~,
                 gen_ai_request_frequency_penalty: ~,
                 gen_ai_request_presence_penalty: ~,
                 gen_ai_request_seed: ~,
                 gen_ai_request_temperature: ~,
                 gen_ai_request_top_k: ~,
                 gen_ai_request_top_p: ~,
-                gen_ai_response_finish_reason: ~,
+                gen_ai_response_finish_reasons: ~,
                 gen_ai_response_id: ~,
-                gen_ai_system: ~,
+                gen_ai_provider_name: ~,
                 gen_ai_system_instructions: ~,
                 gen_ai_tool_name: ~,
                 gen_ai_operation_name: ~,
                 gen_ai_operation_type: ~,
+                gen_ai_agent_name: ~,
+                gen_ai_function_id: ~,
                 mcp_prompt_result: ~,
                 mcp_tool_result_content: ~,
                 browser_name: "Chrome",
@@ -253,6 +267,8 @@ mod tests {
                 messaging_operation_type: ~,
                 user_agent_original: ~,
                 url_full: ~,
+                url_query: "project=1&sort=date",
+                http_query: "?project=1&sort=date",
                 client_address: ~,
                 route: ~,
                 previous_route: ~,

@@ -50,7 +50,6 @@ def test_standalone_attachment_forwarding(mini_sentry, relay, owned_by):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
         "projects:trace-attachment-processing",
@@ -109,14 +108,11 @@ def test_standalone_attachment_store(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
         "projects:trace-attachment-processing",
     ]
-    relay = relay_with_processing(
-        {"processing": {"upload": {"objectstore_url": "http://127.0.0.1:8888/"}}}
-    )
+    relay = relay_with_processing()
 
     attachment_metadata = create_attachment_metadata()
     attachment_body = b"This is some mock attachment content"
@@ -220,7 +216,6 @@ def test_invalid_item_headers(mini_sentry, relay, invalid_headers, quantity, rea
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
     ]
@@ -277,7 +272,6 @@ def test_attachment_with_matching_span(mini_sentry, relay):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
     ]
@@ -358,13 +352,10 @@ def test_attachment_with_matching_span_store(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
     ]
-    relay = relay_with_processing(
-        {"processing": {"upload": {"objectstore_url": "http://127.0.0.1:8888/"}}}
-    )
+    relay = relay_with_processing()
 
     ts = datetime.now(timezone.utc)
     span_id = "eee19b7ec3c1b174"
@@ -467,7 +458,6 @@ def test_two_attachments_mapping_to_same_span(mini_sentry, relay):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
     ]
@@ -564,7 +554,6 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
     ]
@@ -762,7 +751,6 @@ def test_standalone_attachment_only_ds_drop(mini_sentry, relay, rule_type):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
     ]
@@ -830,7 +818,6 @@ def test_attachments_dropped_with_span_inbound_filters(mini_sentry, relay):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
     ]
@@ -934,7 +921,6 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
     ]
@@ -1115,7 +1101,6 @@ def test_span_attachment_independent_rate_limiting(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
         "projects:trace-attachment-processing",
@@ -1227,7 +1212,6 @@ def test_attachment_default_pii_scrubbing_meta(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
         "projects:trace-attachment-processing",
@@ -1341,7 +1325,6 @@ def test_attachment_pii_scrubbing_meta_attribute(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
     ]
@@ -1429,7 +1412,6 @@ def test_attachment_pii_scrubbing_body(mini_sentry, relay):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
     ]

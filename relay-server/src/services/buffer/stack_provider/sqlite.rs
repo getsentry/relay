@@ -19,6 +19,7 @@ pub struct SqliteStackProvider {
     batch_size_bytes: usize,
     max_disk_size: usize,
     partition_id: u8,
+    ephemeral: bool,
 }
 
 #[warn(dead_code)]
@@ -31,7 +32,13 @@ impl SqliteStackProvider {
             batch_size_bytes: config.spool_envelopes_batch_size_bytes(),
             max_disk_size: config.spool_envelopes_max_disk_size(),
             partition_id,
+            ephemeral: config.spool_ephemeral(),
         })
+    }
+
+    /// Returns `true` if data is stored on non-persistent disks.
+    pub fn ephemeral(&self) -> bool {
+        self.ephemeral
     }
 
     /// Returns `true` when there might be data residing on disk, `false` otherwise.

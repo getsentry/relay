@@ -1,6 +1,6 @@
-use std::borrow::Cow;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::str::FromStr;
+use std::sync::Arc;
 use std::{fmt, io};
 
 use relay_common::{Dsn, Scheme};
@@ -38,17 +38,20 @@ pub enum UpstreamParseError {
 /// The upstream target is a type that holds all the information
 /// to uniquely identify an upstream target.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
-pub struct UpstreamDescriptor<'a> {
-    host: Cow<'a, str>,
+pub struct UpstreamDescriptor {
+    host: Arc<str>,
     port: u16,
     scheme: Scheme,
 }
 
-impl<'a> UpstreamDescriptor<'a> {
+impl UpstreamDescriptor {
     /// Manually constructs an upstream descriptor.
-    pub fn new(host: &'a str, port: u16, scheme: Scheme) -> UpstreamDescriptor<'a> {
+    pub fn new<T>(host: T, port: u16, scheme: Scheme) -> Self
+    where
+        T: Into<Arc<str>>,
+    {
         UpstreamDescriptor {
-            host: Cow::Borrowed(host),
+            host: host.into(),
             port,
             scheme,
         }
@@ -56,12 +59,8 @@ impl<'a> UpstreamDescriptor<'a> {
 
     /// Given a DSN this returns an upstream descriptor that
     /// describes it.
-    pub fn from_dsn(dsn: &'a Dsn) -> UpstreamDescriptor<'a> {
-        UpstreamDescriptor {
-            host: Cow::Borrowed(dsn.host()),
-            port: dsn.port(),
-            scheme: dsn.scheme(),
-        }
+    pub fn from_dsn(dsn: &Dsn) -> Self {
+        Self::new(dsn.host(), dsn.port(), dsn.scheme())
     }
 
     /// Returns the host as a string.
@@ -98,28 +97,15 @@ impl<'a> UpstreamDescriptor<'a> {
     pub fn scheme(&self) -> Scheme {
         self.scheme
     }
+}
 
-    /// Returns a version of the upstream descriptor that is static.
-    pub fn into_owned(self) -> UpstreamDescriptor<'static> {
-        UpstreamDescriptor {
-            host: Cow::Owned(self.host.into_owned()),
-            port: self.port,
-            scheme: self.scheme,
-        }
+impl Default for UpstreamDescriptor {
+    fn default() -> Self {
+        Self::new("sentry.io", 443, Scheme::Https)
     }
 }
 
-impl Default for UpstreamDescriptor<'static> {
-    fn default() -> UpstreamDescriptor<'static> {
-        UpstreamDescriptor {
-            host: Cow::Borrowed("sentry.io"),
-            port: 443,
-            scheme: Scheme::Https,
-        }
-    }
-}
-
-impl fmt::Display for UpstreamDescriptor<'_> {
+impl fmt::Display for UpstreamDescriptor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}://{}", &self.scheme, &self.host)?;
         if self.port() != self.scheme.default_port() {
@@ -129,10 +115,10 @@ impl fmt::Display for UpstreamDescriptor<'_> {
     }
 }
 
-impl FromStr for UpstreamDescriptor<'static> {
+impl FromStr for UpstreamDescriptor {
     type Err = UpstreamParseError;
 
-    fn from_str(s: &str) -> Result<UpstreamDescriptor<'static>, UpstreamParseError> {
+    fn from_str(s: &str) -> Result<Self, UpstreamParseError> {
         let url = Url::parse(s).map_err(|_| UpstreamParseError::BadUrl)?;
         if url.path() != "/" || !(url.query().is_none() || url.query() == Some("")) {
             return Err(UpstreamParseError::NonOriginUrl);
@@ -146,7 +132,7 @@ impl FromStr for UpstreamDescriptor<'static> {
 
         Ok(UpstreamDescriptor {
             host: match url.host_str() {
-                Some(host) => Cow::Owned(host.to_owned()),
+                Some(host) => host.into(),
                 None => return Err(UpstreamParseError::NoHost),
             },
             port: url.port().unwrap_or_else(|| scheme.default_port()),
@@ -155,7 +141,7 @@ impl FromStr for UpstreamDescriptor<'static> {
     }
 }
 
-relay_common::impl_str_serde!(UpstreamDescriptor<'static>, "a sentry upstream URL");
+relay_common::impl_str_serde!(UpstreamDescriptor, "a sentry upstream URL");
 
 #[cfg(test)]
 mod tests {
@@ -163,7 +149,7 @@ mod tests {
 
     #[test]
     fn test_basic_parsing() {
-        let desc: UpstreamDescriptor<'_> = "https://sentry.io/".parse().unwrap();
+        let desc: UpstreamDescriptor = "https://sentry.io/".parse().unwrap();
         assert_eq!(desc.host(), "sentry.io");
         assert_eq!(desc.port(), 443);
         assert_eq!(desc.scheme(), Scheme::Https);

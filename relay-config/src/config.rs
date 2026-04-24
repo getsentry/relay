@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::io::Write;
 use std::net::{IpAddr, SocketAddr};
-use std::num::NonZeroU8;
+use std::num::{NonZeroU8, NonZeroU16};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::Duration;
@@ -486,12 +486,21 @@ pub enum ReadinessCondition {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 pub struct Relay {
-    /// The operation mode of this relay.
+    /// The operation mode of this Relay.
     pub mode: RelayMode,
-    /// The instance type of this relay.
+    /// The instance type of this Relay.
     pub instance: RelayInstance,
-    /// The upstream relay or sentry instance.
-    pub upstream: UpstreamDescriptor<'static>,
+    /// The upstream Relay or Sentry instance.
+    pub upstream: UpstreamDescriptor,
+    /// The upstream advertised to downstream Relay instances.
+    ///
+    /// This value will be advertised to downstream Relays as the upstream to use when forwarding
+    /// data. It can be used for traffic routing and balancing, it must not redirect to a different
+    /// Sentry instance.
+    ///
+    /// Downstream Relays will treat the advertised upstream as the same logical component as this instance
+    /// and re-use already established authentication keys.
+    pub advertised_upstream: Option<UpstreamDescriptor>,
     /// The host the relay should bind to (network interface).
     pub host: IpAddr,
     /// The port to bind for the unencrypted relay HTTP server.
@@ -537,6 +546,7 @@ impl Default for Relay {
             mode: RelayMode::Managed,
             instance: RelayInstance::Default,
             upstream: "https://sentry.io/".parse().unwrap(),
+            advertised_upstream: None,
             host: default_host(),
             port: 3000,
             internal_host: None,
@@ -716,9 +726,9 @@ impl Default for Limits {
             max_api_file_upload_size: ByteSize::mebibytes(40),
             max_api_chunk_upload_size: ByteSize::mebibytes(100),
             max_profile_size: ByteSize::mebibytes(50),
-            max_trace_metric_size: ByteSize::kibibytes(2),
+            max_trace_metric_size: ByteSize::mebibytes(1),
             max_log_size: ByteSize::mebibytes(1),
-            max_span_size: ByteSize::mebibytes(1),
+            max_span_size: ByteSize::mebibytes(10),
             max_container_size: ByteSize::mebibytes(12),
             max_statsd_size: ByteSize::mebibytes(1),
             max_metric_buckets_size: ByteSize::mebibytes(1),
@@ -947,6 +957,24 @@ fn spool_envelopes_partitions() -> NonZeroU8 {
     NonZeroU8::new(1).unwrap()
 }
 
+/// Strategy used to assign envelopes to buffer partitions.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EnvelopeSpoolPartitioning {
+    /// Envelopes with the same project key pair land on the same partition (default).
+    ///
+    /// Keeps per-project state, disk files, and event ordering co-located on one partition.
+    #[default]
+    ProjectKeyPair,
+    /// Envelopes are distributed across partitions in a round-robin fashion.
+    ///
+    /// This prevents "hot" partitions when a single project pair dominates traffic, but has
+    /// trade-offs:
+    /// - Per-project LIFO ordering is no longer preserved across partitions.
+    /// - Per-partition memory footprint grows since every partition sees every project.
+    RoundRobin,
+}
+
 /// Persistent buffering configuration for incoming envelopes.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EnvelopeSpool {
@@ -1024,6 +1052,21 @@ pub struct EnvelopeSpool {
     /// Defaults to 1.
     #[serde(default = "spool_envelopes_partitions")]
     pub partitions: NonZeroU8,
+    /// Strategy used to assign envelopes to buffer partitions.
+    ///
+    /// Defaults to partitioning by `ProjectKeyPair`, which keeps all envelopes of a given project
+    /// pair on the same partition. See [`EnvelopeSpoolPartitioning`] for alternatives and
+    /// trade-offs.
+    #[serde(default)]
+    pub partitioning: EnvelopeSpoolPartitioning,
+    /// Whether the database defined in `path` is on an ephemeral storage disk.
+    ///
+    /// With `ephemeral: true`, Relay does not spool in-flight data to disk
+    /// during graceful shutdown. Instead, it attempts to process all data before it terminates.
+    ///
+    /// Defaults to `false`.
+    #[serde(default)]
+    pub ephemeral: bool,
 }
 
 impl Default for EnvelopeSpool {
@@ -1036,6 +1079,8 @@ impl Default for EnvelopeSpool {
             disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
             max_backpressure_memory_percent: spool_max_backpressure_memory_percent(),
             partitions: spool_envelopes_partitions(),
+            partitioning: EnvelopeSpoolPartitioning::default(),
+            ephemeral: false,
         }
     }
 }
@@ -1281,6 +1326,26 @@ impl Default for OutcomeAggregatorConfig {
     }
 }
 
+/// Configuration options for objectstore's auth scheme.
+#[derive(Serialize, Deserialize)]
+pub struct ObjectstoreAuthConfig {
+    /// Identifier for the private key used to sign objectstore's tokens. Must correspond to a
+    /// public key configured in objectstore.
+    pub key_id: String,
+
+    /// EdDSA private key used to sign Objectstore's tokens, in PEM format.
+    pub signing_key: String,
+}
+
+impl fmt::Debug for ObjectstoreAuthConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ObjectstoreAuthConfig")
+            .field("key_id", &self.key_id)
+            .field("signing_key", &"[redacted]")
+            .finish()
+    }
+}
+
 /// Configuration values for the objectstore service.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -1300,7 +1365,19 @@ pub struct ObjectstoreServiceConfig {
     pub max_backlog: usize,
 
     /// Maximum duration of an attachment upload in seconds. Uploads that take longer are discarded.
+    ///
+    /// NOTE: This timeout applies to attachments that are already in-memory. Streaming uploads
+    /// might take longer and are restricted independently by [`Upload::timeout`].
     pub timeout: u64,
+
+    /// Time between upload attempts.
+    pub retry_delay: f64,
+
+    /// Maximum number of attempts made to upload.
+    pub max_attempts: NonZeroU16,
+
+    /// Configuration values for objectstore's auth scheme.
+    pub auth: Option<ObjectstoreAuthConfig>,
 }
 
 impl Default for ObjectstoreServiceConfig {
@@ -1310,6 +1387,9 @@ impl Default for ObjectstoreServiceConfig {
             max_concurrent_requests: 10,
             max_backlog: 20,
             timeout: 60,
+            retry_delay: 1.0,
+            max_attempts: NonZeroU16::new(5).unwrap(),
+            auth: None,
         }
     }
 }
@@ -1397,8 +1477,6 @@ pub struct Outcomes {
     /// Processing relays always emit outcomes (for backwards compatibility).
     /// Can take the following values: false, "as_client_reports", true
     pub emit_outcomes: EmitOutcomes,
-    /// Controls wheather client reported outcomes should be emitted.
-    pub emit_client_outcomes: bool,
     /// The maximum number of outcomes that are batched before being sent
     /// via http to the upstream (only applies to non processing relays).
     pub batch_size: usize,
@@ -1416,7 +1494,6 @@ impl Default for Outcomes {
     fn default() -> Self {
         Outcomes {
             emit_outcomes: EmitOutcomes::AsClientReports,
-            emit_client_outcomes: true,
             batch_size: 1000,
             batch_interval: 500,
             source: None,
@@ -1643,61 +1720,67 @@ pub struct Upload {
     /// Additional uploads will be rejected.
     pub max_concurrent_requests: usize,
     /// Maximum time spent trying to upload, in seconds.
-    /// Currently only used by non-processing relays, as the objectstore service has its own timeout.
     pub timeout: u64,
+    /// The maximum time between creating the upload and uploading the data / the attachment placeholder.
+    ///
+    /// In seconds.
+    pub max_age: i64,
 }
 
 impl Default for Upload {
     fn default() -> Self {
         Self {
             max_concurrent_requests: 10,
-            timeout: 60,
+            timeout: 5 * 60,  // five minutes
+            max_age: 60 * 60, // 1h
         }
     }
 }
 
+/// All configuration values that can be deserialized from `config.yml`.
 #[derive(Serialize, Deserialize, Debug, Default)]
-struct ConfigValues {
+#[allow(missing_docs)]
+pub struct ConfigValues {
     #[serde(default)]
-    relay: Relay,
+    pub relay: Relay,
     #[serde(default)]
-    http: Http,
+    pub http: Http,
     #[serde(default)]
-    cache: Cache,
+    pub cache: Cache,
     #[serde(default)]
-    spool: Spool,
+    pub spool: Spool,
     #[serde(default)]
-    limits: Limits,
+    pub limits: Limits,
     #[serde(default)]
-    logging: relay_log::LogConfig,
+    pub logging: relay_log::LogConfig,
     #[serde(default)]
-    routing: Routing,
+    pub routing: Routing,
     #[serde(default)]
-    metrics: Metrics,
+    pub metrics: Metrics,
     #[serde(default)]
-    sentry: relay_log::SentryConfig,
+    pub sentry: relay_log::SentryConfig,
     #[serde(default)]
-    processing: Processing,
+    pub processing: Processing,
     #[serde(default)]
-    outcomes: Outcomes,
+    pub outcomes: Outcomes,
     #[serde(default)]
-    aggregator: AggregatorServiceConfig,
+    pub aggregator: AggregatorServiceConfig,
     #[serde(default)]
-    secondary_aggregators: Vec<ScopedAggregatorConfig>,
+    pub secondary_aggregators: Vec<ScopedAggregatorConfig>,
     #[serde(default)]
-    auth: AuthConfig,
+    pub auth: AuthConfig,
     #[serde(default)]
-    geoip: GeoIpConfig,
+    pub geoip: GeoIpConfig,
     #[serde(default)]
-    normalization: Normalization,
+    pub normalization: Normalization,
     #[serde(default)]
-    cardinality_limiter: CardinalityLimiter,
+    pub cardinality_limiter: CardinalityLimiter,
     #[serde(default)]
-    health: Health,
+    pub health: Health,
     #[serde(default)]
-    cogs: Cogs,
+    pub cogs: Cogs,
     #[serde(default)]
-    upload: Upload,
+    pub upload: Upload,
 }
 
 impl ConfigObject for ConfigValues {
@@ -1797,7 +1880,7 @@ impl Config {
         } else if let Some(upstream_dsn) = overrides.upstream_dsn {
             relay.upstream = upstream_dsn
                 .parse::<Dsn>()
-                .map(|dsn| UpstreamDescriptor::from_dsn(&dsn).into_owned())
+                .map(|dsn| UpstreamDescriptor::from_dsn(&dsn))
                 .with_context(|| ConfigError::field("upstream_dsn"))?;
         }
 
@@ -2009,8 +2092,13 @@ impl Config {
     }
 
     /// Returns the upstream target as descriptor.
-    pub fn upstream_descriptor(&self) -> &UpstreamDescriptor<'_> {
+    pub fn upstream(&self) -> &UpstreamDescriptor {
         &self.values.relay.upstream
+    }
+
+    /// Returns the advertised upstream for downstream instances as descriptor.
+    pub fn advertised_upstream(&self) -> Option<&UpstreamDescriptor> {
+        self.values.relay.advertised_upstream.as_ref()
     }
 
     /// Returns the custom HTTP "Host" header.
@@ -2136,19 +2224,6 @@ impl Config {
             return EmitOutcomes::AsOutcomes;
         }
         self.values.outcomes.emit_outcomes
-    }
-
-    /// Returns whether this Relay should emit client outcomes
-    ///
-    /// Relays that do not emit client outcomes will forward client recieved outcomes
-    /// directly to the next relay in the chain as client report envelope.  This is only done
-    /// if this relay emits outcomes at all. A relay that will not emit outcomes
-    /// will forward the envelope unchanged.
-    ///
-    /// This flag can be explicitly disabled on processing relays as well to prevent the
-    /// emitting of client outcomes to the kafka topic.
-    pub fn emit_client_outcomes(&self) -> bool {
-        self.values.outcomes.emit_client_outcomes
     }
 
     /// Returns the maximum number of outcomes that are batched before being sent
@@ -2356,6 +2431,16 @@ impl Config {
     /// Returns the number of partitions for the buffer.
     pub fn spool_partitions(&self) -> NonZeroU8 {
         self.values.spool.envelopes.partitions
+    }
+
+    /// Returns the strategy used to assign envelopes to buffer partitions.
+    pub fn spool_partitioning(&self) -> EnvelopeSpoolPartitioning {
+        self.values.spool.envelopes.partitioning
+    }
+
+    /// Returns `true` if the data is stored on ephemeral disks.
+    pub fn spool_ephemeral(&self) -> bool {
+        self.values.spool.envelopes.ephemeral
     }
 
     /// Returns the maximum size of an event payload in bytes.

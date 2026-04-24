@@ -108,10 +108,10 @@ impl Error for ParseMetricError {}
 pub enum MetricNamespace {
     /// Metrics extracted from sessions.
     Sessions,
-    /// Metrics extracted from transaction events.
-    Transactions,
     /// Metrics extracted from spans.
     Spans,
+    /// Metrics extracted from transactions.
+    Transactions,
     /// User-defined metrics directly sent by SDKs and applications.
     Custom,
     /// An unknown and unsupported metric.
@@ -131,8 +131,8 @@ impl MetricNamespace {
     pub fn all() -> [Self; 5] {
         [
             Self::Sessions,
-            Self::Transactions,
             Self::Spans,
+            Self::Transactions,
             Self::Custom,
             Self::Unsupported,
         ]
@@ -142,8 +142,8 @@ impl MetricNamespace {
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Sessions => "sessions",
-            Self::Transactions => "transactions",
             Self::Spans => "spans",
+            Self::Transactions => "transactions",
             Self::Custom => "custom",
             Self::Unsupported => "unsupported",
         }
@@ -156,8 +156,8 @@ impl std::str::FromStr for MetricNamespace {
     fn from_str(ns: &str) -> Result<Self, Self::Err> {
         match ns {
             "sessions" => Ok(Self::Sessions),
-            "transactions" => Ok(Self::Transactions),
             "spans" => Ok(Self::Spans),
+            "transactions" => Ok(Self::Transactions),
             "custom" => Ok(Self::Custom),
             _ => Ok(Self::Unsupported),
         }

@@ -6,13 +6,14 @@ use bytes::Bytes;
 use bzip2::read::BzDecoder;
 use flate2::read::GzDecoder;
 use liblzma::read::XzDecoder;
-use multer::Multipart;
+use multer::{Field, Multipart};
 use relay_config::Config;
 use relay_event_schema::protocol::EventId;
 use std::convert::Infallible;
 use std::error::Error;
 use std::io::Cursor;
 use std::io::Read;
+use tower_http::limit::RequestBodyLimitLayer;
 use zstd::stream::Decoder as ZstdDecoder;
 
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
@@ -23,7 +24,7 @@ use crate::extractors::{RawContentType, RequestMeta};
 use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType};
-use crate::utils::{self, ConstrainedMultipart};
+use crate::utils::{self, AttachmentStrategy, read_attachment_bytes_into_item};
 
 /// The field name of a minidump in the multipart form-data upload.
 ///
@@ -137,17 +138,6 @@ fn remove_container_extension(filename: &str) -> &str {
         .unwrap_or(filename)
 }
 
-fn infer_attachment_type(field_name: Option<&str>, _file_name: &str) -> AttachmentType {
-    match field_name.unwrap_or("") {
-        MINIDUMP_FIELD_NAME => AttachmentType::Minidump,
-        ITEM_NAME_BREADCRUMBS1 => AttachmentType::Breadcrumbs,
-        ITEM_NAME_BREADCRUMBS2 => AttachmentType::Breadcrumbs,
-        ITEM_NAME_EVENT => AttachmentType::EventPayload,
-        VIEW_HIERARCHY_FIELD_NAME => AttachmentType::ViewHierarchy,
-        _ => AttachmentType::Attachment,
-    }
-}
-
 /// Extract a minidump from a nested multipart form.
 ///
 /// This field is not a minidump (i.e. it doesn't start with the minidump magic header). It could be
@@ -176,12 +166,36 @@ async fn extract_embedded_minidump(payload: Bytes) -> Result<Option<Bytes>, BadS
     Ok(None)
 }
 
+struct MinidumpAttachmentStrategy;
+
+impl AttachmentStrategy for MinidumpAttachmentStrategy {
+    fn add_to_item(
+        &self,
+        field: Field<'static>,
+        item: Item,
+        config: &Config,
+    ) -> impl Future<Output = Result<Option<Item>, multer::Error>> + Send {
+        read_attachment_bytes_into_item(field, item, config, false)
+    }
+
+    fn infer_type(&self, field: &Field) -> AttachmentType {
+        match field.name().unwrap_or("") {
+            MINIDUMP_FIELD_NAME => AttachmentType::Minidump,
+            ITEM_NAME_BREADCRUMBS1 => AttachmentType::Breadcrumbs,
+            ITEM_NAME_BREADCRUMBS2 => AttachmentType::Breadcrumbs,
+            ITEM_NAME_EVENT => AttachmentType::EventPayload,
+            VIEW_HIERARCHY_FIELD_NAME => AttachmentType::ViewHierarchy,
+            _ => AttachmentType::Attachment,
+        }
+    }
+}
+
 async fn extract_multipart(
-    multipart: ConstrainedMultipart,
+    multipart: Multipart<'static>,
     meta: RequestMeta,
     config: &Config,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    let mut items = multipart.items(infer_attachment_type, config).await?;
+    let mut items = utils::multipart_items(multipart, config, MinidumpAttachmentStrategy).await?;
 
     let minidump_item = items
         .iter_mut()
@@ -247,20 +261,16 @@ async fn handle(
     let envelope = if MINIDUMP_RAW_CONTENT_TYPES.contains(&content_type.as_ref()) {
         extract_raw_minidump(request.extract().await?, meta, config.max_attachment_size())?
     } else {
-        let multipart = request.extract_with_state(&state).await?;
+        let multipart = utils::multipart_from_request(request)?;
         extract_multipart(multipart, meta, config).await?
     };
 
     let id = envelope.event_id();
 
     // Never respond with a 429 since clients often retry these
-    match common::handle_envelope(&state, envelope)
-        .await
-        .map_err(|err| err.into_inner())
-    {
-        Ok(_) | Err(BadStoreRequest::RateLimited(_)) => (),
-        Err(error) => return Err(error.into()),
-    };
+    common::handle_envelope(&state, envelope)
+        .await?
+        .ignore_rate_limits();
 
     // The return here is only useful for consistency because the UE4 crash reporter doesn't
     // care about it.
@@ -268,10 +278,9 @@ async fn handle(
 }
 
 pub fn route(config: &Config) -> MethodRouter<ServiceState> {
-    // Set the single-attachment limit that applies only for raw minidumps. Multipart bypasses the
-    // limited body and applies its own limits.
     post(handle)
-        .route_layer(DefaultBodyLimit::max(config.max_attachment_size()))
+        .route_layer(RequestBodyLimitLayer::new(config.max_attachments_size()))
+        .route_layer(DefaultBodyLimit::disable())
         .route_layer(axum::middleware::from_fn(middlewares::content_length))
 }
 
@@ -438,11 +447,8 @@ mod tests {
 
         let config = Config::default();
 
-        let multipart = ConstrainedMultipart(
-            utils::multipart_from_request(request, multer::Constraints::new()).unwrap(),
-        );
-        let items = multipart
-            .items(infer_attachment_type, &config)
+        let multipart = utils::multipart_from_request(request).unwrap();
+        let items = utils::multipart_items(multipart, &config, MinidumpAttachmentStrategy)
             .await
             .unwrap();
 

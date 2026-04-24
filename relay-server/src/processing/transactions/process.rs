@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use relay_base_schema::events::EventType;
-use relay_dynamic_config::ErrorBoundary;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::{Event, Metrics};
 use relay_profiling::{ProfileError, ProfileType};
@@ -14,7 +13,7 @@ use smallvec::smallvec;
 
 use crate::envelope::Items;
 use crate::managed::{Counted, Managed, ManagedResult, Quantities, RecordKeeper, Rejected};
-use crate::metrics_extraction::transactions::ExtractedMetrics;
+use crate::metrics_extraction::ExtractedMetrics;
 use crate::processing::spans::{Indexed, TotalAndIndexed};
 use crate::processing::transactions::extraction::{self, ExtractMetricsContext};
 use crate::processing::transactions::spans;
@@ -300,9 +299,7 @@ async fn do_make_dynamic_sampling_decision(
     // but delay decision until inbound filters have been fully processed.
     // Also, we require transaction metrics to be enabled before sampling.
     let should_run = matches!(filters_status, FiltersStatus::Ok) || ctx.config.processing_enabled();
-
-    let can_extract_metrics = matches!(&ctx.project_info.config.transaction_metrics, Some(ErrorBoundary::Ok(c)) if c.is_enabled());
-    if !(should_run && can_extract_metrics) {
+    if !should_run {
         return SamplingResult::Pending;
     }
 
@@ -362,6 +359,20 @@ pub fn split_indexed_and_total(
             // Invalid config or invalid original transaction
             r.lenient(DataCategory::Transaction);
             r.lenient(DataCategory::Span);
+        }
+        if work.flags.spans_rate_limited {
+            // This really is a bug, we ignore here.
+            //
+            // Transactions are counted using a span metric, as transaction payloads should
+            // eventually be fully transformed into spans. But this is for now only the case for
+            // metrics, the payloads are lagging behind.
+            //
+            // If spans are rate limited, there is no metric to attach the transaction to ->
+            // we're losing a transaction here.
+            //
+            //  If and once we apply span rate limits to transactions this case will also be fixed,
+            //  as it can no longer happen.
+            r.lenient(DataCategory::Transaction);
         }
 
         (Box::new(work.into_indexed()), metrics.into_inner())
@@ -431,9 +442,9 @@ pub fn scrub(
     work: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
 ) -> Result<Managed<Box<ExpandedTransaction>>, Rejected<Error>> {
-    work.try_map(|mut work, _| {
+    work.try_map(|mut work, records| {
         utils::event::scrub(&mut work.event, ctx.project_info)?;
-        utils::attachments::scrub(work.attachments.iter_mut(), ctx.project_info);
+        utils::attachments::scrub(work.attachments.iter_mut(), ctx.project_info, Some(records));
         Ok::<_, Error>(work)
     })
 }

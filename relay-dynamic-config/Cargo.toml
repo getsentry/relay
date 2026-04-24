@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Dynamic configuration passed down from sentry"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "26.2.1"
+version = "26.4.1"
 edition = "2024"
 license-file = "../LICENSE.md"
 publish = false
@@ -19,7 +19,6 @@ workspace = true
 anyhow = { workspace = true }
 relay-auth = { workspace = true }
 relay-base-schema = { workspace = true }
-relay-cardinality = { workspace = true }
 relay-common = { workspace = true }
 relay-event-normalization = { workspace = true }
 relay-filter = { workspace = true }

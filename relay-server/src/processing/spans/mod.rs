@@ -3,7 +3,7 @@ use std::sync::Arc;
 use either::Either;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::processor::ProcessingAction;
-use relay_event_schema::protocol::SpanV2;
+use relay_event_schema::protocol::{SpanV2, span_v2};
 use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
@@ -14,7 +14,7 @@ use crate::integrations::Integration;
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
-use crate::metrics_extraction::transactions::ExtractedMetrics;
+use crate::metrics_extraction::ExtractedMetrics;
 use crate::processing::trace_attachments::forward::attachment_to_item;
 use crate::processing::trace_attachments::process::ScrubAttachmentError;
 use crate::processing::trace_attachments::types::ExpandedAttachment;
@@ -33,9 +33,9 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// Multiple item containers for spans in a single envelope are not allowed.
-    #[error("duplicate span container")]
-    DuplicateContainer,
+    /// Multiple item containers and mixed span items are not allowed to be in the same envelope.
+    #[error("duplicate or mixed span items in the same envelope")]
+    DuplicateItem,
     /// Standalone spans filtered because of a missing feature flag.
     #[error("spans feature flag missing")]
     FilterFeatureFlag,
@@ -62,7 +62,7 @@ impl OutcomeError for Error {
 
     fn consume(self) -> (Option<Outcome>, Self::Error) {
         let outcome = match &self {
-            Self::DuplicateContainer => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
+            Self::DuplicateItem => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::FilterFeatureFlag => None,
             Self::MissingDynamicSamplingContext => Some(Outcome::Invalid(
                 DiscardReason::MissingDynamicSamplingContext,
@@ -113,30 +113,43 @@ impl SpansProcessor {
 }
 
 impl processing::Processor for SpansProcessor {
-    type UnitOfWork = SerializedSpans;
+    type Input = SerializedSpans;
     type Output = SpanOutput;
     type Error = Error;
 
-    fn prepare_envelope(
-        &self,
-        envelope: &mut ManagedEnvelope,
-    ) -> Option<Managed<Self::UnitOfWork>> {
+    fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
 
-        let spans = envelope
+        let items = if let Some(container) = envelope
             .envelope_mut()
-            .take_items_by(ItemContainer::<SpanV2>::is_container)
-            .into_vec();
-
-        let legacy = envelope
+            .take_item_by(ItemContainer::<SpanV2>::is_container)
+        {
+            SpanItems::Container(container)
+        } else if let legacy = envelope
             .envelope_mut()
             .take_items_by(|item| matches!(item.ty(), ItemType::Span))
-            .into_vec();
-
-        let integrations = envelope
+            .into_vec()
+            && !legacy.is_empty()
+        {
+            SpanItems::Legacy(legacy)
+        } else if let Some(integration) = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(item.integration(), Some(Integration::Spans(_))))
-            .into_vec();
+            .take_item_by(|item| matches!(item.integration(), Some(Integration::Spans(_))))
+        {
+            SpanItems::Integration(integration)
+        } else {
+            SpanItems::None
+        };
+
+        // Duplicates which are not allowed to be in the envelope.
+        let invalid = envelope
+            .envelope_mut()
+            .take_items_by(|item| {
+                ItemContainer::<SpanV2>::is_container(item)
+                    || matches!(item.ty(), ItemType::Span)
+                    || matches!(item.integration(), Some(Integration::Spans(_)))
+            })
+            .to_vec();
 
         let attachments = envelope
             .envelope_mut()
@@ -145,27 +158,29 @@ impl processing::Processor for SpansProcessor {
 
         let work = SerializedSpans {
             headers,
-            spans,
-            legacy,
-            integrations,
+            items,
+            invalid,
             attachments,
         };
+        if work.is_empty() {
+            return None;
+        }
+
         Some(Managed::with_meta_from(envelope, work))
     }
 
     async fn process(
         &self,
-        spans: Managed<Self::UnitOfWork>,
+        spans: Managed<Self::Input>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         let spans = filter::feature_flag_attachment(spans, ctx);
-        filter::feature_flag(ctx).reject(&spans)?;
-        validate::container(&spans).reject(&spans)?;
+        validate::invalid(&spans).reject(&spans)?;
 
         dynamic_sampling::validate_configs(ctx);
         dynamic_sampling::validate_dsc_presence(&spans).reject(&spans)?;
 
-        let spans = process::expand(spans);
+        let spans = process::expand(spans)?;
 
         let mut spans = match dynamic_sampling::run(spans, ctx).await {
             Ok(spans) => spans,
@@ -276,45 +291,53 @@ impl Forward for SpanOutput {
     }
 }
 
+/// Different span containers which can be expanded into spans.
+#[derive(Debug)]
+enum SpanItems {
+    /// A span 'v2' item container.
+    Container(Item),
+    /// A list of legacy span 'v1' items.
+    Legacy(Vec<Item>),
+    /// Spans received from an integration.
+    Integration(Item),
+    /// No spans at all.
+    ///
+    /// This may happen if there are only span attachments sent in the envelope.
+    None,
+}
+
 /// Spans in their serialized state, as transported in an envelope.
 #[derive(Debug)]
 pub struct SerializedSpans {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
 
-    /// A list of span 'v2' item containers.
-    spans: Vec<Item>,
+    /// Various items containing spans.
+    items: SpanItems,
 
-    /// A list of legacy span 'v1' items.
-    legacy: Vec<Item>,
-
-    /// Spans which Relay received from arbitrary integrations.
-    integrations: Vec<Item>,
+    /// Invalid span items which are not allowed to be in the envelope.
+    invalid: Vec<Item>,
 
     /// A list of span attachments.
     attachments: Vec<Item>,
 }
 
 impl SerializedSpans {
-    /// Returns a best effort count of spans contained in [`Self`].
-    ///
-    /// Best effort as it relies on unvalidated counts specified in the envelope.
-    pub fn span_count(&self) -> u32 {
-        let Self {
-            headers: _,
-            spans,
-            legacy,
-            integrations,
-            attachments: _,
-        } = self;
-
-        outcome_count(spans) + outcome_count(legacy) + outcome_count(integrations)
+    fn is_empty(&self) -> bool {
+        matches!(self.items, SpanItems::None)
+            && self.attachments.is_empty()
+            && self.invalid.is_empty()
     }
 }
 
 impl Counted for SerializedSpans {
     fn quantities(&self) -> Quantities {
-        let span_quantity = self.span_count() as usize;
+        let span_quantity = (match &self.items {
+            SpanItems::Container(item) => outcome_count(std::slice::from_ref(item)),
+            SpanItems::Legacy(items) => outcome_count(items),
+            SpanItems::Integration(item) => outcome_count(std::slice::from_ref(item)),
+            SpanItems::None => 0,
+        } + outcome_count(&self.invalid)) as usize;
         let attachment_quantity = self
             .attachments
             .iter()
@@ -345,6 +368,15 @@ struct ExpandedSpansQuantities {
     attachment_item: usize,
 }
 
+/// Settings controlling span normalization.
+#[derive(Debug, Default, Copy, Clone)]
+struct Settings {
+    /// Whether the ip address should be inferred from the client connection.
+    infer_ip: bool,
+    /// Whether the user agent/browser should inferred from client headers.
+    infer_user_agent: bool,
+}
+
 /// Spans which have been parsed and expanded from their serialized state.
 #[derive(Debug)]
 pub struct ExpandedSpans<C = TotalAndIndexed> {
@@ -353,6 +385,9 @@ pub struct ExpandedSpans<C = TotalAndIndexed> {
 
     /// Server side applied (dynamic) sample rate.
     server_sample_rate: Option<f64>,
+
+    /// Client/protocol supplied settings controlling how spans should be normalized.
+    settings: Settings,
 
     /// Expanded and parsed spans, with optional associated attachments.
     spans: Vec<ExpandedSpan>,
@@ -383,9 +418,17 @@ impl<C> ExpandedSpans<C> {
                 spans_without_attachments.push(span);
             }
 
-            ItemContainer::from(spans_without_attachments)
-                .write_to(&mut item)
-                .inspect_err(|err| relay_log::error!("failed to serialize spans: {err}"))?;
+            ItemContainer::from_parts(
+                span_v2::container::ContainerMetadata {
+                    // Latest supported version.
+                    version: Some(2),
+                    // Nothing to do for the next Relay.
+                    ingest_settings: None,
+                },
+                spans_without_attachments,
+            )
+            .write_to(&mut item)
+            .inspect_err(|err| relay_log::error!("failed to serialize spans: {err}"))?;
             items.push(item);
         }
 
@@ -428,6 +471,7 @@ impl ExpandedSpans<TotalAndIndexed> {
         let Self {
             headers,
             server_sample_rate,
+            settings,
             spans,
             stand_alone_attachments,
             category: _,
@@ -436,6 +480,7 @@ impl ExpandedSpans<TotalAndIndexed> {
         ExpandedSpans {
             headers,
             server_sample_rate,
+            settings,
             spans,
             stand_alone_attachments,
             category: Indexed,
@@ -449,6 +494,7 @@ impl ExpandedSpans<Indexed> {
         let Self {
             headers: _,
             server_sample_rate: _,
+            settings: _,
             spans,
             stand_alone_attachments,
             category: _,
@@ -476,7 +522,7 @@ pub struct TotalAndIndexed;
 /// Once metric extraction happened, spans no longer track/represent the total category, this was
 /// transferred over to the metrics.
 ///
-/// Every which is stored, must have metrics extracted and transferred this ownership.
+/// Every stored span, must have metrics extracted and transferred this ownership.
 #[derive(Copy, Clone, Debug)]
 pub struct Indexed;
 

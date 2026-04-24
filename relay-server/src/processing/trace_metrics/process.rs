@@ -1,12 +1,14 @@
+use relay_event_normalization::eap::ClientUserAgentInfo;
 use relay_event_normalization::{RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
-use relay_event_schema::protocol::TraceMetric;
-use relay_pii::{AttributeMode, PiiProcessor};
+use relay_event_schema::protocol::{TraceMetric, TraceMetricHeader};
 use relay_protocol::Annotated;
+use relay_quotas::DataCategory;
 
 use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer};
+use crate::extractors::RequestTrust;
 use crate::processing::Managed;
-use crate::processing::trace_metrics::{Error, Result};
+use crate::processing::trace_metrics::{Error, Result, utils::calculate_size};
 use crate::processing::trace_metrics::{ExpandedTraceMetrics, SerializedTraceMetrics};
 use crate::processing::{Context, utils};
 use crate::services::outcome::DiscardReason;
@@ -15,10 +17,14 @@ use crate::services::outcome::DiscardReason;
 ///
 /// Individual, invalid trace metrics will be discarded.
 pub fn expand(metrics: Managed<SerializedTraceMetrics>) -> Managed<ExpandedTraceMetrics> {
+    let trust = metrics.headers.meta().request_trust();
+
     metrics.map(|metrics, records| {
+        records.lenient(DataCategory::TraceMetricByte);
+
         let mut all_metrics = Vec::new();
         for item in metrics.metrics {
-            let expanded = expand_trace_metric_container(&item);
+            let expanded = expand_trace_metric_container(&item, trust);
             let expanded = records.or_default(expanded, item);
             all_metrics.extend(expanded);
         }
@@ -58,13 +64,27 @@ pub fn scrub(metrics: &mut Managed<ExpandedTraceMetrics>, ctx: Context<'_>) {
 }
 
 /// Parses a trace metric container into its [`ContainerItems<TraceMetric>`] representation.
-fn expand_trace_metric_container(item: &Item) -> Result<ContainerItems<TraceMetric>> {
-    let metrics = ItemContainer::parse(item)
+fn expand_trace_metric_container(
+    item: &Item,
+    trust: RequestTrust,
+) -> Result<ContainerItems<TraceMetric>> {
+    let mut metrics = ItemContainer::parse(item)
         .map_err(|err| {
             relay_log::debug!("failed to parse trace metrics container: {err}");
             Error::Invalid(DiscardReason::InvalidJson)
         })?
         .into_items();
+
+    for metric in &mut metrics {
+        let byte_size = metric
+            .header
+            .as_ref()
+            .and_then(|h: &TraceMetricHeader| h.byte_size);
+        if trust.is_untrusted() || matches!(byte_size, None | Some(0)) {
+            let byte_size = metric.value().map(calculate_size).unwrap_or(1);
+            metric.header.get_or_insert_default().byte_size = Some(byte_size);
+        }
+    }
 
     Ok(metrics)
 }
@@ -73,21 +93,12 @@ fn expand_trace_metric_container(item: &Item) -> Result<ContainerItems<TraceMetr
 fn scrub_trace_metric(metric: &mut Annotated<TraceMetric>, ctx: Context<'_>) -> Result<()> {
     let pii_config_from_scrubbing = ctx.project_info.config.datascrubbing_settings.pii_config();
 
-    let state = ProcessingState::root().enter_borrowed("", None, [ValueType::TraceMetric]);
-
-    if let Some(ref config) = ctx.project_info.config.pii_config {
-        let mut processor = PiiProcessor::new(config.compiled())
-            // For advanced rules we want to treat attributes as objects.
-            .attribute_mode(AttributeMode::Object);
-        process_value(metric, &mut processor, &state)?;
-    }
-
-    if let Some(config) = pii_config_from_scrubbing {
-        let mut processor = PiiProcessor::new(config.compiled())
-            // For "legacy" rules we want to identify attributes with their values.
-            .attribute_mode(AttributeMode::ValueOnly);
-        process_value(metric, &mut processor, &state)?;
-    }
+    relay_pii::eap::scrub(
+        ValueType::TraceMetric,
+        metric,
+        ctx.project_info.config.pii_config.as_ref(),
+        pii_config_from_scrubbing.as_ref(),
+    )?;
 
     Ok(())
 }
@@ -106,14 +117,18 @@ fn normalize_trace_metric(
     );
 
     if let Some(metric_value) = metric.value_mut() {
+        let client_ua_info = Some(ClientUserAgentInfo {
+            user_agent: meta.user_agent(),
+            hints: meta.client_hints(),
+        });
+
         eap::trace_metric::normalize_metric_name(metric_value)?;
+        if ctx.is_processing() {
+            eap::trace_metric::normalize_metric_unit(metric_value);
+        }
         eap::normalize_received(&mut metric_value.attributes, meta.received_at());
         eap::normalize_client_address(&mut metric_value.attributes, meta.client_addr());
-        eap::normalize_user_agent(
-            &mut metric_value.attributes,
-            meta.user_agent(),
-            meta.client_hints(),
-        );
+        eap::normalize_user_agent(&mut metric_value.attributes, client_ua_info);
         eap::normalize_attribute_types(&mut metric_value.attributes);
     };
 
@@ -131,4 +146,305 @@ fn normalize_trace_metric(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use relay_pii::PiiConfig;
+    use relay_protocol::assert_annotated_snapshot;
+
+    use crate::services::projects::project::ProjectInfo;
+
+    use super::*;
+
+    #[test]
+    fn test_scrub_trace_metric_base_fields() {
+        let json = r#"
+        {
+            "timestamp": 1544719860.0,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "name": "test.metric",
+            "type": "counter",
+            "value": 1.0,
+            "attributes": {
+                "secret": {
+                    "type": "string",
+                    "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+                }
+            }
+        }
+        "#;
+
+        let mut data = Annotated::<TraceMetric>::from_json(json).unwrap();
+
+        let mut datascrubbing_settings = relay_pii::DataScrubbingConfig::default();
+        datascrubbing_settings.scrub_data = true;
+        datascrubbing_settings.scrub_defaults = true;
+
+        let ctx = Context {
+            project_info: &ProjectInfo {
+                config: relay_dynamic_config::ProjectConfig {
+                    datascrubbing_settings,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Context::for_test()
+        };
+
+        scrub_trace_metric(&mut data, ctx).unwrap();
+
+        assert_annotated_snapshot!(data, @r#"
+        {
+          "timestamp": 1544719860.0,
+          "trace_id": "5b8efff798038103d269b633813fc60c",
+          "name": "test.metric",
+          "type": "counter",
+          "value": 1.0,
+          "attributes": {
+            "secret": {
+              "type": "string",
+              "value": "[Filtered]"
+            }
+          },
+          "_meta": {
+            "attributes": {
+              "secret": {
+                "value": {
+                  "": {
+                    "rem": [
+                      [
+                        "@bearer:filter",
+                        "s",
+                        0,
+                        10
+                      ]
+                    ],
+                    "len": 43
+                  }
+                }
+              }
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_scrub_trace_metric_deep_wild_cards() {
+        let json = r#"
+        {
+            "timestamp": 1544719860.0,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "name": "test.metric",
+            "type": "counter",
+            "value": 1.0,
+            "attributes": {
+                "normal_field": {
+                    "type": "string",
+                    "value": "normal_value"
+                }
+            }
+        }
+        "#;
+
+        let mut data = Annotated::<TraceMetric>::from_json(json).unwrap();
+
+        let deep_wildcard_config = serde_json::from_value::<PiiConfig>(serde_json::json!({
+            "rules": {
+                "remove_normal_field": {
+                    "type": "pattern",
+                    "pattern": "normal_value",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "[REDACTED]"
+                    }
+                }
+            },
+            "applications": {
+                "**": ["remove_normal_field"]
+            }
+        }))
+        .unwrap();
+
+        let ctx = Context {
+            project_info: &ProjectInfo {
+                config: relay_dynamic_config::ProjectConfig {
+                    pii_config: Some(deep_wildcard_config),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Context::for_test()
+        };
+
+        scrub_trace_metric(&mut data, ctx).unwrap();
+
+        assert_annotated_snapshot!(data, @r#"
+        {
+          "timestamp": 1544719860.0,
+          "trace_id": "5b8efff798038103d269b633813fc60c",
+          "name": "test.metric",
+          "type": "counter",
+          "value": 1.0,
+          "attributes": {
+            "normal_field": {
+              "type": "string",
+              "value": "[REDACTED]"
+            }
+          },
+          "_meta": {
+            "attributes": {
+              "normal_field": {
+                "value": {
+                  "": {
+                    "rem": [
+                      [
+                        "remove_normal_field",
+                        "s",
+                        0,
+                        10
+                      ]
+                    ],
+                    "len": 12
+                  }
+                }
+              }
+            }
+          }
+        }
+        "#);
+
+        data = Annotated::<TraceMetric>::from_json(json).unwrap();
+        let config = serde_json::from_value::<PiiConfig>(serde_json::json!({
+            "rules": {
+                "should_not_remove_normal_field": {
+                    "type": "pattern",
+                    "pattern": "normal_value",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "[REDACTED]"
+                    }
+                }
+            },
+            "applications": {
+                "** && !$trace_metric.**": ["should_not_remove_normal_field"]
+            }
+        }))
+        .unwrap();
+
+        let ctx = Context {
+            project_info: &ProjectInfo {
+                config: relay_dynamic_config::ProjectConfig {
+                    pii_config: Some(config),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Context::for_test()
+        };
+
+        scrub_trace_metric(&mut data, ctx).unwrap();
+
+        assert_annotated_snapshot!(data, @r###"
+        {
+          "timestamp": 1544719860.0,
+          "trace_id": "5b8efff798038103d269b633813fc60c",
+          "name": "test.metric",
+          "type": "counter",
+          "value": 1.0,
+          "attributes": {
+            "normal_field": {
+              "type": "string",
+              "value": "normal_value"
+            }
+          }
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_scrub_trace_metric_deep_wild_cards_anything() {
+        let json = r#"
+        {
+            "timestamp": 1544719860.0,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "name": "test.metric",
+            "type": "counter",
+            "value": 1.0,
+            "attributes": {
+                "normal_field": {
+                    "type": "string",
+                    "value": "normal_value"
+                }
+            }
+        }
+        "#;
+
+        let mut data = Annotated::<TraceMetric>::from_json(json).unwrap();
+
+        let config = serde_json::from_value::<PiiConfig>(serde_json::json!({
+            "rules": {
+                "remove_normal_field": {
+                    "type": "anything",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "[REDACTED]"
+                    }
+                }
+            },
+            "applications": {
+                "**": ["remove_normal_field"]
+            }
+        }))
+        .unwrap();
+
+        let ctx = Context {
+            project_info: &ProjectInfo {
+                config: relay_dynamic_config::ProjectConfig {
+                    pii_config: Some(config),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Context::for_test()
+        };
+
+        scrub_trace_metric(&mut data, ctx).unwrap();
+
+        assert_annotated_snapshot!(data, @r#"
+        {
+          "timestamp": 1544719860.0,
+          "trace_id": "5b8efff798038103d269b633813fc60c",
+          "name": "test.metric",
+          "type": "counter",
+          "value": 1.0,
+          "attributes": {
+            "normal_field": {
+              "type": "string",
+              "value": "[REDACTED]"
+            }
+          },
+          "_meta": {
+            "attributes": {
+              "normal_field": {
+                "value": {
+                  "": {
+                    "rem": [
+                      [
+                        "remove_normal_field",
+                        "s",
+                        0,
+                        10
+                      ]
+                    ],
+                    "len": 12
+                  }
+                }
+              }
+            }
+          }
+        }
+        "#);
+    }
 }

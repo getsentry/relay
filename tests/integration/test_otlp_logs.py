@@ -5,7 +5,6 @@ from sentry_relay.consts import DataCategory
 
 from .asserts import time_within_delta, time_within, only_items
 
-
 TEST_CONFIG = {
     "outcomes": {
         "emit_outcomes": True,

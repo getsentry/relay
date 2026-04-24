@@ -4,17 +4,19 @@ use relay_quotas::DataCategory;
 use crate::envelope::{ContainerItems, Item, WithHeader};
 use crate::integrations::{Integration, SpansIntegration};
 use crate::managed::RecordKeeper;
+use crate::processing::spans::Settings;
 
 mod otel;
 
-/// Expands a list of [`Integration`] items into `result`.
+/// Expands a list of [`Integration`] items.
 ///
 /// The function expects *only* span item integrations.
-pub fn expand_into(
-    result: &mut ContainerItems<SpanV2>,
+pub fn expand(
     records: &mut RecordKeeper<'_>,
-    items: Vec<Item>,
-) {
+    items: &[Item],
+) -> (Settings, ContainerItems<SpanV2>) {
+    let mut result = Vec::new();
+
     for item in items {
         let integration = match item.integration() {
             Some(Integration::Spans(integration)) => integration,
@@ -47,6 +49,8 @@ pub fn expand_into(
             }
         }
     }
+
+    (Settings::default(), result)
 }
 
 #[derive(Debug, thiserror::Error)]

@@ -153,7 +153,7 @@ def test_readiness_depends_on_aggregator_being_full_after_metrics(mini_sentry, r
         {"aggregator": {"max_total_bucket_bytes": 1, "initial_delay": 30}},
     )
 
-    metrics_payload = "transactions/foo:42|c\ntransactions/bar:17|c"
+    metrics_payload = "spans/foo:42|c\nspans/bar:17|c"
     relay.send_metrics(42, metrics_payload)
 
     for _ in range(100):

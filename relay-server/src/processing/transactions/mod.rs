@@ -10,6 +10,7 @@ use crate::envelope::ItemType;
 use crate::managed::{Managed, ManagedEnvelope, OutcomeError, Rejected};
 use crate::processing::transactions::process::{SamplingOutput, split_indexed_and_total};
 use crate::processing::transactions::types::{SerializedTransaction, TransactionOutput};
+use crate::processing::utils::attachments;
 use crate::processing::utils::event::event_type;
 use crate::processing::{Context, Output, Processor, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
@@ -89,14 +90,11 @@ impl TransactionProcessor {
 }
 
 impl Processor for TransactionProcessor {
-    type UnitOfWork = SerializedTransaction;
+    type Input = SerializedTransaction;
     type Output = TransactionOutput;
     type Error = Error;
 
-    fn prepare_envelope(
-        &self,
-        envelope: &mut ManagedEnvelope,
-    ) -> Option<Managed<Self::UnitOfWork>> {
+    fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
 
         let mut event = envelope
@@ -128,32 +126,35 @@ impl Processor for TransactionProcessor {
 
     async fn process(
         &self,
-        work: Managed<Self::UnitOfWork>,
+        tx: Managed<Self::Input>,
         mut ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
-        let project_id = work.scoping().project_id;
+        let project_id = tx.scoping().project_id;
         let mut metrics = Metrics::default();
 
         relay_log::trace!("Expand transaction");
-        let mut work = process::expand(work)?;
+        let mut tx = process::expand(tx)?;
+
+        relay_log::trace!("Validate attachments");
+        attachments::validate_attachments(&mut tx, |t| &mut t.attachments, ctx);
 
         relay_log::trace!("Prepare transaction data");
-        process::prepare_data(&mut work, &mut ctx, &mut metrics)?;
+        process::prepare_data(&mut tx, &mut ctx, &mut metrics)?;
 
         relay_log::trace!("Normalize transaction");
-        let mut work = process::normalize(work, ctx, &self.geoip_lookup)?;
+        let mut tx = process::normalize(tx, ctx, &self.geoip_lookup)?;
 
         relay_log::trace!("Filter transaction");
-        let filters_status = process::run_inbound_filters(&work, ctx)?;
+        let filters_status = process::run_inbound_filters(&tx, ctx)?;
 
         let quotas_client = self.quotas_client.as_ref();
 
         relay_log::trace!("Processing profile");
-        process::process_profile(&mut work, ctx);
+        process::process_profile(&mut tx, ctx);
 
         relay_log::trace!("Sample transaction");
-        let (work, server_sample_rate) =
-            match process::run_dynamic_sampling(work, ctx, filters_status, quotas_client).await? {
+        let (tx, server_sample_rate) =
+            match process::run_dynamic_sampling(tx, ctx, filters_status, quotas_client).await? {
                 SamplingOutput::Keep {
                     payload,
                     sample_rate,
@@ -176,27 +177,27 @@ impl Processor for TransactionProcessor {
         // Need to scrub the transaction before extracting spans.
         relay_log::trace!("Scrubbing transaction");
         #[allow(unused_mut)]
-        let mut work = process::scrub(work, ctx)?;
+        let mut tx = process::scrub(tx, ctx)?;
 
-        work = process::extract_spans(work, ctx, server_sample_rate);
+        tx = process::extract_spans(tx, ctx, server_sample_rate);
 
         relay_log::trace!("Enforce quotas");
-        let work = self.limiter.enforce_quotas(work, ctx).await?;
-        let work = match work.transpose() {
-            either::Either::Left(work) => work,
+        let tx = self.limiter.enforce_quotas(tx, ctx).await?;
+        let tx = match tx.transpose() {
+            either::Either::Left(tx) => tx,
             either::Either::Right(metrics) => return Ok(Output::metrics(metrics)),
         };
 
         if ctx.is_processing() {
-            if !work.flags.fully_normalized {
+            if !tx.flags.fully_normalized {
                 relay_log::error!(
                     tags.project = %project_id,
-                    tags.ty = event_type(&work.event).map(|e| e.to_string()).unwrap_or("none".to_owned()),
+                    tags.ty = event_type(&tx.event).map(|e| e.to_string()).unwrap_or("none".to_owned()),
                     "ingested event without normalizing"
                 );
             };
 
-            let (indexed, metrics) = split_indexed_and_total(work, ctx, SamplingDecision::Keep)?;
+            let (indexed, metrics) = split_indexed_and_total(tx, ctx, SamplingDecision::Keep)?;
 
             return Ok(Output {
                 main: Some(TransactionOutput::Indexed(indexed)),
@@ -205,7 +206,7 @@ impl Processor for TransactionProcessor {
         }
 
         Ok(Output {
-            main: Some(TransactionOutput::Full(work)),
+            main: Some(TransactionOutput::Full(tx)),
             metrics: None,
         })
     }

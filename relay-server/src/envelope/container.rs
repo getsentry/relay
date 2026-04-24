@@ -5,6 +5,7 @@ use relay_protocol::{
     Annotated, DeserializableAnnotated, FromValue, IntoValue, SerializableAnnotated,
 };
 use serde::de::DeserializeOwned;
+use serde::ser::SerializeMap as _;
 use serde::{Deserialize, Serialize, de, ser};
 
 use crate::envelope::{ContentType, Item, ItemType};
@@ -47,12 +48,24 @@ pub enum ContainerWriteError {
     Serialize(#[from] serde_json::Error),
 }
 
+/// Error emitted when failing to de-serialize [`ItemContainer::metadata`].
+#[derive(thiserror::Error, Debug)]
+#[error("invalid container metadata")]
+pub struct InvalidMetadata(());
+
 /// Any item contained in an [`ItemContainer`] needs to implement this trait.
 pub trait ContainerItem: FromValue + IntoValue {
     /// The expected item type of the container for this type.
     const ITEM_TYPE: ItemType;
     /// The expected content type of the container for this type.
     const CONTENT_TYPE: ContentType;
+
+    /// [`ItemContainer`] metadata.
+    ///
+    /// Metadata which is associated with the item container itself.
+    ///
+    /// This may be used for supplying additional processing hints and versioning.
+    type Metadata: DeserializeOwned + Serialize + std::fmt::Debug;
 
     /// Header associated with the item.
     ///
@@ -64,6 +77,38 @@ pub trait ContainerItem: FromValue + IntoValue {
     ///
     /// Use [`NoHeader`] when there are no explicit headers defined.
     type Header: DeserializeOwned + Serialize + std::fmt::Debug;
+}
+
+/// A metadata implementation for [`container items`](ContainerItem::Metadata) which currently do
+/// not have any metadata defined.
+///
+/// This implementation discards all metadata and does not provide forward compatibility, as this
+/// may not always be desired.
+/// For example an ingestion setting like `infer client ip`, must be handled by the first Relay
+/// instance and should  not be forwarded to a later Relay instance.
+///
+/// If forward compatibility is a concern, a [`ContainerItem`] should provide its own forward
+/// compatible type with the appropriate handling.
+#[derive(Debug, Default, Copy, Clone)]
+pub struct NoMetadata;
+
+impl<'de> Deserialize<'de> for NoMetadata {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        serde::de::IgnoredAny::deserialize(deserializer)?;
+        Ok(NoMetadata)
+    }
+}
+
+impl Serialize for NoMetadata {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_map(Some(0))?.end()
+    }
 }
 
 /// A header implementation for [`container items`](ContainerItem) which currently do not have any
@@ -183,15 +228,29 @@ pub type ContainerItems<T> = Vec<WithHeader<T>>;
 /// content type of the item.
 #[derive(Debug)]
 pub struct ItemContainer<T: ContainerItem> {
+    metadata: Result<T::Metadata, InvalidMetadata>,
     items: ContainerItems<T>,
 }
 
 impl<T: ContainerItem> ItemContainer<T> {
+    /// Creates a new [`ItemContainer`] with the given metadata and items.
+    pub fn from_parts(metadata: T::Metadata, items: ContainerItems<T>) -> Self {
+        Self {
+            metadata: Ok(metadata),
+            items,
+        }
+    }
+
     /// Returns all contained items.
     ///
     /// The container can be reconstructed using [`ItemContainer::from`].
     pub fn into_items(self) -> ContainerItems<T> {
         self.items
+    }
+
+    /// Consumes the container returning the metadata and items parts.
+    pub fn into_parts(self) -> (Result<T::Metadata, InvalidMetadata>, ContainerItems<T>) {
+        (self.metadata, self.items)
     }
 
     /// Parses an [`ItemContainer`] from an envelope [`Item`].
@@ -253,32 +312,69 @@ impl<T: ContainerItem> ItemContainer<T> {
     }
 
     fn deserialize<'de, D: de::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct TryMetadata<T: ContainerItem>(Result<T::Metadata, InvalidMetadata>);
+
+        impl<'de, T> Deserialize<'de> for TryMetadata<T>
+        where
+            T: ContainerItem,
+        {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                #[derive(Deserialize)]
+                #[serde(untagged)]
+                enum Try<T> {
+                    T(T),
+                    Err(serde::de::IgnoredAny),
+                }
+
+                Ok(match Try::<T::Metadata>::deserialize(deserializer)? {
+                    Try::T(t) => TryMetadata(Ok(t)),
+                    Try::Err(_) => TryMetadata(Err(InvalidMetadata(()))),
+                })
+            }
+        }
+
         #[derive(Deserialize)]
         #[serde(bound(deserialize = "T: ContainerItem"))]
         struct Layout<T: ContainerItem> {
             items: ContainerItems<T>,
+            #[serde(flatten)]
+            metadata: TryMetadata<T>,
         }
 
-        let Layout { items } = Layout::<T>::deserialize(deserializer)?;
+        let Layout {
+            items,
+            metadata: TryMetadata(metadata),
+        } = Layout::<T>::deserialize(deserializer)?;
 
-        Ok(Self { items })
+        Ok(Self { items, metadata })
     }
 
     fn serialize<S: ser::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         #[derive(Serialize)]
         #[serde(bound(serialize = "T: ContainerItem"))]
         struct Layout<'a, T: ContainerItem> {
+            #[serde(flatten)]
+            metadata: Option<&'a T::Metadata>,
             items: &'a ContainerItems<T>,
         }
 
-        let layout = Layout { items: &self.items };
+        let layout = Layout {
+            metadata: self.metadata.as_ref().ok(),
+            items: &self.items,
+        };
         Serialize::serialize(&layout, serializer)
     }
 }
 
-impl<T: ContainerItem> From<ContainerItems<T>> for ItemContainer<T> {
+impl<T: ContainerItem<Metadata = NoMetadata>> From<ContainerItems<T>> for ItemContainer<T> {
     fn from(items: ContainerItems<T>) -> Self {
-        Self { items }
+        Self {
+            items,
+            metadata: Ok(NoMetadata),
+        }
     }
 }
 
@@ -286,6 +382,7 @@ impl ContainerItem for relay_event_schema::protocol::OurLog {
     const ITEM_TYPE: ItemType = ItemType::Log;
     const CONTENT_TYPE: ContentType = ContentType::LogContainer;
 
+    type Metadata = NoMetadata;
     type Header = relay_event_schema::protocol::OurLogHeader;
 }
 
@@ -293,6 +390,7 @@ impl ContainerItem for relay_event_schema::protocol::SpanV2 {
     const ITEM_TYPE: ItemType = ItemType::Span;
     const CONTENT_TYPE: ContentType = ContentType::SpanV2Container;
 
+    type Metadata = relay_event_schema::protocol::span_v2::container::ContainerMetadata;
     type Header = NoHeader;
 }
 
@@ -300,7 +398,8 @@ impl ContainerItem for relay_event_schema::protocol::TraceMetric {
     const ITEM_TYPE: ItemType = ItemType::TraceMetric;
     const CONTENT_TYPE: ContentType = ContentType::TraceMetricContainer;
 
-    type Header = NoHeader;
+    type Metadata = NoMetadata;
+    type Header = relay_event_schema::protocol::TraceMetricHeader;
 }
 
 #[cfg(test)]
@@ -314,6 +413,9 @@ mod tests {
     use super::*;
 
     macro_rules! container {
+        ($header:literal, version: $version:literal, $($item:literal),*) => {
+            concat!($header, "\n", r#"{"version": "#, $version, r#", "items":["#, $($item),*, r#"]}"#).as_bytes()
+        };
         ($header:literal, $($item:literal),*) => {
             concat!($header, "\n", r#"{"items":["#, $($item),*, r#"]}"#).as_bytes()
         }
@@ -328,10 +430,17 @@ mod tests {
         other: Object<Value>,
     }
 
+    #[derive(Debug, Default, Deserialize, Serialize)]
+    struct TestMetadata {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        version: Option<u16>,
+    }
+
     impl ContainerItem for TestLog {
         const ITEM_TYPE: ItemType = ItemType::Log;
         const CONTENT_TYPE: ContentType = ContentType::LogContainer;
 
+        type Metadata = TestMetadata;
         type Header = NoHeader;
     }
 
@@ -347,7 +456,7 @@ mod tests {
             .map(WithHeader::just)
             .collect::<Vec<_>>();
 
-        ItemContainer::from(items)
+        ItemContainer::from_parts(TestMetadata { version: Some(42) }, items)
     }
 
     #[test]
@@ -362,7 +471,7 @@ mod tests {
 
         let payload = item.payload();
         let s = std::str::from_utf8(&payload).unwrap();
-        insta::assert_snapshot!(s, @r###"{"items":[{"level":"info","message":"foobar"},{"level":"error","message":"ohno"}]}"###);
+        insta::assert_snapshot!(s, @r#"{"version":42,"items":[{"level":"info","message":"foobar"},{"level":"error","message":"ohno"}]}"#);
     }
 
     #[test]
@@ -469,9 +578,68 @@ mod tests {
     }
 
     #[test]
+    fn test_container_invalid_meta() {
+        let (item, _) = Item::parse(Bytes::from_static(container!(
+            r#"{"type":"log","content_type":"application/vnd.sentry.items.log+json","item_count":1}"#,
+            version: "\"not_a_number\"",
+            r#"{"level":"info","message":"foobar"}"#
+        )))
+        .unwrap();
+
+        assert_eq!(item.item_count(), Some(1));
+
+        let container = ItemContainer::<TestLog>::parse(&item).unwrap();
+        assert_debug_snapshot!(container, @r#"
+        ItemContainer {
+            metadata: Err(
+                InvalidMetadata(
+                    (),
+                ),
+            ),
+            items: [
+                WithHeader {
+                    header: None,
+                    value: TestLog {
+                        level: "info",
+                        message: "foobar",
+                        other: {},
+                    },
+                },
+            ],
+        }
+        "#);
+
+        let mut new_item = Item::new(ItemType::Log);
+        container.write_to(&mut new_item).unwrap();
+
+        // The invalid value was not persisted and now metadata serializes as default.
+        let container = ItemContainer::<TestLog>::parse(&new_item).unwrap();
+        assert_debug_snapshot!(container, @r#"
+        ItemContainer {
+            metadata: Ok(
+                TestMetadata {
+                    version: None,
+                },
+            ),
+            items: [
+                WithHeader {
+                    header: None,
+                    value: TestLog {
+                        level: "info",
+                        message: "foobar",
+                        other: {},
+                    },
+                },
+            ],
+        }
+        "#);
+    }
+
+    #[test]
     fn test_container_deserialize_successful() {
         let (item, _) = Item::parse(Bytes::from_static(container!(
             r#"{"type":"log","content_type":"application/vnd.sentry.items.log+json","item_count":2}"#,
+            version: 123,
             r#"{"level":"info","message":"foobar"},"#,
             r#"{"level":"error","message":"ohno"}"#
         )))
@@ -480,8 +648,15 @@ mod tests {
         assert_eq!(item.item_count(), Some(2));
 
         let container = ItemContainer::<TestLog>::parse(&item).unwrap();
-        assert_debug_snapshot!(container, @r###"
+        assert_debug_snapshot!(container, @r#"
         ItemContainer {
+            metadata: Ok(
+                TestMetadata {
+                    version: Some(
+                        123,
+                    ),
+                },
+            ),
             items: [
                 WithHeader {
                     header: None,
@@ -501,7 +676,7 @@ mod tests {
                 },
             ],
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -518,8 +693,13 @@ mod tests {
         container.write_to(&mut new_item).unwrap();
 
         let container = ItemContainer::<TestLog>::parse(&new_item).unwrap();
-        assert_debug_snapshot!(container, @r###"
+        assert_debug_snapshot!(container, @r#"
         ItemContainer {
+            metadata: Ok(
+                TestMetadata {
+                    version: None,
+                },
+            ),
             items: [
                 WithHeader {
                     header: None,
@@ -539,7 +719,7 @@ mod tests {
                 },
             ],
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -556,8 +736,13 @@ mod tests {
         container.write_to(&mut new_item).unwrap();
 
         let container = ItemContainer::<TestLog>::parse(&new_item).unwrap();
-        assert_debug_snapshot!(container, @r###"
+        assert_debug_snapshot!(container, @r#"
         ItemContainer {
+            metadata: Ok(
+                TestMetadata {
+                    version: None,
+                },
+            ),
             items: [
                 WithHeader {
                     header: Some(
@@ -596,7 +781,7 @@ mod tests {
                 },
             ],
         }
-        "###);
+        "#);
 
         let mut new_item = Item::new(ItemType::Log);
         container.write_to(&mut new_item).unwrap();

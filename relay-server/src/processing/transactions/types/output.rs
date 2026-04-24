@@ -1,12 +1,6 @@
-#[cfg(test)]
-use relay_event_schema::protocol::Event;
-#[cfg(test)]
-use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
 use crate::Envelope;
-#[cfg(feature = "processing")]
-use crate::managed::ManagedEnvelope;
 use crate::managed::{Managed, ManagedResult, Rejected};
 #[cfg(feature = "processing")]
 use crate::processing::StoreHandle;
@@ -26,17 +20,6 @@ pub enum TransactionOutput {
     ///
     /// This is used in processing relays.
     Indexed(Managed<Box<ExpandedTransaction<Indexed>>>),
-}
-
-impl TransactionOutput {
-    #[cfg(test)]
-    pub fn event(self) -> Option<Annotated<Event>> {
-        match self {
-            TransactionOutput::Full(managed) => Some(managed.accept(|x| x).event),
-            TransactionOutput::Profile(_) => None,
-            TransactionOutput::Indexed(managed) => Some(managed.accept(|x| x).event),
-        }
-    }
 }
 
 impl Forward for TransactionOutput {
@@ -72,26 +55,8 @@ impl Forward for TransactionOutput {
         s: StoreHandle<'_>,
         ctx: ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        use crate::envelope::ItemType;
-
         let envelope = self.serialize_envelope(ctx)?;
-        let envelope = ManagedEnvelope::from(envelope).into_processed();
-
-        let has_attachments = envelope
-            .envelope()
-            .items()
-            .any(|item| item.ty() == &ItemType::Attachment);
-        let use_objectstore = || {
-            let options = &ctx.global_config.options;
-            crate::utils::sample(options.objectstore_attachments_sample_rate).is_keep()
-        };
-
-        if has_attachments && use_objectstore() {
-            s.send_to_objectstore(crate::services::store::StoreEnvelope { envelope });
-        } else {
-            s.send_to_store(crate::services::store::StoreEnvelope { envelope });
-        }
-
+        s.send_envelope(crate::managed::ManagedEnvelope::from(envelope));
         Ok(())
     }
 }

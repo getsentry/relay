@@ -11,9 +11,6 @@ from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 from .asserts import time_within_delta
-from .consts import (
-    TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
-)
 from .test_store import make_transaction
 
 TEST_CONFIG = {
@@ -58,9 +55,6 @@ def test_span_extraction(
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
-    }
 
     project_config["config"].setdefault("features", [])
     if performance_issues_spans:
@@ -127,7 +121,6 @@ def test_span_extraction(
     )
     assert {headers[0] for _, headers in metrics_consumer.get_metrics()} == {
         ("namespace", b"spans"),
-        ("namespace", b"transactions"),
     }
 
     child_span = spans_consumer.get_span()
@@ -456,8 +449,7 @@ def test_otel_endpoint_disabled(mini_sentry, relay):
         },
     )
     project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)["config"]
-    project_config["features"] = ["organizations:standalone-span-ingestion"]
+    mini_sentry.add_full_project_config(project_id)
 
     end = datetime.now(timezone.utc) - timedelta(seconds=1)
     start = end - timedelta(milliseconds=500)
@@ -535,9 +527,6 @@ def test_span_ingestion_with_performance_scores(
             },
         ],
     }
-    project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-    ]
     project_config["config"]["txNameRules"] = [
         {
             "pattern": "**/interaction/*/**",
@@ -662,9 +651,6 @@ def test_rate_limit_indexed_consistent(
     relay = relay_with_processing()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-    ]
     project_config["config"]["quotas"] = [
         {
             "categories": ["span_indexed"],
@@ -714,11 +700,6 @@ def test_rate_limit_consistent_extracted(
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    # Span metrics won't be extracted without a supported transactionMetrics config.
-    # Without extraction, the span is treated as `Span`, not `SpanIndexed`.
-    project_config["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
-    }
     project_config["config"]["quotas"] = [
         {
             "categories": ["span"],
@@ -765,7 +746,7 @@ def test_rate_limit_consistent_extracted(
     assert len(spans) == 2
     assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
     # A limit only for span_indexed does not affect extracted metrics
-    metrics = metrics_consumer.get_metrics(n=6)
+    metrics = metrics_consumer.get_metrics(n=4)
     span_count = sum(
         [m[0]["value"] for m in metrics if m[0]["name"] == "c:spans/usage@none"]
     )
@@ -781,10 +762,7 @@ def test_rate_limit_consistent_extracted(
     }
     assert outcomes == expected_outcomes
 
-    metrics = metrics_consumer.get_metrics(timeout=1)
-    assert len(metrics) == 2
-    assert all(m[0]["name"][2:14] == "transactions" for m in metrics), metrics
-
+    metrics_consumer.assert_empty()
     outcomes_consumer.assert_empty()
 
 
@@ -799,9 +777,6 @@ def test_rate_limit_spans_in_envelope(
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-    ]
     project_config["config"]["quotas"] = [
         {
             "categories": ["span"],
@@ -853,9 +828,6 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-    ]
     project_config["config"]["quotas"] = [
         {
             "categories": [category],
@@ -865,26 +837,18 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
             "reasonCode": "exceeded",
         },
     ]
-    project_config["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
-    }
 
     transactions_consumer = transactions_consumer()
     spans_consumer = spans_consumer()
     outcomes_consumer = outcomes_consumer()
     metrics_consumer = metrics_consumer()
 
-    def usage_metrics():
+    def span_usage_metric():
         metrics = metrics_consumer.get_metrics()
-        transaction_count = sum(
-            m[0]["value"]
-            for m in metrics
-            if m[0]["name"] == "c:transactions/usage@none"
-        )
         span_count = sum(
             m[0]["value"] for m in metrics if m[0]["name"] == "c:spans/usage@none"
         )
-        return (transaction_count, span_count)
+        return span_count
 
     def summarize_outcomes():
         counter = Counter()
@@ -908,7 +872,7 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     spans = spans_consumer.get_spans(n=2, timeout=10)
     assert len(spans) == 2
     assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
-    assert usage_metrics() == (1, 2)
+    assert span_usage_metric() == 2
 
     # Second batch nothing passes
     relay.send_envelope(project_id, envelope)
@@ -922,13 +886,13 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
             (12, 2): 2,  # Span, Rate Limited
             (16, 2): 2,  # SpanIndexed, Rate Limited
         }
-        assert usage_metrics() == (0, 0)
+        assert span_usage_metric() == 0
     elif category == "transaction_indexed":
         assert summarize_outcomes() == {
             (9, 2): 1,  # TransactionIndexed, Rate Limited
             (16, 2): 2,  # SpanIndexed, Rate Limited
         }
-        assert usage_metrics() == (1, 2)
+        assert span_usage_metric() == 2
 
     # Third batch might raise 429 since it hits the fast path
     maybe_raises = (
@@ -949,7 +913,7 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
             (12, 2): expected_span_count,  # Span, Rate Limited
             (16, 2): expected_span_count,  # SpanIndexed, Rate Limited
         }
-        assert usage_metrics() == (0, 0)
+        assert span_usage_metric() == 0
     elif category == "transaction_indexed":
         # We do not check indexed limits on the fast path,
         # so we count the correct number of spans (ignoring the span_count header):
@@ -958,7 +922,7 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
             (16, 2): 2,  # SpanIndexed, Rate Limited
         }
         # Metrics are always correct:
-        assert usage_metrics() == (1, 2)
+        assert span_usage_metric() == 2
 
 
 def test_span_filtering_with_generic_inbound_filter(
@@ -981,8 +945,7 @@ def test_span_filtering_with_generic_inbound_filter(
 
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = ["organizations:standalone-span-ingestion"]
+    mini_sentry.add_full_project_config(project_id)
 
     spans_consumer = spans_consumer()
     outcomes_consumer = outcomes_consumer()
@@ -1037,18 +1000,9 @@ def test_dynamic_sampling(
     outcomes_consumer = outcomes_consumer()
 
     project_id = 42
-    project_config = mini_sentry.add_basic_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-    ]
-    project_config["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
-    }
+    mini_sentry.add_basic_project_config(project_id)
 
     sampling_config = mini_sentry.add_basic_project_config(43)
-    sampling_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-    ]
     sampling_public_key = sampling_config["publicKeys"][0]["publicKey"]
     sampling_config["config"]["txNameRules"] = [
         {

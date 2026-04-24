@@ -586,7 +586,7 @@ mod tests {
         };
 
         let quotas = &[get_quota(None)];
-        let quota_with_namespace = &[get_quota(Some(MetricNamespace::Transactions))];
+        let quota_with_namespace = &[get_quota(Some(MetricNamespace::Sessions))];
 
         let scoping = ItemScoping {
             category: DataCategory::Error,
@@ -596,7 +596,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
-            namespace: MetricNamespaceScoping::Some(MetricNamespace::Transactions),
+            namespace: MetricNamespaceScoping::Some(MetricNamespace::Sessions),
         };
 
         let rate_limiter = build_rate_limiter();
@@ -634,7 +634,7 @@ mod tests {
             } else {
                 assert_eq!(
                     rate_limits[0].reason_code,
-                    Some(ReasonCode::new("ns: Some(Transactions)"))
+                    Some(ReasonCode::new("ns: Some(Sessions)"))
                 );
             }
         }

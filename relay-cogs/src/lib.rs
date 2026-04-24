@@ -171,11 +171,13 @@ pub enum AppFeature {
     ///
     /// This app feature is for continuous profiling.
     Profiles,
+    /// User Reports
+    UserReports,
 
-    /// Metrics in the transactions namespace.
-    MetricsTransactions,
     /// Metrics in the spans namespace.
     MetricsSpans,
+    /// Metrics in the transactions namespace.
+    MetricsTransactions,
     /// Metrics in the sessions namespace.
     MetricsSessions,
     /// Metrics in the custom namespace.
@@ -205,8 +207,9 @@ impl AppFeature {
             Self::ClientReports => "client_reports",
             Self::CheckIns => "check_ins",
             Self::Replays => "replays",
-            Self::MetricsTransactions => "metrics_transactions",
+            Self::UserReports => "user_reports",
             Self::MetricsSpans => "metrics_spans",
+            Self::MetricsTransactions => "metrics_transactions",
             Self::MetricsSessions => "metrics_sessions",
             Self::MetricsCustom => "metrics_custom",
             Self::MetricsUnsupported => "metrics_unsupported",

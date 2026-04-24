@@ -178,7 +178,7 @@ regex!(
         \b
             [a-zA-Z0-9.!\#$%&'*+/=?^_`{|}~-]+
             @
-            [a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*
+            [a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*\.[a-zA-Z]{2,}
         \b
     "
 );
@@ -336,7 +336,7 @@ regex!(BEARER_TOKEN_REGEX, r"(?i)\b(Bearer\s+)([^\s]+)");
 
 regex!(
     PASSWORD_KEY_REGEX,
-    r"(?i)(password|secret|passwd|api_key|apikey|auth|credentials|mysql_pwd|privatekey|private_key|token|^otp$|^two[-_]factor$)"
+    r"(?i)(password|secret|passwd|api[-_]key|apikey|auth|credentials|mysql_pwd|privatekey|private[-_]key|token|^otp$|^two[-_]factor$)"
 );
 
 #[cfg(test)]

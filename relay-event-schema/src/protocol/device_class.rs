@@ -1,8 +1,9 @@
 use std::fmt;
 
+use relay_conventions::consts::*;
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue};
 
-use crate::protocol::{Contexts, DeviceContext};
+use crate::protocol::{Attributes, Contexts, DeviceContext};
 
 #[derive(Clone, Copy, Debug, FromValue, IntoValue, Empty, PartialEq)]
 pub struct DeviceClass(pub u64);
@@ -14,24 +15,36 @@ impl DeviceClass {
     pub const MEDIUM: Self = Self(2);
     pub const HIGH: Self = Self(3);
 
+    /// Derives the device class from span V2 attributes.
+    ///
+    /// Reads `device.family`, `device.model`, `device.processor_frequency`,
+    /// `device.processor_count`, and `device.memory_size` from the attribute map.
+    pub fn from_attributes(attributes: &Attributes) -> Option<DeviceClass> {
+        let family = attributes.get_value(DEVICE_FAMILY)?.as_str()?;
+
+        if is_apple_family(family) {
+            let model = attributes.get_value(DEVICE_MODEL)?.as_str()?;
+            model_to_class(model)
+        } else {
+            let freq = attributes.get_value(DEVICE_PROCESSOR_FREQUENCY)?.as_f64()? as u64;
+            let proc = attributes.get_value(DEVICE_PROCESSOR_COUNT)?.as_f64()? as u64;
+            let mem = attributes.get_value(DEVICE_MEMORY_SIZE)?.as_f64()? as u64;
+            classify_by_hardware(freq, proc, mem)
+        }
+    }
+
     pub fn from_contexts(contexts: &Contexts) -> Option<DeviceClass> {
         let device = contexts.get::<DeviceContext>()?;
         let family = device.family.value()?;
 
-        if family == "iPhone" || family == "iOS" || family == "iOS-Device" {
+        if is_apple_family(family) {
             model_to_class(device.model.as_str()?)
         } else if let (Some(&freq), Some(&proc), Some(&mem)) = (
             device.processor_frequency.value(),
             device.processor_count.value(),
             device.memory_size.value(),
         ) {
-            if freq < 2000 || proc < 8 || mem < 4 * GIB {
-                Some(DeviceClass::LOW)
-            } else if freq < 2500 || mem < 6 * GIB {
-                Some(DeviceClass::MEDIUM)
-            } else {
-                Some(DeviceClass::HIGH)
-            }
+            classify_by_hardware(freq, proc, mem)
         } else {
             None
         }
@@ -41,6 +54,29 @@ impl DeviceClass {
 impl fmt::Display for DeviceClass {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
+    }
+}
+
+/// Returns `true` if the device family indicates an Apple device (iPhone/iPad).
+///
+/// Apple devices use model-based classification via [`model_to_class`] rather than
+/// hardware specs, because Apple reports the device family as one of these values
+/// depending on the SDK version and platform context.
+fn is_apple_family(family: &str) -> bool {
+    matches!(family, "iPhone" | "iOS" | "iOS-Device")
+}
+
+/// Classifies a non-Apple device into low/medium/high based on hardware specs.
+///
+/// These classifications are based on an analysis of the mobile devices available
+/// in the market today and are subject to change as the market evolves.
+fn classify_by_hardware(freq: u64, proc: u64, mem: u64) -> Option<DeviceClass> {
+    if freq < 2000 || proc < 8 || mem < 4 * GIB {
+        Some(DeviceClass::LOW)
+    } else if freq < 2500 || mem < 6 * GIB {
+        Some(DeviceClass::MEDIUM)
+    } else {
+        Some(DeviceClass::HIGH)
     }
 }
 
@@ -109,20 +145,20 @@ fn model_to_class(model: &str) -> Option<DeviceClass> {
         "iPhone18,2" => Some(DeviceClass::HIGH),
         "iPhone18,3" => Some(DeviceClass::HIGH),
         "iPhone18,4" => Some(DeviceClass::HIGH),
+        "iPhone18,5" => Some(DeviceClass::HIGH),
 
         // iPads
         "iPad1,1" => Some(DeviceClass::LOW),
-        "iPad1,2" => Some(DeviceClass::LOW),
         "iPad2,1" => Some(DeviceClass::LOW),
         "iPad2,2" => Some(DeviceClass::LOW),
         "iPad2,3" => Some(DeviceClass::LOW),
         "iPad2,4" => Some(DeviceClass::LOW),
-        "iPad3,1" => Some(DeviceClass::LOW),
-        "iPad3,2" => Some(DeviceClass::LOW),
-        "iPad3,3" => Some(DeviceClass::LOW),
         "iPad2,5" => Some(DeviceClass::LOW),
         "iPad2,6" => Some(DeviceClass::LOW),
         "iPad2,7" => Some(DeviceClass::LOW),
+        "iPad3,1" => Some(DeviceClass::LOW),
+        "iPad3,2" => Some(DeviceClass::LOW),
+        "iPad3,3" => Some(DeviceClass::LOW),
         "iPad3,4" => Some(DeviceClass::LOW),
         "iPad3,5" => Some(DeviceClass::LOW),
         "iPad3,6" => Some(DeviceClass::LOW),
@@ -145,12 +181,12 @@ fn model_to_class(model: &str) -> Option<DeviceClass> {
         "iPad6,8" => Some(DeviceClass::MEDIUM),
         "iPad6,11" => Some(DeviceClass::LOW),
         "iPad6,12" => Some(DeviceClass::LOW),
+        "iPad7,1" => Some(DeviceClass::MEDIUM),
         "iPad7,2" => Some(DeviceClass::MEDIUM),
         "iPad7,3" => Some(DeviceClass::MEDIUM),
         "iPad7,4" => Some(DeviceClass::MEDIUM),
         "iPad7,5" => Some(DeviceClass::MEDIUM),
         "iPad7,6" => Some(DeviceClass::MEDIUM),
-        "iPad7,1" => Some(DeviceClass::MEDIUM),
         "iPad7,11" => Some(DeviceClass::MEDIUM),
         "iPad7,12" => Some(DeviceClass::MEDIUM),
         "iPad8,1" => Some(DeviceClass::MEDIUM),
@@ -173,8 +209,6 @@ fn model_to_class(model: &str) -> Option<DeviceClass> {
         "iPad11,7" => Some(DeviceClass::MEDIUM),
         "iPad12,1" => Some(DeviceClass::MEDIUM),
         "iPad12,2" => Some(DeviceClass::MEDIUM),
-        "iPad14,1" => Some(DeviceClass::HIGH),
-        "iPad14,2" => Some(DeviceClass::HIGH),
         "iPad13,1" => Some(DeviceClass::HIGH),
         "iPad13,2" => Some(DeviceClass::HIGH),
         "iPad13,4" => Some(DeviceClass::HIGH),
@@ -189,6 +223,8 @@ fn model_to_class(model: &str) -> Option<DeviceClass> {
         "iPad13,17" => Some(DeviceClass::HIGH),
         "iPad13,18" => Some(DeviceClass::HIGH),
         "iPad13,19" => Some(DeviceClass::HIGH),
+        "iPad14,1" => Some(DeviceClass::HIGH),
+        "iPad14,2" => Some(DeviceClass::HIGH),
         "iPad14,3" => Some(DeviceClass::HIGH),
         "iPad14,4" => Some(DeviceClass::HIGH),
         "iPad14,5" => Some(DeviceClass::HIGH),
@@ -197,12 +233,26 @@ fn model_to_class(model: &str) -> Option<DeviceClass> {
         "iPad14,9" => Some(DeviceClass::HIGH),
         "iPad14,10" => Some(DeviceClass::HIGH),
         "iPad14,11" => Some(DeviceClass::HIGH),
+        "iPad15,3" => Some(DeviceClass::HIGH),
+        "iPad15,4" => Some(DeviceClass::HIGH),
+        "iPad15,5" => Some(DeviceClass::HIGH),
+        "iPad15,6" => Some(DeviceClass::HIGH),
+        "iPad15,7" => Some(DeviceClass::HIGH),
+        "iPad15,8" => Some(DeviceClass::HIGH),
         "iPad16,1" => Some(DeviceClass::HIGH),
         "iPad16,2" => Some(DeviceClass::HIGH),
         "iPad16,3" => Some(DeviceClass::HIGH),
         "iPad16,4" => Some(DeviceClass::HIGH),
         "iPad16,5" => Some(DeviceClass::HIGH),
         "iPad16,6" => Some(DeviceClass::HIGH),
+        "iPad16,8" => Some(DeviceClass::HIGH),
+        "iPad16,9" => Some(DeviceClass::HIGH),
+        "iPad16,10" => Some(DeviceClass::HIGH),
+        "iPad16,11" => Some(DeviceClass::HIGH),
+        "iPad17,1" => Some(DeviceClass::HIGH),
+        "iPad17,2" => Some(DeviceClass::HIGH),
+        "iPad17,3" => Some(DeviceClass::HIGH),
+        "iPad17,4" => Some(DeviceClass::HIGH),
 
         // If we don't know the model it's a new device and therefore must be high.
         _ => Some(DeviceClass::HIGH),
@@ -212,6 +262,118 @@ fn model_to_class(model: &str) -> Option<DeviceClass> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    macro_rules! attributes {
+        ($($key:expr => $value:expr),* $(,)?) => {
+            Attributes::from([
+                $(($key.into(), Annotated::new($value.into())),)*
+            ])
+        };
+    }
+
+    #[test]
+    fn test_from_attributes_iphone17_5() {
+        let attrs = attributes! {
+            DEVICE_FAMILY => "iOS",
+            DEVICE_MODEL => "iPhone17,5",
+        };
+        assert_eq!(
+            DeviceClass::from_attributes(&attrs),
+            Some(DeviceClass::HIGH)
+        );
+    }
+
+    #[test]
+    fn test_from_attributes_iphone99_1() {
+        let attrs = attributes! {
+            DEVICE_FAMILY => "iOS",
+            DEVICE_MODEL => "iPhone99,1",
+        };
+        assert_eq!(
+            DeviceClass::from_attributes(&attrs),
+            Some(DeviceClass::HIGH)
+        );
+    }
+
+    #[test]
+    fn test_from_attributes_ipad99_1() {
+        let attrs = attributes! {
+            DEVICE_FAMILY => "iOS",
+            DEVICE_MODEL => "iPad99,1",
+        };
+        assert_eq!(
+            DeviceClass::from_attributes(&attrs),
+            Some(DeviceClass::HIGH)
+        );
+    }
+
+    #[test]
+    fn test_from_attributes_garbage_device_model() {
+        let attrs = attributes! {
+            DEVICE_FAMILY => "iOS",
+            DEVICE_MODEL => "garbage-device-model",
+        };
+        assert_eq!(
+            DeviceClass::from_attributes(&attrs),
+            Some(DeviceClass::HIGH)
+        );
+    }
+
+    #[test]
+    fn test_from_attributes_wrong_family() {
+        let attrs = attributes! {
+            DEVICE_FAMILY => "iOSS",
+            DEVICE_MODEL => "iPhone17,5",
+        };
+        assert_eq!(DeviceClass::from_attributes(&attrs), None);
+    }
+
+    #[test]
+    fn test_from_attributes_android_low() {
+        let attrs = attributes! {
+            DEVICE_FAMILY => "Android",
+            DEVICE_PROCESSOR_FREQUENCY => 1500.0,
+            DEVICE_PROCESSOR_COUNT => 4.0,
+            DEVICE_MEMORY_SIZE => 2_147_483_648.0,
+        };
+        assert_eq!(DeviceClass::from_attributes(&attrs), Some(DeviceClass::LOW));
+    }
+
+    #[test]
+    fn test_from_attributes_android_medium() {
+        let attrs = attributes! {
+            DEVICE_FAMILY => "Android",
+            DEVICE_PROCESSOR_FREQUENCY => 2200.0,
+            DEVICE_PROCESSOR_COUNT => 8.0,
+            DEVICE_MEMORY_SIZE => 5_368_709_120.0,
+        };
+        assert_eq!(
+            DeviceClass::from_attributes(&attrs),
+            Some(DeviceClass::MEDIUM)
+        );
+    }
+
+    #[test]
+    fn test_from_attributes_android_high() {
+        let attrs = attributes! {
+            DEVICE_FAMILY => "Android",
+            DEVICE_PROCESSOR_FREQUENCY => 3000.0,
+            DEVICE_PROCESSOR_COUNT => 8.0,
+            DEVICE_MEMORY_SIZE => 8_589_934_592.0,
+        };
+        assert_eq!(
+            DeviceClass::from_attributes(&attrs),
+            Some(DeviceClass::HIGH)
+        );
+    }
+
+    #[test]
+    fn test_from_attributes_android_missing_specs() {
+        let attrs = attributes! {
+            DEVICE_FAMILY => "Android",
+        };
+        assert_eq!(DeviceClass::from_attributes(&attrs), None);
+    }
 
     #[test]
     fn test_iphone17_5_returns_device_class_high() {

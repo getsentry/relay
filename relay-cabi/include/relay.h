@@ -316,6 +316,12 @@ enum RelayDataCategory {
    */
   RELAY_DATA_CATEGORY_PROFILE_UI = 36,
   /**
+   * TraceMetricByte
+   *
+   * This is the category for trace metrics for which we store total bytes for users.
+   */
+  RELAY_DATA_CATEGORY_TRACE_METRIC_BYTE = 37,
+  /**
    * Any other data category not known by this Relay.
    */
   RELAY_DATA_CATEGORY_UNKNOWN = -1,

@@ -13,7 +13,7 @@ use crate::processing::utils::store::{
     AttributeMeta, extract_client_sample_rate, extract_meta_attributes, proto_timestamp,
     quantities_to_trace_item_outcomes, uuid_to_item_id,
 };
-use crate::services::objectstore::StoreAttachment;
+use crate::services::objectstore::StoreTraceAttachment;
 use crate::services::outcome::{DiscardReason, Outcome};
 
 /// Converts an expanded attachment to a storable unit.
@@ -21,7 +21,7 @@ pub fn convert(
     attachment: Managed<ExpandedAttachment>,
     retention: Retention,
     server_sample_rate: Option<f64>,
-) -> Result<Managed<StoreAttachment>, Rejected<()>> {
+) -> Result<Managed<StoreTraceAttachment>, Rejected<()>> {
     let scoping = attachment.scoping();
     let received_at = attachment.received_at();
     attachment.try_map(|attachment, _record_keeper| {
@@ -42,7 +42,11 @@ pub fn convert(
         let trace_item = attachment_to_trace_item(meta, quantities, ctx)
             .ok_or(Outcome::Invalid(DiscardReason::InvalidTraceAttachment))?;
 
-        Ok::<_, Outcome>(StoreAttachment { trace_item, body })
+        Ok::<_, Outcome>(StoreTraceAttachment {
+            trace_item,
+            body,
+            retention: retention.standard,
+        })
     })
 }
 

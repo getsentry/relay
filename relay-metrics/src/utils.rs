@@ -17,10 +17,10 @@ pub fn tags_cost(tags: &BTreeMap<String, String>) -> usize {
 pub struct ByNamespace<T> {
     /// Value for the [`MetricNamespace::Sessions`] namespace.
     pub sessions: T,
-    /// Value for the [`MetricNamespace::Transactions`] namespace.
-    pub transactions: T,
     /// Value for the [`MetricNamespace::Spans`] namespace.
     pub spans: T,
+    /// Value for the [`MetricNamespace::Transactions`] namespace.
+    pub transactions: T,
     /// Value for the [`MetricNamespace::Custom`] namespace.
     pub custom: T,
     /// Value for the [`MetricNamespace::Unsupported`] namespace.
@@ -32,8 +32,8 @@ impl<T> ByNamespace<T> {
     pub fn get(&self, namespace: MetricNamespace) -> &T {
         match namespace {
             MetricNamespace::Sessions => &self.sessions,
-            MetricNamespace::Transactions => &self.transactions,
             MetricNamespace::Spans => &self.spans,
+            MetricNamespace::Transactions => &self.transactions,
             MetricNamespace::Custom => &self.custom,
             MetricNamespace::Unsupported => &self.unsupported,
         }
@@ -43,8 +43,8 @@ impl<T> ByNamespace<T> {
     pub fn get_mut(&mut self, namespace: MetricNamespace) -> &mut T {
         match namespace {
             MetricNamespace::Sessions => &mut self.sessions,
-            MetricNamespace::Transactions => &mut self.transactions,
             MetricNamespace::Spans => &mut self.spans,
+            MetricNamespace::Transactions => &mut self.transactions,
             MetricNamespace::Custom => &mut self.custom,
             MetricNamespace::Unsupported => &mut self.unsupported,
         }
@@ -58,16 +58,16 @@ impl<T> IntoIterator for ByNamespace<T> {
     fn into_iter(self) -> Self::IntoIter {
         let Self {
             sessions,
-            transactions,
             spans,
+            transactions,
             custom,
             unsupported,
         } = self;
 
         [
             (MetricNamespace::Sessions, sessions),
-            (MetricNamespace::Transactions, transactions),
             (MetricNamespace::Spans, spans),
+            (MetricNamespace::Transactions, transactions),
             (MetricNamespace::Custom, custom),
             (MetricNamespace::Unsupported, unsupported),
         ]
@@ -109,15 +109,15 @@ macro_rules! impl_op {
             fn $opfn(&mut self, rhs: Self) {
                 let Self {
                     sessions,
-                    transactions,
                     spans,
+                    transactions,
                     custom,
                     unsupported,
                 } = self;
 
                 $op::$opfn(sessions, rhs.sessions);
-                $op::$opfn(transactions, rhs.transactions);
                 $op::$opfn(spans, rhs.spans);
+                $op::$opfn(transactions, rhs.transactions);
                 $op::$opfn(custom, rhs.custom);
                 $op::$opfn(unsupported, rhs.unsupported);
             }

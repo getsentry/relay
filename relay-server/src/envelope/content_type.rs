@@ -6,7 +6,8 @@ pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 
 /// Payload content types.
 ///
-/// This is an optimized enum intended to reduce allocations for common content types.
+/// This is an optimized enum intended to reduce allocations for common content types used by Relay.
+/// When dealing with generic/user provided content types, use a different type instead, e.g. `String`.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum ContentType {
     /// `text/plain`
@@ -35,7 +36,7 @@ pub enum ContentType {
     TraceMetricContainer,
     /// `application/vnd.sentry.trace-attachment`
     TraceAttachment,
-    /// `application/vnd.sentry.attachment-ref`
+    /// `application/vnd.sentry.attachment-ref+json`
     AttachmentRef,
     /// All integration content types.
     Integration(Integration),
@@ -58,7 +59,7 @@ impl ContentType {
             Self::SpanV2Container => "application/vnd.sentry.items.span.v2+json",
             Self::TraceMetricContainer => "application/vnd.sentry.items.trace-metric+json",
             Self::TraceAttachment => "application/vnd.sentry.trace-attachment",
-            Self::AttachmentRef => "application/vnd.sentry.attachment-ref",
+            Self::AttachmentRef => "application/vnd.sentry.attachment-ref+json",
             Self::Integration(integration) => integration.as_content_type(),
         }
     }
@@ -104,7 +105,9 @@ impl ContentType {
             || ct.eq_ignore_ascii_case("application/vnd.sentry.attachment.v2")
         {
             Some(Self::TraceAttachment)
-        } else if ct.eq_ignore_ascii_case(Self::AttachmentRef.as_str()) {
+        } else if ct.eq_ignore_ascii_case(Self::AttachmentRef.as_str())
+            || ct.eq_ignore_ascii_case("application/vnd.sentry.attachment-ref")
+        {
             Some(Self::AttachmentRef)
         } else {
             Integration::from_content_type(ct).map(Self::Integration)
@@ -186,3 +189,20 @@ impl serde::Serialize for ContentType {
 }
 
 relay_common::impl_str_de!(ContentType, "a content type string");
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn attachment_ref_roundtrip() {
+        let canonical_name = "application/vnd.sentry.attachment-ref+json";
+        let ct = ContentType::from_str(canonical_name).unwrap();
+        assert_eq!(ct, ContentType::AttachmentRef);
+        assert_eq!(canonical_name, ct.as_str());
+
+        let legacy_alias = "application/vnd.sentry.attachment-ref";
+        let ct = ContentType::from_str(legacy_alias).unwrap();
+        assert_eq!(ct, ContentType::AttachmentRef);
+    }
+}

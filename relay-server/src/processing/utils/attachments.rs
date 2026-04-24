@@ -1,21 +1,84 @@
 use std::error::Error;
 use std::time::Instant;
 
+use relay_config::Config;
 use relay_pii::{PiiAttachmentsProcessor, SelectorPathItem, SelectorSpec};
 use relay_statsd::metric;
 
+#[cfg(feature = "processing")]
+use crate::envelope::AttachmentPlaceholder;
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
+use crate::managed::{Counted, Managed, RecordKeeper, RetainMut};
+use crate::processing::Context;
+use crate::services::processor::ProcessingError;
 use crate::statsd::RelayTimers;
 
 use crate::services::projects::project::ProjectInfo;
 use relay_dynamic_config::Feature;
+
+/// Validates the attachments and drop any invalid ones.
+///
+/// An attachment might be a placeholder, in which case it needs to be validated.
+pub fn validate_attachments<T, V>(
+    managed: &mut Managed<T>,
+    select: impl FnOnce(&mut T) -> &mut V,
+    ctx: Context<'_>,
+) where
+    T: Counted,
+    V: RetainMut<Item>,
+{
+    if !ctx.is_processing() {
+        return;
+    }
+    managed.retain(select, |attachment, _| validate(attachment, ctx.config));
+}
+
+#[cfg_attr(not(feature = "processing"), expect(unused_variables))]
+fn validate(item: &Item, config: &Config) -> Result<(), ProcessingError> {
+    #[cfg(not(feature = "processing"))]
+    return Ok(());
+
+    #[cfg(feature = "processing")]
+    {
+        if !item.is_attachment_ref() {
+            return Ok(());
+        }
+
+        let payload = item.payload();
+        let payload: AttachmentPlaceholder =
+            serde_json::from_slice(&payload).map_err(|_| ProcessingError::InvalidAttachmentRef)?;
+        let signed_location =
+            crate::services::upload::SignedLocation::try_from_str(payload.location)
+                .ok_or(ProcessingError::InvalidAttachmentRef)?;
+        // NOTE: Using the received timestamp here breaks tests without a pop-relay.
+        let location = signed_location
+            .verify(chrono::Utc::now(), config)
+            .map_err(|_| ProcessingError::InvalidAttachmentRef)?;
+        let signed_length = location
+            .length
+            .ok_or(ProcessingError::InvalidAttachmentRef)?;
+
+        match item.attachment_body_size() == signed_length {
+            true => Ok(()),
+            false => Err(ProcessingError::InvalidAttachmentRef),
+        }
+    }
+}
 
 /// Apply data privacy rules to attachments in the envelope.
 ///
 /// This only applies the new PII rules that explicitly select `ValueType::Binary` or one of the
 /// attachment types. When special attachments are detected, these are scrubbed with custom
 /// logic; otherwise the entire attachment is treated as a single binary blob.
-pub fn scrub<'a>(attachments: impl Iterator<Item = &'a mut Item>, project_info: &ProjectInfo) {
+///
+/// Requires `record_keeper` since scrubbing a view hierarchy might change the size of it and hence
+/// modifies the attachment quantity.
+pub fn scrub<'a>(
+    attachments: impl Iterator<Item = &'a mut Item>,
+    project_info: &ProjectInfo,
+    mut record_keeper: Option<&mut RecordKeeper>,
+) {
+    let _ = record_keeper;
     if let Some(ref config) = project_info.config.pii_config {
         let view_hierarchy_scrubbing_enabled = project_info
             .config
@@ -23,10 +86,22 @@ pub fn scrub<'a>(attachments: impl Iterator<Item = &'a mut Item>, project_info: 
             .has(Feature::ViewHierarchyScrubbing);
         for item in attachments {
             debug_assert_eq!(item.ty(), &ItemType::Attachment);
-            if view_hierarchy_scrubbing_enabled
+            if item.is_attachment_ref() {
+                relay_log::trace!("Skip attachment scrubbing for placeholder");
+                continue;
+            } else if view_hierarchy_scrubbing_enabled
                 && item.attachment_type() == Some(AttachmentType::ViewHierarchy)
             {
-                scrub_view_hierarchy(item, config)
+                let old_size = item.payload().len();
+                scrub_view_hierarchy(item, config);
+                let new_size = item.payload().len();
+
+                if let Some(record_keeper) = record_keeper.as_mut() {
+                    record_keeper.modify_by(
+                        relay_quotas::DataCategory::Attachment,
+                        new_size as isize - old_size as isize,
+                    );
+                }
             } else if item.attachment_type() == Some(AttachmentType::Minidump) {
                 scrub_minidump(item, config)
             } else if item.ty() == &ItemType::Attachment && has_simple_attachment_selector(config) {
