@@ -2941,17 +2941,6 @@ mod tests {
             .unwrap()
     }
 
-    fn normalize_mobile_measurements_pipeline(event: &mut Event) {
-        normalize_event_measurements(event, None, None);
-        backfill_app_vitals_start(event);
-    }
-
-    fn normalize_mobile_measurements_only(event: &mut Event) {
-        if let Some(measurements) = event.measurements.value_mut() {
-            normalize_mobile_measurements(measurements);
-        }
-    }
-
     fn measurements_and_tags(event: &Event) -> serde_json::Value {
         let tags = event.tags.value().map(|tags| {
             tags.0
@@ -3000,7 +2989,7 @@ mod tests {
             let mut event = mobile_measurements_event(&format!(
                 r#"{{"{name}": {{"value": {expected_value}, "unit": "millisecond"}}}}"#
             ));
-            normalize_mobile_measurements_pipeline(&mut event);
+            backfill_app_vitals_start(&mut event);
             assert_app_start_backfill(&event, name, expected_type, expected_value);
         }
     }
@@ -3013,7 +3002,7 @@ mod tests {
                 "app_start_warm": {"value": 200.0, "unit": "millisecond"}
             }"#,
         );
-        normalize_mobile_measurements_pipeline(&mut event);
+        backfill_app_vitals_start(&mut event);
         insta::assert_json_snapshot!(measurements_and_tags(&event), @r#"
         {
           "measurements": {
@@ -3040,7 +3029,7 @@ mod tests {
     #[test]
     fn test_normalize_mobile_measurements_no_app_start_noop() {
         let mut event = mobile_measurements_event(r#"{"lcp": {"value": 100.0}}"#);
-        normalize_mobile_measurements_only(&mut event);
+        backfill_app_vitals_start(&mut event);
         insta::assert_json_snapshot!(measurements_and_tags(&event), @r#"
         {
           "measurements": {
@@ -3058,7 +3047,8 @@ mod tests {
         let mut event = mobile_measurements_event(
             r#"{"app_start_cold": {"value": 180001.0, "unit": "millisecond"}}"#,
         );
-        normalize_mobile_measurements_pipeline(&mut event);
+        normalize_event_measurements(&mut event, None, None);
+        backfill_app_vitals_start(&mut event);
         insta::assert_json_snapshot!(measurements_and_tags(&event), @r#"
         {
           "measurements": {},
@@ -3079,7 +3069,7 @@ mod tests {
             .unwrap()
             .into_value()
             .unwrap();
-        normalize_mobile_measurements_only(&mut event);
+        backfill_app_vitals_start(&mut event);
         insta::assert_json_snapshot!(measurements_and_tags(&event), @r#"
         {
           "measurements": {
@@ -3101,7 +3091,7 @@ mod tests {
                 "app.vitals.start.value": {"value": 999.0, "unit": "millisecond"}
             }"#,
         );
-        normalize_mobile_measurements_pipeline(&mut event);
+        backfill_app_vitals_start(&mut event);
         insta::assert_json_snapshot!(measurements_and_tags(&event), @r#"
         {
           "measurements": {
@@ -3134,7 +3124,7 @@ mod tests {
                 Annotated::new("warm".to_owned()),
             );
 
-        normalize_mobile_measurements_pipeline(&mut event);
+        backfill_app_vitals_start(&mut event);
 
         insta::assert_json_snapshot!(measurements_and_tags(&event), @r#"
         {
@@ -3155,7 +3145,7 @@ mod tests {
     fn test_normalize_mobile_measurements_invalid_unit_not_backfilled() {
         let mut event =
             mobile_measurements_event(r#"{"app_start_cold": {"value": 1.5, "unit": "second"}}"#);
-        normalize_mobile_measurements_pipeline(&mut event);
+        backfill_app_vitals_start(&mut event);
 
         insta::assert_json_snapshot!(measurements_and_tags(&event), @r#"
         {
