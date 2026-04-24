@@ -2,7 +2,6 @@ import uuid
 import sentry_relay
 import pytest
 
-
 UPSTREAM_SECRET = "secret"
 
 # NOTE in order to regenerate the test data (in case of changes) run the rust test:
