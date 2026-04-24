@@ -5,7 +5,6 @@ from sentry_relay.consts import DataCategory
 
 from .asserts import time_within_delta, time_within, only_items
 
-
 TEST_CONFIG = {
     "outcomes": {
         "emit_outcomes": True,
@@ -128,13 +127,11 @@ def test_otlp_logs_conversion(
                 "map.attribute": {"stringValue": '{"nested.key":"nested value"}'},
                 "resource.service.name": {"stringValue": "test-service"},
                 "sentry.body": {"stringValue": "Example log record"},
-                "sentry.browser.name": {"stringValue": "Python Requests"},
-                "sentry.browser.version": {"stringValue": "2.32"},
                 "sentry.observed_timestamp_nanos": {
                     "stringValue": time_within(ts, expect_resolution="ns")
                 },
                 "sentry.origin": {"stringValue": "auto.otlp.logs"},
-                "sentry.payload_size_bytes": {"intValue": "378"},
+                "sentry.payload_size_bytes": {"intValue": mock.ANY},
                 "sentry.severity_text": {"stringValue": "info"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
                 "sentry.timestamp_precise": {
@@ -177,7 +174,7 @@ def test_otlp_logs_conversion(
             "org_id": 1,
             "outcome": 0,
             "project_id": 42,
-            "quantity": 378,
+            "quantity": 318,
         },
     ]
 
@@ -240,8 +237,6 @@ def test_otlp_logs_multiple_records(
         {
             "attributes": {
                 "sentry.body": {"stringValue": "First log entry"},
-                "sentry.browser.name": {"stringValue": "Python Requests"},
-                "sentry.browser.version": {"stringValue": "2.32"},
                 "sentry.observed_timestamp_nanos": {
                     "stringValue": time_within(ts, expect_resolution="ns")
                 },
@@ -273,8 +268,6 @@ def test_otlp_logs_multiple_records(
         {
             "attributes": {
                 "sentry.body": {"stringValue": "Second log entry"},
-                "sentry.browser.name": {"stringValue": "Python Requests"},
-                "sentry.browser.version": {"stringValue": "2.32"},
                 "sentry.observed_timestamp_nanos": {
                     "stringValue": time_within(ts, expect_resolution="ns")
                 },
@@ -321,7 +314,7 @@ def test_otlp_logs_multiple_records(
             "org_id": 1,
             "outcome": 0,
             "project_id": 42,
-            "quantity": 305,
+            "quantity": 185,
         },
     ]
 

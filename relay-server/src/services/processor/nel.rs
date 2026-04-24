@@ -1,5 +1,5 @@
 use relay_event_normalization::nel;
-use relay_event_schema::protocol::{NetworkReportError, OurLog};
+use relay_event_schema::protocol::{NetworkReportError, OurLog, ourlog};
 use relay_protocol::Annotated;
 
 use crate::envelope::{ContainerItems, Item, ItemContainer, ItemType, WithHeader};
@@ -45,7 +45,18 @@ pub fn convert_to_logs(envelope: &mut ManagedEnvelope) {
     }
 
     let mut item = Item::new(ItemType::Log);
-    if let Ok(()) = ItemContainer::from(logs).write_to(&mut item) {
+    if let Ok(()) = ItemContainer::from_parts(
+        ourlog::container::ContainerMetadata {
+            version: Some(2),
+            ingest_settings: Some(ourlog::container::IngestSettings {
+                infer_user_agent: Some(ourlog::container::InferUserAgent::Auto),
+                infer_ip: None,
+            }),
+        },
+        logs,
+    )
+    .write_to(&mut item)
+    {
         envelope.envelope_mut().add_item(item);
     }
 }

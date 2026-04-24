@@ -382,7 +382,7 @@ impl ContainerItem for relay_event_schema::protocol::OurLog {
     const ITEM_TYPE: ItemType = ItemType::Log;
     const CONTENT_TYPE: ContentType = ContentType::LogContainer;
 
-    type Metadata = NoMetadata;
+    type Metadata = relay_event_schema::protocol::ourlog::container::ContainerMetadata;
     type Header = relay_event_schema::protocol::OurLogHeader;
 }
 

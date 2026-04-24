@@ -4,18 +4,20 @@ use relay_quotas::DataCategory;
 use crate::envelope::{ContainerItems, Item, WithHeader};
 use crate::integrations::{Integration, LogsIntegration};
 use crate::managed::RecordKeeper;
+use crate::processing::logs::Settings;
 
 mod otel;
 mod vercel;
 
-/// Expands a list of [`Integration`] items into `result`.
+/// Expands a list of [`Integration`].
 ///
 /// The function expects *only* log item integrations.
-pub fn expand_into(
-    result: &mut ContainerItems<OurLog>,
+pub fn expand(
+    items: &[Item],
     records: &mut RecordKeeper<'_>,
-    items: Vec<Item>,
-) {
+) -> (Settings, ContainerItems<OurLog>) {
+    let mut result = Vec::new();
+
     for item in items {
         let integration = match item.integration() {
             Some(Integration::Logs(integration)) => integration,
@@ -58,6 +60,8 @@ pub fn expand_into(
             }
         }
     }
+
+    (Settings::default(), result)
 }
 
 #[derive(Debug, thiserror::Error)]
