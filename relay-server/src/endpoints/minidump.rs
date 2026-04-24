@@ -103,7 +103,10 @@ fn decoder_from(minidump_data: Bytes) -> Option<Box<dyn Read>> {
 /// or returns the provided minidump payload untouched if no format where detected.
 ///
 /// Returns an `Overflow` error if the decompressed size exceeds `max_size`.
-fn decode_minidump(minidump_data: Bytes, max_size: usize) -> Result<Bytes, BadStoreRequest> {
+fn decode_minidump(
+    minidump_data: Bytes,
+    max_size: usize,
+) -> Result<Bytes, (BadStoreRequest, Outcome)> {
     let Some(decoder) = decoder_from(minidump_data.clone()) else {
         // this means we haven't detected any compression container
         // proceed to process the payload untouched (as a plain minidump).
@@ -115,16 +118,24 @@ fn decode_minidump(minidump_data: Bytes, max_size: usize) -> Result<Bytes, BadSt
     match run_decoder(decoder) {
         Ok(decoded) => {
             if decoded.len() > max_size {
-                return Err(BadStoreRequest::Overflow(DiscardItemType::Attachment(
-                    DiscardAttachmentType::Minidump,
-                )));
+                return Err((
+                    BadStoreRequest::Overflow(DiscardItemType::Attachment(
+                        DiscardAttachmentType::Minidump,
+                    )),
+                    Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Attachment(
+                        DiscardAttachmentType::Minidump,
+                    ))),
+                ));
             }
             Ok(Bytes::from(decoded))
         }
         Err(err) => {
             // we detected a compression container but failed to decode it
             relay_log::trace!("invalid compression container");
-            Err(BadStoreRequest::InvalidCompressionContainer(err))
+            Err((
+                BadStoreRequest::InvalidCompressionContainer(err),
+                Outcome::Invalid(DiscardReason::InvalidCompression),
+            ))
         }
     }
 }
@@ -165,19 +176,6 @@ async fn extract_embedded_minidump(payload: Bytes) -> Result<Option<Bytes>, BadS
     }
 
     Ok(None)
-}
-
-fn outcome_for_err(err: &BadStoreRequest) -> Outcome {
-    match err {
-        BadStoreRequest::Overflow(_) => Outcome::Invalid(DiscardReason::TooLarge(
-            DiscardItemType::Attachment(DiscardAttachmentType::Minidump),
-        )),
-        BadStoreRequest::InvalidCompressionContainer(_) => {
-            Outcome::Invalid(DiscardReason::InvalidCompression)
-        }
-        BadStoreRequest::InvalidMinidump => Outcome::Invalid(DiscardReason::InvalidMinidump),
-        _ => Outcome::Invalid(DiscardReason::Internal),
-    }
 }
 
 struct MinidumpAttachmentStrategy;
@@ -238,8 +236,9 @@ async fn multipart_to_envelope(
     let decoded = match decode_minidump(minidump_item.payload(), config.max_attachment_size()) {
         Ok(d) => d,
         Err(e) => {
-            managed::reject_all(&items, outcome_for_err(&e));
-            return Err(e);
+            let (error, outcome) = e;
+            managed::reject_all(&items, outcome);
+            return Err(error);
         }
     };
     minidump_item.set_attachment_payload(Some(ContentType::Minidump), decoded);
@@ -284,8 +283,9 @@ fn raw_minidump_to_envelope(
     let payload = match decode_minidump(data, state.config().max_attachment_size()) {
         Ok(d) => d,
         Err(e) => {
-            let _ = item.reject_err(outcome_for_err(&e));
-            return Err(e);
+            let (error, outcome) = e;
+            let _ = item.reject_err(outcome);
+            return Err(error);
         }
     };
     item.set_attachment_payload(Some(ContentType::Minidump), payload);
@@ -429,7 +429,15 @@ mod tests {
 
         // With a limit smaller than the decompressed size, decoding should fail with Overflow
         let result = decode_minidump(compressed, 50);
-        assert!(matches!(result, Err(BadStoreRequest::Overflow(_))));
+        assert!(matches!(
+            result,
+            Err((
+                BadStoreRequest::Overflow(_),
+                Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Attachment(
+                    DiscardAttachmentType::Minidump,
+                ))),
+            ))
+        ));
 
         Ok(())
     }
