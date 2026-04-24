@@ -118,13 +118,10 @@ fn decode_minidump(
     match run_decoder(decoder) {
         Ok(decoded) => {
             if decoded.len() > max_size {
+                let dit = DiscardItemType::Attachment(DiscardAttachmentType::Minidump);
                 return Err((
-                    BadStoreRequest::Overflow(DiscardItemType::Attachment(
-                        DiscardAttachmentType::Minidump,
-                    )),
-                    Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Attachment(
-                        DiscardAttachmentType::Minidump,
-                    ))),
+                    BadStoreRequest::Overflow(dit),
+                    Outcome::Invalid(DiscardReason::TooLarge(dit)),
                 ));
             }
             Ok(Bytes::from(decoded))
