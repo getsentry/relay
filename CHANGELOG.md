@@ -9,8 +9,7 @@
 
 **Bug Fixes**:
 
-- Only enforce the `token` PII rule on keys instead of also values, 
-  allowing `token` to be used in LLM contexts without removing the entire value. ([#5886](https://github.com/getsentry/relay/pull/5886))
+- The PII rule for `token` is less strict to not always scrub usage in LLM contexts. ([#5886](https://github.com/getsentry/relay/pull/5886))
 
 
 ## 26.4.1
