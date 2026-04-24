@@ -667,11 +667,9 @@ def test_minidump_invalid_compression_outcome(
     mini_sentry.add_full_project_config(project_id)
     outcomes_consumer = outcomes_consumer()
     relay = relay_with_processing()
-
-    # Gzip magic bytes followed by garbage triggers the gzip decoder but
-    # fails decoding, hitting the InvalidCompressionContainer path.
     content = b"\x1f\x8b" + b"not a valid gzip stream"
     attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp.gz", content)]
+
     with pytest.raises(HTTPError) as exc_info:
         relay.send_minidump(project_id=project_id, files=attachments)
 
