@@ -15,7 +15,9 @@ use crate::services::buffer::{ProjectKeyPair, PushError};
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
 use crate::services::processor::{BucketSource, MetricData, ProcessMetrics};
 use crate::statsd::{RelayCounters, RelayDistributions};
-use crate::utils::{self, ApiErrorResponse, FormDataIter};
+use crate::utils::{
+    self, ApiErrorResponse, FormDataIter, find_error_source, is_length_limit_error,
+};
 
 #[derive(Clone, Copy, Debug, thiserror::Error)]
 #[error("the service is overloaded")]
@@ -59,7 +61,7 @@ pub enum BadStoreRequest {
     InvalidEnvelope(#[from] EnvelopeError),
 
     #[error("invalid multipart data")]
-    InvalidMultipart(#[from] multer::Error),
+    InvalidMultipart(multer::Error),
 
     #[error("invalid minidump")]
     InvalidMinidump,
@@ -92,6 +94,9 @@ pub enum BadStoreRequest {
     )]
     Overflow(DiscardItemType),
 
+    #[error("request content exceeded size limits")]
+    ContentTooLarge,
+
     #[error(
         "Sentry dropped data due to a quota or internal rate limit being reached. This will not affect your application. See https://docs.sentry.io/product/accounts/quotas/ for more information."
     )]
@@ -102,6 +107,22 @@ pub enum BadStoreRequest {
 
     #[error("project not available")]
     ProjectUnavailable,
+}
+
+impl From<multer::Error> for BadStoreRequest {
+    fn from(value: multer::Error) -> Self {
+        match value {
+            multer::Error::StreamSizeExceeded { .. } => BadStoreRequest::ContentTooLarge,
+            multer::Error::StreamReadFailed(error)
+                if find_error_source(error.as_ref(), is_length_limit_error).is_some() =>
+            {
+                // This happens when the stream suddenly stops because `RequestBodyLimit` capped
+                // a request with `Transfer-Encoding: Chunked`.
+                BadStoreRequest::ContentTooLarge
+            }
+            other => BadStoreRequest::InvalidMultipart(other),
+        }
+    }
 }
 
 impl IntoResponse for BadStoreRequest {
@@ -139,7 +160,9 @@ impl IntoResponse for BadStoreRequest {
                 // now executed asynchronously in `EnvelopeProcessor`.
                 (StatusCode::FORBIDDEN, body).into_response()
             }
-            BadStoreRequest::Overflow(_) => (StatusCode::PAYLOAD_TOO_LARGE, body).into_response(),
+            BadStoreRequest::Overflow(_) | BadStoreRequest::ContentTooLarge => {
+                (StatusCode::PAYLOAD_TOO_LARGE, body).into_response()
+            }
             _ => {
                 // In all other cases, we indicate a generic bad request to the client and render
                 // the cause. This was likely the client's fault.
