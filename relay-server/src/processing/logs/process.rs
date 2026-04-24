@@ -1,3 +1,4 @@
+use relay_event_normalization::eap::ClientUserAgentInfo;
 use relay_event_normalization::{RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{OurLog, OurLogHeader};
@@ -115,11 +116,16 @@ fn normalize_log(
     );
 
     if let Some(log) = log.value_mut() {
+        let client_ua_info = Some(ClientUserAgentInfo {
+            user_agent: meta.user_agent(),
+            hints: meta.client_hints(),
+        });
+
         eap::normalize_attribute_types(&mut log.attributes);
         eap::normalize_attribute_names(&mut log.attributes);
         eap::normalize_received(&mut log.attributes, meta.received_at());
         eap::normalize_client_address(&mut log.attributes, meta.client_addr());
-        eap::normalize_user_agent(&mut log.attributes, meta.user_agent(), meta.client_hints());
+        eap::normalize_user_agent(&mut log.attributes, client_ua_info);
     }
 
     process_value(

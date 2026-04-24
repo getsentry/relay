@@ -19,12 +19,14 @@ TEST_CONFIG = {
 }
 
 
-def envelope_with_spans(*payloads: dict, trace_info=None) -> Envelope:
+def envelope_with_spans(*payloads: dict, trace_info=None, metadata=None) -> Envelope:
     envelope = Envelope()
     envelope.add_item(
         Item(
             type="span",
-            payload=PayloadRef(json={"items": payloads}),
+            payload=PayloadRef(
+                json={"items": payloads, **(metadata if metadata is not None else {})}
+            ),
             content_type="application/vnd.sentry.items.span.v2+json",
             headers={"item_count": len(payloads)},
         )
@@ -93,6 +95,13 @@ def test_spansv2_basic(
                 "http.response_content_length": {"value": 17, "type": "integer"},
             },
         },
+        metadata={
+            "version": 2,
+            "ingest_settings": {
+                "infer_ip": "auto",
+                "infer_user_agent": "auto",
+            },
+        },
         trace_info={
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "public_key": project_config["publicKeys"][0]["publicKey"],
@@ -109,6 +118,10 @@ def test_spansv2_basic(
         "span_id": "eee19b7ec3c1b175",
         "attributes": {
             "array": {"type": "array", "value": ["foo", "bar"]},
+            "client.address": {
+                "type": "string",
+                "value": "127.0.0.1",
+            },
             "foo": {"type": "string", "value": "bar"},
             "http.response_content_length": {"value": 17, "type": "integer"},
             "http.response.body.size": {"value": 17, "type": "integer"},
@@ -278,6 +291,12 @@ def test_spansv2_trimming_basic(
                 "second.custom.invalid.attribute": {"value": None, "type": "integer"},
             },
         },
+        metadata={
+            "version": 2,
+            "ingest_settings": {
+                "infer_user_agent": "auto",
+            },
+        },
         trace_info={
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "public_key": project_config["publicKeys"][0]["publicKey"],
@@ -400,10 +419,14 @@ def test_spansv2_trimming_basic(
 
 
 @pytest.mark.parametrize(
+    "span",
+    ["v2", "legacy"],
+)
+@pytest.mark.parametrize(
     "rule_type",
     ["project", "trace"],
 )
-def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
+def test_spansv2_ds_drop(mini_sentry, relay, span, rule_type):
     """
     The test asserts that dynamic sampling correctly drops items, based on different rule types
     and makes sure the correct outcomes and metrics are emitted.
@@ -421,6 +444,7 @@ def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
     relay = relay(mini_sentry, options=TEST_CONFIG)
 
     ts = datetime.now(timezone.utc)
+
     envelope = envelope_with_spans(
         {
             "start_timestamp": ts.timestamp(),
@@ -438,24 +462,25 @@ def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
         },
     )
 
-    # Add legacy span to ensure that the v2 sampling deals with them correctly.
-    envelope.add_item(
-        Item(
-            type="span",
-            payload=PayloadRef(
-                json={
-                    "start_timestamp": ts.timestamp(),
-                    "timestamp": ts.timestamp() + 0.5,
-                    "trace_id": "5b8efff798038103d269b633813fc60c",
-                    "span_id": "eee19b7ec3c1b176",
-                    "op": "some op",
-                    "description": "some description",
-                    "data": {"foo": "bar"},
-                }
-            ),
-            content_type="application/json",
+    if span == "legacy":
+        envelope.items = []
+        envelope.add_item(
+            Item(
+                type="span",
+                payload=PayloadRef(
+                    json={
+                        "start_timestamp": ts.timestamp(),
+                        "timestamp": ts.timestamp() + 0.5,
+                        "trace_id": "5b8efff798038103d269b633813fc60c",
+                        "span_id": "eee19b7ec3c1b176",
+                        "op": "some op",
+                        "description": "some description",
+                        "data": {"foo": "bar"},
+                    }
+                ),
+                content_type="application/json",
+            )
         )
-    )
 
     relay.send_envelope(project_id, envelope)
 
@@ -466,7 +491,7 @@ def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
             "org_id": 1,
             "outcome": 1,
             "project_id": 42,
-            "quantity": 2,
+            "quantity": 1,
             "reason": "Sampled:0",
             "timestamp": time_within_delta(),
         },
@@ -484,7 +509,7 @@ def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
             },
             "timestamp": time_within_delta(),
             "type": "c",
-            "value": 2.0,
+            "value": 1.0,
             "width": 1,
         },
         {
@@ -495,7 +520,7 @@ def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
             },
             "timestamp": time_within_delta(),
             "type": "c",
-            "value": 2.0,
+            "value": 1.0,
             "width": 1,
         },
     ]
@@ -942,6 +967,12 @@ def test_spanv2_inbound_filters(
                 "sentry.segment.name": {"value": "/foo/healthz", "type": "string"},
             },
         },
+        metadata={
+            "version": 2,
+            "ingest_settings": {
+                "infer_user_agent": "auto",
+            },
+        },
         trace_info={
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "public_key": project_config["publicKeys"][0]["publicKey"],
@@ -1172,8 +1203,6 @@ def test_spanv2_with_string_pii_scrubbing(
         "span_id": "eee19b7ec3c1b174",
         "attributes": {
             "test_pii": {"type": "string", "value": expected_scrubbed},
-            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
-            "sentry.browser.version": {"type": "string", "value": "2.32"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
@@ -1312,8 +1341,6 @@ def test_spanv2_meta_pii_scrubbing_complex_attribute(mini_sentry, relay):
                 "type": "array",
                 "value": ["normal", "[creditcard]", "other"],
             },
-            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
-            "sentry.browser.version": {"type": "string", "value": "2.32"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
@@ -1446,8 +1473,6 @@ def test_spansv2_attribute_normalization(
         **common,
         "span_id": db_span_id,
         "attributes": {
-            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
-            "sentry.browser.version": {"type": "string", "value": "2.32"},
             "sentry.category": {"type": "string", "value": "db"},
             "sentry.op": {"type": "string", "value": "db"},
             "db.system": {"type": "string", "value": "mysql"},
@@ -1489,8 +1514,6 @@ def test_spansv2_attribute_normalization(
         **common,
         "span_id": http_span_id,
         "attributes": {
-            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
-            "sentry.browser.version": {"type": "string", "value": "2.32"},
             "sentry.category": {"type": "string", "value": "http"},
             "sentry.description": {
                 "type": "string",
