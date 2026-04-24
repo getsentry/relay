@@ -368,8 +368,8 @@ mod tests {
         assert!(multipart.next_field().await.unwrap().is_none());
     }
 
-    fn test_request_meta() -> RequestMeta {
-        let dsn = "https://a94ae32be2584e0bbd7a4cbb95971fee:@sentry.io/42"
+    fn mock_request_meta() -> RequestMeta {
+        let dsn = "https://a94ae32be2582e0bbd7a4cbb95971fee:@sentry.io/42"
             .parse()
             .unwrap();
         RequestMeta::new(dsn)
@@ -417,7 +417,7 @@ mod tests {
         }
 
         let (outcome_aggregator, _rx) = Addr::custom();
-        let meta = test_request_meta();
+        let meta = mock_request_meta();
         let res = multipart_items(
             multipart,
             &config,
@@ -472,7 +472,7 @@ mod tests {
         }
 
         let (outcome_aggregator, _rx) = Addr::custom();
-        let meta = test_request_meta();
+        let meta = mock_request_meta();
         let result = multipart_items(
             multipart,
             config,
