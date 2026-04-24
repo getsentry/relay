@@ -342,7 +342,7 @@ regex!(TOKEN_KEY_REGEX, r"(?i)(token)");
 
 regex!(
     PASSWORD_KEY_REGEX,
-    r"(?i)(password|secret|passwd|api[-_]key|apikey|auth|credentials|mysql_pwd|privatekey|private[-_]key|token[^\s]*=|^otp$|^two[-_]factor$)"
+    r"(?i)(password|secret|passwd|api[-_]key|apikey|auth|credentials|mysql_pwd|privatekey|private[-_]key|token[^\s]*[:=]|^otp$|^two[-_]factor$)"
 );
 
 #[cfg(test)]

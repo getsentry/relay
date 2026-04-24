@@ -1013,6 +1013,7 @@ mod tests {
                 "extra": {
                     "url": "foo.bar/endpoint?token=sensitive",
                     "url2": "foo.bar/endpoint?token_foobar=sensitive",
+                    "aaa": "token:12345",
                     "foo-token-bar": "sensitive",
                     "llm": "token count",
                 },
