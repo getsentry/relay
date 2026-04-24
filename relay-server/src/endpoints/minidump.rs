@@ -167,16 +167,16 @@ async fn extract_embedded_minidump(payload: Bytes) -> Result<Option<Bytes>, BadS
     Ok(None)
 }
 
-fn outcome_for_err(err: &BadStoreRequest) -> Option<Outcome> {
+fn outcome_for_err(err: &BadStoreRequest) -> Outcome {
     match err {
-        BadStoreRequest::Overflow(_) => Some(Outcome::Invalid(DiscardReason::TooLarge(
+        BadStoreRequest::Overflow(_) => Outcome::Invalid(DiscardReason::TooLarge(
             DiscardItemType::Attachment(DiscardAttachmentType::Minidump),
-        ))),
+        )),
         BadStoreRequest::InvalidCompressionContainer(_) => {
-            Some(Outcome::Invalid(DiscardReason::InvalidCompression))
+            Outcome::Invalid(DiscardReason::InvalidCompression)
         }
-        BadStoreRequest::InvalidMinidump => Some(Outcome::Invalid(DiscardReason::InvalidMinidump)),
-        _ => None,
+        BadStoreRequest::InvalidMinidump => Outcome::Invalid(DiscardReason::InvalidMinidump),
+        _ => Outcome::Invalid(DiscardReason::Internal),
     }
 }
 
@@ -238,9 +238,7 @@ async fn multipart_to_envelope(
     let decoded = match decode_minidump(minidump_item.payload(), config.max_attachment_size()) {
         Ok(d) => d,
         Err(e) => {
-            if let Some(outcome) = outcome_for_err(&e) {
-                managed::reject_all(&items, outcome);
-            }
+            managed::reject_all(&items, outcome_for_err(&e));
             return Err(e);
         }
     };
@@ -286,9 +284,7 @@ fn raw_minidump_to_envelope(
     let payload = match decode_minidump(data, state.config().max_attachment_size()) {
         Ok(d) => d,
         Err(e) => {
-            if let Some(outcome) = outcome_for_err(&e) {
-                let _ = item.reject_err(outcome);
-            }
+            let _ = item.reject_err(outcome_for_err(&e));
             return Err(e);
         }
     };
