@@ -267,10 +267,13 @@ async fn extract_multipart(
 }
 
 fn should_fetch_project_config(state: &ServiceState, project_id: Option<ProjectId>) -> bool {
+    // In the minidump endpoint we should always have a project_id.
+    let Some(project_id) = project_id else {
+        return false;
+    };
     let global_config = state.global_config_handle().current();
-    let project_id = project_id.map(|p| p.value()).unwrap_or(0);
     utils::is_rolled_out(
-        project_id,
+        project_id.value(),
         global_config
             .options
             .minidump_endpoint_fetch_config_rollout_rate,
