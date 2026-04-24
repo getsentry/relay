@@ -88,7 +88,7 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
     ) -> Result<Option<Item>, multer::Error> {
         match self.upload_service {
             Some(upload) if self.infer_type(&field) != AttachmentType::Prosperodump => {
-                Ok(common::upload_to_object_store(
+                Ok(common::upload_to_objectstore(
                     field,
                     item,
                     config,

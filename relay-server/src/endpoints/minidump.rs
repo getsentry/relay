@@ -21,7 +21,7 @@ use tower_http::limit::RequestBodyLimitLayer;
 use zstd::stream::Decoder as ZstdDecoder;
 
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
-use crate::endpoints::common::{self, BadStoreRequest, TextResponse, upload_to_object_store};
+use crate::endpoints::common::{self, BadStoreRequest, TextResponse, upload_to_objectstore};
 use crate::envelope::ContentType::Minidump;
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::extractors::{RawContentType, RequestMeta};
@@ -195,7 +195,7 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
             Some(UploadContext { upload, scoping })
                 if item.attachment_type() == Some(AttachmentType::Attachment) =>
             {
-                Ok(upload_to_object_store(field, item, config, scoping, upload, "minidump").await)
+                Ok(upload_to_objectstore(field, item, config, scoping, upload, "minidump").await)
             }
             _ => read_attachment_bytes_into_item(field, item, config, false).await,
         }

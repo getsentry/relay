@@ -830,7 +830,7 @@ def test_size_limits(mini_sentry, relay, limit, expected_status_code):
     ],
     ids=["no-option", "no-feature", "both-enabled"],
 )
-def test_minidump_object_store_uploads(
+def test_minidump_objectstore_uploads(
     mini_sentry,
     relay,
     dummy_upload,  # noqa: F811

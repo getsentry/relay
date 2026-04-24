@@ -458,21 +458,21 @@ fn emit_envelope_metrics(envelope: &Envelope) {
     }
 }
 
-/// Uploads the content of `field` to the object-store and returns an [Item] with an
+/// Uploads the content of `field` to the objectstore and returns an [Item] with an
 /// [AttachmentPlaceholder] as payload.
 ///
 /// Returns `None` if uploading fails due to any reason.
-pub async fn upload_to_object_store(
+pub async fn upload_to_objectstore(
     field: Field<'static>,
     mut item: Item,
     config: &Config,
     scoping: Scoping,
     upload: &Addr<Upload>,
-    service_name: &'static str,
+    referrer: &'static str,
 ) -> Option<Item> {
     let content_type = field.content_type().map(ToString::to_string);
     let stream: BoxStream<'static, io::Result<Bytes>> = Box::pin(field.map_err(io::Error::other));
-    let stream = MeteredStream::new(stream, service_name);
+    let stream = MeteredStream::new(stream, referrer);
     let stream = BoundedStream::new(stream, 1, config.max_upload_size());
     let byte_counter = stream.byte_counter();
 
