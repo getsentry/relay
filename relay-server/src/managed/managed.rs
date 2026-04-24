@@ -8,6 +8,7 @@ use std::net::IpAddr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use itertools::Either;
 use relay_event_schema::protocol::EventId;
@@ -16,6 +17,8 @@ use relay_system::Addr;
 use smallvec::SmallVec;
 
 use crate::Envelope;
+use crate::envelope::{ContentType, Item, ItemType};
+use crate::extractors::RequestMeta;
 use crate::managed::{Counted, ManagedEnvelope, Quantities};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::ProcessingError;
@@ -156,6 +159,41 @@ impl Managed<Box<Envelope>> {
         });
 
         Self::from_parts(envelope, meta)
+    }
+}
+
+impl Managed<Item> {
+    /// Set the payload of an attachment item and update the outcome records to reflect the new size.
+    pub fn set_attachment_payload(&mut self, ct: Option<ContentType>, payload: impl Into<Bytes>) {
+        if *self.ty() != ItemType::Attachment {
+            relay_log::warn!("Managed::set_attachment_payload was called on non-attachment.");
+            return;
+        }
+        self.modify(|inner, records| {
+            let old = inner.attachment_body_size() as isize;
+            if let Some(ct) = ct {
+                inner.set_payload(ct, payload);
+            } else {
+                inner.set_payload_without_content_type(payload);
+            };
+            let new = inner.attachment_body_size() as isize;
+            records.modify_by(DataCategory::Attachment, new - old);
+        });
+    }
+
+    /// Set the placeholder of an `AttachmentRef` item and update the outcome records accordingly.
+    pub fn set_attachment_ref_placeholder(
+        &mut self,
+        placeholder: impl Into<Bytes>,
+        attachment_size: usize,
+    ) {
+        self.modify(|inner, records| {
+            let old = inner.attachment_body_size() as isize;
+            inner.set_payload(ContentType::AttachmentRef, placeholder);
+            inner.set_attachment_length(attachment_size);
+            let new = inner.attachment_body_size() as isize;
+            records.modify_by(DataCategory::Attachment, new - old);
+        });
     }
 }
 
@@ -565,6 +603,15 @@ impl<T: Counted> Managed<T> {
         Rejected(error)
     }
 
+    /// Creates a new [`Managed`] instance.
+    pub(crate) fn from_parts(value: T, meta: Arc<Meta>) -> Self {
+        Self {
+            value,
+            meta,
+            done: AtomicBool::new(false),
+        }
+    }
+
     fn do_reject(&self, outcome: Option<Outcome>) {
         // Always set the internal state to `done`, even if there is no outcome to be emitted.
         // All bookkeeping has been done.
@@ -617,14 +664,6 @@ impl<T: Counted> Managed<T> {
         );
 
         (value, meta)
-    }
-
-    fn from_parts(value: T, meta: Arc<Meta>) -> Self {
-        Self {
-            value,
-            meta,
-            done: AtomicBool::new(false),
-        }
     }
 
     fn is_done(&self) -> bool {
@@ -695,9 +734,9 @@ impl<T: Counted> std::ops::Deref for Managed<T> {
     }
 }
 
-/// Internal metadata attached with a [`Managed`] instance.
+/// Metadata attached to a [`Managed`] instance.
 #[derive(Debug, Clone)]
-struct Meta {
+pub(crate) struct Meta {
     /// Outcome aggregator service.
     outcome_aggregator: Addr<TrackOutcome>,
     /// Received timestamp, when the contained payload/information was received.
@@ -713,7 +752,21 @@ struct Meta {
 }
 
 impl Meta {
-    pub fn track_outcome(&self, outcome: Outcome, category: DataCategory, quantity: usize) {
+    /// Creates a `Meta` instance from a request's meta
+    pub(crate) fn from_request_meta(
+        request_meta: &RequestMeta,
+        outcome_aggregator: Addr<TrackOutcome>,
+    ) -> Meta {
+        Meta {
+            outcome_aggregator,
+            received_at: request_meta.received_at(),
+            scoping: request_meta.get_partial_scoping().into_scoping(),
+            event_id: None,
+            remote_addr: request_meta.remote_addr(),
+        }
+    }
+
+    fn track_outcome(&self, outcome: Outcome, category: DataCategory, quantity: usize) {
         self.outcome_aggregator.send(TrackOutcome {
             timestamp: self.received_at,
             scoping: self.scoping,
@@ -883,11 +936,11 @@ impl<'a> RecordKeeper<'a> {
                 Some(c) if *c >= *quantity => *c -= *quantity,
                 Some(c) => emit!(
                     category,
-                    "New item has {quantity} items in category '{category}', but original (after emitted outcomes) only has {c} left"
+                    "New item has quantity {quantity} in category '{category}', but original (after emitted outcomes) only has {c} left"
                 ),
                 None => emit!(
                     category,
-                    "New item has {quantity} items in category '{category}', but after emitted outcomes there are none left"
+                    "New item has quantity {quantity} in category '{category}', but after emitted outcomes there are none left"
                 ),
             }
         }
@@ -1083,6 +1136,13 @@ where
     I: Iterator<Item = S> + FusedIterator,
     S: Counted,
 {
+}
+
+/// Call [`Managed::reject_err`] with the specified error for each item.
+pub fn reject_all(managed_items: &[Managed<impl Counted>], error: impl OutcomeError + Clone) {
+    for item in managed_items {
+        let _ = item.reject_err(error.clone());
+    }
 }
 
 #[cfg(test)]

@@ -21,12 +21,13 @@ use serde::Serialize;
 use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
-use crate::envelope::ContentType::{self, OctetStream};
+use crate::envelope::ContentType;
 use crate::envelope::{AttachmentPlaceholder, AttachmentType, Envelope, Item};
 use crate::extractors::{RawContentType, RequestMeta};
+use crate::managed::{self, Managed};
 use crate::middlewares;
 use crate::service::ServiceState;
-use crate::services::outcome::DiscardReason;
+use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::projects::cache::Project;
 use crate::services::upload::{Create, Stream, Upload};
 use crate::utils::{self, MeteredStream};
@@ -90,9 +91,9 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
     async fn add_to_item(
         &self,
         field: Field<'static>,
-        mut item: Item,
+        mut item: Managed<Item>,
         config: &Config,
-    ) -> Result<Option<Item>, multer::Error> {
+    ) -> Result<Option<Managed<Item>>, multer::Error> {
         let upload = match self.upload_service {
             Some(upload) if self.infer_type(&field) != AttachmentType::Prosperodump => upload,
             _ => return utils::read_attachment_bytes_into_item(field, item, config, true).await,
@@ -131,8 +132,8 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
                 content_type: content_type.as_ref().map(|c| c.to_string()),
             })
         {
-            item.set_payload(ContentType::AttachmentRef, payload);
-            item.set_attachment_length(byte_counter.get());
+            let byte_count = byte_counter.get();
+            item.set_attachment_ref_placeholder(payload, byte_count);
             Ok(Some(item))
         } else {
             Ok(None)
@@ -157,11 +158,11 @@ fn validate_prosperodump(data: &[u8]) -> Result<(), BadStoreRequest> {
     Ok(())
 }
 
-async fn extract_multipart(
+async fn multipart_to_envelope(
     multipart: Multipart<'static>,
     meta: RequestMeta,
-    state: &ServiceState,
     project: &Project<'_>,
+    state: &ServiceState,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
     let project_config = project
         .state()
@@ -184,22 +185,36 @@ async fn extract_multipart(
         scoping,
         upload_service,
     };
-    let mut items = utils::multipart_items(multipart, state.config(), attachment_strategy).await?;
+    let mut items = utils::multipart_items(
+        multipart,
+        state.config(),
+        state.outcome_aggregator().clone(),
+        &meta,
+        attachment_strategy,
+    )
+    .await?;
 
-    let prosperodump_item = items
+    let Some(prosperodump_item) = items
         .iter_mut()
         .find(|item| item.attachment_type() == Some(AttachmentType::Prosperodump))
-        .ok_or(BadStoreRequest::MissingProsperodump)?;
+    else {
+        managed::reject_all(
+            &items,
+            Outcome::Invalid(DiscardReason::MissingProsperodumpUpload),
+        );
+        return Err(BadStoreRequest::MissingProsperodump);
+    };
+    prosperodump_item
+        .set_attachment_payload(Some(ContentType::OctetStream), prosperodump_item.payload());
 
-    prosperodump_item.set_payload(OctetStream, prosperodump_item.payload());
-
-    validate_prosperodump(&prosperodump_item.payload())?;
+    validate_prosperodump(&prosperodump_item.payload()).inspect_err(|_| {
+        managed::reject_all(&items, Outcome::Invalid(DiscardReason::InvalidProsperodump));
+    })?;
 
     let event_id = common::event_id_from_items(&items)?.unwrap_or_else(EventId::new);
     let mut envelope = Envelope::from_request(Some(event_id), meta);
-
     for item in items {
-        envelope.add_item(item);
+        item.accept(|i| envelope.add_item(i));
     }
 
     Ok(envelope)
@@ -224,7 +239,7 @@ async fn handle(
         .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
 
     let multipart = utils::multipart_from_request(request)?;
-    let mut envelope = extract_multipart(multipart, meta, &state, &project).await?;
+    let mut envelope = multipart_to_envelope(multipart, meta, &project, &state).await?;
     envelope.require_feature(Feature::PlaystationIngestion);
 
     let id = envelope.event_id();
