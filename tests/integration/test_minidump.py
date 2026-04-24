@@ -3,6 +3,7 @@ from unittest import mock
 
 import msgpack
 
+import json
 import pytest
 from requests import HTTPError
 from sentry_sdk.envelope import Envelope
@@ -10,7 +11,7 @@ from uuid import UUID
 
 from sentry_relay.consts import DataCategory
 from .test_attachment_ref import upload_and_make_ref
-from .test_upload import dummy_upload  # noqa: F401
+from .test_upload import dummy_upload, DUMMY_UPLOAD_LOCATION  # noqa: F401
 
 MINIDUMP_ATTACHMENT_NAME = "upload_file_minidump"
 EVENT_ATTACHMENT_NAME = "__sentry-event"
@@ -880,6 +881,9 @@ def test_minidump_objectstore_uploads(
         assert (
             logs.headers["content_type"] == "application/vnd.sentry.attachment-ref+json"
         )
+        assert json.loads(logs.payload.bytes) == {
+            "location": DUMMY_UPLOAD_LOCATION,
+        }
     else:
         assert (
             logs.headers.get("content_type")
