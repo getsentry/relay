@@ -2941,57 +2941,80 @@ mod tests {
             .unwrap()
     }
 
-    fn measurements_and_tags(event: &Event) -> serde_json::Value {
-        let tags = event.tags.value().map(|tags| {
-            tags.0
-                .iter()
-                .flat_map(Annotated::value)
-                .filter_map(|entry| {
-                    let k = entry.0.value()?.clone();
-                    let v = entry.1.value()?.clone();
-                    Some((k, serde_json::Value::String(v)))
-                })
-                .collect::<serde_json::Map<_, _>>()
-        });
-        serde_json::json!({
-            "measurements": serde_json::to_value(SerializableAnnotated(&event.measurements)).unwrap(),
-            "tags": tags,
-        })
-    }
-
-    fn assert_app_start_backfill(
-        event: &Event,
-        source_measurement: &str,
-        expected_type: &str,
-        expected_value: f64,
-    ) {
-        let rendered = measurements_and_tags(event);
-        let measurements = rendered["measurements"].as_object().unwrap();
-        let tags = rendered["tags"].as_object().unwrap();
-
-        assert_eq!(
-            measurements.get(APP_VITALS_START_VALUE),
-            Some(&json!({"unit": "millisecond", "value": expected_value}))
+    #[test]
+    fn test_normalize_mobile_measurements_backfills_cold() {
+        let mut event = mobile_measurements_event(
+            r#"{"app_start_cold": {"value": 1234.0, "unit": "millisecond"}}"#,
         );
-        assert_eq!(
-            measurements.get(source_measurement),
-            Some(&json!({"unit": "millisecond", "value": expected_value}))
-        );
-        assert_eq!(tags.get(APP_VITALS_START_TYPE), Some(&json!(expected_type)));
+        backfill_app_vitals_start(&mut event);
+        assert_debug_snapshot!(event.measurements, @r#"
+        Measurements(
+            {
+                "app.vitals.start.value": Measurement {
+                    value: 1234.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+                "app_start_cold": Measurement {
+                    value: 1234.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+            },
+        )
+        "#);
+        assert_debug_snapshot!(event.tags, @r#"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "app.vitals.start.type",
+                        "cold",
+                    ),
+                ],
+            ),
+        )
+        "#);
     }
 
     #[test]
-    fn test_normalize_mobile_measurements_backfills_cold_and_warm() {
-        for (name, expected_type, expected_value) in [
-            ("app_start_cold", "cold", 1234.0),
-            ("app_start_warm", "warm", 567.0),
-        ] {
-            let mut event = mobile_measurements_event(&format!(
-                r#"{{"{name}": {{"value": {expected_value}, "unit": "millisecond"}}}}"#
-            ));
-            backfill_app_vitals_start(&mut event);
-            assert_app_start_backfill(&event, name, expected_type, expected_value);
-        }
+    fn test_normalize_mobile_measurements_backfills_warm() {
+        let mut event = mobile_measurements_event(
+            r#"{"app_start_warm": {"value": 567.0, "unit": "millisecond"}}"#,
+        );
+        backfill_app_vitals_start(&mut event);
+        assert_debug_snapshot!(event.measurements, @r#"
+        Measurements(
+            {
+                "app.vitals.start.value": Measurement {
+                    value: 567.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+                "app_start_warm": Measurement {
+                    value: 567.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+            },
+        )
+        "#);
+        assert_debug_snapshot!(event.tags, @r#"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "app.vitals.start.type",
+                        "warm",
+                    ),
+                ],
+            ),
+        )
+        "#);
     }
 
     #[test]
@@ -3003,26 +3026,41 @@ mod tests {
             }"#,
         );
         backfill_app_vitals_start(&mut event);
-        insta::assert_json_snapshot!(measurements_and_tags(&event), @r#"
-        {
-          "measurements": {
-            "app.vitals.start.value": {
-              "unit": "millisecond",
-              "value": 100.0
+        assert_debug_snapshot!(event.measurements, @r#"
+        Measurements(
+            {
+                "app.vitals.start.value": Measurement {
+                    value: 100.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+                "app_start_cold": Measurement {
+                    value: 100.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+                "app_start_warm": Measurement {
+                    value: 200.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
             },
-            "app_start_cold": {
-              "unit": "millisecond",
-              "value": 100.0
-            },
-            "app_start_warm": {
-              "unit": "millisecond",
-              "value": 200.0
-            }
-          },
-          "tags": {
-            "app.vitals.start.type": "cold"
-          }
-        }
+        )
+        "#);
+        assert_debug_snapshot!(event.tags, @r#"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "app.vitals.start.type",
+                        "cold",
+                    ),
+                ],
+            ),
+        )
         "#);
     }
 
@@ -3030,16 +3068,17 @@ mod tests {
     fn test_normalize_mobile_measurements_no_app_start_noop() {
         let mut event = mobile_measurements_event(r#"{"lcp": {"value": 100.0}}"#);
         backfill_app_vitals_start(&mut event);
-        insta::assert_json_snapshot!(measurements_and_tags(&event), @r#"
-        {
-          "measurements": {
-            "lcp": {
-              "value": 100.0
-            }
-          },
-          "tags": null
-        }
+        assert_debug_snapshot!(event.measurements, @r#"
+        Measurements(
+            {
+                "lcp": Measurement {
+                    value: 100.0,
+                    unit: ~,
+                },
+            },
+        )
         "#);
+        assert_debug_snapshot!(event.tags, @"~");
     }
 
     #[test]
@@ -3049,12 +3088,12 @@ mod tests {
         );
         normalize_event_measurements(&mut event, None, None);
         backfill_app_vitals_start(&mut event);
-        insta::assert_json_snapshot!(measurements_and_tags(&event), @r#"
-        {
-          "measurements": {},
-          "tags": null
-        }
-        "#);
+        assert_debug_snapshot!(event.measurements, @"
+        Measurements(
+            {},
+        )
+        ");
+        assert_debug_snapshot!(event.tags, @"~");
     }
 
     #[test]
@@ -3070,17 +3109,19 @@ mod tests {
             .into_value()
             .unwrap();
         backfill_app_vitals_start(&mut event);
-        insta::assert_json_snapshot!(measurements_and_tags(&event), @r#"
-        {
-          "measurements": {
-            "app_start_cold": {
-              "unit": "millisecond",
-              "value": 1234.0
-            }
-          },
-          "tags": null
-        }
+        assert_debug_snapshot!(event.measurements, @r#"
+        Measurements(
+            {
+                "app_start_cold": Measurement {
+                    value: 1234.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+            },
+        )
         "#);
+        assert_debug_snapshot!(event.tags, @"~");
     }
 
     #[test]
@@ -3092,21 +3133,25 @@ mod tests {
             }"#,
         );
         backfill_app_vitals_start(&mut event);
-        insta::assert_json_snapshot!(measurements_and_tags(&event), @r#"
-        {
-          "measurements": {
-            "app.vitals.start.value": {
-              "unit": "millisecond",
-              "value": 999.0
+        assert_debug_snapshot!(event.measurements, @r#"
+        Measurements(
+            {
+                "app.vitals.start.value": Measurement {
+                    value: 999.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+                "app_start_cold": Measurement {
+                    value: 100.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
             },
-            "app_start_cold": {
-              "unit": "millisecond",
-              "value": 100.0
-            }
-          },
-          "tags": null
-        }
+        )
         "#);
+        assert_debug_snapshot!(event.tags, @"~");
     }
 
     #[test]
@@ -3126,18 +3171,29 @@ mod tests {
 
         backfill_app_vitals_start(&mut event);
 
-        insta::assert_json_snapshot!(measurements_and_tags(&event), @r#"
-        {
-          "measurements": {
-            "app_start_cold": {
-              "unit": "millisecond",
-              "value": 100.0
-            }
-          },
-          "tags": {
-            "app.vitals.start.type": "warm"
-          }
-        }
+        assert_debug_snapshot!(event.measurements, @r#"
+        Measurements(
+            {
+                "app_start_cold": Measurement {
+                    value: 100.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+            },
+        )
+        "#);
+        assert_debug_snapshot!(event.tags, @r#"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "app.vitals.start.type",
+                        "warm",
+                    ),
+                ],
+            ),
+        )
         "#);
     }
 
@@ -3146,18 +3202,19 @@ mod tests {
         let mut event =
             mobile_measurements_event(r#"{"app_start_cold": {"value": 1.5, "unit": "second"}}"#);
         backfill_app_vitals_start(&mut event);
-
-        insta::assert_json_snapshot!(measurements_and_tags(&event), @r#"
-        {
-          "measurements": {
-            "app_start_cold": {
-              "unit": "second",
-              "value": 1.5
-            }
-          },
-          "tags": null
-        }
+        assert_debug_snapshot!(event.measurements, @r#"
+        Measurements(
+            {
+                "app_start_cold": Measurement {
+                    value: 1.5,
+                    unit: Duration(
+                        Second,
+                    ),
+                },
+            },
+        )
         "#);
+        assert_debug_snapshot!(event.tags, @"~");
     }
 
     #[test]
