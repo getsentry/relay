@@ -2,19 +2,19 @@ use serde::{Deserialize, Serialize};
 
 use crate::protocol::utils;
 
-/// Metadata supplied with an item container containing spans.
+/// Metadata supplied with an item container containing logs.
 ///
-/// See also: <https://develop.sentry.dev/sdk/telemetry/spans/span-protocol/#version-and-ingest_settings-properties>.
+/// See also: <https://develop.sentry.dev/sdk/telemetry/logs/#version-and-ingest_settings-properties>.
 ///
 /// # Versions
 ///
 /// ## Behaviour
 ///
-/// Different versions influence how spans are normalized and processed:
+/// Different versions influence how logs are normalized and processed:
 ///
 /// | Version |      client ip     | user agent |
 /// |---------|--------------------|------------|
-/// | none    | {{auto}}           | never      |
+/// | none    | {{auto}}           | always     |
 /// | 2       | {{auto}}, settings | settings   |
 ///
 /// For example in version 2, the client ip is inferred if either the client address attribute is
@@ -30,10 +30,14 @@ use crate::protocol::utils;
 pub struct ContainerMetadata {
     /// The metadata version
     ///
-    /// The version influences how spans are processed during ingestion.
+    /// The version influences how logs are processed during ingestion.
+    ///
+    /// Currently supported versions:
+    /// - `none`: no processing changes
+    /// - `2`: adds support for `ingest_settings`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<u16>,
-    /// Settings controlling parts of the ingestion of individual spans.
+    /// Settings controlling parts of the ingestion of individual logs.
     ///
     /// Supported since version `2`.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -87,7 +91,7 @@ impl InferIp {
 /// from the HTTP header provided user agent.
 #[derive(Debug, Copy, Clone, Deserialize, Serialize)]
 pub enum InferUserAgent {
-    /// The user agent should be inferred from the http request submitting the spans.
+    /// The user agent should be inferred from the http request submitting the logs.
     #[serde(rename = "auto")]
     Auto,
     /// The user agent should never be inferred.

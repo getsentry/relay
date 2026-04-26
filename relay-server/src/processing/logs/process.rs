@@ -7,32 +7,45 @@ use relay_quotas::DataCategory;
 
 use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer};
 use crate::extractors::RequestTrust;
-use crate::processing::logs::{self, Error, ExpandedLogs, Result, SerializedLogs};
+use crate::managed::Rejected;
+use crate::processing::logs::{
+    self, Error, ExpandedLogs, LogItems, Result, SerializedLogs, Settings,
+};
 use crate::processing::{Context, Managed, utils};
 use crate::services::outcome::DiscardReason;
 
 /// Parses all serialized logs into their [`ExpandedLogs`] representation.
 ///
 /// Individual, invalid logs will be discarded.
-pub fn expand(logs: Managed<SerializedLogs>) -> Managed<ExpandedLogs> {
+pub fn expand(logs: Managed<SerializedLogs>) -> Result<Managed<ExpandedLogs>, Rejected<Error>> {
     let trust = logs.headers.meta().request_trust();
 
-    logs.map(|logs, records| {
+    logs.try_map(|logs, records| {
+        let SerializedLogs {
+            headers,
+            items,
+            invalid,
+        } = logs;
+
+        debug_assert!(
+            invalid.is_empty(),
+            "invalid items should already be rejected"
+        );
+
+        // Log byte counts will change here as we go from an estimated count based on the body, to
+        // accurately counted bytes.
         records.lenient(DataCategory::LogByte);
 
-        let mut all_logs = Vec::new();
-        for logs in logs.logs {
-            let expanded = expand_log_container(&logs, trust);
-            let expanded = records.or_default(expanded, logs);
-            all_logs.extend(expanded);
-        }
+        let (settings, logs) = match items {
+            LogItems::Container(item) => expand_log_container(&item, trust)?,
+            LogItems::Integration(item) => logs::integrations::expand(&[item], records),
+        };
 
-        logs::integrations::expand_into(&mut all_logs, records, logs.integrations);
-
-        ExpandedLogs {
-            headers: logs.headers,
-            logs: all_logs,
-        }
+        Ok::<_, Error>(ExpandedLogs {
+            headers,
+            settings,
+            logs,
+        })
     })
 }
 
@@ -41,10 +54,12 @@ pub fn expand(logs: Managed<SerializedLogs>) -> Managed<ExpandedLogs> {
 /// Normalization must happen before any filters are applied or other procedures which rely on the
 /// presence and well-formedness of attributes and fields.
 pub fn normalize(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
+    let settings = logs.settings;
+
     logs.retain_with_context(
         |logs| (&mut logs.logs, &logs.headers),
         |log, headers, _| {
-            normalize_log(log, headers, ctx).inspect_err(|err| {
+            normalize_log(log, headers, settings, ctx).inspect_err(|err| {
                 relay_log::debug!("failed to normalize log: {err}");
             })
         },
@@ -62,13 +77,16 @@ pub fn scrub(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
     );
 }
 
-fn expand_log_container(item: &Item, trust: RequestTrust) -> Result<ContainerItems<OurLog>> {
-    let mut logs = ItemContainer::parse(item)
+fn expand_log_container(
+    item: &Item,
+    trust: RequestTrust,
+) -> Result<(Settings, ContainerItems<OurLog>)> {
+    let (metadata, mut logs) = ItemContainer::parse(item)
         .map_err(|err| {
             relay_log::debug!("failed to parse logs container: {err}");
             Error::Invalid(DiscardReason::InvalidJson)
         })?
-        .into_items();
+        .into_parts();
 
     for log in &mut logs {
         // Calculate the received byte size and remember it as metadata, in the header.
@@ -87,7 +105,33 @@ fn expand_log_container(item: &Item, trust: RequestTrust) -> Result<ContainerIte
         }
     }
 
-    Ok(logs)
+    relay_log::trace!("log container metadata: {metadata:?}");
+    let settings = metadata
+        .map(|metadata| {
+            let is = metadata.ingest_settings.as_ref();
+
+            match metadata.version {
+                None | Some(1) => Settings {
+                    infer_user_agent: true,
+                    ..Default::default()
+                },
+                // Technically invalid.
+                Some(0) => Settings::default(),
+                Some(2) => Settings {
+                    infer_ip: is
+                        .and_then(|is| is.infer_ip)
+                        .is_some_and(|infer| infer.is_auto()),
+                    infer_user_agent: is
+                        .and_then(|is| is.infer_user_agent)
+                        .is_some_and(|infer| infer.is_auto()),
+                },
+                // Unsupported, fall back to the safe default.
+                Some(_) => Default::default(),
+            }
+        })
+        .unwrap_or_default();
+
+    Ok((settings, logs))
 }
 
 fn scrub_log(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
@@ -106,6 +150,7 @@ fn scrub_log(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
 fn normalize_log(
     log: &mut Annotated<OurLog>,
     headers: &EnvelopeHeaders,
+    settings: Settings,
     ctx: Context<'_>,
 ) -> Result<()> {
     let meta = headers.meta();
@@ -116,7 +161,7 @@ fn normalize_log(
     );
 
     if let Some(log) = log.value_mut() {
-        let client_ua_info = Some(ClientUserAgentInfo {
+        let client_ua_info = settings.infer_user_agent.then(|| ClientUserAgentInfo {
             user_agent: meta.user_agent(),
             hints: meta.client_hints(),
         });
@@ -125,6 +170,9 @@ fn normalize_log(
         eap::normalize_attribute_names(&mut log.attributes);
         eap::normalize_received(&mut log.attributes, meta.received_at());
         eap::normalize_client_address(&mut log.attributes, meta.client_addr());
+        if settings.infer_ip {
+            eap::normalize_inject_client_address(&mut log.attributes, meta.client_addr());
+        }
         eap::normalize_user_agent(&mut log.attributes, client_ua_info);
     }
 

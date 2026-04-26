@@ -6,17 +6,16 @@ use crate::statsd::{RelayCounters, RelayDistributions};
 
 /// Validates that there is only a single log container processed at a time.
 ///
-/// The `Log` item must always be sent as an `ItemContainer`, currently it is not allowed to
-/// send multiple containers for logs.
+/// Currently it is only allowed to send a single log container in an envelope.
+/// Since all logs of the same envelope must belong to the same trace (due to the dynamic sampling
+/// context on the envelope), they also should be collapsed by SDKs into a single container.
 ///
-/// This restriction may be lifted in the future.
+/// Integrations are only created within the same Relay and must not create multiple items at the moment.
 ///
-/// This limit mostly exists to incentivise SDKs to batch multiple logs into a single container,
-/// technically it can be removed without issues.
-pub fn container(logs: &Managed<SerializedLogs>) -> Result<()> {
-    // It's fine if there was no log container, as we still accept OTel logs.
-    if logs.logs.len() > 1 {
-        return Err(Error::DuplicateContainer);
+/// Mixed log items are not supported/allowed.
+pub fn invalid(logs: &Managed<SerializedLogs>) -> Result<()> {
+    if !logs.invalid.is_empty() {
+        return Err(Error::DuplicateItem);
     }
 
     Ok(())
