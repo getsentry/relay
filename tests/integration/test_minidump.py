@@ -3,6 +3,7 @@ from unittest import mock
 
 import msgpack
 
+import json
 import pytest
 from requests import HTTPError
 from sentry_sdk.envelope import Envelope
@@ -10,6 +11,7 @@ from uuid import UUID
 
 from sentry_relay.consts import DataCategory
 from .test_attachment_ref import upload_and_make_ref
+from .test_upload import dummy_upload, DUMMY_UPLOAD_LOCATION  # noqa: F401
 
 MINIDUMP_ATTACHMENT_NAME = "upload_file_minidump"
 EVENT_ATTACHMENT_NAME = "__sentry-event"
@@ -818,3 +820,73 @@ def test_size_limits(mini_sentry, relay, limit, expected_status_code):
         project_id=project_id, files=attachments, params=params, raise_for_status=False
     )
     assert response.status_code == expected_status_code
+
+
+@pytest.mark.parametrize(
+    "rollout_enabled,feature_enabled",
+    [
+        (False, False),
+        (True, False),
+        (True, True),
+    ],
+    ids=["no-option", "no-feature", "both-enabled"],
+)
+def test_minidump_objectstore_uploads(
+    mini_sentry,
+    relay,
+    dummy_upload,  # noqa: F811
+    rollout_enabled,
+    feature_enabled,
+):
+    project_id = 42
+    minidump_content = b"MDMP content"
+    log_content = b"Some log file content"
+
+    project_config = mini_sentry.add_full_project_config(project_id)
+    if feature_enabled:
+        project_config["config"].setdefault("features", []).append(
+            "projects:relay-minidump-attachment-uploads"
+        )
+    mini_sentry.global_config["options"][
+        "relay.minidump-endpoint-fetch-config.rollout-rate"
+    ] = (1.0 if rollout_enabled else 0.0)
+
+    relay = relay(mini_sentry)
+
+    response = relay.send_minidump(
+        project_id=project_id,
+        files=[
+            (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", minidump_content),
+            ("logs", "log.txt", log_content),
+        ],
+    )
+    assert response.ok
+
+    envelope = mini_sentry.get_captured_envelope()
+    by_name = {
+        i.headers.get("filename"): i
+        for i in envelope.items
+        if i.headers.get("type") == "attachment"
+    }
+    minidump = by_name["minidump.dmp"]
+    logs = by_name["log.txt"]
+
+    assert (
+        minidump.headers.get("content_type")
+        != "application/vnd.sentry.attachment-ref+json"
+    )
+    assert minidump.payload.bytes == minidump_content
+
+    if rollout_enabled and feature_enabled:
+        assert (
+            logs.headers["content_type"] == "application/vnd.sentry.attachment-ref+json"
+        )
+        assert json.loads(logs.payload.bytes) == {
+            "location": DUMMY_UPLOAD_LOCATION,
+        }
+    else:
+        assert (
+            logs.headers.get("content_type")
+            != "application/vnd.sentry.attachment-ref+json"
+        )
+        assert logs.payload.bytes == log_content
