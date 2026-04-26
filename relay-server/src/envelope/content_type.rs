@@ -192,10 +192,12 @@ relay_common::impl_str_de!(ContentType, "a content type string");
 
 #[cfg(test)]
 mod tests {
+    use similar_asserts::assert_eq;
+
     use super::*;
 
     #[test]
-    fn attachment_ref_roundtrip() {
+    fn test_attachment_ref_roundtrip() {
         let canonical_name = "application/vnd.sentry.attachment-ref+json";
         let ct = ContentType::from_str(canonical_name).unwrap();
         assert_eq!(ct, ContentType::AttachmentRef);

@@ -39,6 +39,7 @@
 //!
 //! Relay will forward those profiles encoded with `msgpack` after unpacking them if needed and push a message on Kafka.
 
+use std::collections::BTreeMap;
 use std::error::Error;
 use std::net::IpAddr;
 use std::time::Duration;
@@ -63,6 +64,7 @@ mod error;
 mod extract_from_transaction;
 mod measurements;
 mod outcomes;
+mod perfetto;
 mod sample;
 mod transaction_metadata;
 mod types;
@@ -353,6 +355,90 @@ impl ProfileChunk {
     }
 }
 
+/// The result of expanding a binary Perfetto trace via [`expand_perfetto`].
+///
+/// Carries the serialized Sample v2 JSON payload together with the profile
+/// metadata needed downstream (platform, profile type, inbound filtering) so
+/// that callers do **not** need to deserialize the payload a second time.
+#[derive(Debug)]
+pub struct ExpandedPerfettoChunk {
+    /// Serialized Sample v2 JSON payload, ready for ingestion.
+    pub payload: Vec<u8>,
+    /// Platform string extracted from the metadata (e.g. `"android"`).
+    pub platform: String,
+    /// Release string from the metadata, used for inbound filtering.
+    pub release: Option<String>,
+}
+
+impl ExpandedPerfettoChunk {
+    /// Returns the [`ProfileType`] derived from the platform.
+    pub fn profile_type(&self) -> ProfileType {
+        ProfileType::from_platform(&self.platform)
+    }
+
+    /// Applies inbound filters to the profile chunk.
+    pub fn filter(
+        &self,
+        client_ip: Option<IpAddr>,
+        filter_settings: &ProjectFiltersConfig,
+        global_config: &GlobalConfig,
+    ) -> Result<(), ProfileError> {
+        relay_filter::should_filter(self, client_ip, filter_settings, global_config.filters())
+            .map_err(ProfileError::Filtered)
+    }
+}
+
+impl Filterable for ExpandedPerfettoChunk {
+    fn release(&self) -> Option<&str> {
+        self.release.as_deref()
+    }
+}
+
+impl Getter for ExpandedPerfettoChunk {
+    fn get_value(&self, path: &str) -> Option<Val<'_>> {
+        match path.strip_prefix("event.")? {
+            "release" => self.release.as_deref().map(|r| r.into()),
+            "platform" => Some(self.platform.as_str().into()),
+            _ => None,
+        }
+    }
+}
+
+/// Expands a binary Perfetto trace into a Sample v2 profile chunk.
+///
+/// Decodes the protobuf trace, converts it into the internal Sample v2 format,
+/// merges the provided JSON `metadata_json` (containing platform, environment, etc.),
+/// and returns an [`ExpandedPerfettoChunk`] with the serialized JSON payload plus
+/// the profile metadata needed for downstream processing (platform, profile type,
+/// inbound filtering) — avoiding a second JSON deserialization pass in callers.
+pub fn expand_perfetto(
+    perfetto_bytes: &[u8],
+    metadata_json: &[u8],
+) -> Result<ExpandedPerfettoChunk, ProfileError> {
+    let d = &mut Deserializer::from_slice(metadata_json);
+    let metadata: sample::v2::ProfileMetadata =
+        serde_path_to_error::deserialize(d).map_err(ProfileError::InvalidJson)?;
+
+    let platform = metadata.platform.clone();
+    let release = metadata.release.clone();
+
+    let (profile_data, debug_images) = perfetto::convert(perfetto_bytes)?;
+    let mut chunk = sample::v2::ProfileChunk {
+        measurements: BTreeMap::new(),
+        metadata,
+        profile: profile_data,
+    };
+    chunk.metadata.debug_meta.images.extend(debug_images);
+    chunk.normalize()?;
+
+    let payload = serde_json::to_vec(&chunk).map_err(|_| ProfileError::CannotSerializePayload)?;
+    Ok(ExpandedPerfettoChunk {
+        payload,
+        platform,
+        release,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -415,6 +501,76 @@ mod tests {
                 &GlobalConfig::default()
             )
             .is_ok()
+        );
+    }
+
+    #[test]
+    fn test_expand_perfetto() {
+        let perfetto_bytes = include_bytes!("../tests/fixtures/android/perfetto/android.pftrace");
+
+        let metadata_json = serde_json::json!({
+            "version": "2",
+            "chunk_id": "0432a0a4c25f4697bf9f0a2fcbe6a814",
+            "profiler_id": "4d229f1d3807421ba62a5f8bc295d836",
+            "platform": "android",
+            "content_type": "perfetto",
+            "client_sdk": {"name": "sentry-android", "version": "1.0"},
+        });
+        let metadata_bytes = serde_json::to_vec(&metadata_json).unwrap();
+
+        let result = expand_perfetto(perfetto_bytes, &metadata_bytes);
+        assert!(result.is_ok(), "expand_perfetto failed: {result:?}");
+
+        let expanded = result.unwrap();
+        assert_eq!(expanded.platform, "android");
+        assert_eq!(expanded.profile_type(), ProfileType::Ui);
+
+        let output: sample::v2::ProfileChunk = serde_json::from_slice(&expanded.payload).unwrap();
+        assert_eq!(output.metadata.platform, expanded.platform);
+        assert!(!output.profile.samples.is_empty());
+        assert!(!output.profile.frames.is_empty());
+        assert!(
+            !output.metadata.debug_meta.images.is_empty(),
+            "expected debug images from native mappings in the fixture"
+        );
+    }
+
+    #[test]
+    fn test_expand_perfetto_invalid_metadata() {
+        let result = expand_perfetto(b"", b"not json");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_expand_perfetto_empty_trace() {
+        // Valid metadata but no profiling samples in the binary → should fail.
+        let metadata_bytes = serde_json::to_vec(&serde_json::json!({
+            "version": "2",
+            "chunk_id": "0432a0a4c25f4697bf9f0a2fcbe6a814",
+            "profiler_id": "4d229f1d3807421ba62a5f8bc295d836",
+            "platform": "android",
+            "content_type": "perfetto",
+            "client_sdk": {"name": "sentry-android", "version": "1.0"},
+        }))
+        .unwrap();
+        let result = expand_perfetto(b"", &metadata_bytes);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_expand_perfetto_missing_required_field() {
+        // metadata is missing the required `chunk_id` field → deserialization error.
+        let metadata_bytes = serde_json::to_vec(&serde_json::json!({
+            "version": "2",
+            "profiler_id": "4d229f1d3807421ba62a5f8bc295d836",
+            "platform": "android",
+            "client_sdk": {"name": "sentry-android", "version": "1.0"},
+        }))
+        .unwrap();
+        let result = expand_perfetto(b"", &metadata_bytes);
+        assert!(
+            matches!(result, Err(ProfileError::InvalidJson(_))),
+            "expected InvalidJson, got {result:?}"
         );
     }
 }
