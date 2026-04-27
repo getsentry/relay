@@ -1,5 +1,4 @@
 from collections import defaultdict
-import time
 
 import pytest
 import uuid
@@ -48,24 +47,17 @@ def test_mixed_attachments_with_processing(
 
     chunked_data_per_id = defaultdict(bytes)
     n_chunks = 0
-    inline_attachments = []
-    start = time.time()
-    while (
-        set(chunked_data_per_id.values()) != {large_content}
-        or len(inline_attachments) < 3
-    ):
-        if time.time() - start > 10:
-            raise TimeoutError()
+    attachments = {}
+    while set(chunked_data_per_id.values()) != {large_content} or len(attachments) < 3:
         _, m = attachments_consumer.get_message()
         if m["type"] == "attachment_chunk":
             chunked_data_per_id[m["id"]] += m["payload"]
             assert m["chunk_index"] == n_chunks
             n_chunks += 1
         elif m["type"] == "attachment":
-            inline_attachments.append(m)
+            attachments[m["attachment"]["name"]] = m
         else:
             raise AssertionError(f"Unexpected message type: {m['type']}")
-    inline_attachments.sort(key=lambda a: a["attachment"]["name"])
 
     assert len(chunked_data_per_id) == 1
     (foo_id,) = chunked_data_per_id
@@ -73,7 +65,7 @@ def test_mixed_attachments_with_processing(
     assert n_chunks > 1
 
     # Inlined attachment bar
-    bar = inline_attachments[0]
+    bar = attachments["bar.txt"]
     # The ID is random. Just assert that it is there and non-zero.
     assert bar["attachment"].pop("id")
     assert bar == {
@@ -91,7 +83,7 @@ def test_mixed_attachments_with_processing(
     }
 
     # Inlined metadata for chunked attachment foo
-    foo = inline_attachments[1]
+    foo = attachments["foo.txt"]
     assert foo == {
         "type": "attachment",
         "attachment": {
@@ -108,7 +100,7 @@ def test_mixed_attachments_with_processing(
     }
 
     # Empty attachment foobar
-    foobar = inline_attachments[2]
+    foobar = attachments["foobar.txt"]
     # The ID is random. Just assert that it is there and non-zero.
     assert foobar["attachment"].pop("id")
     assert foobar == {
