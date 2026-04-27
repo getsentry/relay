@@ -604,7 +604,7 @@ impl<T: Counted> Managed<T> {
     }
 
     /// Creates a new [`Managed`] instance.
-    pub(crate) fn from_parts(value: T, meta: Arc<Meta>) -> Self {
+    pub fn from_parts(value: T, meta: Arc<Meta>) -> Self {
         Self {
             value,
             meta,
@@ -736,7 +736,7 @@ impl<T: Counted> std::ops::Deref for Managed<T> {
 
 /// Metadata attached to a [`Managed`] instance.
 #[derive(Debug, Clone)]
-pub(crate) struct Meta {
+pub struct Meta {
     /// Outcome aggregator service.
     outcome_aggregator: Addr<TrackOutcome>,
     /// Received timestamp, when the contained payload/information was received.
@@ -753,7 +753,7 @@ pub(crate) struct Meta {
 
 impl Meta {
     /// Creates a `Meta` instance from a request's meta
-    pub(crate) fn from_request_meta(
+    pub fn from_request_meta(
         request_meta: &RequestMeta,
         outcome_aggregator: Addr<TrackOutcome>,
     ) -> Meta {
