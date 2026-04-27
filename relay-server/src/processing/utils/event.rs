@@ -103,7 +103,7 @@ pub fn finalize<'a>(
 
         let attachment_size = attachments
             .filter(|item| item.attachment_type() == Some(AttachmentType::Attachment))
-            .map(|item| item.len() as u64)
+            .map(|item| item.attachment_body_size() as u64)
             .sum::<u64>();
 
         if attachment_size > 0 {

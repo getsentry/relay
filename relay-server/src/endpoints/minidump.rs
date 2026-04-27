@@ -7,8 +7,12 @@ use bzip2::read::BzDecoder;
 use flate2::read::GzDecoder;
 use liblzma::read::XzDecoder;
 use multer::{Field, Multipart};
+use relay_base_schema::project::ProjectId;
 use relay_config::Config;
+use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::EventId;
+use relay_quotas::{DataCategory, Scoping};
+use relay_system::Addr;
 use std::convert::Infallible;
 use std::error::Error;
 use std::io::Cursor;
@@ -17,13 +21,15 @@ use tower_http::limit::RequestBodyLimitLayer;
 use zstd::stream::Decoder as ZstdDecoder;
 
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
-use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
+use crate::endpoints::common::{self, BadStoreRequest, TextResponse, upload_to_objectstore};
 use crate::envelope::ContentType::Minidump;
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::middlewares;
 use crate::service::ServiceState;
-use crate::services::outcome::{DiscardAttachmentType, DiscardItemType};
+use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason};
+use crate::services::projects::cache::Project;
+use crate::services::upload::Upload;
 use crate::utils::{self, AttachmentStrategy, read_attachment_bytes_into_item};
 
 /// The field name of a minidump in the multipart form-data upload.
@@ -166,16 +172,33 @@ async fn extract_embedded_minidump(payload: Bytes) -> Result<Option<Bytes>, BadS
     Ok(None)
 }
 
-struct MinidumpAttachmentStrategy;
+struct UploadContext<'a> {
+    upload: &'a Addr<Upload>,
+    scoping: Scoping,
+}
 
-impl AttachmentStrategy for MinidumpAttachmentStrategy {
-    fn add_to_item(
+struct MinidumpAttachmentStrategy<'a> {
+    /// Information necessary to upload to the object store.
+    ///
+    /// This is optional since uploading to the object store might not be enabled for a project.
+    upload_context: Option<UploadContext<'a>>,
+}
+
+impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
+    async fn add_to_item(
         &self,
         field: Field<'static>,
         item: Item,
         config: &Config,
-    ) -> impl Future<Output = Result<Option<Item>, multer::Error>> + Send {
-        read_attachment_bytes_into_item(field, item, config, false)
+    ) -> Result<Option<Item>, multer::Error> {
+        match self.upload_context {
+            Some(UploadContext { upload, scoping })
+                if item.attachment_type() == Some(AttachmentType::Attachment) =>
+            {
+                Ok(upload_to_objectstore(field, item, config, scoping, upload, "minidump").await)
+            }
+            _ => read_attachment_bytes_into_item(field, item, config, false).await,
+        }
     }
 
     fn infer_type(&self, field: &Field) -> AttachmentType {
@@ -193,9 +216,24 @@ impl AttachmentStrategy for MinidumpAttachmentStrategy {
 async fn extract_multipart(
     multipart: Multipart<'static>,
     meta: RequestMeta,
-    config: &Config,
+    state: &ServiceState,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    let mut items = utils::multipart_items(multipart, config, MinidumpAttachmentStrategy).await?;
+    let config = state.config();
+
+    let upload_context = if should_fetch_project_config(state, meta.project_id()) {
+        let project = state
+            .project_cache_handle()
+            .ready(meta.public_key(), config.query_timeout())
+            .await
+            .ok_or(BadStoreRequest::ProjectUnavailable)?;
+        upload_context_for_project(&meta, state, project)?
+    } else {
+        None
+    };
+
+    let minidump_attachment_strategy = MinidumpAttachmentStrategy { upload_context };
+
+    let mut items = utils::multipart_items(multipart, config, minidump_attachment_strategy).await?;
 
     let minidump_item = items
         .iter_mut()
@@ -226,6 +264,56 @@ async fn extract_multipart(
     }
 
     Ok(envelope)
+}
+
+fn should_fetch_project_config(state: &ServiceState, project_id: Option<ProjectId>) -> bool {
+    // In the minidump endpoint we should always have a project_id.
+    let Some(project_id) = project_id else {
+        return false;
+    };
+    let global_config = state.global_config_handle().current();
+    utils::is_rolled_out(
+        project_id.value(),
+        global_config
+            .options
+            .minidump_endpoint_fetch_config_rollout_rate,
+    )
+    .is_keep()
+}
+
+/// Creates an [UploadContext] for a given project, returns none if the project does not have
+/// the [Feature::MinidumpAttachmentUploads] enabled or there are rate limits for attachments.
+fn upload_context_for_project<'a>(
+    meta: &RequestMeta,
+    state: &'a ServiceState,
+    project: Project<'_>,
+) -> Result<Option<UploadContext<'a>>, BadStoreRequest> {
+    let project_config = project
+        .state()
+        .clone()
+        .enabled()
+        .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
+
+    let scoping = project_config
+        .scoping(meta.public_key())
+        .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
+
+    let attachment_rate_limits = || {
+        project.rate_limits().current_limits().check_with_quotas(
+            project_config.get_quotas(),
+            scoping.item(DataCategory::Attachment),
+        )
+    };
+
+    match project_config.has_feature(Feature::MinidumpAttachmentUploads)
+        && !attachment_rate_limits().is_limited()
+    {
+        true => Ok(Some(UploadContext {
+            upload: state.upload(),
+            scoping,
+        })),
+        false => Ok(None),
+    }
 }
 
 fn extract_raw_minidump(
@@ -262,7 +350,7 @@ async fn handle(
         extract_raw_minidump(request.extract().await?, meta, config.max_attachment_size())?
     } else {
         let multipart = utils::multipart_from_request(request)?;
-        extract_multipart(multipart, meta, config).await?
+        extract_multipart(multipart, meta, &state).await?
     };
 
     let id = envelope.event_id();
@@ -279,7 +367,9 @@ async fn handle(
 
 pub fn route(config: &Config) -> MethodRouter<ServiceState> {
     post(handle)
-        .route_layer(RequestBodyLimitLayer::new(config.max_attachments_size()))
+        .route_layer(RequestBodyLimitLayer::new(
+            config.max_upload_size() + config.max_attachments_size(),
+        ))
         .route_layer(DefaultBodyLimit::disable())
         .route_layer(axum::middleware::from_fn(middlewares::content_length))
 }
@@ -448,9 +538,15 @@ mod tests {
         let config = Config::default();
 
         let multipart = utils::multipart_from_request(request).unwrap();
-        let items = utils::multipart_items(multipart, &config, MinidumpAttachmentStrategy)
-            .await
-            .unwrap();
+        let items = utils::multipart_items(
+            multipart,
+            &config,
+            MinidumpAttachmentStrategy {
+                upload_context: None,
+            },
+        )
+        .await
+        .unwrap();
 
         // we expect the multipart body to contain
         // * one arbitrary attachment from the user (a `config.json`)

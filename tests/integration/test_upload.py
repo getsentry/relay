@@ -9,30 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Response
 import pytest
 
-DUMMY_UPLOAD_PATH = "/api/42/upload/019cdc82ed6c7761ba21fd34b86481c2/"
-DUMMY_UPLOAD_LOCATION = f"{DUMMY_UPLOAD_PATH}?length=11&signature=z_fUMhT0EZqJz6OQtwGHqTlOOLPpTVpvPa-rYTg18FVWZM1OGny-LeVJB5H-sSR_5e--I1xt-FlCmRG2bsmcAQ.eyJ0IjoiMjAyNi0wMy0xMVQxMDo0ODoxMy45NDM1ODNaIn0"
-
-
-@pytest.fixture
-def dummy_upload(mini_sentry):
-    mini_sentry.allow_chunked = True
-
-    @mini_sentry.app.route("/api/<project>/upload/", methods=["POST"])
-    def create(**opts):
-
-        return Response(
-            "",
-            status=201,
-            headers={"Location": DUMMY_UPLOAD_LOCATION},
-        )
-
-    @mini_sentry.app.route("/api/<project>/upload/<key>/", methods=["PATCH"])
-    def upload(**opts):
-        return Response(
-            "",
-            status=204,
-            headers={"Location": DUMMY_UPLOAD_LOCATION},
-        )
+from .consts import DUMMY_UPLOAD_PATH, DUMMY_UPLOAD_LOCATION
 
 
 @pytest.fixture

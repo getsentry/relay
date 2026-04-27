@@ -13,6 +13,10 @@
 - The PII rule for `token` is less strict to not always scrub usage in LLM contexts. ([#5886](https://github.com/getsentry/relay/pull/5886))
 - Respond with status code 413 when chunked multipart requests are too large. ([#5880](https://github.com/getsentry/relay/pull/5880))
 
+**Internal**:
+
+- Stream attachments received at `/minidump` to objectstore. ([#5877](https://github.com/getsentry/relay/pull/5877))
+
 ## 26.4.1
 
 **Breaking Changes**:

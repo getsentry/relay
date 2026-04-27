@@ -73,7 +73,6 @@ impl fmt::Display for AttachmentType {
 
 /// Represents the payload of an [attachment placeholder item](
 /// https://develop.sentry.dev/sdk/telemetry/attachments/#attachment-placeholder-item).
-#[cfg(any(sentry, feature = "processing"))]
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct AttachmentPlaceholder<'a> {
     #[serde(borrow)]
