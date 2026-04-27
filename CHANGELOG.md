@@ -19,6 +19,7 @@
 - Retry failing objectstore requests. ([#5836](https://github.com/getsentry/relay/pull/5836))
 - Add mobile normalizations to SpanV2 processing pipeline (mobile tag, main thread, outlier filtering, app start backfill from V1 transactions, device class). ([#5824](https://github.com/getsentry/relay/pull/5824))
 - Remove the deprecated `aiModelCosts` global config, superseded by `aiModelMetadata`. ([#5862](https://github.com/getsentry/relay/pull/5862))
+- Distinguish between objectstore stream timeouts and regular timeouts on a config level. ([#5878](https://github.com/getsentry/relay/pull/5878))
 
 **Bug Fixes**:
 
