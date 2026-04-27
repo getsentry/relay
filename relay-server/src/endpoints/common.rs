@@ -503,7 +503,7 @@ pub async fn upload_to_objectstore(
                 organization_id = scoping.organization_id.value(),
                 project_id = scoping.project_id.value(),
                 bytes_uploaded = byte_counter.get(),
-                "object store upload failed",
+                "multipart item upload failed",
             );
         })
         .ok()?;
