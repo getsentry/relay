@@ -304,8 +304,9 @@ def test_playstation_max_attachments_size_exceeded(
         _ = relay.send_playstation_request(PROJECT_ID, playstation_dump)
 
     response = exc_info.value.response
-    assert response.status_code == 400, "Expected a 400 status code"
-    assert len(outcomes_consumer.get_outcomes()) == 0
+    assert response.status_code == 413, response.json()
+    assert response.json() == {"detail": "request content exceeded size limits"}
+    outcomes_consumer.assert_empty()
 
 
 def test_playstation_max_attachment_size_exceeded(
