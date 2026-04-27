@@ -571,34 +571,30 @@ pub struct SpanData {
     )]
     pub gen_ai_input_messages: Annotated<Value>,
 
-    /// Tool call arguments
+    /// Tool call arguments.
     #[metastructure(
-        field = "gen_ai.tool.input",
+        field = "gen_ai.tool.call.arguments",
         pii = "maybe",
+        legacy_alias = "gen_ai.tool.input",
         legacy_alias = "ai.toolCall.args"
     )]
-    pub gen_ai_tool_input: Annotated<Value>,
+    pub gen_ai_tool_call_arguments: Annotated<Value>,
 
-    /// Tool call result
+    /// Tool call result.
     #[metastructure(
-        field = "gen_ai.tool.output",
+        field = "gen_ai.tool.call.result",
         pii = "maybe",
+        legacy_alias = "gen_ai.tool.output",
         legacy_alias = "ai.toolCall.result"
     )]
-    pub gen_ai_tool_output: Annotated<Value>,
-
-    /// LLM decisions to use tools
-    #[metastructure(
-        field = "gen_ai.response.tool_calls",
-        legacy_alias = "ai.response.toolCalls",
-        legacy_alias = "ai.tool_calls",
-        pii = "maybe"
-    )]
-    pub gen_ai_response_tool_calls: Annotated<Value>,
+    pub gen_ai_tool_call_result: Annotated<Value>,
 
     /// The output messages from the model call.
     #[metastructure(
         field = "gen_ai.output.messages",
+        legacy_alias = "gen_ai.response.tool_calls",
+        legacy_alias = "ai.response.toolCalls",
+        legacy_alias = "ai.tool_calls",
         legacy_alias = "gen_ai.response.text",
         legacy_alias = "ai.response.text",
         legacy_alias = "ai.responses",
@@ -622,13 +618,14 @@ pub struct SpanData {
     #[metastructure(field = "gen_ai.response.time_to_first_token", pii = "maybe")]
     pub gen_ai_response_time_to_first_token: Annotated<Value>,
 
-    /// The available tools for a request to an LLM
+    /// The tool definitions available for a request to an LLM.
     #[metastructure(
-        field = "gen_ai.request.available_tools",
+        field = "gen_ai.tool.definitions",
+        legacy_alias = "gen_ai.request.available_tools",
         legacy_alias = "ai.tools",
         pii = "maybe"
     )]
-    pub gen_ai_request_available_tools: Annotated<Value>,
+    pub gen_ai_tool_definitions: Annotated<Value>,
 
     /// The frequency penalty for a request to an LLM
     #[metastructure(
@@ -660,20 +657,25 @@ pub struct SpanData {
     #[metastructure(field = "gen_ai.request.top_p", legacy_alias = "ai.top_p")]
     pub gen_ai_request_top_p: Annotated<Value>,
 
-    /// The finish reason for a response from an LLM
+    /// The finish reasons for a response from an LLM.
     #[metastructure(
-        field = "gen_ai.response.finish_reason",
+        field = "gen_ai.response.finish_reasons",
+        legacy_alias = "gen_ai.response.finish_reason",
         legacy_alias = "ai.finish_reason"
     )]
-    pub gen_ai_response_finish_reason: Annotated<Value>,
+    pub gen_ai_response_finish_reasons: Annotated<Value>,
 
     /// The unique identifier for a response from an LLM
     #[metastructure(field = "gen_ai.response.id", legacy_alias = "ai.generation_id")]
     pub gen_ai_response_id: Annotated<Value>,
 
-    /// The GenAI system identifier
-    #[metastructure(field = "gen_ai.system", legacy_alias = "ai.model.provider")]
-    pub gen_ai_system: Annotated<Value>,
+    /// The GenAI provider name.
+    #[metastructure(
+        field = "gen_ai.provider.name",
+        legacy_alias = "gen_ai.system",
+        legacy_alias = "ai.model.provider"
+    )]
+    pub gen_ai_provider_name: Annotated<Value>,
 
     /// The system instructions passed to the model.
     #[metastructure(
@@ -1528,24 +1530,23 @@ mod tests {
             gen_ai_cost_input_tokens: ~,
             gen_ai_cost_output_tokens: ~,
             gen_ai_input_messages: ~,
-            gen_ai_tool_input: ~,
-            gen_ai_tool_output: ~,
-            gen_ai_response_tool_calls: ~,
+            gen_ai_tool_call_arguments: ~,
+            gen_ai_tool_call_result: ~,
             gen_ai_output_messages: ~,
             gen_ai_response_object: ~,
             gen_ai_response_streaming: ~,
             gen_ai_response_tokens_per_second: ~,
             gen_ai_response_time_to_first_token: ~,
-            gen_ai_request_available_tools: ~,
+            gen_ai_tool_definitions: ~,
             gen_ai_request_frequency_penalty: ~,
             gen_ai_request_presence_penalty: ~,
             gen_ai_request_seed: ~,
             gen_ai_request_temperature: ~,
             gen_ai_request_top_k: ~,
             gen_ai_request_top_p: ~,
-            gen_ai_response_finish_reason: ~,
+            gen_ai_response_finish_reasons: ~,
             gen_ai_response_id: ~,
-            gen_ai_system: ~,
+            gen_ai_provider_name: ~,
             gen_ai_system_instructions: ~,
             gen_ai_tool_name: ~,
             gen_ai_operation_name: ~,

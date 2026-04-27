@@ -519,7 +519,6 @@ def test_objectstore_retries(mini_sentry, relay_with_processing, project_config)
     The retry delay gives time for the mock objectstore to start, and the
     second attempt succeeds because the stream has not been consumed yet.
     """
-    mini_sentry.fail_on_relay_errors = False
     project_id = 42
     project_key = mini_sentry.get_dsn_public_key(project_id)
 
@@ -535,6 +534,45 @@ def test_objectstore_retries(mini_sentry, relay_with_processing, project_config)
         }
     )
 
+    response = upload_something(relay, project_id, project_key)
+
+    failure = mini_sentry.test_failures.get(timeout=10)
+    assert "failed to upload 1 attachment(s) to objectstore in 3 attempt(s)" in str(
+        failure
+    )
+    assert response.status_code == 500
+
+
+def test_objectstore_timeout(
+    mini_sentry, relay_with_processing, project_config, objectstore
+):
+    mini_sentry.allow_chunked = True
+    mini_sentry.fail_on_relay_error = False
+    project_id = 42
+    project_key = mini_sentry.get_dsn_public_key(project_id)
+
+    @mini_sentry.app.route("/v1/objects/attachments/<scope>/<key>", methods=["PUT"])
+    def slow_objectstore(**opts):
+        time.sleep(2)
+        raise NotImplementedError
+
+    relay = relay_with_processing(
+        options={
+            "processing": {
+                "objectstore": {
+                    "objectstore_url": mini_sentry.url,
+                    "timeout": 1,
+                }
+            }
+        }
+    )
+
+    response = upload_something(relay, project_id, project_key)
+
+    assert response.status_code == 500  # not 504
+
+
+def upload_something(relay, project_id, project_key):
     # Create the upload (this does NOT contact objectstore).
     data = b"hello world"
     response = relay.post(
@@ -547,7 +585,7 @@ def test_objectstore_retries(mini_sentry, relay_with_processing, project_config)
     )
     assert response.status_code == 201
 
-    response = relay.patch(
+    return relay.patch(
         f"{response.headers['Location']}&sentry_key={project_key}",
         headers={
             "Content-Length": str(len(data)),
@@ -557,9 +595,3 @@ def test_objectstore_retries(mini_sentry, relay_with_processing, project_config)
         },
         data=data,
     )
-
-    failure = mini_sentry.test_failures.get(timeout=10)
-    assert "failed to upload 1 attachment(s) to objectstore in 3 attempt(s)" in str(
-        failure
-    )
-    assert response.status_code == 500

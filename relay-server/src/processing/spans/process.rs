@@ -1,15 +1,17 @@
 use std::collections::BTreeMap;
 use std::time::Duration;
 
-use relay_event_normalization::{GeoIpLookup, ModelMetadata, RequiredMode, SchemaProcessor, eap};
+use relay_event_normalization::eap::ClientUserAgentInfo;
+use relay_event_normalization::{GeoIpLookup, RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{Span, SpanId, SpanV2};
 use relay_protocol::Annotated;
 
 use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer, ParentId, WithHeader};
-use crate::managed::Managed;
+use crate::managed::{Managed, RecordKeeper, Rejected};
 use crate::processing::spans::{
     self, Error, ExpandedAttachment, ExpandedSpan, ExpandedSpans, Result, SerializedSpans,
+    Settings, SpanItems,
 };
 use crate::processing::{Context, trace_attachments, utils};
 use crate::services::outcome::DiscardReason;
@@ -17,35 +19,29 @@ use crate::services::outcome::DiscardReason;
 /// Parses all serialized spans.
 ///
 /// Individual, invalid spans are discarded.
-pub fn expand(spans: Managed<SerializedSpans>) -> Managed<ExpandedSpans> {
-    spans.map(|spans, records| {
+pub fn expand(spans: Managed<SerializedSpans>) -> Result<Managed<ExpandedSpans>, Rejected<Error>> {
+    spans.try_map(|spans, records| {
         let SerializedSpans {
             headers,
-            spans,
-            legacy,
-            integrations,
+            items,
+            invalid,
             attachments,
         } = spans;
 
-        let mut all_spans = Vec::new();
+        debug_assert!(
+            invalid.is_empty(),
+            "invalid items should already be rejected"
+        );
 
-        for item in &spans {
-            let expanded = expand_span_container(item);
-            let expanded = records.or_default(expanded, item);
-            all_spans.extend(expanded);
-        }
-
-        for item in &legacy {
-            match expand_legacy_span(item) {
-                Ok(span) => all_spans.push(span),
-                Err(err) => drop(records.reject_err(err, item)),
-            }
-        }
-
-        spans::integrations::expand_into(&mut all_spans, records, integrations);
+        let (settings, spans) = match items {
+            SpanItems::Container(item) => expand_span_container(&item)?,
+            SpanItems::Legacy(items) => expand_legacy_spans(items, records),
+            SpanItems::Integration(item) => spans::integrations::expand(records, &[item]),
+            SpanItems::None => (Default::default(), Vec::new()),
+        };
 
         let mut span_id_mapping: BTreeMap<_, _> = BTreeMap::new();
-        for span in all_spans {
+        for span in spans {
             if let Some(id) = span.value().and_then(|span| span.span_id.value().copied()) {
                 // Although span_ids should be unique it could be that they collied in which case we
                 // want to drop one of the offending spans.
@@ -82,25 +78,67 @@ pub fn expand(spans: Managed<SerializedSpans>) -> Managed<ExpandedSpans> {
             }
         }
 
-        ExpandedSpans {
+        Ok::<_, Error>(ExpandedSpans {
             headers,
+            settings,
             spans: span_id_mapping.into_values().collect(),
             server_sample_rate: None,
             stand_alone_attachments,
             category: spans::TotalAndIndexed,
-        }
+        })
     })
 }
 
-fn expand_span_container(item: &Item) -> Result<ContainerItems<SpanV2>> {
-    let spans = ItemContainer::parse(item)
+fn expand_span_container(item: &Item) -> Result<(Settings, ContainerItems<SpanV2>)> {
+    let (metadata, spans) = ItemContainer::<SpanV2>::parse(item)
         .map_err(|err| {
             relay_log::debug!("failed to parse span container: {err}");
             Error::Invalid(DiscardReason::InvalidJson)
         })?
-        .into_items();
+        .into_parts();
 
-    Ok(spans)
+    relay_log::trace!("span container metadata: {metadata:?}");
+    let settings = metadata
+        .map(|metadata| {
+            let is = metadata.ingest_settings.as_ref();
+
+            match metadata.version {
+                None => Settings::default(),
+                // Technically invalid.
+                Some(0 | 1) => Settings::default(),
+                Some(2) => Settings {
+                    infer_ip: is
+                        .and_then(|is| is.infer_ip)
+                        .is_some_and(|infer| infer.is_auto()),
+                    infer_user_agent: is
+                        .and_then(|is| is.infer_user_agent)
+                        .is_some_and(|infer| infer.is_auto()),
+                },
+                // Unsupported, fall back to the safe default.
+                Some(_) => Default::default(),
+            }
+        })
+        .unwrap_or_default();
+
+    Ok((settings, spans))
+}
+
+fn expand_legacy_spans(
+    items: Vec<Item>,
+    records: &mut RecordKeeper<'_>,
+) -> (Settings, ContainerItems<SpanV2>) {
+    let spans = items
+        .into_iter()
+        .filter_map(|item| match expand_legacy_span(&item) {
+            Ok(span) => Some(span),
+            Err(err) => {
+                records.reject_err(err, item);
+                None
+            }
+        })
+        .collect();
+
+    (Settings::default(), spans)
 }
 
 fn expand_legacy_span(item: &Item) -> Result<WithHeader<SpanV2>> {
@@ -134,24 +172,23 @@ fn parse_and_validate_span_attachment(item: &Item) -> Result<(Option<SpanId>, Ex
 
 /// Normalizes individual spans.
 pub fn normalize(spans: &mut Managed<ExpandedSpans>, geo_lookup: &GeoIpLookup, ctx: Context<'_>) {
-    let model_metadata = ctx.global_config.ai_model_metadata();
+    let settings = spans.settings;
+
     spans.retain_with_context(
         |spans| (&mut spans.spans, &spans.headers),
         |span, headers, _| {
-            normalize_span(&mut span.span, headers, geo_lookup, model_metadata, ctx).inspect_err(
-                |err| {
-                    relay_log::debug!("failed to normalize span: {err}");
-                },
-            )
+            normalize_span(&mut span.span, settings, headers, geo_lookup, ctx).inspect_err(|err| {
+                relay_log::debug!("failed to normalize span: {err}");
+            })
         },
     );
 }
 
 fn normalize_span(
     span: &mut Annotated<SpanV2>,
+    settings: Settings,
     headers: &EnvelopeHeaders,
     geo_lookup: &GeoIpLookup,
-    model_metadata: Option<&ModelMetadata>,
     ctx: Context<'_>,
 ) -> Result<()> {
     let meta = headers.meta();
@@ -165,6 +202,11 @@ fn normalize_span(
         let dsc = headers.dsc();
         let duration = span_duration(span);
         let allowed_hosts = ctx.global_config.options.http_span_allowed_hosts.as_slice();
+        let model_metdata = ctx.global_config.ai_model_metadata();
+        let client_ua_info = settings.infer_user_agent.then(|| ClientUserAgentInfo {
+            user_agent: meta.user_agent(),
+            hints: meta.client_hints(),
+        });
 
         validate_timestamps(span)?;
 
@@ -177,15 +219,16 @@ fn normalize_span(
         eap::normalize_span_category(&mut span.attributes);
         eap::normalize_received(&mut span.attributes, meta.received_at());
         eap::normalize_client_address(&mut span.attributes, meta.client_addr());
-        eap::normalize_user_agent(&mut span.attributes, meta.user_agent(), meta.client_hints());
-        eap::normalize_user_geo(&mut span.attributes, || {
-            meta.client_addr().and_then(|ip| geo_lookup.lookup(ip))
-        });
+        if settings.infer_ip {
+            eap::normalize_inject_client_address(&mut span.attributes, meta.client_addr());
+        }
+        eap::normalize_user_agent(&mut span.attributes, client_ua_info);
+        eap::normalize_user_geo(&mut span.attributes, |ip| geo_lookup.lookup(ip));
         if matches!(span.is_segment.value(), Some(true)) {
             eap::normalize_dsc(&mut span.attributes, dsc);
         }
         if ctx.is_processing() {
-            eap::normalize_ai(&mut span.attributes, duration, model_metadata);
+            eap::normalize_ai(&mut span.attributes, duration, model_metdata);
         }
         eap::normalize_attribute_values(&mut span.attributes, allowed_hosts);
         eap::write_legacy_attributes(&mut span.attributes);
@@ -856,7 +899,7 @@ mod tests {
             &[],
         );
 
-        normalize_span(&mut span, &headers, &geo_lookup, None, ctx).unwrap();
+        normalize_span(&mut span, Default::default(), &headers, &geo_lookup, ctx).unwrap();
 
         assert_attributes_contains(
             &span,
@@ -885,7 +928,7 @@ mod tests {
             &[],
         );
 
-        normalize_span(&mut span, &headers, &geo_lookup, None, ctx).unwrap();
+        normalize_span(&mut span, Default::default(), &headers, &geo_lookup, ctx).unwrap();
 
         assert_attributes_contains(
             &span,
@@ -915,7 +958,7 @@ mod tests {
             &[("http.response.status_code", 502.)],
         );
 
-        normalize_span(&mut span, &headers, &geo_lookup, None, ctx).unwrap();
+        normalize_span(&mut span, Default::default(), &headers, &geo_lookup, ctx).unwrap();
 
         assert_attributes_contains(
             &span,
@@ -940,7 +983,7 @@ mod tests {
             &[("http.response.status_code", 502.)],
         );
 
-        normalize_span(&mut span, &headers, &geo_lookup, None, ctx).unwrap();
+        normalize_span(&mut span, Default::default(), &headers, &geo_lookup, ctx).unwrap();
 
         assert_attributes_contains(
             &span,
@@ -970,7 +1013,7 @@ mod tests {
             ],
         );
 
-        normalize_span(&mut span, &headers, &geo_lookup, None, ctx).unwrap();
+        normalize_span(&mut span, Default::default(), &headers, &geo_lookup, ctx).unwrap();
 
         assert_attributes_contains(
             &span,
@@ -1002,7 +1045,7 @@ mod tests {
             &[("http.response.status_code", 502.)],
         );
 
-        normalize_span(&mut span, &headers, &geo_lookup, None, ctx).unwrap();
+        normalize_span(&mut span, Default::default(), &headers, &geo_lookup, ctx).unwrap();
 
         assert_attributes_contains(
             &span,

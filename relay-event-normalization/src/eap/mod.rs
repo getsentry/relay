@@ -220,6 +220,17 @@ pub fn normalize_received(attributes: &mut Annotated<Attributes>, received: Date
         });
 }
 
+/// Client user agent information.
+///
+/// This is information which is extracted from the client's request.
+#[derive(Debug, Copy, Clone, Default)]
+pub struct ClientUserAgentInfo<'a> {
+    /// The user agent extracted from the client request.
+    pub user_agent: Option<&'a str>,
+    /// Client hints extracted from the client request.
+    pub hints: ClientHints<&'a str>,
+}
+
 /// Normalizes the user agent/client information into [`Attributes`].
 ///
 /// Does not modify the attributes if there is already browser information present,
@@ -228,10 +239,12 @@ pub fn normalize_received(attributes: &mut Annotated<Attributes>, received: Date
 /// This function writes information to both the `browser.name` and `browser.version`
 /// attributes and to the deprecated `sentry.browser.name` and `sentry.browser.version`
 /// variants. This is because the latter are still used further on in the pipeline.
+///
+/// The `client_info` should be omitted for cases where the info is unreliable or incorrect, for
+/// example when the client is a backend SDK or another Relay.
 pub fn normalize_user_agent(
     attributes: &mut Annotated<Attributes>,
-    client_user_agent: Option<&str>,
-    client_hints: ClientHints<&str>,
+    client_info: Option<ClientUserAgentInfo<'_>>,
 ) {
     let attributes = attributes.get_or_insert_with(Default::default);
 
@@ -259,11 +272,11 @@ pub fn normalize_user_agent(
     let user_agent = attributes
         .get_value(USER_AGENT_ORIGINAL)
         .and_then(|v| v.as_str())
-        .or(client_user_agent);
+        .or(client_info.and_then(|ci| ci.user_agent));
 
     let Some(context) = BrowserContext::from_hints_or_ua(&RawUserAgentInfo {
         user_agent,
-        client_hints,
+        client_hints: client_info.map(|ci| ci.hints).unwrap_or_default(),
     }) else {
         return;
     };
@@ -286,26 +299,48 @@ pub fn normalize_client_address(attributes: &mut Annotated<Attributes>, client_i
     let Some(attributes) = attributes.value_mut() else {
         return;
     };
-    let Some(client_ip) = client_ip else { return };
 
     let client_address = attributes
         .get_value(CLIENT_ADDRESS)
         .and_then(|v| v.as_str());
 
     if client_address == Some("{{auto}}") {
-        attributes.insert(CLIENT_ADDRESS, client_ip.to_string());
+        match client_ip {
+            Some(client_ip) => attributes.insert(CLIENT_ADDRESS, client_ip.to_string()),
+            None => drop(attributes.remove(CLIENT_ADDRESS)),
+        }
     }
+}
+
+/// Injects a client ip address into [`Attributes`].
+///
+/// Unlike [`normalize_client_address`], this always injects the passed client ip into `attributes`.
+pub fn normalize_inject_client_address(
+    attributes: &mut Annotated<Attributes>,
+    client_ip: Option<IpAddr>,
+) {
+    let Some(client_ip) = client_ip else {
+        return;
+    };
+
+    let attributes = attributes.get_or_insert_with(Default::default);
+    attributes.insert_if_missing(CLIENT_ADDRESS, || client_ip.to_string());
 }
 
 /// Normalizes the user's geographical information into [`Attributes`].
 ///
 /// Does not modify the attributes if there is already user geo information present,
 /// to preserve original values.
+///
+/// This uses the [`CLIENT_ADDRESS`] attribute to infer the client IP address, you may want to run
+/// [`normalize_client_address`] before [`normalize_user_geo`].
 pub fn normalize_user_geo(
     attributes: &mut Annotated<Attributes>,
-    info: impl FnOnce() -> Option<Geo>,
+    info: impl FnOnce(IpAddr) -> Option<Geo>,
 ) {
-    let attributes = attributes.get_or_insert_with(Default::default);
+    let Some(attributes) = attributes.value_mut() else {
+        return;
+    };
 
     if [
         USER_GEO_COUNTRY_CODE,
@@ -319,7 +354,12 @@ pub fn normalize_user_geo(
         return;
     }
 
-    let Some(geo) = info() else {
+    let client_address = attributes
+        .get_value(CLIENT_ADDRESS)
+        .and_then(|v| v.as_str())
+        .and_then(|v| v.parse().ok());
+
+    let Some(geo) = client_address.and_then(info) else {
         return;
     };
 
@@ -695,7 +735,7 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
 
 #[cfg(test)]
 mod tests {
-    use relay_protocol::SerializableAnnotated;
+    use relay_protocol::{Empty, SerializableAnnotated};
 
     use super::*;
 
@@ -996,10 +1036,12 @@ mod tests {
         let mut attributes = Default::default();
         normalize_user_agent(
             &mut attributes,
-            Some(
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-            ),
-            ClientHints::default(),
+            Some(ClientUserAgentInfo {
+                user_agent: Some(
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                ),
+                ..Default::default()
+            }),
         );
 
         insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
@@ -1050,10 +1092,12 @@ mod tests {
 
         normalize_user_agent(
             &mut attributes,
-            Some(
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-            ),
-            ClientHints::default(),
+            Some(ClientUserAgentInfo {
+                user_agent: Some(
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                ),
+                ..Default::default()
+            }),
         );
 
         insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
@@ -1105,10 +1149,12 @@ mod tests {
 
         normalize_user_agent(
             &mut attributes,
-            Some(
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-            ),
-            ClientHints::default(),
+            Some(ClientUserAgentInfo {
+                user_agent: Some(
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                ),
+                hints: ClientHints::default(),
+            }),
         );
 
         insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
@@ -1136,12 +1182,20 @@ mod tests {
 
     #[test]
     fn test_normalize_user_geo_none() {
-        let mut attributes = Default::default();
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "client.address": {
+            "type": "string",
+            "value": "192.168.2.1"
+          }
+        }"#,
+        )
+        .unwrap();
 
-        normalize_user_geo(&mut attributes, || {
+        normalize_user_geo(&mut attributes, |addr| {
             Some(Geo {
                 country_code: "XY".to_owned().into(),
-                city: "Foo Hausen".to_owned().into(),
+                city: addr.to_string().into(),
                 subdivision: Annotated::empty(),
                 region: "Illu".to_owned().into(),
                 other: Default::default(),
@@ -1150,9 +1204,13 @@ mod tests {
 
         insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
         {
+          "client.address": {
+            "type": "string",
+            "value": "192.168.2.1"
+          },
           "user.geo.city": {
             "type": "string",
-            "value": "Foo Hausen"
+            "value": "192.168.2.1"
           },
           "user.geo.country_code": {
             "type": "string",
@@ -1170,6 +1228,10 @@ mod tests {
     fn test_normalize_user_geo_existing() {
         let mut attributes = Annotated::from_json(
             r#"{
+          "client.address": {
+            "type": "string",
+            "value": "192.168.2.1"
+          },
           "user.geo.city": {
             "type": "string",
             "value": "Foo Hausen"
@@ -1178,10 +1240,14 @@ mod tests {
         )
         .unwrap();
 
-        normalize_user_geo(&mut attributes, || unreachable!());
+        normalize_user_geo(&mut attributes, |_| unreachable!());
 
         insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
         {
+          "client.address": {
+            "type": "string",
+            "value": "192.168.2.1"
+          },
           "user.geo.city": {
             "type": "string",
             "value": "Foo Hausen"
@@ -2210,7 +2276,7 @@ mod tests {
     #[test]
     fn test_normalize_span_category_from_browser_origin() {
         // Category derived from sentry.origin with browser metrics value
-        let mut attributes = Annotated::<Attributes>::from_json(
+        let mut attributes = Annotated::from_json(
             r#"{
           "sentry.origin": {
             "type": "string",
@@ -2231,6 +2297,173 @@ mod tests {
           "sentry.origin": {
             "type": "string",
             "value": "auto.ui.browser.metrics"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_client_address_auto_with_ip() {
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "client.address": {
+            "type": "string",
+            "value": "{{auto}}"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_client_address(&mut attributes, Some("192.168.1.1".parse().unwrap()));
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "client.address": {
+            "type": "string",
+            "value": "192.168.1.1"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_client_address_auto_without_ip() {
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "client.address": {
+            "type": "string",
+            "value": "{{auto}}"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_client_address(&mut attributes, None);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {}
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_client_address_explicit_not_replaced() {
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "client.address": {
+            "type": "string",
+            "value": "10.0.0.1"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_client_address(&mut attributes, Some("192.168.1.1".parse().unwrap()));
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "client.address": {
+            "type": "string",
+            "value": "10.0.0.1"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_client_address_missing_attribute() {
+        let mut attributes = Annotated::empty();
+
+        normalize_client_address(&mut attributes, Some("192.168.1.1".parse().unwrap()));
+
+        assert!(attributes.is_empty());
+    }
+
+    #[test]
+    fn test_normalize_client_address_auto_with_ipv6() {
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "client.address": {
+            "type": "string",
+            "value": "{{auto}}"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_client_address(&mut attributes, Some("2001:db8::1".parse().unwrap()));
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "client.address": {
+            "type": "string",
+            "value": "2001:db8::1"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_inject_client_address_inserts_when_missing() {
+        let mut attributes = Annotated::empty();
+
+        normalize_inject_client_address(&mut attributes, Some("192.168.1.1".parse().unwrap()));
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "client.address": {
+            "type": "string",
+            "value": "192.168.1.1"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_inject_client_address_does_not_overwrite() {
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "client.address": {
+            "type": "string",
+            "value": "10.0.0.1"
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_inject_client_address(&mut attributes, Some("192.168.1.1".parse().unwrap()));
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "client.address": {
+            "type": "string",
+            "value": "10.0.0.1"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_inject_client_address_none_ip() {
+        let mut attributes = Annotated::from_json(r#"{}"#).unwrap();
+
+        normalize_inject_client_address(&mut attributes, None);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {}
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_inject_client_address_ipv6() {
+        let mut attributes = Annotated::empty();
+
+        normalize_inject_client_address(&mut attributes, Some("2001:db8::1".parse().unwrap()));
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "client.address": {
+            "type": "string",
+            "value": "2001:db8::1"
           }
         }
         "#);
