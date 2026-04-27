@@ -1069,7 +1069,7 @@ mod tests {
             &[],
         );
 
-        normalize_span(&mut span, &headers, &geo_lookup, None, ctx).unwrap();
+        normalize_span(&mut span, Default::default(), &headers, &geo_lookup, ctx).unwrap();
 
         assert_attributes_contains(
             &span,
@@ -1094,7 +1094,7 @@ mod tests {
         let (mut span, headers, geo_lookup, ctx) =
             prepare_normalize_span_params(&[("http.method", "GET"), (SPAN_KIND, "server")], &[]);
 
-        normalize_span(&mut span, &headers, &geo_lookup, None, ctx).unwrap();
+        normalize_span(&mut span, Default::default(), &headers, &geo_lookup, ctx).unwrap();
 
         assert_attributes_contains(
             &span,
@@ -1113,7 +1113,7 @@ mod tests {
         let (mut span, headers, geo_lookup, ctx) =
             prepare_normalize_span_params(&[(GEN_AI_SYSTEM, "some system")], &[]);
 
-        normalize_span(&mut span, &headers, &geo_lookup, None, ctx).unwrap();
+        normalize_span(&mut span, Default::default(), &headers, &geo_lookup, ctx).unwrap();
 
         assert_attributes_contains(
             &span,
