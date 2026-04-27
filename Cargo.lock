@@ -165,9 +165,12 @@ checksum = "dde20b3d026af13f561bdd0f15edf01fc734f0dafcedbaf42bba506a9517f223"
 
 [[package]]
 name = "arc-swap"
-version = "1.7.1"
+version = "1.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69f7f8c3906b62b754cd5326047894316021dcfe5a194c8ea52bdd94934a3457"
+checksum = "6a3a1fd6f75306b68087b831f025c712524bcb19aad54e557b1129cfa0a2b207"
+dependencies = [
+ "rustversion",
+]
 
 [[package]]
 name = "arcstr"
@@ -189,25 +192,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "async-stream"
-version = "0.3.6"
+name = "async-lock"
+version = "3.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b5a71a6f37880a80d1d7f19efd781e4b5de42c88f0722cc13bcb6cc2cfe8476"
+checksum = "290f7f2596bd5b78a9fec8088ccd89180d7f9f55b94b0576823bbbdc72ee8311"
 dependencies = [
- "async-stream-impl",
- "futures-core",
+ "event-listener",
+ "event-listener-strategy",
  "pin-project-lite",
-]
-
-[[package]]
-name = "async-stream-impl"
-version = "0.3.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7c24de15d275a1ecfd47a380fb4d5ec9bfe0933f309ed5e705b775596a3574d"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -342,17 +334,6 @@ dependencies = [
  "hyper-util",
  "tokio",
  "tower-service",
-]
-
-[[package]]
-name = "backoff"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b62ddb9cb1ec0a098ad4bbf9344d0713fa193ae1a80af55febcff2627b6a00c1"
-dependencies = [
- "getrandom 0.2.15",
- "instant",
- "rand 0.8.5",
 ]
 
 [[package]]
@@ -1422,6 +1403,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "event-listener-strategy"
+version = "0.5.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8be9f3dfaaffdae2972880079a491a1a8bb7cbed0b8dd7a347f668b4150a3b93"
+dependencies = [
+ "event-listener",
+ "pin-project-lite",
+]
+
+[[package]]
 name = "failspot"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2296,15 +2287,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "instant"
-version = "0.1.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0242819d153cba4b4b05a5a8f2a7e9bbf97b6055b2a002b395c96b5ff3c0222"
-dependencies = [
- "cfg-if",
-]
-
-[[package]]
 name = "ipconfig"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2512,7 +2494,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
@@ -3174,12 +3156,11 @@ dependencies = [
 
 [[package]]
 name = "objectstore-client"
-version = "0.1.0"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e624ba879f6d66d1855f4e6dd44534b84b3869c2fc651b452cbeb5996842aca"
+checksum = "f99caa869461b61decd1985c029d7e1462d1bde8e2448040db27d567165fcc1e"
 dependencies = [
  "async-compression",
- "async-stream",
  "bytes",
  "futures-util",
  "infer",
@@ -3187,7 +3168,7 @@ dependencies = [
  "multer",
  "objectstore-types",
  "percent-encoding",
- "reqwest 0.13.2",
+ "reqwest",
  "sentry-core",
  "serde",
  "thiserror 2.0.17",
@@ -3198,9 +3179,9 @@ dependencies = [
 
 [[package]]
 name = "objectstore-types"
-version = "0.1.0"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d62b780dd9cdaa3f0f2e7270fe9047bd42a92bd8a8061d259f737fab5599171a"
+checksum = "c375bccef8773d1739eabb7e2b1bbd7e9a9071c8f9557e3b50dce7220e8c8736"
 dependencies = [
  "http",
  "humantime",
@@ -4083,12 +4064,13 @@ dependencies = [
 
 [[package]]
 name = "redis"
-version = "1.0.2"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5dfe20977fe93830c0e9817a16fbf1ed1cfd8d4bba366087a1841d2c6033c251"
+checksum = "f44e94c96d8870a387d88ce3de3fdd608cbfc0705f03cb343cdde91509d3e49a"
 dependencies = [
  "arc-swap",
  "arcstr",
+ "async-lock",
  "backon",
  "bytes",
  "cfg-if",
@@ -4159,7 +4141,7 @@ checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
 
 [[package]]
 name = "relay"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -4173,13 +4155,13 @@ dependencies = [
  "relay-log",
  "relay-server",
  "relay-statsd",
- "reqwest 0.12.24",
+ "reqwest",
  "uuid",
 ]
 
 [[package]]
 name = "relay-auth"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "chrono",
  "data-encoding",
@@ -4196,7 +4178,7 @@ dependencies = [
 
 [[package]]
 name = "relay-base-schema"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "regex",
  "relay-common",
@@ -4234,27 +4216,27 @@ dependencies = [
 
 [[package]]
 name = "relay-cogs"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "insta",
 ]
 
 [[package]]
 name = "relay-common"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "chrono",
  "criterion",
  "regex-lite",
  "relay-pattern",
- "sentry-types",
+ "sentry-types 0.41.0",
  "serde",
  "serde_test",
 ]
 
 [[package]]
 name = "relay-config"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "anyhow",
  "human-size",
@@ -4277,7 +4259,7 @@ dependencies = [
 
 [[package]]
 name = "relay-conventions"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "insta",
  "pest",
@@ -4295,7 +4277,7 @@ dependencies = [
 
 [[package]]
 name = "relay-crash"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "bindgen",
  "cmake",
@@ -4303,7 +4285,7 @@ dependencies = [
 
 [[package]]
 name = "relay-dynamic-config"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "anyhow",
  "relay-auth",
@@ -4325,7 +4307,7 @@ dependencies = [
 
 [[package]]
 name = "relay-event-derive"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4335,7 +4317,7 @@ dependencies = [
 
 [[package]]
 name = "relay-event-normalization"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "bytecount",
  "chrono",
@@ -4372,7 +4354,7 @@ dependencies = [
 
 [[package]]
 name = "relay-event-schema"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "bytecount",
  "chrono",
@@ -4399,7 +4381,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "anyhow",
  "relay-ffi-macros",
@@ -4407,7 +4389,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi-macros"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "quote",
  "syn",
@@ -4415,7 +4397,7 @@ dependencies = [
 
 [[package]]
 name = "relay-filter"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "indexmap",
  "insta",
@@ -4434,7 +4416,7 @@ dependencies = [
 
 [[package]]
 name = "relay-kafka"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "hash32",
  "hashbrown 0.15.4",
@@ -4454,7 +4436,7 @@ dependencies = [
 
 [[package]]
 name = "relay-log"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "console",
  "relay-common",
@@ -4468,7 +4450,7 @@ dependencies = [
 
 [[package]]
 name = "relay-metrics"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "ahash",
  "bytecount",
@@ -4500,7 +4482,7 @@ dependencies = [
 
 [[package]]
 name = "relay-monitors"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "relay-base-schema",
  "relay-event-schema",
@@ -4513,7 +4495,7 @@ dependencies = [
 
 [[package]]
 name = "relay-otel"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "insta",
  "opentelemetry-proto",
@@ -4525,7 +4507,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ourlogs"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "chrono",
  "hex",
@@ -4543,7 +4525,7 @@ dependencies = [
 
 [[package]]
 name = "relay-pattern"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "criterion",
  "memchr",
@@ -4553,7 +4535,7 @@ dependencies = [
 
 [[package]]
 name = "relay-pattern-fuzz"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "libfuzzer-sys",
  "relay-pattern",
@@ -4561,7 +4543,7 @@ dependencies = [
 
 [[package]]
 name = "relay-pii"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "hmac",
  "insta",
@@ -4588,7 +4570,7 @@ dependencies = [
 
 [[package]]
 name = "relay-profiling"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "android_trace_log",
  "bytes",
@@ -4614,7 +4596,7 @@ dependencies = [
 
 [[package]]
 name = "relay-prosperoconv"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "anyhow",
  "dircpy",
@@ -4631,7 +4613,7 @@ dependencies = [
 
 [[package]]
 name = "relay-protocol"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "insta",
  "num-traits",
@@ -4649,7 +4631,7 @@ dependencies = [
 
 [[package]]
 name = "relay-protocol-derive"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4659,7 +4641,7 @@ dependencies = [
 
 [[package]]
 name = "relay-quotas"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "ahash",
  "async-trait",
@@ -4682,7 +4664,7 @@ dependencies = [
 
 [[package]]
 name = "relay-redis"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "deadpool",
  "futures",
@@ -4696,7 +4678,7 @@ dependencies = [
 
 [[package]]
 name = "relay-replays"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "criterion",
  "flate2",
@@ -4712,7 +4694,7 @@ dependencies = [
 
 [[package]]
 name = "relay-sampling"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4734,7 +4716,7 @@ dependencies = [
 
 [[package]]
 name = "relay-server"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "ahash",
  "anyhow",
@@ -4742,7 +4724,7 @@ dependencies = [
  "axum",
  "axum-extra",
  "axum-server",
- "backoff",
+ "backon",
  "brotli 7.0.0",
  "bytecount",
  "bytes",
@@ -4804,7 +4786,7 @@ dependencies = [
  "relay-system",
  "relay-test",
  "relay-threading",
- "reqwest 0.12.24",
+ "reqwest",
  "rmp-serde",
  "semver",
  "sentry",
@@ -4835,7 +4817,7 @@ dependencies = [
 
 [[package]]
 name = "relay-spans"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "chrono",
  "hex",
@@ -4852,7 +4834,7 @@ dependencies = [
 
 [[package]]
 name = "relay-statsd"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "metrics",
  "metrics-exporter-dogstatsd",
@@ -4861,7 +4843,7 @@ dependencies = [
 
 [[package]]
 name = "relay-system"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "futures",
  "insta",
@@ -4873,7 +4855,7 @@ dependencies = [
 
 [[package]]
 name = "relay-test"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "relay-log",
  "relay-system",
@@ -4882,7 +4864,7 @@ dependencies = [
 
 [[package]]
 name = "relay-threading"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "criterion",
  "flume",
@@ -4894,56 +4876,9 @@ dependencies = [
 
 [[package]]
 name = "relay-ua"
-version = "26.4.0"
+version = "26.4.1"
 dependencies = [
  "uaparser",
-]
-
-[[package]]
-name = "reqwest"
-version = "0.12.24"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d0946410b9f7b082a427e4ef5c8ff541a88b357bc6c637c40db3a68ac70a36f"
-dependencies = [
- "async-compression",
- "base64 0.22.1",
- "bytes",
- "encoding_rs",
- "futures-channel",
- "futures-core",
- "futures-util",
- "h2",
- "hickory-resolver",
- "http",
- "http-body",
- "http-body-util",
- "hyper",
- "hyper-rustls",
- "hyper-tls",
- "hyper-util",
- "js-sys",
- "log",
- "mime",
- "native-tls",
- "once_cell",
- "percent-encoding",
- "pin-project-lite",
- "rustls-pki-types",
- "serde",
- "serde_json",
- "serde_urlencoded",
- "sync_wrapper",
- "tokio",
- "tokio-native-tls",
- "tokio-util",
- "tower",
- "tower-http",
- "tower-service",
- "url",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "wasm-streams 0.4.2",
- "web-sys",
 ]
 
 [[package]]
@@ -4955,6 +4890,7 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "encoding_rs",
+ "futures-channel",
  "futures-core",
  "futures-util",
  "h2",
@@ -4987,7 +4923,7 @@ dependencies = [
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
- "wasm-streams 0.5.0",
+ "wasm-streams",
  "web-sys",
 ]
 
@@ -5322,13 +5258,14 @@ checksum = "d767eb0aabc880b29956c35734170f26ed551a859dbd361d140cdbeca61ab1e2"
 
 [[package]]
 name = "sentry"
-version = "0.41.0"
+version = "0.47.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "507ac2be9bf2da56c831da57faf1dadd81f434bd282935cdb06193d0c94e8811"
+checksum = "eb25f439f97d26fea01d717fa626167ceffcd981addaa670001e70505b72acbb"
 dependencies = [
+ "cfg_aliases",
  "httpdate",
  "native-tls",
- "reqwest 0.12.24",
+ "reqwest",
  "sentry-backtrace",
  "sentry-contexts",
  "sentry-core",
@@ -5343,9 +5280,9 @@ dependencies = [
 
 [[package]]
 name = "sentry-backtrace"
-version = "0.41.0"
+version = "0.47.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb4416302fa5325181a120e0fe7d4afd83cd95e52a9b86afa34a8161383fe0dc"
+checksum = "46a8c2c1bd5c1f735e84f28b48e7d72efcaafc362b7541bc8253e60e8fcdffc6"
 dependencies = [
  "backtrace",
  "regex",
@@ -5354,9 +5291,9 @@ dependencies = [
 
 [[package]]
 name = "sentry-contexts"
-version = "0.41.0"
+version = "0.47.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "936752f42b6f651dcb257da0bfa235ecc79e82011c49ed3383c212cc582263ff"
+checksum = "9b88a90baa654d7f0e1f4b667f6b434293d9f72c71bef16b197c76af5b7d5803"
 dependencies = [
  "hostname 0.4.1",
  "libc",
@@ -5368,21 +5305,22 @@ dependencies = [
 
 [[package]]
 name = "sentry-core"
-version = "0.41.0"
+version = "0.47.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "00e9bd2cadaeda3af41e9fa5d14645127d6f6a4aec73da3ae38e477ecafd3682"
+checksum = "0ac170a5bba8bec6e3339c90432569d89641fa7a3d3e4f44987d24f0762e6adf"
 dependencies = [
  "rand 0.9.2",
- "sentry-types",
+ "sentry-types 0.47.0",
  "serde",
  "serde_json",
+ "url",
 ]
 
 [[package]]
 name = "sentry-debug-images"
-version = "0.41.0"
+version = "0.47.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1e074fe9a0970c91999b23ed3195e6e30990d589fba3a68f20a1686af0f5cda"
+checksum = "dd9646a972b57896d4a92ed200cf76139f8e30b3cfd03b6662ae59926d26633c"
 dependencies = [
  "findshlibs",
  "sentry-core",
@@ -5406,19 +5344,20 @@ dependencies = [
 
 [[package]]
 name = "sentry-log"
-version = "0.41.0"
+version = "0.47.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a693f27e3f63ae085cf7c176b5c44038af27c8a0170d01db30ccf776c2d40ce3"
+checksum = "235865e639f1d72414fa5d35374e105c292e2ee3a2f90919d961bbb486626ee6"
 dependencies = [
+ "bitflags 2.9.4",
  "log",
  "sentry-core",
 ]
 
 [[package]]
 name = "sentry-panic"
-version = "0.41.0"
+version = "0.47.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4651d34f3ba649d9e6dc1268443cae6728b8f741c2f0264004f8ecf5b247330d"
+checksum = "6127d3d304ba5ce0409401e85aae538e303a569f8dbb031bf64f9ba0f7174346"
 dependencies = [
  "sentry-backtrace",
  "sentry-core",
@@ -5438,9 +5377,9 @@ dependencies = [
 
 [[package]]
 name = "sentry-tower"
-version = "0.41.0"
+version = "0.47.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f77964ead7e064d4b4b2b8001d5fc3c36dcac2ac607b3d5e0f1c2ae7a361a594"
+checksum = "61c5253dc4ad89863a866b93aeaaac1c9d60f2f774663b5024afe2d57e0a101c"
 dependencies = [
  "http",
  "pin-project",
@@ -5452,9 +5391,9 @@ dependencies = [
 
 [[package]]
 name = "sentry-tracing"
-version = "0.41.0"
+version = "0.47.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c25c47d36bc80c74d26d568ffe970c37b337c061b7234ad6f2d159439c16f000"
+checksum = "27701acc51e68db5281802b709010395bfcbcb128b1d0a4e5873680d3b47ff0c"
 dependencies = [
  "bitflags 2.9.4",
  "sentry-backtrace",
@@ -5468,6 +5407,23 @@ name = "sentry-types"
 version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a08e7154abe2cd557f26fd70038452810748aefdf39bc973f674421224b147c1"
+dependencies = [
+ "debugid",
+ "hex",
+ "rand 0.9.2",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.17",
+ "time",
+ "url",
+ "uuid",
+]
+
+[[package]]
+name = "sentry-types"
+version = "0.47.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56780cb5597d676bf22e6c11d1f062eb4def46390ea3bfb047bcbcf7dfd19bdb"
 dependencies = [
  "debugid",
  "hex",
@@ -6374,6 +6330,7 @@ dependencies = [
  "bytes",
  "futures-core",
  "futures-sink",
+ "futures-util",
  "pin-project-lite",
  "tokio",
 ]
@@ -6892,19 +6849,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "de0e091bdb824da87dc01d967388880d017a0a9bc4f3bdc0d86ee9f9336e3bb5"
 dependencies = [
  "unicode-ident",
-]
-
-[[package]]
-name = "wasm-streams"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15053d8d85c7eccdbefef60f06769760a563c7f0a9d6902a13d35c7800b0ad65"
-dependencies = [
- "futures-util",
- "js-sys",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
 ]
 
 [[package]]

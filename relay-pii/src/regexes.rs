@@ -9,6 +9,8 @@ use crate::config::RuleType;
 pub enum PatternType {
     /// Pattern-match on key and value
     KeyValue,
+    /// Pattern-match on key only, apply replacement on the value.
+    Key,
     /// Pattern-match on value only
     Value,
 }
@@ -50,6 +52,7 @@ pub fn get_regex_for_rule_type(
     ty: &RuleType,
 ) -> SmallVec<[(PatternType, &Regex, ReplaceBehavior); 2]> {
     let v = PatternType::Value;
+    let k = PatternType::Key;
     let kv = PatternType::KeyValue;
 
     match ty {
@@ -68,6 +71,7 @@ pub fn get_regex_for_rule_type(
                 // Bearer token was moved to its own regest and type out of the passwords, but we
                 // still keep it here for backwards compatibility.
                 (v, &*BEARER_TOKEN_REGEX, ReplaceBehavior::replace_match()),
+                (k, &*TOKEN_KEY_REGEX, ReplaceBehavior::replace_value()),
                 (kv, &*PASSWORD_KEY_REGEX, ReplaceBehavior::replace_value()),
             ]
         }
@@ -334,9 +338,11 @@ regex!(
 
 regex!(BEARER_TOKEN_REGEX, r"(?i)\b(Bearer\s+)([^\s]+)");
 
+regex!(TOKEN_KEY_REGEX, r"(?i)(token)");
+
 regex!(
     PASSWORD_KEY_REGEX,
-    r"(?i)(password|secret|passwd|api[-_]key|apikey|auth|credentials|mysql_pwd|privatekey|private[-_]key|token|^otp$|^two[-_]factor$)"
+    r"(?i)(password|secret|passwd|api[-_]key|apikey|auth|credentials|mysql_pwd|privatekey|private[-_]key|token[^\s]*[:=]|^otp$|^two[-_]factor$)"
 );
 
 #[cfg(test)]

@@ -4,8 +4,8 @@ use opentelemetry_proto::tonic::resource::v1::Resource;
 use opentelemetry_proto::tonic::trace::v1::span::Link as OtelLink;
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
 use relay_conventions::{
-    SENTRY__IS_REMOTE, SENTRY__KIND, SENTRY__ORIGIN, SENTRY__PLATFORM, SENTRY__SEGMENT__NAME,
-    SENTRY__SEGMENT_ID, SENTRY__STATUS__MESSAGE, SENTRY__TRANSACTION,
+    SENTRY__IS_REMOTE, SENTRY__KIND, SENTRY__ORIGIN, SENTRY__PLATFORM, SENTRY__SEGMENT__ID,
+    SENTRY__SEGMENT__NAME, SENTRY__STATUS__MESSAGE, SENTRY__TRANSACTION,
 };
 use relay_event_schema::protocol::{Attributes, SpanKind};
 use relay_otel::otel_resource_to_platform;
@@ -128,7 +128,7 @@ pub fn otel_to_sentry_span(
         if let Some(span_id) = span_id.value() {
             // TODO: It should be fine to use SENTRY__SEGMENT__ID here, it gets normalized in `sentry`:
             // https://github.com/getsentry/sentry/blob/0bb54f81a56c68bba25487f0f081ffd31ea5a3c7/src/sentry/spans/consumers/process_segments/convert.py#L38
-            sentry_attributes.insert(SENTRY__SEGMENT_ID, span_id.to_string());
+            sentry_attributes.insert(SENTRY__SEGMENT__ID, span_id.to_string());
         }
         if let Some(ref segment_name) = name {
             sentry_attributes.insert(SENTRY__SEGMENT__NAME, segment_name.clone());

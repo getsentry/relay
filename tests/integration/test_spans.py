@@ -270,6 +270,93 @@ def test_span_extraction(
         ]
 
 
+def _send_transaction_with_measurements(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+    event_id,
+    measurements,
+):
+    spans_consumer = spans_consumer()
+    relay = relay_with_processing(options=TEST_CONFIG)
+
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+
+    event = make_transaction({"event_id": event_id})
+    event["measurements"] = measurements
+
+    relay.send_event(project_id, event)
+
+    attrs = spans_consumer.get_span()["attributes"]
+    spans_consumer.assert_empty()
+    return attrs
+
+
+@pytest.mark.parametrize(
+    "event_id,measurements,expected_type,expected_value,expected_absent_keys",
+    [
+        pytest.param(
+            "cbf6960622e14a45abc1f03b2055b187",
+            {"app_start_cold": {"value": 1234.0, "unit": "millisecond"}},
+            "cold",
+            1234.0,
+            (),
+            id="cold",
+        ),
+        pytest.param(
+            "cbf6960622e14a45abc1f03b2055b189",
+            {"app_start_warm": {"value": 567.0, "unit": "millisecond"}},
+            "warm",
+            567.0,
+            (),
+            id="warm",
+        ),
+        pytest.param(
+            "cbf6960622e14a45abc1f03b2055b188",
+            {"app_start_cold": {"value": 200000.0, "unit": "millisecond"}},
+            None,
+            None,
+            ("app_start_cold",),
+            id="outlier",
+        ),
+    ],
+)
+def test_span_extraction_mobile_app_start_backfill(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+    event_id,
+    measurements,
+    expected_type,
+    expected_value,
+    expected_absent_keys,
+):
+    attrs = _send_transaction_with_measurements(
+        mini_sentry,
+        relay_with_processing,
+        spans_consumer,
+        event_id,
+        measurements,
+    )
+
+    if expected_type is None:
+        assert "app.vitals.start.value" not in attrs
+        assert "app.vitals.start.type" not in attrs
+    else:
+        assert attrs["app.vitals.start.value"] == {
+            "type": "double",
+            "value": expected_value,
+        }
+        assert attrs["app.vitals.start.type"] == {
+            "type": "string",
+            "value": expected_type,
+        }
+
+    for key in expected_absent_keys:
+        assert key not in attrs
+
+
 def envelope_with_spans(
     start: datetime, end: datetime, metrics_extracted: bool = False
 ) -> Envelope:

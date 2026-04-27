@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "26.4.0"
+version = "26.4.1"
 edition = "2024"
 build = "build.rs"
 license-file = "../LICENSE.md"
@@ -35,7 +35,7 @@ arc-swap = { workspace = true }
 axum = { workspace = true, features = ["macros", "matched-path", "tracing"] }
 axum-extra = { workspace = true }
 axum-server = { workspace = true }
-backoff = { workspace = true }
+backon = { workspace = true, default-features = false }
 brotli = { workspace = true }
 bytecount = { workspace = true }
 bytes = { workspace = true, features = ["serde"] }

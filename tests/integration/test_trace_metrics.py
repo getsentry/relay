@@ -61,7 +61,7 @@ def test_trace_metric_extraction(
         "value": 123.45,
         "unit": "millisecond",
         "attributes": {
-            "http.method": {"value": "GET", "type": "string"},
+            "http.request.method": {"value": "GET", "type": "string"},
             "http.status_code": {"value": 200, "type": "integer"},
             "http.some.headers": {"value": ["foo", "bar"], "type": "array"},
             "sentry.client_sample_rate": {"value": 0.25, "type": "double"},
@@ -100,13 +100,13 @@ def test_trace_metric_extraction(
                 )
             },
             "sentry.payload_size_bytes": {
-                "intValue": "241",
+                "intValue": "249",
             },
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
             "sentry.client_sample_rate": {"doubleValue": 0.25},
             "sentry.browser.name": {"stringValue": mock.ANY},
             "sentry.browser.version": {"stringValue": mock.ANY},
-            "http.method": {"stringValue": "GET"},
+            "http.request.method": {"stringValue": "GET"},
             "http.status_code": {"intValue": "200"},
             "sentry._internal.cooccuring.name.http.request.duration_seconds": {
                 "boolValue": True
@@ -145,7 +145,7 @@ def test_trace_metric_extraction(
             "project_id": 42,
             # Calculated byte size: name + value + attribute keys/values.
             # This is a billing relevant number, do not just adjust this because it changed.
-            "quantity": 241,
+            "quantity": 249,
         },
     ]
 

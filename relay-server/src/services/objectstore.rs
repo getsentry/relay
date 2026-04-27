@@ -587,7 +587,11 @@ impl ObjectstoreServiceInner {
         retention_hours: Option<u16>,
     ) -> Result<ObjectstoreKey, Error> {
         let mut attempts = 0;
-        let result = tokio::time::timeout(self.timeout, async {
+        let timeout = match &body {
+            Body::Bytes(_) => self.timeout,
+            Body::Stream(_) => Duration::MAX,
+        };
+        let result = tokio::time::timeout(timeout, async {
             let mut result = None;
             loop {
                 let Some(body) = body.try_clone() else {

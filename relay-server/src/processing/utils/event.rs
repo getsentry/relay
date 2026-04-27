@@ -103,7 +103,7 @@ pub fn finalize<'a>(
 
         let attachment_size = attachments
             .filter(|item| item.attachment_type() == Some(AttachmentType::Attachment))
-            .map(|item| item.len() as u64)
+            .map(|item| item.attachment_body_size() as u64)
             .sum::<u64>();
 
         if attachment_size > 0 {
@@ -221,7 +221,7 @@ pub fn normalize(
     // Inherit from spans, as transactions no longer produce metrics.
     let transaction_aggregator_config = ctx.config.aggregator_config_for(MetricNamespace::Spans);
 
-    let ai_model_metadata = ctx.global_config.model_metadata();
+    let ai_model_metadata = ctx.global_config.ai_model_metadata();
     let http_span_allowed_hosts = ctx.global_config.options.http_span_allowed_hosts.as_slice();
 
     let project_info = ctx.project_info;
@@ -288,7 +288,7 @@ pub fn normalize(
             emit_event_errors: full_normalization,
             span_description_rules: project_info.config.span_description_rules.as_ref(),
             geoip_lookup: Some(geoip_lookup),
-            ai_model_metadata: ai_model_metadata.as_ref(),
+            ai_model_metadata,
             enable_trimming: true,
             measurements: Some(CombinedMeasurementsConfig::new(
                 ctx.project_info.config().measurements.as_ref(),

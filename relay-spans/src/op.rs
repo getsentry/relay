@@ -16,10 +16,7 @@ pub fn derive_op_for_v2_span(attributes: &Annotated<Attributes>) -> String {
         return op;
     };
 
-    if attributes.contains_key(HTTP__REQUEST__METHOD) ||
-    // TODO: This can be removed once HTTP_METHOD is defined with backfilling in conventions.
-        attributes.contains_key(HTTP__METHOD)
-    {
+    if attributes.contains_key(HTTP__REQUEST__METHOD) {
         let kind = attributes.get_value(SENTRY__KIND).and_then(|v| v.as_str());
         return match kind {
             Some(kind) if kind == SpanKind::Client.as_str() => String::from("http.client"),
@@ -34,14 +31,11 @@ pub fn derive_op_for_v2_span(attributes: &Annotated<Attributes>) -> String {
         };
     }
 
-    if attributes.contains_key(DB__SYSTEM__NAME)
-        // TODO: This can be removed once we do normalization before deriving the op.
-        || attributes.contains_key(DB__SYSTEM)
-    {
+    if attributes.contains_key(DB__SYSTEM__NAME) {
         return String::from("db");
     }
 
-    if attributes.contains_key(GEN_AI__SYSTEM) {
+    if attributes.contains_key(GEN_AI__PROVIDER__NAME) {
         return String::from("gen_ai");
     }
 
