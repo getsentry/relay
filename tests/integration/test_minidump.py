@@ -11,7 +11,7 @@ from uuid import UUID
 
 from sentry_relay.consts import DataCategory
 from .test_attachment_ref import upload_and_make_ref
-from .test_upload import dummy_upload, DUMMY_UPLOAD_LOCATION  # noqa: F401
+from .consts import DUMMY_UPLOAD_LOCATION
 
 MINIDUMP_ATTACHMENT_NAME = "upload_file_minidump"
 EVENT_ATTACHMENT_NAME = "__sentry-event"
@@ -834,7 +834,7 @@ def test_size_limits(mini_sentry, relay, limit, expected_status_code):
 def test_minidump_objectstore_uploads(
     mini_sentry,
     relay,
-    dummy_upload,  # noqa: F811
+    dummy_upload,
     rollout_enabled,
     feature_enabled,
 ):
