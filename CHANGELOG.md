@@ -7,15 +7,15 @@
 - Implement client/sdk controlled ingestion settings for v2 span containers. ([#5881](https://github.com/getsentry/relay/pull/5881))
 - Update several `gen_ai` attributes to their latest representation. ([#5798](https://github.com/getsentry/relay/pull/5798))
 
-**Internal**:
-
-- Stream attachments received at `/minidump` to objectstore. ([#5877](https://github.com/getsentry/relay/pull/5877))
-
 **Bug Fixes**:
 
 - Backfill `app.vitals.start.value` and `app.vitals.start.type` for V1 transactions from `app_start_cold` and `app_start_warm`, matching existing V2 behavior. ([#5883](https://github.com/getsentry/relay/pull/5883))
 - The PII rule for `token` is less strict to not always scrub usage in LLM contexts. ([#5886](https://github.com/getsentry/relay/pull/5886))
 - Respond with status code 413 when chunked multipart requests are too large. ([#5880](https://github.com/getsentry/relay/pull/5880))
+
+**Internal**:
+
+- Stream attachments received at `/minidump` to objectstore. ([#5877](https://github.com/getsentry/relay/pull/5877))
 
 ## 26.4.1
 
