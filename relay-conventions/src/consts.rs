@@ -53,6 +53,7 @@ convention_attributes!(
     GEN_AI_COST_TOTAL_TOKENS => "gen_ai.cost.total_tokens",
     GEN_AI_OPERATION_TYPE => "gen_ai.operation.type",
     GEN_AI_OPERATION_NAME => "gen_ai.operation.name",
+    GEN_AI_PROVIDER_NAME => "gen_ai.provider.name",
     GEN_AI_REQUEST_MODEL => "gen_ai.request.model",
     GEN_AI_RESPONSE_MODEL => "gen_ai.response.model",
     GEN_AI_RESPONSE_TPS => "gen_ai.response.tokens_per_second",
