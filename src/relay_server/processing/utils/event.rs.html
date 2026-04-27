@@ -103,7 +103,7 @@
 <a href=#103 id=103 data-nosnippet>103</a>
 <a href=#104 id=104 data-nosnippet>104</a>        <span class="kw">let </span>attachment_size = attachments
 <a href=#105 id=105 data-nosnippet>105</a>            .filter(|item| item.attachment_type() == <span class="prelude-val">Some</span>(AttachmentType::Attachment))
-<a href=#106 id=106 data-nosnippet>106</a>            .map(|item| item.len() <span class="kw">as </span>u64)
+<a href=#106 id=106 data-nosnippet>106</a>            .map(|item| item.attachment_body_size() <span class="kw">as </span>u64)
 <a href=#107 id=107 data-nosnippet>107</a>            .sum::&lt;u64&gt;();
 <a href=#108 id=108 data-nosnippet>108</a>
 <a href=#109 id=109 data-nosnippet>109</a>        <span class="kw">if </span>attachment_size &gt; <span class="number">0 </span>{

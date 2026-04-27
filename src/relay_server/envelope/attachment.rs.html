@@ -73,40 +73,39 @@
 <a href=#73 id=73 data-nosnippet>73</a>
 <a href=#74 id=74 data-nosnippet>74</a><span class="doccomment">/// Represents the payload of an [attachment placeholder item](
 <a href=#75 id=75 data-nosnippet>75</a>/// https://develop.sentry.dev/sdk/telemetry/attachments/#attachment-placeholder-item).
-<a href=#76 id=76 data-nosnippet>76</a></span><span class="attr">#[cfg(any(sentry, feature = <span class="string">"processing"</span>))]
-<a href=#77 id=77 data-nosnippet>77</a>#[derive(serde::Serialize, serde::Deserialize)]
-<a href=#78 id=78 data-nosnippet>78</a></span><span class="kw">pub struct </span>AttachmentPlaceholder&lt;<span class="lifetime">'a</span>&gt; {
-<a href=#79 id=79 data-nosnippet>79</a>    <span class="attr">#[serde(borrow)]
-<a href=#80 id=80 data-nosnippet>80</a>    </span><span class="kw">pub </span>location: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
-<a href=#81 id=81 data-nosnippet>81</a>    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-<a href=#82 id=82 data-nosnippet>82</a>    </span><span class="kw">pub </span>content_type: <span class="prelude-ty">Option</span>&lt;String&gt;,
-<a href=#83 id=83 data-nosnippet>83</a>}
-<a href=#84 id=84 data-nosnippet>84</a>
-<a href=#85 id=85 data-nosnippet>85</a><span class="attr">#[derive(Debug)]
-<a href=#86 id=86 data-nosnippet>86</a></span><span class="kw">pub struct </span>UnknownAttachmentType;
-<a href=#87 id=87 data-nosnippet>87</a>
-<a href=#88 id=88 data-nosnippet>88</a><span class="kw">impl </span>std::str::FromStr <span class="kw">for </span>AttachmentType {
-<a href=#89 id=89 data-nosnippet>89</a>    <span class="kw">type </span><span class="prelude-val">Err </span>= UnknownAttachmentType;
-<a href=#90 id=90 data-nosnippet>90</a>
-<a href=#91 id=91 data-nosnippet>91</a>    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
-<a href=#92 id=92 data-nosnippet>92</a>        <span class="prelude-val">Ok</span>(<span class="kw">match </span>s {
-<a href=#93 id=93 data-nosnippet>93</a>            <span class="string">"event.attachment" </span>=&gt; AttachmentType::Attachment,
-<a href=#94 id=94 data-nosnippet>94</a>            <span class="string">"event.minidump" </span>=&gt; AttachmentType::Minidump,
-<a href=#95 id=95 data-nosnippet>95</a>            <span class="string">"event.applecrashreport" </span>=&gt; AttachmentType::AppleCrashReport,
-<a href=#96 id=96 data-nosnippet>96</a>            <span class="string">"event.payload" </span>=&gt; AttachmentType::EventPayload,
-<a href=#97 id=97 data-nosnippet>97</a>            <span class="string">"playstation.prosperodump" </span>=&gt; AttachmentType::Prosperodump,
-<a href=#98 id=98 data-nosnippet>98</a>            <span class="string">"nswitch.dying_message" </span>=&gt; AttachmentType::NintendoSwitchDyingMessage,
-<a href=#99 id=99 data-nosnippet>99</a>            <span class="string">"event.breadcrumbs" </span>=&gt; AttachmentType::Breadcrumbs,
-<a href=#100 id=100 data-nosnippet>100</a>            <span class="string">"event.view_hierarchy" </span>=&gt; AttachmentType::ViewHierarchy,
-<a href=#101 id=101 data-nosnippet>101</a>            <span class="string">"unreal.context" </span>=&gt; AttachmentType::UnrealContext,
-<a href=#102 id=102 data-nosnippet>102</a>            <span class="string">"unreal.logs" </span>=&gt; AttachmentType::UnrealLogs,
-<a href=#103 id=103 data-nosnippet>103</a>            <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(UnknownAttachmentType),
-<a href=#104 id=104 data-nosnippet>104</a>        })
-<a href=#105 id=105 data-nosnippet>105</a>    }
-<a href=#106 id=106 data-nosnippet>106</a>}
-<a href=#107 id=107 data-nosnippet>107</a>
-<a href=#108 id=108 data-nosnippet>108</a><span class="macro">relay_common::impl_str_serde!</span>(
-<a href=#109 id=109 data-nosnippet>109</a>    AttachmentType,
-<a href=#110 id=110 data-nosnippet>110</a>    <span class="string">"an attachment type (see sentry develop docs)"
-<a href=#111 id=111 data-nosnippet>111</a></span>);
+<a href=#76 id=76 data-nosnippet>76</a></span><span class="attr">#[derive(serde::Serialize, serde::Deserialize)]
+<a href=#77 id=77 data-nosnippet>77</a></span><span class="kw">pub struct </span>AttachmentPlaceholder&lt;<span class="lifetime">'a</span>&gt; {
+<a href=#78 id=78 data-nosnippet>78</a>    <span class="attr">#[serde(borrow)]
+<a href=#79 id=79 data-nosnippet>79</a>    </span><span class="kw">pub </span>location: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
+<a href=#80 id=80 data-nosnippet>80</a>    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+<a href=#81 id=81 data-nosnippet>81</a>    </span><span class="kw">pub </span>content_type: <span class="prelude-ty">Option</span>&lt;String&gt;,
+<a href=#82 id=82 data-nosnippet>82</a>}
+<a href=#83 id=83 data-nosnippet>83</a>
+<a href=#84 id=84 data-nosnippet>84</a><span class="attr">#[derive(Debug)]
+<a href=#85 id=85 data-nosnippet>85</a></span><span class="kw">pub struct </span>UnknownAttachmentType;
+<a href=#86 id=86 data-nosnippet>86</a>
+<a href=#87 id=87 data-nosnippet>87</a><span class="kw">impl </span>std::str::FromStr <span class="kw">for </span>AttachmentType {
+<a href=#88 id=88 data-nosnippet>88</a>    <span class="kw">type </span><span class="prelude-val">Err </span>= UnknownAttachmentType;
+<a href=#89 id=89 data-nosnippet>89</a>
+<a href=#90 id=90 data-nosnippet>90</a>    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
+<a href=#91 id=91 data-nosnippet>91</a>        <span class="prelude-val">Ok</span>(<span class="kw">match </span>s {
+<a href=#92 id=92 data-nosnippet>92</a>            <span class="string">"event.attachment" </span>=&gt; AttachmentType::Attachment,
+<a href=#93 id=93 data-nosnippet>93</a>            <span class="string">"event.minidump" </span>=&gt; AttachmentType::Minidump,
+<a href=#94 id=94 data-nosnippet>94</a>            <span class="string">"event.applecrashreport" </span>=&gt; AttachmentType::AppleCrashReport,
+<a href=#95 id=95 data-nosnippet>95</a>            <span class="string">"event.payload" </span>=&gt; AttachmentType::EventPayload,
+<a href=#96 id=96 data-nosnippet>96</a>            <span class="string">"playstation.prosperodump" </span>=&gt; AttachmentType::Prosperodump,
+<a href=#97 id=97 data-nosnippet>97</a>            <span class="string">"nswitch.dying_message" </span>=&gt; AttachmentType::NintendoSwitchDyingMessage,
+<a href=#98 id=98 data-nosnippet>98</a>            <span class="string">"event.breadcrumbs" </span>=&gt; AttachmentType::Breadcrumbs,
+<a href=#99 id=99 data-nosnippet>99</a>            <span class="string">"event.view_hierarchy" </span>=&gt; AttachmentType::ViewHierarchy,
+<a href=#100 id=100 data-nosnippet>100</a>            <span class="string">"unreal.context" </span>=&gt; AttachmentType::UnrealContext,
+<a href=#101 id=101 data-nosnippet>101</a>            <span class="string">"unreal.logs" </span>=&gt; AttachmentType::UnrealLogs,
+<a href=#102 id=102 data-nosnippet>102</a>            <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(UnknownAttachmentType),
+<a href=#103 id=103 data-nosnippet>103</a>        })
+<a href=#104 id=104 data-nosnippet>104</a>    }
+<a href=#105 id=105 data-nosnippet>105</a>}
+<a href=#106 id=106 data-nosnippet>106</a>
+<a href=#107 id=107 data-nosnippet>107</a><span class="macro">relay_common::impl_str_serde!</span>(
+<a href=#108 id=108 data-nosnippet>108</a>    AttachmentType,
+<a href=#109 id=109 data-nosnippet>109</a>    <span class="string">"an attachment type (see sentry develop docs)"
+<a href=#110 id=110 data-nosnippet>110</a></span>);
 </code></pre></div></section></main></body></html>
