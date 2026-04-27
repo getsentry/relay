@@ -221,7 +221,7 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
         # If an external Relay/Client makes modifications, sizes can change,
         # this is fuzzy due to slight changes in sizes due to added timestamps
         # and may need to be adjusted when changing normalization.
-        ("managed", 128, 459),
+        ("managed", 174, 505),
     ],
 )
 def test_ourlog_extraction_with_sentry_logs(
@@ -312,6 +312,8 @@ def test_ourlog_extraction_with_sentry_logs(
     assert items_consumer.get_items(n=2) == [
         {
             "attributes": {
+                "browser.name": {"stringValue": "Python Requests"},
+                "browser.version": {"stringValue": "2.32"},
                 "sentry.body": {"stringValue": "This is really bad"},
                 "sentry.browser.name": {"stringValue": "Python Requests"},
                 "sentry.browser.version": {"stringValue": "2.32"},
@@ -391,6 +393,8 @@ def test_ourlog_extraction_with_sentry_logs(
                 "sentry.body": {"stringValue": "Example log record"},
                 "sentry.browser.name": {"stringValue": "Python Requests"},
                 "sentry.browser.version": {"stringValue": "2.32"},
+                "browser.name": {"stringValue": "Python Requests"},
+                "browser.version": {"stringValue": "2.32"},
                 "sentry.severity_text": {"stringValue": "info"},
                 "sentry.payload_size_bytes": {"intValue": mock.ANY},
                 "http.response_content_length": {"intValue": "17"},
@@ -505,6 +509,8 @@ def test_ourlog_extraction_with_string_pii_scrubbing(
         "trace_id": "5b8efff798038103d269b633813fc60c",
         "span_id": "eee19b7ec3c1b174",
         "attributes": {
+            "browser.name": {"type": "string", "value": "Python Requests"},
+            "browser.version": {"type": "string", "value": "2.32"},
             "test_pii": {"type": "string", "value": expected_scrubbed},
             "sentry.browser.name": {"type": "string", "value": "Python Requests"},
             "sentry.browser.version": {"type": "string", "value": "2.32"},
@@ -694,13 +700,15 @@ def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attribut
             "sentry._meta.fields.attributes.custom_field": {
                 "stringValue": '{"meta":{"value":{"":{"rem":[["remove_custom_field","s",0,10]],"len":12}}}}'
             },
-            "sentry.browser.version": {"stringValue": "2.32"},
             "custom_field": {"stringValue": "[REDACTED]"},
             "sentry.body": {"stringValue": "Test log"},
             "sentry.severity_text": {"stringValue": "info"},
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
             "sentry.payload_size_bytes": mock.ANY,
             "sentry.browser.name": {"stringValue": "Python Requests"},
+            "sentry.browser.version": {"stringValue": "2.32"},
+            "browser.name": {"stringValue": "Python Requests"},
+            "browser.version": {"stringValue": "2.32"},
             **timestamps(ts),
         },
         "clientSampleRate": 1.0,
@@ -750,6 +758,8 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
             "sentry.body": {"stringValue": "Example log record 2"},
             "sentry.browser.name": {"stringValue": "Python Requests"},
             "sentry.browser.version": {"stringValue": "2.32"},
+            "browser.name": {"stringValue": "Python Requests"},
+            "browser.version": {"stringValue": "2.32"},
             "sentry.severity_text": {"stringValue": "warn"},
             "sentry.payload_size_bytes": {"intValue": mock.ANY},
             **timestamps(ts),
@@ -889,6 +899,8 @@ def test_browser_name_version_extraction(
 
     assert items_consumer.get_item() == {
         "attributes": {
+            "browser.name": {"stringValue": expected_browser_name},
+            "browser.version": {"stringValue": expected_browser_version},
             "sentry.body": {"stringValue": "This is really bad"},
             "sentry.browser.name": {"stringValue": expected_browser_name},
             "sentry.browser.version": {"stringValue": expected_browser_version},

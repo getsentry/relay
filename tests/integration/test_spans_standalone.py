@@ -37,6 +37,7 @@ def lcp_cls_inp_differences(mode):
     else:
         attributes = {
             # We additionally extract the browser version for EAP items
+            "browser.version": {"type": "string", "value": "141.0.0"},
             "sentry.browser.version": {"type": "string", "value": "141.0.0"},
             # New for EAP items
             "sentry.observed_timestamp_nanos": {
@@ -136,6 +137,7 @@ def test_lcp_span(
 
     assert spans_consumer.get_span() == {
         "attributes": {
+            "browser.name": {"type": "string", "value": "Chrome"},
             "client.address": {"type": "string", "value": "127.0.0.1"},
             "lcp": {"type": "double", "value": 548.0},
             "lcp.loadTime": {"type": "double", "value": 527.5},
@@ -294,6 +296,7 @@ def test_cls_span(
 
     assert spans_consumer.get_span() == {
         "attributes": {
+            "browser.name": {"type": "string", "value": "Chrome"},
             "client.address": {"type": "string", "value": "127.0.0.1"},
             "cls": {"type": "double", "value": 0.1},
             "cls.source.1": {
@@ -448,6 +451,7 @@ def test_inp_span(
 
     assert spans_consumer.get_span() == {
         "attributes": {
+            "browser.name": {"type": "string", "value": "Chrome"},
             "client.address": {"type": "string", "value": "127.0.0.1"},
             "inp": {"type": "double", "value": 104.0},
             "sentry.browser.name": {"type": "string", "value": "Chrome"},
