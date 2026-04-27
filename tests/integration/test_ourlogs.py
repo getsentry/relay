@@ -12,7 +12,6 @@ from .asserts import time_within_delta, time_within, matches
 
 import pytest
 
-
 TEST_CONFIG = {
     "outcomes": {
         "emit_outcomes": True,
