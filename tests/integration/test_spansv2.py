@@ -118,8 +118,6 @@ def test_spansv2_basic(
         "span_id": "eee19b7ec3c1b175",
         "attributes": {
             "array": {"type": "array", "value": ["foo", "bar"]},
-            "browser.name": {"type": "string", "value": "Python Requests"},
-            "browser.version": {"type": "string", "value": "2.32"},
             "client.address": {
                 "type": "string",
                 "value": "127.0.0.1",
@@ -250,7 +248,7 @@ def test_spansv2_trimming_basic(
             # This is sufficient for all builtin attributes not
             # to be trimmed. The span fields that aren't trimmed
             # also still count for the size limit.
-            "trimming": {"span": {"maxSize": 499}},
+            "trimming": {"span": {"maxSize": 453}},
         }
     )
 
@@ -316,8 +314,6 @@ def test_spansv2_trimming_basic(
         "trace_id": "5b8efff798038103d269b633813fc60c",
         "span_id": "eee19b7ec3c1b175",
         "attributes": {
-            "browser.name": {"type": "string", "value": "Python Requests"},
-            "browser.version": {"type": "string", "value": "2.32"},
             "custom.array.attribute": {
                 "type": "array",
                 "value": ["A string", "Another longer string", "Yet anothe..."],
@@ -348,7 +344,7 @@ def test_spansv2_trimming_basic(
         },
         "_meta": {
             "attributes": {
-                "": {"len": 551},
+                "": {"len": 505},
                 "custom.array.attribute": {
                     "value": {
                         "2": {

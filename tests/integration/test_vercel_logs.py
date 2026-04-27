@@ -65,8 +65,6 @@ EXPECTED_ITEMS = [
         "itemType": "TRACE_ITEM_TYPE_LOG",
         "timestamp": mock.ANY,
         "attributes": {
-            "browser.name": {"stringValue": "Python Requests"},
-            "browser.version": {"stringValue": "2.32"},
             "vercel.id": {"stringValue": "1573817187330377061717300000"},
             "sentry.browser.version": {"stringValue": "2.32"},
             "sentry.origin": {"stringValue": "auto.log_drain.vercel"},
@@ -82,7 +80,7 @@ EXPECTED_ITEMS = [
                 "intValue": time_within_delta(expect_resolution="ns")
             },
             "vercel.build_id": {"stringValue": "bld_cotnkcr76"},
-            "sentry.payload_size_bytes": {"intValue": "482"},
+            "sentry.payload_size_bytes": {"intValue": "436"},
             "sentry.browser.name": {"stringValue": "Python Requests"},
             "vercel.project_id": {"stringValue": "gdufoJxB6b9b1fEqr1jUtFkyavUU"},
             "sentry._meta.fields.trace_id": {
@@ -103,8 +101,6 @@ EXPECTED_ITEMS = [
         "itemType": "TRACE_ITEM_TYPE_LOG",
         "timestamp": mock.ANY,
         "attributes": {
-            "browser.name": {"stringValue": "Python Requests"},
-            "browser.version": {"stringValue": "2.32"},
             "vercel.path": {"stringValue": "/api/users"},
             "sentry.browser.version": {"stringValue": "2.32"},
             "vercel.proxy.scheme": {"stringValue": "https"},
@@ -138,7 +134,7 @@ EXPECTED_ITEMS = [
             "sentry.timestamp_precise": {
                 "intValue": time_within_delta(expect_resolution="ns")
             },
-            "sentry.payload_size_bytes": {"intValue": "935"},
+            "sentry.payload_size_bytes": {"intValue": "889"},
             "vercel.proxy.region": {"stringValue": "sfo1"},
         },
         "clientSampleRate": 1.0,
@@ -192,7 +188,7 @@ def test_vercel_logs_json_array(
             "org_id": 1,
             "outcome": 0,
             "project_id": 42,
-            "quantity": 1417,
+            "quantity": 1325,
         },
     ]
 
@@ -237,6 +233,6 @@ def test_vercel_logs_ndjson(
             "org_id": 1,
             "outcome": 0,
             "project_id": 42,
-            "quantity": 1417,
+            "quantity": 1325,
         },
     ]

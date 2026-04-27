@@ -121,8 +121,6 @@ def test_otlp_logs_conversion(
                     }
                 },
                 "boolean.attribute": {"boolValue": True},
-                "browser.name": {"stringValue": "Python Requests"},
-                "browser.version": {"stringValue": "2.32"},
                 "double.attribute": {"doubleValue": 637.704},
                 "instrumentation.name": {"stringValue": "test-library"},
                 "int.attribute": {"intValue": "10"},
@@ -135,7 +133,7 @@ def test_otlp_logs_conversion(
                     "stringValue": time_within(ts, expect_resolution="ns")
                 },
                 "sentry.origin": {"stringValue": "auto.otlp.logs"},
-                "sentry.payload_size_bytes": {"intValue": "424"},
+                "sentry.payload_size_bytes": {"intValue": "378"},
                 "sentry.severity_text": {"stringValue": "info"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
                 "sentry.timestamp_precise": {
@@ -178,7 +176,7 @@ def test_otlp_logs_conversion(
             "org_id": 1,
             "outcome": 0,
             "project_id": 42,
-            "quantity": 424,
+            "quantity": 378,
         },
     ]
 
@@ -240,8 +238,6 @@ def test_otlp_logs_multiple_records(
     assert items == [
         {
             "attributes": {
-                "browser.name": {"stringValue": "Python Requests"},
-                "browser.version": {"stringValue": "2.32"},
                 "sentry.body": {"stringValue": "First log entry"},
                 "sentry.browser.name": {"stringValue": "Python Requests"},
                 "sentry.browser.version": {"stringValue": "2.32"},
@@ -275,8 +271,6 @@ def test_otlp_logs_multiple_records(
         },
         {
             "attributes": {
-                "browser.name": {"stringValue": "Python Requests"},
-                "browser.version": {"stringValue": "2.32"},
                 "sentry.body": {"stringValue": "Second log entry"},
                 "sentry.browser.name": {"stringValue": "Python Requests"},
                 "sentry.browser.version": {"stringValue": "2.32"},
@@ -326,7 +320,7 @@ def test_otlp_logs_multiple_records(
             "org_id": 1,
             "outcome": 0,
             "project_id": 42,
-            "quantity": 397,
+            "quantity": 305,
         },
     ]
 
