@@ -621,20 +621,24 @@ def test_minidump_max_attachment_size_exceeded(
     project_id = 42
     dmp_path = os.path.join(os.path.dirname(__file__), "fixtures/native/minidump.dmp")
     with open(dmp_path, "rb") as f:
-        content = f.read()
+        minidump_content = f.read()
+    attachment_content = b"yo"
 
     mini_sentry.add_full_project_config(project_id)
     outcomes_consumer = outcomes_consumer()
     relay = relay_with_processing(
         {
             "limits": {
-                "max_attachment_size": len(content) - 1,
+                "max_attachment_size": len(minidump_content) - 1,
                 "max_attachments_size": 1000 * 1024 * 1024,
             }
         }
     )
 
-    attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", content)]
+    attachments = [
+        ("attachment1", "attach1.txt", attachment_content),
+        (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", minidump_content),
+    ]
     with pytest.raises(HTTPError) as exc_info:
         relay.send_minidump(project_id=project_id, files=attachments)
 
@@ -647,7 +651,23 @@ def test_minidump_max_attachment_size_exceeded(
             "outcome": 3,
             "reason": "too_large:attachment:minidump",
             "category": DataCategory.ATTACHMENT.value,
-            "quantity": len(content),
+            "quantity": len(minidump_content),
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "too_large:attachment:minidump",
+            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "too_large:attachment:minidump",
+            "category": DataCategory.ATTACHMENT.value,
+            "quantity": len(attachment_content),
         },
         {
             "timestamp": time_within_delta(),

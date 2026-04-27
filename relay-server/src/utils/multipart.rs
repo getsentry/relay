@@ -241,7 +241,20 @@ pub async fn multipart_items(
             item.set_attachment_type(attachment_type);
             item.set_filename(file_name);
             let item = Managed::from_parts(item, outcome_meta.clone());
-            let item = attachment_strategy.add_to_item(field, item, config).await?;
+            let item = attachment_strategy
+                .add_to_item(field, item, config)
+                .await
+                .inspect_err(|e| {
+                    if let multer::Error::FieldSizeExceeded { .. } = e {
+                        let dat = DiscardAttachmentType::from(attachment_type);
+                        managed::reject_all(
+                            &items,
+                            Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Attachment(
+                                dat,
+                            ))),
+                        )
+                    }
+                })?;
             if let Some(item) = item {
                 // This increases the attachments byte count even if the item is an attachment ref.
                 // This is by design as the total number of bytes read into memory should be
