@@ -61,7 +61,7 @@ pub enum BadStoreRequest {
     InvalidEnvelope(#[from] EnvelopeError),
 
     #[error("invalid multipart data")]
-    InvalidMultipart(multer::Error),
+    InvalidMultipart(#[source] multer::Error),
 
     #[error("invalid minidump")]
     InvalidMinidump,
