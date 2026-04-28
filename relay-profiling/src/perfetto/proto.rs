@@ -17,7 +17,7 @@ pub struct TracePacket {
     pub optional_trusted_packet_sequence_id:
         ::core::option::Option<trace_packet::OptionalTrustedPacketSequenceId>,
     /// Only the oneof variants we care about; prost will skip the rest.
-    #[prost(oneof = "trace_packet::Data", tags = "2, 6, 54, 60, 66")]
+    #[prost(oneof = "trace_packet::Data", tags = "6, 66")]
     pub data: ::core::option::Option<trace_packet::Data>,
 }
 /// Nested message and enum types in `TracePacket`.
@@ -30,35 +30,10 @@ pub mod trace_packet {
     /// Only the oneof variants we care about; prost will skip the rest.
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Data {
-        #[prost(message, tag = "2")]
-        ProcessTree(super::ProcessTree),
         #[prost(message, tag = "6")]
         ClockSnapshot(super::ClockSnapshot),
-        #[prost(message, tag = "54")]
-        StreamingProfilePacket(super::StreamingProfilePacket),
-        #[prost(message, tag = "60")]
-        TrackDescriptor(super::TrackDescriptor),
         #[prost(message, tag = "66")]
         PerfSample(super::PerfSample),
-    }
-}
-// --- process tree ------------------------------------------------------------
-
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ProcessTree {
-    #[prost(message, repeated, tag = "2")]
-    pub threads: ::prost::alloc::vec::Vec<process_tree::Thread>,
-}
-/// Nested message and enum types in `ProcessTree`.
-pub mod process_tree {
-    #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-    pub struct Thread {
-        #[prost(int32, optional, tag = "1")]
-        pub tid: ::core::option::Option<i32>,
-        #[prost(string, optional, tag = "2")]
-        pub name: ::core::option::Option<::prost::alloc::string::String>,
-        #[prost(int32, optional, tag = "3")]
-        pub tgid: ::core::option::Option<i32>,
     }
 }
 // --- clock sync ---------------------------------------------------------------
@@ -155,30 +130,5 @@ pub struct PerfSample {
     pub tid: ::core::option::Option<u32>,
     #[prost(uint64, optional, tag = "4")]
     pub callstack_iid: ::core::option::Option<u64>,
-}
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct StreamingProfilePacket {
-    #[prost(uint64, repeated, packed = "false", tag = "1")]
-    pub callstack_iid: ::prost::alloc::vec::Vec<u64>,
-    #[prost(int64, repeated, packed = "false", tag = "2")]
-    pub timestamp_delta_us: ::prost::alloc::vec::Vec<i64>,
-}
-// --- track descriptors -------------------------------------------------------
-
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct TrackDescriptor {
-    #[prost(uint64, optional, tag = "1")]
-    pub uuid: ::core::option::Option<u64>,
-    #[prost(message, optional, tag = "4")]
-    pub thread: ::core::option::Option<ThreadDescriptor>,
-}
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct ThreadDescriptor {
-    #[prost(int32, optional, tag = "1")]
-    pub pid: ::core::option::Option<i32>,
-    #[prost(int32, optional, tag = "2")]
-    pub tid: ::core::option::Option<i32>,
-    #[prost(string, optional, tag = "5")]
-    pub thread_name: ::core::option::Option<::prost::alloc::string::String>,
 }
 // @@protoc_insertion_point(module)

@@ -21,23 +21,9 @@ message TracePacket {
 
   // Only the oneof variants we care about; prost will skip the rest.
   oneof data {
-    ProcessTree process_tree = 2;
     ClockSnapshot clock_snapshot = 6;
-    StreamingProfilePacket streaming_profile_packet = 54;
-    TrackDescriptor track_descriptor = 60;
     PerfSample perf_sample = 66;
   }
-}
-
-// --- process tree ------------------------------------------------------------
-
-message ProcessTree {
-  message Thread {
-    optional int32 tid = 1;
-    optional string name = 2;
-    optional int32 tgid = 3;
-  }
-  repeated ProcessTree.Thread threads = 2;
 }
 
 // --- clock sync ---------------------------------------------------------------
@@ -99,22 +85,4 @@ message PerfSample {
   optional uint32 pid = 2;
   optional uint32 tid = 3;
   optional uint64 callstack_iid = 4;
-}
-
-message StreamingProfilePacket {
-  repeated uint64 callstack_iid = 1;
-  repeated int64 timestamp_delta_us = 2;
-}
-
-// --- track descriptors -------------------------------------------------------
-
-message TrackDescriptor {
-  optional uint64 uuid = 1;
-  optional ThreadDescriptor thread = 4;
-}
-
-message ThreadDescriptor {
-  optional int32 pid = 1;
-  optional int32 tid = 2;
-  optional string thread_name = 5;
 }
