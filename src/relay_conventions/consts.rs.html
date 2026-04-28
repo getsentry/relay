@@ -115,21 +115,15 @@
 <a href=#115 id=115 data-nosnippet>115</a>/// Really do not add to this list, at all, ever. The only reason this opt-out even exists to make a
 <a href=#116 id=116 data-nosnippet>116</a>/// transition easier for attributes which Relay already uses but aren't yet in conventions.
 <a href=#117 id=117 data-nosnippet>117</a></span><span class="kw">mod </span>not_yet_defined {
-<a href=#118 id=118 data-nosnippet>118</a>    <span class="comment">// The legacy http request method attribute used by transactions spans.
-<a href=#119 id=119 data-nosnippet>119</a>    // Could not be added to sentry conventions at the time due to an attribute naming conflict that
-<a href=#120 id=120 data-nosnippet>120</a>    // requires updating the sentry conventions code gen.
-<a href=#121 id=121 data-nosnippet>121</a>    // TODO: replace with conventions defined attribute name once the conventions code gen is updated.
-<a href=#122 id=122 data-nosnippet>122</a>    </span><span class="kw">pub const </span>LEGACY_HTTP_REQUEST_METHOD: <span class="kw-2">&amp;</span>str = <span class="string">"http.request_method"</span>;
+<a href=#118 id=118 data-nosnippet>118</a>    <span class="comment">// TODO(mjq): Evaluate and remove usages of this constant, or restore it in
+<a href=#119 id=119 data-nosnippet>119</a>    // conventions. This was deleted from conventions in
+<a href=#120 id=120 data-nosnippet>120</a>    // https://github.com/getsentry/sentry-conventions/pull/256 but is still
+<a href=#121 id=121 data-nosnippet>121</a>    // used in Relay.
+<a href=#122 id=122 data-nosnippet>122</a>    </span><span class="kw">pub const </span>PROFILE_ID: <span class="kw-2">&amp;</span>str = <span class="string">"sentry.profile_id"</span>;
 <a href=#123 id=123 data-nosnippet>123</a>
-<a href=#124 id=124 data-nosnippet>124</a>    <span class="comment">// TODO(mjq): Evaluate and remove usages of this constant, or restore it in
-<a href=#125 id=125 data-nosnippet>125</a>    // conventions. This was deleted from conventions in
-<a href=#126 id=126 data-nosnippet>126</a>    // https://github.com/getsentry/sentry-conventions/pull/256 but is still
-<a href=#127 id=127 data-nosnippet>127</a>    // used in Relay.
-<a href=#128 id=128 data-nosnippet>128</a>    </span><span class="kw">pub const </span>PROFILE_ID: <span class="kw-2">&amp;</span>str = <span class="string">"sentry.profile_id"</span>;
-<a href=#129 id=129 data-nosnippet>129</a>
-<a href=#130 id=130 data-nosnippet>130</a>    <span class="comment">// TODO(buenaflor): Add as sentry convention once mobile SDKs can migrate to it.
-<a href=#131 id=131 data-nosnippet>131</a>    // https://github.com/getsentry/sentry-conventions/issues/318
-<a href=#132 id=132 data-nosnippet>132</a>    </span><span class="kw">pub const </span>APP_VITALS_START_VALUE: <span class="kw-2">&amp;</span>str = <span class="string">"app.vitals.start.value"</span>;
-<a href=#133 id=133 data-nosnippet>133</a>}
-<a href=#134 id=134 data-nosnippet>134</a><span class="kw">pub use </span><span class="self">self</span>::not_yet_defined::<span class="kw-2">*</span>;
+<a href=#124 id=124 data-nosnippet>124</a>    <span class="comment">// TODO(buenaflor): Add as sentry convention once mobile SDKs can migrate to it.
+<a href=#125 id=125 data-nosnippet>125</a>    // https://github.com/getsentry/sentry-conventions/issues/318
+<a href=#126 id=126 data-nosnippet>126</a>    </span><span class="kw">pub const </span>APP_VITALS_START_VALUE: <span class="kw-2">&amp;</span>str = <span class="string">"app.vitals.start.value"</span>;
+<a href=#127 id=127 data-nosnippet>127</a>}
+<a href=#128 id=128 data-nosnippet>128</a><span class="kw">pub use </span><span class="self">self</span>::not_yet_defined::<span class="kw-2">*</span>;
 </code></pre></div></section></main></body></html>
