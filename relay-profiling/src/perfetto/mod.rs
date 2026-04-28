@@ -197,10 +197,8 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
         }
 
         match packet.data {
-            Some(Data::ClockSnapshot(cs)) => {
-                if clock_offset_ns.is_none() {
-                    clock_offset_ns = extract_clock_offset(&cs);
-                }
+            Some(Data::ClockSnapshot(cs)) if clock_offset_ns.is_none() => {
+                clock_offset_ns = extract_clock_offset(&cs);
             }
             Some(Data::PerfSample(ps)) => {
                 if let Some(callstack_iid) = ps.callstack_iid {
@@ -217,7 +215,7 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
                     }
                 }
             }
-            None => {}
+            _ => {}
         }
 
         if sample_count > MAX_SAMPLES {
