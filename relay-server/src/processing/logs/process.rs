@@ -38,7 +38,9 @@ pub fn expand(logs: Managed<SerializedLogs>) -> Result<Managed<ExpandedLogs>, Re
 
         let (settings, logs) = match items {
             LogItems::Container(item) => expand_log_container(&item, trust)?,
-            LogItems::Integration(item) => logs::integrations::expand(item, records, &headers),
+            LogItems::Integration(item) => {
+                logs::integrations::expand(item, records, &headers).unwrap_or_default()
+            }
         };
 
         Ok::<_, Error>(ExpandedLogs {

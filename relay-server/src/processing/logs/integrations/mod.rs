@@ -17,12 +17,12 @@ pub fn expand(
     item: Item,
     records: &mut RecordKeeper<'_>,
     headers: &EnvelopeHeaders,
-) -> (Settings, ContainerItems<OurLog>) {
+) -> Option<(Settings, ContainerItems<OurLog>)> {
     let integration = match item.integration() {
         Some(Integration::Logs(integration)) => integration,
         integration => {
             records.internal_error(InvalidIntegration(integration), item);
-            return (Settings::default(), Vec::new());
+            return None;
         }
     };
 
@@ -44,24 +44,24 @@ pub fn expand(
 
     let payload = item.payload();
 
-    let result = match integration {
+    let settings = match integration {
         LogsIntegration::Nel => nel::expand(&payload, headers, produce),
         LogsIntegration::OtelV1 { format } => otel::expand(format, &payload, produce),
         LogsIntegration::VercelDrainLog { format } => vercel::expand(format, &payload, produce),
-    };
+    }
+    .map(Some)
+    .unwrap_or_else(|err| {
+        drop(records.reject_err(err, &item));
+        None
+    })?;
 
-    match result {
-        Err(err) => drop(records.reject_err(err, item)),
-        Ok(()) => {
-            // Undo all the base item quantities, as they will be completely taken over by the parsed
-            // contents, which contains an arbitrary amount of items (even 0).
-            for (category, quantity) in item.quantities() {
-                records.modify_by(category, -(quantity as isize));
-            }
-        }
+    // Undo all the base item quantities, as they will be completely taken over by the parsed
+    // contents, which contains an arbitrary amount of items (even 0).
+    for (category, quantity) in item.quantities() {
+        records.modify_by(category, -(quantity as isize));
     }
 
-    (Settings::default(), logs)
+    Some((settings, logs))
 }
 
 #[derive(Debug, thiserror::Error)]

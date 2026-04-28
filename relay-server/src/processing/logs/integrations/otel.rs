@@ -3,11 +3,11 @@ use prost::Message as _;
 use relay_event_schema::protocol::OurLog;
 
 use crate::integrations::OtelFormat;
-use crate::processing::logs::{Error, Result};
+use crate::processing::logs::{Error, Result, Settings};
 use crate::services::outcome::DiscardReason;
 
 /// Expands OTeL logs into the [`OurLog`] format.
-pub fn expand<F>(format: OtelFormat, payload: &[u8], mut produce: F) -> Result<()>
+pub fn expand<F>(format: OtelFormat, payload: &[u8], mut produce: F) -> Result<Settings>
 where
     F: FnMut(OurLog),
 {
@@ -24,7 +24,7 @@ where
         }
     }
 
-    Ok(())
+    Ok(Settings::default())
 }
 
 fn parse_logs_data(format: OtelFormat, payload: &[u8]) -> Result<LogsData, Error> {
