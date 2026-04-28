@@ -16,6 +16,7 @@ use relay_system::Addr;
 use smallvec::SmallVec;
 
 use crate::Envelope;
+use crate::envelope::Item;
 use crate::managed::{Counted, ManagedEnvelope, Quantities};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::ProcessingError;
@@ -157,6 +158,18 @@ impl Managed<Box<Envelope>> {
 
         Self::from_parts(envelope, meta)
     }
+
+    /// Adds a managed item to the envelope.
+    pub fn add_managed_item(&mut self, item: Managed<Item>) {
+        self.merge_with(item, |e, i| e.add_item(i));
+    }
+
+    /// Adds managed items to the envelope.
+    pub fn add_managed_items(&mut self, items: impl IntoIterator<Item = Managed<Item>>) {
+        for item in items {
+            self.add_managed_item(item);
+        }
+    }
 }
 
 /// Helper trait to abstract over `Vec` and `SmallVec` in [`Managed::retain`].
@@ -229,6 +242,23 @@ impl<T: Counted> Managed<T> {
     pub fn scope(&mut self, scoping: Scoping) {
         let meta = Arc::make_mut(&mut self.meta);
         meta.scoping = scoping;
+    }
+
+    /// Merge [`Self`] with another [`Managed`] instance using a custom closure.
+    ///
+    /// The caller's closure is expected to merge other's inner value into self's inner value.
+    /// The outcome records of `self` are automatically offset by the records of `other`.
+    pub fn merge_with<S, F>(&mut self, other: Managed<S>, f: F)
+    where
+        S: Counted,
+        F: FnOnce(&mut T, S),
+    {
+        self.modify(|s, records| {
+            for (category, quantity) in other.quantities() {
+                records.modify_by(category, quantity as isize);
+            }
+            other.accept(|o| f(s, o));
+        })
     }
 
     /// Splits [`Self`] into two other [`Managed`] items.
@@ -1087,6 +1117,9 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::envelope::{Item, ItemType};
+    use crate::extractors::RequestMeta;
+
     use super::*;
 
     struct CountedVec(Vec<u32>);
@@ -1117,6 +1150,61 @@ mod tests {
         // Now dropping the manged instance, should not record any (internal) outcomes either.
         drop(managed);
         handle.assert_no_outcomes();
+    }
+
+    #[test]
+    fn test_merge() {
+        let (mut a, mut handle_a) = Managed::for_test(CountedVec(vec![1, 2])).build();
+        let (b, mut handle_b) = Managed::for_test(CountedVec(vec![3, 4])).build();
+
+        a.merge_with(b, |a, b| a.0.extend(b.0));
+
+        assert_eq!(a.0, vec![1, 2, 3, 4]);
+        drop(a);
+        handle_a.assert_internal_outcome(DataCategory::Error, 4);
+        handle_b.assert_no_outcomes();
+    }
+
+    #[test]
+    fn test_add_managed_item() {
+        let dsn = "https://a94ae32be2584e0bbd7a4cbb95971fee:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let meta = RequestMeta::new(dsn);
+        let (mut e, mut handle_e) = Managed::for_test(Envelope::from_request(None, meta)).build();
+        let (i, mut handle_i) = Managed::for_test(Item::new(ItemType::Event)).build();
+
+        e.add_managed_item(i);
+
+        assert_eq!(e.items().len(), 1);
+        assert_eq!(e.items().next().unwrap().ty(), &ItemType::Event);
+        drop(e);
+        handle_e.assert_internal_outcome(DataCategory::Error, 1);
+        handle_i.assert_no_outcomes();
+    }
+
+    #[test]
+    fn test_add_managed_items() {
+        let dsn = "https://a94ae32be2584e0bbd7a4cbb95971fee:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let meta = RequestMeta::new(dsn);
+        let (mut e, mut handle_e) = Managed::for_test(Envelope::from_request(None, meta)).build();
+        let (i1, mut handle_i1) = Managed::for_test(Item::new(ItemType::Event)).build();
+        let (i2, mut handle_i2) = Managed::for_test(Item::new(ItemType::Attachment)).build();
+
+        e.add_managed_items(vec![i1, i2]);
+        let mut items = e.items();
+
+        assert_eq!(items.len(), 2);
+        assert_eq!(items.next().unwrap().ty(), &ItemType::Event);
+        assert_eq!(items.next().unwrap().ty(), &ItemType::Attachment);
+        drop(e);
+        handle_e.assert_internal_outcome(DataCategory::Error, 1);
+        handle_e.assert_internal_outcome(DataCategory::Attachment, 1);
+        handle_e.assert_internal_outcome(DataCategory::AttachmentItem, 1);
+        handle_i1.assert_no_outcomes();
+        handle_i2.assert_no_outcomes();
     }
 
     #[test]
