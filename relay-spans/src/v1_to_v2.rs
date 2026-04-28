@@ -36,7 +36,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         received: _, // needs to go into the Kafka span eventually, but makes no sense in Span V2 schema.
         measurements,
         platform,
-        was_transaction: _was_transaction,
+        was_transaction: _,
         kind,
         performance_issues_spans,
         other: _,
