@@ -1218,7 +1218,6 @@ def test_ai_spans_example_transaction(
                     "type": "string",
                     "value": "gen_ai.invoke_agent",
                 },
-                "sentry.was_transaction": {"type": "boolean", "value": True},
                 "server_name": {"type": "string", "value": "some_machine.local"},
             },
             "downsampled_retention_days": 90,

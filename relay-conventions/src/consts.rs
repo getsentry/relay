@@ -121,8 +121,6 @@ mod not_yet_defined {
     // TODO: replace with conventions defined attribute name once the conventions code gen is updated.
     pub const LEGACY_HTTP_REQUEST_METHOD: &str = "http.request_method";
 
-    pub const WAS_TRANSACTION: &str = "sentry.was_transaction";
-
     // TODO(mjq): Evaluate and remove usages of this constant, or restore it in
     // conventions. This was deleted from conventions in
     // https://github.com/getsentry/sentry-conventions/pull/256 but is still

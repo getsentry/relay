@@ -227,7 +227,6 @@ def test_span_extraction(
             "sentry.user.id": {"type": "string", "value": user_id},
             "sentry.user.ip": {"type": "string", "value": "192.168.0.1"},
             "sentry.user": {"type": "string", "value": f"id:{user_id}"},
-            "sentry.was_transaction": {"type": "boolean", "value": True},
         },
         "downsampled_retention_days": 90,
         "end_timestamp": end_timestamp.timestamp(),
