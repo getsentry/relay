@@ -23,7 +23,7 @@ use relay_config::{Config, HttpEncoding, RelayMode};
 use relay_dynamic_config::Feature;
 use relay_event_normalization::{ClockDriftProcessor, GeoIpLookup};
 use relay_event_schema::processor::ProcessingAction;
-use relay_event_schema::protocol::{ClientReport, Event, EventId, NetworkReportError, SpanV2};
+use relay_event_schema::protocol::{ClientReport, Event, EventId, SpanV2};
 use relay_filter::FilterStatKey;
 use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricNamespace};
 use relay_protocol::Annotated;
@@ -84,7 +84,6 @@ use {
 
 pub mod event;
 mod metrics;
-mod nel;
 pub mod span;
 
 #[cfg(all(sentry, feature = "processing"))]
@@ -141,7 +140,6 @@ processing_group!(SessionGroup, Session);
 processing_group!(ClientReportGroup, ClientReport);
 processing_group!(ReplayGroup, Replay);
 processing_group!(CheckInGroup, CheckIn);
-processing_group!(LogGroup, Log, Nel);
 processing_group!(TraceMetricGroup, TraceMetric);
 processing_group!(SpanGroup, Span);
 
@@ -188,8 +186,6 @@ pub enum ProcessingGroup {
     Replay,
     /// Crons.
     CheckIn,
-    /// NEL reports.
-    Nel,
     /// Logs.
     Log,
     /// Trace metrics.
@@ -289,15 +285,6 @@ impl ProcessingGroup {
             grouped_envelopes.push((
                 ProcessingGroup::TraceMetric,
                 Envelope::from_parts(headers.clone(), trace_metric_items),
-            ))
-        }
-
-        // NEL items are transformed into logs in their own processing step.
-        let nel_items = envelope.take_items_by(|item| matches!(item.ty(), &ItemType::Nel));
-        if !nel_items.is_empty() {
-            grouped_envelopes.push((
-                ProcessingGroup::Nel,
-                Envelope::from_parts(headers.clone(), nel_items),
             ))
         }
 
@@ -432,7 +419,6 @@ impl ProcessingGroup {
             ProcessingGroup::CheckIn => "check_in",
             ProcessingGroup::Log => "log",
             ProcessingGroup::TraceMetric => "trace_metric",
-            ProcessingGroup::Nel => "nel",
             ProcessingGroup::Span => "span",
             ProcessingGroup::SpanV2 => "span_v2",
             ProcessingGroup::Metrics => "metrics",
@@ -458,7 +444,6 @@ impl From<ProcessingGroup> for AppFeature {
             ProcessingGroup::CheckIn => AppFeature::CheckIns,
             ProcessingGroup::Log => AppFeature::Logs,
             ProcessingGroup::TraceMetric => AppFeature::TraceMetrics,
-            ProcessingGroup::Nel => AppFeature::Logs,
             ProcessingGroup::Span => AppFeature::Spans,
             ProcessingGroup::SpanV2 => AppFeature::Spans,
             ProcessingGroup::Metrics => AppFeature::UnattributedMetrics,
@@ -512,9 +497,6 @@ pub enum ProcessingError {
     #[error("invalid security report")]
     InvalidSecurityReport(#[source] serde_json::Error),
 
-    #[error("invalid nel report")]
-    InvalidNelReport(#[source] NetworkReportError),
-
     #[error("event filtered with reason: {0:?}")]
     EventFiltered(FilterStatKey),
 
@@ -562,7 +544,6 @@ impl ProcessingError {
             Self::UnsupportedItem => Some(Outcome::Invalid(DiscardReason::InvalidEnvelope)),
             Self::InvalidSecurityReport(_) => Some(Outcome::Invalid(DiscardReason::SecurityReport)),
             Self::UnsupportedSecurityType => Some(Outcome::Filtered(FilterStatKey::InvalidCsp)),
-            Self::InvalidNelReport(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
             Self::InvalidTransaction => Some(Outcome::Invalid(DiscardReason::InvalidTransaction)),
             Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::NoEventPayload => Some(Outcome::Invalid(DiscardReason::NoEventPayload)),
@@ -1142,16 +1123,6 @@ impl EnvelopeProcessorService {
         }
     }
 
-    async fn process_nel(
-        &self,
-        mut managed_envelope: ManagedEnvelope,
-        ctx: processing::Context<'_>,
-    ) -> Result<ProcessingResult, ProcessingError> {
-        nel::convert_to_logs(&mut managed_envelope);
-        self.process_with_processor(&self.inner.processing.logs, managed_envelope, ctx)
-            .await
-    }
-
     async fn process_with_processor<P: processing::Processor>(
         &self,
         processor: &P,
@@ -1288,7 +1259,6 @@ impl EnvelopeProcessorService {
                 self.process_with_processor(&self.inner.processing.check_ins, managed_envelope, ctx)
                     .await
             }
-            ProcessingGroup::Nel => self.process_nel(managed_envelope, ctx).await,
             ProcessingGroup::Log => {
                 self.process_with_processor(&self.inner.processing.logs, managed_envelope, ctx)
                     .await

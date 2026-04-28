@@ -8,7 +8,6 @@ mod flags;
 mod gpu;
 mod memory_info;
 mod monitor;
-mod nel;
 mod os;
 mod ota_updates;
 mod otel;
@@ -32,7 +31,6 @@ pub use device::*;
 pub use gpu::*;
 pub use memory_info::*;
 pub use monitor::*;
-pub use nel::*;
 pub use os::*;
 pub use ota_updates::*;
 pub use otel::*;
@@ -105,8 +103,6 @@ pub enum Context {
     CloudResource(Box<CloudResourceContext>),
     /// Culture information.
     Culture(Box<CultureContext>),
-    /// Nel information.
-    Nel(Box<NelContext>),
     /// Performance score information.
     PerformanceScore(Box<PerformanceScoreContext>),
     /// Spring / Spring Boot information.

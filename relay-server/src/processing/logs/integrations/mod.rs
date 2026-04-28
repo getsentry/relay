@@ -1,10 +1,11 @@
 use relay_event_schema::protocol::{OurLog, OurLogHeader};
 use relay_quotas::DataCategory;
 
-use crate::envelope::{ContainerItems, Item, WithHeader};
+use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, WithHeader};
 use crate::integrations::{Integration, LogsIntegration};
 use crate::managed::RecordKeeper;
 
+mod nel;
 mod otel;
 mod vercel;
 
@@ -15,6 +16,7 @@ pub fn expand_into(
     result: &mut ContainerItems<OurLog>,
     records: &mut RecordKeeper<'_>,
     items: Vec<Item>,
+    headers: &EnvelopeHeaders,
 ) {
     for item in items {
         let integration = match item.integration() {
@@ -43,6 +45,7 @@ pub fn expand_into(
         let payload = item.payload();
 
         let result = match integration {
+            LogsIntegration::Nel => nel::expand(&payload, headers, produce),
             LogsIntegration::OtelV1 { format } => otel::expand(format, &payload, produce),
             LogsIntegration::VercelDrainLog { format } => vercel::expand(format, &payload, produce),
         };

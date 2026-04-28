@@ -581,8 +581,6 @@ pub enum DiscardItemType {
     FormData,
     /// Security report as sent by the browser in JSON.
     RawSecurity,
-    /// NEL report as sent by the browser.
-    Nel,
     /// Raw compressed UE4 crash report.
     UnrealReport,
     /// User feedback encoded as JSON.
@@ -654,7 +652,6 @@ impl DiscardItemType {
             Self::Attachment(DiscardAttachmentType::ViewHierarchy) => "attachment:view_hierarchy",
             Self::FormData => "form_data",
             Self::RawSecurity => "raw_security",
-            Self::Nel => "nel",
             Self::UnrealReport => "unreal_report",
             Self::UserReport => "user_report",
             Self::Session => "session",
@@ -686,7 +683,6 @@ impl From<&ItemType> for DiscardItemType {
             ItemType::Attachment => Self::Attachment(DiscardAttachmentType::Attachment),
             ItemType::FormData => Self::FormData,
             ItemType::RawSecurity => Self::RawSecurity,
-            ItemType::Nel => Self::Nel,
             ItemType::UnrealReport => Self::UnrealReport,
             ItemType::UserReport => Self::UserReport,
             ItemType::Session => Self::Session,
