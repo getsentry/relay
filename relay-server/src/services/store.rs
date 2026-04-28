@@ -137,6 +137,10 @@ pub struct StoreSpanV2 {
     pub retention_days: u16,
     /// Downsampled retention of the span.
     pub downsampled_retention_days: u16,
+    /// Temporary flag controlling where performance issues are detected.
+    ///
+    /// Travels on the Kafka envelope (`SpanMeta`) rather than the SpanV2 body.
+    pub performance_issues_spans: bool,
     /// The final Sentry compatible span item.
     pub item: SpanV2,
 }
@@ -788,6 +792,7 @@ impl StoreService {
             downsampled_retention_days: message.downsampled_retention_days,
             received: datetime_to_timestamp(received_at),
             accepted_outcome_emitted: relay_emits_accepted_outcome,
+            performance_issues_spans: message.performance_issues_spans,
         };
 
         message.try_accept(|span| {
@@ -1677,6 +1682,17 @@ struct SpanMeta {
     downsampled_retention_days: u16,
     /// Indicates whether Relay already emitted an accepted outcome or if EAP still needs to emit it.
     accepted_outcome_emitted: bool,
+    /// Temporary flag that controls where performance issues are detected.
+    ///
+    /// When the flag is set to true, performance issues will be detected on this span provided it
+    /// is a root (segment) instead of the transaction event.
+    ///
+    /// Only set on root spans extracted from transactions.
+    #[serde(
+        rename = "_performance_issues_spans",
+        skip_serializing_if = "std::ops::Not::not"
+    )]
+    performance_issues_spans: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]

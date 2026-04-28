@@ -38,7 +38,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         platform,
         was_transaction,
         kind,
-        performance_issues_spans,
+        performance_issues_spans: _, // moved to SpanMeta on the Kafka envelope
         other: _,
     } = span_v1;
 
@@ -55,10 +55,6 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     attributes.insert("sentry.profile_id", profile_id.map_value(|v| v.to_string()));
     attributes.insert("sentry.platform", platform);
     attributes.insert("sentry.was_transaction", was_transaction);
-    attributes.insert(
-        "sentry._internal.performance_issues_spans",
-        performance_issues_spans,
-    );
 
     // Use same precedence as `backfill_data` for data bags:
     if let Some(measurements) = measurements.into_value() {
@@ -370,10 +366,6 @@ mod tests {
             "my.nested": {
               "type": "string",
               "value": "{\"numbers\":[1,2,3]}"
-            },
-            "sentry._internal.performance_issues_spans": {
-              "type": "boolean",
-              "value": true
             },
             "sentry.client_sample_rate": {
               "type": "double",
