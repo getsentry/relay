@@ -159,12 +159,12 @@ impl Managed<Box<Envelope>> {
         Self::from_parts(envelope, meta)
     }
 
-    /// Adds a managed item to the envelope.
+    /// Add a managed item to the envelope.
     pub fn add_managed_item(&mut self, item: Managed<Item>) {
         self.merge_with(item, |e, i| e.add_item(i));
     }
 
-    /// Adds managed items to the envelope.
+    /// Add managed items to the envelope.
     pub fn add_managed_items(&mut self, items: impl IntoIterator<Item = Managed<Item>>) {
         for item in items {
             self.add_managed_item(item);
