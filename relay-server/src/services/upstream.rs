@@ -18,7 +18,7 @@ use itertools::Itertools;
 use relay_auth::{
     RegisterChallenge, RegisterRequest, RegisterResponse, Registration, SecretKey, Signature,
 };
-use relay_config::{Config, Credentials, RelayMode};
+use relay_config::{Config, Credentials, RelayMode, UpstreamDescriptor};
 use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode, RetryAfter,
     Scoping,
@@ -364,6 +364,14 @@ impl SignatureType {
 
 /// Represents a generic HTTP request to be sent to the upstream.
 pub trait UpstreamRequest: Send + Sync + fmt::Debug {
+    /// The upstream to send the request to.
+    ///
+    /// Requests may override the default upstream descriptor with a different upstream descriptor
+    /// to influence routing.
+    fn upstream(&self) -> Option<&UpstreamDescriptor> {
+        None
+    }
+
     /// The HTTP method of the request.
     fn method(&self) -> Method;
 
@@ -477,6 +485,14 @@ pub trait UpstreamQuery: Serialize + Send + Sync + fmt::Debug {
     /// The response type that will be deserialized from successful queries.
     type Response: DeserializeOwned + Send;
 
+    /// The upstream to send the request to.
+    ///
+    /// Requests may override the default upstream descriptor with a different upstream descriptor
+    /// to influence routing.
+    fn upstream(&self) -> Option<&UpstreamDescriptor> {
+        None
+    }
+
     /// The HTTP method of the query.
     fn method(&self) -> Method;
 
@@ -554,6 +570,10 @@ impl<T> UpstreamRequest for UpstreamQueryRequest<T>
 where
     T: UpstreamQuery + 'static,
 {
+    fn upstream(&self) -> Option<&UpstreamDescriptor> {
+        self.query.upstream()
+    }
+
     fn retry(&self) -> bool {
         T::retry()
     }
@@ -875,7 +895,10 @@ impl SharedClient {
         request: &mut dyn UpstreamRequest,
     ) -> Result<reqwest::Request, UpstreamRequestError> {
         tokio::task::block_in_place(|| {
-            let url = self.config.upstream().get_url(request.path().as_ref());
+            let url = request
+                .upstream()
+                .unwrap_or_else(|| self.config.upstream_descriptor())
+                .get_url(request.path().as_ref());
 
             let host_header = self
                 .config
