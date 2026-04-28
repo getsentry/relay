@@ -1,15 +1,9 @@
 //! Implements the PlayStation crash uploading endpoint.
 //!
 //! Crashes are received as multipart uploads in this [format](https://game.develop.playstation.net/resources/documents/SDK/12.000/Core_Dump_System-Overview/ps5-core-dump-file-set-sending-format.html).
-use std::io;
-
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
-use bytes::Bytes;
-use chrono::Utc;
-use futures::TryStreamExt;
-use futures::stream::BoxStream;
 use http::StatusCode;
 use multer::{Field, Multipart};
 use relay_config::Config;
@@ -21,16 +15,15 @@ use serde::Serialize;
 use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
-use crate::envelope::ContentType::{self, OctetStream};
-use crate::envelope::{AttachmentPlaceholder, AttachmentType, Envelope, Item};
+use crate::envelope::ContentType::OctetStream;
+use crate::envelope::{AttachmentType, Envelope, Item};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::DiscardReason;
 use crate::services::projects::cache::Project;
-use crate::services::upload::{Create, Stream, Upload};
-use crate::utils::{self, MeteredStream};
-use crate::utils::{AttachmentStrategy, BoundedStream};
+use crate::services::upload::Upload;
+use crate::utils::{self, AttachmentStrategy};
 
 /// The extension of a prosperodump in the multipart form-data upload.
 const PROSPERODUMP_EXTENSION: &str = ".prosperodmp";
@@ -90,52 +83,22 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
     async fn add_to_item(
         &self,
         field: Field<'static>,
-        mut item: Item,
+        item: Item,
         config: &Config,
     ) -> Result<Option<Item>, multer::Error> {
-        let upload = match self.upload_service {
-            Some(upload) if self.infer_type(&field) != AttachmentType::Prosperodump => upload,
-            _ => return utils::read_attachment_bytes_into_item(field, item, config, true).await,
-        };
-        let content_type = field.content_type().cloned();
-        let stream: BoxStream<'static, io::Result<Bytes>> =
-            Box::pin(field.map_err(io::Error::other));
-        let stream = MeteredStream::new(stream, "playstation");
-        let stream = BoundedStream::new(stream, 1, config.max_upload_size());
-        let byte_counter = stream.byte_counter();
-        let Ok(Ok(location)) = upload
-            .send(Create {
-                scoping: self.scoping,
-                length: None,
-            })
-            .await
-        else {
-            return Ok(None);
-        };
-        let result = upload
-            .send(Stream {
-                received: Utc::now(),
-                scoping: self.scoping,
-                location,
-                stream,
-            })
-            .await;
-        if let Ok(result) = result
-            && let Ok(location) = result.inspect_err(|e| {
-                relay_log::warn!(error = e as &dyn std::error::Error, "Upload failed");
-            })
-            && let Ok(location) = location.into_header_value()
-            && let Ok(location) = location.to_str()
-            && let Ok(payload) = serde_json::to_vec(&AttachmentPlaceholder {
-                location,
-                content_type: content_type.as_ref().map(|c| c.to_string()),
-            })
-        {
-            item.set_payload(ContentType::AttachmentRef, payload);
-            item.set_attachment_length(byte_counter.get());
-            Ok(Some(item))
-        } else {
-            Ok(None)
+        match self.upload_service {
+            Some(upload) if self.infer_type(&field) != AttachmentType::Prosperodump => {
+                Ok(common::upload_to_objectstore(
+                    field,
+                    item,
+                    config,
+                    self.scoping,
+                    upload,
+                    "playstation",
+                )
+                .await)
+            }
+            _ => utils::read_attachment_bytes_into_item(field, item, config, true).await,
         }
     }
 }

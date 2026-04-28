@@ -13,6 +13,7 @@ use regex::Regex;
 use relay_base_schema::metrics::{
     DurationUnit, FractionUnit, MetricUnit, can_be_valid_metric_name,
 };
+use relay_conventions::consts::{APP_VITALS_START_TYPE, APP_VITALS_START_VALUE};
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
     AsPair, AutoInferSetting, ClientSdkInfo, Context, ContextInner, Contexts, DebugImage,
@@ -314,6 +315,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
         config.measurements.clone(),
         config.max_name_and_unit_len,
     ); // Measurements are part of the metric extraction
+    backfill_app_vitals_start(event);
     if let Some(version) = normalize_performance_score(event, config.performance_score) {
         event
             .contexts
@@ -1364,6 +1366,70 @@ fn filter_mobile_outliers(measurements: &mut Measurements) {
 fn normalize_mobile_measurements(measurements: &mut Measurements) {
     normalize_app_start_measurements(measurements);
     filter_mobile_outliers(measurements);
+}
+
+const APP_START_SOURCES: [(&str, &str); 2] =
+    [("app_start_cold", "cold"), ("app_start_warm", "warm")];
+
+fn backfill_app_vitals_start(event: &mut Event) {
+    if event.ty.value() != Some(&EventType::Transaction) {
+        return;
+    }
+
+    let already_set = event
+        .tags
+        .value()
+        .is_some_and(|tags| tags.get(APP_VITALS_START_TYPE).is_some())
+        || event
+            .measurements
+            .value()
+            .is_some_and(|m| m.contains_key(APP_VITALS_START_VALUE));
+    if already_set {
+        return;
+    }
+
+    let Some((start_type, value)) =
+        APP_START_SOURCES
+            .iter()
+            .find_map(|(measurement_name, start_type)| {
+                let measurement = event
+                    .measurements
+                    .value()?
+                    .get(*measurement_name)?
+                    .value()?;
+                if measurement.unit.value()
+                    != Some(&MetricUnit::Duration(DurationUnit::MilliSecond))
+                {
+                    return None;
+                }
+
+                let value = *measurement.value.value()?;
+                Some((*start_type, value))
+            })
+    else {
+        return;
+    };
+
+    event
+        .measurements
+        .get_or_insert_with(Default::default)
+        .insert(
+            APP_VITALS_START_VALUE.to_owned(),
+            Annotated::new(Measurement {
+                value: Annotated::new(value),
+                unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
+            }),
+        );
+
+    event
+        .tags
+        .value_mut()
+        .get_or_insert_with(Tags::default)
+        .0
+        .insert(
+            String::from(APP_VITALS_START_TYPE),
+            Annotated::new(start_type.to_owned()),
+        );
 }
 
 fn normalize_units(measurements: &mut Measurements) {
@@ -2858,6 +2924,341 @@ mod tests {
         assert_eq!(measurements.len(), 1);
         filter_mobile_outliers(&mut measurements);
         assert_eq!(measurements.len(), 0);
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_cold() {
+        let json = r#"{
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {"app_start_cold": {"value": 1234.0, "unit": "millisecond"}}
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        backfill_app_vitals_start(&mut event);
+        assert_debug_snapshot!(event.measurements, @r#"
+        Measurements(
+            {
+                "app.vitals.start.value": Measurement {
+                    value: 1234.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+                "app_start_cold": Measurement {
+                    value: 1234.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+            },
+        )
+        "#);
+        assert_debug_snapshot!(event.tags, @r#"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "app.vitals.start.type",
+                        "cold",
+                    ),
+                ],
+            ),
+        )
+        "#);
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_warm() {
+        let json = r#"{
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {"app_start_warm": {"value": 567.0, "unit": "millisecond"}}
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        backfill_app_vitals_start(&mut event);
+        assert_debug_snapshot!(event.measurements, @r#"
+        Measurements(
+            {
+                "app.vitals.start.value": Measurement {
+                    value: 567.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+                "app_start_warm": Measurement {
+                    value: 567.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+            },
+        )
+        "#);
+        assert_debug_snapshot!(event.tags, @r#"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "app.vitals.start.type",
+                        "warm",
+                    ),
+                ],
+            ),
+        )
+        "#);
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_cold_preferred_over_warm() {
+        let json = r#"{
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "app_start_cold": {"value": 100.0, "unit": "millisecond"},
+                "app_start_warm": {"value": 200.0, "unit": "millisecond"}
+            }
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        backfill_app_vitals_start(&mut event);
+        assert_debug_snapshot!(event.measurements, @r#"
+        Measurements(
+            {
+                "app.vitals.start.value": Measurement {
+                    value: 100.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+                "app_start_cold": Measurement {
+                    value: 100.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+                "app_start_warm": Measurement {
+                    value: 200.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+            },
+        )
+        "#);
+        assert_debug_snapshot!(event.tags, @r#"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "app.vitals.start.type",
+                        "cold",
+                    ),
+                ],
+            ),
+        )
+        "#);
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_no_app_start_noop() {
+        let json = r#"{
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {"lcp": {"value": 100.0}}
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        backfill_app_vitals_start(&mut event);
+        assert_debug_snapshot!(event.measurements, @r#"
+        Measurements(
+            {
+                "lcp": Measurement {
+                    value: 100.0,
+                    unit: ~,
+                },
+            },
+        )
+        "#);
+        assert_debug_snapshot!(event.tags, @"~");
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_respects_outlier_filter() {
+        let json = r#"{
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {"app_start_cold": {"value": 180001.0, "unit": "millisecond"}}
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        normalize_event_measurements(&mut event, None, None);
+        backfill_app_vitals_start(&mut event);
+        assert_debug_snapshot!(event.measurements, @"
+        Measurements(
+            {},
+        )
+        ");
+        assert_debug_snapshot!(event.tags, @"~");
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_non_transaction_payload_noop() {
+        let json = r#"{
+            "type": "error",
+            "measurements": {
+                "app_start_cold": {"value": 1234.0, "unit": "millisecond"}
+            }
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        backfill_app_vitals_start(&mut event);
+        assert_debug_snapshot!(event.measurements, @r#"
+        Measurements(
+            {
+                "app_start_cold": Measurement {
+                    value: 1234.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+            },
+        )
+        "#);
+        assert_debug_snapshot!(event.tags, @"~");
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_does_not_overwrite_value() {
+        let json = r#"{
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "app_start_cold": {"value": 100.0, "unit": "millisecond"},
+                "app.vitals.start.value": {"value": 999.0, "unit": "millisecond"}
+            }
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        backfill_app_vitals_start(&mut event);
+        assert_debug_snapshot!(event.measurements, @r#"
+        Measurements(
+            {
+                "app.vitals.start.value": Measurement {
+                    value: 999.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+                "app_start_cold": Measurement {
+                    value: 100.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+            },
+        )
+        "#);
+        assert_debug_snapshot!(event.tags, @"~");
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_does_not_overwrite_type() {
+        let json = r#"{
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {"app_start_cold": {"value": 100.0, "unit": "millisecond"}}
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        event
+            .tags
+            .value_mut()
+            .get_or_insert_with(Tags::default)
+            .0
+            .insert(
+                String::from(APP_VITALS_START_TYPE),
+                Annotated::new("warm".to_owned()),
+            );
+
+        backfill_app_vitals_start(&mut event);
+
+        assert_debug_snapshot!(event.measurements, @r#"
+        Measurements(
+            {
+                "app_start_cold": Measurement {
+                    value: 100.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+            },
+        )
+        "#);
+        assert_debug_snapshot!(event.tags, @r#"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "app.vitals.start.type",
+                        "warm",
+                    ),
+                ],
+            ),
+        )
+        "#);
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_invalid_unit_noop() {
+        let json = r#"{
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {"app_start_cold": {"value": 1.5, "unit": "second"}}
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        backfill_app_vitals_start(&mut event);
+        assert_debug_snapshot!(event.measurements, @r#"
+        Measurements(
+            {
+                "app_start_cold": Measurement {
+                    value: 1.5,
+                    unit: Duration(
+                        Second,
+                    ),
+                },
+            },
+        )
+        "#);
+        assert_debug_snapshot!(event.tags, @"~");
     }
 
     #[test]

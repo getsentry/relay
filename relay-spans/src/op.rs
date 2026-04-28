@@ -16,8 +16,7 @@ pub fn derive_op_for_v2_span(attributes: &Annotated<Attributes>) -> String {
         return op;
     };
 
-    // TODO: `http.method` is deprecated. This should probably be taken care of during normalization.
-    if attributes.contains_key(HTTP_REQUEST_METHOD) || attributes.contains_key("http.method") {
+    if attributes.contains_key(HTTP_REQUEST_METHOD) {
         let kind = attributes.get_value(SPAN_KIND).and_then(|v| v.as_str());
         return match kind {
             Some(kind) if kind == SpanKind::Client.as_str() => String::from("http.client"),
@@ -32,13 +31,11 @@ pub fn derive_op_for_v2_span(attributes: &Annotated<Attributes>) -> String {
         };
     }
 
-    // TODO: `db.system` is deprecated. This should probably be taken care of during normalization.
-    if attributes.contains_key(DB_SYSTEM_NAME) || attributes.contains_key("db.system") {
+    if attributes.contains_key(DB_SYSTEM_NAME) {
         return String::from("db");
     }
 
-    // TODO: `gen_ai.system` is deprecated. This should probably be taken care of during normalization.
-    if attributes.contains_key(GEN_AI_PROVIDER_NAME) || attributes.contains_key("gen_ai.system") {
+    if attributes.contains_key(GEN_AI_PROVIDER_NAME) {
         return String::from("gen_ai");
     }
 

@@ -5,6 +5,7 @@ from os import path
 from typing import Optional
 import json
 import redis
+from flask import Response
 
 import pytest
 
@@ -44,6 +45,8 @@ from .fixtures.processing import (  # noqa
     feedback_consumer,
     objectstore,
 )
+
+from .consts import DUMMY_UPLOAD_LOCATION
 
 
 @pytest.fixture
@@ -272,3 +275,25 @@ def pytest_collection_modifyitems(items):
 @pytest.fixture
 def redis_client():
     return redis.Redis(host="127.0.0.1", port=6379, db=0)
+
+
+@pytest.fixture
+def dummy_upload(mini_sentry):  # noqa
+    mini_sentry.allow_chunked = True
+
+    @mini_sentry.app.route("/api/<project>/upload/", methods=["POST"])
+    def create(**opts):
+
+        return Response(
+            "",
+            status=201,
+            headers={"Location": DUMMY_UPLOAD_LOCATION},
+        )
+
+    @mini_sentry.app.route("/api/<project>/upload/<key>/", methods=["PATCH"])
+    def upload(**opts):
+        return Response(
+            "",
+            status=204,
+            headers={"Location": DUMMY_UPLOAD_LOCATION},
+        )
