@@ -10,7 +10,7 @@ mod nel;
 mod otel;
 mod vercel;
 
-/// Expands a list of [`Integration`].
+/// Expands a log [`Integration`] into a list of logs.
 ///
 /// The function expects *only* log item integrations.
 pub fn expand(

@@ -18,7 +18,7 @@ use crate::protocol::utils;
 /// | 2       | {{auto}}, settings | settings   |
 ///
 /// For example in version 2, the client ip is inferred if either the client address attribute is
-/// set to `auto` or the ingest settings specify `infer_ip` to `autp`.
+/// set to `auto` or the ingest settings specify `infer_ip` to `auto`.
 /// The user agent is only considered if ingest settings specify `infer_user_agent` as `auto`.
 ///
 /// ## Schema Changelog
