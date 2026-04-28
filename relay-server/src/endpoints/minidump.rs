@@ -30,6 +30,7 @@ use crate::service::ServiceState;
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason};
 use crate::services::projects::cache::Project;
 use crate::services::upload::Upload;
+use crate::statsd::RelayCounters;
 use crate::utils::{self, AttachmentStrategy, read_attachment_bytes_into_item};
 
 /// The field name of a minidump in the multipart form-data upload.
@@ -221,6 +222,9 @@ async fn extract_multipart(
     let config = state.config();
 
     let upload_context = if should_fetch_project_config(state, meta.project_id()) {
+        // Ensure that we really make it here.
+        relay_statsd::metric!(counter(RelayCounters::MinidumpEndpointConfigFetching) += 1);
+
         let project = state
             .project_cache_handle()
             .ready(meta.public_key(), config.query_timeout())
