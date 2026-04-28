@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import pytest
 import uuid
 import json
@@ -35,55 +37,38 @@ def test_mixed_attachments_with_processing(
     attachments_consumer = attachments_consumer()
     outcomes_consumer = outcomes_consumer()
 
-    chunked_contents = b"heavens no" * 20_000
+    large_content = b"heavens no" * 20_000
     attachments = [
-        ("att_1", "foo.txt", chunked_contents),
+        ("att_1", "foo.txt", large_content),
         ("att_2", "bar.txt", b"hell yeah"),
         ("att_3", "foobar.txt", b""),
     ]
     relay.send_attachments(project_id, event_id, attachments)
 
-    # A chunked attachment
-    attachment_contents = {}
-    attachment_ids = []
-    attachment_num_chunks = {}
+    chunked_data_per_id = defaultdict(bytes)
+    n_chunks = 0
+    attachments = {}
+    while set(chunked_data_per_id.values()) != {large_content} or len(attachments) < 3:
+        _, m = attachments_consumer.get_message()
+        if m["type"] == "attachment_chunk":
+            chunked_data_per_id[m["id"]] += m["payload"]
+            assert m["chunk_index"] == n_chunks
+            n_chunks += 1
+        elif m["type"] == "attachment":
+            attachments[m["attachment"]["name"]] = m
+        else:
+            raise AssertionError(f"Unexpected message type: {m['type']}")
 
-    while set(attachment_contents.values()) != {chunked_contents}:
-        chunk, v = attachments_consumer.get_attachment_chunk()
-        attachment_contents[v["id"]] = attachment_contents.get(v["id"], b"") + chunk
-        if v["id"] not in attachment_ids:
-            attachment_ids.append(v["id"])
-        num_chunks = 1 + attachment_num_chunks.get(v["id"], 0)
-        assert v["chunk_index"] == num_chunks - 1
-        attachment_num_chunks[v["id"]] = num_chunks
+    assert len(chunked_data_per_id) == 1
+    (foo_id,) = chunked_data_per_id
+    assert chunked_data_per_id[foo_id] == large_content
+    assert n_chunks > 1
 
-    (id1,) = attachment_ids
-    assert attachment_contents[id1] == chunked_contents
-    assert attachment_num_chunks[id1] > 1
-
-    attachment = attachments_consumer.get_individual_attachment()
-    assert attachment == {
-        "type": "attachment",
-        "attachment": {
-            "id": id1,
-            "name": "foo.txt",
-            "rate_limited": False,
-            "attachment_type": "event.attachment",
-            "size": len(chunked_contents),
-            "retention_days": 90,
-            "chunks": attachment_num_chunks[id1],
-        },
-        "event_id": event_id,
-        "project_id": project_id,
-    }
-
-    # An inlined attachment
-    attachment = attachments_consumer.get_individual_attachment()
-
+    # Inlined attachment bar
+    bar = attachments["bar.txt"]
     # The ID is random. Just assert that it is there and non-zero.
-    assert attachment["attachment"].pop("id")
-
-    assert attachment == {
+    assert bar["attachment"].pop("id")
+    assert bar == {
         "type": "attachment",
         "attachment": {
             "name": "bar.txt",
@@ -97,15 +82,28 @@ def test_mixed_attachments_with_processing(
         "project_id": project_id,
     }
 
-    outcomes_consumer.assert_empty()
+    # Inlined metadata for chunked attachment foo
+    foo = attachments["foo.txt"]
+    assert foo == {
+        "type": "attachment",
+        "attachment": {
+            "id": foo_id,
+            "name": "foo.txt",
+            "rate_limited": False,
+            "attachment_type": "event.attachment",
+            "size": len(large_content),
+            "retention_days": 90,
+            "chunks": n_chunks,
+        },
+        "event_id": event_id,
+        "project_id": project_id,
+    }
 
-    # An empty attachment
-    attachment = attachments_consumer.get_individual_attachment()
-
+    # Empty attachment foobar
+    foobar = attachments["foobar.txt"]
     # The ID is random. Just assert that it is there and non-zero.
-    assert attachment["attachment"].pop("id")
-
-    assert attachment == {
+    assert foobar["attachment"].pop("id")
+    assert foobar == {
         "type": "attachment",
         "attachment": {
             "name": "foobar.txt",
@@ -118,6 +116,8 @@ def test_mixed_attachments_with_processing(
         "event_id": event_id,
         "project_id": project_id,
     }
+
+    outcomes_consumer.assert_empty()
 
 
 def test_attachments_with_objectstore(

@@ -18,8 +18,8 @@ use relay_event_schema::processor::{self, ProcessingAction, ProcessingState, Pro
 use relay_event_schema::protocol::{
     AsPair, AutoInferSetting, ClientSdkInfo, Context, ContextInner, Contexts, DebugImage,
     DeviceClass, Event, EventId, EventType, Exception, Headers, IpAddr, Level, LogEntry,
-    Measurement, Measurements, NelContext, PerformanceScoreContext, ReplayContext, Request, Span,
-    SpanStatus, Tags, Timestamp, TraceContext, User, VALID_PLATFORMS,
+    Measurement, Measurements, PerformanceScoreContext, ReplayContext, Request, Span, SpanStatus,
+    Tags, Timestamp, TraceContext, User, VALID_PLATFORMS,
 };
 use relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FiniteF64, FromValue, Getter, Meta, Object, Remark,
@@ -263,9 +263,6 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     // Process security reports first to ensure all props.
     normalize_security_report(event, client_ip, &config.user_agent);
 
-    // Process NEL reports to ensure all props.
-    normalize_nel_report(event, client_ip);
-
     // Insert IP addrs before recursing, since geo lookup depends on it.
     normalize_ip_addresses(
         &mut event.request,
@@ -370,18 +367,6 @@ fn normalize_replay_context(event: &mut Event, replay_id: Option<Uuid>) {
             replay_id: Annotated::new(EventId(replay_id)),
             other: Object::default(),
         });
-    }
-}
-
-/// Backfills the client IP address on for the NEL reports.
-fn normalize_nel_report(event: &mut Event, client_ip: Option<&IpAddr>) {
-    if event.context::<NelContext>().is_none() {
-        return;
-    }
-
-    if let Some(client_ip) = client_ip {
-        let user = event.user.value_mut().get_or_insert_with(User::default);
-        user.ip_address = Annotated::new(client_ip.to_owned());
     }
 }
 
@@ -1184,8 +1169,6 @@ fn infer_event_type(event: &Event) -> EventType {
         EventType::ExpectCt
     } else if event.expectstaple.value().is_some() {
         EventType::ExpectStaple
-    } else if event.context::<NelContext>().is_some() {
-        EventType::Nel
     } else {
         EventType::Default
     }

@@ -4,7 +4,7 @@ use relay_conventions::{
     SENTRY___INTERNAL__PERFORMANCE_ISSUES_SPANS, SENTRY__CLIENT_SAMPLE_RATE, SENTRY__DESCRIPTION,
     SENTRY__EXCLUSIVE_TIME, SENTRY__IS_REMOTE, SENTRY__KIND, SENTRY__NORMALIZED_DESCRIPTION,
     SENTRY__OP, SENTRY__ORIGIN, SENTRY__PLATFORM, SENTRY__PROFILE_ID, SENTRY__SEGMENT__ID,
-    SENTRY__SERVER_SAMPLE_RATE, SENTRY__WAS_TRANSACTION,
+    SENTRY__SERVER_SAMPLE_RATE,
 };
 use relay_event_schema::protocol::{
     Attribute, AttributeType, AttributeValue, Attributes, JsonLenientString, Span as SpanV1,
@@ -41,7 +41,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         received: _, // needs to go into the Kafka span eventually, but makes no sense in Span V2 schema.
         measurements,
         platform,
-        was_transaction,
+        was_transaction: _,
         kind,
         performance_issues_spans,
         other: _,
@@ -58,7 +58,6 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     attributes.insert(SENTRY__ORIGIN, origin);
     attributes.insert(SENTRY__PROFILE_ID, profile_id.map_value(|v| v.to_string()));
     attributes.insert(SENTRY__PLATFORM, platform);
-    attributes.insert(SENTRY__WAS_TRANSACTION, was_transaction);
     attributes.insert(
         SENTRY___INTERNAL__PERFORMANCE_ISSUES_SPANS,
         performance_issues_spans,
@@ -430,10 +429,6 @@ mod tests {
             "sentry.user": {
               "type": "string",
               "value": "id:user123"
-            },
-            "sentry.was_transaction": {
-              "type": "boolean",
-              "value": true
             }
           },
           "_meta": {

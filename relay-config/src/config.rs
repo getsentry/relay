@@ -1367,8 +1367,14 @@ pub struct ObjectstoreServiceConfig {
     /// Maximum duration of an attachment upload in seconds. Uploads that take longer are discarded.
     ///
     /// NOTE: This timeout applies to attachments that are already in-memory. Streaming uploads
-    /// might take longer and are restricted independently by [`Upload::timeout`].
+    /// might take longer and are restricted independently by [`Self::stream_timeout`].
     pub timeout: u64,
+
+    /// Maximum duration of an upload stream.
+    ///
+    /// Streams get a larger default timeout because their duration depends on the client
+    /// as well as the server.
+    pub stream_timeout: u64,
 
     /// Time between upload attempts.
     pub retry_delay: f64,
@@ -1387,6 +1393,7 @@ impl Default for ObjectstoreServiceConfig {
             max_concurrent_requests: 10,
             max_backlog: 20,
             timeout: 60,
+            stream_timeout: 5 * 60, // synced with `Upload::timeout`
             retry_delay: 1.0,
             max_attempts: NonZeroU16::new(5).unwrap(),
             auth: None,

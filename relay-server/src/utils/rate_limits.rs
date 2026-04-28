@@ -133,7 +133,6 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::ReplayVideo => None,
         ItemType::ClientReport => None,
         ItemType::CheckIn => None,
-        ItemType::Nel => None,
         ItemType::Log => None,
         ItemType::TraceMetric => None,
         ItemType::Span => None,
@@ -754,7 +753,6 @@ impl Enforcement {
             | ItemType::Security
             | ItemType::FormData
             | ItemType::RawSecurity
-            | ItemType::Nel
             | ItemType::UnrealReport
             | ItemType::Sessions
             | ItemType::Statsd
