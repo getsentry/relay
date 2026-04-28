@@ -607,8 +607,6 @@ fn normalize_http_attributes(
 
     let method = attributes
         .get_value(HTTP__REQUEST__METHOD)
-        // TODO: This can be removed once HTTP_REQUEST_METHOD is defined in `sentry-conventions`.
-        .or_else(|| attributes.get_value(HTTP__REQUEST_METHOD))
         .and_then(|v| v.as_str())
         .or(description_method);
 
@@ -1805,6 +1803,49 @@ mod tests {
           "http.request_method": {
             "type": "string",
             "value": "GET"
+          }
+        }
+        "#,
+        )
+        .unwrap();
+
+        normalize_attribute_names(&mut attributes);
+        normalize_http_attributes(&mut attributes, &[]);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "http.request.method": {
+            "type": "string",
+            "value": "GET"
+          },
+          "http.request_method": {
+            "type": "string",
+            "value": "GET"
+          },
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_http_attributes_from_description() {
+        let mut attributes = Annotated::<Attributes>::from_json(
+            r#"
+        {
+          "sentry.category": {
+            "type": "string",
+            "value": "http"
+          },
+          "sentry.op": {
+            "type": "string",
+            "value": "http.client"
           },
           "sentry.description": {
             "type": "string",
@@ -1820,10 +1861,6 @@ mod tests {
         insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
         {
           "http.request.method": {
-            "type": "string",
-            "value": "GET"
-          },
-          "http.request_method": {
             "type": "string",
             "value": "GET"
           },
