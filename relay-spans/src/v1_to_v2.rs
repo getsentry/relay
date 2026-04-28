@@ -36,7 +36,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         received: _, // needs to go into the Kafka span eventually, but makes no sense in Span V2 schema.
         measurements,
         platform,
-        was_transaction,
+        was_transaction: _,
         kind,
         performance_issues_spans,
         other: _,
@@ -54,7 +54,6 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     attributes.insert("sentry.origin", origin);
     attributes.insert("sentry.profile_id", profile_id.map_value(|v| v.to_string()));
     attributes.insert("sentry.platform", platform);
-    attributes.insert("sentry.was_transaction", was_transaction);
     attributes.insert(
         "sentry._internal.performance_issues_spans",
         performance_issues_spans,
@@ -426,10 +425,6 @@ mod tests {
             "sentry.user": {
               "type": "string",
               "value": "id:user123"
-            },
-            "sentry.was_transaction": {
-              "type": "boolean",
-              "value": true
             }
           },
           "_meta": {
