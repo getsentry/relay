@@ -23,6 +23,11 @@ macro_rules! required {
 
 /// Converts a [`Span`] into a [`StoreSpanV2`] to be sent to Kafka.
 pub fn convert(span: Annotated<Span>, retentions: Retention) -> Result<Box<StoreSpanV2>> {
+    let performance_issues_spans = span
+        .value()
+        .and_then(|s| s.performance_issues_spans.value().copied())
+        .unwrap_or(false);
+
     let span = span.map_value(relay_spans::span_v1_to_span_v2);
     let span = required!(span);
 
@@ -30,6 +35,7 @@ pub fn convert(span: Annotated<Span>, retentions: Retention) -> Result<Box<Store
         routing_key: span.trace_id.value().copied().map(Into::into),
         retention_days: retentions.standard,
         downsampled_retention_days: retentions.downsampled,
+        performance_issues_spans,
         item: span,
     }))
 }

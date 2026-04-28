@@ -38,7 +38,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         platform,
         was_transaction,
         kind,
-        performance_issues_spans,
+        performance_issues_spans: _, // moved to SpanMeta on the Kafka envelope
         other: _,
     } = span_v1;
 
@@ -126,7 +126,6 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         end_timestamp: timestamp,
         links: links.map_value(span_v1_links_to_span_v2_links),
         attributes: annotated_attributes,
-        performance_issues_spans,
         other: Default::default(), // cannot carry over because of schema mismatch
     }
 }
@@ -425,7 +424,6 @@ mod tests {
               "value": true
             }
           },
-          "_performance_issues_spans": true,
           "_meta": {
             "attributes": {
               "my.array": {
