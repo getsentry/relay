@@ -67,6 +67,7 @@ pub struct ProfileChunk {
     /// be at the top-level of the object.
     #[serde(flatten)]
     pub metadata: ProfileMetadata,
+    #[serde(default)]
     pub profile: ProfileData,
 }
 

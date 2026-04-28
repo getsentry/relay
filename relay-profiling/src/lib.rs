@@ -39,7 +39,6 @@
 //!
 //! Relay will forward those profiles encoded with `msgpack` after unpacking them if needed and push a message on Kafka.
 
-use std::collections::BTreeMap;
 use std::error::Error;
 use std::net::IpAddr;
 use std::time::Duration;
@@ -416,18 +415,14 @@ pub fn expand_perfetto(
     metadata_json: &[u8],
 ) -> Result<ExpandedPerfettoChunk, ProfileError> {
     let d = &mut Deserializer::from_slice(metadata_json);
-    let metadata: sample::v2::ProfileMetadata =
+    let mut chunk: sample::v2::ProfileChunk =
         serde_path_to_error::deserialize(d).map_err(ProfileError::InvalidJson)?;
 
-    let platform = metadata.platform.clone();
-    let release = metadata.release.clone();
+    let platform = chunk.metadata.platform.clone();
+    let release = chunk.metadata.release.clone();
 
     let (profile_data, debug_images) = perfetto::convert(perfetto_bytes)?;
-    let mut chunk = sample::v2::ProfileChunk {
-        measurements: BTreeMap::new(),
-        metadata,
-        profile: profile_data,
-    };
+    chunk.profile = profile_data;
     chunk.metadata.debug_meta.images.extend(debug_images);
     chunk.normalize()?;
 
