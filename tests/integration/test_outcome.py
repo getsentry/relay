@@ -275,7 +275,7 @@ def test_outcomes_non_processing(relay, mini_sentry, event_type):
 
     outcomes = []
     for _ in expected_categories:
-        outcomes.extend(mini_sentry.captured_outcomes.get(timeout=3).get("outcomes"))
+        outcomes.extend(mini_sentry.captured_outcomes.get().get("outcomes"))
     assert len(outcomes) == len(expected_categories)
     outcomes.sort(key=lambda x: x["category"])
 
@@ -345,7 +345,7 @@ def test_outcomes_non_processing_max_batch_time(relay, mini_sentry):
     # we should get one batch per event sent
     batches = []
     for _ in range(events_to_send):
-        batch = mini_sentry.captured_outcomes.get(timeout=1)
+        batch = mini_sentry.captured_outcomes.get()
         batches.append(batch)
 
     # verify that the batches contain one outcome each and the event_ids are ok
@@ -440,7 +440,7 @@ def test_outcome_forwarding(
     and verify that the outcomes sent by the first (downstream relay)
     are properly forwarded up to sentry.
     """
-    outcomes_consumer = outcomes_consumer(timeout=2)
+    outcomes_consumer = outcomes_consumer()
 
     processing_config = {
         "outcomes": {
@@ -855,8 +855,8 @@ def test_outcome_to_client_report(relay, mini_sentry):
     _send_event(downstream, event_type="transaction")
 
     outcomes_batches = [
-        mini_sentry.captured_outcomes.get(timeout=3.2),
-        mini_sentry.captured_outcomes.get(timeout=3.2),
+        mini_sentry.captured_outcomes.get(),
+        mini_sentry.captured_outcomes.get(),
     ]
     assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
 
@@ -910,7 +910,7 @@ def test_filtered_event_outcome_client_reports(relay, mini_sentry):
 
     _send_event(relay, event_type="error")
 
-    report = mini_sentry.get_client_report(timeout=10)
+    report = mini_sentry.get_client_report()
     del report["timestamp"]
     assert report == {
         "discarded_events": [],
@@ -955,7 +955,7 @@ def test_filtered_event_outcome_kafka(relay, mini_sentry):
 
     _send_event(downstream, event_type="error")
 
-    outcomes_batch = mini_sentry.captured_outcomes.get(timeout=3.2)
+    outcomes_batch = mini_sentry.captured_outcomes.get()
     assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
     assert mini_sentry.captured_envelopes.qsize() == 0
 
@@ -1019,8 +1019,8 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
     _send_event(upstream, event_type="transaction")
 
     outcomes_batches = [
-        mini_sentry.captured_outcomes.get(timeout=1.2),
-        mini_sentry.captured_outcomes.get(timeout=1.2),
+        mini_sentry.captured_outcomes.get(),
+        mini_sentry.captured_outcomes.get(),
     ]
     assert mini_sentry.captured_outcomes.qsize() == 0
 
@@ -1073,13 +1073,13 @@ def test_outcomes_aggregate_inbound_filters(
         },
     )
 
-    outcomes_consumer = outcomes_consumer(timeout=1.2)
+    outcomes_consumer = outcomes_consumer()
 
     # Send empty body twice
     _send_event(relay)
     _send_event(relay)
 
-    outcomes = outcomes_consumer.get_outcomes(timeout=5)
+    outcomes = outcomes_consumer.get_outcomes()
     assert len(outcomes) == 1, outcomes
 
     for outcome in outcomes:
@@ -1144,8 +1144,8 @@ def test_graceful_shutdown(relay, mini_sentry):
 
     # We should have outcomes almost immediately through force flush:
     outcomes_batches = [
-        mini_sentry.captured_outcomes.get(timeout=1.2),
-        mini_sentry.captured_outcomes.get(timeout=1.2),
+        mini_sentry.captured_outcomes.get(),
+        mini_sentry.captured_outcomes.get(),
     ]
     assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
 
@@ -1194,7 +1194,7 @@ def test_profile_outcomes(
     and verify that the outcomes sent by the first relay
     are properly forwarded up to sentry.
     """
-    outcomes_consumer = outcomes_consumer(timeout=5)
+    outcomes_consumer = outcomes_consumer()
     profiles_consumer = profiles_consumer()
     metrics_consumer = metrics_consumer()
 
@@ -1459,7 +1459,7 @@ def test_profile_outcomes_too_many(
     """
     Tests that Relay reports duplicate profiles as invalid
     """
-    outcomes_consumer = outcomes_consumer(timeout=2)
+    outcomes_consumer = outcomes_consumer()
     profiles_consumer = profiles_consumer()
 
     project_id = 42
@@ -1560,7 +1560,7 @@ def test_profile_outcomes_rate_limited(
     Profiles that are rate limited before metrics extraction should count towards `Profile`.
     Profiles that are rate limited after metrics extraction should count towards `ProfileIndexed`.
     """
-    outcomes_consumer = outcomes_consumer(timeout=2)
+    outcomes_consumer = outcomes_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
@@ -1745,7 +1745,7 @@ def test_span_outcomes(
     and verify that the outcomes sent by the first relay
     are properly forwarded up to sentry.
     """
-    outcomes_consumer = outcomes_consumer(timeout=5)
+    outcomes_consumer = outcomes_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
@@ -1816,7 +1816,7 @@ def test_span_outcomes(
         project_id, make_envelope("ho")
     )  # should be kept by dynamic sampling
 
-    outcomes = outcomes_consumer.get_outcomes(timeout=10.0)
+    outcomes = outcomes_consumer.get_outcomes()
     outcomes.sort(key=lambda o: sorted(o.items()))
 
     expected_source = {
@@ -1869,7 +1869,7 @@ def test_span_outcomes_invalid(
     """
     Tests that Relay reports correct outcomes for invalid spans as `Span` or `Transaction`.
     """
-    outcomes_consumer = outcomes_consumer(timeout=2)
+    outcomes_consumer = outcomes_consumer()
 
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
@@ -1916,7 +1916,7 @@ def test_span_outcomes_invalid(
     envelope = make_envelope()
     upstream.send_envelope(project_id, envelope)
 
-    outcomes = outcomes_consumer.get_outcomes(timeout=10.0, n=6)
+    outcomes = outcomes_consumer.get_outcomes(n=6)
     outcomes.sort(key=lambda o: sorted(o.items()))
 
     assert outcomes == [
@@ -1951,7 +1951,7 @@ def test_replay_outcomes_item_failed(
     """
     Assert Relay records a single outcome even though both envelope items fail.
     """
-    outcomes_consumer = outcomes_consumer(timeout=2)
+    outcomes_consumer = outcomes_consumer()
     metrics_consumer = metrics_consumer()
 
     project_id = 42
