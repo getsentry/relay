@@ -224,15 +224,15 @@ def relay(mini_sentry, background_process, config_dir, get_relay_binary):
             relay_bin + ["-c", str(dir), "run"], stderr=subprocess.PIPE
         )
 
-        while True:
-            line = process.stderr.readline()
-            sys.stderr.buffer.write(line)
-            sys.stderr.buffer.flush()
-
+        stderr = dup_to_queue(process.stderr, sys.stderr.buffer)
+        # Port should show up rather quickly.
+        port = None
+        for _ in range(50):
+            line = stderr.get(timeout=3)
             if port := try_parse_port(line):
-                redirect_pipe(process.stderr, sys.stderr.buffer)
                 break
 
+        assert port is not None, "port could not be parsed from stderr"
         relay = Relay(
             (host, port),
             process,
@@ -285,13 +285,17 @@ def try_parse_port(line):
         pass
 
 
-def redirect_pipe(src, dst):
-    def redirect():
+def dup_to_queue(src, dst):
+    queue = Queue()
+
+    def redirect(src, dst, queue):
         while True:
             line = src.readline()
             if not line:
                 break
             dst.write(line)
             dst.flush()
+            queue.put(line)
 
-    threading.Thread(target=redirect, daemon=True).start()
+    threading.Thread(target=redirect, args=(src, dst, queue), daemon=True).start()
+    return queue
