@@ -217,24 +217,9 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
 async fn extract_multipart(
     multipart: Multipart<'static>,
     meta: RequestMeta,
-    state: &ServiceState,
+    config: &Config,
+    upload_context: Option<UploadContext<'_>>,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    let config = state.config();
-
-    let upload_context = if should_fetch_project_config(state, meta.project_id()) {
-        // Ensure that we really make it here.
-        relay_statsd::metric!(counter(RelayCounters::MinidumpEndpointConfigFetching) += 1);
-
-        let project = state
-            .project_cache_handle()
-            .ready(meta.public_key(), config.query_timeout())
-            .await
-            .ok_or(BadStoreRequest::ProjectUnavailable)?;
-        upload_context_for_project(&meta, state, project)?
-    } else {
-        None
-    };
-
     let minidump_attachment_strategy = MinidumpAttachmentStrategy { upload_context };
 
     let mut items = utils::multipart_items(multipart, config, minidump_attachment_strategy).await?;
@@ -350,11 +335,26 @@ async fn handle(
     // minidump can either be transmitted as request body, or as `upload_file_minidump` in a
     // multipart formdata request.
     let config = state.config();
+
+    let upload_context = if should_fetch_project_config(&state, meta.project_id()) {
+        // Ensure that we really make it here.
+        relay_statsd::metric!(counter(RelayCounters::MinidumpEndpointConfigFetching) += 1);
+
+        let project = state
+            .project_cache_handle()
+            .ready(meta.public_key(), config.query_timeout())
+            .await
+            .ok_or(BadStoreRequest::ProjectUnavailable)?;
+        upload_context_for_project(&meta, &state, project)?
+    } else {
+        None
+    };
+
     let envelope = if MINIDUMP_RAW_CONTENT_TYPES.contains(&content_type.as_ref()) {
         extract_raw_minidump(request.extract().await?, meta, config.max_attachment_size())?
     } else {
         let multipart = utils::multipart_from_request(request)?;
-        extract_multipart(multipart, meta, &state).await?
+        extract_multipart(multipart, meta, config, upload_context).await?
     };
 
     let id = envelope.event_id();
