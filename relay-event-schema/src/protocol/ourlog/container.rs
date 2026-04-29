@@ -17,9 +17,11 @@ use crate::protocol::utils;
 /// | none    | {{auto}}           | always     |
 /// | 2       | {{auto}}, settings | settings   |
 ///
-/// For example in version 2, the client ip is inferred if either the client address attribute is
-/// set to `auto` or the ingest settings specify `infer_ip` to `auto`.
-/// The user agent is only considered if ingest settings specify `infer_user_agent` as `auto`.
+/// For example, in version 2:
+///  - the client ip is inferred if either the client address attribute is
+///    set to `{{auto}}` or the ingest settings specify `infer_ip` as `auto`.
+///  - the user agent is only inferred if ingest settings specify `infer_user_agent` as `auto`,
+///    while for older SDKs which do not send any ingest settings, the user agent is always automatically inferred.
 ///
 /// ## Schema Changelog
 ///
@@ -114,7 +116,7 @@ mod tests {
     fn test_valid_round_trip() {
         let m: ContainerMetadata = serde_json::from_str(
             r#"{
-            "version": 123, 
+            "version": 123,
             "ingest_settings": {
                 "infer_ip": "auto",
                 "infer_user_agent": "never"
