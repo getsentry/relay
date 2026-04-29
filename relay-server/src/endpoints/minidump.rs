@@ -294,7 +294,7 @@ fn should_fetch_project_config(state: &ServiceState, project_id: Option<ProjectI
     .is_keep()
 }
 
-/// Creates an [UploadContext] for a given project.x
+/// Creates an [UploadContext] for a given project.
 fn upload_context_for_project<'a>(
     meta: &RequestMeta,
     state: &'a ServiceState,
