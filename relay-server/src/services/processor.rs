@@ -19,7 +19,7 @@ use futures::future::BoxFuture;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
-use relay_config::{Config, HttpEncoding, RelayMode};
+use relay_config::{Config, HttpEncoding};
 use relay_dynamic_config::Feature;
 use relay_event_normalization::{ClockDriftProcessor, GeoIpLookup};
 use relay_event_schema::processor::ProcessingAction;
@@ -45,6 +45,7 @@ use crate::processing::attachments::AttachmentProcessor;
 use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::client_reports::ClientReportsProcessor;
 use crate::processing::errors::{ErrorsProcessor, SwitchProcessingError};
+use crate::processing::forward_unknown::ForwardUnknownProcessor;
 use crate::processing::legacy_spans::LegacySpansProcessor;
 use crate::processing::logs::LogsProcessor;
 use crate::processing::profile_chunks::ProfileChunksProcessor;
@@ -144,7 +145,6 @@ processing_group!(TraceMetricGroup, TraceMetric);
 processing_group!(SpanGroup, Span);
 
 processing_group!(ProfileChunkGroup, ProfileChunk);
-processing_group!(MetricsGroup, Metrics);
 processing_group!(ForwardUnknownGroup, ForwardUnknown);
 processing_group!(Ungrouped, Ungrouped);
 
@@ -194,8 +194,6 @@ pub enum ProcessingGroup {
     Span,
     /// Span V2 spans.
     SpanV2,
-    /// Metrics.
-    Metrics,
     /// ProfileChunk.
     ProfileChunk,
     /// V2 attachments without span / log association.
@@ -285,18 +283,6 @@ impl ProcessingGroup {
             grouped_envelopes.push((
                 ProcessingGroup::TraceMetric,
                 Envelope::from_parts(headers.clone(), trace_metric_items),
-            ))
-        }
-
-        // Extract all metric items.
-        //
-        // Note: Should only be relevant in proxy mode. In other modes we send metrics through
-        // a separate pipeline.
-        let metric_items = envelope.take_items_by(|i| i.ty().is_metrics());
-        if !metric_items.is_empty() {
-            grouped_envelopes.push((
-                ProcessingGroup::Metrics,
-                Envelope::from_parts(headers.clone(), metric_items),
             ))
         }
 
@@ -421,7 +407,6 @@ impl ProcessingGroup {
             ProcessingGroup::TraceMetric => "trace_metric",
             ProcessingGroup::Span => "span",
             ProcessingGroup::SpanV2 => "span_v2",
-            ProcessingGroup::Metrics => "metrics",
             ProcessingGroup::ProfileChunk => "profile_chunk",
             ProcessingGroup::TraceAttachment => "trace_attachment",
             ProcessingGroup::ForwardUnknown => "forward_unknown",
@@ -446,7 +431,6 @@ impl From<ProcessingGroup> for AppFeature {
             ProcessingGroup::TraceMetric => AppFeature::TraceMetrics,
             ProcessingGroup::Span => AppFeature::Spans,
             ProcessingGroup::SpanV2 => AppFeature::Spans,
-            ProcessingGroup::Metrics => AppFeature::UnattributedMetrics,
             ProcessingGroup::ProfileChunk => AppFeature::Profiles,
             ProcessingGroup::ForwardUnknown => AppFeature::UnattributedEnvelope,
             ProcessingGroup::Ungrouped => AppFeature::UnattributedEnvelope,
@@ -692,31 +676,6 @@ fn send_metrics(
             project_key: sampling_project_key,
             buckets: sampling_metrics,
         });
-    }
-}
-
-/// The result of the envelope processing containing the processed envelope along with the partial
-/// result.
-#[derive(Debug)]
-#[expect(
-    clippy::large_enum_variant,
-    reason = "until we have a better solution to combat the excessive growth of Item, see #4819"
-)]
-enum ProcessingResult {
-    Envelope {
-        managed_envelope: TypedEnvelope<Processed>,
-        extracted_metrics: ProcessingExtractedMetrics,
-    },
-    Output(Output<Outputs>),
-}
-
-impl ProcessingResult {
-    /// Creates a [`ProcessingResult`] with no metrics.
-    fn no_metrics(managed_envelope: TypedEnvelope<Processed>) -> Self {
-        Self::Envelope {
-            managed_envelope,
-            extracted_metrics: ProcessingExtractedMetrics::new(),
-        }
     }
 }
 
@@ -1035,6 +994,7 @@ struct Processing {
     attachments: AttachmentProcessor,
     user_reports: UserReportsProcessor,
     profiles: ProfilesProcessor,
+    forward_unknown: ForwardUnknownProcessor,
 }
 
 impl EnvelopeProcessorService {
@@ -1114,6 +1074,7 @@ impl EnvelopeProcessorService {
                 attachments: AttachmentProcessor::new(Arc::clone(&quota_limiter)),
                 user_reports: UserReportsProcessor::new(Arc::clone(&quota_limiter)),
                 profiles: ProfilesProcessor::new(quota_limiter),
+                forward_unknown: ForwardUnknownProcessor::new(),
             },
             config,
         };
@@ -1128,7 +1089,7 @@ impl EnvelopeProcessorService {
         processor: &P,
         mut managed_envelope: ManagedEnvelope,
         ctx: processing::Context<'_>,
-    ) -> Result<ProcessingResult, ProcessingError>
+    ) -> Result<Output<Outputs>, ProcessingError>
     where
         Outputs: From<P::Output>,
     {
@@ -1158,14 +1119,13 @@ impl EnvelopeProcessorService {
                 ProcessingError::ProcessingFailure
             })
             .map(|o| o.map(Into::into))
-            .map(ProcessingResult::Output)
     }
 
     async fn process_envelope(
         &self,
         project_id: ProjectId,
         message: ProcessEnvelopeGrouped<'_>,
-    ) -> Result<ProcessingResult, ProcessingError> {
+    ) -> Result<Output<Outputs>, ProcessingError> {
         let ProcessEnvelopeGrouped {
             group,
             envelope: mut managed_envelope,
@@ -1299,23 +1259,8 @@ impl EnvelopeProcessorService {
                 )
                 .await
             }
-            // Currently is not used.
-            ProcessingGroup::Metrics => {
-                // In proxy mode we simply forward the metrics.
-                // This group shouldn't be used outside of proxy mode.
-                if self.inner.config.relay_mode() != RelayMode::Proxy {
-                    relay_log::error!(
-                        tags.project = %project_id,
-                        items = ?managed_envelope.envelope().items().next().map(Item::ty),
-                        "received metrics in the process_state"
-                    );
-                }
-
-                Ok(ProcessingResult::no_metrics(
-                    managed_envelope.into_processed(),
-                ))
-            }
-            // Fallback to the legacy process_state implementation for Ungrouped events.
+            // Ungrouped items indicate bugs, as all items should have an associated processor,
+            // or be handled separately (like metrics).
             ProcessingGroup::Ungrouped => {
                 relay_log::error!(
                     tags.project = %project_id,
@@ -1328,9 +1273,14 @@ impl EnvelopeProcessorService {
             // Leave this group unchanged.
             //
             // This will later be forwarded to upstream.
-            ProcessingGroup::ForwardUnknown => Ok(ProcessingResult::no_metrics(
-                managed_envelope.into_processed(),
-            )),
+            ProcessingGroup::ForwardUnknown => {
+                self.process_with_processor(
+                    &self.inner.processing.forward_unknown,
+                    managed_envelope,
+                    ctx,
+                )
+                .await
+            }
         }
     }
 
@@ -1387,55 +1337,24 @@ impl EnvelopeProcessorService {
             }
         });
 
-        let result = match self.process_envelope(project_id, message).await {
-            Ok(ProcessingResult::Envelope {
-                mut managed_envelope,
-                extracted_metrics,
-            }) => {
-                // The envelope could be modified or even emptied during processing, which
-                // requires re-computation of the context.
-                managed_envelope.update();
-
-                let has_metrics = !extracted_metrics.metrics.project_metrics.is_empty();
-                send_metrics(
-                    extracted_metrics.metrics,
-                    project_key,
-                    sampling_key,
-                    &self.inner.addrs.aggregator,
-                );
-
-                let envelope_response = if managed_envelope.envelope().is_empty() {
-                    if !has_metrics {
-                        // Individual rate limits have already been issued
-                        managed_envelope.reject(Outcome::RateLimited(None));
-                    } else {
-                        managed_envelope.accept();
+        let result =
+            self.process_envelope(project_id, message)
+                .await
+                .map(|Output { main, metrics }| {
+                    if let Some(metrics) = metrics {
+                        metrics.accept(|metrics| {
+                            send_metrics(
+                                metrics,
+                                project_key,
+                                sampling_key,
+                                &self.inner.addrs.aggregator,
+                            );
+                        });
                     }
 
-                    None
-                } else {
-                    Some(managed_envelope)
-                };
-
-                Ok(envelope_response.map(Submit::Envelope))
-            }
-            Ok(ProcessingResult::Output(Output { main, metrics })) => {
-                if let Some(metrics) = metrics {
-                    metrics.accept(|metrics| {
-                        send_metrics(
-                            metrics,
-                            project_key,
-                            sampling_key,
-                            &self.inner.addrs.aggregator,
-                        );
-                    });
-                }
-
-                let ctx = ctx.to_forward();
-                Ok(main.map(|output| Submit::Output { output, ctx }))
-            }
-            Err(err) => Err(err),
-        };
+                    let ctx = ctx.to_forward();
+                    main.map(|output| Submit::Output { output, ctx })
+                });
 
         relay_log::configure_scope(|scope| {
             scope.remove_tag("project");
