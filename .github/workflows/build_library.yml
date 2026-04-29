@@ -28,7 +28,7 @@ jobs:
       }')[matrix.build-arch] }}
 
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           submodules: recursive
 
@@ -37,7 +37,7 @@ jobs:
         env:
           TARGET: ${{ matrix.build-arch }}
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
 
       - name: Verify Wheel
         run: |
@@ -48,7 +48,7 @@ jobs:
           python tools/verify_wheel.py dist/*.whl
         working-directory: py
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
         with:
           name: artifact-linux-${{ matrix.build-arch }}
           path: py/dist/*
@@ -70,7 +70,7 @@ jobs:
     runs-on: macos-14
 
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           submodules: recursive
 
@@ -104,7 +104,7 @@ jobs:
           # consumed by cargo and setup.py to obtain the target dir
           CARGO_BUILD_TARGET: ${{ matrix.target }}
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
         with:
           name: artifact-macos-${{ matrix.py-platform }}
           path: py/dist/*
@@ -117,7 +117,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           submodules: recursive
 
@@ -136,7 +136,7 @@ jobs:
         run: python setup.py sdist
         working-directory: py
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
         with:
           name: artifact-sdist
           path: py/dist/*
@@ -153,7 +153,7 @@ jobs:
       # there cannot be mutliple upload-artifacts with the same name, in a sha's workflow runs.
       # However in this case it is fine because this only runs on release-library/** branches,
       # and the other runs on release/** branches.
-      - uses: actions/upload-artifact/merge@v7
+      - uses: actions/upload-artifact/merge@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
         with:
           # Craft expects release assets to be a single artifact named after the sha.
           name: ${{ github.sha }}
