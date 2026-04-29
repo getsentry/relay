@@ -355,7 +355,7 @@ async fn extract_raw_minidump(
             "minidump",
         )
         .await
-        .ok_or(BadStoreRequest::UploadFailed)?;
+        .ok_or(BadStoreRequest::ObjectstoreUploadFailed)?;
     } else {
         item.set_payload(
             Minidump,

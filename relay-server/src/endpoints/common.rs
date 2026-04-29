@@ -120,8 +120,8 @@ pub enum BadStoreRequest {
     #[error("project not available")]
     ProjectUnavailable,
 
-    #[error("failed to upload attachment to objectstore")]
-    UploadFailed,
+    #[error("failed to upload to objectstore")]
+    ObjectstoreUploadFailed,
 }
 
 impl From<BytesRejection> for BadStoreRequest {
@@ -176,7 +176,7 @@ impl IntoResponse for BadStoreRequest {
             }
             BadStoreRequest::QueueFailed(_)
             | BadStoreRequest::ProjectUnavailable
-            | BadStoreRequest::UploadFailed => {
+            | BadStoreRequest::ObjectstoreUploadFailed => {
                 // These errors indicate that something's wrong with our service system, most likely
                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
                 // client. It might retry event submission at a later time.
