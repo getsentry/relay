@@ -115,12 +115,6 @@ convention_attributes!(
 /// Really do not add to this list, at all, ever. The only reason this opt-out even exists to make a
 /// transition easier for attributes which Relay already uses but aren't yet in conventions.
 mod not_yet_defined {
-    // The legacy http request method attribute used by transactions spans.
-    // Could not be added to sentry conventions at the time due to an attribute naming conflict that
-    // requires updating the sentry conventions code gen.
-    // TODO: replace with conventions defined attribute name once the conventions code gen is updated.
-    pub const LEGACY_HTTP_REQUEST_METHOD: &str = "http.request_method";
-
     // TODO(mjq): Evaluate and remove usages of this constant, or restore it in
     // conventions. This was deleted from conventions in
     // https://github.com/getsentry/sentry-conventions/pull/256 but is still
