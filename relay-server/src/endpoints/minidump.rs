@@ -179,9 +179,9 @@ struct UploadContext<'a> {
 }
 
 struct MinidumpAttachmentStrategy<'a> {
-    /// Information necessary to upload to the object store.
+    /// Information necessary to upload to the objectstore.
     ///
-    /// This is optional since uploading to the object store might not be enabled for a project.
+    /// This is optional since uploading to the objectstore might not be enabled for a project.
     upload_context: Option<UploadContext<'a>>,
 }
 
