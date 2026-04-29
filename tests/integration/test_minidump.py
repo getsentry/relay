@@ -825,29 +825,35 @@ def test_size_limits(mini_sentry, relay, limit, expected_status_code):
 
 
 @pytest.mark.parametrize(
-    "rollout_enabled,feature_enabled",
+    "rollout_enabled,upload_attachments,upload_minidump",
     [
-        (False, False),
-        (True, False),
-        (True, True),
+        (False, True, True),  # if the option is not set we don't check the features
+        (True, True, False),
+        (True, False, True),
+        (True, True, True),
     ],
-    ids=["no-option", "no-feature", "both-enabled"],
+    ids=["no-option", "stream-attachments", "stream-minidumps", "stream-all"],
 )
 def test_minidump_objectstore_uploads(
     mini_sentry,
     relay,
     dummy_upload,
     rollout_enabled,
-    feature_enabled,
+    upload_attachments,
+    upload_minidump,
 ):
     project_id = 42
     minidump_content = b"MDMP content"
     log_content = b"Some log file content"
 
     project_config = mini_sentry.add_full_project_config(project_id)
-    if feature_enabled:
+    if upload_attachments:
         project_config["config"].setdefault("features", []).append(
             "projects:relay-minidump-attachment-uploads"
+        )
+    if upload_minidump:
+        project_config["config"].setdefault("features", []).append(
+            "projects:relay-minidump-uploads"
         )
     mini_sentry.global_config["options"][
         "relay.minidump-endpoint-fetch-config.rollout-rate"
@@ -873,15 +879,7 @@ def test_minidump_objectstore_uploads(
     minidump = by_name["minidump.dmp"]
     logs = by_name["log.txt"]
 
-    if rollout_enabled and feature_enabled:
-        assert (
-            minidump.headers["content_type"]
-            == "application/vnd.sentry.attachment-ref+json"
-        )
-        assert json.loads(minidump.payload.bytes) == {
-            "location": DUMMY_UPLOAD_LOCATION,
-        }
-
+    if rollout_enabled and upload_attachments:
         assert (
             logs.headers["content_type"] == "application/vnd.sentry.attachment-ref+json"
         )
@@ -890,16 +888,25 @@ def test_minidump_objectstore_uploads(
         }
     else:
         assert (
-            minidump.headers.get("content_type")
-            != "application/vnd.sentry.attachment-ref+json"
-        )
-        assert minidump.payload.bytes == minidump_content
-
-        assert (
             logs.headers.get("content_type")
             != "application/vnd.sentry.attachment-ref+json"
         )
         assert logs.payload.bytes == log_content
+
+    if rollout_enabled and upload_minidump:
+        assert (
+            minidump.headers["content_type"]
+            == "application/vnd.sentry.attachment-ref+json"
+        )
+        assert json.loads(minidump.payload.bytes) == {
+            "location": DUMMY_UPLOAD_LOCATION,
+        }
+    else:
+        assert (
+            minidump.headers.get("content_type")
+            != "application/vnd.sentry.attachment-ref+json"
+        )
+        assert minidump.payload.bytes == minidump_content
 
 
 def test_size_limits_multipart_chunked(mini_sentry, relay):
