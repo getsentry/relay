@@ -48,12 +48,14 @@ pub fn expand(
         LogsIntegration::Nel => nel::expand(&payload, headers, produce),
         LogsIntegration::OtelV1 { format } => otel::expand(format, &payload, produce),
         LogsIntegration::VercelDrainLog { format } => vercel::expand(format, &payload, produce),
-    }
-    .map(Some)
-    .unwrap_or_else(|err| {
-        drop(records.reject_err(err, &item));
-        None
-    })?;
+    };
+    let settings = match settings {
+        Ok(settings) => settings,
+        Err(err) => {
+            let _ = records.reject_err(err, &item);
+            return None;
+        }
+    };
 
     // Undo all the base item quantities, as they will be completely taken over by the parsed
     // contents, which contains an arbitrary amount of items (even 0).
