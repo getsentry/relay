@@ -81,6 +81,10 @@ pub mod consts {
         #[deprecated(note = "Needs to be defined in sentry-conventions")]
         pub const SENTRY___INTERNAL__PERFORMANCE_ISSUES_SPANS: &str =
             "sentry._internal.performance_issues_spans";
+
+        /// This got added in https://github.com/getsentry/relay/pull/5274.
+        #[deprecated(note = "Needs to be defined in sentry-conventions")]
+        pub const VERCEL__PATH: &str = "vercel.path";
     }
     pub use self::not_yet_defined::*;
 }
