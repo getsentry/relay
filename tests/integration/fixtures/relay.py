@@ -227,11 +227,11 @@ def relay(mini_sentry, background_process, config_dir, get_relay_binary):
         # This part here really isn't the greatest.
         #
         # Before this change, the tests would query the OS for an unused port,
-        # then assign that port to Relay via its configuration. In slower CI environments
-        # where tests run in parallel this can lead to a race condition where two tests select
-        # the same port, resulting in a test failure.
+        # then assign that port to Relay via its configuration. In slower CI environments,
+        # with tests running in parallel, this can lead to a race condition -> two tests select
+        # the same port.
         #
-        # This is an attempt of a fix which instead leads Relay select a port and bind to it,
+        # This is an attempt of a fix, which instead lets Relay select a port and bind to it,
         # then reads the port from the Relay logs. This heavily couples the test framework
         # to Relay's logs, which isn't great, but also not the worst.
         #
