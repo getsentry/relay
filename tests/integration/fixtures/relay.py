@@ -224,6 +224,22 @@ def relay(mini_sentry, background_process, config_dir, get_relay_binary):
             relay_bin + ["-c", str(dir), "run"], stderr=subprocess.PIPE
         )
 
+        # This part here really isn't the greatest.
+        #
+        # Before this change, the tests would query the OS for an unused port,
+        # then assign that port to Relay via its configuration. In slower CI environments
+        # where tests run in parallel this can lead to a race condition where two tests select
+        # the same port, resulting in a test failure.
+        #
+        # This is an attempt of a fix which instead leads Relay select a port and bind to it,
+        # then reads the port from the Relay logs. This heavily couples the test framework
+        # to Relay's logs, which isn't great, but also not the worst.
+        #
+        # From the alternatives considered (locking, Redis, selecting ports by worker id, retries, ..),
+        # this was the approach taken.
+        # If this leads to problems (memory consumption or others), consider selecting ports
+        # with the pytest worker id, this seemed like a decent alternative.
+        # `pytest-retry` may also be an acceptable approach.
         stderr = dup_to_queue(process.stderr, sys.stderr.buffer)
         # Port should show up rather quickly.
         port = None
