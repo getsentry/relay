@@ -194,9 +194,22 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
     ) -> Result<Option<Item>, multer::Error> {
         match self.upload_context {
             Some(UploadContext { upload, scoping })
-                if item.attachment_type() == Some(AttachmentType::Attachment) =>
+                if matches!(
+                    item.attachment_type(),
+                    Some(AttachmentType::Attachment | AttachmentType::Minidump),
+                ) =>
             {
-                Ok(upload_to_objectstore(field, item, config, scoping, upload, "minidump").await)
+                let content_type = field.content_type().map(ToString::to_string);
+                Ok(upload_to_objectstore(
+                    field,
+                    content_type,
+                    item,
+                    config,
+                    scoping,
+                    upload,
+                    "minidump",
+                )
+                .await)
             }
             _ => read_attachment_bytes_into_item(field, item, config, false).await,
         }
@@ -229,20 +242,23 @@ async fn extract_multipart(
         .find(|item| item.attachment_type() == Some(AttachmentType::Minidump))
         .ok_or(BadStoreRequest::MissingMinidump)?;
 
-    let embedded_opt = extract_embedded_minidump(minidump_item.payload()).await?;
-    if let Some(embedded) = embedded_opt {
-        minidump_item.set_payload(Minidump, embedded);
-    }
+    // Doing these operations does not make sense if we already streamed the minidump to objectstore.
+    if !minidump_item.is_attachment_ref() {
+        let embedded_opt = extract_embedded_minidump(minidump_item.payload()).await?;
+        if let Some(embedded) = embedded_opt {
+            minidump_item.set_payload(Minidump, embedded);
+        }
 
-    minidump_item.set_payload(
-        Minidump,
-        decode_minidump(minidump_item.payload(), config.max_attachment_size())?,
-    );
+        minidump_item.set_payload(
+            Minidump,
+            decode_minidump(minidump_item.payload(), config.max_attachment_size())?,
+        );
 
-    validate_minidump(&minidump_item.payload())?;
+        validate_minidump(&minidump_item.payload())?;
 
-    if let Some(minidump_filename) = minidump_item.filename() {
-        minidump_item.set_filename(remove_container_extension(minidump_filename).to_owned());
+        if let Some(minidump_filename) = minidump_item.filename() {
+            minidump_item.set_filename(remove_container_extension(minidump_filename).to_owned());
+        }
     }
 
     let event_id = common::event_id_from_items(&items)?.unwrap_or_else(EventId::new);
@@ -305,17 +321,36 @@ fn upload_context_for_project<'a>(
     }
 }
 
-fn extract_raw_minidump(
-    data: Bytes,
+async fn extract_raw_minidump(
+    request: Request,
     meta: RequestMeta,
-    max_size: usize,
+    content_type: RawContentType,
+    config: &Config,
+    upload_context: Option<UploadContext<'_>>,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
     let mut item = Item::new(ItemType::Attachment);
-
-    item.set_payload(Minidump, decode_minidump(data, max_size)?);
-    validate_minidump(&item.payload())?;
     item.set_filename(MINIDUMP_FILE_NAME);
     item.set_attachment_type(AttachmentType::Minidump);
+
+    if let Some(UploadContext { upload, scoping }) = upload_context {
+        item = upload_to_objectstore(
+            request.into_body().into_data_stream(),
+            Some(content_type.to_string()),
+            item,
+            config,
+            scoping,
+            upload,
+            "minidump",
+        )
+        .await
+        .ok_or(BadStoreRequest::UploadFailed)?;
+    } else {
+        item.set_payload(
+            Minidump,
+            decode_minidump(request.extract().await?, config.max_attachment_size())?,
+        );
+        validate_minidump(&item.payload())?;
+    }
 
     // Create an envelope with a random event id.
     let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
@@ -351,7 +386,7 @@ async fn handle(
     };
 
     let envelope = if MINIDUMP_RAW_CONTENT_TYPES.contains(&content_type.as_ref()) {
-        extract_raw_minidump(request.extract().await?, meta, config.max_attachment_size())?
+        extract_raw_minidump(request, meta, content_type, config, upload_context).await?
     } else {
         let multipart = utils::multipart_from_request(request)?;
         extract_multipart(multipart, meta, config, upload_context).await?

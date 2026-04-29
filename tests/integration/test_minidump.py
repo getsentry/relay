@@ -873,13 +873,15 @@ def test_minidump_objectstore_uploads(
     minidump = by_name["minidump.dmp"]
     logs = by_name["log.txt"]
 
-    assert (
-        minidump.headers.get("content_type")
-        != "application/vnd.sentry.attachment-ref+json"
-    )
-    assert minidump.payload.bytes == minidump_content
-
     if rollout_enabled and feature_enabled:
+        assert (
+            minidump.headers["content_type"]
+            == "application/vnd.sentry.attachment-ref+json"
+        )
+        assert json.loads(minidump.payload.bytes) == {
+            "location": DUMMY_UPLOAD_LOCATION,
+        }
+
         assert (
             logs.headers["content_type"] == "application/vnd.sentry.attachment-ref+json"
         )
@@ -887,6 +889,12 @@ def test_minidump_objectstore_uploads(
             "location": DUMMY_UPLOAD_LOCATION,
         }
     else:
+        assert (
+            minidump.headers.get("content_type")
+            != "application/vnd.sentry.attachment-ref+json"
+        )
+        assert minidump.payload.bytes == minidump_content
+
         assert (
             logs.headers.get("content_type")
             != "application/vnd.sentry.attachment-ref+json"
