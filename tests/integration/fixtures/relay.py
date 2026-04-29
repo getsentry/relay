@@ -7,7 +7,9 @@ import signal
 import stat
 import requests
 import subprocess
+import threading
 from collections import defaultdict
+from urllib.parse import urlparse
 
 import yaml
 import pytest
@@ -128,7 +130,7 @@ def relay_credentials():
 
 
 @pytest.fixture
-def relay(mini_sentry, random_port, background_process, config_dir, get_relay_binary):
+def relay(mini_sentry, background_process, config_dir, get_relay_binary):
     def inner(
         upstream,
         options=None,
@@ -142,13 +144,12 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
     ):
         relay_bin = get_relay_binary(version)
         host = "127.0.0.1"
-        port = random_port()
 
         default_opts = {
             "relay": {
                 "upstream": upstream.url,
                 "host": host,
-                "port": port,
+                "port": 0,
                 "tls_port": None,
                 "tls_private_key": None,
                 "tls_cert": None,
@@ -219,7 +220,18 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
             "version": version,
         }
 
-        process = background_process(relay_bin + ["-c", str(dir), "run"])
+        process = background_process(
+            relay_bin + ["-c", str(dir), "run"], stderr=subprocess.PIPE
+        )
+
+        while True:
+            line = process.stderr.readline()
+            sys.stderr.buffer.write(line)
+            sys.stderr.buffer.flush()
+
+            if port := try_parse_port(line):
+                redirect_pipe(process.stderr, sys.stderr.buffer)
+                break
 
         relay = Relay(
             (host, port),
@@ -264,3 +276,22 @@ def get_internal_address(options, server_address):
     host = relay.get("internal_host")
     port = relay.get("internal_port")
     return (host or server_address[0], port or server_address[1])
+
+
+def try_parse_port(line):
+    try:
+        return urlparse(line.rsplit(b"listening on ", 1)[1]).port
+    except IndexError:
+        pass
+
+
+def redirect_pipe(src, dst):
+    def redirect():
+        while True:
+            line = src.readline()
+            if not line:
+                break
+            dst.write(line)
+            dst.flush()
+
+    threading.Thread(target=redirect, daemon=True).start()

@@ -198,13 +198,22 @@ impl Service for HttpServer {
             internal_listener,
         } = self;
 
-        let listen_addr = config.listen_addr();
+        let listen_addr = listener
+            .local_addr()
+            .unwrap_or_else(|_| config.listen_addr());
+        let internal_listen_addr = internal_listener.as_ref().and_then(|listener| {
+            listener
+                .local_addr()
+                .ok()
+                .or_else(|| config.listen_addr_internal())
+        });
 
         relay_log::info!("spawning http server");
         relay_log::info!("  listening on http://{listen_addr}/");
-        if let Some(internal_addr) = config.listen_addr_internal() {
+        if let Some(internal_addr) = internal_listen_addr {
             relay_log::info!("  listening on http://{internal_addr}/ [internal]");
         }
+
         relay_statsd::metric!(counter(RelayCounters::ServerStarting) += 1);
 
         if let Some(internal_listener) = internal_listener {
