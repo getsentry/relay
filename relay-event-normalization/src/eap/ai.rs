@@ -63,7 +63,7 @@ fn is_ai_item(attributes: &mut Attributes) -> bool {
     false
 }
 
-/// Normalizes the [`GEN_AI__RESPONSE__MODEL`] attribute by defaulting to the [`GEN_AI__REQUEST_MODEL`] if it is missing.
+/// Normalizes the [`GEN_AI__RESPONSE__MODEL`] attribute by defaulting to the [`GEN_AI__REQUEST__MODEL`] if it is missing.
 fn normalize_model(attributes: &mut Attributes) {
     if attributes.contains_key(GEN_AI__RESPONSE__MODEL) {
         return;
@@ -77,7 +77,7 @@ fn normalize_model(attributes: &mut Attributes) {
     attributes.insert(GEN_AI__RESPONSE__MODEL, model.to_owned());
 }
 
-/// Normalizes the [`GEN_AI__OPERATION_TYPE`] and infers it from the AI operation if it is missing.
+/// Normalizes the [`GEN_AI__OPERATION__TYPE`] and infers it from the AI operation if it is missing.
 fn normalize_ai_type(attributes: &mut Attributes) {
     let op_name = attributes
         .get_value(GEN_AI__OPERATION__NAME)
@@ -90,7 +90,7 @@ fn normalize_ai_type(attributes: &mut Attributes) {
     attributes.insert(GEN_AI__OPERATION__TYPE, op_name.to_owned());
 }
 
-/// Calculates the [`GEN_AI__USAGE_TOTAL_TOKENS`] attribute.
+/// Calculates the [`GEN_AI__USAGE__TOTAL_TOKENS`] attribute.
 fn normalize_total_tokens(attributes: &mut Attributes) {
     let input_tokens = attributes
         .get_value(GEN_AI__USAGE__INPUT_TOKENS)
@@ -108,7 +108,7 @@ fn normalize_total_tokens(attributes: &mut Attributes) {
     attributes.insert(GEN_AI__USAGE__TOTAL_TOKENS, total_tokens);
 }
 
-/// Calculates the [`GEN_AI__RESPONSE__TPS`] attribute.
+/// Calculates the [`GEN_AI__RESPONSE__TOKENS_PER_SECOND`] attribute.
 fn normalize_tokens_per_second(attributes: &mut Attributes, duration: Option<Duration>) {
     let Some(duration) = duration.filter(|d| !d.is_zero()) else {
         return;

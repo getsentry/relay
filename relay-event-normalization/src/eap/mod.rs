@@ -311,7 +311,7 @@ pub fn normalize_inject_client_address(
 /// Does not modify the attributes if there is already user geo information present,
 /// to preserve original values.
 ///
-/// This uses the [`CLIENT_ADDRESS`] attribute to infer the client IP address, you may want to run
+/// This uses the [`CLIENT__ADDRESS`] attribute to infer the client IP address, you may want to run
 /// [`normalize_client_address`] before [`normalize_user_geo`].
 pub fn normalize_user_geo(
     attributes: &mut Annotated<Attributes>,

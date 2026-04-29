@@ -131,7 +131,7 @@ pub fn calculate_costs(
     Some(CalculatedCost { input, output })
 }
 
-/// Default AI operation stored in [`GEN_AI_OPERATION_TYPE`](relay_conventions::GEN_AI_OPERATION_TYPE)
+/// Default AI operation stored in [`GEN_AI__OPERATION__TYPE`](relay_conventions::GEN_AI__OPERATION__TYPE)
 /// for AI spans without a well known AI span op.
 ///
 /// See also: [`infer_ai_operation_type`].
@@ -140,11 +140,11 @@ pub const DEFAULT_AI_OPERATION: &str = "ai_client";
 /// Infers the AI operation from an AI operation name.
 ///
 /// The operation name is usually inferred from the
-/// [`GEN_AI_OPERATION_NAME`](relay_conventions::GEN_AI_OPERATION_NAME) span attribute and the span
+/// [`GEN_AI__OPERATION__NAME`](relay_conventions::GEN_AI__OPERATION__NAME) span attribute and the span
 /// operation.
 ///
 /// Sentry expects the operation type in the
-/// [`GEN_AI_OPERATION_TYPE`](relay_conventions::GEN_AI_OPERATION_TYPE) attribute.
+/// [`GEN_AI__OPERATION__TYPE`](relay_conventions::GEN_AI__OPERATION__TYPE) attribute.
 ///
 /// The function returns `None` when the op is not a well known AI operation, callers likely want to default
 /// the value to [`DEFAULT_AI_OPERATION`] for AI spans.
