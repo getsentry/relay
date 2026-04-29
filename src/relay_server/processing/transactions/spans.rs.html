@@ -260,97 +260,88 @@
 <a href=#260 id=260 data-nosnippet>260</a>    <span class="kw">use </span>relay_system::Addr;
 <a href=#261 id=261 data-nosnippet>261</a>
 <a href=#262 id=262 data-nosnippet>262</a>    <span class="kw">use </span><span class="kw">crate</span>::Envelope;
-<a href=#263 id=263 data-nosnippet>263</a>    <span class="kw">use </span><span class="kw">crate</span>::managed::{ManagedEnvelope, TypedEnvelope};
-<a href=#264 id=264 data-nosnippet>264</a>    <span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessingGroup, TransactionGroup};
-<a href=#265 id=265 data-nosnippet>265</a>    <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
-<a href=#266 id=266 data-nosnippet>266</a>
-<a href=#267 id=267 data-nosnippet>267</a>    <span class="kw">use </span>super::<span class="kw-2">*</span>;
-<a href=#268 id=268 data-nosnippet>268</a>
-<a href=#269 id=269 data-nosnippet>269</a>    <span class="kw">fn </span>params() -&gt; (
-<a href=#270 id=270 data-nosnippet>270</a>        TypedEnvelope&lt;TransactionGroup&gt;,
-<a href=#271 id=271 data-nosnippet>271</a>        Annotated&lt;Event&gt;,
-<a href=#272 id=272 data-nosnippet>272</a>        Arc&lt;ProjectInfo&gt;,
-<a href=#273 id=273 data-nosnippet>273</a>    ) {
-<a href=#274 id=274 data-nosnippet>274</a>        <span class="kw">let </span>bytes = Bytes::from(
-<a href=#275 id=275 data-nosnippet>275</a>            <span class="string">r#"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","trace":{"trace_id":"89143b0763095bd9c9955e8175d1fb23","public_key":"e12d836b15bb49d7bbf99e64295d995b","sample_rate":"0.2"}}
-<a href=#276 id=276 data-nosnippet>276</a>{"type":"transaction"}
-<a href=#277 id=277 data-nosnippet>277</a>{}
-<a href=#278 id=278 data-nosnippet>278</a>"#</span>,
-<a href=#279 id=279 data-nosnippet>279</a>        );
-<a href=#280 id=280 data-nosnippet>280</a>
-<a href=#281 id=281 data-nosnippet>281</a>        <span class="kw">let </span>dummy_envelope = Envelope::parse_bytes(bytes).unwrap();
-<a href=#282 id=282 data-nosnippet>282</a>        <span class="kw">let </span>project_info = Arc::new(ProjectInfo::default());
-<a href=#283 id=283 data-nosnippet>283</a>
-<a href=#284 id=284 data-nosnippet>284</a>        <span class="kw">let </span>event = Event {
-<a href=#285 id=285 data-nosnippet>285</a>            ty: EventType::Transaction.into(),
-<a href=#286 id=286 data-nosnippet>286</a>            start_timestamp: Timestamp(DateTime::from_timestamp(<span class="number">0</span>, <span class="number">0</span>).unwrap()).into(),
-<a href=#287 id=287 data-nosnippet>287</a>            timestamp: Timestamp(DateTime::from_timestamp(<span class="number">1</span>, <span class="number">0</span>).unwrap()).into(),
-<a href=#288 id=288 data-nosnippet>288</a>            contexts: Contexts(BTreeMap::from([(
-<a href=#289 id=289 data-nosnippet>289</a>                <span class="string">"trace"</span>.into(),
-<a href=#290 id=290 data-nosnippet>290</a>                ContextInner(Context::Trace(Box::new(TraceContext {
-<a href=#291 id=291 data-nosnippet>291</a>                    trace_id: Annotated::new(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.parse().unwrap()),
-<a href=#292 id=292 data-nosnippet>292</a>                    span_id: Annotated::new(<span class="string">"fa90fdead5f74053"</span>.parse().unwrap()),
-<a href=#293 id=293 data-nosnippet>293</a>                    exclusive_time: <span class="number">1000.0</span>.into(),
-<a href=#294 id=294 data-nosnippet>294</a>                    ..Default::default()
-<a href=#295 id=295 data-nosnippet>295</a>                })))
-<a href=#296 id=296 data-nosnippet>296</a>                .into(),
-<a href=#297 id=297 data-nosnippet>297</a>            )]))
-<a href=#298 id=298 data-nosnippet>298</a>            .into(),
-<a href=#299 id=299 data-nosnippet>299</a>            ..Default::default()
-<a href=#300 id=300 data-nosnippet>300</a>        };
-<a href=#301 id=301 data-nosnippet>301</a>
-<a href=#302 id=302 data-nosnippet>302</a>        <span class="kw">let </span>managed_envelope = ManagedEnvelope::new(dummy_envelope, Addr::dummy());
-<a href=#303 id=303 data-nosnippet>303</a>        <span class="kw">let </span>managed_envelope = (managed_envelope, ProcessingGroup::Transaction)
-<a href=#304 id=304 data-nosnippet>304</a>            .try_into()
-<a href=#305 id=305 data-nosnippet>305</a>            .unwrap();
-<a href=#306 id=306 data-nosnippet>306</a>
-<a href=#307 id=307 data-nosnippet>307</a>        <span class="kw">let </span>event = Annotated::from(event);
-<a href=#308 id=308 data-nosnippet>308</a>
-<a href=#309 id=309 data-nosnippet>309</a>        (managed_envelope, event, project_info)
-<a href=#310 id=310 data-nosnippet>310</a>    }
-<a href=#311 id=311 data-nosnippet>311</a>
-<a href=#312 id=312 data-nosnippet>312</a>    <span class="attr">#[test]
-<a href=#313 id=313 data-nosnippet>313</a>    </span><span class="kw">fn </span>extract_sample_rates() {
-<a href=#314 id=314 data-nosnippet>314</a>        <span class="kw">let </span>(managed_envelope, event, <span class="kw">_</span>) = params(); <span class="comment">// client sample rate is 0.2
-<a href=#315 id=315 data-nosnippet>315</a>        </span><span class="kw">let </span>spans = extract_from_event(
-<a href=#316 id=316 data-nosnippet>316</a>            managed_envelope.envelope().dsc(),
-<a href=#317 id=317 data-nosnippet>317</a>            <span class="kw-2">&amp;</span>event,
-<a href=#318 id=318 data-nosnippet>318</a>            <span class="kw-2">&amp;</span>Default::default(),
-<a href=#319 id=319 data-nosnippet>319</a>            <span class="prelude-val">Some</span>(<span class="number">0.1</span>),
-<a href=#320 id=320 data-nosnippet>320</a>            EventMetricsExtracted(<span class="bool-val">false</span>),
-<a href=#321 id=321 data-nosnippet>321</a>            SpansExtracted(<span class="bool-val">false</span>),
-<a href=#322 id=322 data-nosnippet>322</a>        )
-<a href=#323 id=323 data-nosnippet>323</a>        .unwrap();
+<a href=#263 id=263 data-nosnippet>263</a>    <span class="kw">use </span><span class="kw">crate</span>::managed::ManagedEnvelope;
+<a href=#264 id=264 data-nosnippet>264</a>    <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
+<a href=#265 id=265 data-nosnippet>265</a>
+<a href=#266 id=266 data-nosnippet>266</a>    <span class="kw">use </span>super::<span class="kw-2">*</span>;
+<a href=#267 id=267 data-nosnippet>267</a>
+<a href=#268 id=268 data-nosnippet>268</a>    <span class="kw">fn </span>params() -&gt; (ManagedEnvelope, Annotated&lt;Event&gt;, Arc&lt;ProjectInfo&gt;) {
+<a href=#269 id=269 data-nosnippet>269</a>        <span class="kw">let </span>bytes = Bytes::from(
+<a href=#270 id=270 data-nosnippet>270</a>            <span class="string">r#"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","trace":{"trace_id":"89143b0763095bd9c9955e8175d1fb23","public_key":"e12d836b15bb49d7bbf99e64295d995b","sample_rate":"0.2"}}
+<a href=#271 id=271 data-nosnippet>271</a>{"type":"transaction"}
+<a href=#272 id=272 data-nosnippet>272</a>{}
+<a href=#273 id=273 data-nosnippet>273</a>"#</span>,
+<a href=#274 id=274 data-nosnippet>274</a>        );
+<a href=#275 id=275 data-nosnippet>275</a>
+<a href=#276 id=276 data-nosnippet>276</a>        <span class="kw">let </span>dummy_envelope = Envelope::parse_bytes(bytes).unwrap();
+<a href=#277 id=277 data-nosnippet>277</a>        <span class="kw">let </span>project_info = Arc::new(ProjectInfo::default());
+<a href=#278 id=278 data-nosnippet>278</a>
+<a href=#279 id=279 data-nosnippet>279</a>        <span class="kw">let </span>event = Event {
+<a href=#280 id=280 data-nosnippet>280</a>            ty: EventType::Transaction.into(),
+<a href=#281 id=281 data-nosnippet>281</a>            start_timestamp: Timestamp(DateTime::from_timestamp(<span class="number">0</span>, <span class="number">0</span>).unwrap()).into(),
+<a href=#282 id=282 data-nosnippet>282</a>            timestamp: Timestamp(DateTime::from_timestamp(<span class="number">1</span>, <span class="number">0</span>).unwrap()).into(),
+<a href=#283 id=283 data-nosnippet>283</a>            contexts: Contexts(BTreeMap::from([(
+<a href=#284 id=284 data-nosnippet>284</a>                <span class="string">"trace"</span>.into(),
+<a href=#285 id=285 data-nosnippet>285</a>                ContextInner(Context::Trace(Box::new(TraceContext {
+<a href=#286 id=286 data-nosnippet>286</a>                    trace_id: Annotated::new(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.parse().unwrap()),
+<a href=#287 id=287 data-nosnippet>287</a>                    span_id: Annotated::new(<span class="string">"fa90fdead5f74053"</span>.parse().unwrap()),
+<a href=#288 id=288 data-nosnippet>288</a>                    exclusive_time: <span class="number">1000.0</span>.into(),
+<a href=#289 id=289 data-nosnippet>289</a>                    ..Default::default()
+<a href=#290 id=290 data-nosnippet>290</a>                })))
+<a href=#291 id=291 data-nosnippet>291</a>                .into(),
+<a href=#292 id=292 data-nosnippet>292</a>            )]))
+<a href=#293 id=293 data-nosnippet>293</a>            .into(),
+<a href=#294 id=294 data-nosnippet>294</a>            ..Default::default()
+<a href=#295 id=295 data-nosnippet>295</a>        };
+<a href=#296 id=296 data-nosnippet>296</a>
+<a href=#297 id=297 data-nosnippet>297</a>        <span class="kw">let </span>managed_envelope = ManagedEnvelope::new(dummy_envelope, Addr::dummy());
+<a href=#298 id=298 data-nosnippet>298</a>        <span class="kw">let </span>event = Annotated::from(event);
+<a href=#299 id=299 data-nosnippet>299</a>
+<a href=#300 id=300 data-nosnippet>300</a>        (managed_envelope, event, project_info)
+<a href=#301 id=301 data-nosnippet>301</a>    }
+<a href=#302 id=302 data-nosnippet>302</a>
+<a href=#303 id=303 data-nosnippet>303</a>    <span class="attr">#[test]
+<a href=#304 id=304 data-nosnippet>304</a>    </span><span class="kw">fn </span>extract_sample_rates() {
+<a href=#305 id=305 data-nosnippet>305</a>        <span class="kw">let </span>(managed_envelope, event, <span class="kw">_</span>) = params(); <span class="comment">// client sample rate is 0.2
+<a href=#306 id=306 data-nosnippet>306</a>        </span><span class="kw">let </span>spans = extract_from_event(
+<a href=#307 id=307 data-nosnippet>307</a>            managed_envelope.envelope().dsc(),
+<a href=#308 id=308 data-nosnippet>308</a>            <span class="kw-2">&amp;</span>event,
+<a href=#309 id=309 data-nosnippet>309</a>            <span class="kw-2">&amp;</span>Default::default(),
+<a href=#310 id=310 data-nosnippet>310</a>            <span class="prelude-val">Some</span>(<span class="number">0.1</span>),
+<a href=#311 id=311 data-nosnippet>311</a>            EventMetricsExtracted(<span class="bool-val">false</span>),
+<a href=#312 id=312 data-nosnippet>312</a>            SpansExtracted(<span class="bool-val">false</span>),
+<a href=#313 id=313 data-nosnippet>313</a>        )
+<a href=#314 id=314 data-nosnippet>314</a>        .unwrap();
+<a href=#315 id=315 data-nosnippet>315</a>
+<a href=#316 id=316 data-nosnippet>316</a>        <span class="kw">let </span>span = spans
+<a href=#317 id=317 data-nosnippet>317</a>            .into_iter()
+<a href=#318 id=318 data-nosnippet>318</a>            .find(|item| item.as_ref().unwrap().ty() == <span class="kw-2">&amp;</span>ItemType::Span)
+<a href=#319 id=319 data-nosnippet>319</a>            .unwrap()
+<a href=#320 id=320 data-nosnippet>320</a>            .unwrap();
+<a href=#321 id=321 data-nosnippet>321</a>
+<a href=#322 id=322 data-nosnippet>322</a>        <span class="kw">let </span>span = Annotated::&lt;Span&gt;::from_json_bytes(<span class="kw-2">&amp;</span>span.payload()).unwrap();
+<a href=#323 id=323 data-nosnippet>323</a>        <span class="kw">let </span>measurements = span.value().and_then(|s| s.measurements.value());
 <a href=#324 id=324 data-nosnippet>324</a>
-<a href=#325 id=325 data-nosnippet>325</a>        <span class="kw">let </span>span = spans
-<a href=#326 id=326 data-nosnippet>326</a>            .into_iter()
-<a href=#327 id=327 data-nosnippet>327</a>            .find(|item| item.as_ref().unwrap().ty() == <span class="kw-2">&amp;</span>ItemType::Span)
-<a href=#328 id=328 data-nosnippet>328</a>            .unwrap()
-<a href=#329 id=329 data-nosnippet>329</a>            .unwrap();
-<a href=#330 id=330 data-nosnippet>330</a>
-<a href=#331 id=331 data-nosnippet>331</a>        <span class="kw">let </span>span = Annotated::&lt;Span&gt;::from_json_bytes(<span class="kw-2">&amp;</span>span.payload()).unwrap();
-<a href=#332 id=332 data-nosnippet>332</a>        <span class="kw">let </span>measurements = span.value().and_then(|s| s.measurements.value());
-<a href=#333 id=333 data-nosnippet>333</a>
-<a href=#334 id=334 data-nosnippet>334</a>        <span class="macro">insta::assert_debug_snapshot!</span>(measurements, @<span class="string">r###"
-<a href=#335 id=335 data-nosnippet>335</a>        Some(
-<a href=#336 id=336 data-nosnippet>336</a>            Measurements(
-<a href=#337 id=337 data-nosnippet>337</a>                {
-<a href=#338 id=338 data-nosnippet>338</a>                    "client_sample_rate": Measurement {
-<a href=#339 id=339 data-nosnippet>339</a>                        value: 0.2,
-<a href=#340 id=340 data-nosnippet>340</a>                        unit: Fraction(
-<a href=#341 id=341 data-nosnippet>341</a>                            Ratio,
-<a href=#342 id=342 data-nosnippet>342</a>                        ),
-<a href=#343 id=343 data-nosnippet>343</a>                    },
-<a href=#344 id=344 data-nosnippet>344</a>                    "server_sample_rate": Measurement {
-<a href=#345 id=345 data-nosnippet>345</a>                        value: 0.1,
-<a href=#346 id=346 data-nosnippet>346</a>                        unit: Fraction(
-<a href=#347 id=347 data-nosnippet>347</a>                            Ratio,
-<a href=#348 id=348 data-nosnippet>348</a>                        ),
-<a href=#349 id=349 data-nosnippet>349</a>                    },
-<a href=#350 id=350 data-nosnippet>350</a>                },
-<a href=#351 id=351 data-nosnippet>351</a>            ),
-<a href=#352 id=352 data-nosnippet>352</a>        )
-<a href=#353 id=353 data-nosnippet>353</a>        "###</span>);
-<a href=#354 id=354 data-nosnippet>354</a>    }
-<a href=#355 id=355 data-nosnippet>355</a>}
+<a href=#325 id=325 data-nosnippet>325</a>        <span class="macro">insta::assert_debug_snapshot!</span>(measurements, @<span class="string">r###"
+<a href=#326 id=326 data-nosnippet>326</a>        Some(
+<a href=#327 id=327 data-nosnippet>327</a>            Measurements(
+<a href=#328 id=328 data-nosnippet>328</a>                {
+<a href=#329 id=329 data-nosnippet>329</a>                    "client_sample_rate": Measurement {
+<a href=#330 id=330 data-nosnippet>330</a>                        value: 0.2,
+<a href=#331 id=331 data-nosnippet>331</a>                        unit: Fraction(
+<a href=#332 id=332 data-nosnippet>332</a>                            Ratio,
+<a href=#333 id=333 data-nosnippet>333</a>                        ),
+<a href=#334 id=334 data-nosnippet>334</a>                    },
+<a href=#335 id=335 data-nosnippet>335</a>                    "server_sample_rate": Measurement {
+<a href=#336 id=336 data-nosnippet>336</a>                        value: 0.1,
+<a href=#337 id=337 data-nosnippet>337</a>                        unit: Fraction(
+<a href=#338 id=338 data-nosnippet>338</a>                            Ratio,
+<a href=#339 id=339 data-nosnippet>339</a>                        ),
+<a href=#340 id=340 data-nosnippet>340</a>                    },
+<a href=#341 id=341 data-nosnippet>341</a>                },
+<a href=#342 id=342 data-nosnippet>342</a>            ),
+<a href=#343 id=343 data-nosnippet>343</a>        )
+<a href=#344 id=344 data-nosnippet>344</a>        "###</span>);
+<a href=#345 id=345 data-nosnippet>345</a>    }
+<a href=#346 id=346 data-nosnippet>346</a>}
 </code></pre></div></section></main></body></html>

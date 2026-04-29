@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ItemAction"],"struct":["InvalidProcessingGroupType","Managed","ManagedEnvelope","RecordKeeper","Rejected","Split","TypedEnvelope"],"trait":["Counted","ManagedResult","OutcomeError","RetainMut"],"type":["Quantities"]};
+window.SIDEBAR_ITEMS = {"enum":["ItemAction"],"struct":["Managed","ManagedEnvelope","RecordKeeper","Rejected","Split"],"trait":["Counted","ManagedResult","OutcomeError","RetainMut"],"type":["Quantities"]};
