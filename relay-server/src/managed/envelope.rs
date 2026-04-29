@@ -1,7 +1,5 @@
-use std::fmt::{Debug, Display};
-use std::marker::PhantomData;
+use std::fmt::Debug;
 use std::mem::size_of;
-use std::ops::{Deref, DerefMut};
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
@@ -12,7 +10,6 @@ use crate::envelope::{Envelope, Item};
 use crate::extractors::RequestMeta;
 use crate::managed::Counted as _;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::services::processor::{Processed, ProcessingGroup};
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::EnvelopeSummary;
 
@@ -62,87 +59,6 @@ struct EnvelopeContext {
     scoping: Scoping,
     partition_key: Option<u32>,
     done: bool,
-}
-
-/// Error emitted when converting a [`ManagedEnvelope`] and a processing group into a [`TypedEnvelope`].
-#[derive(Debug)]
-pub struct InvalidProcessingGroupType(pub ManagedEnvelope, pub ProcessingGroup);
-
-impl Display for InvalidProcessingGroupType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
-            "failed to convert to the processing group {} based on the provided type",
-            self.1.variant()
-        ))
-    }
-}
-
-impl std::error::Error for InvalidProcessingGroupType {}
-
-/// A wrapper for [`ManagedEnvelope`] with assigned processing group type.
-pub struct TypedEnvelope<G>(ManagedEnvelope, PhantomData<G>);
-
-impl<G> TypedEnvelope<G> {
-    /// Changes the typed of the current envelope to processed.
-    ///
-    /// Once it's marked processed it can be submitted to upstream.
-    pub fn into_processed(self) -> TypedEnvelope<Processed> {
-        TypedEnvelope::new(self.0)
-    }
-
-    /// Accepts the envelope and drops the internal managed envelope with its context.
-    ///
-    /// This should be called if the envelope has been accepted by the upstream, which means that
-    /// the responsibility for logging outcomes has been moved. This function will not log any
-    /// outcomes.
-    pub fn accept(self) {
-        self.0.accept()
-    }
-
-    /// Returns the raw [`ManagedEnvelope`].
-    pub fn into_inner(self) -> ManagedEnvelope {
-        self.0
-    }
-
-    /// Creates a new typed envelope.
-    ///
-    /// Note: this method is private to make sure that only `TryFrom` implementation is used, which
-    /// requires the check for the error if conversion is failing.
-    fn new(managed_envelope: ManagedEnvelope) -> Self {
-        Self(managed_envelope, Default::default())
-    }
-}
-
-impl<G: TryFrom<ProcessingGroup>> TryFrom<(ManagedEnvelope, ProcessingGroup)> for TypedEnvelope<G> {
-    type Error = InvalidProcessingGroupType;
-    fn try_from(
-        (envelope, group): (ManagedEnvelope, ProcessingGroup),
-    ) -> Result<Self, Self::Error> {
-        match <ProcessingGroup as TryInto<G>>::try_into(group) {
-            Ok(_) => Ok(TypedEnvelope::new(envelope)),
-            Err(_) => Err(InvalidProcessingGroupType(envelope, group)),
-        }
-    }
-}
-
-impl<G> Debug for TypedEnvelope<G> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("TypedEnvelope").field(&self.0).finish()
-    }
-}
-
-impl<G> Deref for TypedEnvelope<G> {
-    type Target = ManagedEnvelope;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<G> DerefMut for TypedEnvelope<G> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
 }
 
 /// Tracks the lifetime of an [`Envelope`] in Relay.
@@ -210,13 +126,6 @@ impl ManagedEnvelope {
     pub fn into_envelope(mut self) -> Box<Envelope> {
         self.context.done = true;
         self.take_envelope()
-    }
-
-    /// Converts current managed envelope into processed envelope.
-    ///
-    /// Once it's marked processed it can be submitted to upstream.
-    pub fn into_processed(self) -> TypedEnvelope<Processed> {
-        TypedEnvelope::new(self)
     }
 
     /// Take the envelope out of the context and replace it with a dummy.
@@ -429,12 +338,6 @@ impl ManagedEnvelope {
 impl Drop for ManagedEnvelope {
     fn drop(&mut self) {
         self.reject(Outcome::Invalid(DiscardReason::Internal));
-    }
-}
-
-impl<G> From<TypedEnvelope<G>> for ManagedEnvelope {
-    fn from(value: TypedEnvelope<G>) -> Self {
-        value.0
     }
 }
 
