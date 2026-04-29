@@ -12,14 +12,6 @@ pub mod consts {
     include!(concat!(env!("OUT_DIR"), "/attribute_consts.rs"));
 
     mod not_yet_defined {
-        // TODO(mjq): Evaluate and remove usages of this constant, or restore it in
-        // conventions. This was deleted from conventions in
-        // https://github.com/getsentry/sentry-conventions/pull/256 but is still
-        // used in Relay.
-        // According to the PR this should probably be replaced with `SENTRY__PROFILER_ID`.
-        #[deprecated(note = "Needs to be defined in sentry-conventions")]
-        pub const SENTRY__PROFILE_ID: &str = "sentry.profile_id";
-
         // TODO(buenaflor): Add as sentry convention once mobile SDKs can migrate to it.
         // https://github.com/getsentry/sentry-conventions/issues/318
         #[deprecated(note = "Needs to be defined in sentry-conventions")]
