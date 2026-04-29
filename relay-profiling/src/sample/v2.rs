@@ -38,7 +38,6 @@ pub struct ProfileMetadata {
     pub platform: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_type: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub release: Option<String>,
 
     pub client_sdk: ClientSdk,
