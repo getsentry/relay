@@ -35,6 +35,7 @@ def test_trace_metric_extraction(
     mini_sentry,
     relay,
     relay_with_processing,
+    relay_credentials,
     items_consumer,
     outcomes_consumer,
 ):
@@ -49,9 +50,18 @@ def test_trace_metric_extraction(
         "traceMetric": {"standard": 30, "downsampled": 13 * 30},
     }
 
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    credentials = relay_credentials()
+    relay = relay(
+        relay_with_processing(options=TEST_CONFIG, static_credentials=credentials),
+        credentials=credentials,
+        options=TEST_CONFIG,
+    )
     start = datetime.now(timezone.utc)
 
+    # The size of this payload, as counted for trace metrics, is 139B:
+    # - `name`: 29B
+    # - `value`: 8B
+    # - `attributes`: 102B
     payload = {
         "timestamp": start.timestamp(),
         "trace_id": "5b8efff798038103d269b633813fc60c",
@@ -100,7 +110,8 @@ def test_trace_metric_extraction(
                 )
             },
             "sentry.payload_size_bytes": {
-                "intValue": "249",
+                # This is the size of the payload as sent, i.e. before normalization
+                "intValue": "139",
             },
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
             "sentry.client_sample_rate": {"doubleValue": 0.25},
@@ -145,7 +156,7 @@ def test_trace_metric_extraction(
             "project_id": 42,
             # Calculated byte size: name + value + attribute keys/values.
             # This is a billing relevant number, do not just adjust this because it changed.
-            "quantity": 249,
+            "quantity": 139,
         },
     ]
 
