@@ -2,11 +2,11 @@ use relay_event_schema::protocol::OurLog;
 use relay_ourlogs::VercelLog;
 
 use crate::integrations::VercelLogDrainFormat;
-use crate::processing::logs::{Error, Result};
+use crate::processing::logs::{Error, Result, Settings};
 use crate::services::outcome::DiscardReason;
 
 /// Expands Vercel logs into the [`OurLog`] format.
-pub fn expand<F>(format: VercelLogDrainFormat, payload: &[u8], mut produce: F) -> Result<()>
+pub fn expand<F>(format: VercelLogDrainFormat, payload: &[u8], mut produce: F) -> Result<Settings>
 where
     F: FnMut(OurLog),
 {
@@ -48,5 +48,5 @@ where
         return Err(Error::Invalid(DiscardReason::InvalidJson));
     }
 
-    Ok(())
+    Ok(Settings::default())
 }
