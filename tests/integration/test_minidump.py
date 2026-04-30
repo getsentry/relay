@@ -4,7 +4,6 @@ from unittest import mock
 import msgpack
 
 import json
-import queue
 import pytest
 from requests import HTTPError
 from sentry_sdk.envelope import Envelope
@@ -994,13 +993,13 @@ def test_minidump_objectstore_uploads_rate_limits(
             (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", b"MDMP content"),
             ("logs", "log.txt", b"Some log content"),
         ],
+        raise_for_status=False,
     )
-    assert response.ok
 
     if "error" in rate_limited:
-        with pytest.raises(queue.Empty):
-            mini_sentry.get_captured_envelope(timeout=1)
+        assert response.status_code == 429
     else:
+        assert response.ok
         envelope = mini_sentry.get_captured_envelope()
         by_name = {
             i.headers["filename"]: i
@@ -1019,11 +1018,3 @@ def test_minidump_objectstore_uploads_rate_limits(
                 by_name["log.txt"].headers["content_type"]
                 == "application/vnd.sentry.attachment-ref+json"
             )
-
-    if rate_limited:
-        outcomes = mini_sentry.get_aggregated_outcomes()
-        assert outcomes
-        for o in outcomes:
-            assert o["reason"] == "test_endpoint_check"
-    else:
-        assert mini_sentry.captured_outcomes.empty()

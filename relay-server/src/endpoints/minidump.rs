@@ -310,6 +310,15 @@ fn upload_context_for_project<'a>(
         .scoping(meta.public_key())
         .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
 
+    let rate_limits = project.rate_limits().current_limits().check_with_quotas(
+        project_config.get_quotas(),
+        scoping.item(DataCategory::Error),
+    );
+
+    if rate_limits.is_limited() {
+        return Err(BadStoreRequest::RateLimited(rate_limits));
+    }
+
     let attachment_rate_limits = || {
         project.rate_limits().current_limits().check_with_quotas(
             project_config.get_quotas(),
@@ -317,19 +326,10 @@ fn upload_context_for_project<'a>(
         )
     };
 
-    let event_rate_limits = || {
-        project.rate_limits().current_limits().check_with_quotas(
-            project_config.get_quotas(),
-            scoping.item(DataCategory::Error),
-        )
-    };
-
-    let upload_minidumps =
-        project_config.has_feature(Feature::MinidumpUploads) && !event_rate_limits().is_limited();
+    let upload_minidumps = project_config.has_feature(Feature::MinidumpUploads);
 
     let upload_attachments = project_config.has_feature(Feature::MinidumpAttachmentUploads)
-        && !attachment_rate_limits().is_limited()
-        && !event_rate_limits().is_limited();
+        && !attachment_rate_limits().is_limited();
 
     Ok(UploadContext {
         upload: state.upload(),
