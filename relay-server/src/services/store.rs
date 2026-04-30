@@ -439,7 +439,7 @@ impl StoreService {
                 // through `EnvelopeSummary`, but `Managed<Box<Envelope>>` does not.
                 // -> Reject the old way and return a dummy item.
                 envelope.reject(Outcome::Invalid(DiscardReason::Internal));
-                Err(Managed::with_meta_from(&envelope, ()).reject_err(error))
+                Err(Managed::with_meta_from_managed_envelope(&envelope, ()).reject_err(error))
             }
         }
     }

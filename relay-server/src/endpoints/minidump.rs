@@ -25,6 +25,7 @@ use crate::endpoints::common::{self, BadStoreRequest, TextResponse, upload_to_ob
 use crate::envelope::ContentType::Minidump;
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::extractors::{RawContentType, RequestMeta};
+use crate::managed::Managed;
 use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason};
@@ -189,9 +190,9 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
     async fn add_to_item(
         &self,
         field: Field<'static>,
-        item: Item,
+        item: Managed<Item>,
         config: &Config,
-    ) -> Result<Option<Item>, multer::Error> {
+    ) -> Result<Option<Managed<Item>>, multer::Error> {
         match self.upload_context {
             Some(UploadContext { upload, scoping })
                 if item.attachment_type() == Some(AttachmentType::Attachment) =>
@@ -214,11 +215,11 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
     }
 }
 
-async fn extract_multipart(
+async fn multipart_to_envelope(
     multipart: Multipart<'static>,
     meta: RequestMeta,
     state: &ServiceState,
-) -> Result<Box<Envelope>, BadStoreRequest> {
+) -> Result<Managed<Box<Envelope>>, BadStoreRequest> {
     let config = state.config();
 
     let upload_context = if should_fetch_project_config(state, meta.project_id()) {
@@ -237,34 +238,53 @@ async fn extract_multipart(
 
     let minidump_attachment_strategy = MinidumpAttachmentStrategy { upload_context };
 
-    let mut items = utils::multipart_items(multipart, config, minidump_attachment_strategy).await?;
+    let mut items = utils::multipart_items(
+        multipart,
+        config,
+        minidump_attachment_strategy,
+        &meta,
+        state.outcome_aggregator(),
+    )
+    .await?;
 
     let minidump_item = items
         .iter_mut()
         .find(|item| item.attachment_type() == Some(AttachmentType::Minidump))
         .ok_or(BadStoreRequest::MissingMinidump)?;
 
-    let embedded_opt = extract_embedded_minidump(minidump_item.payload()).await?;
-    if let Some(embedded) = embedded_opt {
-        minidump_item.set_payload(Minidump, embedded);
-    }
+    let payload = minidump_item.payload();
+    let payload = extract_embedded_minidump(payload.clone())
+        .await?
+        .unwrap_or(payload);
+    let payload = decode_minidump(payload, config.max_attachment_size())?;
 
-    minidump_item.set_payload(
-        Minidump,
-        decode_minidump(minidump_item.payload(), config.max_attachment_size())?,
-    );
+    minidump_item.modify(|inner, records| {
+        let old = inner.attachment_body_size() as isize;
+        inner.set_payload(Minidump, payload);
+        let new = inner.attachment_body_size() as isize;
+        records.modify_by(DataCategory::Attachment, new - old);
+    });
 
     validate_minidump(&minidump_item.payload())?;
 
-    if let Some(minidump_filename) = minidump_item.filename() {
-        minidump_item.set_filename(remove_container_extension(minidump_filename).to_owned());
-    }
+    minidump_item.modify(|inner, _| {
+        if let Some(minidump_filename) = inner.filename() {
+            inner.set_filename(remove_container_extension(minidump_filename).to_owned())
+        }
+    });
 
     let event_id = common::event_id_from_items(&items)?.unwrap_or_else(EventId::new);
-    let mut envelope = Envelope::from_request(Some(event_id), meta);
-
+    let envelope = Envelope::from_request(Some(event_id), meta);
+    let mut envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
+    let mut has_event = false;
     for item in items {
-        envelope.add_item(item);
+        envelope.merge_with(item, |envelope, item, records| {
+            if !has_event && item.creates_event() {
+                records.modify_by(DataCategory::Error, 1);
+                has_event = true;
+            }
+            envelope.add_item(item);
+        });
     }
 
     Ok(envelope)
@@ -320,21 +340,32 @@ fn upload_context_for_project<'a>(
     }
 }
 
-fn extract_raw_minidump(
+fn raw_minidump_to_envelope(
     data: Bytes,
     meta: RequestMeta,
-    max_size: usize,
-) -> Result<Box<Envelope>, BadStoreRequest> {
+    state: &ServiceState,
+) -> Result<Managed<Box<Envelope>>, BadStoreRequest> {
     let mut item = Item::new(ItemType::Attachment);
-
-    item.set_payload(Minidump, decode_minidump(data, max_size)?);
-    validate_minidump(&item.payload())?;
     item.set_filename(MINIDUMP_FILE_NAME);
     item.set_attachment_type(AttachmentType::Minidump);
+    item.set_payload(Minidump, data.clone());
+    let mut item = Managed::with_meta_from_request_meta(&meta, state.outcome_aggregator(), item);
+    let decoded_payload = decode_minidump(data, state.config().max_attachment_size())?;
+    item.modify(|inner, records| {
+        let old = inner.attachment_body_size() as isize;
+        inner.set_payload(Minidump, decoded_payload);
+        let new = inner.attachment_body_size() as isize;
+        records.modify_by(DataCategory::Attachment, new - old);
+    });
+    validate_minidump(&item.payload())?;
 
     // Create an envelope with a random event id.
-    let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
-    envelope.add_item(item);
+    let envelope = Envelope::from_request(Some(EventId::new()), meta);
+    let mut envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
+    envelope.merge_with(item, |envelope, item, records| {
+        records.modify_by(DataCategory::Error, 1);
+        envelope.add_item(item);
+    });
     Ok(envelope)
 }
 
@@ -349,18 +380,17 @@ async fn handle(
     // Minidump request payloads do not have the same structure as usual events from other SDKs. The
     // minidump can either be transmitted as request body, or as `upload_file_minidump` in a
     // multipart formdata request.
-    let config = state.config();
     let envelope = if MINIDUMP_RAW_CONTENT_TYPES.contains(&content_type.as_ref()) {
-        extract_raw_minidump(request.extract().await?, meta, config.max_attachment_size())?
+        raw_minidump_to_envelope(request.extract().await?, meta, &state)?
     } else {
         let multipart = utils::multipart_from_request(request)?;
-        extract_multipart(multipart, meta, &state).await?
+        multipart_to_envelope(multipart, meta, &state).await?
     };
 
     let id = envelope.event_id();
 
     // Never respond with a 429 since clients often retry these
-    common::handle_envelope(&state, envelope)
+    common::handle_managed_envelope(&state, envelope)
         .await?
         .ignore_rate_limits();
 
@@ -541,6 +571,11 @@ mod tests {
 
         let config = Config::default();
 
+        let request_meta = RequestMeta::new(
+            "https://a94ae32be2582e0bbd7a4cbb95971fee:@sentry.io/42"
+                .parse()
+                .unwrap(),
+        );
         let multipart = utils::multipart_from_request(request).unwrap();
         let items = utils::multipart_items(
             multipart,
@@ -548,6 +583,8 @@ mod tests {
             MinidumpAttachmentStrategy {
                 upload_context: None,
             },
+            &request_meta,
+            &Addr::dummy(),
         )
         .await
         .unwrap();

@@ -18,6 +18,7 @@ use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
 use crate::envelope::ContentType::OctetStream;
 use crate::envelope::{AttachmentType, Envelope, Item};
 use crate::extractors::{RawContentType, RequestMeta};
+use crate::managed::Managed;
 use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::DiscardReason;
@@ -83,9 +84,9 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
     async fn add_to_item(
         &self,
         field: Field<'static>,
-        item: Item,
+        item: Managed<Item>,
         config: &Config,
-    ) -> Result<Option<Item>, multer::Error> {
+    ) -> Result<Option<Managed<Item>>, multer::Error> {
         match self.upload_service {
             Some(upload) if self.infer_type(&field) != AttachmentType::Prosperodump => {
                 Ok(common::upload_to_objectstore(
@@ -120,12 +121,12 @@ fn validate_prosperodump(data: &[u8]) -> Result<(), BadStoreRequest> {
     Ok(())
 }
 
-async fn extract_multipart(
+async fn multipart_to_envelope(
     multipart: Multipart<'static>,
     meta: RequestMeta,
     state: &ServiceState,
     project: &Project<'_>,
-) -> Result<Box<Envelope>, BadStoreRequest> {
+) -> Result<Managed<Box<Envelope>>, BadStoreRequest> {
     let project_config = project
         .state()
         .clone()
@@ -147,22 +148,36 @@ async fn extract_multipart(
         scoping,
         upload_service,
     };
-    let mut items = utils::multipart_items(multipart, state.config(), attachment_strategy).await?;
+    let mut items = utils::multipart_items(
+        multipart,
+        state.config(),
+        attachment_strategy,
+        &meta,
+        state.outcome_aggregator(),
+    )
+    .await?;
 
     let prosperodump_item = items
         .iter_mut()
         .find(|item| item.attachment_type() == Some(AttachmentType::Prosperodump))
         .ok_or(BadStoreRequest::MissingProsperodump)?;
 
-    prosperodump_item.set_payload(OctetStream, prosperodump_item.payload());
+    prosperodump_item.modify(|inner, _| inner.set_payload(OctetStream, inner.payload()));
 
     validate_prosperodump(&prosperodump_item.payload())?;
 
     let event_id = common::event_id_from_items(&items)?.unwrap_or_else(EventId::new);
-    let mut envelope = Envelope::from_request(Some(event_id), meta);
-
+    let envelope = Envelope::from_request(Some(event_id), meta);
+    let mut envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
+    let mut has_event = false;
     for item in items {
-        envelope.add_item(item);
+        envelope.merge_with(item, |envelope, item, records| {
+            if !has_event && item.creates_event() {
+                records.modify_by(DataCategory::Error, 1);
+                has_event = true;
+            }
+            envelope.add_item(item);
+        });
     }
 
     Ok(envelope)
@@ -187,13 +202,13 @@ async fn handle(
         .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
 
     let multipart = utils::multipart_from_request(request)?;
-    let mut envelope = extract_multipart(multipart, meta, &state, &project).await?;
-    envelope.require_feature(Feature::PlaystationIngestion);
+    let mut envelope = multipart_to_envelope(multipart, meta, &state, &project).await?;
+    envelope.modify(|inner, _| inner.require_feature(Feature::PlaystationIngestion));
 
     let id = envelope.event_id();
 
     // Never respond with a 429 since clients often retry these
-    common::handle_envelope(&state, envelope)
+    common::handle_managed_envelope(&state, envelope)
         .await?
         .ignore_rate_limits();
 
