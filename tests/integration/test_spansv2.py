@@ -24,9 +24,7 @@ def envelope_with_spans(*payloads: dict, trace_info=None, metadata=None) -> Enve
     envelope.add_item(
         Item(
             type="span",
-            payload=PayloadRef(
-                json={"items": payloads, **(metadata if metadata is not None else {})}
-            ),
+            payload=PayloadRef(json={"items": payloads, **(metadata or {})}),
             content_type="application/vnd.sentry.items.span.v2+json",
             headers={"item_count": len(payloads)},
         )

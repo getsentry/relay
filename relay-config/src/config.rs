@@ -1737,7 +1737,7 @@ pub struct Upload {
 impl Default for Upload {
     fn default() -> Self {
         Self {
-            max_concurrent_requests: 10,
+            max_concurrent_requests: 100,
             timeout: 5 * 60,  // five minutes
             max_age: 60 * 60, // 1h
         }

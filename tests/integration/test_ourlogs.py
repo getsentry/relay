@@ -29,12 +29,12 @@ TEST_CONFIG = {
 }
 
 
-def envelope_with_sentry_logs(*payloads: dict) -> Envelope:
+def envelope_with_sentry_logs(*payloads: dict, metadata=None) -> Envelope:
     envelope = Envelope()
     envelope.add_item(
         Item(
             type="log",
-            payload=PayloadRef(json={"items": payloads}),
+            payload=PayloadRef(json={"items": payloads, **(metadata or {})}),
             content_type="application/vnd.sentry.items.log+json",
             headers={"item_count": len(payloads)},
         )
@@ -333,7 +333,8 @@ def test_ourlog_extraction_with_sentry_logs(
                 ts, delta=timedelta(seconds=1), expect_resolution="ns"
             ),
             "traceId": "5b8efff798038103d269b633813fc60c",
-            **(
+            **_if_dict(
+                eap_emits_outcomes,
                 {
                     "outcomes": {
                         "categoryCount": [
@@ -348,9 +349,7 @@ def test_ourlog_extraction_with_sentry_logs(
                         ],
                         "keyId": "123",
                     }
-                }
-                if eap_emits_outcomes
-                else {}
+                },
             ),
         },
         {
@@ -418,7 +417,8 @@ def test_ourlog_extraction_with_sentry_logs(
                 ts, delta=timedelta(seconds=1), expect_resolution="ns"
             ),
             "traceId": "5b8efff798038103d269b633813fc60c",
-            **(
+            **_if_dict(
+                eap_emits_outcomes,
                 {
                     "outcomes": {
                         "categoryCount": [
@@ -433,9 +433,7 @@ def test_ourlog_extraction_with_sentry_logs(
                         ],
                         "keyId": "123",
                     }
-                }
-                if eap_emits_outcomes
-                else {}
+                },
             ),
         },
     ]
@@ -621,10 +619,9 @@ def test_ourlog_default_pii_body(
     log = item_payload["items"][0]
 
     assert log == {
-        **(
-            {"_meta": {"body": {"": {"len": mock.ANY, "rem": mock.ANY}}}}
-            if non_destructive.scrubs()
-            else {}
+        **_if_dict(
+            non_destructive.scrubs(),
+            {"_meta": {"body": {"": {"len": mock.ANY, "rem": mock.ANY}}}},
         ),
         "attributes": mock.ANY,
         "body": non_destructive.expected_output,
@@ -1099,3 +1096,94 @@ def test_time_corrections(mini_sentry, relay, delta, error):
         "timestamp": time_within_delta(ts),
         "trace_id": "5b8efff798038103d269b633813fc60c",
     }
+
+
+@pytest.mark.parametrize(
+    "metadata,client_ip,browser",
+    [
+        ({}, False, True),
+        ({"version": 2}, False, False),
+        (
+            {
+                "version": 2,
+                "ingest_settings": {"infer_ip": "auto", "infer_user_agent": "auto"},
+            },
+            True,
+            True,
+        ),
+    ],
+)
+def test_ourlog_container_metadata(
+    mini_sentry,
+    relay,
+    metadata,
+    client_ip,
+    browser,
+):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+    ]
+
+    relay = relay(mini_sentry, TEST_CONFIG)
+
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_sentry_logs(
+        {
+            "timestamp": ts.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+            "level": "info",
+            "body": "Test log",
+        },
+        metadata=metadata,
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.get_captured_envelope()
+    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    item = item_payload["items"][0]
+
+    assert item == {
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "span_id": "eee19b7ec3c1b175",
+        "attributes": {
+            **_if_dict(
+                client_ip,
+                {
+                    "client.address": {
+                        "type": "string",
+                        "value": "127.0.0.1",
+                    }
+                },
+            ),
+            **_if_dict(
+                browser,
+                {
+                    "sentry.browser.name": {
+                        "type": "string",
+                        "value": "Python Requests",
+                    },
+                    "sentry.browser.version": {
+                        "type": "string",
+                        "value": "2.32",
+                    },
+                },
+            ),
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(ts, expect_resolution="ns"),
+            },
+        },
+        "__header": mock.ANY,
+        "body": "Test log",
+        "level": "info",
+        "timestamp": time_within(ts),
+    }
+
+
+def _if_dict(cond, then):
+    return then if cond else {}

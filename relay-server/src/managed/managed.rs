@@ -231,6 +231,23 @@ impl<T: Counted> Managed<T> {
         meta.scoping = scoping;
     }
 
+    /// Merge [`Self`] with another [`Managed`] instance using a mapping function.
+    ///
+    /// The caller's closure is expected to merge `other`'s inner value into `self`'s inner value.
+    /// The outcome records of `self` are automatically offset by the records of `other`.
+    pub fn merge_with<S, F>(&mut self, other: Managed<S>, f: F)
+    where
+        S: Counted,
+        F: FnOnce(&mut T, S, &mut RecordKeeper),
+    {
+        self.modify(|s, records| {
+            for (category, quantity) in other.quantities() {
+                records.modify_by(category, quantity as isize);
+            }
+            other.accept(|o| f(s, o, records));
+        })
+    }
+
     /// Splits [`Self`] into two other [`Managed`] items.
     ///
     /// The two resulting managed instances together are expected to have the same outcomes as the original instance..
@@ -1087,6 +1104,7 @@ where
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     struct CountedVec(Vec<u32>);
@@ -1117,6 +1135,35 @@ mod tests {
         // Now dropping the manged instance, should not record any (internal) outcomes either.
         drop(managed);
         handle.assert_no_outcomes();
+    }
+
+    #[test]
+    fn test_merge() {
+        let (mut a, mut handle_a) = Managed::for_test(CountedVec(vec![1, 2])).build();
+        let (b, mut handle_b) = Managed::for_test(CountedVec(vec![3, 4])).build();
+
+        a.merge_with(b, |a, b, _| a.0.extend(b.0));
+
+        assert_eq!(a.0, vec![1, 2, 3, 4]);
+        drop(a);
+        handle_a.assert_internal_outcome(DataCategory::Error, 4);
+        handle_b.assert_no_outcomes();
+    }
+
+    #[test]
+    fn test_merge_mismatched_records_should_panic() {
+        let (mut a, mut handle_a) = Managed::for_test(CountedVec(vec![1, 2])).build();
+        let (b, _handle_b) = Managed::for_test(CountedVec(vec![3, 4])).build();
+
+        let r = std::panic::catch_unwind(move || {
+            a.merge_with(b, |_a, _b, _| {});
+        });
+
+        assert!(
+            r.is_err(),
+            "expected merge to panic because of mismatched outcome records"
+        );
+        handle_a.assert_internal_outcome(DataCategory::Error, 2);
     }
 
     #[test]
