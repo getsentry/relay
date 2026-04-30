@@ -37,6 +37,10 @@ static IGNORED_REQUEST_HEADERS: &[HeaderName] = &[
     header::HOST,
     header::CONTENT_ENCODING,
     header::CONTENT_LENGTH,
+    header::FORWARDED,
+    HeaderName::from_static("X-Forwarded-For"),
+    HeaderName::from_static("X-Forwarded-Host"),
+    HeaderName::from_static("X-Forwarded-Proto"),
 ];
 
 /// Default timeout for the forward request.
@@ -184,7 +188,9 @@ impl UpstreamRequest for ForwardRequest {
         }
 
         if let Some(forwarded_for) = &self.forwarded_for {
-            builder.header("X-Forwarded-For", forwarded_for.as_ref());
+            // Never set `X-Forwarded-For` here, we want to ensure the upstream knows, that this
+            // is not a trusted value.
+            builder.header("X-Sentry-Forwarded-For", forwarded_for.as_ref());
         }
 
         let Some(body) = self.body.take() else {
@@ -273,6 +279,8 @@ impl ForwardRequestBuilder {
     ///
     /// The builder takes care of removing headers which can or should not be forwarded to a
     /// different http server.
+    ///
+    /// To set a forwarded for header [`with_forwarded_for`] must be used.
     pub fn with_headers(mut self, mut headers: HeaderMap) -> Self {
         let headers_to_remove = HOP_BY_HOP_HEADERS.iter().chain(IGNORED_REQUEST_HEADERS);
         for header in headers_to_remove {
@@ -284,6 +292,11 @@ impl ForwardRequestBuilder {
     }
 
     /// Adds an optional forwarded for header.
+    ///
+    /// This sets `X-Sentry-Forwarded-For` and not `X-Forwarded-For` to ensure there is no
+    /// accidental confusion of the forwarded header with the upstream.
+    /// `X-Sentry-Forwarded-For` is an inherently untrusted header and can be used to infer client
+    /// ip addresses only for telemetry purposes, never for authentication.
     pub fn with_forwarded_for(mut self, ff: impl Into<Option<ForwardedFor>>) -> Self {
         self.request.forwarded_for = ff.into();
         self
