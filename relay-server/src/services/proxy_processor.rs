@@ -57,7 +57,7 @@ impl ProxyProcessorService {
             scoping,
         } = message;
 
-        let upstream = self.config.upstream_descriptor();
+        let upstream = self.config.upstream();
         let dsn = PartialDsn::outbound(&scoping, upstream);
 
         let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
@@ -96,7 +96,7 @@ impl ProxyProcessorService {
         match result {
             Ok(body) => {
                 self.addrs.upstream_relay.send(SendRequest(SendEnvelope {
-                    envelope: envelope.into_processed(),
+                    envelope,
                     body,
                     http_encoding,
                     project_cache: self.project_cache.clone(),

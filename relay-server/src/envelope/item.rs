@@ -119,7 +119,6 @@ impl Item {
             ItemType::Security | ItemType::RawSecurity => {
                 smallvec![(DataCategory::Security, item_count)]
             }
-            ItemType::Nel => smallvec![],
             ItemType::UnrealReport => smallvec![(DataCategory::Error, item_count)],
             ItemType::Attachment => smallvec![
                 (DataCategory::Attachment, self.attachment_body_size()),
@@ -177,11 +176,11 @@ impl Item {
                 (DataCategory::SpanIndexed, item_count),
             ],
             ItemType::Integration => match self.integration() {
-                Some(Integration::Logs(LogsIntegration::OtelV1 { .. })) => smallvec![
-                    (DataCategory::LogByte, self.len().max(1)),
-                    (DataCategory::LogItem, item_count),
-                ],
-                Some(Integration::Logs(LogsIntegration::VercelDrainLog { .. })) => smallvec![
+                Some(Integration::Logs(
+                    LogsIntegration::Nel
+                    | LogsIntegration::OtelV1 { .. }
+                    | LogsIntegration::VercelDrainLog { .. },
+                )) => smallvec![
                     (DataCategory::LogByte, self.len().max(1)),
                     (DataCategory::LogItem, item_count),
                 ],
@@ -563,6 +562,18 @@ impl Item {
             && self.content_type() == Some(ContentType::AttachmentRef)
     }
 
+    /// Returns `true` if this item was extracted from an Unreal report.
+    pub fn is_unreal_expanded(&self) -> bool {
+        self.headers
+            .get(ItemHeaderKey::UnrealExpanded)
+            .unwrap_or(false)
+    }
+
+    /// Marks this item as having been extracted from an Unreal report.
+    pub fn set_unreal_expanded(&mut self, expanded: bool) {
+        self.headers.set(ItemHeaderKey::UnrealExpanded, expanded);
+    }
+
     /// Returns the [`AttachmentParentType`] of an attachment.
     ///
     /// For standard attachments (V1) always returns [`AttachmentParentType::Event`].
@@ -677,7 +688,6 @@ impl Item {
             | ItemType::Profile
             | ItemType::CheckIn
             | ItemType::Span
-            | ItemType::Nel
             | ItemType::Log
             | ItemType::TraceMetric
             | ItemType::ProfileChunk => false,
@@ -701,7 +711,6 @@ impl Item {
             ItemType::Attachment => true,
             ItemType::FormData => true,
             ItemType::RawSecurity => true,
-            ItemType::Nel => false,
             ItemType::UnrealReport => true,
             ItemType::UserReport => true,
             ItemType::UserReportV2 => true,
@@ -779,8 +788,6 @@ pub enum ItemType {
     FormData,
     /// Security report as sent by the browser in JSON.
     RawSecurity,
-    /// NEL report as sent by the browser.
-    Nel,
     /// Raw compressed UE4 crash report.
     UnrealReport,
     /// User feedback encoded as JSON.
@@ -836,7 +843,7 @@ impl ItemType {
     /// Returns the event item type corresponding to the given `EventType`.
     pub fn from_event_type(event_type: EventType) -> Self {
         match event_type {
-            EventType::Default | EventType::Error | EventType::Nel => ItemType::Event,
+            EventType::Default | EventType::Error => ItemType::Event,
             EventType::Transaction => ItemType::Transaction,
             EventType::UserReportV2 => ItemType::UserReportV2,
             EventType::Csp | EventType::Hpkp | EventType::ExpectCt | EventType::ExpectStaple => {
@@ -856,7 +863,6 @@ impl ItemType {
             Self::Attachment => "attachment",
             Self::FormData => "form_data",
             Self::RawSecurity => "raw_security",
-            Self::Nel => "nel",
             Self::UnrealReport => "unreal_report",
             Self::UserReport => "user_report",
             Self::UserReportV2 => "feedback",
@@ -916,7 +922,6 @@ impl ItemType {
             ItemType::Attachment => false,
             ItemType::FormData => false,
             ItemType::RawSecurity => false,
-            ItemType::Nel => false,
             ItemType::UnrealReport => false,
             ItemType::UserReport => false,
             ItemType::Session => true,
@@ -957,7 +962,6 @@ impl std::str::FromStr for ItemType {
             "attachment" => Self::Attachment,
             "form_data" => Self::FormData,
             "raw_security" => Self::RawSecurity,
-            "nel" => Self::Nel,
             "unreal_report" => Self::UnrealReport,
             "user_report" => Self::UserReport,
             "feedback" => Self::UserReportV2,
@@ -1071,6 +1075,8 @@ pub enum ItemHeaderKey {
     SentryRelease,
     /// The Sentry environment stored in a header.
     SentryEnvironment,
+    /// Whether this item was expanded from an Unreal crash report.
+    UnrealExpanded,
 }
 
 /// The value of an item header.

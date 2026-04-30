@@ -2,6 +2,51 @@
 
 ## Unreleased
 
+**Features**:
+
+- Implement client/sdk controlled ingestion settings for v2 span containers. ([#5881](https://github.com/getsentry/relay/pull/5881))
+- Implement client/sdk controlled ingestion settings for v2 log containers. ([#5887](https://github.com/getsentry/relay/pull/5887))
+- Update several `gen_ai` attributes to their latest representation. ([#5798](https://github.com/getsentry/relay/pull/5798))
+
+**Bug Fixes**:
+
+- Backfill `app.vitals.start.value` and `app.vitals.start.type` for V1 transactions from `app_start_cold` and `app_start_warm`, matching existing V2 behavior. ([#5883](https://github.com/getsentry/relay/pull/5883))
+- The PII rule for `token` is less strict to not always scrub usage in LLM contexts. ([#5886](https://github.com/getsentry/relay/pull/5886))
+- Respond with status code 413 when chunked multipart requests are too large. ([#5880](https://github.com/getsentry/relay/pull/5880))
+
+**Internal**:
+
+- Stream attachments received at `/minidump` to objectstore. ([#5877](https://github.com/getsentry/relay/pull/5877))
+- Distinguish between objectstore stream timeouts and regular timeouts on a config level. ([#5878](https://github.com/getsentry/relay/pull/5878))
+
+
+## 26.4.1
+
+**Breaking Changes**:
+
+- Docker images are no longer published to Docker Hub, use the Github Container Registry instead ([see documentation](https://github.com/getsentry/relay/pkgs/container/relay)). ([#5845](https://github.com/getsentry/relay/pull/5845))
+
+**Features**:
+
+- Use `ModelMetadata` config with context size and utilization. ([#5814](https://github.com/getsentry/relay/pull/5814))
+- Handle minidump placeholders. ([#5849](https://github.com/getsentry/relay/pull/5849))
+- Add config option to spread envelopes evenly across buffer partitions. ([#5853](https://github.com/getsentry/relay/pull/5853))
+
+**Internal**:
+
+- Move unreal crash report expansion from processing into endpoint. ([#5825](https://github.com/getsentry/relay/pull/5825))
+- Ports legacy standalone span processing to the processing framework. ([#5852](https://github.com/getsentry/relay/pull/5852))
+- Retry failing objectstore requests. ([#5836](https://github.com/getsentry/relay/pull/5836))
+- Add mobile normalizations to SpanV2 processing pipeline (mobile tag, main thread, outlier filtering, app start backfill from V1 transactions, device class). ([#5824](https://github.com/getsentry/relay/pull/5824))
+- Remove the deprecated `aiModelCosts` global config, superseded by `aiModelMetadata`. ([#5862](https://github.com/getsentry/relay/pull/5862))
+
+**Bug Fixes**:
+
+- Respond with 429 if otlp logs are rate limited, as per spec. ([#5841](https://github.com/getsentry/relay/pull/5841))
+- Respect rate limit silencing also when all items are rate limited. ([#5840](https://github.com/getsentry/relay/pull/5840))
+
+## 26.4.0
+
 **Breaking Changes**:
 
 - To prevent false positives, non-public email addresses (e.g. `user@localhost`) are no longer scrubbed by default. ([#5737](https://github.com/getsentry/relay/pull/5737))
@@ -32,6 +77,7 @@
 
 **Internal**:
 
+- Update trace metric PII scrubbing to use `relay_pii::eap::scrub`. ([#5815](https://github.com/getsentry/relay/pull/5815))
 - Calculate and track accepted bytes per individual trace metric item via `TraceMetricByte` data category. ([#5744](https://github.com/getsentry/relay/pull/5744), [#5767](https://github.com/getsentry/relay/pull/5767))
 - Graduate standalone span ingestion feature flag. ([#5786](https://github.com/getsentry/relay/pull/5786))
 - Remove cardinality limiter. ([#5809](https://github.com/getsentry/relay/pull/5809))

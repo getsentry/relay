@@ -76,7 +76,7 @@ mod logs {
 
         common::handle_envelope(&state, envelope)
             .await?
-            .ignore_rate_limits();
+            .check_rate_limits()?;
 
         Ok(StatusCode::OK)
     }

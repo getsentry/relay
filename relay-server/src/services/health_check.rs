@@ -86,7 +86,7 @@ pub struct HealthCheckService {
     memory_checker: MemoryChecker,
     aggregator: Option<RouterHandle>,
     upstream_relay: Addr<UpstreamRelay>,
-    envelope_buffer: PartitionedEnvelopeBuffer,
+    envelope_buffer: Arc<PartitionedEnvelopeBuffer>,
 }
 
 impl HealthCheckService {
@@ -96,7 +96,7 @@ impl HealthCheckService {
         memory_checker: MemoryChecker,
         aggregator: Option<RouterHandle>,
         upstream_relay: Addr<UpstreamRelay>,
-        envelope_buffer: PartitionedEnvelopeBuffer,
+        envelope_buffer: Arc<PartitionedEnvelopeBuffer>,
     ) -> Self {
         Self {
             config,

@@ -10,6 +10,12 @@ repos:
     hooks:
       # Configuration for black exists in pyproject.toml,
       # but we let pre-commit take care of the file filtering.
+      - id: black_diff
+        name: black_diff
+        entry: .venv/bin/black --diff --check
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
       - id: black
         name: black
         entry: .venv/bin/black

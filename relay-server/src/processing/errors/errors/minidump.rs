@@ -26,11 +26,8 @@ impl SentryError for Minidump {
         let mut event = utils::take_event_from_crash_items(items, &mut metrics, ctx)?;
 
         utils::if_processing!(ctx, {
-            crate::utils::process_minidump(
-                event.get_or_insert_with(Default::default),
-                &minidump.payload(),
-            );
-            metrics.bytes_ingested_event_minidump = (minidump.len() as u64).into();
+            crate::utils::process_minidump(event.get_or_insert_with(Default::default), &minidump);
+            metrics.bytes_ingested_event_minidump = (minidump.attachment_body_size() as u64).into();
         });
 
         Ok(Some(Expansion {

@@ -7,6 +7,8 @@ use serde::Serialize;
 use crate::processor::ProcessValue;
 use crate::protocol::{Attributes, OperationType, SpanId, Timestamp, TraceId};
 
+pub mod container;
+
 /// A version 2 (transactionless) span.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct SpanV2 {

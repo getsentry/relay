@@ -38,7 +38,7 @@ pub fn scrub<T: ProcessValue>(
 #[cfg(test)]
 mod tests {
     use relay_event_schema::processor::ValueType;
-    use relay_event_schema::protocol::{Attributes, OurLog, SpanV2};
+    use relay_event_schema::protocol::{Attributes, OurLog, SpanV2, TraceMetric};
     use relay_protocol::{Annotated, SerializableAnnotated};
 
     use crate::{DataScrubbingConfig, PiiConfig, eap};
@@ -858,6 +858,32 @@ mod tests {
                 eap::scrub(ValueType::OurLog, &mut log, Some(&config), scrubbing_config.as_ref()).unwrap();
 
                 insta::allow_duplicates!(insta::assert_json_snapshot!(SerializableAnnotated(&log.value().unwrap().attributes), @$snapshot));
+
+                let metric_json = format!(r#"{{
+                    "timestamp": 1544719860.0,
+                    "trace_id": "5b8efff798038103d269b633813fc60c",
+                    "name": "test.metric",
+                    "type": "counter",
+                    "value": 1.0,
+                    "attributes": {{
+                        "{rule_type}|{value}": {{
+                            "type": "string",
+                            "value": "{value}"
+                        }}
+                    }}
+                }}"#,
+                rule_type = $rule_type,
+                value = $test_value
+                    .replace('\\', "\\\\")
+                    .replace('"', "\\\"")
+                    .replace('\n', "\\n")
+                );
+
+                let mut metric = Annotated::<TraceMetric>::from_json(&metric_json).unwrap();
+
+                eap::scrub(ValueType::TraceMetric, &mut metric, Some(&config), scrubbing_config.as_ref()).unwrap();
+
+                insta::allow_duplicates!(insta::assert_json_snapshot!(SerializableAnnotated(&metric.value().unwrap().attributes), @$snapshot));
             }
         };
     }

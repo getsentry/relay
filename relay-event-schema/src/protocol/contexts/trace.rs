@@ -112,6 +112,12 @@ impl From<Uuid> for TraceId {
     }
 }
 
+impl From<TraceId> for Uuid {
+    fn from(trace_id: TraceId) -> Self {
+        trace_id.0
+    }
+}
+
 impl Deref for TraceId {
     type Target = Uuid;
 

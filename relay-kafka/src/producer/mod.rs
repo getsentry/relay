@@ -53,7 +53,7 @@ pub enum ClientError {
 
     /// Failed to serialize the json message using serde.
     #[error("failed to serialize json message")]
-    InvalidJson(#[source] serde_json::Error),
+    InvalidJson(#[from] serde_json::Error),
 
     /// Failed to run schema validation on message.
     #[cfg(debug_assertions)]
@@ -214,6 +214,8 @@ impl Producer {
             return Err(ClientError::MissingTopic);
         };
 
+        relay_log::configure_scope(|s| s.set_tag("topic", topic_name));
+
         let producer_name = producer.context().producer_name();
 
         metric!(
@@ -272,12 +274,6 @@ impl Producer {
         });
 
         producer.send(record).map_err(|(error, _message)| {
-            relay_log::error!(
-                error = &error as &dyn std::error::Error,
-                tags.variant = variant,
-                tags.topic = topic_name,
-                "error sending kafka message",
-            );
             metric!(
                 counter(KafkaCounters::ProducerEnqueueError) += 1,
                 variant = variant,
@@ -362,7 +358,7 @@ impl KafkaClient {
     /// Sends the payload to the correct producer for the current topic.
     ///
     /// Returns the name of the Kafka topic to which the message was produced.
-    pub fn send(
+    fn send(
         &self,
         topic: KafkaTopic,
         key: Option<Key>,
@@ -370,12 +366,10 @@ impl KafkaClient {
         variant: &str,
         payload: &[u8],
     ) -> Result<&str, ClientError> {
-        let producer = self.producers.get(&topic).ok_or_else(|| {
-            relay_log::error!(
-                "attempted to send message to {topic:?} using an unconfigured kafka producer",
-            );
-            ClientError::InvalidTopicName
-        })?;
+        let producer = self
+            .producers
+            .get(&topic)
+            .ok_or_else(|| ClientError::InvalidTopicName)?;
 
         producer.send(key, headers, variant, payload)
     }

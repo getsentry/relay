@@ -1,7 +1,7 @@
 //! AI cost calculation.
 
 use crate::statsd::{Counters, map_origin_to_integration, platform_tag};
-use crate::{ModelCostV2, ModelCosts};
+use crate::{ModelCostV2, ModelMetadata};
 use relay_event_schema::protocol::{
     Event, Measurements, OperationType, Span, SpanData, TraceContext,
 };
@@ -261,11 +261,38 @@ fn set_total_tokens(data: &mut SpanData) {
     }
 }
 
+/// Sets the context window size and utilization for the model.
+fn extract_context_utilization(data: &mut SpanData, model_metadata: &ModelMetadata) {
+    let model_id = data
+        .gen_ai_response_model
+        .value()
+        .and_then(|val| val.as_str());
+
+    let context_size = model_id.and_then(|id| model_metadata.context_size(id));
+
+    let Some(context_size) = context_size else {
+        return;
+    };
+
+    data.gen_ai_context_window_size
+        .set_value(Value::U64(context_size).into());
+
+    let total_tokens = data
+        .gen_ai_usage_total_tokens
+        .value()
+        .and_then(Value::as_f64);
+
+    if let Some(total_tokens) = total_tokens {
+        data.gen_ai_context_utilization
+            .set_value(Value::F64(total_tokens / context_size as f64).into());
+    }
+}
+
 /// Extract the additional data into the span
 fn extract_ai_data(
     data: &mut SpanData,
     duration: f64,
-    ai_model_costs: &ModelCosts,
+    model_metadata: &ModelMetadata,
     origin: Option<&str>,
     platform: Option<&str>,
 ) {
@@ -281,6 +308,8 @@ fn extract_ai_data(
             .set_value(Value::F64(output_tokens / (duration / 1000.0)).into());
     }
 
+    extract_context_utilization(data, model_metadata);
+
     // Extracts the total cost of the AI model used
     if let Some(model_id) = data
         .gen_ai_response_model
@@ -288,7 +317,7 @@ fn extract_ai_data(
         .and_then(|val| val.as_str())
     {
         extract_ai_model_cost_data(
-            ai_model_costs.cost_per_token(model_id),
+            model_metadata.cost_per_token(model_id),
             data,
             origin,
             platform,
@@ -309,7 +338,7 @@ fn enrich_ai_span_data(
     span_op: &Annotated<OperationType>,
     measurements: &Annotated<Measurements>,
     duration: f64,
-    model_costs: Option<&ModelCosts>,
+    model_metadata: Option<&ModelMetadata>,
     origin: Option<&str>,
     platform: Option<&str>,
 ) {
@@ -337,8 +366,8 @@ fn enrich_ai_span_data(
         data.gen_ai_agent_name.set_value(Some(function_id));
     }
 
-    if let Some(model_costs) = model_costs {
-        extract_ai_data(data, duration, model_costs, origin, platform);
+    if let Some(model_metadata) = model_metadata {
+        extract_ai_data(data, duration, model_metadata, origin, platform);
     } else {
         relay_statsd::metric!(
             counter(Counters::GenAiCostCalculationResult) += 1,
@@ -360,7 +389,7 @@ fn enrich_ai_span_data(
 }
 
 /// Enrich the AI span data
-pub fn enrich_ai_span(span: &mut Span, model_costs: Option<&ModelCosts>) {
+pub fn enrich_ai_span(span: &mut Span, model_metadata: Option<&ModelMetadata>) {
     let duration = span
         .get_value("span.duration")
         .and_then(|v| v.as_f64())
@@ -371,14 +400,14 @@ pub fn enrich_ai_span(span: &mut Span, model_costs: Option<&ModelCosts>) {
         &span.op,
         &span.measurements,
         duration,
-        model_costs,
+        model_metadata,
         span.origin.as_str(),
         span.platform.as_str(),
     );
 }
 
 /// Extract the ai data from all of an event's spans
-pub fn enrich_ai_event_data(event: &mut Event, model_costs: Option<&ModelCosts>) {
+pub fn enrich_ai_event_data(event: &mut Event, model_metadata: Option<&ModelMetadata>) {
     let event_duration = event
         .get_value("event.duration")
         .and_then(|v| v.as_f64())
@@ -395,7 +424,7 @@ pub fn enrich_ai_event_data(event: &mut Event, model_costs: Option<&ModelCosts>)
             &trace_context.op,
             &event.measurements,
             event_duration,
-            model_costs,
+            model_metadata,
             trace_context.origin.as_str(),
             event.platform.as_str(),
         );
@@ -415,7 +444,7 @@ pub fn enrich_ai_event_data(event: &mut Event, model_costs: Option<&ModelCosts>)
             &span.op,
             &span.measurements,
             span_duration,
-            model_costs,
+            model_metadata,
             span.origin.as_str(),
             span_platform,
         );
@@ -439,10 +468,14 @@ fn is_ai_span(span_data: &Annotated<SpanData>, span_op: Option<&OperationType>) 
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use relay_pattern::Pattern;
     use relay_protocol::{FromValue, assert_annotated_snapshot};
     use serde_json::json;
 
     use super::*;
+    use crate::ModelMetadataEntry;
 
     fn ai_span_with_data(data: serde_json::Value) -> Span {
         Span {
@@ -1066,5 +1099,137 @@ mod tests {
           ]
         }
         "#);
+    }
+
+    fn metadata_with_context_size() -> ModelMetadata {
+        ModelMetadata {
+            version: 1,
+            models: HashMap::from([(
+                Pattern::new("claude-2.1").unwrap(),
+                ModelMetadataEntry {
+                    costs: Some(ModelCostV2 {
+                        input_per_token: 0.01,
+                        output_per_token: 0.02,
+                        output_reasoning_per_token: 0.0,
+                        input_cached_per_token: 0.0,
+                        input_cache_write_per_token: 0.0,
+                    }),
+                    context_size: Some(100_000),
+                },
+            )]),
+        }
+    }
+
+    #[test]
+    fn test_context_utilization_with_total_tokens() {
+        let mut span = Span {
+            op: "gen_ai.test".to_owned().into(),
+            data: SpanData::from_value(
+                json!({
+                    "gen_ai.response.model": "claude-2.1",
+                    "gen_ai.usage.input_tokens": 30000.0,
+                    "gen_ai.usage.output_tokens": 12000.0,
+                    "gen_ai.usage.total_tokens": 42000.0,
+                })
+                .into(),
+            ),
+            ..Default::default()
+        };
+
+        enrich_ai_span(&mut span, Some(&metadata_with_context_size()));
+
+        let data = span.data.value().unwrap();
+        assert_eq!(
+            data.gen_ai_context_window_size
+                .value()
+                .and_then(Value::as_f64),
+            Some(100_000.0)
+        );
+        assert_eq!(
+            data.gen_ai_context_utilization
+                .value()
+                .and_then(Value::as_f64),
+            Some(0.42)
+        );
+    }
+
+    #[test]
+    fn test_context_utilization_no_context_size() {
+        let metadata = ModelMetadata {
+            version: 1,
+            models: HashMap::from([(
+                Pattern::new("claude-2.1").unwrap(),
+                ModelMetadataEntry {
+                    costs: None,
+                    context_size: None,
+                },
+            )]),
+        };
+
+        let mut span = Span {
+            op: "gen_ai.test".to_owned().into(),
+            data: SpanData::from_value(
+                json!({
+                    "gen_ai.response.model": "claude-2.1",
+                    "gen_ai.usage.total_tokens": 1000.0,
+                })
+                .into(),
+            ),
+            ..Default::default()
+        };
+
+        enrich_ai_span(&mut span, Some(&metadata));
+
+        let data = span.data.value().unwrap();
+        assert!(data.gen_ai_context_window_size.value().is_none());
+        assert!(data.gen_ai_context_utilization.value().is_none());
+    }
+
+    #[test]
+    fn test_context_utilization_no_total_tokens() {
+        let mut span = Span {
+            op: "gen_ai.test".to_owned().into(),
+            data: SpanData::from_value(
+                json!({
+                    "gen_ai.response.model": "claude-2.1",
+                })
+                .into(),
+            ),
+            ..Default::default()
+        };
+
+        enrich_ai_span(&mut span, Some(&metadata_with_context_size()));
+
+        let data = span.data.value().unwrap();
+        // window_size should still be set even without tokens.
+        assert_eq!(
+            data.gen_ai_context_window_size
+                .value()
+                .and_then(Value::as_f64),
+            Some(100_000.0)
+        );
+        // But utilization cannot be computed without total_tokens.
+        assert!(data.gen_ai_context_utilization.value().is_none());
+    }
+
+    #[test]
+    fn test_context_utilization_unknown_model() {
+        let mut span = Span {
+            op: "gen_ai.test".to_owned().into(),
+            data: SpanData::from_value(
+                json!({
+                    "gen_ai.response.model": "unknown-model",
+                    "gen_ai.usage.total_tokens": 1000.0,
+                })
+                .into(),
+            ),
+            ..Default::default()
+        };
+
+        enrich_ai_span(&mut span, Some(&metadata_with_context_size()));
+
+        let data = span.data.value().unwrap();
+        assert!(data.gen_ai_context_window_size.value().is_none());
+        assert!(data.gen_ai_context_utilization.value().is_none());
     }
 }

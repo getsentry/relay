@@ -324,7 +324,7 @@ def test_it_tags_error(
     relay.send_envelope(project_id, envelope)
 
     # The event must always be kept, independent of the sampling decision
-    (event, _) = events_consumer.get_event()
+    event, _ = events_consumer.get_event()
     assert event["contexts"]["trace"]["sampled"] == expected_sampled
     assert event.setdefault("extra", {}).get("id") == event_id
 

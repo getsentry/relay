@@ -4,7 +4,7 @@ use relay_conventions::consts::*;
 use relay_event_schema::protocol::Attributes;
 use relay_protocol::Annotated;
 
-use crate::ModelCosts;
+use crate::ModelMetadata;
 use crate::span::ai;
 use crate::statsd::{Counters, map_origin_to_integration, platform_tag};
 
@@ -22,7 +22,7 @@ use crate::statsd::{Counters, map_origin_to_integration, platform_tag};
 pub fn normalize_ai(
     attributes: &mut Annotated<Attributes>,
     duration: Option<Duration>,
-    costs: Option<&ModelCosts>,
+    model_metadata: Option<&ModelMetadata>,
 ) {
     let Some(attributes) = attributes.value_mut() else {
         return;
@@ -38,7 +38,8 @@ pub fn normalize_ai(
     normalize_ai_type(attributes);
     normalize_total_tokens(attributes);
     normalize_tokens_per_second(attributes, duration);
-    normalize_ai_costs(attributes, costs);
+    normalize_context_utilization(attributes, model_metadata);
+    normalize_ai_costs(attributes, model_metadata);
 }
 
 /// Returns whether the item is should have AI normalizations applied.
@@ -124,8 +125,37 @@ fn normalize_tokens_per_second(attributes: &mut Attributes, duration: Option<Dur
     }
 }
 
+/// Sets the context window size and utilization for the model.
+fn normalize_context_utilization(
+    attributes: &mut Attributes,
+    model_metadata: Option<&ModelMetadata>,
+) {
+    let model_id = attributes
+        .get_value(GEN_AI_RESPONSE_MODEL)
+        .and_then(|v| v.as_str());
+
+    let context_size = model_id.and_then(|id| model_metadata.and_then(|m| m.context_size(id)));
+
+    let Some(context_size) = context_size else {
+        return;
+    };
+
+    attributes.insert(GEN_AI_CONTEXT_WINDOW_SIZE, context_size as i64);
+
+    let total_tokens = attributes
+        .get_value(GEN_AI_USAGE_TOTAL_TOKENS)
+        .and_then(|v| v.as_f64());
+
+    if let Some(total_tokens) = total_tokens {
+        attributes.insert(
+            GEN_AI_CONTEXT_UTILIZATION,
+            total_tokens / context_size as f64,
+        );
+    }
+}
+
 /// Calculates model costs and serializes them into attributes.
-fn normalize_ai_costs(attributes: &mut Attributes, model_costs: Option<&ModelCosts>) {
+fn normalize_ai_costs(attributes: &mut Attributes, model_metadata: Option<&ModelMetadata>) {
     let origin = extract_string_value(attributes, ORIGIN);
     let platform = extract_string_value(attributes, PLATFORM);
 
@@ -145,7 +175,7 @@ fn normalize_ai_costs(attributes: &mut Attributes, model_costs: Option<&ModelCos
         return;
     };
 
-    let Some(model_cost) = model_costs.and_then(|c| c.cost_per_token(model_id)) else {
+    let Some(model_cost) = model_metadata.and_then(|m| m.cost_per_token(model_id)) else {
         relay_statsd::metric!(
             counter(Counters::GenAiCostCalculationResult) += 1,
             result = "calculation_no_model_cost_available",
@@ -191,7 +221,7 @@ mod tests {
     use relay_pattern::Pattern;
     use relay_protocol::{Empty, assert_annotated_snapshot};
 
-    use crate::ModelCostV2;
+    use crate::{ModelCostV2, ModelMetadataEntry};
 
     use super::*;
 
@@ -203,31 +233,56 @@ mod tests {
         };
     }
 
-    fn model_costs() -> ModelCosts {
-        ModelCosts {
-            version: 2,
+    fn model_metadata() -> ModelMetadata {
+        ModelMetadata {
+            version: 1,
             models: HashMap::from([
                 (
                     Pattern::new("claude-2.1").unwrap(),
-                    ModelCostV2 {
+                    ModelMetadataEntry {
+                        costs: Some(ModelCostV2 {
+                            input_per_token: 0.01,
+                            output_per_token: 0.02,
+                            output_reasoning_per_token: 0.03,
+                            input_cached_per_token: 0.04,
+                            input_cache_write_per_token: 0.0,
+                        }),
+                        context_size: None,
+                    },
+                ),
+                (
+                    Pattern::new("gpt4-21-04").unwrap(),
+                    ModelMetadataEntry {
+                        costs: Some(ModelCostV2 {
+                            input_per_token: 0.09,
+                            output_per_token: 0.05,
+                            output_reasoning_per_token: 0.0,
+                            input_cached_per_token: 0.0,
+                            input_cache_write_per_token: 0.0,
+                        }),
+                        context_size: None,
+                    },
+                ),
+            ]),
+        }
+    }
+
+    fn model_metadata_with_context_size() -> ModelMetadata {
+        ModelMetadata {
+            version: 1,
+            models: HashMap::from([(
+                Pattern::new("claude-2.1").unwrap(),
+                ModelMetadataEntry {
+                    costs: Some(ModelCostV2 {
                         input_per_token: 0.01,
                         output_per_token: 0.02,
                         output_reasoning_per_token: 0.03,
                         input_cached_per_token: 0.04,
                         input_cache_write_per_token: 0.0,
-                    },
-                ),
-                (
-                    Pattern::new("gpt4-21-04").unwrap(),
-                    ModelCostV2 {
-                        input_per_token: 0.09,
-                        output_per_token: 0.05,
-                        output_reasoning_per_token: 0.0,
-                        input_cached_per_token: 0.0,
-                        input_cache_write_per_token: 0.0,
-                    },
-                ),
-            ]),
+                    }),
+                    context_size: Some(100_000),
+                },
+            )]),
         }
     }
 
@@ -245,7 +300,7 @@ mod tests {
         normalize_ai(
             &mut attributes,
             Some(Duration::from_secs(1)),
-            Some(&model_costs()),
+            Some(&model_metadata()),
         );
 
         assert_annotated_snapshot!(attributes, @r#"
@@ -314,7 +369,7 @@ mod tests {
         normalize_ai(
             &mut attributes,
             Some(Duration::from_millis(500)),
-            Some(&model_costs()),
+            Some(&model_metadata()),
         );
 
         assert_annotated_snapshot!(attributes, @r#"
@@ -372,7 +427,11 @@ mod tests {
             "gen_ai.request.model" => "unknown".to_owned(),
         });
 
-        normalize_ai(&mut attributes, Some(Duration::ZERO), Some(&model_costs()));
+        normalize_ai(
+            &mut attributes,
+            Some(Duration::ZERO),
+            Some(&model_metadata()),
+        );
 
         assert_annotated_snapshot!(attributes, @r#"
         {
@@ -419,7 +478,7 @@ mod tests {
         normalize_ai(
             &mut attributes,
             Some(Duration::from_millis(500)),
-            Some(&model_costs()),
+            Some(&model_metadata()),
         );
 
         assert_annotated_snapshot!(attributes, @r#"
@@ -488,7 +547,7 @@ mod tests {
         normalize_ai(
             &mut attributes,
             Some(Duration::from_millis(500)),
-            Some(&model_costs()),
+            Some(&model_metadata()),
         );
 
         assert_annotated_snapshot!(attributes, @r#"
@@ -547,7 +606,7 @@ mod tests {
         normalize_ai(
             &mut attributes,
             Some(Duration::from_millis(500)),
-            Some(&model_costs()),
+            Some(&model_metadata()),
         );
 
         assert_annotated_snapshot!(&mut attributes, @r#"
@@ -573,7 +632,7 @@ mod tests {
         normalize_ai(
             &mut attributes,
             Some(Duration::from_millis(500)),
-            Some(&model_costs()),
+            Some(&model_metadata()),
         );
 
         assert_annotated_snapshot!(&mut attributes, @r#"
@@ -593,9 +652,146 @@ mod tests {
         normalize_ai(
             &mut attributes,
             Some(Duration::from_millis(500)),
-            Some(&model_costs()),
+            Some(&model_metadata()),
         );
 
         assert!(attributes.is_empty());
+    }
+
+    #[test]
+    fn test_context_utilization_with_total_tokens() {
+        let mut attributes = Annotated::new(attributes! {
+            "gen_ai.operation.type" => "ai_client".to_owned(),
+            "gen_ai.usage.input_tokens" => 30000,
+            "gen_ai.usage.output_tokens" => 12000,
+            "gen_ai.request.model" => "claude-2.1".to_owned(),
+        });
+
+        normalize_ai(
+            &mut attributes,
+            Some(Duration::from_secs(1)),
+            Some(&model_metadata_with_context_size()),
+        );
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "gen_ai.context.utilization": {
+            "type": "double",
+            "value": 0.42
+          },
+          "gen_ai.context.window_size": {
+            "type": "integer",
+            "value": 100000
+          },
+          "gen_ai.cost.input_tokens": {
+            "type": "double",
+            "value": 300.0
+          },
+          "gen_ai.cost.output_tokens": {
+            "type": "double",
+            "value": 240.0
+          },
+          "gen_ai.cost.total_tokens": {
+            "type": "double",
+            "value": 540.0
+          },
+          "gen_ai.operation.type": {
+            "type": "string",
+            "value": "ai_client"
+          },
+          "gen_ai.request.model": {
+            "type": "string",
+            "value": "claude-2.1"
+          },
+          "gen_ai.response.model": {
+            "type": "string",
+            "value": "claude-2.1"
+          },
+          "gen_ai.response.tokens_per_second": {
+            "type": "double",
+            "value": 12000.0
+          },
+          "gen_ai.usage.input_tokens": {
+            "type": "integer",
+            "value": 30000
+          },
+          "gen_ai.usage.output_tokens": {
+            "type": "integer",
+            "value": 12000
+          },
+          "gen_ai.usage.total_tokens": {
+            "type": "double",
+            "value": 42000.0
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_context_utilization_no_context_size() {
+        let mut attributes = Annotated::new(attributes! {
+            "gen_ai.operation.type" => "ai_client".to_owned(),
+            "gen_ai.usage.input_tokens" => 1000,
+            "gen_ai.usage.output_tokens" => 2000,
+            "gen_ai.request.model" => "claude-2.1".to_owned(),
+        });
+
+        // model_metadata() has no context_size set.
+        normalize_ai(
+            &mut attributes,
+            Some(Duration::from_secs(1)),
+            Some(&model_metadata()),
+        );
+
+        let attrs = attributes.value().unwrap();
+        assert!(attrs.get_value("gen_ai.context.window_size").is_none());
+        assert!(attrs.get_value("gen_ai.context.utilization").is_none());
+    }
+
+    #[test]
+    fn test_context_utilization_no_total_tokens() {
+        // Only context_size is available, but no token counts at all.
+        let mut attributes = Annotated::new(attributes! {
+            "gen_ai.operation.type" => "ai_client".to_owned(),
+            "gen_ai.request.model" => "claude-2.1".to_owned(),
+        });
+
+        normalize_ai(
+            &mut attributes,
+            Some(Duration::from_secs(1)),
+            Some(&model_metadata_with_context_size()),
+        );
+
+        let attrs = attributes.value().unwrap();
+        // window_size should still be set even without tokens.
+        assert_eq!(
+            attrs
+                .get_value("gen_ai.context.window_size")
+                .unwrap()
+                .as_f64(),
+            Some(100_000.0)
+        );
+        // But utilization cannot be computed without total_tokens.
+        assert!(attrs.get_value("gen_ai.context.utilization").is_none());
+    }
+
+    #[test]
+    fn test_context_utilization_unknown_model() {
+        let mut attributes = Annotated::new(attributes! {
+            "gen_ai.operation.type" => "ai_client".to_owned(),
+            "gen_ai.usage.input_tokens" => 1000,
+            "gen_ai.usage.output_tokens" => 2000,
+            "gen_ai.request.model" => "unknown-model".to_owned(),
+        });
+
+        normalize_ai(
+            &mut attributes,
+            Some(Duration::from_secs(1)),
+            Some(&model_metadata_with_context_size()),
+        );
+
+        let attrs = attributes.value().unwrap();
+        assert!(attrs.get_value("gen_ai.context.window_size").is_none());
+        assert!(attrs.get_value("gen_ai.context.utilization").is_none());
     }
 }

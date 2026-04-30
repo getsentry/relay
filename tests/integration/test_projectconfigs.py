@@ -334,3 +334,35 @@ def test_unchanged_projects(mini_sentry, relay):
     assert public_key in data["unchanged"]
     assert public_key not in data["configs"]
     assert data.get("pending") is None
+
+
+def test_project_config_advertised_upstream_added_not_forwarded(mini_sentry, relay):
+    """
+    The configured advertised upstream should be injected in the project config.
+
+    A Relay receiving an advertised upstream most not forward it further.
+    """
+    relay1 = relay(
+        mini_sentry,
+        {
+            "relay": {
+                "advertised_upstream": "https://relay.example/",
+            }
+        },
+    )
+    mini_sentry.add_basic_project_config(42)
+    public_key = mini_sentry.get_dsn_public_key(42)
+
+    body = {"publicKeys": [public_key]}
+    packed, signature = SecretKey.parse(relay1.secret_key).pack(body)
+
+    data, _ = get_response(relay1, packed, signature)
+    assert data["configs"][public_key]["upstream"] == "https://relay.example/"
+
+    relay2 = relay(relay1)
+
+    body = {"publicKeys": [public_key]}
+    packed, signature = SecretKey.parse(relay2.secret_key).pack(body)
+
+    data, _ = get_response(relay2, packed, signature)
+    assert data["configs"][public_key].get("upstream") is None

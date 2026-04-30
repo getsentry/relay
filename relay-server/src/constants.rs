@@ -4,7 +4,6 @@ use std::time::Duration;
 include!(concat!(env!("OUT_DIR"), "/constants.gen.rs"));
 
 /// Name of the custom tag in the crash user data for Sentry event payloads.
-#[cfg(feature = "processing")]
 pub const SENTRY_CRASH_PAYLOAD_KEY: &str = "__sentry";
 
 /// Name of the event attachment.

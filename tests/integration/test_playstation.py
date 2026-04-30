@@ -1,13 +1,17 @@
 from collections import defaultdict
+from time import sleep
 from unittest import mock
 import pytest
 import os
 import requests
+from functools import cache
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
+from urllib3 import encode_multipart_formdata
 from .asserts import time_within_delta
 
 
+@cache
 def load_dump_file(base_file_name: str):
     dmp_path = os.path.join(
         os.path.dirname(__file__), "fixtures", "native", base_file_name
@@ -300,8 +304,9 @@ def test_playstation_max_attachments_size_exceeded(
         _ = relay.send_playstation_request(PROJECT_ID, playstation_dump)
 
     response = exc_info.value.response
-    assert response.status_code == 400, "Expected a 400 status code"
-    assert len(outcomes_consumer.get_outcomes()) == 0
+    assert response.status_code == 413, response.json()
+    assert response.json() == {"detail": "request content exceeded size limits"}
+    outcomes_consumer.assert_empty()
 
 
 def test_playstation_max_attachment_size_exceeded(
@@ -333,7 +338,7 @@ def test_playstation_max_stream_size_exceeded(
 ):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("playstation.prosperodmp")
-    stream_size_limit = len(playstation_dump) - 131
+    stream_size_limit = len(playstation_dump) - 100
     relay = relay_processing_with_playstation(
         {
             "limits": {
@@ -349,12 +354,48 @@ def test_playstation_max_stream_size_exceeded(
         _ = relay.send_playstation_request(PROJECT_ID, playstation_dump)
 
     response = exc_info.value.response
-    assert response.status_code == 400, "Expected a 400 status code"
-    assert (
-        response.content.decode("utf-8")
-        == f'{{"detail":"invalid multipart data","causes":["failed to read stream","stream size exceeded limit: {stream_size_limit} bytes"]}}'
-    )
+    assert response.status_code == 413, "Expected a 413 status code"
+    assert response.content.decode("utf-8") == "length limit exceeded"
     assert len(outcomes_consumer.get_outcomes()) == 0
+
+
+def test_playstation_max_stream_size_exceeded_chunked(
+    mini_sentry, relay_with_playstation
+):
+    PROJECT_ID = 42
+    playstation_dump = load_dump_file("playstation.prosperodmp")
+    stream_size_limit = len(playstation_dump) - 100
+    relay = relay_with_playstation(
+        mini_sentry,
+        {
+            "limits": {
+                "max_upload_size": int(stream_size_limit / 2),
+                "max_attachments_size": int(stream_size_limit / 2),
+            }
+        },
+    )
+    mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
+
+    fields = [
+        (
+            "upload_file_minidump",
+            ("playstation.prosperodmp", playstation_dump, "application/octet-stream"),
+        ),
+    ]
+    body, content_type = encode_multipart_formdata(fields)
+
+    # Passing a generator to `data` makes requests send Transfer-Encoding: chunked
+    # instead of a fixed Content-Length.
+    response = relay.request(
+        "post",
+        "/api/{}/playstation/?sentry_key={}".format(
+            PROJECT_ID, mini_sentry.get_dsn_public_key(PROJECT_ID)
+        ),
+        headers={"Content-Type": content_type},
+        data=iter([body]),
+    )
+    assert response.status_code == 413, "Expected a 413 status code"
+    assert response.json() == {"detail": "request content exceeded size limits"}
 
 
 @pytest.mark.parametrize("num_intermediate_relays", [0, 1, 2])
@@ -798,3 +839,31 @@ def test_event_merging(
     assert sorted(event["attachments"], key=lambda x: x["name"]) == attachments(
         158008, 60446, 210174
     )
+
+
+@pytest.mark.parametrize("rate_limits", [[], ["error"], ["error", "attachment"]])
+@pytest.mark.parametrize("use_pop_relay", [True, False])
+def test_playstation_rate_limited(
+    mini_sentry,
+    relay_with_playstation,
+    relay_processing_with_playstation,
+    relay_credentials,
+    use_pop_relay,
+    rate_limits,
+):
+    PROJECT_ID = 42
+    playstation_dump = load_dump_file("playstation.prosperodmp")
+    config = playstation_project_config()
+    config["config"]["quotas"] = [
+        {"categories": rate_limits, "limit": 0, "reasonCode": "static_disabled_quota"}
+    ]
+    mini_sentry.add_full_project_config(PROJECT_ID, extra=config)
+    credentials = relay_credentials()
+    relay = relay_processing_with_playstation(static_credentials=credentials)
+    if use_pop_relay:
+        relay = relay_with_playstation(relay, credentials=credentials)
+
+    # Playstation never returns 429
+    relay.send_playstation_request(PROJECT_ID, playstation_dump)
+    sleep(1)
+    relay.send_playstation_request(PROJECT_ID, playstation_dump)

@@ -7,7 +7,6 @@ pub mod ai;
 pub mod country_subregion;
 pub mod description;
 pub mod exclusive_time;
-pub mod reparent_broken_spans;
 pub mod tag_extraction;
 
 /// Regex used to scrub hex IDs and multi-digit numbers from table names and other identifiers.

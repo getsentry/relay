@@ -4,7 +4,7 @@ use std::io;
 use axum::extract::Request;
 use bytes::Bytes;
 use futures::TryStreamExt;
-use multer::{Constraints, Field, Multipart, SizeLimit};
+use multer::{Field, Multipart};
 use relay_config::Config;
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncReadExt;
@@ -266,10 +266,7 @@ pub async fn multipart_items(
     Ok(items)
 }
 
-pub fn multipart_from_request(
-    request: Request,
-    stream_size_limit: usize,
-) -> Result<Multipart<'static>, BadStoreRequest> {
+pub fn multipart_from_request(request: Request) -> Result<Multipart<'static>, BadStoreRequest> {
     let content_type = request
         .headers()
         .get("content-type")
@@ -277,14 +274,9 @@ pub fn multipart_from_request(
         .unwrap_or("");
     let boundary =
         multer::parse_boundary(content_type).map_err(BadStoreRequest::InvalidMultipart)?;
-
-    // Limits the overall stream size, preventing overly long processing times which can cause
-    // incidents like the one described in [#4836](https://github.com/getsentry/relay/pull/4836).
-    let stream_size_limit = SizeLimit::new().whole_stream(stream_size_limit as u64);
-    Ok(Multipart::with_constraints(
+    Ok(Multipart::new(
         request.into_body().into_data_stream(),
         boundary,
-        Constraints::new().size_limit(stream_size_limit),
     ))
 }
 

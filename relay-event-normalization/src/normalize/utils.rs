@@ -19,10 +19,10 @@ pub const MOBILE_SDKS: [&str; 4] = [
 /// Allowed value for main thread name.
 pub const MAIN_THREAD_NAME: &str = "main";
 
-/// Maximum length of a mobile span or measurement in milliseconds.
+/// Maximum duration of a mobile measurement in milliseconds.
 ///
-/// Spans like `ui.load` with an `exclusive_time` that exceeds this number will be removed,
-/// as well as mobile measurements (on transactions) such as `app.start.cold`, etc.
+/// Mobile measurements (app start, TTID, TTFD) that exceed this threshold are considered
+/// outliers and removed.
 pub const MAX_DURATION_MOBILE_MS: f64 = 180_000.0;
 
 /// Extract the HTTP status code from the span data.

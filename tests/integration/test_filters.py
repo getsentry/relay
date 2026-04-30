@@ -8,7 +8,6 @@ import pytest
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
-
 RELAY_ROOT = Path(__file__).parent.parent.parent
 
 

@@ -108,12 +108,19 @@ pub enum Feature {
     /// Enable the upload endpoint for attachments.
     #[serde(rename = "projects:relay-upload-endpoint")]
     UploadEndpoint,
-    /// Upload non-prosperodmp playstation attachments via the upload-endpoint.
+    /// Upload non-prosperodmp playstation attachments via the upload endpoint.
     #[serde(rename = "projects:relay-playstation-uploads")]
     PlaystationUploads,
     /// Add a random trace ID to events that lack one.
     #[serde(rename = "organizations:relay-default-trace-id")]
     AddDefaultTraceID,
+    /// Enable experimental expansion of the unreal report in the endpoint rather than in the
+    /// processor. Only enable for organizations with sufficient attachment quota.
+    #[serde(rename = "organizations:relay-unreal-endpoint-expansion")]
+    UnrealEndpointExpansion,
+    /// Upload minidump attachments via the upload endpoint.
+    #[serde(rename = "projects:relay-minidump-attachment-uploads")]
+    MinidumpAttachmentUploads,
 
     /// Enables OTLP spans to use the Span V2 processing pipeline in Relay.
     ///

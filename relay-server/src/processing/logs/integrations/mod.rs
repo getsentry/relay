@@ -1,63 +1,69 @@
 use relay_event_schema::protocol::{OurLog, OurLogHeader};
 use relay_quotas::DataCategory;
 
-use crate::envelope::{ContainerItems, Item, WithHeader};
+use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, WithHeader};
 use crate::integrations::{Integration, LogsIntegration};
 use crate::managed::RecordKeeper;
+use crate::processing::logs::Settings;
 
+mod nel;
 mod otel;
 mod vercel;
 
-/// Expands a list of [`Integration`] items into `result`.
+/// Expands a log [`Integration`] into a list of logs.
 ///
 /// The function expects *only* log item integrations.
-pub fn expand_into(
-    result: &mut ContainerItems<OurLog>,
+pub fn expand(
+    item: Item,
     records: &mut RecordKeeper<'_>,
-    items: Vec<Item>,
-) {
-    for item in items {
-        let integration = match item.integration() {
-            Some(Integration::Logs(integration)) => integration,
-            integration => {
-                records.internal_error(InvalidIntegration(integration), item);
-                continue;
-            }
-        };
-
-        let produce = |log: OurLog| {
-            let byte_size = relay_ourlogs::calculate_size(&log);
-
-            records.modify_by(DataCategory::LogItem, 1);
-            records.modify_by(DataCategory::LogByte, byte_size as isize);
-
-            result.push(WithHeader {
-                header: Some(OurLogHeader {
-                    byte_size: Some(byte_size),
-                    other: Default::default(),
-                }),
-                value: log.into(),
-            });
-        };
-
-        let payload = item.payload();
-
-        let result = match integration {
-            LogsIntegration::OtelV1 { format } => otel::expand(format, &payload, produce),
-            LogsIntegration::VercelDrainLog { format } => vercel::expand(format, &payload, produce),
-        };
-
-        match result {
-            Err(err) => drop(records.reject_err(err, item)),
-            Ok(()) => {
-                // Undo all the base item quantities, as they will be completely taken over by the parsed
-                // contents, which contains an arbitrary amount of items (even 0).
-                for (category, quantity) in item.quantities() {
-                    records.modify_by(category, -(quantity as isize));
-                }
-            }
+    headers: &EnvelopeHeaders,
+) -> Option<(Settings, ContainerItems<OurLog>)> {
+    let integration = match item.integration() {
+        Some(Integration::Logs(integration)) => integration,
+        integration => {
+            records.internal_error(InvalidIntegration(integration), item);
+            return None;
         }
+    };
+
+    let mut logs = Vec::new();
+    let produce = |log: OurLog| {
+        let byte_size = relay_ourlogs::calculate_size(&log);
+
+        records.modify_by(DataCategory::LogItem, 1);
+        records.modify_by(DataCategory::LogByte, byte_size as isize);
+
+        logs.push(WithHeader {
+            header: Some(OurLogHeader {
+                byte_size: Some(byte_size),
+                other: Default::default(),
+            }),
+            value: log.into(),
+        });
+    };
+
+    let payload = item.payload();
+
+    let settings = match integration {
+        LogsIntegration::Nel => nel::expand(&payload, headers, produce),
+        LogsIntegration::OtelV1 { format } => otel::expand(format, &payload, produce),
+        LogsIntegration::VercelDrainLog { format } => vercel::expand(format, &payload, produce),
+    };
+    let settings = match settings {
+        Ok(settings) => settings,
+        Err(err) => {
+            let _ = records.reject_err(err, &item);
+            return None;
+        }
+    };
+
+    // Undo all the base item quantities, as they will be completely taken over by the parsed
+    // contents, which contains an arbitrary amount of items (even 0).
+    for (category, quantity) in item.quantities() {
+        records.modify_by(category, -(quantity as isize));
     }
+
+    Some((settings, logs))
 }
 
 #[derive(Debug, thiserror::Error)]

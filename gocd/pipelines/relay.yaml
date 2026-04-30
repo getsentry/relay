@@ -31,7 +31,7 @@ pipelines:
                 - script: |
                     checks-gocd-pipeline-status \
                     deploy-relay-processing \
-                    deploy-relay-pop
+                    deploy-edge-relay
       - deploy-relay:
           approval:
             type: success
@@ -48,7 +48,6 @@ pipelines:
                 - script: |
                     gocd-trigger-pipeline \
                     --pipeline-name=deploy-relay-processing \
-                    --pipeline-name=deploy-relay-pop \
                     --pipeline-name=deploy-edge-relay \
                     --material-name=relay_repo \
                     --sha="${GO_REVISION_RELAY_REPO}"

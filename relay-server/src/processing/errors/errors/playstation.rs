@@ -98,16 +98,17 @@ impl SentryError for Playstation {
                 &prospero_dump,
             );
 
-            crate::utils::process_minidump(event.get_or_insert_with(Event::default), &minidump_buffer);
-            metrics.bytes_ingested_event_minidump = Annotated::new(minidump_buffer.len() as u64);
-
             let minidump = {
+                metrics.bytes_ingested_event_minidump = Annotated::new(minidump_buffer.len() as u64);
                 let mut item = Item::new(ItemType::Attachment);
                 item.set_filename("generated_minidump.dmp");
                 item.set_payload(crate::envelope::ContentType::Minidump, minidump_buffer);
                 item.set_attachment_type(AttachmentType::Minidump);
                 // If the original prosperodump is already rate limited, so will be the minidump.
                 item.set_rate_limited(prosperodump.rate_limited());
+
+                crate::utils::process_minidump(event.get_or_insert_with(Event::default), &item);
+
                 item
             };
 

@@ -27,6 +27,8 @@ pub mod attachments;
 pub mod check_ins;
 pub mod client_reports;
 pub mod errors;
+pub mod forward_unknown;
+pub mod legacy_spans;
 pub mod logs;
 pub mod profile_chunks;
 pub mod profiles;

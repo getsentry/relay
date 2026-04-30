@@ -6,7 +6,6 @@
 
 use std::borrow::Cow;
 use std::collections::VecDeque;
-use std::error::Error;
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
@@ -37,7 +36,10 @@ use tokio::time::Instant;
 
 use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
 use crate::statsd::{RelayDistributions, RelayTimers};
-use crate::utils::{self, ApiErrorResponse, RelayErrorAction, RetryBackoff, find_error_source};
+use crate::utils::{
+    self, ApiErrorResponse, RelayErrorAction, RetryBackoff, find_error_source,
+    is_length_limit_error,
+};
 
 /// Rate limits returned by the upstream.
 ///
@@ -229,12 +231,6 @@ impl IntoResponse for UpstreamRequestError {
             _ => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         }
     }
-}
-
-fn is_length_limit_error(error: &(dyn Error + 'static)) -> bool {
-    error
-        .downcast_ref::<http_body_util::LengthLimitError>()
-        .is_some()
 }
 
 /// Checks the authentication state with the upstream.
@@ -879,15 +875,12 @@ impl SharedClient {
         request: &mut dyn UpstreamRequest,
     ) -> Result<reqwest::Request, UpstreamRequestError> {
         tokio::task::block_in_place(|| {
-            let url = self
-                .config
-                .upstream_descriptor()
-                .get_url(request.path().as_ref());
+            let url = self.config.upstream().get_url(request.path().as_ref());
 
             let host_header = self
                 .config
                 .http_host_header()
-                .unwrap_or_else(|| self.config.upstream_descriptor().host());
+                .unwrap_or_else(|| self.config.upstream().host());
 
             let mut builder = RequestBuilder::reqwest(self.reqwest.request(request.method(), url));
             builder.header("Host", host_header.as_bytes());
@@ -1260,7 +1253,7 @@ impl AuthMonitor {
         credentials: &Credentials,
     ) -> Result<(), UpstreamRequestError> {
         relay_log::info!(
-            descriptor = %self.config.upstream_descriptor(),
+            descriptor = %self.config.upstream(),
             "registering with upstream"
         );
 

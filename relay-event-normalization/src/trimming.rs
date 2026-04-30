@@ -93,13 +93,10 @@ impl Processor for TrimmingProcessor {
         _: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        if let Some(size_state) = self.size_state.last() {
-            // If our current depth is the one where we found a bag_size attribute, this means we
-            // are done processing a databag. Pop the bag size state.
-            if state.depth() == size_state.encountered_at_depth {
-                self.size_state.pop().unwrap();
-            }
-        }
+        // If our current depth is the one where we found a bag_size attribute, this means we
+        // are done processing a databag. Pop the bag size state.
+        self.size_state
+            .pop_if(|size_state| state.depth() == size_state.encountered_at_depth);
 
         // After processing a value, update the remaining bag sizes. We have a separate if-let
         // here in case somebody defines nested databags (a struct with bag_size that contains

@@ -60,13 +60,11 @@ def main(context: dict[str, str]) -> int:
     print("installing pre-commit hooks ...")
     proc.run((f"{reporoot}/.venv/bin/pre-commit", "install", "--install-hooks"))
 
-    print(
-        """done!
+    print("""done!
 
 note that you can build py/ with:
 
 RELAY_DEBUG=1 uv pip install -v -e py
-"""
-    )
+""")
 
     return 0

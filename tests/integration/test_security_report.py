@@ -1,5 +1,8 @@
 import json
+from time import sleep
+
 import pytest
+from requests.exceptions import HTTPError
 
 CSP_IGNORED_FIELDS = (
     "event_id",
@@ -368,3 +371,34 @@ def test_adds_origin_header(mini_sentry, relay, json_fixture_provider):
     event = get_security_report(envelope)
 
     assert ["Origin", "http://valid.com/"] in event["request"]["headers"]
+
+
+def test_security_report_rate_limited(mini_sentry, relay, json_fixture_provider):
+    proj_id = 42
+    project_config = mini_sentry.add_full_project_config(proj_id)
+    project_config["config"]["quotas"] = [
+        {"categories": ["security"], "limit": 0, "reasonCode": "static_disabled_quota"}
+    ]
+    relay = relay(mini_sentry)
+    report = json_fixture_provider(__file__).load("csp", ".input")
+
+    relay.send_security_report(
+        project_id=proj_id,
+        content_type="application/json",
+        payload=report,
+        release="01d5c3165d9fbc5c8bdcf9550a1d6793a80fc02b",
+        environment="production",
+    )
+
+    sleep(1)
+
+    with pytest.raises(HTTPError) as exc_info:
+        relay.send_security_report(
+            project_id=proj_id,
+            content_type="application/json",
+            payload=report,
+            release="01d5c3165d9fbc5c8bdcf9550a1d6793a80fc02b",
+            environment="production",
+        )
+
+    assert exc_info.value.response.status_code == 429

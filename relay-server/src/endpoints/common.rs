@@ -1,21 +1,35 @@
 //! Common facilities for ingesting events through store-like endpoints.
+use std::io;
 
 use axum::http::{StatusCode, header};
 use axum::response::IntoResponse;
-use relay_config::RelayMode;
+use bytes::Bytes;
+use chrono::Utc;
+use futures::TryStreamExt;
+use futures::stream::BoxStream;
+use multer::Field;
+use relay_config::{Config, RelayMode};
 use relay_event_schema::protocol::{EventId, EventType};
-use relay_quotas::RateLimits;
+use relay_quotas::{RateLimits, Scoping};
 use relay_statsd::metric;
+use relay_system::Addr;
 use serde::Deserialize;
 
-use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
+use crate::envelope::{
+    AttachmentPlaceholder, AttachmentType, ContentType, Envelope, EnvelopeError, Item, ItemType,
+    Items,
+};
 use crate::managed::{Managed, Rejected};
 use crate::service::ServiceState;
 use crate::services::buffer::{ProjectKeyPair, PushError};
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
 use crate::services::processor::{BucketSource, MetricData, ProcessMetrics};
+use crate::services::upload::{Create, Stream, Upload};
 use crate::statsd::{RelayCounters, RelayDistributions};
-use crate::utils::{self, ApiErrorResponse, FormDataIter};
+use crate::utils::{
+    self, ApiErrorResponse, BoundedStream, FormDataIter, MeteredStream, find_error_source,
+    is_length_limit_error,
+};
 
 #[derive(Clone, Copy, Debug, thiserror::Error)]
 #[error("the service is overloaded")]
@@ -59,13 +73,16 @@ pub enum BadStoreRequest {
     InvalidEnvelope(#[from] EnvelopeError),
 
     #[error("invalid multipart data")]
-    InvalidMultipart(#[from] multer::Error),
+    InvalidMultipart(#[source] multer::Error),
 
     #[error("invalid minidump")]
     InvalidMinidump,
 
     #[error("missing minidump")]
     MissingMinidump,
+
+    #[error("invalid unreal crash report")]
+    InvalidUnrealReport,
 
     #[cfg(sentry)]
     #[error("invalid prosperodump")]
@@ -89,6 +106,9 @@ pub enum BadStoreRequest {
     )]
     Overflow(DiscardItemType),
 
+    #[error("request content exceeded size limits")]
+    ContentTooLarge,
+
     #[error(
         "Sentry dropped data due to a quota or internal rate limit being reached. This will not affect your application. See https://docs.sentry.io/product/accounts/quotas/ for more information."
     )]
@@ -96,6 +116,25 @@ pub enum BadStoreRequest {
 
     #[error("event submission rejected with_reason: {0:?}")]
     EventRejected(DiscardReason),
+
+    #[error("project not available")]
+    ProjectUnavailable,
+}
+
+impl From<multer::Error> for BadStoreRequest {
+    fn from(value: multer::Error) -> Self {
+        match value {
+            multer::Error::StreamSizeExceeded { .. } => BadStoreRequest::ContentTooLarge,
+            multer::Error::StreamReadFailed(error)
+                if find_error_source(error.as_ref(), is_length_limit_error).is_some() =>
+            {
+                // This happens when the stream suddenly stops because `RequestBodyLimit` capped
+                // a request with `Transfer-Encoding: Chunked`.
+                BadStoreRequest::ContentTooLarge
+            }
+            other => BadStoreRequest::InvalidMultipart(other),
+        }
+    }
 }
 
 impl IntoResponse for BadStoreRequest {
@@ -121,7 +160,7 @@ impl IntoResponse for BadStoreRequest {
 
                 (StatusCode::TOO_MANY_REQUESTS, headers, body).into_response()
             }
-            BadStoreRequest::QueueFailed(_) => {
+            BadStoreRequest::QueueFailed(_) | BadStoreRequest::ProjectUnavailable => {
                 // These errors indicate that something's wrong with our service system, most likely
                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
                 // client. It might retry event submission at a later time.
@@ -133,7 +172,9 @@ impl IntoResponse for BadStoreRequest {
                 // now executed asynchronously in `EnvelopeProcessor`.
                 (StatusCode::FORBIDDEN, body).into_response()
             }
-            BadStoreRequest::Overflow(_) => (StatusCode::PAYLOAD_TOO_LARGE, body).into_response(),
+            BadStoreRequest::Overflow(_) | BadStoreRequest::ContentTooLarge => {
+                (StatusCode::PAYLOAD_TOO_LARGE, body).into_response()
+            }
             _ => {
                 // In all other cases, we indicate a generic bad request to the client and render
                 // the cause. This was likely the client's fault.
@@ -356,7 +397,10 @@ pub async fn handle_envelope(
         .map_err(|err| err.map(BadStoreRequest::EventRejected))?;
 
     if envelope.is_empty() {
-        return Err(envelope.reject_err((None, BadStoreRequest::RateLimited(rate_limits))));
+        return Ok(HandledEnvelope {
+            event_id,
+            rate_limits,
+        });
     }
 
     if let Err(offender) = utils::check_envelope_size_limits(state.config(), &envelope) {
@@ -391,14 +435,8 @@ pub struct HandledEnvelope {
 }
 
 impl HandledEnvelope {
-    /// Ensures all active rate limits are handled as an error.
-    ///
-    /// This is legacy behaviour where active rate limits are returned as an error, instead of
-    /// being added to the usual response.
-    /// The event id in this legacy behaviour is only returned when there are no active rate
-    /// limits.
-    ///
-    /// The functions simplifies this legacy handling by turning rate limits into an error again.
+    /// Check if any rate limits were enforced (i.e. led to one or more items being dropped) and
+    /// return an error if so.
     pub fn check_rate_limits(self) -> Result<Option<EventId>, BadStoreRequest> {
         if self.rate_limits.is_limited() {
             return Err(BadStoreRequest::RateLimited(self.rate_limits));
@@ -406,14 +444,10 @@ impl HandledEnvelope {
         Ok(self.event_id)
     }
 
-    /// Explicitly ignores contained active rate limits.
+    /// Silence rate limits, even if they caused items to be dropped from the envelope.
     ///
-    /// Endpoints which choose to not propagate active rate limits, should use this method to
-    /// explicitly state the fact they do not propagate the rate limits.
-    ///
-    /// Most endpoints ignore active rate limits, they are mostly used in envelope based endpoints.
-    ///
-    /// Note: enforced rate limits are still returned as an error from [`handle_envelope`].
+    /// Endpoints which choose to not propagate rate limits should use this method to explicitly
+    /// state the fact that they do so.
     pub fn ignore_rate_limits(self) -> Option<EventId> {
         self.event_id
     }
@@ -443,6 +477,68 @@ fn emit_envelope_metrics(envelope: &Envelope) {
             sdk = client_name,
         );
     }
+}
+
+/// Uploads the content of `field` to the objectstore and returns an [Item] with an
+/// [AttachmentPlaceholder] as payload.
+///
+/// Returns `None` if uploading fails due to any reason.
+pub async fn upload_to_objectstore(
+    field: Field<'static>,
+    mut item: Item,
+    config: &Config,
+    scoping: Scoping,
+    upload: &Addr<Upload>,
+    referrer: &'static str,
+) -> Option<Item> {
+    let content_type = field.content_type().map(ToString::to_string);
+    let stream: BoxStream<'static, io::Result<Bytes>> = Box::pin(field.map_err(io::Error::other));
+    let stream = MeteredStream::new(stream, referrer);
+    let stream = BoundedStream::new(stream, 1, config.max_upload_size());
+    let byte_counter = stream.byte_counter();
+
+    let location = upload
+        .send(Create {
+            scoping,
+            length: None,
+        })
+        .await
+        .ok()?
+        .ok()?;
+
+    let result = upload
+        .send(Stream {
+            received: Utc::now(),
+            scoping,
+            location,
+            stream,
+        })
+        .await
+        .ok()?;
+
+    let location = result
+        .inspect_err(|e| {
+            relay_log::warn!(
+                error = e as &dyn std::error::Error,
+                referrer = referrer,
+                organization_id = scoping.organization_id.value(),
+                project_id = scoping.project_id.value(),
+                bytes_uploaded = byte_counter.get(),
+                "multipart item upload failed",
+            );
+        })
+        .ok()?;
+    let location = location.into_header_value().ok()?;
+    let location = location.to_str().ok()?;
+    let payload = serde_json::to_vec(&AttachmentPlaceholder {
+        location,
+        content_type,
+    })
+    .ok()?;
+
+    item.set_payload(ContentType::AttachmentRef, payload);
+    item.set_attachment_length(byte_counter.get());
+    Some(item)
 }
 
 #[derive(Debug)]
