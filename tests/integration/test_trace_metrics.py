@@ -31,6 +31,22 @@ def envelope_with_trace_metrics(*payloads: dict) -> Envelope:
     return envelope
 
 
+@pytest.mark.parametrize("eap_emits_outcomes", [True, False])
+@pytest.mark.parametrize(
+    "external_mode,expected_byte_size",
+    [
+        # The value here is a billing relevant metric, do not arbitrarily change it,
+        # these values are supposed to be static and purely based on data received,
+        # independent of any normalization.
+        (None, 139),
+        # Same applies as above, a proxy Relay does not need to run normalization.
+        ("proxy", 139),
+        # If an external Relay/Client makes modifications, sizes can change,
+        # this is fuzzy due to slight changes in sizes due to added timestamps
+        # and may need to be adjusted when changing normalization.
+        ("managed", 249),
+    ],
+)
 def test_trace_metric_extraction(
     mini_sentry,
     relay,
@@ -38,9 +54,18 @@ def test_trace_metric_extraction(
     relay_credentials,
     items_consumer,
     outcomes_consumer,
+    external_mode,
+    expected_byte_size,
+    eap_emits_outcomes,
 ):
+    relay_fn = relay
+
     items_consumer = items_consumer()
     outcomes_consumer = outcomes_consumer()
+
+    if eap_emits_outcomes:
+        mini_sentry.global_config["options"]["relay.eap-outcomes.rollout-rate"] = 1.0
+
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
@@ -51,11 +76,16 @@ def test_trace_metric_extraction(
     }
 
     credentials = relay_credentials()
-    relay = relay(
+    relay = relay_fn(
         relay_with_processing(options=TEST_CONFIG, static_credentials=credentials),
         credentials=credentials,
         options=TEST_CONFIG,
     )
+    if external_mode is not None:
+        relay = relay_fn(
+            relay, options={"relay": {"mode": external_mode}, **TEST_CONFIG}
+        )
+
     start = datetime.now(timezone.utc)
 
     # The size of this payload, as counted for trace metrics, is 139B:
@@ -111,7 +141,7 @@ def test_trace_metric_extraction(
             },
             "sentry.payload_size_bytes": {
                 # This is the size of the payload as sent, i.e. before normalization
-                "intValue": "139",
+                "intValue": f"{expected_byte_size}",
             },
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
             "sentry.client_sample_rate": {"doubleValue": 0.25},
@@ -136,29 +166,46 @@ def test_trace_metric_extraction(
         "serverSampleRate": 1.0,
         "timestamp": time_within_delta(start, expect_resolution="ns"),
         "traceId": "5b8efff798038103d269b633813fc60c",
+        **_if_dict(
+            eap_emits_outcomes,
+            {
+                "outcomes": {
+                    "categoryCount": [
+                        {
+                            "dataCategory": DataCategory.TRACE_METRIC.value,
+                            "quantity": "1",
+                        },
+                        {
+                            "dataCategory": DataCategory.TRACE_METRIC_BYTE.value,
+                            "quantity": f"{expected_byte_size}",
+                        },
+                    ],
+                    "keyId": "123",
+                }
+            },
+        ),
     }
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
-    assert outcomes == [
-        {
-            "category": DataCategory.TRACE_METRIC.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 1,
-        },
-        {
-            "category": DataCategory.TRACE_METRIC_BYTE.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            # Calculated byte size: name + value + attribute keys/values.
-            # This is a billing relevant number, do not just adjust this because it changed.
-            "quantity": 139,
-        },
-    ]
+    if not eap_emits_outcomes:
+        outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
+        assert outcomes == [
+            {
+                "category": DataCategory.TRACE_METRIC.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 1,
+            },
+            {
+                "category": DataCategory.TRACE_METRIC_BYTE.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": expected_byte_size,
+            },
+        ]
 
 
 @pytest.mark.parametrize(
@@ -749,3 +796,7 @@ def test_time_corrections(mini_sentry, relay, delta, error):
         "timestamp": time_within_delta(ts),
         "trace_id": "5b8efff798038103d269b633813fc60c",
     }
+
+
+def _if_dict(cond, then):
+    return then if cond else {}
