@@ -825,29 +825,35 @@ def test_size_limits(mini_sentry, relay, limit, expected_status_code):
 
 
 @pytest.mark.parametrize(
-    "rollout_enabled,feature_enabled",
+    "rollout_enabled,upload_attachments,upload_minidump",
     [
-        (False, False),
-        (True, False),
-        (True, True),
+        (False, True, True),  # if the option is not set we don't check the features
+        (True, True, False),
+        (True, False, True),
+        (True, True, True),
     ],
-    ids=["no-option", "no-feature", "both-enabled"],
+    ids=["no-option", "stream-attachments", "stream-minidumps", "stream-all"],
 )
 def test_minidump_objectstore_uploads(
     mini_sentry,
     relay,
     dummy_upload,
     rollout_enabled,
-    feature_enabled,
+    upload_attachments,
+    upload_minidump,
 ):
     project_id = 42
     minidump_content = b"MDMP content"
     log_content = b"Some log file content"
 
     project_config = mini_sentry.add_full_project_config(project_id)
-    if feature_enabled:
+    if upload_attachments:
         project_config["config"].setdefault("features", []).append(
             "projects:relay-minidump-attachment-uploads"
+        )
+    if upload_minidump:
+        project_config["config"].setdefault("features", []).append(
+            "projects:relay-minidump-uploads"
         )
     mini_sentry.global_config["options"][
         "relay.minidump-endpoint-fetch-config.rollout-rate"
@@ -873,13 +879,7 @@ def test_minidump_objectstore_uploads(
     minidump = by_name["minidump.dmp"]
     logs = by_name["log.txt"]
 
-    assert (
-        minidump.headers.get("content_type")
-        != "application/vnd.sentry.attachment-ref+json"
-    )
-    assert minidump.payload.bytes == minidump_content
-
-    if rollout_enabled and feature_enabled:
+    if rollout_enabled and upload_attachments:
         assert (
             logs.headers["content_type"] == "application/vnd.sentry.attachment-ref+json"
         )
@@ -892,6 +892,21 @@ def test_minidump_objectstore_uploads(
             != "application/vnd.sentry.attachment-ref+json"
         )
         assert logs.payload.bytes == log_content
+
+    if rollout_enabled and upload_minidump:
+        assert (
+            minidump.headers["content_type"]
+            == "application/vnd.sentry.attachment-ref+json"
+        )
+        assert json.loads(minidump.payload.bytes) == {
+            "location": DUMMY_UPLOAD_LOCATION,
+        }
+    else:
+        assert (
+            minidump.headers.get("content_type")
+            != "application/vnd.sentry.attachment-ref+json"
+        )
+        assert minidump.payload.bytes == minidump_content
 
 
 def test_size_limits_multipart_chunked(mini_sentry, relay):
@@ -925,3 +940,81 @@ def test_size_limits_multipart_chunked(mini_sentry, relay):
         data=iter([body]),
     )
     assert response.status_code == 413, response.json()
+
+
+@pytest.mark.parametrize(
+    "rate_limited",
+    [
+        pytest.param([], id="no-limits"),
+        pytest.param(["error"], id="error-limited"),
+        pytest.param(["attachment"], id="attachment-limited"),
+    ],
+)
+def test_minidump_objectstore_uploads_rate_limits(
+    mini_sentry,
+    relay,
+    dummy_upload,
+    rate_limited,
+):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).extend(
+        [
+            "projects:relay-minidump-uploads",
+            "projects:relay-minidump-attachment-uploads",
+        ]
+    )
+    if rate_limited:
+        project_config["config"]["quotas"] = [
+            {
+                "categories": rate_limited,
+                "limit": 0,
+                "reasonCode": "test_endpoint_check",
+            }
+        ]
+    mini_sentry.global_config["options"][
+        "relay.minidump-endpoint-fetch-config.rollout-rate"
+    ] = 1.0
+
+    relay = relay(
+        mini_sentry,
+        options={
+            "outcomes": {
+                "emit_outcomes": True,
+                "batch_size": 1,
+                "batch_interval": 1,
+            }
+        },
+    )
+
+    response = relay.send_minidump(
+        project_id=project_id,
+        files=[
+            (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", b"MDMP content"),
+            ("logs", "log.txt", b"Some log content"),
+        ],
+        raise_for_status=False,
+    )
+
+    if "error" in rate_limited:
+        assert response.status_code == 429
+    else:
+        assert response.ok
+        envelope = mini_sentry.get_captured_envelope()
+        by_name = {
+            i.headers["filename"]: i
+            for i in envelope.items
+            if i.headers.get("type") == "attachment"
+        }
+        assert (
+            by_name["minidump.dmp"].headers["content_type"]
+            == "application/vnd.sentry.attachment-ref+json"
+        )
+
+        if "attachment" in rate_limited:
+            assert "log.txt" not in by_name
+        else:
+            assert (
+                by_name["log.txt"].headers["content_type"]
+                == "application/vnd.sentry.attachment-ref+json"
+            )

@@ -176,12 +176,24 @@ async fn extract_embedded_minidump(payload: Bytes) -> Result<Option<Bytes>, BadS
 struct UploadContext<'a> {
     upload: &'a Addr<Upload>,
     scoping: Scoping,
+    upload_attachments: bool,
+    upload_minidumps: bool,
+}
+
+impl UploadContext<'_> {
+    fn should_upload(&self, attachment_type: Option<AttachmentType>) -> bool {
+        match attachment_type {
+            Some(AttachmentType::Attachment) => self.upload_attachments,
+            Some(AttachmentType::Minidump) => self.upload_minidumps,
+            _ => false,
+        }
+    }
 }
 
 struct MinidumpAttachmentStrategy<'a> {
-    /// Information necessary to upload to the object store.
+    /// Information necessary to upload to the objectstore.
     ///
-    /// This is optional since uploading to the object store might not be enabled for a project.
+    /// This is optional since uploading to the objectstore might not be enabled for a project.
     upload_context: Option<UploadContext<'a>>,
 }
 
@@ -192,13 +204,22 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
         item: Item,
         config: &Config,
     ) -> Result<Option<Item>, multer::Error> {
-        match self.upload_context {
-            Some(UploadContext { upload, scoping })
-                if item.attachment_type() == Some(AttachmentType::Attachment) =>
-            {
-                Ok(upload_to_objectstore(field, item, config, scoping, upload, "minidump").await)
-            }
-            _ => read_attachment_bytes_into_item(field, item, config, false).await,
+        if let Some(ref upload_context) = self.upload_context
+            && upload_context.should_upload(item.attachment_type())
+        {
+            let content_type = field.content_type().map(ToString::to_string);
+            Ok(upload_to_objectstore(
+                field,
+                content_type,
+                item,
+                config,
+                upload_context.scoping,
+                upload_context.upload,
+                "minidump",
+            )
+            .await)
+        } else {
+            read_attachment_bytes_into_item(field, item, config, false).await
         }
     }
 
@@ -217,24 +238,9 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
 async fn extract_multipart(
     multipart: Multipart<'static>,
     meta: RequestMeta,
-    state: &ServiceState,
+    config: &Config,
+    upload_context: Option<UploadContext<'_>>,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    let config = state.config();
-
-    let upload_context = if should_fetch_project_config(state, meta.project_id()) {
-        // Ensure that we really make it here.
-        relay_statsd::metric!(counter(RelayCounters::MinidumpEndpointConfigFetching) += 1);
-
-        let project = state
-            .project_cache_handle()
-            .ready(meta.public_key(), config.query_timeout())
-            .await
-            .ok_or(BadStoreRequest::ProjectUnavailable)?;
-        upload_context_for_project(&meta, state, project)?
-    } else {
-        None
-    };
-
     let minidump_attachment_strategy = MinidumpAttachmentStrategy { upload_context };
 
     let mut items = utils::multipart_items(multipart, config, minidump_attachment_strategy).await?;
@@ -244,20 +250,23 @@ async fn extract_multipart(
         .find(|item| item.attachment_type() == Some(AttachmentType::Minidump))
         .ok_or(BadStoreRequest::MissingMinidump)?;
 
-    let embedded_opt = extract_embedded_minidump(minidump_item.payload()).await?;
-    if let Some(embedded) = embedded_opt {
-        minidump_item.set_payload(Minidump, embedded);
-    }
+    // Doing these operations does not make sense if we already streamed the minidump to objectstore.
+    if !minidump_item.is_attachment_ref() {
+        let embedded_opt = extract_embedded_minidump(minidump_item.payload()).await?;
+        if let Some(embedded) = embedded_opt {
+            minidump_item.set_payload(Minidump, embedded);
+        }
 
-    minidump_item.set_payload(
-        Minidump,
-        decode_minidump(minidump_item.payload(), config.max_attachment_size())?,
-    );
+        minidump_item.set_payload(
+            Minidump,
+            decode_minidump(minidump_item.payload(), config.max_attachment_size())?,
+        );
 
-    validate_minidump(&minidump_item.payload())?;
+        validate_minidump(&minidump_item.payload())?;
 
-    if let Some(minidump_filename) = minidump_item.filename() {
-        minidump_item.set_filename(remove_container_extension(minidump_filename).to_owned());
+        if let Some(minidump_filename) = minidump_item.filename() {
+            minidump_item.set_filename(remove_container_extension(minidump_filename).to_owned());
+        }
     }
 
     let event_id = common::event_id_from_items(&items)?.unwrap_or_else(EventId::new);
@@ -285,13 +294,12 @@ fn should_fetch_project_config(state: &ServiceState, project_id: Option<ProjectI
     .is_keep()
 }
 
-/// Creates an [UploadContext] for a given project, returns none if the project does not have
-/// the [Feature::MinidumpAttachmentUploads] enabled or there are rate limits for attachments.
+/// Creates an [UploadContext] for a given project.
 fn upload_context_for_project<'a>(
     meta: &RequestMeta,
     state: &'a ServiceState,
     project: Project<'_>,
-) -> Result<Option<UploadContext<'a>>, BadStoreRequest> {
+) -> Result<UploadContext<'a>, BadStoreRequest> {
     let project_config = project
         .state()
         .clone()
@@ -302,6 +310,15 @@ fn upload_context_for_project<'a>(
         .scoping(meta.public_key())
         .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
 
+    let rate_limits = project.rate_limits().current_limits().check_with_quotas(
+        project_config.get_quotas(),
+        scoping.item(DataCategory::Error),
+    );
+
+    if rate_limits.is_limited() {
+        return Err(BadStoreRequest::RateLimited(rate_limits));
+    }
+
     let attachment_rate_limits = || {
         project.rate_limits().current_limits().check_with_quotas(
             project_config.get_quotas(),
@@ -309,28 +326,51 @@ fn upload_context_for_project<'a>(
         )
     };
 
-    match project_config.has_feature(Feature::MinidumpAttachmentUploads)
-        && !attachment_rate_limits().is_limited()
-    {
-        true => Ok(Some(UploadContext {
-            upload: state.upload(),
-            scoping,
-        })),
-        false => Ok(None),
-    }
+    let upload_minidumps = project_config.has_feature(Feature::MinidumpUploads);
+
+    let upload_attachments = project_config.has_feature(Feature::MinidumpAttachmentUploads)
+        && !attachment_rate_limits().is_limited();
+
+    Ok(UploadContext {
+        upload: state.upload(),
+        scoping,
+        upload_attachments,
+        upload_minidumps,
+    })
 }
 
-fn extract_raw_minidump(
-    data: Bytes,
+async fn extract_raw_minidump(
+    request: Request,
     meta: RequestMeta,
-    max_size: usize,
+    content_type: RawContentType,
+    config: &Config,
+    upload_context: Option<UploadContext<'_>>,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
     let mut item = Item::new(ItemType::Attachment);
-
-    item.set_payload(Minidump, decode_minidump(data, max_size)?);
-    validate_minidump(&item.payload())?;
     item.set_filename(MINIDUMP_FILE_NAME);
     item.set_attachment_type(AttachmentType::Minidump);
+
+    if let Some(upload_context) = upload_context
+        && upload_context.upload_minidumps
+    {
+        item = upload_to_objectstore(
+            request.into_body().into_data_stream(),
+            Some(content_type.to_string()).filter(|s| !s.is_empty()),
+            item,
+            config,
+            upload_context.scoping,
+            upload_context.upload,
+            "minidump",
+        )
+        .await
+        .ok_or(BadStoreRequest::ObjectstoreUploadFailed)?;
+    } else {
+        item.set_payload(
+            Minidump,
+            decode_minidump(request.extract().await?, config.max_attachment_size())?,
+        );
+        validate_minidump(&item.payload())?;
+    }
 
     // Create an envelope with a random event id.
     let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
@@ -350,11 +390,26 @@ async fn handle(
     // minidump can either be transmitted as request body, or as `upload_file_minidump` in a
     // multipart formdata request.
     let config = state.config();
+
+    let upload_context = if should_fetch_project_config(&state, meta.project_id()) {
+        // Ensure that we really make it here.
+        relay_statsd::metric!(counter(RelayCounters::MinidumpEndpointConfigFetching) += 1);
+
+        let project = state
+            .project_cache_handle()
+            .ready(meta.public_key(), config.query_timeout())
+            .await
+            .ok_or(BadStoreRequest::ProjectUnavailable)?;
+        Some(upload_context_for_project(&meta, &state, project)?)
+    } else {
+        None
+    };
+
     let envelope = if MINIDUMP_RAW_CONTENT_TYPES.contains(&content_type.as_ref()) {
-        extract_raw_minidump(request.extract().await?, meta, config.max_attachment_size())?
+        extract_raw_minidump(request, meta, content_type, config, upload_context).await?
     } else {
         let multipart = utils::multipart_from_request(request)?;
-        extract_multipart(multipart, meta, &state).await?
+        extract_multipart(multipart, meta, config, upload_context).await?
     };
 
     let id = envelope.event_id();
