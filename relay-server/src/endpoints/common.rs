@@ -174,9 +174,7 @@ impl IntoResponse for BadStoreRequest {
 
                 (StatusCode::TOO_MANY_REQUESTS, headers, body).into_response()
             }
-            BadStoreRequest::QueueFailed(_)
-            | BadStoreRequest::ProjectUnavailable
-            | BadStoreRequest::ObjectstoreUploadFailed => {
+            BadStoreRequest::QueueFailed(_) | BadStoreRequest::ProjectUnavailable => {
                 // These errors indicate that something's wrong with our service system, most likely
                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
                 // client. It might retry event submission at a later time.
@@ -190,6 +188,9 @@ impl IntoResponse for BadStoreRequest {
             }
             BadStoreRequest::Overflow(_) | BadStoreRequest::ContentTooLarge => {
                 (StatusCode::PAYLOAD_TOO_LARGE, body).into_response()
+            }
+            BadStoreRequest::ObjectstoreUploadFailed => {
+                (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
             }
             _ => {
                 // In all other cases, we indicate a generic bad request to the client and render
