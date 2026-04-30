@@ -120,10 +120,17 @@ impl Item {
                 smallvec![(DataCategory::Security, item_count)]
             }
             ItemType::UnrealReport => smallvec![(DataCategory::Error, item_count)],
-            ItemType::Attachment => smallvec![
-                (DataCategory::Attachment, self.attachment_body_size()),
-                (DataCategory::AttachmentItem, item_count),
-            ],
+            ItemType::Attachment => {
+                let mut quantities = smallvec![
+                    (DataCategory::Attachment, self.attachment_body_size()),
+                    (DataCategory::AttachmentItem, item_count),
+                ];
+                if self.creates_event() {
+                    // for minidumps, etc.
+                    quantities.push((DataCategory::Error, 1));
+                }
+                quantities
+            }
             ItemType::Session | ItemType::Sessions => {
                 smallvec![(DataCategory::Session, item_count)]
             }
