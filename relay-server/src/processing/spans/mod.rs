@@ -166,7 +166,7 @@ impl processing::Processor for SpansProcessor {
             return None;
         }
 
-        Some(Managed::with_meta_from(envelope, work))
+        Some(Managed::with_meta_from_managed_envelope(envelope, work))
     }
 
     async fn process(

@@ -100,7 +100,7 @@ impl processing::Processor for ErrorsProcessor {
             headers: envelope.envelope().headers().clone(),
             items,
         };
-        Some(Managed::with_meta_from(envelope, errors))
+        Some(Managed::with_meta_from_managed_envelope(envelope, errors))
     }
 
     async fn process(

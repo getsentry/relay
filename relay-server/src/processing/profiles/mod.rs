@@ -92,7 +92,7 @@ impl Processor for ProfilesProcessor {
         }
 
         let profiles = SerializedProfiles { headers, profiles };
-        Some(Managed::with_meta_from(envelope, profiles))
+        Some(Managed::with_meta_from_managed_envelope(envelope, profiles))
     }
 
     async fn process(

@@ -16,6 +16,7 @@ use relay_system::Addr;
 use smallvec::SmallVec;
 
 use crate::Envelope;
+use crate::extractors::RequestMeta;
 use crate::managed::{Counted, ManagedEnvelope, Quantities};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::ProcessingError;
@@ -181,7 +182,7 @@ impl<T: Counted> Managed<T> {
     ///
     /// The [`Managed`] instance, inherits all metadata from the passed [`ManagedEnvelope`],
     /// like received time or scoping.
-    pub fn with_meta_from(envelope: &ManagedEnvelope, value: T) -> Self {
+    pub fn with_meta_from_managed_envelope(envelope: &ManagedEnvelope, value: T) -> Self {
         Self::from_parts(
             value,
             Arc::new(Meta {
@@ -190,6 +191,24 @@ impl<T: Counted> Managed<T> {
                 scoping: envelope.scoping(),
                 event_id: envelope.envelope().event_id(),
                 remote_addr: envelope.meta().remote_addr(),
+            }),
+        )
+    }
+
+    /// Creates new [`Managed`] instance with the provided `value` and metadata from `request_meta`.
+    pub fn with_meta_from_request_meta(
+        request_meta: &RequestMeta,
+        outcome_aggregator: &Addr<TrackOutcome>,
+        value: T,
+    ) -> Self {
+        Self::from_parts(
+            value,
+            Arc::new(Meta {
+                outcome_aggregator: outcome_aggregator.clone(),
+                received_at: request_meta.received_at(),
+                scoping: request_meta.get_partial_scoping().into_scoping(),
+                event_id: None,
+                remote_addr: request_meta.remote_addr(),
             }),
         )
     }
@@ -1104,7 +1123,6 @@ where
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
 
     struct CountedVec(Vec<u32>);
