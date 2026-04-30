@@ -355,7 +355,7 @@ async fn extract_raw_minidump(
     {
         item = upload_to_objectstore(
             request.into_body().into_data_stream(),
-            Some(content_type.to_string()),
+            Some(content_type.to_string()).filter(|s| !s.is_empty()),
             item,
             config,
             upload_context.scoping,
