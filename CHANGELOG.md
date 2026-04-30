@@ -7,6 +7,7 @@
 - Implement client/sdk controlled ingestion settings for v2 span containers. ([#5881](https://github.com/getsentry/relay/pull/5881))
 - Implement client/sdk controlled ingestion settings for v2 log containers. ([#5887](https://github.com/getsentry/relay/pull/5887))
 - Update several `gen_ai` attributes to their latest representation. ([#5798](https://github.com/getsentry/relay/pull/5798))
+- Add Perfetto trace format support for continuous profiling via compound envelope items. ([#5659](https://github.com/getsentry/relay/pull/5659))
 
 **Bug Fixes**:
 
@@ -73,7 +74,6 @@
 - Merge `gen_ai.request.messages` into `gen_ai.input.messages` and `gen_ai.response.text` into `gen_ai.output.messages`. ([#5813](https://github.com/getsentry/relay/pull/5813))
 - Extract `http.query` and `url.query` attributes from `query_string` in transactions' request context. ([#5784](https://github.com/getsentry/relay/pull/5784))
 - Add `ModelMetadata` global config with context size. ([#5831](https://github.com/getsentry/relay/pull/5831))
-- Add Perfetto trace format support for continuous profiling via compound envelope items. ([#5659](https://github.com/getsentry/relay/pull/5659))
 
 **Internal**:
 
