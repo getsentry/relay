@@ -62,11 +62,11 @@ def test_nel_converted_to_logs(mini_sentry, relay):
                         "type": "string",
                         "value": "http.error",
                     },
-                    "sentry.browser.name": {
+                    "browser.name": {
                         "type": "string",
                         "value": "Python Requests",
                     },
-                    "sentry.browser.version": {"type": "string", "value": "2.32"},
+                    "browser.version": {"type": "string", "value": "2.32"},
                     "sentry.observed_timestamp_nanos": {
                         "type": "string",
                         "value": time_within_delta(expect_resolution="ns"),

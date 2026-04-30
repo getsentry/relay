@@ -126,8 +126,8 @@ def test_spansv2_basic(
             "valid_int": {"value": 9223372036854775807, "type": "integer"},
             "invalid_int": None,
             "invalid": None,
-            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
-            "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "browser.name": {"type": "string", "value": "Python Requests"},
+            "browser.version": {"type": "string", "value": "2.32"},
             "sentry.dsc.environment": {"type": "string", "value": "prod"},
             "sentry.dsc.public_key": {
                 "type": "string",
@@ -246,7 +246,7 @@ def test_spansv2_trimming_basic(
             # This is sufficient for all builtin attributes not
             # to be trimmed. The span fields that aren't trimmed
             # also still count for the size limit.
-            "trimming": {"span": {"maxSize": 453}},
+            "trimming": {"span": {"maxSize": 439}},
         }
     )
 
@@ -321,8 +321,8 @@ def test_spansv2_trimming_basic(
                 "value": "This is actually a pretty long string",
             },
             "custom.invalid.attribute": None,
-            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
-            "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "browser.name": {"type": "string", "value": "Python Requests"},
+            "browser.version": {"type": "string", "value": "2.32"},
             "sentry.dsc.environment": {"type": "string", "value": "prod"},
             "sentry.dsc.public_key": {
                 "type": "string",
@@ -342,7 +342,7 @@ def test_spansv2_trimming_basic(
         },
         "_meta": {
             "attributes": {
-                "": {"len": 505},
+                "": {"len": 491},
                 "custom.array.attribute": {
                     "value": {
                         "2": {
