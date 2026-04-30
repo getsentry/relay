@@ -1,4 +1,4 @@
-use relay_conventions::name_for_op_and_attributes;
+use relay_conventions::{SENTRY__OP, name_for_op_and_attributes};
 use relay_event_schema::protocol::{Attributes, Span};
 use relay_protocol::{Getter, GetterIter, Val};
 
@@ -21,7 +21,7 @@ pub fn name_for_span(span: &Span) -> Option<String> {
 
 /// Constructs a name attribute for a span, following the rules defined in sentry-conventions.
 pub fn name_for_attributes(attributes: &Attributes) -> Option<String> {
-    let op = attributes.get_value("sentry.op")?.as_str()?;
+    let op = attributes.get_value(SENTRY__OP)?.as_str()?;
     Some(name_for_op_and_attributes(op, &AttributeGetter(attributes)))
 }
 

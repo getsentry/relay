@@ -2,7 +2,7 @@ use std::array::TryFromSliceError;
 use std::collections::HashMap;
 
 use chrono::Utc;
-use relay_conventions::CLIENT_SAMPLE_RATE;
+use relay_conventions::SENTRY__CLIENT_SAMPLE_RATE;
 use relay_event_schema::protocol::Attributes;
 use relay_protocol::{Annotated, IntoValue, MetaTree, Value};
 
@@ -206,7 +206,7 @@ pub fn proto_timestamp(dt: chrono::DateTime<Utc>) -> prost_types::Timestamp {
 /// Extracts the client sample rate from trace attributes.
 pub fn extract_client_sample_rate(attributes: &Attributes) -> Option<f64> {
     attributes
-        .get_value(CLIENT_SAMPLE_RATE)
+        .get_value(SENTRY__CLIENT_SAMPLE_RATE)
         .and_then(|value| value.as_f64())
         .filter(|v| *v > 0.0)
         .filter(|v| *v <= 1.0)
