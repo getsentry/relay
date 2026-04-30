@@ -7,6 +7,7 @@
 - Implement client/sdk controlled ingestion settings for v2 span containers. ([#5881](https://github.com/getsentry/relay/pull/5881))
 - Implement client/sdk controlled ingestion settings for v2 log containers. ([#5887](https://github.com/getsentry/relay/pull/5887))
 - Update several `gen_ai` attributes to their latest representation. ([#5798](https://github.com/getsentry/relay/pull/5798))
+- Add Perfetto trace format support for continuous profiling via compound envelope items. ([#5659](https://github.com/getsentry/relay/pull/5659))
 
 **Bug Fixes**:
 

@@ -70,6 +70,13 @@ pub struct Frame {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub module: Option<String>,
 
+    /// The 'package' the frame was contained in.
+    ///
+    /// For native frames this is the dynamic library path (e.g. `libc.so`).
+    /// For Java frames this is the container (e.g. `boot-framework.oat`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub package: Option<String>,
+
     /// Which platform this frame is from.
     ///
     /// This can override the platform for a single frame. Otherwise, the platform of the event is

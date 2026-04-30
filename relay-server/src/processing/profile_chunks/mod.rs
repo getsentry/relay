@@ -130,21 +130,55 @@ impl Forward for ProfileChunkOutput {
         s: processing::forward::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        use crate::services::store::StoreProfileChunk;
+        use crate::services::store::{RawProfileContentType, StoreProfileChunk};
 
         let Self(profile_chunks) = self;
         let retention_days = ctx.event_retention().standard;
 
         for item in profile_chunks.split(|pc| pc.profile_chunks) {
+            let (kafka_payload, raw_profile) = split_item_payload(&item);
+
             s.send_to_store(item.map(|item, _| StoreProfileChunk {
                 retention_days,
-                payload: item.payload(),
+                payload: kafka_payload,
                 quantities: item.quantities(),
+                raw_profile_content_type: if raw_profile.is_some() {
+                    Some(RawProfileContentType::Perfetto)
+                } else {
+                    None
+                },
+                raw_profile,
             }));
         }
 
         Ok(())
     }
+}
+
+/// Splits a profile chunk item payload into its constituent parts.
+///
+/// For compound items (those with a `meta_length` header), the payload is
+/// `[expanded JSON][raw binary]`. Returns `(kafka_payload, raw_profile)`.
+///
+/// For plain items, returns `(full_payload, None)`.
+#[cfg(any(feature = "processing", test))]
+fn split_item_payload(item: &Item) -> (bytes::Bytes, Option<bytes::Bytes>) {
+    let payload = item.payload();
+
+    let Some(meta_length) = item.meta_length() else {
+        return (payload, None);
+    };
+
+    let meta_length = meta_length as usize;
+    let Some((meta, body)) = payload.split_at_checked(meta_length) else {
+        return (payload, None);
+    };
+
+    if body.is_empty() {
+        return (payload.slice_ref(meta), None);
+    }
+
+    (payload.slice_ref(meta), Some(payload.slice_ref(body)))
 }
 
 /// Serialized profile chunks extracted from an envelope.
@@ -183,4 +217,87 @@ impl Counted for SerializedProfileChunks {
 
 impl CountRateLimited for Managed<SerializedProfileChunks> {
     type Error = Error;
+}
+
+#[cfg(test)]
+mod tests {
+    use similar_asserts::assert_eq;
+
+    use crate::envelope::ContentType;
+
+    use super::*;
+
+    fn make_chunk_item(meta: &[u8]) -> Item {
+        let mut item = Item::new(ItemType::ProfileChunk);
+        item.set_payload(ContentType::Json, bytes::Bytes::copy_from_slice(meta));
+        item
+    }
+
+    fn make_compound_item(meta: &[u8], body: &[u8]) -> Item {
+        let meta_length = meta.len();
+        let mut payload = bytes::BytesMut::with_capacity(meta_length + body.len());
+        payload.extend_from_slice(meta);
+        payload.extend_from_slice(body);
+
+        let mut item = Item::new(ItemType::ProfileChunk);
+        item.set_payload(ContentType::OctetStream, payload.freeze());
+        item.set_meta_length(meta_length as u32);
+        item
+    }
+
+    #[test]
+    fn test_split_plain_chunk() {
+        let item = make_chunk_item(b"{}");
+        let (payload, raw) = split_item_payload(&item);
+        assert_eq!(payload.as_ref(), b"{}");
+        assert!(raw.is_none());
+    }
+
+    #[test]
+    fn test_split_compound_chunk() {
+        let meta = br#"{"content_type":"perfetto"}"#;
+        let body = b"binary-data";
+        let item = make_compound_item(meta, body);
+
+        let (payload, raw) = split_item_payload(&item);
+        assert_eq!(payload.as_ref(), meta.as_ref());
+        assert_eq!(raw.as_deref(), Some(b"binary-data".as_ref()));
+    }
+
+    #[test]
+    fn test_split_compound_empty_body() {
+        let meta = br#"{"content_type":"perfetto"}"#;
+        let item = make_compound_item(meta, b"");
+
+        let (payload, raw) = split_item_payload(&item);
+        assert_eq!(payload.as_ref(), meta.as_ref());
+        assert!(raw.is_none());
+    }
+
+    #[test]
+    fn test_split_compound_meta_length_exceeds_payload() {
+        // meta_length is set to more bytes than the payload actually contains.
+        // split_at_checked returns None, so we fall back to the full payload with no split.
+        let body = b"binary-data";
+        let mut item = Item::new(ItemType::ProfileChunk);
+        item.set_payload(ContentType::OctetStream, bytes::Bytes::from(body.as_ref()));
+        item.set_meta_length(body.len() as u32 + 100);
+
+        let (payload, raw) = split_item_payload(&item);
+        assert_eq!(payload.as_ref(), body.as_ref());
+        assert!(raw.is_none());
+    }
+
+    #[test]
+    fn test_split_compound_zero_meta_length() {
+        // meta_length = 0: meta slice is empty, entire payload is treated as body.
+        let body = b"binary-data";
+        let mut item = Item::new(ItemType::ProfileChunk);
+        item.set_payload(ContentType::OctetStream, bytes::Bytes::from(body.as_ref()));
+        item.set_meta_length(0);
+
+        let (payload, raw) = split_item_payload(&item);
+        assert_eq!(payload.as_ref(), b"");
+        assert_eq!(raw.as_deref(), Some(b"binary-data".as_ref()));
+    }
 }

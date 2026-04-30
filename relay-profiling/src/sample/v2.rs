@@ -36,6 +36,8 @@ pub struct ProfileMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub environment: Option<String>,
     pub platform: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_type: Option<String>,
     pub release: Option<String>,
 
     pub client_sdk: ClientSdk,
@@ -64,6 +66,7 @@ pub struct ProfileChunk {
     /// be at the top-level of the object.
     #[serde(flatten)]
     pub metadata: ProfileMetadata,
+    #[serde(default)]
     pub profile: ProfileData,
 }
 

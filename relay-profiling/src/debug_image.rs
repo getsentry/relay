@@ -8,7 +8,7 @@ use crate::utils;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")]
-enum ImageType {
+pub enum ImageType {
     MachO,
     Symbolic,
     Sourcemap,
@@ -19,27 +19,27 @@ enum ImageType {
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct DebugImage {
     #[serde(skip_serializing_if = "Option::is_none", alias = "name")]
-    code_file: Option<NativeImagePath>,
+    pub code_file: Option<NativeImagePath>,
     #[serde(skip_serializing_if = "Option::is_none", alias = "id")]
-    debug_id: Option<DebugId>,
+    pub debug_id: Option<DebugId>,
     #[serde(rename = "type")]
-    image_type: ImageType,
+    pub image_type: ImageType,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    image_addr: Option<Addr>,
+    pub image_addr: Option<Addr>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    image_vmaddr: Option<Addr>,
+    pub image_vmaddr: Option<Addr>,
 
     #[serde(
         default,
         deserialize_with = "utils::deserialize_number_from_string",
         skip_serializing_if = "utils::is_zero"
     )]
-    image_size: u64,
+    pub image_size: u64,
 
     #[serde(skip_serializing_if = "Option::is_none", alias = "build_id")]
-    uuid: Option<Uuid>,
+    pub uuid: Option<Uuid>,
 }
 
 pub fn get_proguard_image(uuid: &str) -> Result<DebugImage, UuidError> {
