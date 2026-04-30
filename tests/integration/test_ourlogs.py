@@ -221,7 +221,7 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
         # If an external Relay/Client makes modifications, sizes can change,
         # this is fuzzy due to slight changes in sizes due to added timestamps
         # and may need to be adjusted when changing normalization.
-        ("managed", 128, 459),
+        ("managed", 114, 445),
     ],
 )
 def test_ourlog_extraction_with_sentry_logs(
@@ -313,8 +313,8 @@ def test_ourlog_extraction_with_sentry_logs(
         {
             "attributes": {
                 "sentry.body": {"stringValue": "This is really bad"},
-                "sentry.browser.name": {"stringValue": "Python Requests"},
-                "sentry.browser.version": {"stringValue": "2.32"},
+                "browser.name": {"stringValue": "Python Requests"},
+                "browser.version": {"stringValue": "2.32"},
                 "sentry.severity_text": {"stringValue": "error"},
                 "sentry.payload_size_bytes": {"intValue": mock.ANY},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
@@ -388,8 +388,8 @@ def test_ourlog_extraction_with_sentry_logs(
                     "stringValue": '{"meta":{"value":{"1":{"":{"rem":[["@creditcard","s",0,12]],"len":16}}}}}'
                 },
                 "sentry.body": {"stringValue": "Example log record"},
-                "sentry.browser.name": {"stringValue": "Python Requests"},
-                "sentry.browser.version": {"stringValue": "2.32"},
+                "browser.name": {"stringValue": "Python Requests"},
+                "browser.version": {"stringValue": "2.32"},
                 "sentry.severity_text": {"stringValue": "info"},
                 "sentry.payload_size_bytes": {"intValue": mock.ANY},
                 "http.response_content_length": {"intValue": "17"},
@@ -504,8 +504,8 @@ def test_ourlog_extraction_with_string_pii_scrubbing(
         "span_id": "eee19b7ec3c1b174",
         "attributes": {
             "test_pii": {"type": "string", "value": expected_scrubbed},
-            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
-            "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "browser.name": {"type": "string", "value": "Python Requests"},
+            "browser.version": {"type": "string", "value": "2.32"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
@@ -691,13 +691,13 @@ def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attribut
             "sentry._meta.fields.attributes.custom_field": {
                 "stringValue": '{"meta":{"value":{"":{"rem":[["remove_custom_field","s",0,10]],"len":12}}}}'
             },
-            "sentry.browser.version": {"stringValue": "2.32"},
+            "browser.version": {"stringValue": "2.32"},
             "custom_field": {"stringValue": "[REDACTED]"},
             "sentry.body": {"stringValue": "Test log"},
             "sentry.severity_text": {"stringValue": "info"},
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
             "sentry.payload_size_bytes": mock.ANY,
-            "sentry.browser.name": {"stringValue": "Python Requests"},
+            "browser.name": {"stringValue": "Python Requests"},
             **timestamps(ts),
         },
         "clientSampleRate": 1.0,
@@ -745,8 +745,8 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
     assert items_consumer.get_item() == {
         "attributes": {
             "sentry.body": {"stringValue": "Example log record 2"},
-            "sentry.browser.name": {"stringValue": "Python Requests"},
-            "sentry.browser.version": {"stringValue": "2.32"},
+            "browser.name": {"stringValue": "Python Requests"},
+            "browser.version": {"stringValue": "2.32"},
             "sentry.severity_text": {"stringValue": "warn"},
             "sentry.payload_size_bytes": {"intValue": mock.ANY},
             **timestamps(ts),
@@ -887,8 +887,8 @@ def test_browser_name_version_extraction(
     assert items_consumer.get_item() == {
         "attributes": {
             "sentry.body": {"stringValue": "This is really bad"},
-            "sentry.browser.name": {"stringValue": expected_browser_name},
-            "sentry.browser.version": {"stringValue": expected_browser_version},
+            "browser.name": {"stringValue": expected_browser_name},
+            "browser.version": {"stringValue": expected_browser_version},
             "sentry.severity_text": {"stringValue": "error"},
             "sentry.payload_size_bytes": {"intValue": mock.ANY},
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
@@ -1163,11 +1163,11 @@ def test_ourlog_container_metadata(
             **_if_dict(
                 browser,
                 {
-                    "sentry.browser.name": {
+                    "browser.name": {
                         "type": "string",
                         "value": "Python Requests",
                     },
-                    "sentry.browser.version": {
+                    "browser.version": {
                         "type": "string",
                         "value": "2.32",
                     },
