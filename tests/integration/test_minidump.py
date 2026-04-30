@@ -4,6 +4,7 @@ from unittest import mock
 import msgpack
 
 import json
+import queue
 import pytest
 from requests import HTTPError
 from sentry_sdk.envelope import Envelope
@@ -940,3 +941,89 @@ def test_size_limits_multipart_chunked(mini_sentry, relay):
         data=iter([body]),
     )
     assert response.status_code == 413, response.json()
+
+
+@pytest.mark.parametrize(
+    "rate_limited",
+    [
+        pytest.param([], id="no-limits"),
+        pytest.param(["error"], id="error-limited"),
+        pytest.param(["attachment"], id="attachment-limited"),
+    ],
+)
+def test_minidump_objectstore_uploads_rate_limits(
+    mini_sentry,
+    relay,
+    dummy_upload,
+    rate_limited,
+):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).extend(
+        [
+            "projects:relay-minidump-uploads",
+            "projects:relay-minidump-attachment-uploads",
+        ]
+    )
+    if rate_limited:
+        project_config["config"]["quotas"] = [
+            {
+                "categories": rate_limited,
+                "limit": 0,
+                "reasonCode": "test_endpoint_check",
+            }
+        ]
+    mini_sentry.global_config["options"][
+        "relay.minidump-endpoint-fetch-config.rollout-rate"
+    ] = 1.0
+
+    relay = relay(
+        mini_sentry,
+        options={
+            "outcomes": {
+                "emit_outcomes": True,
+                "batch_size": 1,
+                "batch_interval": 1,
+            }
+        },
+    )
+
+    response = relay.send_minidump(
+        project_id=project_id,
+        files=[
+            (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", b"MDMP content"),
+            ("logs", "log.txt", b"Some log content"),
+        ],
+    )
+    assert response.ok
+
+    if "error" in rate_limited:
+        with pytest.raises(queue.Empty):
+            mini_sentry.get_captured_envelope(timeout=1)
+    else:
+        envelope = mini_sentry.get_captured_envelope()
+        by_name = {
+            i.headers["filename"]: i
+            for i in envelope.items
+            if i.headers.get("type") == "attachment"
+        }
+        assert (
+            by_name["minidump.dmp"].headers["content_type"]
+            == "application/vnd.sentry.attachment-ref+json"
+        )
+
+        if "attachment" in rate_limited:
+            assert "log.txt" not in by_name
+        else:
+            assert (
+                by_name["log.txt"].headers["content_type"]
+                == "application/vnd.sentry.attachment-ref+json"
+            )
+
+    if rate_limited:
+        outcomes = mini_sentry.get_aggregated_outcomes()
+        assert outcomes
+        for o in outcomes:
+            assert o["reason"] == "test_endpoint_check"
+    else:
+        assert mini_sentry.captured_outcomes.empty()
