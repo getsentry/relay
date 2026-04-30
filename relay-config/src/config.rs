@@ -892,6 +892,9 @@ pub struct Http {
     /// Controls whether the forward endpoint is enabled.
     ///
     /// The forward endpoint forwards unknown API requests to the upstream.
+    ///
+    /// Relay instances with processing enabled are expected to support the latest API and do never
+    /// support forwarding requests to Sentry.
     pub forward: bool,
     /// Enables an async DNS resolver through the `hickory-dns` crate, which uses an LRU cache for
     /// the resolved entries. This helps to limit the amount of requests made to the upstream DNS
@@ -2218,8 +2221,11 @@ impl Config {
     }
 
     /// Returns `true` if Relay supports forwarding unknown API requests.
+    ///
+    /// Relay instances with processing enabled are expected to support the latest API and do never
+    /// support forwarding requests to Sentry.
     pub fn http_forward(&self) -> bool {
-        self.values.http.forward
+        self.values.http.forward && !self.processing_enabled()
     }
 
     /// Returns whether this Relay should emit outcomes.
