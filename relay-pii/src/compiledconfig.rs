@@ -1,6 +1,8 @@
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 
+use regex::bytes::RegexBuilder as BytesRegexBuilder;
+
 use crate::builtin::BUILTIN_RULES_MAP;
 use crate::{PiiConfig, PiiConfigError, Redaction, RuleSpec, RuleType, SelectorSpec};
 
@@ -32,14 +34,26 @@ impl CompiledPiiConfig {
     /// Force compilation of all regex patterns in this config.
     ///
     /// Used to verify that all patterns are valid regex.
+    /// Also validates that patterns compile in non-unicode byte mode, which is
+    /// required for binary attachment scrubbing (see `apply_regex_to_utf8_bytes`).
     pub fn force_compile(&self) -> Result<(), PiiConfigError> {
         for rule in self.applications.iter().flat_map(|(_, rules)| rules.iter()) {
             match &rule.ty {
                 RuleType::Pattern(rule) => {
-                    rule.pattern.compiled().map_err(|e| e.clone())?;
+                    let regex = rule.pattern.compiled().map_err(|e| e.clone())?;
+                    // Also verify the pattern compiles with unicode(false), as used
+                    // in attachment scrubbing (BytesRegexBuilder in attachments.rs).
+                    BytesRegexBuilder::new(regex.as_str())
+                        .unicode(false)
+                        .build()
+                        .map_err(PiiConfigError::RegexError)?;
                 }
                 RuleType::RedactPair(rule) => {
-                    rule.key_pattern.compiled().map_err(|e| e.clone())?;
+                    let regex = rule.key_pattern.compiled().map_err(|e| e.clone())?;
+                    BytesRegexBuilder::new(regex.as_str())
+                        .unicode(false)
+                        .build()
+                        .map_err(PiiConfigError::RegexError)?;
                 }
                 RuleType::Anything
                 | RuleType::Imei

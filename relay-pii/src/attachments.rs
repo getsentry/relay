@@ -34,12 +34,10 @@ fn apply_regex_to_utf8_bytes(
     {
         Ok(x) => x,
         Err(e) => {
-            // XXX: This is not going to fly long-term
-            // Idea: Disable unicode support for regexes entirely, that drastically increases the
-            // likelihood this conversion will never fail.
-
-            // If we see this error in production, it means we need to add more regex validation
-            // to `validate_pii_config` (which is called sentry-side).
+            // User-defined patterns are now validated for byte-mode compatibility in
+            // `CompiledPiiConfig::force_compile()`. This branch should only be hit for
+            // built-in patterns (which have their own compile tests) or if validation
+            // was somehow bypassed.
             relay_log::error!(
                 error = &e as &dyn std::error::Error,
                 pattern = regex.as_str(),
