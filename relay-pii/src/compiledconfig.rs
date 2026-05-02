@@ -1,6 +1,8 @@
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 
+use regex::bytes::RegexBuilder as BytesRegexBuilder;
+
 use crate::builtin::BUILTIN_RULES_MAP;
 use crate::{PiiConfig, PiiConfigError, Redaction, RuleSpec, RuleType, SelectorSpec};
 
@@ -36,10 +38,17 @@ impl CompiledPiiConfig {
         for rule in self.applications.iter().flat_map(|(_, rules)| rules.iter()) {
             match &rule.ty {
                 RuleType::Pattern(rule) => {
-                    rule.pattern.compiled().map_err(|e| e.clone())?;
+                    let regex = rule.pattern.compiled().map_err(|e| e.clone())?;
+                    // Also validate that the pattern compiles in non-unicode bytes mode,
+                    // which is how it will be used in `apply_regex_to_utf8_bytes` for
+                    // attachment/minidump scrubbing. Patterns with Unicode character classes
+                    // (e.g. `[가-힣]`) are valid in unicode mode but fail with
+                    // `unicode(false)`.
+                    validate_non_unicode_bytes_mode(regex.as_str())?;
                 }
                 RuleType::RedactPair(rule) => {
-                    rule.key_pattern.compiled().map_err(|e| e.clone())?;
+                    let regex = rule.key_pattern.compiled().map_err(|e| e.clone())?;
+                    validate_non_unicode_bytes_mode(regex.as_str())?;
                 }
                 RuleType::Anything
                 | RuleType::Imei
@@ -62,6 +71,23 @@ impl CompiledPiiConfig {
         }
         Ok(())
     }
+}
+
+/// Validates that a regex pattern also compiles in non-unicode bytes mode.
+///
+/// This mirrors the exact settings used in `apply_regex_to_utf8_bytes` in `attachments.rs`.
+/// Patterns containing Unicode character classes (e.g. `\p{L}`, `[가-힣]`) will compile
+/// fine with the default unicode-enabled `Regex`, but fail when recompiled as a bytes regex
+/// with `unicode(false)`. This validation catches those patterns at config validation time
+/// instead of at scrub time.
+fn validate_non_unicode_bytes_mode(pattern: &str) -> Result<(), PiiConfigError> {
+    BytesRegexBuilder::new(pattern)
+        .unicode(false)
+        .multi_line(false)
+        .dot_matches_new_line(true)
+        .build()
+        .map_err(PiiConfigError::RegexError)?;
+    Ok(())
 }
 
 fn get_rule(config: &PiiConfig, id: &str) -> Option<RuleRef> {
