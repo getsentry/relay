@@ -1022,11 +1022,11 @@
 <a href=#1022 id=1022 data-nosnippet>1022</a>
 <a href=#1023 id=1023 data-nosnippet>1023</a>        <span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>attributes), @<span class="string">r#"
 <a href=#1024 id=1024 data-nosnippet>1024</a>        {
-<a href=#1025 id=1025 data-nosnippet>1025</a>          "sentry.browser.name": {
+<a href=#1025 id=1025 data-nosnippet>1025</a>          "browser.name": {
 <a href=#1026 id=1026 data-nosnippet>1026</a>            "type": "string",
 <a href=#1027 id=1027 data-nosnippet>1027</a>            "value": "Chrome"
 <a href=#1028 id=1028 data-nosnippet>1028</a>          },
-<a href=#1029 id=1029 data-nosnippet>1029</a>          "sentry.browser.version": {
+<a href=#1029 id=1029 data-nosnippet>1029</a>          "browser.version": {
 <a href=#1030 id=1030 data-nosnippet>1030</a>            "type": "string",
 <a href=#1031 id=1031 data-nosnippet>1031</a>            "value": "131.0.0"
 <a href=#1032 id=1032 data-nosnippet>1032</a>          }
@@ -1038,11 +1038,11 @@
 <a href=#1038 id=1038 data-nosnippet>1038</a>    </span><span class="kw">fn </span>test_normalize_user_agent_existing() {
 <a href=#1039 id=1039 data-nosnippet>1039</a>        <span class="kw">let </span><span class="kw-2">mut </span>attributes = Annotated::from_json(
 <a href=#1040 id=1040 data-nosnippet>1040</a>            <span class="string">r#"{
-<a href=#1041 id=1041 data-nosnippet>1041</a>          "sentry.browser.name": {
+<a href=#1041 id=1041 data-nosnippet>1041</a>          "browser.name": {
 <a href=#1042 id=1042 data-nosnippet>1042</a>            "type": "string",
 <a href=#1043 id=1043 data-nosnippet>1043</a>            "value": "Very Special"
 <a href=#1044 id=1044 data-nosnippet>1044</a>          },
-<a href=#1045 id=1045 data-nosnippet>1045</a>          "sentry.browser.version": {
+<a href=#1045 id=1045 data-nosnippet>1045</a>          "browser.version": {
 <a href=#1046 id=1046 data-nosnippet>1046</a>            "type": "string",
 <a href=#1047 id=1047 data-nosnippet>1047</a>            "value": "13.3.7"
 <a href=#1048 id=1048 data-nosnippet>1048</a>          }
@@ -1062,11 +1062,11 @@
 <a href=#1062 id=1062 data-nosnippet>1062</a>
 <a href=#1063 id=1063 data-nosnippet>1063</a>        <span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>attributes), @<span class="string">r#"
 <a href=#1064 id=1064 data-nosnippet>1064</a>        {
-<a href=#1065 id=1065 data-nosnippet>1065</a>          "sentry.browser.name": {
+<a href=#1065 id=1065 data-nosnippet>1065</a>          "browser.name": {
 <a href=#1066 id=1066 data-nosnippet>1066</a>            "type": "string",
 <a href=#1067 id=1067 data-nosnippet>1067</a>            "value": "Very Special"
 <a href=#1068 id=1068 data-nosnippet>1068</a>          },
-<a href=#1069 id=1069 data-nosnippet>1069</a>          "sentry.browser.version": {
+<a href=#1069 id=1069 data-nosnippet>1069</a>          "browser.version": {
 <a href=#1070 id=1070 data-nosnippet>1070</a>            "type": "string",
 <a href=#1071 id=1071 data-nosnippet>1071</a>            "value": "13.3.7"
 <a href=#1072 id=1072 data-nosnippet>1072</a>          }
