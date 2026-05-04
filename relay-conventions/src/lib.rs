@@ -11,7 +11,7 @@
 //!
 //! ## Attribute normalization
 //! Deprecated attributes can have their `_status` set to `null`, `"backfill"`, or `"normalize"` in `sentry-conventions`.
-//! These values affect what the `normalize_attribute_names` function does for the attribute:
+//! These values affect how Relay normalizes the attribute:
 //! * `null`: The attribute is left unchanged.
 //! * `"backfill"`: The attribute's value is _copied_ to the replacement attribute, but an existing value for the
 //!   replacement attribute is not overwritten. Thus, if the replacement attribute is already present, nothing happens.
@@ -19,7 +19,7 @@
 //!   replacement attribute is not overwritten. Thus, if the replacement attribute is already present, _the deprecated
 //!   attribute is deleted_.
 //!
-//! The `normalize_attribute_names` function runs before other normalization steps (user agent detection, category
+//! This normalization step runs before other steps (user agent detection, category
 //! detection, …) that depend on specific attributes. Therefore, those other normalizations only need to check the
 //! values of non-deprecated attributes.
 //!
@@ -49,22 +49,9 @@
 //!   Unless there is a good reason not to, you probably want the attribute to be rewritten.
 //! * Otherwise, we may have to decide what to do on a case-by-case basis.
 //!
-//! ### After updating `sentry-conventions` I get a compiler error because a constant is defined twice, what's up with that?
-//! This is likely caused by a constant being manually defined in Relay before it was added to `sentry-conventions`. If that's
-//! the case, simply delete the offending constant from the `consts::not_yet_defined` module.
-//!
-//! If the error isn't caused by this, that's a bug.
-//!
 //! ### I want to reference an attribute in Relay but it's not defined in `sentry-conventions`, what should I do?
-//! _Ideally_ you should define it in `sentry-conventions` before using it in Relay. This makes sure we have proper
+//! _Please_ define it in `sentry-conventions` before using it in Relay. This makes sure we have proper
 //! documentation, PII handling, normalization, &c. from the beginning.
-//!
-//! If, for some reason, that is not possible, you can add a constant for the attribute to the `consts::not_yet_defined`
-//! module and use that. But you have to solemnly promise that you will add the attribute to `sentry-conventions`
-//! as soon as possible.
-//!
-//! What you should *definitely not* do is access the attribute by its bare string key, i.e. not through a constant.
-
 pub mod consts {
     #![allow(rustdoc::bare_urls)]
     #![allow(non_upper_case_globals)]
