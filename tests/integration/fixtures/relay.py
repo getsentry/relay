@@ -144,9 +144,14 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
         host = "127.0.0.1"
         port = random_port()
 
+        try:
+            upstream_url = upstream.url
+        except AttributeError:
+            upstream_url = upstream
+
         default_opts = {
             "relay": {
-                "upstream": upstream.url,
+                "upstream": upstream_url,
                 "host": host,
                 "port": port,
                 "tls_port": None,

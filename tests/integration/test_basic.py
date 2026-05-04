@@ -410,3 +410,8 @@ def test_size_limit_status_code(mini_sentry, relay):
     )
     with pytest.raises(HTTPError, match="413 Client Error"):
         relay.send_event(project_id)
+
+
+def test_sentry_io(relay):
+
+    relay = relay("https://sentry.io")
