@@ -72,8 +72,6 @@ pub mod consts {
     pub use self::not_yet_defined::*;
 }
 
-pub use consts::*;
-
 include!(concat!(env!("OUT_DIR"), "/attribute_map.rs"));
 include!(concat!(env!("OUT_DIR"), "/name_fn.rs"));
 

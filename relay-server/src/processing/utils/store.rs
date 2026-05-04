@@ -2,7 +2,7 @@ use std::array::TryFromSliceError;
 use std::collections::HashMap;
 
 use chrono::Utc;
-use relay_conventions::SENTRY__CLIENT_SAMPLE_RATE;
+use relay_conventions::consts::SENTRY__CLIENT_SAMPLE_RATE;
 use relay_event_schema::protocol::Attributes;
 use relay_protocol::{Annotated, IntoValue, MetaTree, Value};
 

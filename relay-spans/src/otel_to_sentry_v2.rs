@@ -3,7 +3,7 @@ use opentelemetry_proto::tonic::common::v1::InstrumentationScope;
 use opentelemetry_proto::tonic::resource::v1::Resource;
 use opentelemetry_proto::tonic::trace::v1::span::Link as OtelLink;
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
-use relay_conventions::{
+use relay_conventions::consts::{
     SENTRY__IS_REMOTE, SENTRY__KIND, SENTRY__ORIGIN, SENTRY__PLATFORM, SENTRY__SEGMENT__ID,
     SENTRY__SEGMENT__NAME, SENTRY__STATUS__MESSAGE, SENTRY__TRANSACTION,
 };

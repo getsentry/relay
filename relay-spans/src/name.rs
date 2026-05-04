@@ -1,4 +1,5 @@
-use relay_conventions::{SENTRY__OP, name_for_op_and_attributes};
+use relay_conventions::consts::SENTRY__OP;
+use relay_conventions::name_for_op_and_attributes;
 use relay_event_schema::protocol::{Attributes, Span};
 use relay_protocol::{Getter, GetterIter, Val};
 
