@@ -16,7 +16,9 @@ use crate::endpoints::common::BadStoreRequest;
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType, ManagedItems};
 use crate::extractors::RequestMeta;
 use crate::managed::Managed;
-use crate::services::outcome::TrackOutcome;
+use crate::services::outcome::{
+    DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome, TrackOutcome,
+};
 
 /// Type used for encoding string lengths.
 type Len = u32;
@@ -212,6 +214,10 @@ pub async fn read_attachment_bytes_into_item(
         records.lenient(DataCategory::Attachment);
     });
     if n_bytes > limit {
+        let attachment_type = item.attachment_type().unwrap_or(AttachmentType::Attachment);
+        let _ = item.reject_err(Outcome::Invalid(DiscardReason::TooLarge(
+            DiscardItemType::Attachment(DiscardAttachmentType::from(attachment_type)),
+        )));
         return match ignore_size_exceeded {
             true => Ok(None),
             false => Err(multer::Error::FieldSizeExceeded {
@@ -242,18 +248,38 @@ pub async fn multipart_items(
             item.set_attachment_type(attachment_type);
             item.set_filename(file_name);
             let item = meta_provider.wrap(item);
-            let item = attachment_strategy.add_to_item(field, item, config).await?;
+            let item = attachment_strategy
+                .add_to_item(field, item, config)
+                .await
+                .inspect_err(|e| {
+                    if let multer::Error::FieldSizeExceeded { .. } = e {
+                        for item in &items {
+                            let outcome = Outcome::Invalid(DiscardReason::TooLarge(
+                                DiscardItemType::Attachment(DiscardAttachmentType::from(
+                                    attachment_type,
+                                )),
+                            ));
+                            let _ = item.reject_err(outcome);
+                        }
+                    }
+                })?;
             if let Some(item) = item {
                 // This increases the attachments byte count even if the item is an attachment ref.
                 // This is by design as the total number of bytes read into memory should be
                 // constrained.
                 attachments_size += item.len();
+                items.push(item);
                 if attachments_size > config.max_attachments_size() {
+                    for item in &items {
+                        let outcome = Outcome::Invalid(DiscardReason::TooLarge(
+                            DiscardItemType::Attachment(DiscardAttachmentType::Attachment),
+                        ));
+                        let _ = item.reject_err(outcome);
+                    }
                     return Err(multer::Error::StreamSizeExceeded {
                         limit: config.max_attachments_size() as u64,
                     });
                 }
-                items.push(item);
             }
         } else if let Some(field_name) = field.name().map(str::to_owned) {
             // Ensure to decode this SAFELY to match Django's POST data behavior. This allows us to

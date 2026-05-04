@@ -12,6 +12,7 @@ from uuid import UUID
 from urllib3.filepost import encode_multipart_formdata
 
 from sentry_relay.consts import DataCategory
+from .asserts import time_within_delta
 from .test_attachment_ref import upload_and_make_ref
 from .consts import DUMMY_UPLOAD_LOCATION
 
@@ -925,3 +926,68 @@ def test_size_limits_multipart_chunked(mini_sentry, relay):
         data=iter([body]),
     )
     assert response.status_code == 413, response.json()
+
+
+def test_minidump_max_attachment_size_exceeded(
+    mini_sentry, relay_with_processing, outcomes_consumer
+):
+    project_id = 42
+    dmp_path = os.path.join(os.path.dirname(__file__), "fixtures/native/minidump.dmp")
+    with open(dmp_path, "rb") as f:
+        minidump_content = f.read()
+    attachment_content = b"yo"
+
+    mini_sentry.add_full_project_config(project_id)
+    outcomes_consumer = outcomes_consumer()
+    relay = relay_with_processing(
+        {
+            "limits": {
+                "max_attachment_size": len(minidump_content) - 1,
+                "max_attachments_size": 1000 * 1024 * 1024,
+            }
+        }
+    )
+
+    attachments = [
+        ("attachment1", "attach1.txt", attachment_content),
+        (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", minidump_content),
+    ]
+    with pytest.raises(HTTPError) as exc_info:
+        relay.send_minidump(project_id=project_id, files=attachments)
+
+    assert exc_info.value.response.status_code == 400
+    outcomes = outcomes_consumer.get_outcomes()
+    assert outcomes == [
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "too_large:attachment:minidump",
+            "category": DataCategory.ATTACHMENT.value,
+            "quantity": len(minidump_content),
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "too_large:attachment:minidump",
+            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "too_large:attachment:minidump",
+            "category": DataCategory.ATTACHMENT.value,
+            "quantity": len(attachment_content),
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "too_large:attachment:minidump",
+            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "quantity": 1,
+        },
+    ]
