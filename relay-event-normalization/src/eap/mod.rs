@@ -1022,11 +1022,11 @@ mod tests {
 
         insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
         {
-          "sentry.browser.name": {
+          "browser.name": {
             "type": "string",
             "value": "Chrome"
           },
-          "sentry.browser.version": {
+          "browser.version": {
             "type": "string",
             "value": "131.0.0"
           }
@@ -1038,11 +1038,11 @@ mod tests {
     fn test_normalize_user_agent_existing() {
         let mut attributes = Annotated::from_json(
             r#"{
-          "sentry.browser.name": {
+          "browser.name": {
             "type": "string",
             "value": "Very Special"
           },
-          "sentry.browser.version": {
+          "browser.version": {
             "type": "string",
             "value": "13.3.7"
           }
@@ -1062,11 +1062,11 @@ mod tests {
 
         insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
         {
-          "sentry.browser.name": {
+          "browser.name": {
             "type": "string",
             "value": "Very Special"
           },
-          "sentry.browser.version": {
+          "browser.version": {
             "type": "string",
             "value": "13.3.7"
           }
