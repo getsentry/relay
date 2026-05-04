@@ -1538,7 +1538,7 @@ impl EnvelopeProcessorService {
         &self,
         mut envelope: ManagedEnvelope,
         // Currently allowed to be optional as code is migrated to respect the upstream override
-        // provided from the project config. Eventually must available and is required.
+        // provided from the project config. Eventually must be available and is required.
         upstream: Option<UpstreamDescriptor>,
     ) {
         if envelope.envelope_mut().is_empty() {
