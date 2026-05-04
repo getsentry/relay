@@ -412,5 +412,9 @@ def test_size_limit_status_code(mini_sentry, relay):
         relay.send_event(project_id)
 
 
-def test_sentry_io(relay):
-    relay = relay("https://sentry.io")
+# @pytest.mark.skip("outside connections")
+@pytest.mark.parametrize(
+    "upstream", ["https://sentry.io", "https://o1.ingest.us.sentry.io"]
+)
+def test_sentry_io(relay, upstream):
+    relay = relay(upstream)
