@@ -825,7 +825,7 @@ def test_size_limits(mini_sentry, relay, limit, expected_status_code):
 
 
 @pytest.mark.parametrize(
-    "rollout_enabled,feature_enabled",
+    "killswitch,feature_enabled",
     [
         (False, False),
         (True, False),
@@ -837,7 +837,7 @@ def test_minidump_objectstore_uploads(
     mini_sentry,
     relay,
     dummy_upload,
-    rollout_enabled,
+    killswitch,
     feature_enabled,
 ):
     project_id = 42
@@ -850,8 +850,8 @@ def test_minidump_objectstore_uploads(
             "projects:relay-minidump-attachment-uploads"
         )
     mini_sentry.global_config["options"][
-        "relay.minidump-endpoint-fetch-config.rollout-rate"
-    ] = (1.0 if rollout_enabled else 0.0)
+        "relay.endpoint-fetch-config.disabled"
+    ] = killswitch
 
     relay = relay(mini_sentry)
 
@@ -879,7 +879,7 @@ def test_minidump_objectstore_uploads(
     )
     assert minidump.payload.bytes == minidump_content
 
-    if rollout_enabled and feature_enabled:
+    if not killswitch and feature_enabled:
         assert (
             logs.headers["content_type"] == "application/vnd.sentry.attachment-ref+json"
         )
