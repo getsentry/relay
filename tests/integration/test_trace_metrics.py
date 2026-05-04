@@ -44,7 +44,7 @@ def envelope_with_trace_metrics(*payloads: dict) -> Envelope:
         # If an external Relay/Client makes modifications, sizes can change,
         # this is fuzzy due to slight changes in sizes due to added timestamps
         # and may need to be adjusted when changing normalization.
-        ("managed", 249),
+        ("managed", 235),
     ],
 )
 def test_trace_metric_extraction(
@@ -145,8 +145,8 @@ def test_trace_metric_extraction(
             },
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
             "sentry.client_sample_rate": {"doubleValue": 0.25},
-            "sentry.browser.name": {"stringValue": mock.ANY},
-            "sentry.browser.version": {"stringValue": mock.ANY},
+            "browser.name": {"stringValue": mock.ANY},
+            "browser.version": {"stringValue": mock.ANY},
             "http.request.method": {"stringValue": "GET"},
             "http.status_code": {"intValue": "200"},
             "sentry._internal.cooccuring.name.http.request.duration_seconds": {
@@ -405,10 +405,10 @@ def test_trace_metric_pii_scrubbing(
                 )
             },
             "sentry.payload_size_bytes": {
-                "intValue": "159",
+                "intValue": "145",
             },
-            "sentry.browser.name": {"stringValue": mock.ANY},
-            "sentry.browser.version": {"stringValue": mock.ANY},
+            "browser.name": {"stringValue": mock.ANY},
+            "browser.version": {"stringValue": mock.ANY},
             "safe.attribute": {"stringValue": "keep this"},
             "user.ip": {"stringValue": ""},
             "sentry._meta.fields.attributes.user.ip": {
@@ -446,7 +446,7 @@ def test_trace_metric_pii_scrubbing(
             "org_id": 1,
             "outcome": 0,
             "project_id": 42,
-            "quantity": 159,
+            "quantity": 145,
         },
     ]
 
@@ -495,8 +495,8 @@ def test_trace_metric_string_pii_scrubbing(
         "value": 1.0,
         "attributes": {
             "test_pii": {"type": "string", "value": expected_scrubbed},
-            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
-            "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "browser.name": {"type": "string", "value": "Python Requests"},
+            "browser.version": {"type": "string", "value": "2.32"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(start, expect_resolution="ns"),
@@ -568,8 +568,8 @@ def test_trace_metric_default_pii_scrubbing_attributes(
         "value": 1.0,
         "attributes": {
             attribute_key: {"type": "string", "value": expected_value},
-            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
-            "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "browser.name": {"type": "string", "value": "Python Requests"},
+            "browser.version": {"type": "string", "value": "2.32"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(start, expect_resolution="ns"),
@@ -649,8 +649,8 @@ def test_trace_metric_default_pii_scrubbing_does_not_scrub_default_attributes(
         "value": 1.0,
         "attributes": {
             "custom_field": {"type": "string", "value": "[REDACTED]"},
-            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
-            "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "browser.name": {"type": "string", "value": "Python Requests"},
+            "browser.version": {"type": "string", "value": "2.32"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(start, expect_resolution="ns"),

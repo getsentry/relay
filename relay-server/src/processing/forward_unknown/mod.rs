@@ -44,7 +44,7 @@ impl processing::Processor for ForwardUnknownProcessor {
             return None;
         }
 
-        Some(Managed::with_meta_from(
+        Some(Managed::with_meta_from_managed_envelope(
             envelope,
             UnknownItems {
                 headers: envelope.envelope().headers().clone(),

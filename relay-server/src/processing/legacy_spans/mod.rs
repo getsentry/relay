@@ -97,7 +97,7 @@ impl processing::Processor for LegacySpansProcessor {
         }
 
         let work = SerializedLegacySpans { headers, spans };
-        Some(Managed::with_meta_from(envelope, work))
+        Some(Managed::with_meta_from_managed_envelope(envelope, work))
     }
 
     async fn process(
