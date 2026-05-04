@@ -37,8 +37,8 @@
 //!
 //! ### Why is my deprecated attribute not being rewritten to the current name?
 //! Make sure the attribute's `deprecation["_status"]` field is set to either `"backfill"` or `"normalize"`,
-//! depending on what you want to happen (see above). If this is set correctly and it's still not working, that's
-//! a bug.
+//! depending on what you want to happen (see above). If this is set correctly and it's still not working,
+//! verify the behaviour with an integration test and open an issue. 
 //!
 //! ### After updating `sentry-conventions` I get a warning about a deprecated constant, what should I do?
 //! This means that Relay is reading or writing an attribute that is deprecated in the new conventions version.
