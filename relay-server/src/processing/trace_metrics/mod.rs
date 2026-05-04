@@ -214,16 +214,20 @@ pub struct SerializedTraceMetrics {
     invalid: Vec<Item>,
 }
 
+impl SerializedTraceMetrics {
+    fn all_items(&self) -> impl Iterator<Item = &Item> {
+        std::iter::once(&self.item).chain(self.invalid.iter())
+    }
+}
+
 impl Counted for SerializedTraceMetrics {
     fn quantities(&self) -> Quantities {
-        let items = self.invalid.iter().chain(std::iter::once(&self.item));
-
-        let count = items
-            .clone()
+        let count = self
+            .all_items()
             .map(|item| item.item_count().unwrap_or(1) as usize)
             .sum();
 
-        let bytes = items.map(|item| item.len()).sum();
+        let bytes = self.all_items().map(|item| item.len()).sum();
 
         smallvec![
             (DataCategory::TraceMetric, count),
