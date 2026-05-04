@@ -877,13 +877,10 @@ impl SharedClient {
         tokio::task::block_in_place(|| {
             let url = self.config.upstream().get_url(request.path().as_ref());
 
-            let host_header = self
-                .config
-                .http_host_header()
-                .unwrap_or_else(|| self.config.upstream().host());
-
             let mut builder = RequestBuilder::reqwest(self.reqwest.request(request.method(), url));
-            builder.header("Host", host_header.as_bytes());
+            if let Some(host_header) = self.config.http_host_header() {
+                builder.header("Host", host_header.as_bytes());
+            }
 
             if request.set_relay_id()
                 && let Some(credentials) = self.config.credentials()
