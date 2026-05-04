@@ -173,19 +173,34 @@ async fn extract_embedded_minidump(payload: Bytes) -> Result<Option<Bytes>, BadS
     Ok(None)
 }
 
+#[derive(Clone, Copy, Debug)]
+enum UploadDecision {
+    /// Put the item as is into the envelope (default behavior).
+    Inline,
+    /// Upload the item to objectstore putting a placeholder in its place into the envelope.
+    ///
+    /// The behavior for supersized items.
+    Upload,
+    /// Drop the item rather than uploading it or putting it in an envelope.
+    ///
+    /// Since we already check the quota in the endpoint an item can be dropped even before being
+    /// uploaded or put into an envelope.
+    Drop,
+}
+
 struct UploadContext<'a> {
     upload: &'a Addr<Upload>,
     scoping: Scoping,
-    upload_attachments: bool,
-    upload_minidumps: bool,
+    upload_attachments: UploadDecision,
+    upload_minidumps: UploadDecision,
 }
 
 impl UploadContext<'_> {
-    fn should_upload(&self, attachment_type: Option<AttachmentType>) -> bool {
+    fn upload_decision(&self, attachment_type: Option<AttachmentType>) -> UploadDecision {
         match attachment_type {
             Some(AttachmentType::Attachment) => self.upload_attachments,
             Some(AttachmentType::Minidump) => self.upload_minidumps,
-            _ => false,
+            _ => UploadDecision::Inline,
         }
     }
 }
@@ -204,22 +219,32 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
         item: Item,
         config: &Config,
     ) -> Result<Option<Item>, multer::Error> {
-        if let Some(ref upload_context) = self.upload_context
-            && upload_context.should_upload(item.attachment_type())
-        {
-            let content_type = field.content_type().map(ToString::to_string);
-            Ok(upload_to_objectstore(
-                field,
-                content_type,
-                item,
-                config,
-                upload_context.scoping,
-                upload_context.upload,
-                "minidump",
-            )
-            .await)
-        } else {
-            read_attachment_bytes_into_item(field, item, config, false).await
+        // If we have no upload context just fall back to the old behavior.
+        let Some(ref upload_context) = self.upload_context else {
+            return read_attachment_bytes_into_item(field, item, config, false).await;
+        };
+
+        match upload_context.upload_decision(item.attachment_type()) {
+            UploadDecision::Upload => {
+                let content_type = field.content_type().map(ToString::to_string);
+                Ok(upload_to_objectstore(
+                    field,
+                    content_type,
+                    item,
+                    config,
+                    upload_context.scoping,
+                    upload_context.upload,
+                    "minidump",
+                )
+                .await)
+            }
+            UploadDecision::Inline => {
+                read_attachment_bytes_into_item(field, item, config, false).await
+            }
+            UploadDecision::Drop => {
+                // FIXME: Emit an outcome here in the future.
+                Ok(None)
+            }
         }
     }
 
@@ -310,14 +335,12 @@ fn upload_context_for_project<'a>(
         .scoping(meta.public_key())
         .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
 
-    let rate_limits = project.rate_limits().current_limits().check_with_quotas(
-        project_config.get_quotas(),
-        scoping.item(DataCategory::Error),
-    );
-
-    if rate_limits.is_limited() {
-        return Err(BadStoreRequest::RateLimited(rate_limits));
-    }
+    let rate_limits = || {
+        project.rate_limits().current_limits().check_with_quotas(
+            project_config.get_quotas(),
+            scoping.item(DataCategory::Error),
+        )
+    };
 
     let attachment_rate_limits = || {
         project.rate_limits().current_limits().check_with_quotas(
@@ -326,10 +349,23 @@ fn upload_context_for_project<'a>(
         )
     };
 
-    let upload_minidumps = project_config.has_feature(Feature::MinidumpUploads);
+    let upload_minidumps = if !project_config.has_feature(Feature::MinidumpUploads) {
+        UploadDecision::Inline
+    } else if rate_limits().is_limited() {
+        UploadDecision::Drop
+    } else {
+        UploadDecision::Upload
+    };
 
-    let upload_attachments = project_config.has_feature(Feature::MinidumpAttachmentUploads)
-        && !attachment_rate_limits().is_limited();
+    let upload_attachments = if matches!(upload_minidumps, UploadDecision::Drop) {
+        UploadDecision::Drop
+    } else if !project_config.has_feature(Feature::MinidumpAttachmentUploads) {
+        UploadDecision::Inline
+    } else if attachment_rate_limits().is_limited() {
+        UploadDecision::Drop
+    } else {
+        UploadDecision::Upload
+    };
 
     Ok(UploadContext {
         upload: state.upload(),
@@ -346,12 +382,17 @@ async fn extract_raw_minidump(
     config: &Config,
     upload_context: Option<UploadContext<'_>>,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
+    debug_assert!(!matches!(
+        upload_context.as_ref().map(|c| c.upload_minidumps),
+        Some(UploadDecision::Drop)
+    ));
+
     let mut item = Item::new(ItemType::Attachment);
     item.set_filename(MINIDUMP_FILE_NAME);
     item.set_attachment_type(AttachmentType::Minidump);
 
     if let Some(upload_context) = upload_context
-        && upload_context.upload_minidumps
+        && matches!(upload_context.upload_minidumps, UploadDecision::Upload)
     {
         item = upload_to_objectstore(
             request.into_body().into_data_stream(),
@@ -400,7 +441,12 @@ async fn handle(
             .ready(meta.public_key(), config.query_timeout())
             .await
             .ok_or(BadStoreRequest::ProjectUnavailable)?;
-        Some(upload_context_for_project(&meta, &state, project)?)
+        let context = upload_context_for_project(&meta, &state, project)?;
+        if matches!(context.upload_minidumps, UploadDecision::Drop) {
+            // There is no error quota hence stop early.
+            return Ok(TextResponse(Some(EventId::new())));
+        }
+        Some(context)
     } else {
         None
     };
