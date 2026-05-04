@@ -21,6 +21,7 @@ def test_nel_converted_to_logs(mini_sentry, relay):
 
     assert [item.type for item in envelope.items] == ["log"]
     assert json.loads(envelope.items[0].payload.bytes) == {
+        "version": 2,
         "items": [
             {
                 "__header": mock.ANY,
@@ -61,11 +62,11 @@ def test_nel_converted_to_logs(mini_sentry, relay):
                         "type": "string",
                         "value": "http.error",
                     },
-                    "sentry.browser.name": {
+                    "browser.name": {
                         "type": "string",
                         "value": "Python Requests",
                     },
-                    "sentry.browser.version": {"type": "string", "value": "2.32"},
+                    "browser.version": {"type": "string", "value": "2.32"},
                     "sentry.observed_timestamp_nanos": {
                         "type": "string",
                         "value": time_within_delta(expect_resolution="ns"),

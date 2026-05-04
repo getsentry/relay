@@ -5,6 +5,7 @@
 **Features**:
 
 - Implement client/sdk controlled ingestion settings for v2 span containers. ([#5881](https://github.com/getsentry/relay/pull/5881))
+- Implement client/sdk controlled ingestion settings for v2 log containers. ([#5887](https://github.com/getsentry/relay/pull/5887))
 - Update several `gen_ai` attributes to their latest representation. ([#5798](https://github.com/getsentry/relay/pull/5798))
 
 **Bug Fixes**:
@@ -12,10 +13,12 @@
 - Backfill `app.vitals.start.value` and `app.vitals.start.type` for V1 transactions from `app_start_cold` and `app_start_warm`, matching existing V2 behavior. ([#5883](https://github.com/getsentry/relay/pull/5883))
 - The PII rule for `token` is less strict to not always scrub usage in LLM contexts. ([#5886](https://github.com/getsentry/relay/pull/5886))
 - Respond with status code 413 when chunked multipart requests are too large. ([#5880](https://github.com/getsentry/relay/pull/5880))
+- Add missing outcomes for the Playstation, Minidump, and Attachments endpoints. ([#5918](https://github.com/getsentry/relay/pull/5918))
 
 **Internal**:
 
 - Stream attachments received at `/minidump` to objectstore. ([#5877](https://github.com/getsentry/relay/pull/5877))
+- Never forward unknown requests in processing Relays. ([#5915](https://github.com/getsentry/relay/pull/5915))
 - Distinguish between objectstore stream timeouts and regular timeouts on a config level. ([#5878](https://github.com/getsentry/relay/pull/5878))
 
 

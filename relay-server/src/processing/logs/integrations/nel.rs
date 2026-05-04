@@ -3,11 +3,11 @@ use relay_event_schema::protocol::OurLog;
 use relay_protocol::DeserializableAnnotated;
 
 use crate::envelope::EnvelopeHeaders;
-use crate::processing::logs::{Error, Result};
+use crate::processing::logs::{Error, Result, Settings};
 use crate::services::outcome::DiscardReason;
 
 /// Expands OTeL logs into the [`OurLog`] format.
-pub fn expand<F>(payload: &[u8], headers: &EnvelopeHeaders, produce: F) -> Result<()>
+pub fn expand<F>(payload: &[u8], headers: &EnvelopeHeaders, produce: F) -> Result<Settings>
 where
     F: FnMut(OurLog),
 {
@@ -19,5 +19,8 @@ where
         .filter_map(|DeserializableAnnotated(nel)| nel::create_log(nel, received_at))
         .for_each(produce);
 
-    Ok(())
+    Ok(Settings {
+        infer_user_agent: true,
+        infer_ip: false,
+    })
 }

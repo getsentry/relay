@@ -16,6 +16,7 @@ use relay_system::Addr;
 use smallvec::SmallVec;
 
 use crate::Envelope;
+use crate::extractors::RequestMeta;
 use crate::managed::{Counted, ManagedEnvelope, Quantities};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::ProcessingError;
@@ -181,7 +182,7 @@ impl<T: Counted> Managed<T> {
     ///
     /// The [`Managed`] instance, inherits all metadata from the passed [`ManagedEnvelope`],
     /// like received time or scoping.
-    pub fn with_meta_from(envelope: &ManagedEnvelope, value: T) -> Self {
+    pub fn with_meta_from_managed_envelope(envelope: &ManagedEnvelope, value: T) -> Self {
         Self::from_parts(
             value,
             Arc::new(Meta {
@@ -190,6 +191,24 @@ impl<T: Counted> Managed<T> {
                 scoping: envelope.scoping(),
                 event_id: envelope.envelope().event_id(),
                 remote_addr: envelope.meta().remote_addr(),
+            }),
+        )
+    }
+
+    /// Creates new [`Managed`] instance with the provided `value` and metadata from `request_meta`.
+    pub fn with_meta_from_request_meta(
+        request_meta: &RequestMeta,
+        outcome_aggregator: &Addr<TrackOutcome>,
+        value: T,
+    ) -> Self {
+        Self::from_parts(
+            value,
+            Arc::new(Meta {
+                outcome_aggregator: outcome_aggregator.clone(),
+                received_at: request_meta.received_at(),
+                scoping: request_meta.get_partial_scoping().into_scoping(),
+                event_id: None,
+                remote_addr: request_meta.remote_addr(),
             }),
         )
     }
@@ -229,6 +248,23 @@ impl<T: Counted> Managed<T> {
     pub fn scope(&mut self, scoping: Scoping) {
         let meta = Arc::make_mut(&mut self.meta);
         meta.scoping = scoping;
+    }
+
+    /// Merge [`Self`] with another [`Managed`] instance using a mapping function.
+    ///
+    /// The caller's closure is expected to merge `other`'s inner value into `self`'s inner value.
+    /// The outcome records of `self` are automatically offset by the records of `other`.
+    pub fn merge_with<S, F>(&mut self, other: Managed<S>, f: F)
+    where
+        S: Counted,
+        F: FnOnce(&mut T, S, &mut RecordKeeper),
+    {
+        self.modify(|s, records| {
+            for (category, quantity) in other.quantities() {
+                records.modify_by(category, quantity as isize);
+            }
+            other.accept(|o| f(s, o, records));
+        })
     }
 
     /// Splits [`Self`] into two other [`Managed`] items.
@@ -1117,6 +1153,35 @@ mod tests {
         // Now dropping the manged instance, should not record any (internal) outcomes either.
         drop(managed);
         handle.assert_no_outcomes();
+    }
+
+    #[test]
+    fn test_merge() {
+        let (mut a, mut handle_a) = Managed::for_test(CountedVec(vec![1, 2])).build();
+        let (b, mut handle_b) = Managed::for_test(CountedVec(vec![3, 4])).build();
+
+        a.merge_with(b, |a, b, _| a.0.extend(b.0));
+
+        assert_eq!(a.0, vec![1, 2, 3, 4]);
+        drop(a);
+        handle_a.assert_internal_outcome(DataCategory::Error, 4);
+        handle_b.assert_no_outcomes();
+    }
+
+    #[test]
+    fn test_merge_mismatched_records_should_panic() {
+        let (mut a, mut handle_a) = Managed::for_test(CountedVec(vec![1, 2])).build();
+        let (b, _handle_b) = Managed::for_test(CountedVec(vec![3, 4])).build();
+
+        let r = std::panic::catch_unwind(move || {
+            a.merge_with(b, |_a, _b, _| {});
+        });
+
+        assert!(
+            r.is_err(),
+            "expected merge to panic because of mismatched outcome records"
+        );
+        handle_a.assert_internal_outcome(DataCategory::Error, 2);
     }
 
     #[test]

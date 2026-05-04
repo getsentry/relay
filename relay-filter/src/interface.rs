@@ -1,8 +1,7 @@
 //! This module contains the trait for items that can be filtered by Inbound Filters, plus
 //! the implementation for [`Event`].
 use relay_conventions::{
-    SENTRY__BROWSER__NAME, SENTRY__BROWSER__VERSION, SENTRY__RELEASE, SENTRY__SEGMENT__NAME,
-    USER_AGENT__ORIGINAL,
+    BROWSER__NAME, BROWSER__VERSION, SENTRY__RELEASE, SENTRY__SEGMENT__NAME, USER_AGENT__ORIGINAL,
 };
 use url::Url;
 
@@ -287,8 +286,8 @@ fn user_agent_from_attributes(attributes: &relay_protocol::Annotated<Attributes>
     let parsed = (|| {
         let attributes = attributes.value()?;
 
-        let family = attributes.get_value(SENTRY__BROWSER__NAME)?.as_str()?;
-        let version = attributes.get_value(SENTRY__BROWSER__VERSION)?.as_str()?;
+        let family = attributes.get_value(BROWSER__NAME)?.as_str()?;
+        let version = attributes.get_value(BROWSER__VERSION)?.as_str()?;
         let mut parts = version.splitn(3, '.');
 
         Some(relay_ua::UserAgent {

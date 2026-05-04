@@ -1,17 +1,25 @@
 from collections import defaultdict
+from copy import deepcopy
 import json
+import os
+import time
+import uuid
+
 from google.protobuf.json_format import MessageToDict
 import msgpack
-import uuid
 
 from objectstore_client import Client, Usecase
 import pytest
-import os
 import confluent_kafka as kafka
-from copy import deepcopy
 
 from sentry_relay.consts import DataCategory
 from sentry_protos.snuba.v1.trace_item_pb2 import TraceItem
+
+TRANSIENT_CONSUMER_ERROR_CODES = {
+    kafka.KafkaError.NOT_COORDINATOR,
+    kafka.KafkaError.COORDINATOR_NOT_AVAILABLE,
+    kafka.KafkaError.COORDINATOR_LOAD_IN_PROGRESS,
+}
 
 
 @pytest.fixture
@@ -187,12 +195,14 @@ def kafka_consumer(request, get_topic_name, processing_config):
         settings = {
             "bootstrap.servers": servers,
             "group.id": "test-consumer-%s" % uuid.uuid4().hex,
-            "enable.auto.commit": True,
+            "enable.auto.commit": False,
             "auto.offset.reset": "earliest",
         }
 
         consumer = kafka.Consumer(settings)
-        consumer.assign([kafka.TopicPartition(t, 0) for t in topics])
+        consumer.assign(
+            [kafka.TopicPartition(t, 0, kafka.OFFSET_BEGINNING) for t in topics]
+        )
 
         def die():
             consumer.close()
@@ -217,7 +227,25 @@ class ConsumerBase:
     def poll(self, timeout=None):
         if timeout is None:
             timeout = self.timeout
-        return self.consumer.poll(timeout=timeout)
+
+        deadline = time.monotonic() + timeout
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return None
+
+            message = self.consumer.poll(timeout=remaining)
+            if message is None:
+                return None
+
+            error = message.error()
+            if error is None:
+                return message
+
+            if error.retriable() or error.code() in TRANSIENT_CONSUMER_ERROR_CODES:
+                continue
+
+            return message
 
     def poll_many(self, timeout=None, n=None):
         if timeout is None:
@@ -260,7 +288,10 @@ class ConsumerBase:
         """
         # First, give Relay a bit of time to process
         rv = self.poll(timeout=0.2)
-        assert rv is None, f"{self.__class__.__name__} not empty: {rv.value()}"
+        assert rv is None, (
+            f"{self.__class__.__name__} not empty: "
+            f"{rv.error() if rv.error() is not None else rv.value()}"
+        )
 
         # Then, send a custom message to ensure we're not just timing out
         message = json.dumps({"__test__": uuid.uuid4().hex}).encode("utf8")
@@ -268,6 +299,7 @@ class ConsumerBase:
         self.test_producer.flush(timeout=5)
 
         rv = self.poll(timeout=timeout)
+        assert rv is not None, f"{self.__class__.__name__} did not receive test message"
         assert rv.error() is None
         assert rv.value() == message, rv.value()
 

@@ -260,17 +260,12 @@ mod tests {
     use relay_system::Addr;
 
     use crate::Envelope;
-    use crate::managed::{ManagedEnvelope, TypedEnvelope};
-    use crate::services::processor::{ProcessingGroup, TransactionGroup};
+    use crate::managed::ManagedEnvelope;
     use crate::services::projects::project::ProjectInfo;
 
     use super::*;
 
-    fn params() -> (
-        TypedEnvelope<TransactionGroup>,
-        Annotated<Event>,
-        Arc<ProjectInfo>,
-    ) {
+    fn params() -> (ManagedEnvelope, Annotated<Event>, Arc<ProjectInfo>) {
         let bytes = Bytes::from(
             r#"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","trace":{"trace_id":"89143b0763095bd9c9955e8175d1fb23","public_key":"e12d836b15bb49d7bbf99e64295d995b","sample_rate":"0.2"}}
 {"type":"transaction"}
@@ -300,10 +295,6 @@ mod tests {
         };
 
         let managed_envelope = ManagedEnvelope::new(dummy_envelope, Addr::dummy());
-        let managed_envelope = (managed_envelope, ProcessingGroup::Transaction)
-            .try_into()
-            .unwrap();
-
         let event = Annotated::from(event);
 
         (managed_envelope, event, project_info)

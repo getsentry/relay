@@ -244,9 +244,7 @@ pub fn normalize_user_agent(
 ) {
     let attributes = attributes.get_or_insert_with(Default::default);
 
-    if attributes.contains_key(SENTRY__BROWSER__NAME)
-        || attributes.contains_key(SENTRY__BROWSER__VERSION)
-    {
+    if attributes.contains_key(BROWSER__NAME) || attributes.contains_key(BROWSER__VERSION) {
         return;
     }
 
@@ -263,8 +261,8 @@ pub fn normalize_user_agent(
         return;
     };
 
-    attributes.insert_if_missing(SENTRY__BROWSER__NAME, || context.name);
-    attributes.insert_if_missing(SENTRY__BROWSER__VERSION, || context.version);
+    attributes.insert_if_missing(BROWSER__NAME, || context.name);
+    attributes.insert_if_missing(BROWSER__VERSION, || context.version);
 }
 
 /// Normalizes the client address into [`Attributes`].
@@ -1030,11 +1028,11 @@ mod tests {
 
         insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
         {
-          "sentry.browser.name": {
+          "browser.name": {
             "type": "string",
             "value": "Chrome"
           },
-          "sentry.browser.version": {
+          "browser.version": {
             "type": "string",
             "value": "131.0.0"
           }
@@ -1046,11 +1044,11 @@ mod tests {
     fn test_normalize_user_agent_existing() {
         let mut attributes = Annotated::from_json(
             r#"{
-          "sentry.browser.name": {
+          "browser.name": {
             "type": "string",
             "value": "Very Special"
           },
-          "sentry.browser.version": {
+          "browser.version": {
             "type": "string",
             "value": "13.3.7"
           }
@@ -1070,11 +1068,11 @@ mod tests {
 
         insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
         {
-          "sentry.browser.name": {
+          "browser.name": {
             "type": "string",
             "value": "Very Special"
           },
-          "sentry.browser.version": {
+          "browser.version": {
             "type": "string",
             "value": "13.3.7"
           }

@@ -4,6 +4,7 @@ use crate::processing::ForwardContext;
 use crate::processing::attachments::AttachmentProcessor;
 use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::errors::ErrorsProcessor;
+use crate::processing::forward_unknown::ForwardUnknownProcessor;
 use crate::processing::legacy_spans::LegacySpansProcessor;
 use crate::processing::logs::LogsProcessor;
 use crate::processing::profile_chunks::ProfileChunksProcessor;
@@ -62,18 +63,19 @@ macro_rules! outputs {
 }
 
 outputs!(
+    Attachments => AttachmentProcessor,
     CheckIns => CheckInsProcessor,
     Errors => ErrorsProcessor,
+    ForwardUnknown => ForwardUnknownProcessor,
+    LegacySpans => LegacySpansProcessor,
     Logs => LogsProcessor,
     ProfileChunks => ProfileChunksProcessor,
+    Profiles => ProfilesProcessor,
+    Replays => ReplaysProcessor,
     Sessions => SessionsProcessor,
-    Transactions => TransactionProcessor,
     Spans => SpansProcessor,
-    LegacySpans => LegacySpansProcessor,
     TraceAttachments => TraceAttachmentsProcessor,
     TraceMetrics => TraceMetricsProcessor,
-    Replays => ReplaysProcessor,
-    Attachments => AttachmentProcessor,
+    Transactions => TransactionProcessor,
     UserReports => UserReportsProcessor,
-    Profiles => ProfilesProcessor,
 );
