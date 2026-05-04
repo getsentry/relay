@@ -124,7 +124,7 @@ impl ProjectConfig {
             // This is probably not intended behavior.
             for quota in &self.quotas {
                 if let Some(id) = quota.id.as_deref() {
-                    for category in &*quota.categories {
+                    for category in quota.categories.iter() {
                         if let Some(indexed) = category.index_category()
                             && quota.categories.contains(&indexed)
                         {

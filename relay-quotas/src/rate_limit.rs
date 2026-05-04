@@ -210,7 +210,7 @@ impl RateLimit {
     /// information. The categories and other properties are copied from the quota.
     pub fn from_quota(quota: &Quota, scoping: Scoping, retry_after: RetryAfter) -> Self {
         Self {
-            categories: quota.categories.clone(),
+            categories: quota.categories,
             scope: RateLimitScope::for_quota(scoping, quota.scope),
             reason_code: quota.reason_code.clone(),
             retry_after,
@@ -526,13 +526,8 @@ impl CachedRateLimits {
             // rate limits to clients, we clone the limits with the inherited category.
             // This ensures old SDKs rate limit correctly, but also it simplifies client
             // implementations. Only Relay needs to make this decision.
-            for i in 0..limit.categories.len() {
-                let Some(category) = limit.categories.get(i) else {
-                    debug_assert!(false, "logical error");
-                    break;
-                };
-
-                for inherited in inherited_categories(category) {
+            for category in limit.categories.iter() {
+                for inherited in inherited_categories(&category) {
                     if let Some(categories) = limit.categories.add(*inherited) {
                         limit.categories = categories;
                     }
