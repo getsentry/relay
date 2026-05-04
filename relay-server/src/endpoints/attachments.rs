@@ -53,7 +53,7 @@ async fn multipart_to_envelope(
     .await?;
 
     let envelope =
-        common::managed_items_to_envelope(items, meta, state.outcome_aggregator(), path.event_id)?;
+        common::managed_items_to_envelope(items, meta, state.outcome_aggregator(), path.event_id);
     Ok(envelope)
 }
 

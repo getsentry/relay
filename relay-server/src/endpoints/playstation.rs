@@ -166,7 +166,7 @@ async fn multipart_to_envelope(
 
     let event_id = common::event_id_from_items(&items)?.unwrap_or_else(EventId::new);
     let envelope =
-        common::managed_items_to_envelope(items, meta, state.outcome_aggregator(), event_id)?;
+        common::managed_items_to_envelope(items, meta, state.outcome_aggregator(), event_id);
     Ok(envelope)
 }
 

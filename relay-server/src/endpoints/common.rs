@@ -559,7 +559,7 @@ pub fn managed_items_to_envelope(
     meta: RequestMeta,
     outcome_aggregator: &Addr<TrackOutcome>,
     event_id: EventId,
-) -> Result<Managed<Box<Envelope>>, BadStoreRequest> {
+) -> Managed<Box<Envelope>> {
     let envelope = Envelope::from_request(Some(event_id), meta);
     let mut envelope = Managed::from_envelope(envelope, outcome_aggregator.clone());
     let mut has_event = false;
@@ -572,7 +572,7 @@ pub fn managed_items_to_envelope(
             envelope.add_item(item);
         });
     }
-    Ok(envelope)
+    envelope
 }
 
 #[derive(Debug)]
