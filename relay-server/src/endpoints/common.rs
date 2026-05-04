@@ -549,7 +549,7 @@ pub async fn upload_to_objectstore(
     item.modify(|inner, records| {
         inner.set_payload(ContentType::AttachmentRef, placeholder);
         inner.set_attachment_length(byte_counter.get());
-        records.lenient(DataCategory::Attachment);
+        records.lenient(DataCategory::Attachment); // item was empty before
     });
     Some(item)
 }

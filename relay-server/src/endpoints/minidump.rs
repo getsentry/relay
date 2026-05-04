@@ -340,7 +340,7 @@ fn raw_minidump_to_envelope(
     let decoded_payload = decode_minidump(data, state.config().max_attachment_size())?;
     item.modify(|inner, records| {
         inner.set_payload(Minidump, decoded_payload);
-        records.lenient(DataCategory::Attachment);
+        records.lenient(DataCategory::Attachment); // decoding the minidump changes its size
     });
     validate_minidump(&item.payload())?;
 
