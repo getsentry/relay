@@ -259,10 +259,8 @@ async fn multipart_to_envelope(
     let payload = decode_minidump(payload, config.max_attachment_size())?;
 
     minidump_item.modify(|inner, records| {
-        let old = inner.attachment_body_size() as isize;
         inner.set_payload(Minidump, payload);
-        let new = inner.attachment_body_size() as isize;
-        records.modify_by(DataCategory::Attachment, new - old);
+        records.lenient(DataCategory::Attachment);
     });
 
     validate_minidump(&minidump_item.payload())?;
@@ -341,10 +339,8 @@ fn raw_minidump_to_envelope(
     let mut item = Managed::with_meta_from_request_meta(&meta, state.outcome_aggregator(), item);
     let decoded_payload = decode_minidump(data, state.config().max_attachment_size())?;
     item.modify(|inner, records| {
-        let old = inner.attachment_body_size() as isize;
         inner.set_payload(Minidump, decoded_payload);
-        let new = inner.attachment_body_size() as isize;
-        records.modify_by(DataCategory::Attachment, new - old);
+        records.lenient(DataCategory::Attachment);
     });
     validate_minidump(&item.payload())?;
 

@@ -204,14 +204,12 @@ pub async fn read_attachment_bytes_into_item(
     let bytes = Bytes::from(buf);
     let n_bytes = bytes.len();
     item.modify(|inner, records| {
-        let old = inner.attachment_body_size() as isize;
         if let Some(content_type) = content_type {
             inner.set_payload(content_type, bytes);
         } else {
             inner.set_payload_without_content_type(bytes);
         };
-        let new = inner.attachment_body_size() as isize;
-        records.modify_by(DataCategory::Attachment, new - old);
+        records.lenient(DataCategory::Attachment);
     });
     if n_bytes > limit {
         return match ignore_size_exceeded {

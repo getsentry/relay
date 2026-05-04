@@ -547,11 +547,9 @@ pub async fn upload_to_objectstore(
     .ok()?;
 
     item.modify(|inner, records| {
-        let old = inner.attachment_body_size() as isize;
         inner.set_payload(ContentType::AttachmentRef, placeholder);
         inner.set_attachment_length(byte_counter.get());
-        let new = inner.attachment_body_size() as isize;
-        records.modify_by(DataCategory::Attachment, new - old);
+        records.lenient(DataCategory::Attachment);
     });
     Some(item)
 }
