@@ -479,6 +479,11 @@ fn emit_envelope_metrics(envelope: &Envelope) {
     }
 }
 
+pub struct UploadContext<'a> {
+    pub upload: &'a Addr<Upload>,
+    pub scoping: Scoping,
+}
+
 /// Uploads the content of `field` to the objectstore and returns an [Item] with an
 /// [AttachmentPlaceholder] as payload.
 ///

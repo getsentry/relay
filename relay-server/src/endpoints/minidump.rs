@@ -7,12 +7,10 @@ use bzip2::read::BzDecoder;
 use flate2::read::GzDecoder;
 use liblzma::read::XzDecoder;
 use multer::{Field, Multipart};
-use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::EventId;
-use relay_quotas::{DataCategory, Scoping};
-use relay_system::Addr;
+use relay_quotas::DataCategory;
 use std::convert::Infallible;
 use std::error::Error;
 use std::io::Cursor;
@@ -21,7 +19,9 @@ use tower_http::limit::RequestBodyLimitLayer;
 use zstd::stream::Decoder as ZstdDecoder;
 
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
-use crate::endpoints::common::{self, BadStoreRequest, TextResponse, upload_to_objectstore};
+use crate::endpoints::common::{
+    self, BadStoreRequest, TextResponse, UploadContext, upload_to_objectstore,
+};
 use crate::envelope::ContentType::Minidump;
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::extractors::{RawContentType, RequestMeta};
@@ -29,7 +29,6 @@ use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason};
 use crate::services::projects::cache::Project;
-use crate::services::upload::Upload;
 use crate::statsd::RelayCounters;
 use crate::utils::{self, AttachmentStrategy, read_attachment_bytes_into_item};
 
@@ -173,11 +172,6 @@ async fn extract_embedded_minidump(payload: Bytes) -> Result<Option<Bytes>, BadS
     Ok(None)
 }
 
-struct UploadContext<'a> {
-    upload: &'a Addr<Upload>,
-    scoping: Scoping,
-}
-
 struct MinidumpAttachmentStrategy<'a> {
     /// Information necessary to upload to the object store.
     ///
@@ -221,7 +215,7 @@ async fn extract_multipart(
 ) -> Result<Box<Envelope>, BadStoreRequest> {
     let config = state.config();
 
-    let upload_context = if should_fetch_project_config(state, meta.project_id()) {
+    let upload_context = if should_fetch_project_config(state) {
         // Ensure that we really make it here.
         relay_statsd::metric!(counter(RelayCounters::MinidumpEndpointConfigFetching) += 1);
 
@@ -270,19 +264,9 @@ async fn extract_multipart(
     Ok(envelope)
 }
 
-fn should_fetch_project_config(state: &ServiceState, project_id: Option<ProjectId>) -> bool {
-    // In the minidump endpoint we should always have a project_id.
-    let Some(project_id) = project_id else {
-        return false;
-    };
+fn should_fetch_project_config(state: &ServiceState) -> bool {
     let global_config = state.global_config_handle().current();
-    utils::is_rolled_out(
-        project_id.value(),
-        global_config
-            .options
-            .minidump_endpoint_fetch_config_rollout_rate,
-    )
-    .is_keep()
+    !global_config.options.endpoint_fetch_config_disabled
 }
 
 /// Creates an [UploadContext] for a given project, returns none if the project does not have

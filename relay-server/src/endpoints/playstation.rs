@@ -4,25 +4,21 @@
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
-use http::StatusCode;
 use multer::{Field, Multipart};
 use relay_config::Config;
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::EventId;
-use relay_quotas::{DataCategory, Scoping};
-use relay_system::Addr;
+use relay_quotas::DataCategory;
 use serde::Serialize;
 use tower_http::limit::RequestBodyLimitLayer;
 
-use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
+use crate::endpoints::common::{self, BadStoreRequest, TextResponse, UploadContext};
 use crate::envelope::ContentType::OctetStream;
 use crate::envelope::{AttachmentType, Envelope, Item};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::DiscardReason;
-use crate::services::projects::cache::Project;
-use crate::services::upload::Upload;
 use crate::utils::{self, AttachmentStrategy};
 
 /// The extension of a prosperodump in the multipart form-data upload.
@@ -64,8 +60,10 @@ struct Parts {
 }
 
 struct PlaystationAttachmentStrategy<'a> {
-    upload_service: Option<&'a Addr<Upload>>,
-    scoping: Scoping,
+    /// Information necessary to upload to the object store.
+    ///
+    /// This is optional since uploading to the object store might not be enabled for a project.
+    upload_context: Option<UploadContext<'a>>,
 }
 
 impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
@@ -86,13 +84,15 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
         item: Item,
         config: &Config,
     ) -> Result<Option<Item>, multer::Error> {
-        match self.upload_service {
-            Some(upload) if self.infer_type(&field) != AttachmentType::Prosperodump => {
+        match self.upload_context {
+            Some(UploadContext { upload, scoping })
+                if self.infer_type(&field) != AttachmentType::Prosperodump =>
+            {
                 Ok(common::upload_to_objectstore(
                     field,
                     item,
                     config,
-                    self.scoping,
+                    scoping,
                     upload,
                     "playstation",
                 )
@@ -124,29 +124,47 @@ async fn extract_multipart(
     multipart: Multipart<'static>,
     meta: RequestMeta,
     state: &ServiceState,
-    project: &Project<'_>,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    let project_config = project
-        .state()
-        .clone()
-        .enabled()
-        .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
-    let scoping = project_config
-        .scoping(meta.public_key())
-        .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
-    let attachment_rate_limits = || {
-        project.rate_limits().current_limits().check_with_quotas(
-            project_config.get_quotas(),
-            scoping.item(DataCategory::Attachment),
-        )
+    let global_config = state.global_config_handle().current();
+
+    let upload_context = if !global_config.options.endpoint_fetch_config_disabled {
+        let project = state
+            .project_cache_handle()
+            .ready(meta.public_key(), state.config().query_timeout())
+            .await
+            .ok_or(BadStoreRequest::ProjectUnavailable)?;
+
+        let project_config = project
+            .state()
+            .clone()
+            .enabled()
+            .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
+
+        let scoping = project_config
+            .scoping(meta.public_key())
+            .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
+
+        let attachment_rate_limits = || {
+            project.rate_limits().current_limits().check_with_quotas(
+                project_config.get_quotas(),
+                scoping.item(DataCategory::Attachment),
+            )
+        };
+
+        match project_config.has_feature(Feature::PlaystationUploads)
+            && !attachment_rate_limits().is_limited()
+        {
+            true => Some(UploadContext {
+                upload: state.upload(),
+                scoping,
+            }),
+            false => None,
+        }
+    } else {
+        None
     };
-    let upload_service = (project_config.has_feature(Feature::PlaystationUploads)
-        && !attachment_rate_limits().is_limited())
-    .then_some(state.upload());
-    let attachment_strategy = PlaystationAttachmentStrategy {
-        scoping,
-        upload_service,
-    };
+
+    let attachment_strategy = PlaystationAttachmentStrategy { upload_context };
     let mut items = utils::multipart_items(multipart, state.config(), attachment_strategy).await?;
 
     let prosperodump_item = items
@@ -179,15 +197,8 @@ async fn handle(
         return Ok(axum::Json(create_data_request_response()).into_response());
     }
 
-    let config = state.config();
-    let project = state
-        .project_cache_handle()
-        .ready(meta.public_key(), config.query_timeout())
-        .await
-        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
-
     let multipart = utils::multipart_from_request(request)?;
-    let mut envelope = extract_multipart(multipart, meta, &state, &project).await?;
+    let mut envelope = extract_multipart(multipart, meta, &state).await?;
     envelope.require_feature(Feature::PlaystationIngestion);
 
     let id = envelope.event_id();
