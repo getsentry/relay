@@ -413,5 +413,4 @@ def test_size_limit_status_code(mini_sentry, relay):
 
 
 def test_sentry_io(relay):
-
     relay = relay("https://sentry.io")
