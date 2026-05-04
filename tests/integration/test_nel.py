@@ -21,6 +21,7 @@ def test_nel_converted_to_logs(mini_sentry, relay):
 
     assert [item.type for item in envelope.items] == ["log"]
     assert json.loads(envelope.items[0].payload.bytes) == {
+        "version": 2,
         "items": [
             {
                 "__header": mock.ANY,

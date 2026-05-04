@@ -49,16 +49,37 @@ from .fixtures.processing import (  # noqa
 from .consts import DUMMY_UPLOAD_LOCATION
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def random_port():
+    """
+    Selects a port which is chosen by worker id, to minimize chances of race conditions
+    between different workers executing tests.
+    """
+    worker_id = os.environ.get("PYTEST_XDIST_WORKER", "master")
+    worker_count = int(os.environ.get("PYTEST_XDIST_WORKER_COUNT", 1))
+    worker_number = worker_id.removeprefix("gw")
+    worker_index = int(worker_number) if worker_number.isdigit() else 0
+    worker_count = max(worker_count, worker_index + 1, 1)
+    next_port = 10_000 + worker_index
+
+    def _is_port_available(port):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind(("127.0.0.1", port))
+            except OSError:
+                return False
+        return True
+
     def inner():
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        s.bind(("127.0.0.1", 0))
-        s.listen(1)
-        port = s.getsockname()[1]
-        s.close()
-        return port
+        nonlocal next_port
+
+        while True:
+            port = next_port
+            next_port += worker_count
+
+            assert port < 2**16, "unable to select a free port"
+            if _is_port_available(port):
+                return port
 
     return inner
 

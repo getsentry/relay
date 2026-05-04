@@ -5,6 +5,7 @@
 **Features**:
 
 - Implement client/sdk controlled ingestion settings for v2 span containers. ([#5881](https://github.com/getsentry/relay/pull/5881))
+- Implement client/sdk controlled ingestion settings for v2 log containers. ([#5887](https://github.com/getsentry/relay/pull/5887))
 - Update several `gen_ai` attributes to their latest representation. ([#5798](https://github.com/getsentry/relay/pull/5798))
 
 **Bug Fixes**:
