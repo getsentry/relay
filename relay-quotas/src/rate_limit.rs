@@ -224,7 +224,7 @@ impl RateLimit {
     /// category and namespace match those of the rate limit.
     pub fn matches(&self, scoping: ItemScoping) -> bool {
         self.matches_scope(scoping)
-            && scoping.matches_categories(&self.categories)
+            && scoping.matches_categories(self.categories)
             && scoping.matches_namespaces(&self.namespaces)
     }
 

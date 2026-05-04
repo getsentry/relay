@@ -142,7 +142,7 @@ impl ItemScoping {
     }
 
     /// Checks whether the category matches any of the quota's categories.
-    pub(crate) fn matches_categories(&self, categories: &DataCategories) -> bool {
+    pub(crate) fn matches_categories(&self, categories: DataCategories) -> bool {
         // An empty list of categories means that this quota matches all categories. Note that we
         // skip `Unknown` categories silently. If the list of categories only contains `Unknown`s,
         // we do **not** match, since apparently the quota is meant for some data this Relay does
@@ -176,7 +176,7 @@ impl ItemScoping {
 ///
 /// It is a read only and has set like properties, allowing for fast comparisons.
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Hash)]
-pub struct DataCategories(u128);
+pub struct DataCategories(u64);
 
 impl Serialize for DataCategories {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -192,12 +192,12 @@ impl Serialize for DataCategories {
 }
 
 impl DataCategories {
-    fn category_to_mask(category: DataCategory) -> u128 {
+    fn category_to_mask(category: DataCategory) -> u64 {
         if matches!(category, DataCategory::Unknown) {
             // Handle Unknown by throwing it into the last bit.
-            1u128 << (8 * std::mem::size_of::<u128>() - 1)
+            1u64 << (8 * std::mem::size_of::<u64>() - 1)
         } else {
-            1u128 << (category as u8)
+            1u64 << (category as u8)
         }
     }
 
@@ -251,7 +251,6 @@ impl DataCategories {
         DataCategoryIterator {
             categories,
             current_bit: bit_start as u8,
-            remaining_bits: self.0.count_ones() as u8,
         }
     }
 
@@ -268,22 +267,21 @@ impl DataCategories {
 
 /// An iterator over a [`DataCategories`] container.
 pub struct DataCategoryIterator {
-    categories: u128,
+    categories: u64,
     current_bit: u8,
-    remaining_bits: u8,
 }
 
 impl Iterator for DataCategoryIterator {
     type Item = DataCategory;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.remaining_bits == 0 {
+        if self.categories == 0 {
             return None;
         }
         let category = DataCategories::bit_number_to_category(self.current_bit);
 
         // Consume the last bit
-        self.categories &= u128::MAX - 1;
+        self.categories &= u64::MAX - 1;
 
         // Find the next set bit
         let trailing_zeroes = self.categories.trailing_zeros() as u8;
@@ -293,7 +291,6 @@ impl Iterator for DataCategoryIterator {
 
         // Update the current bit state
         self.current_bit += trailing_zeroes;
-        self.remaining_bits -= 1;
 
         Some(category)
     }
@@ -562,7 +559,7 @@ impl Quota {
     /// based on its scope, categories, and namespace.
     pub fn matches(&self, scoping: ItemScoping) -> bool {
         self.matches_scope(scoping)
-            && scoping.matches_categories(&self.categories)
+            && scoping.matches_categories(self.categories)
             && scoping.matches_namespaces(&self.namespace)
     }
 }
@@ -1127,8 +1124,8 @@ mod tests {
 
     #[test]
     fn test_reserve_last_bit_data_category() {
-        // Ensure we don't accidentally use 127 as a valid DataCategory.
-        let r: Result<DataCategory, UnknownDataCategory> = 127u32.try_into();
+        // Ensure we don't accidentally use 63 as a valid DataCategory.
+        let r: Result<DataCategory, UnknownDataCategory> = 63u32.try_into();
         assert!(r.is_err());
     }
 
@@ -1136,9 +1133,9 @@ mod tests {
     fn test_bitmapping_identity() {
         assert_eq!(
             DataCategories::category_to_mask(DataCategory::Unknown),
-            1u128 << 127
+            1u64 << 63
         );
-        for i in 0..127u32 {
+        for i in 0..63u32 {
             let r: Result<DataCategory, UnknownDataCategory> = i.try_into();
             if let Ok(dc) = r {
                 assert_eq!(DataCategories::bit_number_to_category(i as u8), dc);
