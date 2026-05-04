@@ -19,10 +19,11 @@ use crate::envelope::{
     AttachmentPlaceholder, AttachmentType, ContentType, Envelope, EnvelopeError, Item, ItemType,
     ManagedItems,
 };
+use crate::extractors::RequestMeta;
 use crate::managed::{Managed, Rejected};
 use crate::service::ServiceState;
 use crate::services::buffer::{ProjectKeyPair, PushError};
-use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
+use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::{BucketSource, MetricData, ProcessMetrics};
 use crate::services::upload::{Create, Stream, Upload};
 use crate::statsd::{RelayCounters, RelayDistributions};
@@ -553,6 +554,27 @@ pub async fn upload_to_objectstore(
         records.modify_by(DataCategory::Attachment, new - old);
     });
     Some(item)
+}
+
+pub fn managed_items_to_envelope(
+    items: ManagedItems,
+    meta: RequestMeta,
+    outcome_aggregator: &Addr<TrackOutcome>,
+    event_id: EventId,
+) -> Result<Managed<Box<Envelope>>, BadStoreRequest> {
+    let envelope = Envelope::from_request(Some(event_id), meta);
+    let mut envelope = Managed::from_envelope(envelope, outcome_aggregator.clone());
+    let mut has_event = false;
+    for item in items {
+        envelope.merge_with(item, |envelope, item, records| {
+            if !has_event && item.creates_event() {
+                records.modify_by(DataCategory::Error, 1);
+                has_event = true;
+            }
+            envelope.add_item(item);
+        });
+    }
+    Ok(envelope)
 }
 
 #[derive(Debug)]

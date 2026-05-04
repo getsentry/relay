@@ -5,7 +5,6 @@ use axum::routing::{MethodRouter, post};
 use multer::{Field, Multipart};
 use relay_config::Config;
 use relay_event_schema::protocol::EventId;
-use relay_quotas::DataCategory;
 use serde::Deserialize;
 use tower_http::limit::RequestBodyLimitLayer;
 
@@ -53,19 +52,8 @@ async fn multipart_to_envelope(
     )
     .await?;
 
-    let envelope = Envelope::from_request(Some(path.event_id), meta);
-    let mut envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
-    let mut has_event = false;
-    for item in items {
-        envelope.merge_with(item, |envelope, item, records| {
-            if !has_event && item.creates_event() {
-                records.modify_by(DataCategory::Error, 1);
-                has_event = true;
-            }
-            envelope.add_item(item);
-        });
-    }
-
+    let envelope =
+        common::managed_items_to_envelope(items, meta, state.outcome_aggregator(), path.event_id)?;
     Ok(envelope)
 }
 

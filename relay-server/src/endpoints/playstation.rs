@@ -161,25 +161,12 @@ async fn multipart_to_envelope(
         .iter_mut()
         .find(|item| item.attachment_type() == Some(AttachmentType::Prosperodump))
         .ok_or(BadStoreRequest::MissingProsperodump)?;
-
     prosperodump_item.modify(|inner, _| inner.set_payload(OctetStream, inner.payload()));
-
     validate_prosperodump(&prosperodump_item.payload())?;
 
     let event_id = common::event_id_from_items(&items)?.unwrap_or_else(EventId::new);
-    let envelope = Envelope::from_request(Some(event_id), meta);
-    let mut envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
-    let mut has_event = false;
-    for item in items {
-        envelope.merge_with(item, |envelope, item, records| {
-            if !has_event && item.creates_event() {
-                records.modify_by(DataCategory::Error, 1);
-                has_event = true;
-            }
-            envelope.add_item(item);
-        });
-    }
-
+    let envelope =
+        common::managed_items_to_envelope(items, meta, state.outcome_aggregator(), event_id)?;
     Ok(envelope)
 }
 
