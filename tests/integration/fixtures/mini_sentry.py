@@ -264,13 +264,6 @@ class Sentry(SentryLike):
             return outcomes
 
 
-def _get_project_id(public_key, project_configs):
-    for project_id, project_config in project_configs.items():
-        for key_config in project_config["publicKeys"]:
-            if key_config["publicKey"] == public_key:
-                return project_id
-
-
 @pytest.fixture
 def mini_sentry(request):  # noqa
     app = Flask(__name__)
