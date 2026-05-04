@@ -1,11 +1,6 @@
 use std::borrow::Cow;
 
-use relay_conventions::{
-    SENTRY___INTERNAL__PERFORMANCE_ISSUES_SPANS, SENTRY__CLIENT_SAMPLE_RATE, SENTRY__DESCRIPTION,
-    SENTRY__EXCLUSIVE_TIME, SENTRY__IS_REMOTE, SENTRY__KIND, SENTRY__NORMALIZED_DESCRIPTION,
-    SENTRY__OP, SENTRY__ORIGIN, SENTRY__PLATFORM, SENTRY__PROFILE_ID, SENTRY__SEGMENT__ID,
-    SENTRY__SERVER_SAMPLE_RATE,
-};
+use relay_conventions::*;
 use relay_event_schema::protocol::{
     Attribute, AttributeType, AttributeValue, Attributes, JsonLenientString, Span as SpanV1,
     SpanData, SpanLink, SpanStatus as SpanV1Status, SpanV2, SpanV2Link, SpanV2Status,
