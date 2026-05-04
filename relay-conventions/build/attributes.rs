@@ -93,8 +93,8 @@ fn format_write_behavior(deprecation: Option<&Deprecation>) -> String {
 /// Format an attribute as an `AttributeInfo`.
 pub fn format_attribute_info(attr: &Attribute) -> String {
     let Attribute {
-        key: _key,
-        brief: _brief,
+        key: _,
+        brief: _,
         pii,
         deprecation,
         alias,
