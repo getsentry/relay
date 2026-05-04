@@ -215,6 +215,7 @@ jobs:
           docker run -d \
             --name objectstore \
             -p 8888:8888 \
+            -e OS__AUTH__ENFORCE="false" \
             ghcr.io/getsentry/objectstore:nightly \
             run
 
@@ -782,6 +783,7 @@ jobs:
           docker run -d \
             --name objectstore \
             -p 8888:8888 \
+            -e OS__AUTH__ENFORCE="false" \
             ghcr.io/getsentry/objectstore:nightly \
             run
 
