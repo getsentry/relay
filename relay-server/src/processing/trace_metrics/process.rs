@@ -8,7 +8,7 @@ use relay_quotas::DataCategory;
 use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer};
 use crate::extractors::RequestTrust;
 use crate::processing::Managed;
-use crate::processing::trace_metrics::{Error, Result, utils::calculate_size};
+use crate::processing::trace_metrics::{Error, Result, Settings, utils::calculate_size};
 use crate::processing::trace_metrics::{ExpandedTraceMetrics, SerializedTraceMetrics};
 use crate::processing::{Context, utils};
 use crate::services::outcome::DiscardReason;
@@ -22,16 +22,24 @@ pub fn expand(metrics: Managed<SerializedTraceMetrics>) -> Managed<ExpandedTrace
     metrics.map(|metrics, records| {
         records.lenient(DataCategory::TraceMetricByte);
 
-        let mut all_metrics = Vec::new();
-        for item in metrics.metrics {
-            let expanded = expand_trace_metric_container(&item, trust);
-            let expanded = records.or_default(expanded, item);
-            all_metrics.extend(expanded);
-        }
+        debug_assert!(
+            metrics.invalid.is_empty(),
+            "invalid items should already be rejected"
+        );
+
+        let SerializedTraceMetrics {
+            headers,
+            item,
+            invalid: _,
+        } = metrics;
+
+        let expanded = expand_trace_metric_container(&item, trust);
+        let (settings, metrics) = records.or_default(expanded, item);
 
         ExpandedTraceMetrics {
-            headers: metrics.headers,
-            metrics: all_metrics,
+            headers,
+            settings,
+            metrics,
         }
     })
 }
@@ -41,10 +49,12 @@ pub fn expand(metrics: Managed<SerializedTraceMetrics>) -> Managed<ExpandedTrace
 /// Normalization must happen before any filters are applied or other procedures which rely on the
 /// presence and well-formedness of attributes and fields.
 pub fn normalize(metrics: &mut Managed<ExpandedTraceMetrics>, ctx: Context<'_>) {
+    let settings = metrics.settings;
+
     metrics.retain_with_context(
         |metrics| (&mut metrics.metrics, &metrics.headers),
         |metric, headers, _| {
-            normalize_trace_metric(metric, headers, ctx).inspect_err(|err| {
+            normalize_trace_metric(metric, headers, settings, ctx).inspect_err(|err| {
                 relay_log::debug!("failed to normalize trace metric: {err}");
             })
         },
@@ -67,13 +77,13 @@ pub fn scrub(metrics: &mut Managed<ExpandedTraceMetrics>, ctx: Context<'_>) {
 fn expand_trace_metric_container(
     item: &Item,
     trust: RequestTrust,
-) -> Result<ContainerItems<TraceMetric>> {
-    let mut metrics = ItemContainer::parse(item)
+) -> Result<(Settings, ContainerItems<TraceMetric>)> {
+    let (metadata, mut metrics) = ItemContainer::parse(item)
         .map_err(|err| {
             relay_log::debug!("failed to parse trace metrics container: {err}");
             Error::Invalid(DiscardReason::InvalidJson)
         })?
-        .into_items();
+        .into_parts();
 
     for metric in &mut metrics {
         let byte_size = metric
@@ -86,7 +96,30 @@ fn expand_trace_metric_container(
         }
     }
 
-    Ok(metrics)
+    relay_log::trace!("trace metric container metadata: {metadata:?}");
+    let settings = metadata
+        .map(|metadata| {
+            let is = metadata.ingest_settings.as_ref();
+
+            match metadata.version {
+                None => Settings::default(),
+                // Technically invalid.
+                Some(0 | 1) => Settings::default(),
+                Some(2) => Settings {
+                    infer_ip: is
+                        .and_then(|is| is.infer_ip)
+                        .is_some_and(|infer| infer.is_auto()),
+                    infer_user_agent: is
+                        .and_then(|is| is.infer_user_agent)
+                        .is_some_and(|infer| infer.is_auto()),
+                },
+                // Unsupported, fall back to the safe default.
+                Some(_) => Default::default(),
+            }
+        })
+        .unwrap_or_default();
+
+    Ok((settings, metrics))
 }
 
 /// Applies PII scrubbing to an individual trace metric entry.
@@ -107,6 +140,7 @@ fn scrub_trace_metric(metric: &mut Annotated<TraceMetric>, ctx: Context<'_>) -> 
 fn normalize_trace_metric(
     metric: &mut Annotated<TraceMetric>,
     headers: &EnvelopeHeaders,
+    settings: Settings,
     ctx: Context<'_>,
 ) -> Result<()> {
     let meta = headers.meta();
@@ -117,7 +151,7 @@ fn normalize_trace_metric(
     );
 
     if let Some(metric_value) = metric.value_mut() {
-        let client_ua_info = Some(ClientUserAgentInfo {
+        let client_ua_info = settings.infer_user_agent.then(|| ClientUserAgentInfo {
             user_agent: meta.user_agent(),
             hints: meta.client_hints(),
         });
@@ -130,6 +164,9 @@ fn normalize_trace_metric(
         eap::normalize_attribute_names(&mut metric_value.attributes);
         eap::normalize_received(&mut metric_value.attributes, meta.received_at());
         eap::normalize_client_address(&mut metric_value.attributes, meta.client_addr());
+        if settings.infer_ip {
+            eap::normalize_inject_client_address(&mut metric_value.attributes, meta.client_addr());
+        }
         eap::normalize_user_agent(&mut metric_value.attributes, client_ua_info);
     };
 
