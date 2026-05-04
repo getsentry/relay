@@ -22,7 +22,7 @@ static KEY_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 /// Whether an attribute can contain PII.
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "key")]
-enum Pii {
+pub enum Pii {
     /// The field will be stripped by default
     True,
     /// The field will only be stripped when addressed with a specific path selector, but generic
@@ -35,7 +35,7 @@ enum Pii {
 /// How to handle an attribute's deprecation.
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(rename_all = "snake_case")]
-enum DeprecationStatus {
+pub enum DeprecationStatus {
     /// Write both the original and replacement name.
     Backfill,
     /// Only write the replacement name.
@@ -44,7 +44,7 @@ enum DeprecationStatus {
 
 /// Information about an attribute's deprecation.
 #[derive(Debug, Clone, Deserialize)]
-struct Deprecation {
+pub struct Deprecation {
     /// The attribute's new name.
     replacement: Option<String>,
     /// How to handle the attribute's deprecation.
@@ -60,16 +60,16 @@ pub struct Attribute {
     /// The attribute's name.
     pub key: String,
     /// Short description of the attribute.
-    brief: String,
+    pub brief: String,
     /// Whether the attribute can contain PII.
-    pii: Pii,
+    pub pii: Pii,
     /// If the attribute is deprecated, this contains
     /// information on its replacement name and what should
     /// be done when the original name is encountered.
-    deprecation: Option<Deprecation>,
+    pub deprecation: Option<Deprecation>,
     /// Other attributes that alias to this attribute.
     #[serde(default)]
-    alias: Vec<String>,
+    pub alias: Vec<String>,
 }
 
 /// Formats an attribute's deprecation information as a `WriteBehavior`.

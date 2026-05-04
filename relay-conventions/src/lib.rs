@@ -3,6 +3,7 @@
 //! This crate contains the `sentry-conventions` repository as a git submodule.
 //!
 //! # Attributes
+//!
 //! Attribute definitions in `sentry-conventions` are parsed at build time. For each attribute, this crate exposes:
 //! * A constant whose value is the attribute's key in `sentry-conventions`. This constant has a deprecation tag if
 //!   the attribute is marked as deprecated in `sentry-conventions`, leading to a compiler warning if it's used anyway.
@@ -24,6 +25,7 @@
 //! values of non-deprecated attributes.
 //!
 //! # FAQ
+//!
 //! ### I've changed something in `sentry-conventions`, how do I get Relay to pick it up?
 //! Relay parses `sentry-conventions` at compile time, so any change requires a PR to Relay and needs to be deployed.
 //!
@@ -38,7 +40,7 @@
 //! ### Why is my deprecated attribute not being rewritten to the current name?
 //! Make sure the attribute's `deprecation["_status"]` field is set to either `"backfill"` or `"normalize"`,
 //! depending on what you want to happen (see above). If this is set correctly and it's still not working,
-//! verify the behaviour with an integration test and open an issue. 
+//! verify the behaviour with an integration test and open an issue.
 //!
 //! ### After updating `sentry-conventions` I get a warning about a deprecated constant, what should I do?
 //! This means that Relay is reading or writing an attribute that is deprecated in the new conventions version.
