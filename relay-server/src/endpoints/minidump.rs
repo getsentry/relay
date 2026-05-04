@@ -175,9 +175,9 @@ async fn extract_embedded_minidump(payload: Bytes) -> Result<Option<Bytes>, BadS
 
 #[derive(Clone, Copy, Debug)]
 enum UploadDecision {
-    /// Put the item as is into the envelope (default behavior).
+    /// Put the item into the envelope as-is (default behavior).
     Inline,
-    /// Upload the item to objectstore putting a placeholder in its place into the envelope.
+    /// Upload the item to objectstore and put a placeholder into the envelope.
     ///
     /// The behavior for supersized items.
     Upload,
