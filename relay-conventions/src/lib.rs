@@ -50,8 +50,7 @@
 //! * Otherwise, we may have to decide what to do on a case-by-case basis.
 //!
 //! ### I want to reference an attribute in Relay but it's not defined in `sentry-conventions`, what should I do?
-//! _Please_ define it in `sentry-conventions` before using it in Relay. This makes sure we have proper
-//! documentation, PII handling, normalization, &c. from the beginning.
+//! **Always** define it in `sentry-conventions` before using it in Relay. This makes sure we have proper
 pub mod consts {
     #![allow(rustdoc::bare_urls)]
     #![allow(non_upper_case_globals)]
