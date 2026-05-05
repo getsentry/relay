@@ -117,7 +117,7 @@ impl SentryError for Playstation {
                 item.set_filename(file.name);
                 item.set_attachment_type(AttachmentType::Attachment);
                 item.set_payload(
-                    crate::services::processor::playstation::infer_content_type(file.name),
+                    crate::utils::playstation::infer_content_type(file.name),
                     file.contents.to_owned(),
                 );
                 item
