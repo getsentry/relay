@@ -17,8 +17,6 @@ use crate::services::outcome::{DiscardReason, Outcome};
 
 mod filter;
 mod process;
-#[cfg(feature = "processing")]
-mod store;
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -158,6 +156,7 @@ impl processing::Processor for ProfileChunksProcessor {
         filter::feature_flag(ctx).reject(&profile_chunks)?;
 
         if !ctx.is_processing() {
+            let profile_chunks = self.limiter.enforce_quotas(profile_chunks, ctx).await?;
             return Ok(Output::just(ProfileChunkOutput::Serialized(profile_chunks)));
         }
 
@@ -206,7 +205,7 @@ impl Forward for ProfileChunkOutput {
                         item
                     })
                     .collect();
-                Envelope::from_parts(e.headers, Items::from_vec(items))
+                Envelope::from_parts(e.headers, items)
             })),
         }
     }
@@ -217,6 +216,8 @@ impl Forward for ProfileChunkOutput {
         s: processing::forward::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
+        use crate::services::store::StoreProfileChunk;
+
         let expanded = match self {
             Self::Expanded(e) => e,
             Self::Serialized(m) => {
@@ -228,7 +229,12 @@ impl Forward for ProfileChunkOutput {
         let retention_days = ctx.event_retention().standard;
 
         for chunk in expanded.split(|e| e.chunks) {
-            s.send_to_store(chunk.map(|chunk, _| store::convert(chunk, retention_days)));
+            s.send_to_store(chunk.map(|chunk, _| StoreProfileChunk {
+                retention_days,
+                payload: chunk.payload,
+                quantities: chunk.quantities,
+                raw_profile: chunk.raw_profile,
+            }));
         }
 
         Ok(())

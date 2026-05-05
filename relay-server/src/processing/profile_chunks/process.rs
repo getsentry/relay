@@ -63,6 +63,9 @@ fn expand_item(
         if ctx.should_filter(Feature::ContinuousProfilingPerfetto) {
             return Err(Error::FilterFeatureFlag);
         }
+        let profile_type = item
+            .profile_type()
+            .ok_or(relay_profiling::ProfileError::InvalidProfileType)?;
         let meta_length =
             item.meta_length()
                 .ok_or(relay_profiling::ProfileError::InvalidSampledProfile)? as usize;
@@ -70,7 +73,10 @@ fn expand_item(
             .split_at_checked(meta_length)
             .ok_or(relay_profiling::ProfileError::InvalidSampledProfile)?;
         let expanded = relay_profiling::expand_perfetto(perfetto_payload, json_payload)?;
-        let quantities = validate_and_track(item, expanded.profile_type(), sdk, records)?;
+        if expanded.profile_type() != profile_type {
+            return Err(relay_profiling::ProfileError::InvalidProfileType.into());
+        }
+        let quantities = quantities_for(profile_type);
         expanded.filter(client_ip, filter_settings, ctx.global_config)?;
         if expanded.payload.len() > ctx.config.max_profile_size() {
             return Err(relay_profiling::ProfileError::ExceedSizeLimit.into());
@@ -123,10 +129,10 @@ fn validate_and_track(
         }
     }
 
-    Ok(compute_quantities(profile_type))
+    Ok(quantities_for(profile_type))
 }
 
-fn compute_quantities(profile_type: ProfileType) -> Quantities {
+fn quantities_for(profile_type: ProfileType) -> Quantities {
     match profile_type {
         ProfileType::Ui => smallvec![(DataCategory::ProfileChunkUi, 1)],
         ProfileType::Backend => smallvec![(DataCategory::ProfileChunk, 1)],
@@ -163,7 +169,7 @@ mod tests {
         .into_bytes()
     }
 
-    fn make_compound_item(meta: &[u8], body: &[u8]) -> Item {
+    fn make_compound_item(meta: &[u8], body: &[u8], platform: &str) -> Item {
         let meta_length = meta.len() as u32;
         let mut payload = bytes::BytesMut::new();
         payload.extend_from_slice(meta);
@@ -171,6 +177,7 @@ mod tests {
         let mut item = Item::new(ItemType::ProfileChunk);
         item.set_payload(ContentType::PerfettoTrace, payload.freeze());
         item.set_meta_length(meta_length);
+        item.set_platform(platform.to_owned());
         item
     }
 
@@ -219,7 +226,7 @@ mod tests {
     #[test]
     fn test_expand_compound_feature_flag_disabled() {
         let meta = perfetto_meta();
-        let item = make_compound_item(&meta, PERFETTO_FIXTURE);
+        let item = make_compound_item(&meta, PERFETTO_FIXTURE, "android");
         let (managed, _handle) = make_chunks(vec![item]);
 
         let expanded = expand_single(managed, Context::for_test());
@@ -239,6 +246,7 @@ mod tests {
             bytes::Bytes::from(body.as_ref()),
         );
         item.set_meta_length(body.len() as u32 + 100);
+        item.set_platform("android".to_owned());
         let (managed, _handle) = make_chunks(vec![item]);
 
         let expanded = expand_single(managed, Context::for_test());
@@ -250,9 +258,43 @@ mod tests {
     }
 
     #[test]
+    fn test_expand_compound_missing_platform() {
+        let meta = perfetto_meta();
+        let meta_length = meta.len() as u32;
+        let mut payload = bytes::BytesMut::new();
+        payload.extend_from_slice(&meta);
+        payload.extend_from_slice(PERFETTO_FIXTURE);
+        let mut item = Item::new(ItemType::ProfileChunk);
+        item.set_payload(ContentType::PerfettoTrace, payload.freeze());
+        item.set_meta_length(meta_length);
+        let (managed, _handle) = make_chunks(vec![item]);
+
+        let ctx = Context {
+            project_info: &ProjectInfo {
+                config: ProjectConfig {
+                    features: FeatureSet::from_iter([
+                        Feature::ContinuousProfiling,
+                        Feature::ContinuousProfilingPerfetto,
+                    ]),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Context::for_test()
+        };
+
+        let expanded = expand_single(managed, ctx);
+        let chunks = expanded.accept(|c| c);
+        assert!(
+            chunks.chunks.is_empty(),
+            "perfetto item without platform header should be rejected"
+        );
+    }
+
+    #[test]
     fn test_expand_compound_success() {
         let meta = perfetto_meta();
-        let item = make_compound_item(&meta, PERFETTO_FIXTURE);
+        let item = make_compound_item(&meta, PERFETTO_FIXTURE, "android");
         let (managed, _handle) = make_chunks(vec![item]);
 
         let ctx = Context {
