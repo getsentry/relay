@@ -66,7 +66,7 @@ impl Counted for RawSecurity {
     }
 }
 
-pub fn event_from_security_report(
+fn event_from_security_report(
     item: Item,
     meta: &RequestMeta,
 ) -> Result<(Annotated<Event>, usize), ProcessingError> {
