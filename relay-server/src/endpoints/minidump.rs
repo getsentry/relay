@@ -21,18 +21,14 @@ use tower_http::limit::RequestBodyLimitLayer;
 use zstd::stream::Decoder as ZstdDecoder;
 
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
-use crate::endpoints::common::{
-    self, BadStoreRequest, EndpointError, TextResponse, upload_to_objectstore,
-};
+use crate::endpoints::common::{self, BadStoreRequest, TextResponse, upload_to_objectstore};
 use crate::envelope::ContentType::Minidump;
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::managed::Managed;
 use crate::middlewares;
 use crate::service::ServiceState;
-use crate::services::outcome::{
-    DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome, TrackOutcome,
-};
+use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome};
 use crate::services::projects::cache::Project;
 use crate::services::upload::Upload;
 use crate::statsd::RelayCounters;
@@ -249,7 +245,8 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
             UploadDecision::Drop(limits) => {
                 // This is best effort, the item here does not yet have its content set hence size
                 // is not correct.
-                let _ = item.reject_err(EndpointError::RateLimited(limits.clone()));
+                let reason_code = limits.longest().and_then(|l| l.reason_code.clone());
+                let _ = item.reject_err(Outcome::RateLimited(reason_code));
                 Ok(None)
             }
         }
@@ -466,18 +463,14 @@ async fn handle(
         // This is a best effort outcome, in the sense that we also drop some attachments but
         // since we know neither the amount of size we can emit an accurate outcome for them.
         if let UploadDecision::Drop(limits) = &context.upload_minidumps {
-            let event_id = Some(EventId::new());
+            let managed = Managed::with_meta_from_request_meta(
+                &meta,
+                state.outcome_aggregator(),
+                (DataCategory::Error, 1),
+            );
             let reason = limits.longest().and_then(|l| l.reason_code.clone());
-            state.outcome_aggregator().send(TrackOutcome {
-                timestamp: meta.received_at(),
-                scoping: context.scoping,
-                outcome: Outcome::RateLimited(reason),
-                event_id,
-                remote_addr: meta.client_addr(),
-                category: DataCategory::Error,
-                quantity: 1,
-            });
-            return Ok(TextResponse(event_id));
+            let _ = managed.reject_err(Outcome::RateLimited(reason));
+            return Ok(TextResponse(Some(EventId::new())));
         }
         Some(context)
     } else {

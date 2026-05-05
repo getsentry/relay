@@ -1029,8 +1029,6 @@ def test_minidump_objectstore_uploads_rate_limits(
         expected_outcomes.append(
             {
                 "category": DataCategory.ERROR.value,
-                "key_id": 123,
-                "org_id": 1,
                 "outcome": 2,
                 "project_id": 42,
                 "reason": "test_endpoint_check",
