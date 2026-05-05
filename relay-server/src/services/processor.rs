@@ -87,9 +87,6 @@ pub mod event;
 mod metrics;
 pub mod span;
 
-#[cfg(all(sentry, feature = "processing"))]
-pub mod playstation;
-
 /// The minimum clock drift for correction to apply.
 pub const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
 

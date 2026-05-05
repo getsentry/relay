@@ -4,6 +4,8 @@ mod error;
 mod multipart;
 mod param_parser;
 mod pick;
+#[cfg(all(sentry, feature = "processing"))]
+pub mod playstation;
 mod rate_limits;
 mod retry;
 mod scheduled;
