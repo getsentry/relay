@@ -83,7 +83,6 @@ use {
     std::time::Instant,
 };
 
-pub mod event;
 mod metrics;
 
 #[cfg(all(sentry, feature = "processing"))]
