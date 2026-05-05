@@ -20,7 +20,7 @@ use crate::envelope::{
     ManagedItems,
 };
 use crate::extractors::RequestMeta;
-use crate::managed::{Managed, Rejected};
+use crate::managed::{Managed, OutcomeError, Rejected};
 use crate::service::ServiceState;
 use crate::services::buffer::{ProjectKeyPair, PushError};
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOutcome};
@@ -503,6 +503,25 @@ fn emit_envelope_metrics(envelope: &Envelope) {
             is_container = is_container,
             sdk = client_name,
         );
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum EndpointError {
+    /// The item was rate limited.
+    #[error("rate limited")]
+    RateLimited(RateLimits),
+}
+
+impl OutcomeError for EndpointError {
+    type Error = ();
+    fn consume(self) -> (Option<Outcome>, Self::Error) {
+        match self {
+            EndpointError::RateLimited(limits) => {
+                let reason_code = limits.longest().and_then(|l| l.reason_code.clone());
+                (Some(Outcome::RateLimited(reason_code)), ())
+            }
+        }
     }
 }
 

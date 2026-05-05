@@ -11,7 +11,7 @@ use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::EventId;
-use relay_quotas::{DataCategory, Scoping};
+use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_system::Addr;
 use std::convert::Infallible;
 use std::error::Error;
@@ -21,14 +21,18 @@ use tower_http::limit::RequestBodyLimitLayer;
 use zstd::stream::Decoder as ZstdDecoder;
 
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
-use crate::endpoints::common::{self, BadStoreRequest, TextResponse, upload_to_objectstore};
+use crate::endpoints::common::{
+    self, BadStoreRequest, EndpointError, TextResponse, upload_to_objectstore,
+};
 use crate::envelope::ContentType::Minidump;
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::managed::Managed;
 use crate::middlewares;
 use crate::service::ServiceState;
-use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason};
+use crate::services::outcome::{
+    DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome, TrackOutcome,
+};
 use crate::services::projects::cache::Project;
 use crate::services::upload::Upload;
 use crate::statsd::RelayCounters;
@@ -174,7 +178,7 @@ async fn extract_embedded_minidump(payload: Bytes) -> Result<Option<Bytes>, BadS
     Ok(None)
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 enum UploadDecision {
     /// Put the item into the envelope as-is (default behavior).
     Inline,
@@ -186,7 +190,7 @@ enum UploadDecision {
     ///
     /// Since we already check the quota in the endpoint an item can be dropped even before being
     /// uploaded or put into an envelope.
-    Drop,
+    Drop(RateLimits),
 }
 
 struct UploadContext<'a> {
@@ -197,11 +201,11 @@ struct UploadContext<'a> {
 }
 
 impl UploadContext<'_> {
-    fn upload_decision(&self, attachment_type: Option<AttachmentType>) -> UploadDecision {
+    fn upload_decision(&self, attachment_type: Option<AttachmentType>) -> &UploadDecision {
         match attachment_type {
-            Some(AttachmentType::Attachment) => self.upload_attachments,
-            Some(AttachmentType::Minidump) => self.upload_minidumps,
-            _ => UploadDecision::Inline,
+            Some(AttachmentType::Attachment) => &self.upload_attachments,
+            Some(AttachmentType::Minidump) => &self.upload_minidumps,
+            _ => &UploadDecision::Inline,
         }
     }
 }
@@ -242,8 +246,10 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
             UploadDecision::Inline => {
                 read_attachment_bytes_into_item(field, item, config, false).await
             }
-            UploadDecision::Drop => {
-                // FIXME: Emit an outcome here in the future.
+            UploadDecision::Drop(limits) => {
+                // This is best effort, the item here does not yet have its content set hence size
+                // is not correct.
+                let _ = item.reject_err(EndpointError::RateLimited(limits.clone()));
                 Ok(None)
             }
         }
@@ -343,34 +349,30 @@ fn upload_context_for_project<'a>(
         .scoping(meta.public_key())
         .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
 
-    let rate_limits = || {
-        project.rate_limits().current_limits().check_with_quotas(
-            project_config.get_quotas(),
-            scoping.item(DataCategory::Error),
-        )
-    };
+    let rate_limits = project.rate_limits().current_limits().check_with_quotas(
+        project_config.get_quotas(),
+        scoping.item(DataCategory::Error),
+    );
 
-    let attachment_rate_limits = || {
-        project.rate_limits().current_limits().check_with_quotas(
-            project_config.get_quotas(),
-            scoping.item(DataCategory::Attachment),
-        )
-    };
+    let attachment_rate_limits = project.rate_limits().current_limits().check_with_quotas(
+        project_config.get_quotas(),
+        scoping.item(DataCategory::Attachment),
+    );
 
     let upload_minidumps = if !project_config.has_feature(Feature::MinidumpUploads) {
         UploadDecision::Inline
-    } else if rate_limits().is_limited() {
-        UploadDecision::Drop
+    } else if rate_limits.is_limited() {
+        UploadDecision::Drop(rate_limits.clone())
     } else {
         UploadDecision::Upload
     };
 
-    let upload_attachments = if matches!(upload_minidumps, UploadDecision::Drop) {
-        UploadDecision::Drop
+    let upload_attachments = if matches!(upload_minidumps, UploadDecision::Drop(_)) {
+        UploadDecision::Drop(rate_limits)
     } else if !project_config.has_feature(Feature::MinidumpAttachmentUploads) {
         UploadDecision::Inline
-    } else if attachment_rate_limits().is_limited() {
-        UploadDecision::Drop
+    } else if attachment_rate_limits.is_limited() {
+        UploadDecision::Drop(attachment_rate_limits)
     } else {
         UploadDecision::Upload
     };
@@ -392,8 +394,8 @@ async fn raw_minidump_to_envelope(
     upload_context: Option<UploadContext<'_>>,
 ) -> Result<Managed<Box<Envelope>>, BadStoreRequest> {
     debug_assert!(!matches!(
-        upload_context.as_ref().map(|c| c.upload_minidumps),
-        Some(UploadDecision::Drop)
+        upload_context.as_ref().map(|c| &c.upload_minidumps),
+        Some(UploadDecision::Drop(_))
     ));
 
     let mut item = Item::new(ItemType::Attachment);
@@ -460,9 +462,22 @@ async fn handle(
             .await
             .ok_or(BadStoreRequest::ProjectUnavailable)?;
         let context = upload_context_for_project(&meta, &state, project)?;
-        if matches!(context.upload_minidumps, UploadDecision::Drop) {
-            // There is no error quota hence stop early.
-            return Ok(TextResponse(Some(EventId::new())));
+
+        // This is a best effort outcome, in the sense that we also drop some attachments but
+        // since we know neither the amount of size we can emit an accurate outcome for them.
+        if let UploadDecision::Drop(limits) = &context.upload_minidumps {
+            let event_id = Some(EventId::new());
+            let reason = limits.longest().and_then(|l| l.reason_code.clone());
+            state.outcome_aggregator().send(TrackOutcome {
+                timestamp: meta.received_at(),
+                scoping: context.scoping,
+                outcome: Outcome::RateLimited(reason),
+                event_id: event_id,
+                remote_addr: meta.client_addr(),
+                category: DataCategory::Error,
+                quantity: 1,
+            });
+            return Ok(TextResponse(event_id));
         }
         Some(context)
     } else {

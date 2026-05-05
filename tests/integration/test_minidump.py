@@ -1021,3 +1021,62 @@ def test_minidump_objectstore_uploads_rate_limits(
                 by_name["log.txt"].headers["content_type"]
                 == "application/vnd.sentry.attachment-ref+json"
             )
+
+    expected_outcomes = []
+    if "error" in rate_limited:
+        # The minidump is dropped at the endpoint with a single Error outcome.
+        # Attachments are not accounted for since we never read them and hence know nothing about them.
+        expected_outcomes.append(
+            {
+                "category": DataCategory.ERROR.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 2,
+                "project_id": 42,
+                "reason": "test_endpoint_check",
+                "quantity": 1,
+            }
+        )
+    elif "attachment" in rate_limited:
+        # We get outcomes for both the log.txt and the minidump (although it keeps going with the
+        # rate_limited header true).
+        expected_outcomes.extend(
+            [
+                {
+                    "category": 4,
+                    "key_id": 123,
+                    "org_id": 1,
+                    "outcome": 2,
+                    "project_id": 42,
+                    "quantity": 12,
+                    "reason": "test_endpoint_check",
+                },
+                {
+                    "category": 22,
+                    "key_id": 123,
+                    "org_id": 1,
+                    "outcome": 2,
+                    "project_id": 42,
+                    "quantity": 1,
+                    "reason": "test_endpoint_check",
+                },
+                {
+                    "category": 4,
+                    "outcome": 2,
+                    "project_id": 42,
+                    "quantity": 1,
+                    "reason": "test_endpoint_check",
+                },
+                {
+                    "category": 22,
+                    "outcome": 2,
+                    "project_id": 42,
+                    "quantity": 1,
+                    "reason": "test_endpoint_check",
+                },
+            ]
+        )
+
+    assert mini_sentry.get_aggregated_outcomes() == sorted(
+        expected_outcomes, key=lambda o: sorted(o.items())
+    )
