@@ -56,6 +56,7 @@
 pub mod consts {
     #![allow(rustdoc::bare_urls)]
     #![allow(non_upper_case_globals)]
+    #![allow(non_snake_case)]
     include!(concat!(env!("OUT_DIR"), "/attribute_consts.rs"));
 
     mod not_yet_defined {

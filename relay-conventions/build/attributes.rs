@@ -161,17 +161,7 @@ pub fn format_constant(attr: &Attribute) -> String {
     }
 
     if let Some(deprecation) = deprecation {
-        write!(&mut out, "#[deprecated").unwrap();
-
-        if let Some(ref replacement) = deprecation.replacement {
-            let replacement_name = name_constant(replacement);
-            write!(
-                &mut out,
-                r#"(note="Use [`{replacement_name}`] (`{replacement}`) instead.")"#
-            )
-            .unwrap();
-        }
-        writeln!(&mut out, "]").unwrap();
+        write_deprecation_annotation(&mut out, deprecation);
     }
 
     writeln!(&mut out, r#"pub const {name}: &str = "{key}";"#).unwrap();
@@ -179,12 +169,80 @@ pub fn format_constant(attr: &Attribute) -> String {
     out
 }
 
+/// Formats an attribute as a function that interpolates a value for
+/// the `<key>` placeholder.
+pub fn format_interpolating_fn(attribute: &Attribute) -> Option<String> {
+    let Attribute {
+        key,
+        brief: _,
+        pii: _,
+        deprecation,
+        alias: _,
+    } = attribute;
+
+    let needle = "<key>";
+    let placeholder_start = key.find(needle)?;
+    let placeholder_end = placeholder_start + needle.len();
+    let before_placeholder = key.get(..placeholder_start).unwrap_or_default();
+    let after_placeholder = key.get(placeholder_end..).unwrap_or_default();
+
+    let constant_name = name_constant(key);
+    let fn_name = name_fn(key);
+
+    let mut out = String::new();
+
+    let example_value = key.replace("<key>", "foobar");
+
+    writeln!(
+        &mut out,
+        r#"/// Instantiates the `<key>` placeholder in the attribute
+/// [`{constant_name}`] (`{key}`) with a concrete value.
+/// # Example
+/// ```
+/// use relay_conventions::consts::{fn_name};
+/// assert_eq!({fn_name}("foobar"), "{example_value}
+/// ```"#
+    )
+    .unwrap();
+
+    if let Some(deprecation) = deprecation {
+        write_deprecation_annotation(&mut out, deprecation);
+    }
+
+    writeln!(
+        &mut out,
+        r#"pub fn {fn_name}(value: &str) -> String {{
+    format!("{before_placeholder}{{value}}{after_placeholder}")
+}}"#
+    )
+    .unwrap();
+
+    Some(out)
+}
+
+fn write_deprecation_annotation(out: &mut impl Write, deprecation: &Deprecation) {
+    write!(out, "#[deprecated").unwrap();
+
+    if let Some(ref replacement) = deprecation.replacement {
+        let replacement_name = name_constant(replacement);
+        write!(
+            out,
+            r#"(note="Use [`{replacement_name}`] (`{replacement}`) instead.")"#
+        )
+        .unwrap();
+    }
+    writeln!(out, "]").unwrap();
+}
+
 /// Formats an attributes name as a constant identifier.
 fn name_constant(name: &str) -> String {
+    name_fn(name).to_ascii_uppercase()
+}
+
+fn name_fn(name: &str) -> String {
     name.replace(['<', '>'], "")
         .replace('.', "__")
         .replace('-', "_")
-        .to_ascii_uppercase()
 }
 
 /// Parse a path-like attribute key into individual segments.

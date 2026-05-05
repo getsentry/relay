@@ -27,8 +27,8 @@ fn main() {
 
 fn write_attribute_rs(crate_dir: &Path) {
     use attributes::{
-        Attribute, RawNode, constant_pair, format_attribute_info, format_constant, parse_segments,
-        write_canonical_fn,
+        Attribute, RawNode, constant_pair, format_attribute_info, format_constant,
+        format_interpolating_fn, parse_segments, write_canonical_fn,
     };
 
     let attribute_consts_path =
@@ -53,6 +53,11 @@ fn write_attribute_rs(crate_dir: &Path) {
             // Insert deprecated -> replacement into map
             if let Some((old, new)) = constant_pair(&attr) {
                 attribute_replacement_map.insert(old, new);
+            }
+
+            // Write placeholder function, if applicable
+            if let Some(fun) = format_interpolating_fn(&attr) {
+                writeln!(&mut attribute_consts_file, "{}\n", fun).unwrap();
             }
 
             // Put attribute info in the hierarchical map
