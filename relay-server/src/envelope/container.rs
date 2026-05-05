@@ -241,13 +241,6 @@ impl<T: ContainerItem> ItemContainer<T> {
         }
     }
 
-    /// Returns all contained items.
-    ///
-    /// The container can be reconstructed using [`ItemContainer::from`].
-    pub fn into_items(self) -> ContainerItems<T> {
-        self.items
-    }
-
     /// Consumes the container returning the metadata and items parts.
     pub fn into_parts(self) -> (Result<T::Metadata, InvalidMetadata>, ContainerItems<T>) {
         (self.metadata, self.items)
@@ -398,7 +391,7 @@ impl ContainerItem for relay_event_schema::protocol::TraceMetric {
     const ITEM_TYPE: ItemType = ItemType::TraceMetric;
     const CONTENT_TYPE: ContentType = ContentType::TraceMetricContainer;
 
-    type Metadata = NoMetadata;
+    type Metadata = relay_event_schema::protocol::trace_metric::container::ContainerMetadata;
     type Header = relay_event_schema::protocol::TraceMetricHeader;
 }
 

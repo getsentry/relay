@@ -1106,6 +1106,14 @@ def test_time_corrections(mini_sentry, relay, delta, error):
         (
             {
                 "version": 2,
+                "ingest_settings": {"infer_ip": "never", "infer_user_agent": "never"},
+            },
+            False,
+            False,
+        ),
+        (
+            {
+                "version": 2,
                 "ingest_settings": {"infer_ip": "auto", "infer_user_agent": "auto"},
             },
             True,

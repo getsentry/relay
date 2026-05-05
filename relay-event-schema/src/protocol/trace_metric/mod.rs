@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize, Serializer};
 use crate::processor::ProcessValue;
 use crate::protocol::{Attributes, SpanId, Timestamp, TraceId};
 
+pub mod container;
+
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[metastructure(process_func = "process_trace_metric", value_type = "TraceMetric")]
 pub struct TraceMetric {
