@@ -77,6 +77,12 @@ relay-test = { path = "relay-test" }
 relay-threading = { path = "relay-threading" }
 relay-ua = { path = "relay-ua" }
 
+
+# Use the section below to define the minimum version of a dependency that
+# has the API required for the code to compile.
+#
+# Use Cargo.lock via `cargo update` to define the exact version
+# of dependencies used in builds.
 ahash = "0.8"
 android_trace_log = { version = "0.3", features = ["serde"] }
 # This version is pinned because upgrading it enables backtrace by default without the possibility to disable it
