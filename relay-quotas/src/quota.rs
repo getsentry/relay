@@ -183,7 +183,7 @@ impl Serialize for DataCategories {
     where
         S: serde::Serializer,
     {
-        let mut ser = serializer.serialize_seq(Some(self.size()))?;
+        let mut ser = serializer.serialize_seq(Some(self.len()))?;
         for category in self.iter() {
             ser.serialize_element(&category)?;
         }
@@ -195,7 +195,7 @@ impl DataCategories {
     fn category_to_mask(category: DataCategory) -> u64 {
         if matches!(category, DataCategory::Unknown) {
             // Handle Unknown by throwing it into the last bit.
-            1u64 << (8 * std::mem::size_of::<u64>() - 1)
+            1u64 << 63
         } else {
             1u64 << (category as u8)
         }
@@ -227,7 +227,7 @@ impl DataCategories {
     pub fn add(&self, category: DataCategory) -> Option<Self> {
         let category_mask = DataCategories::category_to_mask(category);
 
-        if self.0 & category_mask != 0 {
+        if (self.0 & category_mask) != 0 {
             return None;
         }
 
@@ -237,7 +237,7 @@ impl DataCategories {
     /// Returns true iff the category is contained.
     pub fn contains(&self, category: &DataCategory) -> bool {
         let category_mask = DataCategories::category_to_mask(*category);
-        self.0 & category_mask != 0
+        (self.0 & category_mask) != 0
     }
 
     /// Returns an iterator over this [`DataCategories`] container.
@@ -255,7 +255,7 @@ impl DataCategories {
     }
 
     /// Returns the number of categories in this container.
-    pub fn size(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.0.count_ones() as usize
     }
 
