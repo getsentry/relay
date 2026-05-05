@@ -2,7 +2,7 @@
 <a href=#2 id=2 data-nosnippet>2</a><span class="kw">use </span>std::collections::HashMap;
 <a href=#3 id=3 data-nosnippet>3</a>
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>chrono::Utc;
-<a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>relay_conventions::CLIENT_SAMPLE_RATE;
+<a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>relay_conventions::consts::SENTRY__CLIENT_SAMPLE_RATE;
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>relay_event_schema::protocol::Attributes;
 <a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>relay_protocol::{Annotated, IntoValue, MetaTree, Value};
 <a href=#8 id=8 data-nosnippet>8</a>
@@ -206,7 +206,7 @@
 <a href=#206 id=206 data-nosnippet>206</a><span class="doccomment">/// Extracts the client sample rate from trace attributes.
 <a href=#207 id=207 data-nosnippet>207</a></span><span class="kw">pub fn </span>extract_client_sample_rate(attributes: <span class="kw-2">&amp;</span>Attributes) -&gt; <span class="prelude-ty">Option</span>&lt;f64&gt; {
 <a href=#208 id=208 data-nosnippet>208</a>    attributes
-<a href=#209 id=209 data-nosnippet>209</a>        .get_value(CLIENT_SAMPLE_RATE)
+<a href=#209 id=209 data-nosnippet>209</a>        .get_value(SENTRY__CLIENT_SAMPLE_RATE)
 <a href=#210 id=210 data-nosnippet>210</a>        .and_then(|value| value.as_f64())
 <a href=#211 id=211 data-nosnippet>211</a>        .filter(|v| <span class="kw-2">*</span>v &gt; <span class="number">0.0</span>)
 <a href=#212 id=212 data-nosnippet>212</a>        .filter(|v| <span class="kw-2">*</span>v &lt;= <span class="number">1.0</span>)

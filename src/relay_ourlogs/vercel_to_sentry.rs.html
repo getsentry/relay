@@ -3,7 +3,7 @@
 <a href=#3 id=3 data-nosnippet>3</a></span><span class="kw">use </span>std::str::FromStr;
 <a href=#4 id=4 data-nosnippet>4</a>
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>chrono::{TimeZone, Utc};
-<a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>relay_conventions::{ENVIRONMENT, ORIGIN, SERVER_ADDRESS};
+<a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>relay_conventions::consts::<span class="kw-2">*</span>;
 <a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId, Timestamp, TraceId};
 <a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>relay_protocol::{Annotated, Meta, Remark, RemarkType};
 <a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>serde::{Deserialize, Deserializer};
@@ -221,27 +221,27 @@
 <a href=#221 id=221 data-nosnippet>221</a>        }};
 <a href=#222 id=222 data-nosnippet>222</a>    }
 <a href=#223 id=223 data-nosnippet>223</a>
-<a href=#224 id=224 data-nosnippet>224</a>    <span class="macro">add_attribute!</span>(ORIGIN, <span class="string">"auto.log_drain.vercel"</span>.to_owned());
-<a href=#225 id=225 data-nosnippet>225</a>    <span class="macro">add_attribute!</span>(<span class="string">"vercel.id"</span>, id);
-<a href=#226 id=226 data-nosnippet>226</a>    <span class="macro">add_attribute!</span>(<span class="string">"vercel.deployment_id"</span>, deployment_id);
-<a href=#227 id=227 data-nosnippet>227</a>    <span class="macro">add_attribute!</span>(<span class="string">"vercel.source"</span>, source);
-<a href=#228 id=228 data-nosnippet>228</a>    <span class="macro">add_attribute!</span>(SERVER_ADDRESS, host);
-<a href=#229 id=229 data-nosnippet>229</a>    <span class="macro">add_attribute!</span>(<span class="string">"vercel.project_id"</span>, project_id);
+<a href=#224 id=224 data-nosnippet>224</a>    <span class="macro">add_attribute!</span>(SENTRY__ORIGIN, <span class="string">"auto.log_drain.vercel"</span>.to_owned());
+<a href=#225 id=225 data-nosnippet>225</a>    <span class="macro">add_attribute!</span>(VERCEL__ID, id);
+<a href=#226 id=226 data-nosnippet>226</a>    <span class="macro">add_attribute!</span>(VERCEL__DEPLOYMENT_ID, deployment_id);
+<a href=#227 id=227 data-nosnippet>227</a>    <span class="macro">add_attribute!</span>(VERCEL__SOURCE, source);
+<a href=#228 id=228 data-nosnippet>228</a>    <span class="macro">add_attribute!</span>(SERVER__ADDRESS, host);
+<a href=#229 id=229 data-nosnippet>229</a>    <span class="macro">add_attribute!</span>(VERCEL__PROJECT_ID, project_id);
 <a href=#230 id=230 data-nosnippet>230</a>
-<a href=#231 id=231 data-nosnippet>231</a>    <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.build_id"</span>, build_id);
-<a href=#232 id=232 data-nosnippet>232</a>    <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.entrypoint"</span>, entrypoint);
-<a href=#233 id=233 data-nosnippet>233</a>    <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.destination"</span>, destination);
-<a href=#234 id=234 data-nosnippet>234</a>    <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.path"</span>, path);
-<a href=#235 id=235 data-nosnippet>235</a>    <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.log_type"</span>, ty);
-<a href=#236 id=236 data-nosnippet>236</a>    <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.status_code"</span>, status_code);
-<a href=#237 id=237 data-nosnippet>237</a>    <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.request_id"</span>, request_id);
-<a href=#238 id=238 data-nosnippet>238</a>    <span class="macro">add_optional_attribute!</span>(ENVIRONMENT, environment);
-<a href=#239 id=239 data-nosnippet>239</a>    <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.branch"</span>, branch);
-<a href=#240 id=240 data-nosnippet>240</a>    <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.ja3_digest"</span>, ja3_digest);
-<a href=#241 id=241 data-nosnippet>241</a>    <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.ja4_digest"</span>, ja4_digest);
-<a href=#242 id=242 data-nosnippet>242</a>    <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.edge_type"</span>, edge_type);
-<a href=#243 id=243 data-nosnippet>243</a>    <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.project_name"</span>, project_name);
-<a href=#244 id=244 data-nosnippet>244</a>    <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.execution_region"</span>, execution_region);
+<a href=#231 id=231 data-nosnippet>231</a>    <span class="macro">add_optional_attribute!</span>(VERCEL__BUILD_ID, build_id);
+<a href=#232 id=232 data-nosnippet>232</a>    <span class="macro">add_optional_attribute!</span>(VERCEL__ENTRYPOINT, entrypoint);
+<a href=#233 id=233 data-nosnippet>233</a>    <span class="macro">add_optional_attribute!</span>(VERCEL__DESTINATION, destination);
+<a href=#234 id=234 data-nosnippet>234</a>    <span class="macro">add_optional_attribute!</span>(VERCEL__PATH, path);
+<a href=#235 id=235 data-nosnippet>235</a>    <span class="macro">add_optional_attribute!</span>(VERCEL__LOG_TYPE, ty);
+<a href=#236 id=236 data-nosnippet>236</a>    <span class="macro">add_optional_attribute!</span>(VERCEL__STATUS_CODE, status_code);
+<a href=#237 id=237 data-nosnippet>237</a>    <span class="macro">add_optional_attribute!</span>(VERCEL__REQUEST_ID, request_id);
+<a href=#238 id=238 data-nosnippet>238</a>    <span class="macro">add_optional_attribute!</span>(SENTRY__ENVIRONMENT, environment);
+<a href=#239 id=239 data-nosnippet>239</a>    <span class="macro">add_optional_attribute!</span>(VERCEL__BRANCH, branch);
+<a href=#240 id=240 data-nosnippet>240</a>    <span class="macro">add_optional_attribute!</span>(VERCEL__JA3_DIGEST, ja3_digest);
+<a href=#241 id=241 data-nosnippet>241</a>    <span class="macro">add_optional_attribute!</span>(VERCEL__JA4_DIGEST, ja4_digest);
+<a href=#242 id=242 data-nosnippet>242</a>    <span class="macro">add_optional_attribute!</span>(VERCEL__EDGE_TYPE, edge_type);
+<a href=#243 id=243 data-nosnippet>243</a>    <span class="macro">add_optional_attribute!</span>(VERCEL__PROJECT_NAME, project_name);
+<a href=#244 id=244 data-nosnippet>244</a>    <span class="macro">add_optional_attribute!</span>(VERCEL__EXECUTION_REGION, execution_region);
 <a href=#245 id=245 data-nosnippet>245</a>
 <a href=#246 id=246 data-nosnippet>246</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(proxy) = proxy {
 <a href=#247 id=247 data-nosnippet>247</a>        <span class="kw">let </span>VercelProxy {
@@ -266,29 +266,29 @@
 <a href=#266 id=266 data-nosnippet>266</a>            waf_rule_id,
 <a href=#267 id=267 data-nosnippet>267</a>        } = proxy;
 <a href=#268 id=268 data-nosnippet>268</a>
-<a href=#269 id=269 data-nosnippet>269</a>        <span class="macro">add_attribute!</span>(<span class="string">"vercel.proxy.timestamp"</span>, timestamp);
-<a href=#270 id=270 data-nosnippet>270</a>        <span class="macro">add_attribute!</span>(<span class="string">"vercel.proxy.method"</span>, method);
-<a href=#271 id=271 data-nosnippet>271</a>        <span class="macro">add_attribute!</span>(<span class="string">"vercel.proxy.host"</span>, host);
-<a href=#272 id=272 data-nosnippet>272</a>        <span class="macro">add_attribute!</span>(<span class="string">"vercel.proxy.path"</span>, path);
-<a href=#273 id=273 data-nosnippet>273</a>        <span class="macro">add_attribute!</span>(<span class="string">"vercel.proxy.region"</span>, region);
+<a href=#269 id=269 data-nosnippet>269</a>        <span class="macro">add_attribute!</span>(VERCEL__PROXY__TIMESTAMP, timestamp);
+<a href=#270 id=270 data-nosnippet>270</a>        <span class="macro">add_attribute!</span>(VERCEL__PROXY__METHOD, method);
+<a href=#271 id=271 data-nosnippet>271</a>        <span class="macro">add_attribute!</span>(VERCEL__PROXY__HOST, host);
+<a href=#272 id=272 data-nosnippet>272</a>        <span class="macro">add_attribute!</span>(VERCEL__PROXY__PATH, path);
+<a href=#273 id=273 data-nosnippet>273</a>        <span class="macro">add_attribute!</span>(VERCEL__PROXY__REGION, region);
 <a href=#274 id=274 data-nosnippet>274</a>
 <a href=#275 id=275 data-nosnippet>275</a>        <span class="kw">if let </span><span class="prelude-val">Ok</span>(user_agent_string) = serde_json::to_string(<span class="kw-2">&amp;</span>user_agent) {
-<a href=#276 id=276 data-nosnippet>276</a>            attributes.insert(<span class="string">"vercel.proxy.user_agent"</span>, user_agent_string);
+<a href=#276 id=276 data-nosnippet>276</a>            attributes.insert(VERCEL__PROXY__USER_AGENT, user_agent_string);
 <a href=#277 id=277 data-nosnippet>277</a>        }
 <a href=#278 id=278 data-nosnippet>278</a>
-<a href=#279 id=279 data-nosnippet>279</a>        <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.proxy.referer"</span>, referer);
-<a href=#280 id=280 data-nosnippet>280</a>        <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.proxy.status_code"</span>, status_code);
-<a href=#281 id=281 data-nosnippet>281</a>        <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.proxy.client_ip"</span>, client_ip);
-<a href=#282 id=282 data-nosnippet>282</a>        <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.proxy.scheme"</span>, scheme);
-<a href=#283 id=283 data-nosnippet>283</a>        <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.proxy.response_byte_size"</span>, response_byte_size);
-<a href=#284 id=284 data-nosnippet>284</a>        <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.proxy.cache_id"</span>, cache_id);
-<a href=#285 id=285 data-nosnippet>285</a>        <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.proxy.path_type"</span>, path_type);
-<a href=#286 id=286 data-nosnippet>286</a>        <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.proxy.path_type_variant"</span>, path_type_variant);
-<a href=#287 id=287 data-nosnippet>287</a>        <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.proxy.vercel_id"</span>, vercel_id);
-<a href=#288 id=288 data-nosnippet>288</a>        <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.proxy.vercel_cache"</span>, vercel_cache);
-<a href=#289 id=289 data-nosnippet>289</a>        <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.proxy.lambda_region"</span>, lambda_region);
-<a href=#290 id=290 data-nosnippet>290</a>        <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.proxy.waf_action"</span>, waf_action);
-<a href=#291 id=291 data-nosnippet>291</a>        <span class="macro">add_optional_attribute!</span>(<span class="string">"vercel.proxy.waf_rule_id"</span>, waf_rule_id);
+<a href=#279 id=279 data-nosnippet>279</a>        <span class="macro">add_optional_attribute!</span>(VERCEL__PROXY__REFERER, referer);
+<a href=#280 id=280 data-nosnippet>280</a>        <span class="macro">add_optional_attribute!</span>(VERCEL__PROXY__STATUS_CODE, status_code);
+<a href=#281 id=281 data-nosnippet>281</a>        <span class="macro">add_optional_attribute!</span>(VERCEL__PROXY__CLIENT_IP, client_ip);
+<a href=#282 id=282 data-nosnippet>282</a>        <span class="macro">add_optional_attribute!</span>(VERCEL__PROXY__SCHEME, scheme);
+<a href=#283 id=283 data-nosnippet>283</a>        <span class="macro">add_optional_attribute!</span>(VERCEL__PROXY__RESPONSE_BYTE_SIZE, response_byte_size);
+<a href=#284 id=284 data-nosnippet>284</a>        <span class="macro">add_optional_attribute!</span>(VERCEL__PROXY__CACHE_ID, cache_id);
+<a href=#285 id=285 data-nosnippet>285</a>        <span class="macro">add_optional_attribute!</span>(VERCEL__PROXY__PATH_TYPE, path_type);
+<a href=#286 id=286 data-nosnippet>286</a>        <span class="macro">add_optional_attribute!</span>(VERCEL__PROXY__PATH_TYPE_VARIANT, path_type_variant);
+<a href=#287 id=287 data-nosnippet>287</a>        <span class="macro">add_optional_attribute!</span>(VERCEL__PROXY__VERCEL_ID, vercel_id);
+<a href=#288 id=288 data-nosnippet>288</a>        <span class="macro">add_optional_attribute!</span>(VERCEL__PROXY__VERCEL_CACHE, vercel_cache);
+<a href=#289 id=289 data-nosnippet>289</a>        <span class="macro">add_optional_attribute!</span>(VERCEL__PROXY__LAMBDA_REGION, lambda_region);
+<a href=#290 id=290 data-nosnippet>290</a>        <span class="macro">add_optional_attribute!</span>(VERCEL__PROXY__WAF_ACTION, waf_action);
+<a href=#291 id=291 data-nosnippet>291</a>        <span class="macro">add_optional_attribute!</span>(VERCEL__PROXY__WAF_RULE_ID, waf_rule_id);
 <a href=#292 id=292 data-nosnippet>292</a>    }
 <a href=#293 id=293 data-nosnippet>293</a>
 <a href=#294 id=294 data-nosnippet>294</a>    <span class="kw">let </span>timestamp = <span class="kw">match </span>Utc.timestamp_millis_opt(timestamp).single() {
