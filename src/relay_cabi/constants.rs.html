@@ -62,7 +62,7 @@
 <a href=#62 id=62 data-nosnippet>62</a></span><span class="attr">#[<span class="kw">unsafe</span>(no_mangle)]
 <a href=#63 id=63 data-nosnippet>63</a>#[relay_ffi::catch_unwind]
 <a href=#64 id=64 data-nosnippet>64</a></span><span class="kw">pub unsafe extern </span><span class="string">"C" </span><span class="kw">fn </span>relay_data_category_unit(category: DataCategory) -&gt; i8 {
-<a href=#65 id=65 data-nosnippet>65</a>    <span class="kw">match </span>CategoryUnit::from_category(<span class="kw-2">&amp;</span>category) {
+<a href=#65 id=65 data-nosnippet>65</a>    <span class="kw">match </span>CategoryUnit::from_category(category) {
 <a href=#66 id=66 data-nosnippet>66</a>        <span class="prelude-val">Some</span>(unit) =&gt; unit <span class="kw">as </span>i8,
 <a href=#67 id=67 data-nosnippet>67</a>        <span class="prelude-val">None </span>=&gt; CATEGORY_UNIT_NONE,
 <a href=#68 id=68 data-nosnippet>68</a>    }

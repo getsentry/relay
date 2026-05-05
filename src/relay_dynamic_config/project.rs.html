@@ -124,7 +124,7 @@
 <a href=#124 id=124 data-nosnippet>124</a>            // This is probably not intended behavior.
 <a href=#125 id=125 data-nosnippet>125</a>            </span><span class="kw">for </span>quota <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.quotas {
 <a href=#126 id=126 data-nosnippet>126</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(id) = quota.id.as_deref() {
-<a href=#127 id=127 data-nosnippet>127</a>                    <span class="kw">for </span>category <span class="kw">in </span><span class="kw-2">&amp;*</span>quota.categories {
+<a href=#127 id=127 data-nosnippet>127</a>                    <span class="kw">for </span>category <span class="kw">in </span>quota.categories.iter() {
 <a href=#128 id=128 data-nosnippet>128</a>                        <span class="kw">if let </span><span class="prelude-val">Some</span>(indexed) = category.index_category()
 <a href=#129 id=129 data-nosnippet>129</a>                            &amp;&amp; quota.categories.contains(<span class="kw-2">&amp;</span>indexed)
 <a href=#130 id=130 data-nosnippet>130</a>                        {
