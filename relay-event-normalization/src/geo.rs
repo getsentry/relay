@@ -44,10 +44,8 @@ impl GeoIpLookup {
     ///
     /// Returns `None` for an [`Self::empty`] database.
     pub fn build_epoch(&self) -> Option<UnixTimestamp> {
-        self.0
-            .as_ref()
-            .map(|reader| reader.metadata.build_epoch)
-            .map(UnixTimestamp::from_secs)
+        let reader = self.0.as_ref()?;
+        Some(UnixTimestamp::from_secs(reader.metadata.build_epoch))
     }
 
     /// Looks up an IP address.
