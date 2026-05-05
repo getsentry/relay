@@ -405,23 +405,21 @@ impl Getter for ExpandedPerfettoChunk {
 
 /// Expands a binary Perfetto trace into a Sample v2 profile chunk.
 ///
-/// Decodes the protobuf trace, converts it into the internal Sample v2 format,
-/// merges the provided JSON `metadata_json` (containing platform, environment, etc.),
-/// and returns an [`ExpandedPerfettoChunk`] with the serialized JSON payload plus
+/// Returns an [`ExpandedPerfettoChunk`] with the serialized JSON payload plus
 /// the profile metadata needed for downstream processing (platform, profile type,
 /// inbound filtering) — avoiding a second JSON deserialization pass in callers.
 pub fn expand_perfetto(
-    perfetto_bytes: &[u8],
-    metadata_json: &[u8],
+    perfetto_payload: &[u8],
+    json_payload: &[u8],
 ) -> Result<ExpandedPerfettoChunk, ProfileError> {
-    let d = &mut Deserializer::from_slice(metadata_json);
+    let d = &mut Deserializer::from_slice(json_payload);
     let mut chunk: sample::v2::ProfileChunk =
         serde_path_to_error::deserialize(d).map_err(ProfileError::InvalidJson)?;
 
     let platform = chunk.metadata.platform.clone();
     let release = chunk.metadata.release.clone();
 
-    let (profile_data, debug_images) = perfetto::convert(perfetto_bytes)?;
+    let (profile_data, debug_images) = perfetto::convert(perfetto_payload)?;
     chunk.profile = profile_data;
     chunk.metadata.debug_meta.images.extend(debug_images);
     chunk.normalize()?;

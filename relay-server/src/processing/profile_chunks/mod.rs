@@ -1,17 +1,22 @@
 use std::sync::Arc;
 
+use bytes::Bytes;
+use serde::Serialize;
+use smallvec::smallvec;
+
 use relay_profiling::ProfileType;
 use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
-use crate::envelope::{EnvelopeHeaders, Item, ItemType, Items};
+use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType, Items};
 use crate::managed::{Counted, Managed, ManagedEnvelope, ManagedResult as _, Quantities, Rejected};
 use crate::processing::{self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
-use smallvec::smallvec;
 
 mod filter;
 mod process;
+#[cfg(feature = "processing")]
+mod store;
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -56,6 +61,50 @@ impl crate::managed::OutcomeError for Error {
     }
 }
 
+#[derive(Clone, Debug, Serialize)]
+pub struct RawProfile {
+    #[serde(rename = "raw_profile")]
+    pub payload: Bytes,
+    #[serde(rename = "raw_profile_content_type")]
+    pub content_type: ContentType,
+}
+
+/// A single profile chunk after expansion.
+#[derive(Debug)]
+pub struct ExpandedProfileChunk {
+    pub payload: Bytes,
+    pub raw_profile: Option<RawProfile>,
+    pub quantities: Quantities,
+}
+
+impl Counted for ExpandedProfileChunk {
+    fn quantities(&self) -> Quantities {
+        self.quantities.clone()
+    }
+}
+
+/// Profile chunks after expansion: all items have been parsed, validated, and
+/// converted into typed representations.
+#[derive(Debug)]
+pub struct ExpandedProfileChunks {
+    pub headers: EnvelopeHeaders,
+    pub chunks: Vec<ExpandedProfileChunk>,
+}
+
+impl Counted for ExpandedProfileChunks {
+    fn quantities(&self) -> Quantities {
+        let mut q = Quantities::new();
+        for chunk in &self.chunks {
+            q.extend(chunk.quantities());
+        }
+        q
+    }
+}
+
+impl CountRateLimited for Managed<ExpandedProfileChunks> {
+    type Error = Error;
+}
+
 /// A processor for profile chunks.
 ///
 /// It processes items of type: [`ItemType::ProfileChunk`].
@@ -97,31 +146,63 @@ impl processing::Processor for ProfileChunksProcessor {
 
     async fn process(
         &self,
-        mut profile_chunks: Managed<Self::Input>,
+        profile_chunks: Managed<Self::Input>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Error>> {
         filter::feature_flag(ctx).reject(&profile_chunks)?;
 
-        process::process(&mut profile_chunks, ctx);
+        if !ctx.is_processing() {
+            return Ok(Output::just(ProfileChunkOutput::Serialized(profile_chunks)));
+        }
 
-        let profile_chunks = self.limiter.enforce_quotas(profile_chunks, ctx).await?;
+        let expanded: Managed<ExpandedProfileChunks> = process::expand(profile_chunks, ctx);
+        let expanded = self.limiter.enforce_quotas(expanded, ctx).await?;
 
-        Ok(Output::just(ProfileChunkOutput(profile_chunks)))
+        Ok(Output::just(ProfileChunkOutput::Expanded(expanded)))
     }
 }
 
 /// Output produced by [`ProfileChunksProcessor`].
 #[derive(Debug)]
-pub struct ProfileChunkOutput(Managed<SerializedProfileChunks>);
+pub enum ProfileChunkOutput {
+    /// Non-processing relay: items forwarded as-is.
+    Serialized(Managed<SerializedProfileChunks>),
+    /// Processing relay: items expanded into typed representations.
+    Expanded(Managed<ExpandedProfileChunks>),
+}
 
 impl Forward for ProfileChunkOutput {
     fn serialize_envelope(
         self,
         _: processing::ForwardContext<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
-        let Self(profile_chunks) = self;
-        Ok(profile_chunks
-            .map(|pc, _| Envelope::from_parts(pc.headers, Items::from_vec(pc.profile_chunks))))
+        match self {
+            Self::Serialized(profile_chunks) => Ok(profile_chunks
+                .map(|pc, _| Envelope::from_parts(pc.headers, Items::from_vec(pc.profile_chunks)))),
+            Self::Expanded(expanded) => Ok(expanded.map(|e, _| {
+                let items = e
+                    .chunks
+                    .into_iter()
+                    .map(|chunk| {
+                        let mut item = Item::new(ItemType::ProfileChunk);
+                        if let Some(raw_profile) = chunk.raw_profile {
+                            let meta_length = chunk.payload.len() as u32;
+                            let mut compound = bytes::BytesMut::with_capacity(
+                                chunk.payload.len() + raw_profile.payload.len(),
+                            );
+                            compound.extend_from_slice(&chunk.payload);
+                            compound.extend_from_slice(&raw_profile.payload);
+                            item.set_payload(raw_profile.content_type, compound.freeze());
+                            item.set_meta_length(meta_length);
+                        } else {
+                            item.set_payload(ContentType::Json, chunk.payload);
+                        }
+                        item
+                    })
+                    .collect();
+                Envelope::from_parts(e.headers, Items::from_vec(items))
+            })),
+        }
     }
 
     #[cfg(feature = "processing")]
@@ -130,55 +211,22 @@ impl Forward for ProfileChunkOutput {
         s: processing::forward::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        use crate::services::store::{RawProfileContentType, StoreProfileChunk};
-
-        let Self(profile_chunks) = self;
+        let expanded = match self {
+            Self::Expanded(e) => e,
+            Self::Serialized(m) => {
+                return Err(
+                    m.internal_error("forward_store called with non-expanded profile chunks")
+                );
+            }
+        };
         let retention_days = ctx.event_retention().standard;
 
-        for item in profile_chunks.split(|pc| pc.profile_chunks) {
-            let (kafka_payload, raw_profile) = split_item_payload(&item);
-
-            s.send_to_store(item.map(|item, _| StoreProfileChunk {
-                retention_days,
-                payload: kafka_payload,
-                quantities: item.quantities(),
-                raw_profile_content_type: if raw_profile.is_some() {
-                    Some(RawProfileContentType::Perfetto)
-                } else {
-                    None
-                },
-                raw_profile,
-            }));
+        for chunk in expanded.split(|e| e.chunks) {
+            s.send_to_store(chunk.map(|chunk, _| store::convert(chunk, retention_days)));
         }
 
         Ok(())
     }
-}
-
-/// Splits a profile chunk item payload into its constituent parts.
-///
-/// For compound items (those with a `meta_length` header), the payload is
-/// `[expanded JSON][raw binary]`. Returns `(kafka_payload, raw_profile)`.
-///
-/// For plain items, returns `(full_payload, None)`.
-#[cfg(any(feature = "processing", test))]
-fn split_item_payload(item: &Item) -> (bytes::Bytes, Option<bytes::Bytes>) {
-    let payload = item.payload();
-
-    let Some(meta_length) = item.meta_length() else {
-        return (payload, None);
-    };
-
-    let meta_length = meta_length as usize;
-    let Some((meta, body)) = payload.split_at_checked(meta_length) else {
-        return (payload, None);
-    };
-
-    if body.is_empty() {
-        return (payload.slice_ref(meta), None);
-    }
-
-    (payload.slice_ref(meta), Some(payload.slice_ref(body)))
 }
 
 /// Serialized profile chunks extracted from an envelope.
@@ -223,81 +271,128 @@ impl CountRateLimited for Managed<SerializedProfileChunks> {
 mod tests {
     use similar_asserts::assert_eq;
 
-    use crate::envelope::ContentType;
-
     use super::*;
+    use crate::Envelope;
+    use crate::envelope::ContentType;
+    use crate::extractors::RequestMeta;
+    use crate::processing::Context;
 
-    fn make_chunk_item(meta: &[u8]) -> Item {
-        let mut item = Item::new(ItemType::ProfileChunk);
-        item.set_payload(ContentType::Json, bytes::Bytes::copy_from_slice(meta));
-        item
-    }
-
-    fn make_compound_item(meta: &[u8], body: &[u8]) -> Item {
-        let meta_length = meta.len();
-        let mut payload = bytes::BytesMut::with_capacity(meta_length + body.len());
-        payload.extend_from_slice(meta);
-        payload.extend_from_slice(body);
-
-        let mut item = Item::new(ItemType::ProfileChunk);
-        item.set_payload(ContentType::OctetStream, payload.freeze());
-        item.set_meta_length(meta_length as u32);
-        item
-    }
-
-    #[test]
-    fn test_split_plain_chunk() {
-        let item = make_chunk_item(b"{}");
-        let (payload, raw) = split_item_payload(&item);
-        assert_eq!(payload.as_ref(), b"{}");
-        assert!(raw.is_none());
+    fn make_expanded(
+        chunks: Vec<ExpandedProfileChunk>,
+    ) -> (
+        Managed<ExpandedProfileChunks>,
+        crate::managed::ManagedTestHandle,
+    ) {
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let envelope = Envelope::from_request(None, RequestMeta::new(dsn));
+        let headers = envelope.headers().clone();
+        Managed::for_test(ExpandedProfileChunks { headers, chunks }).build()
     }
 
     #[test]
-    fn test_split_compound_chunk() {
-        let meta = br#"{"content_type":"perfetto"}"#;
-        let body = b"binary-data";
-        let item = make_compound_item(meta, body);
+    fn test_serialize_envelope_json_only() {
+        let chunk = ExpandedProfileChunk {
+            payload: Bytes::from(b"{\"hello\":\"world\"}".as_ref()),
+            raw_profile: None,
+            quantities: smallvec![],
+        };
+        let (managed, _handle) = make_expanded(vec![chunk]);
+        let output = ProfileChunkOutput::Expanded(managed);
 
-        let (payload, raw) = split_item_payload(&item);
-        assert_eq!(payload.as_ref(), meta.as_ref());
-        assert_eq!(raw.as_deref(), Some(b"binary-data".as_ref()));
+        let envelope = output
+            .serialize_envelope(Context::for_test().to_forward())
+            .unwrap()
+            .accept(|e| e);
+
+        let items: Vec<_> = envelope.items().collect();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].payload().as_ref(), b"{\"hello\":\"world\"}");
+        assert!(items[0].meta_length().is_none());
+        assert_eq!(items[0].content_type(), Some(ContentType::Json));
     }
 
     #[test]
-    fn test_split_compound_empty_body() {
-        let meta = br#"{"content_type":"perfetto"}"#;
-        let item = make_compound_item(meta, b"");
+    fn test_serialize_envelope_compound() {
+        let json_payload = Bytes::from(b"{\"expanded\":true}".as_ref());
+        let raw_data = Bytes::from(b"raw-binary-blob".as_ref());
+        let chunk = ExpandedProfileChunk {
+            payload: json_payload.clone(),
+            raw_profile: Some(RawProfile {
+                payload: raw_data.clone(),
+                content_type: ContentType::PerfettoTrace,
+            }),
+            quantities: smallvec![],
+        };
+        let (managed, _handle) = make_expanded(vec![chunk]);
+        let output = ProfileChunkOutput::Expanded(managed);
 
-        let (payload, raw) = split_item_payload(&item);
-        assert_eq!(payload.as_ref(), meta.as_ref());
-        assert!(raw.is_none());
+        let envelope = output
+            .serialize_envelope(Context::for_test().to_forward())
+            .unwrap()
+            .accept(|e| e);
+
+        let items: Vec<_> = envelope.items().collect();
+        assert_eq!(items.len(), 1);
+
+        let item = &items[0];
+        let meta_length = item
+            .meta_length()
+            .expect("compound item must have meta_length");
+        assert_eq!(meta_length as usize, json_payload.len());
+        assert_eq!(item.content_type(), Some(ContentType::PerfettoTrace),);
+
+        let payload = item.payload();
+        let (json_part, raw_part) = payload.split_at(meta_length as usize);
+        assert_eq!(json_part, b"{\"expanded\":true}".as_ref());
+        assert_eq!(raw_part, b"raw-binary-blob".as_ref());
     }
 
     #[test]
-    fn test_split_compound_meta_length_exceeds_payload() {
-        // meta_length is set to more bytes than the payload actually contains.
-        // split_at_checked returns None, so we fall back to the full payload with no split.
-        let body = b"binary-data";
-        let mut item = Item::new(ItemType::ProfileChunk);
-        item.set_payload(ContentType::OctetStream, bytes::Bytes::from(body.as_ref()));
-        item.set_meta_length(body.len() as u32 + 100);
-
-        let (payload, raw) = split_item_payload(&item);
-        assert_eq!(payload.as_ref(), body.as_ref());
-        assert!(raw.is_none());
+    fn test_raw_profile_serialization() {
+        let raw = RawProfile {
+            payload: Bytes::from(b"binary-data".as_ref()),
+            content_type: ContentType::PerfettoTrace,
+        };
+        let json = serde_json::to_value(&raw).unwrap();
+        assert_eq!(
+            json["raw_profile_content_type"],
+            "application/x-perfetto-trace"
+        );
+        assert!(json.get("raw_profile").is_some());
     }
 
     #[test]
-    fn test_split_compound_zero_meta_length() {
-        // meta_length = 0: meta slice is empty, entire payload is treated as body.
-        let body = b"binary-data";
-        let mut item = Item::new(ItemType::ProfileChunk);
-        item.set_payload(ContentType::OctetStream, bytes::Bytes::from(body.as_ref()));
-        item.set_meta_length(0);
+    fn test_serialize_envelope_mixed_json_and_compound() {
+        let json_chunk = ExpandedProfileChunk {
+            payload: Bytes::from(b"{\"type\":\"json\"}".as_ref()),
+            raw_profile: None,
+            quantities: smallvec![],
+        };
+        let compound_chunk = ExpandedProfileChunk {
+            payload: Bytes::from(b"{\"type\":\"compound\"}".as_ref()),
+            raw_profile: Some(RawProfile {
+                payload: Bytes::from(b"perfetto-blob".as_ref()),
+                content_type: ContentType::PerfettoTrace,
+            }),
+            quantities: smallvec![],
+        };
+        let (managed, _handle) = make_expanded(vec![json_chunk, compound_chunk]);
+        let output = ProfileChunkOutput::Expanded(managed);
 
-        let (payload, raw) = split_item_payload(&item);
-        assert_eq!(payload.as_ref(), b"");
-        assert_eq!(raw.as_deref(), Some(b"binary-data".as_ref()));
+        let envelope = output
+            .serialize_envelope(Context::for_test().to_forward())
+            .unwrap()
+            .accept(|e| e);
+
+        let items: Vec<_> = envelope.items().collect();
+        assert_eq!(items.len(), 2);
+
+        assert_eq!(items[0].content_type(), Some(ContentType::Json));
+        assert!(items[0].meta_length().is_none());
+
+        assert_eq!(items[1].content_type(), Some(ContentType::PerfettoTrace));
+        assert!(items[1].meta_length().is_some());
     }
 }
