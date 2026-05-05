@@ -16,7 +16,7 @@ use crate::service::ServiceState;
 use crate::services::outcome::{DiscardItemType, DiscardReason};
 use crate::services::processor::ProcessingError;
 use crate::statsd::RelayCounters;
-use crate::utils::{self, extract_items};
+use crate::utils::extract_items;
 
 #[derive(Debug, Deserialize)]
 struct UnrealQuery {
