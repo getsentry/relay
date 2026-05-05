@@ -13,7 +13,7 @@ use regex::Regex;
 use relay_base_schema::metrics::{
     DurationUnit, FractionUnit, MetricUnit, can_be_valid_metric_name,
 };
-use relay_conventions::consts::{APP_VITALS_START_TYPE, APP_VITALS_START_VALUE};
+use relay_conventions::consts::{APP__VITALS__START__TYPE, APP__VITALS__START__VALUE};
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
     AsPair, AutoInferSetting, ClientSdkInfo, Context, ContextInner, Contexts, DebugImage,
@@ -1362,11 +1362,11 @@ fn backfill_app_vitals_start(event: &mut Event) {
     let already_set = event
         .tags
         .value()
-        .is_some_and(|tags| tags.get(APP_VITALS_START_TYPE).is_some())
+        .is_some_and(|tags| tags.get(APP__VITALS__START__TYPE).is_some())
         || event
             .measurements
             .value()
-            .is_some_and(|m| m.contains_key(APP_VITALS_START_VALUE));
+            .is_some_and(|m| m.contains_key(APP__VITALS__START__VALUE));
     if already_set {
         return;
     }
@@ -1397,7 +1397,7 @@ fn backfill_app_vitals_start(event: &mut Event) {
         .measurements
         .get_or_insert_with(Default::default)
         .insert(
-            APP_VITALS_START_VALUE.to_owned(),
+            APP__VITALS__START__VALUE.to_owned(),
             Annotated::new(Measurement {
                 value: Annotated::new(value),
                 unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
@@ -1410,7 +1410,7 @@ fn backfill_app_vitals_start(event: &mut Event) {
         .get_or_insert_with(Tags::default)
         .0
         .insert(
-            String::from(APP_VITALS_START_TYPE),
+            String::from(APP__VITALS__START__TYPE),
             Annotated::new(start_type.to_owned()),
         );
 }
@@ -3184,7 +3184,7 @@ mod tests {
             .get_or_insert_with(Tags::default)
             .0
             .insert(
-                String::from(APP_VITALS_START_TYPE),
+                String::from(APP__VITALS__START__TYPE),
                 Annotated::new("warm".to_owned()),
             );
 

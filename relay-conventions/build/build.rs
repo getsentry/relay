@@ -25,7 +25,11 @@ fn main() {
 }
 
 fn write_attribute_rs(crate_dir: &Path) {
-    use attributes::{Attribute, RawNode, format_attribute_info, parse_segments};
+    use attributes::{Attribute, RawNode, format_attribute_info, format_constant, parse_segments};
+
+    let attribute_consts_path =
+        Path::new(&env::var("OUT_DIR").unwrap()).join("attribute_consts.rs");
+    let mut attribute_consts_file = BufWriter::new(File::create(&attribute_consts_path).unwrap());
 
     let mut root = RawNode::default();
 
@@ -37,29 +41,38 @@ fn write_attribute_rs(crate_dir: &Path) {
         {
             let contents = std::fs::read_to_string(file.path()).unwrap();
             let attr: Attribute = serde_json::from_str(&contents).unwrap();
-            let (key, value) = format_attribute_info(attr);
+
+            // Write attribute constant
+            writeln!(&mut attribute_consts_file, "{}\n", format_constant(&attr)).unwrap();
+
+            // Put attribute info in the hierarchical map
+            let info = format_attribute_info(&attr);
 
             let mut node = &mut root;
-            let mut parts = parse_segments(&key).peekable();
+            let mut parts = parse_segments(&attr.key).peekable();
             while let Some(part) = parts.next() {
                 node = node
                     .children
                     .entry(part.to_owned())
                     .or_insert_with(RawNode::default);
                 if parts.peek().is_none() {
-                    node.info = Some(value);
+                    node.info = Some(info);
                     break;
                 }
             }
         }
     }
 
-    let out_path = Path::new(&env::var("OUT_DIR").unwrap()).join("attribute_map.rs");
-    let mut out_file = BufWriter::new(File::create(&out_path).unwrap());
+    let attribute_map_path = Path::new(&env::var("OUT_DIR").unwrap()).join("attribute_map.rs");
+    let mut attribute_map_file = BufWriter::new(File::create(&attribute_map_path).unwrap());
 
-    write!(&mut out_file, "static ATTRIBUTES: Node<AttributeInfo> = ",).unwrap();
-    root.build(&mut out_file).unwrap();
-    write!(&mut out_file, ";").unwrap();
+    write!(
+        &mut attribute_map_file,
+        "static ATTRIBUTES: Node<AttributeInfo> = ",
+    )
+    .unwrap();
+    root.write(&mut attribute_map_file).unwrap();
+    write!(&mut attribute_map_file, ";").unwrap();
 }
 
 fn write_name_rs(crate_dir: &Path) {

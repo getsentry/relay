@@ -3,7 +3,7 @@
 use std::str::FromStr;
 
 use chrono::{TimeZone, Utc};
-use relay_conventions::{ENVIRONMENT, ORIGIN, SERVER_ADDRESS};
+use relay_conventions::consts::*;
 use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId, Timestamp, TraceId};
 use relay_protocol::{Annotated, Meta, Remark, RemarkType};
 use serde::{Deserialize, Deserializer};
@@ -221,27 +221,27 @@ pub fn vercel_log_to_sentry_log(vercel_log: VercelLog) -> OurLog {
         }};
     }
 
-    add_attribute!(ORIGIN, "auto.log_drain.vercel".to_owned());
-    add_attribute!("vercel.id", id);
-    add_attribute!("vercel.deployment_id", deployment_id);
-    add_attribute!("vercel.source", source);
-    add_attribute!(SERVER_ADDRESS, host);
-    add_attribute!("vercel.project_id", project_id);
+    add_attribute!(SENTRY__ORIGIN, "auto.log_drain.vercel".to_owned());
+    add_attribute!(VERCEL__ID, id);
+    add_attribute!(VERCEL__DEPLOYMENT_ID, deployment_id);
+    add_attribute!(VERCEL__SOURCE, source);
+    add_attribute!(SERVER__ADDRESS, host);
+    add_attribute!(VERCEL__PROJECT_ID, project_id);
 
-    add_optional_attribute!("vercel.build_id", build_id);
-    add_optional_attribute!("vercel.entrypoint", entrypoint);
-    add_optional_attribute!("vercel.destination", destination);
-    add_optional_attribute!("vercel.path", path);
-    add_optional_attribute!("vercel.log_type", ty);
-    add_optional_attribute!("vercel.status_code", status_code);
-    add_optional_attribute!("vercel.request_id", request_id);
-    add_optional_attribute!(ENVIRONMENT, environment);
-    add_optional_attribute!("vercel.branch", branch);
-    add_optional_attribute!("vercel.ja3_digest", ja3_digest);
-    add_optional_attribute!("vercel.ja4_digest", ja4_digest);
-    add_optional_attribute!("vercel.edge_type", edge_type);
-    add_optional_attribute!("vercel.project_name", project_name);
-    add_optional_attribute!("vercel.execution_region", execution_region);
+    add_optional_attribute!(VERCEL__BUILD_ID, build_id);
+    add_optional_attribute!(VERCEL__ENTRYPOINT, entrypoint);
+    add_optional_attribute!(VERCEL__DESTINATION, destination);
+    add_optional_attribute!(VERCEL__PATH, path);
+    add_optional_attribute!(VERCEL__LOG_TYPE, ty);
+    add_optional_attribute!(VERCEL__STATUS_CODE, status_code);
+    add_optional_attribute!(VERCEL__REQUEST_ID, request_id);
+    add_optional_attribute!(SENTRY__ENVIRONMENT, environment);
+    add_optional_attribute!(VERCEL__BRANCH, branch);
+    add_optional_attribute!(VERCEL__JA3_DIGEST, ja3_digest);
+    add_optional_attribute!(VERCEL__JA4_DIGEST, ja4_digest);
+    add_optional_attribute!(VERCEL__EDGE_TYPE, edge_type);
+    add_optional_attribute!(VERCEL__PROJECT_NAME, project_name);
+    add_optional_attribute!(VERCEL__EXECUTION_REGION, execution_region);
 
     if let Some(proxy) = proxy {
         let VercelProxy {
@@ -266,29 +266,29 @@ pub fn vercel_log_to_sentry_log(vercel_log: VercelLog) -> OurLog {
             waf_rule_id,
         } = proxy;
 
-        add_attribute!("vercel.proxy.timestamp", timestamp);
-        add_attribute!("vercel.proxy.method", method);
-        add_attribute!("vercel.proxy.host", host);
-        add_attribute!("vercel.proxy.path", path);
-        add_attribute!("vercel.proxy.region", region);
+        add_attribute!(VERCEL__PROXY__TIMESTAMP, timestamp);
+        add_attribute!(VERCEL__PROXY__METHOD, method);
+        add_attribute!(VERCEL__PROXY__HOST, host);
+        add_attribute!(VERCEL__PROXY__PATH, path);
+        add_attribute!(VERCEL__PROXY__REGION, region);
 
         if let Ok(user_agent_string) = serde_json::to_string(&user_agent) {
-            attributes.insert("vercel.proxy.user_agent", user_agent_string);
+            attributes.insert(VERCEL__PROXY__USER_AGENT, user_agent_string);
         }
 
-        add_optional_attribute!("vercel.proxy.referer", referer);
-        add_optional_attribute!("vercel.proxy.status_code", status_code);
-        add_optional_attribute!("vercel.proxy.client_ip", client_ip);
-        add_optional_attribute!("vercel.proxy.scheme", scheme);
-        add_optional_attribute!("vercel.proxy.response_byte_size", response_byte_size);
-        add_optional_attribute!("vercel.proxy.cache_id", cache_id);
-        add_optional_attribute!("vercel.proxy.path_type", path_type);
-        add_optional_attribute!("vercel.proxy.path_type_variant", path_type_variant);
-        add_optional_attribute!("vercel.proxy.vercel_id", vercel_id);
-        add_optional_attribute!("vercel.proxy.vercel_cache", vercel_cache);
-        add_optional_attribute!("vercel.proxy.lambda_region", lambda_region);
-        add_optional_attribute!("vercel.proxy.waf_action", waf_action);
-        add_optional_attribute!("vercel.proxy.waf_rule_id", waf_rule_id);
+        add_optional_attribute!(VERCEL__PROXY__REFERER, referer);
+        add_optional_attribute!(VERCEL__PROXY__STATUS_CODE, status_code);
+        add_optional_attribute!(VERCEL__PROXY__CLIENT_IP, client_ip);
+        add_optional_attribute!(VERCEL__PROXY__SCHEME, scheme);
+        add_optional_attribute!(VERCEL__PROXY__RESPONSE_BYTE_SIZE, response_byte_size);
+        add_optional_attribute!(VERCEL__PROXY__CACHE_ID, cache_id);
+        add_optional_attribute!(VERCEL__PROXY__PATH_TYPE, path_type);
+        add_optional_attribute!(VERCEL__PROXY__PATH_TYPE_VARIANT, path_type_variant);
+        add_optional_attribute!(VERCEL__PROXY__VERCEL_ID, vercel_id);
+        add_optional_attribute!(VERCEL__PROXY__VERCEL_CACHE, vercel_cache);
+        add_optional_attribute!(VERCEL__PROXY__LAMBDA_REGION, lambda_region);
+        add_optional_attribute!(VERCEL__PROXY__WAF_ACTION, waf_action);
+        add_optional_attribute!(VERCEL__PROXY__WAF_RULE_ID, waf_rule_id);
     }
 
     let timestamp = match Utc.timestamp_millis_opt(timestamp).single() {

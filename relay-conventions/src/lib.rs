@@ -1,14 +1,76 @@
-//! Attribute definitions extracted from [`sentry-conventions`](https://github.com/getsentry/sentry-conventions).
+//! Relay's interface to [`sentry-conventions`](https://github.com/getsentry/sentry-conventions).
 //!
-//! This crate contains the `sentry-conventions` repository as a git submodule. Attribute definitions in the submodule
-//! are parsed at compile time and can be accessed via the `attribute_info` function.
+//! This crate contains the `sentry-conventions` repository as a git submodule.
 //!
-//! It also exposes a number of constants for attribute names that Relay has specific logic for. It is recommended
-//! to use these constants instead of the bare attribute names to ensure consistency.
+//! # Attributes
+//!
+//! Attribute definitions in `sentry-conventions` are parsed at build time. For each attribute, this crate exposes:
+//! * A constant whose value is the attribute's key in `sentry-conventions`. This constant has a deprecation tag if
+//!   the attribute is marked as deprecated in `sentry-conventions`, leading to a compiler warning if it's used anyway.
+//! * A record of the attribute's relevant parameters (PII status, backfilling normalizing behavior). These records can
+//!   be queried using the [`attribute_info`] function.
+//!
+//! ## Attribute normalization
+//! Deprecated attributes can have their `_status` set to `null`, `"backfill"`, or `"normalize"` in `sentry-conventions`.
+//! These values affect how Relay normalizes the attribute:
+//! * `null`: The attribute is left unchanged.
+//! * `"backfill"`: The attribute's value is _copied_ to the replacement attribute, but an existing value for the
+//!   replacement attribute is not overwritten. Thus, if the replacement attribute is already present, nothing happens.
+//! * `"normalize"`: The attribute's value is _moved_ to the replacement attribute, but an existing value for the
+//!   replacement attribute is not overwritten. Thus, if the replacement attribute is already present, _the deprecated
+//!   attribute is deleted_.
+//!
+//! This normalization step runs before other steps (user agent detection, category
+//! detection, …) that depend on specific attributes. Therefore, those other normalizations only need to check the
+//! values of non-deprecated attributes.
+//!
+//! # FAQ
+//!
+//! ### I've changed something in `sentry-conventions`, how do I get Relay to pick it up?
+//! Relay parses `sentry-conventions` at compile time, so any change requires a PR to Relay and needs to be deployed.
+//!
+//! In Relay, Update the `sentry-conventions` submodule:
+//! ```bash
+//! cd relay-conventions/sentry-conventions
+//! git checkout main
+//! git pull
+//! ```
+//! Then open a PR with your change.
+//!
+//! ### Why is my deprecated attribute not being rewritten to the current name?
+//! Make sure the attribute's `deprecation["_status"]` field is set to either `"backfill"` or `"normalize"`,
+//! depending on what you want to happen (see above). If this is set correctly and it's still not working,
+//! verify the behaviour with an integration test and open an issue.
+//!
+//! ### After updating `sentry-conventions` I get a warning about a deprecated constant, what should I do?
+//! This means that Relay is reading or writing an attribute that is deprecated in the new conventions version.
+//!
+//! * If the attribute has a replacement and is set to `"backfill"` or `"normalize"`, you can just replace the constant
+//!   with the current version and normalization takes care of the rest.
+//! * If the attribute has a replacement but no `"backfill"` or `"normalize"`, consider changing that in `sentry-conventions`.
+//!   Unless there is a good reason not to, you probably want the attribute to be rewritten.
+//! * Otherwise, we may have to decide what to do on a case-by-case basis.
+//!
+//! ### I want to reference an attribute in Relay but it's not defined in `sentry-conventions`, what should I do?
+//! **Always** define it in `sentry-conventions` before using it in Relay. This makes sure we have proper
+pub mod consts {
+    #![allow(rustdoc::bare_urls)]
+    #![allow(non_upper_case_globals)]
+    include!(concat!(env!("OUT_DIR"), "/attribute_consts.rs"));
 
-pub mod consts;
+    mod not_yet_defined {
+        // TODO(buenaflor): Add as sentry convention once mobile SDKs can migrate to it.
+        // Tracking issue: https://github.com/getsentry/sentry-conventions/issues/318
+        pub const APP__VITALS__START__VALUE: &str = "app.vitals.start.value";
 
-pub use consts::*;
+        // TODO: We might promote this to a top-level field, there's no real use
+        // to it being an attribute.
+        // (Internal) tracking issue: https://linear.app/getsentry/issue/INGEST-879/fix-flag-performance-issues-spans
+        pub const SENTRY___INTERNAL__PERFORMANCE_ISSUES_SPANS: &str =
+            "sentry._internal.performance_issues_spans";
+    }
+    pub use self::not_yet_defined::*;
+}
 
 include!(concat!(env!("OUT_DIR"), "/attribute_map.rs"));
 include!(concat!(env!("OUT_DIR"), "/name_fn.rs"));

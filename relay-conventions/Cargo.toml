@@ -27,6 +27,7 @@ phf = { workspace = true }
 phf_codegen = { workspace = true }
 proc-macro2 = { workspace = true }
 quote = { workspace = true }
+regex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 walkdir = { workspace = true }
