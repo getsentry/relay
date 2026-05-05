@@ -357,7 +357,7 @@ pub fn process_unreal<'a>(
     context: Option<Unreal4Context>,
     event_id: EventId,
     event: &mut Annotated<Event>,
-    attachments: impl IntoIterator<Item = &'a Item> + Clone,
+    attachments: impl IntoIterator<Item = &'a Item>,
     user_header: Option<&str>,
 ) -> Result<Option<ProcessedUnrealReport>, Unreal4Error> {
     let mut logs_items = attachments
