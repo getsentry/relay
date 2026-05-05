@@ -472,7 +472,7 @@ async fn handle(
                 timestamp: meta.received_at(),
                 scoping: context.scoping,
                 outcome: Outcome::RateLimited(reason),
-                event_id: event_id,
+                event_id,
                 remote_addr: meta.client_addr(),
                 category: DataCategory::Error,
                 quantity: 1,
