@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 26.4.2
 
 **Features**:
 
