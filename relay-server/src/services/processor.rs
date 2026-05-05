@@ -23,10 +23,9 @@ use relay_config::{Config, HttpEncoding};
 use relay_dynamic_config::Feature;
 use relay_event_normalization::{ClockDriftProcessor, GeoIpLookup};
 use relay_event_schema::processor::ProcessingAction;
-use relay_event_schema::protocol::{ClientReport, Event, EventId, SpanV2};
+use relay_event_schema::protocol::{ClientReport, EventId, SpanV2};
 use relay_filter::FilterStatKey;
 use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricNamespace};
-use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_sampling::evaluation::{ReservoirCounters, SamplingDecision};
 use relay_statsd::metric;
@@ -560,8 +559,6 @@ impl From<Unreal4Error> for ProcessingError {
         }
     }
 }
-
-type ExtractedEvent = (Annotated<Event>, usize);
 
 /// A container for extracted metrics during processing.
 ///
@@ -2432,8 +2429,9 @@ mod tests {
     use relay_event_normalization::{
         NormalizationConfig, RedactionRule, TransactionNameConfig, TransactionNameRule,
     };
-    use relay_event_schema::protocol::TransactionSource;
+    use relay_event_schema::protocol::{Event, TransactionSource};
     use relay_pii::DataScrubbingConfig;
+    use relay_protocol::Annotated;
     use similar_asserts::assert_eq;
 
     use crate::testutils::{create_test_processor, create_test_processor_with_addrs};
