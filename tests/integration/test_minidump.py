@@ -826,7 +826,7 @@ def test_size_limits(mini_sentry, relay, limit, expected_status_code):
 
 
 @pytest.mark.parametrize(
-    "rollout_enabled,upload_attachments,upload_minidump",
+    "config_fetch,upload_attachments,upload_minidump",
     [
         (False, True, True),  # if the option is not set we don't check the features
         (True, True, False),
@@ -839,7 +839,7 @@ def test_minidump_objectstore_uploads(
     mini_sentry,
     relay,
     dummy_upload,
-    rollout_enabled,
+    config_fetch,
     upload_attachments,
     upload_minidump,
 ):
@@ -857,8 +857,8 @@ def test_minidump_objectstore_uploads(
             "projects:relay-minidump-uploads"
         )
     mini_sentry.global_config["options"][
-        "relay.minidump-endpoint-fetch-config.rollout-rate"
-    ] = (1.0 if rollout_enabled else 0.0)
+        "relay.endpoint-fetch-config.enabled"
+    ] = config_fetch
 
     relay = relay(mini_sentry)
 
@@ -880,7 +880,7 @@ def test_minidump_objectstore_uploads(
     minidump = by_name["minidump.dmp"]
     logs = by_name["log.txt"]
 
-    if rollout_enabled and upload_attachments:
+    if config_fetch and upload_attachments:
         assert (
             logs.headers["content_type"] == "application/vnd.sentry.attachment-ref+json"
         )
@@ -894,7 +894,7 @@ def test_minidump_objectstore_uploads(
         )
         assert logs.payload.bytes == log_content
 
-    if rollout_enabled and upload_minidump:
+    if config_fetch and upload_minidump:
         assert (
             minidump.headers["content_type"]
             == "application/vnd.sentry.attachment-ref+json"
@@ -973,9 +973,7 @@ def test_minidump_objectstore_uploads_rate_limits(
                 "reasonCode": "test_endpoint_check",
             }
         ]
-    mini_sentry.global_config["options"][
-        "relay.minidump-endpoint-fetch-config.rollout-rate"
-    ] = 1.0
+    mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = True
 
     relay = relay(
         mini_sentry,

@@ -52,14 +52,8 @@ impl UnrealParams {
         }
 
         let global_config = state.global_config_handle().current();
-        let project_id = envelope.meta().project_id().map(|p| p.value()).unwrap_or(0);
-        let endpoint_expansion_rolled_out = utils::is_rolled_out(
-            project_id,
-            global_config.options.unreal_report_expansion_rollout_rate,
-        )
-        .is_keep();
 
-        if endpoint_expansion_rolled_out {
+        if global_config.options.endpoint_fetch_config_enabled {
             // Ensure that we really make it here.
             relay_statsd::metric!(counter(RelayCounters::UnrealEndpointExpansion) += 1);
 

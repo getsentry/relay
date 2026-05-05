@@ -316,21 +316,6 @@ async fn multipart_to_envelope(
     Ok(envelope)
 }
 
-fn should_fetch_project_config(state: &ServiceState, project_id: Option<ProjectId>) -> bool {
-    // In the minidump endpoint we should always have a project_id.
-    let Some(project_id) = project_id else {
-        return false;
-    };
-    let global_config = state.global_config_handle().current();
-    utils::is_rolled_out(
-        project_id.value(),
-        global_config
-            .options
-            .minidump_endpoint_fetch_config_rollout_rate,
-    )
-    .is_keep()
-}
-
 /// Creates an [UploadContext] for a given project.
 fn upload_context_for_project<'a>(
     meta: &RequestMeta,
@@ -450,7 +435,12 @@ async fn handle(
     // multipart formdata request.
     let config = state.config();
 
-    let upload_context = if should_fetch_project_config(&state, meta.project_id()) {
+    let upload_context = if state
+        .global_config_handle()
+        .current()
+        .options
+        .endpoint_fetch_config_enabled
+    {
         // Ensure that we really make it here.
         relay_statsd::metric!(counter(RelayCounters::MinidumpEndpointConfigFetching) += 1);
 

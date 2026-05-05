@@ -15,8 +15,8 @@ def load_dump_file(base_file_name: str):
 
 
 @pytest.mark.parametrize("dump_file_name", ["unreal_crash", "unreal_crash_apple"])
-@pytest.mark.parametrize("rollout_rate", [0.0, 1.0])
-def test_unreal_crash(mini_sentry, relay, dump_file_name, rollout_rate):
+@pytest.mark.parametrize("config_fetch", [False, True])
+def test_unreal_crash(mini_sentry, relay, dump_file_name, config_fetch):
     """
     Asserts that non-processing Relays forward the Unreal report either as a
     single unreal_report item or as expanded attachment items depending on
@@ -24,11 +24,11 @@ def test_unreal_crash(mini_sentry, relay, dump_file_name, rollout_rate):
     """
     project_id = 42
     mini_sentry.global_config["options"][
-        "relay.unreal-report-expansion.rollout-rate"
-    ] = rollout_rate
+        "relay.endpoint-fetch-config.enabled"
+    ] = config_fetch
     relay = relay(mini_sentry)
     project_config = mini_sentry.add_full_project_config(project_id)
-    if rollout_rate:
+    if config_fetch:
         project_config["config"].setdefault("features", []).extend(
             ["organizations:relay-unreal-endpoint-expansion"]
         )
@@ -43,7 +43,7 @@ def test_unreal_crash(mini_sentry, relay, dump_file_name, rollout_rate):
     assert event_id == envelope.headers.get("event_id")
     items = envelope.items
 
-    if rollout_rate == 0.0:
+    if not config_fetch:
         assert len(items) == 1
         unreal_item = items[0]
         assert unreal_item.headers
@@ -58,7 +58,7 @@ def test_unreal_crash(mini_sentry, relay, dump_file_name, rollout_rate):
 
 
 @pytest.mark.parametrize("dump_file_name", ["unreal_crash", "unreal_crash_apple"])
-@pytest.mark.parametrize("rollout_rate", [0.0, 1.0])
+@pytest.mark.parametrize("config_fetch", [False, True])
 def test_unreal_crash_full_pipeline(
     mini_sentry,
     relay,
@@ -67,22 +67,22 @@ def test_unreal_crash_full_pipeline(
     attachments_consumer,
     outcomes_consumer,
     dump_file_name,
-    rollout_rate,
+    config_fetch,
 ):
     """
     Even if unreal report is expanded in the endpoint the end to end logic should remain unchanged.
     """
     project_id = 42
     mini_sentry.global_config["options"][
-        "relay.unreal-report-expansion.rollout-rate"
-    ] = rollout_rate
+        "relay.endpoint-fetch-config.enabled"
+    ] = config_fetch
 
     credentials = relay_credentials()
     processing = relay_with_processing(static_credentials=credentials)
     pop = relay(processing, credentials=credentials)
 
     project_config = mini_sentry.add_full_project_config(project_id)
-    if rollout_rate:
+    if config_fetch:
         project_config["config"].setdefault("features", []).extend(
             ["organizations:relay-unreal-endpoint-expansion"]
         )
