@@ -110,9 +110,12 @@ pub enum Feature {
     /// processor. Only enable for organizations with sufficient attachment quota.
     #[serde(rename = "organizations:relay-unreal-endpoint-expansion")]
     UnrealEndpointExpansion,
-    /// Upload minidump attachments via the upload endpoint.
+    /// Stream minidump attachments to objectstore.
     #[serde(rename = "projects:relay-minidump-attachment-uploads")]
     MinidumpAttachmentUploads,
+    /// Stream minidumps to objectstore.
+    #[serde(rename = "projects:relay-minidump-uploads")]
+    MinidumpUploads,
 
     /// Enables OTLP spans to use the Span V2 processing pipeline in Relay.
     ///

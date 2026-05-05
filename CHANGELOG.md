@@ -17,10 +17,9 @@
 
 **Internal**:
 
-- Stream attachments received at `/minidump` to objectstore. ([#5877](https://github.com/getsentry/relay/pull/5877))
+- Stream attachments and minidumps received at `/minidump` to objectstore. ([#5877](https://github.com/getsentry/relay/pull/5877), [#5909](https://github.com/getsentry/relay/pull/5909))
 - Never forward unknown requests in processing Relays. ([#5915](https://github.com/getsentry/relay/pull/5915))
 - Distinguish between objectstore stream timeouts and regular timeouts on a config level. ([#5878](https://github.com/getsentry/relay/pull/5878))
-
 
 ## 26.4.1
 
