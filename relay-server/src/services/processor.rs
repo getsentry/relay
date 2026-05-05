@@ -85,7 +85,6 @@ use {
 
 pub mod event;
 mod metrics;
-pub mod span;
 
 #[cfg(all(sentry, feature = "processing"))]
 pub mod playstation;

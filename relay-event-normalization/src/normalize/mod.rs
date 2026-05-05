@@ -115,7 +115,7 @@ pub fn normalize_app_start_spans(event: &mut Event) {
 
 /// Container for global and project level [`MeasurementsConfig`]. The purpose is to handle
 /// the merging logic.
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct CombinedMeasurementsConfig<'a> {
     project: Option<&'a MeasurementsConfig>,
     global: Option<&'a MeasurementsConfig>,
