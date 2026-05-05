@@ -21,7 +21,7 @@ use crate::extractors::{RawContentType, RequestMeta};
 use crate::managed::Managed;
 use crate::middlewares;
 use crate::service::ServiceState;
-use crate::services::outcome::DiscardReason;
+use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::projects::cache::Project;
 use crate::services::upload::Upload;
 use crate::utils::{self, AttachmentStrategy};
@@ -157,12 +157,22 @@ async fn multipart_to_envelope(
     )
     .await?;
 
-    let prosperodump_item = items
+    let Some(prosperodump_item) = items
         .iter_mut()
         .find(|item| item.attachment_type() == Some(AttachmentType::Prosperodump))
-        .ok_or(BadStoreRequest::MissingProsperodump)?;
+    else {
+        for item in &items {
+            let _ = item.reject_err(Outcome::Invalid(DiscardReason::MissingProsperodumpUpload));
+        }
+        return Err(BadStoreRequest::MissingProsperodump);
+    };
+
     prosperodump_item.modify(|inner, _| inner.set_payload(OctetStream, inner.payload()));
-    validate_prosperodump(&prosperodump_item.payload())?;
+    validate_prosperodump(&prosperodump_item.payload()).inspect_err(|_| {
+        for item in &items {
+            let _ = item.reject_err(Outcome::Invalid(DiscardReason::InvalidProsperodump));
+        }
+    })?;
 
     let event_id = common::event_id_from_items(&items)?.unwrap_or_else(EventId::new);
     let envelope =
