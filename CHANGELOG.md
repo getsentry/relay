@@ -13,6 +13,7 @@
 - The PII rule for `token` is less strict to not always scrub usage in LLM contexts. ([#5886](https://github.com/getsentry/relay/pull/5886))
 - Respond with status code 413 when chunked multipart requests are too large. ([#5880](https://github.com/getsentry/relay/pull/5880))
 - Add missing outcomes for the Playstation, Minidump, and Attachments endpoints. ([#5918](https://github.com/getsentry/relay/pull/5918))
+- Fix HTTP/2 rejections by omitting the `Host` header. ([#5927](https://github.com/getsentry/relay/pull/5927))
 
 **Internal**:
 
