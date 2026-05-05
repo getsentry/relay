@@ -7,12 +7,11 @@ use relay_protocol::Annotated;
 
 use crate::managed::Managed;
 use crate::processing::legacy_spans::{
-    Error, ExpandedLegacySpans, Indexed, SerializedLegacySpans, TotalAndIndexed,
+    Error, ExpandedLegacySpans, Indexed, SerializedLegacySpans, TotalAndIndexed, normalize,
 };
 use crate::processing::{self, Context};
 use crate::services::outcome::DiscardReason;
-use crate::services::processor::span::NormalizeSpanConfig;
-use crate::services::processor::{ProcessingError, span};
+use crate::services::processor::ProcessingError;
 use relay_event_normalization::RemoveOtherProcessor;
 
 pub fn expand(spans: Managed<SerializedLegacySpans>) -> Managed<ExpandedLegacySpans> {
@@ -45,7 +44,7 @@ pub fn normalize(
 ) {
     let aggregator_config = ctx.config.aggregator_config_for(MetricNamespace::Spans);
     let model_data = ctx.global_config.ai_model_metadata();
-    let norm = NormalizeSpanConfig {
+    let norm = normalize::NormalizeSpanConfig {
         received_at: spans.received_at(),
         timestamp_range: aggregator_config.timestamp_range(),
         max_tag_value_size: aggregator_config.max_tag_value_length,
@@ -71,7 +70,7 @@ pub fn normalize(
     spans.retain(
         |spans| &mut spans.spans,
         |span, _| {
-            span::normalize(span, norm.clone()).map_err(|err| {
+            normalize::normalize(span, &norm).map_err(|err| {
                 relay_log::debug!("failed to normalize span: {err}");
                 Error::Invalid(match err {
                     ProcessingError::ProcessingFailed(ProcessingAction::InvalidTransaction(_))

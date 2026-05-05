@@ -16,6 +16,7 @@ use crate::processing::{
 use crate::services::outcome::{DiscardReason, Outcome};
 
 mod dynamic_sampling;
+mod normalize;
 mod process;
 #[cfg(feature = "processing")]
 mod store;

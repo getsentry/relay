@@ -307,11 +307,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     normalize_stacktraces(event);
     normalize_exceptions(event); // Browser extension filters look at the stacktrace
     normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
-    normalize_event_measurements(
-        event,
-        config.measurements.clone(),
-        config.max_name_and_unit_len,
-    ); // Measurements are part of the metric extraction
+    normalize_event_measurements(event, config.measurements, config.max_name_and_unit_len); // Measurements are part of the metric extraction
     backfill_app_vitals_start(event);
     if let Some(version) = normalize_performance_score(event, config.performance_score) {
         event
