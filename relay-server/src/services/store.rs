@@ -35,6 +35,7 @@ use relay_threading::AsyncPool;
 use crate::envelope::{AttachmentPlaceholder, AttachmentType, Item, ItemType};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
+use crate::processing::profile_chunks::RawProfile;
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{self, DiscardReason, Outcome, OutcomeId, TrackOutcome};
@@ -147,14 +148,6 @@ impl Counted for StoreSpanV2 {
     }
 }
 
-/// Content type of a raw binary profile blob sent alongside the expanded JSON payload.
-#[derive(Clone, Debug, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum RawProfileContentType {
-    /// Perfetto binary trace format.
-    Perfetto,
-}
-
 /// Publishes a singular profile chunk to Kafka.
 #[derive(Debug)]
 pub struct StoreProfileChunk {
@@ -170,9 +163,7 @@ pub struct StoreProfileChunk {
     ///
     /// Sent alongside the expanded JSON payload because the expansion only extracts a
     /// minimum of information; the raw profile is preserved for further processing downstream.
-    pub raw_profile: Option<Bytes>,
-    /// Content type of `raw_profile`.
-    pub raw_profile_content_type: Option<RawProfileContentType>,
+    pub raw_profile: Option<RawProfile>,
 }
 
 impl Counted for StoreProfileChunk {
@@ -846,7 +837,6 @@ impl StoreService {
                 )]),
                 payload: message.payload,
                 raw_profile: message.raw_profile,
-                raw_profile_content_type: message.raw_profile_content_type,
             };
 
             self.produce(KafkaTopic::Profiles, KafkaMessage::ProfileChunk(message))
@@ -1712,10 +1702,8 @@ struct ProfileChunkKafkaMessage {
     #[serde(skip)]
     headers: BTreeMap<String, String>,
     payload: Bytes,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    raw_profile: Option<Bytes>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    raw_profile_content_type: Option<RawProfileContentType>,
+    #[serde(flatten, skip_serializing_if = "Option::is_none")]
+    raw_profile: Option<RawProfile>,
 }
 
 /// An enum over all possible ingest messages.
@@ -1924,4 +1912,52 @@ fn safe_timestamp(timestamp: DateTime<Utc>) -> u64 {
 
     // We assume this call can't return < 0.
     Utc::now().timestamp() as u64
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_profile_chunk_kafka_message_without_raw_profile() {
+        let message = ProfileChunkKafkaMessage {
+            organization_id: OrganizationId::new(1),
+            project_id: ProjectId::new(42),
+            received: 1234567890,
+            retention_days: 90,
+            headers: BTreeMap::new(),
+            payload: Bytes::from(b"{\"profile\":true}".as_ref()),
+            raw_profile: None,
+        };
+        let json = serde_json::to_value(&message).unwrap();
+        assert_eq!(json["organization_id"], 1);
+        assert_eq!(json["project_id"], 42);
+        assert!(json.get("raw_profile").is_none());
+        assert!(json.get("raw_profile_content_type").is_none());
+    }
+
+    #[test]
+    fn test_profile_chunk_kafka_message_with_raw_profile() {
+        let message = ProfileChunkKafkaMessage {
+            organization_id: OrganizationId::new(1),
+            project_id: ProjectId::new(42),
+            received: 1234567890,
+            retention_days: 90,
+            headers: BTreeMap::new(),
+            payload: Bytes::from(b"{\"profile\":true}".as_ref()),
+            raw_profile: Some(RawProfile {
+                payload: Bytes::from(b"perfetto-binary-data".as_ref()),
+                content_type: crate::envelope::ContentType::PerfettoTrace,
+            }),
+        };
+        let json = serde_json::to_value(&message).unwrap();
+        assert_eq!(json["organization_id"], 1);
+        assert_eq!(json["project_id"], 42);
+        assert!(json.get("raw_profile").is_some());
+        assert_eq!(
+            json["raw_profile_content_type"],
+            "application/x-perfetto-trace"
+        );
+    }
 }
