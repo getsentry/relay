@@ -245,8 +245,9 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
             UploadDecision::Drop(limits) => {
                 // This is best effort, the item here does not yet have its content set hence size
                 // is not correct.
-                let reason_code = limits.longest().and_then(|l| l.reason_code.clone());
-                let _ = item.reject_err(Outcome::RateLimited(reason_code));
+                let _ = item.reject_err(Outcome::RateLimited(
+                    limits.longest().and_then(|l| l.reason_code.clone()),
+                ));
                 Ok(None)
             }
         }
@@ -460,16 +461,17 @@ async fn handle(
             .ok_or(BadStoreRequest::ProjectUnavailable)?;
         let context = upload_context_for_project(&meta, &state, project)?;
 
-        // This is a best effort outcome, in the sense that we also drop some attachments but
-        // since we know neither the amount of size we can emit an accurate outcome for them.
         if let UploadDecision::Drop(limits) = &context.upload_minidumps {
-            let managed = Managed::with_meta_from_request_meta(
+            // This is a best effort outcome, in the sense that we also drop some attachments but
+            // since we know neither the amount or size we can't emit an accurate outcome for them.
+            let _ = Managed::with_meta_from_request_meta(
                 &meta,
                 state.outcome_aggregator(),
                 (DataCategory::Error, 1),
-            );
-            let reason = limits.longest().and_then(|l| l.reason_code.clone());
-            let _ = managed.reject_err(Outcome::RateLimited(reason));
+            )
+            .reject_err(Outcome::RateLimited(
+                limits.longest().and_then(|l| l.reason_code.clone()),
+            ));
             return Ok(TextResponse(Some(EventId::new())));
         }
         Some(context)
