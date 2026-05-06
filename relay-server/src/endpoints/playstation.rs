@@ -22,7 +22,6 @@ use crate::managed::Managed;
 use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::DiscardReason;
-use crate::services::projects::cache::Project;
 use crate::services::upload::Upload;
 use crate::utils::{self, AttachmentStrategy};
 
