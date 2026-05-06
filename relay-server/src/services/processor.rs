@@ -1874,7 +1874,6 @@ impl EnvelopeProcessorService {
     ///  - partitioning
     ///  - batching by configured size limit
     ///  - serialize to JSON and pack in an envelope
-    ///  - submit the envelope to upstream or kafka depending on configuration
     ///
     /// Rate limiting runs only in processing Relays as it requires access to the central Redis instance.
     /// Cached rate limits are applied in the project cache already.
@@ -1888,7 +1887,10 @@ impl EnvelopeProcessorService {
         let upstream = self.inner.config.upstream();
 
         for ProjectBuckets {
-            buckets, scoping, ..
+            buckets,
+            scoping,
+            project_info,
+            ..
         } in buckets.values()
         {
             let dsn = PartialDsn::outbound(scoping, upstream);
@@ -1916,7 +1918,7 @@ impl EnvelopeProcessorService {
                     distribution(RelayDistributions::BucketsPerBatch) = batch.len() as u64
                 );
 
-                self.submit_envelope_upstream(envelope, None);
+                self.submit_envelope_upstream(envelope, project_info.upstream.clone());
                 num_batches += 1;
             }
 
