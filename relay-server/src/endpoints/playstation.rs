@@ -4,7 +4,6 @@
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
-use http::StatusCode;
 use multer::{Field, Multipart};
 use relay_config::Config;
 use relay_dynamic_config::Feature;
@@ -75,7 +74,7 @@ struct UploadContext<'a> {
 async fn upload_context<'a>(
     state: &'a ServiceState,
     meta: &RequestMeta,
-) -> Result<Option<UploadContext<'a>>, axum::response::ErrorResponse> {
+) -> Result<Option<UploadContext<'a>>, BadStoreRequest> {
     if !state
         .global_config_handle()
         .current()
@@ -89,12 +88,14 @@ async fn upload_context<'a>(
         .project_cache_handle()
         .ready(meta.public_key(), state.config().query_timeout())
         .await
-        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+        .ok_or(BadStoreRequest::ProjectUnavailable)?;
+
     let project_config = project
         .state()
         .clone()
         .enabled()
         .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
+
     let scoping = project_config
         .scoping(meta.public_key())
         .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
