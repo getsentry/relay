@@ -223,39 +223,30 @@ pub fn write_canonical_fn(
 ) {
     writeln!(
         out,
-        r#"/// Returns the "canonical" version of an attribute."#
+        r#"/// Returns the "canonical" version of an attribute.
+/// This means:
+/// * If the attribute is not deprecated, it is returned itself.
+/// * If the attribute is deprecated and has a replacement, the replacement is returned.
+/// * If the attribute is deprecated without a replacement, `None` is returned.
+/// * If the attribute is not defined in `sentry-conventions`, `None` is returned.
+#[allow(deprecated)]
+pub fn canonical(key: &str) -> Option<&str> {{
+    use crate::consts::*;
+    match key {{"#
     )
     .unwrap();
-    writeln!(out, r#"/// This means:"#).unwrap();
-    writeln!(
-        out,
-        r#"/// * If the attribute is not deprecated, it is returned itself."#
-    )
-    .unwrap();
-    writeln!(out, r#"/// * If the attribute is deprecated and has a replacement, the replacement is returned."#).unwrap();
-    writeln!(
-        out,
-        r#"/// * If the attribute is deprecated without a replacement, `None` is returned."#
-    )
-    .unwrap();
-    writeln!(
-        out,
-        r#"/// * If the attribute is not defined in `sentry-conventions`, `None` is returned."#
-    )
-    .unwrap();
-    writeln!(out, "#[allow(deprecated)]").unwrap();
-
-    writeln!(out, r#"pub fn canonical(key: &str) -> Option<&str> {{"#).unwrap();
-    writeln!(out, r#"    use crate::consts::*;"#).unwrap();
-    writeln!(out, r#"    match key {{"#).unwrap();
 
     for (old, new) in constants {
         writeln!(out, r#"        {old} => Some({new}),"#).unwrap();
     }
 
-    writeln!(out, r#"        _ => None,"#).unwrap();
-    writeln!(out, r#"    }}"#).unwrap();
-    writeln!(out, r#"}}"#).unwrap();
+    writeln!(
+        out,
+        r#"        _ => None,
+    }}
+}}"#
+    )
+    .unwrap();
 }
 
 #[derive(Default)]
