@@ -7,7 +7,6 @@ use bzip2::read::BzDecoder;
 use flate2::read::GzDecoder;
 use liblzma::read::XzDecoder;
 use multer::{Field, Multipart};
-use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::EventId;
@@ -29,9 +28,7 @@ use crate::managed::Managed;
 use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome};
-use crate::services::projects::cache::Project;
 use crate::services::upload::Upload;
-use crate::statsd::RelayCounters;
 use crate::utils::{self, AttachmentStrategy, read_attachment_bytes_into_item};
 
 /// The field name of a minidump in the multipart form-data upload.
@@ -316,27 +313,26 @@ async fn multipart_to_envelope(
     Ok(envelope)
 }
 
-fn should_fetch_project_config(state: &ServiceState, project_id: Option<ProjectId>) -> bool {
-    // In the minidump endpoint we should always have a project_id.
-    let Some(project_id) = project_id else {
-        return false;
-    };
-    let global_config = state.global_config_handle().current();
-    utils::is_rolled_out(
-        project_id.value(),
-        global_config
-            .options
-            .minidump_endpoint_fetch_config_rollout_rate,
-    )
-    .is_keep()
-}
-
-/// Creates an [UploadContext] for a given project.
-fn upload_context_for_project<'a>(
+/// Creates an [UploadContext].
+async fn upload_context<'a>(
     meta: &RequestMeta,
     state: &'a ServiceState,
-    project: Project<'_>,
-) -> Result<UploadContext<'a>, BadStoreRequest> {
+) -> Result<Option<UploadContext<'a>>, BadStoreRequest> {
+    if !state
+        .global_config_handle()
+        .current()
+        .options
+        .endpoint_fetch_config_enabled
+    {
+        return Ok(None);
+    }
+
+    let project = state
+        .project_cache_handle()
+        .ready(meta.public_key(), state.config().query_timeout())
+        .await
+        .ok_or(BadStoreRequest::ProjectUnavailable)?;
+
     let project_config = project
         .state()
         .clone()
@@ -375,12 +371,12 @@ fn upload_context_for_project<'a>(
         UploadDecision::Upload
     };
 
-    Ok(UploadContext {
+    Ok(Some(UploadContext {
         upload: state.upload(),
         scoping,
         upload_attachments,
         upload_minidumps,
-    })
+    }))
 }
 
 async fn raw_minidump_to_envelope(
@@ -449,35 +445,23 @@ async fn handle(
     // minidump can either be transmitted as request body, or as `upload_file_minidump` in a
     // multipart formdata request.
     let config = state.config();
+    let upload_context = upload_context(&meta, &state).await?;
 
-    let upload_context = if should_fetch_project_config(&state, meta.project_id()) {
-        // Ensure that we really make it here.
-        relay_statsd::metric!(counter(RelayCounters::MinidumpEndpointConfigFetching) += 1);
-
-        let project = state
-            .project_cache_handle()
-            .ready(meta.public_key(), config.query_timeout())
-            .await
-            .ok_or(BadStoreRequest::ProjectUnavailable)?;
-        let context = upload_context_for_project(&meta, &state, project)?;
-
-        if let UploadDecision::Drop(limits) = &context.upload_minidumps {
-            // This is a best effort outcome, in the sense that we also drop some attachments but
-            // since we know neither the amount or size we can't emit an accurate outcome for them.
-            let _ = Managed::with_meta_from_request_meta(
-                &meta,
-                state.outcome_aggregator(),
-                (DataCategory::Error, 1),
-            )
-            .reject_err(Outcome::RateLimited(
-                limits.longest().and_then(|l| l.reason_code.clone()),
-            ));
-            return Ok(TextResponse(Some(EventId::new())));
-        }
-        Some(context)
-    } else {
-        None
-    };
+    if let Some(upload_context) = &upload_context
+        && let UploadDecision::Drop(limits) = &upload_context.upload_minidumps
+    {
+        // This is a best effort outcome, in the sense that we also drop some attachments but
+        // since we know neither the amount or size we can't emit an accurate outcome for them.
+        let _ = Managed::with_meta_from_request_meta(
+            &meta,
+            state.outcome_aggregator(),
+            (DataCategory::Error, 1),
+        )
+        .reject_err(Outcome::RateLimited(
+            limits.longest().and_then(|l| l.reason_code.clone()),
+        ));
+        return Ok(TextResponse(Some(EventId::new())));
+    }
 
     let envelope = if MINIDUMP_RAW_CONTENT_TYPES.contains(&content_type.as_ref()) {
         raw_minidump_to_envelope(request, meta, &state, content_type, config, upload_context)
