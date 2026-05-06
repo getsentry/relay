@@ -990,6 +990,10 @@ impl EnvelopeProcessorService {
             )
             .unwrap_or_else(GeoIpLookup::empty);
 
+        if let Some(build_epoch) = geoip_lookup.build_epoch() {
+            relay_log::info!("Loaded GeoIP database (build: {build_epoch})");
+        }
+
         #[cfg(feature = "processing")]
         let rate_limiter = redis.as_ref().map(|redis| {
             RedisRateLimiter::new(redis.quotas.clone())
