@@ -1,6 +1,7 @@
 mod attributes;
 mod name;
 
+use std::collections::BTreeMap;
 use std::env;
 use std::fs::File;
 use std::io::{BufWriter, Write};
@@ -25,11 +26,15 @@ fn main() {
 }
 
 fn write_attribute_rs(crate_dir: &Path) {
-    use attributes::{Attribute, RawNode, format_attribute_info, format_constant, parse_segments};
+    use attributes::{
+        Attribute, RawNode, constant_pair, format_attribute_info, format_constant, parse_segments,
+        write_replacement_fn,
+    };
 
     let attribute_consts_path =
         Path::new(&env::var("OUT_DIR").unwrap()).join("attribute_consts.rs");
     let mut attribute_consts_file = BufWriter::new(File::create(&attribute_consts_path).unwrap());
+    let mut attribute_replacement_map = BTreeMap::new();
 
     let mut root = RawNode::default();
 
@@ -44,6 +49,11 @@ fn write_attribute_rs(crate_dir: &Path) {
 
             // Write attribute constant
             writeln!(&mut attribute_consts_file, "{}\n", format_constant(&attr)).unwrap();
+
+            // Insert deprecated -> replacement into map
+            if let Some((old, new)) = constant_pair(&attr) {
+                attribute_replacement_map.insert(old, new);
+            }
 
             // Put attribute info in the hierarchical map
             let info = format_attribute_info(&attr);
@@ -62,6 +72,11 @@ fn write_attribute_rs(crate_dir: &Path) {
             }
         }
     }
+
+    write_replacement_fn(
+        &mut attribute_consts_file,
+        attribute_replacement_map.into_iter(),
+    );
 
     let attribute_map_path = Path::new(&env::var("OUT_DIR").unwrap()).join("attribute_map.rs");
     let mut attribute_map_file = BufWriter::new(File::create(&attribute_map_path).unwrap());
