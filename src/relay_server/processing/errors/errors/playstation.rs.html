@@ -88,12 +88,12 @@
 <a href=#88 id=88 data-nosnippet>88</a>            <span class="comment">// If "__sentry" is not a key in the userdata do the legacy extraction.
 <a href=#89 id=89 data-nosnippet>89</a>            // This should be removed once all customers migrated to the new format.
 <a href=#90 id=90 data-nosnippet>90</a>            </span><span class="kw">if </span>prospero_event.is_none() {
-<a href=#91 id=91 data-nosnippet>91</a>                <span class="kw">crate</span>::services::processor::playstation::legacy_userdata_extraction(
+<a href=#91 id=91 data-nosnippet>91</a>                <span class="kw">crate</span>::utils::playstation::legacy_userdata_extraction(
 <a href=#92 id=92 data-nosnippet>92</a>                    event.get_or_insert_with(Default::default),
 <a href=#93 id=93 data-nosnippet>93</a>                    <span class="kw-2">&amp;</span>prospero_dump,
 <a href=#94 id=94 data-nosnippet>94</a>                );
 <a href=#95 id=95 data-nosnippet>95</a>            }
-<a href=#96 id=96 data-nosnippet>96</a>            <span class="kw">crate</span>::services::processor::playstation::merge_playstation_context(
+<a href=#96 id=96 data-nosnippet>96</a>            <span class="kw">crate</span>::utils::playstation::merge_playstation_context(
 <a href=#97 id=97 data-nosnippet>97</a>                event.get_or_insert_with(Default::default),
 <a href=#98 id=98 data-nosnippet>98</a>                <span class="kw-2">&amp;</span>prospero_dump,
 <a href=#99 id=99 data-nosnippet>99</a>            );
@@ -117,7 +117,7 @@
 <a href=#117 id=117 data-nosnippet>117</a>                item.set_filename(file.name);
 <a href=#118 id=118 data-nosnippet>118</a>                item.set_attachment_type(AttachmentType::Attachment);
 <a href=#119 id=119 data-nosnippet>119</a>                item.set_payload(
-<a href=#120 id=120 data-nosnippet>120</a>                    <span class="kw">crate</span>::services::processor::playstation::infer_content_type(file.name),
+<a href=#120 id=120 data-nosnippet>120</a>                    <span class="kw">crate</span>::utils::playstation::infer_content_type(file.name),
 <a href=#121 id=121 data-nosnippet>121</a>                    file.contents.to_owned(),
 <a href=#122 id=122 data-nosnippet>122</a>                );
 <a href=#123 id=123 data-nosnippet>123</a>                item
