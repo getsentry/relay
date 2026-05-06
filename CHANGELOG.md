@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Bump `sentry-conventions` to 0.6.0-3. ([#5944](https://github.com/getsentry/relay/pull/5944))
+
 ## 26.4.2
 
 **Features**:
