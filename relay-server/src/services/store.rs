@@ -836,7 +836,8 @@ impl StoreService {
                     scoping.project_id.to_string(),
                 )]),
                 payload: message.payload,
-                raw_profile: message.raw_profile,
+                raw_profile: message.raw_profile.as_ref().map(|r| r.payload.clone()),
+                raw_profile_content_type: message.raw_profile.map(|r| r.content_type),
             };
 
             self.produce(KafkaTopic::Profiles, KafkaMessage::ProfileChunk(message))
@@ -1702,8 +1703,10 @@ struct ProfileChunkKafkaMessage {
     #[serde(skip)]
     headers: BTreeMap<String, String>,
     payload: Bytes,
-    #[serde(flatten, skip_serializing_if = "Option::is_none")]
-    raw_profile: Option<RawProfile>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    raw_profile: Option<Bytes>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    raw_profile_content_type: Option<ContentType>,
 }
 
 /// An enum over all possible ingest messages.
@@ -1929,6 +1932,7 @@ mod tests {
             headers: BTreeMap::new(),
             payload: Bytes::from(b"{\"profile\":true}".as_ref()),
             raw_profile: None,
+            raw_profile_content_type: None,
         };
         let json = serde_json::to_value(&message).unwrap();
         assert_eq!(json["organization_id"], 1);
@@ -1946,10 +1950,8 @@ mod tests {
             retention_days: 90,
             headers: BTreeMap::new(),
             payload: Bytes::from(b"{\"profile\":true}".as_ref()),
-            raw_profile: Some(RawProfile {
-                payload: Bytes::from(b"perfetto-binary-data".as_ref()),
-                content_type: crate::envelope::ContentType::PerfettoTrace,
-            }),
+            raw_profile: Some(Bytes::from(b"perfetto-binary-data".as_ref())),
+            raw_profile_content_type: Some(crate::envelope::ContentType::PerfettoTrace),
         };
         let json = serde_json::to_value(&message).unwrap();
         assert_eq!(json["organization_id"], 1);

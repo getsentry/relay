@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
-use serde::Serialize;
 use smallvec::smallvec;
 
 use relay_cogs::{AppFeature, FeatureWeights};
@@ -61,11 +60,9 @@ impl crate::managed::OutcomeError for Error {
     }
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Debug)]
 pub struct RawProfile {
-    #[serde(rename = "raw_profile")]
     pub payload: Bytes,
-    #[serde(rename = "raw_profile_content_type")]
     pub content_type: ContentType,
 }
 
@@ -359,20 +356,6 @@ mod tests {
         let (json_part, raw_part) = payload.split_at(meta_length as usize);
         assert_eq!(json_part, b"{\"expanded\":true}".as_ref());
         assert_eq!(raw_part, b"raw-binary-blob".as_ref());
-    }
-
-    #[test]
-    fn test_raw_profile_serialization() {
-        let raw = RawProfile {
-            payload: Bytes::from(b"binary-data".as_ref()),
-            content_type: ContentType::PerfettoTrace,
-        };
-        let json = serde_json::to_value(&raw).unwrap();
-        assert_eq!(
-            json["raw_profile_content_type"],
-            "application/x-perfetto-trace"
-        );
-        assert!(json.get("raw_profile").is_some());
     }
 
     #[test]
