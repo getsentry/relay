@@ -885,34 +885,14 @@ impl MeasurementsLike for Measurements {
     }
 }
 
-/// Resolves measurement names (as stored in [`PerformanceScoreWeightedComponent`])
-/// to current `sentry_conventions` attributes.
-fn performance_measurement_to_attribute(measurement: &str) -> Option<&str> {
-    match measurement {
-        "cls" => Some(relay_conventions::consts::BROWSER__WEB_VITAL__CLS__VALUE),
-        "fcp" => Some(relay_conventions::consts::BROWSER__WEB_VITAL__FCP__VALUE),
-        // TODO: This needs to be fixed in conventions
-        "fid" => Some("fid"),
-        "fp" => Some(relay_conventions::consts::BROWSER__WEB_VITAL__FP__VALUE),
-        "inp" => Some(relay_conventions::consts::BROWSER__WEB_VITAL__INP__VALUE),
-        "lcp" => Some(relay_conventions::consts::BROWSER__WEB_VITAL__LCP__VALUE),
-        "ttfb" => Some(relay_conventions::consts::BROWSER__WEB_VITAL__TTFB__VALUE),
-        _ => None,
-    }
-}
-
 impl MeasurementsLike for Attributes {
     fn contains_measurement(&self, key: &str) -> bool {
-        let Some(key) = performance_measurement_to_attribute(key) else {
-            return false;
-        };
-
-        self.0.contains_key(key)
+        self.0
+            .contains_key(relay_conventions::canonical(key).unwrap_or(key))
     }
 
     fn get_measurement_value(&self, key: &str) -> Option<FiniteF64> {
-        let key = performance_measurement_to_attribute(key)?;
-        let value = self.get_value(key)?;
+        let value = self.get_value(relay_conventions::canonical(key).unwrap_or(key))?;
         match value {
             Value::F64(v) => FiniteF64::new(*v),
             _ => None,
