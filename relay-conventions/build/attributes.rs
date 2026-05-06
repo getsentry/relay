@@ -196,11 +196,11 @@ pub fn format_interpolating_fn(attribute: &Attribute) -> Option<String> {
     writeln!(
         &mut out,
         r#"/// Instantiates the `<key>` placeholder in the attribute
-/// [`{constant_name}`] (`{key}`) with a concrete value.
+/// [`{constant_name}`](crate::consts::{constant_name}) (`{key}`) with a concrete value.
 /// # Example
 /// ```
-/// use relay_conventions::consts::{fn_name};
-/// assert_eq!({fn_name}("foobar"), "{example_value}
+/// use relay_conventions::interpolate::{fn_name};
+/// assert_eq!({fn_name}("foobar"), "{example_value}");
 /// ```"#
     )
     .unwrap();
@@ -227,7 +227,7 @@ fn write_deprecation_annotation(out: &mut impl Write, deprecation: &Deprecation)
         let replacement_name = name_constant(replacement);
         write!(
             out,
-            r#"(note="Use [`{replacement_name}`] (`{replacement}`) instead.")"#
+            r#"(note="Use [`{replacement_name}`](crate::consts::{replacement_name}) (`{replacement}`) instead.")"#
         )
         .unwrap();
     }
