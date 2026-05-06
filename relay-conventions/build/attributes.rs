@@ -230,7 +230,7 @@ pub fn write_canonical_fn(
 /// * If the attribute is deprecated without a replacement, `None` is returned.
 /// * If the attribute is not defined in `sentry-conventions`, `None` is returned.
 #[allow(deprecated)]
-pub fn canonical(key: &str) -> Option<&str> {{
+pub fn canonical(key: &str) -> Option<&'static str> {{
     use crate::consts::*;
     match key {{"#
     )
