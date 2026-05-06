@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Bug Fixes**:
+
+- Emit more precise outcome discard reasons for the Playstation, Minidump, and Attachments endpoints. ([#5950](https://github.com/getsentry/relay/pull/5950))
+
 ## 26.4.2
 
 **Features**:
