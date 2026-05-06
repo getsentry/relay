@@ -560,5 +560,6 @@ GLOBAL_CONFIG = {
     "options": {
         "relay.span-usage-metric": True,
         "relay.session.processing.rollout": 1.0,
+        "relay.endpoint-fetch-config.enabled": True,
     },
 }
