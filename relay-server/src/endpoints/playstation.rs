@@ -15,12 +15,12 @@ use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
 use crate::envelope::ContentType::OctetStream;
-use crate::envelope::{AttachmentType, Envelope, Item};
+use crate::envelope::{AttachmentType, Envelope, Item, Items};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::managed::Managed;
 use crate::middlewares;
 use crate::service::ServiceState;
-use crate::services::outcome::DiscardReason;
+use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::upload::Upload;
 use crate::utils::{self, AttachmentStrategy};
 
@@ -165,9 +165,10 @@ fn create_data_request_response() -> DataRequestResponse {
     }
 }
 
-fn validate_prosperodump(data: &[u8]) -> Result<(), BadStoreRequest> {
+fn validate_prosperodump(data: &[u8], items: &Managed<Items>) -> Result<(), BadStoreRequest> {
     if !data.starts_with(LZ4_MAGIC_HEADER) && !data.starts_with(PROSPERODUMP_MAGIC_HEADER) {
         relay_log::trace!("invalid prosperodump file");
+        let _ = items.reject_err(Outcome::Invalid(DiscardReason::InvalidProsperodump));
         return Err(BadStoreRequest::InvalidProsperodump);
     }
 
@@ -189,16 +190,24 @@ async fn multipart_to_envelope(
     )
     .await?;
 
-    let prosperodump_item = items
-        .iter_mut()
-        .find(|item| item.attachment_type() == Some(AttachmentType::Prosperodump))
-        .ok_or(BadStoreRequest::MissingProsperodump)?;
-    prosperodump_item.modify(|inner, _| inner.set_payload(OctetStream, inner.payload()));
-    validate_prosperodump(&prosperodump_item.payload())?;
+    let prosperodump_idx = items
+        .iter()
+        .position(|item| item.attachment_type() == Some(AttachmentType::Prosperodump))
+        .ok_or(BadStoreRequest::MissingProsperodump)
+        .inspect_err(|_| {
+            let _ = items.reject_err(Outcome::Invalid(DiscardReason::MissingProsperodumpUpload));
+        })?;
+    let payload = items[prosperodump_idx].payload();
+    validate_prosperodump(&payload, &items)?;
+    items.modify(|items, _| {
+        items[prosperodump_idx].set_payload(OctetStream, payload);
+    });
 
     let event_id = common::event_id_from_items(&items)?.unwrap_or_else(EventId::new);
-    let envelope =
-        common::managed_items_to_envelope(items, meta, state.outcome_aggregator(), event_id);
+    let envelope = items.map(|items, records| {
+        records.modify_by(DataCategory::Error, 1);
+        Box::new(Envelope::from_request(Some(event_id), meta).with_items(items))
+    });
     Ok(envelope)
 }
 

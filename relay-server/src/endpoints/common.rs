@@ -17,13 +17,12 @@ use serde::Deserialize;
 
 use crate::envelope::{
     AttachmentPlaceholder, AttachmentType, ContentType, Envelope, EnvelopeError, Item, ItemType,
-    ManagedItems,
+    Items,
 };
-use crate::extractors::RequestMeta;
 use crate::managed::{Managed, Rejected};
 use crate::service::ServiceState;
 use crate::services::buffer::{ProjectKeyPair, PushError};
-use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOutcome};
+use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
 use crate::services::processor::{BucketSource, MetricData, ProcessMetrics};
 use crate::services::upload::{Create, Stream, Upload};
 use crate::statsd::{RelayCounters, RelayDistributions};
@@ -292,7 +291,7 @@ pub fn event_id_from_formdata(data: &[u8]) -> Result<Option<EventId>, BadStoreRe
 ///
 /// Extracting the event id from chunked formdata fields on the Minidump endpoint (`sentry__1`,
 /// `sentry__2`, ...) is not supported. In this case, `None` is returned.
-pub fn event_id_from_items(items: &ManagedItems) -> Result<Option<EventId>, BadStoreRequest> {
+pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreRequest> {
     if let Some(item) = items.iter().find(|item| item.ty() == &ItemType::Event)
         && let Some(event_id) = event_id_from_json(&item.payload())?
     {
@@ -573,27 +572,6 @@ where
         records.lenient(DataCategory::Attachment); // item was empty before
     });
     Some(item)
-}
-
-pub fn managed_items_to_envelope(
-    items: ManagedItems,
-    meta: RequestMeta,
-    outcome_aggregator: &Addr<TrackOutcome>,
-    event_id: EventId,
-) -> Managed<Box<Envelope>> {
-    let envelope = Envelope::from_request(Some(event_id), meta);
-    let mut envelope = Managed::from_envelope(envelope, outcome_aggregator.clone());
-    let mut has_event = false;
-    for item in items {
-        envelope.merge_with(item, |envelope, item, records| {
-            if !has_event && item.creates_event() {
-                records.modify_by(DataCategory::Error, 1);
-                has_event = true;
-            }
-            envelope.add_item(item);
-        });
-    }
-    envelope
 }
 
 #[derive(Debug)]
