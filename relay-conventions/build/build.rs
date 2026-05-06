@@ -28,7 +28,7 @@ fn main() {
 fn write_attribute_rs(crate_dir: &Path) {
     use attributes::{
         Attribute, RawNode, constant_pair, format_attribute_info, format_constant, parse_segments,
-        write_replacement_fn,
+        write_canonical_fn,
     };
 
     let attribute_consts_path =
@@ -73,8 +73,11 @@ fn write_attribute_rs(crate_dir: &Path) {
         }
     }
 
-    write_replacement_fn(
-        &mut attribute_consts_file,
+    let canonical_fn_path = Path::new(&env::var("OUT_DIR").unwrap()).join("canonical_fn.rs");
+    let mut canonical_fn_file = BufWriter::new(File::create(&canonical_fn_path).unwrap());
+
+    write_canonical_fn(
+        &mut canonical_fn_file,
         attribute_replacement_map.into_iter(),
     );
 

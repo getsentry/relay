@@ -217,13 +217,13 @@ pub fn constant_pair(attribute: &Attribute) -> Option<(String, String)> {
 }
 
 /// Writes a function that returns the replacement name for an attribute.
-pub fn write_replacement_fn(
+pub fn write_canonical_fn(
     out: &mut impl std::io::Write,
     constants: impl Iterator<Item = (String, String)>,
 ) {
     writeln!(
         out,
-        r#"/// Returns the "undeprecated" version of an attribute."#
+        r#"/// Returns the "canonical" version of an attribute."#
     )
     .unwrap();
     writeln!(out, r#"/// This means:"#).unwrap();
@@ -245,7 +245,8 @@ pub fn write_replacement_fn(
     .unwrap();
     writeln!(out, "#[allow(deprecated)]").unwrap();
 
-    writeln!(out, r#"pub fn replacement(key: &str) -> Option<&str> {{"#).unwrap();
+    writeln!(out, r#"pub fn canonical(key: &str) -> Option<&str> {{"#).unwrap();
+    writeln!(out, r#"    use crate::consts::*;"#).unwrap();
     writeln!(out, r#"    match key {{"#).unwrap();
 
     for (old, new) in constants {
