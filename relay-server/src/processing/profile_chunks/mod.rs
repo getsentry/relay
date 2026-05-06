@@ -71,6 +71,7 @@ pub struct RawProfile {
 pub struct ExpandedProfileChunk {
     pub payload: Bytes,
     pub raw_profile: Option<RawProfile>,
+    pub platform: String,
     pub quantities: Quantities,
 }
 
@@ -187,6 +188,7 @@ impl Forward for ProfileChunkOutput {
                     .into_iter()
                     .map(|chunk| {
                         let mut item = Item::new(ItemType::ProfileChunk);
+                        item.set_platform(chunk.platform);
                         if let Some(raw_profile) = chunk.raw_profile {
                             let meta_length = chunk.payload.len() as u32;
                             let mut compound = bytes::BytesMut::with_capacity(
@@ -305,7 +307,8 @@ mod tests {
         let chunk = ExpandedProfileChunk {
             payload: Bytes::from(b"{\"hello\":\"world\"}".as_ref()),
             raw_profile: None,
-            quantities: smallvec![],
+            platform: "python".to_owned(),
+            quantities: smallvec![(DataCategory::ProfileChunk, 1)],
         };
         let (managed, _handle) = make_expanded(vec![chunk]);
         let output = ProfileChunkOutput::Expanded(managed);
@@ -320,6 +323,7 @@ mod tests {
         assert_eq!(items[0].payload().as_ref(), b"{\"hello\":\"world\"}");
         assert!(items[0].meta_length().is_none());
         assert_eq!(items[0].content_type(), Some(ContentType::Json));
+        assert_eq!(items[0].platform(), Some("python"));
     }
 
     #[test]
@@ -332,7 +336,8 @@ mod tests {
                 payload: raw_data.clone(),
                 content_type: ContentType::PerfettoTrace,
             }),
-            quantities: smallvec![],
+            platform: "android".to_owned(),
+            quantities: smallvec![(DataCategory::ProfileChunkUi, 1)],
         };
         let (managed, _handle) = make_expanded(vec![chunk]);
         let output = ProfileChunkOutput::Expanded(managed);
@@ -363,7 +368,8 @@ mod tests {
         let json_chunk = ExpandedProfileChunk {
             payload: Bytes::from(b"{\"type\":\"json\"}".as_ref()),
             raw_profile: None,
-            quantities: smallvec![],
+            platform: "python".to_owned(),
+            quantities: smallvec![(DataCategory::ProfileChunk, 1)],
         };
         let compound_chunk = ExpandedProfileChunk {
             payload: Bytes::from(b"{\"type\":\"compound\"}".as_ref()),
@@ -371,7 +377,8 @@ mod tests {
                 payload: Bytes::from(b"perfetto-blob".as_ref()),
                 content_type: ContentType::PerfettoTrace,
             }),
-            quantities: smallvec![],
+            platform: "android".to_owned(),
+            quantities: smallvec![(DataCategory::ProfileChunkUi, 1)],
         };
         let (managed, _handle) = make_expanded(vec![json_chunk, compound_chunk]);
         let output = ProfileChunkOutput::Expanded(managed);
@@ -386,8 +393,10 @@ mod tests {
 
         assert_eq!(items[0].content_type(), Some(ContentType::Json));
         assert!(items[0].meta_length().is_none());
+        assert_eq!(items[0].platform(), Some("python"));
 
         assert_eq!(items[1].content_type(), Some(ContentType::PerfettoTrace));
         assert!(items[1].meta_length().is_some());
+        assert_eq!(items[1].platform(), Some("android"));
     }
 }
