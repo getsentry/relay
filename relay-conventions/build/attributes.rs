@@ -195,6 +195,60 @@ pub fn parse_segments(key: &str) -> impl Iterator<Item = &str> {
     key.split('.')
 }
 
+/// Returns:
+/// * `Some(attribute, replacement)` if `attribute` is deprecated with `replacement`
+/// * `Some(attribute, attribute)` if `attribute` is not deprecated
+/// * `None` if `attribute` is deprecated without replacement
+pub fn constant_pair(attribute: &Attribute) -> Option<(String, String)> {
+    let Attribute {
+        key,
+        brief: _,
+        pii: _,
+        deprecation,
+        alias: _,
+    } = attribute;
+
+    let replacement = match deprecation {
+        Some(d) => d.replacement.as_deref()?,
+        None => key,
+    };
+
+    Some((name_constant(key), name_constant(replacement)))
+}
+
+/// Writes a function that returns the replacement name for an attribute.
+pub fn write_canonical_fn(
+    out: &mut impl std::io::Write,
+    constants: impl Iterator<Item = (String, String)>,
+) {
+    writeln!(
+        out,
+        r#"/// Returns the "canonical" version of an attribute.
+/// This means:
+/// * If the attribute is not deprecated, it is returned itself.
+/// * If the attribute is deprecated and has a replacement, the replacement is returned.
+/// * If the attribute is deprecated without a replacement, `None` is returned.
+/// * If the attribute is not defined in `sentry-conventions`, `None` is returned.
+#[allow(deprecated)]
+pub fn canonical(key: &str) -> Option<&'static str> {{
+    use crate::consts::*;
+    match key {{"#
+    )
+    .unwrap();
+
+    for (old, new) in constants {
+        writeln!(out, r#"        {old} => Some({new}),"#).unwrap();
+    }
+
+    writeln!(
+        out,
+        r#"        _ => None,
+    }}
+}}"#
+    )
+    .unwrap();
+}
+
 #[derive(Default)]
 pub struct RawNode {
     pub children: BTreeMap<String, RawNode>,

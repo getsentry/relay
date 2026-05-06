@@ -73,6 +73,7 @@ pub mod consts {
 }
 
 include!(concat!(env!("OUT_DIR"), "/attribute_map.rs"));
+include!(concat!(env!("OUT_DIR"), "/canonical_fn.rs"));
 include!(concat!(env!("OUT_DIR"), "/name_fn.rs"));
 
 /// Whether an attribute should be PII-strippable/should be subject to datascrubbers
