@@ -885,12 +885,33 @@ impl MeasurementsLike for Measurements {
     }
 }
 
+/// Resolves measurement names (as stored in [`PerformanceScoreWeightedComponent`])
+/// to current `sentry_conventions` attributes.
+fn performance_measurement_to_attribute(measurement: &str) -> Option<&str> {
+    match measurement {
+        "cls" => Some(relay_conventions::consts::BROWSER__WEB_VITAL__CLS__VALUE),
+        "fcp" => Some(relay_conventions::consts::BROWSER__WEB_VITAL__FCP__VALUE),
+        // TODO: This needs to be fixed in conventions
+        "fid" => Some("fid"),
+        "fp" => Some(relay_conventions::consts::BROWSER__WEB_VITAL__FP__VALUE),
+        "inp" => Some(relay_conventions::consts::BROWSER__WEB_VITAL__INP__VALUE),
+        "lcp" => Some(relay_conventions::consts::BROWSER__WEB_VITAL__LCP__VALUE),
+        "ttfb" => Some(relay_conventions::consts::BROWSER__WEB_VITAL__TTFB__VALUE),
+        _ => None,
+    }
+}
+
 impl MeasurementsLike for Attributes {
     fn contains_measurement(&self, key: &str) -> bool {
+        let Some(key) = performance_measurement_to_attribute(key) else {
+            return false;
+        };
+
         self.0.contains_key(key)
     }
 
     fn get_measurement_value(&self, key: &str) -> Option<FiniteF64> {
+        let key = performance_measurement_to_attribute(key)?;
         let value = self.get_value(key)?;
         match value {
             Value::F64(v) => FiniteF64::new(*v),
@@ -1644,6 +1665,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+    use crate::eap;
     use crate::{ClientHints, MeasurementsConfig, ModelCostV2, ModelMetadataEntry};
 
     const IOS_MOBILE_EVENT: &str = r#"
@@ -3478,9 +3500,9 @@ mod tests {
                 "browser.name": {"value": "Chrome", "type": "string"},
                 "browser.version": {"value": "120.1.1", "type": "string"},
                 "fid": {"value": 213.0, "type": "double"},
-                "fcp": {"value": 1237.0, "type": "double"},
+                "browser.web_vital.fcp.value": {"value": 1237.0, "type": "double"},
                 "lcp": {"value": 6596.0, "type": "double"},
-                "cls": {"value": 0.11, "type": "double"}
+                "browser.web_vital.cls.value": {"value": 0.11, "type": "double"}
             }
         }
         "#;
@@ -3540,6 +3562,7 @@ mod tests {
         }))
         .unwrap();
 
+        eap::normalize_attribute_names(&mut span.attributes);
         normalize_performance_score(&mut span, Some(&performance_score));
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(span)), {}, @r###"
@@ -3555,13 +3578,17 @@ mod tests {
               "type": "string",
               "value": "120.1.1",
             },
-            "cls": {
+            "browser.web_vital.cls.value": {
               "type": "double",
               "value": 0.11,
             },
-            "fcp": {
+            "browser.web_vital.fcp.value": {
               "type": "double",
               "value": 1237.0,
+            },
+            "browser.web_vital.lcp.value": {
+              "type": "double",
+              "value": 6596.0,
             },
             "fid": {
               "type": "double",
