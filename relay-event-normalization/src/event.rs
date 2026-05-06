@@ -16,10 +16,10 @@ use relay_base_schema::metrics::{
 use relay_conventions::consts::{APP__VITALS__START__TYPE, APP__VITALS__START__VALUE};
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
-    AsPair, AutoInferSetting, ClientSdkInfo, Context, ContextInner, Contexts, DebugImage,
-    DeviceClass, Event, EventId, EventType, Exception, Headers, IpAddr, Level, LogEntry,
-    Measurement, Measurements, PerformanceScoreContext, ReplayContext, Request, Span, SpanStatus,
-    Tags, Timestamp, TraceContext, User, VALID_PLATFORMS,
+    AsPair, Attributes, AutoInferSetting, ClientSdkInfo, Context, ContextInner, Contexts,
+    DebugImage, DeviceClass, Event, EventId, EventType, Exception, Headers, IpAddr, Level,
+    LogEntry, Measurement, Measurements, PerformanceScoreContext, ReplayContext, Request, Span,
+    SpanStatus, SpanV2, Tags, Timestamp, TraceContext, User, VALID_PLATFORMS,
 };
 use relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FiniteF64, FromValue, Getter, Meta, Object, Remark,
@@ -858,8 +858,82 @@ pub fn normalize_measurements(
     }
 }
 
+/// Trait for containers that behave like a collection of [`Measurement`]s.
+///
+/// This exists to make [`normalize_performance_scores`] work for both
+/// [`Measurements`] and [`Attributes`].
+pub trait MeasurementsLike {
+    /// Returns `true` if this collection contains the named measurement.
+    fn contains_measurement(&self, key: &str) -> bool;
+    /// Gets the value of the named measurement if this collection contains it.
+    fn get_measurement_value(&self, key: &str) -> Option<FiniteF64>;
+    /// Inserts a measurement into this collection.
+    fn insert_measurement(&mut self, key: String, value: Measurement);
+}
+
+impl MeasurementsLike for Measurements {
+    fn contains_measurement(&self, key: &str) -> bool {
+        self.contains_key(key)
+    }
+
+    fn get_measurement_value(&self, key: &str) -> Option<FiniteF64> {
+        self.get_value(key)
+    }
+
+    fn insert_measurement(&mut self, key: String, value: Measurement) {
+        self.insert(key, value.into());
+    }
+}
+
+impl MeasurementsLike for Attributes {
+    fn contains_measurement(&self, key: &str) -> bool {
+        self.0.contains_key(key)
+    }
+
+    fn get_measurement_value(&self, key: &str) -> Option<FiniteF64> {
+        let value = self.get_value(key)?;
+        match value {
+            Value::F64(v) => FiniteF64::new(*v),
+            _ => None,
+        }
+    }
+
+    fn insert_measurement(&mut self, key: String, measurement: Measurement) {
+        self.0
+            .insert(key, measurement.value.map_value(|v| v.to_f64().into()));
+    }
+}
+
+/// Trait for types that provide mutable access to a collection of [`Measurement`]s.
+///
+/// This exists to make [`normalize_performance_scores`] work for [`Event`]s,
+/// [`V1 Spans`](Span), and [`V2 Spans`](SpanV2).
 pub trait MutMeasurements {
-    fn measurements(&mut self) -> &mut Annotated<Measurements>;
+    // TODO: name?
+    type MeasurementsContainer: MeasurementsLike;
+    fn measurements(&mut self) -> &mut Annotated<Self::MeasurementsContainer>;
+}
+
+impl MutMeasurements for Event {
+    type MeasurementsContainer = Measurements;
+    fn measurements(&mut self) -> &mut Annotated<Self::MeasurementsContainer> {
+        &mut self.measurements
+    }
+}
+
+impl MutMeasurements for Span {
+    type MeasurementsContainer = Measurements;
+    fn measurements(&mut self) -> &mut Annotated<Self::MeasurementsContainer> {
+        &mut self.measurements
+    }
+}
+
+impl MutMeasurements for SpanV2 {
+    type MeasurementsContainer = Attributes;
+
+    fn measurements(&mut self) -> &mut Annotated<Self::MeasurementsContainer> {
+        &mut self.attributes
+    }
 }
 
 /// Computes performance score measurements for an event.
@@ -882,7 +956,7 @@ pub fn normalize_performance_score(
             if let Some(measurements) = event.measurements().value_mut() {
                 let mut should_add_total = false;
                 if profile.score_components.iter().any(|c| {
-                    !measurements.contains_key(c.measurement.as_str())
+                    !measurements.contains_measurement(c.measurement.as_str())
                         && c.weight.abs() >= f64::EPSILON
                         && !c.optional
                 }) {
@@ -896,7 +970,7 @@ pub fn normalize_performance_score(
                 for component in &profile.score_components {
                     // Skip optional components if they are not present on the event.
                     if component.optional
-                        && !measurements.contains_key(component.measurement.as_str())
+                        && !measurements.contains_measurement(component.measurement.as_str())
                     {
                         continue;
                     }
@@ -911,7 +985,9 @@ pub fn normalize_performance_score(
                     // Optional measurements that are not present are given a weight of 0.
                     let mut normalized_component_weight = FiniteF64::ZERO;
 
-                    if let Some(value) = measurements.get_value(component.measurement.as_str()) {
+                    if let Some(value) =
+                        measurements.get_measurement_value(component.measurement.as_str())
+                    {
                         normalized_component_weight = component.weight.saturating_div(weight_total);
                         let cdf = utils::calculate_cdf_score(
                             value.to_f64().max(0.0), // Webvitals can't be negative, but we need to clamp in case of bad data.
@@ -921,13 +997,12 @@ pub fn normalize_performance_score(
 
                         let cdf = Annotated::try_from(cdf);
 
-                        measurements.insert(
+                        measurements.insert_measurement(
                             format!("score.ratio.{}", component.measurement),
                             Measurement {
                                 value: cdf.clone(),
                                 unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
-                            }
-                            .into(),
+                            },
                         );
 
                         let component_score =
@@ -941,34 +1016,31 @@ pub fn normalize_performance_score(
                             should_add_total = true;
                         }
 
-                        measurements.insert(
+                        measurements.insert_measurement(
                             format!("score.{}", component.measurement),
                             Measurement {
                                 value: component_score,
                                 unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
-                            }
-                            .into(),
+                            },
                         );
                     }
 
-                    measurements.insert(
+                    measurements.insert_measurement(
                         format!("score.weight.{}", component.measurement),
                         Measurement {
                             value: normalized_component_weight.into(),
                             unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
-                        }
-                        .into(),
+                        },
                     );
                 }
                 if should_add_total {
                     version.clone_from(&profile.version);
-                    measurements.insert(
+                    measurements.insert_measurement(
                         "score.total".to_owned(),
                         Measurement {
                             value: score_total.into(),
                             unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
-                        }
-                        .into(),
+                        },
                     );
                 }
             }
@@ -1009,18 +1081,6 @@ fn normalize_trace_context_tags(event: &mut Event) {
                 tags.insert(tag_name, Annotated::new(lcp_url.clone()));
             }
         }
-    }
-}
-
-impl MutMeasurements for Event {
-    fn measurements(&mut self) -> &mut Annotated<Measurements> {
-        &mut self.measurements
-    }
-}
-
-impl MutMeasurements for Span {
-    fn measurements(&mut self) -> &mut Annotated<Measurements> {
-        &mut self.measurements
     }
 }
 
@@ -3241,7 +3301,7 @@ mod tests {
     }
 
     #[test]
-    fn test_computed_performance_score() {
+    fn test_computed_performance_score_transaction() {
         let json = r#"
         {
             "type": "transaction",
@@ -3396,6 +3456,176 @@ mod tests {
             "score.weight.ttfb": {
               "value": 0.0,
               "unit": "ratio",
+            },
+          },
+        }
+        "###);
+    }
+
+    /// A version of `test_computed_performance_score_transaction` for
+    /// V2 spans. Results are _mutatis mutandis_ the same.
+    ///
+    /// The `"condition"` on the profile is written as a disjunction,
+    /// checking for the browser name in both `event.context` and in
+    /// `span.attributes`.
+    #[test]
+    fn test_computed_performance_score_spanv2() {
+        let json = r#"
+        {
+            "end_timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "attributes": {
+                "browser.name": {"value": "Chrome", "type": "string"},
+                "browser.version": {"value": "120.1.1", "type": "string"},
+                "fid": {"value": 213.0, "type": "double"},
+                "fcp": {"value": 1237.0, "type": "double"},
+                "lcp": {"value": 6596.0, "type": "double"},
+                "cls": {"value": 0.11, "type": "double"}
+            }
+        }
+        "#;
+
+        let mut span = Annotated::<SpanV2>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "fcp",
+                            "weight": 0.15,
+                            "p10": 900,
+                            "p50": 1600
+                        },
+                        {
+                            "measurement": "lcp",
+                            "weight": 0.30,
+                            "p10": 1200,
+                            "p50": 2400
+                        },
+                        {
+                            "measurement": "fid",
+                            "weight": 0.30,
+                            "p10": 100,
+                            "p50": 300
+                        },
+                        {
+                            "measurement": "cls",
+                            "weight": 0.25,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                        {
+                            "measurement": "ttfb",
+                            "weight": 0.0,
+                            "p10": 0.2,
+                            "p50": 0.4
+                        },
+                    ],
+                    "condition": {
+                        "op": "or",
+                        "inner": [{
+                            "op":"eq",
+                            "name": "event.context.browser.name",
+                            "value": "Chrome"
+                        }, {
+                            "op":"eq",
+                            "name": "span.attributes.browser.name.value",
+                            "value": "Chrome"
+                        }]
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut span, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(span)), {}, @r###"
+        {
+          "start_timestamp": 1619420400.0,
+          "end_timestamp": 1619420405.0,
+          "attributes": {
+            "browser.name": {
+              "type": "string",
+              "value": "Chrome",
+            },
+            "browser.version": {
+              "type": "string",
+              "value": "120.1.1",
+            },
+            "cls": {
+              "type": "double",
+              "value": 0.11,
+            },
+            "fcp": {
+              "type": "double",
+              "value": 1237.0,
+            },
+            "fid": {
+              "type": "double",
+              "value": 213.0,
+            },
+            "lcp": {
+              "type": "double",
+              "value": 6596.0,
+            },
+            "score.cls": {
+              "type": "double",
+              "value": 0.21864170607444863,
+            },
+            "score.fcp": {
+              "type": "double",
+              "value": 0.10750855443790831,
+            },
+            "score.fid": {
+              "type": "double",
+              "value": 0.19657361348282545,
+            },
+            "score.lcp": {
+              "type": "double",
+              "value": 0.009238896571386584,
+            },
+            "score.ratio.cls": {
+              "type": "double",
+              "value": 0.8745668242977945,
+            },
+            "score.ratio.fcp": {
+              "type": "double",
+              "value": 0.7167236962527221,
+            },
+            "score.ratio.fid": {
+              "type": "double",
+              "value": 0.6552453782760849,
+            },
+            "score.ratio.lcp": {
+              "type": "double",
+              "value": 0.03079632190462195,
+            },
+            "score.total": {
+              "type": "double",
+              "value": 0.531962770566569,
+            },
+            "score.weight.cls": {
+              "type": "double",
+              "value": 0.25,
+            },
+            "score.weight.fcp": {
+              "type": "double",
+              "value": 0.15,
+            },
+            "score.weight.fid": {
+              "type": "double",
+              "value": 0.3,
+            },
+            "score.weight.lcp": {
+              "type": "double",
+              "value": 0.3,
+            },
+            "score.weight.ttfb": {
+              "type": "double",
+              "value": 0.0,
             },
           },
         }

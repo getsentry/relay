@@ -230,6 +230,10 @@ fn normalize_span(
         if ctx.is_processing() {
             eap::normalize_ai(&mut span.attributes, duration, model_metdata);
         }
+        relay_event_normalization::normalize_performance_score(
+            span,
+            ctx.project_info.config().performance_score.as_ref(),
+        );
         eap::normalize_attribute_values(&mut span.attributes, allowed_hosts);
         eap::write_legacy_attributes(&mut span.attributes);
     };
