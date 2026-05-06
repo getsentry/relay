@@ -860,7 +860,7 @@ pub fn normalize_measurements(
 
 /// Trait for containers that behave like a collection of [`Measurement`]s.
 ///
-/// This exists to make [`normalize_performance_scores`] work for both
+/// This exists to make [`normalize_performance_score`] work for both
 /// [`Measurements`] and [`Attributes`].
 pub trait MeasurementsLike {
     /// Returns `true` if this collection contains the named measurement.
@@ -907,7 +907,7 @@ impl MeasurementsLike for Attributes {
 
 /// Trait for types that provide mutable access to a collection of [`Measurement`]s.
 ///
-/// This exists to make [`normalize_performance_scores`] work for [`Event`]s,
+/// This exists to make [`normalize_performance_score`] work for [`Event`]s,
 /// [`V1 Spans`](Span), and [`V2 Spans`](SpanV2).
 pub trait MutMeasurements {
     // TODO: name?
