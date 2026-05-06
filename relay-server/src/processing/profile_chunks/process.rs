@@ -87,6 +87,7 @@ fn expand_item(
                 payload: payload.slice_ref(perfetto_payload),
                 content_type: ContentType::PerfettoTrace,
             }),
+            platform: expanded.platform,
             quantities,
         })
     } else {
@@ -95,6 +96,7 @@ fn expand_item(
         }
         let pc = relay_profiling::ProfileChunk::new(payload)?;
         let quantities = validate_and_track(item, pc.profile_type(), sdk, records)?;
+        let platform = pc.platform().to_owned();
         pc.filter(client_ip, filter_settings, ctx.global_config)?;
         let expanded = pc.expand()?;
         if expanded.len() > ctx.config.max_profile_size() {
@@ -103,6 +105,7 @@ fn expand_item(
         Ok(ExpandedProfileChunk {
             payload: Bytes::from(expanded),
             raw_profile: None,
+            platform,
             quantities,
         })
     }
