@@ -127,7 +127,7 @@ def test_spansv2_basic(
             "invalid_int": None,
             "invalid": None,
             "browser.name": {"type": "string", "value": "Python Requests"},
-            "browser.version": {"type": "string", "value": "2.32"},
+            "browser.version": {"type": "string", "value": "2.33"},
             "sentry.dsc.environment": {"type": "string", "value": "prod"},
             "sentry.dsc.public_key": {
                 "type": "string",
@@ -322,7 +322,7 @@ def test_spansv2_trimming_basic(
             },
             "custom.invalid.attribute": None,
             "browser.name": {"type": "string", "value": "Python Requests"},
-            "browser.version": {"type": "string", "value": "2.32"},
+            "browser.version": {"type": "string", "value": "2.33"},
             "sentry.dsc.environment": {"type": "string", "value": "prod"},
             "sentry.dsc.public_key": {
                 "type": "string",

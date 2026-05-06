@@ -933,7 +933,7 @@ def test_trace_metric_container_metadata(
                     },
                     "browser.version": {
                         "type": "string",
-                        "value": "2.32",
+                        "value": "2.33",
                     },
                 },
             ),
