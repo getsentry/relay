@@ -86,7 +86,7 @@ impl SentryError for Unreal {
             //
             // This is currently still split to avoid too many changes and code duplication at once.
             if let Some(result) =
-                crate::utils::process_unreal(event_id, &mut event, &attachments, user_header)
+                crate::utils::process_unreal(expansion.context, event_id, &mut event, &attachments, user_header)
                     .map_err(ProcessingError::InvalidUnrealReport)?
             {
                 user_reports.extend(result.user_reports);
