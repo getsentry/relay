@@ -54,6 +54,7 @@
 //! ### I want to reference an attribute in Relay but it's not defined in `sentry-conventions`, what should I do?
 //! **Always** define it in `sentry-conventions` before using it in Relay. This makes sure we have proper
 pub mod consts {
+    //! Attribute constant definitions.
     #![allow(rustdoc::bare_urls)]
     #![allow(non_upper_case_globals)]
     include!(concat!(env!("OUT_DIR"), "/attribute_consts.rs"));
@@ -70,6 +71,12 @@ pub mod consts {
             "sentry._internal.performance_issues_spans";
     }
     pub use self::not_yet_defined::*;
+}
+
+pub mod interpolate {
+    //! Functions for interpolating attribute keys with placeholders.
+    #![allow(non_snake_case)]
+    include!(concat!(env!("OUT_DIR"), "/interpolation_fns.rs"));
 }
 
 include!(concat!(env!("OUT_DIR"), "/attribute_map.rs"));
