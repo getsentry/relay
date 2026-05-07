@@ -63,6 +63,11 @@ fn expand_item(
         if ctx.should_filter(Feature::ContinuousProfilingPerfetto) {
             return Err(Error::FilterFeatureFlag);
         }
+        let platform = item
+            .platform()
+            .ok_or(relay_profiling::ProfileError::PlatformNotSupported)?
+            .to_owned();
+
         let profile_type = item
             .profile_type()
             .ok_or(relay_profiling::ProfileError::InvalidProfileType)?;
@@ -87,7 +92,7 @@ fn expand_item(
                 payload: payload.slice_ref(perfetto_payload),
                 content_type: ContentType::PerfettoTrace,
             }),
-            platform: expanded.platform,
+            platform,
             quantities,
         })
     } else {
