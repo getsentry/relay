@@ -497,7 +497,7 @@ def test_span_ingestion_with_performance_scores(
                 "condition": {
                     "op": "eq",
                     "name": "event.contexts.browser.name",
-                    "value": "Python Requests",
+                    "value": "Firefox",
                 },
             },
             {
@@ -508,7 +508,7 @@ def test_span_ingestion_with_performance_scores(
                 "condition": {
                     "op": "eq",
                     "name": "event.contexts.browser.name",
-                    "value": "Python Requests",
+                    "value": "Firefox",
                 },
             },
         ],
