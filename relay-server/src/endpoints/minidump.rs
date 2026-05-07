@@ -24,7 +24,7 @@ use crate::endpoints::common::{self, BadStoreRequest, TextResponse, upload_to_ob
 use crate::envelope::ContentType::Minidump;
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::extractors::{RawContentType, RequestMeta};
-use crate::managed::{Counted, Managed};
+use crate::managed::{Managed, ManagedResult};
 use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome};
@@ -63,10 +63,9 @@ const ZSTD_MAGIC_HEADER: &[u8] = b"\x28\xB5\x2F\xFD";
 /// Content types by which standalone uploads can be recognized.
 const MINIDUMP_RAW_CONTENT_TYPES: &[&str] = &["application/octet-stream", "application/x-dmp"];
 
-fn validate_minidump<T: Counted>(data: &[u8], items: &Managed<T>) -> Result<(), BadStoreRequest> {
+fn validate_minidump(data: &[u8]) -> Result<(), BadStoreRequest> {
     if !data.starts_with(MINIDUMP_MAGIC_HEADER_LE) && !data.starts_with(MINIDUMP_MAGIC_HEADER_BE) {
         relay_log::trace!("invalid minidump file");
-        let _ = items.reject_err(Outcome::Invalid(DiscardReason::InvalidMinidump));
         return Err(BadStoreRequest::InvalidMinidump);
     }
 
@@ -108,11 +107,7 @@ fn decoder_from(minidump_data: Bytes) -> Option<Box<dyn Read>> {
 /// or returns the provided minidump payload untouched if no format where detected.
 ///
 /// Returns an `Overflow` error if the decompressed size exceeds `max_size`.
-fn decode_minidump<T: Counted>(
-    minidump_data: Bytes,
-    max_size: usize,
-    items: &Managed<T>,
-) -> Result<Bytes, BadStoreRequest> {
+fn decode_minidump(minidump_data: Bytes, max_size: usize) -> Result<Bytes, BadStoreRequest> {
     let Some(decoder) = decoder_from(minidump_data.clone()) else {
         // this means we haven't detected any compression container
         // proceed to process the payload untouched (as a plain minidump).
@@ -125,7 +120,6 @@ fn decode_minidump<T: Counted>(
         Ok(decoded) => {
             if decoded.len() > max_size {
                 let item_type = DiscardItemType::Attachment(DiscardAttachmentType::Minidump);
-                let _ = items.reject_err(Outcome::Invalid(DiscardReason::TooLarge(item_type)));
                 return Err(BadStoreRequest::Overflow(item_type));
             }
             Ok(Bytes::from(decoded))
@@ -133,7 +127,6 @@ fn decode_minidump<T: Counted>(
         Err(err) => {
             // we detected a compression container but failed to decode it
             relay_log::trace!("invalid compression container");
-            let _ = items.reject_err(Outcome::Invalid(DiscardReason::InvalidCompression));
             Err(BadStoreRequest::InvalidCompressionContainer(err))
         }
     }
@@ -290,9 +283,7 @@ async fn multipart_to_envelope(
         .iter()
         .position(|item| item.attachment_type() == Some(AttachmentType::Minidump))
         .ok_or(BadStoreRequest::MissingMinidump)
-        .inspect_err(|_| {
-            let _ = items.reject_err(Outcome::Invalid(DiscardReason::MissingMinidumpUpload));
-        })?;
+        .reject(&items)?;
 
     // Doing these operations does not make sense if we already streamed the minidump to objectstore.
     if !items[minidump_idx].is_attachment_ref() {
@@ -300,9 +291,9 @@ async fn multipart_to_envelope(
         let payload = extract_embedded_minidump(payload.clone())
             .await?
             .unwrap_or(payload);
-        let payload = decode_minidump(payload, config.max_attachment_size(), &items)?;
+        let payload = decode_minidump(payload, config.max_attachment_size()).reject(&items)?;
 
-        validate_minidump(&payload, &items)?;
+        validate_minidump(&payload).reject(&items)?;
 
         items.modify(|items, records| {
             let minidump_item = &mut items[minidump_idx];
@@ -423,9 +414,9 @@ async fn raw_minidump_to_envelope(
         let decoded_payload = decode_minidump(
             request.extract().await?,
             state.config().max_attachment_size(),
-            &item,
-        )?;
-        validate_minidump(&decoded_payload, &item)?;
+        )
+        .reject(&item)?;
+        validate_minidump(&decoded_payload).reject(&item)?;
         item.modify(|inner, records| {
             inner.set_payload(Minidump, decoded_payload);
             records.lenient(DataCategory::Attachment); // decoding the minidump changes its size
@@ -517,28 +508,14 @@ mod tests {
 
     #[test]
     fn test_validate_minidump() {
-        let (items, mut handle) = Managed::for_test(Item::new(ItemType::Attachment)).build();
-
         let be_minidump = b"PMDMxxxxxx";
-        assert!(validate_minidump(be_minidump, &items).is_ok());
+        assert!(validate_minidump(be_minidump).is_ok());
 
         let le_minidump = b"MDMPxxxxxx";
-        assert!(validate_minidump(le_minidump, &items).is_ok());
+        assert!(validate_minidump(le_minidump).is_ok());
 
         let garbage = b"xxxxxx";
-        assert!(validate_minidump(garbage, &items).is_err());
-
-        drop(items);
-        handle.assert_outcome(
-            &Outcome::Invalid(DiscardReason::InvalidMinidump),
-            DataCategory::Attachment,
-            1,
-        );
-        handle.assert_outcome(
-            &Outcome::Invalid(DiscardReason::InvalidMinidump),
-            DataCategory::AttachmentItem,
-            1,
-        );
+        assert!(validate_minidump(garbage).is_err());
     }
 
     type EncodeFunction = fn(&[u8]) -> Result<Bytes, Box<dyn std::error::Error>>;
@@ -587,9 +564,7 @@ mod tests {
             let decoder = decoder_from(compressed).unwrap();
             let decoded = run_decoder(decoder);
             assert!(decoded.is_ok());
-            assert!(
-                validate_minidump(&decoded.unwrap(), &Managed::for_test(()).build().0).is_err()
-            );
+            assert!(validate_minidump(&decoded.unwrap()).is_err());
         }
 
         Ok(())
@@ -602,12 +577,12 @@ mod tests {
         let compressed = encode_gzip(&minidump_data)?;
 
         // With a limit larger than the decompressed size, decoding should succeed
-        let result = decode_minidump(compressed.clone(), 200, &Managed::for_test(()).build().0);
+        let result = decode_minidump(compressed.clone(), 200);
         assert!(result.is_ok());
         assert_eq!(result.unwrap().len(), 100);
 
         // With a limit smaller than the decompressed size, decoding should fail with Overflow
-        let result = decode_minidump(compressed, 50, &Managed::for_test(()).build().0);
+        let result = decode_minidump(compressed, 50);
         assert!(matches!(result, Err(BadStoreRequest::Overflow(_))));
 
         Ok(())

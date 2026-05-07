@@ -124,6 +124,26 @@ pub enum BadStoreRequest {
     ObjectstoreUploadFailed,
 }
 
+impl BadStoreRequest {
+    pub fn to_outcome(&self) -> Option<Outcome> {
+        let discard_reason = match self {
+            Self::InvalidCompressionContainer(_) => DiscardReason::InvalidCompression,
+            Self::InvalidMinidump => DiscardReason::InvalidMinidump,
+            Self::InvalidProsperodump => DiscardReason::InvalidProsperodump,
+            Self::MissingMinidump => DiscardReason::MissingMinidumpUpload,
+            Self::Overflow(item_type) => DiscardReason::TooLarge(*item_type),
+            _ => DiscardReason::Internal,
+        };
+        Some(Outcome::Invalid(discard_reason))
+    }
+}
+
+impl From<Rejected<BadStoreRequest>> for BadStoreRequest {
+    fn from(rejected: Rejected<BadStoreRequest>) -> Self {
+        rejected.into_inner()
+    }
+}
+
 impl From<BytesRejection> for BadStoreRequest {
     fn from(value: BytesRejection) -> Self {
         match value {
