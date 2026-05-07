@@ -146,6 +146,16 @@ async fn handle_post(
     meta: RequestMeta,
     headers: HeaderMap,
 ) -> axum::response::Result<impl IntoResponse> {
+    relay_log::trace!("Checking project fetching killswitch");
+    if !state
+        .global_config_handle()
+        .current()
+        .options
+        .endpoint_fetch_config_enabled
+    {
+        return Err(StatusCode::SERVICE_UNAVAILABLE.into());
+    }
+
     relay_log::trace!("Validating headers");
     let upload_length = tus::validate_post_headers(&headers, meta.request_trust().is_trusted())
         .map_err(Error::from)?;
@@ -189,6 +199,16 @@ async fn handle_patch(
     Query(upload::LocationQueryParams { length, signature }): Query<upload::LocationQueryParams>,
     body: Body,
 ) -> axum::response::Result<impl IntoResponse> {
+    relay_log::trace!("Checking project fetching killswitch");
+    if !state
+        .global_config_handle()
+        .current()
+        .options
+        .endpoint_fetch_config_enabled
+    {
+        return Err(StatusCode::SERVICE_UNAVAILABLE.into());
+    }
+
     relay_log::trace!("Validating headers");
     tus::validate_patch_headers(&headers).map_err(Error::from)?;
 
