@@ -476,7 +476,7 @@ mod tests {
                 .attributes
                 .value()
                 .unwrap()
-                .get_value("sentry.segment.name")
+                .get_value(SENTRY__SEGMENT__NAME)
                 .and_then(Value::as_str),
             Some("hi")
         );
