@@ -59,6 +59,7 @@ impl crate::managed::OutcomeError for Error {
 }
 
 #[derive(Debug)]
+#[cfg_attr(all(not(feature = "processing"), not(test)), expect(dead_code))]
 pub struct RawProfile {
     pub payload: Bytes,
     pub content_type: ContentType,
@@ -66,10 +67,10 @@ pub struct RawProfile {
 
 /// A single profile chunk after expansion.
 #[derive(Debug)]
+#[cfg_attr(all(not(feature = "processing"), not(test)), expect(dead_code))]
 pub struct ExpandedProfileChunk {
     pub payload: Bytes,
     pub raw_profile: Option<RawProfile>,
-    pub platform: String,
     pub quantities: Quantities,
 }
 
@@ -83,7 +84,6 @@ impl Counted for ExpandedProfileChunk {
 /// converted into typed representations.
 #[derive(Debug)]
 pub struct ExpandedProfileChunks {
-    pub headers: EnvelopeHeaders,
     pub chunks: Vec<ExpandedProfileChunk>,
 }
 
@@ -161,6 +161,10 @@ impl processing::Processor for ProfileChunksProcessor {
 
 /// Output produced by [`ProfileChunksProcessor`].
 #[derive(Debug)]
+#[expect(
+    clippy::large_enum_variant,
+    reason = "variants are sized by Managed<T> which wraps different pipeline stages"
+)]
 pub enum ProfileChunkOutput {
     /// Non-processing relay: items forwarded as-is.
     Serialized(Managed<SerializedProfileChunks>),
@@ -176,30 +180,9 @@ impl Forward for ProfileChunkOutput {
         match self {
             Self::Serialized(profile_chunks) => Ok(profile_chunks
                 .map(|pc, _| Envelope::from_parts(pc.headers, Items::from_vec(pc.profile_chunks)))),
-            Self::Expanded(expanded) => Ok(expanded.map(|e, _| {
-                let items = e
-                    .chunks
-                    .into_iter()
-                    .map(|chunk| {
-                        let mut item = Item::new(ItemType::ProfileChunk);
-                        item.set_platform(chunk.platform);
-                        if let Some(raw_profile) = chunk.raw_profile {
-                            let meta_length = chunk.payload.len() as u32;
-                            let mut compound = bytes::BytesMut::with_capacity(
-                                chunk.payload.len() + raw_profile.payload.len(),
-                            );
-                            compound.extend_from_slice(&chunk.payload);
-                            compound.extend_from_slice(&raw_profile.payload);
-                            item.set_payload(raw_profile.content_type, compound.freeze());
-                            item.set_meta_length(meta_length);
-                        } else {
-                            item.set_payload(ContentType::Json, chunk.payload);
-                        }
-                        item
-                    })
-                    .collect();
-                Envelope::from_parts(e.headers, items)
-            })),
+            Self::Expanded(m) => {
+                Err(m.internal_error("serialize_envelope called with expanded profile chunks"))
+            }
         }
     }
 
@@ -274,12 +257,7 @@ impl CountRateLimited for Managed<SerializedProfileChunks> {
 
 #[cfg(test)]
 mod tests {
-    use similar_asserts::assert_eq;
-
     use super::*;
-    use crate::Envelope;
-    use crate::envelope::ContentType;
-    use crate::extractors::RequestMeta;
     use crate::processing::Context;
 
     fn make_expanded(
@@ -288,109 +266,20 @@ mod tests {
         Managed<ExpandedProfileChunks>,
         crate::managed::ManagedTestHandle,
     ) {
-        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
-            .parse()
-            .unwrap();
-        let envelope = Envelope::from_request(None, RequestMeta::new(dsn));
-        let headers = envelope.headers().clone();
-        Managed::for_test(ExpandedProfileChunks { headers, chunks }).build()
+        Managed::for_test(ExpandedProfileChunks { chunks }).build()
     }
 
     #[test]
-    fn test_serialize_envelope_json_only() {
+    #[should_panic(expected = "serialize_envelope called with expanded profile chunks")]
+    fn test_serialize_envelope_rejects_expanded() {
         let chunk = ExpandedProfileChunk {
             payload: Bytes::from(b"{\"hello\":\"world\"}".as_ref()),
             raw_profile: None,
-            platform: "python".to_owned(),
             quantities: smallvec![(DataCategory::ProfileChunk, 1)],
         };
         let (managed, _handle) = make_expanded(vec![chunk]);
         let output = ProfileChunkOutput::Expanded(managed);
 
-        let envelope = output
-            .serialize_envelope(Context::for_test().to_forward())
-            .unwrap()
-            .accept(|e| e);
-
-        let items: Vec<_> = envelope.items().collect();
-        assert_eq!(items.len(), 1);
-        assert_eq!(items[0].payload().as_ref(), b"{\"hello\":\"world\"}");
-        assert!(items[0].meta_length().is_none());
-        assert_eq!(items[0].content_type(), Some(ContentType::Json));
-        assert_eq!(items[0].platform(), Some("python"));
-    }
-
-    #[test]
-    fn test_serialize_envelope_compound() {
-        let json_payload = Bytes::from(b"{\"expanded\":true}".as_ref());
-        let raw_data = Bytes::from(b"raw-binary-blob".as_ref());
-        let chunk = ExpandedProfileChunk {
-            payload: json_payload.clone(),
-            raw_profile: Some(RawProfile {
-                payload: raw_data.clone(),
-                content_type: ContentType::PerfettoTrace,
-            }),
-            platform: "android".to_owned(),
-            quantities: smallvec![(DataCategory::ProfileChunkUi, 1)],
-        };
-        let (managed, _handle) = make_expanded(vec![chunk]);
-        let output = ProfileChunkOutput::Expanded(managed);
-
-        let envelope = output
-            .serialize_envelope(Context::for_test().to_forward())
-            .unwrap()
-            .accept(|e| e);
-
-        let items: Vec<_> = envelope.items().collect();
-        assert_eq!(items.len(), 1);
-
-        let item = &items[0];
-        let meta_length = item
-            .meta_length()
-            .expect("compound item must have meta_length");
-        assert_eq!(meta_length as usize, json_payload.len());
-        assert_eq!(item.content_type(), Some(ContentType::PerfettoTrace),);
-
-        let payload = item.payload();
-        let (json_part, raw_part) = payload.split_at(meta_length as usize);
-        assert_eq!(json_part, b"{\"expanded\":true}".as_ref());
-        assert_eq!(raw_part, b"raw-binary-blob".as_ref());
-    }
-
-    #[test]
-    fn test_serialize_envelope_mixed_json_and_compound() {
-        let json_chunk = ExpandedProfileChunk {
-            payload: Bytes::from(b"{\"type\":\"json\"}".as_ref()),
-            raw_profile: None,
-            platform: "python".to_owned(),
-            quantities: smallvec![(DataCategory::ProfileChunk, 1)],
-        };
-        let compound_chunk = ExpandedProfileChunk {
-            payload: Bytes::from(b"{\"type\":\"compound\"}".as_ref()),
-            raw_profile: Some(RawProfile {
-                payload: Bytes::from(b"perfetto-blob".as_ref()),
-                content_type: ContentType::PerfettoTrace,
-            }),
-            platform: "android".to_owned(),
-            quantities: smallvec![(DataCategory::ProfileChunkUi, 1)],
-        };
-        let (managed, _handle) = make_expanded(vec![json_chunk, compound_chunk]);
-        let output = ProfileChunkOutput::Expanded(managed);
-
-        let envelope = output
-            .serialize_envelope(Context::for_test().to_forward())
-            .unwrap()
-            .accept(|e| e);
-
-        let items: Vec<_> = envelope.items().collect();
-        assert_eq!(items.len(), 2);
-
-        assert_eq!(items[0].content_type(), Some(ContentType::Json));
-        assert!(items[0].meta_length().is_none());
-        assert_eq!(items[0].platform(), Some("python"));
-
-        assert_eq!(items[1].content_type(), Some(ContentType::PerfettoTrace));
-        assert!(items[1].meta_length().is_some());
-        assert_eq!(items[1].platform(), Some("android"));
+        let _ = output.serialize_envelope(Context::for_test().to_forward());
     }
 }

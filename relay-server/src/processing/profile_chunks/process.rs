@@ -33,111 +33,146 @@ pub fn expand(
         let mut expanded = Vec::with_capacity(serialized.profile_chunks.len());
 
         for item in serialized.profile_chunks {
-            match expand_item(&item, sdk, client_ip, filter_settings, ctx, records) {
-                Ok(chunk) => expanded.push(chunk),
-                Err(err) => {
-                    records.reject_err(err, &item);
+            match expand_item(&item, client_ip, filter_settings, ctx) {
+                Ok(chunk) => {
+                    track_quantities(&item, sdk, &chunk.quantities, records);
+                    expanded.push(chunk);
+                }
+                Err((err, quantities)) => {
+                    track_quantities(&item, sdk, &quantities, records);
+                    records.reject_err(err, quantities);
                 }
             }
         }
 
-        ExpandedProfileChunks {
-            headers: serialized.headers,
-            chunks: expanded,
-        }
+        ExpandedProfileChunks { chunks: expanded }
     })
 }
 
 fn expand_item(
     item: &crate::envelope::Item,
-    sdk: &str,
     client_ip: Option<IpAddr>,
     filter_settings: &relay_filter::ProjectFiltersConfig,
     ctx: Context<'_>,
-    records: &mut RecordKeeper<'_>,
-) -> Result<ExpandedProfileChunk> {
+) -> std::result::Result<ExpandedProfileChunk, (Error, Quantities)> {
     let payload = item.payload();
     let is_perfetto = matches!(item.content_type(), Some(ContentType::PerfettoTrace));
 
     if is_perfetto {
-        if ctx.should_filter(Feature::ContinuousProfilingPerfetto) {
-            return Err(Error::FilterFeatureFlag);
-        }
-        let platform = item
-            .platform()
-            .ok_or(relay_profiling::ProfileError::PlatformNotSupported)?
-            .to_owned();
-
-        let profile_type = item
-            .profile_type()
-            .ok_or(relay_profiling::ProfileError::InvalidProfileType)?;
-        let meta_length =
-            item.meta_length()
-                .ok_or(relay_profiling::ProfileError::InvalidSampledProfile)? as usize;
-        let (json_payload, perfetto_payload) = payload
-            .split_at_checked(meta_length)
-            .ok_or(relay_profiling::ProfileError::InvalidSampledProfile)?;
-        let expanded = relay_profiling::expand_perfetto(perfetto_payload, json_payload)?;
-        if expanded.profile_type() != profile_type {
-            return Err(relay_profiling::ProfileError::InvalidProfileType.into());
-        }
-        let quantities = quantities_for(profile_type);
-        expanded.filter(client_ip, filter_settings, ctx.global_config)?;
-        if expanded.payload.len() > ctx.config.max_profile_size() {
-            return Err(relay_profiling::ProfileError::ExceedSizeLimit.into());
-        }
-        Ok(ExpandedProfileChunk {
-            payload: Bytes::from(expanded.payload),
-            raw_profile: Some(RawProfile {
-                payload: payload.slice_ref(perfetto_payload),
-                content_type: ContentType::PerfettoTrace,
-            }),
-            platform,
-            quantities,
-        })
+        expand_perfetto_profile_chunk(item, client_ip, filter_settings, ctx, payload)
     } else {
-        if item.meta_length().is_some() {
-            return Err(relay_profiling::ProfileError::InvalidSampledProfile.into());
-        }
-        let pc = relay_profiling::ProfileChunk::new(payload)?;
-        let quantities = validate_and_track(item, pc.profile_type(), sdk, records)?;
-        let platform = pc.platform().to_owned();
-        pc.filter(client_ip, filter_settings, ctx.global_config)?;
-        let expanded = pc.expand()?;
-        if expanded.len() > ctx.config.max_profile_size() {
-            return Err(relay_profiling::ProfileError::ExceedSizeLimit.into());
-        }
-        Ok(ExpandedProfileChunk {
-            payload: Bytes::from(expanded),
-            raw_profile: None,
-            platform,
-            quantities,
-        })
+        expand_json_item(item, client_ip, filter_settings, ctx, payload)
     }
 }
 
-fn validate_and_track(
+fn expand_perfetto_profile_chunk(
     item: &crate::envelope::Item,
-    profile_type: ProfileType,
-    sdk: &str,
-    records: &mut RecordKeeper<'_>,
-) -> Result<Quantities> {
+    client_ip: Option<IpAddr>,
+    filter_settings: &relay_filter::ProjectFiltersConfig,
+    ctx: Context<'_>,
+    payload: Bytes,
+) -> std::result::Result<ExpandedProfileChunk, (Error, Quantities)> {
+    let item_quantities = item.quantities();
+    let err = |e: Error| (e, item_quantities.clone());
+
+    if ctx.should_filter(Feature::ContinuousProfilingPerfetto) {
+        return Err(err(Error::FilterFeatureFlag));
+    }
+    item.platform()
+        .ok_or_else(|| err(relay_profiling::ProfileError::PlatformNotSupported.into()))?;
+
+    let profile_type = item
+        .profile_type()
+        .ok_or_else(|| err(relay_profiling::ProfileError::InvalidProfileType.into()))?;
+    let meta_length = item
+        .meta_length()
+        .ok_or_else(|| err(relay_profiling::ProfileError::InvalidSampledProfile.into()))?
+        as usize;
+    let (json_payload, perfetto_payload) = payload
+        .split_at_checked(meta_length)
+        .ok_or_else(|| err(relay_profiling::ProfileError::InvalidSampledProfile.into()))?;
+    let expanded = relay_profiling::expand_perfetto(perfetto_payload, json_payload)
+        .map_err(|e| err(e.into()))?;
+    if expanded.profile_type() != profile_type {
+        return Err(err(relay_profiling::ProfileError::InvalidProfileType.into()));
+    }
+    let quantities = quantities_for(profile_type);
+    expanded
+        .filter(client_ip, filter_settings, ctx.global_config)
+        .map_err(|e| (e.into(), quantities.clone()))?;
+    if expanded.payload.len() > ctx.config.max_profile_size() {
+        return Err((
+            relay_profiling::ProfileError::ExceedSizeLimit.into(),
+            quantities,
+        ));
+    }
+    Ok(ExpandedProfileChunk {
+        payload: Bytes::from(expanded.payload),
+        raw_profile: Some(RawProfile {
+            payload: payload.slice_ref(perfetto_payload),
+            content_type: ContentType::PerfettoTrace,
+        }),
+        quantities,
+    })
+}
+
+fn expand_json_item(
+    item: &crate::envelope::Item,
+    client_ip: Option<IpAddr>,
+    filter_settings: &relay_filter::ProjectFiltersConfig,
+    ctx: Context<'_>,
+    payload: Bytes,
+) -> std::result::Result<ExpandedProfileChunk, (Error, Quantities)> {
+    let item_quantities = item.quantities();
+    let err = |e: Error| (e, item_quantities.clone());
+
+    if item.meta_length().is_some() {
+        return Err(err(
+            relay_profiling::ProfileError::InvalidSampledProfile.into()
+        ));
+    }
+    let pc = relay_profiling::ProfileChunk::new(payload).map_err(|e| err(e.into()))?;
+    let profile_type = pc.profile_type();
+    validate_profile_type(item, profile_type).map_err(err)?;
+    let quantities = quantities_for(profile_type);
+    pc.filter(client_ip, filter_settings, ctx.global_config)
+        .map_err(|e| (e.into(), quantities.clone()))?;
+    let expanded = pc.expand().map_err(|e| (e.into(), quantities.clone()))?;
+    if expanded.len() > ctx.config.max_profile_size() {
+        return Err((
+            relay_profiling::ProfileError::ExceedSizeLimit.into(),
+            quantities,
+        ));
+    }
+    Ok(ExpandedProfileChunk {
+        payload: Bytes::from(expanded),
+        raw_profile: None,
+        quantities,
+    })
+}
+
+fn validate_profile_type(item: &crate::envelope::Item, profile_type: ProfileType) -> Result<()> {
     if item.profile_type().is_some_and(|pt| pt != profile_type) {
         return Err(relay_profiling::ProfileError::InvalidProfileType.into());
     }
+    Ok(())
+}
 
+fn track_quantities(
+    item: &crate::envelope::Item,
+    sdk: &str,
+    quantities: &Quantities,
+    records: &mut RecordKeeper<'_>,
+) {
     if item.profile_type().is_none() {
         relay_statsd::metric!(
             counter(RelayCounters::ProfileChunksWithoutPlatform) += 1,
             sdk = sdk
         );
-        match profile_type {
-            ProfileType::Ui => records.modify_by(DataCategory::ProfileChunkUi, 1),
-            ProfileType::Backend => records.modify_by(DataCategory::ProfileChunk, 1),
+        for &(category, quantity) in quantities {
+            records.modify_by(category, quantity as isize);
         }
     }
-
-    Ok(quantities_for(profile_type))
 }
 
 fn quantities_for(profile_type: ProfileType) -> Quantities {
@@ -158,11 +193,15 @@ mod tests {
     use crate::envelope::{ContentType, Item, ItemType};
     use crate::extractors::RequestMeta;
     use crate::processing::profile_chunks::SerializedProfileChunks;
+    use crate::services::outcome::{DiscardReason, Outcome};
     use crate::services::projects::project::ProjectInfo;
 
     const PERFETTO_FIXTURE: &[u8] = include_bytes!(
         "../../../../relay-profiling/tests/fixtures/android/perfetto/android.pftrace"
     );
+
+    const JSON_FIXTURE: &[u8] =
+        include_bytes!("../../../../relay-profiling/tests/fixtures/sample/v2/valid.json");
 
     fn perfetto_meta() -> Vec<u8> {
         serde_json::json!({
@@ -330,5 +369,67 @@ mod tests {
         );
         let raw_profile = chunk.raw_profile.as_ref().expect("expected raw_profile");
         assert_eq!(raw_profile.payload.as_ref(), PERFETTO_FIXTURE);
+        assert_eq!(raw_profile.content_type, ContentType::PerfettoTrace);
+    }
+
+    fn make_json_item(payload: &[u8]) -> Item {
+        let mut item = Item::new(ItemType::ProfileChunk);
+        item.set_payload(ContentType::Json, bytes::Bytes::from(payload.to_vec()));
+        item
+    }
+
+    #[test]
+    fn test_expand_json_success() {
+        let item = make_json_item(JSON_FIXTURE);
+        let (managed, _handle) = make_chunks(vec![item]);
+
+        let expanded = expand_single(managed, Context::for_test());
+        let chunks = expanded.accept(|c| c);
+        assert_eq!(chunks.chunks.len(), 1, "item should be retained");
+
+        let chunk = &chunks.chunks[0];
+        assert!(
+            serde_json::from_slice::<serde_json::Value>(&chunk.payload).is_ok(),
+            "payload must be valid JSON"
+        );
+        assert!(
+            chunk.raw_profile.is_none(),
+            "JSON items should not have raw_profile"
+        );
+    }
+
+    #[test]
+    fn test_expand_json_with_meta_length_rejected() {
+        let mut item = make_json_item(JSON_FIXTURE);
+        item.set_meta_length(10);
+        let (managed, _handle) = make_chunks(vec![item]);
+
+        let expanded = expand_single(managed, Context::for_test());
+        let chunks = expanded.accept(|c| c);
+        assert!(
+            chunks.chunks.is_empty(),
+            "JSON item with meta_length should be rejected"
+        );
+    }
+
+    #[test]
+    fn test_expand_json_mismatched_profile_type() {
+        let mut item = make_json_item(JSON_FIXTURE);
+        // fixture has platform "cocoa" → ProfileType::Ui,
+        // but "node" → ProfileType::Backend, creating a mismatch
+        item.set_platform("node".to_owned());
+        let (managed, mut handle) = make_chunks(vec![item]);
+
+        let expanded = expand_single(managed, Context::for_test());
+        let chunks = expanded.accept(|c| c);
+        assert!(
+            chunks.chunks.is_empty(),
+            "JSON item with mismatched profile_type header should be rejected"
+        );
+        handle.assert_outcome(
+            &Outcome::Invalid(DiscardReason::Profiling("profiling_invalid_profile_type")),
+            DataCategory::ProfileChunk,
+            1,
+        );
     }
 }
