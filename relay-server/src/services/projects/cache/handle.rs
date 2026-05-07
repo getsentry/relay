@@ -49,7 +49,7 @@ impl ProjectCacheHandle {
 
         relay_statsd::metric!(
             timer(RelayTimers::ProjectStateReadyDuration) = t.elapsed(),
-            result = match result {
+            result = match &result {
                 Ok(project) => {
                     match project.state() {
                         ProjectState::Enabled(_) => "enabled",
