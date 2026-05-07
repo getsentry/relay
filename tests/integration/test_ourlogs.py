@@ -314,7 +314,7 @@ def test_ourlog_extraction_with_sentry_logs(
             "attributes": {
                 "sentry.body": {"stringValue": "This is really bad"},
                 "browser.name": {"stringValue": "Python Requests"},
-                "browser.version": {"stringValue": "2.32"},
+                "browser.version": {"stringValue": "2.33"},
                 "sentry.severity_text": {"stringValue": "error"},
                 "sentry.payload_size_bytes": {"intValue": mock.ANY},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
@@ -389,7 +389,7 @@ def test_ourlog_extraction_with_sentry_logs(
                 },
                 "sentry.body": {"stringValue": "Example log record"},
                 "browser.name": {"stringValue": "Python Requests"},
-                "browser.version": {"stringValue": "2.32"},
+                "browser.version": {"stringValue": "2.33"},
                 "sentry.severity_text": {"stringValue": "info"},
                 "sentry.payload_size_bytes": {"intValue": mock.ANY},
                 "http.response_content_length": {"intValue": "17"},
@@ -505,7 +505,7 @@ def test_ourlog_extraction_with_string_pii_scrubbing(
         "attributes": {
             "test_pii": {"type": "string", "value": expected_scrubbed},
             "browser.name": {"type": "string", "value": "Python Requests"},
-            "browser.version": {"type": "string", "value": "2.32"},
+            "browser.version": {"type": "string", "value": "2.33"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
@@ -691,7 +691,7 @@ def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attribut
             "sentry._meta.fields.attributes.custom_field": {
                 "stringValue": '{"meta":{"value":{"":{"rem":[["remove_custom_field","s",0,10]],"len":12}}}}'
             },
-            "browser.version": {"stringValue": "2.32"},
+            "browser.version": {"stringValue": "2.33"},
             "custom_field": {"stringValue": "[REDACTED]"},
             "sentry.body": {"stringValue": "Test log"},
             "sentry.severity_text": {"stringValue": "info"},
@@ -746,7 +746,7 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
         "attributes": {
             "sentry.body": {"stringValue": "Example log record 2"},
             "browser.name": {"stringValue": "Python Requests"},
-            "browser.version": {"stringValue": "2.32"},
+            "browser.version": {"stringValue": "2.33"},
             "sentry.severity_text": {"stringValue": "warn"},
             "sentry.payload_size_bytes": {"intValue": mock.ANY},
             **timestamps(ts),
@@ -1177,7 +1177,7 @@ def test_ourlog_container_metadata(
                     },
                     "browser.version": {
                         "type": "string",
-                        "value": "2.32",
+                        "value": "2.33",
                     },
                 },
             ),
