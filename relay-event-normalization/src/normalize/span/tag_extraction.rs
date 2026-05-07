@@ -61,7 +61,7 @@ impl std::fmt::Display for RenderBlockingStatus {
 
 /// Extracts the `transaction` field and writes it into child spans
 /// as `data.segment_name`.
-pub fn extract_segment_name(event: &mut Event) {
+pub fn extract_segment_name_from_event(event: &mut Event) {
     let Some(transaction) = event.transaction.value() else {
         return;
     };
