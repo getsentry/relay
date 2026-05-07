@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["Pii","WriteBehavior"],"fn":["attribute_info","canonical","name_for_op_and_attributes"],"mod":["consts"],"struct":["AttributeInfo"]};
+window.SIDEBAR_ITEMS = {"enum":["Pii","WriteBehavior"],"fn":["attribute_info","canonical","name_for_op_and_attributes"],"mod":["consts","interpolate"],"struct":["AttributeInfo"]};
