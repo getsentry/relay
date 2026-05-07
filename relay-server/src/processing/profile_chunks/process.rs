@@ -33,7 +33,16 @@ pub fn expand(
         let mut expanded = Vec::with_capacity(serialized.profile_chunks.len());
 
         for item in serialized.profile_chunks {
-            match expand_item(&item, client_ip, filter_settings, ctx) {
+            let payload = item.payload();
+            let is_perfetto = matches!(item.content_type(), Some(ContentType::PerfettoTrace));
+
+            let result = if is_perfetto {
+                expand_perfetto_profile_chunk(&item, client_ip, filter_settings, ctx, payload)
+            } else {
+                expand_json_item(&item, client_ip, filter_settings, ctx, payload)
+            };
+
+            match result {
                 Ok(chunk) => {
                     track_quantities(&item, sdk, &chunk.quantities, records);
                     expanded.push(chunk);
@@ -47,22 +56,6 @@ pub fn expand(
 
         ExpandedProfileChunks { chunks: expanded }
     })
-}
-
-fn expand_item(
-    item: &crate::envelope::Item,
-    client_ip: Option<IpAddr>,
-    filter_settings: &relay_filter::ProjectFiltersConfig,
-    ctx: Context<'_>,
-) -> std::result::Result<ExpandedProfileChunk, (Error, Quantities)> {
-    let payload = item.payload();
-    let is_perfetto = matches!(item.content_type(), Some(ContentType::PerfettoTrace));
-
-    if is_perfetto {
-        expand_perfetto_profile_chunk(item, client_ip, filter_settings, ctx, payload)
-    } else {
-        expand_json_item(item, client_ip, filter_settings, ctx, payload)
-    }
 }
 
 fn expand_perfetto_profile_chunk(
