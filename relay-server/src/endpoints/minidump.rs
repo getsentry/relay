@@ -29,6 +29,7 @@ use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome};
 use crate::services::upload::Upload;
+use crate::statsd::RelayCounters;
 use crate::utils::{self, AttachmentStrategy, read_attachment_bytes_into_item};
 
 /// The field name of a minidump in the multipart form-data upload.
@@ -113,6 +114,9 @@ fn decode_minidump(minidump_data: Bytes, max_size: usize) -> Result<Bytes, BadSt
         // proceed to process the payload untouched (as a plain minidump).
         return Ok(minidump_data);
     };
+
+    // Determine if this is a niche use-case of if this happens frequently.
+    relay_statsd::metric!(counter(RelayCounters::CompressedMinidump) += 1);
 
     let decoder = decoder.take(max_size.saturating_add(1) as u64);
 
