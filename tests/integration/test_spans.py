@@ -10,7 +10,6 @@ from requests import HTTPError
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
-from .asserts import time_within_delta
 from .test_store import make_transaction
 
 TEST_CONFIG = {
@@ -474,105 +473,6 @@ def envelope_with_transaction_and_spans(start: datetime, end: datetime) -> Envel
     )
 
     return envelope
-
-
-def make_otel_span(start, end):
-    return {
-        "resourceSpans": [
-            {
-                "scopeSpans": [
-                    {
-                        "spans": [
-                            {
-                                "traceId": "89143b0763095bd9c9955e8175d1fb24",
-                                "spanId": "d342abb1214ca182",
-                                "name": "my 2nd OTel span",
-                                "startTimeUnixNano": str(int(start.timestamp() * 1e9)),
-                                "endTimeUnixNano": str(int(end.timestamp() * 1e9)),
-                                "kind": 4,
-                                "attributes": [
-                                    {
-                                        "key": "sentry.exclusive_time",
-                                        "value": {
-                                            "doubleValue": (end - start).total_seconds()
-                                            * 1e3,
-                                        },
-                                    },
-                                ],
-                                "links": [
-                                    {
-                                        "traceId": "89143b0763095bd9c9955e8175d1fb24",
-                                        "spanId": "e342abb1214ca183",
-                                        "attributes": [
-                                            {
-                                                "key": "link_int_key",
-                                                "value": {
-                                                    "intValue": "123",
-                                                },
-                                            },
-                                        ],
-                                    },
-                                ],
-                            },
-                        ],
-                    },
-                ],
-            },
-        ],
-    }
-
-
-def test_otel_endpoint_disabled(mini_sentry, relay):
-    relay = relay(
-        mini_sentry,
-        {
-            "outcomes": {
-                "emit_outcomes": True,
-                "batch_size": 1,
-                "batch_interval": 1,
-                "source": "relay",
-            }
-        },
-    )
-    project_id = 42
-    mini_sentry.add_full_project_config(project_id)
-
-    end = datetime.now(timezone.utc) - timedelta(seconds=1)
-    start = end - timedelta(milliseconds=500)
-    relay.send_otel_span(
-        project_id,
-        json=make_otel_span(start, end),
-    )
-
-    assert mini_sentry.get_outcomes(2) == [
-        {
-            "org_id": 1,
-            "key_id": 123,
-            "project_id": 42,
-            "outcome": 3,
-            "reason": "feature_disabled",
-            "category": category.value,
-            "quantity": 1,
-            "source": "relay",
-            "timestamp": time_within_delta(),
-        }
-        for category in [DataCategory.SPAN, DataCategory.SPAN_INDEXED]
-    ]
-
-    # Second attempt will cause a 403 response:
-    with pytest.raises(HTTPError) as exc_info:
-        relay.send_otel_span(
-            project_id,
-            json=make_otel_span(start, end),
-        )
-    response = exc_info.value.response
-    assert response.status_code == 403
-    assert response.json() == {
-        "detail": "event submission rejected with_reason: FeatureDisabled(OtelTracesEndpoint)"
-    }
-
-    # No envelopes were received:
-    assert mini_sentry.captured_envelopes.empty()
 
 
 def test_span_ingestion_with_performance_scores(

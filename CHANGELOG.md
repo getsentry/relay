@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Enable OTLP endpoints by default. ([#5951](https://github.com/getsentry/relay/pull/5951))
+
 ## 26.4.2
 
 **Features**:
