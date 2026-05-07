@@ -329,7 +329,7 @@ def test_timeout(
     "chain", [pytest.param(False, id="processing_only"), pytest.param(True, id="chain")]
 )
 def test_create_processing(
-    mini_sentry, relay, relay_with_processing, chain, project_config
+    mini_sentry, relay, relay_with_processing, chain, project_config, events_consumer
 ):
     """Create and separate upload via processing relay stores the blob in objectstore."""
     project_id = 42
@@ -340,6 +340,11 @@ def test_create_processing(
         relay = relay(processing_relay)
     else:
         relay = processing_relay
+
+    # Do some busy work until the global config is loaded
+    events_consumer = events_consumer()
+    relay.send_event(project_id)
+    events_consumer.get_event()
 
     data = b"hello world"
     response = relay.post(
@@ -414,11 +419,21 @@ def test_processing_invalid_length(
 
 @pytest.mark.parametrize("defer_length_value", ["1", "2"])
 def test_upload_with_deferred_length(
-    mini_sentry, relay, relay_with_processing, project_config, defer_length_value
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    project_config,
+    events_consumer,
+    defer_length_value,
 ):
     project_id = 42
     processing_relay = relay_with_processing()
     relay = relay(processing_relay)
+
+    # Do some busy work until the global config is loaded
+    events_consumer = events_consumer()
+    relay.send_event(project_id)
+    events_consumer.get_event()
 
     response = relay.post(
         "/api/%s/upload/?sentry_key=%s"
