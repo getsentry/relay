@@ -293,16 +293,20 @@
 <a href=#293 id=293 data-nosnippet>293</a>
 <a href=#294 id=294 data-nosnippet>294</a><span class="attr">#[cfg(test)]
 <a href=#295 id=295 data-nosnippet>295</a></span><span class="kw">mod </span>tests {
-<a href=#296 id=296 data-nosnippet>296</a>    <span class="kw">use </span><span class="kw">crate</span>::Feature;
+<a href=#296 id=296 data-nosnippet>296</a>    <span class="kw">use </span>super::<span class="kw-2">*</span>;
 <a href=#297 id=297 data-nosnippet>297</a>
-<a href=#298 id=298 data-nosnippet>298</a>    <span class="kw">use </span>super::<span class="kw-2">*</span>;
-<a href=#299 id=299 data-nosnippet>299</a>
-<a href=#300 id=300 data-nosnippet>300</a>    <span class="attr">#[test]
-<a href=#301 id=301 data-nosnippet>301</a>    </span><span class="kw">fn </span>graduated_feature_flag_gets_inserted() {
-<a href=#302 id=302 data-nosnippet>302</a>        <span class="kw">let </span><span class="kw-2">mut </span>project_config = ProjectConfig::default();
-<a href=#303 id=303 data-nosnippet>303</a>        <span class="macro">assert!</span>(!project_config.features.has(Feature::UserReportV2Ingest));
-<a href=#304 id=304 data-nosnippet>304</a>        project_config.sanitize(<span class="bool-val">false</span>);
-<a href=#305 id=305 data-nosnippet>305</a>        <span class="macro">assert!</span>(project_config.features.has(Feature::UserReportV2Ingest));
-<a href=#306 id=306 data-nosnippet>306</a>    }
-<a href=#307 id=307 data-nosnippet>307</a>}
+<a href=#298 id=298 data-nosnippet>298</a>    <span class="attr">#[test]
+<a href=#299 id=299 data-nosnippet>299</a>    </span><span class="kw">fn </span>graduated_feature_flag_gets_inserted() {
+<a href=#300 id=300 data-nosnippet>300</a>        <span class="kw">let </span><span class="kw-2">mut </span>project_config = ProjectConfig::default();
+<a href=#301 id=301 data-nosnippet>301</a>        <span class="kw">for </span>feature <span class="kw">in </span>GRADUATED_FEATURE_FLAGS {
+<a href=#302 id=302 data-nosnippet>302</a>            <span class="macro">assert!</span>(!project_config.features.has(<span class="kw-2">*</span>feature));
+<a href=#303 id=303 data-nosnippet>303</a>        }
+<a href=#304 id=304 data-nosnippet>304</a>
+<a href=#305 id=305 data-nosnippet>305</a>        project_config.sanitize(<span class="bool-val">false</span>);
+<a href=#306 id=306 data-nosnippet>306</a>
+<a href=#307 id=307 data-nosnippet>307</a>        <span class="kw">for </span>feature <span class="kw">in </span>GRADUATED_FEATURE_FLAGS {
+<a href=#308 id=308 data-nosnippet>308</a>            <span class="macro">assert!</span>(project_config.features.has(<span class="kw-2">*</span>feature));
+<a href=#309 id=309 data-nosnippet>309</a>        }
+<a href=#310 id=310 data-nosnippet>310</a>    }
+<a href=#311 id=311 data-nosnippet>311</a>}
 </code></pre></div></section></main></body></html>
