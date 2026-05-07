@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 pub const GRADUATED_FEATURE_FLAGS: &[Feature] = &[
     Feature::UserReportV2Ingest,
     Feature::IngestUnsampledProfiles,
+    Feature::DeprecatedOtelTracesEndpoint,
+    Feature::DeprecatedOtelLogsEndpoint,
     Feature::DeprecatedExtractSpansFromEvent,
     Feature::DeprecatedStandaloneSpanIngestion,
 ];
@@ -39,16 +41,6 @@ pub enum Feature {
     /// Serialized as `organizations:profiling`.
     #[serde(rename = "organizations:profiling")]
     Profiling,
-    /// Enable standalone span ingestion via the `/traces/` OTel endpoint.
-    ///
-    /// Serialized as `organizations:relay-otlp-traces-endpoint`.
-    #[serde(rename = "organizations:relay-otlp-traces-endpoint")]
-    OtelTracesEndpoint,
-    /// Enable logs ingestion via the `/logs/` OTel endpoint.
-    ///
-    /// Serialized as `organizations:relay-otel-logs-endpoint`.
-    #[serde(rename = "organizations:relay-otel-logs-endpoint")]
-    OtelLogsEndpoint,
     /// Enable playstation crash dump ingestion via the `/playstation/` endpoint.
     ///
     /// Serialized as `organizations:relay-playstation-ingestion`.
@@ -134,6 +126,18 @@ pub enum Feature {
     #[doc(hidden)]
     #[serde(rename = "organizations:indexed-spans-extraction")]
     DeprecatedExtractSpansFromEvent,
+    /// Enable standalone span ingestion via the `/traces/` OTel endpoint.
+    ///
+    /// This feature has graduated and is hard-coded for external Relays.
+    #[doc(hidden)]
+    #[serde(rename = "organizations:relay-otlp-traces-endpoint")]
+    DeprecatedOtelTracesEndpoint,
+    /// Enable logs ingestion via the `/logs/` OTel endpoint.
+    ///
+    /// This feature has graduated and is hard-coded for external Relays.
+    #[doc(hidden)]
+    #[serde(rename = "organizations:relay-otel-logs-endpoint")]
+    DeprecatedOtelLogsEndpoint,
     /// Enable standalone span ingestion.
     ///
     /// Serialized as `organizations:standalone-span-ingestion`.

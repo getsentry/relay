@@ -48,10 +48,7 @@ def test_span_ingestion(
     relay = relay(relay_with_processing())
 
     project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:relay-otlp-traces-endpoint",
-    ]
+    mini_sentry.add_full_project_config(project_id)
 
     ts = datetime.now(timezone.utc)
 
