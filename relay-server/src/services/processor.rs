@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
 use std::fmt::{Debug, Display};
 use std::future::Future;
@@ -1922,7 +1922,12 @@ impl EnvelopeProcessorService {
     }
 
     /// Creates a [`SendMetricsRequest`] and sends it to the upstream relay.
-    fn send_global_partition(&self, partition_key: u32, partition: &mut Partition<'_>) {
+    fn send_global_partition(
+        &self,
+        upstream: Option<UpstreamDescriptor>,
+        partition_key: u32,
+        partition: &mut Partition<'_>,
+    ) {
         if partition.is_empty() {
             return;
         }
@@ -1939,6 +1944,7 @@ impl EnvelopeProcessorService {
         };
 
         let request = SendMetricsRequest {
+            upstream,
             partition_key: partition_key.to_string(),
             unencoded,
             encoded,
@@ -1967,13 +1973,23 @@ impl EnvelopeProcessorService {
         } = message;
 
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
-        let mut partition = Partition::new(batch_size);
+        let mut partitions = BTreeMap::new();
         let mut partition_splits = 0;
 
         for ProjectBuckets {
-            buckets, scoping, ..
+            buckets,
+            scoping,
+            project_info,
+            ..
         } in buckets.values()
         {
+            let partition = match partitions.get_mut(&project_info.upstream) {
+                Some(partition) => partition,
+                None => partitions
+                    .entry(project_info.upstream.clone())
+                    .or_insert_with(|| Partition::new(batch_size)),
+            };
+
             for bucket in buckets {
                 let mut remaining = Some(BucketView::new(bucket));
 
@@ -1982,7 +1998,11 @@ impl EnvelopeProcessorService {
                         // A part of the bucket could not be inserted. Take the partition and submit
                         // it immediately. Repeat until the final part was inserted. This should
                         // always result in a request, otherwise we would enter an endless loop.
-                        self.send_global_partition(partition_key, &mut partition);
+                        self.send_global_partition(
+                            project_info.upstream.clone(),
+                            partition_key,
+                            partition,
+                        );
                         remaining = Some(next);
                         partition_splits += 1;
                     }
@@ -1994,7 +2014,9 @@ impl EnvelopeProcessorService {
             metric!(distribution(RelayDistributions::PartitionSplits) = partition_splits);
         }
 
-        self.send_global_partition(partition_key, &mut partition);
+        for (upstream, mut partition) in partitions {
+            self.send_global_partition(upstream, partition_key, &mut partition);
+        }
     }
 
     async fn handle_flush_buckets(&self, mut message: FlushBuckets) {
@@ -2283,8 +2305,7 @@ impl<'a> Partition<'a> {
         let buckets = &self.views;
         let payload = serde_json::to_vec(&Wrapper { buckets }).unwrap().into();
 
-        let scopings = self.project_info.clone();
-        self.project_info.clear();
+        let scopings = std::mem::take(&mut self.project_info);
 
         self.views.clear();
         self.remaining = self.max_size;
@@ -2298,6 +2319,8 @@ impl<'a> Partition<'a> {
 /// This request is not awaited. It automatically tracks outcomes if the request is not received.
 #[derive(Debug)]
 struct SendMetricsRequest {
+    /// Optional upstream override where the request will be sent to.
+    upstream: Option<UpstreamDescriptor>,
     /// If the partition key is set, the request is marked with `X-Sentry-Relay-Shard`.
     partition_key: String,
     /// Serialized metric buckets without encoding applied, used for signing.
@@ -2348,6 +2371,10 @@ impl SendMetricsRequest {
 }
 
 impl UpstreamRequest for SendMetricsRequest {
+    fn upstream(&self) -> Option<&UpstreamDescriptor> {
+        self.upstream.as_ref()
+    }
+
     fn set_relay_id(&self) -> bool {
         true
     }
