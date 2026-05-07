@@ -17,10 +17,10 @@ use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
 use crate::envelope::ContentType::OctetStream;
 use crate::envelope::{AttachmentType, Envelope, Item};
 use crate::extractors::{RawContentType, RequestMeta};
-use crate::managed::{Managed, ManagedResult};
+use crate::managed::Managed;
 use crate::middlewares;
 use crate::service::ServiceState;
-use crate::services::outcome::{DiscardReason, Outcome};
+use crate::services::outcome::DiscardReason;
 use crate::services::upload::Upload;
 use crate::utils::{self, AttachmentStrategy};
 
@@ -189,16 +189,16 @@ async fn multipart_to_envelope(
     )
     .await?;
 
-    let prosperodump_idx = items
-        .iter()
-        .position(|item| item.attachment_type() == Some(AttachmentType::Prosperodump))
-        .ok_or(BadStoreRequest::MissingProsperodump)
-        .reject(&items)?;
-    let payload = items[prosperodump_idx].payload();
-    validate_prosperodump(&payload).reject(&items)?;
-    items.modify(|items, _| {
-        items[prosperodump_idx].set_payload(OctetStream, payload);
-    });
+    items.try_modify(|inner, _| -> Result<(), BadStoreRequest> {
+        let prosperodump = inner
+            .iter_mut()
+            .find(|item| item.attachment_type() == Some(AttachmentType::Prosperodump))
+            .ok_or(BadStoreRequest::MissingProsperodump)?;
+        let payload = prosperodump.payload();
+        validate_prosperodump(&payload)?;
+        prosperodump.set_payload(OctetStream, payload);
+        Ok(())
+    })?;
 
     let event_id = common::event_id_from_items(&items)?.unwrap_or_else(EventId::new);
     let envelope = items.map(|items, records| {

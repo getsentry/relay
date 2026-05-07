@@ -129,8 +129,11 @@ impl BadStoreRequest {
         let discard_reason = match self {
             Self::InvalidCompressionContainer(_) => DiscardReason::InvalidCompression,
             Self::InvalidMinidump => DiscardReason::InvalidMinidump,
+            #[cfg(sentry)]
             Self::InvalidProsperodump => DiscardReason::InvalidProsperodump,
             Self::MissingMinidump => DiscardReason::MissingMinidumpUpload,
+            #[cfg(sentry)]
+            Self::MissingProsperodump => DiscardReason::MissingProsperodumpUpload,
             Self::Overflow(item_type) => DiscardReason::TooLarge(*item_type),
             _ => DiscardReason::Internal,
         };
