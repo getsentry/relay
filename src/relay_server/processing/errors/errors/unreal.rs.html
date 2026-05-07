@@ -86,7 +86,7 @@
 <a href=#86 id=86 data-nosnippet>86</a>            //
 <a href=#87 id=87 data-nosnippet>87</a>            // This is currently still split to avoid too many changes and code duplication at once.
 <a href=#88 id=88 data-nosnippet>88</a>            </span><span class="kw">if let </span><span class="prelude-val">Some</span>(result) =
-<a href=#89 id=89 data-nosnippet>89</a>                <span class="kw">crate</span>::utils::process_unreal(event_id, <span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>attachments, user_header)
+<a href=#89 id=89 data-nosnippet>89</a>                <span class="kw">crate</span>::utils::process_unreal(expansion.context, event_id, <span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>attachments, user_header)
 <a href=#90 id=90 data-nosnippet>90</a>                    .map_err(ProcessingError::InvalidUnrealReport)<span class="question-mark">?
 <a href=#91 id=91 data-nosnippet>91</a>            </span>{
 <a href=#92 id=92 data-nosnippet>92</a>                user_reports.extend(result.user_reports);
