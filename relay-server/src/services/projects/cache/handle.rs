@@ -1,6 +1,6 @@
 use std::fmt;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
@@ -10,6 +10,8 @@ use tokio::sync::broadcast;
 use super::state::Shared;
 use crate::services::projects::cache::service::ProjectChange;
 use crate::services::projects::cache::{Project, ProjectCache};
+use crate::services::projects::project::ProjectState;
+use crate::statsd::RelayTimers;
 
 /// A synchronous handle to the [`ProjectCache`].
 ///
@@ -42,9 +44,24 @@ impl ProjectCacheHandle {
             return Some(project);
         }
 
-        tokio::time::timeout(timeout, self.ready_inner(project_key))
-            .await
-            .ok()
+        let t = Instant::now();
+        let result = tokio::time::timeout(timeout, self.ready_inner(project_key)).await;
+
+        relay_statsd::metric!(
+            timer(RelayTimers::ProjectStateReadyDuration) = t.elapsed(),
+            result = match &result {
+                Ok(project) => {
+                    match project.state() {
+                        ProjectState::Enabled(_) => "enabled",
+                        ProjectState::Disabled => "disabled",
+                        ProjectState::Pending => "pending",
+                    }
+                }
+                Err(_) => "timeout",
+            }
+        );
+
+        result.ok()
     }
 
     async fn ready_inner(&self, project_key: ProjectKey) -> Project<'_> {
