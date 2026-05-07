@@ -75,9 +75,7 @@ pub fn extract_segment_name(event: &mut Event) {
             continue;
         };
 
-        let Some(data) = span.data.value_mut() else {
-            continue;
-        };
+        let data = span.data.get_or_insert_with(Default::default);
 
         if data.segment_name.is_empty() {
             data.segment_name = Annotated::new(transaction.clone());
