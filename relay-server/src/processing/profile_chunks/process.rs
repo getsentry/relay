@@ -64,7 +64,7 @@ fn expand_perfetto_profile_chunk(
     filter_settings: &relay_filter::ProjectFiltersConfig,
     ctx: Context<'_>,
     payload: Bytes,
-) -> std::result::Result<ExpandedProfileChunk, (Error, Quantities)> {
+) -> Result<ExpandedProfileChunk, (Error, Quantities)> {
     let item_quantities = item.quantities();
     let err = |e: Error| (e, item_quantities.clone());
 
@@ -115,7 +115,7 @@ fn expand_json_item(
     filter_settings: &relay_filter::ProjectFiltersConfig,
     ctx: Context<'_>,
     payload: Bytes,
-) -> std::result::Result<ExpandedProfileChunk, (Error, Quantities)> {
+) -> Result<ExpandedProfileChunk, (Error, Quantities)> {
     let item_quantities = item.quantities();
     let err = |e: Error| (e, item_quantities.clone());
 
@@ -239,13 +239,6 @@ mod tests {
         .build()
     }
 
-    fn expand_single(
-        managed: Managed<SerializedProfileChunks>,
-        ctx: Context<'_>,
-    ) -> Managed<ExpandedProfileChunks> {
-        expand(managed, ctx)
-    }
-
     #[test]
     fn test_expand_compound_unknown_content_type() {
         let meta = perfetto_meta();
@@ -258,7 +251,7 @@ mod tests {
         item.set_meta_length(meta_length);
         let (managed, _handle) = make_chunks(vec![item]);
 
-        let expanded = expand_single(managed, Context::for_test());
+        let expanded = expand(managed, Context::for_test());
         let chunks = expanded.accept(|c| c);
         assert!(chunks.chunks.is_empty(), "item should be dropped");
     }
@@ -269,7 +262,7 @@ mod tests {
         let item = make_compound_item(&meta, PERFETTO_FIXTURE, "android");
         let (managed, _handle) = make_chunks(vec![item]);
 
-        let expanded = expand_single(managed, Context::for_test());
+        let expanded = expand(managed, Context::for_test());
         let chunks = expanded.accept(|c| c);
         assert!(
             chunks.chunks.is_empty(),
@@ -287,13 +280,34 @@ mod tests {
         );
         item.set_meta_length(body.len() as u32 + 100);
         item.set_platform("android".to_owned());
-        let (managed, _handle) = make_chunks(vec![item]);
+        let (managed, mut handle) = make_chunks(vec![item]);
 
-        let expanded = expand_single(managed, Context::for_test());
+        let ctx = Context {
+            project_info: &ProjectInfo {
+                config: ProjectConfig {
+                    features: FeatureSet::from_iter([
+                        Feature::ContinuousProfiling,
+                        Feature::ContinuousProfilingPerfetto,
+                    ]),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Context::for_test()
+        };
+
+        let expanded = expand(managed, ctx);
         let chunks = expanded.accept(|c| c);
         assert!(
             chunks.chunks.is_empty(),
             "item should be dropped on out-of-bounds meta_length"
+        );
+        handle.assert_outcome(
+            &Outcome::Invalid(DiscardReason::Profiling(
+                "profiling_invalid_sampled_profile",
+            )),
+            DataCategory::ProfileChunkUi,
+            1,
         );
     }
 
@@ -323,7 +337,7 @@ mod tests {
             ..Context::for_test()
         };
 
-        let expanded = expand_single(managed, ctx);
+        let expanded = expand(managed, ctx);
         let chunks = expanded.accept(|c| c);
         assert!(
             chunks.chunks.is_empty(),
@@ -351,7 +365,7 @@ mod tests {
             ..Context::for_test()
         };
 
-        let expanded = expand_single(managed, ctx);
+        let expanded = expand(managed, ctx);
         let chunks = expanded.accept(|c| c);
         assert_eq!(chunks.chunks.len(), 1, "item should be retained");
 
@@ -376,7 +390,7 @@ mod tests {
         let item = make_json_item(JSON_FIXTURE);
         let (managed, _handle) = make_chunks(vec![item]);
 
-        let expanded = expand_single(managed, Context::for_test());
+        let expanded = expand(managed, Context::for_test());
         let chunks = expanded.accept(|c| c);
         assert_eq!(chunks.chunks.len(), 1, "item should be retained");
 
@@ -397,7 +411,7 @@ mod tests {
         item.set_meta_length(10);
         let (managed, _handle) = make_chunks(vec![item]);
 
-        let expanded = expand_single(managed, Context::for_test());
+        let expanded = expand(managed, Context::for_test());
         let chunks = expanded.accept(|c| c);
         assert!(
             chunks.chunks.is_empty(),
@@ -413,7 +427,7 @@ mod tests {
         item.set_platform("node".to_owned());
         let (managed, mut handle) = make_chunks(vec![item]);
 
-        let expanded = expand_single(managed, Context::for_test());
+        let expanded = expand(managed, Context::for_test());
         let chunks = expanded.accept(|c| c);
         assert!(
             chunks.chunks.is_empty(),
