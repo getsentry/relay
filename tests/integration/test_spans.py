@@ -139,6 +139,7 @@ def test_span_extraction(
             "sentry.sdk.name": {"type": "string", "value": "raven-node"},
             "sentry.sdk.version": {"type": "string", "value": "2.6.3"},
             "sentry.status": {"type": "string", "value": "ok"},
+            "sentry.segment.name": {"type": "string", "value": "hi"},
             "sentry.trace.status": {"type": "string", "value": "ok"},
             "sentry.transaction": {"type": "string", "value": "hi"},
             "sentry.transaction.op": {"type": "string", "value": "hi"},
