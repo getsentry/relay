@@ -985,6 +985,8 @@ pub enum RelayCounters {
     ErrorProcessed,
     /// The number of times the new unreal expansion logic in the endpoint is hit.
     UnrealEndpointExpansion,
+    /// The number of times that relay receives a compressed minidump.
+    CompressedMinidump,
 }
 
 impl CounterMetric for RelayCounters {
@@ -1045,6 +1047,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProfileChunksWithoutPlatform => "profile_chunk.no_platform",
             RelayCounters::ErrorProcessed => "event.error.processed",
             RelayCounters::UnrealEndpointExpansion => "unreal.endpoint_expansion",
+            RelayCounters::CompressedMinidump => "minidump.compressed.count",
         }
     }
 }
