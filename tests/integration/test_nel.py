@@ -4,6 +4,7 @@ from time import sleep
 from unittest import mock
 
 from .asserts import time_within_delta
+from .consts import REQUESTS_VERSION
 
 
 def test_nel_converted_to_logs(mini_sentry, relay):
@@ -66,7 +67,7 @@ def test_nel_converted_to_logs(mini_sentry, relay):
                         "type": "string",
                         "value": "Python Requests",
                     },
-                    "browser.version": {"type": "string", "value": "2.32"},
+                    "browser.version": {"type": "string", "value": REQUESTS_VERSION},
                     "sentry.observed_timestamp_nanos": {
                         "type": "string",
                         "value": time_within_delta(expect_resolution="ns"),

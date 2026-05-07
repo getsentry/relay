@@ -7,6 +7,7 @@ from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 
 from .asserts import time_within_delta, time_within, only_items, matches
+from .consts import REQUESTS_VERSION
 
 import pytest
 import json
@@ -933,7 +934,7 @@ def test_trace_metric_container_metadata(
                     },
                     "browser.version": {
                         "type": "string",
-                        "value": "2.32",
+                        "value": REQUESTS_VERSION,
                     },
                 },
             ),

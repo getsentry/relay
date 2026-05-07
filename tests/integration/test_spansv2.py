@@ -5,7 +5,7 @@ from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 
 from .asserts import time_within_delta, time_within, time_is
-
+from .consts import REQUESTS_VERSION
 from .test_dynamic_sampling import add_sampling_config
 
 import uuid
@@ -127,7 +127,7 @@ def test_spansv2_basic(
             "invalid_int": None,
             "invalid": None,
             "browser.name": {"type": "string", "value": "Python Requests"},
-            "browser.version": {"type": "string", "value": "2.32"},
+            "browser.version": {"type": "string", "value": REQUESTS_VERSION},
             "sentry.dsc.environment": {"type": "string", "value": "prod"},
             "sentry.dsc.public_key": {
                 "type": "string",
@@ -322,7 +322,7 @@ def test_spansv2_trimming_basic(
             },
             "custom.invalid.attribute": None,
             "browser.name": {"type": "string", "value": "Python Requests"},
-            "browser.version": {"type": "string", "value": "2.32"},
+            "browser.version": {"type": "string", "value": REQUESTS_VERSION},
             "sentry.dsc.environment": {"type": "string", "value": "prod"},
             "sentry.dsc.public_key": {
                 "type": "string",
