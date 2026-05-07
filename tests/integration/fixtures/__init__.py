@@ -5,6 +5,8 @@ from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 from sentry_relay.auth import SecretKey
 
+DEFAULT_USER_AGENT = "RelayIntegrationTests/1.0.0 Firefox/42.0"
+
 
 class SentryLike:
 
@@ -562,14 +564,21 @@ class SentryLike:
         envelope.add_item(Item(payload=PayloadRef(json=check_in), type="check_in"))
         self.send_envelope(project_id, envelope)
 
-    def request(self, method, path, timeout=None, is_internal=False, **kwargs):
+    def request(
+        self, method, path, timeout=None, is_internal=False, headers=None, **kwargs
+    ):
         assert path.startswith("/")
 
         if timeout is None:
             timeout = 10
 
+        headers = headers or {}
+        headers.setdefault("User-Agent", DEFAULT_USER_AGENT)
+
         url = self.url if not is_internal else self.internal_url
-        return requests.request(method, url + path, timeout=timeout, **kwargs)
+        return requests.request(
+            method, url + path, timeout=timeout, headers=headers, **kwargs
+        )
 
     def post(self, path, **kwargs):
         return self.request("post", path, **kwargs)
