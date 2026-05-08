@@ -92,8 +92,8 @@ pub enum BadStoreRequest {
     #[error("missing prosperodump")]
     MissingProsperodump,
 
-    #[error("invalid compression container")]
-    InvalidCompressionContainer(#[source] std::io::Error),
+    #[error("invalid compression format")]
+    InvalidCompression(#[source] std::io::Error),
 
     #[error("invalid event id")]
     InvalidEventId,
@@ -141,7 +141,7 @@ impl BadStoreRequest {
             Self::InvalidProsperodump => DiscardReason::InvalidProsperodump,
             #[cfg(sentry)]
             Self::MissingProsperodump => DiscardReason::MissingProsperodump,
-            Self::InvalidCompressionContainer(_) => DiscardReason::InvalidCompressionContainer,
+            Self::InvalidCompression(_) => DiscardReason::InvalidCompression,
             Self::InvalidEventId => DiscardReason::InvalidEventId,
             Self::QueueFailed(_) => DiscardReason::QueueFailed,
             Self::ItemTooLarge(item_type) => DiscardReason::ItemTooLarge(*item_type),

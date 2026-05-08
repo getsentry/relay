@@ -131,7 +131,7 @@ fn decode_minidump(minidump_data: Bytes, max_size: usize) -> Result<Bytes, BadSt
         Err(err) => {
             // we detected a compression container but failed to decode it
             relay_log::trace!("invalid compression container");
-            Err(BadStoreRequest::InvalidCompressionContainer(err))
+            Err(BadStoreRequest::InvalidCompression(err))
         }
     }
 }

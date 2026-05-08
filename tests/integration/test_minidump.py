@@ -310,6 +310,14 @@ def test_minidump_invalid_magic(mini_sentry, relay_with_processing, outcomes_con
             "category": DataCategory.ATTACHMENT_ITEM.value,
             "quantity": 1,
         },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "invalid_minidump",
+            "category": DataCategory.ERROR.value,
+            "quantity": 1,
+        },
     ]
 
 
@@ -330,7 +338,7 @@ def test_minidump_invalid_field(mini_sentry, relay_with_processing, outcomes_con
             "timestamp": time_within_delta(),
             "project_id": 42,
             "outcome": 3,
-            "reason": "missing_minidump_upload",
+            "reason": "missing_minidump",
             "category": DataCategory.ATTACHMENT.value,
             "quantity": len(content),
         },
@@ -338,8 +346,16 @@ def test_minidump_invalid_field(mini_sentry, relay_with_processing, outcomes_con
             "timestamp": time_within_delta(),
             "project_id": 42,
             "outcome": 3,
-            "reason": "missing_minidump_upload",
+            "reason": "missing_minidump",
             "category": DataCategory.ATTACHMENT_ITEM.value,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "missing_minidump",
+            "category": DataCategory.ERROR.value,
             "quantity": 1,
         },
     ]
@@ -375,6 +391,14 @@ def test_minidump_invalid_compression_outcome(
             "outcome": 3,
             "reason": "invalid_compression",
             "category": DataCategory.ATTACHMENT_ITEM.value,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "invalid_compression",
+            "category": DataCategory.ERROR.value,
             "quantity": 1,
         },
     ]
@@ -1236,12 +1260,16 @@ def test_minidump_max_attachment_size_exceeded(
 
     assert exc_info.value.response.status_code == 400
     outcomes = outcomes_consumer.get_outcomes()
+    print("##############")
+    for outcome in outcomes:
+        print(outcome)
+    print("##############")
     assert outcomes == [
         {
             "timestamp": time_within_delta(),
             "project_id": 42,
             "outcome": 3,
-            "reason": "too_large:attachment:minidump",
+            "reason": "item_too_large:attachment:minidump",
             "category": DataCategory.ATTACHMENT.value,
             "quantity": len(minidump_content),
         },
@@ -1249,7 +1277,7 @@ def test_minidump_max_attachment_size_exceeded(
             "timestamp": time_within_delta(),
             "project_id": 42,
             "outcome": 3,
-            "reason": "too_large:attachment:minidump",
+            "reason": "item_too_large:attachment:minidump",
             "category": DataCategory.ATTACHMENT_ITEM.value,
             "quantity": 1,
         },
@@ -1257,7 +1285,7 @@ def test_minidump_max_attachment_size_exceeded(
             "timestamp": time_within_delta(),
             "project_id": 42,
             "outcome": 3,
-            "reason": "too_large:attachment:minidump",
+            "reason": "item_too_large:attachment:minidump",
             "category": DataCategory.ATTACHMENT.value,
             "quantity": len(attachment_content),
         },
@@ -1265,8 +1293,16 @@ def test_minidump_max_attachment_size_exceeded(
             "timestamp": time_within_delta(),
             "project_id": 42,
             "outcome": 3,
-            "reason": "too_large:attachment:minidump",
+            "reason": "item_too_large:attachment:minidump",
             "category": DataCategory.ATTACHMENT_ITEM.value,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "invalid_multipart",
+            "category": DataCategory.ERROR.value,
             "quantity": 1,
         },
     ]

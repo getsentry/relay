@@ -216,7 +216,7 @@ pub async fn read_attachment_bytes_into_item(
     if n_bytes > limit {
         let attachment_type = item.attachment_type().unwrap_or(AttachmentType::Attachment);
         let item_type = DiscardItemType::Attachment(DiscardAttachmentType::from(attachment_type));
-        let _ = item.reject_err(Outcome::Invalid(DiscardReason::TooLarge(item_type)));
+        let _ = item.reject_err(Outcome::Invalid(DiscardReason::ItemTooLarge(item_type)));
         return match ignore_size_exceeded {
             true => Ok(None),
             false => Err(multer::Error::FieldSizeExceeded {
@@ -254,7 +254,7 @@ pub async fn multipart_items(
                     if let multer::Error::FieldSizeExceeded { .. } = e {
                         let attachment_type = DiscardAttachmentType::from(attachment_type);
                         let item_type = DiscardItemType::Attachment(attachment_type);
-                        let discard_reason = DiscardReason::TooLarge(item_type);
+                        let discard_reason = DiscardReason::ItemTooLarge(item_type);
                         let _ = items.reject_err(Outcome::Invalid(discard_reason));
                     }
                 })?;
@@ -266,7 +266,8 @@ pub async fn multipart_items(
                 items.merge_with(item, |items, item, _| items.push(item));
                 if attachments_size > config.max_attachments_size() {
                     let item_type = DiscardItemType::Attachment(DiscardAttachmentType::Attachment);
-                    let _ = items.reject_err(Outcome::Invalid(DiscardReason::TooLarge(item_type)));
+                    let _ =
+                        items.reject_err(Outcome::Invalid(DiscardReason::ItemTooLarge(item_type)));
                     return Err(multer::Error::StreamSizeExceeded {
                         limit: config.max_attachments_size() as u64,
                     });

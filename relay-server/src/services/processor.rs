@@ -520,7 +520,7 @@ impl ProcessingError {
             #[cfg(all(sentry, feature = "processing"))]
             Self::InvalidPlaystationDump(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
             Self::InvalidUnrealReport(err) if err.kind() == Unreal4ErrorKind::BadCompression => {
-                Some(Outcome::Invalid(DiscardReason::InvalidCompressionContainer))
+                Some(Outcome::Invalid(DiscardReason::InvalidCompression))
             }
             Self::InvalidUnrealReport(_) => Some(Outcome::Invalid(DiscardReason::ProcessUnreal)),
             Self::SerializeFailed(_) | Self::ProcessingFailed(_) => {

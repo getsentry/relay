@@ -435,8 +435,8 @@ pub enum DiscardReason {
     /// (Relay) Parsing an event envelope failed (likely missing a required header).
     InvalidEnvelope,
 
-    /// (Relay) The payload had an invalid compression container.
-    InvalidCompressionContainer,
+    /// (Relay) The payload had an invalid compression format.
+    InvalidCompression,
 
     /// (Relay) The envelope contains internal items.
     InternalEnvelope,
@@ -568,7 +568,7 @@ impl DiscardReason {
             DiscardReason::InvalidProtobuf => "invalid_proto",
             DiscardReason::InvalidTransaction => "invalid_transaction",
             DiscardReason::InvalidEnvelope => "invalid_envelope",
-            DiscardReason::InvalidCompressionContainer => "invalid_compression",
+            DiscardReason::InvalidCompression => "invalid_compression",
             DiscardReason::InvalidEventId => "invalid_event_id",
             DiscardReason::InternalEnvelope => "internal_envelope",
             DiscardReason::QueueFailed => "queue_failed",
