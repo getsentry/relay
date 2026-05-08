@@ -6,6 +6,10 @@
 
 - Enable OTLP endpoints by default. ([#5951](https://github.com/getsentry/relay/pull/5951))
 
+**Internal**:
+
+- Bump `sentry-conventions` to 0.6.0-4. ([#5944](https://github.com/getsentry/relay/pull/5944))
+
 ## 26.4.2
 
 **Features**:
