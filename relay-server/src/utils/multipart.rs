@@ -13,10 +13,12 @@ use tokio::io::AsyncReadExt;
 use tokio_util::io::StreamReader;
 
 use crate::endpoints::common::BadStoreRequest;
-use crate::envelope::{AttachmentType, ContentType, Item, ItemType, ManagedItems};
+use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
 use crate::extractors::RequestMeta;
 use crate::managed::Managed;
-use crate::services::outcome::TrackOutcome;
+use crate::services::outcome::{
+    DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome, TrackOutcome,
+};
 
 /// Type used for encoding string lengths.
 type Len = u32;
@@ -212,6 +214,9 @@ pub async fn read_attachment_bytes_into_item(
         records.lenient(DataCategory::Attachment);
     });
     if n_bytes > limit {
+        let attachment_type = item.attachment_type().unwrap_or(AttachmentType::Attachment);
+        let item_type = DiscardItemType::Attachment(DiscardAttachmentType::from(attachment_type));
+        let _ = item.reject_err(Outcome::Invalid(DiscardReason::TooLarge(item_type)));
         return match ignore_size_exceeded {
             true => Ok(None),
             false => Err(multer::Error::FieldSizeExceeded {
@@ -229,11 +234,11 @@ pub async fn multipart_items(
     attachment_strategy: impl AttachmentStrategy,
     request_meta: &RequestMeta,
     outcome_aggregator: &Addr<TrackOutcome>,
-) -> Result<ManagedItems, multer::Error> {
-    let mut items = ManagedItems::new();
+) -> Result<Managed<Items>, multer::Error> {
+    let mut items =
+        Managed::with_meta_from_request_meta(request_meta, outcome_aggregator, Items::new());
     let mut form_data = FormDataWriter::new();
     let mut attachments_size = 0;
-    let meta_provider = Managed::with_meta_from_request_meta(request_meta, outcome_aggregator, ());
 
     while let Some(field) = multipart.next_field().await? {
         if let Some(file_name) = field.file_name() {
@@ -241,19 +246,31 @@ pub async fn multipart_items(
             let attachment_type = attachment_strategy.infer_type(&field);
             item.set_attachment_type(attachment_type);
             item.set_filename(file_name);
-            let item = meta_provider.wrap(item);
-            let item = attachment_strategy.add_to_item(field, item, config).await?;
+            let item = items.wrap(item);
+            let item = attachment_strategy
+                .add_to_item(field, item, config)
+                .await
+                .inspect_err(|e| {
+                    if let multer::Error::FieldSizeExceeded { .. } = e {
+                        let attachment_type = DiscardAttachmentType::from(attachment_type);
+                        let item_type = DiscardItemType::Attachment(attachment_type);
+                        let discard_reason = DiscardReason::TooLarge(item_type);
+                        let _ = items.reject_err(Outcome::Invalid(discard_reason));
+                    }
+                })?;
             if let Some(item) = item {
                 // This increases the attachments byte count even if the item is an attachment ref.
                 // This is by design as the total number of bytes read into memory should be
                 // constrained.
                 attachments_size += item.len();
+                items.merge_with(item, |items, item, _| items.push(item));
                 if attachments_size > config.max_attachments_size() {
+                    let item_type = DiscardItemType::Attachment(DiscardAttachmentType::Attachment);
+                    let _ = items.reject_err(Outcome::Invalid(DiscardReason::TooLarge(item_type)));
                     return Err(multer::Error::StreamSizeExceeded {
                         limit: config.max_attachments_size() as u64,
                     });
                 }
-                items.push(item);
             }
         } else if let Some(field_name) = field.name().map(str::to_owned) {
             // Ensure to decode this SAFELY to match Django's POST data behavior. This allows us to
@@ -271,7 +288,7 @@ pub async fn multipart_items(
         // Content type is `Text` (since it is not a json object but multiple
         // json arrays serialized one after the other).
         item.set_payload(ContentType::Text, form_data);
-        items.push(meta_provider.wrap(item));
+        items.merge_with(items.wrap(item), |items, item, _| items.push(item));
     }
 
     Ok(items)

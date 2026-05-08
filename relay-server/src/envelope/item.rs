@@ -12,7 +12,6 @@ use smallvec::{SmallVec, smallvec};
 
 use crate::envelope::{AttachmentType, ContentType, EnvelopeError};
 use crate::integrations::{Integration, LogsIntegration, SpansIntegration};
-use crate::managed::Managed;
 use crate::statsd::RelayTimers;
 
 #[derive(Clone, Debug)]
@@ -770,7 +769,6 @@ impl Item {
     }
 }
 
-pub type ManagedItems = SmallVec<[Managed<Item>; 3]>;
 pub type Items = SmallVec<[Item; 3]>;
 pub type ItemIter<'a> = std::slice::Iter<'a, Item>;
 pub type ItemIterMut<'a> = std::slice::IterMut<'a, Item>;

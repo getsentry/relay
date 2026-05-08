@@ -13,6 +13,7 @@ from uuid import UUID
 from urllib3.filepost import encode_multipart_formdata
 
 from sentry_relay.consts import DataCategory
+from .asserts import time_within_delta
 from .test_attachment_ref import upload_and_make_ref
 from .consts import DUMMY_UPLOAD_LOCATION
 
@@ -280,30 +281,103 @@ def test_minidump_invalid_json(mini_sentry, relay):
     assert_only_minidump(envelope)
 
 
-def test_minidump_invalid_magic(mini_sentry, relay):
+def test_minidump_invalid_magic(mini_sentry, relay_with_processing, outcomes_consumer):
     project_id = 42
-    relay = relay(mini_sentry)
     mini_sentry.add_full_project_config(project_id)
+    outcomes_consumer = outcomes_consumer()
+    relay = relay_with_processing()
 
-    attachments = [
-        (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", "content without MDMP magic"),
-    ]
-
-    with pytest.raises(HTTPError):
+    content = b"content without MDMP magic"
+    attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", content)]
+    with pytest.raises(HTTPError) as exc_info:
         relay.send_minidump(project_id=project_id, files=attachments)
 
-
-def test_minidump_invalid_field(mini_sentry, relay):
-    project_id = 42
-    relay = relay(mini_sentry)
-    mini_sentry.add_full_project_config(project_id)
-
-    attachments = [
-        ("unknown_field_name", "minidump.dmp", "MDMP content"),
+    assert exc_info.value.response.status_code == 400
+    assert outcomes_consumer.get_outcomes() == [
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "invalid_minidump",
+            "category": DataCategory.ATTACHMENT.value,
+            "quantity": len(content),
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "invalid_minidump",
+            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "quantity": 1,
+        },
     ]
 
-    with pytest.raises(HTTPError):
+
+def test_minidump_invalid_field(mini_sentry, relay_with_processing, outcomes_consumer):
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    outcomes_consumer = outcomes_consumer()
+    relay = relay_with_processing()
+
+    content = b"MDMP content"
+    attachments = [("unknown_field_name", "minidump.dmp", content)]
+    with pytest.raises(HTTPError) as exc_info:
         relay.send_minidump(project_id=project_id, files=attachments)
+
+    assert exc_info.value.response.status_code == 400
+    assert outcomes_consumer.get_outcomes() == [
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "missing_minidump_upload",
+            "category": DataCategory.ATTACHMENT.value,
+            "quantity": len(content),
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "missing_minidump_upload",
+            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "quantity": 1,
+        },
+    ]
+
+
+def test_minidump_invalid_compression_outcome(
+    mini_sentry, relay_with_processing, outcomes_consumer
+):
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    outcomes_consumer = outcomes_consumer()
+    relay = relay_with_processing()
+    content = b"\x1f\x8b" + b"not a valid gzip stream"
+    attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp.gz", content)]
+
+    with pytest.raises(HTTPError) as exc_info:
+        relay.send_minidump(project_id=project_id, files=attachments)
+
+    assert exc_info.value.response.status_code == 400
+    outcomes = outcomes_consumer.get_outcomes()
+    assert outcomes == [
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "invalid_compression",
+            "category": DataCategory.ATTACHMENT.value,
+            "quantity": len(content),
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "invalid_compression",
+            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "quantity": 1,
+        },
+    ]
 
 
 @pytest.mark.parametrize(
@@ -1076,3 +1150,68 @@ def test_minidump_objectstore_uploads_rate_limits(
     assert mini_sentry.get_aggregated_outcomes() == sorted(
         expected_outcomes, key=lambda o: sorted(o.items())
     )
+
+
+def test_minidump_max_attachment_size_exceeded(
+    mini_sentry, relay_with_processing, outcomes_consumer
+):
+    project_id = 42
+    dmp_path = os.path.join(os.path.dirname(__file__), "fixtures/native/minidump.dmp")
+    with open(dmp_path, "rb") as f:
+        minidump_content = f.read()
+    attachment_content = b"yo"
+
+    mini_sentry.add_full_project_config(project_id)
+    outcomes_consumer = outcomes_consumer()
+    relay = relay_with_processing(
+        {
+            "limits": {
+                "max_attachment_size": len(minidump_content) - 1,
+                "max_attachments_size": 1000 * 1024 * 1024,
+            }
+        }
+    )
+
+    attachments = [
+        ("attachment1", "attach1.txt", attachment_content),
+        (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", minidump_content),
+    ]
+    with pytest.raises(HTTPError) as exc_info:
+        relay.send_minidump(project_id=project_id, files=attachments)
+
+    assert exc_info.value.response.status_code == 400
+    outcomes = outcomes_consumer.get_outcomes()
+    assert outcomes == [
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "too_large:attachment:minidump",
+            "category": DataCategory.ATTACHMENT.value,
+            "quantity": len(minidump_content),
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "too_large:attachment:minidump",
+            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "too_large:attachment:minidump",
+            "category": DataCategory.ATTACHMENT.value,
+            "quantity": len(attachment_content),
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "too_large:attachment:minidump",
+            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "quantity": 1,
+        },
+    ]
