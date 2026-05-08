@@ -1765,12 +1765,12 @@ def test_spansv2_ingestion_with_performance_scores(
                         {
                             "op": "eq",
                             "name": "event.contexts.browser.name",
-                            "value": "Python Requests",
+                            "value": "Firefox",
                         },
                         {
                             "op": "eq",
                             "name": "span.attributes.browser.name.value",
-                            "value": "Python Requests",
+                            "value": "Firefox",
                         },
                     ],
                 },
@@ -1786,12 +1786,12 @@ def test_spansv2_ingestion_with_performance_scores(
                         {
                             "op": "eq",
                             "name": "event.contexts.browser.name",
-                            "value": "Python Requests",
+                            "value": "Firefox",
                         },
                         {
                             "op": "eq",
                             "name": "span.attributes.browser.name.value",
-                            "value": "Python Requests",
+                            "value": "Firefox",
                         },
                     ],
                 },
