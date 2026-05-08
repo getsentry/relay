@@ -600,7 +600,7 @@ impl UpstreamRequest for UploadRequest {
             };
             tus::add_upload_headers(builder);
 
-            let body = encode_body(body, *encoding);
+            let body = encode_body(body, dbg!(*encoding));
             builder.content_encoding(*encoding);
 
             builder.body(reqwest::Body::wrap_stream(body));
