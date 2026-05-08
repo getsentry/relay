@@ -5,6 +5,7 @@
 **Features**:
 
 - Enable OTLP endpoints by default. ([#5951](https://github.com/getsentry/relay/pull/5951))
+- Enable performance score calculation for V2 spans. ([#5947](https://github.com/getsentry/relay/pull/5947))
 
 **Bug Fixes**:
 
