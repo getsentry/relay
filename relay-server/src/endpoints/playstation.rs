@@ -189,16 +189,22 @@ async fn multipart_to_envelope(
     )
     .await?;
 
-    let prosperodump_item = items
-        .iter_mut()
-        .find(|item| item.attachment_type() == Some(AttachmentType::Prosperodump))
-        .ok_or(BadStoreRequest::MissingProsperodump)?;
-    prosperodump_item.modify(|inner, _| inner.set_payload(OctetStream, inner.payload()));
-    validate_prosperodump(&prosperodump_item.payload())?;
+    items.try_modify(|inner, _| -> Result<(), BadStoreRequest> {
+        let prosperodump = inner
+            .iter_mut()
+            .find(|item| item.attachment_type() == Some(AttachmentType::Prosperodump))
+            .ok_or(BadStoreRequest::MissingProsperodump)?;
+        let payload = prosperodump.payload();
+        validate_prosperodump(&payload)?;
+        prosperodump.set_payload(OctetStream, payload);
+        Ok(())
+    })?;
 
     let event_id = common::event_id_from_items(&items)?.unwrap_or_else(EventId::new);
-    let envelope =
-        common::managed_items_to_envelope(items, meta, state.outcome_aggregator(), event_id);
+    let envelope = items.map(|items, records| {
+        records.modify_by(DataCategory::Error, 1);
+        Box::new(Envelope::from_request(Some(event_id), meta).with_items(items))
+    });
     Ok(envelope)
 }
 

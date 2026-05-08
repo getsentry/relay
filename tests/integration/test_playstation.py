@@ -284,16 +284,12 @@ def test_playstation_invalid_prosperodump(
     assert response.status_code == 400, "Expected a 400 status code"
     assert response.json()["detail"] == "invalid prosperodump"
     outcomes = outcomes_consumer.get_outcomes()
-    print("##########")
-    for outcome in outcomes:
-        print(outcome)
-    print("##########")
     assert outcomes == [
         {
             "timestamp": time_within_delta(),
             "project_id": 42,
             "outcome": 3,
-            "reason": "internal",
+            "reason": "invalid_prosperodump",
             "category": DataCategory.ATTACHMENT.value,
             "quantity": len(playstation_dump),
         },
@@ -301,7 +297,7 @@ def test_playstation_invalid_prosperodump(
             "timestamp": time_within_delta(),
             "project_id": 42,
             "outcome": 3,
-            "reason": "internal",
+            "reason": "invalid_prosperodump",
             "category": DataCategory.ATTACHMENT_ITEM.value,
             "quantity": 1,
         },
@@ -338,7 +334,7 @@ def test_playstation_missing_prosperodump(
             "timestamp": time_within_delta(),
             "project_id": 42,
             "outcome": 3,
-            "reason": "internal",
+            "reason": "missing_prosperodump",
             "category": DataCategory.ATTACHMENT.value,
             "quantity": len(video_content),
         },
@@ -346,7 +342,7 @@ def test_playstation_missing_prosperodump(
             "timestamp": time_within_delta(),
             "project_id": 42,
             "outcome": 3,
-            "reason": "internal",
+            "reason": "missing_prosperodump",
             "category": DataCategory.ATTACHMENT_ITEM.value,
             "quantity": 1,
         },
@@ -389,7 +385,7 @@ def test_playstation_max_attachments_size_exceeded(
             "timestamp": time_within_delta(),
             "project_id": 42,
             "outcome": 3,
-            "reason": "internal",
+            "reason": "item_too_large:attachment:attachment",
             "category": DataCategory.ATTACHMENT.value,
             "quantity": len(playstation_dump),
         },
@@ -397,7 +393,7 @@ def test_playstation_max_attachments_size_exceeded(
             "timestamp": time_within_delta(),
             "project_id": 42,
             "outcome": 3,
-            "reason": "internal",
+            "reason": "item_too_large:attachment:attachment",
             "category": DataCategory.ATTACHMENT_ITEM.value,
             "quantity": 1,
         },
@@ -439,7 +435,7 @@ def test_playstation_max_attachment_size_exceeded(
             "timestamp": time_within_delta(),
             "project_id": 42,
             "outcome": 3,
-            "reason": "internal",
+            "reason": "item_too_large:attachment:prosperodump",
             "category": DataCategory.ATTACHMENT.value,
             "quantity": len(playstation_dump),
         },
@@ -447,7 +443,7 @@ def test_playstation_max_attachment_size_exceeded(
             "timestamp": time_within_delta(),
             "project_id": 42,
             "outcome": 3,
-            "reason": "internal",
+            "reason": "item_too_large:attachment:prosperodump",
             "category": DataCategory.ATTACHMENT_ITEM.value,
             "quantity": 1,
         },

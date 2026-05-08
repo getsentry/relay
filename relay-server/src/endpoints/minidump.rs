@@ -123,9 +123,8 @@ fn decode_minidump(minidump_data: Bytes, max_size: usize) -> Result<Bytes, BadSt
     match run_decoder(decoder) {
         Ok(decoded) => {
             if decoded.len() > max_size {
-                return Err(BadStoreRequest::ItemTooLarge(DiscardItemType::Attachment(
-                    DiscardAttachmentType::Minidump,
-                )));
+                let item_type = DiscardItemType::Attachment(DiscardAttachmentType::Minidump);
+                return Err(BadStoreRequest::ItemTooLarge(item_type));
             }
             Ok(Bytes::from(decoded))
         }
@@ -284,36 +283,37 @@ async fn multipart_to_envelope(
     )
     .await?;
 
-    let minidump_item = items
-        .iter_mut()
-        .find(|item| item.attachment_type() == Some(AttachmentType::Minidump))
-        .ok_or(BadStoreRequest::MissingMinidump)?;
+    let minidump_idx = items
+        .iter()
+        .position(|item| item.attachment_type() == Some(AttachmentType::Minidump))
+        .ok_or(BadStoreRequest::MissingMinidump)
+        .reject(&items)?;
 
     // Doing these operations does not make sense if we already streamed the minidump to objectstore.
-    if !minidump_item.is_attachment_ref() {
-        let payload = minidump_item.payload();
+    if !items[minidump_idx].is_attachment_ref() {
+        let payload = items[minidump_idx].payload();
         let payload = extract_embedded_minidump(payload.clone())
             .await?
             .unwrap_or(payload);
-        let payload = decode_minidump(payload, config.max_attachment_size())?;
+        let payload = decode_minidump(payload, config.max_attachment_size()).reject(&items)?;
 
-        minidump_item.modify(|inner, records| {
-            inner.set_payload(Minidump, payload);
-            records.lenient(DataCategory::Attachment);
-        });
-
-        validate_minidump(&minidump_item.payload())?;
-
-        minidump_item.modify(|inner, _| {
-            if let Some(minidump_filename) = inner.filename() {
-                inner.set_filename(remove_container_extension(minidump_filename).to_owned())
+        items.try_modify(|items, records| -> Result<(), BadStoreRequest> {
+            let minidump_item = &mut items[minidump_idx];
+            minidump_item.set_payload(Minidump, payload);
+            records.lenient(DataCategory::Attachment); // decoding the minidump changes its size
+            if let Some(minidump_filename) = minidump_item.filename() {
+                minidump_item.set_filename(remove_container_extension(minidump_filename).to_owned())
             }
-        });
+            validate_minidump(&minidump_item.payload())?;
+            Ok(())
+        })?;
     }
 
     let event_id = common::event_id_from_items(&items)?.unwrap_or_else(EventId::new);
-    let envelope =
-        common::managed_items_to_envelope(items, meta, state.outcome_aggregator(), event_id);
+    let envelope = items.map(|items, records| {
+        records.modify_by(DataCategory::Error, 1);
+        Box::new(Envelope::from_request(Some(event_id), meta).with_items(items))
+    });
     Ok(envelope)
 }
 
@@ -399,7 +399,6 @@ async fn raw_minidump_to_envelope(
     item.set_filename(MINIDUMP_FILE_NAME);
     item.set_attachment_type(AttachmentType::Minidump);
     let mut item = Managed::with_meta_from_request_meta(&meta, state.outcome_aggregator(), item);
-
     if let Some(upload_context) = upload_context
         && matches!(upload_context.upload_minidumps, UploadDecision::Upload)
     {
@@ -415,23 +414,20 @@ async fn raw_minidump_to_envelope(
         .await
         .ok_or(BadStoreRequest::ObjectstoreUploadFailed)?;
     } else {
-        let decoded_payload = decode_minidump(
-            request.extract().await?,
-            state.config().max_attachment_size(),
-        )?;
-        item.modify(|inner, records| {
-            inner.set_payload(Minidump, decoded_payload);
+        let minidump_data = request.extract().await?;
+        item.try_modify(|inner, records| -> Result<(), BadStoreRequest> {
+            let payload = decode_minidump(minidump_data, state.config().max_attachment_size())?;
+            inner.set_payload(Minidump, payload);
             records.lenient(DataCategory::Attachment); // decoding the minidump changes its size
-        });
-        validate_minidump(&item.payload())?;
+            validate_minidump(&inner.payload())?;
+            Ok(())
+        })?;
     };
 
     // Create an envelope with a random event id.
-    let envelope = Envelope::from_request(Some(EventId::new()), meta);
-    let mut envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
-    envelope.merge_with(item, |envelope, item, records| {
+    let envelope = item.map(|item, records| {
         records.modify_by(DataCategory::Error, 1);
-        envelope.add_item(item);
+        Box::new(Envelope::from_request(Some(EventId::new()), meta).with_items(vec![item]))
     });
     Ok(envelope)
 }

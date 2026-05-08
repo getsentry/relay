@@ -6,6 +6,10 @@
 
 - Enable OTLP endpoints by default. ([#5951](https://github.com/getsentry/relay/pull/5951))
 
+**Bug Fixes**:
+
+- Emit more precise outcome discard reasons for the Playstation, Minidump, and Attachments endpoints. ([#5950](https://github.com/getsentry/relay/pull/5950))
+
 **Internal**:
 
 - Bump `sentry-conventions` to 0.6.0-4. ([#5944](https://github.com/getsentry/relay/pull/5944))
