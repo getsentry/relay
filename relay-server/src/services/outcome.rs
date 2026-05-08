@@ -365,7 +365,7 @@ pub enum DiscardReason {
     /// (Relay) The request exceeded the endpoint's size limit.
     RequestTooLarge,
 
-    /// (Relay) The event payload exceeds the maximum size limit for the respective endpoint.
+    /// (Relay) Sentry dropped data due to a quota or internal rate limit being reached.
     RateLimited,
 
     /// (Legacy) A store request was received with an invalid method.

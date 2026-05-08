@@ -462,7 +462,9 @@ async fn handle(
     // multipart formdata request.
 
     // If something goes wrong before the envelope is created, this managed error ensures an
-    // outcome is emitted.
+    // outcome is emitted. This is a best effort outcome, in the sense that we also drop some
+    // attachments but since we know neither the amount or size we can't emit an accurate outcome
+    // for them.
     let err = (DataCategory::Error, 1);
     let managed_err = Managed::with_meta_from_request_meta(&meta, state.outcome_aggregator(), err);
 
@@ -471,8 +473,6 @@ async fn handle(
     if let Some(upload_context) = &upload_context
         && let UploadDecision::Drop(limits) = &upload_context.upload_minidumps
     {
-        // This is a best effort outcome, in the sense that we also drop some attachments but
-        // since we know neither the amount or size we can't emit an accurate outcome for them.
         let _ = managed_err.reject_err(Outcome::RateLimited(
             limits.longest().and_then(|l| l.reason_code.clone()),
         ));
