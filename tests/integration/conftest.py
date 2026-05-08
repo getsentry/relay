@@ -5,7 +5,7 @@ from os import path
 from typing import Optional
 import json
 import redis
-from flask import Response
+from flask import Response, request
 
 import pytest
 
@@ -47,7 +47,7 @@ from .fixtures.processing import (  # noqa
     objectstore,
 )
 
-from .consts import DUMMY_UPLOAD_LOCATION
+from .consts import DUMMY_UPLOAD_LOCATION, ZSTD_MAGIC_HEADER
 
 
 @pytest.fixture(scope="session")
@@ -314,6 +314,8 @@ def dummy_upload(mini_sentry):  # noqa
 
     @mini_sentry.app.route("/api/<project>/upload/<key>/", methods=["PATCH"])
     def upload(**opts):
+        assert request.headers["Content-Encoding"] == "zstd"
+        assert request.data.startswith(ZSTD_MAGIC_HEADER)
         return Response(
             "",
             status=204,
