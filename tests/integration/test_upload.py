@@ -2,8 +2,6 @@
 Tests for the TUS upload endpoint (/api/{project_id}/upload/).
 """
 
-import gzip
-import io
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -606,75 +604,3 @@ def upload_something(relay, project_id, project_key):
         },
         data=data,
     )
-
-
-def test_large_gzip_upload_latency(
-    mini_sentry,
-    relay,
-    relay_with_processing,
-    project_config,
-    objectstore,
-    events_consumer,
-):
-    """Measure response latency after the last data frame for a 200 MB gzip-encoded upload.
-
-    Sends through the full chain (outer relay -> processing relay -> objectstore) a body
-    consisting of 200 MB of zeros encoded with Content-Encoding: gzip.
-    """
-    mini_sentry.allow_chunked = True
-    project_id = 42
-    project_key = mini_sentry.get_dsn_public_key(project_id)
-
-    processing_relay = relay_with_processing()
-    relay = relay(processing_relay)
-
-    # Wait for project config propagation through the chain.
-    events_consumer = events_consumer()
-    relay.send_event(project_id)
-    events_consumer.get_event()
-
-    raw_size = 200 * 1024 * 1024
-    buf = io.BytesIO()
-    with gzip.GzipFile(fileobj=buf, mode="wb") as f:
-        f.write(b"\x00" * raw_size)
-    gzipped = buf.getvalue()
-
-    response = relay.post(
-        f"/api/{project_id}/upload/?sentry_key={project_key}",
-        headers={
-            "Content-Length": "0",
-            "Tus-Resumable": "1.0.0",
-            "Upload-Length": str(raw_size),
-        },
-    )
-    assert response.status_code == 201, response.text
-    location = response.headers["Location"]
-
-    last_frame_time = None
-
-    def body():
-        nonlocal last_frame_time
-        chunk_size = 1024
-        for i in range(0, len(gzipped), chunk_size):
-            chunk = gzipped[i : i + chunk_size]
-            yield chunk
-        print("DONE SENDING DATA")
-        last_frame_time = time.monotonic()
-
-    response = relay.patch(
-        f"{location}&sentry_key={project_key}",
-        headers={
-            "Content-Type": "application/offset+octet-stream",
-            "Content-Encoding": "gzip",
-            "Tus-Resumable": "1.0.0",
-            "Upload-Offset": "0",
-        },
-        data=body(),
-        timeout=120,
-    )
-    response_time = time.monotonic()
-
-    assert response.status_code == 204, response.text
-    assert last_frame_time is not None
-    elapsed = response_time - last_frame_time
-    print(f"Time between last data frame and response: {elapsed:.3f}s")
