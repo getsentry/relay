@@ -1413,9 +1413,10 @@ fn normalize_mobile_measurements(measurements: &mut Measurements) {
     filter_mobile_outliers(measurements);
 }
 
-const APP_START_SOURCES: [(&str, Option<&str>); 4] = [
+const APP_START_SOURCES: [(&str, Option<&str>); 5] = [
     ("app_start_cold", Some("cold")),
     ("app_start_warm", Some("warm")),
+    (APP__VITALS__START__VALUE, None),
     (APP__VITALS__START__COLD__VALUE, None),
     (APP__VITALS__START__WARM__VALUE, None),
 ];
@@ -1484,7 +1485,13 @@ fn backfill_app_vitals_start(event: &mut Event) {
         );
 }
 
-/// Backfills the screen attribute only for transactions with a `ui.load` op.
+/// Backfills `app.vitals.start.screen` into root span data.
+///
+/// This runs from the transaction-only app-start backfill and writes only when:
+/// - the transaction name is a concrete screen name;
+/// - the trace op is `"ui.load"`;
+/// - the event contains an app-start measurement;
+/// - the SDK did not already provide `app.vitals.start.screen`.
 fn backfill_app_vitals_start_screen(event: &mut Event) {
     let Some(screen) = event.transaction.value() else {
         return;
@@ -1494,7 +1501,17 @@ fn backfill_app_vitals_start_screen(event: &mut Event) {
         return;
     }
 
-    let Some(trace_context) = event.context::<TraceContext>() else {
+    let has_app_start_measurement = event.measurements.value().is_some_and(|measurements| {
+        APP_START_SOURCES
+            .iter()
+            .any(|(measurement_name, _)| measurements.contains_key(*measurement_name))
+    });
+    if !has_app_start_measurement {
+        return;
+    }
+
+    let screen = screen.to_owned();
+    let Some(trace_context) = event.context_mut::<TraceContext>() else {
         return;
     };
     if trace_context.op.as_str() != Some("ui.load")
@@ -1506,19 +1523,6 @@ fn backfill_app_vitals_start_screen(event: &mut Event) {
         return;
     }
 
-    let has_app_start_measurement = event.measurements.value().is_some_and(|measurements| {
-        APP_START_SOURCES
-            .iter()
-            .any(|(measurement_name, _)| measurements.get_value(measurement_name).is_some())
-    });
-    if !has_app_start_measurement {
-        return;
-    }
-
-    let screen = screen.to_owned();
-    let Some(trace_context) = event.context_mut::<TraceContext>() else {
-        return;
-    };
     let data = trace_context.data.get_or_insert_with(Default::default);
     data.other.insert(
         APP__VITALS__START__SCREEN.to_owned(),
@@ -3444,6 +3448,25 @@ mod tests {
     }
 
     #[test]
+    fn test_backfill_app_vitals_start_screen_from_start_value_measurement() {
+        let mut event = app_vitals_start_screen_event(
+            "transaction",
+            Some("ProfileActivity"),
+            "ui.load",
+            Some(APP__VITALS__START__VALUE),
+            None,
+        );
+
+        backfill_app_vitals_start(&mut event);
+
+        assert_annotated_snapshot!(trace_context_data(&event), @r#"
+        {
+          "app.vitals.start.screen": "ProfileActivity"
+        }
+        "#);
+    }
+
+    #[test]
     fn test_backfill_app_vitals_start_screen_requires_ui_load() {
         let mut event = app_vitals_start_screen_event(
             "transaction",
@@ -3471,6 +3494,36 @@ mod tests {
         backfill_app_vitals_start(&mut event);
 
         assert_annotated_snapshot!(trace_context_data(&event), @"{}");
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_screen_only_requires_measurement_key() {
+        let json = r#"{
+            "type": "transaction",
+            "transaction": "MainActivity",
+            "contexts": {
+                "trace": {
+                    "op": "ui.load"
+                }
+            },
+            "measurements": {
+                "app_start_cold": {
+                    "unit": "millisecond"
+                }
+            }
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        backfill_app_vitals_start(&mut event);
+
+        assert_annotated_snapshot!(trace_context_data(&event), @r#"
+        {
+          "app.vitals.start.screen": "MainActivity"
+        }
+        "#);
     }
 
     #[test]
