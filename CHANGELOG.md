@@ -9,6 +9,7 @@
 **Bug Fixes**:
 
 - Emit more precise outcome discard reasons for the Playstation, Minidump, and Attachments endpoints. ([#5950](https://github.com/getsentry/relay/pull/5950))
+- Emit missing outcomes in the Playstation and Minidump endpoints, and add/update outcome discard reasons. ([#5966](https://github.com/getsentry/relay/pull/5966))
 
 **Internal**:
 
