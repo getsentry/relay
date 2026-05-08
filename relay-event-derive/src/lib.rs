@@ -45,7 +45,10 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> syn::Result<Token
             let bi = &variant.bindings()[0];
             let ident = &bi.binding;
             let variant_attrs = parse_variant_attributes(variant.ast().attrs)?;
-            let field_attrs = parse_field_attributes(0, bi.ast(), &mut true)?;
+            let mut field_attrs = parse_field_attributes(0, bi.ast(), &mut true)?;
+            // `fallback_variant` is defined on the variant, so is `retain`, but `retain` is passed
+            // as a field attr.
+            field_attrs.retain |= variant_attrs.retain;
             let field_attrs_tokens = field_attrs.as_tokens(&type_attrs, Some(quote!(parent_attrs)));
 
             let process_value = if variant_attrs.fallback_variant {
@@ -385,6 +388,7 @@ impl Size {
 #[derive(Default, Debug)]
 struct VariantAttrs {
     fallback_variant: bool,
+    retain: bool,
 }
 
 fn parse_variant_attributes(attrs: &[syn::Attribute]) -> syn::Result<VariantAttrs> {
@@ -399,6 +403,9 @@ fn parse_variant_attributes(attrs: &[syn::Attribute]) -> syn::Result<VariantAttr
 
             if ident == "fallback_variant" {
                 rv.fallback_variant = true;
+            } else if ident == "retain" {
+                let s = meta.value()?.parse::<LitBool>()?;
+                rv.retain = s.value();
             } else {
                 // Ignore other attributes used by `FromValue`/`IntoValue` derive macros.
                 if let Ok(v) = meta.value() {
