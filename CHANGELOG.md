@@ -8,7 +8,11 @@
 
 **Bug Fixes**:
 
+<<<<<<< sebastian/span-transaction-name
 - Set the name based on the transaction name when converting a transaction into a segment span. ([#5961](https://github.com/getsentry/relay/pull/5961))
+=======
+- Emit more precise outcome discard reasons for the Playstation, Minidump, and Attachments endpoints. ([#5950](https://github.com/getsentry/relay/pull/5950))
+>>>>>>> master
 
 **Internal**:
 

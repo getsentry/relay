@@ -16,6 +16,7 @@ use relay_system::Addr;
 use smallvec::SmallVec;
 
 use crate::Envelope;
+use crate::endpoints::common::BadStoreRequest;
 use crate::extractors::RequestMeta;
 use crate::managed::{Counted, ManagedEnvelope, Quantities};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
@@ -85,6 +86,14 @@ impl OutcomeError for Infallible {
 
     fn consume(self) -> (Option<Outcome>, Self::Error) {
         match self {}
+    }
+}
+
+impl OutcomeError for BadStoreRequest {
+    type Error = Self;
+
+    fn consume(self) -> (Option<Outcome>, Self) {
+        (self.to_outcome(), self)
     }
 }
 

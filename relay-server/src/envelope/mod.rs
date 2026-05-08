@@ -551,6 +551,14 @@ impl Envelope {
         self.items.push(item)
     }
 
+    /// Add new items and return `Self`.
+    pub fn with_items(mut self, items: impl IntoIterator<Item = Item>) -> Self {
+        for item in items {
+            self.items.push(item)
+        }
+        self
+    }
+
     /// Splits off the items from the envelope using provided predicates.
     ///
     /// First predicate is the additional condition on the count of found items by second
