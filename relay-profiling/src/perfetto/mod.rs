@@ -5,7 +5,6 @@
 
 use std::collections::BTreeMap;
 
-use data_encoding::HEXLOWER;
 use hashbrown::{HashMap, HashSet};
 use itertools::Itertools;
 use prost::Message;
@@ -87,8 +86,7 @@ struct InternTables {
     // HashMap over BTreeMap: these tables can grow large (one entry per interned symbol).
     function_names: HashMap<u64, String>,
     mapping_paths: HashMap<u64, String>,
-    /// Build IDs stored as hex-encoded strings (normalized from raw bytes).
-    build_ids: HashMap<u64, String>,
+    build_ids: HashMap<u64, Vec<u8>>,
     frames: HashMap<u64, proto::Frame>,
     callstacks: HashMap<u64, proto::Callstack>,
     mappings: HashMap<u64, proto::Mapping>,
@@ -107,11 +105,10 @@ impl InternTables {
 
         self.function_names.extend(intern_strings(function_names));
         self.mapping_paths.extend(intern_strings(mapping_paths));
-        // Build IDs are raw bytes in Perfetto traces; normalize to hex for later lookup.
         self.build_ids.extend(
             build_ids
                 .into_iter()
-                .filter_map(|is| Some((is.iid?, HEXLOWER.encode(&is.r#str?)))),
+                .filter_map(|is| Some((is.iid?, is.r#str?))),
         );
         self.frames
             .extend(frames.into_iter().filter_map(|f| Some((f.iid?, f))));
@@ -351,7 +348,7 @@ fn collect_debug_image(
     let debug_id = mapping
         .build_id
         .and_then(|bid| tables.build_ids.get(&bid))
-        .and_then(|hex_str| build_id_to_debug_id(hex_str))?;
+        .and_then(|bytes| build_id_to_debug_id(bytes))?;
 
     // Insert into dedup set only after validating we have a valid debug_id,
     // so that a mapping first seen without a build_id doesn't block a later
@@ -469,31 +466,21 @@ fn is_java_mapping(path: &str) -> bool {
     JVM_EXTENSIONS.iter().any(|ext| path.ends_with(ext))
 }
 
-/// Converts a hex-encoded ELF build ID string into a Sentry [`DebugId`].
+/// Converts a raw ELF build ID into a Sentry [`DebugId`].
 ///
-/// The first 16 bytes of the build ID are interpreted as a little-endian UUID
-/// (byte-swapping the time_low, time_mid, and time_hi_and_version fields).
+/// The first 16 bytes of the build ID are interpreted as a little-endian UUID.
 /// If the build ID is shorter than 16 bytes it is zero-padded on the right.
-fn build_id_to_debug_id(hex_str: &str) -> Option<DebugId> {
-    let bytes = HEXLOWER.decode(hex_str.as_bytes()).ok()?;
-    if bytes.is_empty() {
+fn build_id_to_debug_id(raw: &[u8]) -> Option<DebugId> {
+    if raw.is_empty() {
         return None;
     }
 
     let mut buf = [0u8; 16];
-    let len = bytes.len().min(16);
-    buf[..len].copy_from_slice(&bytes[..len]);
+    let len = raw.len().min(16);
+    buf[..len].copy_from_slice(&raw[..len]);
 
-    // Swap from little-endian ELF byte order to UUID mixed-endian format.
-    // time_low (bytes 0..4): reverse
-    buf[..4].reverse();
-    // time_mid (bytes 4..6): reverse
-    buf[4..6].reverse();
-    // time_hi_and_version (bytes 6..8): reverse
-    buf[6..8].reverse();
-
-    let uuid = uuid::Uuid::from_bytes(buf);
-    uuid.to_string().parse().ok()
+    let uuid = uuid::Uuid::from_bytes_le(buf);
+    Some(DebugId::from(uuid))
 }
 
 #[cfg(test)]
@@ -1185,9 +1172,12 @@ mod tests {
     #[test]
     fn test_build_id_to_debug_id() {
         // 20-byte ELF build ID (common for GNU build IDs).
-        let debug_id = build_id_to_debug_id("b03e4a7f5e884c8da04b05fa32cc4cbd69faff51").unwrap();
-        // First 16 bytes: b0 3e 4a 7f 5e 88 4c 8d a0 4b 05 fa 32 cc 4c bd
-        // After LE→UUID swap:
+        let raw = &[
+            0xb0, 0x3e, 0x4a, 0x7f, 0x5e, 0x88, 0x4c, 0x8d, 0xa0, 0x4b, 0x05, 0xfa, 0x32, 0xcc,
+            0x4c, 0xbd, 0x69, 0xfa, 0xff, 0x51,
+        ];
+        let debug_id = build_id_to_debug_id(raw).unwrap();
+        // First 16 bytes interpreted as little-endian UUID:
         //   time_low  (0..4)  reversed: 7f4a3eb0
         //   time_mid  (4..6)  reversed: 885e
         //   time_hi   (6..8)  reversed: 8d4c
@@ -1198,7 +1188,7 @@ mod tests {
     #[test]
     fn test_build_id_to_debug_id_short() {
         // Build ID shorter than 16 bytes → zero-padded.
-        let debug_id = build_id_to_debug_id("aabbccdd").unwrap();
+        let debug_id = build_id_to_debug_id(&[0xaa, 0xbb, 0xcc, 0xdd]).unwrap();
         // Bytes: aa bb cc dd 00 00 00 00 00 00 00 00 00 00 00 00
         // After swap: ddccbbaa-0000-0000-0000-000000000000
         assert_eq!(debug_id.to_string(), "ddccbbaa-0000-0000-0000-000000000000");
@@ -1206,7 +1196,7 @@ mod tests {
 
     #[test]
     fn test_build_id_to_debug_id_empty() {
-        assert!(build_id_to_debug_id("").is_none());
+        assert!(build_id_to_debug_id(&[]).is_none());
     }
 
     #[test]
