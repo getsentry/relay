@@ -1191,7 +1191,7 @@ def test_outcomes_for_trimmed_spans(mini_sentry, relay):
             "outcome": 3,  # invalid
             "project_id": 42,
             "quantity": 1,
-            "reason": "too_large:span",
+            "reason": "item_too_large:span",
             "timestamp": mock.ANY,
         },
         {
@@ -1201,7 +1201,7 @@ def test_outcomes_for_trimmed_spans(mini_sentry, relay):
             "outcome": 3,  # invalid
             "project_id": 42,
             "quantity": 1,
-            "reason": "too_large:span",
+            "reason": "item_too_large:span",
             "timestamp": mock.ANY,
         },
     ]

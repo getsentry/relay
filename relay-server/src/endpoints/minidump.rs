@@ -24,7 +24,7 @@ use crate::endpoints::common::{self, BadStoreRequest, TextResponse, upload_to_ob
 use crate::envelope::ContentType::Minidump;
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::extractors::{RawContentType, RequestMeta};
-use crate::managed::Managed;
+use crate::managed::{Managed, ManagedResult};
 use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome};
@@ -123,7 +123,7 @@ fn decode_minidump(minidump_data: Bytes, max_size: usize) -> Result<Bytes, BadSt
     match run_decoder(decoder) {
         Ok(decoded) => {
             if decoded.len() > max_size {
-                return Err(BadStoreRequest::Overflow(DiscardItemType::Attachment(
+                return Err(BadStoreRequest::ItemTooLarge(DiscardItemType::Attachment(
                     DiscardAttachmentType::Minidump,
                 )));
             }
@@ -270,10 +270,10 @@ async fn multipart_to_envelope(
     multipart: Multipart<'static>,
     meta: RequestMeta,
     state: &ServiceState,
-    config: &Config,
     upload_context: Option<UploadContext<'_>>,
 ) -> Result<Managed<Box<Envelope>>, BadStoreRequest> {
     let minidump_attachment_strategy = MinidumpAttachmentStrategy { upload_context };
+    let config = state.config();
 
     let mut items = utils::multipart_items(
         multipart,
@@ -388,7 +388,6 @@ async fn raw_minidump_to_envelope(
     meta: RequestMeta,
     state: &ServiceState,
     content_type: RawContentType,
-    config: &Config,
     upload_context: Option<UploadContext<'_>>,
 ) -> Result<Managed<Box<Envelope>>, BadStoreRequest> {
     debug_assert!(!matches!(
@@ -408,7 +407,7 @@ async fn raw_minidump_to_envelope(
             request.into_body().into_data_stream(),
             Some(content_type.to_string()).filter(|s| !s.is_empty()),
             item,
-            config,
+            state.config(),
             upload_context.scoping,
             upload_context.upload,
             "minidump",
@@ -437,6 +436,23 @@ async fn raw_minidump_to_envelope(
     Ok(envelope)
 }
 
+async fn envelope(
+    upload_context: Option<UploadContext<'_>>,
+    state: &ServiceState,
+    meta: RequestMeta,
+    content_type: RawContentType,
+    request: Request,
+) -> Result<Managed<Box<Envelope>>, BadStoreRequest> {
+    Ok(
+        if MINIDUMP_RAW_CONTENT_TYPES.contains(&content_type.as_ref()) {
+            raw_minidump_to_envelope(request, meta, state, content_type, upload_context).await?
+        } else {
+            let multipart = utils::multipart_from_request(request)?;
+            multipart_to_envelope(multipart, meta, state, upload_context).await?
+        },
+    )
+}
+
 async fn handle(
     state: ServiceState,
     meta: RequestMeta,
@@ -448,32 +464,29 @@ async fn handle(
     // Minidump request payloads do not have the same structure as usual events from other SDKs. The
     // minidump can either be transmitted as request body, or as `upload_file_minidump` in a
     // multipart formdata request.
-    let config = state.config();
-    let upload_context = upload_context(&meta, &state).await?;
+
+    // If something goes wrong before the envelope is created, this managed error ensures an
+    // outcome is emitted.
+    let err = (DataCategory::Error, 1);
+    let managed_err = Managed::with_meta_from_request_meta(&meta, state.outcome_aggregator(), err);
+
+    let upload_context = upload_context(&meta, &state).await.reject(&managed_err)?;
 
     if let Some(upload_context) = &upload_context
         && let UploadDecision::Drop(limits) = &upload_context.upload_minidumps
     {
         // This is a best effort outcome, in the sense that we also drop some attachments but
         // since we know neither the amount or size we can't emit an accurate outcome for them.
-        let _ = Managed::with_meta_from_request_meta(
-            &meta,
-            state.outcome_aggregator(),
-            (DataCategory::Error, 1),
-        )
-        .reject_err(Outcome::RateLimited(
+        let _ = managed_err.reject_err(Outcome::RateLimited(
             limits.longest().and_then(|l| l.reason_code.clone()),
         ));
         return Ok(TextResponse(Some(EventId::new())));
     }
+    let envelope = envelope(upload_context, &state, meta, content_type, request)
+        .await
+        .reject(&managed_err)?;
 
-    let envelope = if MINIDUMP_RAW_CONTENT_TYPES.contains(&content_type.as_ref()) {
-        raw_minidump_to_envelope(request, meta, &state, content_type, config, upload_context)
-            .await?
-    } else {
-        let multipart = utils::multipart_from_request(request)?;
-        multipart_to_envelope(multipart, meta, &state, config, upload_context).await?
-    };
+    managed_err.accept(|_| ()); // Now there is an envelope with (DataCategory::Error, 1)
 
     let id = envelope.event_id();
 
@@ -589,7 +602,7 @@ mod tests {
 
         // With a limit smaller than the decompressed size, decoding should fail with Overflow
         let result = decode_minidump(compressed, 50);
-        assert!(matches!(result, Err(BadStoreRequest::Overflow(_))));
+        assert!(matches!(result, Err(BadStoreRequest::ItemTooLarge(_))));
 
         Ok(())
     }

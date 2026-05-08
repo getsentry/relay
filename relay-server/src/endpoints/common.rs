@@ -105,10 +105,10 @@ pub enum BadStoreRequest {
     #[error(
         "envelope exceeded size limits for type '{0}' (https://develop.sentry.dev/sdk/envelopes/#size-limits)"
     )]
-    Overflow(DiscardItemType),
+    ItemTooLarge(DiscardItemType),
 
     #[error("request content exceeded size limits")]
-    ContentTooLarge,
+    RequestTooLarge,
 
     #[error(
         "Sentry dropped data due to a quota or internal rate limit being reached. This will not affect your application. See https://docs.sentry.io/product/accounts/quotas/ for more information."
@@ -125,11 +125,48 @@ pub enum BadStoreRequest {
     ObjectstoreUploadFailed,
 }
 
+impl BadStoreRequest {
+    pub fn to_outcome(&self) -> Option<Outcome> {
+        let discard_reason = match self {
+            Self::EmptyBody => DiscardReason::EmptyBody,
+            Self::InternalEnvelope => DiscardReason::InternalEnvelope,
+            Self::InvalidBody(_) => DiscardReason::InvalidBody,
+            Self::InvalidJson(_) => DiscardReason::InvalidJson,
+            Self::InvalidMsgpack(_) => DiscardReason::InvalidMsgpack,
+            Self::InvalidEnvelope(_) => DiscardReason::InvalidEnvelope,
+            Self::InvalidMultipart(_) => DiscardReason::InvalidMultipart,
+            Self::InvalidMinidump => DiscardReason::InvalidMinidump,
+            Self::MissingMinidump => DiscardReason::MissingMinidump,
+            Self::InvalidUnrealReport => DiscardReason::InvalidUnrealReport,
+            #[cfg(sentry)]
+            Self::InvalidProsperodump => DiscardReason::InvalidProsperodump,
+            #[cfg(sentry)]
+            Self::MissingProsperodump => DiscardReason::MissingProsperodump,
+            Self::InvalidCompressionContainer(_) => DiscardReason::InvalidCompressionContainer,
+            Self::InvalidEventId => DiscardReason::InvalidEventId,
+            Self::QueueFailed(_) => DiscardReason::QueueFailed,
+            Self::ItemTooLarge(item_type) => DiscardReason::ItemTooLarge(*item_type),
+            Self::RequestTooLarge => DiscardReason::RequestTooLarge,
+            Self::RateLimited(_) => DiscardReason::RateLimited,
+            Self::EventRejected(discard_reason) => *discard_reason,
+            Self::ProjectUnavailable => DiscardReason::ProjectUnavailable,
+            Self::ObjectstoreUploadFailed => DiscardReason::ObjectstoreUploadFailed,
+        };
+        Some(Outcome::Invalid(discard_reason))
+    }
+}
+
+impl From<Rejected<BadStoreRequest>> for BadStoreRequest {
+    fn from(rejected: Rejected<BadStoreRequest>) -> Self {
+        rejected.into_inner()
+    }
+}
+
 impl From<BytesRejection> for BadStoreRequest {
     fn from(value: BytesRejection) -> Self {
         match value {
             BytesRejection::FailedToBufferBody(FailedToBufferBody::LengthLimitError(_)) => {
-                BadStoreRequest::ContentTooLarge
+                BadStoreRequest::RequestTooLarge
             }
             other => BadStoreRequest::InvalidBody(io::Error::other(other)),
         }
@@ -139,13 +176,13 @@ impl From<BytesRejection> for BadStoreRequest {
 impl From<multer::Error> for BadStoreRequest {
     fn from(value: multer::Error) -> Self {
         match value {
-            multer::Error::StreamSizeExceeded { .. } => BadStoreRequest::ContentTooLarge,
+            multer::Error::StreamSizeExceeded { .. } => BadStoreRequest::RequestTooLarge,
             multer::Error::StreamReadFailed(error)
                 if find_error_source(error.as_ref(), is_length_limit_error).is_some() =>
             {
                 // This happens when the stream suddenly stops because `RequestBodyLimit` capped
                 // a request with `Transfer-Encoding: Chunked`.
-                BadStoreRequest::ContentTooLarge
+                BadStoreRequest::RequestTooLarge
             }
             other => BadStoreRequest::InvalidMultipart(other),
         }
@@ -187,7 +224,7 @@ impl IntoResponse for BadStoreRequest {
                 // now executed asynchronously in `EnvelopeProcessor`.
                 (StatusCode::FORBIDDEN, body).into_response()
             }
-            BadStoreRequest::Overflow(_) | BadStoreRequest::ContentTooLarge => {
+            BadStoreRequest::ItemTooLarge(_) | BadStoreRequest::RequestTooLarge => {
                 (StatusCode::PAYLOAD_TOO_LARGE, body).into_response()
             }
             BadStoreRequest::ObjectstoreUploadFailed => {
@@ -432,8 +469,8 @@ pub async fn handle_managed_envelope(
 
     if let Err(offender) = utils::check_envelope_size_limits(state.config(), &envelope) {
         return Err(envelope.reject_err((
-            Outcome::Invalid(DiscardReason::TooLarge(offender)),
-            BadStoreRequest::Overflow(offender),
+            Outcome::Invalid(DiscardReason::ItemTooLarge(offender)),
+            BadStoreRequest::ItemTooLarge(offender),
         )));
     }
 

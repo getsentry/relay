@@ -503,7 +503,7 @@ impl ProcessingError {
     pub fn to_outcome(&self) -> Option<Outcome> {
         match self {
             Self::PayloadTooLarge(payload_type) => {
-                Some(Outcome::Invalid(DiscardReason::TooLarge(*payload_type)))
+                Some(Outcome::Invalid(DiscardReason::ItemTooLarge(*payload_type)))
             }
             Self::InvalidJson(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
             Self::InvalidMsgpack(_) => Some(Outcome::Invalid(DiscardReason::InvalidMsgpack)),
@@ -520,7 +520,7 @@ impl ProcessingError {
             #[cfg(all(sentry, feature = "processing"))]
             Self::InvalidPlaystationDump(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
             Self::InvalidUnrealReport(err) if err.kind() == Unreal4ErrorKind::BadCompression => {
-                Some(Outcome::Invalid(DiscardReason::InvalidCompression))
+                Some(Outcome::Invalid(DiscardReason::InvalidCompressionContainer))
             }
             Self::InvalidUnrealReport(_) => Some(Outcome::Invalid(DiscardReason::ProcessUnreal)),
             Self::SerializeFailed(_) | Self::ProcessingFailed(_) => {

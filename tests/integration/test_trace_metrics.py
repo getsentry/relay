@@ -778,7 +778,7 @@ def test_trace_metric_size_limits(
             "outcome": 3,
             "project_id": 42,
             "quantity": 1,
-            "reason": "too_large:trace_metric",
+            "reason": "item_too_large:trace_metric",
         },
         {
             "category": 37,
@@ -787,7 +787,7 @@ def test_trace_metric_size_limits(
             "outcome": 3,
             "project_id": 42,
             "quantity": 608,
-            "reason": "too_large:trace_metric",
+            "reason": "item_too_large:trace_metric",
         },
     ]
 

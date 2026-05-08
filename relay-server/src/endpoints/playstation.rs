@@ -17,7 +17,7 @@ use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
 use crate::envelope::ContentType::OctetStream;
 use crate::envelope::{AttachmentType, Envelope, Item};
 use crate::extractors::{RawContentType, RequestMeta};
-use crate::managed::Managed;
+use crate::managed::{Managed, ManagedResult};
 use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::DiscardReason;
@@ -208,14 +208,23 @@ async fn handle(
     content_type: RawContentType,
     request: Request,
 ) -> axum::response::Result<impl IntoResponse> {
+    // If something goes wrong before the envelope is created, this managed error ensures an
+    // outcome is emitted.
+    let err = (DataCategory::Error, 1);
+    let managed_err = Managed::with_meta_from_request_meta(&meta, state.outcome_aggregator(), err);
+
     // Handle either a data request (send as json) or a crash dump (send as a multi-part)
     if content_type.as_ref().contains(DATA_REQUEST_CONTENT_TYPE) {
         return Ok(axum::Json(create_data_request_response()).into_response());
     }
 
-    let upload_context = upload_context(&state, &meta).await?;
-    let multipart = utils::multipart_from_request(request)?;
-    let mut envelope = multipart_to_envelope(multipart, meta, &state, upload_context).await?;
+    let upload_context = upload_context(&state, &meta).await.reject(&managed_err)?;
+    let multipart = utils::multipart_from_request(request).reject(&managed_err)?;
+    let mut envelope = multipart_to_envelope(multipart, meta, &state, upload_context)
+        .await
+        .reject(&managed_err)?;
+    managed_err.accept(|_| ()); // Now there is an envelope with (DataCategory::Error, 1)
+
     envelope.modify(|inner, _| inner.require_feature(Feature::PlaystationIngestion));
 
     let id = envelope.event_id();

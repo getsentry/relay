@@ -123,7 +123,7 @@ impl OutcomeError for Error {
             #[cfg(feature = "processing")]
             Self::FailedToSerializeReplay => Some(Outcome::Invalid(DiscardReason::Internal)),
             #[cfg(feature = "processing")]
-            Self::TooLarge => Some(Outcome::Invalid(DiscardReason::TooLarge(
+            Self::TooLarge => Some(Outcome::Invalid(DiscardReason::ItemTooLarge(
                 crate::services::outcome::DiscardItemType::ReplayRecording,
             ))),
             #[cfg(feature = "processing")]
