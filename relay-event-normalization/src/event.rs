@@ -913,7 +913,6 @@ impl MeasurementsLike for Attributes {
 /// This exists to make [`normalize_performance_score`] work for [`Event`]s,
 /// [`V1 Spans`](Span), and [`V2 Spans`](SpanV2).
 pub trait MutMeasurements {
-    // TODO: name?
     type MeasurementsContainer: MeasurementsLike;
     fn measurements(&mut self) -> &mut Annotated<Self::MeasurementsContainer>;
 }
