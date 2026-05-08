@@ -8,16 +8,6 @@ RELAY_ROOT = Path(__file__).parent.parent.parent
 TEST_CONFIG = {
     "outcomes": {
         "emit_outcomes": True,
-        "batch_size": 1,
-        "batch_interval": 1,
-        "aggregator": {
-            "bucket_interval": 1,
-            "flush_interval": 1,
-        },
-    },
-    "aggregator": {
-        "bucket_interval": 1,
-        "initial_delay": 0,
     },
 }
 
@@ -43,7 +33,7 @@ def test_perfetto_profile_chunk_end_to_end(
     binary]` concatenated, delimited by the `meta_length` item header.
     """
     profiles_consumer = profiles_consumer()
-    outcomes_consumer = outcomes_consumer(timeout=2)
+    outcomes_consumer = outcomes_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
