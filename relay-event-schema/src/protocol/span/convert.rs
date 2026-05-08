@@ -278,7 +278,7 @@ mod tests {
                 lcp_size: ~,
                 lcp_id: ~,
                 lcp_url: ~,
-                span_name: ~,
+                span_name: "my 1st transaction",
                 other: {
                     "custom_attribute": I64(
                         42,
