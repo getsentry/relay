@@ -741,11 +741,13 @@ fn emit_response_metrics(
         Err(error) => error.status_code(),
     };
     let status_str = status_code.as_ref().map(|c| c.as_str()).unwrap_or("-");
+    let upstream = entry.request.upstream().map(|up| up.to_string());
 
     relay_statsd::metric!(
         timer(RelayTimers::UpstreamRequestsDuration) = send_start.elapsed(),
         result = description,
         status_code = status_str,
+        upstream = upstream.as_deref().unwrap_or("default"),
         route = entry.request.route(),
         retries = match entry.retries {
             0 => "0",
@@ -760,6 +762,7 @@ fn emit_response_metrics(
         distribution(RelayDistributions::UpstreamRetries) = entry.retries as u64,
         result = description,
         status_code = status_str,
+        upstream = upstream.as_deref().unwrap_or("default"),
         route = entry.request.route(),
     );
 }

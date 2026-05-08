@@ -548,6 +548,11 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     /// - `task`: The type of the task the project cache does.
     ProjectCacheTaskDuration,
+    /// Timing in milliseconds for awaiting a loaded project state.
+    ///
+    /// This metric is tagged with:
+    /// - `result`: Outcome of the fetch.
+    ProjectStateReadyDuration,
     /// Timing in milliseconds for handling and responding to a health check request.
     ///
     /// This metric is tagged with:
@@ -650,6 +655,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::ProjectStateDecompression => "project_state.decompression",
             RelayTimers::ProjectCacheUpdateLatency => "project_cache.latency",
             RelayTimers::ProjectCacheFetchDuration => "project_cache.fetch.duration",
+            RelayTimers::ProjectStateReadyDuration => "project_state.ready",
             RelayTimers::RequestsDuration => "requests.duration",
             RelayTimers::MinidumpScrubbing => "scrubbing.minidumps.duration",
             RelayTimers::ViewHierarchyScrubbing => "scrubbing.view_hierarchy_scrubbing.duration",
@@ -985,6 +991,8 @@ pub enum RelayCounters {
     ErrorProcessed,
     /// The number of times the new unreal expansion logic in the endpoint is hit.
     UnrealEndpointExpansion,
+    /// The number of times that relay receives a compressed minidump.
+    CompressedMinidump,
 }
 
 impl CounterMetric for RelayCounters {
@@ -1045,6 +1053,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProfileChunksWithoutPlatform => "profile_chunk.no_platform",
             RelayCounters::ErrorProcessed => "event.error.processed",
             RelayCounters::UnrealEndpointExpansion => "unreal.endpoint_expansion",
+            RelayCounters::CompressedMinidump => "minidump.compressed.count",
         }
     }
 }
