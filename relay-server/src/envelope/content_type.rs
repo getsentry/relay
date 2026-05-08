@@ -197,7 +197,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_attachment_ref_roundtrip() {
+    fn attachment_ref_roundtrip() {
         let canonical_name = "application/vnd.sentry.attachment-ref+json";
         let ct = ContentType::from_str(canonical_name).unwrap();
         assert_eq!(ct, ContentType::AttachmentRef);
