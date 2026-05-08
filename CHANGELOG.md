@@ -6,6 +6,9 @@
 
 - Enable OTLP endpoints by default. ([#5951](https://github.com/getsentry/relay/pull/5951))
 
+**Bug Fixes**:
+- Set the name based on the transaction name when converting a transaction into a segment span. ([#5961](https://github.com/getsentry/relay/pull/5961))
+
 ## 26.4.2
 
 **Features**:
