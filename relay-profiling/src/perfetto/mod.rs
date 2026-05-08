@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 
 use data_encoding::HEXLOWER;
 use hashbrown::{HashMap, HashSet};
+use itertools::Itertools;
 use prost::Message;
 
 use relay_event_schema::protocol::{Addr, DebugId};
@@ -95,54 +96,36 @@ struct InternTables {
 
 impl InternTables {
     fn merge(&mut self, data: proto::InternedData) {
-        for s in data.function_names {
-            if let Some(iid) = s.iid {
-                let value = s
-                    .r#str
-                    .as_deref()
-                    .and_then(|b| std::str::from_utf8(b).ok())
-                    .unwrap_or("")
-                    .to_owned();
-                self.function_names.insert(iid, value);
-            }
-        }
-        for s in data.mapping_paths {
-            if let Some(iid) = s.iid {
-                let value = s
-                    .r#str
-                    .as_deref()
-                    .and_then(|b| std::str::from_utf8(b).ok())
-                    .unwrap_or("")
-                    .to_owned();
-                self.mapping_paths.insert(iid, value);
-            }
-        }
+        let proto::InternedData {
+            function_names,
+            mapping_paths,
+            build_ids,
+            frames,
+            callstacks,
+            mappings,
+        } = data;
+
+        self.function_names.extend(intern_strings(function_names));
+        self.mapping_paths.extend(intern_strings(mapping_paths));
         // Build IDs are raw bytes in Perfetto traces; normalize to hex for later lookup.
-        for s in data.build_ids {
-            if let Some(iid) = s.iid {
-                let value = match s.r#str.as_deref() {
-                    Some(bytes) if !bytes.is_empty() => HEXLOWER.encode(bytes),
-                    _ => String::new(),
-                };
-                self.build_ids.insert(iid, value);
-            }
-        }
-        for f in data.frames {
-            if let Some(iid) = f.iid {
-                self.frames.insert(iid, f);
-            }
-        }
-        for c in data.callstacks {
-            if let Some(iid) = c.iid {
-                self.callstacks.insert(iid, c);
-            }
-        }
-        for m in data.mappings {
-            if let Some(iid) = m.iid {
-                self.mappings.insert(iid, m);
-            }
-        }
+        self.build_ids.extend(
+            build_ids
+                .into_iter()
+                .filter_map(|is| Some((is.iid?, HEXLOWER.encode(&is.r#str?)))),
+        );
+        self.frames
+            .extend(frames.into_iter().filter_map(|f| Some((f.iid?, f))));
+        self.callstacks
+            .extend(callstacks.into_iter().filter_map(|c| Some((c.iid?, c))));
+        self.mappings
+            .extend(mappings.into_iter().filter_map(|m| Some((m.iid?, m))));
     }
+}
+
+fn intern_strings(strings: Vec<proto::InternedString>) -> impl Iterator<Item = (u64, String)> {
+    strings
+        .into_iter()
+        .filter_map(|is| Some((is.iid?, String::from_utf8(is.r#str?).ok()?)))
 }
 
 /// Deduplication key for resolved stack frames.
