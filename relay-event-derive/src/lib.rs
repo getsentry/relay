@@ -44,9 +44,25 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> syn::Result<Token
 
             let bi = &variant.bindings()[0];
             let ident = &bi.binding;
+            let variant_attrs = parse_variant_attributes(variant.ast().attrs)?;
             let field_attrs = parse_field_attributes(0, bi.ast(), &mut true)?;
             let field_attrs_tokens = field_attrs.as_tokens(&type_attrs, Some(quote!(parent_attrs)));
 
+            let process_value = if variant_attrs.fallback_variant {
+                quote! {
+                    __processor.process_other(#ident, &__state)?;
+                }
+            } else {
+                quote! {
+                    ::relay_event_schema::processor::ProcessValue::process_value(
+                        #ident,
+                        __meta,
+                        __processor,
+                        &__state
+                    )?;
+
+                }
+            };
             Ok(quote! {
                 let parent_attrs = __state.attrs();
                 let attrs = #field_attrs_tokens;
@@ -65,12 +81,7 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> syn::Result<Token
                     &__state
                 )?;
 
-                ::relay_event_schema::processor::ProcessValue::process_value(
-                    #ident,
-                    __meta,
-                    __processor,
-                    &__state
-                )?;
+                #process_value
 
                 __processor.after_process(
                     Some(#ident),
@@ -371,7 +382,38 @@ impl Size {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
+struct VariantAttrs {
+    fallback_variant: bool,
+}
+
+fn parse_variant_attributes(attrs: &[syn::Attribute]) -> syn::Result<VariantAttrs> {
+    let mut rv = VariantAttrs::default();
+    for attr in attrs {
+        if !attr.path().is_ident("metastructure") {
+            continue;
+        }
+
+        attr.parse_nested_meta(|meta| {
+            let ident = meta.path.require_ident()?;
+
+            if ident == "fallback_variant" {
+                rv.fallback_variant = true;
+            } else {
+                // Ignore other attributes used by `FromValue`/`IntoValue` derive macros.
+                if let Ok(v) = meta.value() {
+                    let _ = v.parse::<Lit>()?;
+                }
+            }
+
+            Ok(())
+        })?;
+    }
+
+    Ok(rv)
+}
+
+#[derive(Default, Debug)]
 struct FieldAttrs {
     additional_properties: bool,
     omit_from_schema: bool,
