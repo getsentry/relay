@@ -1,4 +1,4 @@
-from queue import Queue
+from queue import Queue, Empty
 import threading
 import pytest
 from dataclasses import dataclass
@@ -45,6 +45,13 @@ class Proxy:
 
     def get_captured_request(self, *, timeout=None):
         return self.captured_requests.get(timeout=timeout or self.timeout)
+
+    def assert_empty(self):
+        try:
+            req = self.get_captured_request(timeout=0.2)
+        except Empty:
+            return
+        assert False, f"proxy has at least one request remaining: {req}"
 
 
 @pytest.fixture

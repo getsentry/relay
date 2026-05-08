@@ -48,10 +48,7 @@ def test_span_ingestion(
     relay = relay(relay_with_processing())
 
     project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:relay-otlp-traces-endpoint",
-    ]
+    mini_sentry.add_full_project_config(project_id)
 
     ts = datetime.now(timezone.utc)
 
@@ -120,7 +117,6 @@ def test_span_ingestion(
             "sentry.origin": {"type": "string", "value": "auto.otlp.spans"},
             "sentry.segment.id": {"type": "string", "value": "f0b809703e783d00"},
             "sentry.segment.name": {"type": "string", "value": "A Proto Span"},
-            "sentry.transaction": {"type": "string", "value": "A Proto Span"},
             "sentry.kind": {"type": "string", "value": "server"},
             "ui.component_name": {"type": "string", "value": "MyComponent"},
         },

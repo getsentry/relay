@@ -64,9 +64,9 @@ def test_nel_converted_to_logs(mini_sentry, relay):
                     },
                     "browser.name": {
                         "type": "string",
-                        "value": "Python Requests",
+                        "value": "Firefox",
                     },
-                    "browser.version": {"type": "string", "value": "2.32"},
+                    "browser.version": {"type": "string", "value": "42.0"},
                     "sentry.observed_timestamp_nanos": {
                         "type": "string",
                         "value": time_within_delta(expect_resolution="ns"),

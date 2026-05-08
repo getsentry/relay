@@ -27,13 +27,18 @@ fn main() {
 
 fn write_attribute_rs(crate_dir: &Path) {
     use attributes::{
-        Attribute, RawNode, constant_pair, format_attribute_info, format_constant, parse_segments,
-        write_canonical_fn,
+        Attribute, RawNode, constant_pair, format_attribute_info, format_constant,
+        format_interpolating_fn, parse_segments, write_canonical_fn,
     };
 
     let attribute_consts_path =
         Path::new(&env::var("OUT_DIR").unwrap()).join("attribute_consts.rs");
     let mut attribute_consts_file = BufWriter::new(File::create(&attribute_consts_path).unwrap());
+
+    let interpolation_fns_path =
+        Path::new(&env::var("OUT_DIR").unwrap()).join("interpolation_fns.rs");
+    let mut interpolation_fns_file = BufWriter::new(File::create(&interpolation_fns_path).unwrap());
+
     let mut attribute_replacement_map = BTreeMap::new();
 
     let mut root = RawNode::default();
@@ -53,6 +58,11 @@ fn write_attribute_rs(crate_dir: &Path) {
             // Insert deprecated -> replacement into map
             if let Some((old, new)) = constant_pair(&attr) {
                 attribute_replacement_map.insert(old, new);
+            }
+
+            // Write interpolating function, if applicable
+            if let Some(fun) = format_interpolating_fn(&attr) {
+                writeln!(&mut interpolation_fns_file, "{}\n", fun).unwrap();
             }
 
             // Put attribute info in the hierarchical map
