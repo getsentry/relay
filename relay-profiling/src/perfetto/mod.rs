@@ -168,6 +168,7 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
     let mut ctx = ResolveContext::default();
     let mut resolved_samples: Vec<(u64, u32, usize)> = Vec::new();
     let mut sample_count: usize = 0;
+    let empty_tables = InternTables::default();
 
     for packet in trace.packet {
         let seq_id = trusted_packet_sequence_id(&packet);
@@ -192,9 +193,11 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
                         observed_pid = ps.pid;
                     }
                     sample_count += 1;
-                    if let Some(stack_id) =
-                        resolve_callstack(callstack_iid, seq_id, &tables_by_seq, &mut ctx)
-                    {
+                    if let Some(stack_id) = resolve_callstack(
+                        callstack_iid,
+                        tables_by_seq.get(&seq_id).unwrap_or(&empty_tables),
+                        &mut ctx,
+                    ) {
                         resolved_samples.push((ts, tid, stack_id));
                     }
                 }
@@ -269,13 +272,9 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
 /// callstack iid was not found in the tables.
 fn resolve_callstack(
     cs_iid: u64,
-    seq_id: u32,
-    tables_by_seq: &BTreeMap<u32, InternTables>,
+    tables: &InternTables,
     ctx: &mut ResolveContext,
 ) -> Option<usize> {
-    let empty_tables = InternTables::default();
-    let tables = tables_by_seq.get(&seq_id).unwrap_or(&empty_tables);
-
     let callstack = tables.callstacks.get(&cs_iid)?;
 
     let mut resolved_frame_indices: Vec<usize> = Vec::with_capacity(callstack.frame_ids.len());
@@ -298,14 +297,11 @@ fn resolve_callstack(
 
         let (key, frame) = build_frame(function_name, pf, tables);
 
-        let idx = if let Some(&existing) = ctx.frame_index.get(&key) {
-            existing
-        } else {
-            let idx = ctx.frames.len();
-            ctx.frame_index.insert(key, idx);
+        let idx = *ctx.frame_index.entry(key).or_insert_with(|| {
+            let next_idx = ctx.frames.len();
             ctx.frames.push(frame);
-            idx
-        };
+            next_idx
+        });
 
         resolved_frame_indices.push(idx);
     }
@@ -390,10 +386,10 @@ fn build_frame(
     if is_java {
         // For Java frames, split "com.example.MyClass.myMethod" into
         // module="com.example.MyClass" and function="myMethod".
-        let (module, function) = match &function_name {
+        let (module, function) = match function_name {
             Some(name) => match name.rsplit_once('.') {
                 Some((class, method)) => (Some(class.to_owned()), Some(method.to_owned())),
-                None => (None, Some(name.clone())),
+                None => (None, Some(name)),
             },
             None => (None, None),
         };
@@ -444,16 +440,12 @@ fn build_frame(
 ///
 /// Returns `None` if the mapping has no resolvable path segments.
 fn resolve_mapping_path(mapping: &proto::Mapping, tables: &InternTables) -> Option<String> {
-    let parts: Vec<&str> = mapping
+    let path = mapping
         .path_string_ids
         .iter()
         .filter_map(|id| tables.mapping_paths.get(id).map(|s| s.as_str()))
-        .collect();
-    if parts.is_empty() {
-        None
-    } else {
-        Some(parts.join("/"))
-    }
+        .join("/");
+    if path.is_empty() { None } else { Some(path) }
 }
 
 /// Returns `true` if the mapping path indicates a JVM/ART runtime mapping.
@@ -643,10 +635,7 @@ mod tests {
     #[test]
     fn test_convert_minimal_trace() {
         let bytes = build_minimal_trace();
-        let result = convert(&bytes);
-        assert!(result.is_ok(), "conversion failed: {result:?}");
-
-        let (data, _images) = result.unwrap();
+        let (data, _images) = convert(&bytes).unwrap();
 
         insta::assert_json_snapshot!(data, @r###"
         {
