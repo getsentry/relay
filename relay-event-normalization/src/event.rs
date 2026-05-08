@@ -898,6 +898,8 @@ impl MeasurementsLike for Attributes {
         let value = self.get_value(relay_conventions::canonical(key).unwrap_or(key))?;
         match value {
             Value::F64(v) => FiniteF64::new(*v),
+            Value::U64(v) => FiniteF64::new(*v as f64),
+            Value::I64(v) => FiniteF64::new(*v as f64),
             _ => None,
         }
     }
@@ -3481,9 +3483,9 @@ mod tests {
             "attributes": {
                 "browser.name": {"value": "Chrome", "type": "string"},
                 "browser.version": {"value": "120.1.1", "type": "string"},
-                "fid": {"value": 213.0, "type": "double"},
+                "fid": {"value": 213, "type": "double"},
                 "browser.web_vital.fcp.value": {"value": 1237.0, "type": "double"},
-                "lcp": {"value": 6596.0, "type": "double"},
+                "lcp": {"value": 6596, "type": "double"},
                 "browser.web_vital.cls.value": {"value": 0.11, "type": "double"}
             }
         }
@@ -3570,15 +3572,15 @@ mod tests {
             },
             "browser.web_vital.lcp.value": {
               "type": "double",
-              "value": 6596.0,
+              "value": 6596,
             },
             "fid": {
               "type": "double",
-              "value": 213.0,
+              "value": 213,
             },
             "lcp": {
               "type": "double",
-              "value": 6596.0,
+              "value": 6596,
             },
             "score.cls": {
               "type": "double",
