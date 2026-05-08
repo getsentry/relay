@@ -1260,10 +1260,6 @@ def test_minidump_max_attachment_size_exceeded(
 
     assert exc_info.value.response.status_code == 400
     outcomes = outcomes_consumer.get_outcomes()
-    print("##############")
-    for outcome in outcomes:
-        print(outcome)
-    print("##############")
     assert outcomes == [
         {
             "timestamp": time_within_delta(),
