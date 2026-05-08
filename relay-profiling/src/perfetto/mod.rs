@@ -30,9 +30,13 @@ const MAX_SAMPLES: usize = 100_000;
 /// See <https://perfetto.dev/docs/reference/trace-packet-proto#SequenceFlags>.
 const SEQ_INCREMENTAL_STATE_CLEARED: u32 = 1;
 
-/// Perfetto builtin clock IDs.
+/// Perfetto builtin real time clock ID.
+///
 /// See <https://perfetto.dev/docs/concepts/clock-sync>.
 const CLOCK_REALTIME: u32 = 1;
+/// Perfetto builtin boot time clock ID.
+///
+/// See <https://perfetto.dev/docs/concepts/clock-sync>.
 const CLOCK_BOOTTIME: u32 = 6;
 
 fn has_incremental_state_cleared(packet: &proto::TracePacket) -> bool {
