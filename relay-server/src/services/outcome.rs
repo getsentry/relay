@@ -468,11 +468,11 @@ pub enum DiscardReason {
     /// indicates bugs in Relay, rather than an expected failure.
     Internal,
 
-    /// (Relay) The unreal crash report submitted to the unreal endpoint was invalid
+    /// (Relay) The Unreal Crash report submitted to the Unreal endpoint was invalid.
     InvalidUnrealReport,
 
     /// (Relay) Symbolic failed to extract an Unreal Crash report from a request sent to the
-    /// Unreal endpoint
+    /// Unreal endpoint.
     ProcessUnreal,
 
     /// (Relay) The envelope, which contained only a transaction, was discarded by the
