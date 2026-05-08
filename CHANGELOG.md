@@ -10,6 +10,10 @@
 
 - Set the name based on the transaction name when converting a transaction into a segment span. ([#5961](https://github.com/getsentry/relay/pull/5961))
 
+**Internal**:
+
+- Bump `sentry-conventions` to 0.6.0-4. ([#5944](https://github.com/getsentry/relay/pull/5944))
+
 ## 26.4.2
 
 **Features**:
