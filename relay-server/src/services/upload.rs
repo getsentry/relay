@@ -4,6 +4,7 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
+use async_compression::tokio::bufread::GzipEncoder;
 use bytes::Bytes;
 use chrono::DateTime;
 use chrono::Utc;
@@ -20,8 +21,11 @@ use relay_system::{
     SimpleService,
 };
 use serde::Deserialize;
+use tokio::io::BufReader;
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::error::RecvError;
+use tokio_util::io::ReaderStream;
+use tokio_util::io::StreamReader;
 #[cfg(feature = "processing")]
 use uuid::Uuid;
 
@@ -585,6 +589,11 @@ impl UpstreamRequest for UploadRequest {
                 return Err(HttpError::Misconfigured);
             };
             tus::add_upload_headers(builder);
+
+            // TODO: chose based on config.http.encoding instead
+            let body = ReaderStream::new(GzipEncoder::new(BufReader::new(StreamReader::new(body))));
+            builder.content_encoding(relay_config::HttpEncoding::Gzip);
+
             builder.body(reqwest::Body::wrap_stream(body));
         } else {
             tus::add_creation_headers(upload_length, builder);
