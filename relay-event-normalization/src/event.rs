@@ -13,7 +13,10 @@ use regex::Regex;
 use relay_base_schema::metrics::{
     DurationUnit, FractionUnit, MetricUnit, can_be_valid_metric_name,
 };
-use relay_conventions::consts::{APP__VITALS__START__TYPE, APP__VITALS__START__VALUE};
+use relay_conventions::consts::{
+    APP__VITALS__START__TYPE, APP__VITALS__START__VALUE, SCORE__TOTAL,
+};
+use relay_conventions::interpolate;
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
     AsPair, Attributes, AutoInferSetting, ClientSdkInfo, Context, ContextInner, Contexts,
@@ -999,7 +1002,7 @@ pub fn normalize_performance_score(
                         let cdf = Annotated::try_from(cdf);
 
                         measurements.insert_measurement(
-                            format!("score.ratio.{}", component.measurement),
+                            interpolate::score__ratio__key(&component.measurement),
                             Measurement {
                                 value: cdf.clone(),
                                 unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
@@ -1018,7 +1021,7 @@ pub fn normalize_performance_score(
                         }
 
                         measurements.insert_measurement(
-                            format!("score.{}", component.measurement),
+                            interpolate::score__key(&component.measurement),
                             Measurement {
                                 value: component_score,
                                 unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
@@ -1027,7 +1030,7 @@ pub fn normalize_performance_score(
                     }
 
                     measurements.insert_measurement(
-                        format!("score.weight.{}", component.measurement),
+                        interpolate::score__weight__key(&component.measurement),
                         Measurement {
                             value: normalized_component_weight.into(),
                             unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
@@ -1037,7 +1040,7 @@ pub fn normalize_performance_score(
                 if should_add_total {
                     version.clone_from(&profile.version);
                     measurements.insert_measurement(
-                        "score.total".to_owned(),
+                        SCORE__TOTAL.to_owned(),
                         Measurement {
                             value: score_total.into(),
                             unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
