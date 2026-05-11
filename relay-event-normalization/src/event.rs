@@ -34,7 +34,7 @@ use uuid::Uuid;
 
 use crate::normalize::request;
 use crate::span::ai::enrich_ai_event_data;
-use crate::span::tag_extraction::extract_span_tags_from_event;
+use crate::span::tag_extraction::{extract_segment_name_from_event, extract_span_tags_from_event};
 use crate::utils::{self, MAX_DURATION_MOBILE_MS, get_event_user_tag};
 use crate::{
     BorrowedSpanOpDefaults, BreakdownsConfig, CombinedMeasurementsConfig, GeoIpLookup, MaxChars,
@@ -351,6 +351,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
             config.max_tag_value_length,
             config.span_allowed_hosts,
         );
+        extract_segment_name_from_event(event);
     }
 
     if let Some(context) = event.context_mut::<TraceContext>() {
