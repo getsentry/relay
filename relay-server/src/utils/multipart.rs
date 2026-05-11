@@ -186,12 +186,11 @@ pub trait AttachmentStrategy {
     ) -> impl Future<Output = Result<Option<Managed<Item>>, multer::Error>> + Send;
 }
 
-pub async fn read_attachment_bytes_into_item(
+pub async fn read_bytes_into_item(
     field: Field<'static>,
     mut item: Managed<Item>,
     config: &Config,
-    ignore_size_exceeded: bool,
-) -> Result<Option<Managed<Item>>, multer::Error> {
+) -> Result<Managed<Item>, multer::Error> {
     let content_type = field
         .content_type()
         .map(|ct| ct.as_ref().parse().unwrap_or(ContentType::OctetStream));
@@ -213,19 +212,19 @@ pub async fn read_attachment_bytes_into_item(
         };
         records.lenient(DataCategory::Attachment);
     });
+
     if n_bytes > limit {
         let attachment_type = item.attachment_type().unwrap_or(AttachmentType::Attachment);
         let item_type = DiscardItemType::Attachment(DiscardAttachmentType::from(attachment_type));
         let _ = item.reject_err(Outcome::Invalid(DiscardReason::ItemTooLarge(item_type)));
-        return match ignore_size_exceeded {
-            true => Ok(None),
-            false => Err(multer::Error::FieldSizeExceeded {
-                limit: limit as u64,
-                field_name,
-            }),
-        };
+
+        Err(multer::Error::FieldSizeExceeded {
+            limit: limit as u64,
+            field_name,
+        })
+    } else {
+        Ok(item)
     }
-    Ok(Some(item))
 }
 
 pub async fn multipart_items(
@@ -413,14 +412,13 @@ mod tests {
 
         struct MockAttachmentStrategy;
         impl AttachmentStrategy for MockAttachmentStrategy {
-            fn add_to_item(
+            async fn add_to_item(
                 &self,
                 field: Field<'static>,
                 item: Managed<Item>,
                 config: &Config,
-            ) -> impl Future<Output = Result<Option<Managed<Item>>, multer::Error>> + Send
-            {
-                read_attachment_bytes_into_item(field, item, config, false)
+            ) -> Result<Option<Managed<Item>>, multer::Error> {
+                read_bytes_into_item(field, item, config).await.map(Some)
             }
 
             fn infer_type(&self, _: &Field) -> AttachmentType {
@@ -466,14 +464,13 @@ mod tests {
 
         struct MockAttachmentStrategy;
         impl AttachmentStrategy for MockAttachmentStrategy {
-            fn add_to_item(
+            async fn add_to_item(
                 &self,
                 field: Field<'static>,
                 item: Managed<Item>,
                 config: &Config,
-            ) -> impl Future<Output = Result<Option<Managed<Item>>, multer::Error>> + Send
-            {
-                read_attachment_bytes_into_item(field, item, config, true)
+            ) -> Result<Option<Managed<Item>>, multer::Error> {
+                read_bytes_into_item(field, item, config).await.map(Some)
             }
 
             fn infer_type(&self, _: &Field) -> AttachmentType {

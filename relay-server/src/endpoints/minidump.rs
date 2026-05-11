@@ -21,8 +21,7 @@ use zstd::stream::Decoder as ZstdDecoder;
 
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse, upload_to_objectstore};
-use crate::envelope::ContentType::Minidump;
-use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
+use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::managed::{Managed, ManagedResult};
 use crate::middlewares;
@@ -30,7 +29,7 @@ use crate::service::ServiceState;
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome};
 use crate::services::upload::Upload;
 use crate::statsd::RelayCounters;
-use crate::utils::{self, AttachmentStrategy, read_attachment_bytes_into_item};
+use crate::utils::{self, AttachmentStrategy, read_bytes_into_item};
 
 /// The field name of a minidump in the multipart form-data upload.
 ///
@@ -220,9 +219,18 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
         item: Managed<Item>,
         config: &Config,
     ) -> Result<Option<Managed<Item>>, multer::Error> {
+        let read_inline = async |field: Field<'static>, item: Managed<Item>| {
+            let is_minidump = matches!(item.attachment_type(), Some(AttachmentType::Minidump));
+            match read_bytes_into_item(field, item, config).await {
+                // Don't bubble up errors caused by large items unless it is the minidump itself.
+                Err(multer::Error::FieldSizeExceeded { .. }) if !is_minidump => Ok(None),
+                r => r.map(Some),
+            }
+        };
+
         // If we have no upload context just fall back to the old behavior.
         let Some(ref upload_context) = self.upload_context else {
-            return read_attachment_bytes_into_item(field, item, config, false).await;
+            return read_inline(field, item).await;
         };
 
         match upload_context.upload_decision(item.attachment_type()) {
@@ -239,9 +247,7 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
                 )
                 .await)
             }
-            UploadDecision::Inline => {
-                read_attachment_bytes_into_item(field, item, config, false).await
-            }
+            UploadDecision::Inline => read_inline(field, item).await,
             UploadDecision::Drop(limits) => {
                 // This is best effort, the item here does not yet have its content set hence size
                 // is not correct.
@@ -299,7 +305,7 @@ async fn multipart_to_envelope(
 
         items.try_modify(|items, records| -> Result<(), BadStoreRequest> {
             let minidump_item = &mut items[minidump_idx];
-            minidump_item.set_payload(Minidump, payload);
+            minidump_item.set_payload(ContentType::Minidump, payload);
             records.lenient(DataCategory::Attachment); // decoding the minidump changes its size
             if let Some(minidump_filename) = minidump_item.filename() {
                 minidump_item.set_filename(remove_container_extension(minidump_filename).to_owned())
@@ -417,7 +423,7 @@ async fn raw_minidump_to_envelope(
         let minidump_data = request.extract().await?;
         item.try_modify(|inner, records| -> Result<(), BadStoreRequest> {
             let payload = decode_minidump(minidump_data, state.config().max_attachment_size())?;
-            inner.set_payload(Minidump, payload);
+            inner.set_payload(ContentType::Minidump, payload);
             records.lenient(DataCategory::Attachment); // decoding the minidump changes its size
             validate_minidump(&inner.payload())?;
             Ok(())

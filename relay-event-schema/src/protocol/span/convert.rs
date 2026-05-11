@@ -31,6 +31,8 @@ impl From<&Event> for Span {
         // Overwrite specific fields:
         let span_data = data.get_or_insert_with(Default::default);
         span_data.segment_name = transaction.clone();
+        // For root spans, the name should just be the transaction name.
+        span_data.span_name = transaction.clone();
         span_data.release = release.clone();
         span_data.environment = environment.clone();
         if let Some(browser) = event.context::<BrowserContext>() {
@@ -276,7 +278,7 @@ mod tests {
                 lcp_size: ~,
                 lcp_id: ~,
                 lcp_url: ~,
-                span_name: ~,
+                span_name: "my 1st transaction",
                 other: {
                     "custom_attribute": I64(
                         42,

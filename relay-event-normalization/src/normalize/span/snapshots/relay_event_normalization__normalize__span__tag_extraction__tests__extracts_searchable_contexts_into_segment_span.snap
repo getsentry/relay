@@ -13,7 +13,8 @@ expression: segment_span.to_json_pretty().unwrap()
   "description": "foo",
   "data": {
     "browser.name": "Chrome",
-    "sentry.segment.name": "foo"
+    "sentry.segment.name": "foo",
+    "sentry.name": "foo"
   },
   "sentry_tags": {
     "device.family": "K",

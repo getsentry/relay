@@ -13,13 +13,17 @@ use regex::Regex;
 use relay_base_schema::metrics::{
     DurationUnit, FractionUnit, MetricUnit, can_be_valid_metric_name,
 };
-use relay_conventions::consts::{APP__VITALS__START__TYPE, APP__VITALS__START__VALUE};
+use relay_conventions::consts::{
+    APP__VITALS__START__COLD__VALUE, APP__VITALS__START__SCREEN, APP__VITALS__START__TYPE,
+    APP__VITALS__START__VALUE, APP__VITALS__START__WARM__VALUE, SCORE__TOTAL,
+};
+use relay_conventions::interpolate;
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
-    AsPair, AutoInferSetting, ClientSdkInfo, Context, ContextInner, Contexts, DebugImage,
-    DeviceClass, Event, EventId, EventType, Exception, Headers, IpAddr, Level, LogEntry,
-    Measurement, Measurements, PerformanceScoreContext, ReplayContext, Request, Span, SpanStatus,
-    Tags, Timestamp, TraceContext, User, VALID_PLATFORMS,
+    AsPair, Attributes, AutoInferSetting, ClientSdkInfo, Context, ContextInner, Contexts,
+    DebugImage, DeviceClass, Event, EventId, EventType, Exception, Headers, IpAddr, Level,
+    LogEntry, Measurement, Measurements, PerformanceScoreContext, ReplayContext, Request, Span,
+    SpanStatus, SpanV2, Tags, Timestamp, TraceContext, User, VALID_PLATFORMS,
 };
 use relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FiniteF64, FromValue, Getter, Meta, Object, Remark,
@@ -30,7 +34,7 @@ use uuid::Uuid;
 
 use crate::normalize::request;
 use crate::span::ai::enrich_ai_event_data;
-use crate::span::tag_extraction::extract_span_tags_from_event;
+use crate::span::tag_extraction::{extract_segment_name_from_event, extract_span_tags_from_event};
 use crate::utils::{self, MAX_DURATION_MOBILE_MS, get_event_user_tag};
 use crate::{
     BorrowedSpanOpDefaults, BreakdownsConfig, CombinedMeasurementsConfig, GeoIpLookup, MaxChars,
@@ -347,6 +351,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
             config.max_tag_value_length,
             config.span_allowed_hosts,
         );
+        extract_segment_name_from_event(event);
     }
 
     if let Some(context) = event.context_mut::<TraceContext>() {
@@ -858,8 +863,84 @@ pub fn normalize_measurements(
     }
 }
 
+/// Trait for containers that behave like a collection of [`Measurement`]s.
+///
+/// This exists to make [`normalize_performance_score`] work for both
+/// [`Measurements`] and [`Attributes`].
+pub trait MeasurementsLike {
+    /// Returns `true` if this collection contains the named measurement.
+    fn contains_measurement(&self, key: &str) -> bool;
+    /// Gets the value of the named measurement if this collection contains it.
+    fn get_measurement_value(&self, key: &str) -> Option<FiniteF64>;
+    /// Inserts a measurement into this collection.
+    fn insert_measurement(&mut self, key: String, value: Measurement);
+}
+
+impl MeasurementsLike for Measurements {
+    fn contains_measurement(&self, key: &str) -> bool {
+        self.contains_key(key)
+    }
+
+    fn get_measurement_value(&self, key: &str) -> Option<FiniteF64> {
+        self.get_value(key)
+    }
+
+    fn insert_measurement(&mut self, key: String, value: Measurement) {
+        self.insert(key, value.into());
+    }
+}
+
+impl MeasurementsLike for Attributes {
+    fn contains_measurement(&self, key: &str) -> bool {
+        self.0
+            .contains_key(relay_conventions::canonical(key).unwrap_or(key))
+    }
+
+    fn get_measurement_value(&self, key: &str) -> Option<FiniteF64> {
+        let value = self.get_value(relay_conventions::canonical(key).unwrap_or(key))?;
+        match value {
+            Value::F64(v) => FiniteF64::new(*v),
+            Value::U64(v) => FiniteF64::new(*v as f64),
+            Value::I64(v) => FiniteF64::new(*v as f64),
+            _ => None,
+        }
+    }
+
+    fn insert_measurement(&mut self, key: String, measurement: Measurement) {
+        self.0
+            .insert(key, measurement.value.map_value(|v| v.to_f64().into()));
+    }
+}
+
+/// Trait for types that provide mutable access to a collection of [`Measurement`]s.
+///
+/// This exists to make [`normalize_performance_score`] work for [`Event`]s,
+/// [`V1 Spans`](Span), and [`V2 Spans`](SpanV2).
 pub trait MutMeasurements {
-    fn measurements(&mut self) -> &mut Annotated<Measurements>;
+    type MeasurementsContainer: MeasurementsLike;
+    fn measurements(&mut self) -> &mut Annotated<Self::MeasurementsContainer>;
+}
+
+impl MutMeasurements for Event {
+    type MeasurementsContainer = Measurements;
+    fn measurements(&mut self) -> &mut Annotated<Self::MeasurementsContainer> {
+        &mut self.measurements
+    }
+}
+
+impl MutMeasurements for Span {
+    type MeasurementsContainer = Measurements;
+    fn measurements(&mut self) -> &mut Annotated<Self::MeasurementsContainer> {
+        &mut self.measurements
+    }
+}
+
+impl MutMeasurements for SpanV2 {
+    type MeasurementsContainer = Attributes;
+
+    fn measurements(&mut self) -> &mut Annotated<Self::MeasurementsContainer> {
+        &mut self.attributes
+    }
 }
 
 /// Computes performance score measurements for an event.
@@ -882,7 +963,7 @@ pub fn normalize_performance_score(
             if let Some(measurements) = event.measurements().value_mut() {
                 let mut should_add_total = false;
                 if profile.score_components.iter().any(|c| {
-                    !measurements.contains_key(c.measurement.as_str())
+                    !measurements.contains_measurement(c.measurement.as_str())
                         && c.weight.abs() >= f64::EPSILON
                         && !c.optional
                 }) {
@@ -896,7 +977,7 @@ pub fn normalize_performance_score(
                 for component in &profile.score_components {
                     // Skip optional components if they are not present on the event.
                     if component.optional
-                        && !measurements.contains_key(component.measurement.as_str())
+                        && !measurements.contains_measurement(component.measurement.as_str())
                     {
                         continue;
                     }
@@ -911,7 +992,9 @@ pub fn normalize_performance_score(
                     // Optional measurements that are not present are given a weight of 0.
                     let mut normalized_component_weight = FiniteF64::ZERO;
 
-                    if let Some(value) = measurements.get_value(component.measurement.as_str()) {
+                    if let Some(value) =
+                        measurements.get_measurement_value(component.measurement.as_str())
+                    {
                         normalized_component_weight = component.weight.saturating_div(weight_total);
                         let cdf = utils::calculate_cdf_score(
                             value.to_f64().max(0.0), // Webvitals can't be negative, but we need to clamp in case of bad data.
@@ -921,13 +1004,12 @@ pub fn normalize_performance_score(
 
                         let cdf = Annotated::try_from(cdf);
 
-                        measurements.insert(
-                            format!("score.ratio.{}", component.measurement),
+                        measurements.insert_measurement(
+                            interpolate::score__ratio__key(&component.measurement),
                             Measurement {
                                 value: cdf.clone(),
                                 unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
-                            }
-                            .into(),
+                            },
                         );
 
                         let component_score =
@@ -941,34 +1023,31 @@ pub fn normalize_performance_score(
                             should_add_total = true;
                         }
 
-                        measurements.insert(
-                            format!("score.{}", component.measurement),
+                        measurements.insert_measurement(
+                            interpolate::score__key(&component.measurement),
                             Measurement {
                                 value: component_score,
                                 unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
-                            }
-                            .into(),
+                            },
                         );
                     }
 
-                    measurements.insert(
-                        format!("score.weight.{}", component.measurement),
+                    measurements.insert_measurement(
+                        interpolate::score__weight__key(&component.measurement),
                         Measurement {
                             value: normalized_component_weight.into(),
                             unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
-                        }
-                        .into(),
+                        },
                     );
                 }
                 if should_add_total {
                     version.clone_from(&profile.version);
-                    measurements.insert(
-                        "score.total".to_owned(),
+                    measurements.insert_measurement(
+                        SCORE__TOTAL.to_owned(),
                         Measurement {
                             value: score_total.into(),
                             unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
-                        }
-                        .into(),
+                        },
                     );
                 }
             }
@@ -1009,18 +1088,6 @@ fn normalize_trace_context_tags(event: &mut Event) {
                 tags.insert(tag_name, Annotated::new(lcp_url.clone()));
             }
         }
-    }
-}
-
-impl MutMeasurements for Event {
-    fn measurements(&mut self) -> &mut Annotated<Measurements> {
-        &mut self.measurements
-    }
-}
-
-impl MutMeasurements for Span {
-    fn measurements(&mut self) -> &mut Annotated<Measurements> {
-        &mut self.measurements
     }
 }
 
@@ -1347,13 +1414,20 @@ fn normalize_mobile_measurements(measurements: &mut Measurements) {
     filter_mobile_outliers(measurements);
 }
 
-const APP_START_SOURCES: [(&str, &str); 2] =
-    [("app_start_cold", "cold"), ("app_start_warm", "warm")];
+const APP_START_SOURCES: [(&str, Option<&str>); 5] = [
+    ("app_start_cold", Some("cold")),
+    ("app_start_warm", Some("warm")),
+    (APP__VITALS__START__VALUE, None),
+    (APP__VITALS__START__COLD__VALUE, None),
+    (APP__VITALS__START__WARM__VALUE, None),
+];
 
 fn backfill_app_vitals_start(event: &mut Event) {
     if event.ty.value() != Some(&EventType::Transaction) {
         return;
     }
+
+    backfill_app_vitals_start_screen(event);
 
     let already_set = event
         .tags
@@ -1371,6 +1445,7 @@ fn backfill_app_vitals_start(event: &mut Event) {
         APP_START_SOURCES
             .iter()
             .find_map(|(measurement_name, start_type)| {
+                let start_type = (*start_type)?;
                 let measurement = event
                     .measurements
                     .value()?
@@ -1383,7 +1458,7 @@ fn backfill_app_vitals_start(event: &mut Event) {
                 }
 
                 let value = *measurement.value.value()?;
-                Some((*start_type, value))
+                Some((start_type, value))
             })
     else {
         return;
@@ -1409,6 +1484,51 @@ fn backfill_app_vitals_start(event: &mut Event) {
             String::from(APP__VITALS__START__TYPE),
             Annotated::new(start_type.to_owned()),
         );
+}
+
+/// Backfills `app.vitals.start.screen` into root span data.
+///
+/// This runs from the transaction-only app-start backfill and writes only when:
+/// - the transaction name is a concrete screen name;
+/// - the trace op is `"ui.load"`;
+/// - the event contains an app-start measurement;
+/// - the SDK did not already provide `app.vitals.start.screen`.
+fn backfill_app_vitals_start_screen(event: &mut Event) {
+    let Some(screen) = event.transaction.value() else {
+        return;
+    };
+    // TransactionsProcessor writes this placeholder for missing names before this backfill runs.
+    if screen.is_empty() || screen == "<unlabeled transaction>" {
+        return;
+    }
+
+    let has_app_start_measurement = event.measurements.value().is_some_and(|measurements| {
+        APP_START_SOURCES
+            .iter()
+            .any(|(measurement_name, _)| measurements.contains_key(*measurement_name))
+    });
+    if !has_app_start_measurement {
+        return;
+    }
+
+    let screen = screen.to_owned();
+    let Some(trace_context) = event.context_mut::<TraceContext>() else {
+        return;
+    };
+    if trace_context.op.as_str() != Some("ui.load")
+        || trace_context
+            .data
+            .value()
+            .is_some_and(|data| data.other.contains_key(APP__VITALS__START__SCREEN))
+    {
+        return;
+    }
+
+    let data = trace_context.data.get_or_insert_with(Default::default);
+    data.other.insert(
+        APP__VITALS__START__SCREEN.to_owned(),
+        Annotated::new(Value::String(screen)),
+    );
 }
 
 fn normalize_units(measurements: &mut Measurements) {
@@ -1584,6 +1704,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+    use crate::eap;
     use crate::{ClientHints, MeasurementsConfig, ModelCostV2, ModelMetadataEntry};
 
     const IOS_MOBILE_EVENT: &str = r#"
@@ -1642,6 +1763,43 @@ mod tests {
             .map(|span| Annotated::new(get_value!(span.data!).clone()))
             .collect::<Vec<_>>()
             .try_into()
+            .unwrap()
+    }
+
+    fn trace_context_data(event: &Event) -> &Annotated<SpanData> {
+        &event.context::<TraceContext>().unwrap().data
+    }
+
+    fn app_vitals_start_screen_event(
+        ty: &str,
+        transaction: Option<&str>,
+        trace_op: &str,
+        measurement: Option<&str>,
+        existing_screen: Option<&str>,
+    ) -> Event {
+        let mut payload = json!({
+            "type": ty,
+            "contexts": {"trace": {"op": trace_op}},
+            "measurements": {},
+        });
+
+        if let Some(transaction) = transaction {
+            payload["transaction"] = json!(transaction);
+        }
+
+        if let Some(measurement) = measurement {
+            payload["measurements"] = json!({
+                measurement: {"value": 1234.0, "unit": "millisecond"}
+            });
+        }
+
+        if let Some(screen) = existing_screen {
+            payload["contexts"]["trace"]["data"] = json!({APP__VITALS__START__SCREEN: screen});
+        }
+
+        Annotated::<Event>::from_json(&payload.to_string())
+            .unwrap()
+            .into_value()
             .unwrap()
     }
 
@@ -3241,7 +3399,170 @@ mod tests {
     }
 
     #[test]
-    fn test_computed_performance_score() {
+    fn test_backfill_app_vitals_start_screen_from_legacy_measurement() {
+        let json = r#"{
+            "type": "transaction",
+            "transaction": "MainActivity",
+            "contexts": {
+                "trace": {
+                    "op": "ui.load"
+                }
+            },
+            "measurements": {
+                "app_start_cold": {
+                    "value": 1234.0,
+                    "unit": "millisecond"
+                }
+            }
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        backfill_app_vitals_start(&mut event);
+
+        assert_annotated_snapshot!(trace_context_data(&event), @r#"
+        {
+          "app.vitals.start.screen": "MainActivity"
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_screen_from_dotted_measurement() {
+        let mut event = app_vitals_start_screen_event(
+            "transaction",
+            Some("SettingsActivity"),
+            "ui.load",
+            Some(APP__VITALS__START__WARM__VALUE),
+            None,
+        );
+
+        backfill_app_vitals_start(&mut event);
+
+        assert_annotated_snapshot!(trace_context_data(&event), @r#"
+        {
+          "app.vitals.start.screen": "SettingsActivity"
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_screen_from_start_value_measurement() {
+        let mut event = app_vitals_start_screen_event(
+            "transaction",
+            Some("ProfileActivity"),
+            "ui.load",
+            Some(APP__VITALS__START__VALUE),
+            None,
+        );
+
+        backfill_app_vitals_start(&mut event);
+
+        assert_annotated_snapshot!(trace_context_data(&event), @r#"
+        {
+          "app.vitals.start.screen": "ProfileActivity"
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_screen_requires_ui_load() {
+        let mut event = app_vitals_start_screen_event(
+            "transaction",
+            Some("MainActivity"),
+            "navigation",
+            Some("app_start_cold"),
+            None,
+        );
+
+        backfill_app_vitals_start(&mut event);
+
+        assert_annotated_snapshot!(trace_context_data(&event), @"{}");
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_screen_requires_app_start_measurement() {
+        let mut event = app_vitals_start_screen_event(
+            "transaction",
+            Some("MainActivity"),
+            "ui.load",
+            None,
+            None,
+        );
+
+        backfill_app_vitals_start(&mut event);
+
+        assert_annotated_snapshot!(trace_context_data(&event), @"{}");
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_screen_only_requires_measurement_key() {
+        let json = r#"{
+            "type": "transaction",
+            "transaction": "MainActivity",
+            "contexts": {
+                "trace": {
+                    "op": "ui.load"
+                }
+            },
+            "measurements": {
+                "app_start_cold": {
+                    "unit": "millisecond"
+                }
+            }
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        backfill_app_vitals_start(&mut event);
+
+        assert_annotated_snapshot!(trace_context_data(&event), @r#"
+        {
+          "app.vitals.start.screen": "MainActivity"
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_screen_preserves_existing_value() {
+        let mut event = app_vitals_start_screen_event(
+            "transaction",
+            Some("MainActivity"),
+            "ui.load",
+            Some("app_start_cold"),
+            Some("SDKScreen"),
+        );
+
+        backfill_app_vitals_start(&mut event);
+
+        assert_annotated_snapshot!(trace_context_data(&event), @r#"
+        {
+          "app.vitals.start.screen": "SDKScreen"
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_backfill_app_vitals_start_screen_requires_transaction_name() {
+        let mut event = app_vitals_start_screen_event(
+            "transaction",
+            Some("<unlabeled transaction>"),
+            "ui.load",
+            Some("app_start_cold"),
+            None,
+        );
+
+        backfill_app_vitals_start(&mut event);
+
+        assert_annotated_snapshot!(trace_context_data(&event), @"{}");
+    }
+
+    #[test]
+    fn test_computed_performance_score_transaction() {
         let json = r#"
         {
             "type": "transaction",
@@ -3396,6 +3717,181 @@ mod tests {
             "score.weight.ttfb": {
               "value": 0.0,
               "unit": "ratio",
+            },
+          },
+        }
+        "###);
+    }
+
+    /// A version of `test_computed_performance_score_transaction` for
+    /// V2 spans. Results are _mutatis mutandis_ the same.
+    ///
+    /// The `"condition"` on the profile is written as a disjunction,
+    /// checking for the browser name in both `event.context` and in
+    /// `span.attributes`.
+    #[test]
+    fn test_computed_performance_score_spanv2() {
+        let json = r#"
+        {
+            "end_timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "attributes": {
+                "browser.name": {"value": "Chrome", "type": "string"},
+                "browser.version": {"value": "120.1.1", "type": "string"},
+                "fid": {"value": 213, "type": "double"},
+                "browser.web_vital.fcp.value": {"value": 1237.0, "type": "double"},
+                "lcp": {"value": 6596, "type": "double"},
+                "browser.web_vital.cls.value": {"value": 0.11, "type": "double"}
+            }
+        }
+        "#;
+
+        let mut span = Annotated::<SpanV2>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "fcp",
+                            "weight": 0.15,
+                            "p10": 900,
+                            "p50": 1600
+                        },
+                        {
+                            "measurement": "lcp",
+                            "weight": 0.30,
+                            "p10": 1200,
+                            "p50": 2400
+                        },
+                        {
+                            "measurement": "fid",
+                            "weight": 0.30,
+                            "p10": 100,
+                            "p50": 300
+                        },
+                        {
+                            "measurement": "cls",
+                            "weight": 0.25,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                        {
+                            "measurement": "ttfb",
+                            "weight": 0.0,
+                            "p10": 0.2,
+                            "p50": 0.4
+                        },
+                    ],
+                    "condition": {
+                        "op": "or",
+                        "inner": [{
+                            "op":"eq",
+                            "name": "event.context.browser.name",
+                            "value": "Chrome"
+                        }, {
+                            "op":"eq",
+                            "name": "span.attributes.browser.name.value",
+                            "value": "Chrome"
+                        }]
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        eap::normalize_attribute_names(&mut span.attributes);
+        normalize_performance_score(&mut span, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(span)), {}, @r###"
+        {
+          "start_timestamp": 1619420400.0,
+          "end_timestamp": 1619420405.0,
+          "attributes": {
+            "browser.name": {
+              "type": "string",
+              "value": "Chrome",
+            },
+            "browser.version": {
+              "type": "string",
+              "value": "120.1.1",
+            },
+            "browser.web_vital.cls.value": {
+              "type": "double",
+              "value": 0.11,
+            },
+            "browser.web_vital.fcp.value": {
+              "type": "double",
+              "value": 1237.0,
+            },
+            "browser.web_vital.lcp.value": {
+              "type": "double",
+              "value": 6596,
+            },
+            "fid": {
+              "type": "double",
+              "value": 213,
+            },
+            "lcp": {
+              "type": "double",
+              "value": 6596,
+            },
+            "score.cls": {
+              "type": "double",
+              "value": 0.21864170607444863,
+            },
+            "score.fcp": {
+              "type": "double",
+              "value": 0.10750855443790831,
+            },
+            "score.fid": {
+              "type": "double",
+              "value": 0.19657361348282545,
+            },
+            "score.lcp": {
+              "type": "double",
+              "value": 0.009238896571386584,
+            },
+            "score.ratio.cls": {
+              "type": "double",
+              "value": 0.8745668242977945,
+            },
+            "score.ratio.fcp": {
+              "type": "double",
+              "value": 0.7167236962527221,
+            },
+            "score.ratio.fid": {
+              "type": "double",
+              "value": 0.6552453782760849,
+            },
+            "score.ratio.lcp": {
+              "type": "double",
+              "value": 0.03079632190462195,
+            },
+            "score.total": {
+              "type": "double",
+              "value": 0.531962770566569,
+            },
+            "score.weight.cls": {
+              "type": "double",
+              "value": 0.25,
+            },
+            "score.weight.fcp": {
+              "type": "double",
+              "value": 0.15,
+            },
+            "score.weight.fid": {
+              "type": "double",
+              "value": 0.3,
+            },
+            "score.weight.lcp": {
+              "type": "double",
+              "value": 0.3,
+            },
+            "score.weight.ttfb": {
+              "type": "double",
+              "value": 0.0,
             },
           },
         }

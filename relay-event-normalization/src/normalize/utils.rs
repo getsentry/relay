@@ -191,7 +191,11 @@ fn calculate_cdf_sigma(p10: f64, p50: f64) -> f64 {
     (p10.ln() - p50.ln()).abs() / (SQRT_2 * 0.9061938024368232)
 }
 
-/// Calculates a log-normal CDF score based on a log-normal with a specific p10 and p50
+/// Computes the [cumulative distribution function](https://en.wikipedia.org/wiki/Cumulative_distribution_function)
+/// of a [log-normal distribution](https://en.wikipedia.org/wiki/Log-normal_distribution) with the given p10 and p50.
+///
+/// In other words, if `X` is log-normally distributed with 10th and 50th percentile `p10` and `p50`,
+/// then `calculate_cdf_score(x, p10, p50) = P(X ≤ x)`.
 pub fn calculate_cdf_score(value: f64, p10: f64, p50: f64) -> f64 {
     0.5 * (1.0 - erf((f64::ln(value) - f64::ln(p50)) / (SQRT_2 * calculate_cdf_sigma(p50, p10))))
 }
