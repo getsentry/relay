@@ -984,6 +984,43 @@ def test_minidump_objectstore_uploads(
         assert minidump.payload.bytes == minidump_content
 
 
+def test_minidump_objectstore_uploads_external_chain(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    attachments_consumer,
+):
+    project_id = 42
+    minidump_content = b"MDMP content"
+    log_content = b"Some log file content"
+
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).extend(
+        [
+            "projects:relay-minidump-attachment-uploads",
+            "projects:relay-minidump-uploads",
+        ]
+    )
+    mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = True
+
+    relay = relay(relay_with_processing(), external=True)
+    project_config["config"]["trustedRelays"] = list(relay.iter_public_keys())
+
+    attachments_consumer = attachments_consumer()
+
+    response = relay.send_minidump(
+        project_id=project_id,
+        files=[
+            (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", minidump_content),
+            ("logs", "log.txt", log_content),
+        ],
+    )
+    assert response.ok
+
+    event, _ = attachments_consumer.get_event()
+    assert UUID(event["event_id"]) == UUID(response.text)
+
+
 def test_size_limits_multipart_chunked(mini_sentry, relay):
 
     project_id = 42
