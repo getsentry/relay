@@ -2,9 +2,9 @@
     ProjectKeyPair,
     RoundRobin,
 }</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Strategy used to assign envelopes to buffer partitions.</p>
-</div></details><h2 id="variants" class="variants section-header">Variants<a href="#variants" class="anchor">§</a></h2><div class="variants"><section id="variant.ProjectKeyPair" class="variant"><a href="#variant.ProjectKeyPair" class="anchor">§</a><h3 class="code-header">ProjectKeyPair</h3></section><div class="docblock"><p>Envelopes with the same project key pair land on the same partition (default).</p>
+</div></details><h2 id="variants" class="variants section-header">Variants<a href="#variants" class="anchor">§</a></h2><div class="variants"><section id="variant.ProjectKeyPair" class="variant"><a href="#variant.ProjectKeyPair" class="anchor">§</a><h3 class="code-header">ProjectKeyPair</h3></section><div class="docblock"><p>Envelopes with the same project key pair land on the same partition.</p>
 <p>Keeps per-project state, disk files, and event ordering co-located on one partition.</p>
-</div><section id="variant.RoundRobin" class="variant"><a href="#variant.RoundRobin" class="anchor">§</a><h3 class="code-header">RoundRobin</h3></section><div class="docblock"><p>Envelopes are distributed across partitions in a round-robin fashion.</p>
+</div><section id="variant.RoundRobin" class="variant"><a href="#variant.RoundRobin" class="anchor">§</a><h3 class="code-header">RoundRobin</h3></section><div class="docblock"><p>Envelopes are distributed across partitions in a round-robin fashion (default).</p>
 <p>This prevents “hot” partitions when a single project pair dominates traffic, but has
 trade-offs:</p>
 <ul>
