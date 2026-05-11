@@ -106,7 +106,7 @@ def test_forward_patch(
 
 
 def test_post_retries(mini_sentry, relay, project_config):
-    """POST (create) requests forwarded to the upstream are not retried.
+    """POST (create) requests forwarded to the upstream are retried.
 
     The upstream returns 503 on the first attempt and succeeds on the second.
     """
@@ -133,8 +133,8 @@ def test_post_retries(mini_sentry, relay, project_config):
             "Upload-Length": "11",
         },
     )
-    assert response.status_code == 503, response.text
-    assert create_attempts == 1
+    assert response.status_code == 201, response.text
+    assert create_attempts == 2
 
 
 def test_upload_missing_tus_version(mini_sentry, relay, dummy_upload, project_config):
