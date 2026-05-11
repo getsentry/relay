@@ -216,7 +216,6 @@ impl IntoResponse for BadStoreRequest {
                 (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
             }
             BadStoreRequest::InvalidMultipart(multer::Error::LockFailure) => {
-                relay_log::error!("failed to lock multipart, see INGEST-903");
                 (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
             }
             _ => {
