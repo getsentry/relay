@@ -466,20 +466,45 @@ mod tests {
             .unwrap();
         assert_eq!(txn.transaction.as_str(), Some("hi"));
         let span_v1 = SpanV1::from(&txn);
-        assert_eq!(
-            span_v1.data.value().unwrap().segment_name.as_str(),
-            Some("hi")
-        );
+
+        // Both the name and the segment name are the same as the transaction.
+        insta::assert_json_snapshot!(SerializableAnnotated(&Annotated::new(span_v1.clone())), @r###"
+        {
+          "is_segment": true,
+          "is_remote": true,
+          "description": "hi",
+          "data": {
+            "sentry.segment.name": "hi",
+            "sentry.name": "hi"
+          },
+          "was_transaction": true
+        }
+        "###);
+
         let span_v2 = span_v1_to_span_v2(span_v1);
-        assert_eq!(
-            span_v2
-                .attributes
-                .value()
-                .unwrap()
-                .get_value(SENTRY__SEGMENT__NAME)
-                .and_then(Value::as_str),
-            Some("hi")
-        );
+
+        // The `name` and the `sentry.segment.name` attribute are the same as the transaction.
+        insta::assert_json_snapshot!(SerializableAnnotated(&Annotated::new(span_v2)), @r###"
+        {
+          "name": "hi",
+          "status": "ok",
+          "is_segment": true,
+          "attributes": {
+            "sentry.description": {
+              "type": "string",
+              "value": "hi"
+            },
+            "sentry.is_remote": {
+              "type": "boolean",
+              "value": true
+            },
+            "sentry.segment.name": {
+              "type": "string",
+              "value": "hi"
+            }
+          }
+        }
+        "###);
     }
 
     #[test]

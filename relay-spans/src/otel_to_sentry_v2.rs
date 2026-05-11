@@ -5,7 +5,7 @@ use opentelemetry_proto::tonic::trace::v1::span::Link as OtelLink;
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
 use relay_conventions::consts::{
     SENTRY__IS_REMOTE, SENTRY__KIND, SENTRY__ORIGIN, SENTRY__PLATFORM, SENTRY__SEGMENT__ID,
-    SENTRY__SEGMENT__NAME, SENTRY__STATUS__MESSAGE, SENTRY__TRANSACTION,
+    SENTRY__SEGMENT__NAME, SENTRY__STATUS__MESSAGE,
 };
 use relay_event_schema::protocol::{Attributes, SpanKind};
 use relay_otel::otel_resource_to_platform;
@@ -132,7 +132,6 @@ pub fn otel_to_sentry_span(
         }
         if let Some(ref segment_name) = name {
             sentry_attributes.insert(SENTRY__SEGMENT__NAME, segment_name.clone());
-            sentry_attributes.insert(SENTRY__TRANSACTION, segment_name.clone());
         }
     }
 
@@ -987,10 +986,6 @@ mod tests {
               "value": "e342abb1214ca181"
             },
             "sentry.segment.name": {
-              "type": "string",
-              "value": "my segment span"
-            },
-            "sentry.transaction": {
               "type": "string",
               "value": "my segment span"
             }

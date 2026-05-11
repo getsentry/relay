@@ -293,15 +293,19 @@ fn is_false(value: &bool) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::Feature;
-
     use super::*;
 
     #[test]
     fn graduated_feature_flag_gets_inserted() {
         let mut project_config = ProjectConfig::default();
-        assert!(!project_config.features.has(Feature::UserReportV2Ingest));
+        for feature in GRADUATED_FEATURE_FLAGS {
+            assert!(!project_config.features.has(*feature));
+        }
+
         project_config.sanitize(false);
-        assert!(project_config.features.has(Feature::UserReportV2Ingest));
+
+        for feature in GRADUATED_FEATURE_FLAGS {
+            assert!(project_config.features.has(*feature));
+        }
     }
 }

@@ -6,6 +6,95 @@ from .asserts import time_within_delta, time_within
 
 import pytest
 
+# Some profiles from Sentry
+performance_score_profiles = [
+    {
+        "name": "Chrome",
+        "scoreComponents": [
+            {
+                "measurement": "fcp",
+                "weight": 0.15,
+                "p10": 900.0,
+                "p50": 1600.0,
+                "optional": True,
+            },
+            {
+                "measurement": "lcp",
+                "weight": 0.30,
+                "p10": 1200.0,
+                "p50": 2400.0,
+                "optional": True,
+            },
+            {
+                "measurement": "cls",
+                "weight": 0.15,
+                "p10": 0.1,
+                "p50": 0.25,
+                "optional": True,
+            },
+            {
+                "measurement": "ttfb",
+                "weight": 0.10,
+                "p10": 200.0,
+                "p50": 400.0,
+                "optional": True,
+            },
+        ],
+        "condition": {
+            "op": "or",
+            "inner": [
+                {
+                    "op": "eq",
+                    "name": "event.contexts.browser.name",
+                    "value": "Chrome",
+                },
+                {
+                    "op": "eq",
+                    "name": "span.attributes.browser.name.value",
+                    "value": "Chrome",
+                },
+            ],
+        },
+    },
+    {
+        "name": "Chrome INP",
+        "scoreComponents": [
+            {
+                "measurement": "inp",
+                "weight": 1.0,
+                "p10": 200.0,
+                "p50": 500.0,
+                "optional": False,
+            },
+        ],
+        "condition": {
+            "op": "or",
+            "inner": [
+                {
+                    "op": "eq",
+                    "name": "event.contexts.browser.name",
+                    "value": "Chrome",
+                },
+                {
+                    "op": "eq",
+                    "name": "event.contexts.browser.name",
+                    "value": "Google Chrome",
+                },
+                {
+                    "op": "eq",
+                    "name": "span.attributes.browser.name.value",
+                    "value": "Chrome",
+                },
+                {
+                    "op": "eq",
+                    "name": "span.attributes.browser.name.value",
+                    "value": "Google Chrome",
+                },
+            ],
+        },
+    },
+]
+
 
 def envelope_with_spans(*payloads: dict, trace_info=None) -> Envelope:
     envelope = Envelope()
@@ -71,6 +160,9 @@ def test_lcp_span(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["performanceScore"] = {
+        "profiles": performance_score_profiles
+    }
     if mode == "v2":
         project_config["config"].setdefault("features", []).append(
             "projects:span-v2-experimental-processing"
@@ -169,6 +261,35 @@ def test_lcp_span(
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 "
                 "Safari/537.36",
             },
+            # Attributes computed by performace score normalization
+            "score.lcp": {
+                "type": "double",
+                "value": 0.9968400718909384,
+            },
+            "score.ratio.lcp": {
+                "type": "double",
+                "value": 0.9968400718909384,
+            },
+            "score.total": {
+                "type": "double",
+                "value": 0.9968400718909384,
+            },
+            "score.weight.cls": {
+                "type": "double",
+                "value": 0.0,
+            },
+            "score.weight.fcp": {
+                "type": "double",
+                "value": 0.0,
+            },
+            "score.weight.lcp": {
+                "type": "double",
+                "value": 1.0,
+            },
+            "score.weight.ttfb": {
+                "type": "double",
+                "value": 0.0,
+            },
             **lcp_backfill,
             **attributes,
         },
@@ -233,6 +354,9 @@ def test_cls_span(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["performanceScore"] = {
+        "profiles": performance_score_profiles
+    }
     if mode == "v2":
         project_config["config"].setdefault("features", []).append(
             "projects:span-v2-experimental-processing"
@@ -332,6 +456,35 @@ def test_cls_span(
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 "
                 "Safari/537.36",
             },
+            # Attributes computed by performace score normalization
+            "score.cls": {
+                "type": "double",
+                "value": 0.8999999314038525,
+            },
+            "score.ratio.cls": {
+                "type": "double",
+                "value": 0.8999999314038525,
+            },
+            "score.total": {
+                "type": "double",
+                "value": 0.8999999314038525,
+            },
+            "score.weight.cls": {
+                "type": "double",
+                "value": 1.0,
+            },
+            "score.weight.fcp": {
+                "type": "double",
+                "value": 0.0,
+            },
+            "score.weight.lcp": {
+                "type": "double",
+                "value": 0.0,
+            },
+            "score.weight.ttfb": {
+                "type": "double",
+                "value": 0.0,
+            },
             **cls_backfill,
             **attributes,
         },
@@ -396,6 +549,9 @@ def test_inp_span(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["performanceScore"] = {
+        "profiles": performance_score_profiles
+    }
     if mode == "v2":
         project_config["config"].setdefault("features", []).append(
             "projects:span-v2-experimental-processing"
@@ -474,6 +630,23 @@ def test_inp_span(
                 "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 "
                 "Safari/537.36",
+            },
+            # Attributes computed by performace score normalization
+            "score.inp": {
+                "type": "double",
+                "value": 0.9859595387898855,
+            },
+            "score.ratio.inp": {
+                "type": "double",
+                "value": 0.9859595387898855,
+            },
+            "score.total": {
+                "type": "double",
+                "value": 0.9859595387898855,
+            },
+            "score.weight.inp": {
+                "type": "double",
+                "value": 1.0,
             },
             **inp_backfill,
             **attributes,

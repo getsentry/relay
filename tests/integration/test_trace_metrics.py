@@ -929,11 +929,11 @@ def test_trace_metric_container_metadata(
                 {
                     "browser.name": {
                         "type": "string",
-                        "value": "Python Requests",
+                        "value": "Firefox",
                     },
                     "browser.version": {
                         "type": "string",
-                        "value": "2.33",
+                        "value": "42.0",
                     },
                 },
             ),

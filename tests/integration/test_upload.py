@@ -7,9 +7,16 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from flask import Response
+from enum import Enum
 import pytest
 
 from .consts import DUMMY_UPLOAD_PATH, DUMMY_UPLOAD_LOCATION
+
+
+class FeatureState(Enum):
+    ENABLED = "enabled"
+    DISABLED = "disabled"
+    KILLSWITCHED = "killswitched"
 
 
 @pytest.fixture
@@ -21,18 +28,23 @@ def project_config(mini_sentry):
 
 
 @pytest.mark.parametrize(
-    "feature_enabled,expected_status_code",
+    "feature_state,expected_status_code",
     [
-        pytest.param(True, 201, id="feature enabled"),
-        pytest.param(False, 403, id="feature disabled"),
+        pytest.param(FeatureState.ENABLED, 201, id="feature enabled"),
+        pytest.param(FeatureState.DISABLED, 403, id="feature disabled"),
+        pytest.param(FeatureState.KILLSWITCHED, 503, id="killswitch active"),
     ],
 )
 def test_forward_create(
-    mini_sentry, relay, dummy_upload, feature_enabled, expected_status_code
+    mini_sentry, relay, dummy_upload, feature_state, expected_status_code
 ):
     project_id = 42
     config = mini_sentry.add_full_project_config(project_id)
-    if feature_enabled:
+    if feature_state is FeatureState.KILLSWITCHED:
+        mini_sentry.global_config["options"][
+            "relay.endpoint-fetch-config.enabled"
+        ] = False
+    if feature_state is FeatureState.ENABLED:
         config["config"].setdefault("features", []).append(
             "projects:relay-upload-endpoint"
         )
@@ -51,18 +63,23 @@ def test_forward_create(
 
 
 @pytest.mark.parametrize(
-    "feature_enabled,expected_status_code",
+    "feature_state,expected_status_code",
     [
-        pytest.param(True, 204, id="feature enabled"),
-        pytest.param(False, 403, id="feature disabled"),
+        pytest.param(FeatureState.ENABLED, 204, id="feature enabled"),
+        pytest.param(FeatureState.DISABLED, 403, id="feature disabled"),
+        pytest.param(FeatureState.KILLSWITCHED, 503, id="killswitch active"),
     ],
 )
 def test_forward_patch(
-    mini_sentry, relay, dummy_upload, feature_enabled, expected_status_code
+    mini_sentry, relay, dummy_upload, feature_state, expected_status_code
 ):
     project_id = 42
     config = mini_sentry.add_full_project_config(project_id)
-    if feature_enabled:
+    if feature_state is FeatureState.KILLSWITCHED:
+        mini_sentry.global_config["options"][
+            "relay.endpoint-fetch-config.enabled"
+        ] = False
+    if feature_state is FeatureState.ENABLED:
         config["config"].setdefault("features", []).append(
             "projects:relay-upload-endpoint"
         )
@@ -81,7 +98,7 @@ def test_forward_patch(
     )
 
     assert response.status_code == expected_status_code, response.text
-    if not feature_enabled:
+    if feature_state is FeatureState.DISABLED:
         assert (
             response.json()["detail"]
             == "event submission rejected with_reason: FeatureDisabled(UploadEndpoint)"
@@ -312,7 +329,7 @@ def test_timeout(
     "chain", [pytest.param(False, id="processing_only"), pytest.param(True, id="chain")]
 )
 def test_create_processing(
-    mini_sentry, relay, relay_with_processing, chain, project_config
+    mini_sentry, relay, relay_with_processing, chain, project_config, events_consumer
 ):
     """Create and separate upload via processing relay stores the blob in objectstore."""
     project_id = 42
@@ -323,6 +340,11 @@ def test_create_processing(
         relay = relay(processing_relay)
     else:
         relay = processing_relay
+
+    # Do some busy work until the global config is loaded
+    events_consumer = events_consumer()
+    relay.send_event(project_id)
+    events_consumer.get_event()
 
     data = b"hello world"
     response = relay.post(
@@ -397,11 +419,21 @@ def test_processing_invalid_length(
 
 @pytest.mark.parametrize("defer_length_value", ["1", "2"])
 def test_upload_with_deferred_length(
-    mini_sentry, relay, relay_with_processing, project_config, defer_length_value
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    project_config,
+    events_consumer,
+    defer_length_value,
 ):
     project_id = 42
     processing_relay = relay_with_processing()
     relay = relay(processing_relay)
+
+    # Do some busy work until the global config is loaded
+    events_consumer = events_consumer()
+    relay.send_event(project_id)
+    events_consumer.get_event()
 
     response = relay.post(
         "/api/%s/upload/?sentry_key=%s"
