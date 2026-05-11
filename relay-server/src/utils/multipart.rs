@@ -186,11 +186,10 @@ pub trait AttachmentStrategy {
     ) -> impl Future<Output = Result<Option<Managed<Item>>, multer::Error>> + Send;
 }
 
-pub async fn read_attachment_bytes_into_item(
+pub async fn read_bytes_into_item(
     field: Field<'static>,
     mut item: Managed<Item>,
     config: &Config,
-    ignore_size_exceeded: bool,
 ) -> Result<Option<Managed<Item>>, multer::Error> {
     let content_type = field
         .content_type()
@@ -213,19 +212,19 @@ pub async fn read_attachment_bytes_into_item(
         };
         records.lenient(DataCategory::Attachment);
     });
+
     if n_bytes > limit {
         let attachment_type = item.attachment_type().unwrap_or(AttachmentType::Attachment);
         let item_type = DiscardItemType::Attachment(DiscardAttachmentType::from(attachment_type));
         let _ = item.reject_err(Outcome::Invalid(DiscardReason::TooLarge(item_type)));
-        return match ignore_size_exceeded {
-            true => Ok(None),
-            false => Err(multer::Error::FieldSizeExceeded {
-                limit: limit as u64,
-                field_name,
-            }),
-        };
+
+        Err(multer::Error::FieldSizeExceeded {
+            limit: limit as u64,
+            field_name,
+        })
+    } else {
+        Ok(Some(item))
     }
-    Ok(Some(item))
 }
 
 pub async fn multipart_items(
@@ -419,7 +418,7 @@ mod tests {
                 config: &Config,
             ) -> impl Future<Output = Result<Option<Managed<Item>>, multer::Error>> + Send
             {
-                read_attachment_bytes_into_item(field, item, config, false)
+                read_bytes_into_item(field, item, config)
             }
 
             fn infer_type(&self, _: &Field) -> AttachmentType {
@@ -472,7 +471,7 @@ mod tests {
                 config: &Config,
             ) -> impl Future<Output = Result<Option<Managed<Item>>, multer::Error>> + Send
             {
-                read_attachment_bytes_into_item(field, item, config, true)
+                read_bytes_into_item(field, item, config)
             }
 
             fn infer_type(&self, _: &Field) -> AttachmentType {

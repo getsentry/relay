@@ -1215,3 +1215,68 @@ def test_minidump_max_attachment_size_exceeded(
             "quantity": 1,
         },
     ]
+
+
+def test_minidump_large_attachment_skipped_when_no_project_fetching(
+    mini_sentry, relay, outcomes_consumer
+):
+    """
+    When the project fetching in the endpoints is disabled (and as a consequence
+    large attachments can not be uploaded to the objectstore), oversized regular
+    attachments should be silently skipped rather than rejecting the entire request.
+    The minidump must still be present in the forwarded envelope.
+    """
+    project_id = 42
+    minidump_content = b"MDMP content"
+    attachment_content = b"some attachment" * 100
+
+    mini_sentry.add_full_project_config(project_id)
+    mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = False
+
+    outcomes_consumer = outcomes_consumer()
+    relay = relay(
+        mini_sentry,
+        options={
+            "limits": {
+                "max_attachment_size": len(attachment_content) - 1,
+                "max_attachments_size": 1000 * 1024 * 1024,
+            },
+            "outcomes": {
+                "emit_outcomes": True,
+                "batch_size": 1,
+                "batch_interval": 1,
+            },
+        },
+    )
+
+    attachments = [
+        ("attachment1", "attach1.txt", attachment_content),
+        (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", minidump_content),
+    ]
+
+    respone = relay.send_minidump(project_id=project_id, files=attachments)
+    assert respone.ok
+
+    outcomes = mini_sentry.get_aggregated_outcomes()
+
+    assert outcomes == [
+        {
+            "category": 4,
+            "outcome": 3,
+            "project_id": 42,
+            "quantity": 1500,
+            "reason": "too_large:attachment:attachment",
+        },
+        {
+            "category": 22,
+            "outcome": 3,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "too_large:attachment:attachment",
+        },
+    ]
+
+    envelope = mini_sentry.get_captured_envelope()
+
+    assert len(envelope.items) == 1
+    assert envelope.items[0].payload.bytes == minidump_content

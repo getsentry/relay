@@ -30,7 +30,7 @@ use crate::service::ServiceState;
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome};
 use crate::services::upload::Upload;
 use crate::statsd::RelayCounters;
-use crate::utils::{self, AttachmentStrategy, read_attachment_bytes_into_item};
+use crate::utils::{self, AttachmentStrategy, read_bytes_into_item};
 
 /// The field name of a minidump in the multipart form-data upload.
 ///
@@ -220,9 +220,15 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
         item: Managed<Item>,
         config: &Config,
     ) -> Result<Option<Managed<Item>>, multer::Error> {
+        let is_minidump = matches!(item.attachment_type(), Some(AttachmentType::Minidump));
+
         // If we have no upload context just fall back to the old behavior.
         let Some(ref upload_context) = self.upload_context else {
-            return read_attachment_bytes_into_item(field, item, config, false).await;
+            return match read_bytes_into_item(field, item, config).await {
+                // Don't bubble up errors caused by large items unless it is the minidump itself.
+                Err(multer::Error::FieldSizeExceeded { .. }) if !is_minidump => Ok(None),
+                r => r,
+            };
         };
 
         match upload_context.upload_decision(item.attachment_type()) {
@@ -240,7 +246,11 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
                 .await)
             }
             UploadDecision::Inline => {
-                read_attachment_bytes_into_item(field, item, config, false).await
+                return match read_bytes_into_item(field, item, config).await {
+                    // Don't bubble up errors caused by large items unless it is the minidump itself.
+                    Err(multer::Error::FieldSizeExceeded { .. }) if !is_minidump => Ok(None),
+                    r => r,
+                };
             }
             UploadDecision::Drop(limits) => {
                 // This is best effort, the item here does not yet have its content set hence size

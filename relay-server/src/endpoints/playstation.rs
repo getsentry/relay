@@ -152,7 +152,12 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
                 )
                 .await)
             }
-            _ => utils::read_attachment_bytes_into_item(field, item, config, true).await,
+            _ => match utils::read_bytes_into_item(field, item, config).await {
+                // Don't bubble up errors caused by large attachments, skip over them and continue
+                // with the next item.
+                Err(multer::Error::FieldSizeExceeded { .. }) => Ok(None),
+                r => r,
+            },
         }
     }
 }
