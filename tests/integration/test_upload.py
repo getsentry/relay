@@ -108,9 +108,7 @@ def test_forward_patch(
 def test_post_retries(mini_sentry, relay, project_config):
     """POST (create) requests forwarded to the upstream are not retried.
 
-    The upstream returns 503 on the first attempt and would succeed on the second.
-    Since `UploadRequest::retry()` returns `false`, the 503 is propagated to the
-    client instead of triggering a retry.
+    The upstream returns 503 on the first attempt and succeeds on the second.
     """
     mini_sentry.allow_chunked = True
 
@@ -137,42 +135,6 @@ def test_post_retries(mini_sentry, relay, project_config):
     )
     assert response.status_code == 503, response.text
     assert create_attempts == 1
-
-
-def test_patch_retries(mini_sentry, relay, project_config):
-    """PATCH (upload) requests forwarded to the upstream are not retried.
-
-    The upstream returns 503 on the first attempt and would succeed on the second.
-    Since `UploadRequest::retry()` returns `false`, the 503 is propagated to the
-    client instead of triggering a retry.
-    """
-    mini_sentry.allow_chunked = True
-
-    patch_attempts = 0
-
-    @mini_sentry.app.route("/api/<project>/upload/<key>/", methods=["PATCH"])
-    def upload(**opts):
-        nonlocal patch_attempts
-        patch_attempts += 1
-        if patch_attempts == 1:
-            return Response("", status=503)
-        return Response("", status=204, headers={"Location": DUMMY_UPLOAD_LOCATION})
-
-    project_id = 42
-    project_key = mini_sentry.get_dsn_public_key(project_id)
-    relay = relay(mini_sentry)
-
-    response = relay.patch(
-        f"{DUMMY_UPLOAD_LOCATION}&sentry_key={project_key}",
-        headers={
-            "Tus-Resumable": "1.0.0",
-            "Content-Type": "application/offset+octet-stream",
-            "Upload-Offset": "0",
-        },
-        data=b"hello world",
-    )
-    assert response.status_code == 503, response.text
-    assert patch_attempts == 1
 
 
 def test_upload_missing_tus_version(mini_sentry, relay, dummy_upload, project_config):

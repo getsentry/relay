@@ -593,8 +593,10 @@ impl UpstreamRequest for UploadRequest {
             stream, encoding, ..
         } = &mut self.kind
         {
-            let body = RetryableStream::new(stream.clone())
-                .expect("retry() returns false once the stream is taken");
+            let Some(body) = RetryableStream::new(stream.clone()) else {
+                relay_log::error!("upload request stream was already consumed");
+                return Err(HttpError::Misconfigured);
+            };
             tus::add_upload_headers(builder);
 
             let body = encode_body(body, *encoding);
