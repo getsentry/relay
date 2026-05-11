@@ -190,7 +190,7 @@ pub async fn read_bytes_into_item(
     field: Field<'static>,
     mut item: Managed<Item>,
     config: &Config,
-) -> Result<Option<Managed<Item>>, multer::Error> {
+) -> Result<Managed<Item>, multer::Error> {
     let content_type = field
         .content_type()
         .map(|ct| ct.as_ref().parse().unwrap_or(ContentType::OctetStream));
@@ -223,7 +223,7 @@ pub async fn read_bytes_into_item(
             field_name,
         })
     } else {
-        Ok(Some(item))
+        Ok(item)
     }
 }
 
@@ -411,14 +411,13 @@ mod tests {
 
         struct MockAttachmentStrategy;
         impl AttachmentStrategy for MockAttachmentStrategy {
-            fn add_to_item(
+            async fn add_to_item(
                 &self,
                 field: Field<'static>,
                 item: Managed<Item>,
                 config: &Config,
-            ) -> impl Future<Output = Result<Option<Managed<Item>>, multer::Error>> + Send
-            {
-                read_bytes_into_item(field, item, config)
+            ) -> Result<Option<Managed<Item>>, multer::Error> {
+                read_bytes_into_item(field, item, config).await.map(Some)
             }
 
             fn infer_type(&self, _: &Field) -> AttachmentType {
@@ -464,14 +463,13 @@ mod tests {
 
         struct MockAttachmentStrategy;
         impl AttachmentStrategy for MockAttachmentStrategy {
-            fn add_to_item(
+            async fn add_to_item(
                 &self,
                 field: Field<'static>,
                 item: Managed<Item>,
                 config: &Config,
-            ) -> impl Future<Output = Result<Option<Managed<Item>>, multer::Error>> + Send
-            {
-                read_bytes_into_item(field, item, config)
+            ) -> Result<Option<Managed<Item>>, multer::Error> {
+                read_bytes_into_item(field, item, config).await.map(Some)
             }
 
             fn infer_type(&self, _: &Field) -> AttachmentType {

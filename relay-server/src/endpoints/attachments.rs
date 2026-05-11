@@ -28,13 +28,13 @@ impl AttachmentStrategy for AttachmentsAttachmentStrategy {
         AttachmentType::default()
     }
 
-    fn add_to_item(
+    async fn add_to_item(
         &self,
         field: Field<'static>,
         item: Managed<Item>,
         config: &Config,
-    ) -> impl Future<Output = Result<Option<Managed<Item>>, multer::Error>> + Send {
-        read_bytes_into_item(field, item, config)
+    ) -> Result<Option<Managed<Item>>, multer::Error> {
+        read_bytes_into_item(field, item, config).await.map(Some)
     }
 }
 

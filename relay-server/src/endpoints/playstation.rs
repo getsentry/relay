@@ -156,7 +156,7 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
                 // Don't bubble up errors caused by large attachments, skip over them and continue
                 // with the next item.
                 Err(multer::Error::FieldSizeExceeded { .. }) => Ok(None),
-                r => r,
+                r => r.map(Some),
             },
         }
     }

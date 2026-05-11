@@ -225,7 +225,7 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
             match read_bytes_into_item(field, item, config).await {
                 // Don't bubble up errors caused by large items unless it is the minidump itself.
                 Err(multer::Error::FieldSizeExceeded { .. }) if !is_minidump => Ok(None),
-                r => r,
+                r => r.map(Some),
             }
         };
 
