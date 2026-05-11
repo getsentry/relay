@@ -87,6 +87,8 @@ impl IntoResponse for Error {
                     {
                         StatusCode::BAD_REQUEST
                     }
+                    UpstreamRequestError::RateLimited(_) => StatusCode::TOO_MANY_REQUESTS,
+                    UpstreamRequestError::ResponseError(status, _) => status,
                     _ => return e.into_response(),
                 },
                 upload::Error::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
