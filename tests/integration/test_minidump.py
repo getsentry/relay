@@ -1251,8 +1251,8 @@ def test_minidump_large_attachment_skipped_when_no_project_fetching(mini_sentry,
         (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", minidump_content),
     ]
 
-    respone = relay.send_minidump(project_id=project_id, files=attachments)
-    assert respone.ok
+    response = relay.send_minidump(project_id=project_id, files=attachments)
+    assert response.ok
 
     outcomes = mini_sentry.get_aggregated_outcomes()
 
