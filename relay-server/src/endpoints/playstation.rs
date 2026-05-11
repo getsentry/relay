@@ -14,8 +14,7 @@ use serde::Serialize;
 use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
-use crate::envelope::ContentType::OctetStream;
-use crate::envelope::{AttachmentType, Envelope, Item};
+use crate::envelope::{AttachmentType, ContentType, Envelope, Item};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::managed::Managed;
 use crate::middlewares;
@@ -201,7 +200,7 @@ async fn multipart_to_envelope(
             .ok_or(BadStoreRequest::MissingProsperodump)?;
         let payload = prosperodump.payload();
         validate_prosperodump(&payload)?;
-        prosperodump.set_payload(OctetStream, payload);
+        prosperodump.set_payload(ContentType::OctetStream, payload);
         Ok(())
     })?;
 

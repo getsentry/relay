@@ -21,8 +21,7 @@ use zstd::stream::Decoder as ZstdDecoder;
 
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse, upload_to_objectstore};
-use crate::envelope::ContentType::Minidump;
-use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
+use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::managed::{Managed, ManagedResult};
 use crate::middlewares;
@@ -306,7 +305,7 @@ async fn multipart_to_envelope(
 
         items.try_modify(|items, records| -> Result<(), BadStoreRequest> {
             let minidump_item = &mut items[minidump_idx];
-            minidump_item.set_payload(Minidump, payload);
+            minidump_item.set_payload(ContentType::Minidump, payload);
             records.lenient(DataCategory::Attachment); // decoding the minidump changes its size
             if let Some(minidump_filename) = minidump_item.filename() {
                 minidump_item.set_filename(remove_container_extension(minidump_filename).to_owned())
@@ -425,7 +424,7 @@ async fn raw_minidump_to_envelope(
         let minidump_data = request.extract().await?;
         item.try_modify(|inner, records| -> Result<(), BadStoreRequest> {
             let payload = decode_minidump(minidump_data, state.config().max_attachment_size())?;
-            inner.set_payload(Minidump, payload);
+            inner.set_payload(ContentType::Minidump, payload);
             records.lenient(DataCategory::Attachment); // decoding the minidump changes its size
             validate_minidump(&inner.payload())?;
             Ok(())
