@@ -1217,9 +1217,7 @@ def test_minidump_max_attachment_size_exceeded(
     ]
 
 
-def test_minidump_large_attachment_skipped_when_no_project_fetching(
-    mini_sentry, relay
-):
+def test_minidump_large_attachment_skipped_when_no_project_fetching(mini_sentry, relay):
     """
     When the project fetching in the endpoints is disabled (and as a consequence
     large attachments can not be uploaded to the objectstore), oversized regular
@@ -1233,7 +1231,6 @@ def test_minidump_large_attachment_skipped_when_no_project_fetching(
     mini_sentry.add_full_project_config(project_id)
     mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = False
 
-    outcomes_consumer = outcomes_consumer()
     relay = relay(
         mini_sentry,
         options={
