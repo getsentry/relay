@@ -108,11 +108,11 @@ impl<'a> Context<'a> {
     /// when there is no full project config available. This is the case in stat and proxy
     /// Relays.
     pub fn should_filter(&self, feature: relay_dynamic_config::Feature) -> bool {
-        use relay_config::RelayMode::*;
+        use relay_config::RelayMode;
 
         match self.config.relay_mode() {
-            Proxy => false,
-            Managed => !self.project_info.has_feature(feature),
+            RelayMode::Proxy => false,
+            RelayMode::Managed => !self.project_info.has_feature(feature),
         }
     }
 
