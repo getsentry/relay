@@ -5,6 +5,7 @@
 **Features**:
 
 - Enable OTLP endpoints by default. ([#5951](https://github.com/getsentry/relay/pull/5951))
+- Enable performance score calculation for V2 spans. ([#5947](https://github.com/getsentry/relay/pull/5947))
 
 **Bug Fixes**:
 
@@ -13,6 +14,7 @@
 **Internal**:
 
 - Bump `sentry-conventions` to 0.6.0-4. ([#5944](https://github.com/getsentry/relay/pull/5944))
+- Enable compression for forwarded uploads. ([#5965](https://github.com/getsentry/relay/pull/5965))
 
 ## 26.4.2
 
