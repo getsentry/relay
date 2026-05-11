@@ -259,8 +259,7 @@ async fn handle_patch(
     Ok(response)
 }
 
-#[must_use]
-fn check_kill_switch(state: &ServiceState) -> Result<(), axum::response::ErrorResponse> {
+fn check_kill_switch(state: &ServiceState) -> Result<(), StatusCode> {
     if !state.global_config_handle().is_ready() {
         relay_log::warn!("global config not available");
     }
@@ -270,7 +269,7 @@ fn check_kill_switch(state: &ServiceState) -> Result<(), axum::response::ErrorRe
         .options
         .endpoint_fetch_config_enabled
     {
-        return Err(StatusCode::SERVICE_UNAVAILABLE.into());
+        return Err(StatusCode::SERVICE_UNAVAILABLE);
     }
     Ok(())
 }
