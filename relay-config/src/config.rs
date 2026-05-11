@@ -964,17 +964,17 @@ fn spool_envelopes_partitions() -> NonZeroU8 {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EnvelopeSpoolPartitioning {
-    /// Envelopes with the same project key pair land on the same partition (default).
+    /// Envelopes with the same project key pair land on the same partition.
     ///
     /// Keeps per-project state, disk files, and event ordering co-located on one partition.
-    #[default]
     ProjectKeyPair,
-    /// Envelopes are distributed across partitions in a round-robin fashion.
+    /// Envelopes are distributed across partitions in a round-robin fashion (default).
     ///
     /// This prevents "hot" partitions when a single project pair dominates traffic, but has
     /// trade-offs:
     /// - Per-project LIFO ordering is no longer preserved across partitions.
     /// - Per-partition memory footprint grows since every partition sees every project.
+    #[default]
     RoundRobin,
 }
 
