@@ -1030,15 +1030,15 @@ def test_minidump_objectstore_errors(
 
     assert mini_sentry.get_aggregated_outcomes() == [
         {
-            "category": 4,
-            "outcome": 3,
+            "category": DataCategory.ATTACHMENT,
+            "outcome": 3,  # invalid
             "project_id": 42,
             "reason": "internal",
             "quantity": 1,
         },
         {
-            "category": 22,
-            "outcome": 3,
+            "category": DataCategory.ATTACHMENT_ITEM,
+            "outcome": 3,  # invalid
             "project_id": 42,
             "reason": "internal",
             "quantity": 1,
