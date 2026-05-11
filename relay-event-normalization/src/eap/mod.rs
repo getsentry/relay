@@ -22,6 +22,7 @@ use crate::span::tag_extraction::{
 use crate::{ClientHints, EnrichedDsc, FromUserAgentInfo as _, RawUserAgentInfo};
 
 mod ai;
+mod measurements;
 mod mobile;
 mod size;
 pub mod time;

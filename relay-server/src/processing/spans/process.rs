@@ -247,7 +247,9 @@ fn normalize_span(
         if ctx.is_processing() {
             eap::normalize_ai(&mut span.attributes, duration, model_metdata);
         }
-        relay_event_normalization::normalize_performance_score(span, performance_score);
+        // TODO: Save profile name in an attribute?
+        let _profile =
+            relay_event_normalization::normalize_performance_score(span, performance_score);
         eap::normalize_attribute_values(&mut span.attributes, allowed_hosts);
         eap::write_legacy_attributes(&mut span.attributes);
         eap::normalize_client_sample_rate(&mut span.attributes);
