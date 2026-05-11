@@ -1735,3 +1735,167 @@ def test_time_corrections(mini_sentry, relay, delta, error):
         "trace_id": "5b8efff798038103d269b633813fc60c",
         "span_id": "eee19b7ec3c1b175",
     }
+
+
+# This test's performance score logic has been ported
+# from test_spans.py::test_span_ingestion_with_performance_scores
+def test_spansv2_ingestion_with_performance_scores(
+    mini_sentry, relay_with_processing, spans_consumer
+):
+    spans_consumer = spans_consumer()
+    relay = relay_with_processing()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = ["projects:span-v2-experimental-processing"]
+    project_config["config"]["performanceScore"] = {
+        "profiles": [
+            {
+                "name": "Desktop",
+                "scoreComponents": [
+                    {"measurement": "fcp", "weight": 0.15, "p10": 900, "p50": 1600},
+                    {"measurement": "lcp", "weight": 0.30, "p10": 1200, "p50": 2400},
+                    {"measurement": "fid", "weight": 0.30, "p10": 100, "p50": 300},
+                    {"measurement": "cls", "weight": 0.25, "p10": 0.1, "p50": 0.25},
+                    {"measurement": "ttfb", "weight": 0.0, "p10": 0.2, "p50": 0.4},
+                ],
+                "condition": {
+                    "op": "or",
+                    "inner": [
+                        {
+                            "op": "eq",
+                            "name": "event.contexts.browser.name",
+                            "value": "Firefox",
+                        },
+                        {
+                            "op": "eq",
+                            "name": "span.attributes.browser.name.value",
+                            "value": "Firefox",
+                        },
+                    ],
+                },
+            },
+            {
+                "name": "Desktop INP",
+                "scoreComponents": [
+                    {"measurement": "inp", "weight": 1.0, "p10": 200, "p50": 400},
+                ],
+                "condition": {
+                    "op": "or",
+                    "inner": [
+                        {
+                            "op": "eq",
+                            "name": "event.contexts.browser.name",
+                            "value": "Firefox",
+                        },
+                        {
+                            "op": "eq",
+                            "name": "span.attributes.browser.name.value",
+                            "value": "Firefox",
+                        },
+                    ],
+                },
+            },
+        ],
+    }
+
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_spans(
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+            "is_segment": True,
+            "name": "some op",
+            "status": "ok",
+            "attributes": {
+                "sentry.op": {"value": "ui.interaction.click", "type": "string"},
+                "sentry.segment.id": {"value": "bd429c44b67a3eb1", "type": "string"},
+                "cls": {"value": 100.0, "type": "double"},
+                "fcp": {"value": 200.0, "type": "double"},
+                "fid": {"value": 300.0, "type": "double"},
+                "lcp": {"value": 400.0, "type": "double"},
+                "ttfb": {"value": 500.0, "type": "double"},
+            },
+        },
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b176",
+            "is_segment": True,
+            "name": "some op",
+            "status": "ok",
+            "attributes": {
+                "sentry.op": {"value": "ui.interaction.click", "type": "string"},
+                "sentry.profile_id": {
+                    "value": "3d9428087fda4ba0936788b70a7587d0",
+                    "type": "string",
+                },
+                "sentry.segment.id": {"value": "cd429c44b67a3eb1", "type": "string"},
+                "inp": {"value": 100.0, "type": "double"},
+            },
+        },
+        metadata={
+            "version": 2,
+            "ingest_settings": {
+                "infer_user_agent": "auto",
+            },
+        },
+        trace_info={
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+            "release": "foo@1.0",
+            "environment": "prod",
+            "transaction": "/my/fancy/endpoint",
+        },
+    )
+    relay.send_envelope(project_id, envelope)
+
+    spans = spans_consumer.get_spans(timeout=10.0, n=2)
+
+    for span in spans:
+        span.pop("received", None)
+
+    # endpoint might overtake envelope
+    spans.sort(key=lambda msg: msg["span_id"])
+
+    expected_scores = [
+        {
+            "score.fcp": 0.14999972769539766,
+            "score.fid": 0.14999999985,
+            "score.lcp": 0.29986141375718806,
+            "score.ratio.cls": 0.0,
+            "score.ratio.fcp": 0.9999981846359844,
+            "score.ratio.fid": 0.4999999995,
+            "score.ratio.lcp": 0.9995380458572936,
+            "score.ratio.ttfb": 0.0,
+            "score.total": 0.5998611413025857,
+            "score.ttfb": 0.0,
+            "score.weight.cls": 0.25,
+            "score.weight.fcp": 0.15,
+            "score.weight.fid": 0.3,
+            "score.weight.lcp": 0.3,
+            "score.weight.ttfb": 0.0,
+            "cls": 100.0,
+            "fcp": 200.0,
+            "fid": 300.0,
+            "lcp": 400.0,
+            "ttfb": 500.0,
+            "score.cls": 0.0,
+        },
+        {
+            "inp": 100.0,
+            "score.inp": 0.9948129113413748,
+            "score.ratio.inp": 0.9948129113413748,
+            "score.total": 0.9948129113413748,
+            "score.weight.inp": 1.0,
+        },
+    ]
+
+    assert len(spans) == len(expected_scores)
+    for span, scores in zip(spans, expected_scores):
+        for key, score in scores.items():
+            assert span["attributes"][key]["value"] == score
