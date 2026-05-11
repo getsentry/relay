@@ -1218,7 +1218,7 @@ def test_minidump_max_attachment_size_exceeded(
 
 
 def test_minidump_large_attachment_skipped_when_no_project_fetching(
-    mini_sentry, relay, outcomes_consumer
+    mini_sentry, relay
 ):
     """
     When the project fetching in the endpoints is disabled (and as a consequence
