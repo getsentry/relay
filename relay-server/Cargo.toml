@@ -32,6 +32,7 @@ workspace = true
 ahash = { workspace = true }
 anyhow = { workspace = true }
 arc-swap = { workspace = true }
+async-compression = { workspace = true }
 axum = { workspace = true, features = ["macros", "matched-path", "tracing"] }
 axum-extra = { workspace = true }
 axum-server = { workspace = true }

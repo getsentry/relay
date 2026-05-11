@@ -4912,6 +4912,7 @@ dependencies = [
  "ahash",
  "anyhow",
  "arc-swap",
+ "async-compression",
  "axum",
  "axum-extra",
  "axum-server",

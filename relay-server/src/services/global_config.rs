@@ -135,7 +135,7 @@ pub enum Status {
     Ready(Arc<GlobalConfig>),
     /// The global config is requested from the upstream but it has not arrived yet.
     ///
-    /// This variant should never be sent after the first `Ready` has occured.
+    /// This variant should never be sent after the first `Ready` has occurred.
     #[default]
     Pending,
 }

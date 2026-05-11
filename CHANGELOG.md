@@ -5,14 +5,19 @@
 **Features**:
 
 - Enable OTLP endpoints by default. ([#5951](https://github.com/getsentry/relay/pull/5951))
+- Backfill `app.vitals.start.screen` for V1 app-start transactions from the transaction name. ([#5960](https://github.com/getsentry/relay/pull/5960))
+- Enable performance score calculation for V2 spans. ([#5947](https://github.com/getsentry/relay/pull/5947))
 
 **Bug Fixes**:
 
 - Emit more precise outcome discard reasons for the Playstation, Minidump, and Attachments endpoints. ([#5950](https://github.com/getsentry/relay/pull/5950))
+- Set the name based on the transaction name when converting a transaction into a segment span. ([#5961](https://github.com/getsentry/relay/pull/5961))
 
 **Internal**:
 
 - Bump `sentry-conventions` to 0.6.0-4. ([#5944](https://github.com/getsentry/relay/pull/5944))
+- Enable compression for forwarded uploads. ([#5965](https://github.com/getsentry/relay/pull/5965))
+- Change the default partitioning for the envelope buffer from semantic to round-robin. ([#5967](https://github.com/getsentry/relay/pull/5967))
 
 ## 26.4.2
 

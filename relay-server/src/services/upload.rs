@@ -4,9 +4,11 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
+use async_compression::tokio::bufread::{BrotliEncoder, DeflateEncoder, GzipEncoder, ZstdEncoder};
 use bytes::Bytes;
 use chrono::DateTime;
 use chrono::Utc;
+use futures::StreamExt;
 use futures::stream::BoxStream;
 use http::{HeaderValue, Method};
 use relay_auth::Signature;
@@ -14,14 +16,17 @@ use relay_auth::Signature;
 use relay_auth::SignatureHeader;
 use relay_base_schema::project::ProjectId;
 use relay_config::Config;
+use relay_config::HttpEncoding;
 use relay_quotas::Scoping;
 use relay_system::{
     Addr, AsyncResponse, ConcurrentService, FromMessage, Interface, LoadShed, SendError, Sender,
     SimpleService,
 };
 use serde::Deserialize;
+use tokio::io::BufReader;
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::error::RecvError;
+use tokio_util::io::{ReaderStream, StreamReader};
 #[cfg(feature = "processing")]
 use uuid::Uuid;
 
@@ -458,6 +463,7 @@ enum RequestKind {
     Upload {
         location: SignedLocation,
         stream: Option<BoundedStream<MeteredStream<ByteStream>>>,
+        encoding: HttpEncoding,
     },
 }
 
@@ -508,6 +514,7 @@ impl UploadRequest {
                 kind: RequestKind::Upload {
                     location,
                     stream: Some(stream),
+                    encoding: HttpEncoding::Zstd, // just a default, will be overwritten by .configure()
                 },
                 sender,
             },
@@ -579,12 +586,19 @@ impl UpstreamRequest for UploadRequest {
 
     fn build(&mut self, builder: &mut RequestBuilder) -> Result<(), HttpError> {
         let upload_length = self.length();
-        if let RequestKind::Upload { stream, .. } = &mut self.kind {
+        if let RequestKind::Upload {
+            stream, encoding, ..
+        } = &mut self.kind
+        {
             let Some(body) = stream.take() else {
                 relay_log::error!("upload request was retried or never initialized");
                 return Err(HttpError::Misconfigured);
             };
             tus::add_upload_headers(builder);
+
+            let body = encode_body(body, *encoding);
+            builder.content_encoding(*encoding);
+
             builder.body(reqwest::Body::wrap_stream(body));
         } else {
             tus::add_creation_headers(upload_length, builder);
@@ -595,5 +609,25 @@ impl UpstreamRequest for UploadRequest {
         builder.timeout(Duration::MAX); // rely on service timeout to cancel requests
 
         Ok(())
+    }
+
+    fn configure(&mut self, config: &Config) {
+        if let RequestKind::Upload { encoding, .. } = &mut self.kind {
+            *encoding = config.http_encoding();
+        }
+    }
+}
+
+fn encode_body<S>(stream: S, encoding: HttpEncoding) -> ByteStream
+where
+    S: futures::Stream<Item = std::io::Result<Bytes>> + Send + 'static,
+{
+    let reader = BufReader::new(StreamReader::new(stream));
+    match encoding {
+        HttpEncoding::Identity => ReaderStream::new(reader).boxed(),
+        HttpEncoding::Deflate => ReaderStream::new(DeflateEncoder::new(reader)).boxed(),
+        HttpEncoding::Gzip => ReaderStream::new(GzipEncoder::new(reader)).boxed(),
+        HttpEncoding::Br => ReaderStream::new(BrotliEncoder::new(reader)).boxed(),
+        HttpEncoding::Zstd => ReaderStream::new(ZstdEncoder::new(reader)).boxed(),
     }
 }
