@@ -214,15 +214,15 @@ async fn handle(
     content_type: RawContentType,
     request: Request,
 ) -> axum::response::Result<impl IntoResponse> {
-    // If something goes wrong before the envelope is created, this managed error ensures an
-    // outcome is emitted.
-    let err = (DataCategory::Error, 1);
-    let managed_err = Managed::with_meta_from_request_meta(&meta, state.outcome_aggregator(), err);
-
     // Handle either a data request (send as json) or a crash dump (send as a multi-part)
     if content_type.as_ref().contains(DATA_REQUEST_CONTENT_TYPE) {
         return Ok(axum::Json(create_data_request_response()).into_response());
     }
+
+    // If something goes wrong before the envelope is created, this managed error ensures an
+    // outcome is emitted.
+    let err = (DataCategory::Error, 1);
+    let managed_err = Managed::with_meta_from_request_meta(&meta, state.outcome_aggregator(), err);
 
     let upload_context = upload_context(&state, &meta).await.reject(&managed_err)?;
     let multipart = utils::multipart_from_request(request).reject(&managed_err)?;
