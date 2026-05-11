@@ -215,6 +215,10 @@ impl IntoResponse for BadStoreRequest {
             BadStoreRequest::ObjectstoreUploadFailed => {
                 (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
             }
+            BadStoreRequest::InvalidMultipart(multer::Error::LockFailure) => {
+                relay_log::error!("failed to lock multipart, see INGEST-903");
+                (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
+            }
             _ => {
                 // In all other cases, we indicate a generic bad request to the client and render
                 // the cause. This was likely the client's fault.
