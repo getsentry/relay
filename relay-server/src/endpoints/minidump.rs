@@ -220,15 +220,18 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
         item: Managed<Item>,
         config: &Config,
     ) -> Result<Option<Managed<Item>>, multer::Error> {
-        let is_minidump = matches!(item.attachment_type(), Some(AttachmentType::Minidump));
-
-        // If we have no upload context just fall back to the old behavior.
-        let Some(ref upload_context) = self.upload_context else {
-            return match read_bytes_into_item(field, item, config).await {
+        let read_inline = async |field: Field<'static>, item: Managed<Item>| {
+            let is_minidump = matches!(item.attachment_type(), Some(AttachmentType::Minidump));
+            match read_bytes_into_item(field, item, config).await {
                 // Don't bubble up errors caused by large items unless it is the minidump itself.
                 Err(multer::Error::FieldSizeExceeded { .. }) if !is_minidump => Ok(None),
                 r => r,
-            };
+            }
+        };
+
+        // If we have no upload context just fall back to the old behavior.
+        let Some(ref upload_context) = self.upload_context else {
+            return read_inline(field, item).await;
         };
 
         match upload_context.upload_decision(item.attachment_type()) {
@@ -245,13 +248,7 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
                 )
                 .await)
             }
-            UploadDecision::Inline => {
-                return match read_bytes_into_item(field, item, config).await {
-                    // Don't bubble up errors caused by large items unless it is the minidump itself.
-                    Err(multer::Error::FieldSizeExceeded { .. }) if !is_minidump => Ok(None),
-                    r => r,
-                };
-            }
+            UploadDecision::Inline => read_inline(field, item).await,
             UploadDecision::Drop(limits) => {
                 // This is best effort, the item here does not yet have its content set hence size
                 // is not correct.
