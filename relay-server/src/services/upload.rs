@@ -52,7 +52,7 @@ pub enum Error {
     UpstreamRequest(#[from] UpstreamRequestError),
     #[error("request timeout: {0}")]
     Timeout(#[from] tokio::time::error::Elapsed),
-    #[error("upstream response: {0}")]
+    #[error("error response from upstream: {0}")]
     Upstream(#[source] reqwest::Error),
     #[error("upstream provided invalid location: {0:?}")]
     InvalidLocation(Option<HeaderValue>),

@@ -160,6 +160,11 @@ impl GlobalConfigHandle {
         Self { watch }
     }
 
+    /// Returns `true` if the global config was loaded from the upstream.
+    pub fn is_ready(&self) -> bool {
+        self.watch.borrow().is_ready()
+    }
+
     /// Returns the currently loaded or a default global config.
     ///
     /// When no global config has been received from upstream yet,

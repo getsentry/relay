@@ -147,6 +147,9 @@ async fn handle_post(
     headers: HeaderMap,
 ) -> axum::response::Result<impl IntoResponse> {
     relay_log::trace!("Checking project fetching killswitch");
+    if !state.global_config_handle().is_ready() {
+        relay_log::warn!("global config not available");
+    }
     if !state
         .global_config_handle()
         .current()
@@ -172,7 +175,10 @@ async fn handle_post(
         .project_cache_handle()
         .ready(meta.public_key(), config.query_timeout()) // uses same timeout as `Upstream`
         .await
-        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+        .ok_or_else(|| {
+            relay_log::warn!("timeout waiting for project config");
+            StatusCode::SERVICE_UNAVAILABLE
+        })?;
 
     relay_log::trace!("Checking request");
     let scoping = check_request(&state, meta, upload_length, project).await?;
@@ -206,6 +212,7 @@ async fn handle_patch(
         .options
         .endpoint_fetch_config_enabled
     {
+        relay_log::warn!("timeout waiting for project config");
         return Err(StatusCode::SERVICE_UNAVAILABLE.into());
     }
 
@@ -223,7 +230,10 @@ async fn handle_patch(
         .project_cache_handle()
         .ready(meta.public_key(), config.query_timeout()) // uses same timeout as `Upstream`
         .await
-        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+        .ok_or_else(|| {
+            relay_log::warn!("timeout waiting for project config");
+            StatusCode::SERVICE_UNAVAILABLE
+        })?;
 
     relay_log::trace!("Checking request");
     let scoping = check_request(&state, meta, length, project).await?;
