@@ -1,6 +1,7 @@
 import os
 from unittest import mock
 
+from flask import Response
 import msgpack
 
 import json
@@ -982,6 +983,67 @@ def test_minidump_objectstore_uploads(
             != "application/vnd.sentry.attachment-ref+json"
         )
         assert minidump.payload.bytes == minidump_content
+
+
+def test_minidump_objectstore_errors(
+    mini_sentry,
+    relay,
+):
+    project_id = 42
+    minidump_content = b"MDMP content"
+    log_content = b"Some log file content"
+
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).append(
+        "projects:relay-minidump-attachment-uploads"
+    )
+    mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = True
+
+    @mini_sentry.app.route("/api/<project>/upload/", methods=["POST"])
+    def create(**opts):
+
+        return Response(
+            "Hell no",
+            status=400,
+        )
+
+    relay = relay(
+        mini_sentry,
+        options={
+            "outcomes": {
+                "emit_outcomes": True,
+                "batch_size": 1,
+                "batch_interval": 1,
+            }
+        },
+    )
+
+    relay.send_minidump(
+        project_id=project_id,
+        files=[
+            (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", minidump_content),
+            ("logs", "log.txt", log_content),
+        ],
+    )
+
+    mini_sentry.captured_envelopes.get()
+
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "category": 4,
+            "outcome": 3,
+            "project_id": 42,
+            "reason": "internal",
+            "quantity": 1,
+        },
+        {
+            "category": 22,
+            "outcome": 3,
+            "project_id": 42,
+            "reason": "internal",
+            "quantity": 1,
+        },
+    ]
 
 
 def test_size_limits_multipart_chunked(mini_sentry, relay):
