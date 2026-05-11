@@ -11,6 +11,7 @@
 
 - Emit more precise outcome discard reasons for the Playstation, Minidump, and Attachments endpoints. ([#5950](https://github.com/getsentry/relay/pull/5950))
 - Set the name based on the transaction name when converting a transaction into a segment span. ([#5961](https://github.com/getsentry/relay/pull/5961))
+- Set the segment name for child spans based on the transaction name. ([#5959](https://github.com/getsentry/relay/pull/5959))
 
 **Internal**:
 
