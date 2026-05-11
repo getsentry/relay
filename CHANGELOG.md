@@ -13,6 +13,7 @@
 **Internal**:
 
 - Bump `sentry-conventions` to 0.6.0-4. ([#5944](https://github.com/getsentry/relay/pull/5944))
+- Change the default partitioning for the envelope buffer from semantic to round-robin. ([#5967](https://github.com/getsentry/relay/pull/5967))
 
 ## 26.4.2
 
