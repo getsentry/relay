@@ -5,6 +5,7 @@
 **Features**:
 
 - Enable OTLP endpoints by default. ([#5951](https://github.com/getsentry/relay/pull/5951))
+- Backfill `app.vitals.start.screen` for V1 app-start transactions from the transaction name. ([#5960](https://github.com/getsentry/relay/pull/5960))
 - Enable performance score calculation for V2 spans. ([#5947](https://github.com/getsentry/relay/pull/5947))
 
 **Bug Fixes**:
