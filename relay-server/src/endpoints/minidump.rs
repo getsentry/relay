@@ -289,16 +289,21 @@ async fn multipart_to_envelope(
         .ok_or(BadStoreRequest::MissingMinidump)
         .reject(&items)?;
 
+    let minidump_item = items
+        .get(minidump_idx)
+        .ok_or(BadStoreRequest::MissingMinidump)?;
     // Doing these operations does not make sense if we already streamed the minidump to objectstore.
-    if !items[minidump_idx].is_attachment_ref() {
-        let payload = items[minidump_idx].payload();
+    if !minidump_item.is_attachment_ref() {
+        let payload = minidump_item.payload();
         let payload = extract_embedded_minidump(payload.clone())
             .await?
             .unwrap_or(payload);
         let payload = decode_minidump(payload, config.max_attachment_size()).reject(&items)?;
 
         items.try_modify(|items, records| -> Result<(), BadStoreRequest> {
-            let minidump_item = &mut items[minidump_idx];
+            let minidump_item = items
+                .get_mut(minidump_idx)
+                .ok_or(BadStoreRequest::MissingMinidump)?;
             minidump_item.set_payload(Minidump, payload);
             records.lenient(DataCategory::Attachment); // decoding the minidump changes its size
             if let Some(minidump_filename) = minidump_item.filename() {
