@@ -4,10 +4,7 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
-use async_compression::tokio::bufread::BrotliEncoder;
-use async_compression::tokio::bufread::DeflateEncoder;
-use async_compression::tokio::bufread::GzipEncoder;
-use async_compression::tokio::bufread::ZstdEncoder;
+use async_compression::tokio::bufread::{BrotliEncoder, DeflateEncoder, GzipEncoder, ZstdEncoder};
 use bytes::Bytes;
 use chrono::DateTime;
 use chrono::Utc;
@@ -29,8 +26,7 @@ use serde::Deserialize;
 use tokio::io::BufReader;
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::error::RecvError;
-use tokio_util::io::ReaderStream;
-use tokio_util::io::StreamReader;
+use tokio_util::io::{ReaderStream, StreamReader};
 #[cfg(feature = "processing")]
 use uuid::Uuid;
 
@@ -518,7 +514,7 @@ impl UploadRequest {
                 kind: RequestKind::Upload {
                     location,
                     stream: Some(stream),
-                    encoding: HttpEncoding::Zstd,
+                    encoding: HttpEncoding::Zstd, // just a default, will be overwritten by .configure()
                 },
                 sender,
             },
