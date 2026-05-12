@@ -450,11 +450,39 @@ pub struct LocationPath {
 }
 
 /// Query parameters for the upload endpoint.
-#[derive(Debug, Deserialize)]
-#[serde(bound(deserialize = "L: UploadLength"))]
+#[derive(Debug)]
 pub struct LocationQueryParams<L: UploadLength> {
     pub length: L,
     pub signature: String,
+}
+
+#[derive(Deserialize)]
+struct Helper(LocationQueryParams<Provisional>);
+
+impl<'de> Deserialize<'de> for LocationQueryParams<Provisional> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Helper::deserialize(deserializer).map(|helper| helper.0)
+    }
+}
+
+impl<'de> Deserialize<'de> for LocationQueryParams<Final> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let LocationQueryParams::<Provisional> { length, signature } =
+            Helper::deserialize(deserializer)?.0;
+        let Some(length) = length.value() else {
+            return Err(serde::de::Error::custom("missing length"));
+        };
+        Ok(Self {
+            length: Final(length),
+            signature,
+        })
+    }
 }
 
 /// A verifiable [`Location`] signed by this Relay or an upstream Relay.
@@ -518,7 +546,12 @@ impl<L: UploadLength> SignedLocation<L> {
             false => Err(Error::InvalidSignature),
         }
     }
+}
 
+impl<L: UploadLength> SignedLocation<L>
+where
+    LocationQueryParams<L>: for<'de> Deserialize<'de>,
+{
     fn try_from_response(response: Response) -> Result<Self, Error> {
         match response.0.error_for_status() {
             Ok(response) => {
