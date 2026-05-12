@@ -2,9 +2,9 @@
     name: &amp;'static <a class="primitive" href="https://doc.rust-lang.org/1.95.0/std/primitive.str.html">str</a>,
     state: S,
     f: F,
-) -&gt; (Addr&lt;I&gt;, JoinHandle&lt;S&gt;)<div class="where">where
+) -&gt; (<a class="struct" href="../relay_system/service/struct.Addr.html" title="struct relay_system::service::Addr">Addr</a>&lt;I&gt;, JoinHandle&lt;S&gt;)<div class="where">where
     S: <a class="trait" href="https://doc.rust-lang.org/1.95.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'static,
-    I: Interface,
+    I: <a class="trait" href="../relay_system/service/trait.Interface.html" title="trait relay_system::service::Interface">Interface</a>,
     F: <a class="trait" href="https://doc.rust-lang.org/1.95.0/core/ops/function/trait.FnMut.html" title="trait core::ops::function::FnMut">FnMut</a>(<a class="primitive" href="https://doc.rust-lang.org/1.95.0/std/primitive.reference.html">&amp;mut S</a>, I) + <a class="trait" href="https://doc.rust-lang.org/1.95.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'static,</div></code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Spawns a mock service that handles messages through a closure.</p>
 <p>Note: Addr must be dropped before handle can be awaited.</p>
 </div></details></section></div></main></body></html>
