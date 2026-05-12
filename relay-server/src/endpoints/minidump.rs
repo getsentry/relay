@@ -385,13 +385,13 @@ async fn upload_context<'a>(
     }))
 }
 
-async fn raw_minidump_to_items(
+async fn raw_minidump_to_item(
     request: Request,
     meta: &RequestMeta,
     state: &ServiceState,
     content_type: RawContentType,
     upload_context: Option<UploadContext<'_>>,
-) -> Result<Managed<Items>, BadStoreRequest> {
+) -> Result<Managed<Item>, BadStoreRequest> {
     debug_assert!(!matches!(
         upload_context.as_ref().map(|c| &c.upload_minidumps),
         Some(UploadDecision::Drop(_))
@@ -426,8 +426,7 @@ async fn raw_minidump_to_items(
         })?;
     };
 
-    let items = item.map(|item, _| smallvec![item]);
-    Ok(items)
+    Ok(item)
 }
 
 async fn items(
@@ -438,7 +437,9 @@ async fn items(
     request: Request,
 ) -> Result<Managed<Items>, BadStoreRequest> {
     let items = if MINIDUMP_RAW_CONTENT_TYPES.contains(&content_type.as_ref()) {
-        raw_minidump_to_items(request, meta, state, content_type, upload_context).await?
+        raw_minidump_to_item(request, meta, state, content_type, upload_context)
+            .await?
+            .map(|item, _| smallvec![item])
     } else {
         let multipart = utils::multipart_from_request(request)?;
         multipart_to_items(multipart, meta, state, upload_context).await?
