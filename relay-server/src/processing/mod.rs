@@ -6,7 +6,7 @@
 //!
 //! The processor service, will then do its actual work using the processing logic defined here.
 
-use relay_config::Config;
+use relay_config::{Config, RelayMode};
 use relay_dynamic_config::GlobalConfig;
 use relay_quotas::RateLimits;
 use relay_sampling::evaluation::ReservoirCounters;
@@ -108,11 +108,9 @@ impl<'a> Context<'a> {
     /// when there is no full project config available. This is the case in stat and proxy
     /// Relays.
     pub fn should_filter(&self, feature: relay_dynamic_config::Feature) -> bool {
-        use relay_config::RelayMode::*;
-
         match self.config.relay_mode() {
-            Proxy => false,
-            Managed => !self.project_info.has_feature(feature),
+            RelayMode::Proxy => false,
+            RelayMode::Managed => !self.project_info.has_feature(feature),
         }
     }
 

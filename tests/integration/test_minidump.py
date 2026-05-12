@@ -1,6 +1,7 @@
 import os
 from unittest import mock
 
+from flask import Response
 import msgpack
 
 import json
@@ -984,6 +985,66 @@ def test_minidump_objectstore_uploads(
         assert minidump.payload.bytes == minidump_content
 
 
+def test_minidump_objectstore_errors(
+    mini_sentry,
+    relay,
+):
+    project_id = 42
+    minidump_content = b"MDMP content"
+    log_content = b"Some log file content"
+
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).append(
+        "projects:relay-minidump-attachment-uploads"
+    )
+
+    @mini_sentry.app.route("/api/<project>/upload/", methods=["POST"])
+    def create(**opts):
+
+        return Response(
+            "Hell no",
+            status=400,
+        )
+
+    relay = relay(
+        mini_sentry,
+        options={
+            "outcomes": {
+                "emit_outcomes": True,
+                "batch_size": 1,
+                "batch_interval": 1,
+            }
+        },
+    )
+
+    relay.send_minidump(
+        project_id=project_id,
+        files=[
+            (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", minidump_content),
+            ("logs", "log.txt", log_content),
+        ],
+    )
+
+    mini_sentry.captured_envelopes.get()
+
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "category": DataCategory.ATTACHMENT,
+            "outcome": 3,  # invalid
+            "project_id": 42,
+            "reason": "internal",
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.ATTACHMENT_ITEM,
+            "outcome": 3,  # invalid
+            "project_id": 42,
+            "reason": "internal",
+            "quantity": 1,
+        },
+    ]
+
+
 def test_size_limits_multipart_chunked(mini_sentry, relay):
 
     project_id = 42
@@ -1215,3 +1276,65 @@ def test_minidump_max_attachment_size_exceeded(
             "quantity": 1,
         },
     ]
+
+
+def test_minidump_large_attachment_skipped_when_no_project_fetching(mini_sentry, relay):
+    """
+    When the project fetching in the endpoints is disabled (and as a consequence
+    large attachments can not be uploaded to the objectstore), oversized regular
+    attachments should be silently skipped rather than rejecting the entire request.
+    The minidump must still be present in the forwarded envelope.
+    """
+    project_id = 42
+    minidump_content = b"MDMP content"
+    attachment_content = b"some attachment" * 100
+
+    mini_sentry.add_full_project_config(project_id)
+    mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = False
+
+    relay = relay(
+        mini_sentry,
+        options={
+            "limits": {
+                "max_attachment_size": len(attachment_content) - 1,
+                "max_attachments_size": 1000 * 1024 * 1024,
+            },
+            "outcomes": {
+                "emit_outcomes": True,
+                "batch_size": 1,
+                "batch_interval": 1,
+            },
+        },
+    )
+
+    attachments = [
+        ("attachment1", "attach1.txt", attachment_content),
+        (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", minidump_content),
+    ]
+
+    response = relay.send_minidump(project_id=project_id, files=attachments)
+    assert response.ok
+
+    outcomes = mini_sentry.get_aggregated_outcomes()
+
+    assert outcomes == [
+        {
+            "category": 4,
+            "outcome": 3,
+            "project_id": 42,
+            "quantity": 1500,
+            "reason": "too_large:attachment:attachment",
+        },
+        {
+            "category": 22,
+            "outcome": 3,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "too_large:attachment:attachment",
+        },
+    ]
+
+    envelope = mini_sentry.get_captured_envelope()
+
+    assert len(envelope.items) == 1
+    assert envelope.items[0].payload.bytes == minidump_content

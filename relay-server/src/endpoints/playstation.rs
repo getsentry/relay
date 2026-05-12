@@ -14,8 +14,7 @@ use serde::Serialize;
 use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
-use crate::envelope::ContentType::OctetStream;
-use crate::envelope::{AttachmentType, Envelope, Item};
+use crate::envelope::{AttachmentType, ContentType, Envelope, Item};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::managed::Managed;
 use crate::middlewares;
@@ -150,9 +149,15 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
                     upload_context.upload,
                     "playstation",
                 )
-                .await)
+                .await
+                .ok())
             }
-            _ => utils::read_attachment_bytes_into_item(field, item, config, true).await,
+            _ => match utils::read_bytes_into_item(field, item, config).await {
+                // Don't bubble up errors caused by large attachments, skip over them and continue
+                // with the next item.
+                Err(multer::Error::FieldSizeExceeded { .. }) => Ok(None),
+                r => r.map(Some),
+            },
         }
     }
 }
@@ -196,7 +201,7 @@ async fn multipart_to_envelope(
             .ok_or(BadStoreRequest::MissingProsperodump)?;
         let payload = prosperodump.payload();
         validate_prosperodump(&payload)?;
-        prosperodump.set_payload(OctetStream, payload);
+        prosperodump.set_payload(ContentType::OctetStream, payload);
         Ok(())
     })?;
 

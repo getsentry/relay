@@ -14,7 +14,7 @@ use crate::envelope::{AttachmentType, Envelope, Item};
 use crate::extractors::RequestMeta;
 use crate::managed::Managed;
 use crate::service::ServiceState;
-use crate::utils::{self, AttachmentStrategy, read_attachment_bytes_into_item};
+use crate::utils::{self, AttachmentStrategy, read_bytes_into_item};
 
 #[derive(Debug, Deserialize)]
 pub struct AttachmentPath {
@@ -28,13 +28,13 @@ impl AttachmentStrategy for AttachmentsAttachmentStrategy {
         AttachmentType::default()
     }
 
-    fn add_to_item(
+    async fn add_to_item(
         &self,
         field: Field<'static>,
         item: Managed<Item>,
         config: &Config,
-    ) -> impl Future<Output = Result<Option<Managed<Item>>, multer::Error>> + Send {
-        read_attachment_bytes_into_item(field, item, config, false)
+    ) -> Result<Option<Managed<Item>>, multer::Error> {
+        read_bytes_into_item(field, item, config).await.map(Some)
     }
 }
 
