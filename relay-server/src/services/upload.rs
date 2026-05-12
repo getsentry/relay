@@ -38,7 +38,7 @@ use crate::services::upstream::{
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
 use crate::utils::MeteredStream;
-use crate::utils::{BoundedStream, tus};
+use crate::utils::{BoundedStream, RetryableStream, TakeOnce, tus};
 
 /// The URL template for uploading bytes to a known location.
 pub const UPLOAD_PATCH_PATH: &str = "/api/{project_id}/upload/{key}/";
@@ -462,7 +462,8 @@ enum RequestKind {
     },
     Upload {
         location: SignedLocation,
-        stream: Option<BoundedStream<MeteredStream<ByteStream>>>,
+        stream: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
+        length: Option<usize>,
         encoding: HttpEncoding,
     },
 }
@@ -507,13 +508,15 @@ impl UploadRequest {
             location,
             stream,
         } = stream;
+        let length = stream.length();
 
         (
             Self {
                 scoping,
                 kind: RequestKind::Upload {
                     location,
-                    stream: Some(stream),
+                    stream: TakeOnce::new(stream),
+                    length,
                     encoding: HttpEncoding::Zstd, // just a default, will be overwritten by .configure()
                 },
                 sender,
@@ -525,11 +528,7 @@ impl UploadRequest {
     /// Returns the length of the upload, if known.
     fn length(&self) -> Option<usize> {
         match &self.kind {
-            RequestKind::Create { length } => *length,
-            RequestKind::Upload { stream, .. } => {
-                debug_assert!(stream.is_some());
-                stream.as_ref().and_then(BoundedStream::length)
-            }
+            RequestKind::Create { length } | RequestKind::Upload { length, .. } => *length,
         }
     }
 }
@@ -573,11 +572,15 @@ impl UpstreamRequest for UploadRequest {
     }
 
     fn retry(&self) -> bool {
-        false
+        match &self.kind {
+            RequestKind::Create { .. } => true,
+            // Once the body has been polled, it cannot be replayed — give up instead.
+            RequestKind::Upload { stream, .. } => !stream.is_taken(),
+        }
     }
 
     fn intercept_status_errors(&self) -> bool {
-        false // same as ForwardRequest
+        true
     }
 
     fn set_relay_id(&self) -> bool {
@@ -590,8 +593,8 @@ impl UpstreamRequest for UploadRequest {
             stream, encoding, ..
         } = &mut self.kind
         {
-            let Some(body) = stream.take() else {
-                relay_log::error!("upload request was retried or never initialized");
+            let Some(body) = RetryableStream::new(stream.clone()) else {
+                relay_log::error!("upload request stream was already consumed");
                 return Err(HttpError::Misconfigured);
             };
             tus::add_upload_headers(builder);
