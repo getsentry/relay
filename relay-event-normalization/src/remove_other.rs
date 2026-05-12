@@ -76,8 +76,8 @@ impl Processor for RemoveOtherProcessor {
 #[cfg(test)]
 mod tests {
     use relay_event_schema::processor::process_value;
-    use relay_event_schema::protocol::{Context, Contexts, OsContext, User, Values};
-    use relay_protocol::{FromValue, get_value};
+    use relay_event_schema::protocol::{Context, Contexts, DebugImage, OsContext, User, Values};
+    use relay_protocol::{Empty, FromValue, get_value};
     use similar_asserts::assert_eq;
 
     use super::*;
@@ -159,6 +159,25 @@ mod tests {
         .unwrap();
 
         assert!(get_value!(event.user!).other.is_empty());
+    }
+
+    #[test]
+    fn test_remove_enum_fallback_variant() {
+        let mut debug_image = Annotated::new(DebugImage::Other({
+            let mut other = Object::new();
+            other.insert("foo".to_owned(), Value::U64(42).into());
+            other.insert("bar".to_owned(), Value::U64(42).into());
+            other
+        }));
+
+        process_value(
+            &mut debug_image,
+            &mut RemoveOtherProcessor,
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert!(debug_image.is_empty());
     }
 
     #[test]

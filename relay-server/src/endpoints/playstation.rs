@@ -149,7 +149,8 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
                     upload_context.upload,
                     "playstation",
                 )
-                .await)
+                .await
+                .ok())
             }
             _ => match utils::read_bytes_into_item(field, item, config).await {
                 // Don't bubble up errors caused by large attachments, skip over them and continue

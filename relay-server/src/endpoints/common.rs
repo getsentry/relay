@@ -19,7 +19,7 @@ use crate::envelope::{
     AttachmentPlaceholder, AttachmentType, ContentType, Envelope, EnvelopeError, Item, ItemType,
     Items,
 };
-use crate::managed::{Managed, Rejected};
+use crate::managed::{Managed, ManagedResult, Rejected};
 use crate::service::ServiceState;
 use crate::services::buffer::{ProjectKeyPair, PushError};
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
@@ -557,7 +557,36 @@ pub async fn upload_to_objectstore<S, E>(
     scoping: Scoping,
     upload: &Addr<Upload>,
     referrer: &'static str,
-) -> Option<Managed<Item>>
+) -> Result<Managed<Item>, Rejected<()>>
+where
+    S: futures::Stream<Item = Result<Bytes, E>> + Send + 'static,
+    E: Into<Box<dyn std::error::Error + Send + Sync>> + 'static,
+{
+    let res = upload_to_objectstore_inner(
+        stream,
+        content_type,
+        &mut item,
+        config,
+        scoping,
+        upload,
+        referrer,
+    )
+    .await;
+    match res {
+        Some(()) => Ok(item),
+        None => Err(Outcome::Invalid(DiscardReason::Internal)).reject(&item),
+    }
+}
+
+async fn upload_to_objectstore_inner<S, E>(
+    stream: S,
+    content_type: Option<String>,
+    item: &mut Managed<Item>,
+    config: &Config,
+    scoping: Scoping,
+    upload: &Addr<Upload>,
+    referrer: &'static str,
+) -> Option<()>
 where
     S: futures::Stream<Item = Result<Bytes, E>> + Send + 'static,
     E: Into<Box<dyn std::error::Error + Send + Sync>> + 'static,
@@ -611,7 +640,7 @@ where
         inner.set_attachment_length(byte_counter.get());
         records.lenient(DataCategory::Attachment); // item was empty before
     });
-    Some(item)
+    Some(())
 }
 
 #[derive(Debug)]
