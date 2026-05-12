@@ -73,7 +73,7 @@ impl UnrealParams {
                 for mut item in
                     extract_items(data, state.config()).map_err(|error| match error {
                         ProcessingError::PayloadTooLarge(_) => {
-                            BadStoreRequest::Overflow(DiscardItemType::UnrealReport)
+                            BadStoreRequest::ItemTooLarge(DiscardItemType::UnrealReport)
                         }
                         _ => BadStoreRequest::InvalidUnrealReport,
                     })?

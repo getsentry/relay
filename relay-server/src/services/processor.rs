@@ -503,7 +503,7 @@ impl ProcessingError {
     pub fn to_outcome(&self) -> Option<Outcome> {
         match self {
             Self::PayloadTooLarge(payload_type) => {
-                Some(Outcome::Invalid(DiscardReason::TooLarge(*payload_type)))
+                Some(Outcome::Invalid(DiscardReason::ItemTooLarge(*payload_type)))
             }
             Self::InvalidJson(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
             Self::InvalidMsgpack(_) => Some(Outcome::Invalid(DiscardReason::InvalidMsgpack)),

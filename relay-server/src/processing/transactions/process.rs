@@ -192,7 +192,7 @@ pub fn normalize(
             && trimmed > 0
         {
             r.reject_err(
-                Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Span)),
+                Outcome::Invalid(DiscardReason::ItemTooLarge(DiscardItemType::Span)),
                 [
                     (DataCategory::Span, trimmed),
                     (DataCategory::SpanIndexed, trimmed),
