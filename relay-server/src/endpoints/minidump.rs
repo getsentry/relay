@@ -8,7 +8,7 @@ use flate2::read::GzDecoder;
 use futures::{self, Stream};
 use liblzma::read::XzDecoder;
 use multer::{Field, Multipart};
-use relay_config::{Config, HttpEncoding};
+use relay_config::Config;
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::EventId;
 use relay_quotas::{DataCategory, RateLimits, Scoping};
@@ -490,8 +490,12 @@ async fn raw_minidump_to_envelope(
     if let Some(upload_context) = upload_context
         && matches!(upload_context.upload_minidumps, UploadDecision::Upload)
     {
-        item = upload_to_objectstore(
-            request.into_body().into_data_stream(),
+        let stream = reject_if_compressed(request.into_body().into_data_stream())
+            .await
+            .map_err(|_| BadStoreRequest::InvalidMinidump)?;
+
+        item = upload_to_objectstore_checked(
+            stream,
             Some(content_type.to_string()).filter(|s| !s.is_empty()),
             item,
             config,
