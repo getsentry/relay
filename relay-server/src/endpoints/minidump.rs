@@ -454,7 +454,7 @@ fn envelope(
     managed_err: Managed<(DataCategory, usize)>,
 ) -> Result<Managed<Box<Envelope>>, BadStoreRequest> {
     let event_id = common::event_id_from_items(&items)
-        .reject(&managed_err)?
+        .reject2(&items, &managed_err)?
         .unwrap_or_else(EventId::new);
     let envelope = items.map(|items, records| {
         managed_err.accept(|_| ()); // There will be an envelope with (DataCategory::Error, 1) now
