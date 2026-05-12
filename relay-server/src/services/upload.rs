@@ -73,7 +73,7 @@ pub enum Error {
 }
 
 impl Error {
-    fn as_str(&self) -> &'static str {
+    fn variant(&self) -> &'static str {
         match self {
             Error::Send(_) => "send_failed",
             Error::UpstreamRequest(_) => "upstream_request",
@@ -216,9 +216,9 @@ impl InstrumentedSender {
     fn send(self, result: Result<SignedLocation, Error>) {
         let result_msg = match &result {
             Ok(_) => "success",
-            Err(e) => e.as_str(),
+            Err(e) => e.variant(),
         };
-        relay_statsd::metric!(counter(self.metric) += 1, result = result_msg,);
+        relay_statsd::metric!(counter(self.metric) += 1, result = result_msg);
         self.inner.send(result)
     }
 }
