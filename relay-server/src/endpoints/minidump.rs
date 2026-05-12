@@ -75,30 +75,6 @@ enum PeekError<E> {
     Source(#[from] E),
 }
 
-/// Peeks `n` bytes into a `stream`, returning the peeked bytes together with the stream containing
-/// all the bytes of the original `stream`.
-async fn peek_n<S, E>(
-    stream: S,
-    n: usize,
-) -> Result<(Bytes, impl Stream<Item = Result<Bytes, E>> + Send), E>
-where
-    S: Stream<Item = Result<Bytes, E>> + Send,
-    E: Send,
-{
-    let mut stream = Box::pin(stream);
-    let mut head = BytesMut::with_capacity(n);
-    while head.len() < n {
-        match stream.next().await {
-            Some(Ok(chunk)) => head.extend_from_slice(&chunk),
-            Some(Err(e)) => return Err(e),
-            None => break,
-        }
-    }
-    let head = head.freeze();
-    let replay = stream::once(future::ready(Ok(head.clone()))).chain(stream);
-    Ok((head, replay))
-}
-
 /// Peek the first bytes of `stream` and reject if they look compressed (gzip/xz/bzip2/zstd).
 /// Returns the original stream contents if not.
 async fn reject_if_compressed<S, E>(
@@ -108,7 +84,7 @@ where
     S: Stream<Item = Result<Bytes, E>> + Send,
     E: Send,
 {
-    let (head, stream) = peek_n(stream, MAGIC_PEEK).await?;
+    let (head, stream) = utils::stream::peek_n(stream, MAGIC_PEEK).await?;
 
     if head.starts_with(GZIP_MAGIC_HEADER)
         || head.starts_with(XZ_MAGIC_HEADER)
