@@ -966,6 +966,10 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     /// - `item`: what item the decision is taken for (transaction vs span).
     SamplingDecision,
+    /// How often a call to the upload endpoint was rejected because of the global kill switch.
+    ///
+    /// This is intended as a temporary metric to debug 503 flakiness.
+    UploadKillswitched,
     /// The number of times an upload location is created through the upload service.
     ///
     /// This metric is tagged with:
@@ -1057,6 +1061,7 @@ impl CounterMetric for RelayCounters {
             #[cfg(all(sentry, feature = "processing"))]
             RelayCounters::PlaystationProcessing => "processing.playstation",
             RelayCounters::SamplingDecision => "sampling.decision",
+            RelayCounters::UploadKillswitched => "upload.killswitched",
             RelayCounters::UploadCreate => "upload.create",
             RelayCounters::UploadUpload => "upload.upload",
             #[cfg(feature = "processing")]

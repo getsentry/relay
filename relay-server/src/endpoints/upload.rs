@@ -32,6 +32,7 @@ use crate::services::objectstore;
 use crate::services::projects::cache::Project;
 use crate::services::upload::{self, ByteStream, SignedLocation};
 use crate::services::upstream::UpstreamRequestError;
+use crate::statsd::RelayCounters;
 use crate::utils::{ApiErrorResponse, MeteredStream};
 use crate::utils::{BoundedStream, find_error_source, tus};
 
@@ -271,6 +272,7 @@ fn check_kill_switch(state: &ServiceState) -> Result<(), StatusCode> {
         .options
         .endpoint_fetch_config_enabled
     {
+        relay_statsd::metric!(counter(RelayCounters::UploadKillswitched) += 1);
         return Err(StatusCode::SERVICE_UNAVAILABLE);
     }
     Ok(())
