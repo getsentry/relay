@@ -188,7 +188,7 @@ async fn multipart_to_items(
         multipart,
         state.config(),
         PlaystationAttachmentStrategy { upload_context },
-        &meta,
+        meta,
         state.outcome_aggregator(),
     )
     .await?;
