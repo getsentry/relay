@@ -101,7 +101,7 @@
 <a href=#101 id=101 data-nosnippet>101</a>                    StatusCode::INTERNAL_SERVER_ERROR
 <a href=#102 id=102 data-nosnippet>102</a>                }
 <a href=#103 id=103 data-nosnippet>103</a>                upload::Error::InvalidSignature =&gt; StatusCode::BAD_REQUEST,
-<a href=#104 id=104 data-nosnippet>104</a>                upload::Error::ServiceUnavailable(<span class="kw">_</span>) =&gt; StatusCode::SERVICE_UNAVAILABLE,
+<a href=#104 id=104 data-nosnippet>104</a>                upload::Error::ObjectstoreServiceUnavailable(<span class="kw">_</span>) =&gt; StatusCode::SERVICE_UNAVAILABLE,
 <a href=#105 id=105 data-nosnippet>105</a>                <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 <a href=#106 id=106 data-nosnippet>106</a>                </span>upload::Error::Objectstore(service_error) =&gt; <span class="kw">match </span>service_error.kind {
 <a href=#107 id=107 data-nosnippet>107</a>                    objectstore::ErrorKind::Timeout(<span class="kw">_</span>) =&gt; StatusCode::GATEWAY_TIMEOUT,
