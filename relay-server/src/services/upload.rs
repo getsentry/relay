@@ -37,6 +37,7 @@ use crate::services::objectstore::{self, Objectstore};
 use crate::services::upstream::{
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
+use crate::statsd::RelayCounters;
 use crate::utils::MeteredStream;
 use crate::utils::{BoundedStream, RetryableStream, TakeOnce, tus};
 
@@ -60,8 +61,8 @@ pub enum Error {
     SigningFailed,
     #[error("invalid signature")]
     InvalidSignature,
-    #[error("service unavailable")]
-    ServiceUnavailable(#[source] SendError),
+    #[error("objectstore service unavailable: {0}")]
+    ObjectstoreServiceUnavailable(#[source] SendError),
     #[cfg(feature = "processing")]
     #[error("objectstore service: {0}")]
     Objectstore(#[from] objectstore::Error),
@@ -71,17 +72,36 @@ pub enum Error {
     Internal(#[source] http::header::InvalidHeaderValue),
 }
 
+impl Error {
+    fn variant(&self) -> &'static str {
+        match self {
+            Error::Send(_) => "send_failed",
+            Error::UpstreamRequest(_) => "upstream_request",
+            Error::Timeout(_) => "timeout",
+            Error::Upstream(_) => "upstream_response",
+            Error::InvalidLocation(_) => "invalid_location",
+            Error::SigningFailed => "signing_failed",
+            Error::InvalidSignature => "invalid_signature",
+            Error::ObjectstoreServiceUnavailable(_) => "service_unavailable",
+            #[cfg(feature = "processing")]
+            Error::Objectstore(_) => "objectstore_error",
+            Error::LoadShed => "load_shed",
+            Error::Internal(_) => "internal",
+        }
+    }
+}
+
 /// The message interface for this service.
 pub enum Upload {
     /// Creates an upload resource.
     ///
     /// Returns the trusted identifier of the upload.
-    Create(Create, Sender<Result<SignedLocation, Error>>),
+    Create(Create, InstrumentedSender),
     /// Upload a stream of bytes for a given location.
     ///
     /// The service also returns the signed location. This is redundant, but creates a simpler
     /// flow for the caller side.
-    Upload(Stream, Sender<Result<SignedLocation, Error>>),
+    Upload(Stream, InstrumentedSender),
 }
 
 impl Interface for Upload {}
@@ -115,7 +135,13 @@ impl FromMessage<Create> for Upload {
     type Response = AsyncResponse<Result<SignedLocation, Error>>;
 
     fn from_message(message: Create, sender: Sender<Result<SignedLocation, Error>>) -> Self {
-        Self::Create(message, sender)
+        Self::Create(
+            message,
+            InstrumentedSender {
+                metric: RelayCounters::UploadCreate,
+                inner: sender,
+            },
+        )
     }
 }
 
@@ -123,7 +149,13 @@ impl FromMessage<Stream> for Upload {
     type Response = AsyncResponse<Result<SignedLocation, Error>>;
 
     fn from_message(message: Stream, sender: Sender<Result<SignedLocation, Error>>) -> Self {
-        Self::Upload(message, sender)
+        Self::Upload(
+            message,
+            InstrumentedSender {
+                metric: RelayCounters::UploadUpload,
+                inner: sender,
+            },
+        )
     }
 }
 
@@ -172,6 +204,23 @@ fn create_backend(
 pub struct Service {
     timeout: Duration,
     backend: Backend,
+}
+
+/// A response channel that emits a metric for each response.
+pub struct InstrumentedSender {
+    metric: RelayCounters,
+    inner: Sender<Result<SignedLocation, Error>>,
+}
+
+impl InstrumentedSender {
+    fn send(self, result: Result<SignedLocation, Error>) {
+        let result_msg = match &result {
+            Ok(_) => "success",
+            Err(e) => e.variant(),
+        };
+        relay_statsd::metric!(counter(self.metric) += 1, result = result_msg);
+        self.inner.send(result)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -243,7 +292,7 @@ impl Service {
                         stream,
                     })
                     .await
-                    .map_err(Error::ServiceUnavailable)??
+                    .map_err(Error::ObjectstoreServiceUnavailable)??
                     .into_inner();
                 let length = Some(byte_counter.get());
 
