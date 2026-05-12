@@ -16,6 +16,7 @@
 
 **Internal**:
 
+- Remove unknown debug image variants in errors. ([#5962](https://github.com/getsentry/relay/pull/5962))
 - Bump `sentry-conventions` to 0.6.0-4. ([#5944](https://github.com/getsentry/relay/pull/5944))
 - Enable compression for forwarded uploads. ([#5965](https://github.com/getsentry/relay/pull/5965))
 - Change the default partitioning for the envelope buffer from semantic to round-robin. ([#5967](https://github.com/getsentry/relay/pull/5967))
