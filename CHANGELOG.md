@@ -18,8 +18,10 @@
 
 - Remove unknown debug image variants in errors. ([#5962](https://github.com/getsentry/relay/pull/5962))
 - Bump `sentry-conventions` to 0.6.0-4. ([#5944](https://github.com/getsentry/relay/pull/5944))
+- Bump `sqlparser` to 0.62. ([#5964](https://github.com/getsentry/relay/pull/5964))
 - Enable compression for forwarded uploads. ([#5965](https://github.com/getsentry/relay/pull/5965))
 - Change the default partitioning for the envelope buffer from semantic to round-robin. ([#5967](https://github.com/getsentry/relay/pull/5967))
+- Enable retries for upload requests to upstream. ([#5975](https://github.com/getsentry/relay/pull/5975))
 
 ## 26.4.2
 

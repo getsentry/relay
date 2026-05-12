@@ -87,6 +87,8 @@ impl IntoResponse for Error {
                     {
                         StatusCode::BAD_REQUEST
                     }
+                    UpstreamRequestError::RateLimited(_) => StatusCode::TOO_MANY_REQUESTS,
+                    UpstreamRequestError::ResponseError(status, _) => status,
                     _ => return e.into_response(),
                 },
                 upload::Error::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
@@ -99,7 +101,7 @@ impl IntoResponse for Error {
                     StatusCode::INTERNAL_SERVER_ERROR
                 }
                 upload::Error::InvalidSignature => StatusCode::BAD_REQUEST,
-                upload::Error::ServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
+                upload::Error::ObjectstoreServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
                 #[cfg(feature = "processing")]
                 upload::Error::Objectstore(service_error) => match service_error.kind {
                     objectstore::ErrorKind::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
