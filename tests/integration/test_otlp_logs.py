@@ -369,7 +369,7 @@ def test_otlp_logs_size_limits(mini_sentry, relay):
             "outcome": 3,
             "project_id": project_id,
             "quantity": 1,
-            "reason": "item_too_large:log",
+            "reason": "too_large:log",
         },
         {
             "category": DataCategory.LOG_BYTE,
@@ -378,6 +378,6 @@ def test_otlp_logs_size_limits(mini_sentry, relay):
             "outcome": 3,
             "project_id": project_id,
             "quantity": 127,
-            "reason": "item_too_large:log",
+            "reason": "too_large:log",
         },
     ]

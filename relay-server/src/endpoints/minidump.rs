@@ -285,7 +285,7 @@ async fn multipart_to_items(
         multipart,
         config,
         minidump_attachment_strategy,
-        &meta,
+        meta,
         state.outcome_aggregator(),
     )
     .await?;
@@ -400,7 +400,7 @@ async fn raw_minidump_to_items(
     let mut item = Item::new(ItemType::Attachment);
     item.set_filename(MINIDUMP_FILE_NAME);
     item.set_attachment_type(AttachmentType::Minidump);
-    let mut item = Managed::with_meta_from_request_meta(&meta, state.outcome_aggregator(), item);
+    let mut item = Managed::with_meta_from_request_meta(meta, state.outcome_aggregator(), item);
     if let Some(upload_context) = upload_context
         && matches!(upload_context.upload_minidumps, UploadDecision::Upload)
     {

@@ -211,7 +211,7 @@ impl Outcome {
     pub fn to_reason(&self) -> Option<Cow<'_, str>> {
         match self {
             Outcome::Invalid(DiscardReason::ItemTooLarge(too_large_reason)) => Some(Cow::Owned(
-                format!("item_too_large:{}", too_large_reason.as_str()),
+                format!("too_large:{}", too_large_reason.as_str()),
             )),
             Outcome::Invalid(discard_reason) => Some(Cow::Borrowed(discard_reason.name())),
             Outcome::Filtered(filter_key) => Some(filter_key.clone().name()),
@@ -548,9 +548,9 @@ impl DiscardReason {
             DiscardReason::DisallowedMethod => "disallowed_method",
             DiscardReason::ContentType => "content_type",
             DiscardReason::MultiProjectId => "multi_project_id",
-            DiscardReason::MissingProsperodump => "missing_prosperodump",
+            DiscardReason::MissingProsperodump => "missing_prosperodump_upload",
             DiscardReason::InvalidProsperodump => "invalid_prosperodump",
-            DiscardReason::MissingMinidump => "missing_minidump",
+            DiscardReason::MissingMinidump => "missing_minidump_upload",
             DiscardReason::InvalidMinidump => "invalid_minidump",
             DiscardReason::SecurityReportType => "security_report_type",
             DiscardReason::SecurityReport => "security_report",
@@ -1404,24 +1404,24 @@ mod tests {
     #[test]
     fn test_outcome_discard_reason() {
         assert_eq!(
-            Some(Cow::from("item_too_large:attachment:attachment")),
+            Some(Cow::from("too_large:attachment:attachment")),
             Outcome::Invalid(DiscardReason::ItemTooLarge(DiscardItemType::Attachment(
                 DiscardAttachmentType::Attachment
             )))
             .to_reason()
         );
         assert_eq!(
-            Some(Cow::from("item_too_large:unknown")),
+            Some(Cow::from("too_large:unknown")),
             Outcome::Invalid(DiscardReason::ItemTooLarge(DiscardItemType::Unknown)).to_reason()
         );
         assert_eq!(
-            Some(Cow::from("item_too_large:unreal_report")),
+            Some(Cow::from("too_large:unreal_report")),
             Outcome::Invalid(DiscardReason::ItemTooLarge(DiscardItemType::UnrealReport))
                 .to_reason()
         );
 
         assert_eq!(
-            Some(Cow::from("item_too_large:attachment:breadcrumbs")),
+            Some(Cow::from("too_large:attachment:breadcrumbs")),
             Outcome::Invalid(DiscardReason::ItemTooLarge(DiscardItemType::Attachment(
                 DiscardAttachmentType::Breadcrumbs
             )))
