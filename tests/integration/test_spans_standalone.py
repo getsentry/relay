@@ -119,9 +119,6 @@ def lcp_cls_inp_differences(mode):
         attributes = {
             # The legacy pipeline extracts this attribute from `sentry_tags`.
             "sentry.browser.name": {"type": "string", "value": "Chrome"},
-            # Legacy behaviour, new field is `sentry.segment.name`
-            # Maybe this shouldn't exist since parent and segment information is also removed
-            "sentry.transaction": {"type": "string", "value": "/insights/projects/"},
         }
         fields = {}
     else:
@@ -255,6 +252,7 @@ def test_lcp_span(
             },
             "sentry.report_event": {"type": "string", "value": "navigation"},
             "sentry.segment.name": {"type": "string", "value": "/insights/projects/"},
+            "sentry.transaction": {"type": "string", "value": "/insights/projects/"},
             "user_agent.original": {
                 "type": "string",
                 "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -450,6 +448,7 @@ def test_cls_span(
             },
             "sentry.report_event": {"type": "string", "value": "navigation"},
             "sentry.segment.name": {"type": "string", "value": "/insights/projects/"},
+            "sentry.transaction": {"type": "string", "value": "/insights/projects/"},
             "user_agent.original": {
                 "type": "string",
                 "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -625,6 +624,7 @@ def test_inp_span(
                 "value": "3d76a6311de149b9b3f560827ea0ecf9",
             },
             "sentry.segment.name": {"type": "string", "value": "/insights/projects/"},
+            "sentry.transaction": {"type": "string", "value": "/insights/projects/"},
             "user_agent.original": {
                 "type": "string",
                 "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
