@@ -83,6 +83,7 @@ impl Error {
             Error::SigningFailed => "signing_failed",
             Error::InvalidSignature => "invalid_signature",
             Error::ObjectstoreServiceUnavailable(_) => "service_unavailable",
+            #[cfg(feature = "processing")]
             Error::Objectstore(_) => "objectstore_error",
             Error::LoadShed => "load_shed",
             Error::Internal(_) => "internal",
