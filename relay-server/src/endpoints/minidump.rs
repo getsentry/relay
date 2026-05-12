@@ -2,9 +2,10 @@ use axum::RequestExt;
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use bzip2::read::BzDecoder;
 use flate2::read::GzDecoder;
+use futures::{self, Stream, StreamExt, future, stream};
 use liblzma::read::XzDecoder;
 use multer::{Field, Multipart};
 use relay_config::Config;
@@ -23,7 +24,7 @@ use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse, upload_to_objectstore};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::{RawContentType, RequestMeta};
-use crate::managed::{Managed, ManagedResult};
+use crate::managed::{Managed, ManagedResult, Rejected};
 use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome};
@@ -60,8 +61,65 @@ const BZIP2_MAGIC_HEADER: &[u8] = b"\x42\x5A\x68";
 /// Magic bytes for zstd compressed minidump containers.
 const ZSTD_MAGIC_HEADER: &[u8] = b"\x28\xB5\x2F\xFD";
 
+/// Longest magic header we recognize (XZ is 6 bytes).
+const MAGIC_PEEK: usize = 6;
+
 /// Content types by which standalone uploads can be recognized.
 const MINIDUMP_RAW_CONTENT_TYPES: &[&str] = &["application/octet-stream", "application/x-dmp"];
+
+#[derive(Debug, thiserror::Error)]
+enum PeekError<E> {
+    #[error("compressed minidump payloads are not supported for streaming upload")]
+    Compressed,
+    #[error(transparent)]
+    Source(#[from] E),
+}
+
+/// Peeks `n` bytes into a `stream`, returning the peaked bytes together with the stream containing
+/// all the bytes of the original `stream`.
+async fn peek_n<S, E>(
+    stream: S,
+    n: usize,
+) -> Result<(Bytes, impl Stream<Item = Result<Bytes, E>> + Send), E>
+where
+    S: Stream<Item = Result<Bytes, E>> + Send + 'static,
+    E: Send + 'static,
+{
+    let mut stream = Box::pin(stream);
+    let mut head = BytesMut::with_capacity(n);
+    while head.len() < n {
+        match stream.next().await {
+            Some(Ok(chunk)) => head.extend_from_slice(&chunk),
+            Some(Err(e)) => return Err(e),
+            None => break,
+        }
+    }
+    let head = head.freeze();
+    let replay = stream::once(future::ready(Ok(head.clone()))).chain(stream);
+    Ok((head, replay))
+}
+
+/// Peek the first bytes of `stream` and reject if they look compressed (gzip/xz/bzip2/zstd).
+/// Returns the original stream contents if not.
+async fn reject_if_compressed<S, E>(
+    stream: S,
+) -> Result<impl Stream<Item = Result<Bytes, E>> + Send, PeekError<E>>
+where
+    S: Stream<Item = Result<Bytes, E>> + Send + 'static,
+    E: Send + 'static,
+{
+    let (head, stream) = peek_n(stream, MAGIC_PEEK).await?;
+
+    if head.starts_with(GZIP_MAGIC_HEADER)
+        || head.starts_with(XZ_MAGIC_HEADER)
+        || head.starts_with(BZIP2_MAGIC_HEADER)
+        || head.starts_with(ZSTD_MAGIC_HEADER)
+    {
+        Err(PeekError::Compressed)
+    } else {
+        Ok(stream)
+    }
+}
 
 fn validate_minidump(data: &[u8]) -> Result<(), BadStoreRequest> {
     if !data.starts_with(MINIDUMP_MAGIC_HEADER_LE) && !data.starts_with(MINIDUMP_MAGIC_HEADER_BE) {
@@ -236,7 +294,7 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
         match upload_context.upload_decision(item.attachment_type()) {
             UploadDecision::Upload => {
                 let content_type = field.content_type().map(ToString::to_string);
-                Ok(upload_to_objectstore(
+                Ok(upload_to_objectstore_checked(
                     field,
                     content_type,
                     item,
@@ -270,6 +328,52 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
             _ => AttachmentType::Attachment,
         }
     }
+}
+
+/// Wrapper around [`upload_to_objectstore`] that enforces that minidumps are not compressed.
+pub async fn upload_to_objectstore_checked<S, E>(
+    stream: S,
+    content_type: Option<String>,
+    item: Managed<Item>,
+    config: &Config,
+    scoping: Scoping,
+    upload: &Addr<Upload>,
+    referrer: &'static str,
+) -> Result<Managed<Item>, Rejected<()>>
+where
+    S: futures::Stream<Item = Result<Bytes, E>> + Send + 'static,
+    E: Into<Box<dyn std::error::Error + Send + Sync>> + Send + 'static,
+{
+    if !matches!(item.attachment_type(), Some(AttachmentType::Minidump)) {
+        return upload_to_objectstore(
+            stream,
+            content_type,
+            item,
+            config,
+            scoping,
+            upload,
+            referrer,
+        )
+        .await;
+    }
+
+    let stream = match reject_if_compressed(stream).await {
+        Ok(stream) => stream,
+        Err(_) => {
+            return Err(item.reject_err(Outcome::Invalid(DiscardReason::InvalidMinidump)));
+        }
+    };
+
+    upload_to_objectstore(
+        stream,
+        content_type,
+        item,
+        config,
+        scoping,
+        upload,
+        referrer,
+    )
+    .await
 }
 
 async fn multipart_to_envelope(
