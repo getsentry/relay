@@ -559,6 +559,12 @@ impl Envelope {
         self
     }
 
+    /// Add a required feature and return `Self`.
+    pub fn with_required_feature(mut self, feature: Feature) -> Self {
+        self.headers.required_features.push(feature);
+        self
+    }
+
     /// Splits off the items from the envelope using provided predicates.
     ///
     /// First predicate is the additional condition on the count of found items by second

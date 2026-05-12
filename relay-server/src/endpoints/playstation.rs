@@ -14,7 +14,7 @@ use serde::Serialize;
 use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
-use crate::envelope::{AttachmentType, ContentType, Envelope, Item};
+use crate::envelope::{AttachmentType, ContentType, Envelope, Item, Items};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::managed::{Managed, ManagedResult};
 use crate::middlewares;
@@ -178,12 +178,12 @@ fn validate_prosperodump(data: &[u8]) -> Result<(), BadStoreRequest> {
     Ok(())
 }
 
-async fn multipart_to_envelope(
+async fn multipart_to_items(
     multipart: Multipart<'static>,
-    meta: RequestMeta,
+    meta: &RequestMeta,
     state: &ServiceState,
     upload_context: Option<UploadContext<'_>>,
-) -> Result<Managed<Box<Envelope>>, BadStoreRequest> {
+) -> Result<Managed<Items>, BadStoreRequest> {
     let mut items = utils::multipart_items(
         multipart,
         state.config(),
@@ -203,11 +203,24 @@ async fn multipart_to_envelope(
         prosperodump.set_payload(ContentType::OctetStream, payload);
         Ok(())
     })?;
+    Ok(items)
+}
 
-    let event_id = common::event_id_from_items(&items)?.unwrap_or_else(EventId::new);
+fn envelope(
+    items: Managed<Items>,
+    meta: RequestMeta,
+    managed_err: Managed<(DataCategory, usize)>,
+) -> Result<Managed<Box<Envelope>>, BadStoreRequest> {
+    let event_id = common::event_id_from_items(&items)
+        .reject(&managed_err)?
+        .unwrap_or_else(EventId::new);
     let envelope = items.map(|items, records| {
+        managed_err.accept(|_| ()); // There will be an envelope with (DataCategory::Error, 1) now
         records.modify_by(DataCategory::Error, 1);
-        Box::new(Envelope::from_request(Some(event_id), meta).with_items(items))
+        let envelope = Envelope::from_request(Some(event_id), meta)
+            .with_items(items)
+            .with_required_feature(Feature::PlaystationIngestion);
+        Box::new(envelope)
     });
     Ok(envelope)
 }
@@ -230,12 +243,10 @@ async fn handle(
 
     let upload_context = upload_context(&state, &meta).await.reject(&managed_err)?;
     let multipart = utils::multipart_from_request(request).reject(&managed_err)?;
-    let mut envelope = multipart_to_envelope(multipart, meta, &state, upload_context)
+    let items = multipart_to_items(multipart, &meta, &state, upload_context)
         .await
         .reject(&managed_err)?;
-    managed_err.accept(|_| ()); // Now there is an envelope with (DataCategory::Error, 1)
-
-    envelope.modify(|inner, _| inner.require_feature(Feature::PlaystationIngestion));
+    let envelope = envelope(items, meta, managed_err)?;
 
     let id = envelope.event_id();
 

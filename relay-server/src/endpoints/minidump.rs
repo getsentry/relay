@@ -12,6 +12,7 @@ use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::EventId;
 use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_system::Addr;
+use smallvec::smallvec;
 use std::convert::Infallible;
 use std::error::Error;
 use std::io::Cursor;
@@ -21,7 +22,7 @@ use zstd::stream::Decoder as ZstdDecoder;
 
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse, upload_to_objectstore};
-use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
+use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType, Items};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::managed::{Managed, ManagedResult};
 use crate::middlewares;
@@ -271,12 +272,12 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
     }
 }
 
-async fn multipart_to_envelope(
+async fn multipart_to_items(
     multipart: Multipart<'static>,
-    meta: RequestMeta,
+    meta: &RequestMeta,
     state: &ServiceState,
     upload_context: Option<UploadContext<'_>>,
-) -> Result<Managed<Box<Envelope>>, BadStoreRequest> {
+) -> Result<Managed<Items>, BadStoreRequest> {
     let minidump_attachment_strategy = MinidumpAttachmentStrategy { upload_context };
     let config = state.config();
 
@@ -315,12 +316,7 @@ async fn multipart_to_envelope(
         })?;
     }
 
-    let event_id = common::event_id_from_items(&items)?.unwrap_or_else(EventId::new);
-    let envelope = items.map(|items, records| {
-        records.modify_by(DataCategory::Error, 1);
-        Box::new(Envelope::from_request(Some(event_id), meta).with_items(items))
-    });
-    Ok(envelope)
+    Ok(items)
 }
 
 /// Creates an [UploadContext].
@@ -389,13 +385,13 @@ async fn upload_context<'a>(
     }))
 }
 
-async fn raw_minidump_to_envelope(
+async fn raw_minidump_to_items(
     request: Request,
-    meta: RequestMeta,
+    meta: &RequestMeta,
     state: &ServiceState,
     content_type: RawContentType,
     upload_context: Option<UploadContext<'_>>,
-) -> Result<Managed<Box<Envelope>>, BadStoreRequest> {
+) -> Result<Managed<Items>, BadStoreRequest> {
     debug_assert!(!matches!(
         upload_context.as_ref().map(|c| &c.upload_minidumps),
         Some(UploadDecision::Drop(_))
@@ -430,29 +426,40 @@ async fn raw_minidump_to_envelope(
         })?;
     };
 
-    // Create an envelope with a random event id.
-    let envelope = item.map(|item, records| {
-        records.modify_by(DataCategory::Error, 1);
-        Box::new(Envelope::from_request(Some(EventId::new()), meta).with_items(vec![item]))
-    });
-    Ok(envelope)
+    let items = item.map(|item, _| smallvec![item]);
+    Ok(items)
 }
 
-async fn envelope(
+async fn items(
     upload_context: Option<UploadContext<'_>>,
     state: &ServiceState,
-    meta: RequestMeta,
+    meta: &RequestMeta,
     content_type: RawContentType,
     request: Request,
+) -> Result<Managed<Items>, BadStoreRequest> {
+    let items = if MINIDUMP_RAW_CONTENT_TYPES.contains(&content_type.as_ref()) {
+        raw_minidump_to_items(request, meta, state, content_type, upload_context).await?
+    } else {
+        let multipart = utils::multipart_from_request(request)?;
+        multipart_to_items(multipart, meta, state, upload_context).await?
+    };
+    Ok(items)
+}
+
+fn envelope(
+    items: Managed<Items>,
+    meta: RequestMeta,
+    managed_err: Managed<(DataCategory, usize)>,
 ) -> Result<Managed<Box<Envelope>>, BadStoreRequest> {
-    Ok(
-        if MINIDUMP_RAW_CONTENT_TYPES.contains(&content_type.as_ref()) {
-            raw_minidump_to_envelope(request, meta, state, content_type, upload_context).await?
-        } else {
-            let multipart = utils::multipart_from_request(request)?;
-            multipart_to_envelope(multipart, meta, state, upload_context).await?
-        },
-    )
+    let event_id = common::event_id_from_items(&items)
+        .reject(&managed_err)?
+        .unwrap_or_else(EventId::new);
+    let envelope = items.map(|items, records| {
+        managed_err.accept(|_| ()); // There will be an envelope with (DataCategory::Error, 1) now
+        records.modify_by(DataCategory::Error, 1);
+        Box::new(Envelope::from_request(Some(event_id), meta).with_items(items))
+    });
+    Ok(envelope)
 }
 
 async fn handle(
@@ -484,11 +491,10 @@ async fn handle(
         ));
         return Ok(TextResponse(Some(EventId::new())));
     }
-    let envelope = envelope(upload_context, &state, meta, content_type, request)
+    let items = items(upload_context, &state, &meta, content_type, request)
         .await
         .reject(&managed_err)?;
-
-    managed_err.accept(|_| ()); // Now there is an envelope with (DataCategory::Error, 1)
+    let envelope = envelope(items, meta, managed_err)?;
 
     let id = envelope.event_id();
 
