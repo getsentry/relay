@@ -73,7 +73,7 @@
 <a href=#73 id=73 data-nosnippet>73</a>                <span class="kw">for </span><span class="kw-2">mut </span>item <span class="kw">in
 <a href=#74 id=74 data-nosnippet>74</a>                    </span>extract_items(data, state.config()).map_err(|error| <span class="kw">match </span>error {
 <a href=#75 id=75 data-nosnippet>75</a>                        ProcessingError::PayloadTooLarge(<span class="kw">_</span>) =&gt; {
-<a href=#76 id=76 data-nosnippet>76</a>                            BadStoreRequest::Overflow(DiscardItemType::UnrealReport)
+<a href=#76 id=76 data-nosnippet>76</a>                            BadStoreRequest::ItemTooLarge(DiscardItemType::UnrealReport)
 <a href=#77 id=77 data-nosnippet>77</a>                        }
 <a href=#78 id=78 data-nosnippet>78</a>                        <span class="kw">_ </span>=&gt; BadStoreRequest::InvalidUnrealReport,
 <a href=#79 id=79 data-nosnippet>79</a>                    })<span class="question-mark">?

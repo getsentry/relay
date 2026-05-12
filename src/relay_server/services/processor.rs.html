@@ -503,7 +503,7 @@
 <a href=#503 id=503 data-nosnippet>503</a>    <span class="kw">pub fn </span>to_outcome(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Outcome&gt; {
 <a href=#504 id=504 data-nosnippet>504</a>        <span class="kw">match </span><span class="self">self </span>{
 <a href=#505 id=505 data-nosnippet>505</a>            <span class="self">Self</span>::PayloadTooLarge(payload_type) =&gt; {
-<a href=#506 id=506 data-nosnippet>506</a>                <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::TooLarge(<span class="kw-2">*</span>payload_type)))
+<a href=#506 id=506 data-nosnippet>506</a>                <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::ItemTooLarge(<span class="kw-2">*</span>payload_type)))
 <a href=#507 id=507 data-nosnippet>507</a>            }
 <a href=#508 id=508 data-nosnippet>508</a>            <span class="self">Self</span>::InvalidJson(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::InvalidJson)),
 <a href=#509 id=509 data-nosnippet>509</a>            <span class="self">Self</span>::InvalidMsgpack(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::InvalidMsgpack)),

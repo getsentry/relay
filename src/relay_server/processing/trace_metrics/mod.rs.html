@@ -71,7 +71,7 @@
 <a href=#71 id=71 data-nosnippet>71</a>            <span class="self">Self</span>::FilterFeatureFlag =&gt; <span class="prelude-val">None</span>,
 <a href=#72 id=72 data-nosnippet>72</a>            <span class="self">Self</span>::Filtered(f) =&gt; <span class="prelude-val">Some</span>(Outcome::Filtered(f.clone())),
 <a href=#73 id=73 data-nosnippet>73</a>            <span class="self">Self</span>::DuplicateItem =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::DuplicateItem)),
-<a href=#74 id=74 data-nosnippet>74</a>            <span class="self">Self</span>::TooLarge =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::TooLarge(
+<a href=#74 id=74 data-nosnippet>74</a>            <span class="self">Self</span>::TooLarge =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::ItemTooLarge(
 <a href=#75 id=75 data-nosnippet>75</a>                DiscardItemType::TraceMetric,
 <a href=#76 id=76 data-nosnippet>76</a>            ))),
 <a href=#77 id=77 data-nosnippet>77</a>            <span class="self">Self</span>::InvalidMetricName =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::InvalidTraceMetric)),

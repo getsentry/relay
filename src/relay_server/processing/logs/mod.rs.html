@@ -61,7 +61,7 @@
 <a href=#61 id=61 data-nosnippet>61</a>    <span class="kw">fn </span>consume(<span class="self">self</span>) -&gt; (<span class="prelude-ty">Option</span>&lt;Outcome&gt;, <span class="self">Self</span>::Error) {
 <a href=#62 id=62 data-nosnippet>62</a>        <span class="kw">let </span>outcome = <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self </span>{
 <a href=#63 id=63 data-nosnippet>63</a>            <span class="self">Self</span>::DuplicateItem =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::DuplicateItem)),
-<a href=#64 id=64 data-nosnippet>64</a>            <span class="self">Self</span>::TooLarge =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::TooLarge(
+<a href=#64 id=64 data-nosnippet>64</a>            <span class="self">Self</span>::TooLarge =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::ItemTooLarge(
 <a href=#65 id=65 data-nosnippet>65</a>                DiscardItemType::Log,
 <a href=#66 id=66 data-nosnippet>66</a>            ))),
 <a href=#67 id=67 data-nosnippet>67</a>            <span class="self">Self</span>::FilterFeatureFlag =&gt; <span class="prelude-val">None</span>,
