@@ -8,7 +8,7 @@
 
 **Internal**:
 
-- Remove unknown type variants instead of sending them on. ([#5962](https://github.com/getsentry/relay/pull/5962))
+- Remove unknown debug image variants in errors. ([#5962](https://github.com/getsentry/relay/pull/5962))
 - Bump `sentry-conventions` to 0.6.0-4. ([#5944](https://github.com/getsentry/relay/pull/5944))
 
 ## 26.4.2
