@@ -1,5 +1,7 @@
 //! Mobile-specific normalizations for SpanV2 attributes.
 
+use std::time::Duration;
+
 use relay_conventions::attributes::*;
 use relay_event_schema::protocol::{Attributes, DeviceClass};
 use relay_protocol::Annotated;
@@ -67,6 +69,55 @@ pub fn normalize_mobile_attributes(attributes: &mut Annotated<Attributes>) {
         && let Some(device_class) = DeviceClass::from_attributes(attrs)
     {
         attrs.insert(DEVICE__CLASS, device_class.to_string());
+    }
+}
+
+/// Compute additional measurements for mobile spans.
+///
+/// The added measurements are:
+///
+/// * [`FRAMES_SLOW_RATE`] := [`APP__VITALS__FRAMES__SLOW__COUNT`] / [`APP__VITALS__FRAMES__TOTAL__COUNT`]
+/// * [`FRAMES_FROZEN_RATE`] := [`APP__VITALS__FRAMES__FROZEN__COUNT`] / [`APP__VITALS__FRAMES__TOTAL__COUNT`]
+/// * [`STALL_PERCENTAGE`] := [`STALL_TOTAL_TIME`] / `span_duration`
+pub fn compute_mobile_measurements(
+    attributes: &mut Annotated<Attributes>,
+    span_duration: Option<Duration>,
+) {
+    let Some(attributes) = attributes.value_mut() else {
+        return;
+    };
+
+    if let Some(frames_total) = attributes
+        .get_value(APP__VITALS__FRAMES__TOTAL__COUNT)
+        .and_then(|v| v.as_f64())
+        && frames_total > 0.0
+    {
+        if let Some(frames_frozen) = attributes
+            .get_value(APP__VITALS__FRAMES__FROZEN__COUNT)
+            .and_then(|v| v.as_f64())
+        {
+            let frames_frozen_rate = frames_frozen / frames_total;
+            attributes.insert(FRAMES_FROZEN_RATE.to_owned(), frames_frozen_rate);
+        }
+
+        if let Some(frames_slow) = attributes
+            .get_value(APP__VITALS__FRAMES__SLOW__COUNT)
+            .and_then(|v| v.as_f64())
+        {
+            let frames_slow_rate = frames_slow / frames_total;
+            attributes.insert(FRAMES_SLOW_RATE.to_owned(), frames_slow_rate);
+        }
+    }
+
+    // Get stall_percentage
+    if let Some(span_duration) = span_duration
+        && !span_duration.is_zero()
+        && let Some(stall_total_time_ms) = attributes
+            .get_value(STALL_TOTAL_TIME)
+            .and_then(|v| v.as_u64())
+    {
+        let stall_percentage = (stall_total_time_ms as f64) / (span_duration.as_millis() as f64);
+        attributes.insert(STALL_PERCENTAGE.to_owned(), stall_percentage);
     }
 }
 

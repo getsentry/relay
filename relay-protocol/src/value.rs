@@ -88,6 +88,16 @@ impl Value {
         }
     }
 
+    /// Returns a `u64` if the value can be converted to it, otherwise `None`.
+    pub fn as_u64(&self) -> Option<u64> {
+        match self {
+            Value::U64(u) => Some(*u),
+            Value::F64(f) => Some(*f as u64),
+            Value::I64(i) => Some(*i as u64),
+            _ => None,
+        }
+    }
+
     /// Constructs a `Value` from a `serde_json::Value` object.
     fn from_json(value: serde_json::Value) -> Option<Self> {
         Some(match value {
