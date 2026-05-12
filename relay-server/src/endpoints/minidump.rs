@@ -75,7 +75,7 @@ enum PeekError<E> {
     Source(#[from] E),
 }
 
-/// Peeks `n` bytes into a `stream`, returning the peaked bytes together with the stream containing
+/// Peeks `n` bytes into a `stream`, returning the peeked bytes together with the stream containing
 /// all the bytes of the original `stream`.
 async fn peek_n<S, E>(
     stream: S,
