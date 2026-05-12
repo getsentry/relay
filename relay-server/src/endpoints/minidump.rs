@@ -494,7 +494,7 @@ async fn raw_minidump_to_envelope(
             .await
             .map_err(|_| BadStoreRequest::InvalidMinidump)?;
 
-        item = upload_to_objectstore_checked(
+        item = upload_to_objectstore(
             stream,
             Some(content_type.to_string()).filter(|s| !s.is_empty()),
             item,
