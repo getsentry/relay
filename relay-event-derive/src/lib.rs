@@ -46,8 +46,8 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> syn::Result<Token
             let ident = &bi.binding;
             let variant_attrs = parse_variant_attributes(variant.ast().attrs)?;
             let mut field_attrs = parse_field_attributes(0, bi.ast(), &mut true)?;
-            // `fallback_variant` is defined on the variant, so is `retain`, but `retain` is passed
-            // as a field attr.
+            // `fallback_variant` is defined on the variant, so is `retain`, but downstream code
+            // expects `retain` to be set as a field attribute.
             field_attrs.retain |= variant_attrs.retain;
             let field_attrs_tokens = field_attrs.as_tokens(&type_attrs, Some(quote!(parent_attrs)));
 
