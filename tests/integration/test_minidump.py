@@ -920,7 +920,7 @@ def test_minidump_objectstore_uploads(
 ):
     project_id = 42
     minidump_content = b"MDMP content"
-    log_content = b"Some log file content"
+    log_content = b"\x1f\x8b Some log file content"
 
     project_config = mini_sentry.add_full_project_config(project_id)
     if upload_attachments:
