@@ -997,7 +997,6 @@ def test_minidump_objectstore_errors(
     project_config["config"].setdefault("features", []).append(
         "projects:relay-minidump-attachment-uploads"
     )
-    mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = True
 
     @mini_sentry.app.route("/api/<project>/upload/", methods=["POST"])
     def create(**opts):
