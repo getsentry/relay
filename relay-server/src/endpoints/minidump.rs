@@ -82,8 +82,8 @@ async fn peek_n<S, E>(
     n: usize,
 ) -> Result<(Bytes, impl Stream<Item = Result<Bytes, E>> + Send), E>
 where
-    S: Stream<Item = Result<Bytes, E>> + Send + 'static,
-    E: Send + 'static,
+    S: Stream<Item = Result<Bytes, E>> + Send,
+    E: Send,
 {
     let mut stream = Box::pin(stream);
     let mut head = BytesMut::with_capacity(n);
@@ -105,8 +105,8 @@ async fn reject_if_compressed<S, E>(
     stream: S,
 ) -> Result<impl Stream<Item = Result<Bytes, E>> + Send, PeekError<E>>
 where
-    S: Stream<Item = Result<Bytes, E>> + Send + 'static,
-    E: Send + 'static,
+    S: Stream<Item = Result<Bytes, E>> + Send,
+    E: Send,
 {
     let (head, stream) = peek_n(stream, MAGIC_PEEK).await?;
 
