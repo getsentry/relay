@@ -77,7 +77,6 @@ impl IntoResponse for Error {
         }
 
         let status = match self {
-            Error::Tus(tus::Error::DeferLengthNotAllowed) => StatusCode::FORBIDDEN,
             Error::Tus(_) => StatusCode::BAD_REQUEST,
             Error::Request(error) => return error.into_response(),
             Error::SendError(_) => StatusCode::INTERNAL_SERVER_ERROR,
@@ -159,8 +158,7 @@ async fn handle_post(
     }
 
     relay_log::trace!("Validating headers");
-    let upload_length = tus::validate_post_headers(&headers, meta.request_trust().is_trusted())
-        .map_err(Error::from)?;
+    let upload_length = tus::validate_post_headers(&headers).map_err(Error::from)?;
     let config = state.config();
 
     if upload_length.is_some_and(|len| len > config.max_upload_size()) {
