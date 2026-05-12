@@ -216,8 +216,8 @@ impl VisitorMut for NormalizeVisitor {
         ControlFlow::Continue(())
     }
 
-    fn pre_visit_value(&mut self, value: &mut Value) -> ControlFlow<Self::Break> {
-        *value = Value::Placeholder("%s".into());
+    fn pre_visit_value(&mut self, value: &mut ValueWithSpan) -> ControlFlow<Self::Break> {
+        value.value = Value::Placeholder("%s".into());
         ControlFlow::Continue(())
     }
 
@@ -401,11 +401,13 @@ impl VisitorMut for NormalizeVisitor {
             Statement::Insert(Insert {
                 columns, source, ..
             }) => {
-                *columns = vec![Self::ellipsis()];
+                *columns = vec![Self::ellipsis().into()];
                 if let Some(source) = source.as_mut()
                     && let SetExpr::Values(v) = &mut *source.body
                 {
-                    v.rows = vec![vec![Expr::Value(Self::placeholder())]]
+                    v.rows = vec![Parens::with_empty_span(vec![Expr::Value(
+                        Self::placeholder(),
+                    )])];
                 }
             }
             Statement::Update(Update { assignments, .. }) => {
@@ -517,6 +519,21 @@ impl VisitorMut for NormalizeVisitor {
                                 if let Some(name) = index_name {
                                     Self::scrub_name(name);
                                 }
+                            }
+                            TableConstraint::PrimaryKeyUsingIndex(ConstraintUsingIndex {
+                                name,
+                                index_name,
+                                characteristics: _,
+                            })
+                            | TableConstraint::UniqueUsingIndex(ConstraintUsingIndex {
+                                name,
+                                index_name,
+                                characteristics: _,
+                            }) => {
+                                if let Some(name) = name {
+                                    Self::scrub_name(name);
+                                }
+                                Self::scrub_name(index_name);
                             }
                         },
                         AlterTableOperation::AddColumn { column_def, .. } => {

@@ -99,6 +99,7 @@ def test_event_with_span_link_in_transaction(relay, mini_sentry):
             "start_timestamp": 1624366926.0,
             "timestamp": 1624366927.0,
             "sentry_tags": mock.ANY,
+            "data": {"sentry.segment.name": "/users"},
             "links": [
                 {
                     "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",

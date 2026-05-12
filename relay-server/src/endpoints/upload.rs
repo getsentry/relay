@@ -88,6 +88,8 @@ impl IntoResponse for Error {
                     {
                         StatusCode::BAD_REQUEST
                     }
+                    UpstreamRequestError::RateLimited(_) => StatusCode::TOO_MANY_REQUESTS,
+                    UpstreamRequestError::ResponseError(status, _) => status,
                     _ => return e.into_response(),
                 },
                 upload::Error::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
@@ -100,7 +102,7 @@ impl IntoResponse for Error {
                     StatusCode::INTERNAL_SERVER_ERROR
                 }
                 upload::Error::InvalidSignature => StatusCode::BAD_REQUEST,
-                upload::Error::ServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
+                upload::Error::ObjectstoreServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
                 #[cfg(feature = "processing")]
                 upload::Error::Objectstore(service_error) => match service_error.kind {
                     objectstore::ErrorKind::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
@@ -147,15 +149,8 @@ async fn handle_post(
     meta: RequestMeta,
     headers: HeaderMap,
 ) -> axum::response::Result<impl IntoResponse> {
-    relay_log::trace!("Checking project fetching killswitch");
-    if !state
-        .global_config_handle()
-        .current()
-        .options
-        .endpoint_fetch_config_enabled
-    {
-        return Err(StatusCode::SERVICE_UNAVAILABLE.into());
-    }
+    relay_log::trace!("Checking project fetching kill switch");
+    check_kill_switch(&state)?;
 
     relay_log::trace!("Validating headers");
     let upload_length = tus::validate_post_headers(&headers).map_err(Error::from)?;
@@ -172,7 +167,10 @@ async fn handle_post(
         .project_cache_handle()
         .ready(meta.public_key(), config.query_timeout()) // uses same timeout as `Upstream`
         .await
-        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+        .ok_or_else(|| {
+            relay_log::warn!("timeout waiting for project config");
+            StatusCode::SERVICE_UNAVAILABLE
+        })?;
 
     relay_log::trace!("Checking request");
     let scoping = check_request(&state, meta, upload_length, project).await?;
@@ -199,15 +197,7 @@ async fn handle_patch(
     Query(LocationQueryParams { length, signature }): Query<LocationQueryParams<Provisional>>,
     body: Body,
 ) -> axum::response::Result<impl IntoResponse> {
-    relay_log::trace!("Checking project fetching killswitch");
-    if !state
-        .global_config_handle()
-        .current()
-        .options
-        .endpoint_fetch_config_enabled
-    {
-        return Err(StatusCode::SERVICE_UNAVAILABLE.into());
-    }
+    check_kill_switch(&state)?;
 
     relay_log::trace!("Validating headers");
     tus::validate_patch_headers(&headers).map_err(Error::from)?;
@@ -223,7 +213,10 @@ async fn handle_patch(
         .project_cache_handle()
         .ready(meta.public_key(), config.query_timeout()) // uses same timeout as `Upstream`
         .await
-        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+        .ok_or_else(|| {
+            relay_log::warn!("timeout waiting for project config");
+            StatusCode::SERVICE_UNAVAILABLE
+        })?;
 
     relay_log::trace!("Checking request");
     let scoping = check_request(&state, meta, length.value(), project).await?;
@@ -266,6 +259,21 @@ async fn handle_patch(
         .insert(tus::UPLOAD_OFFSET, upload_offset.into());
 
     Ok(response)
+}
+
+fn check_kill_switch(state: &ServiceState) -> Result<(), StatusCode> {
+    if !state.global_config_handle().is_ready() {
+        relay_log::warn!("global config not available");
+    }
+    if !state
+        .global_config_handle()
+        .current()
+        .options
+        .endpoint_fetch_config_enabled
+    {
+        return Err(StatusCode::SERVICE_UNAVAILABLE);
+    }
+    Ok(())
 }
 
 async fn create(

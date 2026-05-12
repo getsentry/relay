@@ -966,7 +966,17 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     /// - `item`: what item the decision is taken for (transaction vs span).
     SamplingDecision,
-    /// The number of times an upload of an attachment occurs.
+    /// The number of times an upload location is created through the upload service.
+    ///
+    /// This metric is tagged with:
+    /// - `result`: `success` or the failure reason.
+    UploadCreate,
+    /// The number of times an upload location is created through the upload service.
+    ///
+    /// This metric is tagged with:
+    /// - `result`: `success` or the failure reason.
+    UploadUpload,
+    /// The number of times an objectstore upload of an attachment occurs.
     ///
     /// This metric is tagged with:
     /// - `result`: `success` or the failure reason.
@@ -1047,6 +1057,8 @@ impl CounterMetric for RelayCounters {
             #[cfg(all(sentry, feature = "processing"))]
             RelayCounters::PlaystationProcessing => "processing.playstation",
             RelayCounters::SamplingDecision => "sampling.decision",
+            RelayCounters::UploadCreate => "upload.create",
+            RelayCounters::UploadUpload => "upload.upload",
             #[cfg(feature = "processing")]
             RelayCounters::AttachmentUpload => "attachment.upload",
             RelayCounters::EnvelopeWithLogs => "logs.envelope",

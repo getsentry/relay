@@ -105,6 +105,38 @@ def test_forward_patch(
         )
 
 
+def test_post_retries(mini_sentry, relay, project_config):
+    """POST (create) requests forwarded to the upstream are retried.
+
+    The upstream returns 503 on the first attempt and succeeds on the second.
+    """
+    mini_sentry.allow_chunked = True
+
+    create_attempts = 0
+
+    @mini_sentry.app.route("/api/<project>/upload/", methods=["POST"])
+    def create(**opts):
+        nonlocal create_attempts
+        create_attempts += 1
+        if create_attempts == 1:
+            return Response("", status=503)
+        return Response("", status=201, headers={"Location": DUMMY_UPLOAD_LOCATION})
+
+    project_id = 42
+    project_key = mini_sentry.get_dsn_public_key(project_id)
+    relay = relay(mini_sentry)
+
+    response = relay.post(
+        f"/api/{project_id}/upload/?sentry_key={project_key}",
+        headers={
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": "11",
+        },
+    )
+    assert response.status_code == 201, response.text
+    assert create_attempts == 2
+
+
 def test_upload_missing_tus_version(mini_sentry, relay, dummy_upload, project_config):
 
     project_id = 42

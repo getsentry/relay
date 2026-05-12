@@ -245,7 +245,8 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
                     upload_context.upload,
                     "minidump",
                 )
-                .await)
+                .await
+                .ok())
             }
             UploadDecision::Inline => read_inline(field, item).await,
             UploadDecision::Drop(limits) => {
@@ -419,7 +420,7 @@ async fn raw_minidump_to_envelope(
             "minidump",
         )
         .await
-        .ok_or(BadStoreRequest::ObjectstoreUploadFailed)?;
+        .map_err(|_| BadStoreRequest::ObjectstoreUploadFailed)?;
     } else {
         let minidump_data = request.extract().await?;
         item.try_modify(|inner, records| -> Result<(), BadStoreRequest> {
