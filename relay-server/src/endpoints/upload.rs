@@ -30,7 +30,9 @@ use crate::service::ServiceState;
 #[cfg(feature = "processing")]
 use crate::services::objectstore;
 use crate::services::projects::cache::Project;
-use crate::services::upload::{self, ByteStream, SignedLocation};
+use crate::services::upload::{
+    self, ByteStream, Final, LocationQueryParams, Provisional, SignedLocation, UploadLength,
+};
 use crate::services::upstream::UpstreamRequestError;
 use crate::utils::{ApiErrorResponse, MeteredStream};
 use crate::utils::{BoundedStream, find_error_source, tus};
@@ -126,7 +128,7 @@ impl IntoResponse for Error {
     }
 }
 
-impl IntoResponse for SignedLocation {
+impl<L: UploadLength> IntoResponse for SignedLocation<L> {
     fn into_response(self) -> Response {
         let mut headers = tus::response_headers();
         match self.into_header_value() {
@@ -196,7 +198,7 @@ async fn handle_patch(
     meta: RequestMeta,
     headers: HeaderMap,
     Path(upload::LocationPath { project_id, key }): Path<upload::LocationPath>,
-    Query(upload::LocationQueryParams { length, signature }): Query<upload::LocationQueryParams>,
+    Query(LocationQueryParams { length, signature }): Query<LocationQueryParams<Provisional>>,
     body: Body,
 ) -> axum::response::Result<impl IntoResponse> {
     relay_log::trace!("Checking project fetching killswitch");
@@ -226,7 +228,7 @@ async fn handle_patch(
         .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
 
     relay_log::trace!("Checking request");
-    let scoping = check_request(&state, meta, length, project).await?;
+    let scoping = check_request(&state, meta, length.value(), project).await?;
 
     let stream = body
         .into_data_stream()
@@ -234,7 +236,7 @@ async fn handle_patch(
         .boxed();
     let stream = MeteredStream::new(stream, "upload");
 
-    let (lower_bound, upper_bound) = match length {
+    let (lower_bound, upper_bound) = match length.value() {
         None => (1, config.max_upload_size()),
         Some(u) => (u, u),
     };
@@ -272,7 +274,7 @@ async fn create(
     state: &ServiceState,
     scoping: Scoping,
     upload_length: Option<usize>,
-) -> Result<SignedLocation, Error> {
+) -> Result<SignedLocation<Provisional>, Error> {
     let location = state
         .upload()
         .send(upload::Create {
@@ -287,9 +289,9 @@ async fn create(
 async fn upload(
     state: &ServiceState,
     scoping: Scoping,
-    location: SignedLocation,
+    location: SignedLocation<Provisional>,
     stream: BoundedStream<MeteredStream<ByteStream>>,
-) -> Result<SignedLocation, Error> {
+) -> Result<SignedLocation<Final>, Error> {
     let location = state
         .upload()
         .send(upload::Stream {
