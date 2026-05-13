@@ -48,6 +48,8 @@ def test_scrub_span_sentry_tags_advanced_rules(mini_sentry, relay):
         ("gen_ai.input.messages", "maybe"),
         # SpanData field, pii: false in conventions
         ("sentry.release", "false"),
+        # SpanData field, missing in conventions, explicitly set on SpanData
+        ("profile_id", "false"),
         # Not a SpanData field, pii: true in conventions
         ("ai.warnings", "true"),
         # Not a SpanData field, pii: maybe in conventions

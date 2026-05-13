@@ -911,7 +911,12 @@ pub struct SpanData {
     pub exclusive_time: Annotated<Value>,
 
     /// Profile ID
-    #[metastructure(field = "profile_id")]
+    #[metastructure(
+        field = "profile_id",
+        // This field is not defined in conventions, so we need to set
+        // PII explicitly.
+        pii = "false"
+    )]
     pub profile_id: Annotated<Value>,
 
     /// Replay ID
