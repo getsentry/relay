@@ -119,7 +119,7 @@ impl processing::Processor for ErrorsProcessor {
 
         filter::filter(&error, ctx).reject(&error)?;
 
-        dynamic_sampling::apply(&mut error, ctx).await;
+        dynamic_sampling::apply(&mut error, ctx);
 
         let mut error = self.limiter.enforce_quotas(error, ctx).await?;
 

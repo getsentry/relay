@@ -10,7 +10,7 @@ use crate::services::processor::ProcessingExtractedMetrics;
 use crate::statsd::RelayCounters;
 use crate::utils::SamplingResult;
 
-pub async fn run(
+pub fn run(
     spans: Managed<ExpandedLegacySpans>,
     ctx: Context<'_>,
 ) -> (

@@ -13,7 +13,7 @@ use crate::utils::SamplingResult;
 ///
 /// The function validates the DSC as well as a tagging the error event with the sampling decision
 /// of the associated trace.
-pub async fn apply(error: &mut Managed<ExpandedError>, ctx: Context<'_>) {
+pub fn apply(error: &mut Managed<ExpandedError>, ctx: Context<'_>) {
     // Only run in processing to not compute the decision multiple times and it is the most
     // accurate place, as other Relays may have unsupported inbound filter or sampling configs.
     if !ctx.is_processing() {
@@ -27,7 +27,7 @@ pub async fn apply(error: &mut Managed<ExpandedError>, ctx: Context<'_>) {
         return;
     }
 
-    if let Some(sampled) = is_trace_fully_sampled(error, ctx).await {
+    if let Some(sampled) = is_trace_fully_sampled(error, ctx) {
         error.modify(|error, _| tag_error_with_sampling_decision(error, sampled));
     };
 }
@@ -55,7 +55,7 @@ fn tag_error_with_sampling_decision(error: &mut ExpandedError, sampled: bool) {
 /// Runs dynamic sampling if the dsc and root project state are not None and returns whether the
 /// transactions received with such dsc and project state would be kept or dropped by dynamic
 /// sampling.
-async fn is_trace_fully_sampled(error: &ExpandedError, ctx: Context<'_>) -> Option<bool> {
+fn is_trace_fully_sampled(error: &ExpandedError, ctx: Context<'_>) -> Option<bool> {
     let dsc = error.headers.dsc()?;
 
     let sampling_config = ctx
