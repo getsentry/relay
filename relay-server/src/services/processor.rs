@@ -986,8 +986,8 @@ impl EnvelopeProcessorService {
         }
 
         #[cfg(feature = "processing")]
-        let rate_limiter = redis.as_ref().map(|redis| {
-            RedisRateLimiter::new(redis.quotas.clone())
+        let rate_limiter = redis.map(|redis| {
+            RedisRateLimiter::new(redis.quotas)
                 .max_limit(config.max_rate_limit())
                 .cache(config.quota_cache_ratio(), config.quota_cache_max())
         });
@@ -1024,10 +1024,6 @@ impl EnvelopeProcessorService {
                 transactions: TransactionProcessor::new(
                     Arc::clone(&quota_limiter),
                     geoip_lookup.clone(),
-                    #[cfg(feature = "processing")]
-                    redis.map(|r| r.quotas),
-                    #[cfg(not(feature = "processing"))]
-                    None,
                 ),
                 profile_chunks: ProfileChunksProcessor::new(Arc::clone(&quota_limiter)),
                 trace_attachments: TraceAttachmentsProcessor::new(Arc::clone(&quota_limiter)),

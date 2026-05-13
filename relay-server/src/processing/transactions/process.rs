@@ -4,7 +4,6 @@ use relay_event_schema::protocol::{Event, Metrics};
 use relay_profiling::{ProfileError, ProfileType};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
-use relay_redis::AsyncRedisClient;
 use relay_sampling::evaluation::SamplingDecision;
 use relay_statsd::metric;
 use smallvec::smallvec;
@@ -228,14 +227,12 @@ pub enum SamplingOutput {
 }
 
 /// Computes the sampling decision for a transaction and associated items.
-pub async fn run_dynamic_sampling(
+pub fn run_dynamic_sampling(
     payload: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     filters_status: FiltersStatus,
-    quotas_client: Option<&AsyncRedisClient>,
 ) -> Result<SamplingOutput, Rejected<Error>> {
-    let sampling_result =
-        make_dynamic_sampling_decision(&payload, ctx, filters_status, quotas_client).await;
+    let sampling_result = make_dynamic_sampling_decision(&payload, ctx, filters_status);
 
     let sampling_match = match sampling_result {
         SamplingResult::Match(m) if m.decision().is_drop() => m,
@@ -271,14 +268,12 @@ pub async fn run_dynamic_sampling(
 }
 
 /// Computes the dynamic sampling decision for the unit of work, but does not perform action on data.
-async fn make_dynamic_sampling_decision(
+fn make_dynamic_sampling_decision(
     work: &Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     filters_status: FiltersStatus,
-    quotas_client: Option<&AsyncRedisClient>,
 ) -> SamplingResult {
-    let sampling_result =
-        do_make_dynamic_sampling_decision(work, ctx, filters_status, quotas_client).await;
+    let sampling_result = do_make_dynamic_sampling_decision(work, ctx, filters_status);
     relay_statsd::metric!(
         counter(RelayCounters::SamplingDecision) += 1,
         decision = sampling_result.decision().as_str(),
@@ -287,11 +282,10 @@ async fn make_dynamic_sampling_decision(
     sampling_result
 }
 
-async fn do_make_dynamic_sampling_decision(
+fn do_make_dynamic_sampling_decision(
     work: &Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     filters_status: FiltersStatus,
-    #[allow(unused)] quotas_client: Option<&AsyncRedisClient>,
 ) -> SamplingResult {
     // Always run dynamic sampling on processing Relays,
     // but delay decision until inbound filters have been fully processed.
