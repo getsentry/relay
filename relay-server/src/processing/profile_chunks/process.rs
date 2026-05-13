@@ -47,9 +47,9 @@ pub fn expand(
                     track_quantities(&item, sdk, &chunk.quantities, records);
                     expanded.push(chunk);
                 }
-                Err((err, quantities)) => {
-                    track_quantities(&item, sdk, &quantities, records);
-                    records.reject_err(err, quantities);
+                Err(err) => {
+                    track_quantities(&item, sdk, &item.quantities(), records);
+                    drop(records.reject_err(err, &item));
                 }
             }
         }
@@ -64,40 +64,30 @@ fn expand_perfetto_profile_chunk(
     filter_settings: &relay_filter::ProjectFiltersConfig,
     ctx: Context<'_>,
     payload: Bytes,
-) -> Result<ExpandedProfileChunk, (Error, Quantities)> {
-    let item_quantities = item.quantities();
-    let err = |e: Error| (e, item_quantities.clone());
-
+) -> Result<ExpandedProfileChunk> {
     if ctx.should_filter(Feature::ContinuousProfilingPerfetto) {
-        return Err(err(Error::FilterFeatureFlag));
+        return Err(Error::FilterFeatureFlag);
     }
-    item.platform()
-        .ok_or_else(|| err(relay_profiling::ProfileError::PlatformNotSupported.into()))?;
+    if item.platform().is_none() {
+        return Err(relay_profiling::ProfileError::PlatformNotSupported.into());
+    }
 
     let profile_type = item
         .profile_type()
-        .ok_or_else(|| err(relay_profiling::ProfileError::InvalidProfileType.into()))?;
-    let meta_length = item
-        .meta_length()
-        .ok_or_else(|| err(relay_profiling::ProfileError::InvalidSampledProfile.into()))?
-        as usize;
+        .ok_or(relay_profiling::ProfileError::InvalidProfileType)?;
+    let meta_length =
+        item.meta_length()
+            .ok_or(relay_profiling::ProfileError::InvalidSampledProfile)? as usize;
     let (json_payload, perfetto_payload) = payload
         .split_at_checked(meta_length)
-        .ok_or_else(|| err(relay_profiling::ProfileError::InvalidSampledProfile.into()))?;
-    let expanded = relay_profiling::expand_perfetto(perfetto_payload, json_payload)
-        .map_err(|e| err(e.into()))?;
+        .ok_or(relay_profiling::ProfileError::InvalidSampledProfile)?;
+    let expanded = relay_profiling::expand_perfetto(perfetto_payload, json_payload)?;
     if expanded.profile_type() != profile_type {
-        return Err(err(relay_profiling::ProfileError::InvalidProfileType.into()));
+        return Err(relay_profiling::ProfileError::InvalidProfileType.into());
     }
-    let quantities = quantities_for(profile_type);
-    expanded
-        .filter(client_ip, filter_settings, ctx.global_config)
-        .map_err(|e| (e.into(), quantities.clone()))?;
+    expanded.filter(client_ip, filter_settings, ctx.global_config)?;
     if expanded.payload.len() > ctx.config.max_profile_size() {
-        return Err((
-            relay_profiling::ProfileError::ExceedSizeLimit.into(),
-            quantities,
-        ));
+        return Err(relay_profiling::ProfileError::ExceedSizeLimit.into());
     }
     Ok(ExpandedProfileChunk {
         payload: Bytes::from(expanded.payload),
@@ -105,7 +95,7 @@ fn expand_perfetto_profile_chunk(
             payload: payload.slice_ref(perfetto_payload),
             content_type: ContentType::PerfettoTrace,
         }),
-        quantities,
+        quantities: quantities_for(profile_type),
     })
 }
 
@@ -115,32 +105,22 @@ fn expand_json_item(
     filter_settings: &relay_filter::ProjectFiltersConfig,
     ctx: Context<'_>,
     payload: Bytes,
-) -> Result<ExpandedProfileChunk, (Error, Quantities)> {
-    let item_quantities = item.quantities();
-    let err = |e: Error| (e, item_quantities.clone());
-
+) -> Result<ExpandedProfileChunk> {
     if item.meta_length().is_some() {
-        return Err(err(
-            relay_profiling::ProfileError::InvalidSampledProfile.into()
-        ));
+        return Err(relay_profiling::ProfileError::InvalidSampledProfile.into());
     }
-    let pc = relay_profiling::ProfileChunk::new(payload).map_err(|e| err(e.into()))?;
+    let pc = relay_profiling::ProfileChunk::new(payload)?;
     let profile_type = pc.profile_type();
-    validate_profile_type(item, profile_type).map_err(err)?;
-    let quantities = quantities_for(profile_type);
-    pc.filter(client_ip, filter_settings, ctx.global_config)
-        .map_err(|e| (e.into(), quantities.clone()))?;
-    let expanded = pc.expand().map_err(|e| (e.into(), quantities.clone()))?;
+    validate_profile_type(item, profile_type)?;
+    pc.filter(client_ip, filter_settings, ctx.global_config)?;
+    let expanded = pc.expand()?;
     if expanded.len() > ctx.config.max_profile_size() {
-        return Err((
-            relay_profiling::ProfileError::ExceedSizeLimit.into(),
-            quantities,
-        ));
+        return Err(relay_profiling::ProfileError::ExceedSizeLimit.into());
     }
     Ok(ExpandedProfileChunk {
         payload: Bytes::from(expanded),
         raw_profile: None,
-        quantities,
+        quantities: quantities_for(profile_type),
     })
 }
 
