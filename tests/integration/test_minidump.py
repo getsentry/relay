@@ -311,6 +311,14 @@ def test_minidump_invalid_magic(mini_sentry, relay_with_processing, outcomes_con
             "category": DataCategory.ATTACHMENT_ITEM.value,
             "quantity": 1,
         },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "invalid_minidump",
+            "category": DataCategory.ERROR.value,
+            "quantity": 1,
+        },
     ]
 
 
@@ -341,6 +349,14 @@ def test_minidump_invalid_field(mini_sentry, relay_with_processing, outcomes_con
             "outcome": 3,
             "reason": "missing_minidump_upload",
             "category": DataCategory.ATTACHMENT_ITEM.value,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "missing_minidump_upload",
+            "category": DataCategory.ERROR.value,
             "quantity": 1,
         },
     ]
@@ -376,6 +392,14 @@ def test_minidump_invalid_compression_outcome(
             "outcome": 3,
             "reason": "invalid_compression",
             "category": DataCategory.ATTACHMENT_ITEM.value,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "invalid_compression",
+            "category": DataCategory.ERROR.value,
             "quantity": 1,
         },
     ]
@@ -1213,6 +1237,61 @@ def test_minidump_objectstore_uploads_rate_limits(
     )
 
 
+def test_minidump_unknown_project(relay_with_processing, outcomes_consumer):
+    project_id = 42
+    # Deliberately do NOT register the project, so it resolves as Disabled upstream.
+    # mini_sentry.add_full_project_config(project_id)
+    outcomes_consumer = outcomes_consumer()
+    relay = relay_with_processing()
+    attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", "MDMP content")]
+
+    response = relay.send_minidump(
+        project_id=project_id,
+        files=attachments,
+        raise_for_status=False,
+    )
+
+    assert response.status_code == 403
+    assert outcomes_consumer.get_aggregated_outcomes() == [
+        {
+            "category": DataCategory.ERROR.value,
+            "outcome": 3,
+            "project_id": project_id,
+            "reason": "project_id",
+            "quantity": 1,
+        }
+    ]
+
+
+def test_minidump_project_unavailable(
+    mini_sentry, relay_with_processing, outcomes_consumer
+):
+    project_id = 42
+    # Force the upstream to keep returning the project as pending so `ready()` times out.
+    mini_sentry.project_config_simulate_pending = True
+    mini_sentry.add_full_project_config(project_id)
+    outcomes_consumer = outcomes_consumer()
+    relay = relay_with_processing(
+        {"limits": {"query_timeout": 1}, "cache": {"batch_interval": 500}}
+    )
+    attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", "MDMP content")]
+
+    response = relay.send_minidump(
+        project_id=project_id, files=attachments, raise_for_status=False
+    )
+
+    assert response.status_code == 503
+    assert outcomes_consumer.get_aggregated_outcomes() == [
+        {
+            "category": DataCategory.ERROR.value,
+            "outcome": 3,
+            "project_id": project_id,
+            "reason": "project_unavailable",
+            "quantity": 1,
+        }
+    ]
+
+
 def test_minidump_max_attachment_size_exceeded(
     mini_sentry, relay_with_processing, outcomes_consumer
 ):
@@ -1273,6 +1352,14 @@ def test_minidump_max_attachment_size_exceeded(
             "outcome": 3,
             "reason": "too_large:attachment:minidump",
             "category": DataCategory.ATTACHMENT_ITEM.value,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "invalid_multipart",
+            "category": DataCategory.ERROR.value,
             "quantity": 1,
         },
     ]

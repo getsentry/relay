@@ -71,7 +71,7 @@ impl crate::managed::OutcomeError for Error {
             Self::FilterFeatureFlag => None,
             Self::Filtered(f) => Some(Outcome::Filtered(f.clone())),
             Self::DuplicateItem => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
-            Self::TooLarge => Some(Outcome::Invalid(DiscardReason::TooLarge(
+            Self::TooLarge => Some(Outcome::Invalid(DiscardReason::ItemTooLarge(
                 DiscardItemType::TraceMetric,
             ))),
             Self::InvalidMetricName => Some(Outcome::Invalid(DiscardReason::InvalidTraceMetric)),

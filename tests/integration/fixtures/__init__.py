@@ -486,6 +486,7 @@ class SentryLike:
         crash_file_content,
         crash_video_content=None,
         dsn_key_idx=0,
+        raise_for_status=True,
     ):
         """
         Sends a request to the playstation endpoint
@@ -513,7 +514,8 @@ class SentryLike:
             files=files,
         )
 
-        response.raise_for_status()
+        if raise_for_status:
+            response.raise_for_status()
         return response
 
     def send_playstation_data_request(
