@@ -45,15 +45,56 @@ def test_spandata_conventions(mini_sentry, relay):
         mini_sentry,
     )
     config = mini_sentry.add_basic_project_config(project_id)
+    config["config"].setdefault(
+        "datascrubbingSettings",
+        {
+            "scrubData": True,
+            "scrubDefaults": True,
+        },
+    )
+
     config["config"]["piiConfig"] = {
         "rules": {
-            "custom_secret": {
+            "custom_secret_1": {
                 "type": "pattern",
                 "pattern": r"(X-Amz-Algorithm|X-Amz-Credential)=[^& ]+",
                 "redaction": {"method": "mask"},
-            }
+            },
+            "custom_secret_2": {
+                "type": "pattern",
+                "pattern": ".*",
+                "redaction": {"method": "replace", "text": "[REDACTED]"},
+            },
         },
-        "applications": {"$span.data.*": ["custom_secret"]},
+        "applications": {
+            "$span.data.*": ["custom_secret_1"],
+            "'sentry.release'": ["custom_secret_2"],
+            "'sentry.cancellation_reason'": ["custom_secret_2"],
+            "'process.runtime.name'": ["custom_secret_2"],
+            "$string": ["@anything:mask"],
+        },
+    }
+
+    # Known fields on SpanData:
+    span_data_fields = {
+        # This is PII: true in conventions
+        "url.full": "https://www.service.io/users/01234-qwerty/settings/98765-adfghj",
+        # This is PII: maybe in conventions
+        "gen_ai.input.messages": "X-Amz-Algorithm=Some_algorithm&X-Amz-Credential=foobar/19700101/us-east-1/s3/aws4_request&X-Amz-Signature=579375859378367127495789347628374",
+        # This is PII: false in conventions
+        "sentry.release": "myrelease",
+    }
+
+    # Fields that don't exist on SpanData:
+    non_span_data_fields = {
+        # This is PII: true in conventions
+        "ai.warnings": "Run away!!!!",
+        # This is PII: maybe in conventions
+        "process.runtime.name": "myprocess",
+        # This is PII: false in conventions
+        "sentry.cancellation_reason": "I dunno",
+        # This doesn't exist in conventions, should default to PII: true
+        "madeup.field": "madeup value",
     }
 
     relay.send_event(
@@ -64,15 +105,7 @@ def test_spandata_conventions(mini_sentry, relay):
                     "timestamp": 1778131375.142457,
                     "start_timestamp": 1778131374.296492,
                     "exclusive_time": 845.965,
-                    "data": {
-                        # This is PII: true in conventions
-                        "http.query": "X-Amz-Algorithm=Some_algorithm&X-Amz-Credential=foobar/19700101/us-east-1/s3/aws4_request&X-Amz-Signature=579375859378367127495789347628374",
-                        # This is not a field on `SpanData`, but PII: false
-                        # in conventions
-                        "sentry.cancellation_reason": "X-Amz-Algorithm=Some_algorithm&X-Amz-Credential=foobar/19700101/us-east-1/s3/aws4_request&X-Amz-Signature=579375859378367127495789347628374",
-                        # This doesn't exist in conventions, should default to PII: true
-                        "madeup.field": "X-Amz-Algorithm=Some_algorithm&X-Amz-Credential=foobar/19700101/us-east-1/s3/aws4_request&X-Amz-Signature=579375859378367127495789347628374",
-                    },
+                    "data": {**span_data_fields, **non_span_data_fields},
                 }
             ],
         },
@@ -81,9 +114,20 @@ def test_spandata_conventions(mini_sentry, relay):
     event = mini_sentry.get_captured_envelope().get_event()
 
     assert event["spans"][0]["data"] == {
-        "http.query": "******************************&**********************************************************&X-Amz-Signature=579375859378367127495789347628374",
-        "sentry.cancellation_reason": "X-Amz-Algorithm=Some_algorithm&X-Amz-Credential=foobar/19700101/us-east-1/s3/aws4_request&X-Amz-Signature=579375859378367127495789347628374",
-        "madeup.field": "******************************&**********************************************************&X-Amz-Signature=579375859378367127495789347628374",
+        # true
+        "url.full": "***************************************************************",
+        # maybe
+        "gen_ai.input.messages": "******************************&**********************************************************&X-Amz-Signature=579375859378367127495789347628374",
+        # false
+        "sentry.release": "myrelease",
+        # true
+        "ai.warnings": "************",
+        # maybe
+        "process.runtime.name": "[REDACTED]",
+        # false
+        "sentry.cancellation_reason": "I dunno",
+        # unknown (-> true)
+        "madeup.field": "************",
     }
 
 
