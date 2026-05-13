@@ -33,7 +33,7 @@ pub struct SamplingEvaluator {
 }
 
 impl SamplingEvaluator {
-    /// Constructs an evaluator without reservoir sampling.
+    /// Constructs an evaluator.
     pub fn new(now: DateTime<Utc>) -> Self {
         Self {
             now,

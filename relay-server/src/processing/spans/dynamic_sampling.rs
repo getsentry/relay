@@ -209,7 +209,6 @@ fn compute(spans: &Managed<ExpandedSpans>, ctx: Context<'_>) -> SamplingResult {
         return SamplingResult::NoMatch;
     };
 
-    // Currently there is no support planned for reservoir sampling.
     let mut evaluator = SamplingEvaluator::new(Utc::now());
 
     // Apply project rules before trace rules, to give projects a chance to override the trace root
