@@ -58,6 +58,44 @@ impl crate::managed::OutcomeError for Error {
     }
 }
 
+/// Serialized profile chunks extracted from an envelope.
+#[derive(Debug)]
+pub struct SerializedProfileChunks {
+    /// Original envelope headers.
+    pub headers: EnvelopeHeaders,
+    /// List of serialized profile chunk items.
+    pub profile_chunks: Vec<Item>,
+}
+
+impl Counted for SerializedProfileChunks {
+    fn quantities(&self) -> Quantities {
+        let mut ui = 0;
+        let mut backend = 0;
+
+        for pc in &self.profile_chunks {
+            match pc.profile_type() {
+                Some(ProfileType::Ui) => ui += 1,
+                Some(ProfileType::Backend) => backend += 1,
+                None => {}
+            }
+        }
+
+        let mut quantities = smallvec![];
+        if ui > 0 {
+            quantities.push((DataCategory::ProfileChunkUi, ui));
+        }
+        if backend > 0 {
+            quantities.push((DataCategory::ProfileChunk, backend));
+        }
+
+        quantities
+    }
+}
+
+impl CountRateLimited for Managed<SerializedProfileChunks> {
+    type Error = Error;
+}
+
 #[derive(Debug)]
 #[cfg_attr(all(not(feature = "processing"), not(test)), expect(dead_code))]
 pub struct RawProfile {
@@ -215,44 +253,6 @@ impl Forward for ProfileChunkOutput {
 
         Ok(())
     }
-}
-
-/// Serialized profile chunks extracted from an envelope.
-#[derive(Debug)]
-pub struct SerializedProfileChunks {
-    /// Original envelope headers.
-    pub headers: EnvelopeHeaders,
-    /// List of serialized profile chunk items.
-    pub profile_chunks: Vec<Item>,
-}
-
-impl Counted for SerializedProfileChunks {
-    fn quantities(&self) -> Quantities {
-        let mut ui = 0;
-        let mut backend = 0;
-
-        for pc in &self.profile_chunks {
-            match pc.profile_type() {
-                Some(ProfileType::Ui) => ui += 1,
-                Some(ProfileType::Backend) => backend += 1,
-                None => {}
-            }
-        }
-
-        let mut quantities = smallvec![];
-        if ui > 0 {
-            quantities.push((DataCategory::ProfileChunkUi, ui));
-        }
-        if backend > 0 {
-            quantities.push((DataCategory::ProfileChunk, backend));
-        }
-
-        quantities
-    }
-}
-
-impl CountRateLimited for Managed<SerializedProfileChunks> {
-    type Error = Error;
 }
 
 #[cfg(test)]
