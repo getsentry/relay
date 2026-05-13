@@ -963,15 +963,15 @@ pub struct SpanData {
     pub user_agent_original: Annotated<String>,
 
     /// Absolute URL of a network resource.
-    #[metastructure(field = "url.full")]
+    #[metastructure(field = "url.full", pii = "true")]
     pub url_full: Annotated<String>,
 
     /// The query string component of the URL, without a leading `?`.
-    #[metastructure(field = "url.query")]
+    #[metastructure(field = "url.query", pii = "true")]
     pub url_query: Annotated<String>,
 
     /// The query string component of the URL, with a leading `?`.
-    #[metastructure(field = "http.query")]
+    #[metastructure(field = "http.query", pii = "true")]
     pub http_query: Annotated<String>,
 
     /// The client's IP address.
