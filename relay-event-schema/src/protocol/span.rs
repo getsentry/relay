@@ -459,7 +459,7 @@ impl Getter for SentryTags {
 /// Besides arbitrary user data, this type also contains SDK-provided fields used by the
 /// product (see <https://develop.sentry.dev/sdk/performance/span-data-conventions/>).
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[metastructure(trim = false)]
+#[metastructure(trim = false, pii = "maybe")]
 pub struct SpanData {
     /// Mobile app start variant.
     ///
@@ -468,7 +468,7 @@ pub struct SpanData {
     pub app_start_type: Annotated<Value>,
 
     /// The maximum number of tokens that should be used by an LLM call.
-    #[metastructure(field = "gen_ai.request.max_tokens", pii = "maybe")]
+    #[metastructure(field = "gen_ai.request.max_tokens")]
     pub gen_ai_request_max_tokens: Annotated<Value>,
 
     /// Name of the AI pipeline or chain being executed.
@@ -478,8 +478,7 @@ pub struct SpanData {
     /// The total tokens that were used by an LLM call
     #[metastructure(
         field = "gen_ai.usage.total_tokens",
-        legacy_alias = "ai.total_tokens.used",
-        pii = "maybe"
+        legacy_alias = "ai.total_tokens.used"
     )]
     pub gen_ai_usage_total_tokens: Annotated<Value>,
 
@@ -487,50 +486,42 @@ pub struct SpanData {
     #[metastructure(
         field = "gen_ai.usage.input_tokens",
         legacy_alias = "ai.prompt_tokens.used",
-        legacy_alias = "gen_ai.usage.prompt_tokens",
-        pii = "maybe"
+        legacy_alias = "gen_ai.usage.prompt_tokens"
     )]
     pub gen_ai_usage_input_tokens: Annotated<Value>,
 
     /// The input tokens used by an LLM call that were cached
     /// (cheaper and faster than non-cached input tokens)
-    #[metastructure(field = "gen_ai.usage.input_tokens.cached", pii = "maybe")]
+    #[metastructure(field = "gen_ai.usage.input_tokens.cached")]
     pub gen_ai_usage_input_tokens_cached: Annotated<Value>,
 
     /// The input tokens written to cache during an LLM call
-    #[metastructure(field = "gen_ai.usage.input_tokens.cache_write", pii = "maybe")]
+    #[metastructure(field = "gen_ai.usage.input_tokens.cache_write")]
     pub gen_ai_usage_input_tokens_cache_write: Annotated<Value>,
 
     /// The input tokens that missed the cache (DeepSeek provider)
-    #[metastructure(field = "gen_ai.usage.input_tokens.cache_miss", pii = "maybe")]
+    #[metastructure(field = "gen_ai.usage.input_tokens.cache_miss")]
     pub gen_ai_usage_input_tokens_cache_miss: Annotated<Value>,
 
     /// The output tokens used by an LLM call (the ones the LLM actually generated)
     #[metastructure(
         field = "gen_ai.usage.output_tokens",
         legacy_alias = "ai.completion_tokens.used",
-        legacy_alias = "gen_ai.usage.completion_tokens",
-        pii = "maybe"
+        legacy_alias = "gen_ai.usage.completion_tokens"
     )]
     pub gen_ai_usage_output_tokens: Annotated<Value>,
 
     /// The output tokens used to represent the model's internal thought
     /// process while generating a response
-    #[metastructure(field = "gen_ai.usage.output_tokens.reasoning", pii = "maybe")]
+    #[metastructure(field = "gen_ai.usage.output_tokens.reasoning")]
     pub gen_ai_usage_output_tokens_reasoning: Annotated<Value>,
 
     /// The output tokens for accepted predictions (OpenAI provider)
-    #[metastructure(
-        field = "gen_ai.usage.output_tokens.prediction_accepted",
-        pii = "maybe"
-    )]
+    #[metastructure(field = "gen_ai.usage.output_tokens.prediction_accepted")]
     pub gen_ai_usage_output_tokens_prediction_accepted: Annotated<Value>,
 
     /// The output tokens for rejected predictions (OpenAI provider)
-    #[metastructure(
-        field = "gen_ai.usage.output_tokens.prediction_rejected",
-        pii = "maybe"
-    )]
+    #[metastructure(field = "gen_ai.usage.output_tokens.prediction_rejected")]
     pub gen_ai_usage_output_tokens_prediction_rejected: Annotated<Value>,
 
     // Exact model used to generate the response (e.g. gpt-4o-mini-2024-07-18)
@@ -550,21 +541,20 @@ pub struct SpanData {
     pub gen_ai_context_utilization: Annotated<Value>,
 
     /// The total cost for the tokens used (duplicate field for migration)
-    #[metastructure(field = "gen_ai.cost.total_tokens", pii = "maybe")]
+    #[metastructure(field = "gen_ai.cost.total_tokens")]
     pub gen_ai_cost_total_tokens: Annotated<Value>,
 
     /// The cost for input tokens used
-    #[metastructure(field = "gen_ai.cost.input_tokens", pii = "maybe")]
+    #[metastructure(field = "gen_ai.cost.input_tokens")]
     pub gen_ai_cost_input_tokens: Annotated<Value>,
 
     /// The cost for output tokens used
-    #[metastructure(field = "gen_ai.cost.output_tokens", pii = "maybe")]
+    #[metastructure(field = "gen_ai.cost.output_tokens")]
     pub gen_ai_cost_output_tokens: Annotated<Value>,
 
     /// The input messages to the model call.
     #[metastructure(
         field = "gen_ai.input.messages",
-        pii = "maybe",
         legacy_alias = "gen_ai.prompt",
         legacy_alias = "gen_ai.request.messages",
         legacy_alias = "ai.prompt.messages"
@@ -574,7 +564,6 @@ pub struct SpanData {
     /// Tool call arguments.
     #[metastructure(
         field = "gen_ai.tool.call.arguments",
-        pii = "maybe",
         legacy_alias = "gen_ai.tool.input",
         legacy_alias = "ai.toolCall.args"
     )]
@@ -583,7 +572,6 @@ pub struct SpanData {
     /// Tool call result.
     #[metastructure(
         field = "gen_ai.tool.call.result",
-        pii = "maybe",
         legacy_alias = "gen_ai.tool.output",
         legacy_alias = "ai.toolCall.result"
     )]
@@ -597,33 +585,35 @@ pub struct SpanData {
         legacy_alias = "ai.tool_calls",
         legacy_alias = "gen_ai.response.text",
         legacy_alias = "ai.response.text",
-        legacy_alias = "ai.responses",
-        pii = "maybe"
+        legacy_alias = "ai.responses"
     )]
     pub gen_ai_output_messages: Annotated<Value>,
 
     /// LLM response object (Vercel AI, generateObject)
-    #[metastructure(field = "gen_ai.response.object", pii = "maybe")]
+    #[metastructure(field = "gen_ai.response.object")]
     pub gen_ai_response_object: Annotated<Value>,
 
     /// Whether or not the AI model call's response was streamed back asynchronously
-    #[metastructure(field = "gen_ai.response.streaming", legacy_alias = "ai.streaming")]
+    #[metastructure(
+        field = "gen_ai.response.streaming",
+        legacy_alias = "ai.streaming",
+        pii = "false"
+    )]
     pub gen_ai_response_streaming: Annotated<Value>,
 
     ///  Total output tokens per seconds throughput
-    #[metastructure(field = "gen_ai.response.tokens_per_second", pii = "maybe")]
+    #[metastructure(field = "gen_ai.response.tokens_per_second")]
     pub gen_ai_response_tokens_per_second: Annotated<Value>,
 
     /// Time to first token from the LLM response
-    #[metastructure(field = "gen_ai.response.time_to_first_token", pii = "maybe")]
+    #[metastructure(field = "gen_ai.response.time_to_first_token")]
     pub gen_ai_response_time_to_first_token: Annotated<Value>,
 
     /// The tool definitions available for a request to an LLM.
     #[metastructure(
         field = "gen_ai.tool.definitions",
         legacy_alias = "gen_ai.request.available_tools",
-        legacy_alias = "ai.tools",
-        pii = "maybe"
+        legacy_alias = "ai.tools"
     )]
     pub gen_ai_tool_definitions: Annotated<Value>,
 
@@ -680,41 +670,36 @@ pub struct SpanData {
     /// The system instructions passed to the model.
     #[metastructure(
         field = "gen_ai.system_instructions",
-        legacy_alias = "gen_ai.system.message",
-        pii = "maybe"
+        legacy_alias = "gen_ai.system.message"
     )]
     pub gen_ai_system_instructions: Annotated<Value>,
 
     /// The name of the tool being called
-    #[metastructure(
-        field = "gen_ai.tool.name",
-        legacy_alias = "ai.function_call",
-        pii = "maybe"
-    )]
+    #[metastructure(field = "gen_ai.tool.name", legacy_alias = "ai.function_call")]
     pub gen_ai_tool_name: Annotated<Value>,
 
     /// The name of the operation being performed.
-    #[metastructure(field = "gen_ai.operation.name", pii = "maybe")]
+    #[metastructure(field = "gen_ai.operation.name")]
     pub gen_ai_operation_name: Annotated<String>,
 
     /// The type of the operation being performed.
-    #[metastructure(field = "gen_ai.operation.type", pii = "maybe")]
+    #[metastructure(field = "gen_ai.operation.type")]
     pub gen_ai_operation_type: Annotated<String>,
 
     /// The name of the AI agent.
-    #[metastructure(field = "gen_ai.agent.name", pii = "maybe")]
+    #[metastructure(field = "gen_ai.agent.name")]
     pub gen_ai_agent_name: Annotated<String>,
 
     /// The function ID of the AI agent.
-    #[metastructure(field = "gen_ai.function_id", pii = "maybe")]
+    #[metastructure(field = "gen_ai.function_id")]
     pub gen_ai_function_id: Annotated<String>,
 
     /// The result of the MCP prompt.
-    #[metastructure(field = "mcp.prompt.result", pii = "maybe")]
+    #[metastructure(field = "mcp.prompt.result")]
     pub mcp_prompt_result: Annotated<Value>,
 
     /// The result of the MCP tool.
-    #[metastructure(field = "mcp.tool.result.content", pii = "maybe")]
+    #[metastructure(field = "mcp.tool.result.content")]
     pub mcp_tool_result_content: Annotated<Value>,
 
     /// The client's browser name.
@@ -722,22 +707,22 @@ pub struct SpanData {
     pub browser_name: Annotated<String>,
 
     /// The source code file name that identifies the code unit as uniquely as possible.
-    #[metastructure(field = "code.filepath", pii = "maybe")]
+    #[metastructure(field = "code.filepath")]
     pub code_filepath: Annotated<Value>,
     /// The line number in `code.filepath` best representing the operation.
-    #[metastructure(field = "code.lineno", pii = "maybe")]
+    #[metastructure(field = "code.lineno")]
     pub code_lineno: Annotated<Value>,
     /// The method or function name, or equivalent.
     ///
     /// Usually rightmost part of the code unit's name.
-    #[metastructure(field = "code.function", pii = "maybe")]
+    #[metastructure(field = "code.function")]
     pub code_function: Annotated<Value>,
     /// The "namespace" within which `code.function` is defined.
     ///
     /// Usually the qualified class or module name, such that
     /// `code.namespace + some separator + code.function`
     /// form a unique identifier for the code unit.
-    #[metastructure(field = "code.namespace", pii = "maybe")]
+    #[metastructure(field = "code.namespace")]
     pub code_namespace: Annotated<Value>,
 
     /// The name of the operation being executed.
@@ -766,11 +751,15 @@ pub struct SpanData {
     pub db_collection_name: Annotated<Value>,
 
     /// The sentry environment.
-    #[metastructure(field = "sentry.environment", legacy_alias = "environment")]
+    #[metastructure(
+        field = "sentry.environment",
+        legacy_alias = "environment",
+        pii = "false"
+    )]
     pub environment: Annotated<String>,
 
     /// The release version of the project.
-    #[metastructure(field = "sentry.release", legacy_alias = "release")]
+    #[metastructure(field = "sentry.release", legacy_alias = "release", pii = "false")]
     pub release: Annotated<LenientString>,
 
     /// The decoded body size of the response (in bytes).
@@ -822,7 +811,7 @@ pub struct SpanData {
     pub thread_name: Annotated<String>,
 
     /// ID of thread from where the span originated.
-    #[metastructure(field = "thread.id")]
+    #[metastructure(field = "thread.id", pii = "false")]
     pub thread_id: Annotated<ThreadId>,
 
     /// Name of the segment that this span belongs to (see `segment_id`).
@@ -842,19 +831,19 @@ pub struct SpanData {
     pub url_scheme: Annotated<Value>,
 
     /// User Display
-    #[metastructure(field = "user")]
+    #[metastructure(field = "user", pii = "true")]
     pub user: Annotated<Value>,
 
     /// User email address.
     ///
     /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
-    #[metastructure(field = "user.email")]
+    #[metastructure(field = "user.email", pii = "true")]
     pub user_email: Annotated<String>,
 
     /// User’s full name.
     ///
     /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
-    #[metastructure(field = "user.full_name")]
+    #[metastructure(field = "user.full_name", pii = "true")]
     pub user_full_name: Annotated<String>,
 
     /// Two-letter country code (ISO 3166-1 alpha-2).
@@ -884,25 +873,25 @@ pub struct SpanData {
     /// Unique user hash to correlate information for a user in anonymized form.
     ///
     /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
-    #[metastructure(field = "user.hash")]
+    #[metastructure(field = "user.hash", pii = "true")]
     pub user_hash: Annotated<String>,
 
     /// Unique identifier of the user.
     ///
     /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
-    #[metastructure(field = "user.id")]
+    #[metastructure(field = "user.id", pii = "true")]
     pub user_id: Annotated<String>,
 
     /// Short name or login/username of the user.
     ///
     /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
-    #[metastructure(field = "user.name")]
+    #[metastructure(field = "user.name", pii = "true")]
     pub user_name: Annotated<String>,
 
     /// Array of user roles at the time of the event.
     ///
     /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
-    #[metastructure(field = "user.roles")]
+    #[metastructure(field = "user.roles", pii = "true")]
     pub user_roles: Annotated<Array<String>>,
 
     /// Exclusive Time
@@ -910,19 +899,19 @@ pub struct SpanData {
     pub exclusive_time: Annotated<Value>,
 
     /// Profile ID
-    #[metastructure(field = "profile_id")]
+    #[metastructure(field = "profile_id", pii = "false")]
     pub profile_id: Annotated<Value>,
 
     /// Replay ID
-    #[metastructure(field = "sentry.replay_id", legacy_alias = "replay_id")]
+    #[metastructure(field = "sentry.replay_id", legacy_alias = "replay_id", pii = "false")]
     pub replay_id: Annotated<Value>,
 
     /// The sentry SDK (see [`crate::protocol::ClientSdkInfo`]).
-    #[metastructure(field = "sentry.sdk.name")]
+    #[metastructure(field = "sentry.sdk.name", pii = "false")]
     pub sdk_name: Annotated<String>,
 
     /// The sentry SDK version (see [`crate::protocol::ClientSdkInfo`]).
-    #[metastructure(field = "sentry.sdk.version")]
+    #[metastructure(field = "sentry.sdk.version", pii = "false")]
     pub sdk_version: Annotated<String>,
 
     /// Slow Frames
@@ -986,18 +975,18 @@ pub struct SpanData {
     pub http_query: Annotated<String>,
 
     /// The client's IP address.
-    #[metastructure(field = "client.address")]
+    #[metastructure(field = "client.address", pii = "true")]
     pub client_address: Annotated<IpAddr>,
 
     /// The current route in the application.
     ///
     /// Set by React Native SDK.
-    #[metastructure(pii = "maybe", skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "empty")]
     pub route: Annotated<Route>,
     /// The previous route in the application
     ///
     /// Set by React Native SDK.
-    #[metastructure(field = "previousRoute", pii = "maybe", skip_serialization = "empty")]
+    #[metastructure(field = "previousRoute", skip_serialization = "empty")]
     pub previous_route: Annotated<Route>,
 
     // The dom element responsible for the largest contentful paint.

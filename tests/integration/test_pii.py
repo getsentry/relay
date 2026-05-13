@@ -39,6 +39,47 @@ def test_scrub_span_sentry_tags_advanced_rules(mini_sentry, relay):
     assert event["spans"][0]["sentry_tags"]["user.geo.subregion"] == "***"
 
 
+def test_http_query(mini_sentry, relay):
+    project_id = 42
+    relay = relay(
+        mini_sentry,
+    )
+    config = mini_sentry.add_basic_project_config(project_id)
+    config["config"]["piiConfig"] = {
+        "rules": {
+            "custom_secret": {
+                "type": "pattern",
+                "pattern": r"(X-Amz-Algorithm|X-Amz-Credential)=[^& ]+",
+                "redaction": {"method": "mask"},
+            }
+        },
+        "applications": {"$span.data.*": ["custom_secret"]},
+    }
+
+    relay.send_event(
+        project_id,
+        {
+            "spans": [
+                {
+                    "timestamp": 1778131375.142457,
+                    "start_timestamp": 1778131374.296492,
+                    "exclusive_time": 845.965,
+                    "data": {
+                        "http.query": "X-Amz-Algorithm=Some_algorithm&X-Amz-Credential=foobar/19700101/us-east-1/s3/aws4_request&X-Amz-Signature=579375859378367127495789347628374",
+                    },
+                }
+            ],
+        },
+    )
+
+    event = mini_sentry.get_captured_envelope().get_event()
+
+    assert (
+        event["spans"][0]["data"]["http.query"]
+        == "******************************&**********************************************************&X-Amz-Signature=579375859378367127495789347628374"
+    )
+
+
 @pytest.mark.parametrize(
     ["input_message", "expected_output"],
     [
