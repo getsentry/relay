@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use relay_base_schema::events::EventType;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::{Event, Metrics};
@@ -7,7 +5,7 @@ use relay_profiling::{ProfileError, ProfileType};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 use relay_redis::AsyncRedisClient;
-use relay_sampling::evaluation::{ReservoirEvaluator, SamplingDecision};
+use relay_sampling::evaluation::SamplingDecision;
 use relay_statsd::metric;
 use smallvec::smallvec;
 
@@ -303,19 +301,7 @@ async fn do_make_dynamic_sampling_decision(
         return SamplingResult::Pending;
     }
 
-    #[allow(unused_mut)]
-    let mut reservoir = ReservoirEvaluator::new(Arc::clone(ctx.reservoir_counters));
-    #[cfg(feature = "processing")]
-    if let Some(quotas_client) = quotas_client {
-        reservoir.set_redis(work.scoping().organization_id, quotas_client);
-    }
-    utils::dynamic_sampling::run(
-        work.headers.dsc(),
-        work.event.value(),
-        &ctx,
-        Some(&reservoir),
-    )
-    .await
+    utils::dynamic_sampling::run(work.headers.dsc(), work.event.value(), &ctx)
 }
 
 type IndexedAndMetrics = (

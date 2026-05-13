@@ -182,7 +182,7 @@ impl processing::Processor for SpansProcessor {
 
         let spans = process::expand(spans)?;
 
-        let mut spans = match dynamic_sampling::run(spans, ctx).await {
+        let mut spans = match dynamic_sampling::run(spans, ctx) {
             Ok(spans) => spans,
             Err(metrics) => return Ok(Output::metrics(metrics)),
         };

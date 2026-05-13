@@ -4887,7 +4887,6 @@ dependencies = [
 name = "relay-sampling"
 version = "26.4.2"
 dependencies = [
- "anyhow",
  "chrono",
  "insta",
  "rand 0.9.4",
@@ -4896,8 +4895,6 @@ dependencies = [
  "relay-event-schema",
  "relay-log",
  "relay-protocol",
- "relay-redis",
- "relay-statsd",
  "serde",
  "serde_json",
  "similar-asserts",

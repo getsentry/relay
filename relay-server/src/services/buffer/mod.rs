@@ -614,13 +614,11 @@ impl EnvelopeBufferService {
             return Ok(());
         }
 
-        let reservoir_counters = own_project.reservoir_counters().clone();
         services.envelope_processor.send(ProcessEnvelope {
             envelope: managed_envelope.into(),
             project_info: own_project_info.clone(),
             rate_limits: own_project.rate_limits().current_limits(),
             sampling_project_info: sampling_project_info.clone(),
-            reservoir_counters,
         });
 
         Ok(())

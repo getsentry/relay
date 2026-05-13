@@ -27,7 +27,7 @@ use relay_event_schema::protocol::{ClientReport, EventId, SpanV2};
 use relay_filter::FilterStatKey;
 use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricNamespace};
 use relay_quotas::{DataCategory, RateLimits, Scoping};
-use relay_sampling::evaluation::{ReservoirCounters, SamplingDecision};
+use relay_sampling::evaluation::SamplingDecision;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 use reqwest::header;
@@ -674,8 +674,6 @@ pub struct ProcessEnvelope {
     pub rate_limits: Arc<RateLimits>,
     /// Root sampling project info.
     pub sampling_project_info: Option<Arc<ProjectInfo>>,
-    /// Sampling reservoir counters.
-    pub reservoir_counters: ReservoirCounters,
 }
 
 /// Like a [`ProcessEnvelope`], but with an envelope which has been grouped.
@@ -1360,7 +1358,6 @@ impl EnvelopeProcessorService {
                 project_info: &message.project_info,
                 sampling_project_info: message.sampling_project_info.as_deref(),
                 rate_limits: &message.rate_limits,
-                reservoir_counters: &message.reservoir_counters,
             };
 
             let message = ProcessEnvelopeGrouped {

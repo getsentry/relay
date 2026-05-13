@@ -83,6 +83,6 @@ async fn is_trace_fully_sampled(error: &ExpandedError, ctx: Context<'_>) -> Opti
 
     let rules = sampling_config.filter_rules(RuleType::Trace);
 
-    let evaluation = evaluator.match_rules(*dsc.trace_id, dsc, rules).await;
+    let evaluation = evaluator.match_rules(*dsc.trace_id, dsc, rules);
     Some(SamplingResult::from(evaluation).decision().is_keep())
 }

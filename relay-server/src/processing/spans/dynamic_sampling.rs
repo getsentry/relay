@@ -106,11 +106,11 @@ pub fn validate_dsc(spans: &ExpandedSpans) -> Result<()> {
 ///
 /// All spans are evaluated in one go as they are required by the protocol to share the same
 /// DSC, which contains all the sampling relevant information.
-pub async fn run(
+pub fn run(
     mut spans: Managed<ExpandedSpans>,
     ctx: Context<'_>,
 ) -> Result<Managed<ExpandedSpans>, Managed<ExtractedMetrics>> {
-    let sampling_result = compute(&spans, ctx).await;
+    let sampling_result = compute(&spans, ctx);
 
     relay_statsd::metric!(
         counter(RelayCounters::SamplingDecision) += 1,
@@ -188,7 +188,7 @@ fn split_indexed_and_total(
     })
 }
 
-async fn compute(spans: &Managed<ExpandedSpans>, ctx: Context<'_>) -> SamplingResult {
+fn compute(spans: &Managed<ExpandedSpans>, ctx: Context<'_>) -> SamplingResult {
     // The DSC is always required, we need it to evaluate all rules, if it is missing,
     // no rules can be applied -> we sample the item.
     let Some(dsc) = spans.headers.dsc() else {
@@ -222,17 +222,14 @@ async fn compute(spans: &Managed<ExpandedSpans>, ctx: Context<'_>) -> SamplingRe
         //
         // The trace id gives us this property and it will also have the upside of consistently
         // sampling multiple segments of the same trace.
-        evaluator = match evaluator.match_rules(*dsc.trace_id, dsc, rules).await {
+        evaluator = match evaluator.match_rules(*dsc.trace_id, dsc, rules) {
             ControlFlow::Continue(evaluator) => evaluator,
             ControlFlow::Break(sampling_match) => return SamplingResult::Match(sampling_match),
         }
     }
 
     let rules = root_sampling_config.filter_rules(RuleType::Trace);
-    evaluator
-        .match_rules(*dsc.trace_id, dsc, rules)
-        .await
-        .into()
+    evaluator.match_rules(*dsc.trace_id, dsc, rules).into()
 }
 
 fn get_sampling_config(info: &ProjectInfo) -> Option<&SamplingConfig> {
