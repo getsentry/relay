@@ -2,14 +2,15 @@
 
 use std::error::Error;
 use std::num::NonZeroU8;
-use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize};
+use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
 use ahash::RandomState;
 use chrono::DateTime;
 use chrono::Utc;
+use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, EnvelopeSpoolPartitioning};
 use relay_system::Receiver;
 use relay_system::ServiceSpawn;
@@ -26,7 +27,7 @@ use crate::services::outcome::DiscardReason;
 use crate::services::outcome::Outcome;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::{EnvelopeProcessor, ProcessEnvelope};
-use crate::services::projects::cache::{ProjectCacheHandle, ProjectChange};
+use crate::services::projects::cache::{Project, ProjectCacheHandle, ProjectChange};
 use crate::statsd::RelayCounters;
 
 use crate::MemoryChecker;
@@ -44,7 +45,7 @@ pub use envelope_stack::EnvelopeStack;
 // pub for benchmarks
 pub use envelope_store::sqlite::SqliteEnvelopeStore;
 
-use crate::services::projects::project::ProjectState;
+use crate::services::projects::project::{ProjectInfo, ProjectState};
 pub use common::ProjectKeyPair;
 
 mod common;
@@ -536,92 +537,51 @@ impl EnvelopeBufferService {
         buffer: &mut PolymorphicEnvelopeBuffer,
         project_key_pair: ProjectKeyPair,
     ) -> Result<(), EnvelopeBufferError> {
-        let own_key = project_key_pair.own_key;
-        let own_project = services.project_cache_handle.get(own_key);
-        // We try to load the own project state and bail in case it's pending.
-        let own_project_info = match own_project.state() {
-            ProjectState::Enabled(info) => Some(info.clone()),
-            ProjectState::Disabled => None,
-            ProjectState::Pending => {
-                buffer.mark_ready(&own_key, false);
+        macro_rules! pop_envelope {
+            () => {{
+                relay_log::trace!("EnvelopeBufferService: popping envelope");
+                // If we arrived here, know that both projects are available, so we pop the envelope.
+                //
+                // Available, doesn't necessarily mean enabled/active.
+                let envelope = buffer.pop().await?;
+                let envelope = envelope.expect("Element disappeared despite exclusive excess");
+                Managed::from_envelope(envelope, services.outcome_aggregator.clone())
+            }};
+        }
+
+        match resolve_project(&services.project_cache_handle, project_key_pair) {
+            ResolvedProject::Enabled {
+                own_project,
+                own_project_info,
+                sampling_project_info,
+            } => {
+                let mut envelope = pop_envelope!();
+                if own_project.check_envelope(&mut envelope).await.is_err() || envelope.is_empty() {
+                    // Outcomes are emitted by `check_envelope`.
+                    return Ok(());
+                };
+
+                services.envelope_processor.send(ProcessEnvelope {
+                    envelope: envelope.into(),
+                    project_info: own_project_info,
+                    rate_limits: own_project.rate_limits().current_limits(),
+                    reservoir_counters: own_project.reservoir_counters().clone(),
+                    sampling_project_info,
+                });
+            }
+            // If the own project state is disabled, we want to drop the envelope and early return since
+            // we can't do much about it.
+            ResolvedProject::Disabled => {
+                let _ = pop_envelope!().reject_err(Outcome::Invalid(DiscardReason::ProjectId));
+            }
+            ResolvedProject::NotReady(key) => {
+                buffer.mark_ready(&key, false);
                 relay_statsd::metric!(
                     counter(RelayCounters::BufferProjectPending) += 1,
                     partition_id = partition_tag
                 );
-
-                return Ok(());
             }
-        };
-
-        let sampling_key = project_key_pair.sampling_key;
-        // If the projects are different, we load the project key of the sampling project. On the
-        // other hand, if they are the same, we just reuse the own project.
-        let sampling_project_info = if project_key_pair.has_distinct_sampling_key() {
-            // We try to load the sampling project state and bail in case it's pending.
-            match services.project_cache_handle.get(sampling_key).state() {
-                ProjectState::Enabled(info) => Some(info.clone()),
-                ProjectState::Disabled => None,
-                ProjectState::Pending => {
-                    buffer.mark_ready(&sampling_key, false);
-                    relay_statsd::metric!(
-                        counter(RelayCounters::BufferProjectPending) += 1,
-                        partition_id = partition_tag
-                    );
-
-                    return Ok(());
-                }
-            }
-        } else {
-            own_project_info.clone()
-        };
-
-        relay_log::trace!("EnvelopeBufferService: popping envelope");
-
-        // If we arrived here, know that both projects are available, so we pop the envelope.
-        let envelope = buffer
-            .pop()
-            .await?
-            .expect("Element disappeared despite exclusive excess");
-
-        // If the own project state is disabled, we want to drop the envelope and early return since
-        // we can't do much about it.
-        let Some(own_project_info) = own_project_info else {
-            let mut managed_envelope =
-                ManagedEnvelope::new(envelope, services.outcome_aggregator.clone());
-            managed_envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
-
-            return Ok(());
-        };
-
-        // We only extract the sampling project info if both projects belong to the same org.
-        let sampling_project_info = sampling_project_info
-            .filter(|info| info.organization_id == own_project_info.organization_id);
-
-        let mut managed_envelope =
-            Managed::from_envelope(envelope, services.outcome_aggregator.clone());
-
-        if own_project
-            .check_envelope(&mut managed_envelope)
-            .await
-            .is_err()
-        {
-            // Outcomes are emitted by `check_envelope`.
-            return Ok(());
-        };
-
-        if managed_envelope.is_empty() {
-            // Nothing left to process.
-            return Ok(());
         }
-
-        let reservoir_counters = own_project.reservoir_counters().clone();
-        services.envelope_processor.send(ProcessEnvelope {
-            envelope: managed_envelope.into(),
-            project_info: own_project_info.clone(),
-            rate_limits: own_project.rate_limits().current_limits(),
-            sampling_project_info: sampling_project_info.clone(),
-            reservoir_counters,
-        });
 
         Ok(())
     }
@@ -747,6 +707,103 @@ impl Service for EnvelopeBufferService {
 
         relay_log::info!("EnvelopeBufferService {}: stopping", self.partition_id);
     }
+}
+
+/// Resolves the project and project information for an envelope about to be popped from the buffer.
+///
+/// Resolves the own and sampling project information
+fn resolve_project(
+    project_cache: &ProjectCacheHandle,
+    ProjectKeyPair {
+        own_key,
+        sampling_key,
+    }: ProjectKeyPair,
+) -> ResolvedProject<'_> {
+    static DUMMY_CONFIG: LazyLock<Arc<ProjectInfo>> = LazyLock::new(|| {
+        Arc::new(ProjectInfo {
+            project_id: None,
+            last_change: None,
+            rev: Default::default(),
+            public_keys: Default::default(),
+            slug: None,
+            config: Default::default(),
+            organization_id: None,
+            upstream: None,
+        })
+    });
+
+    let own_project = project_cache.get(own_key);
+    let own_project_info = match own_project.state() {
+        ProjectState::Enabled(info) => info.clone(),
+        ProjectState::DummyAllowed => {
+            return ResolvedProject::Enabled {
+                own_project,
+                // Since downstream requires a project config, we re-use this dummy config.
+                //
+                // This is how Relay historically always handled its proxy mode.
+                // It would make sense to instead of passing down this dummy, making the project
+                // config state here optional or similarly typed to the project state.
+                own_project_info: Arc::clone(&DUMMY_CONFIG),
+                sampling_project_info: None,
+            };
+        }
+        ProjectState::Disabled => return ResolvedProject::Disabled,
+        ProjectState::Pending => return ResolvedProject::NotReady(own_key),
+    };
+
+    // If the projects are different, we load the project key of the sampling project. On the
+    // other hand, if they are the same, we just reuse the own project.
+    let sampling_project_info = match own_key == sampling_key {
+        // For matching keys, we can re-use the existing config.
+        true => Some(own_project_info.clone()),
+        // If the sampling project is distinct, we need also fetch that config.
+        false => {
+            match project_cache.get(sampling_key).state() {
+                ProjectState::Enabled(info) => {
+                    // The sampling project key must belong to the same organization as the own project key.
+                    //
+                    // Dynamic sampling does not work across organizations, we also want to have a clear separation
+                    // of data between organizations.
+                    (info.organization_id == own_project_info.organization_id)
+                        .then(|| Arc::clone(info))
+                }
+                ProjectState::DummyAllowed => {
+                    // This case should never happen, the own project info would already be dummy allowed.
+                    debug_assert!(false);
+                    None
+                }
+                ProjectState::Disabled => None,
+                ProjectState::Pending => return ResolvedProject::NotReady(sampling_key),
+            }
+        }
+    };
+
+    ResolvedProject::Enabled {
+        own_project,
+        own_project_info,
+        sampling_project_info,
+    }
+}
+
+/// State returned from [`resolve_project`].
+enum ResolvedProject<'a> {
+    /// The project is enabled and data for it can be processed.
+    Enabled {
+        /// The own project.
+        own_project: Project<'a>,
+        /// The own, enabled, project info.
+        own_project_info: Arc<ProjectInfo>,
+        /// The sampling project info.
+        ///
+        /// May be `None` when the sampling project is disabled or from a different organization.
+        sampling_project_info: Option<Arc<ProjectInfo>>,
+    },
+    /// The project is disabled.
+    Disabled,
+    /// The project information isn't ready.
+    ///
+    /// This may be returned for either the own project or the sampling project.
+    NotReady(ProjectKey),
 }
 
 /// The spooler uses internal time based mechanics and to not make the tests actually wait

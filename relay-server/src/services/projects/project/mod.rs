@@ -15,6 +15,12 @@ pub use self::serialize::*;
 pub enum ProjectState {
     /// A valid project that is not disabled.
     Enabled(Arc<ProjectInfo>),
+    /// A dummy state for Relay instances which do not synchronize project configs with their upstream.
+    ///
+    /// This is used by proxy Relay instances which still communicate with the project cache,
+    /// but never fetch project configs from upstream. In this configuration data must still be
+    /// forwarded even without a project config.
+    DummyAllowed,
     /// A project that was marked as "gone" by the upstream. This variant does not expose
     /// any other project information.
     Disabled,
@@ -28,28 +34,13 @@ pub enum ProjectState {
 }
 
 impl ProjectState {
-    /// Project state for an unknown but allowed project.
-    ///
-    /// This state is used for forwarding in Proxy mode.
-    pub fn new_allowed() -> Self {
-        Self::Enabled(Arc::new(ProjectInfo {
-            project_id: None,
-            last_change: None,
-            rev: Default::default(),
-            public_keys: Default::default(),
-            slug: None,
-            config: Default::default(),
-            organization_id: None,
-            upstream: None,
-        }))
-    }
-
     /// Runs a post-deserialization step to normalize the project config (e.g. legacy fields).
     pub fn sanitized(self, is_processing: bool) -> Self {
         match self {
             Self::Enabled(state) => {
                 Self::Enabled(Arc::new(state.as_ref().clone().sanitized(is_processing)))
             }
+            Self::DummyAllowed => Self::DummyAllowed,
             Self::Disabled => Self::Disabled,
             Self::Pending => Self::Pending,
         }
@@ -64,7 +55,7 @@ impl ProjectState {
     pub fn enabled(self) -> Option<Arc<ProjectInfo>> {
         match self {
             Self::Enabled(info) => Some(info),
-            Self::Disabled | Self::Pending => None,
+            Self::DummyAllowed | Self::Disabled | Self::Pending => None,
         }
     }
 
@@ -74,7 +65,7 @@ impl ProjectState {
     pub fn revision(&self) -> Revision {
         match &self {
             Self::Enabled(info) => info.rev.clone(),
-            Self::Disabled | Self::Pending => Revision::default(),
+            Self::DummyAllowed | Self::Disabled | Self::Pending => Revision::default(),
         }
     }
 

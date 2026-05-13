@@ -1050,9 +1050,9 @@ mod tests {
         // The old cached state is still available and not replaced.
         assert_state!(store, project_key, ProjectState::Disabled);
 
-        let fetch = fetch.complete(ProjectState::new_allowed().into());
+        let fetch = fetch.complete(ProjectState::DummyAllowed.into());
         assert!(store.complete_fetch(fetch).is_none());
-        assert_state!(store, project_key, ProjectState::Enabled(_));
+        assert_state!(store, project_key, ProjectState::DummyAllowed);
     }
 
     #[tokio::test(start_paused = true)]
