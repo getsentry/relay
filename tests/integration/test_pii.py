@@ -39,7 +39,26 @@ def test_scrub_span_sentry_tags_advanced_rules(mini_sentry, relay):
     assert event["spans"][0]["sentry_tags"]["user.geo.subregion"] == "***"
 
 
-def test_spandata_conventions(mini_sentry, relay):
+@pytest.mark.parametrize(
+    "field,pii",
+    [
+        # SpanData field, pii: true in conventions
+        ("url.full", "true"),
+        # SpanData field, pii: maybe in conventions
+        ("gen_ai.input.messages", "maybe"),
+        # SpanData field, pii: false in conventions
+        ("sentry.release", "false"),
+        # Not a SpanData field, pii: true in conventions
+        ("ai.warnings", "true"),
+        # Not a SpanData field, pii: maybe in conventions
+        ("process.runtime.name", "maybe"),
+        # Not a SpanData field, pii: false in conventions
+        ("sentry.cancellation_reason", "false"),
+        # Not a SpanData field and not defined in conventions
+        ("madeup.field", "true"),
+    ],
+)
+def test_spandata_conventions(mini_sentry, relay, field, pii):
     project_id = 42
     relay = relay(
         mini_sentry,
@@ -55,46 +74,16 @@ def test_spandata_conventions(mini_sentry, relay):
 
     config["config"]["piiConfig"] = {
         "rules": {
-            "custom_secret_1": {
-                "type": "pattern",
-                "pattern": r"(X-Amz-Algorithm|X-Amz-Credential)=[^& ]+",
-                "redaction": {"method": "mask"},
-            },
-            "custom_secret_2": {
+            "custom_secret": {
                 "type": "pattern",
                 "pattern": ".*",
                 "redaction": {"method": "replace", "text": "[REDACTED]"},
             },
         },
         "applications": {
-            "$span.data.*": ["custom_secret_1"],
-            "'sentry.release'": ["custom_secret_2"],
-            "'sentry.cancellation_reason'": ["custom_secret_2"],
-            "'process.runtime.name'": ["custom_secret_2"],
             "$string": ["@anything:mask"],
+            f"'{field}'": ["custom_secret"],
         },
-    }
-
-    # Known fields on SpanData:
-    span_data_fields = {
-        # This is PII: true in conventions
-        "url.full": "https://www.service.io/users/01234-qwerty/settings/98765-adfghj",
-        # This is PII: maybe in conventions
-        "gen_ai.input.messages": "X-Amz-Algorithm=Some_algorithm&X-Amz-Credential=foobar/19700101/us-east-1/s3/aws4_request&X-Amz-Signature=579375859378367127495789347628374",
-        # This is PII: false in conventions
-        "sentry.release": "myrelease",
-    }
-
-    # Fields that don't exist on SpanData:
-    non_span_data_fields = {
-        # This is PII: true in conventions
-        "ai.warnings": "Run away!!!!",
-        # This is PII: maybe in conventions
-        "process.runtime.name": "myprocess",
-        # This is PII: false in conventions
-        "sentry.cancellation_reason": "I dunno",
-        # This doesn't exist in conventions, should default to PII: true
-        "madeup.field": "madeup value",
     }
 
     relay.send_event(
@@ -105,7 +94,7 @@ def test_spandata_conventions(mini_sentry, relay):
                     "timestamp": 1778131375.142457,
                     "start_timestamp": 1778131374.296492,
                     "exclusive_time": 845.965,
-                    "data": {**span_data_fields, **non_span_data_fields},
+                    "data": {field: "secret value"},
                 }
             ],
         },
@@ -113,22 +102,17 @@ def test_spandata_conventions(mini_sentry, relay):
 
     event = mini_sentry.get_captured_envelope().get_event()
 
-    assert event["spans"][0]["data"] == {
-        # true
-        "url.full": "***************************************************************",
-        # maybe
-        "gen_ai.input.messages": "******************************&**********************************************************&X-Amz-Signature=579375859378367127495789347628374",
-        # false
-        "sentry.release": "myrelease",
-        # true
-        "ai.warnings": "************",
-        # maybe
-        "process.runtime.name": "[REDACTED]",
-        # false
-        "sentry.cancellation_reason": "I dunno",
-        # unknown (-> true)
-        "madeup.field": "************",
-    }
+    value = event["spans"][0]["data"][field]
+
+    # pii: true fields should get masked
+    if pii == "true":
+        assert value == "************"
+    # pii: maybe fields should get redacted
+    elif pii == "maybe":
+        assert value == "[REDACTED]"
+    # pii: false fields should be left alone
+    else:
+        assert value == "secret value"
 
 
 @pytest.mark.parametrize(
