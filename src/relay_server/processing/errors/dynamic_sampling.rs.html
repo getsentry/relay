@@ -13,7 +13,7 @@
 <a href=#13 id=13 data-nosnippet>13</a>///
 <a href=#14 id=14 data-nosnippet>14</a>/// The function validates the DSC as well as a tagging the error event with the sampling decision
 <a href=#15 id=15 data-nosnippet>15</a>/// of the associated trace.
-<a href=#16 id=16 data-nosnippet>16</a></span><span class="kw">pub async fn </span>apply(error: <span class="kw-2">&amp;mut </span>Managed&lt;ExpandedError&gt;, ctx: Context&lt;<span class="lifetime">'_</span>&gt;) {
+<a href=#16 id=16 data-nosnippet>16</a></span><span class="kw">pub fn </span>apply(error: <span class="kw-2">&amp;mut </span>Managed&lt;ExpandedError&gt;, ctx: Context&lt;<span class="lifetime">'_</span>&gt;) {
 <a href=#17 id=17 data-nosnippet>17</a>    <span class="comment">// Only run in processing to not compute the decision multiple times and it is the most
 <a href=#18 id=18 data-nosnippet>18</a>    // accurate place, as other Relays may have unsupported inbound filter or sampling configs.
 <a href=#19 id=19 data-nosnippet>19</a>    </span><span class="kw">if </span>!ctx.is_processing() {
@@ -27,7 +27,7 @@
 <a href=#27 id=27 data-nosnippet>27</a>        <span class="kw">return</span>;
 <a href=#28 id=28 data-nosnippet>28</a>    }
 <a href=#29 id=29 data-nosnippet>29</a>
-<a href=#30 id=30 data-nosnippet>30</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(sampled) = is_trace_fully_sampled(error, ctx).<span class="kw">await </span>{
+<a href=#30 id=30 data-nosnippet>30</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(sampled) = is_trace_fully_sampled(error, ctx) {
 <a href=#31 id=31 data-nosnippet>31</a>        error.modify(|error, <span class="kw">_</span>| tag_error_with_sampling_decision(error, sampled));
 <a href=#32 id=32 data-nosnippet>32</a>    };
 <a href=#33 id=33 data-nosnippet>33</a>}
@@ -55,7 +55,7 @@
 <a href=#55 id=55 data-nosnippet>55</a><span class="doccomment">/// Runs dynamic sampling if the dsc and root project state are not None and returns whether the
 <a href=#56 id=56 data-nosnippet>56</a>/// transactions received with such dsc and project state would be kept or dropped by dynamic
 <a href=#57 id=57 data-nosnippet>57</a>/// sampling.
-<a href=#58 id=58 data-nosnippet>58</a></span><span class="kw">async fn </span>is_trace_fully_sampled(error: <span class="kw-2">&amp;</span>ExpandedError, ctx: Context&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;bool&gt; {
+<a href=#58 id=58 data-nosnippet>58</a></span><span class="kw">fn </span>is_trace_fully_sampled(error: <span class="kw-2">&amp;</span>ExpandedError, ctx: Context&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;bool&gt; {
 <a href=#59 id=59 data-nosnippet>59</a>    <span class="kw">let </span>dsc = error.headers.dsc()<span class="question-mark">?</span>;
 <a href=#60 id=60 data-nosnippet>60</a>
 <a href=#61 id=61 data-nosnippet>61</a>    <span class="kw">let </span>sampling_config = ctx
@@ -83,7 +83,7 @@
 <a href=#83 id=83 data-nosnippet>83</a>
 <a href=#84 id=84 data-nosnippet>84</a>    <span class="kw">let </span>rules = sampling_config.filter_rules(RuleType::Trace);
 <a href=#85 id=85 data-nosnippet>85</a>
-<a href=#86 id=86 data-nosnippet>86</a>    <span class="kw">let </span>evaluation = evaluator.match_rules(<span class="kw-2">*</span>dsc.trace_id, dsc, rules).<span class="kw">await</span>;
+<a href=#86 id=86 data-nosnippet>86</a>    <span class="kw">let </span>evaluation = evaluator.match_rules(<span class="kw-2">*</span>dsc.trace_id, dsc, rules);
 <a href=#87 id=87 data-nosnippet>87</a>    <span class="prelude-val">Some</span>(SamplingResult::from(evaluation).decision().is_keep())
 <a href=#88 id=88 data-nosnippet>88</a>}
 </code></pre></div></section></main></body></html>
