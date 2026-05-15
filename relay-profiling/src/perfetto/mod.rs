@@ -5,8 +5,8 @@
 
 use std::collections::BTreeMap;
 
-use data_encoding::HEXLOWER;
 use hashbrown::{HashMap, HashSet};
+use itertools::Itertools;
 use prost::Message;
 
 use relay_event_schema::protocol::{Addr, DebugId};
@@ -30,9 +30,13 @@ const MAX_SAMPLES: usize = 100_000;
 /// See <https://perfetto.dev/docs/reference/trace-packet-proto#SequenceFlags>.
 const SEQ_INCREMENTAL_STATE_CLEARED: u32 = 1;
 
-/// Perfetto builtin clock IDs.
+/// Perfetto builtin real time clock ID.
+///
 /// See <https://perfetto.dev/docs/concepts/clock-sync>.
 const CLOCK_REALTIME: u32 = 1;
+/// Perfetto builtin boot time clock ID.
+///
+/// See <https://perfetto.dev/docs/concepts/clock-sync>.
 const CLOCK_BOOTTIME: u32 = 6;
 
 fn has_incremental_state_cleared(packet: &proto::TracePacket) -> bool {
@@ -82,8 +86,7 @@ struct InternTables {
     // HashMap over BTreeMap: these tables can grow large (one entry per interned symbol).
     function_names: HashMap<u64, String>,
     mapping_paths: HashMap<u64, String>,
-    /// Build IDs stored as hex-encoded strings (normalized from raw bytes).
-    build_ids: HashMap<u64, String>,
+    build_ids: HashMap<u64, Vec<u8>>,
     frames: HashMap<u64, proto::Frame>,
     callstacks: HashMap<u64, proto::Callstack>,
     mappings: HashMap<u64, proto::Mapping>,
@@ -91,54 +94,35 @@ struct InternTables {
 
 impl InternTables {
     fn merge(&mut self, data: proto::InternedData) {
-        for s in data.function_names {
-            if let Some(iid) = s.iid {
-                let value = s
-                    .r#str
-                    .as_deref()
-                    .and_then(|b| std::str::from_utf8(b).ok())
-                    .unwrap_or("")
-                    .to_owned();
-                self.function_names.insert(iid, value);
-            }
-        }
-        for s in data.mapping_paths {
-            if let Some(iid) = s.iid {
-                let value = s
-                    .r#str
-                    .as_deref()
-                    .and_then(|b| std::str::from_utf8(b).ok())
-                    .unwrap_or("")
-                    .to_owned();
-                self.mapping_paths.insert(iid, value);
-            }
-        }
-        // Build IDs are raw bytes in Perfetto traces; normalize to hex for later lookup.
-        for s in data.build_ids {
-            if let Some(iid) = s.iid {
-                let value = match s.r#str.as_deref() {
-                    Some(bytes) if !bytes.is_empty() => HEXLOWER.encode(bytes),
-                    _ => String::new(),
-                };
-                self.build_ids.insert(iid, value);
-            }
-        }
-        for f in data.frames {
-            if let Some(iid) = f.iid {
-                self.frames.insert(iid, f);
-            }
-        }
-        for c in data.callstacks {
-            if let Some(iid) = c.iid {
-                self.callstacks.insert(iid, c);
-            }
-        }
-        for m in data.mappings {
-            if let Some(iid) = m.iid {
-                self.mappings.insert(iid, m);
-            }
-        }
+        let proto::InternedData {
+            function_names,
+            mapping_paths,
+            build_ids,
+            frames,
+            callstacks,
+            mappings,
+        } = data;
+
+        self.function_names.extend(intern_strings(function_names));
+        self.mapping_paths.extend(intern_strings(mapping_paths));
+        self.build_ids.extend(
+            build_ids
+                .into_iter()
+                .filter_map(|is| Some((is.iid?, is.r#str?))),
+        );
+        self.frames
+            .extend(frames.into_iter().filter_map(|f| Some((f.iid?, f))));
+        self.callstacks
+            .extend(callstacks.into_iter().filter_map(|c| Some((c.iid?, c))));
+        self.mappings
+            .extend(mappings.into_iter().filter_map(|m| Some((m.iid?, m))));
     }
+}
+
+fn intern_strings(strings: Vec<proto::InternedString>) -> impl Iterator<Item = (u64, String)> {
+    strings
+        .into_iter()
+        .filter_map(|is| Some((is.iid?, String::from_utf8(is.r#str?).ok()?)))
 }
 
 /// Deduplication key for resolved stack frames.
@@ -184,6 +168,7 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
     let mut ctx = ResolveContext::default();
     let mut resolved_samples: Vec<(u64, u32, usize)> = Vec::new();
     let mut sample_count: usize = 0;
+    let empty_tables = InternTables::default();
 
     for packet in trace.packet {
         let seq_id = trusted_packet_sequence_id(&packet);
@@ -208,9 +193,11 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
                         observed_pid = ps.pid;
                     }
                     sample_count += 1;
-                    if let Some(stack_id) =
-                        resolve_callstack(callstack_iid, seq_id, &tables_by_seq, &mut ctx)
-                    {
+                    if let Some(stack_id) = resolve_callstack(
+                        callstack_iid,
+                        tables_by_seq.get(&seq_id).unwrap_or(&empty_tables),
+                        &mut ctx,
+                    ) {
                         resolved_samples.push((ts, tid, stack_id));
                     }
                 }
@@ -285,13 +272,9 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
 /// callstack iid was not found in the tables.
 fn resolve_callstack(
     cs_iid: u64,
-    seq_id: u32,
-    tables_by_seq: &BTreeMap<u32, InternTables>,
+    tables: &InternTables,
     ctx: &mut ResolveContext,
 ) -> Option<usize> {
-    let empty_tables = InternTables::default();
-    let tables = tables_by_seq.get(&seq_id).unwrap_or(&empty_tables);
-
     let callstack = tables.callstacks.get(&cs_iid)?;
 
     let mut resolved_frame_indices: Vec<usize> = Vec::with_capacity(callstack.frame_ids.len());
@@ -314,14 +297,11 @@ fn resolve_callstack(
 
         let (key, frame) = build_frame(function_name, pf, tables);
 
-        let idx = if let Some(&existing) = ctx.frame_index.get(&key) {
-            existing
-        } else {
-            let idx = ctx.frames.len();
-            ctx.frame_index.insert(key, idx);
+        let idx = *ctx.frame_index.entry(key).or_insert_with(|| {
+            let next_idx = ctx.frames.len();
             ctx.frames.push(frame);
-            idx
-        };
+            next_idx
+        });
 
         resolved_frame_indices.push(idx);
     }
@@ -364,7 +344,7 @@ fn collect_debug_image(
     let debug_id = mapping
         .build_id
         .and_then(|bid| tables.build_ids.get(&bid))
-        .and_then(|hex_str| build_id_to_debug_id(hex_str))?;
+        .and_then(|bytes| build_id_to_debug_id(bytes))?;
 
     // Insert into dedup set only after validating we have a valid debug_id,
     // so that a mapping first seen without a build_id doesn't block a later
@@ -406,10 +386,10 @@ fn build_frame(
     if is_java {
         // For Java frames, split "com.example.MyClass.myMethod" into
         // module="com.example.MyClass" and function="myMethod".
-        let (module, function) = match &function_name {
+        let (module, function) = match function_name {
             Some(name) => match name.rsplit_once('.') {
                 Some((class, method)) => (Some(class.to_owned()), Some(method.to_owned())),
-                None => (None, Some(name.clone())),
+                None => (None, Some(name)),
             },
             None => (None, None),
         };
@@ -460,16 +440,12 @@ fn build_frame(
 ///
 /// Returns `None` if the mapping has no resolvable path segments.
 fn resolve_mapping_path(mapping: &proto::Mapping, tables: &InternTables) -> Option<String> {
-    let parts: Vec<&str> = mapping
+    let path = mapping
         .path_string_ids
         .iter()
         .filter_map(|id| tables.mapping_paths.get(id).map(|s| s.as_str()))
-        .collect();
-    if parts.is_empty() {
-        None
-    } else {
-        Some(parts.join("/"))
-    }
+        .join("/");
+    if path.is_empty() { None } else { Some(path) }
 }
 
 /// Returns `true` if the mapping path indicates a JVM/ART runtime mapping.
@@ -482,31 +458,21 @@ fn is_java_mapping(path: &str) -> bool {
     JVM_EXTENSIONS.iter().any(|ext| path.ends_with(ext))
 }
 
-/// Converts a hex-encoded ELF build ID string into a Sentry [`DebugId`].
+/// Converts a raw ELF build ID into a Sentry [`DebugId`].
 ///
-/// The first 16 bytes of the build ID are interpreted as a little-endian UUID
-/// (byte-swapping the time_low, time_mid, and time_hi_and_version fields).
+/// The first 16 bytes of the build ID are interpreted as a little-endian UUID.
 /// If the build ID is shorter than 16 bytes it is zero-padded on the right.
-fn build_id_to_debug_id(hex_str: &str) -> Option<DebugId> {
-    let bytes = HEXLOWER.decode(hex_str.as_bytes()).ok()?;
-    if bytes.is_empty() {
+fn build_id_to_debug_id(raw: &[u8]) -> Option<DebugId> {
+    if raw.is_empty() {
         return None;
     }
 
     let mut buf = [0u8; 16];
-    let len = bytes.len().min(16);
-    buf[..len].copy_from_slice(&bytes[..len]);
+    let len = raw.len().min(16);
+    buf[..len].copy_from_slice(&raw[..len]);
 
-    // Swap from little-endian ELF byte order to UUID mixed-endian format.
-    // time_low (bytes 0..4): reverse
-    buf[..4].reverse();
-    // time_mid (bytes 4..6): reverse
-    buf[4..6].reverse();
-    // time_hi_and_version (bytes 6..8): reverse
-    buf[6..8].reverse();
-
-    let uuid = uuid::Uuid::from_bytes(buf);
-    uuid.to_string().parse().ok()
+    let uuid = uuid::Uuid::from_bytes_le(buf);
+    Some(DebugId::from(uuid))
 }
 
 #[cfg(test)]
@@ -669,10 +635,7 @@ mod tests {
     #[test]
     fn test_convert_minimal_trace() {
         let bytes = build_minimal_trace();
-        let result = convert(&bytes);
-        assert!(result.is_ok(), "conversion failed: {result:?}");
-
-        let (data, _images) = result.unwrap();
+        let (data, _images) = convert(&bytes).unwrap();
 
         insta::assert_json_snapshot!(data, @r###"
         {
@@ -1198,9 +1161,12 @@ mod tests {
     #[test]
     fn test_build_id_to_debug_id() {
         // 20-byte ELF build ID (common for GNU build IDs).
-        let debug_id = build_id_to_debug_id("b03e4a7f5e884c8da04b05fa32cc4cbd69faff51").unwrap();
-        // First 16 bytes: b0 3e 4a 7f 5e 88 4c 8d a0 4b 05 fa 32 cc 4c bd
-        // After LE→UUID swap:
+        let raw = &[
+            0xb0, 0x3e, 0x4a, 0x7f, 0x5e, 0x88, 0x4c, 0x8d, 0xa0, 0x4b, 0x05, 0xfa, 0x32, 0xcc,
+            0x4c, 0xbd, 0x69, 0xfa, 0xff, 0x51,
+        ];
+        let debug_id = build_id_to_debug_id(raw).unwrap();
+        // First 16 bytes interpreted as little-endian UUID:
         //   time_low  (0..4)  reversed: 7f4a3eb0
         //   time_mid  (4..6)  reversed: 885e
         //   time_hi   (6..8)  reversed: 8d4c
@@ -1211,7 +1177,7 @@ mod tests {
     #[test]
     fn test_build_id_to_debug_id_short() {
         // Build ID shorter than 16 bytes → zero-padded.
-        let debug_id = build_id_to_debug_id("aabbccdd").unwrap();
+        let debug_id = build_id_to_debug_id(&[0xaa, 0xbb, 0xcc, 0xdd]).unwrap();
         // Bytes: aa bb cc dd 00 00 00 00 00 00 00 00 00 00 00 00
         // After swap: ddccbbaa-0000-0000-0000-000000000000
         assert_eq!(debug_id.to_string(), "ddccbbaa-0000-0000-0000-000000000000");
@@ -1219,7 +1185,7 @@ mod tests {
 
     #[test]
     fn test_build_id_to_debug_id_empty() {
-        assert!(build_id_to_debug_id("").is_none());
+        assert!(build_id_to_debug_id(&[]).is_none());
     }
 
     #[test]
