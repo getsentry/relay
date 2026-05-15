@@ -22,7 +22,6 @@ processing = [
   "relay-metrics/redis",
   "relay-quotas/redis",
   "relay-redis/impl",
-  "relay-sampling/redis",
 ]
 
 [lints]

@@ -3,7 +3,6 @@ use std::sync::Arc;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::Metrics;
 use relay_quotas::RateLimits;
-use relay_redis::AsyncRedisClient;
 use relay_sampling::evaluation::SamplingDecision;
 
 use crate::envelope::ItemType;
@@ -71,20 +70,14 @@ impl OutcomeError for Error {
 pub struct TransactionProcessor {
     limiter: Arc<QuotaRateLimiter>,
     geoip_lookup: GeoIpLookup,
-    quotas_client: Option<AsyncRedisClient>,
 }
 
 impl TransactionProcessor {
     /// Creates a new transaction processor.
-    pub fn new(
-        limiter: Arc<QuotaRateLimiter>,
-        geoip_lookup: GeoIpLookup,
-        quotas_client: Option<AsyncRedisClient>,
-    ) -> Self {
+    pub fn new(limiter: Arc<QuotaRateLimiter>, geoip_lookup: GeoIpLookup) -> Self {
         Self {
             limiter,
             geoip_lookup,
-            quotas_client,
         }
     }
 }
@@ -147,32 +140,30 @@ impl Processor for TransactionProcessor {
         relay_log::trace!("Filter transaction");
         let filters_status = process::run_inbound_filters(&tx, ctx)?;
 
-        let quotas_client = self.quotas_client.as_ref();
-
         relay_log::trace!("Processing profile");
         process::process_profile(&mut tx, ctx);
 
         relay_log::trace!("Sample transaction");
-        let (tx, server_sample_rate) =
-            match process::run_dynamic_sampling(tx, ctx, filters_status, quotas_client).await? {
-                SamplingOutput::Keep {
-                    payload,
-                    sample_rate,
-                } => (payload, sample_rate),
-                SamplingOutput::Drop {
-                    metrics,
-                    mut profile,
-                } => {
-                    // Remaining profile needs to be rate limited:
-                    if let Some(p) = profile {
-                        profile = self.limiter.enforce_quotas(p, ctx).await.ok();
-                    }
-                    return Ok(Output {
-                        main: profile.map(TransactionOutput::Profile),
-                        metrics: Some(metrics),
-                    });
+        let (tx, server_sample_rate) = match process::run_dynamic_sampling(tx, ctx, filters_status)?
+        {
+            SamplingOutput::Keep {
+                payload,
+                sample_rate,
+            } => (payload, sample_rate),
+            SamplingOutput::Drop {
+                metrics,
+                mut profile,
+            } => {
+                // Remaining profile needs to be rate limited:
+                if let Some(p) = profile {
+                    profile = self.limiter.enforce_quotas(p, ctx).await.ok();
                 }
-            };
+                return Ok(Output {
+                    main: profile.map(TransactionOutput::Profile),
+                    metrics: Some(metrics),
+                });
+            }
+        };
 
         // Need to scrub the transaction before extracting spans.
         relay_log::trace!("Scrubbing transaction");
