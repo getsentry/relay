@@ -132,6 +132,15 @@ def lcp_cls_inp_differences(mode):
             },
             # Maybe should not exist. Segment information in legacy processing is removed.
             "sentry.segment.id": {"type": "string", "value": "8a6626cc9bdd5d9b"},
+            # Needed for dynamic sampling; will be added for legacy later.
+            "sentry.dsc.transaction": {
+                "type": "string",
+                "value": "/insights/projects/",
+            },
+            "sentry.dsc.trace_id": {
+                "type": "string",
+                "value": "d3d20f000885466b8c8f947c9b92b8d3",
+            },
         }
         fields = {
             # See `set_segment_attributes` which removes segment information on LCP and CLS spans.
@@ -224,8 +233,7 @@ def test_lcp_span(
             },
         }
 
-    actual = spans_consumer.get_span()
-    expected = {
+    assert spans_consumer.get_span() == {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
             "lcp": {"type": "double", "value": 548.0},
@@ -307,13 +315,6 @@ def test_lcp_span(
         "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
         **fields,
     }
-    if mode == "v2":
-        expected["attributes"]["sentry.dsc.transaction"] = {
-            "type": "string",
-            "value": "/insights/projects/",
-        }
-
-    assert actual == expected
 
     assert metrics_consumer.get_metrics(with_headers=False) == [
         {
@@ -423,8 +424,7 @@ def test_cls_span(
             },
         }
 
-    actual = spans_consumer.get_span()
-    expected = {
+    assert spans_consumer.get_span() == {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
             "cls": {"type": "double", "value": 0.1},
@@ -511,13 +511,6 @@ def test_cls_span(
         "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
         **fields,
     }
-    if mode == "v2":
-        expected["attributes"]["sentry.dsc.transaction"] = {
-            "type": "string",
-            "value": "/insights/projects/",
-        }
-
-    assert actual == expected
 
     assert metrics_consumer.get_metrics(with_headers=False) == [
         {
@@ -618,8 +611,7 @@ def test_inp_span(
             "browser.web_vital.inp.value": {"type": "double", "value": 104.0},
         }
 
-    actual = spans_consumer.get_span()
-    expected = {
+    assert spans_consumer.get_span() == {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
             "inp": {"type": "double", "value": 104.0},
@@ -683,13 +675,6 @@ def test_inp_span(
         "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
         **fields,
     }
-    if mode == "v2":
-        expected["attributes"]["sentry.dsc.transaction"] = {
-            "type": "string",
-            "value": "/insights/projects/",
-        }
-
-    assert actual == expected
 
     assert metrics_consumer.get_metrics(with_headers=False) == [
         {

@@ -346,25 +346,16 @@ pub fn normalize_user_geo(
     attributes.insert_if_missing(USER__GEO__REGION, || geo.region);
 }
 
-/// Add `sentry.dsc.transaction` to [`Attributes`].
+/// Normalizes the [DSC](DynamicSamplingContext) into [`Attributes`].
 ///
-/// `sentry.dsc.transaction` is the root transaction/segment that initiated the trace and needs to
-/// be added to every span in order for dynamic sampling to work.
-pub fn ensure_dsc_transaction(
+/// If `is_segment` is set to `false`, the function will only add select attributes that are
+/// necessary on every span - both segment and non-segment - for dynamic sampling to work. More
+/// attributes are added when `is_segment` is set to `true`.
+pub fn normalize_dsc(
     attributes: &mut Annotated<Attributes>,
     dsc: Option<&DynamicSamplingContext>,
+    is_segment: bool,
 ) {
-    if let Some(dsc) = dsc
-        && let Some(transaction) = &dsc.transaction
-    {
-        attributes
-            .get_or_insert_with(Default::default)
-            .insert(SENTRY__DSC__TRANSACTION, transaction.clone());
-    }
-}
-
-/// Normalizes the [DSC](DynamicSamplingContext) into [`Attributes`].
-pub fn normalize_dsc(attributes: &mut Annotated<Attributes>, dsc: Option<&DynamicSamplingContext>) {
     let Some(dsc) = dsc else { return };
 
     let attributes = attributes.get_or_insert_with(Default::default);
@@ -373,23 +364,26 @@ pub fn normalize_dsc(attributes: &mut Annotated<Attributes>, dsc: Option<&Dynami
     if attributes.contains_key(SENTRY__DSC__TRACE_ID) {
         return;
     }
-
     attributes.insert(SENTRY__DSC__TRACE_ID, dsc.trace_id.to_string());
-    attributes.insert(SENTRY__DSC__PUBLIC_KEY, dsc.public_key.to_string());
-    if let Some(release) = &dsc.release {
-        attributes.insert(SENTRY__DSC__RELEASE, release.clone());
-    }
-    if let Some(environment) = &dsc.environment {
-        attributes.insert(SENTRY__DSC__ENVIRONMENT, environment.clone());
-    }
+
     if let Some(transaction) = &dsc.transaction {
         attributes.insert(SENTRY__DSC__TRANSACTION, transaction.clone());
     }
-    if let Some(sample_rate) = dsc.sample_rate {
-        attributes.insert(SENTRY__DSC__SAMPLE_RATE, sample_rate);
-    }
-    if let Some(sampled) = dsc.sampled {
-        attributes.insert(SENTRY__DSC__SAMPLED, sampled);
+
+    if is_segment {
+        attributes.insert(SENTRY__DSC__PUBLIC_KEY, dsc.public_key.to_string());
+        if let Some(release) = &dsc.release {
+            attributes.insert(SENTRY__DSC__RELEASE, release.clone());
+        }
+        if let Some(environment) = &dsc.environment {
+            attributes.insert(SENTRY__DSC__ENVIRONMENT, environment.clone());
+        }
+        if let Some(sample_rate) = dsc.sample_rate {
+            attributes.insert(SENTRY__DSC__SAMPLE_RATE, sample_rate);
+        }
+        if let Some(sampled) = dsc.sampled {
+            attributes.insert(SENTRY__DSC__SAMPLED, sampled);
+        }
     }
 }
 
@@ -736,7 +730,7 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
 
 #[cfg(test)]
 mod tests {
-    use relay_protocol::{Empty, SerializableAnnotated};
+    use relay_protocol::{Empty, SerializableAnnotated, assert_annotated_snapshot};
 
     use super::*;
 
@@ -756,30 +750,64 @@ mod tests {
     }
 
     #[test]
-    fn test_ensure_dsc_transaction_none_dsc() {
+    fn test_normalize_dsc_child_span_no_dsc() {
         let mut attributes = Annotated::empty();
-        ensure_dsc_transaction(&mut attributes, None);
+        normalize_dsc(&mut attributes, None, false);
         assert!(attributes.value().is_none());
     }
 
     #[test]
-    fn test_ensure_dsc_transaction_none_transaction() {
+    fn test_normalize_dsc_child_span_no_transaction() {
         let mut attributes = Annotated::empty();
         let dsc = mock_dsc(None);
-        ensure_dsc_transaction(&mut attributes, Some(&dsc));
-        assert!(attributes.value().is_none());
+        normalize_dsc(&mut attributes, Some(&dsc), false);
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.dsc.trace_id": {
+            "type": "string",
+            "value": "67e5504410b1426f9247bb680e5fe0c8"
+          }
+        }
+        "#);
     }
 
     #[test]
-    fn test_ensure_dsc_transaction_stamps_value() {
+    fn test_normalize_dsc_child_span() {
         let mut attributes = Annotated::empty();
-        let dsc = mock_dsc(Some("some/endpoint"));
-        ensure_dsc_transaction(&mut attributes, Some(&dsc));
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        let dsc = mock_dsc(Some("/some/endpoint"));
+        normalize_dsc(&mut attributes, Some(&dsc), false);
+        assert_annotated_snapshot!(attributes, @r#"
         {
+          "sentry.dsc.trace_id": {
+            "type": "string",
+            "value": "67e5504410b1426f9247bb680e5fe0c8"
+          },
           "sentry.dsc.transaction": {
             "type": "string",
-            "value": "some/endpoint"
+            "value": "/some/endpoint"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_dsc_segment() {
+        let mut attributes = Annotated::empty();
+        let dsc = mock_dsc(Some("/some/endpoint"));
+        normalize_dsc(&mut attributes, Some(&dsc), true);
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.dsc.public_key": {
+            "type": "string",
+            "value": "12345678901234567890123456789012"
+          },
+          "sentry.dsc.trace_id": {
+            "type": "string",
+            "value": "67e5504410b1426f9247bb680e5fe0c8"
+          },
+          "sentry.dsc.transaction": {
+            "type": "string",
+            "value": "/some/endpoint"
           }
         }
         "#);
@@ -794,7 +822,7 @@ mod tests {
             DateTime::from_timestamp_nanos(1_234_201_337),
         );
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "sentry.observed_timestamp_nanos": {
             "type": "string",
@@ -821,7 +849,7 @@ mod tests {
             DateTime::from_timestamp_nanos(1_234_201_337),
         );
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r###"
+        assert_annotated_snapshot!(attributes, @r###"
         {
           "sentry.observed_timestamp_nanos": {
             "type": "string",
@@ -918,7 +946,7 @@ mod tests {
         let mut attributes = Annotated::<Attributes>::from_json(json).unwrap();
         normalize_attribute_types(&mut attributes);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "double_with_i64": {
             "type": "double",
@@ -1090,7 +1118,7 @@ mod tests {
             }),
         );
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "browser.name": {
             "type": "string",
@@ -1130,7 +1158,7 @@ mod tests {
             }),
         );
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "browser.name": {
             "type": "string",
@@ -1141,7 +1169,7 @@ mod tests {
             "value": "13.3.7"
           }
         }
-        "#,
+        "#
         );
     }
 
@@ -1167,7 +1195,7 @@ mod tests {
             })
         });
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "client.address": {
             "type": "string",
@@ -1207,7 +1235,7 @@ mod tests {
 
         normalize_user_geo(&mut attributes, |_| unreachable!());
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "client.address": {
             "type": "string",
@@ -1218,7 +1246,7 @@ mod tests {
             "value": "Foo Hausen"
           }
         }
-        "#,
+        "#
         );
     }
 
@@ -1281,7 +1309,7 @@ mod tests {
 
         normalize_attribute_names_inner(&mut attributes, mock_attribute_info);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r###"
+        assert_annotated_snapshot!(attributes, @r###"
         {
           "backfill.empty": {
             "type": "string",
@@ -1354,7 +1382,7 @@ mod tests {
 
         normalize_sentry_op(&mut attributes);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "db.operation.name": {
             "type": "string",
@@ -1400,7 +1428,7 @@ mod tests {
 
         normalize_db_attributes(&mut attributes);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "db.operation.name": {
             "type": "string",
@@ -1466,7 +1494,7 @@ mod tests {
 
         normalize_db_attributes(&mut attributes);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "db.collection.name": {
             "type": "string",
@@ -1592,7 +1620,7 @@ mod tests {
 
         normalize_db_attributes(&mut attributes);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "http.request.method": {
             "type": "string",
@@ -1638,7 +1666,7 @@ mod tests {
 
         normalize_http_attributes(&mut attributes, &[]);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "http.request.method": {
             "type": "string",
@@ -1696,7 +1724,7 @@ mod tests {
 
         normalize_http_attributes(&mut attributes, &[]);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "http.request.method": {
             "type": "string",
@@ -1757,7 +1785,7 @@ mod tests {
             &["application.www.xn--85x722f.xn--55qx5d.cn".to_owned()],
         );
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "http.request.method": {
             "type": "string",
@@ -1815,7 +1843,7 @@ mod tests {
 
         normalize_db_attributes(&mut attributes);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "db.collection.name": {
             "type": "string",
@@ -1874,7 +1902,7 @@ mod tests {
         normalize_attribute_names(&mut attributes);
         normalize_http_attributes(&mut attributes, &[]);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "http.request.method": {
             "type": "string",
@@ -1920,7 +1948,7 @@ mod tests {
 
         normalize_http_attributes(&mut attributes, &[]);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "http.request.method": {
             "type": "string",
@@ -1990,7 +2018,7 @@ mod tests {
 
         write_legacy_attributes(&mut attributes);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "db.collection.name": {
             "type": "string",
@@ -2063,7 +2091,7 @@ mod tests {
 
         normalize_span_category(&mut attributes);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "sentry.category": {
             "type": "string",
@@ -2091,7 +2119,7 @@ mod tests {
 
         normalize_span_category(&mut attributes);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "sentry.category": {
             "type": "string",
@@ -2119,7 +2147,7 @@ mod tests {
 
         normalize_span_category(&mut attributes);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "sentry.category": {
             "type": "string",
@@ -2147,7 +2175,7 @@ mod tests {
 
         normalize_span_category(&mut attributes);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "sentry.category": {
             "type": "string",
@@ -2176,7 +2204,7 @@ mod tests {
 
         normalize_span_category(&mut attributes);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "db.system.name": {
             "type": "string",
@@ -2205,7 +2233,7 @@ mod tests {
 
         normalize_span_category(&mut attributes);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "http.request.method": {
             "type": "string",
@@ -2234,7 +2262,7 @@ mod tests {
 
         normalize_span_category(&mut attributes);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "sentry.category": {
             "type": "string",
@@ -2263,7 +2291,7 @@ mod tests {
 
         normalize_span_category(&mut attributes);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "resource.render_blocking_status": {
             "type": "string",
@@ -2292,7 +2320,7 @@ mod tests {
 
         normalize_span_category(&mut attributes);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "sentry.category": {
             "type": "string",
@@ -2320,7 +2348,7 @@ mod tests {
 
         normalize_client_address(&mut attributes, Some("192.168.1.1".parse().unwrap()));
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "client.address": {
             "type": "string",
@@ -2344,7 +2372,7 @@ mod tests {
 
         normalize_client_address(&mut attributes, None);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {}
         "#);
     }
@@ -2363,7 +2391,7 @@ mod tests {
 
         normalize_client_address(&mut attributes, Some("192.168.1.1".parse().unwrap()));
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "client.address": {
             "type": "string",
@@ -2396,7 +2424,7 @@ mod tests {
 
         normalize_client_address(&mut attributes, Some("2001:db8::1".parse().unwrap()));
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "client.address": {
             "type": "string",
@@ -2412,7 +2440,7 @@ mod tests {
 
         normalize_inject_client_address(&mut attributes, Some("192.168.1.1".parse().unwrap()));
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "client.address": {
             "type": "string",
@@ -2436,7 +2464,7 @@ mod tests {
 
         normalize_inject_client_address(&mut attributes, Some("192.168.1.1".parse().unwrap()));
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "client.address": {
             "type": "string",
@@ -2452,7 +2480,7 @@ mod tests {
 
         normalize_inject_client_address(&mut attributes, None);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {}
         "#);
     }
@@ -2463,7 +2491,7 @@ mod tests {
 
         normalize_inject_client_address(&mut attributes, Some("2001:db8::1".parse().unwrap()));
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "client.address": {
             "type": "string",
@@ -2488,7 +2516,7 @@ mod tests {
 
         normalize_span_category(&mut attributes);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        assert_annotated_snapshot!(attributes, @r#"
         {
           "some.other.attribute": {
             "type": "string",
