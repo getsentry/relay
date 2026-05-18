@@ -147,6 +147,12 @@ def playstation_event_json(sdk=mock.ANY):
                 "version": "9.20.00.05-00.00.00.0.1",
                 "type": "runtime",
             },
+            "trace": {
+                "span_id": mock.ANY,
+                "trace_id": mock.ANY,
+                "status": "unknown",
+                "type": "trace",
+            },
         },
         "exception": {
             "values": [
@@ -177,6 +183,14 @@ def playstation_event_json(sdk=mock.ANY):
         "project": 42,
         "grouping_config": mock.ANY,
         "_metrics": mock.ANY,
+        "_meta": {
+            "contexts": {
+                "trace": {
+                    "span_id": {"": {"rem": [["span_id.missing", "s"]]}},
+                    "trace_id": {"": {"rem": [["trace_id.missing", "s"]]}},
+                }
+            }
+        },
     }
 
 
@@ -772,6 +786,14 @@ def test_playstation_attachment_no_feature_flag(
 
     assert payload == {
         "event_id": mock.ANY,
+        "contexts": {
+            "trace": {
+                "trace_id": mock.ANY,
+                "span_id": mock.ANY,
+                "status": "unknown",
+                "type": "trace",
+            },
+        },
         "level": "error",
         "version": "5",
         "type": "error",
@@ -790,6 +812,7 @@ def test_playstation_attachment_no_feature_flag(
         "_metrics": {
             "bytes.ingested.event": 137,
         },
+        "_meta": mock.ANY,
     }
 
     assert event["attachments"] == (

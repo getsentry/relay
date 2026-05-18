@@ -411,7 +411,7 @@ mod tests {
     };
     use relay_protocol::{
         Annotated, Error, ErrorKind, FromValue, Object, SerializableAnnotated, Value,
-        assert_annotated_snapshot, get_path, get_value,
+        assert_redacted_snapshot, get_path, get_value,
     };
     use serde_json::json;
     use similar_asserts::assert_eq;
@@ -821,14 +821,13 @@ mod tests {
 
         let event = event.value().unwrap();
 
-        assert_eq!(event.contexts, {
-            let mut contexts = Contexts::new();
-            contexts.add(ReplayContext {
+        assert_eq!(
+            event.context::<ReplayContext>(),
+            Some(&ReplayContext {
                 replay_id: Annotated::new(EventId(replay_id)),
                 other: Object::default(),
-            });
-            Annotated::new(contexts)
-        })
+            })
+        )
     }
 
     #[test]
@@ -1259,9 +1258,10 @@ mod tests {
         insta::assert_ron_snapshot!(SerializableAnnotated(&event), {
             ".event_id" => "[event-id]",
             ".received" => "[received]",
-            ".timestamp" => "[timestamp]"
-        }, @r###"
-        {
+            ".timestamp" => "[timestamp]",
+            ".contexts.trace.trace_id" => "[trace-id]",
+            ".contexts.trace.span_id" => "[span-id]"
+        }, @r#"        {
           "event_id": "[event-id]",
           "level": "error",
           "type": "default",
@@ -1272,11 +1272,45 @@ mod tests {
           "platform": "other",
           "timestamp": "[timestamp]",
           "received": "[received]",
+          "contexts": {
+            "trace": {
+              "trace_id": "[trace-id]",
+              "span_id": "[span-id]",
+              "status": "unknown",
+              "type": "trace",
+            },
+          },
           "grouping_config": {
             "id": "legacy:1234-12-12",
           },
+          "_meta": {
+            "contexts": {
+              "trace": {
+                "span_id": {
+                  "": Meta(Some(MetaInner(
+                    rem: [
+                      [
+                        "span_id.missing",
+                        s,
+                      ],
+                    ],
+                  ))),
+                },
+                "trace_id": {
+                  "": Meta(Some(MetaInner(
+                    rem: [
+                      [
+                        "trace_id.missing",
+                        s,
+                      ],
+                    ],
+                  ))),
+                },
+              },
+            },
+          },
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1300,7 +1334,11 @@ mod tests {
 
         normalize_event(&mut event, &NormalizationConfig::default());
 
-        assert_json_snapshot!(SerializableAnnotated(&event), {".received" => "[received]"}, @r###"
+        assert_json_snapshot!(SerializableAnnotated(&event), {
+            ".received" => "[received]",
+            ".contexts.trace.trace_id" => "[trace-id]",
+            ".contexts.trace.span_id" => "[span-id]"
+        }, @r#"
         {
           "event_id": "74ad1301f4df489ead37d757295442b1",
           "level": "error",
@@ -1310,7 +1348,39 @@ mod tests {
           "platform": "python",
           "timestamp": 1668148328.308933,
           "received": "[received]",
+          "contexts": {
+            "trace": {
+              "trace_id": "[trace-id]",
+              "span_id": "[span-id]",
+              "status": "unknown",
+              "type": "trace"
+            }
+          },
           "_meta": {
+            "contexts": {
+              "trace": {
+                "span_id": {
+                  "": {
+                    "rem": [
+                      [
+                        "span_id.missing",
+                        "s"
+                      ]
+                    ]
+                  }
+                },
+                "trace_id": {
+                  "": {
+                    "rem": [
+                      [
+                        "trace_id.missing",
+                        "s"
+                      ]
+                    ]
+                  }
+                }
+              }
+            },
             "logentry": {
               "": {
                 "err": [
@@ -1332,7 +1402,7 @@ mod tests {
             }
           }
         }
-        "###)
+        "#)
     }
 
     #[test]
@@ -1360,8 +1430,10 @@ mod tests {
         normalize_event(&mut event, &NormalizationConfig::default());
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&event), {
-        ".event_id" => "[event-id]",
-    }, @r###"
+            ".event_id" => "[event-id]",
+            ".contexts.trace.trace_id" => "[trace-id]",
+            ".contexts.trace.span_id" => "[span-id]"
+    }, @r#"
         {
           "event_id": "[event-id]",
           "level": "error",
@@ -1370,7 +1442,39 @@ mod tests {
           "platform": "other",
           "timestamp": 946857600.0,
           "received": 946857600.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "[trace-id]",
+              "span_id": "[span-id]",
+              "status": "unknown",
+              "type": "trace",
+            },
+          },
           "_meta": {
+            "contexts": {
+              "trace": {
+                "span_id": {
+                  "": Meta(Some(MetaInner(
+                    rem: [
+                      [
+                        "span_id.missing",
+                        s,
+                      ],
+                    ],
+                  ))),
+                },
+                "trace_id": {
+                  "": Meta(Some(MetaInner(
+                    rem: [
+                      [
+                        "trace_id.missing",
+                        s,
+                      ],
+                    ],
+                  ))),
+                },
+              },
+            },
             "timestamp": {
               "": Meta(Some(MetaInner(
                 err: [
@@ -1386,7 +1490,7 @@ mod tests {
             },
           },
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1414,8 +1518,10 @@ mod tests {
         normalize_event(&mut event, &NormalizationConfig::default());
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&event), {
-        ".event_id" => "[event-id]",
-    }, @r###"
+            ".event_id" => "[event-id]",
+            ".contexts.trace.trace_id" => "[trace-id]",
+            ".contexts.trace.span_id" => "[span-id]"
+    }, @r#"
         {
           "event_id": "[event-id]",
           "level": "error",
@@ -1424,7 +1530,39 @@ mod tests {
           "platform": "other",
           "timestamp": 952041600.0,
           "received": 952041600.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "[trace-id]",
+              "span_id": "[span-id]",
+              "status": "unknown",
+              "type": "trace",
+            },
+          },
           "_meta": {
+            "contexts": {
+              "trace": {
+                "span_id": {
+                  "": Meta(Some(MetaInner(
+                    rem: [
+                      [
+                        "span_id.missing",
+                        s,
+                      ],
+                    ],
+                  ))),
+                },
+                "trace_id": {
+                  "": Meta(Some(MetaInner(
+                    rem: [
+                      [
+                        "trace_id.missing",
+                        s,
+                      ],
+                    ],
+                  ))),
+                },
+              },
+            },
             "timestamp": {
               "": Meta(Some(MetaInner(
                 err: [
@@ -1440,7 +1578,7 @@ mod tests {
             },
           },
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1455,7 +1593,7 @@ mod tests {
         );
 
         normalize_event(&mut event, &NormalizationConfig::default());
-        assert_annotated_snapshot!(event);
+        assert_redacted_snapshot!(SerializableAnnotated(&event));
     }
 
     #[test]
@@ -1470,7 +1608,7 @@ mod tests {
         );
 
         normalize_event(&mut event, &NormalizationConfig::default());
-        assert_annotated_snapshot!(event);
+        assert_redacted_snapshot!(SerializableAnnotated(&event));
     }
 
     #[test]
@@ -1485,7 +1623,7 @@ mod tests {
         );
 
         normalize_event(&mut event, &NormalizationConfig::default());
-        assert_annotated_snapshot!(event);
+        assert_redacted_snapshot!(SerializableAnnotated(&event));
     }
 
     #[test]
@@ -1500,7 +1638,7 @@ mod tests {
         );
 
         normalize_event(&mut event, &NormalizationConfig::default());
-        assert_annotated_snapshot!(event);
+        assert_redacted_snapshot!(SerializableAnnotated(&event));
     }
 
     #[test]
@@ -1515,7 +1653,7 @@ mod tests {
         );
 
         normalize_event(&mut event, &NormalizationConfig::default());
-        assert_annotated_snapshot!(event);
+        assert_redacted_snapshot!(SerializableAnnotated(&event));
     }
 
     #[test]
@@ -1530,7 +1668,7 @@ mod tests {
         );
 
         normalize_event(&mut event, &NormalizationConfig::default());
-        assert_annotated_snapshot!(event);
+        assert_redacted_snapshot!(SerializableAnnotated(&event));
     }
 
     #[test]
@@ -1547,7 +1685,7 @@ mod tests {
         );
 
         normalize_event(&mut event, &NormalizationConfig::default());
-        assert_annotated_snapshot!(event);
+        assert_redacted_snapshot!(SerializableAnnotated(&event));
     }
 
     #[test]
@@ -1562,7 +1700,7 @@ mod tests {
         );
 
         normalize_event(&mut event, &NormalizationConfig::default());
-        assert_annotated_snapshot!(event);
+        assert_redacted_snapshot!(SerializableAnnotated(&event));
     }
 
     #[test]

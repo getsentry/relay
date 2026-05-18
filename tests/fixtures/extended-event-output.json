@@ -80,6 +80,12 @@
             "name": "Python Requests",
             "version": "2.26",
             "type": "browser"
+        },
+        "trace": {
+            "span_id": "0fcbe8ac2d324ff1",
+            "status": "unknown",
+            "trace_id": "d7b6fd5dace9497e916ba39114bd97d5",
+            "type": "trace"
         }
     },
     "exception": {
@@ -179,6 +185,30 @@
     },
     "location": null,
     "_meta": {
+        "contexts": {
+            "trace": {
+                "span_id": {
+                    "": {
+                        "rem": [
+                            [
+                                "span_id.missing",
+                                "s"
+                            ]
+                        ]
+                    }
+                },
+                "trace_id": {
+                    "": {
+                        "rem": [
+                            [
+                                "trace_id.missing",
+                                "s"
+                            ]
+                        ]
+                    }
+                }
+            }
+        },
         "location": {
             "": {
                 "err": [

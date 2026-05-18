@@ -4877,14 +4877,48 @@ mod tests {
             },
         );
 
-        insta::assert_ron_snapshot!(SerializableAnnotated(&event.contexts), {}, @r###"
+        insta::assert_ron_snapshot!(SerializableAnnotated(&event.contexts), {
+            ".trace.trace_id" => "[trace-id]",
+            ".trace.span_id" => "[span-id]"
+        }, @r#"
         {
           "performance_score": {
             "score_profile_version": "beta",
             "type": "performancescore",
           },
+          "trace": {
+            "trace_id": "[trace-id]",
+            "span_id": "[span-id]",
+            "status": "unknown",
+            "exclusive_time": 5000.0,
+            "type": "trace",
+          },
+          "_meta": {
+            "trace": {
+              "span_id": {
+                "": Meta(Some(MetaInner(
+                  rem: [
+                    [
+                      "span_id.missing",
+                      s,
+                    ],
+                  ],
+                ))),
+              },
+              "trace_id": {
+                "": Meta(Some(MetaInner(
+                  rem: [
+                    [
+                      "trace_id.missing",
+                      s,
+                    ],
+                  ],
+                ))),
+              },
+            },
+          },
         }
-        "###);
+        "#);
         insta::assert_ron_snapshot!(SerializableAnnotated(&event.measurements), {}, @r###"
         {
           "inp": {
