@@ -224,7 +224,8 @@ def test_lcp_span(
             },
         }
 
-    assert spans_consumer.get_span() == {
+    actual = spans_consumer.get_span()
+    expected = {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
             "lcp": {"type": "double", "value": 548.0},
@@ -306,6 +307,13 @@ def test_lcp_span(
         "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
         **fields,
     }
+    if mode == "v2":
+        expected["attributes"]["sentry.dsc.transaction"] = {
+            "type": "string",
+            "value": "/insights/projects/",
+        }
+
+    assert actual == expected
 
     assert metrics_consumer.get_metrics(with_headers=False) == [
         {
@@ -415,7 +423,8 @@ def test_cls_span(
             },
         }
 
-    assert spans_consumer.get_span() == {
+    actual = spans_consumer.get_span()
+    expected = {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
             "cls": {"type": "double", "value": 0.1},
@@ -502,6 +511,13 @@ def test_cls_span(
         "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
         **fields,
     }
+    if mode == "v2":
+        expected["attributes"]["sentry.dsc.transaction"] = {
+            "type": "string",
+            "value": "/insights/projects/",
+        }
+
+    assert actual == expected
 
     assert metrics_consumer.get_metrics(with_headers=False) == [
         {
@@ -602,7 +618,8 @@ def test_inp_span(
             "browser.web_vital.inp.value": {"type": "double", "value": 104.0},
         }
 
-    assert spans_consumer.get_span() == {
+    actual = spans_consumer.get_span()
+    expected = {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
             "inp": {"type": "double", "value": 104.0},
@@ -666,6 +683,13 @@ def test_inp_span(
         "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
         **fields,
     }
+    if mode == "v2":
+        expected["attributes"]["sentry.dsc.transaction"] = {
+            "type": "string",
+            "value": "/insights/projects/",
+        }
+
+    assert actual == expected
 
     assert metrics_consumer.get_metrics(with_headers=False) == [
         {

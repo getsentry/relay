@@ -227,6 +227,8 @@ fn normalize_span(
         eap::normalize_user_geo(&mut span.attributes, |ip| geo_lookup.lookup(ip));
         if matches!(span.is_segment.value(), Some(true)) {
             eap::normalize_dsc(&mut span.attributes, dsc);
+        } else {
+            eap::ensure_dsc_transaction(&mut span.attributes, dsc);
         }
         if ctx.is_processing() {
             eap::normalize_ai(&mut span.attributes, duration, model_metdata);

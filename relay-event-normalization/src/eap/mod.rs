@@ -346,6 +346,23 @@ pub fn normalize_user_geo(
     attributes.insert_if_missing(USER__GEO__REGION, || geo.region);
 }
 
+/// Add `sentry.dsc.transaction` to [`Attributes`].
+///
+/// `sentry.dsc.transaction` is the root transaction/segment that initiated the trace and needs to
+/// be added to every span in order for dynamic sampling to work.
+pub fn ensure_dsc_transaction(
+    attributes: &mut Annotated<Attributes>,
+    dsc: Option<&DynamicSamplingContext>,
+) {
+    if let Some(dsc) = dsc
+        && let Some(transaction) = &dsc.transaction
+    {
+        attributes
+            .get_or_insert_with(Default::default)
+            .insert(SENTRY__DSC__TRANSACTION, transaction.clone());
+    }
+}
+
 /// Normalizes the [DSC](DynamicSamplingContext) into [`Attributes`].
 pub fn normalize_dsc(attributes: &mut Annotated<Attributes>, dsc: Option<&DynamicSamplingContext>) {
     let Some(dsc) = dsc else { return };
@@ -722,6 +739,51 @@ mod tests {
     use relay_protocol::{Empty, SerializableAnnotated};
 
     use super::*;
+
+    fn mock_dsc(transaction: Option<&str>) -> DynamicSamplingContext {
+        DynamicSamplingContext {
+            trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
+            public_key: "12345678901234567890123456789012".parse().unwrap(),
+            release: None,
+            environment: None,
+            transaction: transaction.map(str::to_owned),
+            sample_rate: None,
+            user: Default::default(),
+            replay_id: None,
+            sampled: None,
+            other: Default::default(),
+        }
+    }
+
+    #[test]
+    fn test_ensure_dsc_transaction_none_dsc() {
+        let mut attributes = Annotated::empty();
+        ensure_dsc_transaction(&mut attributes, None);
+        assert!(attributes.value().is_none());
+    }
+
+    #[test]
+    fn test_ensure_dsc_transaction_none_transaction() {
+        let mut attributes = Annotated::empty();
+        let dsc = mock_dsc(None);
+        ensure_dsc_transaction(&mut attributes, Some(&dsc));
+        assert!(attributes.value().is_none());
+    }
+
+    #[test]
+    fn test_ensure_dsc_transaction_stamps_value() {
+        let mut attributes = Annotated::empty();
+        let dsc = mock_dsc(Some("some/endpoint"));
+        ensure_dsc_transaction(&mut attributes, Some(&dsc));
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        {
+          "sentry.dsc.transaction": {
+            "type": "string",
+            "value": "some/endpoint"
+          }
+        }
+        "#);
+    }
 
     #[test]
     fn test_normalize_received_none() {
