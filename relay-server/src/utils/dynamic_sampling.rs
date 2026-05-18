@@ -59,7 +59,7 @@ impl SamplingResult {
     }
 }
 
-impl From<ControlFlow<SamplingMatch, SamplingEvaluator<'_>>> for SamplingResult {
+impl From<ControlFlow<SamplingMatch, SamplingEvaluator>> for SamplingResult {
     fn from(value: ControlFlow<SamplingMatch, SamplingEvaluator>) -> Self {
         match value {
             ControlFlow::Break(sampling_match) => Self::Match(sampling_match),
@@ -134,7 +134,6 @@ mod tests {
 
         let result: SamplingResult = SamplingEvaluator::new(Utc::now())
             .match_rules(Uuid::default(), &event, rules.iter())
-            .await
             .into();
 
         assert!(result.is_match());
@@ -148,7 +147,6 @@ mod tests {
 
         let result: SamplingResult = SamplingEvaluator::new(Utc::now())
             .match_rules(Uuid::default(), &event, rules.iter())
-            .await
             .into();
 
         assert!(result.is_match());
@@ -171,7 +169,6 @@ mod tests {
 
         let result: SamplingResult = SamplingEvaluator::new(Utc::now())
             .match_rules(Uuid::default(), &event, rules.iter())
-            .await
             .into();
 
         assert!(result.is_no_match());
@@ -186,7 +183,6 @@ mod tests {
 
         let result: SamplingResult = SamplingEvaluator::new(Utc::now())
             .match_rules(Uuid::default(), &dsc, rules.iter())
-            .await
             .into();
 
         assert!(result.is_match());

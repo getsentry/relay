@@ -9,7 +9,6 @@ use tokio::time::Instant;
 use arc_swap::ArcSwap;
 use relay_base_schema::project::ProjectKey;
 use relay_quotas::CachedRateLimits;
-use relay_sampling::evaluation::ReservoirCounters;
 use relay_statsd::metric;
 
 use crate::services::projects::project::{ProjectState, Revision};
@@ -364,11 +363,6 @@ impl SharedProject {
         &self.0.rate_limits
     }
 
-    /// Returns a reference to the contained [`ReservoirCounters`].
-    pub fn reservoir_counters(&self) -> &ReservoirCounters {
-        &self.0.reservoir_counters
-    }
-
     /// Waits for the event of a changed project state, triggered by [`SharedProjectState::set_project_state`].
     ///
     /// Note that the content of this instance does not change when the event is triggered.
@@ -615,25 +609,8 @@ impl SharedProjectState {
         let prev = self.0.rcu(|stored| SharedProjectStateInner {
             state: state.clone(),
             rate_limits: Arc::clone(&stored.rate_limits),
-            reservoir_counters: Arc::clone(&stored.reservoir_counters),
             notify: Arc::clone(&stored.notify),
         });
-
-        // Try clean expired reservoir counters.
-        //
-        // We do it after the `rcu`, to not re-run this more often than necessary.
-        if let Some(state) = state.enabled() {
-            let config = state.config.sampling.as_ref();
-            if let Some(config) = config.and_then(|eb| eb.as_ref().ok()) {
-                // We can safely use previous here, the `rcu` just replaced the state, the
-                // reservoir counters did not change.
-                //
-                // `try_lock` to not potentially block, it's a best effort cleanup.
-                if let Ok(mut counters) = prev.reservoir_counters.try_lock() {
-                    counters.retain(|key, _| config.rules.iter().any(|rule| rule.id == *key));
-                }
-            }
-        }
 
         // Finally, notify listeners:
         prev.notify.notify_waiters();
@@ -658,7 +635,6 @@ impl SharedProjectState {
 struct SharedProjectStateInner {
     state: ProjectState,
     rate_limits: Arc<CachedRateLimits>,
-    reservoir_counters: ReservoirCounters,
     notify: Arc<Notify>,
 }
 

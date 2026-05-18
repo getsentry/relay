@@ -565,7 +565,6 @@ impl EnvelopeBufferService {
                     envelope: envelope.into(),
                     project_info: own_project_info,
                     rate_limits: own_project.rate_limits().current_limits(),
-                    reservoir_counters: own_project.reservoir_counters().clone(),
                     sampling_project_info,
                 });
             }

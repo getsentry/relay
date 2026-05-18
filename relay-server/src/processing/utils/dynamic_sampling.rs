@@ -5,18 +5,17 @@ use chrono::Utc;
 use relay_dynamic_config::ErrorBoundary;
 use relay_event_schema::protocol::Event;
 use relay_sampling::config::RuleType;
-use relay_sampling::evaluation::{ReservoirEvaluator, SamplingEvaluator};
+use relay_sampling::evaluation::SamplingEvaluator;
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
 use crate::processing::Context;
 use crate::utils::SamplingResult;
 
 /// Computes the sampling decision on an incoming event
-pub async fn run(
+pub fn run(
     dsc: Option<&DynamicSamplingContext>,
     event: Option<&Event>,
     ctx: &Context<'_>,
-    reservoir: Option<&ReservoirEvaluator<'_>>,
 ) -> SamplingResult {
     let sampling_config = match ctx.project_info.config.sampling {
         Some(ErrorBoundary::Ok(ref config)) if !config.unsupported() => Some(config),
@@ -31,19 +30,16 @@ pub async fn run(
 
     compute_sampling_decision(
         ctx.config.processing_enabled(),
-        reservoir,
         sampling_config,
         event,
         root_config,
         dsc,
     )
-    .await
 }
 
 /// Computes the sampling decision on the incoming envelope.
-async fn compute_sampling_decision(
+fn compute_sampling_decision(
     processing_enabled: bool,
-    reservoir: Option<&ReservoirEvaluator<'_>>,
     sampling_config: Option<&SamplingConfig>,
     event: Option<&Event>,
     root_sampling_config: Option<&SamplingConfig>,
@@ -65,16 +61,13 @@ async fn compute_sampling_decision(
         }
     }
 
-    let mut evaluator = match reservoir {
-        Some(reservoir) => SamplingEvaluator::new_with_reservoir(Utc::now(), reservoir),
-        None => SamplingEvaluator::new(Utc::now()),
-    };
+    let mut evaluator = SamplingEvaluator::new(Utc::now());
 
     if let (Some(event), Some(sampling_state)) = (event, sampling_config)
         && let Some(seed) = event.id.value().map(|id| id.0)
     {
         let rules = sampling_state.filter_rules(RuleType::Transaction);
-        evaluator = match evaluator.match_rules(seed, event, rules).await {
+        evaluator = match evaluator.match_rules(seed, event, rules) {
             ControlFlow::Continue(evaluator) => evaluator,
             ControlFlow::Break(sampling_match) => {
                 return SamplingResult::Match(sampling_match);
@@ -84,7 +77,7 @@ async fn compute_sampling_decision(
 
     if let (Some(dsc), Some(sampling_state)) = (dsc, sampling_config) {
         let rules = sampling_state.filter_rules(RuleType::Project);
-        evaluator = match evaluator.match_rules(*dsc.trace_id, dsc, rules).await {
+        evaluator = match evaluator.match_rules(*dsc.trace_id, dsc, rules) {
             ControlFlow::Continue(evaluator) => evaluator,
             ControlFlow::Break(sampling_match) => {
                 return SamplingResult::Match(sampling_match);
@@ -94,10 +87,7 @@ async fn compute_sampling_decision(
 
     if let (Some(dsc), Some(sampling_state)) = (dsc, root_sampling_config) {
         let rules = sampling_state.filter_rules(RuleType::Trace);
-        return evaluator
-            .match_rules(*dsc.trace_id, dsc, rules)
-            .await
-            .into();
+        return evaluator.match_rules(*dsc.trace_id, dsc, rules).into();
     }
 
     SamplingResult::NoMatch
@@ -177,15 +167,8 @@ mod tests {
             // TODO: This does not test if the sampling decision is actually applied. This should be
             // refactored to send a proper Envelope in and call process_state to cover the full
             // pipeline.
-            let res = compute_sampling_decision(
-                false,
-                None,
-                Some(&sampling_config),
-                Some(&event),
-                None,
-                None,
-            )
-            .await;
+            let res =
+                compute_sampling_decision(false, Some(&sampling_config), Some(&event), None, None);
             assert_eq!(res.decision().is_keep(), should_keep);
         }
     }
@@ -211,13 +194,11 @@ mod tests {
 
             let res = compute_sampling_decision(
                 false,
-                None,
                 Some(&sampling_config),
                 Some(&event),
                 None,
                 Some(&mock_dsc()),
-            )
-            .await;
+            );
             assert!(res.is_match());
         }
     }
@@ -249,21 +230,12 @@ mod tests {
         };
 
         // Unsupported rule should result in no match if processing is not enabled.
-        let res = compute_sampling_decision(
-            false,
-            None,
-            Some(&sampling_config),
-            Some(&event),
-            None,
-            None,
-        )
-        .await;
+        let res =
+            compute_sampling_decision(false, Some(&sampling_config), Some(&event), None, None);
         assert!(res.is_no_match());
 
         // Match if processing is enabled.
-        let res =
-            compute_sampling_decision(true, None, Some(&sampling_config), Some(&event), None, None)
-                .await;
+        let res = compute_sampling_decision(true, Some(&sampling_config), Some(&event), None, None);
         assert!(res.is_match());
     }
 
@@ -285,9 +257,7 @@ mod tests {
             ..SamplingConfig::new()
         };
 
-        let res =
-            compute_sampling_decision(false, None, None, None, Some(&sampling_config), Some(&dsc))
-                .await;
+        let res = compute_sampling_decision(false, None, None, Some(&sampling_config), Some(&dsc));
 
         assert_eq!(get_sampling_match(res).sample_rate(), 0.2);
     }
