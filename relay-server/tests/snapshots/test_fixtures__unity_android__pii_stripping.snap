@@ -181,6 +181,12 @@ expression: SerializableAnnotated(& event)
       "raw_description": "Mono 5.11.0 ((HEAD/e2385dca346)",
       "type": "runtime"
     },
+    "trace": {
+      "trace_id": "[trace-id]",
+      "span_id": "[span-id]",
+      "status": "unknown",
+      "type": "trace"
+    },
     "unity": {
       "install_mode": "Editor",
       "type": "unity"
@@ -327,6 +333,28 @@ expression: SerializableAnnotated(& event)
               [
                 "@anything:remove",
                 "x"
+              ]
+            ]
+          }
+        }
+      },
+      "trace": {
+        "span_id": {
+          "": {
+            "rem": [
+              [
+                "span_id.missing",
+                "s"
+              ]
+            ]
+          }
+        },
+        "trace_id": {
+          "": {
+            "rem": [
+              [
+                "trace_id.missing",
+                "s"
               ]
             ]
           }

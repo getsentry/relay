@@ -73,6 +73,14 @@ expression: SerializableAnnotated(& event)
   "received": "[received]",
   "release": "randomRelease",
   "environment": "development",
+  "contexts": {
+    "trace": {
+      "trace_id": "[trace-id]",
+      "span_id": "[span-id]",
+      "status": "unknown",
+      "type": "trace"
+    }
+  },
   "exception": {
     "values": [
       {
@@ -230,6 +238,30 @@ expression: SerializableAnnotated(& event)
     }
   },
   "_meta": {
+    "contexts": {
+      "trace": {
+        "span_id": {
+          "": {
+            "rem": [
+              [
+                "span_id.missing",
+                "s"
+              ]
+            ]
+          }
+        },
+        "trace_id": {
+          "": {
+            "rem": [
+              [
+                "trace_id.missing",
+                "s"
+              ]
+            ]
+          }
+        }
+      }
+    },
     "exception": {
       "values": {
         "0": {

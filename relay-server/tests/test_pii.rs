@@ -2,7 +2,7 @@ use relay_event_normalization::{NormalizationConfig, normalize_event};
 use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::Event;
 use relay_pii::{DataScrubbingConfig, PiiProcessor};
-use relay_protocol::{FromValue, assert_annotated_snapshot};
+use relay_protocol::{FromValue, SerializableAnnotated, assert_redacted_snapshot};
 
 #[test]
 fn test_reponse_context_pii() {
@@ -37,5 +37,5 @@ fn test_reponse_context_pii() {
     let pii_config = ds_config.pii_config().as_ref().unwrap();
     let mut pii_processor = PiiProcessor::new(pii_config.compiled());
     processor::process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
-    assert_annotated_snapshot!(data);
+    assert_redacted_snapshot!(SerializableAnnotated(&data));
 }

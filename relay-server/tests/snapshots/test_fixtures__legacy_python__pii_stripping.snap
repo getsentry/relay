@@ -16,6 +16,14 @@ expression: SerializableAnnotated(& event)
   "platform": "python",
   "timestamp": "[timestamp]",
   "received": "[received]",
+  "contexts": {
+    "trace": {
+      "trace_id": "[trace-id]",
+      "span_id": "[span-id]",
+      "status": "unknown",
+      "type": "trace"
+    }
+  },
   "exception": {
     "values": [
       {
@@ -63,6 +71,30 @@ expression: SerializableAnnotated(& event)
     "version": "6.9.0"
   },
   "_meta": {
+    "contexts": {
+      "trace": {
+        "span_id": {
+          "": {
+            "rem": [
+              [
+                "span_id.missing",
+                "s"
+              ]
+            ]
+          }
+        },
+        "trace_id": {
+          "": {
+            "rem": [
+              [
+                "trace_id.missing",
+                "s"
+              ]
+            ]
+          }
+        }
+      }
+    },
     "tags": {
       "0": {
         "1": {

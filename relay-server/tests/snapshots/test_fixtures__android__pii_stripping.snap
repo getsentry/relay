@@ -60,6 +60,12 @@ expression: SerializableAnnotated(& event)
       "kernel_version": "Linux version 3.10.0+ (bjoernj@bjoernj.mtv.corp.google.com) (gcc version 4.9.x 20150123 (prerelease) (GCC) ) #256 SMP PREEMPT Fri May 19 11:58:12 PDT 2017",
       "rooted": true,
       "type": "os"
+    },
+    "trace": {
+      "trace_id": "[trace-id]",
+      "span_id": "[span-id]",
+      "status": "unknown",
+      "type": "trace"
     }
   },
   "exception": {
@@ -730,6 +736,28 @@ expression: SerializableAnnotated(& event)
               [
                 "@anything:remove",
                 "x"
+              ]
+            ]
+          }
+        }
+      },
+      "trace": {
+        "span_id": {
+          "": {
+            "rem": [
+              [
+                "span_id.missing",
+                "s"
+              ]
+            ]
+          }
+        },
+        "trace_id": {
+          "": {
+            "rem": [
+              [
+                "trace_id.missing",
+                "s"
               ]
             ]
           }
