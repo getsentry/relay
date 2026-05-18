@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Bug Fixes**:
+
+- Add missing `sentry.dsc.transaction` to non-segment v2 spans. ([#6001](https://github.com/getsentry/relay/pull/6001))
+
 ## 26.5.0
 
 **Features**:
