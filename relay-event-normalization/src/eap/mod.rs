@@ -98,6 +98,20 @@ pub fn normalize_span_category(attributes: &mut Annotated<Attributes>) {
     }
 }
 
+/// Normalizes an span's [`SENTRY__DESCRIPTION`] attribute to the same value as the span's name.
+pub fn normalize_sentry_description(
+    attributes: &mut Annotated<Attributes>,
+    name: &Annotated<String>,
+) {
+    let Some(name) = name.value() else {
+        return;
+    };
+
+    let attributes = attributes.get_or_insert_with(Default::default);
+
+    attributes.insert(SENTRY__DESCRIPTION.to_owned(), name.clone());
+}
+
 fn attribute_is_nonempty_string(attributes: &Attributes, key: &str) -> bool {
     attributes
         .get_value(key)
@@ -671,7 +685,6 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
     )]
     let current_to_legacy_attributes = [
         // DB attributes
-        (DB__QUERY__TEXT, SENTRY__DESCRIPTION),
         (SENTRY__NORMALIZED_DB_QUERY, SENTRY__NORMALIZED_DESCRIPTION),
         (DB__OPERATION__NAME, SENTRY__ACTION),
         (DB__SYSTEM__NAME, DB__SYSTEM),
@@ -708,12 +721,6 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
                 (false, false) => format!(",{db_domain},"),
             },
         );
-    }
-
-    if let Some(&Value::String(method)) = attributes.get_value(HTTP__REQUEST__METHOD).as_ref()
-        && let Some(&Value::String(url)) = attributes.get_value(URL__FULL).as_ref()
-    {
-        attributes.insert(SENTRY__DESCRIPTION, format!("{method} {url}"))
     }
 }
 
@@ -1928,7 +1935,7 @@ mod tests {
 
         write_legacy_attributes(&mut attributes);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes), @r###"
         {
           "db.collection.name": {
             "type": "string",
@@ -1954,10 +1961,6 @@ mod tests {
             "type": "string",
             "value": "FIND"
           },
-          "sentry.description": {
-            "type": "string",
-            "value": "{\"find\": \"documents\", \"foo\": \"bar\"}"
-          },
           "sentry.domain": {
             "type": "string",
             "value": ",documents,"
@@ -1979,7 +1982,7 @@ mod tests {
             "value": "db"
           }
         }
-        "#);
+        "###);
     }
 
     #[test]

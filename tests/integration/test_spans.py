@@ -169,7 +169,7 @@ def test_span_extraction(
                 "attributes": {"span_key": {"type": "string", "value": "span_value"}},
             },
         ],
-        "name": "http",
+        "name": "GET /api/0/organizations/?member=1",
         "organization_id": 1,
         "parent_span_id": "968cff94913ebb07",
         "project_id": 42,
@@ -421,6 +421,7 @@ def envelope_with_spans(
             payload=PayloadRef(
                 bytes=json.dumps(
                     {
+                        "description": "default",
                         "op": "default",
                         "span_id": "ed429c44b67a3eb1",
                         "segment_id": "968cff94913ebb07",
@@ -450,6 +451,7 @@ def envelope_with_transaction_and_spans(start: datetime, end: datetime) -> Envel
                         "start_timestamp": start.timestamp(),
                         "spans": [
                             {
+                                "description": "default",
                                 "op": "default",
                                 "span_id": "968cff94913ebb07",
                                 "segment_id": "968cff94913ebb07",
@@ -533,6 +535,7 @@ def test_span_ingestion_with_performance_scores(
             payload=PayloadRef(
                 bytes=json.dumps(
                     {
+                        "description": "UI span",
                         "op": "ui.interaction.click",
                         "span_id": "bd429c44b67a3eb1",
                         "segment_id": "bd429c44b67a3eb1",
@@ -564,6 +567,7 @@ def test_span_ingestion_with_performance_scores(
                             "user": "[email]",
                         },
                         "profile_id": "3d9428087fda4ba0936788b70a7587d0",
+                        "description": "UI span",
                         "op": "ui.interaction.click",
                         "span_id": "cd429c44b67a3eb1",
                         "segment_id": "cd429c44b67a3eb1",

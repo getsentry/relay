@@ -461,6 +461,7 @@ def profile_transaction_item():
         "start_timestamp": (now - datetime.timedelta(seconds=2)).isoformat(),
         "spans": [
             {
+                "description": "default",
                 "op": "default",
                 "span_id": "968cff94913ebb07",
                 "segment_id": "968cff94913ebb07",

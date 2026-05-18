@@ -14,7 +14,6 @@ use relay_event_schema::protocol::{
     OsContext, ProfileContext, RuntimeContext, SentryTags, Span, Timestamp, TraceContext,
 };
 use relay_protocol::{Annotated, Empty, FiniteF64, Value};
-use relay_spans::name_for_span;
 use sqlparser::ast::{ObjectName, Visitor};
 use sqlparser::ast::{ObjectNamePart, Visit};
 use url::Url;
@@ -1128,8 +1127,8 @@ pub fn extract_tags(
         && !name.is_empty()
     {
         span_tags.name = name.to_owned().into();
-    } else if let Some(name) = name_for_span(span) {
-        span_tags.name = name.into();
+    } else {
+        span_tags.name = span.description.clone();
     }
 
     span_tags

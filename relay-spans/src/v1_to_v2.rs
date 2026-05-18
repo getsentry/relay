@@ -7,8 +7,6 @@ use relay_event_schema::protocol::{
 };
 use relay_protocol::{Annotated, Empty, Error, IntoValue, Meta, Value};
 
-use crate::name::name_for_attributes;
-
 /// Converts a legacy span to the new Span V2 schema.
 ///
 /// - `tags`, `sentry_tags`, `measurements` and `data` are transferred to `attributes`.
@@ -49,7 +47,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     attributes.insert(SENTRY__EXCLUSIVE_TIME, exclusive_time);
     attributes.insert(SENTRY__OP, op);
     attributes.insert(SENTRY__SEGMENT__ID, segment_id.map_value(|v| v.to_string()));
-    attributes.insert(SENTRY__DESCRIPTION, description);
+    attributes.insert(SENTRY__DESCRIPTION, description.clone());
     attributes.insert(SENTRY__ORIGIN, origin);
     attributes.insert(SENTRY__PROFILE_ID, profile_id.map_value(|v| v.to_string()));
     attributes.insert(SENTRY__PLATFORM, platform);
@@ -104,7 +102,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     let name = attributes
         .remove("sentry.name")
         .and_then(|name| name.map_value(|attr| attr.into_string()).transpose())
-        .unwrap_or_else(|| name_for_attributes(attributes).into());
+        .unwrap_or(description);
 
     if let Some(is_remote) = is_remote.value() {
         attributes.insert(SENTRY__IS_REMOTE, *is_remote);
@@ -317,12 +315,12 @@ mod tests {
         let span_v2 = span_v1_to_span_v2(span_v1);
 
         let annotated_span_v2: Annotated<SpanV2> = Annotated::new(span_v2);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span_v2), @r#"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span_v2), @r###"
         {
           "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
           "parent_span_id": "fa90fdead5f74051",
           "span_id": "fa90fdead5f74052",
-          "name": "operation",
+          "name": "raw description",
           "status": "ok",
           "is_segment": true,
           "start_timestamp": -63158400.0,
@@ -455,7 +453,7 @@ mod tests {
             }
           }
         }
-        "#);
+        "###);
     }
 
     #[test]

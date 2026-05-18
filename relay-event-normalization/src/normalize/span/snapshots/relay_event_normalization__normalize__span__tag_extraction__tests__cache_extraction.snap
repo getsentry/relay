@@ -34,7 +34,7 @@ expression: event.to_json_pretty().unwrap()
         "cache.key": "[\"my_key\"]",
         "thread.name": "Thread-4 (process_request_thread)",
         "thread.id": "6286962688",
-        "name": "cache.get_item"
+        "name": "get my_key"
       },
       "measurements": {
         "cache.item_size": {
@@ -75,7 +75,7 @@ expression: event.to_json_pretty().unwrap()
         "cache.key": "[\"my_key\",\"my_key_2\"]",
         "thread.name": "Thread-4 (process_request_thread)",
         "thread.id": "6286962688",
-        "name": "cache.get_item"
+        "name": "mget my_key my_key_2"
       },
       "measurements": {
         "cache.item_size": {
@@ -115,7 +115,7 @@ expression: event.to_json_pretty().unwrap()
         "cache.key": "[\"my_key_2\"]",
         "thread.name": "Thread-4 (process_request_thread)",
         "thread.id": "6286962688",
-        "name": "cache.get"
+        "name": "get my_key_2"
       },
       "measurements": {
         "cache.item_size": {

@@ -128,6 +128,7 @@ def test_spansv2_basic(
             "invalid": None,
             "browser.name": {"type": "string", "value": "Firefox"},
             "browser.version": {"type": "string", "value": "42.0"},
+            "sentry.description": {"type": "string", "value": "some op"},
             "sentry.dsc.environment": {"type": "string", "value": "prod"},
             "sentry.dsc.public_key": {
                 "type": "string",
@@ -246,7 +247,7 @@ def test_spansv2_trimming_basic(
             # This is sufficient for all builtin attributes not
             # to be trimmed. The span fields that aren't trimmed
             # also still count for the size limit.
-            "trimming": {"span": {"maxSize": 431}},
+            "trimming": {"span": {"maxSize": 456}},
         }
     )
 
@@ -323,6 +324,7 @@ def test_spansv2_trimming_basic(
             "custom.invalid.attribute": None,
             "browser.name": {"type": "string", "value": "Firefox"},
             "browser.version": {"type": "string", "value": "42.0"},
+            "sentry.description": {"type": "string", "value": "some op"},
             "sentry.dsc.environment": {"type": "string", "value": "prod"},
             "sentry.dsc.public_key": {
                 "type": "string",
@@ -342,7 +344,7 @@ def test_spansv2_trimming_basic(
         },
         "_meta": {
             "attributes": {
-                "": {"len": 483},
+                "": {"len": 508},
                 "custom.array.attribute": {
                     "value": {
                         "2": {
@@ -1201,6 +1203,7 @@ def test_spanv2_with_string_pii_scrubbing(
         "span_id": "eee19b7ec3c1b174",
         "attributes": {
             "test_pii": {"type": "string", "value": expected_scrubbed},
+            "sentry.description": {"type": "string", "value": "Test span"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
@@ -1339,6 +1342,7 @@ def test_spanv2_meta_pii_scrubbing_complex_attribute(mini_sentry, relay):
                 "type": "array",
                 "value": ["normal", "[creditcard]", "other"],
             },
+            "sentry.description": {"type": "string", "value": "Test span"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
@@ -1484,7 +1488,7 @@ def test_spansv2_attribute_normalization(
             "db.collection.name": {"type": "string", "value": "users"},
             "sentry.description": {
                 "type": "string",
-                "value": "SELECT id FROM users WHERE id = 1 AND name = 'Test'",
+                "value": "Test span",
             },
             "sentry.domain": {"type": "string", "value": ",users,"},
             "sentry.normalized_db_query": {
@@ -1515,7 +1519,7 @@ def test_spansv2_attribute_normalization(
             "sentry.category": {"type": "string", "value": "http"},
             "sentry.description": {
                 "type": "string",
-                "value": "GET https://www.service.io/users/01234-qwerty/settings/98765-adfghj",
+                "value": "Test span",
             },
             "sentry.op": {"type": "string", "value": "http.client"},
             "sentry.observed_timestamp_nanos": {

@@ -590,6 +590,7 @@ def _get_event_payload(data_category):
             "start_timestamp": (now - timedelta(seconds=2)).isoformat(),
             "spans": [
                 {
+                    "description": "default",
                     "op": "default",
                     "span_id": "968cff94913ebb07",
                     "segment_id": "968cff94913ebb07",
