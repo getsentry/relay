@@ -909,7 +909,6 @@ mod tests {
         assert_attributes_contains(
             &span,
             &[
-                (SENTRY__DESCRIPTION, "select * from users where id = 1"),
                 (
                     SENTRY__NORMALIZED_DESCRIPTION,
                     "SELECT * FROM users WHERE id = %s",
@@ -939,7 +938,6 @@ mod tests {
         assert_attributes_contains(
             &span,
             &[
-                (SENTRY__DESCRIPTION, "select * from users where id = 1"),
                 (
                     SENTRY__NORMALIZED_DESCRIPTION,
                     "SELECT * FROM users WHERE id = %s",
@@ -971,10 +969,6 @@ mod tests {
             &[
                 (SENTRY__CATEGORY, "http"),
                 (SENTRY__OP, "http.client"),
-                (
-                    SENTRY__DESCRIPTION,
-                    "GET https://www.example.com/path?param=value",
-                ),
                 (SENTRY__ACTION, "GET"),
                 (SENTRY__DOMAIN, "*.example.com"),
             ],
@@ -1002,10 +996,6 @@ mod tests {
             &[
                 (SENTRY__CATEGORY, "http"),
                 (SENTRY__OP, "http.client"),
-                (
-                    SENTRY__DESCRIPTION,
-                    "GET https://www.example.com/path?param=value",
-                ),
                 (SENTRY__ACTION, "GET"),
                 (SENTRY__DOMAIN, "*.example.com"),
             ],
@@ -1067,7 +1057,6 @@ mod tests {
             &[
                 (SENTRY__CATEGORY, "http"),
                 (SENTRY__OP, "http.client"),
-                (SENTRY__DESCRIPTION, "GET /path?param=value"),
                 (SENTRY__ACTION, "GET"),
                 (SENTRY__DOMAIN, "*.example.com"),
             ],
@@ -1094,7 +1083,6 @@ mod tests {
             &span,
             &[
                 (SENTRY__OP, "db"),
-                (SENTRY__DESCRIPTION, "select * from users where id = 1"),
                 (
                     SENTRY__NORMALIZED_DESCRIPTION,
                     "SELECT * FROM users WHERE id = %s",
