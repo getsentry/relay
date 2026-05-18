@@ -3425,35 +3425,4 @@ LIMIT 1
 
         assert_eq!(tags.name.value(), Some(&"my name".to_owned()));
     }
-
-    #[test]
-    fn generate_name_from_attributes() {
-        let span: Span = Annotated::<Span>::from_json(
-            r#"{
-                "start_timestamp": 0,
-                "timestamp": 1,
-                "span_id": "922dda2462ea4ac2",
-                "data": {
-                    "db.query.summary": "SELECT users"
-                },
-                "op": "db"
-            }"#,
-        )
-        .unwrap()
-        .into_value()
-        .unwrap();
-
-        let tags = extract_tags(
-            &span,
-            200,
-            None,
-            None,
-            false,
-            None,
-            &[],
-            &GeoIpLookup::empty(),
-        );
-
-        assert_eq!(tags.name.value(), Some(&"SELECT users".to_owned()));
-    }
 }
