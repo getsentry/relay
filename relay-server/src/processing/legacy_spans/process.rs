@@ -44,6 +44,7 @@ pub fn normalize(
 ) {
     let aggregator_config = ctx.config.aggregator_config_for(MetricNamespace::Spans);
     let model_data = ctx.global_config.ai_model_metadata();
+    let dsc = spans.headers.dsc().cloned();
     let norm = normalize::NormalizeSpanConfig {
         received_at: spans.received_at(),
         timestamp_range: aggregator_config.timestamp_range(),
@@ -65,6 +66,7 @@ pub fn normalize(
         client_ip: spans.headers.meta().client_addr().map(Into::into),
         geo_lookup,
         span_op_defaults: ctx.global_config.span_op_defaults.borrow(),
+        dsc: dsc.as_ref(),
     };
 
     spans.retain(
