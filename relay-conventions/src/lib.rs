@@ -121,8 +121,16 @@ pub struct AttributeInfo {
 }
 
 /// Returns information about an attribute, as defined in `sentry-conventions`.
-pub fn attribute_info(key: &str) -> Option<&'static AttributeInfo> {
+///
+/// If the matched attribute contains a placeholder (`<key>`), the second returned
+/// value is the part of the attribute key that was inserted for the placeholder.
+pub fn attribute_info_with_fragment(key: &str) -> Option<(&'static AttributeInfo, Option<&str>)> {
     ATTRIBUTES.find(key)
+}
+
+/// Returns information about an attribute, as defined in `sentry-conventions`.
+pub fn attribute_info(key: &str) -> Option<&'static AttributeInfo> {
+    attribute_info_with_fragment(key).map(|(info, _)| info)
 }
 
 /// Special path segment in attribute keys that matches any value.
@@ -134,19 +142,29 @@ struct Node<T: 'static> {
 }
 
 impl<T> Node<T> {
-    fn find(&self, key: &str) -> Option<&T> {
+    fn find<'a>(&self, key: &'a str) -> Option<(&T, Option<&'a str>)> {
         if key.is_empty() {
-            return self.info.as_ref();
+            return self.info.as_ref().map(|info| (info, None));
         }
         let (prefix, suffix) = key.split_once('.').unwrap_or((key, ""));
-        for candidate in [prefix, PLACEHOLDER_SEGMENT] {
-            if let Some(info) = self
-                .children
-                .get(candidate)
-                .and_then(|child| child.find(suffix))
-            {
-                return Some(info);
-            }
+
+        // First try a literal lookup.
+        if let Some(info) = self
+            .children
+            .get(prefix)
+            .and_then(|child| child.find(suffix))
+        {
+            return Some(info);
+        }
+
+        // If the literal lookup doesn't succeed, try a placeholder
+        // lookup and bubble up the current `prefix` if it succeeds.
+        if let Some((info, _)) = self
+            .children
+            .get(PLACEHOLDER_SEGMENT)
+            .and_then(|child| child.find(suffix))
+        {
+            return Some((info, Some(prefix)));
         }
         None
     }
@@ -182,7 +200,8 @@ mod tests {
     #[test]
     fn test_url_path_parameter() {
         // See https://github.com/getsentry/sentry-conventions/blob/d80504a40ba3a0a23eb746e2608425cf8d8e68bf/model/attributes/url/url__path__parameter__%5Bkey%5D.json.
-        let info = attribute_info("url.path.parameter.'id=123'").unwrap();
+        let (info, fragment) = attribute_info_with_fragment("url.path.parameter.'id=123'").unwrap();
+        assert_eq!(fragment, Some("'id=123'"));
 
         insta::assert_debug_snapshot!(info, @r###"
         AttributeInfo {
@@ -216,7 +235,7 @@ mod tests {
 
     #[test]
     fn test_hypothetical() {
-        assert_eq!(ROOT.find("foo.bar"), Some(&2));
+        assert_eq!(ROOT.find("foo.bar"), Some((&2, Some("foo"))));
     }
 
     struct GetterMap<'a>(HashMap<&'a str, Val<'a>>);
