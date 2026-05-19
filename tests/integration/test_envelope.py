@@ -372,7 +372,7 @@ def test_ops_breakdowns(mini_sentry, relay_with_processing, transactions_consume
     }
 
 
-@pytest.mark.parametrize("offset", (320000000, -320000000))
+@pytest.mark.parametrize("offset", (900, -320000000))
 def test_transaction_with_invalid_span_timestamps(mini_sentry, relay, offset):
     relay = relay(mini_sentry, options={"outcomes": {"emit_outcomes": True}})
     mini_sentry.add_basic_project_config(42)

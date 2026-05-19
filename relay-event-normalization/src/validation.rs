@@ -88,7 +88,7 @@ pub fn validate_event(
                 .and_then(|s| s.try_into().ok())
                 .unwrap_or(0);
             let max_timestamp = config
-                .max_secs_in_past
+                .max_secs_in_future
                 .map(|s| now.saturating_add(s))
                 .and_then(|s| s.try_into().ok())
                 .unwrap_or(u64::MAX);
