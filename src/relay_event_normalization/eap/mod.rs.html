@@ -353,8 +353,8 @@
 <a href=#353 id=353 data-nosnippet>353</a>/// attributes are added when `is_segment` is set to `true`.
 <a href=#354 id=354 data-nosnippet>354</a></span><span class="kw">pub fn </span>normalize_dsc(
 <a href=#355 id=355 data-nosnippet>355</a>    attributes: <span class="kw-2">&amp;mut </span>Annotated&lt;Attributes&gt;,
-<a href=#356 id=356 data-nosnippet>356</a>    dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>DynamicSamplingContext&gt;,
-<a href=#357 id=357 data-nosnippet>357</a>    is_segment: bool,
+<a href=#356 id=356 data-nosnippet>356</a>    is_segment: <span class="kw-2">&amp;</span>Annotated&lt;bool&gt;,
+<a href=#357 id=357 data-nosnippet>357</a>    dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>DynamicSamplingContext&gt;,
 <a href=#358 id=358 data-nosnippet>358</a>) {
 <a href=#359 id=359 data-nosnippet>359</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(dsc) = dsc <span class="kw">else </span>{ <span class="kw">return </span>};
 <a href=#360 id=360 data-nosnippet>360</a>
@@ -370,7 +370,7 @@
 <a href=#370 id=370 data-nosnippet>370</a>        attributes.insert(SENTRY__DSC__TRANSACTION, transaction.clone());
 <a href=#371 id=371 data-nosnippet>371</a>    }
 <a href=#372 id=372 data-nosnippet>372</a>
-<a href=#373 id=373 data-nosnippet>373</a>    <span class="kw">if </span>is_segment {
+<a href=#373 id=373 data-nosnippet>373</a>    <span class="kw">if </span>is_segment.value().is_some_and(|is_segment| <span class="kw-2">*</span>is_segment) {
 <a href=#374 id=374 data-nosnippet>374</a>        attributes.insert(SENTRY__DSC__PUBLIC_KEY, dsc.public_key.to_string());
 <a href=#375 id=375 data-nosnippet>375</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(release) = <span class="kw-2">&amp;</span>dsc.release {
 <a href=#376 id=376 data-nosnippet>376</a>            attributes.insert(SENTRY__DSC__RELEASE, release.clone());
@@ -752,7 +752,7 @@
 <a href=#752 id=752 data-nosnippet>752</a>    <span class="attr">#[test]
 <a href=#753 id=753 data-nosnippet>753</a>    </span><span class="kw">fn </span>test_normalize_dsc_child_span_no_dsc() {
 <a href=#754 id=754 data-nosnippet>754</a>        <span class="kw">let </span><span class="kw-2">mut </span>attributes = Annotated::empty();
-<a href=#755 id=755 data-nosnippet>755</a>        normalize_dsc(<span class="kw-2">&amp;mut </span>attributes, <span class="prelude-val">None</span>, <span class="bool-val">false</span>);
+<a href=#755 id=755 data-nosnippet>755</a>        normalize_dsc(<span class="kw-2">&amp;mut </span>attributes, <span class="kw-2">&amp;</span>Annotated::new(<span class="bool-val">false</span>), <span class="prelude-val">None</span>);
 <a href=#756 id=756 data-nosnippet>756</a>        <span class="macro">assert!</span>(attributes.value().is_none());
 <a href=#757 id=757 data-nosnippet>757</a>    }
 <a href=#758 id=758 data-nosnippet>758</a>
@@ -760,7 +760,7 @@
 <a href=#760 id=760 data-nosnippet>760</a>    </span><span class="kw">fn </span>test_normalize_dsc_child_span_no_transaction() {
 <a href=#761 id=761 data-nosnippet>761</a>        <span class="kw">let </span><span class="kw-2">mut </span>attributes = Annotated::empty();
 <a href=#762 id=762 data-nosnippet>762</a>        <span class="kw">let </span>dsc = mock_dsc(<span class="prelude-val">None</span>);
-<a href=#763 id=763 data-nosnippet>763</a>        normalize_dsc(<span class="kw-2">&amp;mut </span>attributes, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>dsc), <span class="bool-val">false</span>);
+<a href=#763 id=763 data-nosnippet>763</a>        normalize_dsc(<span class="kw-2">&amp;mut </span>attributes, <span class="kw-2">&amp;</span>Annotated::new(<span class="bool-val">false</span>), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>dsc));
 <a href=#764 id=764 data-nosnippet>764</a>        <span class="macro">assert_annotated_snapshot!</span>(attributes, @<span class="string">r#"
 <a href=#765 id=765 data-nosnippet>765</a>        {
 <a href=#766 id=766 data-nosnippet>766</a>          "sentry.dsc.trace_id": {
@@ -775,7 +775,7 @@
 <a href=#775 id=775 data-nosnippet>775</a>    </span><span class="kw">fn </span>test_normalize_dsc_child_span() {
 <a href=#776 id=776 data-nosnippet>776</a>        <span class="kw">let </span><span class="kw-2">mut </span>attributes = Annotated::empty();
 <a href=#777 id=777 data-nosnippet>777</a>        <span class="kw">let </span>dsc = mock_dsc(<span class="prelude-val">Some</span>(<span class="string">"/some/endpoint"</span>));
-<a href=#778 id=778 data-nosnippet>778</a>        normalize_dsc(<span class="kw-2">&amp;mut </span>attributes, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>dsc), <span class="bool-val">false</span>);
+<a href=#778 id=778 data-nosnippet>778</a>        normalize_dsc(<span class="kw-2">&amp;mut </span>attributes, <span class="kw-2">&amp;</span>Annotated::new(<span class="bool-val">false</span>), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>dsc));
 <a href=#779 id=779 data-nosnippet>779</a>        <span class="macro">assert_annotated_snapshot!</span>(attributes, @<span class="string">r#"
 <a href=#780 id=780 data-nosnippet>780</a>        {
 <a href=#781 id=781 data-nosnippet>781</a>          "sentry.dsc.trace_id": {
@@ -794,7 +794,7 @@
 <a href=#794 id=794 data-nosnippet>794</a>    </span><span class="kw">fn </span>test_normalize_dsc_segment() {
 <a href=#795 id=795 data-nosnippet>795</a>        <span class="kw">let </span><span class="kw-2">mut </span>attributes = Annotated::empty();
 <a href=#796 id=796 data-nosnippet>796</a>        <span class="kw">let </span>dsc = mock_dsc(<span class="prelude-val">Some</span>(<span class="string">"/some/endpoint"</span>));
-<a href=#797 id=797 data-nosnippet>797</a>        normalize_dsc(<span class="kw-2">&amp;mut </span>attributes, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>dsc), <span class="bool-val">true</span>);
+<a href=#797 id=797 data-nosnippet>797</a>        normalize_dsc(<span class="kw-2">&amp;mut </span>attributes, <span class="kw-2">&amp;</span>Annotated::new(<span class="bool-val">true</span>), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>dsc));
 <a href=#798 id=798 data-nosnippet>798</a>        <span class="macro">assert_annotated_snapshot!</span>(attributes, @<span class="string">r#"
 <a href=#799 id=799 data-nosnippet>799</a>        {
 <a href=#800 id=800 data-nosnippet>800</a>          "sentry.dsc.public_key": {
