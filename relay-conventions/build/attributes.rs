@@ -54,7 +54,7 @@ pub struct Deprecation {
 
 /// An attribute, according to the `sentry-conventions` schema.
 ///
-/// Omitted fields: `brief`, `has_dynamic_suffix`, `is_in_otel`, `example`, `sdks`, `ty`.
+/// Omitted fields: `has_dynamic_suffix`, `is_in_otel`, `example`, `sdks`, `ty`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct Attribute {
     /// The attribute's name.
@@ -196,7 +196,7 @@ pub fn format_interpolating_fn(attribute: &Attribute) -> Option<String> {
     writeln!(
         &mut out,
         r#"/// Instantiates the `<key>` placeholder in the attribute
-/// [`{constant_name}`](crate::consts::{constant_name}) (`{key}`) with a concrete value.
+/// [`{constant_name}`](crate::attributes::{constant_name}) (`{key}`) with a concrete value.
 /// # Example
 /// ```
 /// use relay_conventions::interpolate::{fn_name};
@@ -227,7 +227,7 @@ fn write_deprecation_annotation(out: &mut impl Write, deprecation: &Deprecation)
         let replacement_name = name_constant(replacement);
         write!(
             out,
-            r#"(note="Use [`{replacement_name}`](crate::consts::{replacement_name}) (`{replacement}`) instead.")"#
+            r#"(note="Use [`{replacement_name}`](crate::attributes::{replacement_name}) (`{replacement}`) instead.")"#
         )
         .unwrap();
     }
@@ -235,7 +235,7 @@ fn write_deprecation_annotation(out: &mut impl Write, deprecation: &Deprecation)
 }
 
 /// Formats an attributes name as a constant identifier.
-fn name_constant(name: &str) -> String {
+pub fn name_constant(name: &str) -> String {
     name_fn(name).to_ascii_uppercase()
 }
 
@@ -289,7 +289,7 @@ pub fn write_canonical_fn(
 /// * If the attribute is not defined in `sentry-conventions`, `None` is returned.
 #[allow(deprecated)]
 pub fn canonical(key: &str) -> Option<&'static str> {{
-    use crate::consts::*;
+    use crate::attributes::*;
     match key {{"#
     )
     .unwrap();

@@ -7,7 +7,7 @@ use std::net::IpAddr;
 
 use chrono::{DateTime, Utc};
 use relay_common::time::UnixTimestamp;
-use relay_conventions::consts::*;
+use relay_conventions::attributes::*;
 use relay_conventions::{AttributeInfo, WriteBehavior};
 use relay_event_schema::protocol::{AttributeType, Attributes, BrowserContext, Geo};
 use relay_protocol::{Annotated, ErrorKind, Meta, Remark, RemarkType, Value};
