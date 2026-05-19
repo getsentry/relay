@@ -1485,6 +1485,13 @@ def test_spansv2_attribute_normalization(
     http_result = spans_by_id[http_span_id]
     assert http_result == {
         **common,
+        "_meta": {
+            "attributes": {
+                "url.full": {
+                    "value": {"": {"len": 63, "rem": [["@userpath", "s", 29, 35]]}}
+                }
+            }
+        },
         "span_id": http_span_id,
         "attributes": {
             "sentry.category": {"type": "string", "value": "http"},
@@ -1508,7 +1515,7 @@ def test_spansv2_attribute_normalization(
             "sentry.dsc.transaction": {"type": "string", "value": "/my/fancy/endpoint"},
             "url.full": {
                 "type": "string",
-                "value": "https://www.service.io/users/01234-qwerty/settings/98765-adfghj",
+                "value": "https://www.service.io/users/[user]/settings/98765-adfghj",
             },
         },
     }

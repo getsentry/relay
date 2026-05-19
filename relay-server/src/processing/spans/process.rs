@@ -226,11 +226,7 @@ fn normalize_span(
         }
         eap::normalize_user_agent(&mut span.attributes, client_ua_info);
         eap::normalize_user_geo(&mut span.attributes, |ip| geo_lookup.lookup(ip));
-        eap::normalize_dsc(
-            &mut span.attributes,
-            dsc,
-            *span.is_segment.value().unwrap_or(&false),
-        );
+        eap::normalize_dsc(&mut span.attributes, &span.is_segment, dsc);
         if ctx.is_processing() {
             eap::normalize_ai(&mut span.attributes, duration, model_metdata);
         }
