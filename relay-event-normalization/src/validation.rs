@@ -79,7 +79,23 @@ pub fn validate_event(
         // There are no timestamp range requirements for span timestamps.
         // Transaction will be rejected only if either end or start timestamp is missing.
         end_all_spans(event);
-        validate_spans(event, None)?;
+
+        let range = {
+            let now = config.received_at.unwrap_or_else(Utc::now).timestamp();
+            let min_timestamp = config
+                .max_secs_in_past
+                .map(|s| now.saturating_sub(s))
+                .and_then(|s| s.try_into().ok())
+                .unwrap_or(0);
+            let max_timestamp = config
+                .max_secs_in_past
+                .map(|s| now.saturating_add(s))
+                .and_then(|s| s.try_into().ok())
+                .unwrap_or(u64::MAX);
+            UnixTimestamp::from_secs(min_timestamp)..UnixTimestamp::from_secs(max_timestamp)
+        };
+
+        validate_spans(event, Some(&range))?;
     }
 
     Ok(())
