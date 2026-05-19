@@ -1050,7 +1050,7 @@
 <a href=#1050 id=1050 data-nosnippet>1050</a>
 <a href=#1051 id=1051 data-nosnippet>1051</a>
 <a href=#1052 id=1052 data-nosnippet>1052</a><span class="doccomment">/// The URL of the resource that was fetched.
-<a href=#1053 id=1053 data-nosnippet>1053</a>/// * PII: Maybe
+<a href=#1053 id=1053 data-nosnippet>1053</a>/// * PII: True
 <a href=#1054 id=1054 data-nosnippet>1054</a>/// * Rewriting behavior: None
 <a href=#1055 id=1055 data-nosnippet>1055</a>/// # Aliases
 <a href=#1056 id=1056 data-nosnippet>1056</a>/// * [`URL__FULL`] (`url.full`)
@@ -1137,7 +1137,7 @@
 <a href=#1137 id=1137 data-nosnippet>1137</a>
 <a href=#1138 id=1138 data-nosnippet>1138</a>
 <a href=#1139 id=1139 data-nosnippet>1139</a><span class="doccomment">/// The query string present in the URL. Note that this contains the leading ? character, while the `url.query` attribute does not.
-<a href=#1140 id=1140 data-nosnippet>1140</a>/// * PII: Maybe
+<a href=#1140 id=1140 data-nosnippet>1140</a>/// * PII: True
 <a href=#1141 id=1141 data-nosnippet>1141</a>/// * Rewriting behavior: None
 <a href=#1142 id=1142 data-nosnippet>1142</a></span><span class="kw">pub const </span>HTTP__QUERY: <span class="kw-2">&amp;</span>str = <span class="string">"http.query"</span>;
 <a href=#1143 id=1143 data-nosnippet>1143</a>
@@ -1392,7 +1392,7 @@
 <a href=#1392 id=1392 data-nosnippet>1392</a>
 <a href=#1393 id=1393 data-nosnippet>1393</a>
 <a href=#1394 id=1394 data-nosnippet>1394</a><span class="doccomment">/// The URL of the resource that was fetched.
-<a href=#1395 id=1395 data-nosnippet>1395</a>/// * PII: Maybe
+<a href=#1395 id=1395 data-nosnippet>1395</a>/// * PII: True
 <a href=#1396 id=1396 data-nosnippet>1396</a>/// * Rewriting behavior: None
 <a href=#1397 id=1397 data-nosnippet>1397</a>/// # Aliases
 <a href=#1398 id=1398 data-nosnippet>1398</a>/// * [`URL__FULL`] (`url.full`)
@@ -2068,7 +2068,7 @@
 <a href=#2068 id=2068 data-nosnippet>2068</a>
 <a href=#2069 id=2069 data-nosnippet>2069</a>
 <a href=#2070 id=2070 data-nosnippet>2070</a><span class="doccomment">/// Whether the request was streamed back.
-<a href=#2071 id=2071 data-nosnippet>2071</a>/// * PII: False
+<a href=#2071 id=2071 data-nosnippet>2071</a>/// * PII: Maybe
 <a href=#2072 id=2072 data-nosnippet>2072</a>/// * Rewriting behavior: Backfill
 <a href=#2073 id=2073 data-nosnippet>2073</a>/// # Aliases
 <a href=#2074 id=2074 data-nosnippet>2074</a>/// * [`GEN_AI__RESPONSE__STREAMING`] (`gen_ai.response.streaming`)
@@ -2659,7 +2659,7 @@
 <a href=#2659 id=2659 data-nosnippet>2659</a>
 <a href=#2660 id=2660 data-nosnippet>2660</a>
 <a href=#2661 id=2661 data-nosnippet>2661</a><span class="doccomment">/// Whether or not the AI model call's response was streamed back asynchronously.
-<a href=#2662 id=2662 data-nosnippet>2662</a>/// * PII: False
+<a href=#2662 id=2662 data-nosnippet>2662</a>/// * PII: Maybe
 <a href=#2663 id=2663 data-nosnippet>2663</a>/// * Rewriting behavior: None
 <a href=#2664 id=2664 data-nosnippet>2664</a>/// # Aliases
 <a href=#2665 id=2665 data-nosnippet>2665</a>/// * [`AI__STREAMING`] (`ai.streaming`)
@@ -3703,7 +3703,7 @@
 <a href=#3703 id=3703 data-nosnippet>3703</a>
 <a href=#3704 id=3704 data-nosnippet>3704</a>
 <a href=#3705 id=3705 data-nosnippet>3705</a><span class="doccomment">/// The URL of the resource that was fetched.
-<a href=#3706 id=3706 data-nosnippet>3706</a>/// * PII: Maybe
+<a href=#3706 id=3706 data-nosnippet>3706</a>/// * PII: True
 <a href=#3707 id=3707 data-nosnippet>3707</a>/// * Rewriting behavior: None
 <a href=#3708 id=3708 data-nosnippet>3708</a>/// # Aliases
 <a href=#3709 id=3709 data-nosnippet>3709</a>/// * [`HTTP__URL`] (`http.url`)
@@ -3719,7 +3719,7 @@
 <a href=#3719 id=3719 data-nosnippet>3719</a>
 <a href=#3720 id=3720 data-nosnippet>3720</a>
 <a href=#3721 id=3721 data-nosnippet>3721</a><span class="doccomment">/// The query string present in the URL. Note that this does not contain the leading ? character, while the `http.query` attribute does.
-<a href=#3722 id=3722 data-nosnippet>3722</a>/// * PII: Maybe
+<a href=#3722 id=3722 data-nosnippet>3722</a>/// * PII: True
 <a href=#3723 id=3723 data-nosnippet>3723</a>/// * Rewriting behavior: None
 <a href=#3724 id=3724 data-nosnippet>3724</a></span><span class="kw">pub const </span>URL__QUERY: <span class="kw-2">&amp;</span>str = <span class="string">"url.query"</span>;
 <a href=#3725 id=3725 data-nosnippet>3725</a>
@@ -4151,7 +4151,7 @@
 <a href=#4151 id=4151 data-nosnippet>4151</a>
 <a href=#4152 id=4152 data-nosnippet>4152</a>
 <a href=#4153 id=4153 data-nosnippet>4153</a><span class="doccomment">/// Current “managed” thread ID.
-<a href=#4154 id=4154 data-nosnippet>4154</a>/// * PII: False
+<a href=#4154 id=4154 data-nosnippet>4154</a>/// * PII: Maybe
 <a href=#4155 id=4155 data-nosnippet>4155</a>/// * Rewriting behavior: None
 <a href=#4156 id=4156 data-nosnippet>4156</a></span><span class="kw">pub const </span>THREAD__ID: <span class="kw-2">&amp;</span>str = <span class="string">"thread.id"</span>;
 <a href=#4157 id=4157 data-nosnippet>4157</a>
