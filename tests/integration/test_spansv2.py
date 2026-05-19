@@ -1870,11 +1870,9 @@ def test_spansv2_ingestion_with_performance_scores(
             assert span["attributes"][key]["value"] == score
 
 
-def test_spansv2_dsc_normalization_on_segment_and_non_segment_span(
+def test_spansv2_dsc_normalization(
     mini_sentry, relay, relay_with_processing, spans_consumer
 ):
-    """Test that specific dsc attributes are stamped on both segment and non-segment spans."""
-
     spans_consumer = spans_consumer()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -1900,42 +1898,11 @@ def test_spansv2_dsc_normalization_on_segment_and_non_segment_span(
             "name": "child",
             "status": "ok",
         },
-        trace_info={
-            "trace_id": "5b8efff798038103d269b633813fc60c",
-            "public_key": project_config["publicKeys"][0]["publicKey"],
-            "transaction": "/my/fancy/endpoint",
-        },
-    )
-
-    relay.send_envelope(project_id, envelope)
-
-    spans = {s["span_id"]: s for s in spans_consumer.get_spans()}
-    assert spans["aaaaaaaaaaaaaaaa"]["is_segment"] is True
-    assert (
-        spans["aaaaaaaaaaaaaaaa"]["attributes"]["sentry.dsc.transaction"]["value"]
-        == "/my/fancy/endpoint"
-    )
-    assert spans["bbbbbbbbbbbbbbbb"]["is_segment"] is False
-    assert (
-        spans["bbbbbbbbbbbbbbbb"]["attributes"]["sentry.dsc.transaction"]["value"]
-        == "/my/fancy/endpoint"
-    )
-
-
-def test_spansv2_dsc_attributes_already_exist(
-    mini_sentry, relay, relay_with_processing, spans_consumer
-):
-    spans_consumer = spans_consumer()
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
-    ts = datetime.now(timezone.utc) - timedelta(seconds=1)
-    envelope = envelope_with_spans(
         {
             "start_timestamp": ts.timestamp(),
             "end_timestamp": ts.timestamp() + 0.5,
             "trace_id": "5b8efff798038103d269b633813fc60c",
-            "span_id": "aaaaaaaaaaaaaaaa",
+            "span_id": "cccccccccccccccc",
             "is_segment": True,
             "name": "root",
             "status": "ok",
@@ -1954,8 +1921,8 @@ def test_spansv2_dsc_attributes_already_exist(
             "start_timestamp": ts.timestamp(),
             "end_timestamp": ts.timestamp() + 0.3,
             "trace_id": "5b8efff798038103d269b633813fc60c",
-            "span_id": "bbbbbbbbbbbbbbbb",
-            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "span_id": "dddddddddddddddd",
+            "parent_span_id": "cccccccccccccccc",
             "is_segment": False,
             "name": "child",
             "status": "ok",
@@ -1981,12 +1948,19 @@ def test_spansv2_dsc_attributes_already_exist(
 
     spans = {s["span_id"]: s for s in spans_consumer.get_spans()}
     assert spans["aaaaaaaaaaaaaaaa"]["is_segment"] is True
-    assert (
-        spans["aaaaaaaaaaaaaaaa"]["attributes"]["sentry.dsc.transaction"]["value"]
-        == "/transaction/already/exists"
-    )
     assert spans["bbbbbbbbbbbbbbbb"]["is_segment"] is False
-    assert (
-        spans["bbbbbbbbbbbbbbbb"]["attributes"]["sentry.dsc.transaction"]["value"]
-        == "/transaction/already/exists"
-    )
+    assert spans["cccccccccccccccc"]["is_segment"] is True
+    assert spans["dddddddddddddddd"]["is_segment"] is False
+    for span_id in [
+        "aaaaaaaaaaaaaaaa",
+        "bbbbbbbbbbbbbbbb",
+        "cccccccccccccccc",
+        "dddddddddddddddd",
+    ]:
+        expected = (
+            "/my/fancy/endpoint"
+            if span_id in ["aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbb"]
+            else "/transaction/already/exists"
+        )
+        actual = spans[span_id]["attributes"]["sentry.dsc.transaction"]["value"]
+        assert actual == expected
