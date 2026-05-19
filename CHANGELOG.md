@@ -5,6 +5,7 @@
 **Bug Fixes**:
 
 - Add `sentry.dsc.transaction` and `sentry.dsc.trace_id` to all v2 spans. ([#6001](https://github.com/getsentry/relay/pull/6001))
+- Add `sentry.dsc.transaction` and `sentry.dsc.trace_id` to all v1 standalone spans. ([#6004](https://github.com/getsentry/relay/pull/6004))
 
 ## 26.5.0
 
