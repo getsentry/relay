@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+- Align span names and descriptions. This sets the name based on the description for V1 spans, and the description
+  based on the name for V2 spans. In either case, explicitly set values will not be overwritten. ([#6002](https://github.com/getsentry/relay/pull/6002))
+
 **Bug Fixes**:
 
 - Add `sentry.dsc.transaction` and `sentry.dsc.trace_id` to all v2 spans. ([#6001](https://github.com/getsentry/relay/pull/6001))
