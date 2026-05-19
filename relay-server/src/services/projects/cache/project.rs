@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use relay_config::Config;
 use relay_quotas::{CachedRateLimits, DataCategory, MetricNamespaceScoping, RateLimits};
-use relay_sampling::evaluation::ReservoirCounters;
 
 use crate::Envelope;
 use crate::envelope::ItemType;
@@ -31,11 +30,6 @@ impl<'a> Project<'a> {
     /// Returns a reference to the currently cached rate limits.
     pub fn rate_limits(&self) -> &CachedRateLimits {
         self.shared.cached_rate_limits()
-    }
-
-    /// Returns a reference to the currently reservoir counters.
-    pub fn reservoir_counters(&self) -> &ReservoirCounters {
-        self.shared.reservoir_counters()
     }
 
     /// Checks the envelope against project configuration and rate limits.

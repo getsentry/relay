@@ -120,7 +120,7 @@ impl processing::Processor for LegacySpansProcessor {
             Either::Right(metrics) => return Ok(Output::metrics(metrics)),
         };
 
-        let (mut spans, metrics) = match dynamic_sampling::run(spans, ctx).await {
+        let (mut spans, metrics) = match dynamic_sampling::run(spans, ctx) {
             (Some(spans), metrics) => (spans, metrics),
             (None, metrics) => return Ok(Output::metrics(metrics)),
         };

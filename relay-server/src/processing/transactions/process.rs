@@ -1,13 +1,10 @@
-use std::sync::Arc;
-
 use relay_base_schema::events::EventType;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::{Event, Metrics};
 use relay_profiling::{ProfileError, ProfileType};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
-use relay_redis::AsyncRedisClient;
-use relay_sampling::evaluation::{ReservoirEvaluator, SamplingDecision};
+use relay_sampling::evaluation::SamplingDecision;
 use relay_statsd::metric;
 use smallvec::smallvec;
 
@@ -230,14 +227,12 @@ pub enum SamplingOutput {
 }
 
 /// Computes the sampling decision for a transaction and associated items.
-pub async fn run_dynamic_sampling(
+pub fn run_dynamic_sampling(
     payload: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     filters_status: FiltersStatus,
-    quotas_client: Option<&AsyncRedisClient>,
 ) -> Result<SamplingOutput, Rejected<Error>> {
-    let sampling_result =
-        make_dynamic_sampling_decision(&payload, ctx, filters_status, quotas_client).await;
+    let sampling_result = make_dynamic_sampling_decision(&payload, ctx, filters_status);
 
     let sampling_match = match sampling_result {
         SamplingResult::Match(m) if m.decision().is_drop() => m,
@@ -273,14 +268,12 @@ pub async fn run_dynamic_sampling(
 }
 
 /// Computes the dynamic sampling decision for the unit of work, but does not perform action on data.
-async fn make_dynamic_sampling_decision(
+fn make_dynamic_sampling_decision(
     work: &Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     filters_status: FiltersStatus,
-    quotas_client: Option<&AsyncRedisClient>,
 ) -> SamplingResult {
-    let sampling_result =
-        do_make_dynamic_sampling_decision(work, ctx, filters_status, quotas_client).await;
+    let sampling_result = do_make_dynamic_sampling_decision(work, ctx, filters_status);
     relay_statsd::metric!(
         counter(RelayCounters::SamplingDecision) += 1,
         decision = sampling_result.decision().as_str(),
@@ -289,11 +282,10 @@ async fn make_dynamic_sampling_decision(
     sampling_result
 }
 
-async fn do_make_dynamic_sampling_decision(
+fn do_make_dynamic_sampling_decision(
     work: &Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     filters_status: FiltersStatus,
-    #[allow(unused)] quotas_client: Option<&AsyncRedisClient>,
 ) -> SamplingResult {
     // Always run dynamic sampling on processing Relays,
     // but delay decision until inbound filters have been fully processed.
@@ -303,19 +295,7 @@ async fn do_make_dynamic_sampling_decision(
         return SamplingResult::Pending;
     }
 
-    #[allow(unused_mut)]
-    let mut reservoir = ReservoirEvaluator::new(Arc::clone(ctx.reservoir_counters));
-    #[cfg(feature = "processing")]
-    if let Some(quotas_client) = quotas_client {
-        reservoir.set_redis(work.scoping().organization_id, quotas_client);
-    }
-    utils::dynamic_sampling::run(
-        work.headers.dsc(),
-        work.event.value(),
-        &ctx,
-        Some(&reservoir),
-    )
-    .await
+    utils::dynamic_sampling::run(work.headers.dsc(), work.event.value(), &ctx)
 }
 
 type IndexedAndMetrics = (

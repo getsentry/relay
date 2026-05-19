@@ -961,10 +961,25 @@ def test_minidump_objectstore_uploads(
 
     relay = relay(mini_sentry)
 
+    event = {"event_id": "2dd132e467174db48dbaddabd3cbed57", "user": {"id": "123"}}
+    breadcrumbs1 = {"timestamp": 1461185755, "message": "A"}
+    breadcrumbs2 = {"timestamp": 1461185750, "message": "B"}
+
     response = relay.send_minidump(
         project_id=project_id,
         files=[
             (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", minidump_content),
+            (EVENT_ATTACHMENT_NAME, EVENT_ATTACHMENT_NAME, msgpack.packb(event)),
+            (
+                BREADCRUMB_ATTACHMENT_NAME1,
+                BREADCRUMB_ATTACHMENT_NAME1,
+                msgpack.packb(breadcrumbs1),
+            ),
+            (
+                BREADCRUMB_ATTACHMENT_NAME2,
+                BREADCRUMB_ATTACHMENT_NAME2,
+                msgpack.packb(breadcrumbs2),
+            ),
             ("logs", "log.txt", log_content),
         ],
     )
@@ -976,6 +991,7 @@ def test_minidump_objectstore_uploads(
         for i in envelope.items
         if i.headers.get("type") == "attachment"
     }
+    assert len(by_name) == 2  # other attachments are absorbed into event
     minidump = by_name["minidump.dmp"]
     logs = by_name["log.txt"]
 
@@ -1007,6 +1023,13 @@ def test_minidump_objectstore_uploads(
             != "application/vnd.sentry.attachment-ref+json"
         )
         assert minidump.payload.bytes == minidump_content
+
+    # The event.payload attachment is merged into the event item, and the event.breadcrumbs
+    # attachments are merged as breadcrumbs on that event.
+    event_item = envelope.get_event()
+    assert event_item["event_id"] == "2dd132e467174db48dbaddabd3cbed57"
+    assert event_item["user"]["id"] == "123"
+    assert event_item["breadcrumbs"]["values"][0]["message"] == "A"
 
 
 def test_minidump_objectstore_errors(
