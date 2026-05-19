@@ -769,20 +769,14 @@ def test_spans_standalone_dsc_normalization(
     )
 
     relay.send_envelope(project_id, envelope)
-
     spans = {s["span_id"]: s for s in spans_consumer.get_spans()}
+
+    def get_transaction(span_id: str):
+        return spans[span_id]["attributes"]["sentry.dsc.transaction"]["value"]
+
     assert spans["aaaaaaaaaaaaaaaa"]["is_segment"] is True
     assert spans["bbbbbbbbbbbbbbbb"]["is_segment"] is False
     assert spans["cccccccccccccccc"]["is_segment"] is False
-    assert (
-        spans["aaaaaaaaaaaaaaaa"]["attributes"]["sentry.dsc.transaction"]["value"]
-        == "/my/fancy/endpoint"
-    )
-    assert (
-        spans["bbbbbbbbbbbbbbbb"]["attributes"]["sentry.dsc.transaction"]["value"]
-        == "/my/fancy/endpoint"
-    )
-    assert (
-        spans["cccccccccccccccc"]["attributes"]["sentry.dsc.transaction"]["value"]
-        == "/transaction/already/exists"
-    )
+    assert get_transaction("aaaaaaaaaaaaaaaa") == "/my/fancy/endpoint"
+    assert get_transaction("bbbbbbbbbbbbbbbb") == "/my/fancy/endpoint"
+    assert get_transaction("cccccccccccccccc") == "/transaction/already/exists"
