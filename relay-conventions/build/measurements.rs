@@ -37,10 +37,10 @@ pub fn format_constant(attr: &Measurement) -> String {
     }
 
     if let Some(attribute) = attribute {
+        let attribute_name = attributes::name_constant(attribute);
         writeln!(
             &mut out,
-            "///\n/// Replacement attribute: [`{}`]",
-            attributes::name_constant(attribute)
+            "///\n/// Replacement attribute: [`{attribute_name}`](crate::attributes::{attribute_name})",
         )
         .unwrap();
     }
