@@ -62,9 +62,10 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     if let Some(measurements) = measurements.into_value() {
         for (key, measurement) in measurements.0 {
             let key = match key.as_str() {
+                // TODO: If these measurements were defined in conventions we could get rid of the match entirely
                 "client_sample_rate" => SENTRY__CLIENT_SAMPLE_RATE,
                 "server_sample_rate" => SENTRY__SERVER_SAMPLE_RATE,
-                other => other,
+                other => relay_conventions::measurement_to_attribute(other).unwrap_or(other),
             };
 
             attributes.insert_if_missing(key, || match measurement {

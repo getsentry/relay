@@ -591,6 +591,11 @@ def test_span_ingestion_with_performance_scores(
 
     expected_scores = [
         {
+            "browser.web_vital.cls.value": 100.0,
+            "browser.web_vital.fcp.value": 200.0,
+            "fid": 300.0,
+            "browser.web_vital.lcp.value": 400.0,
+            "browser.web_vital.ttfb.value": 500.0,
             "score.fcp": 0.14999972769539766,
             "score.fid": 0.14999999985,
             "score.lcp": 0.29986141375718806,
@@ -606,15 +611,10 @@ def test_span_ingestion_with_performance_scores(
             "score.weight.fid": 0.3,
             "score.weight.lcp": 0.3,
             "score.weight.ttfb": 0.0,
-            "cls": 100.0,
-            "fcp": 200.0,
-            "fid": 300.0,
-            "lcp": 400.0,
-            "ttfb": 500.0,
             "score.cls": 0.0,
         },
         {
-            "inp": 100.0,
+            "browser.web_vital.inp.value": 100.0,
             "score.inp": 0.9948129113413748,
             "score.ratio.inp": 0.9948129113413748,
             "score.total": 0.9948129113413748,

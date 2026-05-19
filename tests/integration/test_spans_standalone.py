@@ -214,7 +214,6 @@ def test_lcp_span(
     lcp_backfill = {}
     if mode == "v2":
         lcp_backfill = {
-            "browser.web_vital.lcp.value": {"type": "double", "value": 548.0},
             "browser.web_vital.lcp.load_time": {"type": "double", "value": 527.5},
             "browser.web_vital.lcp.render_time": {"type": "integer", "value": 548},
             "browser.web_vital.lcp.size": {"type": "integer", "value": 8100},
@@ -227,7 +226,7 @@ def test_lcp_span(
     assert spans_consumer.get_span() == {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
-            "lcp": {"type": "double", "value": 548.0},
+            "browser.web_vital.lcp.value": {"type": "double", "value": 548.0},
             "lcp.loadTime": {"type": "double", "value": 527.5},
             "lcp.renderTime": {"type": "integer", "value": 548},
             "lcp.size": {"type": "integer", "value": 8100},
@@ -416,7 +415,6 @@ def test_cls_span(
     cls_backfill = {}
     if mode == "v2":
         cls_backfill = {
-            "browser.web_vital.cls.value": {"type": "double", "value": 0.1},
             "browser.web_vital.cls.source.<key>": {
                 "type": "string",
                 "value": "AppContainer > NavContent > MobileTopbar > StyledButton",
@@ -426,7 +424,7 @@ def test_cls_span(
     assert spans_consumer.get_span() == {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
-            "cls": {"type": "double", "value": 0.1},
+            "browser.web_vital.cls.value": {"type": "double", "value": 0.1},
             "cls.source.1": {
                 "type": "string",
                 "value": "AppContainer > NavContent > MobileTopbar > StyledButton",
@@ -612,16 +610,10 @@ def test_inp_span(
 
     attributes, fields = lcp_cls_inp_differences(mode)
 
-    inp_backfill = {}
-    if mode == "v2":
-        inp_backfill = {
-            "browser.web_vital.inp.value": {"type": "double", "value": 104.0},
-        }
-
     assert spans_consumer.get_span() == {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
-            "inp": {"type": "double", "value": 104.0},
+            "browser.web_vital.inp.value": {"type": "double", "value": 104.0},
             "browser.name": {"type": "string", "value": "Chrome"},
             "sentry.description": {
                 "type": "string",
@@ -672,7 +664,6 @@ def test_inp_span(
                 "type": "double",
                 "value": 1.0,
             },
-            **inp_backfill,
             **attributes,
         },
         "downsampled_retention_days": 90,
