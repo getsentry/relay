@@ -39,21 +39,53 @@ def test_scrub_span_sentry_tags_advanced_rules(mini_sentry, relay):
     assert event["spans"][0]["sentry_tags"]["user.geo.subregion"] == "***"
 
 
-def test_http_query(mini_sentry, relay):
+@pytest.mark.parametrize(
+    "field,pii",
+    [
+        # SpanData field, pii: true in conventions
+        ("url.full", "true"),
+        # SpanData field, pii: maybe in conventions
+        ("gen_ai.input.messages", "maybe"),
+        # SpanData field, pii: false in conventions
+        ("sentry.release", "false"),
+        # SpanData field, missing in conventions, explicitly set on SpanData
+        ("profile_id", "false"),
+        # Not a SpanData field, pii: true in conventions
+        ("ai.warnings", "true"),
+        # Not a SpanData field, pii: maybe in conventions
+        ("process.runtime.name", "maybe"),
+        # Not a SpanData field, pii: false in conventions
+        ("sentry.cancellation_reason", "false"),
+        # Not a SpanData field and not defined in conventions
+        ("madeup.field", "true"),
+    ],
+)
+def test_spandata_conventions(mini_sentry, relay, field, pii):
     project_id = 42
     relay = relay(
         mini_sentry,
     )
     config = mini_sentry.add_basic_project_config(project_id)
+    config["config"].setdefault(
+        "datascrubbingSettings",
+        {
+            "scrubData": True,
+            "scrubDefaults": True,
+        },
+    )
+
     config["config"]["piiConfig"] = {
         "rules": {
             "custom_secret": {
                 "type": "pattern",
-                "pattern": r"(X-Amz-Algorithm|X-Amz-Credential)=[^& ]+",
-                "redaction": {"method": "mask"},
-            }
+                "pattern": ".*",
+                "redaction": {"method": "replace", "text": "[REDACTED]"},
+            },
         },
-        "applications": {"$span.data.*": ["custom_secret"]},
+        "applications": {
+            "$string": ["@anything:mask"],
+            f"'{field}'": ["custom_secret"],
+        },
     }
 
     relay.send_event(
@@ -64,9 +96,7 @@ def test_http_query(mini_sentry, relay):
                     "timestamp": 1778131375.142457,
                     "start_timestamp": 1778131374.296492,
                     "exclusive_time": 845.965,
-                    "data": {
-                        "http.query": "X-Amz-Algorithm=Some_algorithm&X-Amz-Credential=foobar/19700101/us-east-1/s3/aws4_request&X-Amz-Signature=579375859378367127495789347628374",
-                    },
+                    "data": {field: "secret value"},
                 }
             ],
         },
@@ -74,10 +104,17 @@ def test_http_query(mini_sentry, relay):
 
     event = mini_sentry.get_captured_envelope().get_event()
 
-    assert (
-        event["spans"][0]["data"]["http.query"]
-        == "******************************&**********************************************************&X-Amz-Signature=579375859378367127495789347628374"
-    )
+    value = event["spans"][0]["data"][field]
+
+    # pii: true fields should get masked
+    if pii == "true":
+        assert value == "************"
+    # pii: maybe fields should get redacted
+    elif pii == "maybe":
+        assert value == "[REDACTED]"
+    # pii: false fields should be left alone
+    else:
+        assert value == "secret value"
 
 
 @pytest.mark.parametrize(
