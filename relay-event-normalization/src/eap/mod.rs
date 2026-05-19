@@ -348,9 +348,9 @@ pub fn normalize_user_geo(
 
 /// Normalizes the [DSC](DynamicSamplingContext) into [`Attributes`].
 ///
-/// If `is_segment` is set to `Some(false)` or `None`, the function will only add select attributes
-/// that are necessary on every span - both segment and non-segment - for dynamic sampling to work.
-/// More attributes are added when `is_segment` is set to `Some(true)`.
+/// If `is_segment` is set to `false`, the function will only add select attributes that are
+/// necessary on every span - both segment and non-segment - for dynamic sampling to work. More
+/// attributes are added when `is_segment` is set to `true`.
 pub fn normalize_dsc(
     attributes: &mut Annotated<Attributes>,
     is_segment: &Annotated<bool>,

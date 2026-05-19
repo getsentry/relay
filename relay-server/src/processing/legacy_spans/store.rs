@@ -1,7 +1,5 @@
-use relay_event_normalization::eap;
 use relay_event_schema::protocol::Span;
 use relay_protocol::Annotated;
-use relay_sampling::DynamicSamplingContext;
 
 use crate::processing::Retention;
 use crate::processing::legacy_spans::{Error, Result};
@@ -24,14 +22,10 @@ macro_rules! required {
 }
 
 /// Converts a [`Span`] into a [`StoreSpanV2`] to be sent to Kafka.
-pub fn convert(
-    span: Annotated<Span>,
-    retentions: Retention,
-    dsc: Option<&DynamicSamplingContext>,
-) -> Result<Box<StoreSpanV2>> {
+pub fn convert(span: Annotated<Span>, retentions: Retention) -> Result<Box<StoreSpanV2>> {
     let span = span.map_value(relay_spans::span_v1_to_span_v2);
-    let mut span = required!(span);
-    eap::normalize_dsc(&mut span.attributes, &span.is_segment, dsc);
+    let span = required!(span);
+
     Ok(Box::new(StoreSpanV2 {
         routing_key: span.trace_id.value().copied().map(Into::into),
         retention_days: retentions.standard,
