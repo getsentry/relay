@@ -132,6 +132,15 @@ def lcp_cls_inp_differences(mode):
             },
             # Maybe should not exist. Segment information in legacy processing is removed.
             "sentry.segment.id": {"type": "string", "value": "8a6626cc9bdd5d9b"},
+            # Needed for dynamic sampling; will be added for legacy later.
+            "sentry.dsc.transaction": {
+                "type": "string",
+                "value": "/insights/projects/",
+            },
+            "sentry.dsc.trace_id": {
+                "type": "string",
+                "value": "d3d20f000885466b8c8f947c9b92b8d3",
+            },
         }
         fields = {
             # See `set_segment_attributes` which removes segment information on LCP and CLS spans.
