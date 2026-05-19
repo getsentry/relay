@@ -2,6 +2,7 @@ import pytest
 import queue
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
+from sentry_relay.consts import DataCategory
 
 
 def test_envelope(mini_sentry, relay_chain):
@@ -297,6 +298,8 @@ def test_ops_breakdowns(mini_sentry, relay_with_processing, transactions_consume
     transaction_item = generate_transaction_item()
     transaction_item.update(
         {
+            "start_timestamp": 0,
+            "timestamp": 4000,
             "spans": [
                 {
                     "description": "GET /api/0/organizations/?member=1",
@@ -367,6 +370,70 @@ def test_ops_breakdowns(mini_sentry, relay_with_processing, transactions_consume
             "total.time": {"value": 2200001.003, "unit": "millisecond"},
         },
     }
+
+
+@pytest.mark.parametrize("offset", (900, -320000000))
+def test_transaction_with_invalid_span_timestamps(mini_sentry, relay, offset):
+    relay = relay(mini_sentry, options={"outcomes": {"emit_outcomes": True}})
+    mini_sentry.add_basic_project_config(42)
+
+    transaction_item = generate_transaction_item()
+    transaction_item.update(
+        {
+            "spans": [
+                {
+                    "description": "GET /api/0/organizations/?member=1",
+                    "op": "http",
+                    "parent_span_id": "aaaaaaaaaaaaaaaa",
+                    "span_id": "bbbbbbbbbbbbbbbb",
+                    "start_timestamp": transaction_item["start_timestamp"] + offset,
+                    "timestamp": transaction_item["timestamp"] + offset,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                },
+            ],
+        }
+    )
+    transaction_item["contexts"]["trace"].update({"span_id": "aaaaaaaaaaaaaaaa"})
+
+    envelope = Envelope()
+    envelope.add_transaction(transaction_item)
+    relay.send_envelope(42, envelope)
+
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "category": DataCategory.TRANSACTION.value,
+            "key_id": 123,
+            "outcome": 3,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "invalid_transaction",
+        },
+        {
+            "category": DataCategory.TRANSACTION_INDEXED.value,
+            "key_id": 123,
+            "outcome": 3,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "invalid_transaction",
+        },
+        {
+            "category": DataCategory.SPAN.value,
+            "key_id": 123,
+            "outcome": 3,
+            "project_id": 42,
+            "quantity": 2,
+            "reason": "invalid_transaction",
+        },
+        {
+            "category": DataCategory.SPAN_INDEXED.value,
+            "key_id": 123,
+            "outcome": 3,
+            "project_id": 42,
+            "quantity": 2,
+            "reason": "invalid_transaction",
+        },
+    ]
+    assert mini_sentry.captured_envelopes.empty()
 
 
 def test_span_exclusive_time(mini_sentry, relay_with_processing, transactions_consumer):
