@@ -132,15 +132,6 @@ def lcp_cls_inp_differences(mode):
             },
             # Maybe should not exist. Segment information in legacy processing is removed.
             "sentry.segment.id": {"type": "string", "value": "8a6626cc9bdd5d9b"},
-            # Needed for dynamic sampling; will be added for legacy later.
-            "sentry.dsc.transaction": {
-                "type": "string",
-                "value": "/insights/projects/",
-            },
-            "sentry.dsc.trace_id": {
-                "type": "string",
-                "value": "d3d20f000885466b8c8f947c9b92b8d3",
-            },
         }
         fields = {
             # See `set_segment_attributes` which removes segment information on LCP and CLS spans.
@@ -246,6 +237,14 @@ def test_lcp_span(
             },
             "browser.name": {"type": "string", "value": "Chrome"},
             "sentry.description": {"type": "string", "value": "<unknown>"},
+            "sentry.dsc.transaction": {
+                "type": "string",
+                "value": "/insights/projects/",
+            },
+            "sentry.dsc.trace_id": {
+                "type": "string",
+                "value": "d3d20f000885466b8c8f947c9b92b8d3",
+            },
             "sentry.environment": {"type": "string", "value": "prod"},
             "sentry.exclusive_time": {"type": "double", "value": 0.0},
             "sentry.op": {"type": "string", "value": "ui.webvital.lcp"},
@@ -442,6 +441,14 @@ def test_cls_span(
                 "type": "string",
                 "value": "AppContainer > NavContent > MobileTopbar > StyledButton",
             },
+            "sentry.dsc.transaction": {
+                "type": "string",
+                "value": "/insights/projects/",
+            },
+            "sentry.dsc.trace_id": {
+                "type": "string",
+                "value": "d3d20f000885466b8c8f947c9b92b8d3",
+            },
             "sentry.environment": {"type": "string", "value": "prod"},
             "sentry.exclusive_time": {"type": "double", "value": 0.0},
             "sentry.op": {"type": "string", "value": "ui.webvital.cls"},
@@ -620,6 +627,14 @@ def test_inp_span(
                 "type": "string",
                 "value": "<unknown>",
             },
+            "sentry.dsc.transaction": {
+                "type": "string",
+                "value": "/insights/projects/",
+            },
+            "sentry.dsc.trace_id": {
+                "type": "string",
+                "value": "d3d20f000885466b8c8f947c9b92b8d3",
+            },
             "sentry.environment": {"type": "string", "value": "prod"},
             "sentry.exclusive_time": {"type": "double", "value": 104.0},
             "sentry.op": {"type": "string", "value": "ui.interaction.click"},
@@ -705,3 +720,69 @@ def test_inp_span(
             "received_at": time_within(ts, precision="s"),
         },
     ]
+
+
+def test_spans_standalone_dsc_normalization(
+    mini_sentry, relay, relay_with_processing, spans_consumer
+):
+    spans_consumer = spans_consumer()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    relay = relay(relay_with_processing())
+    ts = datetime.now(timezone.utc)
+    envelope = envelope_with_spans(
+        {
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "aaaaaaaaaaaaaaaa",
+            "is_segment": True,
+            "start_timestamp": ts.timestamp(),
+            "timestamp": ts.timestamp() + 0.5,
+            "exclusive_time": 500,
+        },
+        {
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "bbbbbbbbbbbbbbbb",
+            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "is_segment": False,
+            "start_timestamp": ts.timestamp(),
+            "timestamp": ts.timestamp() + 0.3,
+            "exclusive_time": 300,
+        },
+        {
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "cccccccccccccccc",
+            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "is_segment": False,
+            "start_timestamp": ts.timestamp(),
+            "timestamp": ts.timestamp() + 0.3,
+            "exclusive_time": 300,
+            "data": {
+                "sentry.dsc.trace_id": "5b8efff798038103d269b633813fc60c",
+                "sentry.dsc.transaction": "/transaction/already/exists",
+            },
+        },
+        trace_info={
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+            "transaction": "/my/fancy/endpoint",
+        },
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    spans = {s["span_id"]: s for s in spans_consumer.get_spans()}
+    assert spans["aaaaaaaaaaaaaaaa"]["is_segment"] is True
+    assert spans["bbbbbbbbbbbbbbbb"]["is_segment"] is False
+    assert spans["cccccccccccccccc"]["is_segment"] is False
+    assert (
+        spans["aaaaaaaaaaaaaaaa"]["attributes"]["sentry.dsc.transaction"]["value"]
+        == "/my/fancy/endpoint"
+    )
+    assert (
+        spans["bbbbbbbbbbbbbbbb"]["attributes"]["sentry.dsc.transaction"]["value"]
+        == "/my/fancy/endpoint"
+    )
+    assert (
+        spans["cccccccccccccccc"]["attributes"]["sentry.dsc.transaction"]["value"]
+        == "/transaction/already/exists"
+    )
