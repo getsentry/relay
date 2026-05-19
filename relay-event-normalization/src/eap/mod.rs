@@ -98,7 +98,7 @@ pub fn normalize_span_category(attributes: &mut Annotated<Attributes>) {
     }
 }
 
-/// Normalizes an span's [`SENTRY__DESCRIPTION`] attribute to the same value as the span's name.
+/// Backfills a span's [`SENTRY__DESCRIPTION`] attribute from the span's name.
 pub fn normalize_sentry_description(
     attributes: &mut Annotated<Attributes>,
     name: &Annotated<String>,
@@ -109,7 +109,7 @@ pub fn normalize_sentry_description(
 
     let attributes = attributes.get_or_insert_with(Default::default);
 
-    attributes.insert(SENTRY__DESCRIPTION.to_owned(), name.clone());
+    attributes.insert_if_missing(SENTRY__DESCRIPTION, || name.clone());
 }
 
 fn attribute_is_nonempty_string(attributes: &Attributes, key: &str) -> bool {

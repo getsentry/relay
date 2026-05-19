@@ -218,6 +218,7 @@ fn normalize_span(
         // available.
         eap::normalize_sentry_op(&mut span.attributes);
         eap::normalize_span_category(&mut span.attributes);
+        eap::normalize_sentry_description(&mut span.attributes, &span.name);
         eap::normalize_received(&mut span.attributes, meta.received_at());
         eap::normalize_client_address(&mut span.attributes, meta.client_addr());
         if settings.infer_ip {
@@ -233,7 +234,6 @@ fn normalize_span(
         }
         relay_event_normalization::normalize_performance_score(span, performance_score);
         eap::normalize_attribute_values(&mut span.attributes, allowed_hosts);
-        eap::normalize_sentry_description(&mut span.attributes, &span.name);
         eap::write_legacy_attributes(&mut span.attributes);
     };
 
