@@ -95,6 +95,29 @@ pub enum Pii {
     Maybe,
 }
 
+/// The name of the replacement of a deprecated attribute.
+#[derive(Clone, Copy)]
+pub enum ReplacementName {
+    /// The replacement attribute has a fixed name,
+    /// i.e., doesn't contain a placeholder.
+    Static(&'static str),
+    /// The replacement attribute contains a placeholder.
+    ///
+    /// This means its name can't be used "as-is"; a value
+    /// has to be inserted into the placeholder. The contained
+    /// function performs this insertion.
+    Dynamic(fn(&str) -> String),
+}
+
+impl fmt::Debug for ReplacementName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Static(arg0) => f.debug_tuple("Static").field(arg0).finish(),
+            Self::Dynamic(_) => f.debug_tuple("Dynamic").finish(),
+        }
+    }
+}
+
 /// Under which names an attribute should be saved.
 #[derive(Debug, Clone, Copy)]
 pub enum WriteBehavior {
@@ -103,10 +126,10 @@ pub enum WriteBehavior {
     /// This is the only choice for attributes that aren't deprecated.
     CurrentName,
     /// Save the attribute under its replacement name instead.
-    NewName(&'static str),
+    NewName(ReplacementName),
     /// Save the attribute under both its current name and
     /// its replacement name.
-    BothNames(&'static str),
+    BothNames(ReplacementName),
 }
 
 /// Information about an attribute, as defined in `sentry-conventions`.
@@ -183,10 +206,12 @@ mod tests {
     fn test_http_response_content_length() {
         let info = attribute_info("http.response_content_length").unwrap();
 
-        insta::assert_debug_snapshot!(info, @r#"
+        insta::assert_debug_snapshot!(info, @r###"
         AttributeInfo {
             write_behavior: BothNames(
-                "http.response.body.size",
+                Static(
+                    "http.response.body.size",
+                ),
             ),
             pii: Maybe,
             aliases: [
@@ -194,7 +219,7 @@ mod tests {
                 "http.response.header.content-length",
             ],
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -212,6 +237,22 @@ mod tests {
             ],
         }
         "###);
+    }
+
+    /// Tests that `cls.source.<key>` is rewritten to `browser.web_vital.cls.source.<key>`.
+    #[test]
+    fn test_cls_source_key() {
+        let (info, fragment) = attribute_info_with_fragment("cls.source.foobar").unwrap();
+
+        let WriteBehavior::BothNames(ReplacementName::Dynamic(name_fn)) = info.write_behavior
+        else {
+            unreachable!();
+        };
+
+        assert_eq!(
+            name_fn(fragment.unwrap()),
+            "browser.web_vital.cls.source.foobar"
+        );
     }
 
     const ROOT: Node<u8> = Node {

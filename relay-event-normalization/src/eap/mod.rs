@@ -7,8 +7,8 @@ use std::net::IpAddr;
 
 use chrono::{DateTime, Utc};
 use relay_common::time::UnixTimestamp;
-use relay_conventions::consts::*;
 use relay_conventions::{AttributeInfo, WriteBehavior};
+use relay_conventions::{ReplacementName, consts::*};
 use relay_event_schema::protocol::{AttributeType, Attributes, BrowserContext, Geo};
 use relay_protocol::{Annotated, ErrorKind, Meta, Remark, RemarkType, Value};
 use relay_sampling::DynamicSamplingContext;
@@ -396,12 +396,14 @@ pub fn normalize_dsc(
 /// Attributes with a status of `"backfill"` will be copied to their replacement name if the
 /// replacement name is not present. In any case, the original name is left alone.
 pub fn normalize_attribute_names(attributes: &mut Annotated<Attributes>) {
-    normalize_attribute_names_inner(attributes, relay_conventions::attribute_info)
+    normalize_attribute_names_inner(attributes, relay_conventions::attribute_info_with_fragment)
 }
+
+type AttributeInfoFn = fn(&str) -> Option<(&'static AttributeInfo, Option<&str>)>;
 
 fn normalize_attribute_names_inner(
     attributes: &mut Annotated<Attributes>,
-    attribute_info: fn(&str) -> Option<&'static AttributeInfo>,
+    attribute_info: AttributeInfoFn,
 ) {
     let Some(attributes) = attributes.value_mut() else {
         return;
@@ -410,7 +412,7 @@ fn normalize_attribute_names_inner(
     let attribute_names: Vec<_> = attributes.0.keys().cloned().collect();
 
     for name in attribute_names {
-        let Some(attribute_info) = attribute_info(&name) else {
+        let Some((attribute_info, fragment)) = attribute_info(&name) else {
             continue;
         };
 
@@ -421,23 +423,51 @@ fn normalize_attribute_names_inner(
                     continue;
                 };
 
+                let new_name = resolve_attribute_name(new_name, fragment);
+
                 let mut meta = Meta::default();
                 // TODO: Possibly add a new RemarkType for "renamed/moved"
                 meta.add_remark(Remark::new(RemarkType::Removed, "attribute.deprecated"));
                 let new_attribute = std::mem::replace(old_attribute, Annotated(None, meta));
 
-                if !attributes.contains_key(new_name) {
-                    attributes.0.insert(new_name.to_owned(), new_attribute);
+                if !attributes.contains_key(&*new_name) {
+                    attributes.0.insert(new_name.into_owned(), new_attribute);
                 }
             }
             WriteBehavior::BothNames(new_name) => {
-                if !attributes.contains_key(new_name)
+                let new_name = resolve_attribute_name(new_name, fragment);
+                if !attributes.contains_key(&*new_name)
                     && let Some(current_attribute) = attributes.0.get(&name).cloned()
                 {
-                    attributes.0.insert(new_name.to_owned(), current_attribute);
+                    attributes
+                        .0
+                        .insert(new_name.into_owned(), current_attribute);
                 }
             }
         }
+    }
+}
+
+/// Resolves the name of a replacement attribute for rewriting.
+///
+/// There are two cases to consider:
+/// - `name` is `Static` and `fragment` is `None`: This means that both
+///   the source and target attribute don't have a placeholder.
+/// - `name` is `Dynamic` and `fragment` is `Some`: This means that both the
+///   source and target attribute do have a placeholder.
+fn resolve_attribute_name(name: ReplacementName, fragment: Option<&str>) -> Cow<'static, str> {
+    match (name, fragment) {
+        // Neither the original nor the replacement attribute contains a placeholder.
+        // Simply use the replacement attribute's static name.
+        (ReplacementName::Static(name), None) => Cow::Borrowed(name),
+        // Both the original and replacement attribute contain a placeholder.
+        // Use the replacement's interpolation function and the matched fragment
+        // to obtain the new name.
+        (ReplacementName::Dynamic(name_fn), Some(fragment)) => Cow::Owned(name_fn(fragment)),
+        // The other cases would mean that either the original attribute contains a placeholder
+        // and the replacement doesn't, or vice versa. This is ruled out by a compile-time check
+        // in `relay-conventions`.
+        _ => unreachable!(),
     }
 }
 
@@ -1252,30 +1282,77 @@ mod tests {
 
     #[test]
     fn test_normalize_attributes() {
-        fn mock_attribute_info(name: &str) -> Option<&'static AttributeInfo> {
+        fn replace_key(fragment: &str) -> String {
+            format!("placeholder.replaced.{fragment}")
+        }
+
+        fn backfill_key(fragment: &str) -> String {
+            format!("placeholder.backfilled.{fragment}")
+        }
+
+        fn mock_attribute_info(name: &str) -> Option<(&'static AttributeInfo, Option<&str>)> {
             use relay_conventions::Pii;
 
             match name {
-                "replace.empty" => Some(&AttributeInfo {
-                    write_behavior: WriteBehavior::NewName("replaced"),
-                    pii: Pii::Maybe,
-                    aliases: &["replaced"],
-                }),
-                "replace.existing" => Some(&AttributeInfo {
-                    write_behavior: WriteBehavior::NewName("not.replaced"),
-                    pii: Pii::Maybe,
-                    aliases: &["not.replaced"],
-                }),
-                "backfill.empty" => Some(&AttributeInfo {
-                    write_behavior: WriteBehavior::BothNames("backfilled"),
-                    pii: Pii::Maybe,
-                    aliases: &["backfilled"],
-                }),
-                "backfill.existing" => Some(&AttributeInfo {
-                    write_behavior: WriteBehavior::BothNames("not.backfilled"),
-                    pii: Pii::Maybe,
-                    aliases: &["not.backfilled"],
-                }),
+                "replace.empty" => Some((
+                    &AttributeInfo {
+                        write_behavior: WriteBehavior::NewName(ReplacementName::Static("replaced")),
+                        pii: Pii::Maybe,
+                        aliases: &["replaced"],
+                    },
+                    None,
+                )),
+                "replace.existing" => Some((
+                    &AttributeInfo {
+                        write_behavior: WriteBehavior::NewName(ReplacementName::Static(
+                            "not.replaced",
+                        )),
+                        pii: Pii::Maybe,
+                        aliases: &["not.replaced"],
+                    },
+                    None,
+                )),
+                "backfill.empty" => Some((
+                    &AttributeInfo {
+                        write_behavior: WriteBehavior::BothNames(ReplacementName::Static(
+                            "backfilled",
+                        )),
+                        pii: Pii::Maybe,
+                        aliases: &["backfilled"],
+                    },
+                    None,
+                )),
+                "backfill.existing" => Some((
+                    &AttributeInfo {
+                        write_behavior: WriteBehavior::BothNames(ReplacementName::Static(
+                            "not.backfilled",
+                        )),
+                        pii: Pii::Maybe,
+                        aliases: &["not.backfilled"],
+                    },
+                    None,
+                )),
+                _ if let Some(fragment) = name.strip_prefix("placeholder.replace.") => Some((
+                    &AttributeInfo {
+                        write_behavior: WriteBehavior::NewName(ReplacementName::Dynamic(
+                            replace_key,
+                        )),
+                        pii: Pii::Maybe,
+                        aliases: &["placeholder.replaced.<key>"],
+                    },
+                    Some(fragment),
+                )),
+                _ if let Some(fragment) = name.strip_prefix("placeholder.backfill.") => Some((
+                    &AttributeInfo {
+                        write_behavior: WriteBehavior::BothNames(ReplacementName::Dynamic(
+                            backfill_key,
+                        )),
+                        pii: Pii::Maybe,
+                        aliases: &["placeholder.backfilled.<key>"],
+                    },
+                    Some(fragment),
+                )),
+
                 _ => None,
             }
         }
@@ -1290,6 +1367,10 @@ mod tests {
                 Annotated::new("Should be removed".to_owned().into()),
             ),
             (
+                "placeholder.replace.foo".to_owned(),
+                Annotated::new("Should be moved".to_owned().into()),
+            ),
+            (
                 "not.replaced".to_owned(),
                 Annotated::new("Should be left alone".to_owned().into()),
             ),
@@ -1300,6 +1381,10 @@ mod tests {
             (
                 "backfill.existing".to_owned(),
                 Annotated::new("Should be left alone".to_owned().into()),
+            ),
+            (
+                "placeholder.backfill.bar".to_owned(),
+                Annotated::new("Should be copied".to_owned().into()),
             ),
             (
                 "not.backfilled".to_owned(),
@@ -1331,6 +1416,19 @@ mod tests {
             "type": "string",
             "value": "Should be left alone"
           },
+          "placeholder.backfill.bar": {
+            "type": "string",
+            "value": "Should be copied"
+          },
+          "placeholder.backfilled.bar": {
+            "type": "string",
+            "value": "Should be copied"
+          },
+          "placeholder.replace.foo": null,
+          "placeholder.replaced.foo": {
+            "type": "string",
+            "value": "Should be moved"
+          },
           "replace.empty": null,
           "replace.existing": null,
           "replaced": {
@@ -1338,6 +1436,16 @@ mod tests {
             "value": "Should be moved"
           },
           "_meta": {
+            "placeholder.replace.foo": {
+              "": {
+                "rem": [
+                  [
+                    "attribute.deprecated",
+                    "x"
+                  ]
+                ]
+              }
+            },
             "replace.empty": {
               "": {
                 "rem": [

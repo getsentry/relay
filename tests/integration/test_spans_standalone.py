@@ -417,10 +417,15 @@ def test_cls_span(
     if mode == "v2":
         cls_backfill = {
             "browser.web_vital.cls.value": {"type": "double", "value": 0.1},
-            "browser.web_vital.cls.source.<key>": {
+            "browser.web_vital.cls.source.1": {
                 "type": "string",
                 "value": "AppContainer > NavContent > MobileTopbar > StyledButton",
             },
+            "browser.web_vital.cls.source.2": {
+                "type": "string",
+                "value": "div.app-1azrk9k.etjky0h0 > AppContainer > BodyContainer > BaseFooter",
+            },
+            "browser.web_vital.cls.source.3": {"type": "string", "value": "<unknown>"},
         }
 
     assert spans_consumer.get_span() == {

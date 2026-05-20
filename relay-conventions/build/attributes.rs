@@ -72,6 +72,36 @@ pub struct Attribute {
     pub alias: Vec<String>,
 }
 
+/// Sanity check: if an attribute
+/// * is deprecated,
+/// * has status "backfill" or "normalize",
+/// * and it contains a placeholder while its replacement doesn't, or vice versa,
+///
+/// then we panic. There is no general way to normalize such attributes, so it's
+/// better to reject them at compile time.
+pub fn check_attribute(attribute: &Attribute) {
+    let Attribute {
+        key,
+        brief: _,
+        pii: _,
+        deprecation,
+        alias: _,
+    } = attribute;
+
+    if let Some(deprecation) = deprecation
+        && let Some(replacement) = deprecation.replacement.as_ref()
+        && deprecation.status.is_some()
+    {
+        let attribute_contains_placeholder = key.contains("<key>");
+        let replacement_contains_placeholder = replacement.contains("<key>");
+
+        assert_eq!(
+            attribute_contains_placeholder, replacement_contains_placeholder,
+            r"One of attribute `{key}` and its replacement `{replacement}` contains a placeholder and the other doesn't. Such attributes can't be automatically backfilled or normalized by Relay."
+        )
+    }
+}
+
 /// Formats an attribute's deprecation information as a `WriteBehavior`.
 fn format_write_behavior(deprecation: Option<&Deprecation>) -> String {
     let Some((status, replacement)) =
@@ -80,12 +110,21 @@ fn format_write_behavior(deprecation: Option<&Deprecation>) -> String {
         return "WriteBehavior::CurrentName".to_owned();
     };
 
+    let name = if replacement.contains("<key>") {
+        format!(
+            "ReplacementName::Dynamic(crate::interpolate::{})",
+            name_fn(replacement)
+        )
+    } else {
+        format!("ReplacementName::Static({replacement:?})")
+    };
+
     match status {
         DeprecationStatus::Backfill => {
-            format!("WriteBehavior::BothNames({:?})", replacement)
+            format!("WriteBehavior::BothNames({name})")
         }
         DeprecationStatus::Normalize => {
-            format!("WriteBehavior::NewName({:?})", replacement)
+            format!("WriteBehavior::NewName({name})")
         }
     }
 }

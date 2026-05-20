@@ -26,10 +26,7 @@ fn main() {
 }
 
 fn write_attribute_rs(crate_dir: &Path) {
-    use attributes::{
-        Attribute, RawNode, constant_pair, format_attribute_info, format_constant,
-        format_interpolating_fn, parse_segments, write_canonical_fn,
-    };
+    use attributes::*;
 
     let attribute_consts_path =
         Path::new(&env::var("OUT_DIR").unwrap()).join("attribute_consts.rs");
@@ -51,6 +48,8 @@ fn write_attribute_rs(crate_dir: &Path) {
         {
             let contents = std::fs::read_to_string(file.path()).unwrap();
             let attr: Attribute = serde_json::from_str(&contents).unwrap();
+
+            check_attribute(&attr);
 
             // Write attribute constant
             writeln!(&mut attribute_consts_file, "{}\n", format_constant(&attr)).unwrap();
