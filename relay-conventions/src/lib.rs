@@ -287,6 +287,7 @@ mod tests {
     #[test]
     fn test_hypothetical() {
         assert_eq!(ROOT.find("foo.bar"), Some((&2, Some("foo"))));
+        assert_eq!(ROOT.find("<key>.bar"), Some((&2, Some("<key>"))));
     }
 
     struct GetterMap<'a>(HashMap<&'a str, Val<'a>>);
