@@ -423,7 +423,14 @@ fn normalize_attribute_names_inner(
                     continue;
                 };
 
-                let new_name = resolve_attribute_name(new_name, fragment);
+                let Some(new_name) = resolve_attribute_name(new_name, fragment) else {
+                    relay_log::error!(
+                        attribute = name,
+                        ?fragment,
+                        "Attribute placeholder mismatch"
+                    );
+                    continue;
+                };
 
                 let mut meta = Meta::default();
                 // TODO: Possibly add a new RemarkType for "renamed/moved"
@@ -435,7 +442,15 @@ fn normalize_attribute_names_inner(
                 }
             }
             WriteBehavior::BothNames(new_name) => {
-                let new_name = resolve_attribute_name(new_name, fragment);
+                let Some(new_name) = resolve_attribute_name(new_name, fragment) else {
+                    relay_log::error!(
+                        attribute = name,
+                        ?fragment,
+                        "Attribute placeholder mismatch"
+                    );
+                    continue;
+                };
+
                 if !attributes.contains_key(&*new_name)
                     && let Some(current_attribute) = attributes.0.get(&name).cloned()
                 {
@@ -455,19 +470,22 @@ fn normalize_attribute_names_inner(
 ///   the source and target attribute don't have a placeholder.
 /// - `name` is `Dynamic` and `fragment` is `Some`: This means that both the
 ///   source and target attribute do have a placeholder.
-fn resolve_attribute_name(name: ReplacementName, fragment: Option<&str>) -> Cow<'static, str> {
+fn resolve_attribute_name(
+    name: ReplacementName,
+    fragment: Option<&str>,
+) -> Option<Cow<'static, str>> {
     match (name, fragment) {
         // Neither the original nor the replacement attribute contains a placeholder.
         // Simply use the replacement attribute's static name.
-        (ReplacementName::Static(name), None) => Cow::Borrowed(name),
+        (ReplacementName::Static(name), None) => Some(Cow::Borrowed(name)),
         // Both the original and replacement attribute contain a placeholder.
         // Use the replacement's interpolation function and the matched fragment
         // to obtain the new name.
-        (ReplacementName::Dynamic(name_fn), Some(fragment)) => Cow::Owned(name_fn(fragment)),
+        (ReplacementName::Dynamic(name_fn), Some(fragment)) => Some(Cow::Owned(name_fn(fragment))),
         // The other cases would mean that either the original attribute contains a placeholder
         // and the replacement doesn't, or vice versa. This is ruled out by a compile-time check
         // in `relay-conventions`.
-        _ => unreachable!(),
+        _ => None,
     }
 }
 

@@ -172,10 +172,13 @@ impl<T> Node<T> {
         let (prefix, suffix) = key.split_once('.').unwrap_or((key, ""));
 
         // First try a literal lookup.
-        if let Some(info) = self
-            .children
-            .get(prefix)
-            .and_then(|child| child.find(suffix))
+        // If the prefix is `"<key>"`, we skip this and fall through
+        // to the second attempt.
+        if prefix != PLACEHOLDER_SEGMENT
+            && let Some(info) = self
+                .children
+                .get(prefix)
+                .and_then(|child| child.find(suffix))
         {
             return Some(info);
         }
