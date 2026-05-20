@@ -1913,35 +1913,14 @@ def test_spansv2_dsc_normalization(
         },
         {
             "start_timestamp": ts.timestamp(),
-            "end_timestamp": ts.timestamp() + 0.5,
-            "trace_id": "5b8efff798038103d269b633813fc60c",
-            "span_id": "cccccccccccccccc",
-            "is_segment": True,
-            "name": "root",
-            "status": "ok",
-            "attributes": {
-                "sentry.dsc.project_id": {"type": "integer", "value": 42},
-                "sentry.dsc.trace_id": {
-                    "type": "string",
-                    "value": "5b8efff798038103d269b633813fc60c",
-                },
-                "sentry.dsc.transaction": {
-                    "type": "string",
-                    "value": "/transaction/already/exists",
-                },
-            },
-        },
-        {
-            "start_timestamp": ts.timestamp(),
             "end_timestamp": ts.timestamp() + 0.3,
             "trace_id": "5b8efff798038103d269b633813fc60c",
-            "span_id": "dddddddddddddddd",
-            "parent_span_id": "cccccccccccccccc",
+            "span_id": "cccccccccccccccc",
+            "parent_span_id": "aaaaaaaaaaaaaaaa",
             "is_segment": False,
             "name": "child",
             "status": "ok",
             "attributes": {
-                "sentry.dsc.project_id": {"type": "integer", "value": 42},
                 "sentry.dsc.trace_id": {
                     "type": "string",
                     "value": "5b8efff798038103d269b633813fc60c",
@@ -1950,6 +1929,7 @@ def test_spansv2_dsc_normalization(
                     "type": "string",
                     "value": "/transaction/already/exists",
                 },
+                "sentry.dsc.project_id": {"type": "integer", "value": 41},
             },
         },
         trace_info={
@@ -1961,21 +1941,25 @@ def test_spansv2_dsc_normalization(
 
     relay.send_envelope(project_id, envelope)
 
+    def get_transaction(span_id: str):
+        return spans[span_id]["attributes"]["sentry.dsc.transaction"]["value"]
+
+    def get_project_id(span_id: str):
+        return spans[span_id]["attributes"]["sentry.dsc.project_id"]["value"]
+
+    def get_trace_id(span_id: str):
+        return spans[span_id]["attributes"]["sentry.dsc.trace_id"]["value"]
+
     spans = {s["span_id"]: s for s in spans_consumer.get_spans()}
     assert spans["aaaaaaaaaaaaaaaa"]["is_segment"] is True
     assert spans["bbbbbbbbbbbbbbbb"]["is_segment"] is False
-    assert spans["cccccccccccccccc"]["is_segment"] is True
-    assert spans["dddddddddddddddd"]["is_segment"] is False
-    for span_id in [
-        "aaaaaaaaaaaaaaaa",
-        "bbbbbbbbbbbbbbbb",
-        "cccccccccccccccc",
-        "dddddddddddddddd",
-    ]:
-        expected = (
-            "/my/fancy/endpoint"
-            if span_id in ["aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbb"]
-            else "/transaction/already/exists"
-        )
-        actual = spans[span_id]["attributes"]["sentry.dsc.transaction"]["value"]
-        assert actual == expected
+    assert spans["cccccccccccccccc"]["is_segment"] is False
+    assert get_transaction("aaaaaaaaaaaaaaaa") == "/my/fancy/endpoint"
+    assert get_transaction("bbbbbbbbbbbbbbbb") == "/my/fancy/endpoint"
+    assert get_transaction("cccccccccccccccc") == "/transaction/already/exists"
+    assert get_project_id("aaaaaaaaaaaaaaaa") == 42
+    assert get_project_id("bbbbbbbbbbbbbbbb") == 42
+    assert get_project_id("cccccccccccccccc") == 41
+    assert get_trace_id("aaaaaaaaaaaaaaaa") == "5b8efff798038103d269b633813fc60c"
+    assert get_trace_id("bbbbbbbbbbbbbbbb") == "5b8efff798038103d269b633813fc60c"
+    assert get_trace_id("cccccccccccccccc") == "5b8efff798038103d269b633813fc60c"
