@@ -232,6 +232,7 @@ fn normalize_span(
         relay_event_normalization::normalize_performance_score(span, performance_score);
         eap::normalize_attribute_values(&mut span.attributes, allowed_hosts);
         eap::write_legacy_attributes(&mut span.attributes);
+        eap::normalize_client_sample_rate(&mut span.attributes);
     };
 
     // Set a max_bytes value on the root state if it's defined in the project config.
