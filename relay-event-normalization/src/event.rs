@@ -179,6 +179,9 @@ pub struct NormalizationConfig<'a> {
 
     /// Dynamic sampling context
     pub dsc: Option<&'a DynamicSamplingContext>,
+
+    /// The identifier of the project where the trace originated.
+    pub sampling_project_id: Option<u64>,
 }
 
 impl Default for NormalizationConfig<'_> {
@@ -215,6 +218,7 @@ impl Default for NormalizationConfig<'_> {
             performance_issues_spans: Default::default(),
             derive_trace_id: Default::default(),
             dsc: None,
+            sampling_project_id: Default::default(),
         }
     }
 }
@@ -347,7 +351,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
 
     if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
         span::normalize_app_start_spans(event);
-        span::normalize_dsc_for_event_spans(event, config.dsc);
+        span::normalize_dsc_for_event_spans(event, config.dsc, config.sampling_project_id);
         span::exclusive_time::compute_span_exclusive_time(event);
     }
 

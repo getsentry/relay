@@ -1,7 +1,7 @@
 //! Span normalization logic.
 
 use regex::Regex;
-use relay_conventions::attributes::{SENTRY__DSC__TRACE_ID, SENTRY__DSC__TRANSACTION};
+use relay_conventions::attributes::*;
 use relay_event_schema::protocol::{Event, SpanData, TraceContext};
 use relay_protocol::{Annotated, Value};
 use relay_sampling::DynamicSamplingContext;
@@ -61,14 +61,18 @@ pub fn normalize_app_start_spans(event: &mut Event) {
 ///
 /// If `sentry.dsc.trace_id` is already present in a span's `data`, the function does nothing for
 /// that span.
-pub fn normalize_dsc_for_event_spans(event: &mut Event, dsc: Option<&DynamicSamplingContext>) {
+pub fn normalize_dsc_for_event_spans(
+    event: &mut Event,
+    dsc: Option<&DynamicSamplingContext>,
+    project_id: Option<u64>,
+) {
     if let Some(ctx) = event.context_mut::<TraceContext>() {
-        normalize_dsc_for_span_data(&mut ctx.data, dsc);
+        normalize_dsc_for_span_data(&mut ctx.data, dsc, project_id);
     }
     if let Some(spans) = event.spans.value_mut() {
         for span in spans {
             if let Some(span) = span.value_mut() {
-                normalize_dsc_for_span_data(&mut span.data, dsc);
+                normalize_dsc_for_span_data(&mut span.data, dsc, project_id);
             }
         }
     }
@@ -80,6 +84,7 @@ pub fn normalize_dsc_for_event_spans(event: &mut Event, dsc: Option<&DynamicSamp
 pub fn normalize_dsc_for_span_data(
     span_data: &mut Annotated<SpanData>,
     dsc: Option<&DynamicSamplingContext>,
+    project_id: Option<u64>,
 ) {
     let Some(dsc) = dsc else { return };
 
@@ -96,6 +101,12 @@ pub fn normalize_dsc_for_span_data(
         data.other.insert(
             SENTRY__DSC__TRANSACTION.to_owned(),
             Annotated::new(Value::String(transaction.clone())),
+        );
+    }
+    if let Some(project_id) = project_id {
+        data.other.insert(
+            SENTRY__DSC__PROJECT_ID.to_owned(),
+            Annotated::new(Value::U64(project_id)),
         );
     }
 }

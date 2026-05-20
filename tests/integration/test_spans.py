@@ -156,6 +156,7 @@ def test_span_extraction(
             },
             "sentry.is_remote": {"type": "boolean", "value": False},
             "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},
+            "sentry.dsc.project_id": {"type": "integer", "value": 42},
             "sentry.dsc.trace_id": {
                 "type": "string",
                 "value": "a0fa8803753e40fd8124b21eeb2986b5",
@@ -232,6 +233,7 @@ def test_span_extraction(
             "sentry.user.id": {"type": "string", "value": user_id},
             "sentry.user.ip": {"type": "string", "value": "192.168.0.1"},
             "sentry.user": {"type": "string", "value": f"id:{user_id}"},
+            "sentry.dsc.project_id": {"type": "integer", "value": 42},
             "sentry.dsc.trace_id": {
                 "type": "string",
                 "value": "a0fa8803753e40fd8124b21eeb2986b5",

@@ -303,6 +303,9 @@ pub fn normalize(
                 .has_feature(Feature::PerformanceIssuesSpans),
             derive_trace_id: project_info.has_feature(Feature::AddDefaultTraceID),
             dsc: headers.dsc(),
+            sampling_project_id: ctx
+                .sampling_project_info
+                .and_then(|p| p.project_id.map(|p| p.value())),
         };
 
         metric!(timer(RelayTimers::EventProcessingNormalization), {

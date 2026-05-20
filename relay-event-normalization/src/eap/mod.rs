@@ -6,6 +6,7 @@ use std::borrow::Cow;
 use std::net::IpAddr;
 
 use chrono::{DateTime, Utc};
+use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_conventions::attributes::*;
 use relay_conventions::{AttributeInfo, WriteBehavior};
@@ -355,6 +356,7 @@ pub fn normalize_dsc(
     attributes: &mut Annotated<Attributes>,
     is_segment: &Annotated<bool>,
     dsc: Option<&DynamicSamplingContext>,
+    project_id: Option<ProjectId>,
 ) {
     let Some(dsc) = dsc else { return };
 
@@ -368,6 +370,9 @@ pub fn normalize_dsc(
 
     if let Some(transaction) = &dsc.transaction {
         attributes.insert(SENTRY__DSC__TRANSACTION, transaction.clone());
+    }
+    if let Some(project_id) = project_id {
+        attributes.insert(SENTRY__DSC__PROJECT_ID, project_id.value() as i64);
     }
 
     if is_segment.value().is_some_and(|is_segment| *is_segment) {
@@ -752,7 +757,7 @@ mod tests {
     #[test]
     fn test_normalize_dsc_child_span_no_dsc() {
         let mut attributes = Annotated::empty();
-        normalize_dsc(&mut attributes, &Annotated::new(false), None);
+        normalize_dsc(&mut attributes, &Annotated::new(false), None, None);
         assert!(attributes.value().is_none());
     }
 
@@ -760,9 +765,18 @@ mod tests {
     fn test_normalize_dsc_child_span_no_transaction() {
         let mut attributes = Annotated::empty();
         let dsc = mock_dsc(None);
-        normalize_dsc(&mut attributes, &Annotated::new(false), Some(&dsc));
+        normalize_dsc(
+            &mut attributes,
+            &Annotated::new(false),
+            Some(&dsc),
+            Some(ProjectId::new(42)),
+        );
         assert_annotated_snapshot!(attributes, @r#"
         {
+          "sentry.dsc.project_id": {
+            "type": "integer",
+            "value": 42
+          },
           "sentry.dsc.trace_id": {
             "type": "string",
             "value": "67e5504410b1426f9247bb680e5fe0c8"
@@ -775,9 +789,18 @@ mod tests {
     fn test_normalize_dsc_child_span() {
         let mut attributes = Annotated::empty();
         let dsc = mock_dsc(Some("/some/endpoint"));
-        normalize_dsc(&mut attributes, &Annotated::new(false), Some(&dsc));
+        normalize_dsc(
+            &mut attributes,
+            &Annotated::new(false),
+            Some(&dsc),
+            Some(ProjectId::new(42)),
+        );
         assert_annotated_snapshot!(attributes, @r#"
         {
+          "sentry.dsc.project_id": {
+            "type": "integer",
+            "value": 42
+          },
           "sentry.dsc.trace_id": {
             "type": "string",
             "value": "67e5504410b1426f9247bb680e5fe0c8"
@@ -794,9 +817,18 @@ mod tests {
     fn test_normalize_dsc_segment() {
         let mut attributes = Annotated::empty();
         let dsc = mock_dsc(Some("/some/endpoint"));
-        normalize_dsc(&mut attributes, &Annotated::new(true), Some(&dsc));
+        normalize_dsc(
+            &mut attributes,
+            &Annotated::new(true),
+            Some(&dsc),
+            Some(ProjectId::new(42)),
+        );
         assert_annotated_snapshot!(attributes, @r#"
         {
+          "sentry.dsc.project_id": {
+            "type": "integer",
+            "value": 42
+          },
           "sentry.dsc.public_key": {
             "type": "string",
             "value": "12345678901234567890123456789012"

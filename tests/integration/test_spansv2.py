@@ -130,6 +130,7 @@ def test_spansv2_basic(
             },
             "sentry.dsc.release": {"type": "string", "value": "foo@1.0"},
             "sentry.dsc.transaction": {"type": "string", "value": "/my/fancy/endpoint"},
+            "sentry.dsc.project_id": {"type": "integer", "value": 42},
             "sentry.dsc.trace_id": {
                 "type": "string",
                 "value": "5b8efff798038103d269b633813fc60c",
@@ -238,7 +239,7 @@ def test_spansv2_trimming_basic(
             # This is sufficient for all builtin attributes not
             # to be trimmed. The span fields that aren't trimmed
             # also still count for the size limit.
-            "trimming": {"span": {"maxSize": 431}},
+            "trimming": {"span": {"maxSize": 460}},
         }
     )
 
@@ -322,6 +323,7 @@ def test_spansv2_trimming_basic(
             },
             "sentry.dsc.release": {"type": "string", "value": "foo@1.0"},
             "sentry.dsc.transaction": {"type": "string", "value": "/my/fancy/endpoint"},
+            "sentry.dsc.project_id": {"type": "integer", "value": 42},
             "sentry.dsc.trace_id": {
                 "type": "string",
                 "value": "5b8efff798038103d269b633813fc60c",
@@ -334,7 +336,7 @@ def test_spansv2_trimming_basic(
         },
         "_meta": {
             "attributes": {
-                "": {"len": 483},
+                "": {"len": 512},
                 "custom.array.attribute": {
                     "value": {
                         "2": {
@@ -1169,6 +1171,7 @@ def test_spanv2_with_string_pii_scrubbing(
         "trace_id": "5b8efff798038103d269b633813fc60c",
         "span_id": "eee19b7ec3c1b174",
         "attributes": {
+            "sentry.dsc.project_id": {"type": "integer", "value": 42},
             "sentry.dsc.trace_id": {
                 "type": "string",
                 "value": "5b8efff798038103d269b633813fc60c",
@@ -1306,6 +1309,7 @@ def test_spanv2_meta_pii_scrubbing_complex_attribute(mini_sentry, relay):
                 "type": "array",
                 "value": ["normal", "[creditcard]", "other"],
             },
+            "sentry.dsc.project_id": {"type": "integer", "value": 42},
             "sentry.dsc.trace_id": {
                 "type": "string",
                 "value": "5b8efff798038103d269b633813fc60c",
@@ -1453,6 +1457,7 @@ def test_spansv2_attribute_normalization(
                 "value": "SELECT id FROM users WHERE id = 1 AND name = 'Test'",
             },
             "sentry.domain": {"type": "string", "value": ",users,"},
+            "sentry.dsc.project_id": {"type": "integer", "value": 42},
             "sentry.dsc.trace_id": {
                 "type": "string",
                 "value": "5b8efff798038103d269b633813fc60c",
@@ -1504,6 +1509,7 @@ def test_spansv2_attribute_normalization(
             "sentry.action": {"type": "string", "value": "GET"},
             "server.address": {"type": "string", "value": "*.service.io"},
             "sentry.domain": {"type": "string", "value": "*.service.io"},
+            "sentry.dsc.project_id": {"type": "integer", "value": 42},
             "sentry.dsc.trace_id": {
                 "type": "string",
                 "value": "5b8efff798038103d269b633813fc60c",
@@ -1914,6 +1920,7 @@ def test_spansv2_dsc_normalization(
             "name": "root",
             "status": "ok",
             "attributes": {
+                "sentry.dsc.project_id": {"type": "integer", "value": 42},
                 "sentry.dsc.trace_id": {
                     "type": "string",
                     "value": "5b8efff798038103d269b633813fc60c",
@@ -1934,6 +1941,7 @@ def test_spansv2_dsc_normalization(
             "name": "child",
             "status": "ok",
             "attributes": {
+                "sentry.dsc.project_id": {"type": "integer", "value": 42},
                 "sentry.dsc.trace_id": {
                     "type": "string",
                     "value": "5b8efff798038103d269b633813fc60c",

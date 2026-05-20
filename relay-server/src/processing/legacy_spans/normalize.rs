@@ -2,6 +2,7 @@
 
 use crate::services::processor::ProcessingError;
 use chrono::{DateTime, Utc};
+use relay_base_schema::project::ProjectId;
 use relay_event_normalization::span::{self, ai};
 use relay_event_normalization::{
     BorrowedSpanOpDefaults, ClientHints, CombinedMeasurementsConfig, FromUserAgentInfo,
@@ -58,6 +59,8 @@ pub struct NormalizeSpanConfig<'a> {
     pub span_op_defaults: BorrowedSpanOpDefaults<'a>,
     /// Dynamic sampling context from the envelope headers.
     pub dsc: Option<&'a DynamicSamplingContext>,
+    /// Project ID of the project that started the trace.
+    pub sampling_project_id: Option<ProjectId>,
 }
 
 fn set_segment_attributes(span: &mut Annotated<Span>) {
@@ -112,6 +115,7 @@ pub fn normalize(
         geo_lookup,
         span_op_defaults,
         dsc,
+        sampling_project_id,
     } = config;
 
     set_segment_attributes(annotated_span);
@@ -211,7 +215,7 @@ pub fn normalize(
 
     normalize_performance_score(span, *performance_score);
 
-    span::normalize_dsc_for_span_data(&mut span.data, *dsc);
+    span::normalize_dsc_for_span_data(&mut span.data, *dsc, sampling_project_id.map(|p| p.value()));
 
     ai::enrich_ai_span(span, *ai_model_metadata);
 
@@ -555,6 +559,7 @@ mod tests {
             geo_lookup: &GEO_LOOKUP,
             span_op_defaults: Default::default(),
             dsc: None,
+            sampling_project_id: None,
         }
     }
 

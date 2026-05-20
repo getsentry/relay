@@ -241,6 +241,7 @@ def test_lcp_span(
                 "type": "string",
                 "value": "/insights/projects/",
             },
+            "sentry.dsc.project_id": {"type": "integer", "value": 42},
             "sentry.dsc.trace_id": {
                 "type": "string",
                 "value": "d3d20f000885466b8c8f947c9b92b8d3",
@@ -445,6 +446,7 @@ def test_cls_span(
                 "type": "string",
                 "value": "/insights/projects/",
             },
+            "sentry.dsc.project_id": {"type": "integer", "value": 42},
             "sentry.dsc.trace_id": {
                 "type": "string",
                 "value": "d3d20f000885466b8c8f947c9b92b8d3",
@@ -631,6 +633,7 @@ def test_inp_span(
                 "type": "string",
                 "value": "/insights/projects/",
             },
+            "sentry.dsc.project_id": {"type": "integer", "value": 42},
             "sentry.dsc.trace_id": {
                 "type": "string",
                 "value": "d3d20f000885466b8c8f947c9b92b8d3",
