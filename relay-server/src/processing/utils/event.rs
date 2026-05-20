@@ -302,6 +302,7 @@ pub fn normalize(
                 .project_info
                 .has_feature(Feature::PerformanceIssuesSpans),
             force_trace_context: true,
+            dsc: headers.dsc(),
         };
 
         metric!(timer(RelayTimers::EventProcessingNormalization), {

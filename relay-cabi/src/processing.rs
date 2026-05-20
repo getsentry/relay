@@ -275,6 +275,7 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         span_op_defaults: Default::default(), // only supported in relay
         performance_issues_spans: Default::default(),
         force_trace_context: true, // always required for Sentry
+        dsc: None,
     };
     normalize_event(&mut event, &normalization_config);
 
