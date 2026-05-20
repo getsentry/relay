@@ -356,7 +356,7 @@ pub fn normalize_dsc(
     attributes: &mut Annotated<Attributes>,
     is_segment: &Annotated<bool>,
     dsc: Option<&DynamicSamplingContext>,
-    project_id: Option<ProjectId>,
+    project_id: Option<&ProjectId>,
 ) {
     let Some(dsc) = dsc else { return };
 
@@ -769,7 +769,7 @@ mod tests {
             &mut attributes,
             &Annotated::new(false),
             Some(&dsc),
-            Some(ProjectId::new(42)),
+            Some(&ProjectId::new(42)),
         );
         assert_annotated_snapshot!(attributes, @r#"
         {
@@ -793,7 +793,7 @@ mod tests {
             &mut attributes,
             &Annotated::new(false),
             Some(&dsc),
-            Some(ProjectId::new(42)),
+            Some(&ProjectId::new(42)),
         );
         assert_annotated_snapshot!(attributes, @r#"
         {
@@ -821,7 +821,7 @@ mod tests {
             &mut attributes,
             &Annotated::new(true),
             Some(&dsc),
-            Some(ProjectId::new(42)),
+            Some(&ProjectId::new(42)),
         );
         assert_annotated_snapshot!(attributes, @r#"
         {

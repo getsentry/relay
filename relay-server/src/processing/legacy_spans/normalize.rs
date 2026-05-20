@@ -60,7 +60,7 @@ pub struct NormalizeSpanConfig<'a> {
     /// Dynamic sampling context from the envelope headers.
     pub dsc: Option<&'a DynamicSamplingContext>,
     /// Project ID of the project that started the trace.
-    pub sampling_project_id: Option<ProjectId>,
+    pub sampling_project_id: Option<&'a ProjectId>,
 }
 
 fn set_segment_attributes(span: &mut Annotated<Span>) {
@@ -215,7 +215,7 @@ pub fn normalize(
 
     normalize_performance_score(span, *performance_score);
 
-    span::normalize_dsc_for_span_data(&mut span.data, *dsc, sampling_project_id.map(|p| p.value()));
+    span::normalize_dsc_for_span_data(&mut span.data, *dsc, *sampling_project_id);
 
     ai::enrich_ai_span(span, *ai_model_metadata);
 

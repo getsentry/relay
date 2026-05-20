@@ -13,6 +13,7 @@ use regex::Regex;
 use relay_base_schema::metrics::{
     DurationUnit, FractionUnit, MetricUnit, can_be_valid_metric_name,
 };
+use relay_base_schema::project::ProjectId;
 use relay_conventions::attributes::{
     APP__VITALS__START__COLD__VALUE, APP__VITALS__START__SCREEN, APP__VITALS__START__TYPE,
     APP__VITALS__START__VALUE, APP__VITALS__START__WARM__VALUE, SCORE__TOTAL,
@@ -141,7 +142,7 @@ pub struct NormalizationConfig<'a> {
     /// This is similar to `transaction_name_config`, but applies to span descriptions.
     pub span_description_rules: Option<&'a Vec<SpanDescriptionRule>>,
 
-    /// Configuration for generating performance score measurements for web vitals
+    /// Configuration for generating performance score measurements for web vitals.
     pub performance_score: Option<&'a PerformanceScoreConfig>,
 
     /// Metadata for AI models including costs and context size.
@@ -165,7 +166,7 @@ pub struct NormalizationConfig<'a> {
     /// It is persisted into the event payload for correlation.
     pub replay_id: Option<Uuid>,
 
-    /// Controls list of hosts to be excluded from scrubbing
+    /// Controls list of hosts to be excluded from scrubbing.
     pub span_allowed_hosts: &'a [String],
 
     /// Rules to infer `span.op` from other span fields.
@@ -177,11 +178,11 @@ pub struct NormalizationConfig<'a> {
     /// Should add a random trace ID to events that lack one.
     pub derive_trace_id: bool,
 
-    /// Dynamic sampling context
+    /// Dynamic sampling context.
     pub dsc: Option<&'a DynamicSamplingContext>,
 
     /// The identifier of the project where the trace originated.
-    pub sampling_project_id: Option<u64>,
+    pub sampling_project_id: Option<&'a ProjectId>,
 }
 
 impl Default for NormalizationConfig<'_> {
@@ -218,7 +219,7 @@ impl Default for NormalizationConfig<'_> {
             performance_issues_spans: Default::default(),
             derive_trace_id: Default::default(),
             dsc: None,
-            sampling_project_id: Default::default(),
+            sampling_project_id: None,
         }
     }
 }

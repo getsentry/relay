@@ -305,7 +305,7 @@ pub fn normalize(
             dsc: headers.dsc(),
             sampling_project_id: ctx
                 .sampling_project_info
-                .and_then(|p| p.project_id.map(|p| p.value())),
+                .and_then(|p| p.project_id.as_ref()),
         };
 
         metric!(timer(RelayTimers::EventProcessingNormalization), {

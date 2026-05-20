@@ -1,6 +1,7 @@
 //! Span normalization logic.
 
 use regex::Regex;
+use relay_base_schema::project::ProjectId;
 use relay_conventions::attributes::*;
 use relay_event_schema::protocol::{Event, SpanData, TraceContext};
 use relay_protocol::{Annotated, Value};
@@ -64,7 +65,7 @@ pub fn normalize_app_start_spans(event: &mut Event) {
 pub fn normalize_dsc_for_event_spans(
     event: &mut Event,
     dsc: Option<&DynamicSamplingContext>,
-    project_id: Option<u64>,
+    project_id: Option<&ProjectId>,
 ) {
     if let Some(ctx) = event.context_mut::<TraceContext>() {
         normalize_dsc_for_span_data(&mut ctx.data, dsc, project_id);
@@ -84,7 +85,7 @@ pub fn normalize_dsc_for_event_spans(
 pub fn normalize_dsc_for_span_data(
     span_data: &mut Annotated<SpanData>,
     dsc: Option<&DynamicSamplingContext>,
-    project_id: Option<u64>,
+    project_id: Option<&ProjectId>,
 ) {
     let Some(dsc) = dsc else { return };
 
@@ -106,7 +107,7 @@ pub fn normalize_dsc_for_span_data(
     if let Some(project_id) = project_id {
         data.other.insert(
             SENTRY__DSC__PROJECT_ID.to_owned(),
-            Annotated::new(Value::U64(project_id)),
+            Annotated::new(Value::U64(project_id.value())),
         );
     }
 }
