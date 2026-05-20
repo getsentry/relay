@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::LazyLock};
 
 use regex::Regex;
 use relay_base_schema::metrics::MetricUnit;
-use relay_event_schema::protocol::{Event, VALID_PLATFORMS};
+use relay_event_schema::protocol::VALID_PLATFORMS;
 use relay_pattern::Pattern;
 use relay_protocol::{FiniteF64, RuleCondition};
 use serde::{Deserialize, Serialize};
@@ -79,38 +79,6 @@ impl MeasurementsConfig {
 /// See [`VALID_PLATFORMS`] for a list of all known platforms.
 pub fn is_valid_platform(platform: &str) -> bool {
     VALID_PLATFORMS.contains(&platform)
-}
-
-/// Replaces snake_case app start spans op with dot.case op.
-///
-/// This is done for the affected React Native SDK versions (from 3 to 4.4).
-pub fn normalize_app_start_spans(event: &mut Event) {
-    if !event.sdk_name().eq("sentry.javascript.react-native")
-        || !(event.sdk_version().starts_with("4.4")
-            || event.sdk_version().starts_with("4.3")
-            || event.sdk_version().starts_with("4.2")
-            || event.sdk_version().starts_with("4.1")
-            || event.sdk_version().starts_with("4.0")
-            || event.sdk_version().starts_with('3'))
-    {
-        return;
-    }
-
-    if let Some(spans) = event.spans.value_mut() {
-        for span in spans {
-            if let Some(span) = span.value_mut()
-                && let Some(op) = span.op.value()
-            {
-                if op == "app_start_cold" {
-                    span.op.set_value(Some("app.start.cold".to_owned()));
-                    break;
-                } else if op == "app_start_warm" {
-                    span.op.set_value(Some("app.start.warm".to_owned()));
-                    break;
-                }
-            }
-        }
-    }
 }
 
 /// Container for global and project level [`MeasurementsConfig`]. The purpose is to handle
@@ -405,9 +373,9 @@ mod tests {
     use relay_base_schema::metrics::DurationUnit;
     use relay_base_schema::spans::SpanStatus;
     use relay_event_schema::protocol::{
-        ClientSdkInfo, Context, ContextInner, Contexts, DebugImage, DebugMeta, EventId, Exception,
-        Frame, Geo, IpAddr, LenientString, Level, LogEntry, PairList, RawStacktrace, ReplayContext,
-        Request, Span, Stacktrace, TagEntry, Tags, TraceContext, User, Values,
+        ClientSdkInfo, Context, ContextInner, Contexts, DebugImage, DebugMeta, Event, EventId,
+        Exception, Frame, Geo, IpAddr, LenientString, Level, LogEntry, PairList, RawStacktrace,
+        ReplayContext, Request, Span, Stacktrace, TagEntry, Tags, TraceContext, User, Values,
     };
     use relay_protocol::{
         Annotated, Error, ErrorKind, FromValue, Object, SerializableAnnotated, Value,
@@ -1869,7 +1837,7 @@ mod tests {
             }),
             ..Default::default()
         };
-        normalize_app_start_spans(&mut event);
+        span::normalize_app_start_spans(&mut event);
         assert_debug_snapshot!(event.spans, @r###"
         [
             Span {
@@ -1917,7 +1885,7 @@ mod tests {
             }),
             ..Default::default()
         };
-        normalize_app_start_spans(&mut event);
+        span::normalize_app_start_spans(&mut event);
         assert_debug_snapshot!(event.spans, @r###"
         [
             Span {
@@ -1965,7 +1933,7 @@ mod tests {
             }),
             ..Default::default()
         };
-        normalize_app_start_spans(&mut event);
+        span::normalize_app_start_spans(&mut event);
         assert_debug_snapshot!(event.spans, @r###"
         [
             Span {

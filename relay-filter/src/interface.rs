@@ -1,6 +1,6 @@
 //! This module contains the trait for items that can be filtered by Inbound Filters, plus
 //! the implementation for [`Event`].
-use relay_conventions::consts::{
+use relay_conventions::attributes::{
     BROWSER__NAME, BROWSER__VERSION, SENTRY__RELEASE, SENTRY__SEGMENT__NAME, USER_AGENT__ORIGINAL,
 };
 use url::Url;
