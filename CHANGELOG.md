@@ -6,7 +6,7 @@
 
 - Apply timestamp validations to transaction spans. ([#6005](https://github.com/getsentry/relay/pull/6005))
 - Obtain PII values for `SpanData` fields from `sentry-conventions`. ([#5997](https://github.com/getsentry/relay/pull/5997))
-- Add `sentry.dsc.transaction` and `sentry.dsc.trace_id` to all spans. ([#6001](https://github.com/getsentry/relay/pull/6001), [#6004](https://github.com/getsentry/relay/pull/6004), [#6008](https://github.com/getsentry/relay/pull/6008))
+- Add `sentry.dsc.transaction`, `sentry.dsc.trace_id`, and `sentry.dsc.project_id` to all spans. ([#6001](https://github.com/getsentry/relay/pull/6001), [#6004](https://github.com/getsentry/relay/pull/6004), [#6008](https://github.com/getsentry/relay/pull/6008), [#6011](https://github.com/getsentry/relay/pull/6011))
 
 ## 26.5.0
 
