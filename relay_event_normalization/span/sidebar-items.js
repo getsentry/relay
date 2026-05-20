@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["ai","country_subregion","description","exclusive_time","tag_extraction"],"static":["TABLE_NAME_REGEX"]};
+window.SIDEBAR_ITEMS = {"fn":["normalize_app_start_spans","normalize_dsc_for_event_spans","normalize_dsc_for_span_data"],"mod":["ai","country_subregion","description","exclusive_time","tag_extraction"],"static":["TABLE_NAME_REGEX"]};
