@@ -8,6 +8,10 @@
 - Obtain PII values for `SpanData` fields from `sentry-conventions`. ([#5997](https://github.com/getsentry/relay/pull/5997))
 - Add `sentry.dsc.transaction` and `sentry.dsc.trace_id` to all standalone spans. ([#6001](https://github.com/getsentry/relay/pull/6001), [#6004](https://github.com/getsentry/relay/pull/6004))
 
+**Internal**:
+
+- Unconditionally create a trace context with a trace id for errors. ([#6009](https://github.com/getsentry/relay/pull/6009)) 
+
 ## 26.5.0
 
 **Features**:

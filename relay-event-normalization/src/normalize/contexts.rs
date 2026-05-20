@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::sync::LazyLock;
 
 use regex::Regex;
+use relay_base_schema::spans::SpanStatus;
 use relay_event_schema::protocol::{
     BrowserContext, Context, Cookies, OsContext, ResponseContext, RuntimeContext,
 };
@@ -381,6 +382,9 @@ pub fn normalize_context(context: &mut Context) {
             {
                 device.name.set_value(Some(product_name.to_string()))
             }
+        }
+        Context::Trace(trace) => {
+            trace.status.get_or_insert_with(|| SpanStatus::Unknown);
         }
         _ => {}
     }
