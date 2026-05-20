@@ -98,6 +98,7 @@ fn is_valid_measurement_name(name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use relay_base_schema::metrics::DurationUnit;
+    use relay_conventions::measurements::*;
     use similar_asserts::assert_eq;
 
     use super::*;
@@ -198,35 +199,35 @@ mod tests {
         let mut measurements = Annotated::new(Measurements({
             let mut measurements = Object::new();
             measurements.insert(
-                "cls".to_owned(),
+                CLS.to_owned(),
                 Annotated::new(Measurement {
                     value: Annotated::empty(),
                     unit: Annotated::empty(),
                 }),
             );
             measurements.insert(
-                "lcp".to_owned(),
+                LCP.to_owned(),
                 Annotated::new(Measurement {
                     value: Annotated::new(420.69.try_into().unwrap()),
                     unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
                 }),
             );
             measurements.insert(
-                "fid".to_owned(),
+                FID.to_owned(),
                 Annotated::new(Measurement {
                     value: Annotated::new(2020f64.try_into().unwrap()),
                     unit: Annotated::empty(),
                 }),
             );
             measurements.insert(
-                "inp".to_owned(),
+                INP.to_owned(),
                 Annotated::new(Measurement {
                     value: Annotated::new(100.14.try_into().unwrap()),
                     unit: Annotated::empty(),
                 }),
             );
             measurements.insert(
-                "fp".to_owned(),
+                FP.to_owned(),
                 Annotated::new(Measurement {
                     value: Annotated::from_error(
                         Error::expected("a finite floating point number"),

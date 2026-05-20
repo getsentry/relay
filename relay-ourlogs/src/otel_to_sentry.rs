@@ -9,7 +9,7 @@ use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 use opentelemetry_proto::tonic::logs::v1::LogRecord as OtelLogRecord;
 
 use opentelemetry_proto::tonic::resource::v1::Resource;
-use relay_conventions::consts::{EVENT__NAME, SENTRY__ORIGIN, SENTRY__PLATFORM};
+use relay_conventions::attributes::{EVENT__NAME, SENTRY__ORIGIN, SENTRY__PLATFORM};
 use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId, Timestamp, TraceId};
 use relay_otel::{otel_resource_to_platform, otel_value_to_attribute};
 use relay_protocol::{Annotated, Object};

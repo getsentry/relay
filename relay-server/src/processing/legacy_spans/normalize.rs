@@ -2,7 +2,7 @@
 
 use crate::services::processor::ProcessingError;
 use chrono::{DateTime, Utc};
-use relay_conventions::consts::*;
+use relay_conventions::attributes::*;
 use relay_event_normalization::span::ai::enrich_ai_span;
 use relay_event_normalization::{
     BorrowedSpanOpDefaults, ClientHints, CombinedMeasurementsConfig, FromUserAgentInfo,

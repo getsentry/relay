@@ -1,6 +1,6 @@
 //! Mobile-specific normalizations for SpanV2 attributes.
 
-use relay_conventions::consts::*;
+use relay_conventions::attributes::*;
 use relay_event_schema::protocol::{Attributes, DeviceClass};
 use relay_protocol::Annotated;
 

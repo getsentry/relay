@@ -3,7 +3,7 @@
 use std::str::FromStr;
 
 use chrono::{TimeZone, Utc};
-use relay_conventions::consts::*;
+use relay_conventions::attributes::*;
 use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId, Timestamp, TraceId};
 use relay_protocol::{Annotated, Meta, Remark, RemarkType};
 use serde::{Deserialize, Deserializer};
