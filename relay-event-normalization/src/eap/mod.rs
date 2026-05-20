@@ -353,8 +353,8 @@ pub fn normalize_user_geo(
 /// attributes are added when `is_segment` is set to `true`.
 pub fn normalize_dsc(
     attributes: &mut Annotated<Attributes>,
+    is_segment: &Annotated<bool>,
     dsc: Option<&DynamicSamplingContext>,
-    is_segment: bool,
 ) {
     let Some(dsc) = dsc else { return };
 
@@ -370,7 +370,7 @@ pub fn normalize_dsc(
         attributes.insert(SENTRY__DSC__TRANSACTION, transaction.clone());
     }
 
-    if is_segment {
+    if is_segment.value().is_some_and(|is_segment| *is_segment) {
         attributes.insert(SENTRY__DSC__PUBLIC_KEY, dsc.public_key.to_string());
         if let Some(release) = &dsc.release {
             attributes.insert(SENTRY__DSC__RELEASE, release.clone());
@@ -752,7 +752,7 @@ mod tests {
     #[test]
     fn test_normalize_dsc_child_span_no_dsc() {
         let mut attributes = Annotated::empty();
-        normalize_dsc(&mut attributes, None, false);
+        normalize_dsc(&mut attributes, &Annotated::new(false), None);
         assert!(attributes.value().is_none());
     }
 
@@ -760,7 +760,7 @@ mod tests {
     fn test_normalize_dsc_child_span_no_transaction() {
         let mut attributes = Annotated::empty();
         let dsc = mock_dsc(None);
-        normalize_dsc(&mut attributes, Some(&dsc), false);
+        normalize_dsc(&mut attributes, &Annotated::new(false), Some(&dsc));
         assert_annotated_snapshot!(attributes, @r#"
         {
           "sentry.dsc.trace_id": {
@@ -775,7 +775,7 @@ mod tests {
     fn test_normalize_dsc_child_span() {
         let mut attributes = Annotated::empty();
         let dsc = mock_dsc(Some("/some/endpoint"));
-        normalize_dsc(&mut attributes, Some(&dsc), false);
+        normalize_dsc(&mut attributes, &Annotated::new(false), Some(&dsc));
         assert_annotated_snapshot!(attributes, @r#"
         {
           "sentry.dsc.trace_id": {
@@ -794,7 +794,7 @@ mod tests {
     fn test_normalize_dsc_segment() {
         let mut attributes = Annotated::empty();
         let dsc = mock_dsc(Some("/some/endpoint"));
-        normalize_dsc(&mut attributes, Some(&dsc), true);
+        normalize_dsc(&mut attributes, &Annotated::new(true), Some(&dsc));
         assert_annotated_snapshot!(attributes, @r#"
         {
           "sentry.dsc.public_key": {

@@ -2,6 +2,7 @@
 
 use crate::services::processor::ProcessingError;
 use chrono::{DateTime, Utc};
+use relay_conventions::attributes::*;
 use relay_event_normalization::span::ai::enrich_ai_span;
 use relay_event_normalization::{
     BorrowedSpanOpDefaults, ClientHints, CombinedMeasurementsConfig, FromUserAgentInfo,
@@ -14,6 +15,7 @@ use relay_event_schema::processor::{ProcessingState, process_value};
 use relay_event_schema::protocol::{BrowserContext, EventId, IpAddr, Span, SpanData};
 use relay_metrics::UnixTimestamp;
 use relay_protocol::{Annotated, Empty, Value};
+use relay_sampling::DynamicSamplingContext;
 
 /// Config needed to normalize a standalone span.
 #[derive(Clone, Debug)]
@@ -55,6 +57,31 @@ pub struct NormalizeSpanConfig<'a> {
     /// An initialized GeoIP lookup.
     pub geo_lookup: &'a GeoIpLookup,
     pub span_op_defaults: BorrowedSpanOpDefaults<'a>,
+    /// Dynamic sampling context from the envelope headers.
+    pub dsc: Option<&'a DynamicSamplingContext>,
+}
+
+/// Writes DSC attributes needed for dynamic sampling into the span's `data`.
+///
+/// If `sentry.dsc.trace_id` is already present in `span.data`, the function does nothing.
+fn normalize_dsc(span: &mut Span, dsc: Option<&DynamicSamplingContext>) {
+    let Some(dsc) = dsc else { return };
+
+    let data = span.data.get_or_insert_with(SpanData::default);
+    if data.other.contains_key(SENTRY__DSC__TRACE_ID) {
+        return;
+    }
+    data.other.insert(
+        SENTRY__DSC__TRACE_ID.to_owned(),
+        Annotated::new(Value::String(dsc.trace_id.to_string())),
+    );
+
+    if let Some(transaction) = &dsc.transaction {
+        data.other.insert(
+            SENTRY__DSC__TRANSACTION.to_owned(),
+            Annotated::new(Value::String(transaction.clone())),
+        );
+    }
 }
 
 fn set_segment_attributes(span: &mut Annotated<Span>) {
@@ -108,6 +135,7 @@ pub fn normalize(
         client_ip,
         geo_lookup,
         span_op_defaults,
+        dsc,
     } = config;
 
     set_segment_attributes(annotated_span);
@@ -206,6 +234,8 @@ pub fn normalize(
     span.sentry_tags = Annotated::new(tags);
 
     normalize_performance_score(span, *performance_score);
+
+    normalize_dsc(span, *dsc);
 
     enrich_ai_span(span, *ai_model_metadata);
 
@@ -548,6 +578,7 @@ mod tests {
             client_ip: Some(IpAddr("2.125.160.216".to_owned())),
             geo_lookup: &GEO_LOOKUP,
             span_op_defaults: Default::default(),
+            dsc: None,
         }
     }
 
