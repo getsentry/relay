@@ -29,6 +29,7 @@ use relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FiniteF64, FromValue, Getter, Meta, Object, Remark,
     RemarkType, TryFromFloatError, Value,
 };
+use relay_sampling::DynamicSamplingContext;
 use smallvec::SmallVec;
 use uuid::Uuid;
 
@@ -171,6 +172,9 @@ pub struct NormalizationConfig<'a> {
 
     /// Should add a random trace ID to events that lack one.
     pub derive_trace_id: bool,
+
+    /// Dynamic sampling context
+    pub dsc: Option<&'a DynamicSamplingContext>,
 }
 
 impl Default for NormalizationConfig<'_> {
@@ -206,6 +210,7 @@ impl Default for NormalizationConfig<'_> {
             span_op_defaults: Default::default(),
             performance_issues_spans: Default::default(),
             derive_trace_id: Default::default(),
+            dsc: None,
         }
     }
 }
@@ -337,7 +342,8 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     normalize_contexts(&mut event.contexts, event_id, config);
 
     if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
-        crate::normalize::normalize_app_start_spans(event);
+        span::normalize_app_start_spans(event);
+        span::normalize_dsc_for_event_spans(event, config.dsc);
         span::exclusive_time::compute_span_exclusive_time(event);
     }
 

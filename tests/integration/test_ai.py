@@ -8,6 +8,7 @@ from sentry_relay.consts import DataCategory
 from .asserts import time_within_delta
 
 
+# KOLLA VARFÖR VI INTE FÅ TRANSACTION OCKSÅ
 @pytest.mark.parametrize(
     "eap_span_outcomes_rollout_rate",
     [
@@ -420,6 +421,10 @@ def test_ai_spans_example_transaction(
                     "type": "string",
                     "value": "generateText weather-chat",
                 },
+                "sentry.dsc.trace_id": {
+                    "type": "string",
+                    "value": "a9351cd574f092f6acad48e250981f11",
+                },
                 "sentry.environment": {"type": "string", "value": "production"},
                 "sentry.exclusive_time": {"type": "double", "value": 0.0},
                 "sentry.is_remote": {"type": "boolean", "value": False},
@@ -535,6 +540,10 @@ def test_ai_spans_example_transaction(
                     "type": "string",
                     "value": "generate_text gpt-4o",
                 },
+                "sentry.dsc.trace_id": {
+                    "type": "string",
+                    "value": "a9351cd574f092f6acad48e250981f11",
+                },
                 "sentry.environment": {"type": "string", "value": "production"},
                 "sentry.exclusive_time": {"type": "double", "value": 0.0},
                 "sentry.is_remote": {"type": "boolean", "value": False},
@@ -631,6 +640,10 @@ def test_ai_spans_example_transaction(
                     "value": "POST " "https://api.openai.com/v1/responses",
                 },
                 "sentry.domain": {"type": "string", "value": "*.openai.com"},
+                "sentry.dsc.trace_id": {
+                    "type": "string",
+                    "value": "a9351cd574f092f6acad48e250981f11",
+                },
                 "sentry.environment": {"type": "string", "value": "production"},
                 "sentry.exclusive_time": {"type": "double", "value": 500.0},
                 "sentry.group": {"type": "string", "value": "483aa47139350517"},
@@ -723,6 +736,10 @@ def test_ai_spans_example_transaction(
                     "type": "string",
                     "value": "execute_tool getWeather",
                 },
+                "sentry.dsc.trace_id": {
+                    "type": "string",
+                    "value": "a9351cd574f092f6acad48e250981f11",
+                },
                 "sentry.environment": {"type": "string", "value": "production"},
                 "sentry.exclusive_time": {"type": "double", "value": 0.0},
                 "sentry.is_remote": {"type": "boolean", "value": False},
@@ -782,6 +799,10 @@ def test_ai_spans_example_transaction(
                     "value": "GET " "https://wttr.in/San%20Francisco",
                 },
                 "sentry.domain": {"type": "string", "value": "wttr.in"},
+                "sentry.dsc.trace_id": {
+                    "type": "string",
+                    "value": "a9351cd574f092f6acad48e250981f11",
+                },
                 "sentry.environment": {"type": "string", "value": "production"},
                 "sentry.exclusive_time": {"type": "double", "value": 500.0},
                 "sentry.group": {"type": "string", "value": "2cdcd1b2278e1dd3"},
@@ -867,6 +888,10 @@ def test_ai_spans_example_transaction(
                     "type": "string",
                     "value": "execute_tool getWeather",
                 },
+                "sentry.dsc.trace_id": {
+                    "type": "string",
+                    "value": "a9351cd574f092f6acad48e250981f11",
+                },
                 "sentry.environment": {"type": "string", "value": "production"},
                 "sentry.exclusive_time": {"type": "double", "value": 0.0},
                 "sentry.is_remote": {"type": "boolean", "value": False},
@@ -926,6 +951,10 @@ def test_ai_spans_example_transaction(
                     "value": "GET https://wttr.in/London",
                 },
                 "sentry.domain": {"type": "string", "value": "wttr.in"},
+                "sentry.dsc.trace_id": {
+                    "type": "string",
+                    "value": "a9351cd574f092f6acad48e250981f11",
+                },
                 "sentry.environment": {"type": "string", "value": "production"},
                 "sentry.exclusive_time": {"type": "double", "value": 500.0},
                 "sentry.group": {"type": "string", "value": "2cdcd1b2278e1dd3"},
@@ -1041,6 +1070,10 @@ def test_ai_spans_example_transaction(
                     "type": "string",
                     "value": "generate_text gpt-4o",
                 },
+                "sentry.dsc.trace_id": {
+                    "type": "string",
+                    "value": "a9351cd574f092f6acad48e250981f11",
+                },
                 "sentry.environment": {"type": "string", "value": "production"},
                 "sentry.exclusive_time": {"type": "double", "value": 0.0},
                 "sentry.is_remote": {"type": "boolean", "value": False},
@@ -1134,6 +1167,10 @@ def test_ai_spans_example_transaction(
                     "value": "POST " "https://api.openai.com/v1/responses",
                 },
                 "sentry.domain": {"type": "string", "value": "*.openai.com"},
+                "sentry.dsc.trace_id": {
+                    "type": "string",
+                    "value": "a9351cd574f092f6acad48e250981f11",
+                },
                 "sentry.environment": {"type": "string", "value": "production"},
                 "sentry.exclusive_time": {"type": "double", "value": 500.0},
                 "sentry.group": {"type": "string", "value": "483aa47139350517"},
@@ -1208,6 +1245,10 @@ def test_ai_spans_example_transaction(
                 "gen_ai.usage.output_tokens": {"type": "integer", "value": 65},
                 "gen_ai.usage.total_tokens": {"type": "double", "value": 310.0},
                 "sentry.description": {"type": "string", "value": "main"},
+                "sentry.dsc.trace_id": {
+                    "type": "string",
+                    "value": "a9351cd574f092f6acad48e250981f11",
+                },
                 "sentry.environment": {"type": "string", "value": "production"},
                 "sentry.exclusive_time": {"type": "double", "value": 0.0},
                 "sentry.is_remote": {"type": "boolean", "value": True},

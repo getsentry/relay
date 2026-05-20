@@ -2,8 +2,7 @@
 
 use crate::services::processor::ProcessingError;
 use chrono::{DateTime, Utc};
-use relay_conventions::consts::*;
-use relay_event_normalization::span::ai::enrich_ai_span;
+use relay_event_normalization::span::{self, ai};
 use relay_event_normalization::{
     BorrowedSpanOpDefaults, ClientHints, CombinedMeasurementsConfig, FromUserAgentInfo,
     GeoIpLookup, ModelMetadata, PerformanceScoreConfig, RawUserAgentInfo, SchemaProcessor,
@@ -59,29 +58,6 @@ pub struct NormalizeSpanConfig<'a> {
     pub span_op_defaults: BorrowedSpanOpDefaults<'a>,
     /// Dynamic sampling context from the envelope headers.
     pub dsc: Option<&'a DynamicSamplingContext>,
-}
-
-/// Writes DSC attributes needed for dynamic sampling into the span's `data`.
-///
-/// If `sentry.dsc.trace_id` is already present in `span.data`, the function does nothing.
-fn normalize_dsc(span: &mut Span, dsc: Option<&DynamicSamplingContext>) {
-    let Some(dsc) = dsc else { return };
-
-    let data = span.data.get_or_insert_with(SpanData::default);
-    if data.other.contains_key(SENTRY__DSC__TRACE_ID) {
-        return;
-    }
-    data.other.insert(
-        SENTRY__DSC__TRACE_ID.to_owned(),
-        Annotated::new(Value::String(dsc.trace_id.to_string())),
-    );
-
-    if let Some(transaction) = &dsc.transaction {
-        data.other.insert(
-            SENTRY__DSC__TRANSACTION.to_owned(),
-            Annotated::new(Value::String(transaction.clone())),
-        );
-    }
 }
 
 fn set_segment_attributes(span: &mut Annotated<Span>) {
@@ -235,9 +211,9 @@ pub fn normalize(
 
     normalize_performance_score(span, *performance_score);
 
-    normalize_dsc(span, *dsc);
+    span::normalize_dsc_for_span_data(&mut span.data, *dsc);
 
-    enrich_ai_span(span, *ai_model_metadata);
+    ai::enrich_ai_span(span, *ai_model_metadata);
 
     tag_extraction::extract_measurements(span, is_mobile);
 
