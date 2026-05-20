@@ -13,11 +13,15 @@ use regex::Regex;
 use relay_base_schema::metrics::{
     DurationUnit, FractionUnit, MetricUnit, can_be_valid_metric_name,
 };
-use relay_conventions::consts::{
+use relay_conventions::attributes::{
     APP__VITALS__START__COLD__VALUE, APP__VITALS__START__SCREEN, APP__VITALS__START__TYPE,
     APP__VITALS__START__VALUE, APP__VITALS__START__WARM__VALUE, SCORE__TOTAL,
 };
 use relay_conventions::interpolate;
+use relay_conventions::measurements::{
+    APP_START_COLD, APP_START_WARM, FRAMES_FROZEN, FRAMES_FROZEN_RATE, FRAMES_SLOW,
+    FRAMES_SLOW_RATE, FRAMES_TOTAL, STALL_PERCENTAGE,
+};
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
     AsPair, Attributes, AutoInferSetting, ClientSdkInfo, Context, ContextInner, Contexts,
@@ -1110,22 +1114,22 @@ fn compute_measurements(
     transaction_duration_ms: Option<FiniteF64>,
     measurements: &mut Measurements,
 ) {
-    if let Some(frames_total) = measurements.get_value("frames_total")
+    if let Some(frames_total) = measurements.get_value(FRAMES_TOTAL)
         && frames_total > 0.0
     {
-        if let Some(frames_frozen) = measurements.get_value("frames_frozen") {
+        if let Some(frames_frozen) = measurements.get_value(FRAMES_FROZEN) {
             let frames_frozen_rate = Measurement {
                 value: (frames_frozen / frames_total).into(),
                 unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
             };
-            measurements.insert("frames_frozen_rate".to_owned(), frames_frozen_rate.into());
+            measurements.insert(FRAMES_FROZEN_RATE.to_owned(), frames_frozen_rate.into());
         }
-        if let Some(frames_slow) = measurements.get_value("frames_slow") {
+        if let Some(frames_slow) = measurements.get_value(FRAMES_SLOW) {
             let frames_slow_rate = Measurement {
                 value: (frames_slow / frames_total).into(),
                 unit: MetricUnit::Fraction(FractionUnit::Ratio).into(),
             };
-            measurements.insert("frames_slow_rate".to_owned(), frames_slow_rate.into());
+            measurements.insert(FRAMES_SLOW_RATE.to_owned(), frames_slow_rate.into());
         }
     }
 
@@ -1146,7 +1150,7 @@ fn compute_measurements(
             value: (stall_total_time / transaction_duration_ms).into(),
             unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
         };
-        measurements.insert("stall_percentage".to_owned(), stall_percentage.into());
+        measurements.insert(STALL_PERCENTAGE.to_owned(), stall_percentage.into());
     }
 }
 
@@ -1402,8 +1406,9 @@ fn normalize_contexts(
 /// Drop those outlier measurements for older SDKs.
 fn filter_mobile_outliers(measurements: &mut Measurements) {
     for key in [
-        "app_start_cold",
-        "app_start_warm",
+        APP_START_COLD,
+        APP_START_WARM,
+        // TODO: Regrettably, these measurements are not defined in conventions.
         "time_to_initial_display",
         "time_to_full_display",
     ] {
@@ -1648,6 +1653,8 @@ fn remove_invalid_measurements(
 /// For known measurements, this returns `Some(MetricUnit)`, which can also include
 /// `Some(MetricUnit::None)`. For unknown measurement names, this returns `None`.
 fn get_metric_measurement_unit(measurement_name: &str) -> Option<MetricUnit> {
+    // TODO: Might be neat to resolve this via conventions, but might also not
+    // be worth the trouble.
     match measurement_name {
         // Web
         "fcp" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
@@ -1686,11 +1693,12 @@ fn get_metric_measurement_unit(measurement_name: &str) -> Option<MetricUnit> {
 /// The dot.case app start measurements keys are treated as custom measurements.
 /// The snake_case is the key expected by the Sentry UI to aggregate and display in graphs.
 fn normalize_app_start_measurements(measurements: &mut Measurements) {
+    use relay_conventions::measurements::{APP_START_COLD, APP_START_WARM};
     if let Some(app_start_cold_value) = measurements.remove("app.start.cold") {
-        measurements.insert("app_start_cold".to_owned(), app_start_cold_value);
+        measurements.insert(APP_START_COLD.to_owned(), app_start_cold_value);
     }
     if let Some(app_start_warm_value) = measurements.remove("app.start.warm") {
-        measurements.insert("app_start_warm".to_owned(), app_start_warm_value);
+        measurements.insert(APP_START_WARM.to_owned(), app_start_warm_value);
     }
 }
 

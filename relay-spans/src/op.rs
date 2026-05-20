@@ -1,4 +1,4 @@
-use relay_conventions::consts::*;
+use relay_conventions::attributes::*;
 use relay_event_schema::protocol::{Attributes, SpanKind};
 use relay_protocol::Annotated;
 

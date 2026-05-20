@@ -334,7 +334,7 @@ fn span_duration(span: &SpanV2) -> Option<Duration> {
 mod tests {
     use chrono::DateTime;
 
-    use relay_conventions::consts::*;
+    use relay_conventions::attributes::*;
     use relay_event_schema::protocol::{Attributes, EventId, SpanKind};
     use relay_pii::PiiConfig;
     use relay_protocol::SerializableAnnotated;
