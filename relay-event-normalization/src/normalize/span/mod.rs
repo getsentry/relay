@@ -1,7 +1,7 @@
 //! Span normalization logic.
 
 use regex::Regex;
-use relay_conventions::consts::{SENTRY__DSC__TRACE_ID, SENTRY__DSC__TRANSACTION};
+use relay_conventions::attributes::{SENTRY__DSC__TRACE_ID, SENTRY__DSC__TRANSACTION};
 use relay_event_schema::protocol::{Event, SpanData, TraceContext};
 use relay_protocol::{Annotated, Value};
 use relay_sampling::DynamicSamplingContext;
