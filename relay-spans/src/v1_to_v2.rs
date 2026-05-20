@@ -13,6 +13,10 @@ use crate::name::name_for_attributes;
 ///
 /// - `tags`, `sentry_tags`, `measurements` and `data` are transferred to `attributes`.
 /// - Nested `data` items are encoded as JSON.
+///
+/// If `use_measurements_smart_conversion` is `true`, measurements will be converted
+/// to attributes by looking up the replacement attribute's name in `sentry-conventions`.
+/// Otherwise, the measurement name will be reused as the attribute name verbatim.
 pub fn span_v1_to_span_v2(span_v1: SpanV1, use_measurements_smart_conversion: bool) -> SpanV2 {
     let SpanV1 {
         timestamp,

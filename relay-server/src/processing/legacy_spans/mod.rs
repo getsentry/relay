@@ -171,8 +171,6 @@ impl Forward for LegacySpanOutput {
         s: processing::forward::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        use relay_dynamic_config::Feature;
-
         let spans = match self {
             Self::Serialized(spans) => {
                 return Err(spans
@@ -194,14 +192,9 @@ impl Forward for LegacySpanOutput {
         }
 
         let retention = ctx.retention(|r| r.span.as_ref());
-        let use_measurements_attribute = ctx
-            .project_info
-            .has_feature(Feature::MeasurementsSmartConversion);
 
         for span in spans.split(|spans| spans.spans.into_iter().map(IndexedOnly)) {
-            if let Ok(span) = span
-                .try_map(|span, _| store::convert(span.0, retention, use_measurements_attribute))
-            {
+            if let Ok(span) = span.try_map(|span, _| store::convert(span.0, retention, ctx)) {
                 s.send_to_store(span)
             };
         }
