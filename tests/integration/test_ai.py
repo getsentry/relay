@@ -8,7 +8,6 @@ from sentry_relay.consts import DataCategory
 from .asserts import time_within_delta
 
 
-# KOLLA VARFÖR VI INTE FÅ TRANSACTION OCKSÅ
 @pytest.mark.parametrize(
     "eap_span_outcomes_rollout_rate",
     [
