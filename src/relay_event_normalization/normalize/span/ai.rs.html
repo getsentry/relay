@@ -131,7 +131,7 @@
 <a href=#131 id=131 data-nosnippet>131</a>    <span class="prelude-val">Some</span>(CalculatedCost { input, output })
 <a href=#132 id=132 data-nosnippet>132</a>}
 <a href=#133 id=133 data-nosnippet>133</a>
-<a href=#134 id=134 data-nosnippet>134</a><span class="doccomment">/// Default AI operation stored in [`GEN_AI__OPERATION__TYPE`](relay_conventions::consts::GEN_AI__OPERATION__TYPE)
+<a href=#134 id=134 data-nosnippet>134</a><span class="doccomment">/// Default AI operation stored in [`GEN_AI__OPERATION__TYPE`](relay_conventions::attributes::GEN_AI__OPERATION__TYPE)
 <a href=#135 id=135 data-nosnippet>135</a>/// for AI spans without a well known AI span op.
 <a href=#136 id=136 data-nosnippet>136</a>///
 <a href=#137 id=137 data-nosnippet>137</a>/// See also: [`infer_ai_operation_type`].
@@ -140,11 +140,11 @@
 <a href=#140 id=140 data-nosnippet>140</a><span class="doccomment">/// Infers the AI operation from an AI operation name.
 <a href=#141 id=141 data-nosnippet>141</a>///
 <a href=#142 id=142 data-nosnippet>142</a>/// The operation name is usually inferred from the
-<a href=#143 id=143 data-nosnippet>143</a>/// [`GEN_AI__OPERATION__NAME`](relay_conventions::consts::GEN_AI__OPERATION__NAME) span attribute and the span
+<a href=#143 id=143 data-nosnippet>143</a>/// [`GEN_AI__OPERATION__NAME`](relay_conventions::attributes::GEN_AI__OPERATION__NAME) span attribute and the span
 <a href=#144 id=144 data-nosnippet>144</a>/// operation.
 <a href=#145 id=145 data-nosnippet>145</a>///
 <a href=#146 id=146 data-nosnippet>146</a>/// Sentry expects the operation type in the
-<a href=#147 id=147 data-nosnippet>147</a>/// [`GEN_AI__OPERATION__TYPE`](relay_conventions::consts::GEN_AI__OPERATION__TYPE) attribute.
+<a href=#147 id=147 data-nosnippet>147</a>/// [`GEN_AI__OPERATION__TYPE`](relay_conventions::attributes::GEN_AI__OPERATION__TYPE) attribute.
 <a href=#148 id=148 data-nosnippet>148</a>///
 <a href=#149 id=149 data-nosnippet>149</a>/// The function returns `None` when the op is not a well known AI operation, callers likely want to default
 <a href=#150 id=150 data-nosnippet>150</a>/// the value to [`DEFAULT_AI_OPERATION`] for AI spans.

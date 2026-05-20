@@ -9,7 +9,7 @@
 <a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>opentelemetry_proto::tonic::logs::v1::LogRecord <span class="kw">as </span>OtelLogRecord;
 <a href=#10 id=10 data-nosnippet>10</a>
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>opentelemetry_proto::tonic::resource::v1::Resource;
-<a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span>relay_conventions::consts::{EVENT__NAME, SENTRY__ORIGIN, SENTRY__PLATFORM};
+<a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span>relay_conventions::attributes::{EVENT__NAME, SENTRY__ORIGIN, SENTRY__PLATFORM};
 <a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span>relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId, Timestamp, TraceId};
 <a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span>relay_otel::{otel_resource_to_platform, otel_value_to_attribute};
 <a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span>relay_protocol::{Annotated, Object};
