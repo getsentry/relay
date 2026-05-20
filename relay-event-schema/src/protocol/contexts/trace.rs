@@ -185,6 +185,31 @@ impl SpanId {
         let value: u64 = rand::random_range(1..=u64::MAX);
         Self(value.to_ne_bytes())
     }
+
+    /// Derives a [`SpanId`] deterministically from a [`TraceId`].
+    ///
+    /// ```
+    /// # use relay_event_schema::protocol::{SpanId, TraceId};
+    /// #
+    /// let trace_id: TraceId = "515539018c9b4260a6f999572f1661ee".parse().unwrap();
+    /// let span_id = SpanId::derive_from_trace_id(&trace_id);
+    /// assert_eq!(span_id, "515539018c9b4260".parse().unwrap());
+    ///
+    /// let trace_id: TraceId = "00000000000000000000000000000001".parse().unwrap();
+    /// let span_id = SpanId::derive_from_trace_id(&trace_id);
+    /// assert_eq!(span_id, "0000000000000001".parse().unwrap());
+    /// ```
+    pub fn derive_from_trace_id(trace_id: &TraceId) -> Self {
+        let [first @ .., a, b, c, d, e, f, g, h]: [u8; 16] = *trace_id.as_bytes();
+        let second = [a, b, c, d, e, f, g, h];
+
+        // A trace id may never be nil, this means either the first or the second half needs to
+        // contain at least one non-zero value, making the resulting span id valid.
+        match first {
+            [0, 0, 0, 0, 0, 0, 0, 0] => SpanId(second),
+            _ => SpanId(first),
+        }
+    }
 }
 
 impl FromStr for SpanId {

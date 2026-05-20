@@ -1379,12 +1379,9 @@ fn normalize_force_trace_context(event: &mut Event) {
     let trace_id = trace
         .trace_id
         .get_or_insert_with(|| TraceId::from(*event.id.get_or_insert_with(Default::default)));
-    let _ = trace.span_id.get_or_insert_with(|| {
-        // Derive the span id from the trace id, for a stable id.
-        // This is equally as good as creating an invented random id.
-        let [a, b, c, d, e, f, g, h, ..] = *trace_id.as_bytes();
-        SpanId([a, b, c, d, e, f, g, h])
-    });
+    let _ = trace
+        .span_id
+        .get_or_insert_with(|| SpanId::derive_from_trace_id(trace_id));
 }
 
 /// Normalizes incoming contexts for the downstream metric extraction.
