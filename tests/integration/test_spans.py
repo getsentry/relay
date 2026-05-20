@@ -156,6 +156,11 @@ def test_span_extraction(
             },
             "sentry.is_remote": {"type": "boolean", "value": False},
             "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},
+            "sentry.dsc.trace_id": {
+                "type": "string",
+                "value": "a0fa8803753e40fd8124b21eeb2986b5",
+            },
+            "sentry.dsc.transaction": {"type": "string", "value": "hi"},
         },
         "downsampled_retention_days": 90,
         "end_timestamp": end.timestamp(),
@@ -227,6 +232,11 @@ def test_span_extraction(
             "sentry.user.id": {"type": "string", "value": user_id},
             "sentry.user.ip": {"type": "string", "value": "192.168.0.1"},
             "sentry.user": {"type": "string", "value": f"id:{user_id}"},
+            "sentry.dsc.trace_id": {
+                "type": "string",
+                "value": "a0fa8803753e40fd8124b21eeb2986b5",
+            },
+            "sentry.dsc.transaction": {"type": "string", "value": "hi"},
         },
         "downsampled_retention_days": 90,
         "end_timestamp": end_timestamp.timestamp(),
@@ -1206,3 +1216,47 @@ def test_outcomes_for_trimmed_spans(mini_sentry, relay):
             "timestamp": mock.ANY,
         },
     ]
+
+
+def test_spans_dsc_normalization(
+    mini_sentry, relay, relay_with_processing, spans_consumer
+):
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(relay_with_processing())
+    spans_consumer = spans_consumer()
+    ts = datetime.now(timezone.utc)
+    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    event["spans"] = [
+        {
+            "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+            "span_id": "bbbbbbbbbbbbbbbb",
+            "parent_span_id": "968cff94913ebb07",
+            "start_timestamp": ts.timestamp(),
+            "timestamp": ts.timestamp() + 0.3,
+        },
+        {
+            "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+            "span_id": "cccccccccccccccc",
+            "parent_span_id": "968cff94913ebb07",
+            "start_timestamp": ts.timestamp(),
+            "timestamp": ts.timestamp() + 0.3,
+            "data": {
+                "sentry.dsc.trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                "sentry.dsc.transaction": "/transaction/already/exists",
+            },
+        },
+    ]
+
+    relay.send_event(project_id, event)
+    spans = {s["span_id"]: s for s in spans_consumer.get_spans()}
+
+    def get_transaction(span_id: str):
+        return spans[span_id]["attributes"]["sentry.dsc.transaction"]["value"]
+
+    assert spans["968cff94913ebb07"]["is_segment"] is True
+    assert spans["bbbbbbbbbbbbbbbb"]["is_segment"] is False
+    assert spans["cccccccccccccccc"]["is_segment"] is False
+    assert get_transaction("968cff94913ebb07") == "hi"
+    assert get_transaction("bbbbbbbbbbbbbbbb") == "hi"
+    assert get_transaction("cccccccccccccccc") == "/transaction/already/exists"
