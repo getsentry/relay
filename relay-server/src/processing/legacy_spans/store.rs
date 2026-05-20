@@ -22,8 +22,13 @@ macro_rules! required {
 }
 
 /// Converts a [`Span`] into a [`StoreSpanV2`] to be sent to Kafka.
-pub fn convert(span: Annotated<Span>, retentions: Retention) -> Result<Box<StoreSpanV2>> {
-    let span = span.map_value(relay_spans::span_v1_to_span_v2);
+pub fn convert(
+    span: Annotated<Span>,
+    retentions: Retention,
+    use_measurements_attribute: bool,
+) -> Result<Box<StoreSpanV2>> {
+    let span =
+        span.map_value(|span| relay_spans::span_v1_to_span_v2(span, use_measurements_attribute));
     let span = required!(span);
 
     Ok(Box::new(StoreSpanV2 {

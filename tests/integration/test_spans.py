@@ -476,14 +476,20 @@ def envelope_with_transaction_and_spans(start: datetime, end: datetime) -> Envel
     return envelope
 
 
+@pytest.mark.parametrize("measurements_conversion", ["direct", "smart"])
 def test_span_ingestion_with_performance_scores(
-    mini_sentry, relay_with_processing, spans_consumer
+    mini_sentry, relay_with_processing, spans_consumer, measurements_conversion
 ):
     spans_consumer = spans_consumer()
     relay = relay_with_processing()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    if measurements_conversion == "smart":
+        project_config["config"]["features"] = [
+            "projects:relay-measurements-smart-conversion"
+        ]
+
     project_config["config"]["performanceScore"] = {
         "profiles": [
             {
@@ -589,13 +595,31 @@ def test_span_ingestion_with_performance_scores(
     # endpoint might overtake envelope
     spans.sort(key=lambda msg: msg["span_id"])
 
-    expected_scores = [
-        {
+    if measurements_conversion == "smart":
+        measurements1 = {
             "browser.web_vital.cls.value": 100.0,
             "browser.web_vital.fcp.value": 200.0,
             "fid": 300.0,
             "browser.web_vital.lcp.value": 400.0,
             "browser.web_vital.ttfb.value": 500.0,
+        }
+        measurements2 = {
+            "browser.web_vital.inp.value": 100.0,
+        }
+    else:
+        measurements1 = {
+            "cls": 100.0,
+            "fcp": 200.0,
+            "fid": 300.0,
+            "lcp": 400.0,
+            "ttfb": 500.0,
+        }
+        measurements2 = {
+            "inp": 100.0,
+        }
+
+    expected_scores = [
+        {
             "score.fcp": 0.14999972769539766,
             "score.fid": 0.14999999985,
             "score.lcp": 0.29986141375718806,
@@ -612,13 +636,14 @@ def test_span_ingestion_with_performance_scores(
             "score.weight.lcp": 0.3,
             "score.weight.ttfb": 0.0,
             "score.cls": 0.0,
+            **measurements1,
         },
         {
-            "browser.web_vital.inp.value": 100.0,
             "score.inp": 0.9948129113413748,
             "score.ratio.inp": 0.9948129113413748,
             "score.total": 0.9948129113413748,
             "score.weight.inp": 1.0,
+            **measurements2,
         },
     ]
 

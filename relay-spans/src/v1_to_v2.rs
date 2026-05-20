@@ -13,7 +13,7 @@ use crate::name::name_for_attributes;
 ///
 /// - `tags`, `sentry_tags`, `measurements` and `data` are transferred to `attributes`.
 /// - Nested `data` items are encoded as JSON.
-pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
+pub fn span_v1_to_span_v2(span_v1: SpanV1, use_measurements_smart_conversion: bool) -> SpanV2 {
     let SpanV1 {
         timestamp,
         start_timestamp,
@@ -65,7 +65,13 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
                 // TODO: If these measurements were defined in conventions we could get rid of the match entirely
                 "client_sample_rate" => SENTRY__CLIENT_SAMPLE_RATE,
                 "server_sample_rate" => SENTRY__SERVER_SAMPLE_RATE,
-                other => relay_conventions::measurement_to_attribute(other).unwrap_or(other),
+                other => {
+                    if use_measurements_smart_conversion {
+                        relay_conventions::measurement_to_attribute(other).unwrap_or(other)
+                    } else {
+                        other
+                    }
+                }
             };
 
             attributes.insert_if_missing(key, || match measurement {
@@ -315,7 +321,7 @@ mod tests {
         });
 
         let span_v1 = SpanV1::from_value(json.into()).into_value().unwrap();
-        let span_v2 = span_v1_to_span_v2(span_v1);
+        let span_v2 = span_v1_to_span_v2(span_v1, false);
 
         let annotated_span_v2: Annotated<SpanV2> = Annotated::new(span_v2);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span_v2), @r#"
@@ -482,7 +488,7 @@ mod tests {
         }
         "###);
 
-        let span_v2 = span_v1_to_span_v2(span_v1);
+        let span_v2 = span_v1_to_span_v2(span_v1, false);
 
         // The `name` and the `sentry.segment.name` attribute are the same as the transaction.
         insta::assert_json_snapshot!(SerializableAnnotated(&Annotated::new(span_v2)), @r###"
@@ -512,7 +518,7 @@ mod tests {
     fn start_timestamp() {
         let json = r#"{"timestamp": 123, "end_timestamp": "invalid data"}"#;
         let span_v1 = Annotated::<SpanV1>::from_json(json).unwrap();
-        let span_v2 = span_v1_to_span_v2(span_v1.into_value().unwrap());
+        let span_v2 = span_v1_to_span_v2(span_v1.into_value().unwrap(), false);
 
         // Parsed version is still fine:
         assert_eq!(
