@@ -782,33 +782,39 @@ mod tests {
     /// Validates an unfinished span is finished with the normalized transaction's timestamp.
     #[test]
     fn test_finish_spans_with_normalized_transaction_end_timestamp() {
-        let json = r#"{
+        let now = Utc::now();
+        let start_timestamp = (now - Duration::seconds(1)).timestamp();
+        let timestamp = now.timestamp();
+
+        let json = format!(
+            r#"{{
   "event_id": "52df9022835246eeb317dbd739ccd059",
   "type": "transaction",
   "transaction": "I have a stale timestamp, but I'm recent!",
-  "start_timestamp": 946731000,
-  "timestamp": 946731555,
-  "contexts": {
-    "trace": {
+  "start_timestamp": {start_timestamp},
+  "timestamp": {timestamp},
+  "contexts": {{
+    "trace": {{
       "trace_id": "ff62a8b040f340bda5d830223def1d81",
       "span_id": "bd429c44b67a3eb4"
-    }
-  },
+    }}
+    }},
   "spans": [
-    {
+    {{
       "span_id": "bd429c44b67a3eb4",
-      "start_timestamp": 946731000,
+      "start_timestamp": {start_timestamp},
       "timestamp": null,
       "trace_id": "ff62a8b040f340bda5d830223def1d81"
-    }
+    }}
   ]
-}"#;
-        let mut event = Annotated::<Event>::from_json(json).unwrap();
+    }}"#
+        );
+        let mut event = Annotated::<Event>::from_json(&json).unwrap();
 
         validate_event(
             &mut event,
             &EventValidationConfig {
-                received_at: Some(Utc::now()),
+                received_at: Some(now),
                 max_secs_in_past: Some(2),
                 max_secs_in_future: Some(1),
                 is_validated: false,
