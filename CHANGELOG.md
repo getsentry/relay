@@ -4,19 +4,35 @@
 
 **Features**:
 
+- Convert measurements to attributes based on information from `sentry-conventions`. This is gated behind a project feature flag. ([#6007](https://github.com/getsentry/relay/pull/6007))
+
+**Bug Fixes**:
+
+- Apply timestamp validations to transaction spans. ([#6005](https://github.com/getsentry/relay/pull/6005))
+- Obtain PII values for `SpanData` fields from `sentry-conventions`. ([#5997](https://github.com/getsentry/relay/pull/5997))
+- Add `sentry.dsc.transaction` and `sentry.dsc.trace_id` to all spans. ([#6001](https://github.com/getsentry/relay/pull/6001), [#6004](https://github.com/getsentry/relay/pull/6004), [#6008](https://github.com/getsentry/relay/pull/6008))
+
+## 26.5.0
+
+**Features**:
+
 - Enable OTLP endpoints by default. ([#5951](https://github.com/getsentry/relay/pull/5951))
 - Backfill `app.vitals.start.screen` for V1 app-start transactions from the transaction name. ([#5960](https://github.com/getsentry/relay/pull/5960))
 - Enable performance score calculation for V2 spans. ([#5947](https://github.com/getsentry/relay/pull/5947))
+- Update user agent parsing rules. ([#5999](https://github.com/getsentry/relay/pull/5999))
 
 **Bug Fixes**:
 
 - Emit more precise outcome discard reasons for the Playstation, Minidump, and Attachments endpoints. ([#5950](https://github.com/getsentry/relay/pull/5950))
 - Set the name based on the transaction name when converting a transaction into a segment span. ([#5961](https://github.com/getsentry/relay/pull/5961))
 - Set the segment name for child spans based on the transaction name. ([#5959](https://github.com/getsentry/relay/pull/5959))
+- Emit missing outcomes in the Playstation and Minidump endpoints, and add/update outcome discard reasons. ([#5966](https://github.com/getsentry/relay/pull/5966))
+- Correct the PII status for `SpanData` fields. ([#5995](https://github.com/getsentry/relay/pull/5995))
 
 **Internal**:
 
 - Remove unknown debug image variants in errors. ([#5962](https://github.com/getsentry/relay/pull/5962))
+- Remove support for dynamic sampling reservoir rules. ([#5988](https://github.com/getsentry/relay/pull/5988))
 - Bump `sentry-conventions` to 0.6.0-4. ([#5944](https://github.com/getsentry/relay/pull/5944))
 - Bump `sqlparser` to 0.62. ([#5964](https://github.com/getsentry/relay/pull/5964))
 - Enable compression for forwarded uploads. ([#5965](https://github.com/getsentry/relay/pull/5965))

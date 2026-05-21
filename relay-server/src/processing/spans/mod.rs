@@ -180,9 +180,9 @@ impl processing::Processor for SpansProcessor {
         dynamic_sampling::validate_configs(ctx);
         dynamic_sampling::validate_dsc_presence(&spans).reject(&spans)?;
 
-        let spans = process::expand(spans)?;
+        let spans = process::expand(spans, ctx)?;
 
-        let mut spans = match dynamic_sampling::run(spans, ctx).await {
+        let mut spans = match dynamic_sampling::run(spans, ctx) {
             Ok(spans) => spans,
             Err(metrics) => return Ok(Output::metrics(metrics)),
         };

@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::time::Duration;
 
+use relay_dynamic_config::Feature;
 use relay_event_normalization::eap::ClientUserAgentInfo;
 use relay_event_normalization::{GeoIpLookup, RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
@@ -19,7 +20,10 @@ use crate::services::outcome::DiscardReason;
 /// Parses all serialized spans.
 ///
 /// Individual, invalid spans are discarded.
-pub fn expand(spans: Managed<SerializedSpans>) -> Result<Managed<ExpandedSpans>, Rejected<Error>> {
+pub fn expand(
+    spans: Managed<SerializedSpans>,
+    ctx: Context<'_>,
+) -> Result<Managed<ExpandedSpans>, Rejected<Error>> {
     spans.try_map(|spans, records| {
         let SerializedSpans {
             headers,
@@ -35,7 +39,7 @@ pub fn expand(spans: Managed<SerializedSpans>) -> Result<Managed<ExpandedSpans>,
 
         let (settings, spans) = match items {
             SpanItems::Container(item) => expand_span_container(&item)?,
-            SpanItems::Legacy(items) => expand_legacy_spans(items, records),
+            SpanItems::Legacy(items) => expand_legacy_spans(items, records, ctx),
             SpanItems::Integration(item) => spans::integrations::expand(records, &[item]),
             SpanItems::None => (Default::default(), Vec::new()),
         };
@@ -126,10 +130,11 @@ fn expand_span_container(item: &Item) -> Result<(Settings, ContainerItems<SpanV2
 fn expand_legacy_spans(
     items: Vec<Item>,
     records: &mut RecordKeeper<'_>,
+    ctx: Context<'_>,
 ) -> (Settings, ContainerItems<SpanV2>) {
     let spans = items
         .into_iter()
-        .filter_map(|item| match expand_legacy_span(&item) {
+        .filter_map(|item| match expand_legacy_span(&item, ctx) {
             Ok(span) => Some(span),
             Err(err) => {
                 records.reject_err(err, item);
@@ -141,15 +146,18 @@ fn expand_legacy_spans(
     (Settings::default(), spans)
 }
 
-fn expand_legacy_span(item: &Item) -> Result<WithHeader<SpanV2>> {
+fn expand_legacy_span(item: &Item, ctx: Context<'_>) -> Result<WithHeader<SpanV2>> {
     let payload = item.payload();
+    let use_measurements_smart_conversion = ctx
+        .project_info
+        .has_feature(Feature::MeasurementsSmartConversion);
 
     let span = Annotated::<Span>::from_json_bytes(&payload)
         .map_err(|err| {
             relay_log::debug!("failed to parse span: {err}");
             Error::Invalid(DiscardReason::InvalidJson)
         })?
-        .map_value(relay_spans::span_v1_to_span_v2);
+        .map_value(|span| relay_spans::span_v1_to_span_v2(span, use_measurements_smart_conversion));
 
     Ok(WithHeader::new(span))
 }
@@ -225,9 +233,7 @@ fn normalize_span(
         }
         eap::normalize_user_agent(&mut span.attributes, client_ua_info);
         eap::normalize_user_geo(&mut span.attributes, |ip| geo_lookup.lookup(ip));
-        if matches!(span.is_segment.value(), Some(true)) {
-            eap::normalize_dsc(&mut span.attributes, dsc);
-        }
+        eap::normalize_dsc(&mut span.attributes, &span.is_segment, dsc);
         if ctx.is_processing() {
             eap::normalize_ai(&mut span.attributes, duration, model_metdata);
         }
@@ -336,7 +342,7 @@ fn span_duration(span: &SpanV2) -> Option<Duration> {
 mod tests {
     use chrono::DateTime;
 
-    use relay_conventions::consts::*;
+    use relay_conventions::attributes::*;
     use relay_event_schema::protocol::{Attributes, EventId, SpanKind};
     use relay_pii::PiiConfig;
     use relay_protocol::SerializableAnnotated;

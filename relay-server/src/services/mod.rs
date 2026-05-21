@@ -36,7 +36,6 @@ pub mod metrics;
 #[cfg(feature = "processing")]
 pub mod objectstore;
 pub mod outcome;
-pub mod outcome_aggregator;
 pub mod processor;
 pub mod projects;
 pub mod proxy_processor;
