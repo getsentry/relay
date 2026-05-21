@@ -420,7 +420,7 @@ def test_ai_spans_example_transaction(
                     "type": "string",
                     "value": "generateText weather-chat",
                 },
-                "sentry.dsc.project_id": {"type": "integer", "value": 42},
+                "sentry.dsc.project_id": {"type": "string", "value": "42"},
                 "sentry.dsc.trace_id": {
                     "type": "string",
                     "value": "a9351cd574f092f6acad48e250981f11",
@@ -540,7 +540,7 @@ def test_ai_spans_example_transaction(
                     "type": "string",
                     "value": "generate_text gpt-4o",
                 },
-                "sentry.dsc.project_id": {"type": "integer", "value": 42},
+                "sentry.dsc.project_id": {"type": "string", "value": "42"},
                 "sentry.dsc.trace_id": {
                     "type": "string",
                     "value": "a9351cd574f092f6acad48e250981f11",
@@ -641,7 +641,7 @@ def test_ai_spans_example_transaction(
                     "value": "POST " "https://api.openai.com/v1/responses",
                 },
                 "sentry.domain": {"type": "string", "value": "*.openai.com"},
-                "sentry.dsc.project_id": {"type": "integer", "value": 42},
+                "sentry.dsc.project_id": {"type": "string", "value": "42"},
                 "sentry.dsc.trace_id": {
                     "type": "string",
                     "value": "a9351cd574f092f6acad48e250981f11",
@@ -738,7 +738,7 @@ def test_ai_spans_example_transaction(
                     "type": "string",
                     "value": "execute_tool getWeather",
                 },
-                "sentry.dsc.project_id": {"type": "integer", "value": 42},
+                "sentry.dsc.project_id": {"type": "string", "value": "42"},
                 "sentry.dsc.trace_id": {
                     "type": "string",
                     "value": "a9351cd574f092f6acad48e250981f11",
@@ -802,7 +802,7 @@ def test_ai_spans_example_transaction(
                     "value": "GET " "https://wttr.in/San%20Francisco",
                 },
                 "sentry.domain": {"type": "string", "value": "wttr.in"},
-                "sentry.dsc.project_id": {"type": "integer", "value": 42},
+                "sentry.dsc.project_id": {"type": "string", "value": "42"},
                 "sentry.dsc.trace_id": {
                     "type": "string",
                     "value": "a9351cd574f092f6acad48e250981f11",
@@ -892,7 +892,7 @@ def test_ai_spans_example_transaction(
                     "type": "string",
                     "value": "execute_tool getWeather",
                 },
-                "sentry.dsc.project_id": {"type": "integer", "value": 42},
+                "sentry.dsc.project_id": {"type": "string", "value": "42"},
                 "sentry.dsc.trace_id": {
                     "type": "string",
                     "value": "a9351cd574f092f6acad48e250981f11",
@@ -956,7 +956,7 @@ def test_ai_spans_example_transaction(
                     "value": "GET https://wttr.in/London",
                 },
                 "sentry.domain": {"type": "string", "value": "wttr.in"},
-                "sentry.dsc.project_id": {"type": "integer", "value": 42},
+                "sentry.dsc.project_id": {"type": "string", "value": "42"},
                 "sentry.dsc.trace_id": {
                     "type": "string",
                     "value": "a9351cd574f092f6acad48e250981f11",
@@ -1076,7 +1076,7 @@ def test_ai_spans_example_transaction(
                     "type": "string",
                     "value": "generate_text gpt-4o",
                 },
-                "sentry.dsc.project_id": {"type": "integer", "value": 42},
+                "sentry.dsc.project_id": {"type": "string", "value": "42"},
                 "sentry.dsc.trace_id": {
                     "type": "string",
                     "value": "a9351cd574f092f6acad48e250981f11",
@@ -1174,7 +1174,7 @@ def test_ai_spans_example_transaction(
                     "value": "POST " "https://api.openai.com/v1/responses",
                 },
                 "sentry.domain": {"type": "string", "value": "*.openai.com"},
-                "sentry.dsc.project_id": {"type": "integer", "value": 42},
+                "sentry.dsc.project_id": {"type": "string", "value": "42"},
                 "sentry.dsc.trace_id": {
                     "type": "string",
                     "value": "a9351cd574f092f6acad48e250981f11",
@@ -1253,7 +1253,7 @@ def test_ai_spans_example_transaction(
                 "gen_ai.usage.output_tokens": {"type": "integer", "value": 65},
                 "gen_ai.usage.total_tokens": {"type": "double", "value": 310.0},
                 "sentry.description": {"type": "string", "value": "main"},
-                "sentry.dsc.project_id": {"type": "integer", "value": 42},
+                "sentry.dsc.project_id": {"type": "string", "value": "42"},
                 "sentry.dsc.trace_id": {
                     "type": "string",
                     "value": "a9351cd574f092f6acad48e250981f11",

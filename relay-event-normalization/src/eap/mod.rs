@@ -778,7 +778,7 @@ mod tests {
         {
           "sentry.dsc.project_id": {
             "type": "string",
-            "value": 42
+            "value": "42"
           },
           "sentry.dsc.trace_id": {
             "type": "string",
@@ -802,7 +802,7 @@ mod tests {
         {
           "sentry.dsc.project_id": {
             "type": "string",
-            "value": 42
+            "value": "42"
           },
           "sentry.dsc.trace_id": {
             "type": "string",
@@ -830,7 +830,7 @@ mod tests {
         {
           "sentry.dsc.project_id": {
             "type": "string",
-            "value": 42
+            "value": "42"
           },
           "sentry.dsc.public_key": {
             "type": "string",

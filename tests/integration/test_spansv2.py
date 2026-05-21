@@ -130,7 +130,7 @@ def test_spansv2_basic(
             },
             "sentry.dsc.release": {"type": "string", "value": "foo@1.0"},
             "sentry.dsc.transaction": {"type": "string", "value": "/my/fancy/endpoint"},
-            "sentry.dsc.project_id": {"type": "integer", "value": 42},
+            "sentry.dsc.project_id": {"type": "string", "value": "42"},
             "sentry.dsc.trace_id": {
                 "type": "string",
                 "value": "5b8efff798038103d269b633813fc60c",
@@ -323,7 +323,7 @@ def test_spansv2_trimming_basic(
             },
             "sentry.dsc.release": {"type": "string", "value": "foo@1.0"},
             "sentry.dsc.transaction": {"type": "string", "value": "/my/fancy/endpoint"},
-            "sentry.dsc.project_id": {"type": "integer", "value": 42},
+            "sentry.dsc.project_id": {"type": "string", "value": "42"},
             "sentry.dsc.trace_id": {
                 "type": "string",
                 "value": "5b8efff798038103d269b633813fc60c",
@@ -1171,7 +1171,7 @@ def test_spanv2_with_string_pii_scrubbing(
         "trace_id": "5b8efff798038103d269b633813fc60c",
         "span_id": "eee19b7ec3c1b174",
         "attributes": {
-            "sentry.dsc.project_id": {"type": "integer", "value": 42},
+            "sentry.dsc.project_id": {"type": "string", "value": "42"},
             "sentry.dsc.trace_id": {
                 "type": "string",
                 "value": "5b8efff798038103d269b633813fc60c",
@@ -1309,7 +1309,7 @@ def test_spanv2_meta_pii_scrubbing_complex_attribute(mini_sentry, relay):
                 "type": "array",
                 "value": ["normal", "[creditcard]", "other"],
             },
-            "sentry.dsc.project_id": {"type": "integer", "value": 42},
+            "sentry.dsc.project_id": {"type": "string", "value": "42"},
             "sentry.dsc.trace_id": {
                 "type": "string",
                 "value": "5b8efff798038103d269b633813fc60c",
@@ -1457,7 +1457,7 @@ def test_spansv2_attribute_normalization(
                 "value": "SELECT id FROM users WHERE id = 1 AND name = 'Test'",
             },
             "sentry.domain": {"type": "string", "value": ",users,"},
-            "sentry.dsc.project_id": {"type": "integer", "value": 42},
+            "sentry.dsc.project_id": {"type": "string", "value": "42"},
             "sentry.dsc.trace_id": {
                 "type": "string",
                 "value": "5b8efff798038103d269b633813fc60c",
@@ -1509,7 +1509,7 @@ def test_spansv2_attribute_normalization(
             "sentry.action": {"type": "string", "value": "GET"},
             "server.address": {"type": "string", "value": "*.service.io"},
             "sentry.domain": {"type": "string", "value": "*.service.io"},
-            "sentry.dsc.project_id": {"type": "integer", "value": 42},
+            "sentry.dsc.project_id": {"type": "string", "value": "42"},
             "sentry.dsc.trace_id": {
                 "type": "string",
                 "value": "5b8efff798038103d269b633813fc60c",
@@ -1929,7 +1929,7 @@ def test_spansv2_dsc_normalization(
                     "type": "string",
                     "value": "/transaction/already/exists",
                 },
-                "sentry.dsc.project_id": {"type": "integer", "value": 41},
+                "sentry.dsc.project_id": {"type": "string", "value": "41"},
             },
         },
         trace_info={
@@ -1957,9 +1957,9 @@ def test_spansv2_dsc_normalization(
     assert get_transaction("aaaaaaaaaaaaaaaa") == "/my/fancy/endpoint"
     assert get_transaction("bbbbbbbbbbbbbbbb") == "/my/fancy/endpoint"
     assert get_transaction("cccccccccccccccc") == "/transaction/already/exists"
-    assert get_project_id("aaaaaaaaaaaaaaaa") == 42
-    assert get_project_id("bbbbbbbbbbbbbbbb") == 42
-    assert get_project_id("cccccccccccccccc") == 41
+    assert get_project_id("aaaaaaaaaaaaaaaa") == "42"
+    assert get_project_id("bbbbbbbbbbbbbbbb") == "42"
+    assert get_project_id("cccccccccccccccc") == "41"
     assert get_trace_id("aaaaaaaaaaaaaaaa") == "5b8efff798038103d269b633813fc60c"
     assert get_trace_id("bbbbbbbbbbbbbbbb") == "5b8efff798038103d269b633813fc60c"
     assert get_trace_id("cccccccccccccccc") == "5b8efff798038103d269b633813fc60c"

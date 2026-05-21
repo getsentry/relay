@@ -156,7 +156,7 @@ def test_span_extraction(
             },
             "sentry.is_remote": {"type": "boolean", "value": False},
             "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},
-            "sentry.dsc.project_id": {"type": "integer", "value": 42},
+            "sentry.dsc.project_id": {"type": "string", "value": "42"},
             "sentry.dsc.trace_id": {
                 "type": "string",
                 "value": "a0fa8803753e40fd8124b21eeb2986b5",
@@ -233,7 +233,7 @@ def test_span_extraction(
             "sentry.user.id": {"type": "string", "value": user_id},
             "sentry.user.ip": {"type": "string", "value": "192.168.0.1"},
             "sentry.user": {"type": "string", "value": f"id:{user_id}"},
-            "sentry.dsc.project_id": {"type": "integer", "value": 42},
+            "sentry.dsc.project_id": {"type": "string", "value": "42"},
             "sentry.dsc.trace_id": {
                 "type": "string",
                 "value": "a0fa8803753e40fd8124b21eeb2986b5",
@@ -1271,7 +1271,7 @@ def test_spans_dsc_normalization(
             "data": {
                 "sentry.dsc.trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
                 "sentry.dsc.transaction": "/transaction/already/exists",
-                "sentry.dsc.project_id": 41,
+                "sentry.dsc.project_id": "41",
             },
         },
     ]
@@ -1294,9 +1294,9 @@ def test_spans_dsc_normalization(
     assert get_transaction("968cff94913ebb07") == "hi"
     assert get_transaction("bbbbbbbbbbbbbbbb") == "hi"
     assert get_transaction("cccccccccccccccc") == "/transaction/already/exists"
-    assert get_project_id("968cff94913ebb07") == 42
-    assert get_project_id("bbbbbbbbbbbbbbbb") == 42
-    assert get_project_id("cccccccccccccccc") == 41
+    assert get_project_id("968cff94913ebb07") == "42"
+    assert get_project_id("bbbbbbbbbbbbbbbb") == "42"
+    assert get_project_id("cccccccccccccccc") == "41"
     assert get_trace_id("968cff94913ebb07") == "a0fa8803753e40fd8124b21eeb2986b5"
     assert get_trace_id("bbbbbbbbbbbbbbbb") == "a0fa8803753e40fd8124b21eeb2986b5"
     assert get_trace_id("cccccccccccccccc") == "a0fa8803753e40fd8124b21eeb2986b5"
