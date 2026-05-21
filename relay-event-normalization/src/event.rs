@@ -13,7 +13,6 @@ use regex::Regex;
 use relay_base_schema::metrics::{
     DurationUnit, FractionUnit, MetricUnit, can_be_valid_metric_name,
 };
-use relay_base_schema::project::ProjectId;
 use relay_conventions::attributes::{
     APP__VITALS__START__COLD__VALUE, APP__VITALS__START__SCREEN, APP__VITALS__START__TYPE,
     APP__VITALS__START__VALUE, APP__VITALS__START__WARM__VALUE, SCORE__TOTAL,
@@ -34,7 +33,6 @@ use relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FiniteF64, FromValue, Getter, Meta, Object, Remark,
     RemarkType, TryFromFloatError, Value,
 };
-use relay_sampling::DynamicSamplingContext;
 use smallvec::SmallVec;
 use uuid::Uuid;
 
@@ -178,11 +176,8 @@ pub struct NormalizationConfig<'a> {
     /// Should add a random trace ID to events that lack one.
     pub derive_trace_id: bool,
 
-    /// Dynamic sampling context.
-    pub dsc: Option<&'a DynamicSamplingContext>,
-
-    /// The identifier of the project where the trace originated.
-    pub sampling_project_id: Option<ProjectId>,
+    /// Properties used for dsc span normalization.
+    pub dsc_normalization_props: Option<&'a DscNormalizationCommonProps<'a>>,
 }
 
 impl Default for NormalizationConfig<'_> {
@@ -218,8 +213,7 @@ impl Default for NormalizationConfig<'_> {
             span_op_defaults: Default::default(),
             performance_issues_spans: Default::default(),
             derive_trace_id: Default::default(),
-            dsc: None,
-            sampling_project_id: None,
+            dsc_normalization_props: None,
         }
     }
 }
@@ -351,8 +345,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     normalize_contexts(&mut event.contexts, event_id, config);
 
     if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
-        let dsc_props = DscNormalizationCommonProps::new(config.dsc, config.sampling_project_id);
-        span::normalize_dsc_for_event_spans(event, &dsc_props);
+        span::normalize_dsc_for_event_spans(event, config.dsc_normalization_props);
         span::normalize_app_start_spans(event);
         span::exclusive_time::compute_span_exclusive_time(event);
     }

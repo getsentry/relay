@@ -367,19 +367,17 @@ pub struct ModelMetadataEntry {
 }
 
 /// Parameters shared across dsc normalization functions.
+#[derive(Debug, Clone)]
 pub struct DscNormalizationCommonProps<'a> {
     /// Dynamic sampling context containing the trace id and root transaction that started the trace.
-    pub dsc: Option<&'a DynamicSamplingContext>,
+    pub dsc: &'a DynamicSamplingContext,
     /// Id of the project where the trace originated.
-    pub sampling_project_id: Option<ProjectId>,
+    pub sampling_project_id: ProjectId,
 }
 
 impl<'a> DscNormalizationCommonProps<'a> {
     /// Creates a new [`DscNormalizationCommonProps`].
-    pub fn new(
-        dsc: Option<&'a DynamicSamplingContext>,
-        sampling_project_id: Option<ProjectId>,
-    ) -> Self {
+    pub fn new(dsc: &'a DynamicSamplingContext, sampling_project_id: ProjectId) -> Self {
         DscNormalizationCommonProps {
             dsc,
             sampling_project_id,

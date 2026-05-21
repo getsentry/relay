@@ -2,7 +2,6 @@
 
 use crate::services::processor::ProcessingError;
 use chrono::{DateTime, Utc};
-use relay_base_schema::project::ProjectId;
 use relay_event_normalization::DscNormalizationCommonProps;
 use relay_event_normalization::span::{self, ai};
 use relay_event_normalization::{
@@ -16,7 +15,6 @@ use relay_event_schema::processor::{ProcessingState, process_value};
 use relay_event_schema::protocol::{BrowserContext, EventId, IpAddr, Span, SpanData};
 use relay_metrics::UnixTimestamp;
 use relay_protocol::{Annotated, Empty, Value};
-use relay_sampling::DynamicSamplingContext;
 
 /// Config needed to normalize a standalone span.
 #[derive(Clone, Debug)]
@@ -58,10 +56,8 @@ pub struct NormalizeSpanConfig<'a> {
     /// An initialized GeoIP lookup.
     pub geo_lookup: &'a GeoIpLookup,
     pub span_op_defaults: BorrowedSpanOpDefaults<'a>,
-    /// Dynamic sampling context from the envelope headers.
-    pub dsc: Option<&'a DynamicSamplingContext>,
-    /// Project ID of the project that started the trace.
-    pub sampling_project_id: Option<ProjectId>,
+    /// Properties used for dsc span normalization.
+    pub dsc_normalization_props: Option<&'a DscNormalizationCommonProps<'a>>,
 }
 
 fn set_segment_attributes(span: &mut Annotated<Span>) {
@@ -115,8 +111,7 @@ pub fn normalize(
         client_ip,
         geo_lookup,
         span_op_defaults,
-        dsc,
-        sampling_project_id,
+        dsc_normalization_props,
     } = config;
 
     set_segment_attributes(annotated_span);
@@ -216,8 +211,7 @@ pub fn normalize(
 
     normalize_performance_score(span, *performance_score);
 
-    let dsc_normalization_props = &DscNormalizationCommonProps::new(*dsc, *sampling_project_id);
-    span::normalize_dsc_for_span_data(&mut span.data, dsc_normalization_props);
+    span::normalize_dsc_for_span_data(&mut span.data, *dsc_normalization_props);
 
     ai::enrich_ai_span(span, *ai_model_metadata);
 
@@ -560,8 +554,7 @@ mod tests {
             client_ip: Some(IpAddr("2.125.160.216".to_owned())),
             geo_lookup: &GEO_LOOKUP,
             span_op_defaults: Default::default(),
-            dsc: None,
-            sampling_project_id: None,
+            dsc_normalization_props: None,
         }
     }
 

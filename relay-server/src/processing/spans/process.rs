@@ -209,10 +209,10 @@ fn normalize_span(
     );
 
     if let Some(span) = span.value_mut() {
-        let dsc_props = DscNormalizationCommonProps::new(
-            headers.dsc(),
-            ctx.sampling_project_info.and_then(|p| p.project_id),
-        );
+        let dsc_props = headers
+            .dsc()
+            .zip(ctx.sampling_project_info.and_then(|p| p.project_id))
+            .map(|(d, s)| DscNormalizationCommonProps::new(d, s));
         let duration = span_duration(span);
         let allowed_hosts = ctx.global_config.options.http_span_allowed_hosts.as_slice();
         let model_metdata = ctx.global_config.ai_model_metadata();
@@ -238,7 +238,7 @@ fn normalize_span(
         }
         eap::normalize_user_agent(&mut span.attributes, client_ua_info);
         eap::normalize_user_geo(&mut span.attributes, |ip| geo_lookup.lookup(ip));
-        eap::normalize_dsc(&mut span.attributes, &span.is_segment, &dsc_props);
+        eap::normalize_dsc(&mut span.attributes, &span.is_segment, dsc_props.as_ref());
         if ctx.is_processing() {
             eap::normalize_ai(&mut span.attributes, duration, model_metdata);
         }

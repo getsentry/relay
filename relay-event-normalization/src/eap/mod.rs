@@ -353,9 +353,9 @@ pub fn normalize_user_geo(
 pub fn normalize_dsc(
     attributes: &mut Annotated<Attributes>,
     is_segment: &Annotated<bool>,
-    props: &DscNormalizationCommonProps,
+    props: Option<&DscNormalizationCommonProps>,
 ) {
-    let Some(dsc) = props.dsc else { return };
+    let Some(props) = props else { return };
 
     let attributes = attributes.get_or_insert_with(Default::default);
 
@@ -363,27 +363,29 @@ pub fn normalize_dsc(
     if attributes.contains_key(SENTRY__DSC__TRACE_ID) {
         return;
     }
-    attributes.insert(SENTRY__DSC__TRACE_ID, dsc.trace_id.to_string());
+    attributes.insert(SENTRY__DSC__TRACE_ID, props.dsc.trace_id.to_string());
 
-    if let Some(transaction) = &dsc.transaction {
+    if let Some(transaction) = &props.dsc.transaction {
         attributes.insert(SENTRY__DSC__TRANSACTION, transaction.clone());
     }
-    if let Some(project_id) = props.sampling_project_id {
-        attributes.insert(SENTRY__DSC__PROJECT_ID, project_id.to_string());
-    }
+
+    attributes.insert(
+        SENTRY__DSC__PROJECT_ID,
+        props.sampling_project_id.to_string(),
+    );
 
     if is_segment.value().is_some_and(|is_segment| *is_segment) {
-        attributes.insert(SENTRY__DSC__PUBLIC_KEY, dsc.public_key.to_string());
-        if let Some(release) = &dsc.release {
+        attributes.insert(SENTRY__DSC__PUBLIC_KEY, props.dsc.public_key.to_string());
+        if let Some(release) = &props.dsc.release {
             attributes.insert(SENTRY__DSC__RELEASE, release.clone());
         }
-        if let Some(environment) = &dsc.environment {
+        if let Some(environment) = &props.dsc.environment {
             attributes.insert(SENTRY__DSC__ENVIRONMENT, environment.clone());
         }
-        if let Some(sample_rate) = dsc.sample_rate {
+        if let Some(sample_rate) = props.dsc.sample_rate {
             attributes.insert(SENTRY__DSC__SAMPLE_RATE, sample_rate);
         }
-        if let Some(sampled) = dsc.sampled {
+        if let Some(sampled) = props.dsc.sampled {
             attributes.insert(SENTRY__DSC__SAMPLED, sampled);
         }
     }
@@ -756,11 +758,7 @@ mod tests {
     #[test]
     fn test_normalize_dsc_child_span_no_dsc() {
         let mut attributes = Annotated::empty();
-        normalize_dsc(
-            &mut attributes,
-            &Annotated::new(false),
-            &DscNormalizationCommonProps::new(None, None),
-        );
+        normalize_dsc(&mut attributes, &Annotated::new(false), None);
         assert!(attributes.value().is_none());
     }
 
@@ -772,7 +770,7 @@ mod tests {
         normalize_dsc(
             &mut attributes,
             &Annotated::new(false),
-            &DscNormalizationCommonProps::new(Some(dsc), Some(sampling_project_id)),
+            Some(&DscNormalizationCommonProps::new(dsc, sampling_project_id)),
         );
         assert_annotated_snapshot!(attributes, @r#"
         {
@@ -796,7 +794,7 @@ mod tests {
         normalize_dsc(
             &mut attributes,
             &Annotated::new(false),
-            &DscNormalizationCommonProps::new(Some(dsc), Some(sampling_project_id)),
+            Some(&DscNormalizationCommonProps::new(dsc, sampling_project_id)),
         );
         assert_annotated_snapshot!(attributes, @r#"
         {
@@ -824,7 +822,7 @@ mod tests {
         normalize_dsc(
             &mut attributes,
             &Annotated::new(true),
-            &DscNormalizationCommonProps::new(Some(dsc), Some(sampling_project_id)),
+            Some(&DscNormalizationCommonProps::new(dsc, sampling_project_id)),
         );
         assert_annotated_snapshot!(attributes, @r#"
         {

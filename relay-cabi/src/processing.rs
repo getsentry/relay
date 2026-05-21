@@ -275,8 +275,7 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         span_op_defaults: Default::default(), // only supported in relay
         performance_issues_spans: Default::default(),
         derive_trace_id: Default::default(),
-        dsc: None,
-        sampling_project_id: None,
+        dsc_normalization_props: None,
     };
     normalize_event(&mut event, &normalization_config);
 
