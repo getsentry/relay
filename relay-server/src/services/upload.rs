@@ -412,9 +412,9 @@ impl<L: UploadLength> Location<L> {
         let Location {
             project_id,
             key,
-            length: _,
+            length,
         } = self;
-        match self.length.value() {
+        match length.value() {
             Some(length) => format!("/api/{project_id}/upload/{key}/?length={length}"),
             None => format!("/api/{project_id}/upload/{key}/"),
         }
