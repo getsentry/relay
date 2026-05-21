@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Convert measurements to attributes based on information from `sentry-conventions`. This is gated behind a project feature flag. ([#6007](https://github.com/getsentry/relay/pull/6007))
+
 **Bug Fixes**:
 
 - Apply timestamp validations to transaction spans. ([#6005](https://github.com/getsentry/relay/pull/6005), [#6013](https://github.com/getsentry/relay/pull/6013))
