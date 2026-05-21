@@ -187,7 +187,7 @@ fn validate_timestamps(
             "start timestamp is out of the valid range for metrics",
         ));
     }
-    if range.end < end {
+    if range.end <= end {
         return Err(ProcessingAction::InvalidTransaction(
             "end timestamp is out of the valid range for metrics",
         ));
