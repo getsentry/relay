@@ -38,6 +38,7 @@
 - Enable compression for forwarded uploads. ([#5965](https://github.com/getsentry/relay/pull/5965))
 - Change the default partitioning for the envelope buffer from semantic to round-robin. ([#5967](https://github.com/getsentry/relay/pull/5967))
 - Enable retries for upload requests to upstream. ([#5975](https://github.com/getsentry/relay/pull/5975))
+- Always allow `Upload-Defer-Length: 1` on the `/upload` endpoint. ([#5977](https://github.com/getsentry/relay/pull/5977)])
 
 ## 26.4.2
 
