@@ -102,7 +102,7 @@ pub fn normalize_dsc_for_span_data(
     if let Some(project_id) = props.sampling_project_id {
         data.other.insert(
             SENTRY__DSC__PROJECT_ID.to_owned(),
-            Annotated::new(Value::U64(project_id.value())),
+            Annotated::new(Value::String(project_id.to_string())),
         );
     }
 }

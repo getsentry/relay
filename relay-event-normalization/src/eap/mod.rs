@@ -345,7 +345,7 @@ pub fn normalize_user_geo(
     attributes.insert_if_missing(USER__GEO__REGION, || geo.region);
 }
 
-/// Normalizes the [DSC](DynamicSamplingContext) into [`Attributes`].
+/// Normalizes the dynamic sampling context into [`Attributes`].
 ///
 /// If `is_segment` is set to `false`, the function will only add select attributes that are
 /// necessary on every span - both segment and non-segment - for dynamic sampling to work. More
