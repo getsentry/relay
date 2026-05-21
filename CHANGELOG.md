@@ -43,7 +43,6 @@
 - Change the default partitioning for the envelope buffer from semantic to round-robin. ([#5967](https://github.com/getsentry/relay/pull/5967))
 - Enable retries for upload requests to upstream. ([#5975](https://github.com/getsentry/relay/pull/5975))
 
-
 ## 26.4.2
 
 **Features**:

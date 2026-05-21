@@ -356,6 +356,7 @@ pub trait UploadLength: for<'de> Deserialize<'de> {
 ///
 /// /// See also [`Final`].
 #[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(transparent)]
 pub struct Provisional(Option<usize>);
 
 impl Provisional {
@@ -398,7 +399,7 @@ impl UploadLength for Final {
 /// Calling [`Self::try_sign`] appends a `&signature=` query parameter that can later be used
 /// to validate whether the URI (especially the length) has been tempered with.
 #[derive(Debug)]
-pub struct Location<L: UploadLength> {
+pub struct Location<L> {
     /// Sentry project ID.
     pub project_id: ProjectId,
     /// Objectstore identifier.
@@ -450,44 +451,11 @@ pub struct LocationPath {
 }
 
 /// Query parameters for the upload endpoint.
-#[derive(Debug)]
+#[derive(Debug, Deserialize)]
+#[serde(bound = "L: UploadLength")]
 pub struct LocationQueryParams<L: UploadLength> {
     pub length: L,
     pub signature: String,
-}
-
-#[derive(Deserialize)]
-struct Helper {
-    length: Option<usize>,
-    signature: String,
-}
-
-impl<'de> Deserialize<'de> for LocationQueryParams<Provisional> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        Helper::deserialize(deserializer).map(|Helper { length, signature }| Self {
-            length: Provisional(length),
-            signature,
-        })
-    }
-}
-
-impl<'de> Deserialize<'de> for LocationQueryParams<Final> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let Helper { length, signature } = Helper::deserialize(deserializer)?;
-        let Some(length) = length else {
-            return Err(serde::de::Error::custom("missing length"));
-        };
-        Ok(Self {
-            length: Final(length),
-            signature,
-        })
-    }
 }
 
 /// A verifiable [`Location`] signed by this Relay or an upstream Relay.
@@ -553,8 +521,9 @@ impl<L: UploadLength> SignedLocation<L> {
     }
 }
 
-impl<L: UploadLength + std::fmt::Debug> SignedLocation<L>
+impl<L> SignedLocation<L>
 where
+    L: UploadLength,
     LocationQueryParams<L>: for<'de> Deserialize<'de>,
 {
     fn try_from_response(response: Response) -> Result<Self, Error> {
@@ -772,5 +741,31 @@ where
         HttpEncoding::Gzip => ReaderStream::new(GzipEncoder::new(reader)).boxed(),
         HttpEncoding::Br => ReaderStream::new(BrotliEncoder::new(reader)).boxed(),
         HttpEncoding::Zstd => ReaderStream::new(ZstdEncoder::new(reader)).boxed(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_location_incomplete() {
+        let json = r#"{"signature": "foo"}"#;
+
+        // Can only parse provisional:
+        let provisional: LocationQueryParams<Provisional> = serde_json::from_str(json).unwrap();
+        assert!(provisional.length.0.is_none());
+        assert!(serde_json::from_str::<LocationQueryParams::<Final>>(json).is_err());
+    }
+
+    #[test]
+    fn parse_location_complete() {
+        let json = r#"{"signature": "foo", "length": 123}"#;
+
+        // Can only parse provisional:
+        let provisional: LocationQueryParams<Provisional> = serde_json::from_str(json).unwrap();
+        assert_eq!(provisional.length.0, Some(123));
+        let full: LocationQueryParams<Final> = serde_json::from_str(json).unwrap();
+        assert_eq!(full.length.0, 123);
     }
 }
