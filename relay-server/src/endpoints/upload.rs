@@ -176,6 +176,7 @@ async fn handle_post(
     let scoping = check_request(&state, meta, upload_length, project).await?;
 
     // Unconditionally create the upload location:
+    relay_log::trace!("Creating upload location");
     let result = create(&state, scoping, upload_length).await;
     let location = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "create failed");

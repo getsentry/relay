@@ -355,7 +355,7 @@ pub trait UploadLength: for<'de> Deserialize<'de> {
 /// A provisional upload length which may or may not yet be known.
 ///
 /// /// See also [`Final`].
-#[derive(Clone, Copy, Deserialize)]
+#[derive(Debug, Clone, Copy, Deserialize)]
 pub struct Provisional(Option<usize>);
 
 impl Provisional {
@@ -367,14 +367,14 @@ impl Provisional {
 
 impl UploadLength for Provisional {
     fn value(&self) -> Option<usize> {
-        self.0.clone()
+        self.0
     }
 }
 
 /// A final upload length that represents the actual amount of bytes uploaded to objectstore.
 ///
 /// See also [`Provisional`].
-#[derive(Clone, Copy, Deserialize)]
+#[derive(Debug, Clone, Copy, Deserialize)]
 pub struct Final(usize);
 
 impl Final {
@@ -457,14 +457,20 @@ pub struct LocationQueryParams<L: UploadLength> {
 }
 
 #[derive(Deserialize)]
-struct Helper(LocationQueryParams<Provisional>);
+struct Helper {
+    length: Option<usize>,
+    signature: String,
+}
 
 impl<'de> Deserialize<'de> for LocationQueryParams<Provisional> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        Helper::deserialize(deserializer).map(|helper| helper.0)
+        Helper::deserialize(deserializer).map(|Helper { length, signature }| Self {
+            length: Provisional(length),
+            signature,
+        })
     }
 }
 
@@ -473,9 +479,8 @@ impl<'de> Deserialize<'de> for LocationQueryParams<Final> {
     where
         D: serde::Deserializer<'de>,
     {
-        let LocationQueryParams::<Provisional> { length, signature } =
-            Helper::deserialize(deserializer)?.0;
-        let Some(length) = length.value() else {
+        let Helper { length, signature } = Helper::deserialize(deserializer)?;
+        let Some(length) = length else {
             return Err(serde::de::Error::custom("missing length"));
         };
         Ok(Self {
@@ -548,7 +553,7 @@ impl<L: UploadLength> SignedLocation<L> {
     }
 }
 
-impl<L: UploadLength> SignedLocation<L>
+impl<L: UploadLength + std::fmt::Debug> SignedLocation<L>
 where
     LocationQueryParams<L>: for<'de> Deserialize<'de>,
 {

@@ -991,6 +991,12 @@ def test_minidump_objectstore_uploads_external_chain(
     relay_with_processing,
     attachments_consumer,
 ):
+    """Uploads with `Defer-Length: 1` are accepted from untrusted relays"""
+    mini_sentry.global_config["options"][
+        "relay.objectstore-attachments.sample-rate"
+    ] = 1.0
+    mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = True
+
     project_id = 42
     minidump_content = b"MDMP content"
     log_content = b"Some log file content"
@@ -998,12 +1004,10 @@ def test_minidump_objectstore_uploads_external_chain(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"].setdefault("features", []).extend(
         [
-            # "projects:relay-minidump-uploads", # TODO: why 400 here (though not related to PR)
-            "projects:relay-minidump-attachment-uploads",  # TODO: why 400 here (though not related to PR)
+            "projects:relay-minidump-attachment-uploads",
             "projects:relay-upload-endpoint",
         ]
     )
-    mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = True
 
     relay = relay(relay_with_processing(), external=True)
     project_config["config"]["trustedRelays"] = list(relay.iter_public_keys())
@@ -1019,10 +1023,11 @@ def test_minidump_objectstore_uploads_external_chain(
     )
     assert response.ok
 
-    attachment, _ = attachments_consumer.get_individual_attachment()
-    attachment, _ = attachments_consumer.get_individual_attachment()
-    event, _ = attachments_consumer.get_event()
-    assert UUID(event["event_id"]) == UUID(response.text)
+    _, unpacked = attachments_consumer.get_message()
+    assert {att["name"] for att in unpacked["attachments"]} == {
+        "log.txt",
+        "minidump.dmp",
+    }
 
 
 def test_minidump_objectstore_errors(
