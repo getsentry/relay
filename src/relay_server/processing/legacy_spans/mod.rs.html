@@ -194,7 +194,7 @@
 <a href=#194 id=194 data-nosnippet>194</a>        <span class="kw">let </span>retention = ctx.retention(|r| r.span.as_ref());
 <a href=#195 id=195 data-nosnippet>195</a>
 <a href=#196 id=196 data-nosnippet>196</a>        <span class="kw">for </span>span <span class="kw">in </span>spans.split(|spans| spans.spans.into_iter().map(IndexedOnly)) {
-<a href=#197 id=197 data-nosnippet>197</a>            <span class="kw">if let </span><span class="prelude-val">Ok</span>(span) = span.try_map(|span, <span class="kw">_</span>| store::convert(span.<span class="number">0</span>, retention)) {
+<a href=#197 id=197 data-nosnippet>197</a>            <span class="kw">if let </span><span class="prelude-val">Ok</span>(span) = span.try_map(|span, <span class="kw">_</span>| store::convert(span.<span class="number">0</span>, retention, ctx)) {
 <a href=#198 id=198 data-nosnippet>198</a>                s.send_to_store(span)
 <a href=#199 id=199 data-nosnippet>199</a>            };
 <a href=#200 id=200 data-nosnippet>200</a>        }
