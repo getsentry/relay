@@ -3,9 +3,11 @@ use std::{collections::HashMap, sync::LazyLock};
 
 use regex::Regex;
 use relay_base_schema::metrics::MetricUnit;
+use relay_base_schema::project::ProjectId;
 use relay_event_schema::protocol::VALID_PLATFORMS;
 use relay_pattern::Pattern;
 use relay_protocol::{FiniteF64, RuleCondition};
+use relay_sampling::DynamicSamplingContext;
 use serde::{Deserialize, Serialize};
 
 pub mod breakdowns;
@@ -362,6 +364,27 @@ pub struct ModelMetadataEntry {
     /// The context window size in tokens.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context_size: Option<u64>,
+}
+
+/// Parameters shared across dsc normalization functions.
+pub struct DscNormalizationCommonProps<'a> {
+    /// Dynamic sampling context containing the trace id and root transaction that started the trace.
+    pub dsc: Option<&'a DynamicSamplingContext>,
+    /// Id of the project where the trace originated.
+    pub sampling_project_id: Option<ProjectId>,
+}
+
+impl<'a> DscNormalizationCommonProps<'a> {
+    /// Creates a new [`DscNormalizationCommonProps`].
+    pub fn new(
+        dsc: Option<&'a DynamicSamplingContext>,
+        sampling_project_id: Option<ProjectId>,
+    ) -> Self {
+        DscNormalizationCommonProps {
+            dsc,
+            sampling_project_id,
+        }
+    }
 }
 
 #[cfg(test)]

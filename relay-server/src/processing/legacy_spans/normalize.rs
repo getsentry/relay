@@ -3,6 +3,7 @@
 use crate::services::processor::ProcessingError;
 use chrono::{DateTime, Utc};
 use relay_base_schema::project::ProjectId;
+use relay_event_normalization::DscNormalizationCommonProps;
 use relay_event_normalization::span::{self, ai};
 use relay_event_normalization::{
     BorrowedSpanOpDefaults, ClientHints, CombinedMeasurementsConfig, FromUserAgentInfo,
@@ -215,7 +216,8 @@ pub fn normalize(
 
     normalize_performance_score(span, *performance_score);
 
-    span::normalize_dsc_for_span_data(&mut span.data, *dsc, *sampling_project_id);
+    let dsc_normalization_props = &DscNormalizationCommonProps::new(*dsc, *sampling_project_id);
+    span::normalize_dsc_for_span_data(&mut span.data, dsc_normalization_props);
 
     ai::enrich_ai_span(span, *ai_model_metadata);
 

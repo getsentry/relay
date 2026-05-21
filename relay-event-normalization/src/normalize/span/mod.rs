@@ -1,12 +1,12 @@
 //! Span normalization logic.
 
 use regex::Regex;
-use relay_base_schema::project::ProjectId;
 use relay_conventions::attributes::*;
 use relay_event_schema::protocol::{Event, SpanData, TraceContext};
 use relay_protocol::{Annotated, Value};
-use relay_sampling::DynamicSamplingContext;
 use std::sync::LazyLock;
+
+use crate::DscNormalizationCommonProps;
 
 pub mod ai;
 pub mod country_subregion;
@@ -62,20 +62,14 @@ pub fn normalize_app_start_spans(event: &mut Event) {
 ///
 /// If `sentry.dsc.trace_id` is already present in a span's `data`, the function does nothing for
 /// that span.
-///
-/// `sampling_project_id` is the id of the project where the trace originated.
-pub fn normalize_dsc_for_event_spans(
-    event: &mut Event,
-    dsc: Option<&DynamicSamplingContext>,
-    sampling_project_id: Option<ProjectId>,
-) {
+pub fn normalize_dsc_for_event_spans(event: &mut Event, props: &DscNormalizationCommonProps) {
     if let Some(ctx) = event.context_mut::<TraceContext>() {
-        normalize_dsc_for_span_data(&mut ctx.data, dsc, sampling_project_id);
+        normalize_dsc_for_span_data(&mut ctx.data, props);
     }
     if let Some(spans) = event.spans.value_mut() {
         for span in spans {
             if let Some(span) = span.value_mut() {
-                normalize_dsc_for_span_data(&mut span.data, dsc, sampling_project_id);
+                normalize_dsc_for_span_data(&mut span.data, props);
             }
         }
     }
@@ -84,14 +78,11 @@ pub fn normalize_dsc_for_event_spans(
 /// Writes DSC attributes needed for dynamic sampling into `span_data`.
 ///
 /// If `sentry.dsc.trace_id` is already present in `span_data`, the function does nothing.
-///
-/// `sampling_project_id` is the id of the project where the trace originated.
 pub fn normalize_dsc_for_span_data(
     span_data: &mut Annotated<SpanData>,
-    dsc: Option<&DynamicSamplingContext>,
-    sampling_project_id: Option<ProjectId>,
+    props: &DscNormalizationCommonProps,
 ) {
-    let Some(dsc) = dsc else { return };
+    let Some(dsc) = props.dsc else { return };
 
     let data = span_data.get_or_insert_with(SpanData::default);
     if data.other.contains_key(SENTRY__DSC__TRACE_ID) {
@@ -108,7 +99,7 @@ pub fn normalize_dsc_for_span_data(
             Annotated::new(Value::String(transaction.clone())),
         );
     }
-    if let Some(project_id) = sampling_project_id {
+    if let Some(project_id) = props.sampling_project_id {
         data.other.insert(
             SENTRY__DSC__PROJECT_ID.to_owned(),
             Annotated::new(Value::U64(project_id.value())),

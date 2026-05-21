@@ -6,13 +6,11 @@ use std::borrow::Cow;
 use std::net::IpAddr;
 
 use chrono::{DateTime, Utc};
-use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_conventions::attributes::*;
 use relay_conventions::{AttributeInfo, WriteBehavior};
 use relay_event_schema::protocol::{AttributeType, Attributes, BrowserContext, Geo};
 use relay_protocol::{Annotated, ErrorKind, Meta, Remark, RemarkType, Value};
-use relay_sampling::DynamicSamplingContext;
 use relay_spans::derive_op_for_v2_span;
 
 use crate::span::TABLE_NAME_REGEX;
@@ -21,7 +19,7 @@ use crate::span::tag_extraction::{
     domain_from_scrubbed_http, domain_from_server_address, span_op_to_category,
     sql_action_from_query, sql_tables_from_query,
 };
-use crate::{ClientHints, FromUserAgentInfo as _, RawUserAgentInfo};
+use crate::{ClientHints, DscNormalizationCommonProps, FromUserAgentInfo as _, RawUserAgentInfo};
 
 mod ai;
 mod mobile;
@@ -352,15 +350,12 @@ pub fn normalize_user_geo(
 /// If `is_segment` is set to `false`, the function will only add select attributes that are
 /// necessary on every span - both segment and non-segment - for dynamic sampling to work. More
 /// attributes are added when `is_segment` is set to `true`.
-///
-/// `sampling_project_id` is the id of the project where the trace originated.
 pub fn normalize_dsc(
     attributes: &mut Annotated<Attributes>,
     is_segment: &Annotated<bool>,
-    dsc: Option<&DynamicSamplingContext>,
-    sampling_project_id: Option<ProjectId>,
+    props: &DscNormalizationCommonProps,
 ) {
-    let Some(dsc) = dsc else { return };
+    let Some(dsc) = props.dsc else { return };
 
     let attributes = attributes.get_or_insert_with(Default::default);
 
@@ -373,7 +368,7 @@ pub fn normalize_dsc(
     if let Some(transaction) = &dsc.transaction {
         attributes.insert(SENTRY__DSC__TRANSACTION, transaction.clone());
     }
-    if let Some(project_id) = sampling_project_id {
+    if let Some(project_id) = props.sampling_project_id {
         attributes.insert(SENTRY__DSC__PROJECT_ID, project_id.value() as i64);
     }
 
@@ -737,7 +732,9 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
 
 #[cfg(test)]
 mod tests {
+    use relay_base_schema::project::ProjectId;
     use relay_protocol::{Empty, SerializableAnnotated, assert_annotated_snapshot};
+    use relay_sampling::DynamicSamplingContext;
 
     use super::*;
 
@@ -759,19 +756,23 @@ mod tests {
     #[test]
     fn test_normalize_dsc_child_span_no_dsc() {
         let mut attributes = Annotated::empty();
-        normalize_dsc(&mut attributes, &Annotated::new(false), None, None);
+        normalize_dsc(
+            &mut attributes,
+            &Annotated::new(false),
+            &DscNormalizationCommonProps::new(None, None),
+        );
         assert!(attributes.value().is_none());
     }
 
     #[test]
     fn test_normalize_dsc_child_span_no_transaction() {
         let mut attributes = Annotated::empty();
-        let dsc = mock_dsc(None);
+        let dsc = &mock_dsc(None);
+        let sampling_project_id = ProjectId::new(42);
         normalize_dsc(
             &mut attributes,
             &Annotated::new(false),
-            Some(&dsc),
-            Some(ProjectId::new(42)),
+            &DscNormalizationCommonProps::new(Some(dsc), Some(sampling_project_id)),
         );
         assert_annotated_snapshot!(attributes, @r#"
         {
@@ -790,12 +791,12 @@ mod tests {
     #[test]
     fn test_normalize_dsc_child_span() {
         let mut attributes = Annotated::empty();
-        let dsc = mock_dsc(Some("/some/endpoint"));
+        let dsc = &mock_dsc(Some("/some/endpoint"));
+        let sampling_project_id = ProjectId::new(42);
         normalize_dsc(
             &mut attributes,
             &Annotated::new(false),
-            Some(&dsc),
-            Some(ProjectId::new(42)),
+            &DscNormalizationCommonProps::new(Some(dsc), Some(sampling_project_id)),
         );
         assert_annotated_snapshot!(attributes, @r#"
         {
@@ -818,12 +819,12 @@ mod tests {
     #[test]
     fn test_normalize_dsc_segment() {
         let mut attributes = Annotated::empty();
-        let dsc = mock_dsc(Some("/some/endpoint"));
+        let dsc = &mock_dsc(Some("/some/endpoint"));
+        let sampling_project_id = ProjectId::new(42);
         normalize_dsc(
             &mut attributes,
             &Annotated::new(true),
-            Some(&dsc),
-            Some(ProjectId::new(42)),
+            &DscNormalizationCommonProps::new(Some(dsc), Some(sampling_project_id)),
         );
         assert_annotated_snapshot!(attributes, @r#"
         {

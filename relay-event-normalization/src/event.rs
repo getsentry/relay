@@ -43,10 +43,10 @@ use crate::span::ai::enrich_ai_event_data;
 use crate::span::tag_extraction::{extract_segment_name_from_event, extract_span_tags_from_event};
 use crate::utils::{self, MAX_DURATION_MOBILE_MS, get_event_user_tag};
 use crate::{
-    BorrowedSpanOpDefaults, BreakdownsConfig, CombinedMeasurementsConfig, GeoIpLookup, MaxChars,
-    ModelMetadata, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule,
-    TransactionNameConfig, breakdowns, event_error, legacy, mechanism, remove_other, schema, span,
-    stacktrace, transactions, trimming, user_agent,
+    BorrowedSpanOpDefaults, BreakdownsConfig, CombinedMeasurementsConfig,
+    DscNormalizationCommonProps, GeoIpLookup, MaxChars, ModelMetadata, PerformanceScoreConfig,
+    RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig, breakdowns, event_error, legacy,
+    mechanism, remove_other, schema, span, stacktrace, transactions, trimming, user_agent,
 };
 
 /// Configuration for [`normalize_event`].
@@ -351,8 +351,9 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     normalize_contexts(&mut event.contexts, event_id, config);
 
     if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
+        let dsc_props = DscNormalizationCommonProps::new(config.dsc, config.sampling_project_id);
+        span::normalize_dsc_for_event_spans(event, &dsc_props);
         span::normalize_app_start_spans(event);
-        span::normalize_dsc_for_event_spans(event, config.dsc, config.sampling_project_id);
         span::exclusive_time::compute_span_exclusive_time(event);
     }
 
