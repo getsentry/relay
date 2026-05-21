@@ -369,7 +369,7 @@ pub fn normalize_dsc(
         attributes.insert(SENTRY__DSC__TRANSACTION, transaction.clone());
     }
     if let Some(project_id) = props.sampling_project_id {
-        attributes.insert(SENTRY__DSC__PROJECT_ID, project_id.value() as i64);
+        attributes.insert(SENTRY__DSC__PROJECT_ID, project_id.to_string());
     }
 
     if is_segment.value().is_some_and(|is_segment| *is_segment) {
