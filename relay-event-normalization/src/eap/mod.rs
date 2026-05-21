@@ -777,7 +777,7 @@ mod tests {
         assert_annotated_snapshot!(attributes, @r#"
         {
           "sentry.dsc.project_id": {
-            "type": "integer",
+            "type": "string",
             "value": 42
           },
           "sentry.dsc.trace_id": {
@@ -801,7 +801,7 @@ mod tests {
         assert_annotated_snapshot!(attributes, @r#"
         {
           "sentry.dsc.project_id": {
-            "type": "integer",
+            "type": "string",
             "value": 42
           },
           "sentry.dsc.trace_id": {
@@ -829,7 +829,7 @@ mod tests {
         assert_annotated_snapshot!(attributes, @r#"
         {
           "sentry.dsc.project_id": {
-            "type": "integer",
+            "type": "string",
             "value": 42
           },
           "sentry.dsc.public_key": {
