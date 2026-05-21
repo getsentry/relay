@@ -239,7 +239,7 @@ def test_spansv2_trimming_basic(
             # This is sufficient for all builtin attributes not
             # to be trimmed. The span fields that aren't trimmed
             # also still count for the size limit.
-            "trimming": {"span": {"maxSize": 460}},
+            "trimming": {"span": {"maxSize": 454}},
         }
     )
 
@@ -336,7 +336,7 @@ def test_spansv2_trimming_basic(
         },
         "_meta": {
             "attributes": {
-                "": {"len": 512},
+                "": {"len": 506},
                 "custom.array.attribute": {
                     "value": {
                         "2": {
