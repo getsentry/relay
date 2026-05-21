@@ -2,9 +2,13 @@
 
 ## Unreleased
 
+**Features**:
+
+- Convert measurements to attributes based on information from `sentry-conventions`. This is gated behind a project feature flag. ([#6007](https://github.com/getsentry/relay/pull/6007))
+
 **Bug Fixes**:
 
-- Apply timestamp validations to transaction spans. ([#6005](https://github.com/getsentry/relay/pull/6005))
+- Apply timestamp validations to transaction spans. ([#6005](https://github.com/getsentry/relay/pull/6005), [#6013](https://github.com/getsentry/relay/pull/6013))
 - Obtain PII values for `SpanData` fields from `sentry-conventions`. ([#5997](https://github.com/getsentry/relay/pull/5997))
 - Add `sentry.dsc.transaction` and `sentry.dsc.trace_id` to all spans. ([#6001](https://github.com/getsentry/relay/pull/6001), [#6004](https://github.com/getsentry/relay/pull/6004), [#6008](https://github.com/getsentry/relay/pull/6008))
 

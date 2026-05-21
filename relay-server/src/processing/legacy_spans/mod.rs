@@ -194,7 +194,7 @@ impl Forward for LegacySpanOutput {
         let retention = ctx.retention(|r| r.span.as_ref());
 
         for span in spans.split(|spans| spans.spans.into_iter().map(IndexedOnly)) {
-            if let Ok(span) = span.try_map(|span, _| store::convert(span.0, retention)) {
+            if let Ok(span) = span.try_map(|span, _| store::convert(span.0, retention, ctx)) {
                 s.send_to_store(span)
             };
         }

@@ -853,7 +853,7 @@ def test_transaction_name_too_long(
         "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
         "type": "transaction",
         "transaction": 201 * "x",
-        "start_timestamp": 1597976392.6542819,
+        "start_timestamp": datetime.now(tz=timezone.utc).isoformat(),
         "contexts": {
             "trace": {
                 "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",

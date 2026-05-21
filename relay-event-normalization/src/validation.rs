@@ -29,10 +29,9 @@ pub struct EventValidationConfig {
     /// If the event's timestamp lies further into the future, the received timestamp is assumed.
     pub max_secs_in_future: Option<i64>,
 
-    /// Timestamp range in which a transaction must end.
+    /// Timestamp range in which a transaction must start and end.
     ///
-    /// Transactions that finish outside this range are invalid. The check is
-    /// skipped if no range is provided.
+    /// Transactions outside this range are invalid. The check is skipped if no range is provided.
     pub transaction_timestamp_range: Option<Range<UnixTimestamp>>,
 
     /// Controls whether the event has been validated before, in which case disables validation.
@@ -76,26 +75,8 @@ pub fn validate_event(
     if event.ty.value() == Some(&EventType::Transaction) {
         validate_transaction_timestamps(event, config)?;
         validate_trace_context(event)?;
-        // There are no timestamp range requirements for span timestamps.
-        // Transaction will be rejected only if either end or start timestamp is missing.
         end_all_spans(event);
-
-        let range = {
-            let now = config.received_at.unwrap_or_else(Utc::now).timestamp();
-            let min_timestamp = config
-                .max_secs_in_past
-                .map(|s| now.saturating_sub(s))
-                .and_then(|s| s.try_into().ok())
-                .unwrap_or(0);
-            let max_timestamp = config
-                .max_secs_in_future
-                .map(|s| now.saturating_add(s))
-                .and_then(|s| s.try_into().ok())
-                .unwrap_or(u64::MAX);
-            UnixTimestamp::from_secs(min_timestamp)..UnixTimestamp::from_secs(max_timestamp)
-        };
-
-        validate_spans(event, Some(&range))?;
+        validate_spans(event, config.transaction_timestamp_range.as_ref())?;
     }
 
     Ok(())
@@ -150,7 +131,8 @@ fn normalize_timestamps(
     });
 }
 
-/// Returns whether the transacion's start and end timestamps are both set and start <= end.
+/// Returns whether the transaction's start and end timestamps are both set, start <= end and they
+/// are in `config.transaction_timestamp_range`.
 fn validate_transaction_timestamps(
     transaction_event: &Event,
     config: &EventValidationConfig,
@@ -173,7 +155,7 @@ fn validate_transaction_timestamps(
     }
 }
 
-/// Validates that start <= end timestamps and that the end timestamp is inside the valid range.
+/// Validates that start <= end timestamp and that both are inside the valid range.
 fn validate_timestamps(
     start: &Timestamp,
     end: &Timestamp,
@@ -189,14 +171,25 @@ fn validate_timestamps(
         return Ok(());
     };
 
-    let Some(timestamp) = UnixTimestamp::from_datetime(end.into_inner()) else {
+    let Some(end) = UnixTimestamp::from_datetime(end.into_inner()) else {
         return Err(ProcessingAction::InvalidTransaction(
             "invalid unix timestamp",
         ));
     };
-    if !range.contains(&timestamp) {
+    let Some(start) = UnixTimestamp::from_datetime(start.into_inner()) else {
         return Err(ProcessingAction::InvalidTransaction(
-            "timestamp is out of the valid range for metrics",
+            "invalid unix timestamp",
+        ));
+    };
+
+    if start < range.start {
+        return Err(ProcessingAction::InvalidTransaction(
+            "start timestamp is out of the valid range for metrics",
+        ));
+    }
+    if range.end <= end {
+        return Err(ProcessingAction::InvalidTransaction(
+            "end timestamp is out of the valid range for metrics",
         ));
     }
 
@@ -458,7 +451,7 @@ mod tests {
                 }
             ),
             Err(ProcessingAction::InvalidTransaction(
-                "timestamp is out of the valid range for metrics"
+                "start timestamp is out of the valid range for metrics"
             ))
         ));
     }
@@ -859,33 +852,39 @@ mod tests {
     /// Validates an unfinished span is finished with the normalized transaction's timestamp.
     #[test]
     fn test_finish_spans_with_normalized_transaction_end_timestamp() {
-        let json = r#"{
+        let now = Utc::now();
+        let start_timestamp = (now - Duration::seconds(1)).timestamp();
+        let timestamp = now.timestamp();
+
+        let json = format!(
+            r#"{{
   "event_id": "52df9022835246eeb317dbd739ccd059",
   "type": "transaction",
   "transaction": "I have a stale timestamp, but I'm recent!",
-  "start_timestamp": 946731000,
-  "timestamp": 946731555,
-  "contexts": {
-    "trace": {
+  "start_timestamp": {start_timestamp},
+  "timestamp": {timestamp},
+  "contexts": {{
+    "trace": {{
       "trace_id": "ff62a8b040f340bda5d830223def1d81",
       "span_id": "bd429c44b67a3eb4"
-    }
-  },
+    }}
+    }},
   "spans": [
-    {
+    {{
       "span_id": "bd429c44b67a3eb4",
-      "start_timestamp": 946731000,
+      "start_timestamp": {start_timestamp},
       "timestamp": null,
       "trace_id": "ff62a8b040f340bda5d830223def1d81"
-    }
+    }}
   ]
-}"#;
-        let mut event = Annotated::<Event>::from_json(json).unwrap();
+    }}"#
+        );
+        let mut event = Annotated::<Event>::from_json(&json).unwrap();
 
         validate_event(
             &mut event,
             &EventValidationConfig {
-                received_at: Some(Utc::now()),
+                received_at: Some(now),
                 max_secs_in_past: Some(2),
                 max_secs_in_future: Some(1),
                 is_validated: false,
