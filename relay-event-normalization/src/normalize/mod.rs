@@ -366,19 +366,19 @@ pub struct ModelMetadataEntry {
     pub context_size: Option<u64>,
 }
 
-/// Parameters shared across dsc normalization functions.
+/// [`DynamicSamplingContext`] plus additional attributes used for dsc span normalization.
 #[derive(Debug, Clone)]
-pub struct DscNormalizationCommonProps<'a> {
+pub struct EnrichedDsc<'a> {
     /// Dynamic sampling context containing the trace id and root transaction that started the trace.
     pub dsc: &'a DynamicSamplingContext,
-    /// Id of the project where the trace originated.
+    /// ID of the project where the trace originated.
     pub sampling_project_id: ProjectId,
 }
 
-impl<'a> DscNormalizationCommonProps<'a> {
-    /// Creates a new [`DscNormalizationCommonProps`].
+impl<'a> EnrichedDsc<'a> {
+    /// Creates a new [`EnrichedDsc`].
     pub fn new(dsc: &'a DynamicSamplingContext, sampling_project_id: ProjectId) -> Self {
-        DscNormalizationCommonProps {
+        EnrichedDsc {
             dsc,
             sampling_project_id,
         }

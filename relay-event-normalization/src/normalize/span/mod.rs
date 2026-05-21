@@ -6,7 +6,7 @@ use relay_event_schema::protocol::{Event, SpanData, TraceContext};
 use relay_protocol::{Annotated, Value};
 use std::sync::LazyLock;
 
-use crate::DscNormalizationCommonProps;
+use crate::EnrichedDsc;
 
 pub mod ai;
 pub mod country_subregion;
@@ -62,17 +62,14 @@ pub fn normalize_app_start_spans(event: &mut Event) {
 ///
 /// If `sentry.dsc.trace_id` is already present in a span's `data`, the function does nothing for
 /// that span.
-pub fn normalize_dsc_for_event_spans(
-    event: &mut Event,
-    props: Option<&DscNormalizationCommonProps>,
-) {
+pub fn normalize_dsc_for_event_spans(event: &mut Event, enriched_dsc: Option<&EnrichedDsc>) {
     if let Some(ctx) = event.context_mut::<TraceContext>() {
-        normalize_dsc_for_span_data(&mut ctx.data, props);
+        normalize_dsc_for_span_data(&mut ctx.data, enriched_dsc);
     }
     if let Some(spans) = event.spans.value_mut() {
         for span in spans {
             if let Some(span) = span.value_mut() {
-                normalize_dsc_for_span_data(&mut span.data, props);
+                normalize_dsc_for_span_data(&mut span.data, enriched_dsc);
             }
         }
     }
@@ -83,9 +80,11 @@ pub fn normalize_dsc_for_event_spans(
 /// If `sentry.dsc.trace_id` is already present in `span_data`, the function does nothing.
 pub fn normalize_dsc_for_span_data(
     span_data: &mut Annotated<SpanData>,
-    props: Option<&DscNormalizationCommonProps>,
+    enriched_dsc: Option<&EnrichedDsc>,
 ) {
-    let Some(props) = props else { return };
+    let Some(enriched_dsc) = enriched_dsc else {
+        return;
+    };
 
     let data = span_data.get_or_insert_with(SpanData::default);
     if data.other.contains_key(SENTRY__DSC__TRACE_ID) {
@@ -93,10 +92,10 @@ pub fn normalize_dsc_for_span_data(
     }
     data.other.insert(
         SENTRY__DSC__TRACE_ID.to_owned(),
-        Annotated::new(Value::String(props.dsc.trace_id.to_string())),
+        Annotated::new(Value::String(enriched_dsc.dsc.trace_id.to_string())),
     );
 
-    if let Some(transaction) = &props.dsc.transaction {
+    if let Some(transaction) = &enriched_dsc.dsc.transaction {
         data.other.insert(
             SENTRY__DSC__TRANSACTION.to_owned(),
             Annotated::new(Value::String(transaction.clone())),
@@ -104,6 +103,6 @@ pub fn normalize_dsc_for_span_data(
     }
     data.other.insert(
         SENTRY__DSC__PROJECT_ID.to_owned(),
-        Annotated::new(Value::String(props.sampling_project_id.to_string())),
+        Annotated::new(Value::String(enriched_dsc.sampling_project_id.to_string())),
     );
 }

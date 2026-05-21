@@ -2,7 +2,7 @@
 
 use crate::services::processor::ProcessingError;
 use chrono::{DateTime, Utc};
-use relay_event_normalization::DscNormalizationCommonProps;
+use relay_event_normalization::EnrichedDsc;
 use relay_event_normalization::span::{self, ai};
 use relay_event_normalization::{
     BorrowedSpanOpDefaults, ClientHints, CombinedMeasurementsConfig, FromUserAgentInfo,
@@ -56,8 +56,8 @@ pub struct NormalizeSpanConfig<'a> {
     /// An initialized GeoIP lookup.
     pub geo_lookup: &'a GeoIpLookup,
     pub span_op_defaults: BorrowedSpanOpDefaults<'a>,
-    /// Properties used for dsc span normalization.
-    pub dsc_normalization_props: Option<&'a DscNormalizationCommonProps<'a>>,
+    /// Dynamic sampling context plus additional attributes used for dsc span normalization.
+    pub enriched_dsc: Option<&'a EnrichedDsc<'a>>,
 }
 
 fn set_segment_attributes(span: &mut Annotated<Span>) {
@@ -111,7 +111,7 @@ pub fn normalize(
         client_ip,
         geo_lookup,
         span_op_defaults,
-        dsc_normalization_props,
+        enriched_dsc,
     } = config;
 
     set_segment_attributes(annotated_span);
@@ -211,7 +211,7 @@ pub fn normalize(
 
     normalize_performance_score(span, *performance_score);
 
-    span::normalize_dsc_for_span_data(&mut span.data, *dsc_normalization_props);
+    span::normalize_dsc_for_span_data(&mut span.data, *enriched_dsc);
 
     ai::enrich_ai_span(span, *ai_model_metadata);
 
@@ -554,7 +554,7 @@ mod tests {
             client_ip: Some(IpAddr("2.125.160.216".to_owned())),
             geo_lookup: &GEO_LOOKUP,
             span_op_defaults: Default::default(),
-            dsc_normalization_props: None,
+            enriched_dsc: None,
         }
     }
 

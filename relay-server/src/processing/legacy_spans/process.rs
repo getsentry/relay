@@ -1,5 +1,5 @@
 use relay_event_normalization::{
-    CombinedMeasurementsConfig, DscNormalizationCommonProps, GeoIpLookup, MeasurementsConfig,
+    CombinedMeasurementsConfig, EnrichedDsc, GeoIpLookup, MeasurementsConfig,
 };
 use relay_event_schema::processor::{ProcessingAction, ProcessingState, process_value};
 use relay_event_schema::protocol::Span;
@@ -49,9 +49,9 @@ pub fn normalize(
     let dsc = spans.headers.dsc().cloned();
     let dsc = dsc.as_ref();
     let sampling_project_id = ctx.sampling_project_info.and_then(|p| p.project_id);
-    let dsc_normalization_props = dsc
+    let enriched_dsc = dsc
         .zip(sampling_project_id)
-        .map(|(d, s)| DscNormalizationCommonProps::new(d, s));
+        .map(|(d, s)| EnrichedDsc::new(d, s));
     let norm = normalize::NormalizeSpanConfig {
         received_at: spans.received_at(),
         timestamp_range: aggregator_config.timestamp_range(),
@@ -73,7 +73,7 @@ pub fn normalize(
         client_ip: spans.headers.meta().client_addr().map(Into::into),
         geo_lookup,
         span_op_defaults: ctx.global_config.span_op_defaults.borrow(),
-        dsc_normalization_props: dsc_normalization_props.as_ref(),
+        enriched_dsc: enriched_dsc.as_ref(),
     };
 
     spans.retain(

@@ -19,7 +19,7 @@ use crate::span::tag_extraction::{
     domain_from_scrubbed_http, domain_from_server_address, span_op_to_category,
     sql_action_from_query, sql_tables_from_query,
 };
-use crate::{ClientHints, DscNormalizationCommonProps, FromUserAgentInfo as _, RawUserAgentInfo};
+use crate::{ClientHints, EnrichedDsc, FromUserAgentInfo as _, RawUserAgentInfo};
 
 mod ai;
 mod mobile;
@@ -353,9 +353,11 @@ pub fn normalize_user_geo(
 pub fn normalize_dsc(
     attributes: &mut Annotated<Attributes>,
     is_segment: &Annotated<bool>,
-    props: Option<&DscNormalizationCommonProps>,
+    enriched_dsc: Option<&EnrichedDsc>,
 ) {
-    let Some(props) = props else { return };
+    let Some(enriched_dsc) = enriched_dsc else {
+        return;
+    };
 
     let attributes = attributes.get_or_insert_with(Default::default);
 
@@ -363,29 +365,32 @@ pub fn normalize_dsc(
     if attributes.contains_key(SENTRY__DSC__TRACE_ID) {
         return;
     }
-    attributes.insert(SENTRY__DSC__TRACE_ID, props.dsc.trace_id.to_string());
+    attributes.insert(SENTRY__DSC__TRACE_ID, enriched_dsc.dsc.trace_id.to_string());
 
-    if let Some(transaction) = &props.dsc.transaction {
+    if let Some(transaction) = &enriched_dsc.dsc.transaction {
         attributes.insert(SENTRY__DSC__TRANSACTION, transaction.clone());
     }
 
     attributes.insert(
         SENTRY__DSC__PROJECT_ID,
-        props.sampling_project_id.to_string(),
+        enriched_dsc.sampling_project_id.to_string(),
     );
 
     if is_segment.value().is_some_and(|is_segment| *is_segment) {
-        attributes.insert(SENTRY__DSC__PUBLIC_KEY, props.dsc.public_key.to_string());
-        if let Some(release) = &props.dsc.release {
+        attributes.insert(
+            SENTRY__DSC__PUBLIC_KEY,
+            enriched_dsc.dsc.public_key.to_string(),
+        );
+        if let Some(release) = &enriched_dsc.dsc.release {
             attributes.insert(SENTRY__DSC__RELEASE, release.clone());
         }
-        if let Some(environment) = &props.dsc.environment {
+        if let Some(environment) = &enriched_dsc.dsc.environment {
             attributes.insert(SENTRY__DSC__ENVIRONMENT, environment.clone());
         }
-        if let Some(sample_rate) = props.dsc.sample_rate {
+        if let Some(sample_rate) = enriched_dsc.dsc.sample_rate {
             attributes.insert(SENTRY__DSC__SAMPLE_RATE, sample_rate);
         }
-        if let Some(sampled) = props.dsc.sampled {
+        if let Some(sampled) = enriched_dsc.dsc.sampled {
             attributes.insert(SENTRY__DSC__SAMPLED, sampled);
         }
     }
@@ -770,7 +775,7 @@ mod tests {
         normalize_dsc(
             &mut attributes,
             &Annotated::new(false),
-            Some(&DscNormalizationCommonProps::new(dsc, sampling_project_id)),
+            Some(&EnrichedDsc::new(dsc, sampling_project_id)),
         );
         assert_annotated_snapshot!(attributes, @r#"
         {
@@ -794,7 +799,7 @@ mod tests {
         normalize_dsc(
             &mut attributes,
             &Annotated::new(false),
-            Some(&DscNormalizationCommonProps::new(dsc, sampling_project_id)),
+            Some(&EnrichedDsc::new(dsc, sampling_project_id)),
         );
         assert_annotated_snapshot!(attributes, @r#"
         {
@@ -822,7 +827,7 @@ mod tests {
         normalize_dsc(
             &mut attributes,
             &Annotated::new(true),
-            Some(&DscNormalizationCommonProps::new(dsc, sampling_project_id)),
+            Some(&EnrichedDsc::new(dsc, sampling_project_id)),
         );
         assert_annotated_snapshot!(attributes, @r#"
         {

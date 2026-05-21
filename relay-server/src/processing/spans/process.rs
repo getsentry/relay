@@ -3,9 +3,7 @@ use std::time::Duration;
 
 use relay_dynamic_config::Feature;
 use relay_event_normalization::eap::ClientUserAgentInfo;
-use relay_event_normalization::{
-    DscNormalizationCommonProps, GeoIpLookup, RequiredMode, SchemaProcessor, eap,
-};
+use relay_event_normalization::{EnrichedDsc, GeoIpLookup, RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{Span, SpanId, SpanV2};
 use relay_protocol::Annotated;
@@ -209,10 +207,10 @@ fn normalize_span(
     );
 
     if let Some(span) = span.value_mut() {
-        let dsc_props = headers
+        let enriched_dsc = headers
             .dsc()
             .zip(ctx.sampling_project_info.and_then(|p| p.project_id))
-            .map(|(d, s)| DscNormalizationCommonProps::new(d, s));
+            .map(|(d, s)| EnrichedDsc::new(d, s));
         let duration = span_duration(span);
         let allowed_hosts = ctx.global_config.options.http_span_allowed_hosts.as_slice();
         let model_metdata = ctx.global_config.ai_model_metadata();
@@ -238,7 +236,11 @@ fn normalize_span(
         }
         eap::normalize_user_agent(&mut span.attributes, client_ua_info);
         eap::normalize_user_geo(&mut span.attributes, |ip| geo_lookup.lookup(ip));
-        eap::normalize_dsc(&mut span.attributes, &span.is_segment, dsc_props.as_ref());
+        eap::normalize_dsc(
+            &mut span.attributes,
+            &span.is_segment,
+            enriched_dsc.as_ref(),
+        );
         if ctx.is_processing() {
             eap::normalize_ai(&mut span.attributes, duration, model_metdata);
         }

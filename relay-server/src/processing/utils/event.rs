@@ -12,7 +12,7 @@ use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_config::NormalizationLevel;
 use relay_dynamic_config::Feature;
-use relay_event_normalization::DscNormalizationCommonProps;
+use relay_event_normalization::EnrichedDsc;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_normalization::{
     ClockDriftProcessor, normalize_event as normalize_event_inner, validate_event,
@@ -251,10 +251,10 @@ pub fn normalize(
             );
         }
 
-        let dsc_props = headers
+        let enriched_dsc = headers
             .dsc()
             .zip(ctx.sampling_project_info.and_then(|p| p.project_id))
-            .map(|(d, s)| DscNormalizationCommonProps::new(d, s));
+            .map(|(d, s)| EnrichedDsc::new(d, s));
 
         let normalization_config = NormalizationConfig {
             project_id: Some(project_id.value()),
@@ -308,7 +308,7 @@ pub fn normalize(
                 .project_info
                 .has_feature(Feature::PerformanceIssuesSpans),
             derive_trace_id: project_info.has_feature(Feature::AddDefaultTraceID),
-            dsc_normalization_props: dsc_props.as_ref(),
+            enriched_dsc: enriched_dsc.as_ref(),
         };
 
         metric!(timer(RelayTimers::EventProcessingNormalization), {

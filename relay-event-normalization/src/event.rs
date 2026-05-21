@@ -41,10 +41,10 @@ use crate::span::ai::enrich_ai_event_data;
 use crate::span::tag_extraction::{extract_segment_name_from_event, extract_span_tags_from_event};
 use crate::utils::{self, MAX_DURATION_MOBILE_MS, get_event_user_tag};
 use crate::{
-    BorrowedSpanOpDefaults, BreakdownsConfig, CombinedMeasurementsConfig,
-    DscNormalizationCommonProps, GeoIpLookup, MaxChars, ModelMetadata, PerformanceScoreConfig,
-    RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig, breakdowns, event_error, legacy,
-    mechanism, remove_other, schema, span, stacktrace, transactions, trimming, user_agent,
+    BorrowedSpanOpDefaults, BreakdownsConfig, CombinedMeasurementsConfig, EnrichedDsc, GeoIpLookup,
+    MaxChars, ModelMetadata, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule,
+    TransactionNameConfig, breakdowns, event_error, legacy, mechanism, remove_other, schema, span,
+    stacktrace, transactions, trimming, user_agent,
 };
 
 /// Configuration for [`normalize_event`].
@@ -176,8 +176,8 @@ pub struct NormalizationConfig<'a> {
     /// Should add a random trace ID to events that lack one.
     pub derive_trace_id: bool,
 
-    /// Properties used for dsc span normalization.
-    pub dsc_normalization_props: Option<&'a DscNormalizationCommonProps<'a>>,
+    /// Dynamic sampling context and additional attributes used for dsc span normalization.
+    pub enriched_dsc: Option<&'a EnrichedDsc<'a>>,
 }
 
 impl Default for NormalizationConfig<'_> {
@@ -213,7 +213,7 @@ impl Default for NormalizationConfig<'_> {
             span_op_defaults: Default::default(),
             performance_issues_spans: Default::default(),
             derive_trace_id: Default::default(),
-            dsc_normalization_props: None,
+            enriched_dsc: None,
         }
     }
 }
@@ -345,7 +345,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     normalize_contexts(&mut event.contexts, event_id, config);
 
     if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
-        span::normalize_dsc_for_event_spans(event, config.dsc_normalization_props);
+        span::normalize_dsc_for_event_spans(event, config.enriched_dsc);
         span::normalize_app_start_spans(event);
         span::exclusive_time::compute_span_exclusive_time(event);
     }
