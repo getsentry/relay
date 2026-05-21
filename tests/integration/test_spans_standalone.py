@@ -144,8 +144,15 @@ def lcp_cls_inp_differences(mode):
 
 
 @pytest.mark.parametrize("mode", ["legacy", "v2"])
+@pytest.mark.parametrize("measurements_conversion", ["direct", "smart"])
 def test_lcp_span(
-    mini_sentry, relay, relay_with_processing, spans_consumer, metrics_consumer, mode
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+    metrics_consumer,
+    mode,
+    measurements_conversion,
 ):
     """
     Test verifies LCP spans processed via the SpanV2 and legacy standalone processing pipeline are equally processed.
@@ -163,6 +170,10 @@ def test_lcp_span(
     if mode == "v2":
         project_config["config"].setdefault("features", []).append(
             "projects:span-v2-experimental-processing"
+        )
+    if measurements_conversion == "smart":
+        project_config["config"].setdefault("features", []).append(
+            "projects:relay-measurements-smart-conversion"
         )
 
     relay = relay(relay_with_processing())
@@ -214,6 +225,8 @@ def test_lcp_span(
     lcp_backfill = {}
     if mode == "v2":
         lcp_backfill = {
+            # In the v2 pipeline we will always get this attribute regardless of whether we use "smart"
+            # measurement conversion, because of backfilling.
             "browser.web_vital.lcp.value": {"type": "double", "value": 548.0},
             "browser.web_vital.lcp.load_time": {"type": "double", "value": 527.5},
             "browser.web_vital.lcp.render_time": {"type": "integer", "value": 548},
@@ -224,10 +237,15 @@ def test_lcp_span(
             },
         }
 
+    if measurements_conversion == "smart":
+        lcp_measurement_name = "browser.web_vital.lcp.value"
+    else:
+        lcp_measurement_name = "lcp"
+
     assert spans_consumer.get_span() == {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
-            "lcp": {"type": "double", "value": 548.0},
+            lcp_measurement_name: {"type": "double", "value": 548.0},
             "lcp.loadTime": {"type": "double", "value": 527.5},
             "lcp.renderTime": {"type": "integer", "value": 548},
             "lcp.size": {"type": "integer", "value": 8100},
@@ -347,8 +365,15 @@ def test_lcp_span(
 
 
 @pytest.mark.parametrize("mode", ["legacy", "v2"])
+@pytest.mark.parametrize("measurements_conversion", ["direct", "smart"])
 def test_cls_span(
-    mini_sentry, relay, relay_with_processing, spans_consumer, metrics_consumer, mode
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+    metrics_consumer,
+    mode,
+    measurements_conversion,
 ):
     """
     Test verifies CLS spans processed via the SpanV2 and legacy standalone processing pipeline are equally processed.
@@ -366,6 +391,10 @@ def test_cls_span(
     if mode == "v2":
         project_config["config"].setdefault("features", []).append(
             "projects:span-v2-experimental-processing"
+        )
+    if measurements_conversion == "smart":
+        project_config["config"].setdefault("features", []).append(
+            "projects:relay-measurements-smart-conversion"
         )
 
     relay = relay(relay_with_processing())
@@ -416,6 +445,8 @@ def test_cls_span(
     cls_backfill = {}
     if mode == "v2":
         cls_backfill = {
+            # In the v2 pipeline we will always get this attribute regardless of whether we use "smart"
+            # measurement conversion, because of backfilling.
             "browser.web_vital.cls.value": {"type": "double", "value": 0.1},
             "browser.web_vital.cls.source.<key>": {
                 "type": "string",
@@ -423,10 +454,15 @@ def test_cls_span(
             },
         }
 
+    if measurements_conversion == "smart":
+        cls_measurement_name = "browser.web_vital.cls.value"
+    else:
+        cls_measurement_name = "cls"
+
     assert spans_consumer.get_span() == {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
-            "cls": {"type": "double", "value": 0.1},
+            cls_measurement_name: {"type": "double", "value": 0.1},
             "cls.source.1": {
                 "type": "string",
                 "value": "AppContainer > NavContent > MobileTopbar > StyledButton",
@@ -551,11 +587,18 @@ def test_cls_span(
 
 
 @pytest.mark.parametrize("mode", ["legacy", "v2"])
+@pytest.mark.parametrize("measurements_conversion", ["direct", "smart"])
 def test_inp_span(
-    mini_sentry, relay, relay_with_processing, spans_consumer, metrics_consumer, mode
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+    metrics_consumer,
+    mode,
+    measurements_conversion,
 ):
     """
-    Test verifies CLS spans processed via the SpanV2 and legacy standalone processing pipeline are equally processed.
+    Test verifies INP spans processed via the SpanV2 and legacy standalone processing pipeline are equally processed.
 
     Some differences between the pipelines exist and are noted in the test.
     """
@@ -570,6 +613,10 @@ def test_inp_span(
     if mode == "v2":
         project_config["config"].setdefault("features", []).append(
             "projects:span-v2-experimental-processing"
+        )
+    if measurements_conversion == "smart":
+        project_config["config"].setdefault("features", []).append(
+            "projects:relay-measurements-smart-conversion"
         )
 
     relay = relay(relay_with_processing())
@@ -615,13 +662,20 @@ def test_inp_span(
     inp_backfill = {}
     if mode == "v2":
         inp_backfill = {
+            # In the v2 pipeline we will always get this attribute regardless of whether we use "smart"
+            # measurement conversion, because of backfilling.
             "browser.web_vital.inp.value": {"type": "double", "value": 104.0},
         }
+
+    if measurements_conversion == "smart":
+        inp_measurement_name = "browser.web_vital.inp.value"
+    else:
+        inp_measurement_name = "inp"
 
     assert spans_consumer.get_span() == {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
-            "inp": {"type": "double", "value": 104.0},
+            inp_measurement_name: {"type": "double", "value": 104.0},
             "browser.name": {"type": "string", "value": "Chrome"},
             "sentry.description": {
                 "type": "string",

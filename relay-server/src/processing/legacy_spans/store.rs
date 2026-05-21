@@ -1,8 +1,9 @@
+use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::Span;
 use relay_protocol::Annotated;
 
-use crate::processing::Retention;
 use crate::processing::legacy_spans::{Error, Result};
+use crate::processing::{ForwardContext, Retention};
 use crate::services::outcome::DiscardReason;
 use crate::services::store::StoreSpanV2;
 
@@ -22,8 +23,16 @@ macro_rules! required {
 }
 
 /// Converts a [`Span`] into a [`StoreSpanV2`] to be sent to Kafka.
-pub fn convert(span: Annotated<Span>, retentions: Retention) -> Result<Box<StoreSpanV2>> {
-    let span = span.map_value(relay_spans::span_v1_to_span_v2);
+pub fn convert(
+    span: Annotated<Span>,
+    retentions: Retention,
+    ctx: ForwardContext<'_>,
+) -> Result<Box<StoreSpanV2>> {
+    let use_measurements_smart_conversion = ctx
+        .project_info
+        .has_feature(Feature::MeasurementsSmartConversion);
+    let span = span
+        .map_value(|span| relay_spans::span_v1_to_span_v2(span, use_measurements_smart_conversion));
     let span = required!(span);
 
     Ok(Box::new(StoreSpanV2 {
