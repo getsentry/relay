@@ -1,11 +1,12 @@
 //! Time normalization for EAP items.
 
 use chrono::{DateTime, Utc};
+use relay_conventions::attributes::SENTRY__TIMESTAMP__SEQUENCE;
 use relay_event_schema::{
     processor::{self, ProcessValue, ProcessingState},
-    protocol::{OurLog, SpanV2, Timestamp, TraceMetric},
+    protocol::{Attributes, OurLog, SpanV2, Timestamp, TraceMetric},
 };
-use relay_protocol::{Annotated, ErrorKind};
+use relay_protocol::{Annotated, ErrorKind, Remark, RemarkType};
 use std::time::Duration;
 
 use crate::ClockDriftProcessor;
@@ -13,6 +14,11 @@ use crate::ClockDriftProcessor;
 /// Configuration parameters for [`normalize`].
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Config {
+    /// Apply a time sequence shift as provided by the SDK on the timestamp.
+    ///
+    /// This must only run once, to not shift the same timestamp multiple times and therefor should
+    /// be limited to processing Relays.
+    pub apply_sequence_shift: bool,
     /// Timestamp when the item was received.
     pub received_at: DateTime<Utc>,
     /// Client local timestamp when the SDK sent the item.
@@ -38,12 +44,27 @@ where
     let mut sent_at = config.sent_at;
     let mut error_kind = ErrorKind::ClockDrift;
 
-    let timestamp = item
+    let sequence = item
+        .value()
+        .and_then(|t| t.timestamp_sequence())
+        .filter(|d| *d > 0);
+
+    let mut timestamp = item
         .value_mut()
         .as_mut()
-        .and_then(|t| t.reference_timestamp_mut().value().copied());
+        .map(|t| t.reference_timestamp_mut());
 
-    if let Some(timestamp) = timestamp {
+    if config.apply_sequence_shift
+        && let Some(sequence) = sequence
+        && let Some(ts) = &mut timestamp
+        && let Some(ts_value) = ts.value_mut()
+    {
+        ts_value.0 += chrono::TimeDelta::nanoseconds(sequence.into());
+        ts.meta_mut()
+            .add_remark(Remark::new(RemarkType::Substituted, "timestamp.sequence"));
+    }
+
+    if let Some(timestamp) = timestamp.and_then(|ts| ts.value().copied()) {
         if config
             .max_in_past
             .is_some_and(|delta| timestamp < received_at - delta)
@@ -77,11 +98,21 @@ pub trait TimeNormalize: ProcessValue {
     ///
     /// Represents the timestamp when the item was created.
     fn reference_timestamp_mut(&mut self) -> &mut Annotated<Timestamp>;
+
+    /// A tie breaker sent from SDKs for timestamps.
+    ///
+    /// This is usually stored in [`SENTRY__TIMESTAMP__SEQUENCE`] and applied as additional
+    /// nanoseconds to the timestamp.
+    fn timestamp_sequence(&self) -> Option<u32>;
 }
 
 impl TimeNormalize for OurLog {
     fn reference_timestamp_mut(&mut self) -> &mut Annotated<Timestamp> {
         &mut self.timestamp
+    }
+
+    fn timestamp_sequence(&self) -> Option<u32> {
+        get_timestamp_sequence(&self.attributes)
     }
 }
 
@@ -89,12 +120,28 @@ impl TimeNormalize for SpanV2 {
     fn reference_timestamp_mut(&mut self) -> &mut Annotated<Timestamp> {
         &mut self.start_timestamp
     }
+
+    fn timestamp_sequence(&self) -> Option<u32> {
+        get_timestamp_sequence(&self.attributes)
+    }
 }
 
 impl TimeNormalize for TraceMetric {
     fn reference_timestamp_mut(&mut self) -> &mut Annotated<Timestamp> {
         &mut self.timestamp
     }
+
+    fn timestamp_sequence(&self) -> Option<u32> {
+        get_timestamp_sequence(&self.attributes)
+    }
+}
+
+fn get_timestamp_sequence(attributes: &Annotated<Attributes>) -> Option<u32> {
+    attributes
+        .value()
+        .and_then(|attrs| attrs.get_value(SENTRY__TIMESTAMP__SEQUENCE))
+        .and_then(|v| v.as_f64())
+        .map(|v| v as u32)
 }
 
 #[cfg(test)]
@@ -102,7 +149,9 @@ mod tests {
     use super::*;
 
     use relay_event_schema::processor::ProcessValue;
-    use relay_protocol::{Annotated, Empty, FromValue, IntoValue, assert_annotated_snapshot};
+    use relay_protocol::{
+        Annotated, Empty, FromValue, IntoValue, assert_annotated_snapshot, get_value,
+    };
 
     #[derive(Debug, Clone, FromValue, IntoValue, Empty, ProcessValue)]
     struct TestItem {
@@ -113,6 +162,10 @@ mod tests {
     impl TimeNormalize for TestItem {
         fn reference_timestamp_mut(&mut self) -> &mut Annotated<Timestamp> {
             &mut self.base
+        }
+
+        fn timestamp_sequence(&self) -> Option<u32> {
+            Some(123)
         }
     }
 
@@ -254,5 +307,96 @@ mod tests {
           }
         }
         "#);
+    }
+
+    #[test]
+    fn test_normalize_time_sequence_shift() {
+        let mut item = Annotated::new(TestItem {
+            base: ts(90_000).into(),
+            other: ts(80_000).into(),
+        });
+
+        let config = Config {
+            apply_sequence_shift: true,
+            ..Default::default()
+        };
+
+        normalize(&mut item, config);
+
+        insta::assert_json_snapshot!(IntoValue::extract_meta_tree(&item), @r#"
+        {
+          "base": {
+            "": {
+              "rem": [
+                [
+                  "timestamp.sequence",
+                  "s"
+                ]
+              ]
+            }
+          }
+        }
+        "#);
+
+        // Need to assert the raw values instead of a snapshot because the serialization format of
+        // `Timestamp` is not precise enough for nanosecond precision.
+        assert_eq!(
+            get_value!(item.base!).0,
+            DateTime::from_timestamp_secs(90_000).unwrap() + chrono::TimeDelta::nanoseconds(123)
+        );
+        assert_eq!(
+            get_value!(item.other!).0,
+            DateTime::from_timestamp_secs(80_000).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_normalize_time_sequence_shift_and_correction() {
+        let mut item = Annotated::new(TestItem {
+            base: ts(90_000).into(),
+            other: ts(80_000).into(),
+        });
+
+        let config = Config {
+            apply_sequence_shift: true,
+            received_at: ts(10_000).0,
+            max_in_future: Some(Duration::from_secs(10)),
+            ..Default::default()
+        };
+
+        normalize(&mut item, config);
+
+        insta::assert_json_snapshot!(IntoValue::extract_meta_tree(&item), @r#"
+        {
+          "base": {
+            "": {
+              "rem": [
+                [
+                  "timestamp.sequence",
+                  "s"
+                ]
+              ],
+              "err": [
+                [
+                  "future_timestamp",
+                  {
+                    "sdk_time": "1970-01-02T01:00:00.000000123+00:00",
+                    "server_time": "1970-01-01T02:46:40+00:00"
+                  }
+                ]
+              ]
+            }
+          }
+        }
+        "#);
+
+        assert_eq!(
+            get_value!(item.base!).0,
+            DateTime::from_timestamp_secs(10_000).unwrap() + chrono::TimeDelta::nanoseconds(123)
+        );
+        assert_eq!(
+            get_value!(item.other!).0,
+            DateTime::from_timestamp_secs(0).unwrap()
+        );
     }
 }

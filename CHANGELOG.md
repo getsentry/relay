@@ -5,6 +5,7 @@
 **Features**:
 
 - Convert measurements to attributes based on information from `sentry-conventions`. This is gated behind a project feature flag. ([#6007](https://github.com/getsentry/relay/pull/6007))
+- Implements timestamp shifts based on a sequence number provided by SDKs. ([#6014](https://github.com/getsentry/relay/pull/6014))
 
 **Bug Fixes**:
 

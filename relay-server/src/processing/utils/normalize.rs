@@ -13,6 +13,7 @@ where
     F: FnOnce(&RetentionsConfig) -> Option<&RetentionConfig>,
 {
     eap::time::Config {
+        apply_sequence_shift: ctx.is_processing(),
         received_at: headers.meta().received_at(),
         sent_at: headers.sent_at(),
         max_in_past: Some(retention_days_to_duration(
