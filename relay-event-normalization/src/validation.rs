@@ -251,16 +251,26 @@ fn end_all_spans(event: &mut Event) {
 /// A [`ProcessingResult`] error is returned if there's an invalid span. For
 /// span validity, see [`validate_span`].
 fn validate_spans(
-    transaction: &Event,
+    transaction: &mut Event,
     timestamp_range: Option<&Range<UnixTimestamp>>,
 ) -> ProcessingResult {
-    let Some(spans) = transaction.spans.value() else {
+    let (Some(transaction_start), Some(transaction_end)) = (
+        transaction.start_timestamp.value().copied(),
+        transaction.timestamp.value().copied(),
+    ) else {
+        // Should never run into this since it is already validated earlier.
+        return Err(ProcessingAction::InvalidTransaction(
+            "timestamps hard-required for transaction events",
+        ));
+    };
+
+    let Some(spans) = transaction.spans.value_mut() else {
         return Ok(());
     };
 
     for span in spans {
-        if let Some(span) = span.value() {
-            validate_span(span, timestamp_range)?;
+        if let Some(span) = span.value_mut() {
+            validate_transaction_span(span, transaction_start, transaction_end, timestamp_range)?;
         } else {
             return Err(ProcessingAction::InvalidTransaction(
                 "spans must be valid in transaction event",
@@ -271,16 +281,72 @@ fn validate_spans(
     Ok(())
 }
 
-/// Validates a span.
+/// Ensures that `timestamp` is within `range`, otherwise replacing it with `fallback`.
+///
+/// Returns an error if `timestamp` has no value or cannot be parsed to [`UnixTimestamp`].
+fn clamp_timestamp(
+    timestamp: &mut Annotated<Timestamp>,
+    fallback: Timestamp,
+    range: Option<&Range<UnixTimestamp>>,
+) -> ProcessingResult {
+    let Annotated(Some(ts), meta) = timestamp else {
+        return Err(ProcessingAction::InvalidTransaction(
+            "span is missing timestamp",
+        ));
+    };
+
+    let Some(uts) = UnixTimestamp::from_datetime(ts.into_inner()) else {
+        return Err(ProcessingAction::InvalidTransaction(
+            "invalid unix timestamp",
+        ));
+    };
+
+    if let Some(range) = range {
+        if uts < range.start || range.end <= uts {
+            meta.set_original_value(Some(ts.to_string()));
+            meta.add_error(ErrorKind::ClockDrift);
+            *ts = fallback;
+        }
+    }
+
+    Ok(())
+}
+
+/// Validates a transaction span.
+///
+/// Similar to [`validate_standalone_span`] but will replace timestamps outside `range` with the
+/// timestamps of the transaction.
+fn validate_transaction_span(
+    span: &mut Span,
+    transaction_start: Timestamp,
+    transaction_end: Timestamp,
+    range: Option<&Range<UnixTimestamp>>,
+) -> ProcessingResult {
+    clamp_timestamp(&mut span.start_timestamp, transaction_start, range)?;
+    clamp_timestamp(&mut span.timestamp, transaction_end, range)?;
+
+    if let (Some(start), Some(end)) = (span.start_timestamp.value(), span.timestamp.value())
+        && end < start
+    {
+        return Err(ProcessingAction::InvalidTransaction(
+            "end timestamp is smaller than start timestamp",
+        ));
+    }
+
+    validate_span_ids(span)
+}
+
+/// Validates a standalone span.
 ///
 /// A [`ProcessingResult`] error is returned when the span is invalid. A span is
 /// valid if all the following conditions are met:
 /// - A start timestamp exists.
 /// - An end timestamp exists.
 /// - Start timestamp must be no later than end timestamp.
+/// - Both start and end timestamps must be within `timestamp_range`.
 /// - A trace id exists.
 /// - A span id exists.
-pub fn validate_span(
+pub fn validate_standalone_span(
     span: &Span,
     timestamp_range: Option<&Range<UnixTimestamp>>,
 ) -> ProcessingResult {
@@ -302,6 +368,11 @@ pub fn validate_span(
         }
     }
 
+    validate_span_ids(span)
+}
+
+/// Validates that the span has a `trace_id` and `span_id`.
+fn validate_span_ids(span: &Span) -> ProcessingResult {
     if span.trace_id.value().is_none() {
         return Err(ProcessingAction::InvalidTransaction(
             "span is missing trace_id",
@@ -596,7 +667,7 @@ mod tests {
         assert_eq!(
             validate_event(&mut event, &EventValidationConfig::default()),
             Err(ProcessingAction::InvalidTransaction(
-                "span is missing start_timestamp"
+                "span is missing timestamp"
             ))
         );
     }
