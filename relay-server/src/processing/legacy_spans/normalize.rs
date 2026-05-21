@@ -538,7 +538,7 @@ mod tests {
         NormalizeSpanConfig {
             received_at: DateTime::from_timestamp_nanos(0),
             timestamp_range: UnixTimestamp::from_datetime(
-                DateTime::<Utc>::from_timestamp_millis(1000).unwrap(),
+                DateTime::<Utc>::from_timestamp_millis(0).unwrap(),
             )
             .unwrap()
                 ..UnixTimestamp::from_datetime(DateTime::<Utc>::MAX_UTC).unwrap(),
