@@ -67,9 +67,7 @@ pub fn normalize(
         geo_lookup,
         span_op_defaults: ctx.global_config.span_op_defaults.borrow(),
         dsc: dsc.as_ref(),
-        sampling_project_id: ctx
-            .sampling_project_info
-            .and_then(|p| p.project_id.as_ref()),
+        sampling_project_id: ctx.sampling_project_info.and_then(|p| p.project_id),
     };
 
     spans.retain(

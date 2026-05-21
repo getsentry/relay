@@ -229,8 +229,7 @@ fn normalize_span(
             &mut span.attributes,
             &span.is_segment,
             dsc,
-            ctx.sampling_project_info
-                .and_then(|p| p.project_id.as_ref()),
+            ctx.sampling_project_info.and_then(|p| p.project_id),
         );
         if ctx.is_processing() {
             eap::normalize_ai(&mut span.attributes, duration, model_metdata);

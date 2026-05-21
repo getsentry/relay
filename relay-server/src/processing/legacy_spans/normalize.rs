@@ -60,7 +60,7 @@ pub struct NormalizeSpanConfig<'a> {
     /// Dynamic sampling context from the envelope headers.
     pub dsc: Option<&'a DynamicSamplingContext>,
     /// Project ID of the project that started the trace.
-    pub sampling_project_id: Option<&'a ProjectId>,
+    pub sampling_project_id: Option<ProjectId>,
 }
 
 fn set_segment_attributes(span: &mut Annotated<Span>) {

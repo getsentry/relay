@@ -352,11 +352,13 @@ pub fn normalize_user_geo(
 /// If `is_segment` is set to `false`, the function will only add select attributes that are
 /// necessary on every span - both segment and non-segment - for dynamic sampling to work. More
 /// attributes are added when `is_segment` is set to `true`.
+///
+/// `sampling_project_id` is the id of the project where the trace originated.
 pub fn normalize_dsc(
     attributes: &mut Annotated<Attributes>,
     is_segment: &Annotated<bool>,
     dsc: Option<&DynamicSamplingContext>,
-    project_id: Option<&ProjectId>,
+    sampling_project_id: Option<ProjectId>,
 ) {
     let Some(dsc) = dsc else { return };
 
@@ -371,7 +373,7 @@ pub fn normalize_dsc(
     if let Some(transaction) = &dsc.transaction {
         attributes.insert(SENTRY__DSC__TRANSACTION, transaction.clone());
     }
-    if let Some(project_id) = project_id {
+    if let Some(project_id) = sampling_project_id {
         attributes.insert(SENTRY__DSC__PROJECT_ID, project_id.value() as i64);
     }
 
@@ -769,7 +771,7 @@ mod tests {
             &mut attributes,
             &Annotated::new(false),
             Some(&dsc),
-            Some(&ProjectId::new(42)),
+            Some(ProjectId::new(42)),
         );
         assert_annotated_snapshot!(attributes, @r#"
         {
@@ -793,7 +795,7 @@ mod tests {
             &mut attributes,
             &Annotated::new(false),
             Some(&dsc),
-            Some(&ProjectId::new(42)),
+            Some(ProjectId::new(42)),
         );
         assert_annotated_snapshot!(attributes, @r#"
         {
@@ -821,7 +823,7 @@ mod tests {
             &mut attributes,
             &Annotated::new(true),
             Some(&dsc),
-            Some(&ProjectId::new(42)),
+            Some(ProjectId::new(42)),
         );
         assert_annotated_snapshot!(attributes, @r#"
         {

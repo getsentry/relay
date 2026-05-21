@@ -62,18 +62,20 @@ pub fn normalize_app_start_spans(event: &mut Event) {
 ///
 /// If `sentry.dsc.trace_id` is already present in a span's `data`, the function does nothing for
 /// that span.
+///
+/// `sampling_project_id` is the id of the project where the trace originated.
 pub fn normalize_dsc_for_event_spans(
     event: &mut Event,
     dsc: Option<&DynamicSamplingContext>,
-    project_id: Option<&ProjectId>,
+    sampling_project_id: Option<ProjectId>,
 ) {
     if let Some(ctx) = event.context_mut::<TraceContext>() {
-        normalize_dsc_for_span_data(&mut ctx.data, dsc, project_id);
+        normalize_dsc_for_span_data(&mut ctx.data, dsc, sampling_project_id);
     }
     if let Some(spans) = event.spans.value_mut() {
         for span in spans {
             if let Some(span) = span.value_mut() {
-                normalize_dsc_for_span_data(&mut span.data, dsc, project_id);
+                normalize_dsc_for_span_data(&mut span.data, dsc, sampling_project_id);
             }
         }
     }
@@ -82,10 +84,12 @@ pub fn normalize_dsc_for_event_spans(
 /// Writes DSC attributes needed for dynamic sampling into `span_data`.
 ///
 /// If `sentry.dsc.trace_id` is already present in `span_data`, the function does nothing.
+///
+/// `sampling_project_id` is the id of the project where the trace originated.
 pub fn normalize_dsc_for_span_data(
     span_data: &mut Annotated<SpanData>,
     dsc: Option<&DynamicSamplingContext>,
-    project_id: Option<&ProjectId>,
+    sampling_project_id: Option<ProjectId>,
 ) {
     let Some(dsc) = dsc else { return };
 
@@ -104,7 +108,7 @@ pub fn normalize_dsc_for_span_data(
             Annotated::new(Value::String(transaction.clone())),
         );
     }
-    if let Some(project_id) = project_id {
+    if let Some(project_id) = sampling_project_id {
         data.other.insert(
             SENTRY__DSC__PROJECT_ID.to_owned(),
             Annotated::new(Value::U64(project_id.value())),

@@ -182,7 +182,7 @@ pub struct NormalizationConfig<'a> {
     pub dsc: Option<&'a DynamicSamplingContext>,
 
     /// The identifier of the project where the trace originated.
-    pub sampling_project_id: Option<&'a ProjectId>,
+    pub sampling_project_id: Option<ProjectId>,
 }
 
 impl Default for NormalizationConfig<'_> {
