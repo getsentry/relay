@@ -122,7 +122,11 @@ impl TimeNormalize for SpanV2 {
     }
 
     fn timestamp_sequence(&self) -> Option<u32> {
-        get_timestamp_sequence(&self.attributes)
+        // Not supported for spans.
+        //
+        // If this ever becomes necessary to add, extra care must be taken to not create invalid
+        // spans where the start timestamp is moved after the end timestamp.
+        None
     }
 }
 
