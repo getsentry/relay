@@ -750,22 +750,24 @@ mod tests {
 
     #[test]
     fn parse_location_incomplete() {
-        let json = r#"{"signature": "foo"}"#;
+        let url = "signature=foo";
 
         // Can only parse provisional:
-        let provisional: LocationQueryParams<Provisional> = serde_json::from_str(json).unwrap();
+        let provisional: LocationQueryParams<Provisional> =
+            serde_urlencoded::from_str(url).unwrap();
         assert!(provisional.length.0.is_none());
-        assert!(serde_json::from_str::<LocationQueryParams::<Final>>(json).is_err());
+        assert!(serde_urlencoded::from_str::<LocationQueryParams::<Final>>(url).is_err());
     }
 
     #[test]
     fn parse_location_complete() {
-        let json = r#"{"signature": "foo", "length": 123}"#;
+        let json = r#"signature=foo&length=123"#;
 
         // Can only parse provisional:
-        let provisional: LocationQueryParams<Provisional> = serde_json::from_str(json).unwrap();
+        let provisional: LocationQueryParams<Provisional> =
+            serde_urlencoded::from_str(json).unwrap();
         assert_eq!(provisional.length.0, Some(123));
-        let full: LocationQueryParams<Final> = serde_json::from_str(json).unwrap();
+        let full: LocationQueryParams<Final> = serde_urlencoded::from_str(json).unwrap();
         assert_eq!(full.length.0, 123);
     }
 }
