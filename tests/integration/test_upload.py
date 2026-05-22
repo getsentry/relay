@@ -476,14 +476,10 @@ def test_upload_with_deferred_length(
         },
     )
 
-    expected_status_code = 403 if defer_length_value == "1" else 400
-    assert response.status_code == expected_status_code
     if defer_length_value == "1":
-        assert response.json() == {
-            "detail": "TUS protocol error: Upload-Defer-Length not allowed",
-            "causes": ["Upload-Defer-Length not allowed"],
-        }
+        assert response.status_code == 201
     else:
+        assert response.status_code == 400
         assert response.json() == {
             "detail": (
                 "TUS protocol error: expected Upload-Length or Upload-Defer-Length=1, "
