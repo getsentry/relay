@@ -294,12 +294,12 @@ fn clamp_timestamp(
         ));
     };
 
-    if let Some(range) = range {
-        if uts < range.start || range.end <= uts {
-            meta.set_original_value(Some(ts.to_string()));
-            meta.add_error(ErrorKind::ClockDrift);
-            *ts = fallback;
-        }
+    if let Some(range) = range
+        && (uts < range.start || range.end <= uts)
+    {
+        meta.set_original_value(Some(ts.to_string()));
+        meta.add_error(ErrorKind::ClockDrift);
+        *ts = fallback;
     }
 
     Ok(())
