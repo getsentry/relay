@@ -1,6 +1,5 @@
 import contextlib
 import json
-from unittest import mock
 import uuid
 from collections import Counter
 from datetime import UTC, datetime, timedelta, timezone
@@ -10,6 +9,7 @@ from requests import HTTPError
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
+from .asserts import any
 from .test_store import make_transaction
 
 TEST_CONFIG = {
@@ -1230,7 +1230,7 @@ def test_outcomes_for_trimmed_spans(mini_sentry, relay):
             "project_id": 42,
             "quantity": 1,
             "reason": "too_large:span",
-            "timestamp": mock.ANY,
+            "timestamp": any(),
         },
         {
             "category": DataCategory.SPAN_INDEXED,
@@ -1240,7 +1240,7 @@ def test_outcomes_for_trimmed_spans(mini_sentry, relay):
             "project_id": 42,
             "quantity": 1,
             "reason": "too_large:span",
-            "timestamp": mock.ANY,
+            "timestamp": any(),
         },
     ]
 

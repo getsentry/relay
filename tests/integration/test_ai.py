@@ -1,11 +1,10 @@
 from datetime import datetime, timezone
-from unittest import mock
 
 import pytest
 
 from sentry_relay.consts import DataCategory
 
-from .asserts import time_within_delta
+from .asserts import any, time_within_delta
 
 
 @pytest.mark.parametrize(
@@ -392,7 +391,7 @@ def test_ai_spans_example_transaction(
                 },
                 "gen_ai.context.utilization": {
                     "type": "double",
-                    "value": mock.ANY,
+                    "value": any(),
                 },
                 "gen_ai.context.window_size": {"type": "integer", "value": 128000},
                 "gen_ai.cost.input_tokens": {"type": "double", "value": 2.45},
@@ -468,7 +467,7 @@ def test_ai_spans_example_transaction(
             },
             "downsampled_retention_days": 90,
             "end_timestamp": time_within_delta(),
-            "event_id": mock.ANY,
+            "event_id": any(),
             "is_segment": False,
             "key_id": 123,
             "name": "Generative AI agent operation",
@@ -484,7 +483,7 @@ def test_ai_spans_example_transaction(
             "trace_id": "a9351cd574f092f6acad48e250981f11",
         },
         {
-            "_meta": mock.ANY,
+            "_meta": any(),
             "attributes": {
                 "gen_ai.conversation.id": {
                     "type": "string",
@@ -492,7 +491,7 @@ def test_ai_spans_example_transaction(
                 },
                 "gen_ai.context.utilization": {
                     "type": "double",
-                    "value": mock.ANY,
+                    "value": any(),
                 },
                 "gen_ai.context.window_size": {"type": "integer", "value": 128000},
                 "gen_ai.cost.input_tokens": {"type": "double", "value": 0.37},
@@ -612,7 +611,7 @@ def test_ai_spans_example_transaction(
             },
             "downsampled_retention_days": 90,
             "end_timestamp": time_within_delta(),
-            "event_id": mock.ANY,
+            "event_id": any(),
             "is_segment": False,
             "key_id": 123,
             "name": "gen_ai.generate_text",
@@ -693,7 +692,7 @@ def test_ai_spans_example_transaction(
             },
             "downsampled_retention_days": 90,
             "end_timestamp": time_within_delta(),
-            "event_id": mock.ANY,
+            "event_id": any(),
             "is_segment": False,
             "key_id": 123,
             "name": "POST",
@@ -768,7 +767,7 @@ def test_ai_spans_example_transaction(
             },
             "downsampled_retention_days": 90,
             "end_timestamp": time_within_delta(),
-            "event_id": mock.ANY,
+            "event_id": any(),
             "is_segment": False,
             "key_id": 123,
             "name": "Generative AI model operation",
@@ -847,7 +846,7 @@ def test_ai_spans_example_transaction(
             },
             "downsampled_retention_days": 90,
             "end_timestamp": time_within_delta(),
-            "event_id": mock.ANY,
+            "event_id": any(),
             "is_segment": False,
             "key_id": 123,
             "name": "GET",
@@ -922,7 +921,7 @@ def test_ai_spans_example_transaction(
             },
             "downsampled_retention_days": 90,
             "end_timestamp": time_within_delta(),
-            "event_id": mock.ANY,
+            "event_id": any(),
             "is_segment": False,
             "key_id": 123,
             "name": "Generative AI model operation",
@@ -1001,7 +1000,7 @@ def test_ai_spans_example_transaction(
             },
             "downsampled_retention_days": 90,
             "end_timestamp": time_within_delta(),
-            "event_id": mock.ANY,
+            "event_id": any(),
             "is_segment": False,
             "key_id": 123,
             "name": "GET",
@@ -1017,7 +1016,7 @@ def test_ai_spans_example_transaction(
             "trace_id": "a9351cd574f092f6acad48e250981f11",
         },
         {
-            "_meta": mock.ANY,
+            "_meta": any(),
             "attributes": {
                 "gen_ai.conversation.id": {
                     "type": "string",
@@ -1025,7 +1024,7 @@ def test_ai_spans_example_transaction(
                 },
                 "gen_ai.context.utilization": {
                     "type": "double",
-                    "value": mock.ANY,
+                    "value": any(),
                 },
                 "gen_ai.context.window_size": {"type": "integer", "value": 128000},
                 "gen_ai.cost.input_tokens": {"type": "double", "value": 2.08},
@@ -1145,7 +1144,7 @@ def test_ai_spans_example_transaction(
             },
             "downsampled_retention_days": 90,
             "end_timestamp": time_within_delta(),
-            "event_id": mock.ANY,
+            "event_id": any(),
             "is_segment": False,
             "key_id": 123,
             "name": "gen_ai.generate_text",
@@ -1226,7 +1225,7 @@ def test_ai_spans_example_transaction(
             },
             "downsampled_retention_days": 90,
             "end_timestamp": time_within_delta(),
-            "event_id": mock.ANY,
+            "event_id": any(),
             "is_segment": False,
             "key_id": 123,
             "name": "POST",
@@ -1281,7 +1280,7 @@ def test_ai_spans_example_transaction(
             },
             "downsampled_retention_days": 90,
             "end_timestamp": time_within_delta(),
-            "event_id": mock.ANY,
+            "event_id": any(),
             "is_segment": True,
             "key_id": 123,
             "name": "main",

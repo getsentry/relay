@@ -1,6 +1,8 @@
 from datetime import timedelta, datetime, timezone
 from enum import StrEnum
 
+from .utils import PrintLastCompare
+
 
 class Resolution(StrEnum):
     Seconds = "s"
@@ -79,7 +81,7 @@ def _format_resolution(dt: datetime, resolution):
             return str(int(dt.timestamp() * 1_000_000) * 1_000)
 
 
-class _WithinBounds:
+class _WithinBounds(PrintLastCompare):
     def __init__(
         self,
         lower_bound,
