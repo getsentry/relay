@@ -1032,6 +1032,51 @@ def test_minidump_objectstore_uploads(
     assert event_item["breadcrumbs"]["values"][0]["message"] == "A"
 
 
+def test_minidump_objectstore_uploads_external_chain(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    attachments_consumer,
+):
+    """Uploads with `Defer-Length: 1` are accepted from untrusted relays"""
+    mini_sentry.global_config["options"][
+        "relay.objectstore-attachments.sample-rate"
+    ] = 1.0
+    mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = True
+
+    project_id = 42
+    minidump_content = b"MDMP content"
+    log_content = b"Some log file content"
+
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).extend(
+        [
+            "projects:relay-minidump-attachment-uploads",
+            "projects:relay-upload-endpoint",
+        ]
+    )
+
+    relay = relay(relay_with_processing(), external=True)
+    project_config["config"]["trustedRelays"] = list(relay.iter_public_keys())
+
+    attachments_consumer = attachments_consumer()
+
+    response = relay.send_minidump(
+        project_id=project_id,
+        files=[
+            (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", minidump_content),
+            ("logs", "log.txt", log_content),
+        ],
+    )
+    assert response.ok
+
+    _, unpacked = attachments_consumer.get_message()
+    assert {att["name"] for att in unpacked["attachments"]} == {
+        "log.txt",
+        "minidump.dmp",
+    }
+
+
 def test_minidump_objectstore_errors(
     mini_sentry,
     relay,
@@ -1071,7 +1116,6 @@ def test_minidump_objectstore_errors(
             ("logs", "log.txt", log_content),
         ],
     )
-
     mini_sentry.captured_envelopes.get()
 
     assert mini_sentry.get_aggregated_outcomes() == [

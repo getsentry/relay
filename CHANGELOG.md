@@ -12,6 +12,10 @@
 - Obtain PII values for `SpanData` fields from `sentry-conventions`. ([#5997](https://github.com/getsentry/relay/pull/5997))
 - Add `sentry.dsc.transaction` and `sentry.dsc.trace_id` to all spans. ([#6001](https://github.com/getsentry/relay/pull/6001), [#6004](https://github.com/getsentry/relay/pull/6004), [#6008](https://github.com/getsentry/relay/pull/6008))
 
+**Internal**:
+
+- Always allow `Upload-Defer-Length: 1` on the `/upload` endpoint. ([#5977](https://github.com/getsentry/relay/pull/5977))
+
 ## 26.5.0
 
 **Features**:

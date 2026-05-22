@@ -96,12 +96,12 @@ pub enum Upload {
     /// Creates an upload resource.
     ///
     /// Returns the trusted identifier of the upload.
-    Create(Create, InstrumentedSender),
+    Create(Create, InstrumentedSender<Provisional>),
     /// Upload a stream of bytes for a given location.
     ///
     /// The service also returns the signed location. This is redundant, but creates a simpler
     /// flow for the caller side.
-    Upload(Stream, InstrumentedSender),
+    Upload(Stream, InstrumentedSender<Final>),
 }
 
 impl Interface for Upload {}
@@ -126,15 +126,18 @@ pub struct Stream {
     /// The organization & project that the stream belongs to.
     pub scoping: Scoping,
     /// The location to upload to.
-    pub location: SignedLocation,
+    pub location: SignedLocation<Provisional>,
     /// The body to be uploaded to objectstore, with length validation.
     pub stream: BoundedStream<MeteredStream<ByteStream>>,
 }
 
 impl FromMessage<Create> for Upload {
-    type Response = AsyncResponse<Result<SignedLocation, Error>>;
+    type Response = AsyncResponse<Result<SignedLocation<Provisional>, Error>>;
 
-    fn from_message(message: Create, sender: Sender<Result<SignedLocation, Error>>) -> Self {
+    fn from_message(
+        message: Create,
+        sender: Sender<Result<SignedLocation<Provisional>, Error>>,
+    ) -> Self {
         Self::Create(
             message,
             InstrumentedSender {
@@ -146,9 +149,9 @@ impl FromMessage<Create> for Upload {
 }
 
 impl FromMessage<Stream> for Upload {
-    type Response = AsyncResponse<Result<SignedLocation, Error>>;
+    type Response = AsyncResponse<Result<SignedLocation<Final>, Error>>;
 
-    fn from_message(message: Stream, sender: Sender<Result<SignedLocation, Error>>) -> Self {
+    fn from_message(message: Stream, sender: Sender<Result<SignedLocation<Final>, Error>>) -> Self {
         Self::Upload(
             message,
             InstrumentedSender {
@@ -207,13 +210,13 @@ pub struct Service {
 }
 
 /// A response channel that emits a metric for each response.
-pub struct InstrumentedSender {
+pub struct InstrumentedSender<L: UploadLength> {
     metric: RelayCounters,
-    inner: Sender<Result<SignedLocation, Error>>,
+    inner: Sender<Result<SignedLocation<L>, Error>>,
 }
 
-impl InstrumentedSender {
-    fn send(self, result: Result<SignedLocation, Error>) {
+impl<L: UploadLength> InstrumentedSender<L> {
+    fn send(self, result: Result<SignedLocation<L>, Error>) {
         let result_msg = match &result {
             Ok(_) => "success",
             Err(e) => e.variant(),
@@ -236,7 +239,10 @@ enum Backend {
 }
 
 impl Service {
-    async fn create(&self, Create { scoping, length }: Create) -> Result<SignedLocation, Error> {
+    async fn create(
+        &self,
+        Create { scoping, length }: Create,
+    ) -> Result<SignedLocation<Provisional>, Error> {
         match &self.backend {
             Backend::Upstream { addr } => {
                 let (request, rx) = UploadRequest::create(scoping, length);
@@ -251,14 +257,14 @@ impl Service {
                 Location {
                     project_id: scoping.project_id,
                     key,
-                    length,
+                    length: Provisional(length),
                 }
                 .try_sign(config)
             }
         }
     }
 
-    async fn upload(&self, stream: Stream) -> Result<SignedLocation, Error> {
+    async fn upload(&self, stream: Stream) -> Result<SignedLocation<Final>, Error> {
         match &self.backend {
             Backend::Upstream { addr } => {
                 let (request, rx) = UploadRequest::upload(stream);
@@ -281,7 +287,7 @@ impl Service {
                 } = location.verify(received, config)?;
 
                 debug_assert_eq!(scoping.project_id, project_id);
-                debug_assert!(stream.length().is_none_or(|l| Some(l) == length));
+                debug_assert!(stream.length().is_none_or(|l| Some(l) == length.value()));
                 let byte_counter = stream.byte_counter();
 
                 let key = addr
@@ -294,7 +300,7 @@ impl Service {
                     .await
                     .map_err(Error::ObjectstoreServiceUnavailable)??
                     .into_inner();
-                let length = Some(byte_counter.get());
+                let length = Final(byte_counter.get());
 
                 Location {
                     project_id,
@@ -306,10 +312,11 @@ impl Service {
         }
     }
 
-    async fn timeout<F: IntoFuture<Output = Result<SignedLocation, Error>>>(
-        &self,
-        future: F,
-    ) -> Result<SignedLocation, Error> {
+    async fn timeout<L, F>(&self, future: F) -> Result<SignedLocation<L>, Error>
+    where
+        L: UploadLength,
+        F: IntoFuture<Output = Result<SignedLocation<L>, Error>>,
+    {
         tokio::time::timeout(self.timeout, future).await?
     }
 }
@@ -332,8 +339,48 @@ impl SimpleService for Service {
 impl LoadShed<Upload> for Service {
     fn handle_loadshed(&self, message: Upload) {
         match message {
-            Upload::Create(_, tx) | Upload::Upload(_, tx) => tx.send(Err(Error::LoadShed)),
+            Upload::Create(_, tx) => tx.send(Err(Error::LoadShed)),
+            Upload::Upload(_, tx) => tx.send(Err(Error::LoadShed)),
         }
+    }
+}
+
+/// An interface for known or unknown upload lengths.
+///
+/// This allows code sharing between [`Provisional`] and [`Final`] upload locations.
+pub trait UploadLength: for<'de> Deserialize<'de> {
+    fn value(&self) -> Option<usize>;
+}
+
+/// A provisional upload length which may or may not yet be known.
+///
+/// /// See also [`Final`].
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(transparent)]
+pub struct Provisional(Option<usize>);
+
+impl UploadLength for Provisional {
+    fn value(&self) -> Option<usize> {
+        self.0
+    }
+}
+
+/// A final upload length that represents the actual amount of bytes uploaded to objectstore.
+///
+/// See also [`Provisional`].
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct Final(usize);
+
+impl Final {
+    /// Get the value.
+    pub fn into_inner(self) -> usize {
+        self.0
+    }
+}
+
+impl UploadLength for Final {
+    fn value(&self) -> Option<usize> {
+        Some(self.0)
     }
 }
 
@@ -345,30 +392,30 @@ impl LoadShed<Upload> for Service {
 /// Calling [`Self::try_sign`] appends a `&signature=` query parameter that can later be used
 /// to validate whether the URI (especially the length) has been tempered with.
 #[derive(Debug)]
-pub struct Location {
+pub struct Location<L> {
     /// Sentry project ID.
     pub project_id: ProjectId,
     /// Objectstore identifier.
     pub key: String,
     /// Value of the `Upload-Length` header. `None` if `Upload-Defer-Length: 1`.
-    pub length: Option<usize>,
+    pub length: L,
 }
 
-impl Location {
+impl<L: UploadLength> Location<L> {
     fn as_uri(&self) -> String {
         let Location {
             project_id,
             key,
             length,
         } = self;
-        match length {
+        match length.value() {
             Some(length) => format!("/api/{project_id}/upload/{key}/?length={length}"),
             None => format!("/api/{project_id}/upload/{key}/"),
         }
     }
 
     #[cfg(feature = "processing")]
-    fn try_sign(self, config: &Config) -> Result<SignedLocation, Error> {
+    fn try_sign(self, config: &Config) -> Result<SignedLocation<L>, Error> {
         let uri = self.as_uri();
         let signature = config
             .credentials()
@@ -398,28 +445,24 @@ pub struct LocationPath {
 
 /// Query parameters for the upload endpoint.
 #[derive(Debug, Deserialize)]
-pub struct LocationQueryParams {
-    pub length: Option<usize>,
+#[serde(bound = "L: UploadLength")]
+pub struct LocationQueryParams<L: UploadLength> {
+    pub length: L,
     pub signature: String,
 }
 
 /// A verifiable [`Location`] signed by this Relay or an upstream Relay.
 #[derive(Debug)]
-pub struct SignedLocation {
-    location: Location,
+pub struct SignedLocation<L: UploadLength> {
+    location: Location<L>,
     signature: Signature,
 }
 
-impl SignedLocation {
+impl<L: UploadLength> SignedLocation<L> {
     /// Creates an unverified location from path and query params.
     ///
     /// Call `verify` to make sure the signature is correct.
-    pub fn from_parts(
-        project_id: ProjectId,
-        key: String,
-        length: Option<usize>,
-        signature: String,
-    ) -> Self {
+    pub fn from_parts(project_id: ProjectId, key: String, length: L, signature: String) -> Self {
         // TODO: forward compat: allow other query params?
         Self {
             location: Location {
@@ -442,7 +485,11 @@ impl SignedLocation {
             signature,
         } = self;
         let mut uri = location.as_uri();
-        uri.push(if location.length.is_some() { '&' } else { '?' }); // TODO: brittle.
+        uri.push(if location.length.value().is_some() {
+            '&'
+        } else {
+            '?'
+        }); // TODO: brittle.
         uri.push_str("signature=");
         uri.push_str(&signature.to_string());
         uri
@@ -452,7 +499,7 @@ impl SignedLocation {
     ///
     /// Fails if the signature is outdated or incorrect.
     #[cfg(feature = "processing")]
-    pub fn verify(self, received: DateTime<Utc>, config: &Config) -> Result<Location, Error> {
+    pub fn verify(self, received: DateTime<Utc>, config: &Config) -> Result<Location<L>, Error> {
         let public_key = config.public_key().ok_or(Error::SigningFailed)?;
         let is_valid = self.signature.verify(
             self.location.as_uri().as_bytes(),
@@ -465,7 +512,13 @@ impl SignedLocation {
             false => Err(Error::InvalidSignature),
         }
     }
+}
 
+impl<L> SignedLocation<L>
+where
+    L: UploadLength,
+    LocationQueryParams<L>: for<'de> Deserialize<'de>,
+{
     fn try_from_response(response: Response) -> Result<Self, Error> {
         match response.0.error_for_status() {
             Ok(response) => {
@@ -510,7 +563,7 @@ enum RequestKind {
         length: Option<usize>,
     },
     Upload {
-        location: SignedLocation,
+        location: SignedLocation<Provisional>,
         stream: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
         length: Option<usize>,
         encoding: HttpEncoding,
@@ -681,5 +734,33 @@ where
         HttpEncoding::Gzip => ReaderStream::new(GzipEncoder::new(reader)).boxed(),
         HttpEncoding::Br => ReaderStream::new(BrotliEncoder::new(reader)).boxed(),
         HttpEncoding::Zstd => ReaderStream::new(ZstdEncoder::new(reader)).boxed(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_location_incomplete() {
+        let url = "signature=foo";
+
+        // Can only parse provisional:
+        let provisional: LocationQueryParams<Provisional> =
+            serde_urlencoded::from_str(url).unwrap();
+        assert!(provisional.length.0.is_none());
+        assert!(serde_urlencoded::from_str::<LocationQueryParams::<Final>>(url).is_err());
+    }
+
+    #[test]
+    fn parse_location_complete() {
+        let json = r#"signature=foo&length=123"#;
+
+        // Can only parse provisional:
+        let provisional: LocationQueryParams<Provisional> =
+            serde_urlencoded::from_str(json).unwrap();
+        assert_eq!(provisional.length.0, Some(123));
+        let full: LocationQueryParams<Final> = serde_urlencoded::from_str(json).unwrap();
+        assert_eq!(full.length.0, 123);
     }
 }
