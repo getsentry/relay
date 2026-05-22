@@ -277,7 +277,7 @@ fn validate_spans(
 /// Ensures that `timestamp` is within `range`, otherwise replacing it with `fallback`.
 ///
 /// Returns an error if `timestamp` has no value or cannot be parsed to [`UnixTimestamp`].
-fn clamp_timestamp(
+fn enforce_timestamp_in_range(
     timestamp: &mut Annotated<Timestamp>,
     fallback: Timestamp,
     range: Option<&Range<UnixTimestamp>>,
@@ -315,8 +315,8 @@ fn validate_transaction_span(
     transaction_end: Timestamp,
     range: Option<&Range<UnixTimestamp>>,
 ) -> ProcessingResult {
-    clamp_timestamp(&mut span.start_timestamp, transaction_start, range)?;
-    clamp_timestamp(&mut span.timestamp, transaction_end, range)?;
+    enforce_timestamp_in_range(&mut span.start_timestamp, transaction_start, range)?;
+    enforce_timestamp_in_range(&mut span.timestamp, transaction_end, range)?;
 
     if let (Some(start), Some(end)) = (span.start_timestamp.value(), span.timestamp.value())
         && end < start
