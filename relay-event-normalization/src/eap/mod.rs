@@ -387,7 +387,7 @@ pub fn normalize_dsc(
     }
 }
 
-/// Normalizes the client sample rate attribute to be in the range `[0, 1]`.
+/// Normalizes the client sample rate attribute to be in the range `(0, 1]`.
 ///
 /// This is only relevant for spans as other eap types re not sampled.
 pub fn normalize_client_sample_rate(attributes: &mut Annotated<Attributes>) {
