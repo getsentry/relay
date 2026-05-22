@@ -177,7 +177,7 @@ pub struct NormalizationConfig<'a> {
     pub derive_trace_id: bool,
 
     /// Dynamic sampling context and additional attributes used for dsc span normalization.
-    pub enriched_dsc: Option<&'a EnrichedDsc<'a>>,
+    pub dsc: Option<EnrichedDsc<'a>>,
 }
 
 impl Default for NormalizationConfig<'_> {
@@ -213,7 +213,7 @@ impl Default for NormalizationConfig<'_> {
             span_op_defaults: Default::default(),
             performance_issues_spans: Default::default(),
             derive_trace_id: Default::default(),
-            enriched_dsc: None,
+            dsc: None,
         }
     }
 }
@@ -345,7 +345,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     normalize_contexts(&mut event.contexts, event_id, config);
 
     if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
-        span::normalize_dsc_for_event_spans(event, config.enriched_dsc);
+        span::normalize_dsc_for_event_spans(event, config.dsc.as_ref());
         span::normalize_app_start_spans(event);
         span::exclusive_time::compute_span_exclusive_time(event);
     }

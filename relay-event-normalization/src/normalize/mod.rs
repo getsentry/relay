@@ -375,16 +375,6 @@ pub struct EnrichedDsc<'a> {
     pub sampling_project_id: ProjectId,
 }
 
-impl<'a> EnrichedDsc<'a> {
-    /// Creates a new [`EnrichedDsc`].
-    pub fn new(dsc: &'a DynamicSamplingContext, sampling_project_id: ProjectId) -> Self {
-        EnrichedDsc {
-            dsc,
-            sampling_project_id,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Utc};

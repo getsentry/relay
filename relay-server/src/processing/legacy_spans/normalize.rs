@@ -57,7 +57,7 @@ pub struct NormalizeSpanConfig<'a> {
     pub geo_lookup: &'a GeoIpLookup,
     pub span_op_defaults: BorrowedSpanOpDefaults<'a>,
     /// Dynamic sampling context plus additional attributes used for dsc span normalization.
-    pub enriched_dsc: Option<&'a EnrichedDsc<'a>>,
+    pub dsc: Option<EnrichedDsc<'a>>,
 }
 
 fn set_segment_attributes(span: &mut Annotated<Span>) {
@@ -111,7 +111,7 @@ pub fn normalize(
         client_ip,
         geo_lookup,
         span_op_defaults,
-        enriched_dsc,
+        dsc,
     } = config;
 
     set_segment_attributes(annotated_span);
@@ -211,7 +211,7 @@ pub fn normalize(
 
     normalize_performance_score(span, *performance_score);
 
-    span::normalize_dsc_for_span_data(&mut span.data, *enriched_dsc);
+    span::normalize_dsc_for_span_data(&mut span.data, dsc.as_ref());
 
     ai::enrich_ai_span(span, *ai_model_metadata);
 
@@ -554,7 +554,7 @@ mod tests {
             client_ip: Some(IpAddr("2.125.160.216".to_owned())),
             geo_lookup: &GEO_LOOKUP,
             span_op_defaults: Default::default(),
-            enriched_dsc: None,
+            dsc: None,
         }
     }
 

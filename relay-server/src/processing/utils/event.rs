@@ -251,10 +251,13 @@ pub fn normalize(
             );
         }
 
-        let enriched_dsc = headers
+        let dsc = headers
             .dsc()
             .zip(ctx.sampling_project_info.and_then(|p| p.project_id))
-            .map(|(d, s)| EnrichedDsc::new(d, s));
+            .map(|(dsc, sampling_project_id)| EnrichedDsc {
+                dsc,
+                sampling_project_id,
+            });
 
         let normalization_config = NormalizationConfig {
             project_id: Some(project_id.value()),
@@ -308,7 +311,7 @@ pub fn normalize(
                 .project_info
                 .has_feature(Feature::PerformanceIssuesSpans),
             derive_trace_id: project_info.has_feature(Feature::AddDefaultTraceID),
-            enriched_dsc: enriched_dsc.as_ref(),
+            dsc,
         };
 
         metric!(timer(RelayTimers::EventProcessingNormalization), {

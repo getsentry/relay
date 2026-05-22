@@ -62,14 +62,14 @@ pub fn normalize_app_start_spans(event: &mut Event) {
 ///
 /// If `sentry.dsc.trace_id` is already present in a span's `data`, the function does nothing for
 /// that span.
-pub fn normalize_dsc_for_event_spans(event: &mut Event, enriched_dsc: Option<&EnrichedDsc>) {
+pub fn normalize_dsc_for_event_spans(event: &mut Event, dsc: Option<&EnrichedDsc>) {
     if let Some(ctx) = event.context_mut::<TraceContext>() {
-        normalize_dsc_for_span_data(&mut ctx.data, enriched_dsc);
+        normalize_dsc_for_span_data(&mut ctx.data, dsc);
     }
     if let Some(spans) = event.spans.value_mut() {
         for span in spans {
             if let Some(span) = span.value_mut() {
-                normalize_dsc_for_span_data(&mut span.data, enriched_dsc);
+                normalize_dsc_for_span_data(&mut span.data, dsc);
             }
         }
     }
@@ -78,11 +78,8 @@ pub fn normalize_dsc_for_event_spans(event: &mut Event, enriched_dsc: Option<&En
 /// Writes DSC attributes needed for dynamic sampling into `span_data`.
 ///
 /// If `sentry.dsc.trace_id` is already present in `span_data`, the function does nothing.
-pub fn normalize_dsc_for_span_data(
-    span_data: &mut Annotated<SpanData>,
-    enriched_dsc: Option<&EnrichedDsc>,
-) {
-    let Some(enriched_dsc) = enriched_dsc else {
+pub fn normalize_dsc_for_span_data(span_data: &mut Annotated<SpanData>, dsc: Option<&EnrichedDsc>) {
+    let Some(dsc) = dsc else {
         return;
     };
 
@@ -92,10 +89,10 @@ pub fn normalize_dsc_for_span_data(
     }
     data.other.insert(
         SENTRY__DSC__TRACE_ID.to_owned(),
-        Annotated::new(Value::String(enriched_dsc.dsc.trace_id.to_string())),
+        Annotated::new(Value::String(dsc.dsc.trace_id.to_string())),
     );
 
-    if let Some(transaction) = &enriched_dsc.dsc.transaction {
+    if let Some(transaction) = &dsc.dsc.transaction {
         data.other.insert(
             SENTRY__DSC__TRANSACTION.to_owned(),
             Annotated::new(Value::String(transaction.clone())),
@@ -103,6 +100,6 @@ pub fn normalize_dsc_for_span_data(
     }
     data.other.insert(
         SENTRY__DSC__PROJECT_ID.to_owned(),
-        Annotated::new(Value::String(enriched_dsc.sampling_project_id.to_string())),
+        Annotated::new(Value::String(dsc.sampling_project_id.to_string())),
     );
 }

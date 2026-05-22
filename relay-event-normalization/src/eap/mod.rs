@@ -353,9 +353,9 @@ pub fn normalize_user_geo(
 pub fn normalize_dsc(
     attributes: &mut Annotated<Attributes>,
     is_segment: &Annotated<bool>,
-    enriched_dsc: Option<&EnrichedDsc>,
+    dsc: Option<&EnrichedDsc>,
 ) {
-    let Some(enriched_dsc) = enriched_dsc else {
+    let Some(dsc) = dsc else {
         return;
     };
 
@@ -365,32 +365,26 @@ pub fn normalize_dsc(
     if attributes.contains_key(SENTRY__DSC__TRACE_ID) {
         return;
     }
-    attributes.insert(SENTRY__DSC__TRACE_ID, enriched_dsc.dsc.trace_id.to_string());
+    attributes.insert(SENTRY__DSC__TRACE_ID, dsc.dsc.trace_id.to_string());
 
-    if let Some(transaction) = &enriched_dsc.dsc.transaction {
+    if let Some(transaction) = &dsc.dsc.transaction {
         attributes.insert(SENTRY__DSC__TRANSACTION, transaction.clone());
     }
 
-    attributes.insert(
-        SENTRY__DSC__PROJECT_ID,
-        enriched_dsc.sampling_project_id.to_string(),
-    );
+    attributes.insert(SENTRY__DSC__PROJECT_ID, dsc.sampling_project_id.to_string());
 
     if is_segment.value().is_some_and(|is_segment| *is_segment) {
-        attributes.insert(
-            SENTRY__DSC__PUBLIC_KEY,
-            enriched_dsc.dsc.public_key.to_string(),
-        );
-        if let Some(release) = &enriched_dsc.dsc.release {
+        attributes.insert(SENTRY__DSC__PUBLIC_KEY, dsc.dsc.public_key.to_string());
+        if let Some(release) = &dsc.dsc.release {
             attributes.insert(SENTRY__DSC__RELEASE, release.clone());
         }
-        if let Some(environment) = &enriched_dsc.dsc.environment {
+        if let Some(environment) = &dsc.dsc.environment {
             attributes.insert(SENTRY__DSC__ENVIRONMENT, environment.clone());
         }
-        if let Some(sample_rate) = enriched_dsc.dsc.sample_rate {
+        if let Some(sample_rate) = dsc.dsc.sample_rate {
             attributes.insert(SENTRY__DSC__SAMPLE_RATE, sample_rate);
         }
-        if let Some(sampled) = enriched_dsc.dsc.sampled {
+        if let Some(sampled) = dsc.dsc.sampled {
             attributes.insert(SENTRY__DSC__SAMPLED, sampled);
         }
     }
@@ -775,7 +769,10 @@ mod tests {
         normalize_dsc(
             &mut attributes,
             &Annotated::new(false),
-            Some(&EnrichedDsc::new(dsc, sampling_project_id)),
+            Some(&EnrichedDsc {
+                dsc,
+                sampling_project_id,
+            }),
         );
         assert_annotated_snapshot!(attributes, @r#"
         {
@@ -799,7 +796,10 @@ mod tests {
         normalize_dsc(
             &mut attributes,
             &Annotated::new(false),
-            Some(&EnrichedDsc::new(dsc, sampling_project_id)),
+            Some(&EnrichedDsc {
+                dsc,
+                sampling_project_id,
+            }),
         );
         assert_annotated_snapshot!(attributes, @r#"
         {
@@ -827,7 +827,10 @@ mod tests {
         normalize_dsc(
             &mut attributes,
             &Annotated::new(true),
-            Some(&EnrichedDsc::new(dsc, sampling_project_id)),
+            Some(&EnrichedDsc {
+                dsc,
+                sampling_project_id,
+            }),
         );
         assert_annotated_snapshot!(attributes, @r#"
         {
