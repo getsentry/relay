@@ -16,7 +16,7 @@ use crate::ClockDriftProcessor;
 pub struct Config {
     /// Apply a time sequence shift as provided by the SDK on the timestamp.
     ///
-    /// This must only run once, to not shift the same timestamp multiple times and therefor should
+    /// This must only run once, to not shift the same timestamp multiple times and therefore should
     /// be limited to processing Relays.
     pub apply_sequence_shift: bool,
     /// Timestamp when the item was received.
