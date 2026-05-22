@@ -353,7 +353,7 @@ pub fn normalize_user_geo(
 pub fn normalize_dsc(
     attributes: &mut Annotated<Attributes>,
     is_segment: &Annotated<bool>,
-    dsc: Option<&EnrichedDsc>,
+    dsc: Option<EnrichedDsc>,
 ) {
     let Some(dsc) = dsc else {
         return;
@@ -817,7 +817,7 @@ mod tests {
         normalize_dsc(
             &mut attributes,
             &Annotated::new(false),
-            Some(&EnrichedDsc {
+            Some(EnrichedDsc {
                 dsc,
                 sampling_project_id,
             }),
@@ -844,7 +844,7 @@ mod tests {
         normalize_dsc(
             &mut attributes,
             &Annotated::new(false),
-            Some(&EnrichedDsc {
+            Some(EnrichedDsc {
                 dsc,
                 sampling_project_id,
             }),
@@ -875,7 +875,7 @@ mod tests {
         normalize_dsc(
             &mut attributes,
             &Annotated::new(true),
-            Some(&EnrichedDsc {
+            Some(EnrichedDsc {
                 dsc,
                 sampling_project_id,
             }),

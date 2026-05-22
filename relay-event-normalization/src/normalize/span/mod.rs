@@ -62,7 +62,7 @@ pub fn normalize_app_start_spans(event: &mut Event) {
 ///
 /// If `sentry.dsc.trace_id` is already present in a span's `data`, the function does nothing for
 /// that span.
-pub fn normalize_dsc_for_event_spans(event: &mut Event, dsc: Option<&EnrichedDsc>) {
+pub fn normalize_dsc_for_event_spans(event: &mut Event, dsc: Option<EnrichedDsc>) {
     if let Some(ctx) = event.context_mut::<TraceContext>() {
         normalize_dsc_for_span_data(&mut ctx.data, dsc);
     }
@@ -78,7 +78,7 @@ pub fn normalize_dsc_for_event_spans(event: &mut Event, dsc: Option<&EnrichedDsc
 /// Writes DSC attributes needed for dynamic sampling into `span_data`.
 ///
 /// If `sentry.dsc.trace_id` is already present in `span_data`, the function does nothing.
-pub fn normalize_dsc_for_span_data(span_data: &mut Annotated<SpanData>, dsc: Option<&EnrichedDsc>) {
+pub fn normalize_dsc_for_span_data(span_data: &mut Annotated<SpanData>, dsc: Option<EnrichedDsc>) {
     let Some(dsc) = dsc else {
         return;
     };

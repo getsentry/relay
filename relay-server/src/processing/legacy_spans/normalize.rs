@@ -211,7 +211,7 @@ pub fn normalize(
 
     normalize_performance_score(span, *performance_score);
 
-    span::normalize_dsc_for_span_data(&mut span.data, dsc.as_ref());
+    span::normalize_dsc_for_span_data(&mut span.data, *dsc);
 
     ai::enrich_ai_span(span, *ai_model_metadata);
 

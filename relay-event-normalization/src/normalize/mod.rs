@@ -367,7 +367,7 @@ pub struct ModelMetadataEntry {
 }
 
 /// [`DynamicSamplingContext`] plus additional attributes used for dsc span normalization.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct EnrichedDsc<'a> {
     /// Dynamic sampling context containing the trace id and root transaction that started the trace.
     pub dsc: &'a DynamicSamplingContext,
