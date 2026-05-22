@@ -359,13 +359,6 @@ pub trait UploadLength: for<'de> Deserialize<'de> {
 #[serde(transparent)]
 pub struct Provisional(Option<usize>);
 
-impl Provisional {
-    /// Defines a provisional upload length.
-    pub fn new(value: Option<usize>) -> Self {
-        Self(value)
-    }
-}
-
 impl UploadLength for Provisional {
     fn value(&self) -> Option<usize> {
         self.0
