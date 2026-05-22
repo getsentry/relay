@@ -1,5 +1,4 @@
 import os
-from unittest import mock
 
 from flask import Response
 import msgpack
@@ -14,7 +13,7 @@ from uuid import UUID
 from urllib3.filepost import encode_multipart_formdata
 
 from sentry_relay.consts import DataCategory
-from .asserts import time_within_delta
+from .asserts import any, time_within_delta
 from .test_attachment_ref import upload_and_make_ref
 from .consts import DUMMY_UPLOAD_LOCATION
 
@@ -856,18 +855,18 @@ def test_minidump_placeholder(
                 },
             ],
         },
-        "grouping_config": mock.ANY,
+        "grouping_config": any(),
         "key_id": "123",
         "level": "fatal",
         "logger": "",
         "platform": "native",
         "project": 42,
-        "received": mock.ANY,
+        "received": any(),
         "sdk": {
             "name": "minidump.upload",
             "version": "0.0.0",
         },
-        "timestamp": mock.ANY,
+        "timestamp": any(),
         "type": "error",
         "version": "5",
     }
@@ -879,12 +878,12 @@ def test_minidump_placeholder(
     assert attachment == {
         "attachment_type": "event.minidump",
         "content_type": "application/x-dmp",
-        "id": mock.ANY,
+        "id": any(),
         "name": "minidump.dmp",
         "rate_limited": False,
         "retention_days": 90,
         "size": 26,
-        "stored_id": mock.ANY,
+        "stored_id": any(),
     }
 
     # Verify the actual data is retrievable from the objectstore.
