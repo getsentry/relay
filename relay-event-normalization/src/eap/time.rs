@@ -44,27 +44,13 @@ where
     let mut sent_at = config.sent_at;
     let mut error_kind = ErrorKind::ClockDrift;
 
-    let sequence = item
-        .value()
-        .and_then(|t| t.timestamp_sequence())
-        .filter(|d| *d > 0);
-
-    let mut timestamp = item
+    let timestamp = item
         .value_mut()
         .as_mut()
-        .map(|t| t.reference_timestamp_mut());
+        .map(|t| t.reference_timestamp_mut())
+        .and_then(|ts| ts.value().copied());
 
-    if config.apply_sequence_shift
-        && let Some(sequence) = sequence
-        && let Some(ts) = &mut timestamp
-        && let Some(ts_value) = ts.value_mut()
-    {
-        ts_value.0 += chrono::TimeDelta::nanoseconds(sequence.into());
-        ts.meta_mut()
-            .add_remark(Remark::new(RemarkType::Substituted, "timestamp.sequence"));
-    }
-
-    if let Some(timestamp) = timestamp.and_then(|ts| ts.value().copied()) {
+    if let Some(timestamp) = timestamp {
         if config
             .max_in_past
             .is_some_and(|delta| timestamp < received_at - delta)
@@ -90,6 +76,28 @@ where
             processor.apply_correction_meta(item.reference_timestamp_mut().meta_mut());
         }
     }
+
+    let sequence = item
+        .value()
+        .and_then(|t| t.timestamp_sequence())
+        .filter(|d| *d > 0);
+
+    let timestamp = item
+        .value_mut()
+        .as_mut()
+        .map(|t| t.reference_timestamp_mut());
+
+    if config.apply_sequence_shift
+        && let Some(sequence) = sequence
+        && let Some(ts) = timestamp
+        && let Some(ts_value) = ts.value_mut()
+    {
+        // Always unconditionally apply the time-shift, this puts us potentially slightly over `max_in_future`,
+        // by a few ms, but this is preferable over losing the ordering.
+        ts_value.0 += chrono::TimeDelta::nanoseconds(sequence.into());
+        ts.meta_mut()
+            .add_remark(Remark::new(RemarkType::Substituted, "timestamp.sequence"));
+    }
 }
 
 /// Items which can be processed by [`normalize`].
@@ -103,7 +111,7 @@ pub trait TimeNormalize: ProcessValue {
     ///
     /// This is usually stored in [`SENTRY__TIMESTAMP__SEQUENCE`] and applied as additional
     /// nanoseconds to the timestamp.
-    fn timestamp_sequence(&self) -> Option<u32>;
+    fn timestamp_sequence(&self) -> Option<u16>;
 }
 
 impl TimeNormalize for OurLog {
@@ -111,7 +119,7 @@ impl TimeNormalize for OurLog {
         &mut self.timestamp
     }
 
-    fn timestamp_sequence(&self) -> Option<u32> {
+    fn timestamp_sequence(&self) -> Option<u16> {
         get_timestamp_sequence(&self.attributes)
     }
 }
@@ -121,7 +129,7 @@ impl TimeNormalize for SpanV2 {
         &mut self.start_timestamp
     }
 
-    fn timestamp_sequence(&self) -> Option<u32> {
+    fn timestamp_sequence(&self) -> Option<u16> {
         // Not supported for spans.
         //
         // If this ever becomes necessary to add, extra care must be taken to not create invalid
@@ -135,17 +143,17 @@ impl TimeNormalize for TraceMetric {
         &mut self.timestamp
     }
 
-    fn timestamp_sequence(&self) -> Option<u32> {
+    fn timestamp_sequence(&self) -> Option<u16> {
         get_timestamp_sequence(&self.attributes)
     }
 }
 
-fn get_timestamp_sequence(attributes: &Annotated<Attributes>) -> Option<u32> {
+fn get_timestamp_sequence(attributes: &Annotated<Attributes>) -> Option<u16> {
     attributes
         .value()
         .and_then(|attrs| attrs.get_value(SENTRY__TIMESTAMP__SEQUENCE))
         .and_then(|v| v.as_f64())
-        .map(|v| v as u32)
+        .map(|v| v as _)
 }
 
 #[cfg(test)]
@@ -168,7 +176,7 @@ mod tests {
             &mut self.base
         }
 
-        fn timestamp_sequence(&self) -> Option<u32> {
+        fn timestamp_sequence(&self) -> Option<u16> {
             Some(123)
         }
     }
@@ -384,7 +392,7 @@ mod tests {
                 [
                   "future_timestamp",
                   {
-                    "sdk_time": "1970-01-02T01:00:00.000000123+00:00",
+                    "sdk_time": "1970-01-02T01:00:00+00:00",
                     "server_time": "1970-01-01T02:46:40+00:00"
                   }
                 ]
