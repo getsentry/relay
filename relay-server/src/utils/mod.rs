@@ -14,7 +14,7 @@ mod sizes;
 mod sleep_handle;
 mod split_off;
 mod statsd;
-mod stream;
+pub mod stream;
 mod thread_pool;
 pub mod tus;
 
