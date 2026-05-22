@@ -194,12 +194,19 @@ def test_time_corrections(mini_sentry, relay, delta, error):
     assert payload["replay_start_timestamp"] == time_within_delta(
         now - timedelta(seconds=60)
     )
-    assert payload["_meta"]["timestamp"][""]["err"] == [
-        [
-            error,
-            {
-                "sdk_time": time_within_delta(now + delta),
-                "server_time": time_within_delta(now),
-            },
-        ]
-    ]
+    assert payload["_meta"] == {
+        "timestamp": {
+            "": {
+                "err": [
+                    [
+                        error,
+                        {
+                            "sdk_time": time_within_delta(now + delta),
+                            "server_time": time_within_delta(now),
+                        },
+                    ]
+                ]
+            }
+        },
+        "user": {"email": {"": {"rem": [["@email", "s", 0, 7]], "len": 13}}},
+    }
