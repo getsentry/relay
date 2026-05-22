@@ -242,7 +242,7 @@ fn end_all_spans(event: &mut Event) {
 /// Validates the spans in the transaction.
 ///
 /// A [`ProcessingResult`] error is returned if there's an invalid span. For
-/// span validity, see [`validate_span`].
+/// span validity, see [`validate_transaction_span`].
 fn validate_spans(
     transaction: &mut Event,
     timestamp_range: Option<&Range<UnixTimestamp>>,
