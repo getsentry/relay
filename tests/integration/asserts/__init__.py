@@ -1,8 +1,10 @@
 from typing import Any, Callable
 from .time import time_after, time_within, time_within_delta, time_is
 from .protocol import only_items
+from .utils import PrintLastCompare
 
 __all__ = [
+    "any",
     "matches",
     "only_items",
     "time_after",
@@ -12,7 +14,7 @@ __all__ = [
 ]
 
 
-class _Matches(object):
+class _Matches(PrintLastCompare):
     def __init__(self, compare_with: Callable[[Any], bool]):
         self._compare_with = compare_with
 
@@ -37,3 +39,15 @@ def matches(f: Callable[[Any], bool]):
         }
     """
     return _Matches(f)
+
+
+class _Any(PrintLastCompare):
+    def __eq__(self, other, /):
+        return True
+
+    def __repr__(self):
+        return "<ANY>"
+
+
+def any():
+    return _Any()
