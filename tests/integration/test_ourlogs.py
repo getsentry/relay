@@ -1,14 +1,13 @@
 import json
 
 from datetime import datetime, timezone, timedelta
-from unittest import mock
 import uuid
 
 from requests import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 
-from .asserts import time_within_delta, time_within, matches
+from .asserts import time_within_delta, time_within, matches, any
 
 import pytest
 
@@ -316,12 +315,12 @@ def test_ourlog_extraction_with_sentry_logs(
                 "browser.name": {"stringValue": "Firefox"},
                 "browser.version": {"stringValue": "42.0"},
                 "sentry.severity_text": {"stringValue": "error"},
-                "sentry.payload_size_bytes": {"intValue": mock.ANY},
+                "sentry.payload_size_bytes": {"intValue": any()},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
                 **timestamps(ts),
             },
             "clientSampleRate": 1.0,
-            "itemId": mock.ANY,
+            "itemId": any(),
             "itemType": "TRACE_ITEM_TYPE_LOG",
             "organizationId": "1",
             "projectId": "42",
@@ -391,7 +390,7 @@ def test_ourlog_extraction_with_sentry_logs(
                 "browser.name": {"stringValue": "Firefox"},
                 "browser.version": {"stringValue": "42.0"},
                 "sentry.severity_text": {"stringValue": "info"},
-                "sentry.payload_size_bytes": {"intValue": mock.ANY},
+                "sentry.payload_size_bytes": {"intValue": any()},
                 "http.response_content_length": {"intValue": "17"},
                 "http.response.body.size": {"intValue": "17"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
@@ -405,7 +404,7 @@ def test_ourlog_extraction_with_sentry_logs(
                 **timestamps(ts),
             },
             "clientSampleRate": 1.0,
-            "itemId": mock.ANY,
+            "itemId": any(),
             "itemType": "TRACE_ITEM_TYPE_LOG",
             "organizationId": "1",
             "projectId": "42",
@@ -511,14 +510,14 @@ def test_ourlog_extraction_with_string_pii_scrubbing(
                 "value": time_within(ts, expect_resolution="ns"),
             },
         },
-        "__header": {"byte_size": mock.ANY},
+        "__header": {"byte_size": any()},
         "_meta": {
             "attributes": {
                 "test_pii": {
                     "value": {
                         "": {
-                            "len": mock.ANY,
-                            "rem": [[rule_type, mock.ANY, mock.ANY, mock.ANY]],
+                            "len": any(),
+                            "rem": [[rule_type, any(), any(), any()]],
                         }
                     }
                 }
@@ -621,15 +620,15 @@ def test_ourlog_default_pii_body(
     assert log == {
         **_if_dict(
             non_destructive.scrubs(),
-            {"_meta": {"body": {"": {"len": mock.ANY, "rem": mock.ANY}}}},
+            {"_meta": {"body": {"": {"len": any(), "rem": any()}}}},
         ),
-        "attributes": mock.ANY,
+        "attributes": any(),
         "body": non_destructive.expected_output,
         "level": "info",
         "span_id": "eee19b7ec3c1b174",
         "timestamp": time_within(ts),
         "trace_id": "5b8efff798038103d269b633813fc60c",
-        "__header": mock.ANY,
+        "__header": any(),
     }
 
     if non_destructive.additional_checks:
@@ -696,12 +695,12 @@ def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attribut
             "sentry.body": {"stringValue": "Test log"},
             "sentry.severity_text": {"stringValue": "info"},
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
-            "sentry.payload_size_bytes": mock.ANY,
+            "sentry.payload_size_bytes": any(),
             "browser.name": {"stringValue": "Firefox"},
             **timestamps(ts),
         },
         "clientSampleRate": 1.0,
-        "itemId": mock.ANY,
+        "itemId": any(),
         "itemType": "TRACE_ITEM_TYPE_LOG",
         "organizationId": "1",
         "projectId": "42",
@@ -748,11 +747,11 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
             "browser.name": {"stringValue": "Firefox"},
             "browser.version": {"stringValue": "42.0"},
             "sentry.severity_text": {"stringValue": "warn"},
-            "sentry.payload_size_bytes": {"intValue": mock.ANY},
+            "sentry.payload_size_bytes": {"intValue": any()},
             **timestamps(ts),
         },
         "clientSampleRate": 1.0,
-        "itemId": mock.ANY,
+        "itemId": any(),
         "itemType": "TRACE_ITEM_TYPE_LOG",
         "organizationId": "1",
         "projectId": "42",
@@ -890,12 +889,12 @@ def test_browser_name_version_extraction(
             "browser.name": {"stringValue": expected_browser_name},
             "browser.version": {"stringValue": expected_browser_version},
             "sentry.severity_text": {"stringValue": "error"},
-            "sentry.payload_size_bytes": {"intValue": mock.ANY},
+            "sentry.payload_size_bytes": {"intValue": any()},
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
             **timestamps(ts),
         },
         "clientSampleRate": 1.0,
-        "itemId": mock.ANY,
+        "itemId": any(),
         "itemType": "TRACE_ITEM_TYPE_LOG",
         "organizationId": "1",
         "projectId": "42",
@@ -1030,7 +1029,7 @@ def test_filters_are_applied_to_logs(
             "org_id": 1,
             "outcome": 1,
             "project_id": 42,
-            "quantity": mock.ANY,
+            "quantity": any(),
             "reason": filter_name,
             "timestamp": time_within_delta(ts),
         },
@@ -1089,7 +1088,7 @@ def test_time_corrections(mini_sentry, relay, delta, error):
                 }
             }
         },
-        "attributes": mock.ANY,
+        "attributes": any(),
         "body": "foo",
         "level": "error",
         "span_id": "eee19b7ec3c1b175",
@@ -1272,7 +1271,7 @@ def test_ourlog_container_metadata(
                 "value": time_within(ts, expect_resolution="ns"),
             },
         },
-        "__header": mock.ANY,
+        "__header": any(),
         "body": "Test log",
         "level": "info",
         "timestamp": time_within(ts),

@@ -1,6 +1,5 @@
 from collections import defaultdict
 from time import sleep
-from unittest import mock
 import pytest
 import os
 import requests
@@ -9,7 +8,7 @@ from functools import cache
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from urllib3 import encode_multipart_formdata
-from .asserts import time_within_delta
+from .asserts import any, time_within_delta
 
 
 @cache
@@ -41,7 +40,7 @@ def playstation_project_config():
 def user_data_event_json(response):
     return {
         "event_id": response.text.replace("-", ""),
-        "timestamp": mock.ANY,
+        "timestamp": any(),
         "received": time_within_delta(),
         "level": "error",
         "version": "7",
@@ -76,7 +75,7 @@ def user_data_event_json(response):
         "breadcrumbs": {
             "values": [
                 {
-                    "timestamp": mock.ANY,
+                    "timestamp": any(),
                     "type": "default",
                     "level": "info",
                     "message": "crumb",
@@ -110,20 +109,20 @@ def user_data_event_json(response):
         },
         "key_id": "123",
         "project": 42,
-        "_metrics": mock.ANY,
-        "grouping_config": mock.ANY,
+        "_metrics": any(),
+        "grouping_config": any(),
     }
 
 
-def playstation_event_json(sdk=mock.ANY):
+def playstation_event_json(sdk=any()):
     return {
-        "event_id": mock.ANY,
+        "event_id": any(),
         "level": "fatal",
-        "version": mock.ANY,
+        "version": any(),
         "type": "error",
         "logger": "",
         "platform": "native",
-        "timestamp": mock.ANY,
+        "timestamp": any(),
         "received": time_within_delta(),
         "contexts": {
             "app": {"app_version": "", "type": "app"},
@@ -175,17 +174,15 @@ def playstation_event_json(sdk=mock.ANY):
         "sdk": sdk,
         "key_id": "123",
         "project": 42,
-        "grouping_config": mock.ANY,
-        "_metrics": mock.ANY,
+        "grouping_config": any(),
+        "_metrics": any(),
     }
 
 
-def attachments(
-    log_size=mock.ANY, generated_dump_size=mock.ANY, playstation_dump_size=mock.ANY
-):
+def attachments(log_size=any(), generated_dump_size=any(), playstation_dump_size=any()):
     return [
         {
-            "id": mock.ANY,
+            "id": any(),
             "name": "console.log",
             "rate_limited": False,
             "content_type": "text/plain",
@@ -195,7 +192,7 @@ def attachments(
             "chunks": 1,
         },
         {
-            "id": mock.ANY,
+            "id": any(),
             "name": "generated_minidump.dmp",
             "rate_limited": False,
             "content_type": "application/x-dmp",
@@ -205,7 +202,7 @@ def attachments(
             "chunks": 1,
         },
         {
-            "id": mock.ANY,
+            "id": any(),
             "name": "playstation.prosperodmp",
             "rate_limited": False,
             "content_type": "application/octet-stream",
@@ -771,13 +768,13 @@ def test_playstation_attachment_no_feature_flag(
     event, payload = attachments_consumer.get_event_only()
 
     assert payload == {
-        "event_id": mock.ANY,
+        "event_id": any(),
         "level": "error",
         "version": "5",
         "type": "error",
         "logger": "",
         "platform": "other",
-        "timestamp": mock.ANY,
+        "timestamp": any(),
         "received": time_within_delta(),
         "exception": {"values": [{"type": "ValueError", "value": "Should not happen"}]},
         "sdk": {"name": "raven-node", "version": "2.6.3"},
@@ -794,7 +791,7 @@ def test_playstation_attachment_no_feature_flag(
 
     assert event["attachments"] == (
         {
-            "id": mock.ANY,
+            "id": any(),
             "name": "playstation.prosperodmp",
             "rate_limited": False,
             "content_type": "application/octet-stream",
@@ -878,7 +875,7 @@ def test_event_merging(
 
     event, payload = attachments_consumer.get_event_only()
     assert payload == {
-        "event_id": mock.ANY,
+        "event_id": any(),
         "level": "fatal",
         "version": "5",
         "type": "error",

@@ -39,7 +39,7 @@ use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::services::upload::SignedLocation;
+use crate::services::upload::{Final, SignedLocation};
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
 use crate::utils::{self, FormDataIter};
 
@@ -1031,7 +1031,7 @@ impl StoreService {
         let payload = item.payload();
         let placeholder: AttachmentPlaceholder<'_> =
             serde_json::from_slice(&payload).map_err(|_| StoreError::InvalidAttachmentRef)?;
-        let location = SignedLocation::try_from_str(placeholder.location)
+        let location = SignedLocation::<Final>::try_from_str(placeholder.location)
             .ok_or(StoreError::InvalidAttachmentRef)?
             .verify(Utc::now(), &self.config)
             .map_err(|_| StoreError::InvalidAttachmentRef)?;

@@ -1,5 +1,4 @@
 import os
-from unittest import mock
 
 from flask import Response
 import msgpack
@@ -14,7 +13,7 @@ from uuid import UUID
 from urllib3.filepost import encode_multipart_formdata
 
 from sentry_relay.consts import DataCategory
-from .asserts import time_within_delta
+from .asserts import any, time_within_delta
 from .test_attachment_ref import upload_and_make_ref
 from .consts import DUMMY_UPLOAD_LOCATION
 
@@ -856,18 +855,18 @@ def test_minidump_placeholder(
                 },
             ],
         },
-        "grouping_config": mock.ANY,
+        "grouping_config": any(),
         "key_id": "123",
         "level": "fatal",
         "logger": "",
         "platform": "native",
         "project": 42,
-        "received": mock.ANY,
+        "received": any(),
         "sdk": {
             "name": "minidump.upload",
             "version": "0.0.0",
         },
-        "timestamp": mock.ANY,
+        "timestamp": any(),
         "type": "error",
         "version": "5",
     }
@@ -879,12 +878,12 @@ def test_minidump_placeholder(
     assert attachment == {
         "attachment_type": "event.minidump",
         "content_type": "application/x-dmp",
-        "id": mock.ANY,
+        "id": any(),
         "name": "minidump.dmp",
         "rate_limited": False,
         "retention_days": 90,
         "size": 26,
-        "stored_id": mock.ANY,
+        "stored_id": any(),
     }
 
     # Verify the actual data is retrievable from the objectstore.
@@ -1032,6 +1031,51 @@ def test_minidump_objectstore_uploads(
     assert event_item["breadcrumbs"]["values"][0]["message"] == "A"
 
 
+def test_minidump_objectstore_uploads_external_chain(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    attachments_consumer,
+):
+    """Uploads with `Defer-Length: 1` are accepted from untrusted relays"""
+    mini_sentry.global_config["options"][
+        "relay.objectstore-attachments.sample-rate"
+    ] = 1.0
+    mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = True
+
+    project_id = 42
+    minidump_content = b"MDMP content"
+    log_content = b"Some log file content"
+
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).extend(
+        [
+            "projects:relay-minidump-attachment-uploads",
+            "projects:relay-upload-endpoint",
+        ]
+    )
+
+    relay = relay(relay_with_processing(), external=True)
+    project_config["config"]["trustedRelays"] = list(relay.iter_public_keys())
+
+    attachments_consumer = attachments_consumer()
+
+    response = relay.send_minidump(
+        project_id=project_id,
+        files=[
+            (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", minidump_content),
+            ("logs", "log.txt", log_content),
+        ],
+    )
+    assert response.ok
+
+    _, unpacked = attachments_consumer.get_message()
+    assert {att["name"] for att in unpacked["attachments"]} == {
+        "log.txt",
+        "minidump.dmp",
+    }
+
+
 def test_minidump_objectstore_errors(
     mini_sentry,
     relay,
@@ -1071,7 +1115,6 @@ def test_minidump_objectstore_errors(
             ("logs", "log.txt", log_content),
         ],
     )
-
     mini_sentry.captured_envelopes.get()
 
     assert mini_sentry.get_aggregated_outcomes() == [
