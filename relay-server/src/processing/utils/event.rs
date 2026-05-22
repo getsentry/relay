@@ -251,9 +251,13 @@ pub fn normalize(
             );
         }
 
+        let sampling_project_id = ctx
+            .sampling_project_info
+            .and_then(|p| p.project_id)
+            .or(ctx.project_info.project_id);
         let dsc = headers
             .dsc()
-            .zip(ctx.sampling_project_info.and_then(|p| p.project_id))
+            .zip(sampling_project_id)
             .map(|(dsc, sampling_project_id)| EnrichedDsc {
                 dsc,
                 sampling_project_id,

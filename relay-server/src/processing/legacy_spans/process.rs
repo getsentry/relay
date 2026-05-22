@@ -46,8 +46,11 @@ pub fn normalize(
 ) {
     let aggregator_config = ctx.config.aggregator_config_for(MetricNamespace::Spans);
     let model_data = ctx.global_config.ai_model_metadata();
+    let sampling_project_id = ctx
+        .sampling_project_info
+        .and_then(|p| p.project_id)
+        .or(ctx.project_info.project_id);
     let dsc = spans.headers.dsc().cloned();
-    let sampling_project_id = ctx.sampling_project_info.and_then(|p| p.project_id);
     let dsc = dsc
         .as_ref()
         .zip(sampling_project_id)
