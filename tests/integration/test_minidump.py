@@ -1496,6 +1496,13 @@ def test_minidump_objectstore_uploads_rejects_compressed(
 
     assert mini_sentry.get_aggregated_outcomes() == [
         {
+            "category": 1,
+            "outcome": 3,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "missing_minidump_upload",
+        },
+        {
             "category": 4,
             "outcome": 3,
             "project_id": 42,
