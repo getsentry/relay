@@ -6,6 +6,7 @@ import os
 import requests
 from functools import cache
 
+from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from urllib3 import encode_multipart_formdata
 from .asserts import time_within_delta
@@ -276,10 +277,10 @@ def test_playstation_invalid_prosperodump(
     outcomes_consumer = outcomes_consumer()
     relay = relay_processing_with_playstation()
 
-    with pytest.raises(requests.exceptions.HTTPError) as exc_info:
-        _ = relay.send_playstation_request(PROJECT_ID, playstation_dump)
+    response = relay.send_playstation_request(
+        PROJECT_ID, playstation_dump, raise_for_status=False
+    )
 
-    response = exc_info.value.response
     assert response.status_code == 400, "Expected a 400 status code"
     assert response.json()["detail"] == "invalid prosperodump"
     outcomes = outcomes_consumer.get_outcomes()
@@ -289,7 +290,7 @@ def test_playstation_invalid_prosperodump(
             "project_id": 42,
             "outcome": 3,
             "reason": "invalid_prosperodump",
-            "category": 4,
+            "category": DataCategory.ATTACHMENT.value,
             "quantity": len(playstation_dump),
         },
         {
@@ -297,7 +298,15 @@ def test_playstation_invalid_prosperodump(
             "project_id": 42,
             "outcome": 3,
             "reason": "invalid_prosperodump",
-            "category": 22,
+            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "invalid_prosperodump",
+            "category": DataCategory.ERROR.value,
             "quantity": 1,
         },
     ]
@@ -313,10 +322,10 @@ def test_playstation_missing_prosperodump(
     outcomes_consumer = outcomes_consumer()
     relay = relay_processing_with_playstation()
 
-    with pytest.raises(requests.exceptions.HTTPError) as exc_info:
-        _ = relay.send_playstation_request(PROJECT_ID, prosperodump, video_content)
+    response = relay.send_playstation_request(
+        PROJECT_ID, prosperodump, video_content, raise_for_status=False
+    )
 
-    response = exc_info.value.response
     assert response.status_code == 400, "Expected a 400 status code"
     assert response.json()["detail"] == "missing prosperodump"
     outcomes = outcomes_consumer.get_outcomes()
@@ -326,7 +335,7 @@ def test_playstation_missing_prosperodump(
             "project_id": 42,
             "outcome": 3,
             "reason": "missing_prosperodump_upload",
-            "category": 4,
+            "category": DataCategory.ATTACHMENT.value,
             "quantity": len(video_content),
         },
         {
@@ -334,7 +343,15 @@ def test_playstation_missing_prosperodump(
             "project_id": 42,
             "outcome": 3,
             "reason": "missing_prosperodump_upload",
-            "category": 22,
+            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "missing_prosperodump_upload",
+            "category": DataCategory.ERROR.value,
             "quantity": 1,
         },
     ]
@@ -356,19 +373,20 @@ def test_playstation_max_attachments_size_exceeded(
         }
     )
 
-    with pytest.raises(requests.exceptions.HTTPError) as exc_info:
-        _ = relay.send_playstation_request(PROJECT_ID, playstation_dump)
+    response = relay.send_playstation_request(
+        PROJECT_ID, playstation_dump, raise_for_status=False
+    )
 
-    response = exc_info.value.response
     assert response.status_code == 413, response.json()
     assert response.json() == {"detail": "request content exceeded size limits"}
-    assert outcomes_consumer.get_outcomes() == [
+    outcomes = outcomes_consumer.get_outcomes()
+    assert outcomes == [
         {
             "timestamp": time_within_delta(),
             "project_id": 42,
             "outcome": 3,
             "reason": "too_large:attachment:attachment",
-            "category": 4,
+            "category": DataCategory.ATTACHMENT.value,
             "quantity": len(playstation_dump),
         },
         {
@@ -376,7 +394,15 @@ def test_playstation_max_attachments_size_exceeded(
             "project_id": 42,
             "outcome": 3,
             "reason": "too_large:attachment:attachment",
-            "category": 22,
+            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "request_too_large",
+            "category": DataCategory.ERROR.value,
             "quantity": 1,
         },
     ]
@@ -398,10 +424,10 @@ def test_playstation_max_attachment_size_exceeded(
         }
     )
 
-    with pytest.raises(requests.exceptions.HTTPError) as exc_info:
-        _ = relay.send_playstation_request(PROJECT_ID, playstation_dump)
+    response = relay.send_playstation_request(
+        PROJECT_ID, playstation_dump, raise_for_status=False
+    )
 
-    response = exc_info.value.response
     assert response.status_code == 400, "Expected a 400 status code"
     outcomes = outcomes_consumer.get_outcomes()
     assert outcomes == [
@@ -410,7 +436,7 @@ def test_playstation_max_attachment_size_exceeded(
             "project_id": 42,
             "outcome": 3,
             "reason": "too_large:attachment:prosperodump",
-            "category": 4,
+            "category": DataCategory.ATTACHMENT.value,
             "quantity": len(playstation_dump),
         },
         {
@@ -418,7 +444,15 @@ def test_playstation_max_attachment_size_exceeded(
             "project_id": 42,
             "outcome": 3,
             "reason": "too_large:attachment:prosperodump",
-            "category": 22,
+            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "missing_prosperodump_upload",
+            "category": DataCategory.ERROR.value,
             "quantity": 1,
         },
     ]
@@ -958,3 +992,59 @@ def test_playstation_rate_limited(
     relay.send_playstation_request(PROJECT_ID, playstation_dump)
     sleep(1)
     relay.send_playstation_request(PROJECT_ID, playstation_dump)
+
+
+def test_playstation_unknown_project(
+    relay_processing_with_playstation, outcomes_consumer
+):
+    PROJECT_ID = 42
+    playstation_dump = load_dump_file("playstation.prosperodmp")
+    # Deliberately do NOT register the project, so it resolves as Disabled upstream.
+    # mini_sentry.add_full_project_config(project_id)
+    outcomes_consumer = outcomes_consumer()
+    relay = relay_processing_with_playstation()
+
+    response = relay.send_playstation_request(
+        PROJECT_ID, playstation_dump, raise_for_status=False
+    )
+
+    assert response.status_code == 403
+    assert outcomes_consumer.get_aggregated_outcomes() == [
+        {
+            "category": DataCategory.ERROR.value,
+            "outcome": 3,
+            "project_id": PROJECT_ID,
+            "reason": "project_id",
+            "quantity": 1,
+        }
+    ]
+
+
+def test_playstation_project_unavailable(
+    mini_sentry, relay_processing_with_playstation, outcomes_consumer
+):
+    PROJECT_ID = 42
+    # Force the upstream to keep returning the project as pending so `ready()` times out.
+    mini_sentry.project_config_simulate_pending = True
+    mini_sentry.add_full_project_config(PROJECT_ID, extra=playstation_project_config())
+    mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = True
+    outcomes_consumer = outcomes_consumer()
+    relay = relay_processing_with_playstation(
+        {"limits": {"query_timeout": 1}, "cache": {"batch_interval": 500}}
+    )
+    playstation_dump = load_dump_file("playstation.prosperodmp")
+
+    response = relay.send_playstation_request(
+        PROJECT_ID, playstation_dump, raise_for_status=False
+    )
+
+    assert response.status_code == 503
+    assert outcomes_consumer.get_aggregated_outcomes() == [
+        {
+            "category": DataCategory.ERROR.value,
+            "outcome": 3,
+            "project_id": PROJECT_ID,
+            "reason": "project_unavailable",
+            "quantity": 1,
+        }
+    ]

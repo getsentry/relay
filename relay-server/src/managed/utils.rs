@@ -10,6 +10,19 @@ pub trait ManagedResult<T, E> {
         M: Counted,
         E: OutcomeError;
 
+    /// Reject two [`Managed`] instances while still only returning a single [`Rejected`] error in
+    /// the result.
+    fn reject2<M, N>(
+        self,
+        managed1: &Managed<M>,
+        managed2: &Managed<N>,
+    ) -> Result<T, Rejected<E::Error>>
+    where
+        Self: Sized,
+        M: Counted,
+        N: Counted,
+        E: OutcomeError;
+
     /// Wraps the error of the [`Result`] with an outcome.
     fn with_outcome(self, outcome: Outcome) -> Result<T, (Outcome, E)>
     where
@@ -24,6 +37,25 @@ impl<T, E> ManagedResult<T, E> for Result<T, E> {
         E: OutcomeError,
     {
         self.map_err(|err| managed.reject_err(err))
+    }
+
+    fn reject2<M, N>(
+        self,
+        managed1: &Managed<M>,
+        managed2: &Managed<N>,
+    ) -> Result<T, Rejected<E::Error>>
+    where
+        Self: Sized,
+        M: Counted,
+        N: Counted,
+        E: OutcomeError,
+    {
+        self.map_err(|err| {
+            let (outcome, err) = err.consume();
+            let _ = managed1.reject_err(outcome.clone());
+            let r = managed2.reject_err(outcome);
+            r.map(|_| err)
+        })
     }
 
     fn with_outcome(self, outcome: Outcome) -> Result<T, (Outcome, E)>

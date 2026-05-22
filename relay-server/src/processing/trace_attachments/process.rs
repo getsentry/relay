@@ -72,14 +72,13 @@ pub fn parse_and_validate(item: &Item) -> Result<ExpandedAttachment, DiscardReas
 }
 
 /// Runs dynamic-sampling on the attachments.
-pub async fn sample(
+pub fn sample(
     work: Managed<SerializedAttachments>,
     ctx: Context<'_>,
 ) -> Result<Managed<SampledAttachments>, Rejected<Error>> {
     let event = None; // only apply trace-based rules.
-    let reservoir = None; // legacy
 
-    let result = dynamic_sampling::run(work.headers.dsc(), event, &ctx, reservoir).await;
+    let result = dynamic_sampling::run(work.headers.dsc(), event, &ctx);
     let server_sample_rate = result.sample_rate();
 
     work.try_map(|work, _| {

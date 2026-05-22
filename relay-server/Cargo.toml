@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "26.4.2"
+version = "26.5.0"
 edition = "2024"
 build = "build.rs"
 license-file = "../LICENSE.md"
@@ -22,7 +22,6 @@ processing = [
   "relay-metrics/redis",
   "relay-quotas/redis",
   "relay-redis/impl",
-  "relay-sampling/redis",
 ]
 
 [lints]

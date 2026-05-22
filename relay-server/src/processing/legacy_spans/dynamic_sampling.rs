@@ -10,7 +10,7 @@ use crate::services::processor::ProcessingExtractedMetrics;
 use crate::statsd::RelayCounters;
 use crate::utils::SamplingResult;
 
-pub async fn run(
+pub fn run(
     spans: Managed<ExpandedLegacySpans>,
     ctx: Context<'_>,
 ) -> (
@@ -23,7 +23,7 @@ pub async fn run(
         true => {
             // We only implement trace-based sampling rules for now, which can be computed
             // once for all spans in the envelope.
-            processing::utils::dynamic_sampling::run(spans.headers.dsc(), None, &ctx, None).await
+            processing::utils::dynamic_sampling::run(spans.headers.dsc(), None, &ctx)
         }
         false => SamplingResult::Pending,
     };

@@ -1,6 +1,6 @@
 use std::fmt;
 
-use relay_conventions::consts::*;
+use relay_conventions::attributes::*;
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue};
 
 use crate::protocol::{Attributes, Contexts, DeviceContext};

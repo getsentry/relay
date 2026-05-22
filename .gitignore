@@ -19,6 +19,7 @@ target
 /.idea/
 /*.sln
 .DS_Store
+.claude
 
 # NPM utilities for building docs
 /node_modules/

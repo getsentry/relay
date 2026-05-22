@@ -1,4 +1,5 @@
 mod attributes;
+mod measurements;
 mod name;
 
 use std::collections::BTreeMap;
@@ -10,12 +11,14 @@ use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 const ATTRIBUTE_DIR: &str = "sentry-conventions/model/attributes";
+const MEASUREMENT_DIR: &str = "sentry-conventions/model/measurements";
 const NAME_DIR: &str = "sentry-conventions/model/name";
 
 fn main() {
     let crate_dir: PathBuf = env::var("CARGO_MANIFEST_DIR").unwrap().into();
 
     write_attribute_rs(&crate_dir);
+    write_measurement_rs(&crate_dir);
     write_name_rs(&crate_dir);
 
     // Ideally this would only run when compiling for tests, but #[cfg(test)] doesn't seem to work
@@ -124,6 +127,47 @@ fn write_name_rs(crate_dir: &Path) {
     let output = name::name_file_output(names);
 
     writeln!(&mut out_file, "{}", output).unwrap();
+}
+
+fn write_measurement_rs(crate_dir: &Path) {
+    use measurements::{
+        Measurement, format_constant, measurement_attribute_pair, write_replacement_fn,
+    };
+
+    let measurement_consts_path =
+        Path::new(&env::var("OUT_DIR").unwrap()).join("measurement_consts.rs");
+    let mut measurement_consts_file =
+        BufWriter::new(File::create(&measurement_consts_path).unwrap());
+
+    let mut measurement_replacement_map = BTreeMap::new();
+
+    for file in WalkDir::new(crate_dir.join(MEASUREMENT_DIR)) {
+        let file = file.unwrap();
+        if file.file_type().is_file()
+            && let Some(ext) = file.path().extension()
+            && ext.to_str() == Some("json")
+        {
+            let contents = std::fs::read_to_string(file.path()).unwrap();
+            let attr: Measurement = serde_json::from_str(&contents).unwrap();
+
+            // Write measurment constant
+            writeln!(&mut measurement_consts_file, "{}\n", format_constant(&attr)).unwrap();
+
+            // Insert measurement -> attribute into map
+            if let Some((old, new)) = measurement_attribute_pair(&attr) {
+                measurement_replacement_map.insert(old, new);
+            }
+        }
+    }
+
+    let replacement_fn_path =
+        Path::new(&env::var("OUT_DIR").unwrap()).join("measurement_replacement_fn.rs");
+    let mut replacement_fn_file = BufWriter::new(File::create(&replacement_fn_path).unwrap());
+
+    write_replacement_fn(
+        &mut replacement_fn_file,
+        measurement_replacement_map.into_iter(),
+    );
 }
 
 /// Writes a canned version of the `name_for_op_and_attributes` function exclusively for tests.

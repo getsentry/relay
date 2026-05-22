@@ -4,7 +4,7 @@ use crate::envelope::{ContentType, Item, ItemType};
 use crate::processing;
 use crate::processing::utils::event::{EventMetricsExtracted, SpansExtracted, event_type};
 use relay_base_schema::events::EventType;
-use relay_config::Config;
+use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::{Event, Measurement, Measurements, Span};
 use relay_metrics::MetricNamespace;
 use relay_metrics::{FractionUnit, MetricUnit};
@@ -15,7 +15,7 @@ use relay_sampling::DynamicSamplingContext;
 pub fn extract_from_event(
     dsc: Option<&DynamicSamplingContext>,
     event: &Annotated<Event>,
-    config: &Config,
+    ctx: processing::Context<'_>,
     server_sample_rate: Option<f64>,
     event_metrics_extracted: EventMetricsExtracted,
     spans_extracted: SpansExtracted,
@@ -35,7 +35,7 @@ pub fn extract_from_event(
 
     let transaction_span = processing::transactions::extraction::extract_segment_span(
         event,
-        config
+        ctx.config
             .aggregator_config_for(MetricNamespace::Spans)
             .max_tag_value_length,
         &[],
@@ -64,7 +64,7 @@ pub fn extract_from_event(
 
             results.push(make_span_item(
                 new_span,
-                config,
+                ctx,
                 client_sample_rate,
                 server_sample_rate,
                 event_metrics_extracted.0,
@@ -74,7 +74,7 @@ pub fn extract_from_event(
 
     results.push(make_span_item(
         transaction_span,
-        config,
+        ctx,
         client_sample_rate,
         server_sample_rate,
         event_metrics_extracted.0,
@@ -85,7 +85,7 @@ pub fn extract_from_event(
 
 fn make_span_item(
     mut span: Span,
-    config: &Config,
+    ctx: processing::Context<'_>,
     client_sample_rate: Option<f64>,
     server_sample_rate: Option<f64>,
     metrics_extracted: bool,
@@ -114,7 +114,7 @@ fn make_span_item(
         })
         .map_err(|_| ())?;
 
-    let mut item = create_span_item(span, config)?;
+    let mut item = create_span_item(span, ctx)?;
 
     // If metrics extraction happened for the event, it also happened for its spans:
     item.set_metrics_extracted(metrics_extracted);
@@ -200,10 +200,15 @@ pub fn validate(span: &mut Annotated<Span>) -> Result<(), ValidationError> {
 /// Serializes the given span into an envelope item.
 ///
 /// In processing relays, creates a Span V2 so it can be published via kafka.
-pub fn create_span_item(span: Annotated<Span>, config: &Config) -> Result<Item, ()> {
+pub fn create_span_item(span: Annotated<Span>, ctx: processing::Context<'_>) -> Result<Item, ()> {
     let mut new_item = Item::new(ItemType::Span);
-    if cfg!(feature = "processing") && config.processing_enabled() {
-        let span_v2 = span.map_value(relay_spans::span_v1_to_span_v2);
+    if cfg!(feature = "processing") && ctx.config.processing_enabled() {
+        let use_measurements_smart_conversion = ctx
+            .project_info
+            .has_feature(Feature::MeasurementsSmartConversion);
+        let span_v2 = span.map_value(|span| {
+            relay_spans::span_v1_to_span_v2(span, use_measurements_smart_conversion)
+        });
         let payload = match span_v2.to_json() {
             Ok(payload) => payload,
             Err(err) => {
@@ -306,7 +311,7 @@ mod tests {
         let spans = extract_from_event(
             managed_envelope.envelope().dsc(),
             &event,
-            &Default::default(),
+            processing::Context::for_test(),
             Some(0.1),
             EventMetricsExtracted(false),
             SpansExtracted(false),

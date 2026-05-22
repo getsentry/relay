@@ -117,7 +117,7 @@ impl Processor for TraceAttachmentsProcessor {
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         let work = filter::feature_flag(work, ctx)?;
 
-        let work = process::sample(work, ctx).await?;
+        let work = process::sample(work, ctx)?;
 
         let work = process::expand(work);
 

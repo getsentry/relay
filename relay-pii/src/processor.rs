@@ -532,6 +532,9 @@ fn apply_regex_to_chunks<'a>(
             return;
         }
 
+        // ALERT: This logic assumes that `regex` doesn't match a capture
+        // group starting on a null byte. If you get an error in debug mode
+        // about `replacement_chunks` not being empty, check the regex.
         static NULL_SPLIT_RE: OnceLock<Regex> = OnceLock::new();
         let regex = NULL_SPLIT_RE.get_or_init(|| {
             #[allow(clippy::trivial_regex)]
