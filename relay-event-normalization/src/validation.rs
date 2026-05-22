@@ -298,7 +298,7 @@ fn clamp_timestamp(
         && (uts < range.start || range.end <= uts)
     {
         meta.set_original_value(Some(ts.to_string()));
-        meta.add_error(ErrorKind::ClockDrift);
+        meta.add_error(ErrorKind::InvalidData);
         *ts = fallback;
     }
 
