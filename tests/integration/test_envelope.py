@@ -406,9 +406,36 @@ def test_transaction_with_invalid_span_timestamps(mini_sentry, relay, offset):
     assert span["start_timestamp"] == transaction["start_timestamp"]
     assert span["timestamp"] == transaction["timestamp"]
 
-    assert transaction["_meta"]["spans"]["0"] == {
-        "start_timestamp": {"": {"err": ["clock_drift"], "val": mock.ANY}},
-        "timestamp": {"": {"err": ["clock_drift"], "val": mock.ANY}},
+    assert transaction["_meta"] == {
+        "spans": {
+            "0": {
+                "start_timestamp": {
+                    "": {
+                        "err": ["invalid_data"],
+                        "val": mock.ANY,
+                    }
+                },
+                "timestamp": {
+                    "": {
+                        "err": ["invalid_data"],
+                        "val": mock.ANY,
+                    }
+                },
+            }
+        },
+        "timestamp": {
+            "": {
+                "err": [
+                    [
+                        "past_timestamp",
+                        {
+                            "sdk_time": mock.ANY,
+                            "server_time": mock.ANY,
+                        },
+                    ]
+                ]
+            }
+        },
     }
 
 
