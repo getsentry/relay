@@ -3,7 +3,7 @@
 use chrono::{DateTime, Utc};
 use relay_event_schema::{
     processor::{self, ProcessValue, ProcessingState},
-    protocol::{OurLog, SpanV2, Timestamp, TraceMetric},
+    protocol::{OurLog, Replay, SpanV2, Timestamp, TraceMetric},
 };
 use relay_protocol::{Annotated, ErrorKind};
 use std::time::Duration;
@@ -92,6 +92,12 @@ impl TimeNormalize for SpanV2 {
 }
 
 impl TimeNormalize for TraceMetric {
+    fn reference_timestamp_mut(&mut self) -> &mut Annotated<Timestamp> {
+        &mut self.timestamp
+    }
+}
+
+impl TimeNormalize for Replay {
     fn reference_timestamp_mut(&mut self) -> &mut Annotated<Timestamp> {
         &mut self.timestamp
     }

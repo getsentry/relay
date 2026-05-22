@@ -1,4 +1,10 @@
 import uuid
+import json
+from datetime import datetime, timezone, timedelta
+
+import pytest
+
+from .asserts import time_within_delta
 
 
 def generate_replay_sdk_event(replay_id="d2132d31b39445f1938d7e21b6bf0ec4"):
@@ -147,3 +153,53 @@ def test_replay_events_are_filtered(
     assert outcome["quantity"] == 2
 
     outcomes_consumer.assert_empty()
+
+
+@pytest.mark.parametrize(
+    "delta,error",
+    [
+        (-timedelta(days=2), "past_timestamp"),
+        (timedelta(days=2), "future_timestamp"),
+    ],
+)
+def test_time_corrections(mini_sentry, relay, delta, error):
+    project_id = 42
+    mini_sentry.add_basic_project_config(
+        project_id,
+        extra={
+            "config": {
+                "features": ["organizations:session-replay"],
+                "eventRetention": 1,
+            }
+        },
+    )
+    relay = relay(mini_sentry)
+
+    now = datetime.now(timezone.utc)
+    sdk_ts = (now + delta).timestamp()
+    sdk_start_ts = sdk_ts - 60.0
+
+    replay = generate_replay_sdk_event()
+    replay["timestamp"] = sdk_ts
+    replay["replay_start_timestamp"] = sdk_start_ts
+
+    relay.send_replay_event(project_id, replay)
+    produced = mini_sentry.get_captured_envelope()
+    replay_items = [item for item in produced.items if item.type == "replay_event"]
+    assert len(replay_items) == 1
+
+    payload = json.loads(replay_items[0].payload.bytes.decode())
+
+    assert payload["timestamp"] == time_within_delta(now)
+    assert payload["replay_start_timestamp"] == time_within_delta(
+        now - timedelta(seconds=60)
+    )
+    assert payload["_meta"]["timestamp"][""]["err"] == [
+        [
+            error,
+            {
+                "sdk_time": time_within_delta(now + delta),
+                "server_time": time_within_delta(now),
+            },
+        ]
+    ]
