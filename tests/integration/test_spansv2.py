@@ -644,6 +644,8 @@ def test_spansv2_ds_sampled(
     sampling_config["organizationId"] = project_config["organizationId"]
     add_sampling_config(sampling_config, sample_rate=0.9, rule_type="trace")
 
+    trace_id = "5b8efff798038103d269b633813fc60c"
+
     relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
 
     ts = datetime.now(timezone.utc)
@@ -651,7 +653,7 @@ def test_spansv2_ds_sampled(
         {
             "start_timestamp": ts.timestamp(),
             "end_timestamp": ts.timestamp() + 0.5,
-            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "trace_id": trace_id,
             "span_id": "aaaaaaaaaaaaaaaa",
             "is_segment": False,
             "name": "some op",
@@ -661,14 +663,14 @@ def test_spansv2_ds_sampled(
         {
             "start_timestamp": ts.timestamp(),
             "end_timestamp": ts.timestamp() + 0.5,
-            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "trace_id": trace_id,
             "span_id": "bbbbbbbbbbbbbbbb",
             "is_segment": True,
             "name": "some other op",
             "status": "ok",
         },
         trace_info={
-            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "trace_id": trace_id,
             "public_key": sampling_config["publicKeys"][0]["publicKey"],
             "transaction": "tx_from_root",
         },
@@ -676,9 +678,12 @@ def test_spansv2_ds_sampled(
 
     relay.send_envelope(project_id, envelope)
 
-    for span in spans_consumer.get_spans(n=2):
+    for span in spans_consumer.get_spans():
         assert span["span_id"] in ("aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbb")
         assert span["attributes"]["sentry.server_sample_rate"]["value"] == 0.9
+        assert span["attributes"]["sentry.dsc.trace_id"]["value"] == trace_id
+        assert span["attributes"]["sentry.dsc.transaction"]["value"] == "tx_from_root"
+        assert span["attributes"]["sentry.dsc.project_id"]["value"] == "43"
 
     assert metrics_consumer.get_metrics(n=4, with_headers=False) == [
         {
