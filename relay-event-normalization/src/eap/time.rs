@@ -93,7 +93,7 @@ where
         && let Some(ts_value) = ts.value_mut()
     {
         // Always unconditionally apply the time-shift, this puts us potentially slightly over `max_in_future`,
-        // by a few ms, but this is preferable over losing the ordering.
+        // by up to ~5s, but this is preferable over losing the ordering.
         ts_value.0 += chrono::TimeDelta::nanoseconds(sequence.into());
         ts.meta_mut()
             .add_remark(Remark::new(RemarkType::Substituted, "timestamp.sequence"));
@@ -111,7 +111,7 @@ pub trait TimeNormalize: ProcessValue {
     ///
     /// This is usually stored in [`SENTRY__TIMESTAMP__SEQUENCE`] and applied as additional
     /// nanoseconds to the timestamp.
-    fn timestamp_sequence(&self) -> Option<u16>;
+    fn timestamp_sequence(&self) -> Option<u32>;
 }
 
 impl TimeNormalize for OurLog {
@@ -119,7 +119,7 @@ impl TimeNormalize for OurLog {
         &mut self.timestamp
     }
 
-    fn timestamp_sequence(&self) -> Option<u16> {
+    fn timestamp_sequence(&self) -> Option<u32> {
         get_timestamp_sequence(&self.attributes)
     }
 }
@@ -129,7 +129,7 @@ impl TimeNormalize for SpanV2 {
         &mut self.start_timestamp
     }
 
-    fn timestamp_sequence(&self) -> Option<u16> {
+    fn timestamp_sequence(&self) -> Option<u32> {
         // Not supported for spans.
         //
         // If this ever becomes necessary to add, extra care must be taken to not create invalid
@@ -143,12 +143,12 @@ impl TimeNormalize for TraceMetric {
         &mut self.timestamp
     }
 
-    fn timestamp_sequence(&self) -> Option<u16> {
+    fn timestamp_sequence(&self) -> Option<u32> {
         get_timestamp_sequence(&self.attributes)
     }
 }
 
-fn get_timestamp_sequence(attributes: &Annotated<Attributes>) -> Option<u16> {
+fn get_timestamp_sequence(attributes: &Annotated<Attributes>) -> Option<u32> {
     attributes
         .value()
         .and_then(|attrs| attrs.get_value(SENTRY__TIMESTAMP__SEQUENCE))
@@ -176,7 +176,7 @@ mod tests {
             &mut self.base
         }
 
-        fn timestamp_sequence(&self) -> Option<u16> {
+        fn timestamp_sequence(&self) -> Option<u32> {
             Some(123)
         }
     }
