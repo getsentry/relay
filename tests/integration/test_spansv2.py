@@ -678,7 +678,7 @@ def test_spansv2_ds_sampled(
 
     relay.send_envelope(project_id, envelope)
 
-    for span in spans_consumer.get_spans():
+    for span in spans_consumer.get_spans(n=2):
         assert span["span_id"] in ("aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbb")
         assert span["attributes"]["sentry.server_sample_rate"]["value"] == 0.9
         assert span["attributes"]["sentry.dsc.trace_id"]["value"] == trace_id
