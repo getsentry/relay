@@ -1169,7 +1169,7 @@ def test_time_sequence_shift(mini_sentry, relay_with_processing, items_consumer)
         },
         "clientSampleRate": 1.0,
         "downsampledRetentionDays": 90,
-        "itemId": mock.ANY,
+        "itemId": any(),
         "itemType": "TRACE_ITEM_TYPE_LOG",
         "organizationId": "1",
         "projectId": "42",

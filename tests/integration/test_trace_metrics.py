@@ -910,7 +910,7 @@ def test_time_sequence_shift(mini_sentry, relay_with_processing, items_consumer)
             "sentry.observed_timestamp_nanos": {
                 "stringValue": time_within_delta(ts, expect_resolution="ns")
             },
-            "sentry.payload_size_bytes": mock.ANY,
+            "sentry.payload_size_bytes": any(),
             "sentry.span_id": {
                 "stringValue": "eee19b7ec3c1b175",
             },
@@ -933,7 +933,7 @@ def test_time_sequence_shift(mini_sentry, relay_with_processing, items_consumer)
         },
         "clientSampleRate": 1.0,
         "downsampledRetentionDays": 90,
-        "itemId": mock.ANY,
+        "itemId": any(),
         "itemType": "TRACE_ITEM_TYPE_METRIC",
         "organizationId": "1",
         "projectId": "42",
@@ -943,7 +943,7 @@ def test_time_sequence_shift(mini_sentry, relay_with_processing, items_consumer)
         "timestamp": time_within_delta(
             ts + timedelta(seconds=seq_shift_in_secs), delta=timedelta(), precision="ms"
         ),
-        "traceId": mock.ANY,
+        "traceId": any(),
     }
 
 
