@@ -30,7 +30,9 @@ use crate::service::ServiceState;
 #[cfg(feature = "processing")]
 use crate::services::objectstore;
 use crate::services::projects::cache::Project;
-use crate::services::upload::{self, ByteStream, SignedLocation};
+use crate::services::upload::{
+    self, ByteStream, Final, LocationQueryParams, Provisional, SignedLocation, UploadLength,
+};
 use crate::services::upstream::UpstreamRequestError;
 use crate::statsd::RelayCounters;
 use crate::utils::{ApiErrorResponse, MeteredStream};
@@ -76,7 +78,6 @@ impl IntoResponse for Error {
         }
 
         let status = match self {
-            Error::Tus(tus::Error::DeferLengthNotAllowed) => StatusCode::FORBIDDEN,
             Error::Tus(_) => StatusCode::BAD_REQUEST,
             Error::Request(error) => return error.into_response(),
             Error::SendError(_) => StatusCode::INTERNAL_SERVER_ERROR,
@@ -129,7 +130,7 @@ impl IntoResponse for Error {
     }
 }
 
-impl IntoResponse for SignedLocation {
+impl<L: UploadLength> IntoResponse for SignedLocation<L> {
     fn into_response(self) -> Response {
         let mut headers = tus::response_headers();
         match self.into_header_value() {
@@ -153,8 +154,7 @@ async fn handle_post(
     check_kill_switch(&state)?;
 
     relay_log::trace!("Validating headers");
-    let upload_length = tus::validate_post_headers(&headers, meta.request_trust().is_trusted())
-        .map_err(Error::from)?;
+    let upload_length = tus::validate_post_headers(&headers).map_err(Error::from)?;
     let config = state.config();
 
     if upload_length.is_some_and(|len| len > config.max_upload_size()) {
@@ -177,6 +177,7 @@ async fn handle_post(
     let scoping = check_request(&state, meta, upload_length, project).await?;
 
     // Unconditionally create the upload location:
+    relay_log::trace!("Creating upload location");
     let result = create(&state, scoping, upload_length).await;
     let location = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "create failed");
@@ -195,7 +196,7 @@ async fn handle_patch(
     meta: RequestMeta,
     headers: HeaderMap,
     Path(upload::LocationPath { project_id, key }): Path<upload::LocationPath>,
-    Query(upload::LocationQueryParams { length, signature }): Query<upload::LocationQueryParams>,
+    Query(LocationQueryParams { length, signature }): Query<LocationQueryParams<Provisional>>,
     body: Body,
 ) -> axum::response::Result<impl IntoResponse> {
     check_kill_switch(&state)?;
@@ -220,7 +221,7 @@ async fn handle_patch(
         })?;
 
     relay_log::trace!("Checking request");
-    let scoping = check_request(&state, meta, length, project).await?;
+    let scoping = check_request(&state, meta, length.value(), project).await?;
 
     let stream = body
         .into_data_stream()
@@ -228,7 +229,7 @@ async fn handle_patch(
         .boxed();
     let stream = MeteredStream::new(stream, "upload");
 
-    let (lower_bound, upper_bound) = match length {
+    let (lower_bound, upper_bound) = match length.value() {
         None => (1, config.max_upload_size()),
         Some(u) => (u, u),
     };
@@ -282,7 +283,7 @@ async fn create(
     state: &ServiceState,
     scoping: Scoping,
     upload_length: Option<usize>,
-) -> Result<SignedLocation, Error> {
+) -> Result<SignedLocation<Provisional>, Error> {
     let location = state
         .upload()
         .send(upload::Create {
@@ -297,9 +298,9 @@ async fn create(
 async fn upload(
     state: &ServiceState,
     scoping: Scoping,
-    location: SignedLocation,
+    location: SignedLocation<Provisional>,
     stream: BoundedStream<MeteredStream<ByteStream>>,
-) -> Result<SignedLocation, Error> {
+) -> Result<SignedLocation<Final>, Error> {
     let location = state
         .upload()
         .send(upload::Stream {

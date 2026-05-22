@@ -102,6 +102,29 @@ pub enum Pii {
     Maybe,
 }
 
+/// The name of the replacement of a deprecated attribute.
+#[derive(Clone, Copy)]
+pub enum ReplacementName {
+    /// The replacement attribute has a fixed name,
+    /// i.e., doesn't contain a placeholder.
+    Static(&'static str),
+    /// The replacement attribute contains a placeholder.
+    ///
+    /// This means its name can't be used "as-is"; a value
+    /// has to be inserted into the placeholder. The contained
+    /// function performs this insertion.
+    Dynamic(fn(&str) -> String),
+}
+
+impl fmt::Debug for ReplacementName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Static(arg0) => f.debug_tuple("Static").field(arg0).finish(),
+            Self::Dynamic(_) => f.debug_tuple("Dynamic").finish(),
+        }
+    }
+}
+
 /// Under which names an attribute should be saved.
 #[derive(Debug, Clone, Copy)]
 pub enum WriteBehavior {
@@ -110,10 +133,10 @@ pub enum WriteBehavior {
     /// This is the only choice for attributes that aren't deprecated.
     CurrentName,
     /// Save the attribute under its replacement name instead.
-    NewName(&'static str),
+    NewName(ReplacementName),
     /// Save the attribute under both its current name and
     /// its replacement name.
-    BothNames(&'static str),
+    BothNames(ReplacementName),
 }
 
 /// Information about an attribute, as defined in `sentry-conventions`.
@@ -128,8 +151,16 @@ pub struct AttributeInfo {
 }
 
 /// Returns information about an attribute, as defined in `sentry-conventions`.
-pub fn attribute_info(key: &str) -> Option<&'static AttributeInfo> {
+///
+/// If the matched attribute contains a placeholder (`<key>`), the second returned
+/// value is the part of the attribute key that was inserted for the placeholder.
+pub fn attribute_info_with_fragment(key: &str) -> Option<(&'static AttributeInfo, Option<&str>)> {
     ATTRIBUTES.find(key)
+}
+
+/// Returns information about an attribute, as defined in `sentry-conventions`.
+pub fn attribute_info(key: &str) -> Option<&'static AttributeInfo> {
+    attribute_info_with_fragment(key).map(|(info, _)| info)
 }
 
 /// Special path segment in attribute keys that matches any value.
@@ -141,19 +172,32 @@ struct Node<T: 'static> {
 }
 
 impl<T> Node<T> {
-    fn find(&self, key: &str) -> Option<&T> {
+    fn find<'a>(&self, key: &'a str) -> Option<(&T, Option<&'a str>)> {
         if key.is_empty() {
-            return self.info.as_ref();
+            return self.info.as_ref().map(|info| (info, None));
         }
         let (prefix, suffix) = key.split_once('.').unwrap_or((key, ""));
-        for candidate in [prefix, PLACEHOLDER_SEGMENT] {
-            if let Some(info) = self
+
+        // First try a literal lookup.
+        // If the prefix is `"<key>"`, we skip this and fall through
+        // to the second attempt.
+        if prefix != PLACEHOLDER_SEGMENT
+            && let Some(info) = self
                 .children
-                .get(candidate)
+                .get(prefix)
                 .and_then(|child| child.find(suffix))
-            {
-                return Some(info);
-            }
+        {
+            return Some(info);
+        }
+
+        // If the literal lookup doesn't succeed, try a placeholder
+        // lookup and bubble up the current `prefix` if it succeeds.
+        if let Some((info, _)) = self
+            .children
+            .get(PLACEHOLDER_SEGMENT)
+            .and_then(|child| child.find(suffix))
+        {
+            return Some((info, Some(prefix)));
         }
         None
     }
@@ -172,10 +216,12 @@ mod tests {
     fn test_http_response_content_length() {
         let info = attribute_info("http.response_content_length").unwrap();
 
-        insta::assert_debug_snapshot!(info, @r#"
+        insta::assert_debug_snapshot!(info, @r###"
         AttributeInfo {
             write_behavior: BothNames(
-                "http.response.body.size",
+                Static(
+                    "http.response.body.size",
+                ),
             ),
             pii: Maybe,
             aliases: [
@@ -183,13 +229,14 @@ mod tests {
                 "http.response.header.content-length",
             ],
         }
-        "#);
+        "###);
     }
 
     #[test]
     fn test_url_path_parameter() {
         // See https://github.com/getsentry/sentry-conventions/blob/d80504a40ba3a0a23eb746e2608425cf8d8e68bf/model/attributes/url/url__path__parameter__%5Bkey%5D.json.
-        let info = attribute_info("url.path.parameter.'id=123'").unwrap();
+        let (info, fragment) = attribute_info_with_fragment("url.path.parameter.'id=123'").unwrap();
+        assert_eq!(fragment, Some("'id=123'"));
 
         insta::assert_debug_snapshot!(info, @r###"
         AttributeInfo {
@@ -200,6 +247,22 @@ mod tests {
             ],
         }
         "###);
+    }
+
+    /// Tests that `cls.source.<key>` is rewritten to `browser.web_vital.cls.source.<key>`.
+    #[test]
+    fn test_cls_source_key() {
+        let (info, fragment) = attribute_info_with_fragment("cls.source.foobar").unwrap();
+
+        let WriteBehavior::BothNames(ReplacementName::Dynamic(name_fn)) = info.write_behavior
+        else {
+            unreachable!();
+        };
+
+        assert_eq!(
+            name_fn(fragment.unwrap()),
+            "browser.web_vital.cls.source.foobar"
+        );
     }
 
     const ROOT: Node<u8> = Node {
@@ -223,7 +286,8 @@ mod tests {
 
     #[test]
     fn test_hypothetical() {
-        assert_eq!(ROOT.find("foo.bar"), Some(&2));
+        assert_eq!(ROOT.find("foo.bar"), Some((&2, Some("foo"))));
+        assert_eq!(ROOT.find("<key>.bar"), Some((&2, Some("<key>"))));
     }
 
     struct GetterMap<'a>(HashMap<&'a str, Val<'a>>);
