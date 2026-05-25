@@ -172,7 +172,10 @@ impl GlobalConfigHandle {
     pub fn current(&self) -> Arc<GlobalConfig> {
         match &*self.watch.borrow() {
             Status::Ready(config) => Arc::clone(config),
-            Status::Pending => Default::default(),
+            Status::Pending => {
+                relay_log::info!("resorting to default global config");
+                Default::default()
+            }
         }
     }
 }
