@@ -8,7 +8,7 @@
 
 **Bug Fixes**:
 
-- Apply timestamp validations to transaction spans. ([#6005](https://github.com/getsentry/relay/pull/6005), [#6013](https://github.com/getsentry/relay/pull/6013))
+- Apply timestamp validations to transaction spans. ([#6005](https://github.com/getsentry/relay/pull/6005), [#6013](https://github.com/getsentry/relay/pull/6013), [#6015](https://github.com/getsentry/relay/pull/6015))
 - Obtain PII values for `SpanData` fields from `sentry-conventions`. ([#5997](https://github.com/getsentry/relay/pull/5997))
 - Correctly handle attributes with placeholders during normalization. ([#6012](https://github.com/getsentry/relay/pull/6012))
 - Add `sentry.dsc.transaction`, `sentry.dsc.trace_id`, and `sentry.dsc.project_id` to all spans. ([#6001](https://github.com/getsentry/relay/pull/6001), [#6004](https://github.com/getsentry/relay/pull/6004), [#6008](https://github.com/getsentry/relay/pull/6008), [#6011](https://github.com/getsentry/relay/pull/6011))
