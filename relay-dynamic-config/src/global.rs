@@ -12,17 +12,12 @@ use serde_json::Value;
 
 use crate::{ErrorBoundary, MetricExtractionGroups};
 
-// Temporary until we understand why we see false killswitch values sometimes appearing.
-fn global_config_default() -> GlobalConfig {
-    relay_log::info!("using default global config");
-    GlobalConfig::default()
-}
 /// A dynamic configuration for all Relays passed down from Sentry.
 ///
 /// Values shared across all projects may also be included here, to keep
 /// [`ProjectConfig`](crate::ProjectConfig)s small.
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
-#[serde(default = "global_config_default", rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase")]
 pub struct GlobalConfig {
     /// Configuration for measurements normalization.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -103,14 +98,14 @@ fn is_err_or_empty(filters_config: &ErrorBoundary<GenericFiltersConfig>) -> bool
 }
 
 // Temporary until we understand why we see false killswitch values sometimes appearing.
-fn global_config_options_default() -> Options {
-    relay_log::info!("using default global config options");
-    Options::default()
+fn default_killswitchwed() -> bool {
+    relay_log::info!("using default killswitched value");
+    bool::default()
 }
 
 /// All options passed down from Sentry to Relay.
 #[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(default = "global_config_options_default")]
+#[serde(default)]
 pub struct Options {
     /// Metric bucket encoding configuration for sets by metric namespace.
     #[serde(
@@ -183,6 +178,7 @@ pub struct Options {
 
     /// Kill-switch for fetching project configs in endpoints.
     #[serde(
+        default = "default_killswitchwed",
         rename = "relay.endpoint-fetch-config.enabled",
         deserialize_with = "default_on_error",
         skip_serializing_if = "is_default"
