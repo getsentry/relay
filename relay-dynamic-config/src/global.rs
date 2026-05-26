@@ -98,7 +98,7 @@ fn is_err_or_empty(filters_config: &ErrorBoundary<GenericFiltersConfig>) -> bool
 }
 
 // Temporary until we understand why we see false killswitch values sometimes appearing.
-fn default_killswitchwed() -> bool {
+fn default_killswitched() -> bool {
     relay_log::info!("using default killswitched value");
     bool::default()
 }
@@ -178,7 +178,7 @@ pub struct Options {
 
     /// Kill-switch for fetching project configs in endpoints.
     #[serde(
-        default = "default_killswitchwed",
+        default = "default_killswitched",
         rename = "relay.endpoint-fetch-config.enabled",
         deserialize_with = "default_on_error",
         skip_serializing_if = "is_default"
