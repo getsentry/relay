@@ -169,13 +169,10 @@ impl GlobalConfigHandle {
     ///
     /// When no global config has been received from upstream yet,
     /// this will return a default global config.
-    pub fn current(&self) -> Arc<GlobalConfig> {
+    pub fn current(&self) -> Option<Arc<GlobalConfig>> {
         match &*self.watch.borrow() {
-            Status::Ready(config) => Arc::clone(config),
-            Status::Pending => {
-                relay_log::info!("resorting to default global config");
-                Default::default()
-            }
+            Status::Ready(config) => Some(Arc::clone(config)),
+            Status::Pending => None,
         }
     }
 }
