@@ -8,7 +8,7 @@ use relay_protocol::{
     Annotated, Array, Empty, Error, FromValue, Getter, IntoValue, Object, Val, Value,
 };
 
-use crate::processor::ProcessValue;
+use crate::processor::{Pii, ProcessValue, ProcessingState};
 use crate::protocol::{
     EventId, IpAddr, JsonLenientString, LenientString, Measurements, OperationType, OriginType,
     SpanId, SpanStatus, ThreadId, Timestamp, TraceId,
@@ -454,12 +454,32 @@ impl Getter for SentryTags {
     }
 }
 
+/// Determines the `Pii` value for a field of [`SpanData`] by looking it up in `relay-conventions`.
+///
+/// If the field is not found in the conventions, this returns `Pii::True`
+/// as a precaution.
+fn span_data_pii_from_conventions(state: &ProcessingState) -> Pii {
+    fn inner(state: &ProcessingState) -> Option<Pii> {
+        // `state.keys().next()` is the _last_ segment in the state's
+        // path, i.e. the field name.
+        let key = state.keys().next()?;
+
+        match relay_conventions::attribute_info(key)?.pii {
+            relay_conventions::Pii::True => Some(Pii::True),
+            relay_conventions::Pii::False => Some(Pii::False),
+            relay_conventions::Pii::Maybe => Some(Pii::Maybe),
+        }
+    }
+
+    inner(state).unwrap_or(Pii::True)
+}
+
 /// Arbitrary additional data on a span.
 ///
 /// Besides arbitrary user data, this type also contains SDK-provided fields used by the
 /// product (see <https://develop.sentry.dev/sdk/performance/span-data-conventions/>).
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[metastructure(trim = false, pii = "maybe")]
+#[metastructure(trim = false, pii = "span_data_pii_from_conventions")]
 pub struct SpanData {
     /// Mobile app start variant.
     ///
@@ -594,11 +614,7 @@ pub struct SpanData {
     pub gen_ai_response_object: Annotated<Value>,
 
     /// Whether or not the AI model call's response was streamed back asynchronously
-    #[metastructure(
-        field = "gen_ai.response.streaming",
-        legacy_alias = "ai.streaming",
-        pii = "false"
-    )]
+    #[metastructure(field = "gen_ai.response.streaming", legacy_alias = "ai.streaming")]
     pub gen_ai_response_streaming: Annotated<Value>,
 
     ///  Total output tokens per seconds throughput
@@ -751,15 +767,11 @@ pub struct SpanData {
     pub db_collection_name: Annotated<Value>,
 
     /// The sentry environment.
-    #[metastructure(
-        field = "sentry.environment",
-        legacy_alias = "environment",
-        pii = "false"
-    )]
+    #[metastructure(field = "sentry.environment", legacy_alias = "environment")]
     pub environment: Annotated<String>,
 
     /// The release version of the project.
-    #[metastructure(field = "sentry.release", legacy_alias = "release", pii = "false")]
+    #[metastructure(field = "sentry.release", legacy_alias = "release")]
     pub release: Annotated<LenientString>,
 
     /// The decoded body size of the response (in bytes).
@@ -811,7 +823,7 @@ pub struct SpanData {
     pub thread_name: Annotated<String>,
 
     /// ID of thread from where the span originated.
-    #[metastructure(field = "thread.id", pii = "false")]
+    #[metastructure(field = "thread.id")]
     pub thread_id: Annotated<ThreadId>,
 
     /// Name of the segment that this span belongs to (see `segment_id`).
@@ -831,19 +843,19 @@ pub struct SpanData {
     pub url_scheme: Annotated<Value>,
 
     /// User Display
-    #[metastructure(field = "user", pii = "true")]
+    #[metastructure(field = "user")]
     pub user: Annotated<Value>,
 
     /// User email address.
     ///
     /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
-    #[metastructure(field = "user.email", pii = "true")]
+    #[metastructure(field = "user.email")]
     pub user_email: Annotated<String>,
 
     /// User’s full name.
     ///
     /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
-    #[metastructure(field = "user.full_name", pii = "true")]
+    #[metastructure(field = "user.full_name")]
     pub user_full_name: Annotated<String>,
 
     /// Two-letter country code (ISO 3166-1 alpha-2).
@@ -873,25 +885,25 @@ pub struct SpanData {
     /// Unique user hash to correlate information for a user in anonymized form.
     ///
     /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
-    #[metastructure(field = "user.hash", pii = "true")]
+    #[metastructure(field = "user.hash")]
     pub user_hash: Annotated<String>,
 
     /// Unique identifier of the user.
     ///
     /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
-    #[metastructure(field = "user.id", pii = "true")]
+    #[metastructure(field = "user.id")]
     pub user_id: Annotated<String>,
 
     /// Short name or login/username of the user.
     ///
     /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
-    #[metastructure(field = "user.name", pii = "true")]
+    #[metastructure(field = "user.name")]
     pub user_name: Annotated<String>,
 
     /// Array of user roles at the time of the event.
     ///
     /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
-    #[metastructure(field = "user.roles", pii = "true")]
+    #[metastructure(field = "user.roles")]
     pub user_roles: Annotated<Array<String>>,
 
     /// Exclusive Time
@@ -899,19 +911,24 @@ pub struct SpanData {
     pub exclusive_time: Annotated<Value>,
 
     /// Profile ID
-    #[metastructure(field = "profile_id", pii = "false")]
+    #[metastructure(
+        field = "profile_id",
+        // This field is not defined in conventions, so we need to set
+        // PII explicitly.
+        pii = "false"
+    )]
     pub profile_id: Annotated<Value>,
 
     /// Replay ID
-    #[metastructure(field = "sentry.replay_id", legacy_alias = "replay_id", pii = "false")]
+    #[metastructure(field = "sentry.replay_id", legacy_alias = "replay_id")]
     pub replay_id: Annotated<Value>,
 
     /// The sentry SDK (see [`crate::protocol::ClientSdkInfo`]).
-    #[metastructure(field = "sentry.sdk.name", pii = "false")]
+    #[metastructure(field = "sentry.sdk.name")]
     pub sdk_name: Annotated<String>,
 
     /// The sentry SDK version (see [`crate::protocol::ClientSdkInfo`]).
-    #[metastructure(field = "sentry.sdk.version", pii = "false")]
+    #[metastructure(field = "sentry.sdk.version")]
     pub sdk_version: Annotated<String>,
 
     /// Slow Frames
@@ -975,7 +992,7 @@ pub struct SpanData {
     pub http_query: Annotated<String>,
 
     /// The client's IP address.
-    #[metastructure(field = "client.address", pii = "true")]
+    #[metastructure(field = "client.address")]
     pub client_address: Annotated<IpAddr>,
 
     /// The current route in the application.
@@ -1013,7 +1030,6 @@ pub struct SpanData {
     /// Other fields in `span.data`.
     #[metastructure(
         additional_properties,
-        pii = "true",
         retain = true,
         skip_serialization = "null" // applies to child elements
     )]

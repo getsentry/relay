@@ -144,8 +144,15 @@ def lcp_cls_inp_differences(mode):
 
 
 @pytest.mark.parametrize("mode", ["legacy", "v2"])
+@pytest.mark.parametrize("measurements_conversion", ["direct", "smart"])
 def test_lcp_span(
-    mini_sentry, relay, relay_with_processing, spans_consumer, metrics_consumer, mode
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+    metrics_consumer,
+    mode,
+    measurements_conversion,
 ):
     """
     Test verifies LCP spans processed via the SpanV2 and legacy standalone processing pipeline are equally processed.
@@ -163,6 +170,10 @@ def test_lcp_span(
     if mode == "v2":
         project_config["config"].setdefault("features", []).append(
             "projects:span-v2-experimental-processing"
+        )
+    if measurements_conversion == "smart":
+        project_config["config"].setdefault("features", []).append(
+            "projects:relay-measurements-smart-conversion"
         )
 
     relay = relay(relay_with_processing())
@@ -214,6 +225,8 @@ def test_lcp_span(
     lcp_backfill = {}
     if mode == "v2":
         lcp_backfill = {
+            # In the v2 pipeline we will always get this attribute regardless of whether we use "smart"
+            # measurement conversion, because of backfilling.
             "browser.web_vital.lcp.value": {"type": "double", "value": 548.0},
             "browser.web_vital.lcp.load_time": {"type": "double", "value": 527.5},
             "browser.web_vital.lcp.render_time": {"type": "integer", "value": 548},
@@ -224,10 +237,15 @@ def test_lcp_span(
             },
         }
 
+    if measurements_conversion == "smart":
+        lcp_measurement_name = "browser.web_vital.lcp.value"
+    else:
+        lcp_measurement_name = "lcp"
+
     assert spans_consumer.get_span() == {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
-            "lcp": {"type": "double", "value": 548.0},
+            lcp_measurement_name: {"type": "double", "value": 548.0},
             "lcp.loadTime": {"type": "double", "value": 527.5},
             "lcp.renderTime": {"type": "integer", "value": 548},
             "lcp.size": {"type": "integer", "value": 8100},
@@ -237,6 +255,14 @@ def test_lcp_span(
             },
             "browser.name": {"type": "string", "value": "Chrome"},
             "sentry.description": {"type": "string", "value": "<unknown>"},
+            "sentry.dsc.transaction": {
+                "type": "string",
+                "value": "/insights/projects/",
+            },
+            "sentry.dsc.trace_id": {
+                "type": "string",
+                "value": "d3d20f000885466b8c8f947c9b92b8d3",
+            },
             "sentry.environment": {"type": "string", "value": "prod"},
             "sentry.exclusive_time": {"type": "double", "value": 0.0},
             "sentry.op": {"type": "string", "value": "ui.webvital.lcp"},
@@ -339,8 +365,15 @@ def test_lcp_span(
 
 
 @pytest.mark.parametrize("mode", ["legacy", "v2"])
+@pytest.mark.parametrize("measurements_conversion", ["direct", "smart"])
 def test_cls_span(
-    mini_sentry, relay, relay_with_processing, spans_consumer, metrics_consumer, mode
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+    metrics_consumer,
+    mode,
+    measurements_conversion,
 ):
     """
     Test verifies CLS spans processed via the SpanV2 and legacy standalone processing pipeline are equally processed.
@@ -358,6 +391,10 @@ def test_cls_span(
     if mode == "v2":
         project_config["config"].setdefault("features", []).append(
             "projects:span-v2-experimental-processing"
+        )
+    if measurements_conversion == "smart":
+        project_config["config"].setdefault("features", []).append(
+            "projects:relay-measurements-smart-conversion"
         )
 
     relay = relay(relay_with_processing())
@@ -408,17 +445,29 @@ def test_cls_span(
     cls_backfill = {}
     if mode == "v2":
         cls_backfill = {
+            # In the v2 pipeline we will always get this attribute regardless of whether we use "smart"
+            # measurement conversion, because of backfilling.
             "browser.web_vital.cls.value": {"type": "double", "value": 0.1},
-            "browser.web_vital.cls.source.<key>": {
+            "browser.web_vital.cls.source.1": {
                 "type": "string",
                 "value": "AppContainer > NavContent > MobileTopbar > StyledButton",
             },
+            "browser.web_vital.cls.source.2": {
+                "type": "string",
+                "value": "div.app-1azrk9k.etjky0h0 > AppContainer > BodyContainer > BaseFooter",
+            },
+            "browser.web_vital.cls.source.3": {"type": "string", "value": "<unknown>"},
         }
+
+    if measurements_conversion == "smart":
+        cls_measurement_name = "browser.web_vital.cls.value"
+    else:
+        cls_measurement_name = "cls"
 
     assert spans_consumer.get_span() == {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
-            "cls": {"type": "double", "value": 0.1},
+            cls_measurement_name: {"type": "double", "value": 0.1},
             "cls.source.1": {
                 "type": "string",
                 "value": "AppContainer > NavContent > MobileTopbar > StyledButton",
@@ -432,6 +481,14 @@ def test_cls_span(
             "sentry.description": {
                 "type": "string",
                 "value": "AppContainer > NavContent > MobileTopbar > StyledButton",
+            },
+            "sentry.dsc.transaction": {
+                "type": "string",
+                "value": "/insights/projects/",
+            },
+            "sentry.dsc.trace_id": {
+                "type": "string",
+                "value": "d3d20f000885466b8c8f947c9b92b8d3",
             },
             "sentry.environment": {"type": "string", "value": "prod"},
             "sentry.exclusive_time": {"type": "double", "value": 0.0},
@@ -535,11 +592,18 @@ def test_cls_span(
 
 
 @pytest.mark.parametrize("mode", ["legacy", "v2"])
+@pytest.mark.parametrize("measurements_conversion", ["direct", "smart"])
 def test_inp_span(
-    mini_sentry, relay, relay_with_processing, spans_consumer, metrics_consumer, mode
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+    metrics_consumer,
+    mode,
+    measurements_conversion,
 ):
     """
-    Test verifies CLS spans processed via the SpanV2 and legacy standalone processing pipeline are equally processed.
+    Test verifies INP spans processed via the SpanV2 and legacy standalone processing pipeline are equally processed.
 
     Some differences between the pipelines exist and are noted in the test.
     """
@@ -554,6 +618,10 @@ def test_inp_span(
     if mode == "v2":
         project_config["config"].setdefault("features", []).append(
             "projects:span-v2-experimental-processing"
+        )
+    if measurements_conversion == "smart":
+        project_config["config"].setdefault("features", []).append(
+            "projects:relay-measurements-smart-conversion"
         )
 
     relay = relay(relay_with_processing())
@@ -599,17 +667,32 @@ def test_inp_span(
     inp_backfill = {}
     if mode == "v2":
         inp_backfill = {
+            # In the v2 pipeline we will always get this attribute regardless of whether we use "smart"
+            # measurement conversion, because of backfilling.
             "browser.web_vital.inp.value": {"type": "double", "value": 104.0},
         }
+
+    if measurements_conversion == "smart":
+        inp_measurement_name = "browser.web_vital.inp.value"
+    else:
+        inp_measurement_name = "inp"
 
     assert spans_consumer.get_span() == {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
-            "inp": {"type": "double", "value": 104.0},
+            inp_measurement_name: {"type": "double", "value": 104.0},
             "browser.name": {"type": "string", "value": "Chrome"},
             "sentry.description": {
                 "type": "string",
                 "value": "<unknown>",
+            },
+            "sentry.dsc.transaction": {
+                "type": "string",
+                "value": "/insights/projects/",
+            },
+            "sentry.dsc.trace_id": {
+                "type": "string",
+                "value": "d3d20f000885466b8c8f947c9b92b8d3",
             },
             "sentry.environment": {"type": "string", "value": "prod"},
             "sentry.exclusive_time": {"type": "double", "value": 104.0},
@@ -696,3 +779,63 @@ def test_inp_span(
             "received_at": time_within(ts, precision="s"),
         },
     ]
+
+
+def test_spans_standalone_dsc_normalization(
+    mini_sentry, relay, relay_with_processing, spans_consumer
+):
+    spans_consumer = spans_consumer()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    relay = relay(relay_with_processing())
+    ts = datetime.now(timezone.utc)
+    envelope = envelope_with_spans(
+        {
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "aaaaaaaaaaaaaaaa",
+            "is_segment": True,
+            "start_timestamp": ts.timestamp(),
+            "timestamp": ts.timestamp() + 0.5,
+            "exclusive_time": 500,
+        },
+        {
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "bbbbbbbbbbbbbbbb",
+            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "is_segment": False,
+            "start_timestamp": ts.timestamp(),
+            "timestamp": ts.timestamp() + 0.3,
+            "exclusive_time": 300,
+        },
+        {
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "cccccccccccccccc",
+            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "is_segment": False,
+            "start_timestamp": ts.timestamp(),
+            "timestamp": ts.timestamp() + 0.3,
+            "exclusive_time": 300,
+            "data": {
+                "sentry.dsc.trace_id": "5b8efff798038103d269b633813fc60c",
+                "sentry.dsc.transaction": "/transaction/already/exists",
+            },
+        },
+        trace_info={
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+            "transaction": "/my/fancy/endpoint",
+        },
+    )
+
+    relay.send_envelope(project_id, envelope)
+    spans = {s["span_id"]: s for s in spans_consumer.get_spans()}
+
+    def get_transaction(span_id: str):
+        return spans[span_id]["attributes"]["sentry.dsc.transaction"]["value"]
+
+    assert spans["aaaaaaaaaaaaaaaa"]["is_segment"] is True
+    assert spans["bbbbbbbbbbbbbbbb"]["is_segment"] is False
+    assert spans["cccccccccccccccc"]["is_segment"] is False
+    assert get_transaction("aaaaaaaaaaaaaaaa") == "/my/fancy/endpoint"
+    assert get_transaction("bbbbbbbbbbbbbbbb") == "/my/fancy/endpoint"
+    assert get_transaction("cccccccccccccccc") == "/transaction/already/exists"

@@ -4,6 +4,23 @@
 
 **Features**:
 
+- Convert measurements to attributes based on information from `sentry-conventions`. This is gated behind a project feature flag. ([#6007](https://github.com/getsentry/relay/pull/6007))
+
+**Bug Fixes**:
+
+- Apply timestamp validations to transaction spans. ([#6005](https://github.com/getsentry/relay/pull/6005), [#6013](https://github.com/getsentry/relay/pull/6013))
+- Obtain PII values for `SpanData` fields from `sentry-conventions`. ([#5997](https://github.com/getsentry/relay/pull/5997))
+- Add `sentry.dsc.transaction` and `sentry.dsc.trace_id` to all spans. ([#6001](https://github.com/getsentry/relay/pull/6001), [#6004](https://github.com/getsentry/relay/pull/6004), [#6008](https://github.com/getsentry/relay/pull/6008))
+- Correctly handle attributes with placeholders during normalization. ([#6012](https://github.com/getsentry/relay/pull/6012))
+
+**Internal**:
+
+- Always allow `Upload-Defer-Length: 1` on the `/upload` endpoint. ([#5977](https://github.com/getsentry/relay/pull/5977))
+
+## 26.5.0
+
+**Features**:
+
 - Enable OTLP endpoints by default. ([#5951](https://github.com/getsentry/relay/pull/5951))
 - Backfill `app.vitals.start.screen` for V1 app-start transactions from the transaction name. ([#5960](https://github.com/getsentry/relay/pull/5960))
 - Enable performance score calculation for V2 spans. ([#5947](https://github.com/getsentry/relay/pull/5947))

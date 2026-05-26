@@ -54,7 +54,7 @@ pub struct Deprecation {
 
 /// An attribute, according to the `sentry-conventions` schema.
 ///
-/// Omitted fields: `brief`, `has_dynamic_suffix`, `is_in_otel`, `example`, `sdks`, `ty`.
+/// Omitted fields: `has_dynamic_suffix`, `is_in_otel`, `example`, `sdks`, `ty`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct Attribute {
     /// The attribute's name.
@@ -72,6 +72,36 @@ pub struct Attribute {
     pub alias: Vec<String>,
 }
 
+/// Sanity check: if an attribute
+/// * is deprecated,
+/// * has status "backfill" or "normalize",
+/// * and it contains a placeholder while its replacement doesn't, or vice versa,
+///
+/// then we panic. There is no general way to normalize such attributes, so it's
+/// better to reject them at compile time.
+pub fn check_attribute(attribute: &Attribute) {
+    let Attribute {
+        key,
+        brief: _,
+        pii: _,
+        deprecation,
+        alias: _,
+    } = attribute;
+
+    if let Some(deprecation) = deprecation
+        && let Some(replacement) = deprecation.replacement.as_ref()
+        && deprecation.status.is_some()
+    {
+        let attribute_contains_placeholder = key.contains("<key>");
+        let replacement_contains_placeholder = replacement.contains("<key>");
+
+        assert_eq!(
+            attribute_contains_placeholder, replacement_contains_placeholder,
+            r"One of attribute `{key}` and its replacement `{replacement}` contains a placeholder and the other doesn't. Such attributes can't be automatically backfilled or normalized by Relay."
+        )
+    }
+}
+
 /// Formats an attribute's deprecation information as a `WriteBehavior`.
 fn format_write_behavior(deprecation: Option<&Deprecation>) -> String {
     let Some((status, replacement)) =
@@ -80,12 +110,21 @@ fn format_write_behavior(deprecation: Option<&Deprecation>) -> String {
         return "WriteBehavior::CurrentName".to_owned();
     };
 
+    let name = if replacement.contains("<key>") {
+        format!(
+            "ReplacementName::Dynamic(crate::interpolate::{})",
+            name_fn(replacement)
+        )
+    } else {
+        format!("ReplacementName::Static({replacement:?})")
+    };
+
     match status {
         DeprecationStatus::Backfill => {
-            format!("WriteBehavior::BothNames({:?})", replacement)
+            format!("WriteBehavior::BothNames({name})")
         }
         DeprecationStatus::Normalize => {
-            format!("WriteBehavior::NewName({:?})", replacement)
+            format!("WriteBehavior::NewName({name})")
         }
     }
 }
@@ -196,7 +235,7 @@ pub fn format_interpolating_fn(attribute: &Attribute) -> Option<String> {
     writeln!(
         &mut out,
         r#"/// Instantiates the `<key>` placeholder in the attribute
-/// [`{constant_name}`](crate::consts::{constant_name}) (`{key}`) with a concrete value.
+/// [`{constant_name}`](crate::attributes::{constant_name}) (`{key}`) with a concrete value.
 /// # Example
 /// ```
 /// use relay_conventions::interpolate::{fn_name};
@@ -227,7 +266,7 @@ fn write_deprecation_annotation(out: &mut impl Write, deprecation: &Deprecation)
         let replacement_name = name_constant(replacement);
         write!(
             out,
-            r#"(note="Use [`{replacement_name}`](crate::consts::{replacement_name}) (`{replacement}`) instead.")"#
+            r#"(note="Use [`{replacement_name}`](crate::attributes::{replacement_name}) (`{replacement}`) instead.")"#
         )
         .unwrap();
     }
@@ -235,7 +274,7 @@ fn write_deprecation_annotation(out: &mut impl Write, deprecation: &Deprecation)
 }
 
 /// Formats an attributes name as a constant identifier.
-fn name_constant(name: &str) -> String {
+pub fn name_constant(name: &str) -> String {
     name_fn(name).to_ascii_uppercase()
 }
 
@@ -289,7 +328,7 @@ pub fn write_canonical_fn(
 /// * If the attribute is not defined in `sentry-conventions`, `None` is returned.
 #[allow(deprecated)]
 pub fn canonical(key: &str) -> Option<&'static str> {{
-    use crate::consts::*;
+    use crate::attributes::*;
     match key {{"#
     )
     .unwrap();

@@ -395,7 +395,7 @@ pub fn extract_spans(
         if let Some(results) = spans::extract_from_event(
             work.headers.dsc(),
             &work.event,
-            ctx.config,
+            ctx,
             server_sample_rate,
             EventMetricsExtracted(work.flags.metrics_extracted),
             SpansExtracted(work.flags.spans_extracted),
