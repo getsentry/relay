@@ -198,7 +198,7 @@
 <a href=#198 id=198 data-nosnippet>198</a>        <span class="kw">let </span><span class="kw-2">mut </span>replay = process::expand(replays)<span class="question-mark">?</span>;
 <a href=#199 id=199 data-nosnippet>199</a>
 <a href=#200 id=200 data-nosnippet>200</a>        validate::validate(<span class="kw-2">&amp;</span>replay).reject(<span class="kw-2">&amp;</span>replay)<span class="question-mark">?</span>;
-<a href=#201 id=201 data-nosnippet>201</a>        process::normalize(<span class="kw-2">&amp;mut </span>replay, <span class="kw-2">&amp;</span><span class="self">self</span>.geoip_lookup);
+<a href=#201 id=201 data-nosnippet>201</a>        process::normalize(<span class="kw-2">&amp;mut </span>replay, <span class="kw-2">&amp;</span><span class="self">self</span>.geoip_lookup, ctx);
 <a href=#202 id=202 data-nosnippet>202</a>        filter::filter(<span class="kw-2">&amp;</span>replay, ctx).reject(<span class="kw-2">&amp;</span>replay)<span class="question-mark">?</span>;
 <a href=#203 id=203 data-nosnippet>203</a>
 <a href=#204 id=204 data-nosnippet>204</a>        <span class="kw">let </span><span class="kw-2">mut </span>replay = <span class="self">self</span>.limiter.enforce_quotas(replay, ctx).<span class="kw">await</span><span class="question-mark">?</span>;

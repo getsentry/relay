@@ -2,19 +2,19 @@
 <a href=#2 id=2 data-nosnippet>2</a>
 <a href=#3 id=3 data-nosnippet>3</a></span><span class="kw">use </span><span class="kw">crate</span>::services::processor::ProcessingError;
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>chrono::{DateTime, Utc};
-<a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>relay_event_normalization::span::{<span class="self">self</span>, ai};
-<a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>relay_event_normalization::{
-<a href=#7 id=7 data-nosnippet>7</a>    BorrowedSpanOpDefaults, ClientHints, CombinedMeasurementsConfig, FromUserAgentInfo,
-<a href=#8 id=8 data-nosnippet>8</a>    GeoIpLookup, ModelMetadata, PerformanceScoreConfig, RawUserAgentInfo, SchemaProcessor,
-<a href=#9 id=9 data-nosnippet>9</a>    TimestampProcessor, TransactionNameRule, TransactionsProcessor, TrimmingProcessor,
-<a href=#10 id=10 data-nosnippet>10</a>    normalize_measurements, normalize_performance_score, normalize_transaction_name,
-<a href=#11 id=11 data-nosnippet>11</a>    span::tag_extraction, validate_standalone_span,
-<a href=#12 id=12 data-nosnippet>12</a>};
-<a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span>relay_event_schema::processor::{ProcessingState, process_value};
-<a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span>relay_event_schema::protocol::{BrowserContext, EventId, IpAddr, Span, SpanData};
-<a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span>relay_metrics::UnixTimestamp;
-<a href=#16 id=16 data-nosnippet>16</a><span class="kw">use </span>relay_protocol::{Annotated, Empty, Value};
-<a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span>relay_sampling::DynamicSamplingContext;
+<a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>relay_event_normalization::EnrichedDsc;
+<a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>relay_event_normalization::span::{<span class="self">self</span>, ai};
+<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>relay_event_normalization::{
+<a href=#8 id=8 data-nosnippet>8</a>    BorrowedSpanOpDefaults, ClientHints, CombinedMeasurementsConfig, FromUserAgentInfo,
+<a href=#9 id=9 data-nosnippet>9</a>    GeoIpLookup, ModelMetadata, PerformanceScoreConfig, RawUserAgentInfo, SchemaProcessor,
+<a href=#10 id=10 data-nosnippet>10</a>    TimestampProcessor, TransactionNameRule, TransactionsProcessor, TrimmingProcessor,
+<a href=#11 id=11 data-nosnippet>11</a>    normalize_measurements, normalize_performance_score, normalize_transaction_name,
+<a href=#12 id=12 data-nosnippet>12</a>    span::tag_extraction, validate_standalone_span,
+<a href=#13 id=13 data-nosnippet>13</a>};
+<a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span>relay_event_schema::processor::{ProcessingState, process_value};
+<a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span>relay_event_schema::protocol::{BrowserContext, EventId, IpAddr, Span, SpanData};
+<a href=#16 id=16 data-nosnippet>16</a><span class="kw">use </span>relay_metrics::UnixTimestamp;
+<a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span>relay_protocol::{Annotated, Empty, Value};
 <a href=#18 id=18 data-nosnippet>18</a>
 <a href=#19 id=19 data-nosnippet>19</a><span class="doccomment">/// Config needed to normalize a standalone span.
 <a href=#20 id=20 data-nosnippet>20</a></span><span class="attr">#[derive(Clone, Debug)]
@@ -56,8 +56,8 @@
 <a href=#56 id=56 data-nosnippet>56</a>    <span class="doccomment">/// An initialized GeoIP lookup.
 <a href=#57 id=57 data-nosnippet>57</a>    </span><span class="kw">pub </span>geo_lookup: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>GeoIpLookup,
 <a href=#58 id=58 data-nosnippet>58</a>    <span class="kw">pub </span>span_op_defaults: BorrowedSpanOpDefaults&lt;<span class="lifetime">'a</span>&gt;,
-<a href=#59 id=59 data-nosnippet>59</a>    <span class="doccomment">/// Dynamic sampling context from the envelope headers.
-<a href=#60 id=60 data-nosnippet>60</a>    </span><span class="kw">pub </span>dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>DynamicSamplingContext&gt;,
+<a href=#59 id=59 data-nosnippet>59</a>    <span class="doccomment">/// Dynamic sampling context plus additional attributes used for dsc span normalization.
+<a href=#60 id=60 data-nosnippet>60</a>    </span><span class="kw">pub </span>dsc: <span class="prelude-ty">Option</span>&lt;EnrichedDsc&lt;<span class="lifetime">'a</span>&gt;&gt;,
 <a href=#61 id=61 data-nosnippet>61</a>}
 <a href=#62 id=62 data-nosnippet>62</a>
 <a href=#63 id=63 data-nosnippet>63</a><span class="kw">fn </span>set_segment_attributes(span: <span class="kw-2">&amp;mut </span>Annotated&lt;Span&gt;) {
