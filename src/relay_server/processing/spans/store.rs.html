@@ -58,6 +58,9 @@
 <a href=#58 id=58 data-nosnippet>58</a>    };
 <a href=#59 id=59 data-nosnippet>59</a>
 <a href=#60 id=60 data-nosnippet>60</a>    <span class="kw">let </span>attributes = attributes.get_or_insert_with(Default::default);
-<a href=#61 id=61 data-nosnippet>61</a>    attributes.insert(<span class="string">"sentry.server_sample_rate"</span>, server_sample_rate.to_f64());
-<a href=#62 id=62 data-nosnippet>62</a>}
+<a href=#61 id=61 data-nosnippet>61</a>    attributes.insert(
+<a href=#62 id=62 data-nosnippet>62</a>        <span class="string">"sentry.server_sample_rate"</span>,
+<a href=#63 id=63 data-nosnippet>63</a>        server_sample_rate.to_f64().clamp(<span class="number">1e-9</span>, <span class="number">1.0</span>),
+<a href=#64 id=64 data-nosnippet>64</a>    );
+<a href=#65 id=65 data-nosnippet>65</a>}
 </code></pre></div></section></main></body></html>
