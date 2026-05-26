@@ -1,12 +1,12 @@
 import json
 import pytest
 import uuid
-from unittest import mock
 
 from requests.exceptions import HTTPError
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
+from .asserts import any
 from .test_store import make_transaction
 
 
@@ -199,14 +199,14 @@ def test_attachment_ref(
 
     relay.send_envelope(project_id, envelope)
     expected_attachment = {
-        "id": mock.ANY,
+        "id": any(),
         "name": "test.txt",
         "content_type": "text/plain",
         "attachment_type": "event.attachment",
         "size": len(attachment_data),
         "rate_limited": False,
-        "stored_id": mock.ANY,
-        "retention_days": mock.ANY,
+        "stored_id": any(),
+        "retention_days": any(),
     }
 
     if event_type == "event":

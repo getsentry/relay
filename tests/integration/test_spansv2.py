@@ -1,10 +1,9 @@
 from datetime import datetime, timezone, timedelta
-from unittest import mock
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 
-from .asserts import time_within_delta, time_within, time_is
+from .asserts import any, time_within_delta, time_within, time_is
 
 from .test_dynamic_sampling import add_sampling_config
 
@@ -487,7 +486,7 @@ def test_spansv2_ds_drop(mini_sentry, relay, span, rule_type):
 
     assert mini_sentry.get_metrics() == [
         {
-            "metadata": mock.ANY,
+            "metadata": any(),
             "name": "c:spans/count_per_root_project@none",
             "tags": {
                 "decision": "drop",
@@ -501,7 +500,7 @@ def test_spansv2_ds_drop(mini_sentry, relay, span, rule_type):
             "width": 1,
         },
         {
-            "metadata": mock.ANY,
+            "metadata": any(),
             "name": "c:spans/usage@none",
             "tags": {
                 "is_segment": "false",
@@ -588,7 +587,7 @@ def test_spansv2_rate_limits(mini_sentry, relay, rate_limit):
     if rate_limit == DataCategory.SPAN_INDEXED:
         assert mini_sentry.get_metrics() == [
             {
-                "metadata": mock.ANY,
+                "metadata": any(),
                 "name": "c:spans/count_per_root_project@none",
                 "tags": {
                     "decision": "keep",
@@ -601,7 +600,7 @@ def test_spansv2_rate_limits(mini_sentry, relay, rate_limit):
                 "width": 1,
             },
             {
-                "metadata": mock.ANY,
+                "metadata": any(),
                 "name": "c:spans/usage@none",
                 "tags": {
                     "was_transaction": "false",
@@ -1185,8 +1184,8 @@ def test_spanv2_with_string_pii_scrubbing(
                 "test_pii": {
                     "value": {
                         "": {
-                            "len": mock.ANY,
-                            "rem": [[rule_type, mock.ANY, mock.ANY, mock.ANY]],
+                            "len": any(),
+                            "rem": [[rule_type, any(), any(), any()]],
                         }
                     }
                 }
@@ -1322,8 +1321,8 @@ def test_spanv2_meta_pii_scrubbing_complex_attribute(mini_sentry, relay):
                     "value": {
                         "1": {
                             "": {
-                                "len": mock.ANY,
-                                "rem": [["@creditcard", mock.ANY, mock.ANY, mock.ANY]],
+                                "len": any(),
+                                "rem": [["@creditcard", any(), any(), any()]],
                             }
                         }
                     }
@@ -1703,7 +1702,7 @@ def test_time_corrections(mini_sentry, relay, delta, error):
                 }
             }
         },
-        "attributes": mock.ANY,
+        "attributes": any(),
         "status": "ok",
         "is_segment": True,
         "name": "some op",
