@@ -568,8 +568,7 @@ impl EnvelopeBufferService {
                     sampling_project_info,
                 });
             }
-            // If the own project state is disabled, we want to drop the envelope and early return since
-            // we can't do much about it.
+            // If the own project state is disabled, we want to drop the envelope.
             ResolvedProject::Disabled => {
                 let _ = pop_envelope!().reject_err(Outcome::Invalid(DiscardReason::ProjectId));
             }
@@ -734,7 +733,7 @@ fn resolve_project(
     let own_project = project_cache.get(own_key);
     let own_project_info = match own_project.state() {
         ProjectState::Enabled(info) => info.clone(),
-        ProjectState::DummyAllowed => {
+        ProjectState::Dummy => {
             return ResolvedProject::Enabled {
                 own_project,
                 // Since downstream requires a project config, we re-use this dummy config.
@@ -766,7 +765,7 @@ fn resolve_project(
                     (info.organization_id == own_project_info.organization_id)
                         .then(|| Arc::clone(info))
                 }
-                ProjectState::DummyAllowed => {
+                ProjectState::Dummy => {
                     // This case should never happen, the own project info would already be dummy allowed.
                     debug_assert!(false);
                     None

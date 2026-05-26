@@ -166,7 +166,7 @@ impl AggregatorService {
                         ProjectState::Enabled(info) => Arc::clone(info),
                         // The dummy state should never happen, as a proxy Relay must not use the
                         // metrics aggregator.
-                        ProjectState::DummyAllowed => {
+                        ProjectState::Dummy => {
                             relay_log::error!(
                                 tags.aggregator = self.aggregator.name(),
                                 tags.project_key = project_key.as_str(),

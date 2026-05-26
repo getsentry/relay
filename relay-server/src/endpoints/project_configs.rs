@@ -170,7 +170,7 @@ async fn inner(
 
         let project_info = match project.state() {
             ProjectState::Enabled(info) => info,
-            ProjectState::DummyAllowed => {
+            ProjectState::Dummy => {
                 // We have no data for this project.
                 //
                 // This really would only happen if someone tried to run a managed relay behind a

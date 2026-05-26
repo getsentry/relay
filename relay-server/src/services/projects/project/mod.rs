@@ -20,7 +20,7 @@ pub enum ProjectState {
     /// This is used by proxy Relay instances which still communicate with the project cache,
     /// but never fetch project configs from upstream. In this configuration data must still be
     /// forwarded even without a project config.
-    DummyAllowed,
+    Dummy,
     /// A project that was marked as "gone" by the upstream. This variant does not expose
     /// any other project information.
     Disabled,
@@ -40,7 +40,7 @@ impl ProjectState {
             Self::Enabled(state) => {
                 Self::Enabled(Arc::new(state.as_ref().clone().sanitized(is_processing)))
             }
-            Self::DummyAllowed => Self::DummyAllowed,
+            Self::Dummy => Self::Dummy,
             Self::Disabled => Self::Disabled,
             Self::Pending => Self::Pending,
         }
@@ -55,7 +55,7 @@ impl ProjectState {
     pub fn enabled(self) -> Option<Arc<ProjectInfo>> {
         match self {
             Self::Enabled(info) => Some(info),
-            Self::DummyAllowed | Self::Disabled | Self::Pending => None,
+            Self::Dummy | Self::Disabled | Self::Pending => None,
         }
     }
 
@@ -65,7 +65,7 @@ impl ProjectState {
     pub fn revision(&self) -> Revision {
         match &self {
             Self::Enabled(info) => info.rev.clone(),
-            Self::DummyAllowed | Self::Disabled | Self::Pending => Revision::default(),
+            Self::Dummy | Self::Disabled | Self::Pending => Revision::default(),
         }
     }
 
