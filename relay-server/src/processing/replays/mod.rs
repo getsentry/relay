@@ -198,7 +198,7 @@ impl processing::Processor for ReplaysProcessor {
         let mut replay = process::expand(replays)?;
 
         validate::validate(&replay).reject(&replay)?;
-        process::normalize(&mut replay, &self.geoip_lookup);
+        process::normalize(&mut replay, &self.geoip_lookup, ctx);
         filter::filter(&replay, ctx).reject(&replay)?;
 
         let mut replay = self.limiter.enforce_quotas(replay, ctx).await?;

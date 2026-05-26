@@ -33,7 +33,6 @@ use relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FiniteF64, FromValue, Getter, Meta, Object, Remark,
     RemarkType, TryFromFloatError, Value,
 };
-use relay_sampling::DynamicSamplingContext;
 use smallvec::SmallVec;
 use uuid::Uuid;
 
@@ -42,8 +41,8 @@ use crate::span::ai::enrich_ai_event_data;
 use crate::span::tag_extraction::{extract_segment_name_from_event, extract_span_tags_from_event};
 use crate::utils::{self, MAX_DURATION_MOBILE_MS, get_event_user_tag};
 use crate::{
-    BorrowedSpanOpDefaults, BreakdownsConfig, CombinedMeasurementsConfig, GeoIpLookup, MaxChars,
-    ModelMetadata, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule,
+    BorrowedSpanOpDefaults, BreakdownsConfig, CombinedMeasurementsConfig, EnrichedDsc, GeoIpLookup,
+    MaxChars, ModelMetadata, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule,
     TransactionNameConfig, breakdowns, event_error, legacy, mechanism, remove_other, schema, span,
     stacktrace, transactions, trimming, user_agent,
 };
@@ -141,7 +140,7 @@ pub struct NormalizationConfig<'a> {
     /// This is similar to `transaction_name_config`, but applies to span descriptions.
     pub span_description_rules: Option<&'a Vec<SpanDescriptionRule>>,
 
-    /// Configuration for generating performance score measurements for web vitals
+    /// Configuration for generating performance score measurements for web vitals.
     pub performance_score: Option<&'a PerformanceScoreConfig>,
 
     /// Metadata for AI models including costs and context size.
@@ -165,7 +164,7 @@ pub struct NormalizationConfig<'a> {
     /// It is persisted into the event payload for correlation.
     pub replay_id: Option<Uuid>,
 
-    /// Controls list of hosts to be excluded from scrubbing
+    /// Controls list of hosts to be excluded from scrubbing.
     pub span_allowed_hosts: &'a [String],
 
     /// Rules to infer `span.op` from other span fields.
@@ -186,8 +185,8 @@ pub struct NormalizationConfig<'a> {
     /// the SDK.
     pub force_trace_context: bool,
 
-    /// Dynamic sampling context
-    pub dsc: Option<&'a DynamicSamplingContext>,
+    /// Dynamic sampling context and additional attributes used for dsc span normalization.
+    pub dsc: Option<EnrichedDsc<'a>>,
 }
 
 impl Default for NormalizationConfig<'_> {
@@ -356,8 +355,8 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     normalize_contexts(&mut event.contexts);
 
     if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
-        span::normalize_app_start_spans(event);
         span::normalize_dsc_for_event_spans(event, config.dsc);
+        span::normalize_app_start_spans(event);
         span::exclusive_time::compute_span_exclusive_time(event);
     }
 

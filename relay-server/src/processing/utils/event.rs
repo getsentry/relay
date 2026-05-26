@@ -12,6 +12,7 @@ use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_config::NormalizationLevel;
 use relay_dynamic_config::Feature;
+use relay_event_normalization::EnrichedDsc;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_normalization::{
     ClockDriftProcessor, normalize_event as normalize_event_inner, validate_event,
@@ -250,6 +251,18 @@ pub fn normalize(
             );
         }
 
+        let sampling_project_id = ctx
+            .sampling_project_info
+            .and_then(|p| p.project_id)
+            .or(ctx.project_info.project_id);
+        let dsc = headers
+            .dsc()
+            .zip(sampling_project_id)
+            .map(|(dsc, sampling_project_id)| EnrichedDsc {
+                dsc,
+                sampling_project_id,
+            });
+
         let normalization_config = NormalizationConfig {
             project_id: Some(project_id.value()),
             client: request_meta.client().map(str::to_owned),
@@ -302,7 +315,7 @@ pub fn normalize(
                 .project_info
                 .has_feature(Feature::PerformanceIssuesSpans),
             force_trace_context: true,
-            dsc: headers.dsc(),
+            dsc,
         };
 
         metric!(timer(RelayTimers::EventProcessingNormalization), {

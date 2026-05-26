@@ -1,11 +1,12 @@
 //! Span normalization logic.
 
 use regex::Regex;
-use relay_conventions::attributes::{SENTRY__DSC__TRACE_ID, SENTRY__DSC__TRANSACTION};
+use relay_conventions::attributes::*;
 use relay_event_schema::protocol::{Event, SpanData, TraceContext};
 use relay_protocol::{Annotated, Value};
-use relay_sampling::DynamicSamplingContext;
 use std::sync::LazyLock;
+
+use crate::EnrichedDsc;
 
 pub mod ai;
 pub mod country_subregion;
@@ -61,7 +62,7 @@ pub fn normalize_app_start_spans(event: &mut Event) {
 ///
 /// If `sentry.dsc.trace_id` is already present in a span's `data`, the function does nothing for
 /// that span.
-pub fn normalize_dsc_for_event_spans(event: &mut Event, dsc: Option<&DynamicSamplingContext>) {
+pub fn normalize_dsc_for_event_spans(event: &mut Event, dsc: Option<EnrichedDsc>) {
     if let Some(ctx) = event.context_mut::<TraceContext>() {
         normalize_dsc_for_span_data(&mut ctx.data, dsc);
     }
@@ -77,11 +78,10 @@ pub fn normalize_dsc_for_event_spans(event: &mut Event, dsc: Option<&DynamicSamp
 /// Writes DSC attributes needed for dynamic sampling into `span_data`.
 ///
 /// If `sentry.dsc.trace_id` is already present in `span_data`, the function does nothing.
-pub fn normalize_dsc_for_span_data(
-    span_data: &mut Annotated<SpanData>,
-    dsc: Option<&DynamicSamplingContext>,
-) {
-    let Some(dsc) = dsc else { return };
+pub fn normalize_dsc_for_span_data(span_data: &mut Annotated<SpanData>, dsc: Option<EnrichedDsc>) {
+    let Some(dsc) = dsc else {
+        return;
+    };
 
     let data = span_data.get_or_insert_with(SpanData::default);
     if data.other.contains_key(SENTRY__DSC__TRACE_ID) {
@@ -89,13 +89,17 @@ pub fn normalize_dsc_for_span_data(
     }
     data.other.insert(
         SENTRY__DSC__TRACE_ID.to_owned(),
-        Annotated::new(Value::String(dsc.trace_id.to_string())),
+        Annotated::new(Value::String(dsc.dsc.trace_id.to_string())),
     );
 
-    if let Some(transaction) = &dsc.transaction {
+    if let Some(transaction) = &dsc.dsc.transaction {
         data.other.insert(
             SENTRY__DSC__TRANSACTION.to_owned(),
             Annotated::new(Value::String(transaction.clone())),
         );
     }
+    data.other.insert(
+        SENTRY__DSC__PROJECT_ID.to_owned(),
+        Annotated::new(Value::String(dsc.sampling_project_id.to_string())),
+    );
 }
