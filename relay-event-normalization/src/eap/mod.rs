@@ -9,8 +9,8 @@ use chrono::{DateTime, Utc};
 use relay_common::time::UnixTimestamp;
 use relay_conventions::attributes::*;
 use relay_conventions::{AttributeInfo, ReplacementName, WriteBehavior};
-use relay_event_schema::protocol::{AttributeType, Attributes, BrowserContext, Geo};
-use relay_protocol::{Annotated, ErrorKind, Meta, Remark, RemarkType, Value};
+use relay_event_schema::protocol::{Attribute, AttributeType, Attributes, BrowserContext, Geo};
+use relay_protocol::{Annotated, Error, ErrorKind, Meta, Remark, RemarkType, Value};
 use relay_sampling::DynamicSamplingContext;
 use relay_spans::derive_op_for_v2_span;
 
@@ -384,6 +384,35 @@ pub fn normalize_dsc(
         if let Some(sampled) = dsc.sampled {
             attributes.insert(SENTRY__DSC__SAMPLED, sampled);
         }
+    }
+}
+
+/// Normalizes the client sample rate attribute to be in the range `(0, 1]`.
+///
+/// This is only relevant for spans as other eap types re not sampled.
+pub fn normalize_client_sample_rate(attributes: &mut Annotated<Attributes>) {
+    let Some(attributes) = attributes.value_mut() else {
+        return;
+    };
+
+    // This is fine if normalizations like this stay one-offs. If at some point we end up with more
+    // of these structural validations or normalizations based on attributes, they should be
+    // outsourced to conventions and enforced with a dedicated processor.
+    fn normalize_sample_rate(sr: &Annotated<Attribute>) -> Option<Annotated<Attribute>> {
+        match sr.value()?.value.value.value()?.as_f64() {
+            Some(v) if v > 0.0 && v <= 1.0 => None,
+            // This is an invalid sample rate, either by type or value.
+            _ => Some(Annotated::from_error(
+                Error::expected("sample rate > 0.0, <= 1.0"),
+                None,
+            )),
+        }
+    }
+
+    if let Some(sr) = attributes.0.get_mut(SENTRY__CLIENT_SAMPLE_RATE)
+        && let Some(new_sr) = normalize_sample_rate(sr)
+    {
+        *sr = new_sr;
     }
 }
 
@@ -2647,6 +2676,123 @@ mod tests {
           "some.other.attribute": {
             "type": "string",
             "value": "value"
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_client_sample_rate_valid() {
+        let mut attributes = Annotated::from_json(
+            r#"{
+          "sentry.client_sample_rate": {
+            "type": "double",
+            "value": 1.0
+          }
+        }"#,
+        )
+        .unwrap();
+
+        normalize_client_sample_rate(&mut attributes);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.client_sample_rate": {
+            "type": "double",
+            "value": 1.0
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_client_sample_rate_invalid_too_small() {
+        let mut attributes = {
+            let mut attrs = Attributes::new();
+            attrs.insert(SENTRY__CLIENT_SAMPLE_RATE, 0.0);
+            Annotated::new(attrs)
+        };
+
+        normalize_client_sample_rate(&mut attributes);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.client_sample_rate": null,
+          "_meta": {
+            "sentry.client_sample_rate": {
+              "": {
+                "err": [
+                  [
+                    "invalid_data",
+                    {
+                      "reason": "expected sample rate > 0.0, <= 1.0"
+                    }
+                  ]
+                ]
+              }
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_client_sample_rate_invalid_too_large() {
+        let mut attributes = {
+            let mut attrs = Attributes::new();
+            attrs.insert(SENTRY__CLIENT_SAMPLE_RATE, 1.1);
+            Annotated::new(attrs)
+        };
+
+        normalize_client_sample_rate(&mut attributes);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.client_sample_rate": null,
+          "_meta": {
+            "sentry.client_sample_rate": {
+              "": {
+                "err": [
+                  [
+                    "invalid_data",
+                    {
+                      "reason": "expected sample rate > 0.0, <= 1.0"
+                    }
+                  ]
+                ]
+              }
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_client_sample_rate_invalid_type() {
+        let mut attributes = {
+            let mut attrs = Attributes::new();
+            attrs.insert(SENTRY__CLIENT_SAMPLE_RATE, "foobar");
+            Annotated::new(attrs)
+        };
+
+        normalize_client_sample_rate(&mut attributes);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.client_sample_rate": null,
+          "_meta": {
+            "sentry.client_sample_rate": {
+              "": {
+                "err": [
+                  [
+                    "invalid_data",
+                    {
+                      "reason": "expected sample rate > 0.0, <= 1.0"
+                    }
+                  ]
+                ]
+              }
+            }
           }
         }
         "#);

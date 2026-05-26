@@ -25,7 +25,7 @@ mod transactions;
 mod trimming;
 mod validation;
 
-pub use validation::{EventValidationConfig, validate_event, validate_span};
+pub use validation::{EventValidationConfig, validate_event, validate_standalone_span};
 pub mod replay;
 pub use event::{
     NormalizationConfig, normalize_event, normalize_measurements, normalize_performance_score,
