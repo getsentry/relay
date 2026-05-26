@@ -146,7 +146,7 @@ def playstation_event_json(sdk=any()):
                 "version": "9.20.00.05-00.00.00.0.1",
                 "type": "runtime",
             },
-            "trace": mock.ANY,
+            "trace": any(),
         },
         "exception": {
             "values": [
@@ -782,7 +782,7 @@ def test_playstation_attachment_no_feature_flag(
         "key_id": "123",
         "project": 42,
         "contexts": {
-            "trace": mock.ANY,
+            "trace": any(),
         },
         "grouping_config": {
             "enhancements": "eJybzDhxY05qemJypZWRgaGlroGxrqHRBABbEwcC",
