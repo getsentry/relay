@@ -11,7 +11,6 @@ use relay_conventions::attributes::*;
 use relay_conventions::{AttributeInfo, ReplacementName, WriteBehavior};
 use relay_event_schema::protocol::{Attribute, AttributeType, Attributes, BrowserContext, Geo};
 use relay_protocol::{Annotated, Error, ErrorKind, Meta, Remark, RemarkType, Value};
-use relay_sampling::DynamicSamplingContext;
 use relay_spans::derive_op_for_v2_span;
 
 use crate::span::TABLE_NAME_REGEX;
@@ -20,7 +19,7 @@ use crate::span::tag_extraction::{
     domain_from_scrubbed_http, domain_from_server_address, span_op_to_category,
     sql_action_from_query, sql_tables_from_query,
 };
-use crate::{ClientHints, FromUserAgentInfo as _, RawUserAgentInfo};
+use crate::{ClientHints, EnrichedDsc, FromUserAgentInfo as _, RawUserAgentInfo};
 
 mod ai;
 mod mobile;
@@ -346,7 +345,7 @@ pub fn normalize_user_geo(
     attributes.insert_if_missing(USER__GEO__REGION, || geo.region);
 }
 
-/// Normalizes the [DSC](DynamicSamplingContext) into [`Attributes`].
+/// Normalizes the dynamic sampling context into [`Attributes`].
 ///
 /// If `is_segment` is set to `false`, the function will only add select attributes that are
 /// necessary on every span - both segment and non-segment - for dynamic sampling to work. More
@@ -354,9 +353,11 @@ pub fn normalize_user_geo(
 pub fn normalize_dsc(
     attributes: &mut Annotated<Attributes>,
     is_segment: &Annotated<bool>,
-    dsc: Option<&DynamicSamplingContext>,
+    dsc: Option<EnrichedDsc>,
 ) {
-    let Some(dsc) = dsc else { return };
+    let Some(dsc) = dsc else {
+        return;
+    };
 
     let attributes = attributes.get_or_insert_with(Default::default);
 
@@ -364,24 +365,26 @@ pub fn normalize_dsc(
     if attributes.contains_key(SENTRY__DSC__TRACE_ID) {
         return;
     }
-    attributes.insert(SENTRY__DSC__TRACE_ID, dsc.trace_id.to_string());
+    attributes.insert(SENTRY__DSC__TRACE_ID, dsc.dsc.trace_id.to_string());
 
-    if let Some(transaction) = &dsc.transaction {
+    if let Some(transaction) = &dsc.dsc.transaction {
         attributes.insert(SENTRY__DSC__TRANSACTION, transaction.clone());
     }
 
+    attributes.insert(SENTRY__DSC__PROJECT_ID, dsc.sampling_project_id.to_string());
+
     if is_segment.value().is_some_and(|is_segment| *is_segment) {
-        attributes.insert(SENTRY__DSC__PUBLIC_KEY, dsc.public_key.to_string());
-        if let Some(release) = &dsc.release {
+        attributes.insert(SENTRY__DSC__PUBLIC_KEY, dsc.dsc.public_key.to_string());
+        if let Some(release) = &dsc.dsc.release {
             attributes.insert(SENTRY__DSC__RELEASE, release.clone());
         }
-        if let Some(environment) = &dsc.environment {
+        if let Some(environment) = &dsc.dsc.environment {
             attributes.insert(SENTRY__DSC__ENVIRONMENT, environment.clone());
         }
-        if let Some(sample_rate) = dsc.sample_rate {
+        if let Some(sample_rate) = dsc.dsc.sample_rate {
             attributes.insert(SENTRY__DSC__SAMPLE_RATE, sample_rate);
         }
-        if let Some(sampled) = dsc.sampled {
+        if let Some(sampled) = dsc.dsc.sampled {
             attributes.insert(SENTRY__DSC__SAMPLED, sampled);
         }
     }
@@ -807,7 +810,9 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
 
 #[cfg(test)]
 mod tests {
+    use relay_base_schema::project::ProjectId;
     use relay_protocol::{Empty, SerializableAnnotated, assert_annotated_snapshot};
+    use relay_sampling::DynamicSamplingContext;
 
     use super::*;
 
@@ -836,10 +841,22 @@ mod tests {
     #[test]
     fn test_normalize_dsc_child_span_no_transaction() {
         let mut attributes = Annotated::empty();
-        let dsc = mock_dsc(None);
-        normalize_dsc(&mut attributes, &Annotated::new(false), Some(&dsc));
+        let dsc = &mock_dsc(None);
+        let sampling_project_id = ProjectId::new(42);
+        normalize_dsc(
+            &mut attributes,
+            &Annotated::new(false),
+            Some(EnrichedDsc {
+                dsc,
+                sampling_project_id,
+            }),
+        );
         assert_annotated_snapshot!(attributes, @r#"
         {
+          "sentry.dsc.project_id": {
+            "type": "string",
+            "value": "42"
+          },
           "sentry.dsc.trace_id": {
             "type": "string",
             "value": "67e5504410b1426f9247bb680e5fe0c8"
@@ -851,10 +868,22 @@ mod tests {
     #[test]
     fn test_normalize_dsc_child_span() {
         let mut attributes = Annotated::empty();
-        let dsc = mock_dsc(Some("/some/endpoint"));
-        normalize_dsc(&mut attributes, &Annotated::new(false), Some(&dsc));
+        let dsc = &mock_dsc(Some("/some/endpoint"));
+        let sampling_project_id = ProjectId::new(42);
+        normalize_dsc(
+            &mut attributes,
+            &Annotated::new(false),
+            Some(EnrichedDsc {
+                dsc,
+                sampling_project_id,
+            }),
+        );
         assert_annotated_snapshot!(attributes, @r#"
         {
+          "sentry.dsc.project_id": {
+            "type": "string",
+            "value": "42"
+          },
           "sentry.dsc.trace_id": {
             "type": "string",
             "value": "67e5504410b1426f9247bb680e5fe0c8"
@@ -870,10 +899,22 @@ mod tests {
     #[test]
     fn test_normalize_dsc_segment() {
         let mut attributes = Annotated::empty();
-        let dsc = mock_dsc(Some("/some/endpoint"));
-        normalize_dsc(&mut attributes, &Annotated::new(true), Some(&dsc));
+        let dsc = &mock_dsc(Some("/some/endpoint"));
+        let sampling_project_id = ProjectId::new(42);
+        normalize_dsc(
+            &mut attributes,
+            &Annotated::new(true),
+            Some(EnrichedDsc {
+                dsc,
+                sampling_project_id,
+            }),
+        );
         assert_annotated_snapshot!(attributes, @r#"
         {
+          "sentry.dsc.project_id": {
+            "type": "string",
+            "value": "42"
+          },
           "sentry.dsc.public_key": {
             "type": "string",
             "value": "12345678901234567890123456789012"

@@ -259,6 +259,7 @@ def test_lcp_span(
                 "type": "string",
                 "value": "/insights/projects/",
             },
+            "sentry.dsc.project_id": {"type": "string", "value": "42"},
             "sentry.dsc.trace_id": {
                 "type": "string",
                 "value": "d3d20f000885466b8c8f947c9b92b8d3",
@@ -486,6 +487,7 @@ def test_cls_span(
                 "type": "string",
                 "value": "/insights/projects/",
             },
+            "sentry.dsc.project_id": {"type": "string", "value": "42"},
             "sentry.dsc.trace_id": {
                 "type": "string",
                 "value": "d3d20f000885466b8c8f947c9b92b8d3",
@@ -690,6 +692,7 @@ def test_inp_span(
                 "type": "string",
                 "value": "/insights/projects/",
             },
+            "sentry.dsc.project_id": {"type": "string", "value": "42"},
             "sentry.dsc.trace_id": {
                 "type": "string",
                 "value": "d3d20f000885466b8c8f947c9b92b8d3",
@@ -818,6 +821,7 @@ def test_spans_standalone_dsc_normalization(
             "data": {
                 "sentry.dsc.trace_id": "5b8efff798038103d269b633813fc60c",
                 "sentry.dsc.transaction": "/transaction/already/exists",
+                "sentry.dsc.project_id": "41",
             },
         },
         trace_info={
@@ -833,9 +837,21 @@ def test_spans_standalone_dsc_normalization(
     def get_transaction(span_id: str):
         return spans[span_id]["attributes"]["sentry.dsc.transaction"]["value"]
 
+    def get_project_id(span_id: str):
+        return spans[span_id]["attributes"]["sentry.dsc.project_id"]["value"]
+
+    def get_trace_id(span_id: str):
+        return spans[span_id]["attributes"]["sentry.dsc.trace_id"]["value"]
+
     assert spans["aaaaaaaaaaaaaaaa"]["is_segment"] is True
     assert spans["bbbbbbbbbbbbbbbb"]["is_segment"] is False
     assert spans["cccccccccccccccc"]["is_segment"] is False
     assert get_transaction("aaaaaaaaaaaaaaaa") == "/my/fancy/endpoint"
     assert get_transaction("bbbbbbbbbbbbbbbb") == "/my/fancy/endpoint"
     assert get_transaction("cccccccccccccccc") == "/transaction/already/exists"
+    assert get_project_id("aaaaaaaaaaaaaaaa") == "42"
+    assert get_project_id("bbbbbbbbbbbbbbbb") == "42"
+    assert get_project_id("cccccccccccccccc") == "41"
+    assert get_trace_id("aaaaaaaaaaaaaaaa") == "5b8efff798038103d269b633813fc60c"
+    assert get_trace_id("bbbbbbbbbbbbbbbb") == "5b8efff798038103d269b633813fc60c"
+    assert get_trace_id("cccccccccccccccc") == "5b8efff798038103d269b633813fc60c"
