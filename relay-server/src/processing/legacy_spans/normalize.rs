@@ -8,7 +8,7 @@ use relay_event_normalization::{
     GeoIpLookup, ModelMetadata, PerformanceScoreConfig, RawUserAgentInfo, SchemaProcessor,
     TimestampProcessor, TransactionNameRule, TransactionsProcessor, TrimmingProcessor,
     normalize_measurements, normalize_performance_score, normalize_transaction_name,
-    span::tag_extraction, validate_span,
+    span::tag_extraction, validate_standalone_span,
 };
 use relay_event_schema::processor::{ProcessingState, process_value};
 use relay_event_schema::protocol::{BrowserContext, EventId, IpAddr, Span, SpanData};
@@ -131,7 +131,7 @@ pub fn normalize(
     )?;
 
     if let Some(span) = annotated_span.value() {
-        validate_span(span, Some(timestamp_range))?;
+        validate_standalone_span(span, Some(timestamp_range))?;
     }
     process_value(
         annotated_span,

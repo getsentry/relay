@@ -1,8 +1,8 @@
 import pytest
 import queue
+from unittest import mock
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
-from sentry_relay.consts import DataCategory
 
 
 def test_envelope(mini_sentry, relay_chain):
@@ -399,41 +399,44 @@ def test_transaction_with_invalid_span_timestamps(mini_sentry, relay, offset):
     envelope.add_transaction(transaction_item)
     relay.send_envelope(42, envelope)
 
-    assert mini_sentry.get_aggregated_outcomes() == [
-        {
-            "category": DataCategory.TRANSACTION.value,
-            "key_id": 123,
-            "outcome": 3,
-            "project_id": 42,
-            "quantity": 1,
-            "reason": "invalid_transaction",
+    transaction = mini_sentry.get_captured_envelope().get_transaction_event()
+    assert transaction is not None
+
+    span = transaction["spans"][0]
+    assert span["start_timestamp"] == transaction["start_timestamp"]
+    assert span["timestamp"] == transaction["timestamp"]
+
+    assert transaction["_meta"] == {
+        "spans": {
+            "0": {
+                "start_timestamp": {
+                    "": {
+                        "err": ["invalid_data"],
+                        "val": mock.ANY,
+                    }
+                },
+                "timestamp": {
+                    "": {
+                        "err": ["invalid_data"],
+                        "val": mock.ANY,
+                    }
+                },
+            }
         },
-        {
-            "category": DataCategory.TRANSACTION_INDEXED.value,
-            "key_id": 123,
-            "outcome": 3,
-            "project_id": 42,
-            "quantity": 1,
-            "reason": "invalid_transaction",
+        "timestamp": {
+            "": {
+                "err": [
+                    [
+                        "past_timestamp",
+                        {
+                            "sdk_time": mock.ANY,
+                            "server_time": mock.ANY,
+                        },
+                    ]
+                ]
+            }
         },
-        {
-            "category": DataCategory.SPAN.value,
-            "key_id": 123,
-            "outcome": 3,
-            "project_id": 42,
-            "quantity": 2,
-            "reason": "invalid_transaction",
-        },
-        {
-            "category": DataCategory.SPAN_INDEXED.value,
-            "key_id": 123,
-            "outcome": 3,
-            "project_id": 42,
-            "quantity": 2,
-            "reason": "invalid_transaction",
-        },
-    ]
-    assert mini_sentry.captured_envelopes.empty()
+    }
 
 
 def test_span_exclusive_time(mini_sentry, relay_with_processing, transactions_consumer):
