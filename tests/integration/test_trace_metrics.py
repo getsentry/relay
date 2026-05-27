@@ -852,6 +852,101 @@ def test_time_corrections(mini_sentry, relay, delta, error):
     }
 
 
+def test_time_sequence_shift(mini_sentry, relay_with_processing, items_consumer):
+    items_consumer = items_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = ["organizations:tracemetrics-ingestion"]
+
+    relay = relay_with_processing(options=TEST_CONFIG)
+
+    ts = datetime.now(timezone.utc)
+    seq_shift_in_secs = 1.0
+
+    envelope = envelope_with_trace_metrics(
+        {
+            "timestamp": ts.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+            "name": "http.request.duration",
+            "type": "distribution",
+            "value": 123.45,
+            "unit": "millisecond",
+            "attributes": {
+                "sentry.timestamp.sequence": {
+                    "value": int(seq_shift_in_secs * 1e9),
+                    "type": "integer",
+                },
+            },
+        }
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    assert items_consumer.get_item() == {
+        "attributes": {
+            "sentry._internal.cooccuring.name.http.request.duration": {
+                "boolValue": True,
+            },
+            "sentry._internal.cooccuring.type.distribution": {
+                "boolValue": True,
+            },
+            "sentry._internal.cooccuring.unit.millisecond": {
+                "boolValue": True,
+            },
+            "sentry._meta.fields.timestamp": {
+                "stringValue": '{"meta":{"":{"rem":[["timestamp.sequence","s"]]}}}',
+            },
+            "sentry.metric_name": {
+                "stringValue": "http.request.duration",
+            },
+            "sentry.metric_type": {
+                "stringValue": "distribution",
+            },
+            "sentry.metric_unit": {
+                "stringValue": "millisecond",
+            },
+            "sentry.observed_timestamp_nanos": {
+                "stringValue": time_within_delta(ts, expect_resolution="ns")
+            },
+            "sentry.payload_size_bytes": any(),
+            "sentry.span_id": {
+                "stringValue": "eee19b7ec3c1b175",
+            },
+            "sentry.timestamp.sequence": {
+                "intValue": "1000000000",
+            },
+            "sentry.timestamp_precise": {
+                "intValue": time_within_delta(
+                    ts + timedelta(seconds=seq_shift_in_secs),
+                    delta=timedelta(
+                        seconds=0,
+                    ),
+                    expect_resolution="ns",
+                    precision="us",
+                )
+            },
+            "sentry.value": {
+                "doubleValue": 123.45,
+            },
+        },
+        "clientSampleRate": 1.0,
+        "downsampledRetentionDays": 90,
+        "itemId": any(),
+        "itemType": "TRACE_ITEM_TYPE_METRIC",
+        "organizationId": "1",
+        "projectId": "42",
+        "received": time_within_delta(),
+        "retentionDays": 90,
+        "serverSampleRate": 1.0,
+        "timestamp": time_within_delta(
+            ts + timedelta(seconds=seq_shift_in_secs), delta=timedelta(), precision="ms"
+        ),
+        "traceId": any(),
+    }
+
+
 @pytest.mark.parametrize(
     "metadata,client_ip,browser",
     [
