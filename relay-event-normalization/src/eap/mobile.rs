@@ -114,9 +114,9 @@ pub fn compute_mobile_measurements(
         && !span_duration.is_zero()
         && let Some(stall_total_time_ms) = attributes
             .get_value(STALL_TOTAL_TIME)
-            .and_then(|v| v.as_u64())
+            .and_then(|v| v.as_f64())
     {
-        let stall_percentage = (stall_total_time_ms as f64) / (span_duration.as_millis() as f64);
+        let stall_percentage = stall_total_time_ms / (span_duration.as_millis() as f64);
         attributes.insert(STALL_PERCENTAGE.to_owned(), stall_percentage);
     }
 }
