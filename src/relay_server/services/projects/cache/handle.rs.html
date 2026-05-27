@@ -53,103 +53,104 @@
 <a href=#53 id=53 data-nosnippet>53</a>                <span class="prelude-val">Ok</span>(project) =&gt; {
 <a href=#54 id=54 data-nosnippet>54</a>                    <span class="kw">match </span>project.state() {
 <a href=#55 id=55 data-nosnippet>55</a>                        ProjectState::Enabled(<span class="kw">_</span>) =&gt; <span class="string">"enabled"</span>,
-<a href=#56 id=56 data-nosnippet>56</a>                        ProjectState::Disabled =&gt; <span class="string">"disabled"</span>,
-<a href=#57 id=57 data-nosnippet>57</a>                        ProjectState::Pending =&gt; <span class="string">"pending"</span>,
-<a href=#58 id=58 data-nosnippet>58</a>                    }
-<a href=#59 id=59 data-nosnippet>59</a>                }
-<a href=#60 id=60 data-nosnippet>60</a>                <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="string">"timeout"</span>,
-<a href=#61 id=61 data-nosnippet>61</a>            }
-<a href=#62 id=62 data-nosnippet>62</a>        );
-<a href=#63 id=63 data-nosnippet>63</a>
-<a href=#64 id=64 data-nosnippet>64</a>        result.ok()
-<a href=#65 id=65 data-nosnippet>65</a>    }
-<a href=#66 id=66 data-nosnippet>66</a>
-<a href=#67 id=67 data-nosnippet>67</a>    <span class="kw">async fn </span>ready_inner(<span class="kw-2">&amp;</span><span class="self">self</span>, project_key: ProjectKey) -&gt; Project&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#68 id=68 data-nosnippet>68</a>        <span class="kw">loop </span>{
-<a href=#69 id=69 data-nosnippet>69</a>            <span class="kw">let </span>project = <span class="self">self</span>.shared.get_or_create(project_key);
-<a href=#70 id=70 data-nosnippet>70</a>            <span class="comment">// Create the `Notified` before checking the project_state, to prevent missing
-<a href=#71 id=71 data-nosnippet>71</a>            // an update between the check and the registration of the listener.
-<a href=#72 id=72 data-nosnippet>72</a>            //
-<a href=#73 id=73 data-nosnippet>73</a>            // From [`tokio::sync::futures::Notified::enabled`]:
-<a href=#74 id=74 data-nosnippet>74</a>            // &gt; notifications sent using notify_waiters [...] are received
-<a href=#75 id=75 data-nosnippet>75</a>            // &gt; as long as they happen after the creation of the Notified
-<a href=#76 id=76 data-nosnippet>76</a>            </span><span class="kw">let </span>change_listener = project.outdated();
-<a href=#77 id=77 data-nosnippet>77</a>            <span class="kw">if </span>!project.project_state().is_pending() {
-<a href=#78 id=78 data-nosnippet>78</a>                drop(change_listener);
-<a href=#79 id=79 data-nosnippet>79</a>                <span class="kw">return </span>Project::new(project, <span class="kw-2">&amp;</span><span class="self">self</span>.config);
-<a href=#80 id=80 data-nosnippet>80</a>            }
-<a href=#81 id=81 data-nosnippet>81</a>            change_listener.<span class="kw">await</span>;
-<a href=#82 id=82 data-nosnippet>82</a>        }
-<a href=#83 id=83 data-nosnippet>83</a>    }
-<a href=#84 id=84 data-nosnippet>84</a>
-<a href=#85 id=85 data-nosnippet>85</a>    <span class="doccomment">/// Triggers a fetch/update check in the project cache for the supplied project.
-<a href=#86 id=86 data-nosnippet>86</a>    </span><span class="kw">pub fn </span>fetch(<span class="kw-2">&amp;</span><span class="self">self</span>, project_key: ProjectKey) {
-<a href=#87 id=87 data-nosnippet>87</a>        <span class="self">self</span>.service.send(ProjectCache::Fetch(project_key));
-<a href=#88 id=88 data-nosnippet>88</a>    }
-<a href=#89 id=89 data-nosnippet>89</a>
-<a href=#90 id=90 data-nosnippet>90</a>    <span class="doccomment">/// Returns a subscription to all [`ProjectChange`]'s.
-<a href=#91 id=91 data-nosnippet>91</a>    ///
-<a href=#92 id=92 data-nosnippet>92</a>    /// This stream notifies the subscriber about project state changes in the project cache.
-<a href=#93 id=93 data-nosnippet>93</a>    /// Events may arrive in arbitrary order and be delivered multiple times.
-<a href=#94 id=94 data-nosnippet>94</a>    </span><span class="kw">pub fn </span>changes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; broadcast::Receiver&lt;ProjectChange&gt; {
-<a href=#95 id=95 data-nosnippet>95</a>        <span class="self">self</span>.project_changes.subscribe()
-<a href=#96 id=96 data-nosnippet>96</a>    }
-<a href=#97 id=97 data-nosnippet>97</a>}
-<a href=#98 id=98 data-nosnippet>98</a>
-<a href=#99 id=99 data-nosnippet>99</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>ProjectCacheHandle {
-<a href=#100 id=100 data-nosnippet>100</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#101 id=101 data-nosnippet>101</a>        f.debug_struct(<span class="string">"ProjectCacheHandle"</span>)
-<a href=#102 id=102 data-nosnippet>102</a>            .field(<span class="string">"shared"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.shared)
-<a href=#103 id=103 data-nosnippet>103</a>            .finish()
-<a href=#104 id=104 data-nosnippet>104</a>    }
-<a href=#105 id=105 data-nosnippet>105</a>}
-<a href=#106 id=106 data-nosnippet>106</a>
-<a href=#107 id=107 data-nosnippet>107</a><span class="attr">#[cfg(test)]
-<a href=#108 id=108 data-nosnippet>108</a></span><span class="kw">mod </span>test {
-<a href=#109 id=109 data-nosnippet>109</a>    <span class="kw">use </span>super::<span class="kw-2">*</span>;
-<a href=#110 id=110 data-nosnippet>110</a>    <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectState;
-<a href=#111 id=111 data-nosnippet>111</a>
-<a href=#112 id=112 data-nosnippet>112</a>    <span class="kw">impl </span>ProjectCacheHandle {
-<a href=#113 id=113 data-nosnippet>113</a>        <span class="doccomment">/// Creates a new [`ProjectCacheHandle`] for testing only.
-<a href=#114 id=114 data-nosnippet>114</a>        ///
-<a href=#115 id=115 data-nosnippet>115</a>        /// A project cache handle created this way does not require a service to function.
-<a href=#116 id=116 data-nosnippet>116</a>        </span><span class="kw">pub fn </span>for_test() -&gt; <span class="self">Self </span>{
-<a href=#117 id=117 data-nosnippet>117</a>            <span class="self">Self </span>{
-<a href=#118 id=118 data-nosnippet>118</a>                shared: Default::default(),
-<a href=#119 id=119 data-nosnippet>119</a>                config: Default::default(),
-<a href=#120 id=120 data-nosnippet>120</a>                service: Addr::dummy(),
-<a href=#121 id=121 data-nosnippet>121</a>                project_changes: broadcast::channel(<span class="number">999_999</span>).<span class="number">0</span>,
-<a href=#122 id=122 data-nosnippet>122</a>            }
-<a href=#123 id=123 data-nosnippet>123</a>        }
-<a href=#124 id=124 data-nosnippet>124</a>
-<a href=#125 id=125 data-nosnippet>125</a>        <span class="doccomment">/// Sets the project state for a project.
-<a href=#126 id=126 data-nosnippet>126</a>        ///
-<a href=#127 id=127 data-nosnippet>127</a>        /// This can be used to emulate a project cache update in tests.
-<a href=#128 id=128 data-nosnippet>128</a>        </span><span class="kw">pub fn </span>test_set_project_state(<span class="kw-2">&amp;</span><span class="self">self</span>, project_key: ProjectKey, state: ProjectState) {
-<a href=#129 id=129 data-nosnippet>129</a>            <span class="kw">let </span>is_pending = state.is_pending();
-<a href=#130 id=130 data-nosnippet>130</a>            <span class="self">self</span>.shared.test_set_project_state(project_key, state);
-<a href=#131 id=131 data-nosnippet>131</a>            <span class="kw">if </span>is_pending {
-<a href=#132 id=132 data-nosnippet>132</a>                <span class="kw">let _ </span>= <span class="self">self
-<a href=#133 id=133 data-nosnippet>133</a>                    </span>.project_changes
-<a href=#134 id=134 data-nosnippet>134</a>                    .send(ProjectChange::Evicted(project_key));
-<a href=#135 id=135 data-nosnippet>135</a>            } <span class="kw">else </span>{
-<a href=#136 id=136 data-nosnippet>136</a>                <span class="kw">let _ </span>= <span class="self">self</span>.project_changes.send(ProjectChange::Ready(project_key));
-<a href=#137 id=137 data-nosnippet>137</a>            }
-<a href=#138 id=138 data-nosnippet>138</a>        }
-<a href=#139 id=139 data-nosnippet>139</a>
-<a href=#140 id=140 data-nosnippet>140</a>        <span class="doccomment">/// Returns `true` if there is a project created for this `project_key`.
-<a href=#141 id=141 data-nosnippet>141</a>        ///
-<a href=#142 id=142 data-nosnippet>142</a>        /// A project is automatically created on access via [`Self::get`].
-<a href=#143 id=143 data-nosnippet>143</a>        </span><span class="kw">pub fn </span>test_has_project_created(<span class="kw-2">&amp;</span><span class="self">self</span>, project_key: ProjectKey) -&gt; bool {
-<a href=#144 id=144 data-nosnippet>144</a>            <span class="self">self</span>.shared.test_has_project_created(project_key)
-<a href=#145 id=145 data-nosnippet>145</a>        }
-<a href=#146 id=146 data-nosnippet>146</a>
-<a href=#147 id=147 data-nosnippet>147</a>        <span class="doccomment">/// The amount of fetches triggered for projects.
-<a href=#148 id=148 data-nosnippet>148</a>        ///
-<a href=#149 id=149 data-nosnippet>149</a>        /// A fetch is triggered for both [`Self::get`] and [`Self::fetch`].
-<a href=#150 id=150 data-nosnippet>150</a>        </span><span class="kw">pub fn </span>test_num_fetches(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
-<a href=#151 id=151 data-nosnippet>151</a>            <span class="self">self</span>.service.len()
-<a href=#152 id=152 data-nosnippet>152</a>        }
-<a href=#153 id=153 data-nosnippet>153</a>    }
-<a href=#154 id=154 data-nosnippet>154</a>}
+<a href=#56 id=56 data-nosnippet>56</a>                        ProjectState::Dummy =&gt; <span class="string">"dummy"</span>,
+<a href=#57 id=57 data-nosnippet>57</a>                        ProjectState::Disabled =&gt; <span class="string">"disabled"</span>,
+<a href=#58 id=58 data-nosnippet>58</a>                        ProjectState::Pending =&gt; <span class="string">"pending"</span>,
+<a href=#59 id=59 data-nosnippet>59</a>                    }
+<a href=#60 id=60 data-nosnippet>60</a>                }
+<a href=#61 id=61 data-nosnippet>61</a>                <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="string">"timeout"</span>,
+<a href=#62 id=62 data-nosnippet>62</a>            }
+<a href=#63 id=63 data-nosnippet>63</a>        );
+<a href=#64 id=64 data-nosnippet>64</a>
+<a href=#65 id=65 data-nosnippet>65</a>        result.ok()
+<a href=#66 id=66 data-nosnippet>66</a>    }
+<a href=#67 id=67 data-nosnippet>67</a>
+<a href=#68 id=68 data-nosnippet>68</a>    <span class="kw">async fn </span>ready_inner(<span class="kw-2">&amp;</span><span class="self">self</span>, project_key: ProjectKey) -&gt; Project&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#69 id=69 data-nosnippet>69</a>        <span class="kw">loop </span>{
+<a href=#70 id=70 data-nosnippet>70</a>            <span class="kw">let </span>project = <span class="self">self</span>.shared.get_or_create(project_key);
+<a href=#71 id=71 data-nosnippet>71</a>            <span class="comment">// Create the `Notified` before checking the project_state, to prevent missing
+<a href=#72 id=72 data-nosnippet>72</a>            // an update between the check and the registration of the listener.
+<a href=#73 id=73 data-nosnippet>73</a>            //
+<a href=#74 id=74 data-nosnippet>74</a>            // From [`tokio::sync::futures::Notified::enabled`]:
+<a href=#75 id=75 data-nosnippet>75</a>            // &gt; notifications sent using notify_waiters [...] are received
+<a href=#76 id=76 data-nosnippet>76</a>            // &gt; as long as they happen after the creation of the Notified
+<a href=#77 id=77 data-nosnippet>77</a>            </span><span class="kw">let </span>change_listener = project.outdated();
+<a href=#78 id=78 data-nosnippet>78</a>            <span class="kw">if </span>!project.project_state().is_pending() {
+<a href=#79 id=79 data-nosnippet>79</a>                drop(change_listener);
+<a href=#80 id=80 data-nosnippet>80</a>                <span class="kw">return </span>Project::new(project, <span class="kw-2">&amp;</span><span class="self">self</span>.config);
+<a href=#81 id=81 data-nosnippet>81</a>            }
+<a href=#82 id=82 data-nosnippet>82</a>            change_listener.<span class="kw">await</span>;
+<a href=#83 id=83 data-nosnippet>83</a>        }
+<a href=#84 id=84 data-nosnippet>84</a>    }
+<a href=#85 id=85 data-nosnippet>85</a>
+<a href=#86 id=86 data-nosnippet>86</a>    <span class="doccomment">/// Triggers a fetch/update check in the project cache for the supplied project.
+<a href=#87 id=87 data-nosnippet>87</a>    </span><span class="kw">pub fn </span>fetch(<span class="kw-2">&amp;</span><span class="self">self</span>, project_key: ProjectKey) {
+<a href=#88 id=88 data-nosnippet>88</a>        <span class="self">self</span>.service.send(ProjectCache::Fetch(project_key));
+<a href=#89 id=89 data-nosnippet>89</a>    }
+<a href=#90 id=90 data-nosnippet>90</a>
+<a href=#91 id=91 data-nosnippet>91</a>    <span class="doccomment">/// Returns a subscription to all [`ProjectChange`]'s.
+<a href=#92 id=92 data-nosnippet>92</a>    ///
+<a href=#93 id=93 data-nosnippet>93</a>    /// This stream notifies the subscriber about project state changes in the project cache.
+<a href=#94 id=94 data-nosnippet>94</a>    /// Events may arrive in arbitrary order and be delivered multiple times.
+<a href=#95 id=95 data-nosnippet>95</a>    </span><span class="kw">pub fn </span>changes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; broadcast::Receiver&lt;ProjectChange&gt; {
+<a href=#96 id=96 data-nosnippet>96</a>        <span class="self">self</span>.project_changes.subscribe()
+<a href=#97 id=97 data-nosnippet>97</a>    }
+<a href=#98 id=98 data-nosnippet>98</a>}
+<a href=#99 id=99 data-nosnippet>99</a>
+<a href=#100 id=100 data-nosnippet>100</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>ProjectCacheHandle {
+<a href=#101 id=101 data-nosnippet>101</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#102 id=102 data-nosnippet>102</a>        f.debug_struct(<span class="string">"ProjectCacheHandle"</span>)
+<a href=#103 id=103 data-nosnippet>103</a>            .field(<span class="string">"shared"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.shared)
+<a href=#104 id=104 data-nosnippet>104</a>            .finish()
+<a href=#105 id=105 data-nosnippet>105</a>    }
+<a href=#106 id=106 data-nosnippet>106</a>}
+<a href=#107 id=107 data-nosnippet>107</a>
+<a href=#108 id=108 data-nosnippet>108</a><span class="attr">#[cfg(test)]
+<a href=#109 id=109 data-nosnippet>109</a></span><span class="kw">mod </span>test {
+<a href=#110 id=110 data-nosnippet>110</a>    <span class="kw">use </span>super::<span class="kw-2">*</span>;
+<a href=#111 id=111 data-nosnippet>111</a>    <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectState;
+<a href=#112 id=112 data-nosnippet>112</a>
+<a href=#113 id=113 data-nosnippet>113</a>    <span class="kw">impl </span>ProjectCacheHandle {
+<a href=#114 id=114 data-nosnippet>114</a>        <span class="doccomment">/// Creates a new [`ProjectCacheHandle`] for testing only.
+<a href=#115 id=115 data-nosnippet>115</a>        ///
+<a href=#116 id=116 data-nosnippet>116</a>        /// A project cache handle created this way does not require a service to function.
+<a href=#117 id=117 data-nosnippet>117</a>        </span><span class="kw">pub fn </span>for_test() -&gt; <span class="self">Self </span>{
+<a href=#118 id=118 data-nosnippet>118</a>            <span class="self">Self </span>{
+<a href=#119 id=119 data-nosnippet>119</a>                shared: Default::default(),
+<a href=#120 id=120 data-nosnippet>120</a>                config: Default::default(),
+<a href=#121 id=121 data-nosnippet>121</a>                service: Addr::dummy(),
+<a href=#122 id=122 data-nosnippet>122</a>                project_changes: broadcast::channel(<span class="number">999_999</span>).<span class="number">0</span>,
+<a href=#123 id=123 data-nosnippet>123</a>            }
+<a href=#124 id=124 data-nosnippet>124</a>        }
+<a href=#125 id=125 data-nosnippet>125</a>
+<a href=#126 id=126 data-nosnippet>126</a>        <span class="doccomment">/// Sets the project state for a project.
+<a href=#127 id=127 data-nosnippet>127</a>        ///
+<a href=#128 id=128 data-nosnippet>128</a>        /// This can be used to emulate a project cache update in tests.
+<a href=#129 id=129 data-nosnippet>129</a>        </span><span class="kw">pub fn </span>test_set_project_state(<span class="kw-2">&amp;</span><span class="self">self</span>, project_key: ProjectKey, state: ProjectState) {
+<a href=#130 id=130 data-nosnippet>130</a>            <span class="kw">let </span>is_pending = state.is_pending();
+<a href=#131 id=131 data-nosnippet>131</a>            <span class="self">self</span>.shared.test_set_project_state(project_key, state);
+<a href=#132 id=132 data-nosnippet>132</a>            <span class="kw">if </span>is_pending {
+<a href=#133 id=133 data-nosnippet>133</a>                <span class="kw">let _ </span>= <span class="self">self
+<a href=#134 id=134 data-nosnippet>134</a>                    </span>.project_changes
+<a href=#135 id=135 data-nosnippet>135</a>                    .send(ProjectChange::Evicted(project_key));
+<a href=#136 id=136 data-nosnippet>136</a>            } <span class="kw">else </span>{
+<a href=#137 id=137 data-nosnippet>137</a>                <span class="kw">let _ </span>= <span class="self">self</span>.project_changes.send(ProjectChange::Ready(project_key));
+<a href=#138 id=138 data-nosnippet>138</a>            }
+<a href=#139 id=139 data-nosnippet>139</a>        }
+<a href=#140 id=140 data-nosnippet>140</a>
+<a href=#141 id=141 data-nosnippet>141</a>        <span class="doccomment">/// Returns `true` if there is a project created for this `project_key`.
+<a href=#142 id=142 data-nosnippet>142</a>        ///
+<a href=#143 id=143 data-nosnippet>143</a>        /// A project is automatically created on access via [`Self::get`].
+<a href=#144 id=144 data-nosnippet>144</a>        </span><span class="kw">pub fn </span>test_has_project_created(<span class="kw-2">&amp;</span><span class="self">self</span>, project_key: ProjectKey) -&gt; bool {
+<a href=#145 id=145 data-nosnippet>145</a>            <span class="self">self</span>.shared.test_has_project_created(project_key)
+<a href=#146 id=146 data-nosnippet>146</a>        }
+<a href=#147 id=147 data-nosnippet>147</a>
+<a href=#148 id=148 data-nosnippet>148</a>        <span class="doccomment">/// The amount of fetches triggered for projects.
+<a href=#149 id=149 data-nosnippet>149</a>        ///
+<a href=#150 id=150 data-nosnippet>150</a>        /// A fetch is triggered for both [`Self::get`] and [`Self::fetch`].
+<a href=#151 id=151 data-nosnippet>151</a>        </span><span class="kw">pub fn </span>test_num_fetches(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
+<a href=#152 id=152 data-nosnippet>152</a>            <span class="self">self</span>.service.len()
+<a href=#153 id=153 data-nosnippet>153</a>        }
+<a href=#154 id=154 data-nosnippet>154</a>    }
+<a href=#155 id=155 data-nosnippet>155</a>}
 </code></pre></div></section></main></body></html>
