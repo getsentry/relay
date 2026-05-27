@@ -24,19 +24,6 @@ use crate::processing::user_reports::UserReportsProcessor;
 use crate::processing::{Context, Errors, Output, Outputs, Processor, QuotaRateLimiter};
 use crate::services::outcome::TrackOutcome;
 
-#[derive(Debug, thiserror::Error)]
-#[error(transparent)]
-pub struct ProcessingError(Rejected<Errors>);
-
-impl<T> From<Rejected<T>> for ProcessingError
-where
-    T: Into<Errors>,
-{
-    fn from(value: Rejected<T>) -> Self {
-        Self(value.map(Into::into))
-    }
-}
-
 /// Implementation of Relays processing pipeline.
 ///
 /// The processor is able to fully process an envelope and return the processed results.
@@ -97,7 +84,7 @@ impl RelayProcessor {
         &self,
         mut envelope: ManagedEnvelope,
         ctx: Context<'_>,
-    ) -> Result<Vec<Output<Outputs>>, ProcessingError> {
+    ) -> Vec<Output<Outputs>> {
         let mut outputs = Vec::with_capacity(5);
 
         let pi = ctx.project_info;
@@ -157,6 +144,6 @@ impl RelayProcessor {
         // TODO: this needs to check for empty
         envelope.accept();
 
-        Ok(outputs)
+        outputs
     }
 }

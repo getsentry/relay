@@ -38,7 +38,7 @@ use crate::managed::ManagedEnvelope;
 use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
 use crate::metrics_extraction::ExtractedMetrics;
 use crate::processing::errors::SwitchProcessingError;
-use crate::processing::relay::{self, RelayProcessor};
+use crate::processing::relay::RelayProcessor;
 use crate::processing::{Forward as _, Output, Outputs, QuotaRateLimiter};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
@@ -66,14 +66,6 @@ use {
 };
 
 mod metrics;
-
-#[derive(Debug, thiserror::Error)]
-enum FoobarError {
-    #[error(transparent)]
-    Processing(#[from] relay::ProcessingError),
-    #[error("todo")]
-    MissingProjectId,
-}
 
 /// The minimum clock drift for correction to apply.
 pub const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
@@ -627,7 +619,7 @@ impl EnvelopeProcessorService {
         project_id: ProjectId,
         mut envelope: ManagedEnvelope,
         ctx: processing::Context<'_>,
-    ) -> Result<Vec<Output<Outputs>>, relay::ProcessingError> {
+    ) -> Vec<Output<Outputs>> {
         // Pre-process the envelope headers.
         if let Some(sampling_state) = ctx.sampling_project_info {
             // Both transactions and standalone span envelopes need a normalized DSC header
@@ -670,7 +662,7 @@ impl EnvelopeProcessorService {
         &self,
         mut envelope: ManagedEnvelope,
         ctx: processing::Context<'a>,
-    ) -> Result<Vec<Output<Outputs>>, FoobarError> {
+    ) -> Vec<Output<Outputs>> {
         // Prefer the project's project ID, and fall back to the stated project id from the
         // envelope. The project ID is available in all modes, other than in proxy mode, where
         // envelopes for unknown projects are forwarded blindly.
@@ -682,8 +674,12 @@ impl EnvelopeProcessorService {
             .project_id
             .or_else(|| envelope.envelope().meta().project_id())
         else {
+            relay_log::error!(
+                tags.project_key = %envelope.envelope().meta().public_key(),
+                "project info does not contain project id"
+            );
             envelope.reject(Outcome::Invalid(DiscardReason::Internal));
-            return Err(FoobarError::MissingProjectId);
+            return Vec::new();
         };
 
         let client = envelope.envelope().meta().client().map(str::to_owned);
@@ -709,7 +705,7 @@ impl EnvelopeProcessorService {
             scope.remove_tag("user_agent");
         });
 
-        result.map_err(Into::into)
+        result
     }
 
     async fn handle_process_envelope(&self, cogs: &mut Token, message: ProcessEnvelope) {
@@ -720,6 +716,7 @@ impl EnvelopeProcessorService {
         // Cancel the passed in token, to start individual measurements per envelope instead.
         cogs.cancel();
 
+        // TODO: COGS
         // let mut cogs = self
         //     .inner
         //     .cogs
@@ -741,21 +738,9 @@ impl EnvelopeProcessorService {
             .and_then(|p| p.get_public_key_config())
             .map(|pkc| pkc.public_key);
 
-        let result = metric!(timer(RelayTimers::EnvelopeProcessingTime), {
+        let outputs = metric!(timer(RelayTimers::EnvelopeProcessingTime), {
             self.process(message.envelope, ctx).await
         });
-
-        let outputs = match result {
-            Ok(ouputs) => ouputs,
-            Err(error) => {
-                relay_log::debug!(
-                    tags.project_key = %project_key,
-                    error = &error as &dyn Error,
-                    "error processing envelope"
-                );
-                return;
-            }
-        };
 
         let ctx = ctx.to_forward();
         for Output { main, metrics } in outputs {
@@ -1863,6 +1848,26 @@ mod tests {
 
     use super::*;
 
+    async fn process_to_single_envelope<'a>(
+        processor: &EnvelopeProcessorService,
+        envelope: ManagedEnvelope,
+        ctx: processing::Context<'a>,
+    ) -> Box<Envelope> {
+        let mut outputs = processor.process(envelope, ctx).await;
+        assert_eq!(outputs.len(), 1);
+
+        let Output { main, metrics } = outputs.pop().unwrap();
+
+        if let Some(metrics) = metrics {
+            metrics.accept(drop);
+        }
+
+        main.unwrap()
+            .serialize_envelope(ctx.to_forward())
+            .unwrap()
+            .accept(|envelope| envelope)
+    }
+
     #[cfg(feature = "processing")]
     fn mock_quota(id: &str) -> Quota {
         Quota {
@@ -2067,37 +2072,34 @@ mod tests {
             ..processing::Context::for_test()
         };
 
-        // let Ok(Some((output, ctx))) = processor.process(envelope, ctx).await else {
-        //     panic!();
-        // };
-        // let new_envelope = output.serialize_envelope(ctx).unwrap().accept(|f| f);
-        //
-        // let event_item = new_envelope.items().last().unwrap();
-        // let annotated_event: Annotated<Event> =
-        //     Annotated::from_json_bytes(&event_item.payload()).unwrap();
-        // let event = annotated_event.into_value().unwrap();
-        // let headers = event
-        //     .request
-        //     .into_value()
-        //     .unwrap()
-        //     .headers
-        //     .into_value()
-        //     .unwrap();
-        //
-        // // IP-like data must be masked
-        // assert_eq!(
-        //     Some(
-        //         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/********* Safari/537.36"
-        //     ),
-        //     headers.get_header("User-Agent")
-        // );
-        // // But we still get correct browser and version number
-        // let contexts = event.contexts.into_value().unwrap();
-        // let browser = contexts.0.get("browser").unwrap();
-        // assert_eq!(
-        //     r#"{"browser":"Chrome 103.0.0","name":"Chrome","version":"103.0.0","type":"browser"}"#,
-        //     browser.to_json().unwrap()
-        // );
+        let new_envelope = process_to_single_envelope(&processor, envelope, ctx).await;
+
+        let event_item = new_envelope.items().last().unwrap();
+        let annotated_event: Annotated<Event> =
+            Annotated::from_json_bytes(&event_item.payload()).unwrap();
+        let event = annotated_event.into_value().unwrap();
+        let headers = event
+            .request
+            .into_value()
+            .unwrap()
+            .headers
+            .into_value()
+            .unwrap();
+
+        // IP-like data must be masked
+        assert_eq!(
+            Some(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/********* Safari/537.36"
+            ),
+            headers.get_header("User-Agent")
+        );
+        // But we still get correct browser and version number
+        let contexts = event.contexts.into_value().unwrap();
+        let browser = contexts.0.get("browser").unwrap();
+        assert_eq!(
+            r#"{"browser":"Chrome 103.0.0","name":"Chrome","version":"103.0.0","type":"browser"}"#,
+            browser.to_json().unwrap()
+        );
     }
 
     #[tokio::test]
@@ -2138,46 +2140,41 @@ mod tests {
             }
         });
 
-        // let message = ProcessEnvelopeGrouped {
-        //     group: ProcessingGroup::Error,
-        //     envelope: managed_envelope,
-        //     ctx: processing::Context {
-        //         config: &Config::from_json_value(config.clone()).unwrap(),
-        //         project_info: &project_info,
-        //         sampling_project_info: Some(&project_info),
-        //         ..processing::Context::for_test()
-        //     },
-        // };
-        //
-        // let processor = create_test_processor(Config::from_json_value(config).unwrap()).await;
-        // let Ok(Some((output, ctx))) = processor.process(message).await else {
-        //     panic!();
-        // };
-        // let envelope = output.serialize_envelope(ctx).unwrap();
-        // let event = envelope
-        //     .get_item_by(|item| item.ty() == &ItemType::Event)
-        //     .unwrap();
-        //
-        // let event = Annotated::<Event>::from_json_bytes(&event.payload()).unwrap();
-        // insta::assert_debug_snapshot!(event.value().unwrap()._dsc, @r###"
-        // Object(
-        //     {
-        //         "environment": ~,
-        //         "public_key": String(
-        //             "e12d836b15bb49d7bbf99e64295d995b",
-        //         ),
-        //         "release": ~,
-        //         "replay_id": ~,
-        //         "sample_rate": String(
-        //             "0.2",
-        //         ),
-        //         "trace_id": String(
-        //             "00000000000000000000000000000000",
-        //         ),
-        //         "transaction": ~,
-        //     },
-        // )
-        // "###);
+        let processor =
+            create_test_processor(Config::from_json_value(config.clone()).unwrap()).await;
+        let config = Config::from_json_value(config).unwrap();
+        let ctx = processing::Context {
+            config: &config,
+            project_info: &project_info,
+            sampling_project_info: Some(&project_info),
+            ..processing::Context::for_test()
+        };
+
+        let envelope = process_to_single_envelope(&processor, managed_envelope, ctx).await;
+        let event = envelope
+            .get_item_by(|item| item.ty() == &ItemType::Event)
+            .unwrap();
+
+        let event = Annotated::<Event>::from_json_bytes(&event.payload()).unwrap();
+        insta::assert_debug_snapshot!(event.value().unwrap()._dsc, @r###"
+        Object(
+            {
+                "environment": ~,
+                "public_key": String(
+                    "e12d836b15bb49d7bbf99e64295d995b",
+                ),
+                "release": ~,
+                "replay_id": ~,
+                "sample_rate": String(
+                    "0.2",
+                ),
+                "trace_id": String(
+                    "00000000000000000000000000000000",
+                ),
+                "transaction": ~,
+            },
+        )
+        "###);
     }
 
     fn capture_test_event(transaction_name: &str, source: TransactionSource) -> Vec<String> {
