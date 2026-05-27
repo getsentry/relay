@@ -87,6 +87,11 @@ impl processing::Processor for ErrorsProcessor {
             return None;
         }
 
+        let creates_event = envelope.envelope().items().any(Item::creates_event);
+        if !creates_event {
+            return None;
+        }
+
         let items = envelope
             .envelope_mut()
             .take_items_by(Item::requires_event)

@@ -31,6 +31,7 @@ pub mod legacy_spans;
 pub mod logs;
 pub mod profile_chunks;
 pub mod profiles;
+pub mod relay;
 pub mod replays;
 pub mod sessions;
 pub mod spans;

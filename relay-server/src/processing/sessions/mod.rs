@@ -73,6 +73,10 @@ impl processing::Processor for SessionsProcessor {
             .take_items_by(|item| matches!(*item.ty(), ItemType::Sessions))
             .into_vec();
 
+        if updates.is_empty() && aggregates.is_empty() {
+            return None;
+        }
+
         let work = SerializedSessions {
             headers,
             updates,

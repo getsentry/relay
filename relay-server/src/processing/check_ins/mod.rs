@@ -71,6 +71,10 @@ impl processing::Processor for CheckInsProcessor {
             .take_items_by(|item| matches!(*item.ty(), ItemType::CheckIn))
             .into_vec();
 
+        if check_ins.is_empty() {
+            return None;
+        }
+
         let work = SerializedCheckIns { headers, check_ins };
         Some(Managed::with_meta_from_managed_envelope(envelope, work))
     }

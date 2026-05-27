@@ -3,6 +3,7 @@ use crate::managed::{Managed, Rejected};
 use crate::processing::ForwardContext;
 use crate::processing::attachments::AttachmentProcessor;
 use crate::processing::check_ins::CheckInsProcessor;
+use crate::processing::client_reports::ClientReportsProcessor;
 use crate::processing::errors::ErrorsProcessor;
 use crate::processing::forward_unknown::ForwardUnknownProcessor;
 use crate::processing::legacy_spans::LegacySpansProcessor;
@@ -18,7 +19,7 @@ use crate::processing::transactions::TransactionProcessor;
 use crate::processing::user_reports::UserReportsProcessor;
 use crate::processing::{Forward, Processor};
 
-macro_rules! outputs {
+macro_rules! outputs_and_inputs {
     ($($variant:ident => $ty:ty,)*) => {
         /// All known [`Processor`] outputs.
         #[derive(Debug)]
@@ -59,10 +60,28 @@ macro_rules! outputs {
                 }
             }
         )*
+
+        /// All known [`Processor`] errors.
+        #[derive(Debug, thiserror::Error)]
+        #[allow(clippy::enum_variant_names)]
+        #[error(transparent)]
+        pub enum Errors {
+            $(
+                $variant(<$ty as Processor>::Error)
+            ),*
+        }
+
+        $(
+            impl From<<$ty as Processor>::Error> for Errors {
+                fn from(value: <$ty as Processor>::Error) -> Self {
+                    Self::$variant(value)
+                }
+            }
+        )*
     };
 }
 
-outputs!(
+outputs_and_inputs!(
     Attachments => AttachmentProcessor,
     CheckIns => CheckInsProcessor,
     Errors => ErrorsProcessor,
@@ -78,4 +97,5 @@ outputs!(
     TraceMetrics => TraceMetricsProcessor,
     Transactions => TransactionProcessor,
     UserReports => UserReportsProcessor,
+    ClientReports => ClientReportsProcessor,
 );

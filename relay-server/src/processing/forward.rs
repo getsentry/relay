@@ -152,6 +152,7 @@ impl ForwardContext<'_> {
 /// The [`Nothing`] output.
 ///
 /// Some processors may only produce by-products and not have any output of their own.
+#[derive(Debug, Copy, Clone)]
 pub struct Nothing(std::convert::Infallible);
 
 impl Forward for Nothing {
@@ -165,12 +166,6 @@ impl Forward for Nothing {
     #[cfg(feature = "processing")]
     fn forward_store(self, _: StoreHandle<'_>, _: ForwardContext<'_>) -> Result<(), Rejected<()>> {
         match self {}
-    }
-}
-
-impl From<Nothing> for crate::processing::Outputs {
-    fn from(value: Nothing) -> Self {
-        match value {}
     }
 }
 
