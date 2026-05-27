@@ -2842,7 +2842,7 @@ mod tests {
     }
 
     #[test]
-    fn test_computed_measurements() {
+    fn test_normalize_mobile_measurements() {
         let json = r#"
         {
             "frames.slow": {"value": 1, "type": "integer"},
