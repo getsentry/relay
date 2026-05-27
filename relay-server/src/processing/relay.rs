@@ -4,7 +4,8 @@ use relay_dynamic_config::Feature;
 use relay_event_normalization::GeoIpLookup;
 use relay_system::Addr;
 
-use crate::managed::{ManagedEnvelope, Rejected};
+use crate::envelope::Item;
+use crate::managed::ManagedEnvelope;
 use crate::processing::attachments::AttachmentProcessor;
 use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::client_reports::ClientReportsProcessor;
@@ -21,8 +22,8 @@ use crate::processing::trace_attachments::TraceAttachmentsProcessor;
 use crate::processing::trace_metrics::TraceMetricsProcessor;
 use crate::processing::transactions::TransactionProcessor;
 use crate::processing::user_reports::UserReportsProcessor;
-use crate::processing::{Context, Errors, Output, Outputs, Processor, QuotaRateLimiter};
-use crate::services::outcome::TrackOutcome;
+use crate::processing::{Context, Output, Outputs, Processor, QuotaRateLimiter};
+use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 
 /// Implementation of Relays processing pipeline.
 ///
@@ -92,57 +93,82 @@ impl RelayProcessor {
         macro_rules! run {
             ($processor:expr) => {
                 if let Some(item) = $processor.prepare_envelope(&mut envelope) {
-                    relay_log::debug!(
+                    relay_log::trace!(
                         processor = std::any::type_name_of_val(&$processor),
-                        "processing {item:?}"
+                        "processing item: {:?}",
+                        item.as_ref(),
                     );
+
                     let output = $processor.process(item, ctx).await;
 
                     match output {
                         Ok(output) => outputs.push(output.map(Into::into)),
-                        // Can't bubble up here, because `Filtered`
-                        Err(err) => {
-                            // TODO: needs a way to separate between fatal or non
-                            relay_log::debug!("{err:?}");
+                        Err(error) => {
+                            // This is not a fatal error case. For example a processor may reject an
+                            // item because it was filtered by an inbound filter or rate limit.
+                            // This means, other items from the same original envelope must still be processed.
+                            relay_log::debug!(
+                                error = &error as &dyn std::error::Error,
+                                processor = std::any::type_name_of_val(&$processor),
+                                "item rejected by processor"
+                            );
                         }
                     }
                 }
             };
         }
 
-        run!(self.replays);
+        // The order of processors is deliberate and must not be changed lightly!
+        //
+        // Processors may partially consume items of the envelope and different processors may
+        // process the same item types.
+        //
+        // Currently this allows for never intended combinations of different item types in envelopes,
+        // ideally we make Relay slowly and slowly more restrictive and properly define and follow
+        // the rules of item combinations allowed in a single envelope.
+
+        // Item types which can be mixed into any envelope.
         run!(self.sessions);
+        run!(self.client_reports);
+
+        // Primary item types.
+        run!(self.replays);
         if !pi.has_feature(Feature::SpanV2ExperimentalProcessing) {
+            // To be fully replaced with the npn-legacy span processor.
             run!(self.legacy_spans);
         }
         run!(self.spans);
         run!(self.logs);
         run!(self.trace_metrics);
         run!(self.profile_chunks);
-        run!(self.trace_attachments);
-
         run!(self.check_ins);
-        run!(self.client_reports);
 
+        // Event based envelopes.
         run!(self.errors);
         run!(self.transactions);
 
+        // Item types which can be sent with a primary item type and can also be sent standalone.
+        //
+        // These need to be processed after their respective primary type.
+        run!(self.trace_attachments);
         run!(self.attachments);
         run!(self.user_reports);
         run!(self.profiles);
 
+        // Fallback for forward compatibility.
         run!(self.forward_unknown);
 
-        // relay_log::error!(
-        //     tags.project = %project_id,
-        //     items = ?managed_envelope.envelope().items().next().map(Item::ty),
-        //     "could not identify the processing group based on the envelope's items"
-        // );
-        //
-        // Err(ProcessingError::NoProcessingGroup)
-
-        // TODO: this needs to check for empty
-        envelope.accept();
+        // After processing there must not be any items in the original envelope left.
+        match envelope.envelope().is_empty() {
+            true => envelope.accept(),
+            false => {
+                relay_log::error!(
+                    items = ?envelope.envelope().items().map(Item::ty).collect::<Vec<_>>(),
+                    "Processed envelope has items remaining"
+                );
+                envelope.reject(Outcome::Invalid(DiscardReason::Internal));
+            }
+        }
 
         outputs
     }
