@@ -53,6 +53,7 @@ impl ProjectCacheHandle {
                 Ok(project) => {
                     match project.state() {
                         ProjectState::Enabled(_) => "enabled",
+                        ProjectState::Dummy => "dummy",
                         ProjectState::Disabled => "disabled",
                         ProjectState::Pending => "pending",
                     }
