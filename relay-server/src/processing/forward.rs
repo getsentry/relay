@@ -169,6 +169,12 @@ impl Forward for Nothing {
     }
 }
 
+impl From<Nothing> for crate::processing::Outputs {
+    fn from(value: Nothing) -> Self {
+        match value {}
+    }
+}
+
 /// Full retention settings to apply to specific payloads.
 #[derive(Debug, Copy, Clone)]
 pub struct Retention {

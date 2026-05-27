@@ -3,7 +3,6 @@ use crate::managed::{Managed, Rejected};
 use crate::processing::ForwardContext;
 use crate::processing::attachments::AttachmentProcessor;
 use crate::processing::check_ins::CheckInsProcessor;
-use crate::processing::client_reports::ClientReportsProcessor;
 use crate::processing::errors::ErrorsProcessor;
 use crate::processing::forward_unknown::ForwardUnknownProcessor;
 use crate::processing::legacy_spans::LegacySpansProcessor;
@@ -79,5 +78,4 @@ outputs!(
     TraceMetrics => TraceMetricsProcessor,
     Transactions => TransactionProcessor,
     UserReports => UserReportsProcessor,
-    ClientReports => ClientReportsProcessor,
 );
