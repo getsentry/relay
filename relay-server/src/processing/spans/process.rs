@@ -247,7 +247,8 @@ fn normalize_span(
         if ctx.is_processing() {
             eap::normalize_ai(&mut span.attributes, duration, model_metdata);
         }
-        // TODO: Save profile name in an attribute?
+        // In the old pipeline, the profile would get saved in the performance score context.
+        // In the new pipeline, we are not storing it for now.
         let _profile =
             relay_event_normalization::normalize_performance_score(span, performance_score);
         eap::normalize_mobile_measurements(&mut span.attributes, duration);
