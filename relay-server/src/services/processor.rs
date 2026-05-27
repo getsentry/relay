@@ -596,14 +596,15 @@ impl EnvelopeProcessorService {
             pool,
             global_config,
             project_cache,
-            cogs,
             #[cfg(feature = "processing")]
             rate_limiter,
             processor: RelayProcessor::new(
+                cogs.clone(),
                 &quota_limiter,
                 &geoip_lookup,
                 addrs.outcome_aggregator.clone(),
             ),
+            cogs,
             addrs,
             metric_outcomes,
             config,
@@ -713,14 +714,8 @@ impl EnvelopeProcessorService {
         metric!(timer(RelayTimers::EnvelopeWaitTime) = wait_time);
 
         // This COGS handling may need an overhaul in the future:
-        // Cancel the passed in token, to start individual measurements per envelope instead.
+        // Cancel the passed in token, to start individual measurements per processor instead.
         cogs.cancel();
-
-        // TODO: COGS
-        // let mut cogs = self
-        //     .inner
-        //     .cogs
-        //     .timed(ResourceId::Relay, AppFeature::from(group));
 
         let global_config = self.inner.global_config.current();
 

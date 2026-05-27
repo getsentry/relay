@@ -24,6 +24,7 @@ mod filter;
 mod process;
 
 pub use errors::SwitchProcessingError;
+use relay_cogs::{AppFeature, FeatureWeights};
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::{Event, Metrics};
 use relay_protocol::Annotated;
@@ -76,6 +77,10 @@ impl processing::Processor for ErrorsProcessor {
     type Input = SerializedError;
     type Output = ErrorOutput;
     type Error = Error;
+
+    fn cogs() -> FeatureWeights {
+        AppFeature::Errors.into()
+    }
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let has_transaction = envelope

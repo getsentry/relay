@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use relay_cogs::{AppFeature, FeatureWeights};
 use relay_quotas::RateLimits;
 
 use crate::envelope::{EnvelopeHeaders, Item, ItemType};
@@ -65,6 +66,10 @@ impl Processor for UserReportsProcessor {
     type Input = SerializedUserReports;
     type Output = UserReportsOutput;
     type Error = Error;
+
+    fn cogs() -> FeatureWeights {
+        AppFeature::UserReports.into()
+    }
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();

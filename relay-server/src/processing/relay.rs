@@ -1,5 +1,7 @@
+use std::fmt::Debug;
 use std::sync::Arc;
 
+use relay_cogs::{Cogs, ResourceId};
 use relay_dynamic_config::Feature;
 use relay_event_normalization::GeoIpLookup;
 use relay_system::Addr;
@@ -11,6 +13,7 @@ use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::client_reports::ClientReportsProcessor;
 use crate::processing::errors::ErrorsProcessor;
 use crate::processing::forward_unknown::ForwardUnknownProcessor;
+use crate::processing::invalid::InvalidUnhandledProcessor;
 use crate::processing::legacy_spans::LegacySpansProcessor;
 use crate::processing::logs::LogsProcessor;
 use crate::processing::profile_chunks::ProfileChunksProcessor;
@@ -29,11 +32,14 @@ use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 ///
 /// The processor is able to fully process an envelope and return the processed results.
 pub struct RelayProcessor {
+    cogs: Cogs,
+
     attachments: AttachmentProcessor,
     check_ins: CheckInsProcessor,
     client_reports: ClientReportsProcessor,
     errors: ErrorsProcessor,
     forward_unknown: ForwardUnknownProcessor,
+    invalid: InvalidUnhandledProcessor,
     legacy_spans: LegacySpansProcessor,
     logs: LogsProcessor,
     profile_chunks: ProfileChunksProcessor,
@@ -50,6 +56,7 @@ pub struct RelayProcessor {
 impl RelayProcessor {
     /// Creates a new [`Self`].
     pub fn new(
+        cogs: Cogs,
         quota_limiter: &Arc<QuotaRateLimiter>,
         geoip_lookup: &GeoIpLookup,
         outcome_aggregator: Addr<TrackOutcome>,
@@ -58,11 +65,14 @@ impl RelayProcessor {
         let ql = || Arc::clone(quota_limiter);
 
         Self {
+            cogs,
+
             attachments: AttachmentProcessor::new(ql()),
             check_ins: CheckInsProcessor::new(ql()),
             client_reports: ClientReportsProcessor::new(outcome_aggregator),
             errors: ErrorsProcessor::new(ql(), geoip_lookup.clone()),
             forward_unknown: ForwardUnknownProcessor::new(),
+            invalid: InvalidUnhandledProcessor::new(),
             legacy_spans: LegacySpansProcessor::new(ql(), geoip_lookup.clone()),
             logs: LogsProcessor::new(ql()),
             profile_chunks: ProfileChunksProcessor::new(ql()),
@@ -91,31 +101,11 @@ impl RelayProcessor {
         let pi = ctx.project_info;
 
         macro_rules! run {
-            ($processor:expr) => {
-                if let Some(item) = $processor.prepare_envelope(&mut envelope) {
-                    relay_log::trace!(
-                        processor = std::any::type_name_of_val(&$processor),
-                        "processing item: {:?}",
-                        item.as_ref(),
-                    );
-
-                    let output = $processor.process(item, ctx).await;
-
-                    match output {
-                        Ok(output) => outputs.push(output.map(Into::into)),
-                        Err(error) => {
-                            // This is not a fatal error case. For example a processor may reject an
-                            // item because it was filtered by an inbound filter or rate limit.
-                            // This means, other items from the same original envelope must still be processed.
-                            relay_log::debug!(
-                                error = &error as &dyn std::error::Error,
-                                processor = std::any::type_name_of_val(&$processor),
-                                "item rejected by processor"
-                            );
-                        }
-                    }
+            ($processor:expr) => {{
+                if let Some(output) = self.run_one(&$processor, &mut envelope, ctx).await {
+                    outputs.push(output.map(Into::into));
                 }
-            };
+            }};
         }
 
         // The order of processors is deliberate and must not be changed lightly!
@@ -157,6 +147,8 @@ impl RelayProcessor {
 
         // Fallback for forward compatibility.
         run!(self.forward_unknown);
+        // All remaining items which make no sense.
+        run!(self.invalid);
 
         // After processing there must not be any items in the original envelope left.
         match envelope.envelope().is_empty() {
@@ -171,5 +163,42 @@ impl RelayProcessor {
         }
 
         outputs
+    }
+
+    async fn run_one<T: Processor>(
+        &self,
+        processor: &T,
+        envelope: &mut ManagedEnvelope,
+        ctx: Context<'_>,
+    ) -> Option<Output<T::Output>>
+    where
+        T::Input: Debug,
+    {
+        let item = processor.prepare_envelope(envelope)?;
+
+        relay_log::trace!(
+            processor = std::any::type_name::<T>(),
+            "processing item: {:?}",
+            item.as_ref(),
+        );
+
+        let _token = self.cogs.timed(ResourceId::Relay, T::cogs());
+        let output = processor.process(item, ctx).await;
+
+        match output {
+            Ok(output) => Some(output),
+            Err(error) => {
+                // This is not a fatal error case. For example a processor may reject an
+                // item because it was filtered by an inbound filter or rate limit.
+                // This means, other items from the same original envelope must still be processed.
+                relay_log::debug!(
+                    error = &error as &dyn std::error::Error,
+                    processor = std::any::type_name::<T>(),
+                    "item rejected by processor"
+                );
+
+                None
+            }
+        }
     }
 }

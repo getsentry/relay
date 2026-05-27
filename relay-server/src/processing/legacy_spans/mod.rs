@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use either::Either;
+use relay_cogs::{AppFeature, FeatureWeights};
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::{Span, SpanV2};
 use relay_protocol::Annotated;
@@ -84,6 +85,10 @@ impl processing::Processor for LegacySpansProcessor {
     type Input = SerializedLegacySpans;
     type Output = LegacySpanOutput;
     type Error = Error;
+
+    fn cogs() -> FeatureWeights {
+        AppFeature::Spans.into()
+    }
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();

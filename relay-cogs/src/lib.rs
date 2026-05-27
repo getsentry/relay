@@ -173,6 +173,8 @@ pub enum AppFeature {
     Profiles,
     /// User Reports
     UserReports,
+    /// Event attachments not associated with an event.
+    StandaloneAttachments,
 
     /// Metrics in the spans namespace.
     MetricsSpans,
@@ -208,6 +210,7 @@ impl AppFeature {
             Self::CheckIns => "check_ins",
             Self::Replays => "replays",
             Self::UserReports => "user_reports",
+            Self::StandaloneAttachments => "standalone_attachments",
             Self::MetricsSpans => "metrics_spans",
             Self::MetricsTransactions => "metrics_transactions",
             Self::MetricsSessions => "metrics_sessions",

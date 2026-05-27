@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use relay_cogs::{AppFeature, FeatureWeights};
 use relay_profiling::{ProfileError, ProfileType};
 use relay_quotas::{DataCategory, RateLimits};
 use smallvec::smallvec;
@@ -80,6 +81,10 @@ impl Processor for ProfilesProcessor {
     type Input = SerializedProfiles;
     type Output = ProfilesOutput;
     type Error = Error;
+
+    fn cogs() -> FeatureWeights {
+        AppFeature::Profiles.into()
+    }
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();

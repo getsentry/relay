@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use relay_cogs::{AppFeature, FeatureWeights};
 use relay_event_schema::protocol::{SessionAggregates, SessionUpdate};
 use relay_quotas::{DataCategory, RateLimits};
 
@@ -59,6 +60,10 @@ impl processing::Processor for SessionsProcessor {
     type Input = SerializedSessions;
     type Output = SessionsOutput;
     type Error = Error;
+
+    fn cogs() -> FeatureWeights {
+        AppFeature::Sessions.into()
+    }
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();

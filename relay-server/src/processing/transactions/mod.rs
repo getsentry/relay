@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use relay_cogs::{AppFeature, FeatureWeights};
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::Metrics;
 use relay_quotas::RateLimits;
@@ -86,6 +87,10 @@ impl Processor for TransactionProcessor {
     type Input = SerializedTransaction;
     type Output = TransactionOutput;
     type Error = Error;
+
+    fn cogs() -> FeatureWeights {
+        AppFeature::Transactions.into()
+    }
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();

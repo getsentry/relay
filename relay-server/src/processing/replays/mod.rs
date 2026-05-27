@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 
+use relay_cogs::{AppFeature, FeatureWeights};
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::Replay;
@@ -159,6 +160,10 @@ impl processing::Processor for ReplaysProcessor {
     type Input = SerializedReplays;
     type Output = ReplaysOutput;
     type Error = Error;
+
+    fn cogs() -> FeatureWeights {
+        AppFeature::Replays.into()
+    }
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
