@@ -13,8 +13,9 @@ use smallvec::{SmallVec, smallvec};
 use crate::envelope::{AttachmentType, ContentType, EnvelopeError};
 use crate::integrations::{Integration, LogsIntegration, SpansIntegration};
 use crate::statsd::RelayTimers;
+use crate::utils::DebugBytes;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Item {
     pub(super) headers: ItemHeaders,
     pub(super) payload: Bytes,
@@ -766,6 +767,15 @@ impl Item {
         });
 
         Some(event.spans.0)
+    }
+}
+
+impl fmt::Debug for Item {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Item")
+            .field("headers", &self.headers)
+            .field("payload", &DebugBytes(&self.payload))
+            .finish()
     }
 }
 
