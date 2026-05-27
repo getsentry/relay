@@ -6,6 +6,7 @@
 
 - Convert measurements to attributes based on information from `sentry-conventions`. This is gated behind a project feature flag. ([#6007](https://github.com/getsentry/relay/pull/6007))
 - Implements timestamp shifts based on a sequence number provided by SDKs. ([#6014](https://github.com/getsentry/relay/pull/6014))
+- Implement mobile measurements calculation for V2 spans. ([#6022](https://github.com/getsentry/relay/pull/6022))
 
 **Bug Fixes**:
 
