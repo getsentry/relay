@@ -17,10 +17,6 @@ impl ProjectKeyPair {
         }
     }
 
-    pub fn has_distinct_sampling_key(&self) -> bool {
-        self.own_key != self.sampling_key
-    }
-
     pub fn from_envelope(envelope: &Envelope) -> Self {
         let own_key = envelope.meta().public_key();
         let sampling_key = envelope.sampling_key().unwrap_or(own_key);

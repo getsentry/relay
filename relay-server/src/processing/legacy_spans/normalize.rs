@@ -2,19 +2,19 @@
 
 use crate::services::processor::ProcessingError;
 use chrono::{DateTime, Utc};
+use relay_event_normalization::EnrichedDsc;
 use relay_event_normalization::span::{self, ai};
 use relay_event_normalization::{
     BorrowedSpanOpDefaults, ClientHints, CombinedMeasurementsConfig, FromUserAgentInfo,
     GeoIpLookup, ModelMetadata, PerformanceScoreConfig, RawUserAgentInfo, SchemaProcessor,
     TimestampProcessor, TransactionNameRule, TransactionsProcessor, TrimmingProcessor,
     normalize_measurements, normalize_performance_score, normalize_transaction_name,
-    span::tag_extraction, validate_span,
+    span::tag_extraction, validate_standalone_span,
 };
 use relay_event_schema::processor::{ProcessingState, process_value};
 use relay_event_schema::protocol::{BrowserContext, EventId, IpAddr, Span, SpanData};
 use relay_metrics::UnixTimestamp;
 use relay_protocol::{Annotated, Empty, Value};
-use relay_sampling::DynamicSamplingContext;
 
 /// Config needed to normalize a standalone span.
 #[derive(Clone, Debug)]
@@ -56,8 +56,8 @@ pub struct NormalizeSpanConfig<'a> {
     /// An initialized GeoIP lookup.
     pub geo_lookup: &'a GeoIpLookup,
     pub span_op_defaults: BorrowedSpanOpDefaults<'a>,
-    /// Dynamic sampling context from the envelope headers.
-    pub dsc: Option<&'a DynamicSamplingContext>,
+    /// Dynamic sampling context plus additional attributes used for dsc span normalization.
+    pub dsc: Option<EnrichedDsc<'a>>,
 }
 
 fn set_segment_attributes(span: &mut Annotated<Span>) {
@@ -131,7 +131,7 @@ pub fn normalize(
     )?;
 
     if let Some(span) = annotated_span.value() {
-        validate_span(span, Some(timestamp_range))?;
+        validate_standalone_span(span, Some(timestamp_range))?;
     }
     process_value(
         annotated_span,

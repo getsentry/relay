@@ -146,6 +146,7 @@ def playstation_event_json(sdk=any()):
                 "version": "9.20.00.05-00.00.00.0.1",
                 "type": "runtime",
             },
+            "trace": any(),
         },
         "exception": {
             "values": [
@@ -780,6 +781,9 @@ def test_playstation_attachment_no_feature_flag(
         "sdk": {"name": "raven-node", "version": "2.6.3"},
         "key_id": "123",
         "project": 42,
+        "contexts": {
+            "trace": any(),
+        },
         "grouping_config": {
             "enhancements": "eJybzDhxY05qemJypZWRgaGlroGxrqHRBABbEwcC",
             "id": "legacy:2019-03-12",

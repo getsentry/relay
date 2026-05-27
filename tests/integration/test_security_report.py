@@ -95,6 +95,7 @@ def test_security_report_with_processing(
     expected_evt = fixture_provider.load(test_name, ext)
 
     event.pop("_metrics", None)
+    event.get("contexts", {}).pop("trace", None)
     assert event == expected_evt
 
 
@@ -277,10 +278,9 @@ def test_security_report(mini_sentry, relay, test_case, json_fixture_provider):
     ext = ".no_processing.output"
     expected_evt = fixture_provider.load(test_name, ext)
 
-    if "received" in event:
-        event.pop("received")
-    if "timestamp" in event:
-        event.pop("timestamp")
+    event.pop("received", None)
+    event.pop("timestamp", None)
+    event.get("contexts", {}).pop("trace", None)
 
     assert event == expected_evt
 

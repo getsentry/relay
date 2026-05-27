@@ -855,6 +855,14 @@ def test_minidump_placeholder(
                 },
             ],
         },
+        "contexts": {
+            "trace": {
+                "span_id": "515539018c9b4260",
+                "status": "unknown",
+                "trace_id": "515539018c9b4260a6f999572f1661ee",
+                "type": "trace",
+            },
+        },
         "grouping_config": any(),
         "key_id": "123",
         "level": "fatal",
@@ -943,7 +951,7 @@ def test_minidump_objectstore_uploads(
 ):
     project_id = 42
     minidump_content = b"MDMP content"
-    log_content = b"Some log file content"
+    log_content = b"\x1f\x8b Some log file content"
 
     project_config = mini_sentry.add_full_project_config(project_id)
     if upload_attachments:
@@ -1491,3 +1499,72 @@ def test_minidump_large_attachment_skipped_when_no_project_fetching(mini_sentry,
 
     assert len(envelope.items) == 1
     assert envelope.items[0].payload.bytes == minidump_content
+
+
+@pytest.mark.parametrize(
+    "magic,filename",
+    [
+        pytest.param(b"\x1f\x8b", "minidump.dmp.gz", id="gzip"),
+        pytest.param(b"\xfd7zXZ\x00", "minidump.dmp.xz", id="xz"),
+        pytest.param(b"BZh", "minidump.dmp.bz2", id="bzip2"),
+        pytest.param(b"\x28\xb5\x2f\xfd", "minidump.dmp.zst", id="zstd"),
+    ],
+)
+def test_minidump_objectstore_uploads_rejects_compressed(
+    mini_sentry,
+    relay,
+    magic,
+    filename,
+):
+    """
+    When streaming a minidump to objectstore, a compressed payload should be reject
+    (untill objectstore or minidump can handle them).
+    """
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).append(
+        "projects:relay-minidump-uploads"
+    )
+
+    relay = relay(
+        mini_sentry,
+        options={
+            "outcomes": {
+                "emit_outcomes": True,
+                "batch_size": 1,
+                "batch_interval": 1,
+            },
+        },
+    )
+
+    with pytest.raises(HTTPError) as exc_info:
+        relay.send_minidump(
+            project_id=project_id,
+            files=[(MINIDUMP_ATTACHMENT_NAME, filename, magic + b"\x00" * 32)],
+        )
+
+    assert exc_info.value.response.status_code == 400
+
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "category": 1,
+            "outcome": 3,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "missing_minidump_upload",
+        },
+        {
+            "category": 4,
+            "outcome": 3,
+            "project_id": 42,
+            "reason": "invalid_minidump",
+            "quantity": 1,
+        },
+        {
+            "category": 22,
+            "outcome": 3,
+            "project_id": 42,
+            "reason": "invalid_minidump",
+            "quantity": 1,
+        },
+    ]

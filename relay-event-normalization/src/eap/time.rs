@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use relay_conventions::attributes::SENTRY__TIMESTAMP__SEQUENCE;
 use relay_event_schema::{
     processor::{self, ProcessValue, ProcessingState},
-    protocol::{Attributes, OurLog, SpanV2, Timestamp, TraceMetric},
+    protocol::{Attributes, OurLog, Replay, SpanV2, Timestamp, TraceMetric},
 };
 use relay_protocol::{Annotated, ErrorKind, Remark, RemarkType};
 use std::time::Duration;
@@ -145,6 +145,16 @@ impl TimeNormalize for TraceMetric {
 
     fn timestamp_sequence(&self) -> Option<u32> {
         get_timestamp_sequence(&self.attributes)
+    }
+}
+
+impl TimeNormalize for Replay {
+    fn reference_timestamp_mut(&mut self) -> &mut Annotated<Timestamp> {
+        &mut self.timestamp
+    }
+
+    fn timestamp_sequence(&self) -> Option<u32> {
+        None
     }
 }
 

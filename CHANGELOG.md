@@ -9,14 +9,20 @@
 
 **Bug Fixes**:
 
-- Apply timestamp validations to transaction spans. ([#6005](https://github.com/getsentry/relay/pull/6005), [#6013](https://github.com/getsentry/relay/pull/6013))
+- Apply timestamp validation to replays. ([#6018](https://github.com/getsentry/relay/pull/6018))
+- Apply timestamp validations to transaction spans. ([#6005](https://github.com/getsentry/relay/pull/6005), [#6013](https://github.com/getsentry/relay/pull/6013), [#6015](https://github.com/getsentry/relay/pull/6015))
 - Obtain PII values for `SpanData` fields from `sentry-conventions`. ([#5997](https://github.com/getsentry/relay/pull/5997))
-- Add `sentry.dsc.transaction` and `sentry.dsc.trace_id` to all spans. ([#6001](https://github.com/getsentry/relay/pull/6001), [#6004](https://github.com/getsentry/relay/pull/6004), [#6008](https://github.com/getsentry/relay/pull/6008))
 - Correctly handle attributes with placeholders during normalization. ([#6012](https://github.com/getsentry/relay/pull/6012))
+- Add `sentry.dsc.transaction`, `sentry.dsc.trace_id`, and `sentry.dsc.project_id` to all spans. ([#6001](https://github.com/getsentry/relay/pull/6001), [#6004](https://github.com/getsentry/relay/pull/6004), [#6008](https://github.com/getsentry/relay/pull/6008), [#6011](https://github.com/getsentry/relay/pull/6011))
 
 **Internal**:
 
+- Add the transaction replay id as an attribute to all contained spans. ([#6017](https://github.com/getsentry/relay/pull/6017))
 - Always allow `Upload-Defer-Length: 1` on the `/upload` endpoint. ([#5977](https://github.com/getsentry/relay/pull/5977))
+
+**Internal**:
+
+- Unconditionally create a trace context with a trace id for errors. ([#6009](https://github.com/getsentry/relay/pull/6009)) 
 
 ## 26.5.0
 

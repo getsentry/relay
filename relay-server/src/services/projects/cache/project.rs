@@ -47,6 +47,7 @@ impl<'a> Project<'a> {
     ) -> Result<RateLimits, Rejected<DiscardReason>> {
         let state = match self.state() {
             ProjectState::Enabled(state) => Some(Arc::clone(state)),
+            ProjectState::Dummy => None,
             ProjectState::Disabled => {
                 // TODO(jjbayer): We should refactor this function to either return a Result or
                 // handle envelope rejections internally, but not both.

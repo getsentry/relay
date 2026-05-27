@@ -72,6 +72,7 @@ def test_span_extraction(
             "attributes": {"txn_key": 123},
         },
     ]
+    event["contexts"]["replay"] = {"replay_id": "4c79f60c11214eb38604f4ae0781bfb2"}
     end = datetime.now(timezone.utc) - timedelta(seconds=1)
     duration = timedelta(milliseconds=500)
     start = end - duration
@@ -135,6 +136,10 @@ def test_span_extraction(
             "sentry.op": {"type": "string", "value": "http"},
             "sentry.origin": {"type": "string", "value": "manual"},
             "sentry.platform": {"type": "string", "value": "other"},
+            "sentry.replay_id": {
+                "type": "string",
+                "value": "4c79f60c11214eb38604f4ae0781bfb2",
+            },
             "sentry.sdk.name": {"type": "string", "value": "raven-node"},
             "sentry.sdk.version": {"type": "string", "value": "2.6.3"},
             "sentry.status": {"type": "string", "value": "ok"},
@@ -156,6 +161,7 @@ def test_span_extraction(
             },
             "sentry.is_remote": {"type": "boolean", "value": False},
             "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},
+            "sentry.dsc.project_id": {"type": "string", "value": "42"},
             "sentry.dsc.trace_id": {
                 "type": "string",
                 "value": "a0fa8803753e40fd8124b21eeb2986b5",
@@ -216,6 +222,10 @@ def test_span_extraction(
             "sentry.op": {"type": "string", "value": "hi"},
             "sentry.origin": {"type": "string", "value": "manual"},
             "sentry.platform": {"type": "string", "value": "other"},
+            "sentry.replay_id": {
+                "type": "string",
+                "value": "4c79f60c11214eb38604f4ae0781bfb2",
+            },
             "sentry.sdk.name": {"type": "string", "value": "raven-node"},
             "sentry.sdk.version": {"type": "string", "value": "2.6.3"},
             "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},
@@ -232,6 +242,7 @@ def test_span_extraction(
             "sentry.user.id": {"type": "string", "value": user_id},
             "sentry.user.ip": {"type": "string", "value": "192.168.0.1"},
             "sentry.user": {"type": "string", "value": f"id:{user_id}"},
+            "sentry.dsc.project_id": {"type": "string", "value": "42"},
             "sentry.dsc.trace_id": {
                 "type": "string",
                 "value": "a0fa8803753e40fd8124b21eeb2986b5",
@@ -1269,6 +1280,7 @@ def test_spans_dsc_normalization(
             "data": {
                 "sentry.dsc.trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
                 "sentry.dsc.transaction": "/transaction/already/exists",
+                "sentry.dsc.project_id": "41",
             },
         },
     ]
@@ -1279,9 +1291,21 @@ def test_spans_dsc_normalization(
     def get_transaction(span_id: str):
         return spans[span_id]["attributes"]["sentry.dsc.transaction"]["value"]
 
+    def get_project_id(span_id: str):
+        return spans[span_id]["attributes"]["sentry.dsc.project_id"]["value"]
+
+    def get_trace_id(span_id: str):
+        return spans[span_id]["attributes"]["sentry.dsc.trace_id"]["value"]
+
     assert spans["968cff94913ebb07"]["is_segment"] is True
     assert spans["bbbbbbbbbbbbbbbb"]["is_segment"] is False
     assert spans["cccccccccccccccc"]["is_segment"] is False
     assert get_transaction("968cff94913ebb07") == "hi"
     assert get_transaction("bbbbbbbbbbbbbbbb") == "hi"
     assert get_transaction("cccccccccccccccc") == "/transaction/already/exists"
+    assert get_project_id("968cff94913ebb07") == "42"
+    assert get_project_id("bbbbbbbbbbbbbbbb") == "42"
+    assert get_project_id("cccccccccccccccc") == "41"
+    assert get_trace_id("968cff94913ebb07") == "a0fa8803753e40fd8124b21eeb2986b5"
+    assert get_trace_id("bbbbbbbbbbbbbbbb") == "a0fa8803753e40fd8124b21eeb2986b5"
+    assert get_trace_id("cccccccccccccccc") == "a0fa8803753e40fd8124b21eeb2986b5"
