@@ -250,7 +250,7 @@ fn normalize_span(
         // TODO: Save profile name in an attribute?
         let _profile =
             relay_event_normalization::normalize_performance_score(span, performance_score);
-        eap::compute_mobile_measurements(&mut span.attributes, duration);
+        eap::normalize_mobile_measurements(&mut span.attributes, duration);
         eap::normalize_attribute_values(&mut span.attributes, allowed_hosts);
         eap::write_legacy_attributes(&mut span.attributes);
         eap::normalize_client_sample_rate(&mut span.attributes);

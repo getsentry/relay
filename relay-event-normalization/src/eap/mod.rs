@@ -29,7 +29,7 @@ pub mod trace_metric;
 mod trimming;
 
 pub use self::ai::normalize_ai;
-pub use self::mobile::{compute_mobile_measurements, normalize_mobile_attributes};
+pub use self::mobile::{normalize_mobile_attributes, normalize_mobile_measurements};
 pub use self::size::*;
 pub use self::trimming::TrimmingProcessor;
 
@@ -2855,7 +2855,7 @@ mod tests {
         let mut attributes = Annotated::<Attributes>::from_json(json).unwrap();
 
         normalize_attribute_names(&mut attributes);
-        compute_mobile_measurements(&mut attributes, Some(Duration::from_secs(5)));
+        normalize_mobile_measurements(&mut attributes, Some(Duration::from_secs(5)));
 
         insta::assert_json_snapshot!(SerializableAnnotated(&attributes),  @r###"
         {

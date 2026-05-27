@@ -79,7 +79,7 @@ pub fn normalize_mobile_attributes(attributes: &mut Annotated<Attributes>) {
 /// * [`FRAMES_SLOW_RATE`] := [`APP__VITALS__FRAMES__SLOW__COUNT`] / [`APP__VITALS__FRAMES__TOTAL__COUNT`]
 /// * [`FRAMES_FROZEN_RATE`] := [`APP__VITALS__FRAMES__FROZEN__COUNT`] / [`APP__VITALS__FRAMES__TOTAL__COUNT`]
 /// * [`STALL_PERCENTAGE`] := [`STALL_TOTAL_TIME`] / `span_duration`
-pub fn compute_mobile_measurements(
+pub fn normalize_mobile_measurements(
     attributes: &mut Annotated<Attributes>,
     span_duration: Option<Duration>,
 ) {
