@@ -18,6 +18,10 @@
 
 - Always allow `Upload-Defer-Length: 1` on the `/upload` endpoint. ([#5977](https://github.com/getsentry/relay/pull/5977))
 
+**Internal**:
+
+- Unconditionally create a trace context with a trace id for errors. ([#6009](https://github.com/getsentry/relay/pull/6009)) 
+
 ## 26.5.0
 
 **Features**:

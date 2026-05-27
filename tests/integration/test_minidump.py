@@ -855,6 +855,14 @@ def test_minidump_placeholder(
                 },
             ],
         },
+        "contexts": {
+            "trace": {
+                "span_id": "515539018c9b4260",
+                "status": "unknown",
+                "trace_id": "515539018c9b4260a6f999572f1661ee",
+                "type": "trace",
+            },
+        },
         "grouping_config": any(),
         "key_id": "123",
         "level": "fatal",
