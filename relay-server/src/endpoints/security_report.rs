@@ -46,29 +46,37 @@ impl SecurityReportParams {
         report_item
     }
 
-    fn extract_envelope(self) -> Result<Box<Envelope>, BadStoreRequest> {
+    #[expect(
+        clippy::vec_box,
+        reason = "Box<Envelope> is created by Envelope::from_request and used for processing"
+    )]
+    fn extract_envelopes(self) -> Result<Vec<Box<Envelope>>, BadStoreRequest> {
         let Self { meta, query, body } = self;
 
         if body.is_empty() {
             return Err(BadStoreRequest::EmptyBody);
         }
 
-        let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
-        let variant =
-            serde_json::from_slice::<Vec<&RawValue>>(&body).map_err(BadStoreRequest::InvalidJson);
-
-        if let Ok(items) = variant {
-            for item in items {
-                let report_item =
-                    Self::create_security_item(&query, Bytes::from(item.to_owned().to_string()));
+        Ok(match serde_json::from_slice::<Vec<&RawValue>>(&body) {
+            Ok(items) => items
+                .into_iter()
+                .map(|item| {
+                    let mut envelope = Envelope::from_request(Some(EventId::new()), meta.clone());
+                    let report = Self::create_security_item(
+                        &query,
+                        Bytes::from(item.to_owned().to_string()),
+                    );
+                    envelope.add_item(report);
+                    envelope
+                })
+                .collect(),
+            Err(_) => {
+                let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
+                let report_item = Self::create_security_item(&query, body);
                 envelope.add_item(report_item);
+                vec![envelope]
             }
-        } else {
-            let report_item = Self::create_security_item(&query, body);
-            envelope.add_item(report_item);
-        }
-
-        Ok(envelope)
+        })
     }
 }
 
@@ -100,10 +108,11 @@ async fn handle(
         return Ok(StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response());
     }
 
-    let envelope = params.extract_envelope()?;
-    common::handle_envelope(&state, envelope)
-        .await?
-        .check_rate_limits()?;
+    for envelope in params.extract_envelopes()? {
+        common::handle_envelope(&state, envelope)
+            .await?
+            .check_rate_limits()?;
+    }
 
     Ok(().into_response())
 }
