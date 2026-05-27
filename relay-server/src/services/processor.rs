@@ -728,6 +728,9 @@ impl EnvelopeProcessorService {
         };
 
         let project_key = message.envelope.meta().public_key();
+        // Only allow sending to the sampling key, if we successfully loaded a sampling project
+        // info relating to it. This filters out unknown/invalid project keys as well as project
+        // keys from different organizations.
         let sampling_key = ctx
             .sampling_project_info
             .and_then(|p| p.get_public_key_config())
