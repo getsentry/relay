@@ -16,6 +16,7 @@
 
 **Internal**:
 
+- Add the transaction replay id as an attribute to all contained spans. ([#6017](https://github.com/getsentry/relay/pull/6017))
 - Always allow `Upload-Defer-Length: 1` on the `/upload` endpoint. ([#5977](https://github.com/getsentry/relay/pull/5977))
 
 **Internal**:

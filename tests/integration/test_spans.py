@@ -72,6 +72,7 @@ def test_span_extraction(
             "attributes": {"txn_key": 123},
         },
     ]
+    event["contexts"]["replay"] = {"replay_id": "4c79f60c11214eb38604f4ae0781bfb2"}
     end = datetime.now(timezone.utc) - timedelta(seconds=1)
     duration = timedelta(milliseconds=500)
     start = end - duration
@@ -135,6 +136,10 @@ def test_span_extraction(
             "sentry.op": {"type": "string", "value": "http"},
             "sentry.origin": {"type": "string", "value": "manual"},
             "sentry.platform": {"type": "string", "value": "other"},
+            "sentry.replay_id": {
+                "type": "string",
+                "value": "4c79f60c11214eb38604f4ae0781bfb2",
+            },
             "sentry.sdk.name": {"type": "string", "value": "raven-node"},
             "sentry.sdk.version": {"type": "string", "value": "2.6.3"},
             "sentry.status": {"type": "string", "value": "ok"},
@@ -217,6 +222,10 @@ def test_span_extraction(
             "sentry.op": {"type": "string", "value": "hi"},
             "sentry.origin": {"type": "string", "value": "manual"},
             "sentry.platform": {"type": "string", "value": "other"},
+            "sentry.replay_id": {
+                "type": "string",
+                "value": "4c79f60c11214eb38604f4ae0781bfb2",
+            },
             "sentry.sdk.name": {"type": "string", "value": "raven-node"},
             "sentry.sdk.version": {"type": "string", "value": "2.6.3"},
             "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},

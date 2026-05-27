@@ -341,6 +341,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
     normalize_default_attributes(event, meta, config);
     normalize_trace_context_tags(event);
+    normalize_replay_context(event, config.replay_id);
 
     let _ = processor::apply(&mut event.request, |request, _| {
         request::normalize_request(request);
@@ -376,13 +377,11 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     if let Some(context) = event.context_mut::<TraceContext>() {
         context.client_sample_rate = Annotated::from(config.client_sample_rate);
     }
-    normalize_replay_context(event, config.replay_id);
 }
 
 fn normalize_replay_context(event: &mut Event, replay_id: Option<Uuid>) {
-    if let Some(contexts) = event.contexts.value_mut()
-        && let Some(replay_id) = replay_id
-    {
+    if let Some(replay_id) = replay_id {
+        let contexts = event.contexts.get_or_insert_with(Contexts::default);
         contexts.add(ReplayContext {
             replay_id: Annotated::new(EventId(replay_id)),
             other: Object::default(),
