@@ -274,8 +274,8 @@
 <a href=#274 id=274 data-nosnippet>274</a>        span_allowed_hosts: <span class="kw-2">&amp;</span>[],              <span class="comment">// only supported in relay
 <a href=#275 id=275 data-nosnippet>275</a>        </span>span_op_defaults: Default::default(), <span class="comment">// only supported in relay
 <a href=#276 id=276 data-nosnippet>276</a>        </span>performance_issues_spans: Default::default(),
-<a href=#277 id=277 data-nosnippet>277</a>        derive_trace_id: Default::default(),
-<a href=#278 id=278 data-nosnippet>278</a>        dsc: <span class="prelude-val">None</span>,
+<a href=#277 id=277 data-nosnippet>277</a>        force_trace_context: <span class="bool-val">true</span>, <span class="comment">// always required for Sentry
+<a href=#278 id=278 data-nosnippet>278</a>        </span>dsc: <span class="prelude-val">None</span>,
 <a href=#279 id=279 data-nosnippet>279</a>    };
 <a href=#280 id=280 data-nosnippet>280</a>    normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>normalization_config);
 <a href=#281 id=281 data-nosnippet>281</a>
