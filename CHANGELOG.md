@@ -4,9 +4,14 @@
 
 **Features**:
 
+- Implement mobile measurements calculation for V2 spans. ([#6022](https://github.com/getsentry/relay/pull/6022))
+
+## 26.5.1
+
+**Features**:
+
 - Convert measurements to attributes based on information from `sentry-conventions`. This is gated behind a project feature flag. ([#6007](https://github.com/getsentry/relay/pull/6007))
 - Implements timestamp shifts based on a sequence number provided by SDKs. ([#6014](https://github.com/getsentry/relay/pull/6014))
-- Implement mobile measurements calculation for V2 spans. ([#6022](https://github.com/getsentry/relay/pull/6022))
 
 **Bug Fixes**:
 
@@ -23,7 +28,7 @@
 
 **Internal**:
 
-- Unconditionally create a trace context with a trace id for errors. ([#6009](https://github.com/getsentry/relay/pull/6009)) 
+- Unconditionally create a trace context with a trace id for errors. ([#6009](https://github.com/getsentry/relay/pull/6009))
 
 ## 26.5.0
 
