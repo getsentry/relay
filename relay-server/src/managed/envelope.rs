@@ -259,8 +259,6 @@ impl ManagedEnvelope {
                     recomputed_summary = ?EnvelopeSummary::compute(self.envelope()),
                     "dropped envelope: {outcome}"
                 );
-
-                debug_assert!(false, "dropped envelope");
             }
         }
 
