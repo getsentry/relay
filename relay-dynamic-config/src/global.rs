@@ -99,7 +99,7 @@ fn is_err_or_empty(filters_config: &ErrorBoundary<GenericFiltersConfig>) -> bool
 
 // Temporary until we understand why we see false killswitch values sometimes appearing.
 fn default_killswitched() -> bool {
-    relay_log::info!("using default killswitched value");
+    relay_log::info!("using default for endpoint fetch config");
     bool::default()
 }
 
