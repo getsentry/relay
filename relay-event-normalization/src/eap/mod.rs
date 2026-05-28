@@ -29,7 +29,7 @@ pub mod trace_metric;
 mod trimming;
 
 pub use self::ai::normalize_ai;
-pub use self::mobile::normalize_mobile_attributes;
+pub use self::mobile::{normalize_mobile_attributes, normalize_mobile_measurements};
 pub use self::size::*;
 pub use self::trimming::TrimmingProcessor;
 
@@ -810,6 +810,8 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use relay_base_schema::project::ProjectId;
     use relay_protocol::{Empty, SerializableAnnotated, assert_annotated_snapshot};
     use relay_sampling::DynamicSamplingContext;
@@ -2837,5 +2839,63 @@ mod tests {
           }
         }
         "#);
+    }
+
+    #[test]
+    fn test_normalize_mobile_measurements() {
+        let json = r#"
+        {
+            "frames.slow": {"value": 1, "type": "integer"},
+            "app.vitals.frames.frozen.count": {"value": 2, "type": "integer"},
+            "frames.total": {"value": 4, "type": "integer"},
+            "stall_total_time": {"value": 4000, "type": "integer"}
+        }
+        "#;
+
+        let mut attributes = Annotated::<Attributes>::from_json(json).unwrap();
+
+        normalize_attribute_names(&mut attributes);
+        normalize_mobile_measurements(&mut attributes, Some(Duration::from_secs(5)));
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes),  @r###"
+        {
+          "app.vitals.frames.frozen.count": {
+            "type": "integer",
+            "value": 2
+          },
+          "app.vitals.frames.slow.count": {
+            "type": "integer",
+            "value": 1
+          },
+          "app.vitals.frames.total.count": {
+            "type": "integer",
+            "value": 4
+          },
+          "frames.slow": {
+            "type": "integer",
+            "value": 1
+          },
+          "frames.total": {
+            "type": "integer",
+            "value": 4
+          },
+          "frames_frozen_rate": {
+            "type": "double",
+            "value": 0.5
+          },
+          "frames_slow_rate": {
+            "type": "double",
+            "value": 0.25
+          },
+          "stall_percentage": {
+            "type": "double",
+            "value": 0.8
+          },
+          "stall_total_time": {
+            "type": "integer",
+            "value": 4000
+          }
+        }
+        "###);
     }
 }
