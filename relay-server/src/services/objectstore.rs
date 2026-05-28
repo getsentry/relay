@@ -626,24 +626,26 @@ impl ObjectstoreServiceInner {
 
         let mut store_message = managed.map(|profile, _| profile.store_message);
 
-        if let Ok(session) = session
-            && !payload.is_empty()
-        {
-            let result = self
-                .upload_bytes(MessageKind::RawProfile, &session, payload, retention, None)
-                .await;
+        match session {
+            Err(error) => Error::from(error).log(MessageKind::RawProfile),
+            Ok(session) if !payload.is_empty() => {
+                let result = self
+                    .upload_bytes(MessageKind::RawProfile, &session, payload, retention, None)
+                    .await;
 
-            match result {
-                Ok(stored_key) => {
-                    store_message.modify(|msg, _| {
-                        msg.raw_profile_object_store_key = Some(stored_key.into_inner());
-                        msg.raw_profile_content_type = Some(content_type);
-                    });
-                }
-                Err(error) => {
-                    error.log(MessageKind::RawProfile);
+                match result {
+                    Ok(stored_key) => {
+                        store_message.modify(|msg, _| {
+                            msg.raw_profile_object_store_key = Some(stored_key.into_inner());
+                            msg.raw_profile_content_type = Some(content_type);
+                        });
+                    }
+                    Err(error) => {
+                        error.log(MessageKind::RawProfile);
+                    }
                 }
             }
+            Ok(_) => {}
         }
 
         // Always forward to store even if the raw profile upload failed,
