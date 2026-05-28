@@ -120,7 +120,7 @@ impl MessageKind {
             Self::Envelope => "envelope",
             Self::EventAttachment => "attachment",
             Self::TraceAttachment => "attachment_v2",
-            Self::RawProfile => "raw_profile",
+            Self::RawProfile => "profiles_raw",
             Self::Stream => "stream",
         }
     }
