@@ -354,7 +354,7 @@ impl ObjectstoreService {
             .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
         let trace_attachments = Usecase::new("trace_attachments")
             .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
-        let profiles = Usecase::new("profiles")
+        let profiles = Usecase::new("profiles_raw")
             .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
 
         let inner = ObjectstoreServiceInner {
