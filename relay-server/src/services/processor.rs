@@ -750,7 +750,8 @@ impl EnvelopeProcessorService {
             }
 
             if let Some(output) = main {
-                self.submit_upstream(cogs, output, ctx);
+                // Only counting processing time for COGS at the moment.
+                self.submit_upstream(&mut Token::noop(), output, ctx);
             }
         }
     }
