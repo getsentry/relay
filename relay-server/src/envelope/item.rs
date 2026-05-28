@@ -1219,7 +1219,15 @@ impl fmt::Debug for ItemHeaders {
             match &v.0 {
                 serde_json::Value::Null => map.value(&"null"),
                 serde_json::Value::Bool(b) => map.value(&b),
-                serde_json::Value::Number(number) => map.value(&number.to_string()),
+                serde_json::Value::Number(number) => {
+                    if let Some(n) = number.as_u128() {
+                        map.value(&n)
+                    } else if let Some(n) = number.as_f64() {
+                        map.value(&n)
+                    } else {
+                        map.value(&number)
+                    }
+                }
                 serde_json::Value::String(s) => map.value(&s),
                 v @ serde_json::Value::Array(_) => map.value(&v),
                 v @ serde_json::Value::Object(_) => map.value(&v),
