@@ -57,6 +57,22 @@ impl<'a> StoreHandle<'a> {
         }
     }
 
+    /// Tries to send a message to the [`Objectstore`] service.
+    ///
+    /// Returns the message back if the service is not configured,
+    /// allowing the caller to handle the fallback.
+    pub fn try_send_to_objectstore<M>(&self, message: M) -> Option<M>
+    where
+        Objectstore: FromMessage<M>,
+    {
+        if let Some(objectstore) = self.objectstore {
+            objectstore.send(message);
+            None
+        } else {
+            Some(message)
+        }
+    }
+
     /// Dispatches an envelopes to either the [`Objectstore`] or [`Store`] service.
     pub fn send_envelope(&self, envelope: ManagedEnvelope) {
         use crate::services::store::StoreEnvelope;

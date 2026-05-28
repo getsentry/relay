@@ -245,7 +245,7 @@ impl Forward for ProfileChunkOutput {
 
         for chunk in expanded.split(|e| e.chunks) {
             if chunk.raw_profile.is_some() {
-                s.send_to_objectstore(chunk.map(|chunk, _| {
+                let msg = chunk.map(|chunk, _| {
                     let raw_profile = chunk.raw_profile.unwrap();
                     StoreRawProfile {
                         payload: raw_profile.payload,
@@ -259,7 +259,10 @@ impl Forward for ProfileChunkOutput {
                         },
                         retention: retention_days,
                     }
-                }));
+                });
+                if let Some(unsent) = s.try_send_to_objectstore(msg) {
+                    s.send_to_store(unsent.map(|profile, _| profile.store_message));
+                }
             } else {
                 s.send_to_store(chunk.map(|chunk, _| StoreProfileChunk {
                     retention_days,
