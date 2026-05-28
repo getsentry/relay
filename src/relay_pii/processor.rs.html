@@ -1765,7 +1765,7 @@
 <a href=#1765 id=1765 data-nosnippet>1765</a>        <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());
 <a href=#1766 id=1766 data-nosnippet>1766</a>        processor::process_value(<span class="kw-2">&amp;mut </span>span, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
 <a href=#1767 id=1767 data-nosnippet>1767</a>        <span class="macro">assert_eq!</span>(
-<a href=#1768 id=1768 data-nosnippet>1768</a>            <span class="macro">get_value!</span>(span.data.code_filepath!).as_str(),
+<a href=#1768 id=1768 data-nosnippet>1768</a>            span.<span class="number">0</span>.unwrap().data.<span class="number">0</span>.unwrap().other[<span class="string">"code.filepath"</span>].as_str(),
 <a href=#1769 id=1769 data-nosnippet>1769</a>            <span class="prelude-val">Some</span>(<span class="string">"src/sentry/api/authentication.py"</span>)
 <a href=#1770 id=1770 data-nosnippet>1770</a>        );
 <a href=#1771 id=1771 data-nosnippet>1771</a>    }
