@@ -1444,29 +1444,11 @@ mod tests {
         .unwrap();
 
         insta::assert_debug_snapshot!(&item.headers, @r#"
-        ItemHeaders {
-            ty: Attachment,
-            stored_key: None,
-            routing_hint: None,
-            rate_limited: false,
-            source_quantities: None,
-            inner: {
-                Known(
-                    Length,
-                ): ItemHeaderValue(
-                    Number(5),
-                ),
-                Unknown(
-                    "unknown1",
-                ): ItemHeaderValue(
-                    String("foo"),
-                ),
-                Unknown(
-                    "unknown2",
-                ): ItemHeaderValue(
-                    String("bar"),
-                ),
-            },
+        {
+            "type": Attachment,
+            Length: 5,
+            "unknown1": "foo",
+            "unknown2": "bar",
         }
         "#);
 
