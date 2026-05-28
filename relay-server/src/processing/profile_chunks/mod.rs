@@ -230,6 +230,7 @@ impl Forward for ProfileChunkOutput {
         s: processing::forward::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
+        use crate::services::objectstore::StoreRawProfile;
         use crate::services::store::StoreProfileChunk;
 
         let expanded = match self {
@@ -243,12 +244,31 @@ impl Forward for ProfileChunkOutput {
         let retention_days = ctx.event_retention().standard;
 
         for chunk in expanded.split(|e| e.chunks) {
-            s.send_to_store(chunk.map(|chunk, _| StoreProfileChunk {
-                retention_days,
-                payload: chunk.payload,
-                quantities: chunk.quantities,
-                raw_profile: chunk.raw_profile,
-            }));
+            if chunk.raw_profile.is_some() {
+                s.send_to_objectstore(chunk.map(|chunk, _| {
+                    let raw_profile = chunk.raw_profile.unwrap();
+                    StoreRawProfile {
+                        payload: raw_profile.payload,
+                        content_type: raw_profile.content_type,
+                        store_message: StoreProfileChunk {
+                            retention_days,
+                            payload: chunk.payload,
+                            quantities: chunk.quantities,
+                            raw_profile_object_store_key: None,
+                            raw_profile_content_type: None,
+                        },
+                        retention: retention_days,
+                    }
+                }));
+            } else {
+                s.send_to_store(chunk.map(|chunk, _| StoreProfileChunk {
+                    retention_days,
+                    payload: chunk.payload,
+                    quantities: chunk.quantities,
+                    raw_profile_object_store_key: None,
+                    raw_profile_content_type: None,
+                }));
+            }
         }
 
         Ok(())

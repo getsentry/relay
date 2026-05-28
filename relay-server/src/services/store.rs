@@ -36,7 +36,6 @@ use relay_threading::AsyncPool;
 use crate::envelope::{AttachmentPlaceholder, AttachmentType, ContentType, Item, ItemType};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
-use crate::processing::profile_chunks::RawProfile;
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
@@ -159,11 +158,10 @@ pub struct StoreProfileChunk {
     ///
     /// Quantities are different for backend and ui profile chunks.
     pub quantities: Quantities,
-    /// Raw binary profile blob (e.g. Perfetto trace).
-    ///
-    /// Sent alongside the expanded JSON payload because the expansion only extracts a
-    /// minimum of information; the raw profile is preserved for further processing downstream.
-    pub raw_profile: Option<RawProfile>,
+    /// Objectstore key where the raw profile blob is stored.
+    pub raw_profile_object_store_key: Option<String>,
+    /// Content type of the raw profile (e.g. Perfetto trace).
+    pub raw_profile_content_type: Option<ContentType>,
 }
 
 impl Counted for StoreProfileChunk {
@@ -854,8 +852,8 @@ impl StoreService {
                     scoping.project_id.to_string(),
                 )]),
                 payload: message.payload,
-                raw_profile: message.raw_profile.as_ref().map(|r| r.payload.clone()),
-                raw_profile_content_type: message.raw_profile.map(|r| r.content_type),
+                raw_profile_object_store_key: message.raw_profile_object_store_key,
+                raw_profile_content_type: message.raw_profile_content_type,
             };
 
             self.produce(KafkaTopic::Profiles, KafkaMessage::ProfileChunk(message))
@@ -1697,7 +1695,7 @@ struct ProfileChunkKafkaMessage {
     headers: BTreeMap<String, String>,
     payload: Bytes,
     #[serde(skip_serializing_if = "Option::is_none")]
-    raw_profile: Option<Bytes>,
+    raw_profile_object_store_key: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     raw_profile_content_type: Option<ContentType>,
 }
@@ -1935,18 +1933,18 @@ mod tests {
             retention_days: 90,
             headers: BTreeMap::new(),
             payload: Bytes::from(b"{\"profile\":true}".as_ref()),
-            raw_profile: None,
+            raw_profile_object_store_key: None,
             raw_profile_content_type: None,
         };
         let json = serde_json::to_value(&message).unwrap();
         assert_eq!(json["organization_id"], 1);
         assert_eq!(json["project_id"], 42);
-        assert!(json.get("raw_profile").is_none());
+        assert!(json.get("raw_profile_object_store_key").is_none());
         assert!(json.get("raw_profile_content_type").is_none());
     }
 
     #[test]
-    fn test_profile_chunk_kafka_message_with_raw_profile() {
+    fn test_profile_chunk_kafka_message_with_raw_profile_key() {
         let message = ProfileChunkKafkaMessage {
             organization_id: OrganizationId::new(1),
             project_id: ProjectId::new(42),
@@ -1954,13 +1952,13 @@ mod tests {
             retention_days: 90,
             headers: BTreeMap::new(),
             payload: Bytes::from(b"{\"profile\":true}".as_ref()),
-            raw_profile: Some(Bytes::from(b"perfetto-binary-data".as_ref())),
+            raw_profile_object_store_key: Some("abc123def456".to_owned()),
             raw_profile_content_type: Some(crate::envelope::ContentType::PerfettoTrace),
         };
         let json = serde_json::to_value(&message).unwrap();
         assert_eq!(json["organization_id"], 1);
         assert_eq!(json["project_id"], 42);
-        assert!(json.get("raw_profile").is_some());
+        assert_eq!(json["raw_profile_object_store_key"], "abc123def456");
         assert_eq!(
             json["raw_profile_content_type"],
             "application/x-perfetto-trace"

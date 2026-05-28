@@ -20,13 +20,15 @@ use relay_system::{
 use sentry_protos::snuba::v1::TraceItem;
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
-use crate::envelope::{Item, ItemType};
+use crate::envelope::{ContentType, Item, ItemType};
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
 use crate::processing::utils::store::item_id_to_uuid;
 use crate::services::outcome::DiscardReason;
-use crate::services::store::{Store, StoreAttachment, StoreEnvelope, StoreTraceItem};
+use crate::services::store::{
+    Store, StoreAttachment, StoreEnvelope, StoreProfileChunk, StoreTraceItem,
+};
 use crate::services::upload::ByteStream;
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{BoundedStream, MeteredStream, RetryableStream, TakeOnce};
@@ -38,6 +40,7 @@ pub enum Objectstore {
     Envelope(StoreEnvelope),
     TraceAttachment(Managed<StoreTraceAttachment>),
     EventAttachment(Managed<StoreAttachment>),
+    RawProfile(Managed<StoreRawProfile>),
     Stream(Stream, Sender<Result<ObjectstoreKey, Error>>),
 }
 
@@ -47,6 +50,7 @@ impl Objectstore {
             Self::Envelope(_) => MessageKind::Envelope,
             Self::TraceAttachment(_) => MessageKind::TraceAttachment,
             Self::EventAttachment(_) => MessageKind::EventAttachment,
+            Self::RawProfile(_) => MessageKind::RawProfile,
             Self::Stream { .. } => MessageKind::Stream,
         }
     }
@@ -60,6 +64,7 @@ impl Objectstore {
                 .count(),
             Self::TraceAttachment(_) => 1,
             Self::EventAttachment(_) => 1,
+            Self::RawProfile(_) => 1,
             Self::Stream { .. } => 1,
         }
     }
@@ -91,12 +96,21 @@ impl FromMessage<Managed<StoreAttachment>> for Objectstore {
     }
 }
 
+impl FromMessage<Managed<StoreRawProfile>> for Objectstore {
+    type Response = NoResponse;
+
+    fn from_message(message: Managed<StoreRawProfile>, _sender: ()) -> Self {
+        Self::RawProfile(message)
+    }
+}
+
 /// A type tag used for logging.
 #[derive(Debug, Clone, Copy)]
 enum MessageKind {
     Envelope,
     EventAttachment,
     TraceAttachment,
+    RawProfile,
     Stream,
 }
 
@@ -106,6 +120,7 @@ impl MessageKind {
             Self::Envelope => "envelope",
             Self::EventAttachment => "attachment",
             Self::TraceAttachment => "attachment_v2",
+            Self::RawProfile => "raw_profile",
             Self::Stream => "stream",
         }
     }
@@ -140,6 +155,28 @@ pub struct StoreTraceAttachment {
 impl Counted for StoreTraceAttachment {
     fn quantities(&self) -> Quantities {
         self.trace_item.quantities()
+    }
+}
+
+/// A raw profile (e.g. Perfetto trace) ready for objectstore upload.
+///
+/// After upload, the [`StoreProfileChunk`] is forwarded to the Store service
+/// with the objectstore key set, so the Kafka message carries a reference
+/// instead of the full binary blob.
+pub struct StoreRawProfile {
+    /// The raw binary profile payload to upload.
+    pub payload: Bytes,
+    /// Content type of the raw profile.
+    pub content_type: ContentType,
+    /// The profile chunk message to forward to Kafka after upload.
+    pub store_message: StoreProfileChunk,
+    /// Data retention in days.
+    pub retention: u16,
+}
+
+impl Counted for StoreRawProfile {
+    fn quantities(&self) -> Quantities {
+        self.store_message.quantities()
     }
 }
 
@@ -302,12 +339,15 @@ impl ObjectstoreService {
             .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
         let trace_attachments = Usecase::new("trace_attachments")
             .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
+        let profiles = Usecase::new("profiles")
+            .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
 
         let inner = ObjectstoreServiceInner {
             store,
             objectstore_client,
             event_attachments,
             trace_attachments,
+            profiles,
             timeout: Duration::from_secs(*timeout),
             stream_timeout: Duration::from_secs(*stream_timeout),
             retry_interval: Duration::from_secs_f64(*retry_delay),
@@ -344,6 +384,11 @@ impl LoadShed<Objectstore> for ObjectstoreService {
             Objectstore::TraceAttachment(managed) => {
                 let _ = managed.reject_err(error);
             }
+            Objectstore::RawProfile(managed) => {
+                self.inner
+                    .store
+                    .send(managed.map(|profile, _| profile.store_message));
+            }
             Objectstore::Stream(_, sender) => {
                 sender.send(Err(error));
             }
@@ -357,6 +402,7 @@ struct ObjectstoreServiceInner {
     objectstore_client: Client,
     event_attachments: Usecase,
     trace_attachments: Usecase,
+    profiles: Usecase,
     timeout: Duration,
     stream_timeout: Duration,
     retry_interval: Duration,
@@ -380,6 +426,9 @@ impl ObjectstoreServiceInner {
             }
             Objectstore::EventAttachment(attachment) => {
                 self.handle_event_attachment(attachment).await;
+            }
+            Objectstore::RawProfile(profile) => {
+                self.handle_raw_profile(profile).await;
             }
             Objectstore::Stream(stream, sender) => {
                 let result = self.handle_stream(stream).await;
@@ -544,6 +593,44 @@ impl ObjectstoreServiceInner {
         self.store.send(trace_item);
 
         Ok(())
+    }
+
+    async fn handle_raw_profile(&self, managed: Managed<StoreRawProfile>) {
+        let scoping = managed.scoping();
+        let session = self
+            .profiles
+            .for_project(scoping.organization_id.value(), scoping.project_id.value())
+            .session(&self.objectstore_client);
+
+        let payload = managed.payload.clone();
+        let content_type = managed.content_type;
+        let retention = managed.retention;
+
+        let mut store_message = managed.map(|profile, _| profile.store_message);
+
+        if let Ok(session) = session
+            && !payload.is_empty()
+        {
+            let result = self
+                .upload_bytes(MessageKind::RawProfile, &session, payload, retention, None)
+                .await;
+
+            match result {
+                Ok(stored_key) => {
+                    store_message.modify(|msg, _| {
+                        msg.raw_profile_object_store_key = Some(stored_key.into_inner());
+                        msg.raw_profile_content_type = Some(content_type);
+                    });
+                }
+                Err(error) => {
+                    error.log(MessageKind::RawProfile);
+                }
+            }
+        }
+
+        // Always forward to store even if the raw profile upload failed,
+        // to ensure the kafka message is produced.
+        self.store.send(store_message);
     }
 
     async fn handle_stream(&self, stream: Stream) -> Result<ObjectstoreKey, Error> {
