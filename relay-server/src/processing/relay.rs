@@ -158,6 +158,7 @@ impl RelayProcessor {
                     items = ?envelope.envelope().items().map(Item::ty).collect::<Vec<_>>(),
                     "Processed envelope has items remaining"
                 );
+                envelope.update();
                 envelope.reject(Outcome::Invalid(DiscardReason::Internal));
             }
         }
