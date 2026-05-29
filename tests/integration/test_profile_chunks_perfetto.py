@@ -103,6 +103,49 @@ def test_perfetto_profile_chunk_end_to_end(
         assert isinstance(tid, str)
         assert "name" in meta and isinstance(meta["name"], str)
 
-    assert "raw_profile" in profile, "expected raw_profile in Kafka message"
-    assert len(profile["raw_profile"]) == 97252, "raw_profile size mismatch"
+    assert profile[
+        "raw_profile_object_store_key"
+    ], "expected raw_profile_object_store_key in Kafka message"
     assert profile.get("raw_profile_content_type") == "application/x-perfetto-trace"
+
+
+def test_perfetto_profile_chunk_objectstore_content_type(
+    mini_sentry,
+    relay_with_processing,
+    outcomes_consumer,
+    profiles_consumer,
+    objectstore,
+):
+    """
+    Verifies that the raw Perfetto trace is uploaded to objectstore with its
+    content type preserved on the stored object, so a subsequent GET returns
+    the correct `Content-Type`.
+    """
+    profiles_consumer = profiles_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)["config"]
+    project_config.setdefault("features", []).extend(
+        [
+            "organizations:continuous-profiling",
+            "organizations:continuous-profiling-perfetto",
+        ]
+    )
+
+    upstream = relay_with_processing(TEST_CONFIG)
+
+    with open(PERFETTO_ENVELOPE_FIXTURE, "rb") as f:
+        envelope = Envelope.deserialize_from(f)
+
+    upstream.send_envelope(project_id, envelope)
+
+    outcomes_consumer.assert_empty()
+
+    profile, _ = profiles_consumer.get_profile()
+    object_store_key = profile["raw_profile_object_store_key"]
+    assert object_store_key, "expected raw_profile_object_store_key in Kafka message"
+
+    stored = objectstore("profiles_raw", project_id).get(object_store_key)
+    assert stored.metadata.content_type == "application/x-perfetto-trace"
+    assert len(stored.payload.read()) == 97252

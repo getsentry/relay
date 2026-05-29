@@ -489,6 +489,7 @@ impl ObjectstoreServiceInner {
                             attachment.payload(),
                             retention,
                             None,
+                            None,
                         )
                         .await;
 
@@ -534,6 +535,7 @@ impl ObjectstoreServiceInner {
                         &session,
                         attachment.attachment.payload(),
                         attachment.retention,
+                        None,
                         None,
                     )
                     .await;
@@ -599,6 +601,7 @@ impl ObjectstoreServiceInner {
                     body,
                     retention,
                     Some(key),
+                    None,
                 )
                 .await
                 .reject(&trace_item)?;
@@ -630,7 +633,14 @@ impl ObjectstoreServiceInner {
             Err(error) => Error::from(error).log(MessageKind::RawProfile),
             Ok(session) if !payload.is_empty() => {
                 let result = self
-                    .upload_bytes(MessageKind::RawProfile, &session, payload, retention, None)
+                    .upload_bytes(
+                        MessageKind::RawProfile,
+                        &session,
+                        payload,
+                        retention,
+                        None,
+                        Some(content_type),
+                    )
                     .await;
 
                 match result {
@@ -668,6 +678,7 @@ impl ObjectstoreServiceInner {
             Some(key),
             Body::Stream(TakeOnce::new(stream)),
             None,
+            None,
         )
         .await
     }
@@ -679,10 +690,18 @@ impl ObjectstoreServiceInner {
         payload: Bytes,
         retention: u16,
         key: Option<String>,
+        content_type: Option<ContentType>,
     ) -> Result<ObjectstoreKey, Error> {
         let retention_hours = retention.checked_mul(24);
-        self.upload(kind, session, key, Body::Bytes(payload), retention_hours)
-            .await
+        self.upload(
+            kind,
+            session,
+            key,
+            Body::Bytes(payload),
+            retention_hours,
+            content_type,
+        )
+        .await
     }
 
     async fn upload(
@@ -692,6 +711,7 @@ impl ObjectstoreServiceInner {
         key: Option<String>,
         body: Body,
         retention_hours: Option<u16>,
+        content_type: Option<ContentType>,
     ) -> Result<ObjectstoreKey, Error> {
         let mut attempts = 0;
         let timeout = match &body {
@@ -706,8 +726,15 @@ impl ObjectstoreServiceInner {
                 };
                 attempts += 1;
                 result.replace(
-                    self.attempt_upload(kind, session, key.clone(), body, retention_hours)
-                        .await,
+                    self.attempt_upload(
+                        kind,
+                        session,
+                        key.clone(),
+                        body,
+                        retention_hours,
+                        content_type,
+                    )
+                    .await,
                 );
 
                 if attempts < self.max_attempts.get()
@@ -746,12 +773,16 @@ impl ObjectstoreServiceInner {
         key: Option<String>,
         body: BodyAttempt,
         retention_hours: Option<u16>,
+        content_type: Option<ContentType>,
     ) -> Result<ObjectstoreKey, objectstore_client::Error> {
         let mut request = match body {
             BodyAttempt::Bytes(bytes) => session.put(bytes),
             BodyAttempt::Stream(stream) => session.put_stream(stream.boxed()),
         };
 
+        if let Some(content_type) = content_type {
+            request = request.content_type(content_type.as_str());
+        }
         if let Some(retention_hours) = retention_hours {
             request = request.expiration_policy(ExpirationPolicy::TimeToLive(
                 Duration::from_hours(retention_hours.into()),
