@@ -267,89 +267,95 @@
 <a href=#267 id=267 data-nosnippet>267</a>    <span class="kw">if </span>!state.global_config_handle().is_ready() {
 <a href=#268 id=268 data-nosnippet>268</a>        <span class="macro">relay_log::warn!</span>(<span class="string">"global config not available"</span>);
 <a href=#269 id=269 data-nosnippet>269</a>    }
-<a href=#270 id=270 data-nosnippet>270</a>    <span class="kw">if </span>!state
-<a href=#271 id=271 data-nosnippet>271</a>        .global_config_handle()
-<a href=#272 id=272 data-nosnippet>272</a>        .current()
-<a href=#273 id=273 data-nosnippet>273</a>        .options
-<a href=#274 id=274 data-nosnippet>274</a>        .endpoint_fetch_config_enabled
-<a href=#275 id=275 data-nosnippet>275</a>    {
-<a href=#276 id=276 data-nosnippet>276</a>        <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::UploadKillswitched) += <span class="number">1</span>);
-<a href=#277 id=277 data-nosnippet>277</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(StatusCode::SERVICE_UNAVAILABLE);
-<a href=#278 id=278 data-nosnippet>278</a>    }
-<a href=#279 id=279 data-nosnippet>279</a>    <span class="prelude-val">Ok</span>(())
-<a href=#280 id=280 data-nosnippet>280</a>}
-<a href=#281 id=281 data-nosnippet>281</a>
-<a href=#282 id=282 data-nosnippet>282</a><span class="kw">async fn </span>create(
-<a href=#283 id=283 data-nosnippet>283</a>    state: <span class="kw-2">&amp;</span>ServiceState,
-<a href=#284 id=284 data-nosnippet>284</a>    scoping: Scoping,
-<a href=#285 id=285 data-nosnippet>285</a>    upload_length: <span class="prelude-ty">Option</span>&lt;usize&gt;,
-<a href=#286 id=286 data-nosnippet>286</a>) -&gt; <span class="prelude-ty">Result</span>&lt;SignedLocation&lt;Provisional&gt;, Error&gt; {
-<a href=#287 id=287 data-nosnippet>287</a>    <span class="kw">let </span>location = state
-<a href=#288 id=288 data-nosnippet>288</a>        .upload()
-<a href=#289 id=289 data-nosnippet>289</a>        .send(upload::Create {
-<a href=#290 id=290 data-nosnippet>290</a>            scoping,
-<a href=#291 id=291 data-nosnippet>291</a>            length: upload_length,
-<a href=#292 id=292 data-nosnippet>292</a>        })
-<a href=#293 id=293 data-nosnippet>293</a>        .<span class="kw">await</span><span class="question-mark">??</span>;
-<a href=#294 id=294 data-nosnippet>294</a>
-<a href=#295 id=295 data-nosnippet>295</a>    <span class="prelude-val">Ok</span>(location)
-<a href=#296 id=296 data-nosnippet>296</a>}
-<a href=#297 id=297 data-nosnippet>297</a>
-<a href=#298 id=298 data-nosnippet>298</a><span class="kw">async fn </span>upload(
-<a href=#299 id=299 data-nosnippet>299</a>    state: <span class="kw-2">&amp;</span>ServiceState,
-<a href=#300 id=300 data-nosnippet>300</a>    scoping: Scoping,
-<a href=#301 id=301 data-nosnippet>301</a>    location: SignedLocation&lt;Provisional&gt;,
-<a href=#302 id=302 data-nosnippet>302</a>    stream: BoundedStream&lt;MeteredStream&lt;ByteStream&gt;&gt;,
-<a href=#303 id=303 data-nosnippet>303</a>) -&gt; <span class="prelude-ty">Result</span>&lt;SignedLocation&lt;Final&gt;, Error&gt; {
-<a href=#304 id=304 data-nosnippet>304</a>    <span class="kw">let </span>location = state
-<a href=#305 id=305 data-nosnippet>305</a>        .upload()
-<a href=#306 id=306 data-nosnippet>306</a>        .send(upload::Stream {
-<a href=#307 id=307 data-nosnippet>307</a>            received: Utc::now(),
-<a href=#308 id=308 data-nosnippet>308</a>            scoping,
-<a href=#309 id=309 data-nosnippet>309</a>            location,
-<a href=#310 id=310 data-nosnippet>310</a>            stream,
-<a href=#311 id=311 data-nosnippet>311</a>        })
-<a href=#312 id=312 data-nosnippet>312</a>        .<span class="kw">await</span><span class="question-mark">??</span>;
-<a href=#313 id=313 data-nosnippet>313</a>
-<a href=#314 id=314 data-nosnippet>314</a>    <span class="prelude-val">Ok</span>(location)
-<a href=#315 id=315 data-nosnippet>315</a>}
-<a href=#316 id=316 data-nosnippet>316</a>
-<a href=#317 id=317 data-nosnippet>317</a><span class="doccomment">/// Check request by converting it into a pseudo-envelope.
-<a href=#318 id=318 data-nosnippet>318</a>///
-<a href=#319 id=319 data-nosnippet>319</a>/// This is currently the easiest way to guarantee that the upload gets checked the same way as
-<a href=#320 id=320 data-nosnippet>320</a>/// the envelope.
-<a href=#321 id=321 data-nosnippet>321</a></span><span class="kw">async fn </span>check_request(
-<a href=#322 id=322 data-nosnippet>322</a>    state: <span class="kw-2">&amp;</span>ServiceState,
-<a href=#323 id=323 data-nosnippet>323</a>    meta: RequestMeta,
-<a href=#324 id=324 data-nosnippet>324</a>    upload_length: <span class="prelude-ty">Option</span>&lt;usize&gt;,
-<a href=#325 id=325 data-nosnippet>325</a>    project: Project&lt;<span class="lifetime">'_</span>&gt;,
-<a href=#326 id=326 data-nosnippet>326</a>) -&gt; <span class="prelude-ty">Result</span>&lt;Scoping, BadStoreRequest&gt; {
-<a href=#327 id=327 data-nosnippet>327</a>    <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">None</span>, meta);
-<a href=#328 id=328 data-nosnippet>328</a>    envelope.require_feature(Feature::UploadEndpoint);
-<a href=#329 id=329 data-nosnippet>329</a>    <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Attachment);
-<a href=#330 id=330 data-nosnippet>330</a>    item.set_payload(ContentType::AttachmentRef, <span class="macro">vec!</span>[]);
-<a href=#331 id=331 data-nosnippet>331</a>    item.set_attachment_length(upload_length.unwrap_or(<span class="number">1</span>));
-<a href=#332 id=332 data-nosnippet>332</a>    envelope.add_item(item);
-<a href=#333 id=333 data-nosnippet>333</a>    <span class="kw">let </span><span class="kw-2">mut </span>envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
-<a href=#334 id=334 data-nosnippet>334</a>    <span class="kw">let </span>rate_limits = project
-<a href=#335 id=335 data-nosnippet>335</a>        .check_envelope(<span class="kw-2">&amp;mut </span>envelope)
-<a href=#336 id=336 data-nosnippet>336</a>        .<span class="kw">await
-<a href=#337 id=337 data-nosnippet>337</a>        </span>.map_err(|err| err.map(BadStoreRequest::EventRejected).into_inner())<span class="question-mark">?</span>;
-<a href=#338 id=338 data-nosnippet>338</a>    <span class="kw">if </span>envelope.is_empty() {
-<a href=#339 id=339 data-nosnippet>339</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(envelope
-<a href=#340 id=340 data-nosnippet>340</a>            .reject_err((<span class="prelude-val">None</span>, BadStoreRequest::RateLimited(rate_limits)))
-<a href=#341 id=341 data-nosnippet>341</a>            .into_inner());
-<a href=#342 id=342 data-nosnippet>342</a>    }
-<a href=#343 id=343 data-nosnippet>343</a>
-<a href=#344 id=344 data-nosnippet>344</a>    <span class="comment">// We are not really processing an envelope here, only keep the updated scoping:
-<a href=#345 id=345 data-nosnippet>345</a>    </span><span class="kw">let </span>scoping = envelope.scoping();
-<a href=#346 id=346 data-nosnippet>346</a>    envelope.accept(|x| x);
-<a href=#347 id=347 data-nosnippet>347</a>    <span class="prelude-val">Ok</span>(scoping)
-<a href=#348 id=348 data-nosnippet>348</a>}
+<a href=#270 id=270 data-nosnippet>270</a>
+<a href=#271 id=271 data-nosnippet>271</a>    <span class="kw">if </span>state.global_config_handle().current().is_none() {
+<a href=#272 id=272 data-nosnippet>272</a>        <span class="macro">relay_log::info!</span>(<span class="string">"check_kill_switch global config is none"</span>);
+<a href=#273 id=273 data-nosnippet>273</a>    }
+<a href=#274 id=274 data-nosnippet>274</a>
+<a href=#275 id=275 data-nosnippet>275</a>    <span class="kw">if </span>!state
+<a href=#276 id=276 data-nosnippet>276</a>        .global_config_handle()
+<a href=#277 id=277 data-nosnippet>277</a>        .current()
+<a href=#278 id=278 data-nosnippet>278</a>        .unwrap_or_default()
+<a href=#279 id=279 data-nosnippet>279</a>        .options
+<a href=#280 id=280 data-nosnippet>280</a>        .endpoint_fetch_config_enabled
+<a href=#281 id=281 data-nosnippet>281</a>    {
+<a href=#282 id=282 data-nosnippet>282</a>        <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::UploadKillswitched) += <span class="number">1</span>);
+<a href=#283 id=283 data-nosnippet>283</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(StatusCode::SERVICE_UNAVAILABLE);
+<a href=#284 id=284 data-nosnippet>284</a>    }
+<a href=#285 id=285 data-nosnippet>285</a>    <span class="prelude-val">Ok</span>(())
+<a href=#286 id=286 data-nosnippet>286</a>}
+<a href=#287 id=287 data-nosnippet>287</a>
+<a href=#288 id=288 data-nosnippet>288</a><span class="kw">async fn </span>create(
+<a href=#289 id=289 data-nosnippet>289</a>    state: <span class="kw-2">&amp;</span>ServiceState,
+<a href=#290 id=290 data-nosnippet>290</a>    scoping: Scoping,
+<a href=#291 id=291 data-nosnippet>291</a>    upload_length: <span class="prelude-ty">Option</span>&lt;usize&gt;,
+<a href=#292 id=292 data-nosnippet>292</a>) -&gt; <span class="prelude-ty">Result</span>&lt;SignedLocation&lt;Provisional&gt;, Error&gt; {
+<a href=#293 id=293 data-nosnippet>293</a>    <span class="kw">let </span>location = state
+<a href=#294 id=294 data-nosnippet>294</a>        .upload()
+<a href=#295 id=295 data-nosnippet>295</a>        .send(upload::Create {
+<a href=#296 id=296 data-nosnippet>296</a>            scoping,
+<a href=#297 id=297 data-nosnippet>297</a>            length: upload_length,
+<a href=#298 id=298 data-nosnippet>298</a>        })
+<a href=#299 id=299 data-nosnippet>299</a>        .<span class="kw">await</span><span class="question-mark">??</span>;
+<a href=#300 id=300 data-nosnippet>300</a>
+<a href=#301 id=301 data-nosnippet>301</a>    <span class="prelude-val">Ok</span>(location)
+<a href=#302 id=302 data-nosnippet>302</a>}
+<a href=#303 id=303 data-nosnippet>303</a>
+<a href=#304 id=304 data-nosnippet>304</a><span class="kw">async fn </span>upload(
+<a href=#305 id=305 data-nosnippet>305</a>    state: <span class="kw-2">&amp;</span>ServiceState,
+<a href=#306 id=306 data-nosnippet>306</a>    scoping: Scoping,
+<a href=#307 id=307 data-nosnippet>307</a>    location: SignedLocation&lt;Provisional&gt;,
+<a href=#308 id=308 data-nosnippet>308</a>    stream: BoundedStream&lt;MeteredStream&lt;ByteStream&gt;&gt;,
+<a href=#309 id=309 data-nosnippet>309</a>) -&gt; <span class="prelude-ty">Result</span>&lt;SignedLocation&lt;Final&gt;, Error&gt; {
+<a href=#310 id=310 data-nosnippet>310</a>    <span class="kw">let </span>location = state
+<a href=#311 id=311 data-nosnippet>311</a>        .upload()
+<a href=#312 id=312 data-nosnippet>312</a>        .send(upload::Stream {
+<a href=#313 id=313 data-nosnippet>313</a>            received: Utc::now(),
+<a href=#314 id=314 data-nosnippet>314</a>            scoping,
+<a href=#315 id=315 data-nosnippet>315</a>            location,
+<a href=#316 id=316 data-nosnippet>316</a>            stream,
+<a href=#317 id=317 data-nosnippet>317</a>        })
+<a href=#318 id=318 data-nosnippet>318</a>        .<span class="kw">await</span><span class="question-mark">??</span>;
+<a href=#319 id=319 data-nosnippet>319</a>
+<a href=#320 id=320 data-nosnippet>320</a>    <span class="prelude-val">Ok</span>(location)
+<a href=#321 id=321 data-nosnippet>321</a>}
+<a href=#322 id=322 data-nosnippet>322</a>
+<a href=#323 id=323 data-nosnippet>323</a><span class="doccomment">/// Check request by converting it into a pseudo-envelope.
+<a href=#324 id=324 data-nosnippet>324</a>///
+<a href=#325 id=325 data-nosnippet>325</a>/// This is currently the easiest way to guarantee that the upload gets checked the same way as
+<a href=#326 id=326 data-nosnippet>326</a>/// the envelope.
+<a href=#327 id=327 data-nosnippet>327</a></span><span class="kw">async fn </span>check_request(
+<a href=#328 id=328 data-nosnippet>328</a>    state: <span class="kw-2">&amp;</span>ServiceState,
+<a href=#329 id=329 data-nosnippet>329</a>    meta: RequestMeta,
+<a href=#330 id=330 data-nosnippet>330</a>    upload_length: <span class="prelude-ty">Option</span>&lt;usize&gt;,
+<a href=#331 id=331 data-nosnippet>331</a>    project: Project&lt;<span class="lifetime">'_</span>&gt;,
+<a href=#332 id=332 data-nosnippet>332</a>) -&gt; <span class="prelude-ty">Result</span>&lt;Scoping, BadStoreRequest&gt; {
+<a href=#333 id=333 data-nosnippet>333</a>    <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">None</span>, meta);
+<a href=#334 id=334 data-nosnippet>334</a>    envelope.require_feature(Feature::UploadEndpoint);
+<a href=#335 id=335 data-nosnippet>335</a>    <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Attachment);
+<a href=#336 id=336 data-nosnippet>336</a>    item.set_payload(ContentType::AttachmentRef, <span class="macro">vec!</span>[]);
+<a href=#337 id=337 data-nosnippet>337</a>    item.set_attachment_length(upload_length.unwrap_or(<span class="number">1</span>));
+<a href=#338 id=338 data-nosnippet>338</a>    envelope.add_item(item);
+<a href=#339 id=339 data-nosnippet>339</a>    <span class="kw">let </span><span class="kw-2">mut </span>envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
+<a href=#340 id=340 data-nosnippet>340</a>    <span class="kw">let </span>rate_limits = project
+<a href=#341 id=341 data-nosnippet>341</a>        .check_envelope(<span class="kw-2">&amp;mut </span>envelope)
+<a href=#342 id=342 data-nosnippet>342</a>        .<span class="kw">await
+<a href=#343 id=343 data-nosnippet>343</a>        </span>.map_err(|err| err.map(BadStoreRequest::EventRejected).into_inner())<span class="question-mark">?</span>;
+<a href=#344 id=344 data-nosnippet>344</a>    <span class="kw">if </span>envelope.is_empty() {
+<a href=#345 id=345 data-nosnippet>345</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(envelope
+<a href=#346 id=346 data-nosnippet>346</a>            .reject_err((<span class="prelude-val">None</span>, BadStoreRequest::RateLimited(rate_limits)))
+<a href=#347 id=347 data-nosnippet>347</a>            .into_inner());
+<a href=#348 id=348 data-nosnippet>348</a>    }
 <a href=#349 id=349 data-nosnippet>349</a>
-<a href=#350 id=350 data-nosnippet>350</a><span class="kw">fn </span>is_hyper_user_error(error: <span class="kw-2">&amp;</span>(<span class="kw">dyn </span>std::error::Error + <span class="lifetime">'static</span>)) -&gt; bool {
-<a href=#351 id=351 data-nosnippet>351</a>    error
-<a href=#352 id=352 data-nosnippet>352</a>        .downcast_ref::&lt;hyper::Error&gt;()
-<a href=#353 id=353 data-nosnippet>353</a>        .is_some_and(hyper::Error::is_user)
+<a href=#350 id=350 data-nosnippet>350</a>    <span class="comment">// We are not really processing an envelope here, only keep the updated scoping:
+<a href=#351 id=351 data-nosnippet>351</a>    </span><span class="kw">let </span>scoping = envelope.scoping();
+<a href=#352 id=352 data-nosnippet>352</a>    envelope.accept(|x| x);
+<a href=#353 id=353 data-nosnippet>353</a>    <span class="prelude-val">Ok</span>(scoping)
 <a href=#354 id=354 data-nosnippet>354</a>}
+<a href=#355 id=355 data-nosnippet>355</a>
+<a href=#356 id=356 data-nosnippet>356</a><span class="kw">fn </span>is_hyper_user_error(error: <span class="kw-2">&amp;</span>(<span class="kw">dyn </span>std::error::Error + <span class="lifetime">'static</span>)) -&gt; bool {
+<a href=#357 id=357 data-nosnippet>357</a>    error
+<a href=#358 id=358 data-nosnippet>358</a>        .downcast_ref::&lt;hyper::Error&gt;()
+<a href=#359 id=359 data-nosnippet>359</a>        .is_some_and(hyper::Error::is_user)
+<a href=#360 id=360 data-nosnippet>360</a>}
 </code></pre></div></section></main></body></html>

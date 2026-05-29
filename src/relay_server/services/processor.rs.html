@@ -1346,7 +1346,7 @@
 <a href=#1346 id=1346 data-nosnippet>1346</a>                ManagedEnvelope::new(envelope, <span class="self">self</span>.inner.addrs.outcome_aggregator.clone());
 <a href=#1347 id=1347 data-nosnippet>1347</a>            envelope.scope(scoping);
 <a href=#1348 id=1348 data-nosnippet>1348</a>
-<a href=#1349 id=1349 data-nosnippet>1349</a>            <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
+<a href=#1349 id=1349 data-nosnippet>1349</a>            <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current().unwrap_or_default();
 <a href=#1350 id=1350 data-nosnippet>1350</a>
 <a href=#1351 id=1351 data-nosnippet>1351</a>            <span class="kw">let </span>ctx = processing::Context {
 <a href=#1352 id=1352 data-nosnippet>1352</a>                config: <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
@@ -1687,7 +1687,7 @@
 <a href=#1687 id=1687 data-nosnippet>1687</a>            <span class="kw">return </span>buckets;
 <a href=#1688 id=1688 data-nosnippet>1688</a>        };
 <a href=#1689 id=1689 data-nosnippet>1689</a>
-<a href=#1690 id=1690 data-nosnippet>1690</a>        <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
+<a href=#1690 id=1690 data-nosnippet>1690</a>        <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current().unwrap_or_default();
 <a href=#1691 id=1691 data-nosnippet>1691</a>        <span class="kw">let </span>namespaces = buckets
 <a href=#1692 id=1692 data-nosnippet>1692</a>            .iter()
 <a href=#1693 id=1693 data-nosnippet>1693</a>            .filter_map(|bucket| bucket.name.try_namespace())
@@ -1747,7 +1747,7 @@
 <a href=#1747 id=1747 data-nosnippet>1747</a>        <span class="kw">let </span>scoping = <span class="kw-2">*</span>bucket_limiter.scoping();
 <a href=#1748 id=1748 data-nosnippet>1748</a>
 <a href=#1749 id=1749 data-nosnippet>1749</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(rate_limiter) = <span class="self">self</span>.inner.rate_limiter.as_ref() {
-<a href=#1750 id=1750 data-nosnippet>1750</a>            <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
+<a href=#1750 id=1750 data-nosnippet>1750</a>            <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current().unwrap_or_default();
 <a href=#1751 id=1751 data-nosnippet>1751</a>            <span class="kw">let </span>quotas = CombinedQuotas::new(<span class="kw-2">&amp;</span>global_config, bucket_limiter.quotas());
 <a href=#1752 id=1752 data-nosnippet>1752</a>
 <a href=#1753 id=1753 data-nosnippet>1753</a>            <span class="comment">// We set over_accept_once such that the limit is actually reached, which allows subsequent
