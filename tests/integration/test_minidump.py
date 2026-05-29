@@ -1076,6 +1076,49 @@ def test_minidump_objectstore_uploads_external_chain(
     }
 
 
+def test_minidump_objectstore_uploads_external_chain_attachment_limited(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    attachments_consumer,
+):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).extend(
+        [
+            "projects:relay-minidump-attachment-uploads",
+            "projects:relay-upload-endpoint",
+            "projects:relay-minidump-uploads",
+        ]
+    )
+    project_config["config"]["quotas"] = [
+        {
+            "categories": ["attachment"],
+            "limit": 0,
+            "reasonCode": "attachments_exceeded",
+        },
+    ]
+
+    relay = relay(relay_with_processing(), external=True)
+    project_config["config"]["trustedRelays"] = list(relay.iter_public_keys())
+
+    attachments_consumer = attachments_consumer()
+
+    response = relay.send_minidump(
+        project_id=project_id,
+        files=[
+            (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", b"MDMP content"),
+            ("logs", "log.txt", b"Some log file content"),
+        ],
+    )
+    assert response.ok
+
+    _, unpacked = attachments_consumer.get_message()
+    assert {att["name"] for att in unpacked["attachments"]} == {
+        "minidump.dmp",
+    }
+
+
 def test_minidump_objectstore_errors(
     mini_sentry,
     relay,

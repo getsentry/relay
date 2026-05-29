@@ -30,6 +30,7 @@ use tokio_util::io::{ReaderStream, StreamReader};
 #[cfg(feature = "processing")]
 use uuid::Uuid;
 
+use crate::envelope::AttachmentType;
 use crate::http::{HttpError, RequestBuilder, Response};
 
 #[cfg(feature = "processing")]
@@ -114,6 +115,8 @@ pub struct Create {
     ///
     /// Trusted clients (i.e. PoP Relays) are allowed to omit the length (see `Upload-Defer-Length: 1`).
     pub length: Option<usize>,
+    /// The attachment type of the upload.
+    pub attachment_type: Option<AttachmentType>,
 }
 
 /// The type used to stream a request body.
@@ -241,11 +244,15 @@ enum Backend {
 impl Service {
     async fn create(
         &self,
-        Create { scoping, length }: Create,
+        Create {
+            scoping,
+            length,
+            attachment_type,
+        }: Create,
     ) -> Result<SignedLocation<Provisional>, Error> {
         match &self.backend {
             Backend::Upstream { addr } => {
-                let (request, rx) = UploadRequest::create(scoping, length);
+                let (request, rx) = UploadRequest::create(scoping, length, attachment_type);
                 addr.send(SendRequest(request));
                 let response = rx.await??;
                 SignedLocation::try_from_response(response)
@@ -354,7 +361,7 @@ pub trait UploadLength: for<'de> Deserialize<'de> {
 
 /// A provisional upload length which may or may not yet be known.
 ///
-/// /// See also [`Final`].
+/// See also [`Final`].
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(transparent)]
 pub struct Provisional(Option<usize>);
@@ -561,6 +568,7 @@ where
 enum RequestKind {
     Create {
         length: Option<usize>,
+        attachment_type: Option<AttachmentType>,
     },
     Upload {
         location: SignedLocation<Provisional>,
@@ -581,6 +589,7 @@ impl UploadRequest {
     fn create(
         scoping: Scoping,
         length: Option<usize>,
+        attachment_type: Option<AttachmentType>,
     ) -> (
         Self,
         oneshot::Receiver<Result<Response, UpstreamRequestError>>,
@@ -590,7 +599,10 @@ impl UploadRequest {
         (
             Self {
                 scoping,
-                kind: RequestKind::Create { length },
+                kind: RequestKind::Create {
+                    length,
+                    attachment_type,
+                },
                 sender,
             },
             rx,
@@ -627,10 +639,11 @@ impl UploadRequest {
         )
     }
 
+    #[expect(dead_code)]
     /// Returns the length of the upload, if known.
     fn length(&self) -> Option<usize> {
         match &self.kind {
-            RequestKind::Create { length } | RequestKind::Upload { length, .. } => *length,
+            RequestKind::Create { length, .. } | RequestKind::Upload { length, .. } => *length,
         }
     }
 }
@@ -690,24 +703,31 @@ impl UpstreamRequest for UploadRequest {
     }
 
     fn build(&mut self, builder: &mut RequestBuilder) -> Result<(), HttpError> {
-        let upload_length = self.length();
-        if let RequestKind::Upload {
-            stream, encoding, ..
-        } = &mut self.kind
-        {
-            let Some(body) = RetryableStream::new(stream.clone()) else {
-                relay_log::error!("upload request stream was already consumed");
-                return Err(HttpError::Misconfigured);
-            };
-            tus::add_upload_headers(builder);
+        match &mut self.kind {
+            RequestKind::Create {
+                length,
+                attachment_type,
+            } => {
+                tus::add_creation_headers(*length, *attachment_type, builder);
+            }
+            RequestKind::Upload {
+                location: _,
+                stream,
+                length: _,
+                encoding,
+            } => {
+                let Some(body) = RetryableStream::new(stream.clone()) else {
+                    relay_log::error!("upload request stream was already consumed");
+                    return Err(HttpError::Misconfigured);
+                };
+                tus::add_upload_headers(builder);
 
-            let body = encode_body(body, *encoding);
-            builder.content_encoding(*encoding);
+                let body = encode_body(body, *encoding);
+                builder.content_encoding(*encoding);
 
-            builder.body(reqwest::Body::wrap_stream(body));
-        } else {
-            tus::add_creation_headers(upload_length, builder);
-        }
+                builder.body(reqwest::Body::wrap_stream(body));
+            }
+        };
 
         let project_key = self.scoping.project_key;
         builder.header("X-Sentry-Auth", format!("Sentry sentry_key={project_key}"));

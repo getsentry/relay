@@ -182,6 +182,71 @@ def test_upload_unsupported_tus_version(
     }
 
 
+@pytest.mark.parametrize(
+    "metadata,expected_status_code,expected_detail",
+    [
+        pytest.param(
+            "sentry eyJhdHRhY2htZW50X3R5cGUiOiAiZXZlbnQubWluaWR1bXAifQ==",
+            201,
+            None,
+            id="valid_metadata",
+        ),
+        pytest.param(
+            None,
+            201,
+            None,
+            id="no_metadata",
+        ),
+        pytest.param(
+            "filename d29ybGRfZG9taW5hdGlvbl9wbGFuLnBkZg==",
+            201,
+            None,
+            id="no_sentry_entry",
+        ),
+        pytest.param(
+            "sentry e=",
+            400,
+            "TUS protocol error: invalid base64 in `sentry` Upload-Metadata value: invalid length at 0",
+            id="invalid_base64",
+        ),
+        pytest.param(
+            "sentry e30=",
+            400,
+            "TUS protocol error: invalid `sentry` Upload-Metadata payload: missing field `attachment_type` at line 1 column 2",
+            id="invalid_json",
+        ),
+    ],
+)
+def test_upload_with_metadata(
+    mini_sentry,
+    relay,
+    dummy_upload,
+    project_config,
+    metadata,
+    expected_status_code,
+    expected_detail,
+):
+    project_id = 42
+    relay = relay(mini_sentry)
+
+    headers = {
+        "Tus-Resumable": "1.0.0",
+        "Upload-Defer-Length": "1",
+    }
+    if metadata is not None:
+        headers["Upload-Metadata"] = metadata
+
+    response = relay.post(
+        "/api/%s/upload/?sentry_key=%s"
+        % (project_id, mini_sentry.get_dsn_public_key(project_id)),
+        headers=headers,
+    )
+
+    assert response.status_code == expected_status_code
+    if expected_detail is not None:
+        assert response.json()["detail"] == expected_detail
+
+
 def test_upload_missing_upload_length(mini_sentry, relay, dummy_upload, project_config):
 
     project_id = 42
