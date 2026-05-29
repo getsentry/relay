@@ -39,6 +39,7 @@ pub fn convert(
         routing_key: span.trace_id.value().copied().map(Into::into),
         retention_days: retentions.standard,
         downsampled_retention_days: retentions.downsampled,
+        event_id: None,
         item: span,
     }))
 }

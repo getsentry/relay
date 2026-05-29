@@ -1105,14 +1105,6 @@ impl EnvelopeProcessorService {
             managed_envelope.envelope_mut().set_retention(retention);
         }
 
-        // Set the event retention. Effectively, this value will only be available in processing
-        // mode when the full project config is queried from the upstream.
-        if let Some(retention) = ctx.project_info.config.downsampled_event_retention {
-            managed_envelope
-                .envelope_mut()
-                .set_downsampled_retention(retention);
-        }
-
         // Ensure the project ID is updated to the stored instance for this project cache. This can
         // differ in two cases:
         //  1. The envelope was sent to the legacy `/store/` endpoint without a project ID.
