@@ -6,6 +6,10 @@
 
 - Implement mobile measurements calculation for V2 spans. ([#6022](https://github.com/getsentry/relay/pull/6022))
 
+**Bug Fixes**:
+
+- Copy user Sentry tags into conventional attributes. ([#6030](https://github.com/getsentry/relay/pull/6030))
+
 **Internal**:
 
 - Forwards extracted transaction spans directly to Kafka instead of serializing to an intermediate envelope first. ([#6029](https://github.com/getsentry/relay/pull/6029))

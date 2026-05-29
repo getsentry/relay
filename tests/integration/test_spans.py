@@ -155,6 +155,12 @@ def test_span_extraction(
             "sentry.user.geo.subregion": {"type": "string", "value": "155"},
             "sentry.user.id": {"type": "string", "value": user_id},
             "sentry.user.ip": {"type": "string", "value": "192.168.0.1"},
+            "user.geo.city": {"type": "string", "value": "Vienna"},
+            "user.geo.country_code": {"type": "string", "value": "AT"},
+            "user.geo.region": {"type": "string", "value": "Austria"},
+            "user.geo.subdivision": {"type": "string", "value": "Vienna"},
+            "user.id": {"type": "string", "value": user_id},
+            "user.ip_address": {"type": "string", "value": "192.168.0.1"},
             "sentry.description": {
                 "type": "string",
                 "value": "GET /api/0/organizations/?member=1",
@@ -234,6 +240,7 @@ def test_span_extraction(
             "sentry.trace.status": {"type": "string", "value": "ok"},
             "sentry.transaction.op": {"type": "string", "value": "hi"},
             "sentry.transaction": {"type": "string", "value": "hi"},
+            "sentry.user": {"type": "string", "value": f"id:{user_id}"},
             "sentry.user.geo.city": {"type": "string", "value": "Vienna"},
             "sentry.user.geo.country_code": {"type": "string", "value": "AT"},
             "sentry.user.geo.region": {"type": "string", "value": "Austria"},
@@ -241,7 +248,12 @@ def test_span_extraction(
             "sentry.user.geo.subregion": {"type": "string", "value": "155"},
             "sentry.user.id": {"type": "string", "value": user_id},
             "sentry.user.ip": {"type": "string", "value": "192.168.0.1"},
-            "sentry.user": {"type": "string", "value": f"id:{user_id}"},
+            "user.geo.city": {"type": "string", "value": "Vienna"},
+            "user.geo.country_code": {"type": "string", "value": "AT"},
+            "user.geo.region": {"type": "string", "value": "Austria"},
+            "user.geo.subdivision": {"type": "string", "value": "Vienna"},
+            "user.id": {"type": "string", "value": user_id},
+            "user.ip_address": {"type": "string", "value": "192.168.0.1"},
             "sentry.dsc.project_id": {"type": "string", "value": "42"},
             "sentry.dsc.trace_id": {
                 "type": "string",
@@ -1165,11 +1177,21 @@ def test_scrubs_ip_addresses(
 
     child_span = spans_consumer.get_span()
 
+    assert child_span["_meta"]["attributes"]["user.email"] == {
+        "": {"len": 15, "rem": [["@email", "s", 0, 7]]}
+    }
     assert child_span["_meta"]["attributes"]["sentry.user.email"] == {
         "": {"len": 15, "rem": [["@email", "s", 0, 7]]}
     }
 
     if scrub_ip_addresses:
+        assert child_span["attributes"]["user.ip_address"] is None
+        assert child_span["_meta"]["attributes"]["user.ip_address"] == {
+            "": {
+                "len": 9,
+                "rem": [["@ip:replace", "s", 0, 4], ["@anything:remove", "x"]],
+            }
+        }
         assert child_span["attributes"]["sentry.user.ip"] is None
         assert child_span["_meta"]["attributes"]["sentry.user.ip"] == {
             "": {
@@ -1178,14 +1200,18 @@ def test_scrubs_ip_addresses(
             }
         }
     else:
+        assert child_span["attributes"]["user.ip_address"]["value"] == "127.0.0.1"
+        assert "user.ip_address" not in child_span["_meta"]["attributes"]
         assert child_span["attributes"]["sentry.user.ip"]["value"] == "127.0.0.1"
         assert "sentry.user.ip" not in child_span["_meta"]["attributes"]
 
     parent_span = spans_consumer.get_span()
 
     if scrub_ip_addresses:
+        assert "user.ip_address" not in parent_span["attributes"]
         assert "sentry.user.ip" not in parent_span["attributes"]
     else:
+        assert parent_span["attributes"]["user.ip_address"]["value"] == "127.0.0.1"
         assert parent_span["attributes"]["sentry.user.ip"]["value"] == "127.0.0.1"
 
     spans_consumer.assert_empty()
