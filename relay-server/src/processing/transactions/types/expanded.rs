@@ -308,6 +308,7 @@ impl CountRateLimited for Managed<ExtractedSpans> {
 pub struct ExtractedIndexedSpans(pub Vec<Annotated<SpanV2>>);
 
 impl ExtractedIndexedSpans {
+    #[cfg(feature = "processing")]
     pub fn into_iter(self) -> impl IntoIterator<Item = ExtractedIndexedSpan> {
         self.0.into_iter().map(ExtractedIndexedSpan)
     }
@@ -321,8 +322,10 @@ impl Counted for ExtractedIndexedSpans {
 
 /// A single extracted span which had its metrics extracted.
 #[derive(Debug)]
+#[cfg(feature = "processing")]
 pub struct ExtractedIndexedSpan(pub Annotated<SpanV2>);
 
+#[cfg(feature = "processing")]
 impl Counted for ExtractedIndexedSpan {
     fn quantities(&self) -> Quantities {
         smallvec![(DataCategory::SpanIndexed, 1)]
