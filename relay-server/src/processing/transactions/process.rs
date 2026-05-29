@@ -344,7 +344,7 @@ pub fn split_indexed_and_total_with_extracted_spans(
         // eventually be fully transformed into spans.
         //
         // Since there is no span metric extracted for this transaction, as we already extracted
-        // the spans from the transaction, there is no now metric carrying the transaction category.
+        // the spans from the transaction, there is now no metric carrying the transaction category.
         //
         // After extracting span metrics the count is accurate again, but attached to the span metrics.
         // Unless, the spans have been rate limited, which is an actual potential bug which we
