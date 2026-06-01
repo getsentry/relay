@@ -9,7 +9,7 @@
 <a href=#9 id=9 data-nosnippet>9</a>
 <a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span><span class="kw">crate</span>::processing::Context;
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span><span class="kw">crate</span>::processing::utils::event::EventMetricsExtracted;
-<a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessingError, ProcessingExtractedMetrics};
+<a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span><span class="kw">crate</span>::services::processor::ProcessingExtractedMetrics;
 <a href=#13 id=13 data-nosnippet>13</a>
 <a href=#14 id=14 data-nosnippet>14</a><span class="doccomment">/// Creates a span from the transaction and applies tag extraction on it.
 <a href=#15 id=15 data-nosnippet>15</a>///
@@ -42,7 +42,7 @@
 <a href=#42 id=42 data-nosnippet>42</a>    event: <span class="kw-2">&amp;mut </span>Annotated&lt;Event&gt;,
 <a href=#43 id=43 data-nosnippet>43</a>    extracted_metrics: <span class="kw-2">&amp;mut </span>ProcessingExtractedMetrics,
 <a href=#44 id=44 data-nosnippet>44</a>    ctx: ExtractMetricsContext,
-<a href=#45 id=45 data-nosnippet>45</a>) -&gt; <span class="prelude-ty">Result</span>&lt;EventMetricsExtracted, ProcessingError&gt; {
+<a href=#45 id=45 data-nosnippet>45</a>) -&gt; EventMetricsExtracted {
 <a href=#46 id=46 data-nosnippet>46</a>    <span class="kw">let </span>ExtractMetricsContext {
 <a href=#47 id=47 data-nosnippet>47</a>        dsc,
 <a href=#48 id=48 data-nosnippet>48</a>        project_id,
@@ -55,11 +55,11 @@
 <a href=#55 id=55 data-nosnippet>55</a>    // the full metrics extraction config and skip sampling if it is incomplete.
 <a href=#56 id=56 data-nosnippet>56</a>
 <a href=#57 id=57 data-nosnippet>57</a>    </span><span class="kw">if </span>metrics_extracted {
-<a href=#58 id=58 data-nosnippet>58</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(EventMetricsExtracted(<span class="bool-val">true</span>));
+<a href=#58 id=58 data-nosnippet>58</a>        <span class="kw">return </span>EventMetricsExtracted(<span class="bool-val">true</span>);
 <a href=#59 id=59 data-nosnippet>59</a>    }
 <a href=#60 id=60 data-nosnippet>60</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(event) = event.value_mut() <span class="kw">else </span>{
 <a href=#61 id=61 data-nosnippet>61</a>        <span class="comment">// Nothing to extract, but metrics extraction was called.
-<a href=#62 id=62 data-nosnippet>62</a>        </span><span class="kw">return </span><span class="prelude-val">Ok</span>(EventMetricsExtracted(<span class="bool-val">true</span>));
+<a href=#62 id=62 data-nosnippet>62</a>        </span><span class="kw">return </span>EventMetricsExtracted(<span class="bool-val">true</span>);
 <a href=#63 id=63 data-nosnippet>63</a>    };
 <a href=#64 id=64 data-nosnippet>64</a>
 <a href=#65 id=65 data-nosnippet>65</a>    <span class="comment">// NOTE: This function requires a `metric_extraction` in the project config. Legacy configs
@@ -68,7 +68,7 @@
 <a href=#68 id=68 data-nosnippet>68</a>    </span><span class="kw">let </span>combined_config = {
 <a href=#69 id=69 data-nosnippet>69</a>        <span class="kw">let </span>config = <span class="kw">match </span><span class="kw-2">&amp;</span>ctx.project_info.config.metric_extraction {
 <a href=#70 id=70 data-nosnippet>70</a>            ErrorBoundary::Ok(config) <span class="kw">if </span>config.is_supported() =&gt; config,
-<a href=#71 id=71 data-nosnippet>71</a>            <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(EventMetricsExtracted(<span class="bool-val">false</span>)),
+<a href=#71 id=71 data-nosnippet>71</a>            <span class="kw">_ </span>=&gt; <span class="kw">return </span>EventMetricsExtracted(<span class="bool-val">false</span>),
 <a href=#72 id=72 data-nosnippet>72</a>        };
 <a href=#73 id=73 data-nosnippet>73</a>        <span class="kw">let </span>global_config = <span class="kw">match </span><span class="kw-2">&amp;</span>ctx.global_config.metric_extraction {
 <a href=#74 id=74 data-nosnippet>74</a>            ErrorBoundary::Ok(global_config) =&gt; global_config,
@@ -83,7 +83,7 @@
 <a href=#83 id=83 data-nosnippet>83</a>                    <span class="comment">// If there's an error with global metrics extraction, it is safe to assume that this
 <a href=#84 id=84 data-nosnippet>84</a>                    // Relay instance is not up-to-date, and we should skip extraction.
 <a href=#85 id=85 data-nosnippet>85</a>                    </span><span class="macro">relay_log::debug!</span>(<span class="string">"Failed to parse global extraction config: {e}"</span>);
-<a href=#86 id=86 data-nosnippet>86</a>                    <span class="kw">return </span><span class="prelude-val">Ok</span>(EventMetricsExtracted(<span class="bool-val">false</span>));
+<a href=#86 id=86 data-nosnippet>86</a>                    <span class="kw">return </span>EventMetricsExtracted(<span class="bool-val">false</span>);
 <a href=#87 id=87 data-nosnippet>87</a>                }
 <a href=#88 id=88 data-nosnippet>88</a>            }
 <a href=#89 id=89 data-nosnippet>89</a>        };
@@ -106,6 +106,6 @@
 <a href=#106 id=106 data-nosnippet>106</a>    );
 <a href=#107 id=107 data-nosnippet>107</a>    extracted_metrics.extend(metrics, <span class="prelude-val">Some</span>(sampling_decision));
 <a href=#108 id=108 data-nosnippet>108</a>
-<a href=#109 id=109 data-nosnippet>109</a>    <span class="prelude-val">Ok</span>(EventMetricsExtracted(<span class="bool-val">true</span>))
+<a href=#109 id=109 data-nosnippet>109</a>    EventMetricsExtracted(<span class="bool-val">true</span>)
 <a href=#110 id=110 data-nosnippet>110</a>}
 </code></pre></div></section></main></body></html>
