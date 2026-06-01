@@ -33,6 +33,7 @@
 use relay_base_schema::project::ProjectKey;
 use std::borrow::Borrow;
 use std::collections::BTreeMap;
+use std::fmt;
 use std::io::{self, Write};
 use std::time::Duration;
 
@@ -82,7 +83,7 @@ pub enum EnvelopeError {
     PayloadIoFailed(#[source] io::Error),
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct EnvelopeHeaders<M = RequestMeta> {
     /// Unique identifier of the event associated to this envelope.
     ///
@@ -218,6 +219,51 @@ impl<M> EnvelopeHeaders<M> {
         K: Ord + ?Sized,
     {
         self.other.get(name)
+    }
+}
+
+impl<M> fmt::Debug for EnvelopeHeaders<M>
+where
+    M: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self {
+            event_id,
+            meta,
+            retention,
+            downsampled_retention,
+            sent_at,
+            trace,
+            required_features,
+            other,
+        } = self;
+
+        let mut map = f.debug_map();
+
+        if let Some(event_id) = event_id {
+            map.entry(&"event_id", &event_id.0);
+        }
+        map.entry(&"meta", &meta);
+        if let Some(retention) = retention {
+            map.entry(&"retention", retention);
+        }
+        if let Some(downsampled_retention) = downsampled_retention {
+            map.entry(&"downsampled_retention", downsampled_retention);
+        }
+        if let Some(sent_at) = sent_at {
+            map.entry(&"sent_at", sent_at);
+        }
+        if let Some(trace) = trace {
+            map.entry(&"trace", trace);
+        }
+        if !required_features.is_empty() {
+            map.entry(&"required_features", required_features);
+        }
+        for (key, value) in other {
+            map.entry(key, value);
+        }
+
+        map.finish()
     }
 }
 
@@ -549,6 +595,20 @@ impl Envelope {
     /// Adds a new item to this envelope.
     pub fn add_item(&mut self, item: Item) {
         self.items.push(item)
+    }
+
+    /// Add new items and return `Self`.
+    pub fn with_items(mut self, items: impl IntoIterator<Item = Item>) -> Self {
+        for item in items {
+            self.items.push(item)
+        }
+        self
+    }
+
+    /// Add a required feature and return `Self`.
+    pub fn with_required_feature(mut self, feature: Feature) -> Self {
+        self.headers.required_features.push(feature);
+        self
     }
 
     /// Splits off the items from the envelope using provided predicates.

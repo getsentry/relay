@@ -100,7 +100,7 @@ impl processing::Processor for ErrorsProcessor {
             headers: envelope.envelope().headers().clone(),
             items,
         };
-        Some(Managed::with_meta_from(envelope, errors))
+        Some(Managed::with_meta_from_managed_envelope(envelope, errors))
     }
 
     async fn process(
@@ -119,7 +119,7 @@ impl processing::Processor for ErrorsProcessor {
 
         filter::filter(&error, ctx).reject(&error)?;
 
-        dynamic_sampling::apply(&mut error, ctx).await;
+        dynamic_sampling::apply(&mut error, ctx);
 
         let mut error = self.limiter.enforce_quotas(error, ctx).await?;
 

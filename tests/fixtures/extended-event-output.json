@@ -80,7 +80,13 @@
             "name": "Python Requests",
             "version": "2.26",
             "type": "browser"
-        }
+        },
+        "trace": {
+            "span_id": "69241adef5744ef1",
+            "status": "unknown",
+            "trace_id": "69241adef5744ef19bde5bbd06fe8177",
+            "type": "trace"
+         }
     },
     "exception": {
         "values": [

@@ -31,7 +31,7 @@ impl CogsService {
     }
 
     fn handle_report(&mut self, CogsReport(measurement): CogsReport) {
-        relay_log::trace!("recording measurement: {measurement:?}");
+        relay_log::trace!("recording measurement: {measurement}");
 
         let resource_id = match measurement.resource {
             ResourceId::Relay => &self.relay_resource_id,

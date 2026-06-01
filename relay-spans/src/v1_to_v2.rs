@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use relay_conventions::{IS_REMOTE, SPAN_KIND};
+use relay_conventions::attributes::*;
 use relay_event_schema::protocol::{
     Attribute, AttributeType, AttributeValue, Attributes, JsonLenientString, Span as SpanV1,
     SpanData, SpanLink, SpanStatus as SpanV1Status, SpanV2, SpanV2Link, SpanV2Status,
@@ -13,7 +13,11 @@ use crate::name::name_for_attributes;
 ///
 /// - `tags`, `sentry_tags`, `measurements` and `data` are transferred to `attributes`.
 /// - Nested `data` items are encoded as JSON.
-pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
+///
+/// If `use_measurements_smart_conversion` is `true`, measurements will be converted
+/// to attributes by looking up the replacement attribute's name in `sentry-conventions`.
+/// Otherwise, the measurement name will be reused as the attribute name verbatim.
+pub fn span_v1_to_span_v2(span_v1: SpanV1, use_measurements_smart_conversion: bool) -> SpanV2 {
     let SpanV1 {
         timestamp,
         start_timestamp,
@@ -46,16 +50,15 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     let attributes = annotated_attributes.get_or_insert_with(Default::default);
 
     // Top-level fields have higher precedence than `data`:
-    attributes.insert("sentry.exclusive_time", exclusive_time);
-    attributes.insert("sentry.op", op);
-
-    attributes.insert("sentry.segment.id", segment_id.map_value(|v| v.to_string()));
-    attributes.insert("sentry.description", description);
-    attributes.insert("sentry.origin", origin);
-    attributes.insert("sentry.profile_id", profile_id.map_value(|v| v.to_string()));
-    attributes.insert("sentry.platform", platform);
+    attributes.insert(SENTRY__EXCLUSIVE_TIME, exclusive_time);
+    attributes.insert(SENTRY__OP, op);
+    attributes.insert(SENTRY__SEGMENT__ID, segment_id.map_value(|v| v.to_string()));
+    attributes.insert(SENTRY__DESCRIPTION, description);
+    attributes.insert(SENTRY__ORIGIN, origin);
+    attributes.insert(SENTRY__PROFILE_ID, profile_id.map_value(|v| v.to_string()));
+    attributes.insert(SENTRY__PLATFORM, platform);
     attributes.insert(
-        "sentry._internal.performance_issues_spans",
+        SENTRY___INTERNAL__PERFORMANCE_ISSUES_SPANS,
         performance_issues_spans,
     );
 
@@ -63,9 +66,16 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     if let Some(measurements) = measurements.into_value() {
         for (key, measurement) in measurements.0 {
             let key = match key.as_str() {
-                "client_sample_rate" => "sentry.client_sample_rate",
-                "server_sample_rate" => "sentry.server_sample_rate",
-                other => other,
+                // TODO: If these measurements were defined in conventions we could get rid of the match entirely
+                "client_sample_rate" => SENTRY__CLIENT_SAMPLE_RATE,
+                "server_sample_rate" => SENTRY__SERVER_SAMPLE_RATE,
+                other => {
+                    if use_measurements_smart_conversion {
+                        relay_conventions::measurement_to_attribute(other).unwrap_or(other)
+                    } else {
+                        other
+                    }
+                }
             };
 
             attributes.insert_if_missing(key, || match measurement {
@@ -91,7 +101,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     {
         for (key, value) in tags {
             let key = match key.as_str() {
-                "description" => "sentry.normalized_description".into(),
+                "description" => SENTRY__NORMALIZED_DESCRIPTION.into(),
                 other => Cow::Owned(format!("sentry.{}", other)),
             };
             if !value.is_empty() && !attributes.contains_key(key.as_ref()) {
@@ -108,9 +118,9 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         .unwrap_or_else(|| name_for_attributes(attributes).into());
 
     if let Some(is_remote) = is_remote.value() {
-        attributes.insert(IS_REMOTE, *is_remote);
+        attributes.insert(SENTRY__IS_REMOTE, *is_remote);
     }
-    attributes.insert(SPAN_KIND, kind.map_value(|kind| kind.to_string()));
+    attributes.insert(SENTRY__KIND, kind.map_value(|kind| kind.to_string()));
 
     let is_segment = match (is_segment.value(), is_remote.value()) {
         (None, Some(true)) => is_remote,
@@ -315,7 +325,7 @@ mod tests {
         });
 
         let span_v1 = SpanV1::from_value(json.into()).into_value().unwrap();
-        let span_v2 = span_v1_to_span_v2(span_v1);
+        let span_v2 = span_v1_to_span_v2(span_v1, false);
 
         let annotated_span_v2: Annotated<SpanV2> = Annotated::new(span_v2);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span_v2), @r#"
@@ -467,27 +477,52 @@ mod tests {
             .unwrap();
         assert_eq!(txn.transaction.as_str(), Some("hi"));
         let span_v1 = SpanV1::from(&txn);
-        assert_eq!(
-            span_v1.data.value().unwrap().segment_name.as_str(),
-            Some("hi")
-        );
-        let span_v2 = span_v1_to_span_v2(span_v1);
-        assert_eq!(
-            span_v2
-                .attributes
-                .value()
-                .unwrap()
-                .get_value("sentry.segment.name")
-                .and_then(Value::as_str),
-            Some("hi")
-        );
+
+        // Both the name and the segment name are the same as the transaction.
+        insta::assert_json_snapshot!(SerializableAnnotated(&Annotated::new(span_v1.clone())), @r###"
+        {
+          "is_segment": true,
+          "is_remote": true,
+          "description": "hi",
+          "data": {
+            "sentry.segment.name": "hi",
+            "sentry.name": "hi"
+          },
+          "was_transaction": true
+        }
+        "###);
+
+        let span_v2 = span_v1_to_span_v2(span_v1, false);
+
+        // The `name` and the `sentry.segment.name` attribute are the same as the transaction.
+        insta::assert_json_snapshot!(SerializableAnnotated(&Annotated::new(span_v2)), @r###"
+        {
+          "name": "hi",
+          "status": "ok",
+          "is_segment": true,
+          "attributes": {
+            "sentry.description": {
+              "type": "string",
+              "value": "hi"
+            },
+            "sentry.is_remote": {
+              "type": "boolean",
+              "value": true
+            },
+            "sentry.segment.name": {
+              "type": "string",
+              "value": "hi"
+            }
+          }
+        }
+        "###);
     }
 
     #[test]
     fn start_timestamp() {
         let json = r#"{"timestamp": 123, "end_timestamp": "invalid data"}"#;
         let span_v1 = Annotated::<SpanV1>::from_json(json).unwrap();
-        let span_v2 = span_v1_to_span_v2(span_v1.into_value().unwrap());
+        let span_v2 = span_v1_to_span_v2(span_v1.into_value().unwrap(), false);
 
         // Parsed version is still fine:
         assert_eq!(

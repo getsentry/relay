@@ -124,7 +124,7 @@ impl ProjectConfig {
             // This is probably not intended behavior.
             for quota in &self.quotas {
                 if let Some(id) = quota.id.as_deref() {
-                    for category in &*quota.categories {
+                    for category in quota.categories.iter() {
                         if let Some(indexed) = category.index_category()
                             && quota.categories.contains(&indexed)
                         {
@@ -293,15 +293,19 @@ fn is_false(value: &bool) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::Feature;
-
     use super::*;
 
     #[test]
     fn graduated_feature_flag_gets_inserted() {
         let mut project_config = ProjectConfig::default();
-        assert!(!project_config.features.has(Feature::UserReportV2Ingest));
+        for feature in GRADUATED_FEATURE_FLAGS {
+            assert!(!project_config.features.has(*feature));
+        }
+
         project_config.sanitize(false);
-        assert!(project_config.features.has(Feature::UserReportV2Ingest));
+
+        for feature in GRADUATED_FEATURE_FLAGS {
+            assert!(project_config.features.has(*feature));
+        }
     }
 }

@@ -106,7 +106,7 @@ impl Processor for TraceAttachmentsProcessor {
 
         (!items.is_empty()).then(|| {
             let work = SerializedAttachments { headers, items };
-            Managed::with_meta_from(envelope, work)
+            Managed::with_meta_from_managed_envelope(envelope, work)
         })
     }
 
@@ -117,7 +117,7 @@ impl Processor for TraceAttachmentsProcessor {
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         let work = filter::feature_flag(work, ctx)?;
 
-        let work = process::sample(work, ctx).await?;
+        let work = process::sample(work, ctx)?;
 
         let work = process::expand(work);
 

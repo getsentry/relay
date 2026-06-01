@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use relay_event_schema::processor::ProcessingAction;
-use relay_event_schema::protocol::TraceMetric;
+use relay_event_schema::protocol::{TraceMetric, trace_metric};
 use relay_filter::FilterStatKey;
 use relay_quotas::{DataCategory, RateLimits};
 
@@ -40,9 +40,9 @@ pub enum Error {
     /// Trace metrics filtered due to a filtering rule.
     #[error("trace metric filtered")]
     Filtered(FilterStatKey),
-    /// A duplicated item container for trace metrics.
-    #[error("duplicate trace metric container")]
-    DuplicateContainer,
+    /// Multiple item containers are not allowed to be in the same envelope.
+    #[error("duplicate trace metric items in the same envelope")]
+    DuplicateItem,
     /// A processor failed to process the trace metrics.
     #[error("envelope processor failed")]
     ProcessingFailed(#[from] ProcessingAction),
@@ -70,8 +70,8 @@ impl crate::managed::OutcomeError for Error {
         let outcome = match &self {
             Self::FilterFeatureFlag => None,
             Self::Filtered(f) => Some(Outcome::Filtered(f.clone())),
-            Self::DuplicateContainer => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
-            Self::TooLarge => Some(Outcome::Invalid(DiscardReason::TooLarge(
+            Self::DuplicateItem => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
+            Self::TooLarge => Some(Outcome::Invalid(DiscardReason::ItemTooLarge(
                 DiscardItemType::TraceMetric,
             ))),
             Self::InvalidMetricName => Some(Outcome::Invalid(DiscardReason::InvalidTraceMetric)),
@@ -112,17 +112,22 @@ impl processing::Processor for TraceMetricsProcessor {
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
 
-        let metrics = envelope
+        let item = envelope
+            .envelope_mut()
+            .take_item_by(|item| matches!(*item.ty(), ItemType::TraceMetric))?;
+
+        // Duplicates which are not allowed to be in the envelope.
+        let invalid = envelope
             .envelope_mut()
             .take_items_by(|item| matches!(*item.ty(), ItemType::TraceMetric))
-            .into_vec();
+            .to_vec();
 
-        if metrics.is_empty() {
-            return None;
-        }
-
-        let work = SerializedTraceMetrics { headers, metrics };
-        Some(Managed::with_meta_from(envelope, work))
+        let work = SerializedTraceMetrics {
+            headers,
+            item,
+            invalid,
+        };
+        Some(Managed::with_meta_from_managed_envelope(envelope, work))
     }
 
     async fn process(
@@ -130,7 +135,7 @@ impl processing::Processor for TraceMetricsProcessor {
         metrics: Managed<Self::Input>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Error>> {
-        validate::container(&metrics)?;
+        validate::invalid(&metrics).reject(&metrics)?;
 
         // Fast filters, which do not need expanded trace metrics.
         filter::feature_flag(ctx).reject(&metrics)?;
@@ -203,22 +208,26 @@ impl Forward for TraceMetricOutput {
 pub struct SerializedTraceMetrics {
     /// Original envelope headers.
     pub headers: EnvelopeHeaders,
-    /// Trace metrics are sent in item containers, there is specified limit of a single container per
-    /// envelope.
-    ///
-    /// But at this point this has not yet been validated.
-    pub metrics: Vec<Item>,
+    /// Trace metric item container.
+    item: Item,
+    /// Invalid trace metric items which are not allowed to be in the envelope.
+    invalid: Vec<Item>,
+}
+
+impl SerializedTraceMetrics {
+    fn all_items(&self) -> impl Iterator<Item = &Item> {
+        std::iter::once(&self.item).chain(self.invalid.iter())
+    }
 }
 
 impl Counted for SerializedTraceMetrics {
     fn quantities(&self) -> Quantities {
         let count = self
-            .metrics
-            .iter()
+            .all_items()
             .map(|item| item.item_count().unwrap_or(1) as usize)
             .sum();
 
-        let bytes = self.metrics.iter().map(|item| item.len()).sum();
+        let bytes = self.all_items().map(|item| item.len()).sum();
 
         smallvec![
             (DataCategory::TraceMetric, count),
@@ -235,11 +244,22 @@ impl CountRateLimited for Managed<ExpandedTraceMetrics> {
     type Error = Error;
 }
 
+/// Settings controlling trace metric normalization.
+#[derive(Debug, Default, Copy, Clone)]
+struct Settings {
+    /// Whether the ip address should be inferred from the client connection.
+    infer_ip: bool,
+    /// Whether the user agent/browser should inferred from client headers.
+    infer_user_agent: bool,
+}
+
 /// Trace metrics which have been parsed and expanded from their serialized state.
 #[derive(Debug)]
 pub struct ExpandedTraceMetrics {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
+    /// Client/protocol supplied settings controlling how trace metrics should be normalized.
+    settings: Settings,
     /// Expanded and parsed trace metrics.
     metrics: ContainerItems<TraceMetric>,
 }
@@ -262,9 +282,17 @@ impl ExpandedTraceMetrics {
 
         if !self.metrics.is_empty() {
             let mut item = Item::new(ItemType::TraceMetric);
-            ItemContainer::from(self.metrics)
-                .write_to(&mut item)
-                .inspect_err(|err| relay_log::error!("failed to serialize trace metrics: {err}"))?;
+            ItemContainer::from_parts(
+                trace_metric::container::ContainerMetadata {
+                    // Latest supported version.
+                    version: Some(2),
+                    // Nothing to do for the next Relay.
+                    ingest_settings: None,
+                },
+                self.metrics,
+            )
+            .write_to(&mut item)
+            .inspect_err(|err| relay_log::error!("failed to serialize trace metrics: {err}"))?;
             metrics.push(item);
         }
 

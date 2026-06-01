@@ -123,7 +123,7 @@ impl OutcomeError for Error {
             #[cfg(feature = "processing")]
             Self::FailedToSerializeReplay => Some(Outcome::Invalid(DiscardReason::Internal)),
             #[cfg(feature = "processing")]
-            Self::TooLarge => Some(Outcome::Invalid(DiscardReason::TooLarge(
+            Self::TooLarge => Some(Outcome::Invalid(DiscardReason::ItemTooLarge(
                 crate::services::outcome::DiscardItemType::ReplayRecording,
             ))),
             #[cfg(feature = "processing")]
@@ -186,7 +186,7 @@ impl processing::Processor for ReplaysProcessor {
             videos,
         };
 
-        Some(Managed::with_meta_from(envelope, work))
+        Some(Managed::with_meta_from_managed_envelope(envelope, work))
     }
 
     async fn process(
@@ -198,7 +198,7 @@ impl processing::Processor for ReplaysProcessor {
         let mut replay = process::expand(replays)?;
 
         validate::validate(&replay).reject(&replay)?;
-        process::normalize(&mut replay, &self.geoip_lookup);
+        process::normalize(&mut replay, &self.geoip_lookup, ctx);
         filter::filter(&replay, ctx).reject(&replay)?;
 
         let mut replay = self.limiter.enforce_quotas(replay, ctx).await?;

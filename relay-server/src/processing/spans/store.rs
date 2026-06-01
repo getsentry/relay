@@ -58,5 +58,8 @@ fn inject_server_sample_rate(
     };
 
     let attributes = attributes.get_or_insert_with(Default::default);
-    attributes.insert("sentry.server_sample_rate", server_sample_rate.to_f64());
+    attributes.insert(
+        "sentry.server_sample_rate",
+        server_sample_rate.to_f64().clamp(1e-9, 1.0),
+    );
 }

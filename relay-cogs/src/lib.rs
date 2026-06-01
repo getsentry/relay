@@ -71,6 +71,8 @@ mod test;
 
 pub(crate) mod time;
 
+use std::fmt;
+
 pub use self::cogs::*;
 pub use self::recorder::*;
 #[cfg(test)]
@@ -237,9 +239,27 @@ pub struct CogsMeasurement {
     pub value: Value,
 }
 
+impl fmt::Display for CogsMeasurement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}@{}", self.resource, self.feature.as_str())?;
+        if let Some(category) = self.category {
+            write!(f, "[{category}]")?;
+        }
+        write!(f, "={}", self.value)
+    }
+}
+
 /// A COGS measurement value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Value {
     /// A time measurement.
     Time(std::time::Duration),
+}
+
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Time(duration) => write!(f, "{duration:?}"),
+        }
+    }
 }

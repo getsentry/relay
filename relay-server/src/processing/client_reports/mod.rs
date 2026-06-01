@@ -79,7 +79,7 @@ impl processing::Processor for ClientReportsProcessor {
         }
 
         let work = SerializedClientReports { headers, reports };
-        Some(Managed::with_meta_from(envelope, work))
+        Some(Managed::with_meta_from_managed_envelope(envelope, work))
     }
 
     async fn process(

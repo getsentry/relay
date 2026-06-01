@@ -17,8 +17,9 @@ use crate::services::metrics::RouterService;
 use crate::services::objectstore::Objectstore;
 #[cfg(feature = "processing")]
 use crate::services::objectstore::ObjectstoreService;
-use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
-use crate::services::outcome_aggregator::OutcomeAggregator;
+use crate::services::outcome::{
+    OutcomeAggregator, OutcomeProducer, OutcomeProducerService, TrackOutcome,
+};
 use crate::services::processor::{
     self, EnvelopeProcessor, EnvelopeProcessorService, EnvelopeProcessorServicePool,
 };

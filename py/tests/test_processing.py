@@ -1,3 +1,4 @@
+from unittest import mock
 import sentry_relay
 
 import pytest
@@ -127,9 +128,10 @@ def test_normalize_user_agent(must_normalize):
                 "type": "browser",
             },
             "client_os": {"name": "Ubuntu", "os": "Ubuntu", "type": "os"},
+            "trace": mock.ANY,
         }
     else:
-        assert "contexts" not in event
+        assert set(event["contexts"].keys()) == {"trace"}
 
 
 def test_validate_pii_selector():

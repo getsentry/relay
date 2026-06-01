@@ -39,7 +39,7 @@ use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::services::upload::SignedLocation;
+use crate::services::upload::{Final, SignedLocation};
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
 use crate::utils::{self, FormDataIter};
 
@@ -454,7 +454,7 @@ impl StoreService {
                 // through `EnvelopeSummary`, but `Managed<Box<Envelope>>` does not.
                 // -> Reject the old way and return a dummy item.
                 envelope.reject(Outcome::Invalid(DiscardReason::Internal));
-                Err(Managed::with_meta_from(&envelope, ()).reject_err(error))
+                Err(Managed::with_meta_from_managed_envelope(&envelope, ()).reject_err(error))
             }
         }
     }
@@ -638,7 +638,7 @@ impl StoreService {
         let batch_size = self.config.metrics_max_batch_size_bytes();
         let mut error = None;
 
-        let global_config = self.global_config.current();
+        let global_config = self.global_config.current().unwrap_or_default();
         let mut encoder = BucketEncoder::new(&global_config);
 
         let emit_sessions_to_eap = utils::is_rolled_out(
@@ -742,6 +742,7 @@ impl StoreService {
             scoping.organization_id.value(),
             self.global_config
                 .current()
+                .unwrap_or_default()
                 .options
                 .eap_outcomes_rollout_rate,
         )
@@ -789,6 +790,7 @@ impl StoreService {
             scoping.organization_id.value(),
             self.global_config
                 .current()
+                .unwrap_or_default()
                 .options
                 .eap_span_outcomes_rollout_rate,
         )
@@ -1048,7 +1050,7 @@ impl StoreService {
         let payload = item.payload();
         let placeholder: AttachmentPlaceholder<'_> =
             serde_json::from_slice(&payload).map_err(|_| StoreError::InvalidAttachmentRef)?;
-        let location = SignedLocation::try_from_str(placeholder.location)
+        let location = SignedLocation::<Final>::try_from_str(placeholder.location)
             .ok_or(StoreError::InvalidAttachmentRef)?
             .verify(Utc::now(), &self.config)
             .map_err(|_| StoreError::InvalidAttachmentRef)?;
@@ -1320,6 +1322,7 @@ impl StoreService {
             scoping.organization_id.value(),
             self.global_config
                 .current()
+                .unwrap_or_default()
                 .options
                 .eap_span_outcomes_rollout_rate,
         )

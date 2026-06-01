@@ -5,13 +5,14 @@ from os import path
 from typing import Optional
 import json
 import redis
-from flask import Response
+from flask import Response, request
 
 import pytest
 
 # all tests fixtures must be imported so that pytest finds them
 from .fixtures.gobetween import gobetween  # noqa
 from .fixtures.haproxy import haproxy  # noqa
+from .fixtures.mini_proxy import mini_proxy  # noqa
 from .fixtures.mini_sentry import mini_sentry  # noqa
 from .fixtures.relay import (  # noqa
     relay,
@@ -46,7 +47,7 @@ from .fixtures.processing import (  # noqa
     objectstore,
 )
 
-from .consts import DUMMY_UPLOAD_LOCATION
+from .consts import DUMMY_UPLOAD_LOCATION, ZSTD_MAGIC_HEADER
 
 
 @pytest.fixture(scope="session")
@@ -313,6 +314,8 @@ def dummy_upload(mini_sentry):  # noqa
 
     @mini_sentry.app.route("/api/<project>/upload/<key>/", methods=["PATCH"])
     def upload(**opts):
+        assert request.headers["Content-Encoding"] == "zstd"
+        assert request.data.startswith(ZSTD_MAGIC_HEADER)
         return Response(
             "",
             status=204,

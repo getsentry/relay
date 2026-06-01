@@ -532,6 +532,9 @@ fn apply_regex_to_chunks<'a>(
             return;
         }
 
+        // ALERT: This logic assumes that `regex` doesn't match a capture
+        // group starting on a null byte. If you get an error in debug mode
+        // about `replacement_chunks` not being empty, check the regex.
         static NULL_SPLIT_RE: OnceLock<Regex> = OnceLock::new();
         let regex = NULL_SPLIT_RE.get_or_init(|| {
             #[allow(clippy::trivial_regex)]
@@ -1762,7 +1765,7 @@ mod tests {
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         processor::process_value(&mut span, &mut pii_processor, ProcessingState::root()).unwrap();
         assert_eq!(
-            get_value!(span.data.code_filepath!).as_str(),
+            span.0.unwrap().data.0.unwrap().other["code.filepath"].as_str(),
             Some("src/sentry/api/authentication.py")
         );
     }

@@ -23,22 +23,6 @@ const MAX_NUM_UNREAL_LOGS: usize = 40;
 /// Client SDK name used for the event payload to identify the UE4 crash reporter.
 const CLIENT_SDK_NAME: &str = "unreal.crashreporter";
 
-fn get_event_item(data: &[u8]) -> Result<Option<Item>, Unreal4Error> {
-    let mut context = Unreal4Context::parse(data)?;
-    let json = match context
-        .game_data
-        .remove(crate::constants::SENTRY_CRASH_PAYLOAD_KEY)
-    {
-        Some(json) if !json.is_empty() => json,
-        _ => return Ok(None),
-    };
-
-    relay_log::trace!("adding event payload from unreal context");
-    let mut item = Item::new(ItemType::Event);
-    item.set_payload(ContentType::Json, json);
-    Ok(Some(item))
-}
-
 /// Extracts the items from an Unreal 4 crash report payload.
 pub fn extract_items(payload: Bytes, config: &Config) -> Result<Items, ProcessingError> {
     let mut items = Items::new();
@@ -63,9 +47,6 @@ pub fn extract_items(payload: Bytes, config: &Config) -> Result<Items, Processin
 
         let mut item = Item::new(ItemType::Attachment);
         item.set_filename(file.name());
-        // TODO: This clones data. Update symbolic to allow moving the bytes out.
-        //
-        // See: <https://github.com/getsentry/symbolic/issues/959>.
         item.set_payload(content_type, file.into_bytes());
         item.set_attachment_type(attachment_type);
         items.push(item);
@@ -76,15 +57,17 @@ pub fn extract_items(payload: Bytes, config: &Config) -> Result<Items, Processin
 
 /// Expands items previously extracted from a report in to the [`UnrealExpansion`] representation.
 pub fn expand_unreal_items(items: Items) -> Result<UnrealExpansion, ProcessingError> {
-    let event = items
+    let mut context = items
         .iter()
         .find(|&item| matches!(item.attachment_type(), Some(AttachmentType::UnrealContext)))
-        .map(|item| get_event_item(&item.payload()))
-        .transpose()?
-        .flatten();
+        .map(|item| Unreal4Context::parse(&item.payload()))
+        .transpose()?;
+
+    let event = context.as_mut().and_then(take_event_item);
 
     Ok(UnrealExpansion {
         event,
+        context,
         attachments: items,
     })
 }
@@ -101,9 +84,29 @@ pub struct UnrealExpansion {
     /// The error event if the crash contained one.
     #[cfg_attr(not(feature = "processing"), expect(unused))]
     pub event: Option<Item>,
+    /// The parsed unreal context.
+    ///
+    /// Note: the raw unreal context may still be in [`Self::attachments`].
+    #[cfg_attr(not(feature = "processing"), expect(unused))]
+    pub context: Option<Unreal4Context>,
     /// Files of the report as attachments.
     #[cfg_attr(not(feature = "processing"), expect(unused))]
     pub attachments: Items,
+}
+
+fn take_event_item(context: &mut Unreal4Context) -> Option<Item> {
+    let json = context
+        .game_data
+        .remove(crate::constants::SENTRY_CRASH_PAYLOAD_KEY)?;
+
+    if json.is_empty() {
+        return None;
+    }
+
+    relay_log::trace!("adding event payload from unreal context");
+    let mut item = Item::new(ItemType::Event);
+    item.set_payload(ContentType::Json, json);
+    Some(item)
 }
 
 fn merge_unreal_user_info(event: &mut Event, user_info: &str) {
@@ -351,16 +354,12 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
 /// The `user_header` should be extracted from the [`crate::constants::UNREAL_USER_HEADER`] envelope header.
 #[cfg_attr(not(feature = "processing"), expect(unused))]
 pub fn process_unreal<'a>(
+    context: Option<Unreal4Context>,
     event_id: EventId,
     event: &mut Annotated<Event>,
-    attachments: impl IntoIterator<Item = &'a Item> + Clone,
+    attachments: impl IntoIterator<Item = &'a Item>,
     user_header: Option<&str>,
 ) -> Result<Option<ProcessedUnrealReport>, Unreal4Error> {
-    let context_item = attachments
-        .clone()
-        .into_iter()
-        .find(|item| item.attachment_type() == Some(AttachmentType::UnrealContext));
-
     let mut logs_items = attachments
         .into_iter()
         .filter(|item| item.attachment_type() == Some(AttachmentType::UnrealLogs))
@@ -368,7 +367,7 @@ pub fn process_unreal<'a>(
         .peekable();
 
     // Early exit if there is no information.
-    if user_header.is_none() && context_item.is_none() && logs_items.peek().is_none() {
+    if context.is_none() && user_header.is_none() && logs_items.peek().is_none() {
         return Ok(None);
     }
 
@@ -383,9 +382,7 @@ pub fn process_unreal<'a>(
     merge_unreal_logs(event, logs_items)?;
 
     let mut user_reports = Items::new();
-    if let Some(context_item) = context_item {
-        let mut context = Unreal4Context::parse(&context_item.payload())?;
-
+    if let Some(mut context) = context {
         if let Some(report) = get_unreal_user_report(event_id, &mut context) {
             user_reports.push(report);
         }

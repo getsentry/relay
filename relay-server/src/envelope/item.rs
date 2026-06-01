@@ -13,8 +13,9 @@ use smallvec::{SmallVec, smallvec};
 use crate::envelope::{AttachmentType, ContentType, EnvelopeError};
 use crate::integrations::{Integration, LogsIntegration, SpansIntegration};
 use crate::statsd::RelayTimers;
+use crate::utils::DebugBytes;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Item {
     pub(super) headers: ItemHeaders,
     pub(super) payload: Bytes,
@@ -769,6 +770,15 @@ impl Item {
     }
 }
 
+impl fmt::Debug for Item {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Item")
+            .field("headers", &self.headers)
+            .field("payload", &DebugBytes(&self.payload))
+            .finish()
+    }
+}
+
 pub type Items = SmallVec<[Item; 3]>;
 pub type ItemIter<'a> = std::slice::Iter<'a, Item>;
 pub type ItemIterMut<'a> = std::slice::IterMut<'a, Item>;
@@ -1084,7 +1094,7 @@ pub enum ItemHeaderKey {
 #[serde(transparent)]
 pub struct ItemHeaderValue(serde_json::Value);
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct ItemHeaders {
     /// The type of the item.
     #[serde(rename = "type")]
@@ -1170,6 +1180,61 @@ impl ItemHeaders {
             self.inner.remove(&MaybeKnown::Known(key));
         }
         self
+    }
+}
+
+impl fmt::Debug for ItemHeaders {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self {
+            ty,
+            stored_key,
+            routing_hint,
+            rate_limited,
+            source_quantities,
+            inner,
+        } = self;
+
+        let mut map = f.debug_map();
+
+        map.entry(&"type", &ty);
+        if let Some(stored_key) = stored_key {
+            map.entry(&"stored_key", stored_key);
+        }
+        if let Some(routing_hint) = routing_hint {
+            map.entry(&"routing_hint", routing_hint);
+        }
+        if *rate_limited {
+            map.entry(&"rate_limited", rate_limited);
+        }
+        if let Some(source_quantities) = source_quantities {
+            map.entry(&"source_quantities", source_quantities);
+        }
+
+        for (k, v) in inner {
+            match k {
+                MaybeKnown::Known(v) => map.key(&v),
+                MaybeKnown::Unknown(s) => map.key(&s),
+            };
+
+            match &v.0 {
+                serde_json::Value::Null => map.value(&"null"),
+                serde_json::Value::Bool(b) => map.value(&b),
+                serde_json::Value::Number(number) => {
+                    if let Some(n) = number.as_u128() {
+                        map.value(&n)
+                    } else if let Some(n) = number.as_f64() {
+                        map.value(&n)
+                    } else {
+                        map.value(&number)
+                    }
+                }
+                serde_json::Value::String(s) => map.value(&s),
+                v @ serde_json::Value::Array(_) => map.value(&v),
+                v @ serde_json::Value::Object(_) => map.value(&v),
+            };
+        }
+
+        map.finish()
     }
 }
 
@@ -1379,29 +1444,11 @@ mod tests {
         .unwrap();
 
         insta::assert_debug_snapshot!(&item.headers, @r#"
-        ItemHeaders {
-            ty: Attachment,
-            stored_key: None,
-            routing_hint: None,
-            rate_limited: false,
-            source_quantities: None,
-            inner: {
-                Known(
-                    Length,
-                ): ItemHeaderValue(
-                    Number(5),
-                ),
-                Unknown(
-                    "unknown1",
-                ): ItemHeaderValue(
-                    String("foo"),
-                ),
-                Unknown(
-                    "unknown2",
-                ): ItemHeaderValue(
-                    String("bar"),
-                ),
-            },
+        {
+            "type": Attachment,
+            Length: 5,
+            "unknown1": "foo",
+            "unknown2": "bar",
         }
         "#);
 

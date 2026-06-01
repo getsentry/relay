@@ -88,12 +88,12 @@ impl SentryError for Playstation {
             // If "__sentry" is not a key in the userdata do the legacy extraction.
             // This should be removed once all customers migrated to the new format.
             if prospero_event.is_none() {
-                crate::services::processor::playstation::legacy_userdata_extraction(
+                crate::utils::playstation::legacy_userdata_extraction(
                     event.get_or_insert_with(Default::default),
                     &prospero_dump,
                 );
             }
-            crate::services::processor::playstation::merge_playstation_context(
+            crate::utils::playstation::merge_playstation_context(
                 event.get_or_insert_with(Default::default),
                 &prospero_dump,
             );
@@ -117,7 +117,7 @@ impl SentryError for Playstation {
                 item.set_filename(file.name);
                 item.set_attachment_type(AttachmentType::Attachment);
                 item.set_payload(
-                    crate::services::processor::playstation::infer_content_type(file.name),
+                    crate::utils::playstation::infer_content_type(file.name),
                     file.contents.to_owned(),
                 );
                 item

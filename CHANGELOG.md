@@ -4,8 +4,64 @@
 
 **Features**:
 
-- Implement client/sdk controlled ingestion settings for v2 span containers. ([#5881](https://github.com/getsentry/relay/pull/5881))
-- Implement client/sdk controlled ingestion settings for v2 log containers. ([#5887](https://github.com/getsentry/relay/pull/5887))
+- Implement mobile measurements calculation for V2 spans. ([#6022](https://github.com/getsentry/relay/pull/6022))
+
+## 26.5.1
+
+**Features**:
+
+- Convert measurements to attributes based on information from `sentry-conventions`. This is gated behind a project feature flag. ([#6007](https://github.com/getsentry/relay/pull/6007))
+- Implements timestamp shifts based on a sequence number provided by SDKs. ([#6014](https://github.com/getsentry/relay/pull/6014))
+
+**Bug Fixes**:
+
+- Apply timestamp validation to replays. ([#6018](https://github.com/getsentry/relay/pull/6018))
+- Apply timestamp validations to transaction spans. ([#6005](https://github.com/getsentry/relay/pull/6005), [#6013](https://github.com/getsentry/relay/pull/6013), [#6015](https://github.com/getsentry/relay/pull/6015))
+- Obtain PII values for `SpanData` fields from `sentry-conventions`. ([#5997](https://github.com/getsentry/relay/pull/5997))
+- Correctly handle attributes with placeholders during normalization. ([#6012](https://github.com/getsentry/relay/pull/6012))
+- Add `sentry.dsc.transaction`, `sentry.dsc.trace_id`, and `sentry.dsc.project_id` to all spans. ([#6001](https://github.com/getsentry/relay/pull/6001), [#6004](https://github.com/getsentry/relay/pull/6004), [#6008](https://github.com/getsentry/relay/pull/6008), [#6011](https://github.com/getsentry/relay/pull/6011))
+
+**Internal**:
+
+- Add the transaction replay id as an attribute to all contained spans. ([#6017](https://github.com/getsentry/relay/pull/6017))
+- Always allow `Upload-Defer-Length: 1` on the `/upload` endpoint. ([#5977](https://github.com/getsentry/relay/pull/5977))
+
+**Internal**:
+
+- Unconditionally create a trace context with a trace id for errors. ([#6009](https://github.com/getsentry/relay/pull/6009))
+
+## 26.5.0
+
+**Features**:
+
+- Enable OTLP endpoints by default. ([#5951](https://github.com/getsentry/relay/pull/5951))
+- Backfill `app.vitals.start.screen` for V1 app-start transactions from the transaction name. ([#5960](https://github.com/getsentry/relay/pull/5960))
+- Enable performance score calculation for V2 spans. ([#5947](https://github.com/getsentry/relay/pull/5947))
+- Update user agent parsing rules. ([#5999](https://github.com/getsentry/relay/pull/5999))
+
+**Bug Fixes**:
+
+- Emit more precise outcome discard reasons for the Playstation, Minidump, and Attachments endpoints. ([#5950](https://github.com/getsentry/relay/pull/5950))
+- Set the name based on the transaction name when converting a transaction into a segment span. ([#5961](https://github.com/getsentry/relay/pull/5961))
+- Set the segment name for child spans based on the transaction name. ([#5959](https://github.com/getsentry/relay/pull/5959))
+- Emit missing outcomes in the Playstation and Minidump endpoints, and add/update outcome discard reasons. ([#5966](https://github.com/getsentry/relay/pull/5966))
+- Correct the PII status for `SpanData` fields. ([#5995](https://github.com/getsentry/relay/pull/5995))
+
+**Internal**:
+
+- Remove unknown debug image variants in errors. ([#5962](https://github.com/getsentry/relay/pull/5962))
+- Remove support for dynamic sampling reservoir rules. ([#5988](https://github.com/getsentry/relay/pull/5988))
+- Bump `sentry-conventions` to 0.6.0-4. ([#5944](https://github.com/getsentry/relay/pull/5944))
+- Bump `sqlparser` to 0.62. ([#5964](https://github.com/getsentry/relay/pull/5964))
+- Enable compression for forwarded uploads. ([#5965](https://github.com/getsentry/relay/pull/5965))
+- Change the default partitioning for the envelope buffer from semantic to round-robin. ([#5967](https://github.com/getsentry/relay/pull/5967))
+- Enable retries for upload requests to upstream. ([#5975](https://github.com/getsentry/relay/pull/5975))
+
+## 26.4.2
+
+**Features**:
+
+- Implement client/sdk controlled ingestion settings for v2 span, log, and trace metric containers. ([#5881](https://github.com/getsentry/relay/pull/5881), [#5887](https://github.com/getsentry/relay/pull/5887), [#5922](https://github.com/getsentry/relay/pull/5922))
 - Update several `gen_ai` attributes to their latest representation. ([#5798](https://github.com/getsentry/relay/pull/5798))
 - Add Perfetto trace format support for continuous profiling via compound envelope items. ([#5659](https://github.com/getsentry/relay/pull/5659))
 
@@ -14,12 +70,14 @@
 - Backfill `app.vitals.start.value` and `app.vitals.start.type` for V1 transactions from `app_start_cold` and `app_start_warm`, matching existing V2 behavior. ([#5883](https://github.com/getsentry/relay/pull/5883))
 - The PII rule for `token` is less strict to not always scrub usage in LLM contexts. ([#5886](https://github.com/getsentry/relay/pull/5886))
 - Respond with status code 413 when chunked multipart requests are too large. ([#5880](https://github.com/getsentry/relay/pull/5880))
+- Add missing outcomes for the Playstation, Minidump, and Attachments endpoints. ([#5918](https://github.com/getsentry/relay/pull/5918))
+- Fix HTTP/2 rejections by omitting the `Host` header. ([#5927](https://github.com/getsentry/relay/pull/5927))
 
 **Internal**:
 
-- Stream attachments received at `/minidump` to objectstore. ([#5877](https://github.com/getsentry/relay/pull/5877))
+- Stream attachments and minidumps received at `/minidump` to objectstore. ([#5877](https://github.com/getsentry/relay/pull/5877), [#5909](https://github.com/getsentry/relay/pull/5909))
+- Never forward unknown requests in processing Relays. ([#5915](https://github.com/getsentry/relay/pull/5915))
 - Distinguish between objectstore stream timeouts and regular timeouts on a config level. ([#5878](https://github.com/getsentry/relay/pull/5878))
-
 
 ## 26.4.1
 

@@ -1,5 +1,6 @@
 import pytest
 import queue
+from unittest import mock
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
@@ -297,6 +298,8 @@ def test_ops_breakdowns(mini_sentry, relay_with_processing, transactions_consume
     transaction_item = generate_transaction_item()
     transaction_item.update(
         {
+            "start_timestamp": 0,
+            "timestamp": 4000,
             "spans": [
                 {
                     "description": "GET /api/0/organizations/?member=1",
@@ -365,6 +368,73 @@ def test_ops_breakdowns(mini_sentry, relay_with_processing, transactions_consume
             "ops.http": {"value": 2000000.0, "unit": "millisecond"},
             "ops.resource": {"value": 100001.003, "unit": "millisecond"},
             "total.time": {"value": 2200001.003, "unit": "millisecond"},
+        },
+    }
+
+
+@pytest.mark.parametrize("offset", (900, -320000000))
+def test_transaction_with_invalid_span_timestamps(mini_sentry, relay, offset):
+    relay = relay(mini_sentry, options={"outcomes": {"emit_outcomes": True}})
+    mini_sentry.add_basic_project_config(42)
+
+    transaction_item = generate_transaction_item()
+    transaction_item.update(
+        {
+            "spans": [
+                {
+                    "description": "GET /api/0/organizations/?member=1",
+                    "op": "http",
+                    "parent_span_id": "aaaaaaaaaaaaaaaa",
+                    "span_id": "bbbbbbbbbbbbbbbb",
+                    "start_timestamp": transaction_item["start_timestamp"] + offset,
+                    "timestamp": transaction_item["timestamp"] + offset,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                },
+            ],
+        }
+    )
+    transaction_item["contexts"]["trace"].update({"span_id": "aaaaaaaaaaaaaaaa"})
+
+    envelope = Envelope()
+    envelope.add_transaction(transaction_item)
+    relay.send_envelope(42, envelope)
+
+    transaction = mini_sentry.get_captured_envelope().get_transaction_event()
+    assert transaction is not None
+
+    span = transaction["spans"][0]
+    assert span["start_timestamp"] == transaction["start_timestamp"]
+    assert span["timestamp"] == transaction["timestamp"]
+
+    assert transaction["_meta"] == {
+        "spans": {
+            "0": {
+                "start_timestamp": {
+                    "": {
+                        "err": ["invalid_data"],
+                        "val": mock.ANY,
+                    }
+                },
+                "timestamp": {
+                    "": {
+                        "err": ["invalid_data"],
+                        "val": mock.ANY,
+                    }
+                },
+            }
+        },
+        "timestamp": {
+            "": {
+                "err": [
+                    [
+                        "past_timestamp",
+                        {
+                            "sdk_time": mock.ANY,
+                            "server_time": mock.ANY,
+                        },
+                    ]
+                ]
+            }
         },
     }
 

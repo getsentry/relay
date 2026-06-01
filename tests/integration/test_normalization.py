@@ -696,3 +696,57 @@ def test_auto_infer_invalid_setting(mini_sentry, relay):
     envelope = mini_sentry.get_captured_envelope()
     event = envelope.get_event()
     assert event.get("user", {}).get("ip_address", None) is None
+
+
+def test_create_trace_context_for_errors(mini_sentry, relay):
+    """
+    Makes sure events always have a default trace context created, if it is missing.
+    """
+    project_id = 42
+    relay = relay(mini_sentry)
+    mini_sentry.add_basic_project_config(project_id)
+
+    relay.send_event(
+        project_id,
+        {"event_id": "69241adef5744ef19bde5bbd06fe8177", "message": "Hello World!"},
+    )
+
+    event = mini_sentry.get_captured_envelope().get_event()
+    assert event.get("contexts", {}).get("trace") == {
+        "trace_id": "69241adef5744ef19bde5bbd06fe8177",
+        "span_id": "69241adef5744ef1",
+        "status": "unknown",
+        "type": "trace",
+    }
+
+
+def test_create_trace_context_for_errors_with_partial_context(mini_sentry, relay):
+    """
+    Makes sure events always have a valid trace context, even if the one contained in the event
+    is missing required attributes like the trace id.
+    """
+    project_id = 42
+    relay = relay(mini_sentry)
+    mini_sentry.add_basic_project_config(project_id)
+
+    relay.send_event(
+        project_id,
+        {
+            "event_id": "69241adef5744ef19bde5bbd06fe8177",
+            "message": "Hello World!",
+            "contexts": {
+                "trace": {
+                    "span_id": "1233333333333333",
+                    "type": "trace",
+                }
+            },
+        },
+    )
+
+    event = mini_sentry.get_captured_envelope().get_event()
+    assert event.get("contexts", {}).get("trace") == {
+        "trace_id": "69241adef5744ef19bde5bbd06fe8177",
+        "span_id": "1233333333333333",
+        "status": "unknown",
+        "type": "trace",
+    }

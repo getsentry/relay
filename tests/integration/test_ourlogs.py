@@ -1,14 +1,13 @@
 import json
 
 from datetime import datetime, timezone, timedelta
-from unittest import mock
 import uuid
 
 from requests import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 
-from .asserts import time_within_delta, time_within, matches
+from .asserts import time_within_delta, time_within, matches, any
 
 import pytest
 
@@ -45,7 +44,7 @@ def envelope_with_sentry_logs(*payloads: dict, metadata=None) -> Envelope:
 def timestamps(ts: datetime):
     return {
         "sentry.observed_timestamp_nanos": {
-            "stringValue": time_within(ts, expect_resolution="ns")
+            "stringValue": time_within_delta(ts, expect_resolution="ns")
         },
         "sentry.timestamp_precise": {
             "intValue": time_within_delta(
@@ -221,7 +220,7 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
         # If an external Relay/Client makes modifications, sizes can change,
         # this is fuzzy due to slight changes in sizes due to added timestamps
         # and may need to be adjusted when changing normalization.
-        ("managed", 128, 459),
+        ("managed", 106, 437),
     ],
 )
 def test_ourlog_extraction_with_sentry_logs(
@@ -313,15 +312,15 @@ def test_ourlog_extraction_with_sentry_logs(
         {
             "attributes": {
                 "sentry.body": {"stringValue": "This is really bad"},
-                "sentry.browser.name": {"stringValue": "Python Requests"},
-                "sentry.browser.version": {"stringValue": "2.32"},
+                "browser.name": {"stringValue": "Firefox"},
+                "browser.version": {"stringValue": "42.0"},
                 "sentry.severity_text": {"stringValue": "error"},
-                "sentry.payload_size_bytes": {"intValue": mock.ANY},
+                "sentry.payload_size_bytes": {"intValue": any()},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
                 **timestamps(ts),
             },
             "clientSampleRate": 1.0,
-            "itemId": mock.ANY,
+            "itemId": any(),
             "itemType": "TRACE_ITEM_TYPE_LOG",
             "organizationId": "1",
             "projectId": "42",
@@ -388,10 +387,10 @@ def test_ourlog_extraction_with_sentry_logs(
                     "stringValue": '{"meta":{"value":{"1":{"":{"rem":[["@creditcard","s",0,12]],"len":16}}}}}'
                 },
                 "sentry.body": {"stringValue": "Example log record"},
-                "sentry.browser.name": {"stringValue": "Python Requests"},
-                "sentry.browser.version": {"stringValue": "2.32"},
+                "browser.name": {"stringValue": "Firefox"},
+                "browser.version": {"stringValue": "42.0"},
                 "sentry.severity_text": {"stringValue": "info"},
-                "sentry.payload_size_bytes": {"intValue": mock.ANY},
+                "sentry.payload_size_bytes": {"intValue": any()},
                 "http.response_content_length": {"intValue": "17"},
                 "http.response.body.size": {"intValue": "17"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
@@ -405,7 +404,7 @@ def test_ourlog_extraction_with_sentry_logs(
                 **timestamps(ts),
             },
             "clientSampleRate": 1.0,
-            "itemId": mock.ANY,
+            "itemId": any(),
             "itemType": "TRACE_ITEM_TYPE_LOG",
             "organizationId": "1",
             "projectId": "42",
@@ -504,21 +503,21 @@ def test_ourlog_extraction_with_string_pii_scrubbing(
         "span_id": "eee19b7ec3c1b174",
         "attributes": {
             "test_pii": {"type": "string", "value": expected_scrubbed},
-            "sentry.browser.name": {"type": "string", "value": "Python Requests"},
-            "sentry.browser.version": {"type": "string", "value": "2.32"},
+            "browser.name": {"type": "string", "value": "Firefox"},
+            "browser.version": {"type": "string", "value": "42.0"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
             },
         },
-        "__header": {"byte_size": mock.ANY},
+        "__header": {"byte_size": any()},
         "_meta": {
             "attributes": {
                 "test_pii": {
                     "value": {
                         "": {
-                            "len": mock.ANY,
-                            "rem": [[rule_type, mock.ANY, mock.ANY, mock.ANY]],
+                            "len": any(),
+                            "rem": [[rule_type, any(), any(), any()]],
                         }
                     }
                 }
@@ -621,15 +620,15 @@ def test_ourlog_default_pii_body(
     assert log == {
         **_if_dict(
             non_destructive.scrubs(),
-            {"_meta": {"body": {"": {"len": mock.ANY, "rem": mock.ANY}}}},
+            {"_meta": {"body": {"": {"len": any(), "rem": any()}}}},
         ),
-        "attributes": mock.ANY,
+        "attributes": any(),
         "body": non_destructive.expected_output,
         "level": "info",
         "span_id": "eee19b7ec3c1b174",
         "timestamp": time_within(ts),
         "trace_id": "5b8efff798038103d269b633813fc60c",
-        "__header": mock.ANY,
+        "__header": any(),
     }
 
     if non_destructive.additional_checks:
@@ -691,17 +690,17 @@ def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attribut
             "sentry._meta.fields.attributes.custom_field": {
                 "stringValue": '{"meta":{"value":{"":{"rem":[["remove_custom_field","s",0,10]],"len":12}}}}'
             },
-            "sentry.browser.version": {"stringValue": "2.32"},
+            "browser.version": {"stringValue": "42.0"},
             "custom_field": {"stringValue": "[REDACTED]"},
             "sentry.body": {"stringValue": "Test log"},
             "sentry.severity_text": {"stringValue": "info"},
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
-            "sentry.payload_size_bytes": mock.ANY,
-            "sentry.browser.name": {"stringValue": "Python Requests"},
+            "sentry.payload_size_bytes": any(),
+            "browser.name": {"stringValue": "Firefox"},
             **timestamps(ts),
         },
         "clientSampleRate": 1.0,
-        "itemId": mock.ANY,
+        "itemId": any(),
         "itemType": "TRACE_ITEM_TYPE_LOG",
         "organizationId": "1",
         "projectId": "42",
@@ -745,14 +744,14 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
     assert items_consumer.get_item() == {
         "attributes": {
             "sentry.body": {"stringValue": "Example log record 2"},
-            "sentry.browser.name": {"stringValue": "Python Requests"},
-            "sentry.browser.version": {"stringValue": "2.32"},
+            "browser.name": {"stringValue": "Firefox"},
+            "browser.version": {"stringValue": "42.0"},
             "sentry.severity_text": {"stringValue": "warn"},
-            "sentry.payload_size_bytes": {"intValue": mock.ANY},
+            "sentry.payload_size_bytes": {"intValue": any()},
             **timestamps(ts),
         },
         "clientSampleRate": 1.0,
-        "itemId": mock.ANY,
+        "itemId": any(),
         "itemType": "TRACE_ITEM_TYPE_LOG",
         "organizationId": "1",
         "projectId": "42",
@@ -887,15 +886,15 @@ def test_browser_name_version_extraction(
     assert items_consumer.get_item() == {
         "attributes": {
             "sentry.body": {"stringValue": "This is really bad"},
-            "sentry.browser.name": {"stringValue": expected_browser_name},
-            "sentry.browser.version": {"stringValue": expected_browser_version},
+            "browser.name": {"stringValue": expected_browser_name},
+            "browser.version": {"stringValue": expected_browser_version},
             "sentry.severity_text": {"stringValue": "error"},
-            "sentry.payload_size_bytes": {"intValue": mock.ANY},
+            "sentry.payload_size_bytes": {"intValue": any()},
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
             **timestamps(ts),
         },
         "clientSampleRate": 1.0,
-        "itemId": mock.ANY,
+        "itemId": any(),
         "itemType": "TRACE_ITEM_TYPE_LOG",
         "organizationId": "1",
         "projectId": "42",
@@ -1030,7 +1029,7 @@ def test_filters_are_applied_to_logs(
             "org_id": 1,
             "outcome": 1,
             "project_id": 42,
-            "quantity": mock.ANY,
+            "quantity": any(),
             "reason": filter_name,
             "timestamp": time_within_delta(ts),
         },
@@ -1089,7 +1088,7 @@ def test_time_corrections(mini_sentry, relay, delta, error):
                 }
             }
         },
-        "attributes": mock.ANY,
+        "attributes": any(),
         "body": "foo",
         "level": "error",
         "span_id": "eee19b7ec3c1b175",
@@ -1098,11 +1097,105 @@ def test_time_corrections(mini_sentry, relay, delta, error):
     }
 
 
+def test_time_sequence_shift(mini_sentry, relay_with_processing, items_consumer):
+    items_consumer = items_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = ["organizations:ourlogs-ingestion"]
+
+    relay = relay_with_processing(options=TEST_CONFIG)
+
+    ts = datetime.now(timezone.utc)
+    seq_shift_in_secs = 1.0
+
+    envelope = envelope_with_sentry_logs(
+        {
+            "timestamp": ts.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+            "level": "error",
+            "body": "foo",
+            "attributes": {
+                "sentry.timestamp.sequence": {
+                    "value": int(seq_shift_in_secs * 1e9),
+                    "type": "integer",
+                },
+            },
+        },
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    assert items_consumer.get_item() == {
+        "attributes": {
+            "browser.name": {
+                "stringValue": "Firefox",
+            },
+            "browser.version": {
+                "stringValue": "42.0",
+            },
+            "sentry._meta.fields.timestamp": {
+                "stringValue": '{"meta":{"":{"rem":[["timestamp.sequence","s"]]}}}',
+            },
+            "sentry.body": {
+                "stringValue": "foo",
+            },
+            "sentry.observed_timestamp_nanos": {
+                "stringValue": time_within_delta(ts, expect_resolution="ns")
+            },
+            "sentry.payload_size_bytes": {
+                "intValue": "36",
+            },
+            "sentry.severity_text": {
+                "stringValue": "error",
+            },
+            "sentry.span_id": {
+                "stringValue": "eee19b7ec3c1b175",
+            },
+            "sentry.timestamp.sequence": {
+                "intValue": "1000000000",
+            },
+            "sentry.timestamp_precise": {
+                "intValue": time_within_delta(
+                    ts + timedelta(seconds=seq_shift_in_secs),
+                    delta=timedelta(
+                        seconds=0,
+                    ),
+                    expect_resolution="ns",
+                    precision="us",
+                )
+            },
+        },
+        "clientSampleRate": 1.0,
+        "downsampledRetentionDays": 90,
+        "itemId": any(),
+        "itemType": "TRACE_ITEM_TYPE_LOG",
+        "organizationId": "1",
+        "projectId": "42",
+        "received": time_within_delta(),
+        "retentionDays": 90,
+        "serverSampleRate": 1.0,
+        "timestamp": time_within_delta(
+            ts + timedelta(seconds=seq_shift_in_secs), delta=timedelta(), precision="ms"
+        ),
+        "traceId": "5b8efff798038103d269b633813fc60c",
+    }
+
+
 @pytest.mark.parametrize(
     "metadata,client_ip,browser",
     [
         ({}, False, True),
         ({"version": 2}, False, False),
+        (
+            {
+                "version": 2,
+                "ingest_settings": {"infer_ip": "never", "infer_user_agent": "never"},
+            },
+            False,
+            False,
+        ),
         (
             {
                 "version": 2,
@@ -1163,13 +1256,13 @@ def test_ourlog_container_metadata(
             **_if_dict(
                 browser,
                 {
-                    "sentry.browser.name": {
+                    "browser.name": {
                         "type": "string",
-                        "value": "Python Requests",
+                        "value": "Firefox",
                     },
-                    "sentry.browser.version": {
+                    "browser.version": {
                         "type": "string",
-                        "value": "2.32",
+                        "value": "42.0",
                     },
                 },
             ),
@@ -1178,7 +1271,7 @@ def test_ourlog_container_metadata(
                 "value": time_within(ts, expect_resolution="ns"),
             },
         },
-        "__header": mock.ANY,
+        "__header": any(),
         "body": "Test log",
         "level": "info",
         "timestamp": time_within(ts),
