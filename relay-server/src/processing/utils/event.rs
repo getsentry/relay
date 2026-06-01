@@ -408,10 +408,6 @@ pub struct EventFullyNormalized(pub bool);
 #[derive(Debug, Copy, Clone)]
 pub struct EventMetricsExtracted(pub bool);
 
-/// New type representing whether spans were extracted.
-#[derive(Debug, Copy, Clone)]
-pub struct SpansExtracted(pub bool);
-
 /// Checks if the Event includes unprintable fields.
 fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
     fn is_unprintable(value: &&str) -> bool {
