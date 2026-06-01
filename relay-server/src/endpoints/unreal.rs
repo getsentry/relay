@@ -1,6 +1,6 @@
 use axum::extract::{DefaultBodyLimit, FromRequest, Query};
 use axum::response::IntoResponse;
-use axum::routing::{MethodRouter, post};
+use axum::routing::{post, MethodRouter};
 use bytes::Bytes;
 use relay_config::Config;
 use relay_dynamic_config::Feature;
@@ -66,6 +66,7 @@ impl UnrealParams {
 
             let project_config = match project.state() {
                 ProjectState::Enabled(info) => info.clone(),
+                // TODO(INGEST-925): Support proxy mode
                 ProjectState::Dummy | ProjectState::Disabled | ProjectState::Pending => {
                     return Err(BadStoreRequest::EventRejected(DiscardReason::ProjectId));
                 }
