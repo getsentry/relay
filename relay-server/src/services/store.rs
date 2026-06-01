@@ -614,7 +614,7 @@ impl StoreService {
         let batch_size = self.config.metrics_max_batch_size_bytes();
         let mut error = None;
 
-        let global_config = self.global_config.current();
+        let global_config = self.global_config.current().unwrap_or_default();
         let mut encoder = BucketEncoder::new(&global_config);
 
         let emit_sessions_to_eap = utils::is_rolled_out(
@@ -718,6 +718,7 @@ impl StoreService {
             scoping.organization_id.value(),
             self.global_config
                 .current()
+                .unwrap_or_default()
                 .options
                 .eap_outcomes_rollout_rate,
         )
@@ -765,6 +766,7 @@ impl StoreService {
             scoping.organization_id.value(),
             self.global_config
                 .current()
+                .unwrap_or_default()
                 .options
                 .eap_span_outcomes_rollout_rate,
         )
