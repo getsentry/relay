@@ -488,19 +488,20 @@ pub fn extract_spans(
     );
 
     transaction.split_once(|mut tx, r| {
-        let spans = spans::extract_from_event(tx.headers.dsc(), &tx.event, ctx, server_sample_rate)
-            .into_iter()
-            .filter_map(|span| match span {
-                Ok(span) => Some(span),
-                Err(()) => {
-                    r.reject_err(
-                        Outcome::Invalid(DiscardReason::InvalidSpan),
-                        IndexedSpans(1),
-                    );
-                    None
-                }
-            })
-            .collect();
+        let spans =
+            spans::extract_from_event(tx.headers.dsc(), &tx.event, ctx.config, server_sample_rate)
+                .into_iter()
+                .filter_map(|span| match span {
+                    Ok(span) => Some(span),
+                    Err(()) => {
+                        r.reject_err(
+                            Outcome::Invalid(DiscardReason::InvalidSpan),
+                            IndexedSpans(1),
+                        );
+                        None
+                    }
+                })
+                .collect();
 
         // Once spans are extracted, they are no longer counted towards the transaction.
         tx.flags.spans_extracted = true;

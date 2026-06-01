@@ -14,10 +14,9 @@ use crate::name::name_for_attributes;
 /// - `tags`, `sentry_tags`, `measurements` and `data` are transferred to `attributes`.
 /// - Nested `data` items are encoded as JSON.
 ///
-/// If `use_measurements_smart_conversion` is `true`, measurements will be converted
-/// to attributes by looking up the replacement attribute's name in `sentry-conventions`.
-/// Otherwise, the measurement name will be reused as the attribute name verbatim.
-pub fn span_v1_to_span_v2(span_v1: SpanV1, use_measurements_smart_conversion: bool) -> SpanV2 {
+/// Measurements will be converted to attributes by looking up the
+/// replacement attribute's name in `sentry-conventions`.
+pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     let SpanV1 {
         timestamp,
         start_timestamp,
@@ -66,16 +65,12 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1, use_measurements_smart_conversion: bo
     if let Some(measurements) = measurements.into_value() {
         for (key, measurement) in measurements.0 {
             let key = match key.as_str() {
-                // TODO: If these measurements were defined in conventions we could get rid of the match entirely
+                // These measurements aren't defined in conventions; they are not sent
+                // by SDKs but inserted into `measurements` by Relay. As such, we
+                // special-case them here.
                 "client_sample_rate" => SENTRY__CLIENT_SAMPLE_RATE,
                 "server_sample_rate" => SENTRY__SERVER_SAMPLE_RATE,
-                other => {
-                    if use_measurements_smart_conversion {
-                        relay_conventions::measurement_to_attribute(other).unwrap_or(other)
-                    } else {
-                        other
-                    }
-                }
+                other => relay_conventions::measurement_to_attribute(other).unwrap_or(other),
             };
 
             attributes.insert_if_missing(key, || match measurement {
@@ -325,7 +320,7 @@ mod tests {
         });
 
         let span_v1 = SpanV1::from_value(json.into()).into_value().unwrap();
-        let span_v2 = span_v1_to_span_v2(span_v1, false);
+        let span_v2 = span_v1_to_span_v2(span_v1);
 
         let annotated_span_v2: Annotated<SpanV2> = Annotated::new(span_v2);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span_v2), @r#"
@@ -492,7 +487,7 @@ mod tests {
         }
         "###);
 
-        let span_v2 = span_v1_to_span_v2(span_v1, false);
+        let span_v2 = span_v1_to_span_v2(span_v1);
 
         // The `name` and the `sentry.segment.name` attribute are the same as the transaction.
         insta::assert_json_snapshot!(SerializableAnnotated(&Annotated::new(span_v2)), @r###"
@@ -522,7 +517,7 @@ mod tests {
     fn start_timestamp() {
         let json = r#"{"timestamp": 123, "end_timestamp": "invalid data"}"#;
         let span_v1 = Annotated::<SpanV1>::from_json(json).unwrap();
-        let span_v2 = span_v1_to_span_v2(span_v1.into_value().unwrap(), false);
+        let span_v2 = span_v1_to_span_v2(span_v1.into_value().unwrap());
 
         // Parsed version is still fine:
         assert_eq!(
