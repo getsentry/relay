@@ -29,6 +29,7 @@ use crate::managed::{Managed, ManagedResult, Rejected};
 use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome};
+use crate::services::projects::project::ProjectState;
 use crate::services::upload::Upload;
 use crate::statsd::RelayCounters;
 use crate::utils::{self, AttachmentStrategy, read_bytes_into_item};
@@ -427,11 +428,12 @@ async fn upload_context<'a>(
         .await
         .ok_or(BadStoreRequest::ProjectUnavailable)?;
 
-    let project_config = project
-        .state()
-        .clone()
-        .enabled()
-        .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
+    let project_config = match project.state() {
+        ProjectState::Enabled(info) => info.clone(),
+        ProjectState::Dummy | ProjectState::Disabled | ProjectState::Pending => {
+            return Err(BadStoreRequest::EventRejected(DiscardReason::ProjectId));
+        }
+    };
 
     let scoping = project_config
         .scoping(meta.public_key())
