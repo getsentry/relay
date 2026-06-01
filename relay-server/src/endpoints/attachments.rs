@@ -33,8 +33,8 @@ impl AttachmentStrategy for AttachmentsAttachmentStrategy {
         field: Field<'static>,
         item: Managed<Item>,
         config: &Config,
-    ) -> Result<Option<Managed<Item>>, multer::Error> {
-        read_bytes_into_item(field, item, config).await.map(Some)
+    ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
+        Ok(Some(read_bytes_into_item(field, item, config).await?))
     }
 }
 

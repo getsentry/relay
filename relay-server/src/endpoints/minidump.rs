@@ -25,7 +25,7 @@ use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse, upload_to_objectstore};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType, Items};
 use crate::extractors::{RawContentType, RequestMeta};
-use crate::managed::{Managed, ManagedResult, Rejected};
+use crate::managed::{Managed, ManagedResult};
 use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome};
@@ -253,13 +253,13 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
         field: Field<'static>,
         item: Managed<Item>,
         config: &Config,
-    ) -> Result<Option<Managed<Item>>, multer::Error> {
+    ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
         let read_inline = async |field: Field<'static>, item: Managed<Item>| {
             let is_minidump = matches!(item.attachment_type(), Some(AttachmentType::Minidump));
             match read_bytes_into_item(field, item, config).await {
                 // Don't bubble up errors caused by large items unless it is the minidump itself.
                 Err(multer::Error::FieldSizeExceeded { .. }) if !is_minidump => Ok(None),
-                r => r.map(Some),
+                r => Ok(Some(r?)),
             }
         };
 
@@ -270,8 +270,9 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
 
         match upload_context.upload_decision(item.attachment_type()) {
             UploadDecision::Upload => {
+                let is_minidump = matches!(item.attachment_type(), Some(AttachmentType::Minidump));
                 let content_type = field.content_type().map(ToString::to_string);
-                Ok(upload_to_objectstore_checked(
+                match upload_to_objectstore_checked(
                     field,
                     content_type,
                     item,
@@ -281,7 +282,13 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
                     "minidump",
                 )
                 .await
-                .ok())
+                {
+                    Ok(item) => Ok(Some(item)),
+                    // A failed minidump upload should cause the entire request to be rejected.
+                    Err(e) if is_minidump => Err(e),
+                    // A failed attachment upload should not cause the entire request to be rejected.
+                    Err(_) => Ok(None),
+                }
             }
             UploadDecision::Inline => read_inline(field, item).await,
             UploadDecision::Drop(limits) => {
@@ -316,7 +323,7 @@ pub async fn upload_to_objectstore_checked<S, E>(
     scoping: Scoping,
     upload: &Addr<Upload>,
     referrer: &'static str,
-) -> Result<Managed<Item>, Rejected<()>>
+) -> Result<Managed<Item>, BadStoreRequest>
 where
     S: futures::Stream<Item = Result<Bytes, E>> + Send + 'static,
     E: Into<Box<dyn std::error::Error + Send + Sync>> + Send + 'static,
@@ -331,13 +338,15 @@ where
             upload,
             referrer,
         )
-        .await;
+        .await
+        .map_err(|_| BadStoreRequest::ObjectstoreUploadFailed);
     }
 
     let stream = match reject_if_compressed(stream).await {
         Ok(stream) => stream,
         Err(_) => {
-            return Err(item.reject_err(Outcome::Invalid(DiscardReason::InvalidMinidump)));
+            let _ = item.reject_err(Outcome::Invalid(DiscardReason::InvalidMinidump));
+            return Err(BadStoreRequest::InvalidMinidump);
         }
     };
 
@@ -351,6 +360,7 @@ where
         referrer,
     )
     .await
+    .map_err(|_| BadStoreRequest::ObjectstoreUploadFailed)
 }
 
 async fn multipart_to_items(
