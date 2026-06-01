@@ -264,13 +264,6 @@ class Sentry(SentryLike):
             return outcomes
 
 
-def _get_project_id(public_key, project_configs):
-    for project_id, project_config in project_configs.items():
-        for key_config in project_config["publicKeys"]:
-            if key_config["publicKey"] == public_key:
-                return project_id
-
-
 @pytest.fixture
 def mini_sentry(request):  # noqa
     app = Flask(__name__)
@@ -567,5 +560,6 @@ GLOBAL_CONFIG = {
     "options": {
         "relay.span-usage-metric": True,
         "relay.session.processing.rollout": 1.0,
+        "relay.endpoint-fetch-config.enabled": True,
     },
 }

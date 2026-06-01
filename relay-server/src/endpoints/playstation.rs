@@ -4,7 +4,6 @@
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
-use http::StatusCode;
 use multer::{Field, Multipart};
 use relay_config::Config;
 use relay_dynamic_config::Feature;
@@ -15,13 +14,12 @@ use serde::Serialize;
 use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
-use crate::envelope::ContentType::OctetStream;
-use crate::envelope::{AttachmentType, Envelope, Item};
+use crate::envelope::{AttachmentType, ContentType, Envelope, Item, Items};
 use crate::extractors::{RawContentType, RequestMeta};
+use crate::managed::{Managed, ManagedResult};
 use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::DiscardReason;
-use crate::services::projects::cache::Project;
 use crate::services::upload::Upload;
 use crate::utils::{self, AttachmentStrategy};
 
@@ -63,9 +61,63 @@ struct Parts {
     upload: &'static [&'static str],
 }
 
-struct PlaystationAttachmentStrategy<'a> {
-    upload_service: Option<&'a Addr<Upload>>,
+struct UploadContext<'a> {
+    upload: &'a Addr<Upload>,
     scoping: Scoping,
+}
+
+/// Created an [UploadContext].
+///
+/// Requires both the `endpoint_fetch_config_enabled` option and `PlaystationUploads`
+/// feature to be enabled as well as attachments not being ratelimited.
+async fn upload_context<'a>(
+    state: &'a ServiceState,
+    meta: &RequestMeta,
+) -> Result<Option<UploadContext<'a>>, BadStoreRequest> {
+    if !state
+        .global_config_handle()
+        .current()
+        .unwrap_or_default()
+        .options
+        .endpoint_fetch_config_enabled
+    {
+        return Ok(None);
+    }
+
+    let project = state
+        .project_cache_handle()
+        .ready(meta.public_key(), state.config().query_timeout())
+        .await
+        .ok_or(BadStoreRequest::ProjectUnavailable)?;
+
+    let project_config = project
+        .state()
+        .clone()
+        .enabled()
+        .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
+
+    let scoping = project_config
+        .scoping(meta.public_key())
+        .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
+
+    let attachment_rate_limits = project.rate_limits().current_limits().check_with_quotas(
+        project_config.get_quotas(),
+        scoping.item(DataCategory::Attachment),
+    );
+
+    match project_config.has_feature(Feature::PlaystationUploads)
+        && !attachment_rate_limits.is_limited()
+    {
+        true => Ok(Some(UploadContext {
+            upload: state.upload(),
+            scoping,
+        })),
+        false => Ok(None),
+    }
+}
+
+struct PlaystationAttachmentStrategy<'a> {
+    upload_context: Option<UploadContext<'a>>,
 }
 
 impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
@@ -83,22 +135,30 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
     async fn add_to_item(
         &self,
         field: Field<'static>,
-        item: Item,
+        item: Managed<Item>,
         config: &Config,
-    ) -> Result<Option<Item>, multer::Error> {
-        match self.upload_service {
-            Some(upload) if self.infer_type(&field) != AttachmentType::Prosperodump => {
+    ) -> Result<Option<Managed<Item>>, multer::Error> {
+        match &self.upload_context {
+            Some(upload_context) if self.infer_type(&field) != AttachmentType::Prosperodump => {
+                let content_type = field.content_type().map(ToString::to_string);
                 Ok(common::upload_to_objectstore(
                     field,
+                    content_type,
                     item,
                     config,
-                    self.scoping,
-                    upload,
+                    upload_context.scoping,
+                    upload_context.upload,
                     "playstation",
                 )
-                .await)
+                .await
+                .ok())
             }
-            _ => utils::read_attachment_bytes_into_item(field, item, config, true).await,
+            _ => match utils::read_bytes_into_item(field, item, config).await {
+                // Don't bubble up errors caused by large attachments, skip over them and continue
+                // with the next item.
+                Err(multer::Error::FieldSizeExceeded { .. }) => Ok(None),
+                r => r.map(Some),
+            },
         }
     }
 }
@@ -120,51 +180,50 @@ fn validate_prosperodump(data: &[u8]) -> Result<(), BadStoreRequest> {
     Ok(())
 }
 
-async fn extract_multipart(
+async fn multipart_to_items(
     multipart: Multipart<'static>,
-    meta: RequestMeta,
+    meta: &RequestMeta,
     state: &ServiceState,
-    project: &Project<'_>,
-) -> Result<Box<Envelope>, BadStoreRequest> {
-    let project_config = project
-        .state()
-        .clone()
-        .enabled()
-        .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
-    let scoping = project_config
-        .scoping(meta.public_key())
-        .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
-    let attachment_rate_limits = || {
-        project.rate_limits().current_limits().check_with_quotas(
-            project_config.get_quotas(),
-            scoping.item(DataCategory::Attachment),
-        )
-    };
-    let upload_service = (project_config.has_feature(Feature::PlaystationUploads)
-        && !attachment_rate_limits().is_limited())
-    .then_some(state.upload());
-    let attachment_strategy = PlaystationAttachmentStrategy {
-        scoping,
-        upload_service,
-    };
-    let mut items = utils::multipart_items(multipart, state.config(), attachment_strategy).await?;
+    upload_context: Option<UploadContext<'_>>,
+) -> Result<Managed<Items>, BadStoreRequest> {
+    let mut items = utils::multipart_items(
+        multipart,
+        state.config(),
+        PlaystationAttachmentStrategy { upload_context },
+        meta,
+        state.outcome_aggregator(),
+    )
+    .await?;
 
-    let prosperodump_item = items
-        .iter_mut()
-        .find(|item| item.attachment_type() == Some(AttachmentType::Prosperodump))
-        .ok_or(BadStoreRequest::MissingProsperodump)?;
+    items.try_modify(|inner, _| -> Result<(), BadStoreRequest> {
+        let prosperodump = inner
+            .iter_mut()
+            .find(|item| item.attachment_type() == Some(AttachmentType::Prosperodump))
+            .ok_or(BadStoreRequest::MissingProsperodump)?;
+        let payload = prosperodump.payload();
+        validate_prosperodump(&payload)?;
+        prosperodump.set_payload(ContentType::OctetStream, payload);
+        Ok(())
+    })?;
+    Ok(items)
+}
 
-    prosperodump_item.set_payload(OctetStream, prosperodump_item.payload());
-
-    validate_prosperodump(&prosperodump_item.payload())?;
-
-    let event_id = common::event_id_from_items(&items)?.unwrap_or_else(EventId::new);
-    let mut envelope = Envelope::from_request(Some(event_id), meta);
-
-    for item in items {
-        envelope.add_item(item);
-    }
-
+fn envelope(
+    items: Managed<Items>,
+    meta: RequestMeta,
+    managed_err: Managed<(DataCategory, usize)>,
+) -> Result<Managed<Box<Envelope>>, BadStoreRequest> {
+    let event_id = common::event_id_from_items(&items)
+        .reject2(&items, &managed_err)?
+        .unwrap_or_else(EventId::new);
+    let envelope = items.map(|items, records| {
+        managed_err.accept(|_| ()); // There will be an envelope with (DataCategory::Error, 1) now
+        records.modify_by(DataCategory::Error, 1);
+        let envelope = Envelope::from_request(Some(event_id), meta)
+            .with_items(items)
+            .with_required_feature(Feature::PlaystationIngestion);
+        Box::new(envelope)
+    });
     Ok(envelope)
 }
 
@@ -179,21 +238,22 @@ async fn handle(
         return Ok(axum::Json(create_data_request_response()).into_response());
     }
 
-    let config = state.config();
-    let project = state
-        .project_cache_handle()
-        .ready(meta.public_key(), config.query_timeout())
-        .await
-        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+    // If something goes wrong before the envelope is created, this managed error ensures an
+    // outcome is emitted.
+    let err = (DataCategory::Error, 1);
+    let managed_err = Managed::with_meta_from_request_meta(&meta, state.outcome_aggregator(), err);
 
-    let multipart = utils::multipart_from_request(request)?;
-    let mut envelope = extract_multipart(multipart, meta, &state, &project).await?;
-    envelope.require_feature(Feature::PlaystationIngestion);
+    let upload_context = upload_context(&state, &meta).await.reject(&managed_err)?;
+    let multipart = utils::multipart_from_request(request).reject(&managed_err)?;
+    let items = multipart_to_items(multipart, &meta, &state, upload_context)
+        .await
+        .reject(&managed_err)?;
+    let envelope = envelope(items, meta, managed_err)?;
 
     let id = envelope.event_id();
 
     // Never respond with a 429 since clients often retry these
-    common::handle_envelope(&state, envelope)
+    common::handle_managed_envelope(&state, envelope)
         .await?
         .ignore_rate_limits();
 

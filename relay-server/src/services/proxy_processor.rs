@@ -96,6 +96,7 @@ impl ProxyProcessorService {
         match result {
             Ok(body) => {
                 self.addrs.upstream_relay.send(SendRequest(SendEnvelope {
+                    upstream: None,
                     envelope,
                     body,
                     http_encoding,

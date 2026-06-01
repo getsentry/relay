@@ -210,7 +210,7 @@ impl Outcome {
     /// Returns the `reason` code field of this outcome.
     pub fn to_reason(&self) -> Option<Cow<'_, str>> {
         match self {
-            Outcome::Invalid(DiscardReason::TooLarge(too_large_reason)) => Some(Cow::Owned(
+            Outcome::Invalid(DiscardReason::ItemTooLarge(too_large_reason)) => Some(Cow::Owned(
                 format!("too_large:{}", too_large_reason.as_str()),
             )),
             Outcome::Invalid(discard_reason) => Some(Cow::Borrowed(discard_reason.name())),
@@ -344,6 +344,9 @@ pub enum DiscardReason {
     /// (Relay) There was no valid project id in the request or the required project does not exist.
     ProjectId,
 
+    /// (Relay) The request had an invalid event id.
+    InvalidEventId,
+
     /// (Relay) The protocol version sent by the SDK is not supported and parts of the payload may
     /// be invalid.
     AuthVersion,
@@ -356,8 +359,14 @@ pub enum DiscardReason {
     /// (Relay) The store request was missing an event payload.
     NoData,
 
-    /// (Relay) The event payload exceeds the maximum size limit for the respective endpoint.
-    TooLarge(DiscardItemType),
+    /// (Relay) The size limit was exceeded for the specified type.
+    ItemTooLarge(DiscardItemType),
+
+    /// (Relay) The request exceeded the endpoint's size limit.
+    RequestTooLarge,
+
+    /// (Relay) Sentry dropped data due to a quota or internal rate limit being reached.
+    RateLimited,
 
     /// (Legacy) A store request was received with an invalid method.
     ///
@@ -377,8 +386,14 @@ pub enum DiscardReason {
     /// since it resolves the project first, and then checks for the valid project key.
     MultiProjectId,
 
+    /// (Relay) A request without a prosperodump was made to the playstation endpoint.
+    MissingProsperodump,
+
+    /// (Relay) The prosperodump submitted to the playstation endpoint was invalid.
+    InvalidProsperodump,
+
     /// (Relay) A minidump file was missing for the minidump endpoint.
-    MissingMinidumpUpload,
+    MissingMinidump,
 
     /// (Relay) The file submitted as minidump is not a valid minidump file.
     InvalidMinidump,
@@ -394,6 +409,12 @@ pub enum DiscardReason {
 
     /// (Relay) Reading or decoding the payload from the socket failed for any reason.
     Payload,
+
+    /// (Relay) The request body was empty.
+    EmptyBody,
+
+    /// (Relay) The request body was invalid.
+    InvalidBody,
 
     /// (Relay) Parsing the event JSON payload failed due to a syntax error.
     InvalidJson,
@@ -414,8 +435,17 @@ pub enum DiscardReason {
     /// (Relay) Parsing an event envelope failed (likely missing a required header).
     InvalidEnvelope,
 
-    /// (Relay) The payload had an invalid compression stream.
+    /// (Relay) The payload had an invalid compression format.
     InvalidCompression,
+
+    /// (Relay) The envelope contains internal items.
+    InternalEnvelope,
+
+    /// (Relay) Failed to queue the envelope.
+    QueueFailed,
+
+    /// (Relay) The project could not be retrieved in time.
+    ProjectUnavailable,
 
     /// (Relay) A project state returned by the upstream could not be parsed.
     ProjectState,
@@ -438,8 +468,11 @@ pub enum DiscardReason {
     /// indicates bugs in Relay, rather than an expected failure.
     Internal,
 
+    /// (Relay) The Unreal Crash report submitted to the Unreal endpoint was invalid.
+    InvalidUnrealReport,
+
     /// (Relay) Symbolic failed to extract an Unreal Crash report from a request sent to the
-    /// Unreal endpoint
+    /// Unreal endpoint.
     ProcessUnreal,
 
     /// (Relay) The envelope, which contained only a transaction, was discarded by the
@@ -493,8 +526,12 @@ pub enum DiscardReason {
 
     /// (Relay) The dynamic sampling context is required but missing on the envelope.
     MissingDynamicSamplingContext,
+
     /// (Relay) The dynamic sampling context is invalid or does not match the payload.
     InvalidDynamicSamplingContext,
+
+    /// (Relay) Failed to upload to objectstore.
+    ObjectstoreUploadFailed,
 }
 
 impl DiscardReason {
@@ -505,21 +542,26 @@ impl DiscardReason {
             DiscardReason::AuthVersion => "auth_version",
             DiscardReason::AuthClient => "auth_client",
             DiscardReason::NoData => "no_data",
-            DiscardReason::TooLarge(discard) => discard.as_str(),
+            DiscardReason::ItemTooLarge(discard) => discard.as_str(),
+            DiscardReason::RequestTooLarge => "request_too_large",
+            DiscardReason::RateLimited => "rate_limited",
             DiscardReason::DisallowedMethod => "disallowed_method",
             DiscardReason::ContentType => "content_type",
             DiscardReason::MultiProjectId => "multi_project_id",
-            DiscardReason::MissingMinidumpUpload => "missing_minidump_upload",
+            DiscardReason::MissingProsperodump => "missing_prosperodump_upload",
+            DiscardReason::InvalidProsperodump => "invalid_prosperodump",
+            DiscardReason::MissingMinidump => "missing_minidump_upload",
             DiscardReason::InvalidMinidump => "invalid_minidump",
             DiscardReason::SecurityReportType => "security_report_type",
             DiscardReason::SecurityReport => "security_report",
             DiscardReason::Cors => "cors",
+            DiscardReason::InvalidUnrealReport => "invalid_unreal_report",
             DiscardReason::ProcessUnreal => "process_unreal",
             DiscardReason::InvalidSignature => "invalid_signature",
             DiscardReason::MissingSignature => "missing_signature",
-
-            // Relay specific reasons (not present in Sentry)
             DiscardReason::Payload => "payload",
+            DiscardReason::EmptyBody => "empty_body",
+            DiscardReason::InvalidBody => "invalid_body",
             DiscardReason::InvalidJson => "invalid_json",
             DiscardReason::InvalidMultipart => "invalid_multipart",
             DiscardReason::InvalidMsgpack => "invalid_msgpack",
@@ -527,9 +569,13 @@ impl DiscardReason {
             DiscardReason::InvalidTransaction => "invalid_transaction",
             DiscardReason::InvalidEnvelope => "invalid_envelope",
             DiscardReason::InvalidCompression => "invalid_compression",
+            DiscardReason::InvalidEventId => "invalid_event_id",
+            DiscardReason::InternalEnvelope => "internal_envelope",
+            DiscardReason::QueueFailed => "queue_failed",
             DiscardReason::Timestamp => "timestamp",
             DiscardReason::ProjectState => "project_state",
             DiscardReason::ProjectStatePii => "project_state_pii",
+            DiscardReason::ProjectUnavailable => "project_unavailable",
             DiscardReason::DuplicateItem => "duplicate_item",
             DiscardReason::NoEventPayload => "no_event_payload",
             DiscardReason::Internal => "internal",
@@ -553,6 +599,7 @@ impl DiscardReason {
             DiscardReason::InvalidCheckIn => "invalid_check_in",
             DiscardReason::MissingDynamicSamplingContext => "missing_dsc",
             DiscardReason::InvalidDynamicSamplingContext => "invalid_dsc",
+            DiscardReason::ObjectstoreUploadFailed => "objectstore_upload_failed",
         }
     }
 }
@@ -1358,23 +1405,24 @@ mod tests {
     fn test_outcome_discard_reason() {
         assert_eq!(
             Some(Cow::from("too_large:attachment:attachment")),
-            Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Attachment(
+            Outcome::Invalid(DiscardReason::ItemTooLarge(DiscardItemType::Attachment(
                 DiscardAttachmentType::Attachment
             )))
             .to_reason()
         );
         assert_eq!(
             Some(Cow::from("too_large:unknown")),
-            Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Unknown)).to_reason()
+            Outcome::Invalid(DiscardReason::ItemTooLarge(DiscardItemType::Unknown)).to_reason()
         );
         assert_eq!(
             Some(Cow::from("too_large:unreal_report")),
-            Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::UnrealReport)).to_reason()
+            Outcome::Invalid(DiscardReason::ItemTooLarge(DiscardItemType::UnrealReport))
+                .to_reason()
         );
 
         assert_eq!(
             Some(Cow::from("too_large:attachment:breadcrumbs")),
-            Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Attachment(
+            Outcome::Invalid(DiscardReason::ItemTooLarge(DiscardItemType::Attachment(
                 DiscardAttachmentType::Breadcrumbs
             )))
             .to_reason()

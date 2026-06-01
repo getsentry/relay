@@ -135,7 +135,7 @@ pub enum Status {
     Ready(Arc<GlobalConfig>),
     /// The global config is requested from the upstream but it has not arrived yet.
     ///
-    /// This variant should never be sent after the first `Ready` has occured.
+    /// This variant should never be sent after the first `Ready` has occurred.
     #[default]
     Pending,
 }
@@ -160,14 +160,19 @@ impl GlobalConfigHandle {
         Self { watch }
     }
 
+    /// Returns `true` if the global config was loaded from the upstream.
+    pub fn is_ready(&self) -> bool {
+        self.watch.borrow().is_ready()
+    }
+
     /// Returns the currently loaded or a default global config.
     ///
     /// When no global config has been received from upstream yet,
-    /// this will return a default global config.
-    pub fn current(&self) -> Arc<GlobalConfig> {
+    /// this will return None.
+    pub fn current(&self) -> Option<Arc<GlobalConfig>> {
         match &*self.watch.borrow() {
-            Status::Ready(config) => Arc::clone(config),
-            Status::Pending => Default::default(),
+            Status::Ready(config) => Some(Arc::clone(config)),
+            Status::Pending => None,
         }
     }
 }

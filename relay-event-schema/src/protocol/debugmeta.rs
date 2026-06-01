@@ -487,7 +487,7 @@ pub enum DebugImage {
     /// JVM based debug image.
     Jvm(Box<JvmDebugImage>),
     /// A debug image that is unknown to this protocol specification.
-    #[metastructure(fallback_variant)]
+    #[metastructure(fallback_variant, retain = false)]
     Other(Object<Value>),
 }
 

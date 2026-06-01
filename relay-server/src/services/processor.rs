@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
 use std::fmt::{Debug, Display};
 use std::future::Future;
@@ -19,16 +19,15 @@ use futures::future::BoxFuture;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
-use relay_config::{Config, HttpEncoding};
+use relay_config::{Config, HttpEncoding, UpstreamDescriptor};
 use relay_dynamic_config::Feature;
 use relay_event_normalization::{ClockDriftProcessor, GeoIpLookup};
 use relay_event_schema::processor::ProcessingAction;
-use relay_event_schema::protocol::{ClientReport, Event, EventId, SpanV2};
+use relay_event_schema::protocol::{ClientReport, EventId, SpanV2};
 use relay_filter::FilterStatKey;
 use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricNamespace};
-use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits, Scoping};
-use relay_sampling::evaluation::{ReservoirCounters, SamplingDecision};
+use relay_sampling::evaluation::SamplingDecision;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 use reqwest::header;
@@ -83,12 +82,7 @@ use {
     std::time::Instant,
 };
 
-pub mod event;
 mod metrics;
-pub mod span;
-
-#[cfg(all(sentry, feature = "processing"))]
-pub mod playstation;
 
 /// The minimum clock drift for correction to apply.
 pub const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
@@ -509,7 +503,7 @@ impl ProcessingError {
     pub fn to_outcome(&self) -> Option<Outcome> {
         match self {
             Self::PayloadTooLarge(payload_type) => {
-                Some(Outcome::Invalid(DiscardReason::TooLarge(*payload_type)))
+                Some(Outcome::Invalid(DiscardReason::ItemTooLarge(*payload_type)))
             }
             Self::InvalidJson(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
             Self::InvalidMsgpack(_) => Some(Outcome::Invalid(DiscardReason::InvalidMsgpack)),
@@ -562,8 +556,6 @@ impl From<Unreal4Error> for ProcessingError {
         }
     }
 }
-
-type ExtractedEvent = (Annotated<Event>, usize);
 
 /// A container for extracted metrics during processing.
 ///
@@ -682,8 +674,6 @@ pub struct ProcessEnvelope {
     pub rate_limits: Arc<RateLimits>,
     /// Root sampling project info.
     pub sampling_project_info: Option<Arc<ProjectInfo>>,
-    /// Sampling reservoir counters.
-    pub reservoir_counters: ReservoirCounters,
 }
 
 /// Like a [`ProcessEnvelope`], but with an envelope which has been grouped.
@@ -991,9 +981,13 @@ impl EnvelopeProcessorService {
             )
             .unwrap_or_else(GeoIpLookup::empty);
 
+        if let Some(build_epoch) = geoip_lookup.build_epoch() {
+            relay_log::info!("Loaded GeoIP database (build: {build_epoch})");
+        }
+
         #[cfg(feature = "processing")]
-        let rate_limiter = redis.as_ref().map(|redis| {
-            RedisRateLimiter::new(redis.quotas.clone())
+        let rate_limiter = redis.map(|redis| {
+            RedisRateLimiter::new(redis.quotas)
                 .max_limit(config.max_rate_limit())
                 .cache(config.quota_cache_ratio(), config.quota_cache_max())
         });
@@ -1030,10 +1024,6 @@ impl EnvelopeProcessorService {
                 transactions: TransactionProcessor::new(
                     Arc::clone(&quota_limiter),
                     geoip_lookup.clone(),
-                    #[cfg(feature = "processing")]
-                    redis.map(|r| r.quotas),
-                    #[cfg(not(feature = "processing"))]
-                    None,
                 ),
                 profile_chunks: ProfileChunksProcessor::new(Arc::clone(&quota_limiter)),
                 trace_attachments: TraceAttachmentsProcessor::new(Arc::clone(&quota_limiter)),
@@ -1356,7 +1346,7 @@ impl EnvelopeProcessorService {
                 ManagedEnvelope::new(envelope, self.inner.addrs.outcome_aggregator.clone());
             envelope.scope(scoping);
 
-            let global_config = self.inner.global_config.current();
+            let global_config = self.inner.global_config.current().unwrap_or_default();
 
             let ctx = processing::Context {
                 config: &self.inner.config,
@@ -1364,7 +1354,6 @@ impl EnvelopeProcessorService {
                 project_info: &message.project_info,
                 sampling_project_info: message.sampling_project_info.as_deref(),
                 rate_limits: &message.rate_limits,
-                reservoir_counters: &message.reservoir_counters,
             };
 
             let message = ProcessEnvelopeGrouped {
@@ -1528,13 +1517,19 @@ impl EnvelopeProcessorService {
         match output.serialize_envelope(ctx) {
             Ok(envelope) => {
                 let envelope = ManagedEnvelope::from(envelope);
-                self.submit_envelope_upstream(envelope);
+                self.submit_envelope_upstream(envelope, ctx.project_info.upstream.clone());
             }
             Err(_) => relay_log::error!("failed to serialize output to an envelope"),
         };
     }
 
-    fn submit_envelope_upstream(&self, mut envelope: ManagedEnvelope) {
+    fn submit_envelope_upstream(
+        &self,
+        mut envelope: ManagedEnvelope,
+        // Currently allowed to be optional as code is migrated to respect the upstream override
+        // provided from the project config. Eventually must be available and is required.
+        upstream: Option<UpstreamDescriptor>,
+    ) {
         if envelope.envelope_mut().is_empty() {
             envelope.accept();
             return;
@@ -1571,6 +1566,7 @@ impl EnvelopeProcessorService {
                     .addrs
                     .upstream_relay
                     .send(SendRequest(SendEnvelope {
+                        upstream,
                         envelope,
                         body,
                         http_encoding,
@@ -1618,7 +1614,7 @@ impl EnvelopeProcessorService {
         }
 
         let envelope = ManagedEnvelope::new(envelope, self.inner.addrs.outcome_aggregator.clone());
-        self.submit_envelope_upstream(envelope);
+        self.submit_envelope_upstream(envelope, None);
     }
 
     fn check_buckets(
@@ -1691,7 +1687,7 @@ impl EnvelopeProcessorService {
             return buckets;
         };
 
-        let global_config = self.inner.global_config.current();
+        let global_config = self.inner.global_config.current().unwrap_or_default();
         let namespaces = buckets
             .iter()
             .filter_map(|bucket| bucket.name.try_namespace())
@@ -1751,7 +1747,7 @@ impl EnvelopeProcessorService {
         let scoping = *bucket_limiter.scoping();
 
         if let Some(rate_limiter) = self.inner.rate_limiter.as_ref() {
-            let global_config = self.inner.global_config.current();
+            let global_config = self.inner.global_config.current().unwrap_or_default();
             let quotas = CombinedQuotas::new(&global_config, bucket_limiter.quotas());
 
             // We set over_accept_once such that the limit is actually reached, which allows subsequent
@@ -1864,7 +1860,6 @@ impl EnvelopeProcessorService {
     ///  - partitioning
     ///  - batching by configured size limit
     ///  - serialize to JSON and pack in an envelope
-    ///  - submit the envelope to upstream or kafka depending on configuration
     ///
     /// Rate limiting runs only in processing Relays as it requires access to the central Redis instance.
     /// Cached rate limits are applied in the project cache already.
@@ -1878,7 +1873,10 @@ impl EnvelopeProcessorService {
         let upstream = self.inner.config.upstream();
 
         for ProjectBuckets {
-            buckets, scoping, ..
+            buckets,
+            scoping,
+            project_info,
+            ..
         } in buckets.values()
         {
             let dsn = PartialDsn::outbound(scoping, upstream);
@@ -1906,7 +1904,7 @@ impl EnvelopeProcessorService {
                     distribution(RelayDistributions::BucketsPerBatch) = batch.len() as u64
                 );
 
-                self.submit_envelope_upstream(envelope);
+                self.submit_envelope_upstream(envelope, project_info.upstream.clone());
                 num_batches += 1;
             }
 
@@ -1917,7 +1915,12 @@ impl EnvelopeProcessorService {
     }
 
     /// Creates a [`SendMetricsRequest`] and sends it to the upstream relay.
-    fn send_global_partition(&self, partition_key: u32, partition: &mut Partition<'_>) {
+    fn send_global_partition(
+        &self,
+        upstream: Option<UpstreamDescriptor>,
+        partition_key: u32,
+        partition: &mut Partition<'_>,
+    ) {
         if partition.is_empty() {
             return;
         }
@@ -1934,6 +1937,7 @@ impl EnvelopeProcessorService {
         };
 
         let request = SendMetricsRequest {
+            upstream,
             partition_key: partition_key.to_string(),
             unencoded,
             encoded,
@@ -1962,13 +1966,23 @@ impl EnvelopeProcessorService {
         } = message;
 
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
-        let mut partition = Partition::new(batch_size);
+        let mut partitions = BTreeMap::new();
         let mut partition_splits = 0;
 
         for ProjectBuckets {
-            buckets, scoping, ..
+            buckets,
+            scoping,
+            project_info,
+            ..
         } in buckets.values()
         {
+            let partition = match partitions.get_mut(&project_info.upstream) {
+                Some(partition) => partition,
+                None => partitions
+                    .entry(project_info.upstream.clone())
+                    .or_insert_with(|| Partition::new(batch_size)),
+            };
+
             for bucket in buckets {
                 let mut remaining = Some(BucketView::new(bucket));
 
@@ -1977,7 +1991,11 @@ impl EnvelopeProcessorService {
                         // A part of the bucket could not be inserted. Take the partition and submit
                         // it immediately. Repeat until the final part was inserted. This should
                         // always result in a request, otherwise we would enter an endless loop.
-                        self.send_global_partition(partition_key, &mut partition);
+                        self.send_global_partition(
+                            project_info.upstream.clone(),
+                            partition_key,
+                            partition,
+                        );
                         remaining = Some(next);
                         partition_splits += 1;
                     }
@@ -1989,7 +2007,9 @@ impl EnvelopeProcessorService {
             metric!(distribution(RelayDistributions::PartitionSplits) = partition_splits);
         }
 
-        self.send_global_partition(partition_key, &mut partition);
+        for (upstream, mut partition) in partitions {
+            self.send_global_partition(upstream, partition_key, &mut partition);
+        }
     }
 
     async fn handle_flush_buckets(&self, mut message: FlushBuckets) {
@@ -2120,6 +2140,7 @@ pub fn encode_payload(body: &Bytes, http_encoding: HttpEncoding) -> Result<Bytes
 /// An upstream request that submits an envelope via HTTP.
 #[derive(Debug)]
 pub struct SendEnvelope {
+    pub upstream: Option<UpstreamDescriptor>,
     pub envelope: ManagedEnvelope,
     pub body: Bytes,
     pub http_encoding: HttpEncoding,
@@ -2127,6 +2148,10 @@ pub struct SendEnvelope {
 }
 
 impl UpstreamRequest for SendEnvelope {
+    fn upstream(&self) -> Option<&UpstreamDescriptor> {
+        self.upstream.as_ref()
+    }
+
     fn method(&self) -> reqwest::Method {
         reqwest::Method::POST
     }
@@ -2273,8 +2298,7 @@ impl<'a> Partition<'a> {
         let buckets = &self.views;
         let payload = serde_json::to_vec(&Wrapper { buckets }).unwrap().into();
 
-        let scopings = self.project_info.clone();
-        self.project_info.clear();
+        let scopings = std::mem::take(&mut self.project_info);
 
         self.views.clear();
         self.remaining = self.max_size;
@@ -2288,6 +2312,8 @@ impl<'a> Partition<'a> {
 /// This request is not awaited. It automatically tracks outcomes if the request is not received.
 #[derive(Debug)]
 struct SendMetricsRequest {
+    /// Optional upstream override where the request will be sent to.
+    upstream: Option<UpstreamDescriptor>,
     /// If the partition key is set, the request is marked with `X-Sentry-Relay-Shard`.
     partition_key: String,
     /// Serialized metric buckets without encoding applied, used for signing.
@@ -2338,6 +2364,10 @@ impl SendMetricsRequest {
 }
 
 impl UpstreamRequest for SendMetricsRequest {
+    fn upstream(&self) -> Option<&UpstreamDescriptor> {
+        self.upstream.as_ref()
+    }
+
     fn set_relay_id(&self) -> bool {
         true
     }
@@ -2434,8 +2464,9 @@ mod tests {
     use relay_event_normalization::{
         NormalizationConfig, RedactionRule, TransactionNameConfig, TransactionNameRule,
     };
-    use relay_event_schema::protocol::TransactionSource;
+    use relay_event_schema::protocol::{Event, TransactionSource};
     use relay_pii::DataScrubbingConfig;
+    use relay_protocol::Annotated;
     use similar_asserts::assert_eq;
 
     use crate::testutils::{create_test_processor, create_test_processor_with_addrs};

@@ -7,9 +7,16 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from flask import Response
+from enum import Enum
 import pytest
 
 from .consts import DUMMY_UPLOAD_PATH, DUMMY_UPLOAD_LOCATION
+
+
+class FeatureState(Enum):
+    ENABLED = "enabled"
+    DISABLED = "disabled"
+    KILLSWITCHED = "killswitched"
 
 
 @pytest.fixture
@@ -21,18 +28,23 @@ def project_config(mini_sentry):
 
 
 @pytest.mark.parametrize(
-    "feature_enabled,expected_status_code",
+    "feature_state,expected_status_code",
     [
-        pytest.param(True, 201, id="feature enabled"),
-        pytest.param(False, 403, id="feature disabled"),
+        pytest.param(FeatureState.ENABLED, 201, id="feature enabled"),
+        pytest.param(FeatureState.DISABLED, 403, id="feature disabled"),
+        pytest.param(FeatureState.KILLSWITCHED, 503, id="killswitch active"),
     ],
 )
 def test_forward_create(
-    mini_sentry, relay, dummy_upload, feature_enabled, expected_status_code
+    mini_sentry, relay, dummy_upload, feature_state, expected_status_code
 ):
     project_id = 42
     config = mini_sentry.add_full_project_config(project_id)
-    if feature_enabled:
+    if feature_state is FeatureState.KILLSWITCHED:
+        mini_sentry.global_config["options"][
+            "relay.endpoint-fetch-config.enabled"
+        ] = False
+    if feature_state is FeatureState.ENABLED:
         config["config"].setdefault("features", []).append(
             "projects:relay-upload-endpoint"
         )
@@ -51,18 +63,23 @@ def test_forward_create(
 
 
 @pytest.mark.parametrize(
-    "feature_enabled,expected_status_code",
+    "feature_state,expected_status_code",
     [
-        pytest.param(True, 204, id="feature enabled"),
-        pytest.param(False, 403, id="feature disabled"),
+        pytest.param(FeatureState.ENABLED, 204, id="feature enabled"),
+        pytest.param(FeatureState.DISABLED, 403, id="feature disabled"),
+        pytest.param(FeatureState.KILLSWITCHED, 503, id="killswitch active"),
     ],
 )
 def test_forward_patch(
-    mini_sentry, relay, dummy_upload, feature_enabled, expected_status_code
+    mini_sentry, relay, dummy_upload, feature_state, expected_status_code
 ):
     project_id = 42
     config = mini_sentry.add_full_project_config(project_id)
-    if feature_enabled:
+    if feature_state is FeatureState.KILLSWITCHED:
+        mini_sentry.global_config["options"][
+            "relay.endpoint-fetch-config.enabled"
+        ] = False
+    if feature_state is FeatureState.ENABLED:
         config["config"].setdefault("features", []).append(
             "projects:relay-upload-endpoint"
         )
@@ -81,11 +98,43 @@ def test_forward_patch(
     )
 
     assert response.status_code == expected_status_code, response.text
-    if not feature_enabled:
+    if feature_state is FeatureState.DISABLED:
         assert (
             response.json()["detail"]
             == "event submission rejected with_reason: FeatureDisabled(UploadEndpoint)"
         )
+
+
+def test_post_retries(mini_sentry, relay, project_config):
+    """POST (create) requests forwarded to the upstream are retried.
+
+    The upstream returns 503 on the first attempt and succeeds on the second.
+    """
+    mini_sentry.allow_chunked = True
+
+    create_attempts = 0
+
+    @mini_sentry.app.route("/api/<project>/upload/", methods=["POST"])
+    def create(**opts):
+        nonlocal create_attempts
+        create_attempts += 1
+        if create_attempts == 1:
+            return Response("", status=503)
+        return Response("", status=201, headers={"Location": DUMMY_UPLOAD_LOCATION})
+
+    project_id = 42
+    project_key = mini_sentry.get_dsn_public_key(project_id)
+    relay = relay(mini_sentry)
+
+    response = relay.post(
+        f"/api/{project_id}/upload/?sentry_key={project_key}",
+        headers={
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": "11",
+        },
+    )
+    assert response.status_code == 201, response.text
+    assert create_attempts == 2
 
 
 def test_upload_missing_tus_version(mini_sentry, relay, dummy_upload, project_config):
@@ -312,7 +361,7 @@ def test_timeout(
     "chain", [pytest.param(False, id="processing_only"), pytest.param(True, id="chain")]
 )
 def test_create_processing(
-    mini_sentry, relay, relay_with_processing, chain, project_config
+    mini_sentry, relay, relay_with_processing, chain, project_config, events_consumer
 ):
     """Create and separate upload via processing relay stores the blob in objectstore."""
     project_id = 42
@@ -323,6 +372,11 @@ def test_create_processing(
         relay = relay(processing_relay)
     else:
         relay = processing_relay
+
+    # Do some busy work until the global config is loaded
+    events_consumer = events_consumer()
+    relay.send_event(project_id)
+    events_consumer.get_event()
 
     data = b"hello world"
     response = relay.post(
@@ -397,11 +451,21 @@ def test_processing_invalid_length(
 
 @pytest.mark.parametrize("defer_length_value", ["1", "2"])
 def test_upload_with_deferred_length(
-    mini_sentry, relay, relay_with_processing, project_config, defer_length_value
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    project_config,
+    events_consumer,
+    defer_length_value,
 ):
     project_id = 42
     processing_relay = relay_with_processing()
     relay = relay(processing_relay)
+
+    # Do some busy work until the global config is loaded
+    events_consumer = events_consumer()
+    relay.send_event(project_id)
+    events_consumer.get_event()
 
     response = relay.post(
         "/api/%s/upload/?sentry_key=%s"
@@ -412,14 +476,10 @@ def test_upload_with_deferred_length(
         },
     )
 
-    expected_status_code = 403 if defer_length_value == "1" else 400
-    assert response.status_code == expected_status_code
     if defer_length_value == "1":
-        assert response.json() == {
-            "detail": "TUS protocol error: Upload-Defer-Length not allowed",
-            "causes": ["Upload-Defer-Length not allowed"],
-        }
+        assert response.status_code == 201
     else:
+        assert response.status_code == 400
         assert response.json() == {
             "detail": (
                 "TUS protocol error: expected Upload-Length or Upload-Defer-Length=1, "

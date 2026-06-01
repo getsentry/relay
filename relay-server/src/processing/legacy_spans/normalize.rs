@@ -2,13 +2,14 @@
 
 use crate::services::processor::ProcessingError;
 use chrono::{DateTime, Utc};
-use relay_event_normalization::span::ai::enrich_ai_span;
+use relay_event_normalization::EnrichedDsc;
+use relay_event_normalization::span::{self, ai};
 use relay_event_normalization::{
     BorrowedSpanOpDefaults, ClientHints, CombinedMeasurementsConfig, FromUserAgentInfo,
     GeoIpLookup, ModelMetadata, PerformanceScoreConfig, RawUserAgentInfo, SchemaProcessor,
     TimestampProcessor, TransactionNameRule, TransactionsProcessor, TrimmingProcessor,
     normalize_measurements, normalize_performance_score, normalize_transaction_name,
-    span::tag_extraction, validate_span,
+    span::tag_extraction, validate_standalone_span,
 };
 use relay_event_schema::processor::{ProcessingState, process_value};
 use relay_event_schema::protocol::{BrowserContext, EventId, IpAddr, Span, SpanData};
@@ -55,6 +56,8 @@ pub struct NormalizeSpanConfig<'a> {
     /// An initialized GeoIP lookup.
     pub geo_lookup: &'a GeoIpLookup,
     pub span_op_defaults: BorrowedSpanOpDefaults<'a>,
+    /// Dynamic sampling context plus additional attributes used for dsc span normalization.
+    pub dsc: Option<EnrichedDsc<'a>>,
 }
 
 fn set_segment_attributes(span: &mut Annotated<Span>) {
@@ -91,7 +94,7 @@ fn set_segment_attributes(span: &mut Annotated<Span>) {
 /// Normalizes a standalone span.
 pub fn normalize(
     annotated_span: &mut Annotated<Span>,
-    config: NormalizeSpanConfig,
+    config: &NormalizeSpanConfig,
 ) -> Result<(), ProcessingError> {
     let NormalizeSpanConfig {
         received_at,
@@ -108,6 +111,7 @@ pub fn normalize(
         client_ip,
         geo_lookup,
         span_op_defaults,
+        dsc,
     } = config;
 
     set_segment_attributes(annotated_span);
@@ -127,11 +131,11 @@ pub fn normalize(
     )?;
 
     if let Some(span) = annotated_span.value() {
-        validate_span(span, Some(&timestamp_range))?;
+        validate_standalone_span(span, Some(timestamp_range))?;
     }
     process_value(
         annotated_span,
-        &mut TransactionsProcessor::new(Default::default(), span_op_defaults),
+        &mut TransactionsProcessor::new(Default::default(), *span_op_defaults),
         ProcessingState::root(),
     )?;
 
@@ -173,14 +177,14 @@ pub fn normalize(
         normalize_measurements(
             measurement_values,
             meta,
-            measurements,
-            Some(max_name_and_unit_len),
+            *measurements,
+            Some(*max_name_and_unit_len),
             span.start_timestamp.0,
             span.timestamp.0,
         );
     }
 
-    span.received = Annotated::new(received_at.into());
+    span.received = Annotated::new((*received_at).into());
 
     if let Some(transaction) = span
         .data
@@ -195,7 +199,7 @@ pub fn normalize(
     let is_mobile = false; // TODO: find a way to determine is_mobile from a standalone span.
     let tags = tag_extraction::extract_tags(
         span,
-        max_tag_value_size,
+        *max_tag_value_size,
         None,
         None,
         is_mobile,
@@ -205,9 +209,11 @@ pub fn normalize(
     );
     span.sentry_tags = Annotated::new(tags);
 
-    normalize_performance_score(span, performance_score);
+    normalize_performance_score(span, *performance_score);
 
-    enrich_ai_span(span, ai_model_metadata);
+    span::normalize_dsc_for_span_data(&mut span.data, *dsc);
+
+    ai::enrich_ai_span(span, *ai_model_metadata);
 
     tag_extraction::extract_measurements(span, is_mobile);
 
@@ -532,7 +538,7 @@ mod tests {
         NormalizeSpanConfig {
             received_at: DateTime::from_timestamp_nanos(0),
             timestamp_range: UnixTimestamp::from_datetime(
-                DateTime::<Utc>::from_timestamp_millis(1000).unwrap(),
+                DateTime::<Utc>::from_timestamp_millis(0).unwrap(),
             )
             .unwrap()
                 ..UnixTimestamp::from_datetime(DateTime::<Utc>::MAX_UTC).unwrap(),
@@ -548,6 +554,7 @@ mod tests {
             client_ip: Some(IpAddr("2.125.160.216".to_owned())),
             geo_lookup: &GEO_LOOKUP,
             span_op_defaults: Default::default(),
+            dsc: None,
         }
     }
 
@@ -566,7 +573,7 @@ mod tests {
         )
         .unwrap();
 
-        normalize(&mut span, normalize_config()).unwrap();
+        normalize(&mut span, &normalize_config()).unwrap();
 
         assert_eq!(
             get_value!(span.data.client_address!).as_str(),
@@ -590,7 +597,7 @@ mod tests {
         )
         .unwrap();
 
-        normalize(&mut span, normalize_config()).unwrap();
+        normalize(&mut span, &normalize_config()).unwrap();
 
         assert_eq!(
             get_value!(span.data.client_address!).as_str(),
@@ -611,7 +618,7 @@ mod tests {
         )
         .unwrap();
 
-        normalize(&mut span, normalize_config()).unwrap();
+        normalize(&mut span, &normalize_config()).unwrap();
 
         assert_eq!(
             get_value!(span.data.client_address!).as_str(),
@@ -635,7 +642,7 @@ mod tests {
         )
         .unwrap();
 
-        normalize(&mut span, normalize_config()).unwrap();
+        normalize(&mut span, &normalize_config()).unwrap();
 
         let data = get_value!(span.data!);
         assert_eq!(data.exclusive_time, Annotated::empty());
@@ -657,7 +664,7 @@ mod tests {
         )
         .unwrap();
 
-        normalize(&mut span, normalize_config()).unwrap();
+        normalize(&mut span, &normalize_config()).unwrap();
 
         let data = get_value!(span.data!);
         assert_eq!(data.exclusive_time, Annotated::empty());
@@ -699,7 +706,7 @@ mod tests {
         )
             .unwrap();
 
-        normalize(&mut span, normalize_config()).unwrap();
+        normalize(&mut span, &normalize_config()).unwrap();
 
         let data = get_value!(span.data!);
 

@@ -1,7 +1,7 @@
 use relay_event_schema::protocol::{MetricType, TraceMetric};
 use relay_protocol::Annotated;
 
-use crate::managed::{Managed, Rejected};
+use crate::managed::Managed;
 use crate::processing::Context;
 use crate::processing::trace_metrics::{
     Error, ExpandedTraceMetrics, Result, SerializedTraceMetrics, get_calculated_byte_size,
@@ -9,19 +9,15 @@ use crate::processing::trace_metrics::{
 use crate::services::outcome::DiscardReason;
 use crate::statsd::RelayDistributions;
 
-/// Validates that there is only a single trace metric container processed at a time.
+/// Validates that there are no duplicated trace metric containers.
 ///
-/// Similar to logs, the `TraceMetric` item must always be sent as an `ItemContainer`, currently it is not allowed to
-/// send multiple containers for trace metrics.
+/// Similar to logs, the `TraceMetric` item must always be sent as an `ItemContainer`.
+/// Currently it is only allowed to send a single trace metric container in an envelope.
 ///
 /// This restriction may be lifted in the future.
-///
-/// This limit mostly exists to incentivise SDKs to batch multiple trace metrics into a single container,
-/// technically it can be removed without issues.
-pub fn container(metrics: &Managed<SerializedTraceMetrics>) -> Result<(), Rejected<Error>> {
-    // It's fine if there was no trace metric container, as we may accept OTel trace metrics in the future.
-    if metrics.metrics.len() > 1 {
-        return Err(metrics.reject_err(Error::DuplicateContainer));
+pub fn invalid(metrics: &Managed<SerializedTraceMetrics>) -> Result<()> {
+    if !metrics.invalid.is_empty() {
+        return Err(Error::DuplicateItem);
     }
 
     Ok(())

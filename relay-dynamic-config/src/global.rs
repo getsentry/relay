@@ -97,6 +97,12 @@ fn is_err_or_empty(filters_config: &ErrorBoundary<GenericFiltersConfig>) -> bool
     }
 }
 
+// Temporary until we understand why we see false killswitch values sometimes appearing.
+fn default_killswitched() -> bool {
+    relay_log::info!("using default for endpoint fetch config");
+    bool::default()
+}
+
 /// All options passed down from Sentry to Relay.
 #[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
@@ -170,25 +176,14 @@ pub struct Options {
     )]
     pub eap_span_outcomes_rollout_rate: f32,
 
-    /// Rollout rate for expanding the unreal report in the endpoint rather than during processing.
-    ///
-    /// Rate needs to be between `0.0` and `1.0`.
+    /// Kill-switch for fetching project configs in endpoints.
     #[serde(
-        rename = "relay.unreal-report-expansion.rollout-rate",
+        default = "default_killswitched",
+        rename = "relay.endpoint-fetch-config.enabled",
         deserialize_with = "default_on_error",
         skip_serializing_if = "is_default"
     )]
-    pub unreal_report_expansion_rollout_rate: f32,
-
-    /// Rollout rate for fetching the project config in the minidump endpoint.
-    ///
-    /// Rate needs to be between `0.0` and `1.0`.
-    #[serde(
-        rename = "relay.minidump-endpoint-fetch-config.rollout-rate",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub minidump_endpoint_fetch_config_rollout_rate: f32,
+    pub endpoint_fetch_config_enabled: bool,
 
     /// All other unknown options.
     #[serde(flatten)]

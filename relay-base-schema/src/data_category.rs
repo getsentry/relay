@@ -515,7 +515,7 @@ impl CategoryUnit {
     /// Returns `None` for `DataCategory::Unknown`.
     ///
     /// Note: Takes a reference to avoid unnecessary copying and allow direct use with iterators.
-    pub fn from_category(category: &DataCategory) -> Option<Self> {
+    pub fn from_category(category: DataCategory) -> Option<Self> {
         match category {
             DataCategory::Default
             | DataCategory::Error
@@ -637,40 +637,40 @@ mod tests {
     fn test_category_unit_from_category() {
         // Count categories
         assert_eq!(
-            CategoryUnit::from_category(&DataCategory::Error),
+            CategoryUnit::from_category(DataCategory::Error),
             Some(CategoryUnit::Count)
         );
         assert_eq!(
-            CategoryUnit::from_category(&DataCategory::Transaction),
+            CategoryUnit::from_category(DataCategory::Transaction),
             Some(CategoryUnit::Count)
         );
         assert_eq!(
-            CategoryUnit::from_category(&DataCategory::Span),
+            CategoryUnit::from_category(DataCategory::Span),
             Some(CategoryUnit::Count)
         );
 
         // Bytes categories
         assert_eq!(
-            CategoryUnit::from_category(&DataCategory::Attachment),
+            CategoryUnit::from_category(DataCategory::Attachment),
             Some(CategoryUnit::Bytes)
         );
         assert_eq!(
-            CategoryUnit::from_category(&DataCategory::LogByte),
+            CategoryUnit::from_category(DataCategory::LogByte),
             Some(CategoryUnit::Bytes)
         );
 
         // Milliseconds categories
         assert_eq!(
-            CategoryUnit::from_category(&DataCategory::ProfileDuration),
+            CategoryUnit::from_category(DataCategory::ProfileDuration),
             Some(CategoryUnit::Milliseconds)
         );
         assert_eq!(
-            CategoryUnit::from_category(&DataCategory::ProfileDurationUi),
+            CategoryUnit::from_category(DataCategory::ProfileDurationUi),
             Some(CategoryUnit::Milliseconds)
         );
 
         // Unknown returns None
-        assert_eq!(CategoryUnit::from_category(&DataCategory::Unknown), None);
+        assert_eq!(CategoryUnit::from_category(DataCategory::Unknown), None);
     }
 
     #[test]

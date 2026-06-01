@@ -31,6 +31,8 @@ impl From<&Event> for Span {
         // Overwrite specific fields:
         let span_data = data.get_or_insert_with(Default::default);
         span_data.segment_name = transaction.clone();
+        // For root spans, the name should just be the transaction name.
+        span_data.span_name = transaction.clone();
         span_data.release = release.clone();
         span_data.environment = environment.clone();
         if let Some(browser) = event.context::<BrowserContext>() {
@@ -167,17 +169,13 @@ mod tests {
             ),
             data: SpanData {
                 app_start_type: ~,
-                gen_ai_request_max_tokens: ~,
                 gen_ai_pipeline_name: ~,
                 gen_ai_usage_total_tokens: ~,
                 gen_ai_usage_input_tokens: ~,
                 gen_ai_usage_input_tokens_cached: ~,
                 gen_ai_usage_input_tokens_cache_write: ~,
-                gen_ai_usage_input_tokens_cache_miss: ~,
                 gen_ai_usage_output_tokens: ~,
                 gen_ai_usage_output_tokens_reasoning: ~,
-                gen_ai_usage_output_tokens_prediction_accepted: ~,
-                gen_ai_usage_output_tokens_prediction_rejected: ~,
                 gen_ai_response_model: ~,
                 gen_ai_request_model: ~,
                 gen_ai_context_window_size: ~,
@@ -189,10 +187,8 @@ mod tests {
                 gen_ai_tool_call_arguments: ~,
                 gen_ai_tool_call_result: ~,
                 gen_ai_output_messages: ~,
-                gen_ai_response_object: ~,
                 gen_ai_response_streaming: ~,
                 gen_ai_response_tokens_per_second: ~,
-                gen_ai_response_time_to_first_token: ~,
                 gen_ai_tool_definitions: ~,
                 gen_ai_request_frequency_penalty: ~,
                 gen_ai_request_presence_penalty: ~,
@@ -209,13 +205,7 @@ mod tests {
                 gen_ai_operation_type: ~,
                 gen_ai_agent_name: ~,
                 gen_ai_function_id: ~,
-                mcp_prompt_result: ~,
-                mcp_tool_result_content: ~,
                 browser_name: "Chrome",
-                code_filepath: ~,
-                code_lineno: ~,
-                code_function: ~,
-                code_namespace: ~,
                 db_operation: ~,
                 db_system: ~,
                 db_collection_name: ~,
@@ -239,16 +229,10 @@ mod tests {
                 ui_component_name: ~,
                 url_scheme: ~,
                 user: ~,
-                user_email: ~,
-                user_full_name: ~,
                 user_geo_country_code: ~,
                 user_geo_city: ~,
                 user_geo_subdivision: ~,
                 user_geo_region: ~,
-                user_hash: ~,
-                user_id: ~,
-                user_name: ~,
-                user_roles: ~,
                 exclusive_time: ~,
                 profile_id: ~,
                 replay_id: ~,
@@ -276,7 +260,7 @@ mod tests {
                 lcp_size: ~,
                 lcp_id: ~,
                 lcp_url: ~,
-                span_name: ~,
+                span_name: "my 1st transaction",
                 other: {
                     "custom_attribute": I64(
                         42,

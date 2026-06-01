@@ -117,7 +117,7 @@ pub enum Context {
     /// Unity information.
     Unity(Box<UnityContext>),
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(fallback_variant)]
+    #[metastructure(fallback_variant, retain = true)]
     Other(#[metastructure(pii = "true")] Object<Value>),
 }
 
