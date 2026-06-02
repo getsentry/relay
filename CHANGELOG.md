@@ -11,6 +11,7 @@
 **Bug Fixes**:
 
 - Copy user Sentry tags into conventional attributes. ([#6030](https://github.com/getsentry/relay/pull/6030))
+- Do not trim DSC attributes in transaction spans. ([#6038](https://github.com/getsentry/relay/pull/6038))
 
 **Internal**:
 
