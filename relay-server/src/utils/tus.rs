@@ -39,10 +39,10 @@ pub enum Error {
     },
     /// The `sentry` entry in `Upload-Metadata` is not valid base64.
     #[error("invalid base64 in `sentry` Upload-Metadata value: {0}")]
-    UploadMetadataBase64(#[from] data_encoding::DecodeError),
+    InvalidMetadataBase64(#[from] data_encoding::DecodeError),
     /// The decoded `sentry` entry in `Upload-Metadata` is not valid JSON or does not match the schema.
     #[error("invalid `sentry` Upload-Metadata payload: {0}")]
-    UploadMetadataJson(#[from] serde_json::Error),
+    InvalidMetadata(#[from] serde_json::Error),
 }
 
 /// TUS protocol header for the protocol version.
@@ -362,7 +362,7 @@ mod tests {
         headers.insert(UPLOAD_DEFER_LENGTH, HeaderValue::from_static("1"));
         headers.insert(UPLOAD_METADATA, HeaderValue::from_static("sentry e="));
         let result = validate_post_headers(&headers);
-        assert!(matches!(result, Err(Error::UploadMetadataBase64(_))));
+        assert!(matches!(result, Err(Error::InvalidMetadataBase64(_))));
     }
 
     #[test]
@@ -372,7 +372,7 @@ mod tests {
         headers.insert(UPLOAD_DEFER_LENGTH, HeaderValue::from_static("1"));
         headers.insert(UPLOAD_METADATA, HeaderValue::from_static("sentry e30="));
         let result = validate_post_headers(&headers);
-        assert!(matches!(result, Err(Error::UploadMetadataJson(_))));
+        assert!(matches!(result, Err(Error::InvalidMetadata(_))));
     }
 
     #[test]
