@@ -23,7 +23,7 @@ use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::Envelope;
 use crate::endpoints::common::BadStoreRequest;
-use crate::envelope::{ContentType, Item, ItemType};
+use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::managed::Managed;
 use crate::service::ServiceState;
@@ -335,7 +335,12 @@ async fn check_request(
     item.set_attachment_length(headers.upload_length.unwrap_or(1));
     if let Some(ref metadata) = headers.metadata {
         item.set_attachment_type(metadata.attachment_type);
+
+        if let Some(feature) = required_feature(metadata.attachment_type) {
+            envelope.require_feature(feature);
+        }
     }
+
     envelope.add_item(item);
     let mut envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
     let rate_limits = project
@@ -352,6 +357,14 @@ async fn check_request(
     let scoping = envelope.scoping();
     envelope.accept(|x| x);
     Ok(scoping)
+}
+
+/// Returns the feature a project must have enabled to upload attachments with the given type.
+fn required_feature(attachment_type: AttachmentType) -> Option<Feature> {
+    match attachment_type {
+        AttachmentType::Minidump => Some(Feature::MinidumpUploads),
+        _ => None,
+    }
 }
 
 async fn scoping(
