@@ -8,6 +8,10 @@
 - Globally enable `sentry-conventions`-based conversion from measurements to attributes and remove the
   `projects:relay-measurements-smart-conversion` feature flag. ([#6034](https://github.com/getsentry/relay/pull/6034))
 
+**Bug Fixes**:
+
+- Copy user Sentry tags into conventional attributes. ([#6030](https://github.com/getsentry/relay/pull/6030))
+
 **Internal**:
 
 - Forwards extracted transaction spans directly to Kafka instead of serializing to an intermediate envelope first. ([#6029](https://github.com/getsentry/relay/pull/6029))

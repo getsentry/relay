@@ -95,11 +95,32 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         && let Value::Object(tags) = tags.into_value()
     {
         for (key, value) in tags {
+            if value.is_empty() {
+                continue;
+            }
+            let conventional_key = match key.as_str() {
+                "user.email" => Some(USER__EMAIL),
+                "user.geo.city" => Some(USER__GEO__CITY),
+                "user.geo.country_code" => Some(USER__GEO__COUNTRY_CODE),
+                "user.geo.region" => Some(USER__GEO__REGION),
+                "user.geo.subdivision" => Some(USER__GEO__SUBDIVISION),
+                "user.id" => Some(USER__ID),
+                "user.ip" => Some(USER__IP_ADDRESS),
+                "user.username" => Some(USER__NAME),
+                _ => None,
+            };
+            if let Some(conv_key) = conventional_key
+                && !attributes.contains_key(conv_key)
+            {
+                attributes
+                    .0
+                    .insert(conv_key.to_owned(), attribute_from_value(value.clone()));
+            }
             let key = match key.as_str() {
                 "description" => SENTRY__NORMALIZED_DESCRIPTION.into(),
                 other => Cow::Owned(format!("sentry.{}", other)),
             };
-            if !value.is_empty() && !attributes.contains_key(key.as_ref()) {
+            if !attributes.contains_key(key.as_ref()) {
                 attributes
                     .0
                     .insert(key.into_owned(), attribute_from_value(value));
@@ -307,6 +328,15 @@ mod tests {
           "sentry_tags": {
             "description": "normalized description",
             "user": "id:user123",
+            "user.email": "john@example.com",
+            "user.geo.city": "Vienna",
+            "user.geo.country_code": "AT",
+            "user.geo.region": "Europe",
+            "user.geo.subdivision": "AT-9",
+            "user.geo.subregion": "155",
+            "user.id": "user123",
+            "user.ip": "127.0.0.1",
+            "user.username": "john",
           },
           "op": "operation",
           "origin": "auto.http",
@@ -430,6 +460,74 @@ mod tests {
             "sentry.user": {
               "type": "string",
               "value": "id:user123"
+            },
+            "sentry.user.email": {
+              "type": "string",
+              "value": "john@example.com"
+            },
+            "sentry.user.geo.city": {
+              "type": "string",
+              "value": "Vienna"
+            },
+            "sentry.user.geo.country_code": {
+              "type": "string",
+              "value": "AT"
+            },
+            "sentry.user.geo.region": {
+              "type": "string",
+              "value": "Europe"
+            },
+            "sentry.user.geo.subdivision": {
+              "type": "string",
+              "value": "AT-9"
+            },
+            "sentry.user.geo.subregion": {
+              "type": "string",
+              "value": "155"
+            },
+            "sentry.user.id": {
+              "type": "string",
+              "value": "user123"
+            },
+            "sentry.user.ip": {
+              "type": "string",
+              "value": "127.0.0.1"
+            },
+            "sentry.user.username": {
+              "type": "string",
+              "value": "john"
+            },
+            "user.email": {
+              "type": "string",
+              "value": "john@example.com"
+            },
+            "user.geo.city": {
+              "type": "string",
+              "value": "Vienna"
+            },
+            "user.geo.country_code": {
+              "type": "string",
+              "value": "AT"
+            },
+            "user.geo.region": {
+              "type": "string",
+              "value": "Europe"
+            },
+            "user.geo.subdivision": {
+              "type": "string",
+              "value": "AT-9"
+            },
+            "user.id": {
+              "type": "string",
+              "value": "user123"
+            },
+            "user.ip_address": {
+              "type": "string",
+              "value": "127.0.0.1"
+            },
+            "user.name": {
+              "type": "string",
+              "value": "john"
             }
           },
           "_meta": {
