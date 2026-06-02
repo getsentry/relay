@@ -573,7 +573,6 @@ enum RequestKind {
     Upload {
         location: SignedLocation<Provisional>,
         stream: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
-        length: Option<usize>,
         encoding: HttpEncoding,
     },
 }
@@ -622,7 +621,6 @@ impl UploadRequest {
             location,
             stream,
         } = stream;
-        let length = stream.length();
 
         (
             Self {
@@ -630,21 +628,12 @@ impl UploadRequest {
                 kind: RequestKind::Upload {
                     location,
                     stream: TakeOnce::new(stream),
-                    length,
                     encoding: HttpEncoding::Zstd, // just a default, will be overwritten by .configure()
                 },
                 sender,
             },
             rx,
         )
-    }
-
-    #[expect(dead_code)]
-    /// Returns the length of the upload, if known.
-    fn length(&self) -> Option<usize> {
-        match &self.kind {
-            RequestKind::Create { length, .. } | RequestKind::Upload { length, .. } => *length,
-        }
     }
 }
 
@@ -713,7 +702,6 @@ impl UpstreamRequest for UploadRequest {
             RequestKind::Upload {
                 location: _,
                 stream,
-                length: _,
                 encoding,
             } => {
                 let Some(body) = RetryableStream::new(stream.clone()) else {
