@@ -154,7 +154,7 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
                 "tls_cert": None,
             },
             "sentry": {"dsn": mini_sentry.internal_error_dsn, "enabled": True},
-            "limits": {"max_api_file_upload_size": "1MiB"},
+            "limits": {"max_api_file_upload_size": "1MiB", "max_thread_count": 1},
             "cache": {"batch_interval": 0},
             "logging": {"level": "trace"},
             "http": {"timeout": 2},
