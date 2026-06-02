@@ -1264,6 +1264,8 @@ def test_spans_dsc_normalization(
     spans_consumer = spans_consumer()
     ts = datetime.now(timezone.utc)
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    # Large data for testing if DSC attributes are trimmed from trace context
+    event["contexts"]["trace"]["data"] = {"big_content": "1" * 10000}
     event["spans"] = [
         {
             "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",

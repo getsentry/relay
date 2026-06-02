@@ -1,9 +1,8 @@
 //! Span normalization logic.
 
 use regex::Regex;
-use relay_conventions::attributes::*;
 use relay_event_schema::protocol::{Event, SpanData, TraceContext};
-use relay_protocol::{Annotated, Value};
+use relay_protocol::Annotated;
 use std::sync::LazyLock;
 
 use crate::EnrichedDsc;
@@ -84,22 +83,12 @@ pub fn normalize_dsc_for_span_data(span_data: &mut Annotated<SpanData>, dsc: Opt
     };
 
     let data = span_data.get_or_insert_with(SpanData::default);
-    if data.other.contains_key(SENTRY__DSC__TRACE_ID) {
+    if data.sentry_dsc_trace_id.value().is_some() {
         return;
     }
-    data.other.insert(
-        SENTRY__DSC__TRACE_ID.to_owned(),
-        Annotated::new(Value::String(dsc.dsc.trace_id.to_string())),
-    );
-
+    data.sentry_dsc_trace_id = Annotated::new(dsc.dsc.trace_id.to_string());
+    data.sentry_dsc_project_id = Annotated::new(dsc.sampling_project_id.to_string());
     if let Some(transaction) = &dsc.dsc.transaction {
-        data.other.insert(
-            SENTRY__DSC__TRANSACTION.to_owned(),
-            Annotated::new(Value::String(transaction.clone())),
-        );
+        data.sentry_dsc_transaction = Annotated::new(transaction.to_string());
     }
-    data.other.insert(
-        SENTRY__DSC__PROJECT_ID.to_owned(),
-        Annotated::new(Value::String(dsc.sampling_project_id.to_string())),
-    );
 }

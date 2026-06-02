@@ -260,6 +260,9 @@ mod tests {
                 lcp_size: ~,
                 lcp_id: ~,
                 lcp_url: ~,
+                sentry_dsc_trace_id: ~,
+                sentry_dsc_transaction: ~,
+                sentry_dsc_project_id: ~,
                 span_name: "my 1st transaction",
                 other: {
                     "custom_attribute": I64(
