@@ -3,7 +3,7 @@ use std::error::Error;
 use crate::processing;
 use crate::processing::utils::event::event_type;
 use relay_base_schema::events::EventType;
-use relay_dynamic_config::Feature;
+use relay_config::Config;
 use relay_event_schema::protocol::{Event, Measurement, Measurements, Span, SpanV2};
 use relay_metrics::MetricNamespace;
 use relay_metrics::{FractionUnit, MetricUnit};
@@ -13,7 +13,7 @@ use relay_sampling::DynamicSamplingContext;
 pub fn extract_from_event(
     dsc: Option<&DynamicSamplingContext>,
     event: &Annotated<Event>,
-    ctx: processing::Context<'_>,
+    config: &Config,
     server_sample_rate: Option<f64>,
 ) -> Vec<Result<Annotated<SpanV2>, ()>> {
     // Only extract spans from transactions (not errors).
@@ -29,7 +29,7 @@ pub fn extract_from_event(
 
     let Some(transaction_span) = processing::transactions::extraction::extract_segment_span(
         event,
-        ctx.config
+        config
             .aggregator_config_for(MetricNamespace::Spans)
             .max_tag_value_length,
         &[],
@@ -60,7 +60,6 @@ pub fn extract_from_event(
 
             results.push(make_span_item(
                 new_span,
-                ctx,
                 client_sample_rate,
                 server_sample_rate,
             ));
@@ -69,7 +68,6 @@ pub fn extract_from_event(
 
     results.push(make_span_item(
         transaction_span,
-        ctx,
         client_sample_rate,
         server_sample_rate,
     ));
@@ -79,7 +77,6 @@ pub fn extract_from_event(
 
 fn make_span_item(
     mut span: Span,
-    ctx: processing::Context<'_>,
     client_sample_rate: Option<f64>,
     server_sample_rate: Option<f64>,
 ) -> Result<Annotated<SpanV2>, ()> {
@@ -107,12 +104,7 @@ fn make_span_item(
         })
         .map_err(|_| ())?;
 
-    let use_measurements_smart_conversion = ctx
-        .project_info
-        .has_feature(Feature::MeasurementsSmartConversion);
-
-    Ok(span
-        .map_value(|span| relay_spans::span_v1_to_span_v2(span, use_measurements_smart_conversion)))
+    Ok(span.map_value(relay_spans::span_v1_to_span_v2))
 }
 
 /// Any violation of the span schema.

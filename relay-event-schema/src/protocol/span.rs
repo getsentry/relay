@@ -1229,9 +1229,9 @@ mod tests {
     /// match the declared field names).
     #[test]
     fn test_span_data_attributes_follow_sentry_conventions() {
-        let my_trace = &"my_trace".to_string();
-        let my_transaction = &"my_transaction".to_string();
-        let my_project_id = &"my_project_id".to_string();
+        let my_trace = &"my_trace".to_owned();
+        let my_transaction = &"my_transaction".to_owned();
+        let my_project_id = &"my_project_id".to_owned();
         let json = format!(
             r#"{{
                 "{SENTRY__DSC__TRACE_ID}": "{my_trace}",

@@ -144,15 +144,8 @@ def lcp_cls_inp_differences(mode):
 
 
 @pytest.mark.parametrize("mode", ["legacy", "v2"])
-@pytest.mark.parametrize("measurements_conversion", ["direct", "smart"])
 def test_lcp_span(
-    mini_sentry,
-    relay,
-    relay_with_processing,
-    spans_consumer,
-    metrics_consumer,
-    mode,
-    measurements_conversion,
+    mini_sentry, relay, relay_with_processing, spans_consumer, metrics_consumer, mode
 ):
     """
     Test verifies LCP spans processed via the SpanV2 and legacy standalone processing pipeline are equally processed.
@@ -170,10 +163,6 @@ def test_lcp_span(
     if mode == "v2":
         project_config["config"].setdefault("features", []).append(
             "projects:span-v2-experimental-processing"
-        )
-    if measurements_conversion == "smart":
-        project_config["config"].setdefault("features", []).append(
-            "projects:relay-measurements-smart-conversion"
         )
 
     relay = relay(relay_with_processing())
@@ -225,8 +214,6 @@ def test_lcp_span(
     lcp_backfill = {}
     if mode == "v2":
         lcp_backfill = {
-            # In the v2 pipeline we will always get this attribute regardless of whether we use "smart"
-            # measurement conversion, because of backfilling.
             "browser.web_vital.lcp.value": {"type": "double", "value": 548.0},
             "browser.web_vital.lcp.load_time": {"type": "double", "value": 527.5},
             "browser.web_vital.lcp.render_time": {"type": "integer", "value": 548},
@@ -237,15 +224,10 @@ def test_lcp_span(
             },
         }
 
-    if measurements_conversion == "smart":
-        lcp_measurement_name = "browser.web_vital.lcp.value"
-    else:
-        lcp_measurement_name = "lcp"
-
     assert spans_consumer.get_span() == {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
-            lcp_measurement_name: {"type": "double", "value": 548.0},
+            "browser.web_vital.lcp.value": {"type": "double", "value": 548.0},
             "lcp.loadTime": {"type": "double", "value": 527.5},
             "lcp.renderTime": {"type": "integer", "value": 548},
             "lcp.size": {"type": "integer", "value": 8100},
@@ -366,15 +348,8 @@ def test_lcp_span(
 
 
 @pytest.mark.parametrize("mode", ["legacy", "v2"])
-@pytest.mark.parametrize("measurements_conversion", ["direct", "smart"])
 def test_cls_span(
-    mini_sentry,
-    relay,
-    relay_with_processing,
-    spans_consumer,
-    metrics_consumer,
-    mode,
-    measurements_conversion,
+    mini_sentry, relay, relay_with_processing, spans_consumer, metrics_consumer, mode
 ):
     """
     Test verifies CLS spans processed via the SpanV2 and legacy standalone processing pipeline are equally processed.
@@ -392,10 +367,6 @@ def test_cls_span(
     if mode == "v2":
         project_config["config"].setdefault("features", []).append(
             "projects:span-v2-experimental-processing"
-        )
-    if measurements_conversion == "smart":
-        project_config["config"].setdefault("features", []).append(
-            "projects:relay-measurements-smart-conversion"
         )
 
     relay = relay(relay_with_processing())
@@ -446,8 +417,6 @@ def test_cls_span(
     cls_backfill = {}
     if mode == "v2":
         cls_backfill = {
-            # In the v2 pipeline we will always get this attribute regardless of whether we use "smart"
-            # measurement conversion, because of backfilling.
             "browser.web_vital.cls.value": {"type": "double", "value": 0.1},
             "browser.web_vital.cls.source.1": {
                 "type": "string",
@@ -460,15 +429,10 @@ def test_cls_span(
             "browser.web_vital.cls.source.3": {"type": "string", "value": "<unknown>"},
         }
 
-    if measurements_conversion == "smart":
-        cls_measurement_name = "browser.web_vital.cls.value"
-    else:
-        cls_measurement_name = "cls"
-
     assert spans_consumer.get_span() == {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
-            cls_measurement_name: {"type": "double", "value": 0.1},
+            "browser.web_vital.cls.value": {"type": "double", "value": 0.1},
             "cls.source.1": {
                 "type": "string",
                 "value": "AppContainer > NavContent > MobileTopbar > StyledButton",
@@ -594,15 +558,8 @@ def test_cls_span(
 
 
 @pytest.mark.parametrize("mode", ["legacy", "v2"])
-@pytest.mark.parametrize("measurements_conversion", ["direct", "smart"])
 def test_inp_span(
-    mini_sentry,
-    relay,
-    relay_with_processing,
-    spans_consumer,
-    metrics_consumer,
-    mode,
-    measurements_conversion,
+    mini_sentry, relay, relay_with_processing, spans_consumer, metrics_consumer, mode
 ):
     """
     Test verifies INP spans processed via the SpanV2 and legacy standalone processing pipeline are equally processed.
@@ -620,10 +577,6 @@ def test_inp_span(
     if mode == "v2":
         project_config["config"].setdefault("features", []).append(
             "projects:span-v2-experimental-processing"
-        )
-    if measurements_conversion == "smart":
-        project_config["config"].setdefault("features", []).append(
-            "projects:relay-measurements-smart-conversion"
         )
 
     relay = relay(relay_with_processing())
@@ -669,20 +622,13 @@ def test_inp_span(
     inp_backfill = {}
     if mode == "v2":
         inp_backfill = {
-            # In the v2 pipeline we will always get this attribute regardless of whether we use "smart"
-            # measurement conversion, because of backfilling.
             "browser.web_vital.inp.value": {"type": "double", "value": 104.0},
         }
-
-    if measurements_conversion == "smart":
-        inp_measurement_name = "browser.web_vital.inp.value"
-    else:
-        inp_measurement_name = "inp"
 
     assert spans_consumer.get_span() == {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
-            inp_measurement_name: {"type": "double", "value": 104.0},
+            "browser.web_vital.inp.value": {"type": "double", "value": 104.0},
             "browser.name": {"type": "string", "value": "Chrome"},
             "sentry.description": {
                 "type": "string",
@@ -858,14 +804,12 @@ def test_spans_standalone_dsc_normalization(
 
 
 @pytest.mark.parametrize("mode", ["legacy", "v2"])
-@pytest.mark.parametrize("measurements_conversion", ["direct", "smart"])
 def test_mobile_measurements(
     mini_sentry,
     relay,
     relay_with_processing,
     spans_consumer,
     mode,
-    measurements_conversion,
 ):
     """
     Verify mobile measurements calculations (slow/frozen frames, stalls).
@@ -877,10 +821,6 @@ def test_mobile_measurements(
     if mode == "v2":
         project_config["config"].setdefault("features", []).append(
             "projects:span-v2-experimental-processing"
-        )
-    if measurements_conversion == "smart":
-        project_config["config"].setdefault("features", []).append(
-            "projects:relay-measurements-smart-conversion"
         )
 
     relay = relay(relay_with_processing())
@@ -926,63 +866,6 @@ def test_mobile_measurements(
     relay.send_envelope(project_id, envelope)
     attributes, fields = lcp_cls_inp_differences(mode)
 
-    measurement_attributes = {
-        "stall_total_time": {"value": 4000.0, "type": "double"},
-        "stall_percentage": {"value": 0.8, "type": "double"},
-    }
-    if mode == "legacy":
-        if measurements_conversion == "direct":
-            # Measurements are computed by the old pipeline and measurements
-            # are converted to attributes verbatim, with no normalization.
-            measurement_attributes.update(
-                {
-                    "frames_slow": {"value": 1.0, "type": "double"},
-                    "frames_frozen": {"value": 2.0, "type": "double"},
-                    "frames_total": {"value": 4.0, "type": "double"},
-                    "frames_frozen_rate": {"value": 0.5, "type": "double"},
-                    "frames_slow_rate": {"value": 0.25, "type": "double"},
-                }
-            )
-        elif measurements_conversion == "smart":
-            # Measurements are computed by the old pipeline and measurements
-            # are converted to attributes with current names.
-            #
-            # "frames_frozen_rate" and "frames_slow_rate" don't have "better"
-            # names yet.
-            measurement_attributes.update(
-                {
-                    "app.vitals.frames.slow.count": {"value": 1.0, "type": "double"},
-                    "app.vitals.frames.frozen.count": {"value": 2.0, "type": "double"},
-                    "app.vitals.frames.total.count": {"value": 4.0, "type": "double"},
-                    "frames_frozen_rate": {"value": 0.5, "type": "double"},
-                    "frames_slow_rate": {"value": 0.25, "type": "double"},
-                }
-            )
-    elif mode == "v2":
-        if measurements_conversion == "direct":
-            # Measurements are _first_ converted verbatim, then the calculation
-            # runs. Since the frame count attributes aren't present under their
-            # expected names, the calculation doesn't work.
-            measurement_attributes.update(
-                {
-                    "frames_slow": {"value": 1.0, "type": "double"},
-                    "frames_frozen": {"value": 2.0, "type": "double"},
-                    "frames_total": {"value": 4.0, "type": "double"},
-                }
-            )
-        elif measurements_conversion == "smart":
-            # Measurements are _first_ converted to attribute with "current"
-            # names, then the calculation runs.
-            measurement_attributes.update(
-                {
-                    "app.vitals.frames.slow.count": {"value": 1.0, "type": "double"},
-                    "app.vitals.frames.frozen.count": {"value": 2.0, "type": "double"},
-                    "app.vitals.frames.total.count": {"value": 4.0, "type": "double"},
-                    "frames_frozen_rate": {"value": 0.5, "type": "double"},
-                    "frames_slow_rate": {"value": 0.25, "type": "double"},
-                }
-            )
-
     assert spans_consumer.get_span() == {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
@@ -1018,7 +901,13 @@ def test_mobile_measurements(
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 "
                 "Safari/537.36",
             },
-            **measurement_attributes,
+            "stall_total_time": {"value": 4000.0, "type": "double"},
+            "stall_percentage": {"value": 0.8, "type": "double"},
+            "app.vitals.frames.slow.count": {"value": 1.0, "type": "double"},
+            "app.vitals.frames.frozen.count": {"value": 2.0, "type": "double"},
+            "app.vitals.frames.total.count": {"value": 4.0, "type": "double"},
+            "frames_frozen_rate": {"value": 0.5, "type": "double"},
+            "frames_slow_rate": {"value": 0.25, "type": "double"},
             **attributes,
         },
         "downsampled_retention_days": 90,
