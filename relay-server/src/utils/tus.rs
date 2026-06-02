@@ -11,6 +11,7 @@ use axum::http::HeaderMap;
 use data_encoding::BASE64;
 use http::HeaderValue;
 use http::header::AsHeaderName;
+use serde::{Deserialize, Serialize};
 
 use crate::envelope::AttachmentType;
 use crate::http::RequestBuilder;
@@ -86,7 +87,7 @@ pub const EXPECTED_CONTENT_TYPE: HeaderValue = HeaderValue::from_static(EXPECTED
 const EXPECTED_CONTENT_TYPE_STR: &str = "application/offset+octet-stream";
 
 /// Sentry-specific metadata extracted from the TUS `Upload-Metadata` header.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Metadata {
     /// The [`AttachmentType`] of the upload.
     ///
