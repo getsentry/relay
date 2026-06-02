@@ -224,7 +224,7 @@ async fn handle_patch(
         })?;
 
     relay_log::trace!("Checking request");
-    let scoping = scoping(&state, meta, project).await?;
+    let scoping = validate_request(&state, meta, project).await?;
 
     let stream = body
         .into_data_stream()
@@ -354,7 +354,7 @@ async fn check_request(
     Ok(scoping)
 }
 
-async fn scoping(
+async fn validate_request(
     state: &ServiceState,
     meta: RequestMeta,
     project: Project<'_>,
