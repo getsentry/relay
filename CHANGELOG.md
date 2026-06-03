@@ -8,6 +8,7 @@
 
 **Bug Fixes**:
 
+- Correctly handle minidump objecstore upload failures. ([#6033](https://github.com/getsentry/relay/pull/6033))
 - Unset segment info for web vital spans. ([#6042](https://github.com/getsentry/relay/pull/6042))
 
 ## 26.5.2
