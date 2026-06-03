@@ -211,20 +211,25 @@ pub fn response_headers() -> HeaderMap {
 
 /// Extracts the sentry metadata payload from the `Upload-Metadata` header.
 fn upload_metadata(headers: &HeaderMap) -> Result<Option<Metadata>, Error> {
-    let Some(metadata): Option<String> = parse_header(headers, UPLOAD_METADATA) else {
+    let Some(payload) = parse_upload_metadata(headers) else {
         return Ok(None);
     };
+    Some(parse_sentry_metadata(&payload)).transpose()
+}
 
-    let Some(sentry_payload) = metadata.split(',').find_map(|kv| match kv.split_once(' ') {
-        Some(("sentry", value)) => Some(value),
+/// Extracts the raw (base64) sentry payload from the `Upload-Metadata` header.
+fn parse_upload_metadata(headers: &HeaderMap) -> Option<String> {
+    let metadata: String = parse_header(headers, UPLOAD_METADATA)?;
+    metadata.split(',').find_map(|kv| match kv.split_once(' ') {
+        Some(("sentry", value)) => Some(value.to_owned()),
         _ => None,
-    }) else {
-        return Ok(None);
-    };
+    })
+}
 
-    let decoded_sentry_payload = BASE64.decode(sentry_payload.as_bytes())?;
-    let metadata = serde_json::from_slice(&decoded_sentry_payload)?;
-    Ok(Some(metadata))
+/// Decodes and deserializes the sentry metadata payload.
+fn parse_sentry_metadata(payload: &str) -> Result<Metadata, Error> {
+    let decoded = BASE64.decode(payload.as_bytes())?;
+    Ok(serde_json::from_slice(&decoded)?)
 }
 
 fn parse_header<K: AsHeaderName, V: FromStr>(headers: &HeaderMap, header_name: K) -> Option<V> {
