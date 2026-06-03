@@ -140,6 +140,8 @@ pub struct StoreSpanV2 {
     pub event_id: Option<EventId>,
     /// The final Sentry compatible span item.
     pub item: SpanV2,
+    // TODO: docs
+    pub performance_issues_spans: bool,
 }
 
 impl Counted for StoreSpanV2 {

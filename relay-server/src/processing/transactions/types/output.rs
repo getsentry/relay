@@ -54,6 +54,8 @@ impl Forward for TransactionOutput {
         s: StoreHandle<'_>,
         ctx: ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
+        use relay_dynamic_config::Feature;
+
         let (spans, transaction) = match self {
             TransactionOutput::Full(managed) => {
                 return Err(managed.internal_error("only indexed transactions can be stored"));
@@ -65,14 +67,18 @@ impl Forward for TransactionOutput {
             TransactionOutput::Indexed { spans, transaction } => (spans, transaction),
         };
 
+        let performance_issues_spans = ctx
+            .project_info
+            .has_feature(Feature::PerformanceIssuesSpans);
+
         if let Some(spans) = spans {
             let event_id = transaction.headers.event_id();
             let retention = ctx.retention(|r| r.span.as_ref());
 
             for span in spans.split(|spans| spans.into_iter()) {
-                if let Ok(span) =
-                    span.try_map(|span, _| store::convert_span(span, event_id, retention))
-                {
+                if let Ok(span) = span.try_map(|span, _| {
+                    store::convert_span(span, event_id, retention, performance_issues_spans)
+                }) {
                     s.send_to_store(span)
                 };
             }
@@ -133,6 +139,7 @@ mod store {
         span: ExtractedIndexedSpan,
         event_id: Option<EventId>,
         retentions: Retention,
+        performance_issues_spans: bool,
     ) -> Result<Box<StoreSpanV2>, Outcome> {
         let span = match span.0 {
             Annotated(Some(span), _) => span,
@@ -147,6 +154,7 @@ mod store {
             retention_days: retentions.standard,
             downsampled_retention_days: retentions.downsampled,
             event_id,
+            performance_issues_spans,
             item: span,
         }))
     }
