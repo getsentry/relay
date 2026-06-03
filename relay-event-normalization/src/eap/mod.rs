@@ -746,6 +746,9 @@ fn normalize_http_attributes(
 }
 
 /// Makes sure web vital spans are not identified with segments.
+///
+/// This was ported from the legacy pipeline. It's unclear whether it's
+/// actually necessary.
 pub fn normalize_web_vital_span_segment(span: &mut SpanV2) {
     let Some(attributes) = span.attributes.value_mut() else {
         return;
