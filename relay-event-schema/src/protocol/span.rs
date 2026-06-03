@@ -936,6 +936,18 @@ pub struct SpanData {
     #[metastructure(field = "lcp.url")]
     pub lcp_url: Annotated<String>,
 
+    // Trace ID.
+    #[metastructure(field = "sentry.dsc.trace_id")]
+    pub sentry_dsc_trace_id: Annotated<String>,
+
+    // Name of the transaction/segment that started the trace.
+    #[metastructure(field = "sentry.dsc.transaction")]
+    pub sentry_dsc_transaction: Annotated<String>,
+
+    // ID of the project that started the trace.
+    #[metastructure(field = "sentry.dsc.project_id")]
+    pub sentry_dsc_project_id: Annotated<String>,
+
     // The span's name, a brief, human-readable, low cardinality description of operation
     // represented by the span (as per OpenTelemetry/Sentry's Span V2 schema).
     #[metastructure(field = "sentry.name")]
@@ -1204,10 +1216,36 @@ mod tests {
     use crate::protocol::Measurement;
     use chrono::{TimeZone, Utc};
     use relay_base_schema::metrics::{InformationUnit, MetricUnit};
+    use relay_conventions::attributes::*;
     use relay_protocol::RuleCondition;
     use similar_asserts::assert_eq;
 
     use super::*;
+
+    /// Test that span data attributes expected to follow sentry conventions actually do so. This
+    /// is achieved by 1) creating a json which uses sentry conventions constants, 2) creating a
+    /// `SpanData` object from the json, and 3) verifying that the json values end up in the
+    /// expected `SpanData` fields (which wouldn't happen if the sentry conventions constants don't
+    /// match the declared field names).
+    #[test]
+    fn test_span_data_attributes_follow_sentry_conventions() {
+        let my_trace = &"my_trace".to_owned();
+        let my_transaction = &"my_transaction".to_owned();
+        let my_project_id = &"my_project_id".to_owned();
+        let json = format!(
+            r#"{{
+                "{SENTRY__DSC__TRACE_ID}": "{my_trace}",
+                "{SENTRY__DSC__TRANSACTION}": "{my_transaction}",
+                "{SENTRY__DSC__PROJECT_ID}": "{my_project_id}"
+            }}"#,
+        );
+        let data = Annotated::<SpanData>::from_json(&json).unwrap();
+        let data = data.value().unwrap();
+        assert_eq!(data.sentry_dsc_trace_id.value(), Some(my_trace));
+        assert_eq!(data.sentry_dsc_transaction.value(), Some(my_transaction));
+        assert_eq!(data.sentry_dsc_project_id.value(), Some(my_project_id));
+        assert!(data.other.is_empty());
+    }
 
     #[test]
     fn test_span_serialization() {
@@ -1527,6 +1565,9 @@ mod tests {
             lcp_size: ~,
             lcp_id: ~,
             lcp_url: ~,
+            sentry_dsc_trace_id: ~,
+            sentry_dsc_transaction: ~,
+            sentry_dsc_project_id: ~,
             span_name: ~,
             other: {
                 "bar": String(

@@ -1,11 +1,11 @@
-use relay_quotas::DataCategory;
-
 use crate::Envelope;
 use crate::managed::{Managed, ManagedResult, Rejected};
 #[cfg(feature = "processing")]
 use crate::processing::StoreHandle;
 use crate::processing::spans::Indexed;
-use crate::processing::transactions::types::{ExpandedTransaction, StandaloneProfile};
+use crate::processing::transactions::types::{
+    ExpandedTransaction, ExtractedIndexedSpans, StandaloneProfile,
+};
 use crate::processing::{Forward, ForwardContext};
 use crate::services::outcome::{DiscardReason, Outcome};
 
@@ -19,7 +19,10 @@ pub enum TransactionOutput {
     /// The transaction has not been dropped by dynamic sampling, and metrics have been extracted.
     ///
     /// This is used in processing relays.
-    Indexed(Managed<Box<ExpandedTransaction<Indexed>>>),
+    Indexed {
+        spans: Option<Managed<ExtractedIndexedSpans>>,
+        transaction: Managed<Box<ExpandedTransaction<Indexed>>>,
+    },
 }
 
 impl Forward for TransactionOutput {
@@ -36,16 +39,12 @@ impl Forward for TransactionOutput {
             TransactionOutput::Profile(profile) => {
                 Ok(profile.map(|profile, _| profile.serialize_envelope()))
             }
-            TransactionOutput::Indexed(managed) => managed.try_map(|work, record_keeper| {
-                // TODO: This should raise an error, Indexed output should go straight to Kafka
-                // instead of an envelope. As long as we have this hack, ignore bookkeeping
-                record_keeper.lenient(DataCategory::Transaction);
-                record_keeper.lenient(DataCategory::Span);
-
-                work.serialize_envelope()
-                    .map_err(drop)
-                    .with_outcome(Outcome::Invalid(DiscardReason::Internal))
-            }),
+            TransactionOutput::Indexed { spans, transaction } => {
+                if let Some(spans) = spans {
+                    let _ = spans.internal_error("indexed spans can only be stored");
+                };
+                Err(transaction.internal_error("an indexed transaction can only be stored"))
+            }
         }
     }
 
@@ -55,8 +54,100 @@ impl Forward for TransactionOutput {
         s: StoreHandle<'_>,
         ctx: ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        let envelope = self.serialize_envelope(ctx)?;
-        s.send_envelope(crate::managed::ManagedEnvelope::from(envelope));
+        let (spans, transaction) = match self {
+            TransactionOutput::Full(managed) => {
+                return Err(managed.internal_error("only indexed transactions can be stored"));
+            }
+            TransactionOutput::Profile(profile) => {
+                s.send_to_store(profile.map(|p, _| store::convert_profile(p.profile, false, ctx)));
+                return Ok(());
+            }
+            TransactionOutput::Indexed { spans, transaction } => (spans, transaction),
+        };
+
+        if let Some(spans) = spans {
+            let event_id = transaction.headers.event_id();
+            let retention = ctx.retention(|r| r.span.as_ref());
+
+            for span in spans.split(|spans| spans.into_iter()) {
+                if let Ok(span) =
+                    span.try_map(|span, _| store::convert_span(span, event_id, retention))
+                {
+                    s.send_to_store(span)
+                };
+            }
+        }
+
+        let (profile, transaction) = transaction.split_once(|mut tx, _| (tx.profile.take(), tx));
+        if let Some(profile) = profile.transpose() {
+            s.send_to_store(profile.map(|p, _| store::convert_profile(p, true, ctx)));
+        }
+
+        let envelope = transaction.try_map(|work, record_keeper| {
+            // TODO: This should raise an error, Indexed output should go straight to Kafka
+            // instead of an envelope. As long as we have this hack, ignore bookkeeping
+            record_keeper.lenient(relay_quotas::DataCategory::Transaction);
+
+            work.serialize_envelope()
+                .map_err(drop)
+                .with_outcome(Outcome::Invalid(DiscardReason::Internal))
+        })?;
+
+        s.send_envelope(envelope.into());
+
         Ok(())
+    }
+}
+
+#[cfg(feature = "processing")]
+mod store {
+    use relay_event_schema::protocol::EventId;
+    use relay_protocol::Annotated;
+
+    use super::*;
+
+    use crate::managed::Counted as _;
+    use crate::processing::Retention;
+    use crate::processing::transactions::types::{ExpandedProfile, ExtractedIndexedSpan};
+    use crate::services::store::{StoreProfile, StoreSpanV2};
+
+    pub fn convert_profile(
+        profile: ExpandedProfile,
+        sampled: bool,
+        ctx: ForwardContext<'_>,
+    ) -> StoreProfile {
+        let retention_days = ctx.event_retention().standard;
+
+        StoreProfile {
+            retention_days,
+            quantities: profile.quantities(),
+            profile: {
+                let mut item = profile.serialize_item();
+                item.set_sampled(sampled);
+                item
+            },
+        }
+    }
+
+    pub fn convert_span(
+        span: ExtractedIndexedSpan,
+        event_id: Option<EventId>,
+        retentions: Retention,
+    ) -> Result<Box<StoreSpanV2>, Outcome> {
+        let span = match span.0 {
+            Annotated(Some(span), _) => span,
+            Annotated(None, meta) => {
+                relay_log::debug!("dropping empty span with meta {meta:?}");
+                return Err(Outcome::Invalid(DiscardReason::InvalidSpan));
+            }
+        };
+
+        Ok(Box::new(StoreSpanV2 {
+            routing_key: span.trace_id.value().copied().map(Into::into),
+            retention_days: retentions.standard,
+            downsampled_retention_days: retentions.downsampled,
+            event_id,
+            item: span,
+        }))
     }
 }

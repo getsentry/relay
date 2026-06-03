@@ -8,19 +8,18 @@ use relay_sampling::evaluation::SamplingDecision;
 use relay_statsd::metric;
 use smallvec::smallvec;
 
-use crate::envelope::Items;
+use crate::envelope::Item;
 use crate::managed::{Counted, Managed, ManagedResult, Quantities, RecordKeeper, Rejected};
 use crate::metrics_extraction::ExtractedMetrics;
 use crate::processing::spans::{Indexed, TotalAndIndexed};
 use crate::processing::transactions::extraction::{self, ExtractMetricsContext};
 use crate::processing::transactions::spans;
 use crate::processing::transactions::types::{
-    ExpandedProfile, ExpandedTransaction, Flags, StandaloneProfile,
+    ExpandedProfile, ExpandedTransaction, ExtractedIndexedSpans, ExtractedSpans, Flags,
+    StandaloneProfile,
 };
 use crate::processing::transactions::{Error, SerializedTransaction, profile};
-use crate::processing::utils::event::{
-    EventFullyNormalized, EventMetricsExtracted, FiltersStatus, SpansExtracted,
-};
+use crate::processing::utils::event::{EventFullyNormalized, FiltersStatus};
 use crate::processing::{Context, utils};
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
 use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
@@ -74,7 +73,6 @@ pub fn expand(
             flags,
             attachments,
             profile,
-            extracted_spans: vec![],
             category: TotalAndIndexed,
         }))
     })
@@ -90,7 +88,7 @@ fn validate_flags(flags: &Flags) {
 }
 
 fn expand_profile(
-    profiles: Items,
+    profiles: Vec<Item>,
     record_keeper: &mut RecordKeeper<'_>,
 ) -> Option<ExpandedProfile> {
     let mut profiles = profiles.into_iter();
@@ -231,21 +229,21 @@ pub fn run_dynamic_sampling(
     payload: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     filters_status: FiltersStatus,
-) -> Result<SamplingOutput, Rejected<Error>> {
+) -> SamplingOutput {
     let sampling_result = make_dynamic_sampling_decision(&payload, ctx, filters_status);
 
     let sampling_match = match sampling_result {
         SamplingResult::Match(m) if m.decision().is_drop() => m,
         keep => {
-            return Ok(SamplingOutput::Keep {
+            return SamplingOutput::Keep {
                 payload,
                 sample_rate: keep.sample_rate(),
-            });
+            };
         }
     };
 
     // At this point the decision is to drop the payload.
-    let (payload, metrics) = split_indexed_and_total(payload, ctx, SamplingDecision::Drop)?;
+    let (payload, metrics) = split_indexed_and_total(payload, ctx, SamplingDecision::Drop);
 
     let (payload, profile) = payload.split_once(|mut payload, _| {
         let profile = payload.profile.take().map(|profile| StandaloneProfile {
@@ -261,10 +259,10 @@ pub fn run_dynamic_sampling(
     let outcome = Outcome::FilteredSampling(sampling_match.into_matched_rules().into());
     let _ = payload.reject_err(outcome);
 
-    Ok(SamplingOutput::Drop {
+    SamplingOutput::Drop {
         metrics,
         profile: profile.transpose().map(Managed::boxed),
-    })
+    }
 }
 
 /// Computes the dynamic sampling decision for the unit of work, but does not perform action on data.
@@ -298,6 +296,103 @@ fn do_make_dynamic_sampling_decision(
     utils::dynamic_sampling::run(work.headers.dsc(), work.event.value(), &ctx)
 }
 
+type IndexedTransactionAndSpanAndMetrics = (
+    Managed<Box<ExpandedTransaction<Indexed>>>,
+    Option<Managed<ExtractedIndexedSpans>>,
+    Managed<ExtractedMetrics>,
+);
+
+/// Splits transaction into indexed payload and metrics representing the total counts.
+///
+/// Like [`split_indexed_and_total`] but works with [`ExtractedSpans`].
+pub fn split_indexed_and_total_with_extracted_spans(
+    transaction: Managed<Box<ExpandedTransaction>>,
+    spans: Option<Managed<ExtractedSpans>>,
+    ctx: Context<'_>,
+) -> IndexedTransactionAndSpanAndMetrics {
+    let scoping = transaction.scoping();
+
+    let (transaction, metrics) = transaction.split_once(|mut tx, r| {
+        r.lenient(DataCategory::MetricBucket);
+
+        let mut metrics = ProcessingExtractedMetrics::new();
+
+        let had_metrics_extracted = tx.flags.metrics_extracted;
+        tx.flags.metrics_extracted = extraction::extract_metrics(
+            &mut tx.event,
+            &mut metrics,
+            ExtractMetricsContext {
+                dsc: tx.headers.dsc(),
+                project_id: scoping.project_id,
+                ctx,
+                sampling_decision: SamplingDecision::Keep,
+                metrics_extracted: tx.flags.metrics_extracted,
+                extract_span_metrics: spans.is_some(),
+            },
+        )
+        .0;
+
+        if had_metrics_extracted || !tx.flags.metrics_extracted {
+            // Invalid config or invalid original transaction
+            r.lenient(DataCategory::Transaction);
+            r.lenient(DataCategory::Span);
+        }
+
+        // This really is a bug, we ignore here.
+        //
+        // Transactions are counted using a span metric, as transaction payloads should
+        // eventually be fully transformed into spans.
+        //
+        // Since there is no span metric extracted for this transaction, as we already extracted
+        // the spans from the transaction, there is now no metric carrying the transaction category.
+        //
+        // After extracting span metrics the count is accurate again, but attached to the span metrics.
+        // Unless, the spans have been rate limited, which is an actual potential bug which we
+        // ignore here for two reasons:
+        //  - Span rate limits should be applied to transaction as well
+        //  - Long-term transactions will no longer exist
+        if spans.is_none() {
+            r.lenient(DataCategory::Transaction);
+        }
+
+        // Since we just extracted span metrics, which account for the total spans, we need also fix
+        // these counts, later we correct this again.
+        if let Some(spans) = &spans {
+            r.modify_by(DataCategory::Span, spans.0.len() as isize);
+        }
+
+        (Box::new(tx.into_indexed()), metrics.into_inner())
+    });
+
+    // In an ideal world we would use these extracted spans to also extract span metrics instead of
+    // re-using the transaction to get the metrics and risking differences in metrics.
+    //
+    // The master plan on how to clean this up:
+    //  1. Migrate dynamic sampling to EAP
+    //  2. Emit total category outcomes in Relay instead of as a metric
+    //  3. Remove all span metrics, including extraction (possible after 1., and 2.)
+    let spans = spans.map(|spans| {
+        spans.map(|spans, r| {
+            if let Some((c, q)) = metrics
+                .quantities()
+                .iter()
+                .find(|(c, _)| *c == DataCategory::Span)
+            {
+                // "Insurance" that metrics extracted from the transaction spans match the extracted
+                // spans.
+                r.modify_by(*c, -(*q as isize));
+            } else if transaction.flags.metrics_extracted {
+                // This `metrics_extracted` flag really isn't necessary anymore and should be deleted.
+                r.lenient(DataCategory::Span);
+            }
+
+            spans.into_indexed()
+        })
+    });
+
+    (transaction, spans, metrics)
+}
+
 type IndexedAndMetrics = (
     Managed<Box<ExpandedTransaction<Indexed>>>,
     Managed<ExtractedMetrics>,
@@ -308,14 +403,14 @@ pub fn split_indexed_and_total(
     mut work: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     sampling_decision: SamplingDecision,
-) -> Result<IndexedAndMetrics, Rejected<Error>> {
+) -> IndexedAndMetrics {
     let scoping = work.scoping();
 
     let had_metrics_extracted = work.flags.metrics_extracted;
     let extract_span_metrics = !work.flags.spans_rate_limited;
 
     let mut metrics = ProcessingExtractedMetrics::new();
-    work.try_modify(|work, _| {
+    work.modify(|work, _| {
         work.flags.metrics_extracted = extraction::extract_metrics(
             &mut work.event,
             &mut metrics,
@@ -327,13 +422,11 @@ pub fn split_indexed_and_total(
                 metrics_extracted: work.flags.metrics_extracted,
                 extract_span_metrics,
             },
-        )?
+        )
         .0;
+    });
 
-        Ok::<_, Error>(())
-    })?;
-
-    Ok(work.split_once(|work, r| {
+    work.split_once(|work, r| {
         r.lenient(DataCategory::MetricBucket);
         if had_metrics_extracted || !work.flags.metrics_extracted {
             // Invalid config or invalid original transaction
@@ -356,7 +449,7 @@ pub fn split_indexed_and_total(
         }
 
         (Box::new(work.into_indexed()), metrics.into_inner())
-    }))
+    })
 }
 
 /// Processes the profile attached to the transaction.
@@ -383,38 +476,38 @@ pub fn process_profile(work: &mut Managed<Box<ExpandedTransaction>>, ctx: Contex
 ///
 /// Only extracts spans in processing.
 pub fn extract_spans(
-    mut work: Managed<Box<ExpandedTransaction>>,
+    transaction: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     server_sample_rate: Option<f64>,
-) -> Managed<Box<ExpandedTransaction>> {
-    if !ctx.is_processing() {
-        return work;
-    }
+) -> (Managed<ExtractedSpans>, Managed<Box<ExpandedTransaction>>) {
+    // This could be validated with additional typing, a different type for transactions which have
+    // spans extracted.
+    debug_assert!(
+        !transaction.flags.spans_extracted,
+        "spans can only be extracted once"
+    );
 
-    work.modify(|work, r| {
-        if let Some(results) = spans::extract_from_event(
-            work.headers.dsc(),
-            &work.event,
-            ctx,
-            server_sample_rate,
-            EventMetricsExtracted(work.flags.metrics_extracted),
-            SpansExtracted(work.flags.spans_extracted),
-        ) {
-            work.flags.spans_extracted = true;
-            for result in results {
-                match result {
-                    Ok(item) => work.extracted_spans.push(item),
-                    Err(_) => {
+    transaction.split_once(|mut tx, r| {
+        let spans =
+            spans::extract_from_event(tx.headers.dsc(), &tx.event, ctx.config, server_sample_rate)
+                .into_iter()
+                .filter_map(|span| match span {
+                    Ok(span) => Some(span),
+                    Err(()) => {
                         r.reject_err(
                             Outcome::Invalid(DiscardReason::InvalidSpan),
                             IndexedSpans(1),
                         );
+                        None
                     }
-                }
-            }
-        }
-    });
-    work
+                })
+                .collect();
+
+        // Once spans are extracted, they are no longer counted towards the transaction.
+        tx.flags.spans_extracted = true;
+
+        (ExtractedSpans(spans), tx)
+    })
 }
 
 /// Runs PiiProcessors on the event and its attachments.

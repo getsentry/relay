@@ -18,7 +18,6 @@ impl StandaloneProfile {
         let mut item = self.profile.serialize_item();
         // This profile is now standalone, as dynamic sampling dropped the transaction.
         item.set_sampled(false);
-
         Envelope::from_parts(self.headers, smallvec::smallvec![item])
     }
 }

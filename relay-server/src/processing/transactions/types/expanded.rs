@@ -1,5 +1,5 @@
 use either::Either;
-use relay_event_schema::protocol::Event;
+use relay_event_schema::protocol::{Event, SpanV2};
 use relay_profiling::{ProfileMetadata, ProfileType};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
@@ -14,9 +14,20 @@ use crate::metrics_extraction::ExtractedMetrics;
 use crate::processing::spans::{Indexed, TotalAndIndexed};
 use crate::processing::transactions::Error;
 use crate::processing::transactions::process::split_indexed_and_total;
-use crate::processing::transactions::types::Flags;
-use crate::processing::{Context, RateLimited, RateLimiter};
+use crate::processing::{Context, CountRateLimited, RateLimited, RateLimiter};
 use crate::statsd::RelayTimers;
+
+/// Flags extracted from transaction item headers.
+///
+/// Ideally `metrics_extracted` and `spans_extracted` will not be needed in the future. Unsure
+/// about `fully_normalized`.
+#[derive(Debug, Default)]
+pub struct Flags {
+    pub metrics_extracted: bool,
+    pub spans_extracted: bool,
+    pub fully_normalized: bool,
+    pub spans_rate_limited: bool,
+}
 
 /// A transaction after parsing.
 ///
@@ -27,9 +38,8 @@ pub struct ExpandedTransaction<C = TotalAndIndexed> {
     pub headers: EnvelopeHeaders,
     pub event: Annotated<Event>,
     pub flags: Flags,
-    pub attachments: Items,
+    pub attachments: Vec<Item>,
     pub profile: Option<ExpandedProfile>,
-    pub extracted_spans: Vec<Item>,
     #[expect(unused, reason = "marker field, only set never read")]
     pub category: C,
 }
@@ -55,7 +65,6 @@ impl ExpandedTransaction<TotalAndIndexed> {
             flags,
             attachments,
             profile,
-            extracted_spans,
             category: _,
         } = self;
         ExpandedTransaction {
@@ -64,7 +73,6 @@ impl ExpandedTransaction<TotalAndIndexed> {
             flags,
             attachments,
             profile,
-            extracted_spans,
             category: Indexed,
         }
     }
@@ -78,7 +86,6 @@ impl Counted for ExpandedTransaction<TotalAndIndexed> {
             flags,
             attachments,
             profile,
-            extracted_spans,
             category: _,
         } = self;
         let mut quantities = smallvec![
@@ -89,18 +96,13 @@ impl Counted for ExpandedTransaction<TotalAndIndexed> {
         quantities.extend(attachments.quantities());
         quantities.extend(profile.quantities());
 
-        let span_count = if flags.spans_extracted {
-            extracted_spans.len()
-        } else {
-            debug_assert!(extracted_spans.is_empty());
-            self.count_embedded_spans_and_self()
-        };
-        if span_count > 0 {
+        if !flags.spans_extracted {
+            let span_count = self.count_embedded_spans_and_self();
             quantities.extend([
                 (DataCategory::SpanIndexed, span_count),
                 (DataCategory::Span, span_count),
             ]);
-        }
+        };
 
         quantities
     }
@@ -114,7 +116,6 @@ impl Counted for ExpandedTransaction<Indexed> {
             flags,
             attachments,
             profile,
-            extracted_spans,
             category: _,
         } = self;
         let mut quantities = smallvec![(DataCategory::TransactionIndexed, 1),];
@@ -122,15 +123,10 @@ impl Counted for ExpandedTransaction<Indexed> {
         quantities.extend(attachments.quantities());
         quantities.extend(profile.quantities());
 
-        let span_count = if flags.spans_extracted {
-            extracted_spans.len()
-        } else {
-            debug_assert!(self.extracted_spans.is_empty());
-            self.count_embedded_spans_and_self()
-        };
-        if span_count > 0 {
+        if !flags.spans_extracted {
+            let span_count = self.count_embedded_spans_and_self();
             quantities.extend([(DataCategory::SpanIndexed, span_count)]);
-        }
+        };
 
         quantities
     }
@@ -166,7 +162,7 @@ impl RateLimited for Managed<Box<ExpandedTransaction<TotalAndIndexed>>> {
             .await;
         if !limits.is_empty() {
             let error = Error::from(limits);
-            let (indexed, metrics) = split_indexed_and_total(self, ctx, SamplingDecision::Keep)?;
+            let (indexed, metrics) = split_indexed_and_total(self, ctx, SamplingDecision::Keep);
             let _ = indexed.reject_err(error);
 
             return Ok(metrics.map(|metrics, _| Either::Right(metrics)));
@@ -203,26 +199,6 @@ impl RateLimited for Managed<Box<ExpandedTransaction<TotalAndIndexed>>> {
             }
         }
 
-        // We assume that span extraction happens after metrics extraction, so safe to check both
-        // categories:
-        if !self.extracted_spans.is_empty() {
-            for category in [DataCategory::Span, DataCategory::SpanIndexed] {
-                let limits = rate_limiter
-                    .try_consume(scoping.item(category), self.extracted_spans.len())
-                    .await;
-
-                if !limits.is_empty() {
-                    self.modify(|this, record_keeper| {
-                        this.flags.spans_rate_limited = true;
-                        record_keeper.reject_err(
-                            Error::from(limits),
-                            std::mem::take(&mut this.extracted_spans),
-                        );
-                    });
-                }
-            }
-        }
-
         Ok(self.map(|work, _| Either::Left(work)))
     }
 }
@@ -239,7 +215,6 @@ impl<T> ExpandedTransaction<T> {
             flags,
             attachments,
             profile,
-            extracted_spans,
             category: _,
         } = self;
 
@@ -247,7 +222,6 @@ impl<T> ExpandedTransaction<T> {
         if let Some(profile) = profile {
             items.push(profile.serialize_item());
         }
-        items.extend(extracted_spans);
 
         // To be compatible with previous code, add the transaction at the end:
         let data = metric!(timer(RelayTimers::EventProcessingSerialization), {
@@ -303,5 +277,57 @@ impl Counted for ExpandedProfile {
                 1
             ),
         ]
+    }
+}
+
+/// Spans which have been extracted from a [`ExpandedTransaction`].
+#[derive(Debug)]
+pub struct ExtractedSpans(pub Vec<Annotated<SpanV2>>);
+
+impl ExtractedSpans {
+    pub fn into_indexed(self) -> ExtractedIndexedSpans {
+        ExtractedIndexedSpans(self.0)
+    }
+}
+
+impl Counted for ExtractedSpans {
+    fn quantities(&self) -> Quantities {
+        smallvec![
+            (DataCategory::Span, self.0.len()),
+            (DataCategory::SpanIndexed, self.0.len()),
+        ]
+    }
+}
+
+impl CountRateLimited for Managed<ExtractedSpans> {
+    type Error = Error;
+}
+
+/// [`ExtractedSpans`] which had their metrics extracted.
+#[derive(Debug)]
+pub struct ExtractedIndexedSpans(pub Vec<Annotated<SpanV2>>);
+
+impl ExtractedIndexedSpans {
+    #[cfg(feature = "processing")]
+    pub fn into_iter(self) -> impl IntoIterator<Item = ExtractedIndexedSpan> {
+        self.0.into_iter().map(ExtractedIndexedSpan)
+    }
+}
+
+impl Counted for ExtractedIndexedSpans {
+    fn quantities(&self) -> Quantities {
+        smallvec![(DataCategory::SpanIndexed, self.0.len())]
+    }
+}
+
+/// A single extracted span which had its metrics extracted.
+#[derive(Debug)]
+#[cfg(feature = "processing")]
+pub struct ExtractedIndexedSpan(pub Annotated<SpanV2>);
+
+#[cfg(feature = "processing")]
+impl Counted for ExtractedIndexedSpan {
+    fn quantities(&self) -> Quantities {
+        smallvec![(DataCategory::SpanIndexed, 1)]
     }
 }

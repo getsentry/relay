@@ -1,45 +1,41 @@
 use std::error::Error;
 
-use crate::envelope::{ContentType, Item, ItemType};
 use crate::processing;
-use crate::processing::utils::event::{EventMetricsExtracted, SpansExtracted, event_type};
+use crate::processing::utils::event::event_type;
 use relay_base_schema::events::EventType;
-use relay_dynamic_config::Feature;
-use relay_event_schema::protocol::{Event, Measurement, Measurements, Span};
+use relay_config::Config;
+use relay_event_schema::protocol::{Event, Measurement, Measurements, Span, SpanV2};
 use relay_metrics::MetricNamespace;
 use relay_metrics::{FractionUnit, MetricUnit};
 use relay_protocol::{Annotated, Empty};
 use relay_sampling::DynamicSamplingContext;
 
-#[allow(clippy::too_many_arguments)]
 pub fn extract_from_event(
     dsc: Option<&DynamicSamplingContext>,
     event: &Annotated<Event>,
-    ctx: processing::Context<'_>,
+    config: &Config,
     server_sample_rate: Option<f64>,
-    event_metrics_extracted: EventMetricsExtracted,
-    spans_extracted: SpansExtracted,
-) -> Option<Vec<Result<Item, ()>>> {
+) -> Vec<Result<Annotated<SpanV2>, ()>> {
     // Only extract spans from transactions (not errors).
     if event_type(event) != Some(EventType::Transaction) {
-        return None;
+        return Vec::new();
     };
-
-    if spans_extracted.0 {
-        return None;
-    }
 
     let client_sample_rate = dsc.and_then(|ctx| ctx.sample_rate);
 
-    let event = event.value()?;
+    let Some(event) = event.value() else {
+        return Vec::new();
+    };
 
-    let transaction_span = processing::transactions::extraction::extract_segment_span(
+    let Some(transaction_span) = processing::transactions::extraction::extract_segment_span(
         event,
-        ctx.config
+        config
             .aggregator_config_for(MetricNamespace::Spans)
             .max_tag_value_length,
         &[],
-    )?;
+    ) else {
+        return Vec::new();
+    };
 
     let mut results = vec![];
 
@@ -64,32 +60,26 @@ pub fn extract_from_event(
 
             results.push(make_span_item(
                 new_span,
-                ctx,
                 client_sample_rate,
                 server_sample_rate,
-                event_metrics_extracted.0,
             ));
         }
     }
 
     results.push(make_span_item(
         transaction_span,
-        ctx,
         client_sample_rate,
         server_sample_rate,
-        event_metrics_extracted.0,
     ));
 
-    Some(results)
+    results
 }
 
 fn make_span_item(
     mut span: Span,
-    ctx: processing::Context<'_>,
     client_sample_rate: Option<f64>,
     server_sample_rate: Option<f64>,
-    metrics_extracted: bool,
-) -> Result<Item, ()> {
+) -> Result<Annotated<SpanV2>, ()> {
     add_sample_rate(
         &mut span.measurements,
         "client_sample_rate",
@@ -114,13 +104,7 @@ fn make_span_item(
         })
         .map_err(|_| ())?;
 
-    let mut item = create_span_item(span, ctx)?;
-
-    // If metrics extraction happened for the event, it also happened for its spans:
-    item.set_metrics_extracted(metrics_extracted);
-
-    relay_log::trace!("Adding span to envelope");
-    Ok(item)
+    Ok(span.map_value(relay_spans::span_v1_to_span_v2))
 }
 
 /// Any violation of the span schema.
@@ -197,44 +181,6 @@ pub fn validate(span: &mut Annotated<Span>) -> Result<(), ValidationError> {
     Ok(())
 }
 
-/// Serializes the given span into an envelope item.
-///
-/// In processing relays, creates a Span V2 so it can be published via kafka.
-pub fn create_span_item(span: Annotated<Span>, ctx: processing::Context<'_>) -> Result<Item, ()> {
-    let mut new_item = Item::new(ItemType::Span);
-    if cfg!(feature = "processing") && ctx.config.processing_enabled() {
-        let use_measurements_smart_conversion = ctx
-            .project_info
-            .has_feature(Feature::MeasurementsSmartConversion);
-        let span_v2 = span.map_value(|span| {
-            relay_spans::span_v1_to_span_v2(span, use_measurements_smart_conversion)
-        });
-        let payload = match span_v2.to_json() {
-            Ok(payload) => payload,
-            Err(err) => {
-                relay_log::error!("failed to serialize span V2: {}", err);
-                return Err(());
-            }
-        };
-        if let Some(trace_id) = span_v2.value().and_then(|s| s.trace_id.value()) {
-            new_item.set_routing_hint(*trace_id.as_ref());
-        }
-
-        new_item.set_payload(ContentType::Json, payload);
-    } else {
-        let payload = match span.to_json() {
-            Ok(payload) => payload,
-            Err(err) => {
-                relay_log::error!("failed to serialize span: {}", err);
-                return Err(());
-            }
-        };
-        new_item.set_payload(ContentType::Json, payload);
-    }
-
-    Ok(new_item)
-}
-
 fn add_sample_rate(measurements: &mut Annotated<Measurements>, name: &str, value: Option<f64>) {
     let value = match value {
         Some(value) if value > 0.0 => value,
@@ -249,103 +195,4 @@ fn add_sample_rate(measurements: &mut Annotated<Measurements>, name: &str, value
     measurements
         .get_or_insert_with(Measurements::default)
         .insert(name.to_owned(), measurement);
-}
-
-#[cfg(test)]
-mod tests {
-
-    use std::collections::BTreeMap;
-    use std::sync::Arc;
-
-    use bytes::Bytes;
-    use chrono::DateTime;
-    use relay_event_schema::protocol::{
-        Context, ContextInner, Contexts, Span, Timestamp, TraceContext,
-    };
-    use relay_system::Addr;
-
-    use crate::Envelope;
-    use crate::managed::ManagedEnvelope;
-    use crate::services::projects::project::ProjectInfo;
-
-    use super::*;
-
-    fn params() -> (ManagedEnvelope, Annotated<Event>, Arc<ProjectInfo>) {
-        let bytes = Bytes::from(
-            r#"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","trace":{"trace_id":"89143b0763095bd9c9955e8175d1fb23","public_key":"e12d836b15bb49d7bbf99e64295d995b","sample_rate":"0.2"}}
-{"type":"transaction"}
-{}
-"#,
-        );
-
-        let dummy_envelope = Envelope::parse_bytes(bytes).unwrap();
-        let project_info = Arc::new(ProjectInfo::default());
-
-        let event = Event {
-            ty: EventType::Transaction.into(),
-            start_timestamp: Timestamp(DateTime::from_timestamp(0, 0).unwrap()).into(),
-            timestamp: Timestamp(DateTime::from_timestamp(1, 0).unwrap()).into(),
-            contexts: Contexts(BTreeMap::from([(
-                "trace".into(),
-                ContextInner(Context::Trace(Box::new(TraceContext {
-                    trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
-                    span_id: Annotated::new("fa90fdead5f74053".parse().unwrap()),
-                    exclusive_time: 1000.0.into(),
-                    ..Default::default()
-                })))
-                .into(),
-            )]))
-            .into(),
-            ..Default::default()
-        };
-
-        let managed_envelope = ManagedEnvelope::new(dummy_envelope, Addr::dummy());
-        let event = Annotated::from(event);
-
-        (managed_envelope, event, project_info)
-    }
-
-    #[test]
-    fn extract_sample_rates() {
-        let (managed_envelope, event, _) = params(); // client sample rate is 0.2
-        let spans = extract_from_event(
-            managed_envelope.envelope().dsc(),
-            &event,
-            processing::Context::for_test(),
-            Some(0.1),
-            EventMetricsExtracted(false),
-            SpansExtracted(false),
-        )
-        .unwrap();
-
-        let span = spans
-            .into_iter()
-            .find(|item| item.as_ref().unwrap().ty() == &ItemType::Span)
-            .unwrap()
-            .unwrap();
-
-        let span = Annotated::<Span>::from_json_bytes(&span.payload()).unwrap();
-        let measurements = span.value().and_then(|s| s.measurements.value());
-
-        insta::assert_debug_snapshot!(measurements, @r###"
-        Some(
-            Measurements(
-                {
-                    "client_sample_rate": Measurement {
-                        value: 0.2,
-                        unit: Fraction(
-                            Ratio,
-                        ),
-                    },
-                    "server_sample_rate": Measurement {
-                        value: 0.1,
-                        unit: Fraction(
-                            Ratio,
-                        ),
-                    },
-                },
-            ),
-        )
-        "###);
-    }
 }
