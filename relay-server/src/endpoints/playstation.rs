@@ -3,7 +3,7 @@
 //! Crashes are received as multipart uploads in this [format](https://game.develop.playstation.net/resources/documents/SDK/12.000/Core_Dump_System-Overview/ps5-core-dump-file-set-sending-format.html).
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
-use axum::routing::{post, MethodRouter};
+use axum::routing::{MethodRouter, post};
 use multer::{Field, Multipart};
 use relay_config::Config;
 use relay_dynamic_config::Feature;
