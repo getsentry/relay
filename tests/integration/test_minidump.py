@@ -1079,9 +1079,13 @@ def test_minidump_objectstore_uploads_external_chain(
 def test_minidump_objectstore_uploads_external_chain_attachment_limited(
     mini_sentry,
     relay,
-    relay_with_processing,
-    attachments_consumer,
+    dummy_upload,
 ):
+    mini_sentry.global_config["options"][
+        "relay.objectstore-attachments.sample-rate"
+    ] = 1.0
+    mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = True
+
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"].setdefault("features", []).extend(
@@ -1099,24 +1103,35 @@ def test_minidump_objectstore_uploads_external_chain_attachment_limited(
         },
     ]
 
-    relay = relay(relay_with_processing(), external=True)
+    inner = relay(mini_sentry, options={"outcomes": {"emit_outcomes": True}})
+    relay = relay(inner, external=True, options={"outcomes": {"emit_outcomes": True}})
     project_config["config"]["trustedRelays"] = list(relay.iter_public_keys())
 
-    attachments_consumer = attachments_consumer()
+    # Do some busy work
+    relay.send_event(project_id)
+    mini_sentry.get_captured_envelope()
 
     response = relay.send_minidump(
         project_id=project_id,
         files=[
-            (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", b"MDMP content"),
+            (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", b"MDMPcontent"),
             ("logs", "log.txt", b"Some log file content"),
         ],
     )
     assert response.ok
 
-    _, unpacked = attachments_consumer.get_message()
-    assert {att["name"] for att in unpacked["attachments"]} == {
-        "minidump.dmp",
+    envelope = mini_sentry.get_captured_envelope()
+    by_name = {
+        i.headers.get("filename"): i
+        for i in envelope.items
+        if i.headers.get("type") == "attachment"
     }
+
+    assert "log.txt" not in by_name
+    assert (
+        by_name["minidump.dmp"].headers["content_type"]
+        == "application/vnd.sentry.attachment-ref+json"
+    )
 
 
 def test_minidump_objectstore_errors(
