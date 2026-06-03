@@ -182,6 +182,28 @@ def test_upload_unsupported_tus_version(
     }
 
 
+def test_upload_with_metadata(
+    mini_sentry,
+    relay,
+    dummy_upload,
+    project_config,
+):
+    project_id = 42
+    relay = relay(mini_sentry)
+
+    response = relay.post(
+        "/api/%s/upload/?sentry_key=%s"
+        % (project_id, mini_sentry.get_dsn_public_key(project_id)),
+        headers={
+            "Tus-Resumable": "1.0.0",
+            "Upload-Defer-Length": "1",
+            "Upload-Metadata": "sentry eyJhdHRhY2htZW50X3R5cGUiOiAiZXZlbnQubWluaWR1bXAifQ==",
+        },
+    )
+
+    assert response.status_code == 201
+
+
 def test_upload_missing_upload_length(mini_sentry, relay, dummy_upload, project_config):
 
     project_id = 42
