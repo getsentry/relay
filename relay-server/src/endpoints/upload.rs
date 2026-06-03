@@ -177,7 +177,7 @@ async fn handle_post(
         })?;
 
     relay_log::trace!("Checking request");
-    let scoping = check_request(&state, meta, &headers, project).await?;
+    let scoping = validate_and_limit(&state, meta, &headers, project).await?;
 
     // Unconditionally create the upload location:
     relay_log::trace!("Creating upload location");
@@ -224,7 +224,7 @@ async fn handle_patch(
         })?;
 
     relay_log::trace!("Checking request");
-    let scoping = validate_request(&state, meta, project).await?;
+    let scoping = validate(&state, meta, project).await?;
 
     let stream = body
         .into_data_stream()
@@ -328,7 +328,7 @@ async fn upload(
 ///
 /// This is currently the easiest way to guarantee that the upload gets checked the same way as
 /// the envelope.
-async fn check_request(
+async fn validate_and_limit(
     state: &ServiceState,
     meta: RequestMeta,
     headers: &tus::Headers,
@@ -360,7 +360,7 @@ async fn check_request(
     Ok(scoping)
 }
 
-async fn validate_request(
+async fn validate(
     state: &ServiceState,
     meta: RequestMeta,
     project: Project<'_>,
