@@ -140,7 +140,8 @@ pub struct StoreSpanV2 {
     pub event_id: Option<EventId>,
     /// The final Sentry compatible span item.
     pub item: SpanV2,
-    // TODO: docs
+    // Whether to run issue detection on the transaction or on the segment span.
+    // (only true for segment spans created from a transaction).
     pub performance_issues_spans: bool,
 }
 
@@ -783,6 +784,7 @@ impl StoreService {
             downsampled_retention_days: message.downsampled_retention_days,
             received: datetime_to_timestamp(received_at),
             accepted_outcome_emitted: relay_emits_accepted_outcome,
+            performance_issues_spans: message.performance_issues_spans,
         };
 
         message.try_accept(|span| {
@@ -1583,6 +1585,8 @@ struct SpanMeta {
     downsampled_retention_days: u16,
     /// Indicates whether Relay already emitted an accepted outcome or if EAP still needs to emit it.
     accepted_outcome_emitted: bool,
+    /// Whether the segment span should be used for issue detection instead of the transaction.
+    performance_issues_spans: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]

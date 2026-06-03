@@ -1,3 +1,6 @@
+#[cfg(feature = "processing")]
+use relay_protocol::Annotated;
+
 use crate::Envelope;
 use crate::managed::{Managed, ManagedResult, Rejected};
 #[cfg(feature = "processing")]
@@ -89,10 +92,14 @@ impl Forward for TransactionOutput {
             s.send_to_store(profile.map(|p, _| store::convert_profile(p, true, ctx)));
         }
 
-        let envelope = transaction.try_map(|work, record_keeper| {
+        let envelope = transaction.try_map(|mut work, record_keeper| {
             // TODO: This should raise an error, Indexed output should go straight to Kafka
             // instead of an envelope. As long as we have this hack, ignore bookkeeping
             record_keeper.lenient(relay_quotas::DataCategory::Transaction);
+
+            if let Some(event) = work.event.value_mut() {
+                event.performance_issues_spans = Annotated::new(performance_issues_spans)
+            }
 
             work.serialize_envelope()
                 .map_err(drop)
