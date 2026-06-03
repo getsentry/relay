@@ -79,11 +79,12 @@ impl Forward for TransactionOutput {
             let retention = ctx.retention(|r| r.span.as_ref());
 
             for span in spans.split(|spans| spans.into_iter()) {
-                if let Ok(span) =
+                if let Ok(mut span) =
                     span.try_map(|span, _| store::convert_span(span, event_id, retention))
                 {
-                    if performance_issues_spans && *span.item.is_segment.value().unwrap_or(&false) {
-                        span.map(|mut span, _| {
+                    if performance_issues_spans && *(span.item.is_segment.value().unwrap_or(&false))
+                    {
+                        span.modify(|span, _| {
                             span.performance_issues_spans = true;
                         });
                     }
