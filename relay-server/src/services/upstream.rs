@@ -198,6 +198,7 @@ impl UpstreamRequestError {
             UpstreamRequestError::Http(HttpError::Reqwest(_)) => "reqwest_error",
             UpstreamRequestError::Http(HttpError::Overflow) => "overflow",
             UpstreamRequestError::Http(HttpError::Misconfigured) => "misconfigured",
+            UpstreamRequestError::Http(HttpError::Header(_)) => "header",
             UpstreamRequestError::RateLimited(_) => "rate_limited",
             UpstreamRequestError::ResponseError(_, _) => "response_error",
             UpstreamRequestError::ChannelClosed => "channel_closed",
@@ -218,6 +219,7 @@ impl IntoResponse for UpstreamRequestError {
                 HttpError::Io(_) => StatusCode::BAD_GATEWAY.into_response(),
                 HttpError::Json(_) => StatusCode::BAD_REQUEST.into_response(),
                 HttpError::Misconfigured => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+                HttpError::Header(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
             },
             Self::SendFailed(e) => {
                 if find_error_source(&e, is_length_limit_error).is_some() {

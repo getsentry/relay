@@ -14,7 +14,7 @@ use http::header::AsHeaderName;
 use serde::{Deserialize, Serialize};
 
 use crate::envelope::AttachmentType;
-use crate::http::RequestBuilder;
+use crate::http::{HttpError, RequestBuilder};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -177,11 +177,10 @@ pub fn add_creation_headers(
     upload_length: Option<usize>,
     attachment_type: Option<AttachmentType>,
     builder: &mut RequestBuilder,
-) {
-    if let Some(attachment_type) = attachment_type
-        && let Ok(json) = serde_json::to_vec(&Metadata { attachment_type })
-        && let Ok(header) = HeaderValue::from_str(&format!("sentry {}", BASE64.encode(&json)))
-    {
+) -> Result<(), HttpError> {
+    if let Some(attachment_type) = attachment_type {
+        let json = serde_json::to_vec(&Metadata { attachment_type })?;
+        let header = HeaderValue::from_str(&format!("sentry {}", BASE64.encode(&json)))?;
         builder.header(UPLOAD_METADATA, header);
     }
 
@@ -190,7 +189,9 @@ pub fn add_creation_headers(
         builder.header(UPLOAD_LENGTH, HeaderValue::from(upload_length));
     } else {
         builder.header(UPLOAD_DEFER_LENGTH, "1");
-    }
+    };
+
+    Ok(())
 }
 
 /// Prepares the required TUS request headers for upstream requests.

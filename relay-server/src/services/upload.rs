@@ -697,7 +697,7 @@ impl UpstreamRequest for UploadRequest {
                 length,
                 attachment_type,
             } => {
-                tus::add_creation_headers(*length, *attachment_type, builder);
+                tus::add_creation_headers(*length, *attachment_type, builder)?;
             }
             RequestKind::Upload {
                 location: _,
