@@ -600,6 +600,7 @@ where
         .send(Create {
             scoping,
             length: None,
+            attachment_type: item.attachment_type(),
         })
         .await
         .ok()?

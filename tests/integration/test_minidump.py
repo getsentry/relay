@@ -1084,6 +1084,64 @@ def test_minidump_objectstore_uploads_external_chain(
     }
 
 
+def test_minidump_objectstore_uploads_external_chain_attachment_limited(
+    mini_sentry,
+    relay,
+    dummy_upload,
+):
+    mini_sentry.global_config["options"][
+        "relay.objectstore-attachments.sample-rate"
+    ] = 1.0
+    mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = True
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).extend(
+        [
+            "projects:relay-minidump-attachment-uploads",
+            "projects:relay-upload-endpoint",
+            "projects:relay-minidump-uploads",
+        ]
+    )
+    project_config["config"]["quotas"] = [
+        {
+            "categories": ["attachment"],
+            "limit": 0,
+            "reasonCode": "attachments_exceeded",
+        },
+    ]
+
+    inner = relay(mini_sentry, options={"outcomes": {"emit_outcomes": True}})
+    relay = relay(inner, external=True, options={"outcomes": {"emit_outcomes": True}})
+    project_config["config"]["trustedRelays"] = list(relay.iter_public_keys())
+
+    # Do some busy work
+    relay.send_event(project_id)
+    mini_sentry.get_captured_envelope()
+
+    response = relay.send_minidump(
+        project_id=project_id,
+        files=[
+            (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", b"MDMPcontent"),
+            ("logs", "log.txt", b"Some log file content"),
+        ],
+    )
+    assert response.ok
+
+    envelope = mini_sentry.get_captured_envelope()
+    by_name = {
+        i.headers.get("filename"): i
+        for i in envelope.items
+        if i.headers.get("type") == "attachment"
+    }
+
+    assert "log.txt" not in by_name
+    assert (
+        by_name["minidump.dmp"].headers["content_type"]
+        == "application/vnd.sentry.attachment-ref+json"
+    )
+
+
 def test_minidump_objectstore_errors(
     mini_sentry,
     relay,
