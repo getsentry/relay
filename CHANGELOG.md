@@ -6,6 +6,10 @@
 
 - Add metadata support for the `/upload` endpoint. ([#6028](https://github.com/getsentry/relay/pull/6028))
 
+**Bug Fixes**:
+
+- Unset segment info for web vital spans. ([#6042](https://github.com/getsentry/relay/pull/6042))
+
 ## 26.5.2
 
 **Features**:
