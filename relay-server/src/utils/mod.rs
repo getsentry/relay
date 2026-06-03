@@ -1,9 +1,13 @@
 mod api;
+mod debug;
 mod dynamic_sampling;
 mod error;
 mod multipart;
 mod param_parser;
+#[cfg(feature = "processing")]
 mod pick;
+#[cfg(all(sentry, feature = "processing"))]
+pub mod playstation;
 mod rate_limits;
 mod retry;
 mod scheduled;
@@ -11,7 +15,7 @@ mod sizes;
 mod sleep_handle;
 mod split_off;
 mod statsd;
-mod stream;
+pub mod stream;
 mod thread_pool;
 pub mod tus;
 
@@ -23,6 +27,7 @@ mod serde;
 mod unreal;
 
 pub use self::api::*;
+pub use self::debug::*;
 pub use self::dynamic_sampling::*;
 pub use self::error::*;
 pub use self::forward::*;
@@ -31,6 +36,7 @@ pub use self::multipart::*;
 #[cfg(feature = "processing")]
 pub use self::native::*;
 pub use self::param_parser::*;
+#[cfg(feature = "processing")]
 pub use self::pick::*;
 pub use self::rate_limits::*;
 pub use self::retry::*;

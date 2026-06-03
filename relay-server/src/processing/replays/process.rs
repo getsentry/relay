@@ -1,5 +1,5 @@
 use relay_dynamic_config::Feature;
-use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo, replay};
+use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo, eap, replay};
 use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::Replay;
 use relay_pii::PiiProcessor;
@@ -9,10 +9,10 @@ use relay_statsd::metric;
 
 use crate::envelope::Item;
 use crate::managed::{Managed, Rejected};
-use crate::processing::Context;
 use crate::processing::replays::{
     Error, ExpandedReplay, ReplayPayload, ReplayVideoEvent, SerializedReplays,
 };
+use crate::processing::{Context, utils};
 use crate::statsd::RelayTimers;
 
 fn expand_video(item: &Item) -> Result<ReplayPayload, Error> {
@@ -94,9 +94,14 @@ pub fn expand(
 }
 
 /// Normalizes a replay event.
-pub fn normalize(replay: &mut Managed<ExpandedReplay>, geoip_lookup: &GeoIpLookup) {
+pub fn normalize(
+    replay: &mut Managed<ExpandedReplay>,
+    geoip_lookup: &GeoIpLookup,
+    ctx: Context<'_>,
+) {
     let meta = replay.headers.meta();
     let client_addr = meta.client_addr();
+    let time_config = utils::normalize::time_config(&replay.headers, |_| None, ctx);
     let user_agent = RawUserAgentInfo {
         user_agent: meta.user_agent().map(String::from),
         client_hints: meta.client_hints().to_owned(),
@@ -104,6 +109,7 @@ pub fn normalize(replay: &mut Managed<ExpandedReplay>, geoip_lookup: &GeoIpLooku
 
     replay.modify(|replay, _| {
         if let Some(event) = replay.payload.event_mut() {
+            eap::time::normalize(event, time_config);
             replay::normalize(event, client_addr, &user_agent.as_deref(), geoip_lookup)
         }
     })

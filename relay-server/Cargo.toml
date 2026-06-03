@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "26.4.1"
+version = "26.5.1"
 edition = "2024"
 build = "build.rs"
 license-file = "../LICENSE.md"
@@ -22,7 +22,6 @@ processing = [
   "relay-metrics/redis",
   "relay-quotas/redis",
   "relay-redis/impl",
-  "relay-sampling/redis",
 ]
 
 [lints]
@@ -32,6 +31,7 @@ workspace = true
 ahash = { workspace = true }
 anyhow = { workspace = true }
 arc-swap = { workspace = true }
+async-compression = { workspace = true }
 axum = { workspace = true, features = ["macros", "matched-path", "tracing"] }
 axum-extra = { workspace = true }
 axum-server = { workspace = true }

@@ -8,6 +8,9 @@ use crate::processing::errors::errors::Context;
 use crate::services::outcome::DiscardItemType;
 use crate::services::processor::ProcessingError;
 
+mod attachment;
+mod formdata;
+
 macro_rules! if_not_processing {
     ($ctx:expr, $if_true:block) => {
         match $ctx {
@@ -142,12 +145,7 @@ pub fn take_event_from_attachments(
         return Ok(Annotated::empty());
     }
 
-    let (event, len) = crate::services::processor::event::event_from_attachments(
-        ctx.processing.config,
-        ev,
-        b1,
-        b2,
-    )?;
+    let (event, len) = attachment::event_from_attachments(ctx.processing.config, ev, b1, b2)?;
     metrics.bytes_ingested_event = Annotated::new(len as u64);
 
     Ok(event)
@@ -167,7 +165,7 @@ pub fn take_event_from_formdata(
 
     let event = {
         let mut value = serde_json::Value::Object(Default::default());
-        crate::services::processor::event::merge_formdata(&mut value, &form_data);
+        formdata::merge_formdata(&mut value, &form_data);
         Annotated::deserialize_with_meta(value).map_err(ProcessingError::InvalidJson)
     }?;
     metrics.bytes_ingested_event = Annotated::new(form_data.len() as u64);

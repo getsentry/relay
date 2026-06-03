@@ -8,7 +8,7 @@ use relay_protocol::{
     Annotated, Array, Empty, Error, FromValue, Getter, IntoValue, Object, Val, Value,
 };
 
-use crate::processor::ProcessValue;
+use crate::processor::{Pii, ProcessValue, ProcessingState};
 use crate::protocol::{
     EventId, IpAddr, JsonLenientString, LenientString, Measurements, OperationType, OriginType,
     SpanId, SpanStatus, ThreadId, Timestamp, TraceId,
@@ -454,22 +454,38 @@ impl Getter for SentryTags {
     }
 }
 
+/// Determines the `Pii` value for a field of [`SpanData`] by looking it up in `relay-conventions`.
+///
+/// If the field is not found in the conventions, this returns `Pii::True`
+/// as a precaution.
+fn span_data_pii_from_conventions(state: &ProcessingState) -> Pii {
+    fn inner(state: &ProcessingState) -> Option<Pii> {
+        // `state.keys().next()` is the _last_ segment in the state's
+        // path, i.e. the field name.
+        let key = state.keys().next()?;
+
+        match relay_conventions::attribute_info(key)?.pii {
+            relay_conventions::Pii::True => Some(Pii::True),
+            relay_conventions::Pii::False => Some(Pii::False),
+            relay_conventions::Pii::Maybe => Some(Pii::Maybe),
+        }
+    }
+
+    inner(state).unwrap_or(Pii::True)
+}
+
 /// Arbitrary additional data on a span.
 ///
 /// Besides arbitrary user data, this type also contains SDK-provided fields used by the
 /// product (see <https://develop.sentry.dev/sdk/performance/span-data-conventions/>).
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[metastructure(trim = false)]
+#[metastructure(trim = false, pii = "span_data_pii_from_conventions")]
 pub struct SpanData {
     /// Mobile app start variant.
     ///
     /// Can be either "cold" or "warm".
     #[metastructure(field = "app_start_type")] // TODO: no dot?
     pub app_start_type: Annotated<Value>,
-
-    /// The maximum number of tokens that should be used by an LLM call.
-    #[metastructure(field = "gen_ai.request.max_tokens", pii = "maybe")]
-    pub gen_ai_request_max_tokens: Annotated<Value>,
 
     /// Name of the AI pipeline or chain being executed.
     #[metastructure(field = "gen_ai.pipeline.name", legacy_alias = "ai.pipeline.name")]
@@ -478,8 +494,7 @@ pub struct SpanData {
     /// The total tokens that were used by an LLM call
     #[metastructure(
         field = "gen_ai.usage.total_tokens",
-        legacy_alias = "ai.total_tokens.used",
-        pii = "maybe"
+        legacy_alias = "ai.total_tokens.used"
     )]
     pub gen_ai_usage_total_tokens: Annotated<Value>,
 
@@ -487,51 +502,31 @@ pub struct SpanData {
     #[metastructure(
         field = "gen_ai.usage.input_tokens",
         legacy_alias = "ai.prompt_tokens.used",
-        legacy_alias = "gen_ai.usage.prompt_tokens",
-        pii = "maybe"
+        legacy_alias = "gen_ai.usage.prompt_tokens"
     )]
     pub gen_ai_usage_input_tokens: Annotated<Value>,
 
     /// The input tokens used by an LLM call that were cached
     /// (cheaper and faster than non-cached input tokens)
-    #[metastructure(field = "gen_ai.usage.input_tokens.cached", pii = "maybe")]
+    #[metastructure(field = "gen_ai.usage.input_tokens.cached")]
     pub gen_ai_usage_input_tokens_cached: Annotated<Value>,
 
     /// The input tokens written to cache during an LLM call
-    #[metastructure(field = "gen_ai.usage.input_tokens.cache_write", pii = "maybe")]
+    #[metastructure(field = "gen_ai.usage.input_tokens.cache_write")]
     pub gen_ai_usage_input_tokens_cache_write: Annotated<Value>,
-
-    /// The input tokens that missed the cache (DeepSeek provider)
-    #[metastructure(field = "gen_ai.usage.input_tokens.cache_miss", pii = "maybe")]
-    pub gen_ai_usage_input_tokens_cache_miss: Annotated<Value>,
 
     /// The output tokens used by an LLM call (the ones the LLM actually generated)
     #[metastructure(
         field = "gen_ai.usage.output_tokens",
         legacy_alias = "ai.completion_tokens.used",
-        legacy_alias = "gen_ai.usage.completion_tokens",
-        pii = "maybe"
+        legacy_alias = "gen_ai.usage.completion_tokens"
     )]
     pub gen_ai_usage_output_tokens: Annotated<Value>,
 
     /// The output tokens used to represent the model's internal thought
     /// process while generating a response
-    #[metastructure(field = "gen_ai.usage.output_tokens.reasoning", pii = "maybe")]
+    #[metastructure(field = "gen_ai.usage.output_tokens.reasoning")]
     pub gen_ai_usage_output_tokens_reasoning: Annotated<Value>,
-
-    /// The output tokens for accepted predictions (OpenAI provider)
-    #[metastructure(
-        field = "gen_ai.usage.output_tokens.prediction_accepted",
-        pii = "maybe"
-    )]
-    pub gen_ai_usage_output_tokens_prediction_accepted: Annotated<Value>,
-
-    /// The output tokens for rejected predictions (OpenAI provider)
-    #[metastructure(
-        field = "gen_ai.usage.output_tokens.prediction_rejected",
-        pii = "maybe"
-    )]
-    pub gen_ai_usage_output_tokens_prediction_rejected: Annotated<Value>,
 
     // Exact model used to generate the response (e.g. gpt-4o-mini-2024-07-18)
     #[metastructure(field = "gen_ai.response.model")]
@@ -550,21 +545,20 @@ pub struct SpanData {
     pub gen_ai_context_utilization: Annotated<Value>,
 
     /// The total cost for the tokens used (duplicate field for migration)
-    #[metastructure(field = "gen_ai.cost.total_tokens", pii = "maybe")]
+    #[metastructure(field = "gen_ai.cost.total_tokens")]
     pub gen_ai_cost_total_tokens: Annotated<Value>,
 
     /// The cost for input tokens used
-    #[metastructure(field = "gen_ai.cost.input_tokens", pii = "maybe")]
+    #[metastructure(field = "gen_ai.cost.input_tokens")]
     pub gen_ai_cost_input_tokens: Annotated<Value>,
 
     /// The cost for output tokens used
-    #[metastructure(field = "gen_ai.cost.output_tokens", pii = "maybe")]
+    #[metastructure(field = "gen_ai.cost.output_tokens")]
     pub gen_ai_cost_output_tokens: Annotated<Value>,
 
     /// The input messages to the model call.
     #[metastructure(
         field = "gen_ai.input.messages",
-        pii = "maybe",
         legacy_alias = "gen_ai.prompt",
         legacy_alias = "gen_ai.request.messages",
         legacy_alias = "ai.prompt.messages"
@@ -574,7 +568,6 @@ pub struct SpanData {
     /// Tool call arguments.
     #[metastructure(
         field = "gen_ai.tool.call.arguments",
-        pii = "maybe",
         legacy_alias = "gen_ai.tool.input",
         legacy_alias = "ai.toolCall.args"
     )]
@@ -583,7 +576,6 @@ pub struct SpanData {
     /// Tool call result.
     #[metastructure(
         field = "gen_ai.tool.call.result",
-        pii = "maybe",
         legacy_alias = "gen_ai.tool.output",
         legacy_alias = "ai.toolCall.result"
     )]
@@ -597,33 +589,23 @@ pub struct SpanData {
         legacy_alias = "ai.tool_calls",
         legacy_alias = "gen_ai.response.text",
         legacy_alias = "ai.response.text",
-        legacy_alias = "ai.responses",
-        pii = "maybe"
+        legacy_alias = "ai.responses"
     )]
     pub gen_ai_output_messages: Annotated<Value>,
-
-    /// LLM response object (Vercel AI, generateObject)
-    #[metastructure(field = "gen_ai.response.object", pii = "maybe")]
-    pub gen_ai_response_object: Annotated<Value>,
 
     /// Whether or not the AI model call's response was streamed back asynchronously
     #[metastructure(field = "gen_ai.response.streaming", legacy_alias = "ai.streaming")]
     pub gen_ai_response_streaming: Annotated<Value>,
 
     ///  Total output tokens per seconds throughput
-    #[metastructure(field = "gen_ai.response.tokens_per_second", pii = "maybe")]
+    #[metastructure(field = "gen_ai.response.tokens_per_second")]
     pub gen_ai_response_tokens_per_second: Annotated<Value>,
-
-    /// Time to first token from the LLM response
-    #[metastructure(field = "gen_ai.response.time_to_first_token", pii = "maybe")]
-    pub gen_ai_response_time_to_first_token: Annotated<Value>,
 
     /// The tool definitions available for a request to an LLM.
     #[metastructure(
         field = "gen_ai.tool.definitions",
         legacy_alias = "gen_ai.request.available_tools",
-        legacy_alias = "ai.tools",
-        pii = "maybe"
+        legacy_alias = "ai.tools"
     )]
     pub gen_ai_tool_definitions: Annotated<Value>,
 
@@ -680,65 +662,33 @@ pub struct SpanData {
     /// The system instructions passed to the model.
     #[metastructure(
         field = "gen_ai.system_instructions",
-        legacy_alias = "gen_ai.system.message",
-        pii = "maybe"
+        legacy_alias = "gen_ai.system.message"
     )]
     pub gen_ai_system_instructions: Annotated<Value>,
 
     /// The name of the tool being called
-    #[metastructure(
-        field = "gen_ai.tool.name",
-        legacy_alias = "ai.function_call",
-        pii = "maybe"
-    )]
+    #[metastructure(field = "gen_ai.tool.name", legacy_alias = "ai.function_call")]
     pub gen_ai_tool_name: Annotated<Value>,
 
     /// The name of the operation being performed.
-    #[metastructure(field = "gen_ai.operation.name", pii = "maybe")]
+    #[metastructure(field = "gen_ai.operation.name")]
     pub gen_ai_operation_name: Annotated<String>,
 
     /// The type of the operation being performed.
-    #[metastructure(field = "gen_ai.operation.type", pii = "maybe")]
+    #[metastructure(field = "gen_ai.operation.type")]
     pub gen_ai_operation_type: Annotated<String>,
 
     /// The name of the AI agent.
-    #[metastructure(field = "gen_ai.agent.name", pii = "maybe")]
+    #[metastructure(field = "gen_ai.agent.name")]
     pub gen_ai_agent_name: Annotated<String>,
 
     /// The function ID of the AI agent.
-    #[metastructure(field = "gen_ai.function_id", pii = "maybe")]
+    #[metastructure(field = "gen_ai.function_id")]
     pub gen_ai_function_id: Annotated<String>,
-
-    /// The result of the MCP prompt.
-    #[metastructure(field = "mcp.prompt.result", pii = "maybe")]
-    pub mcp_prompt_result: Annotated<Value>,
-
-    /// The result of the MCP tool.
-    #[metastructure(field = "mcp.tool.result.content", pii = "maybe")]
-    pub mcp_tool_result_content: Annotated<Value>,
 
     /// The client's browser name.
     #[metastructure(field = "browser.name")]
     pub browser_name: Annotated<String>,
-
-    /// The source code file name that identifies the code unit as uniquely as possible.
-    #[metastructure(field = "code.filepath", pii = "maybe")]
-    pub code_filepath: Annotated<Value>,
-    /// The line number in `code.filepath` best representing the operation.
-    #[metastructure(field = "code.lineno", pii = "maybe")]
-    pub code_lineno: Annotated<Value>,
-    /// The method or function name, or equivalent.
-    ///
-    /// Usually rightmost part of the code unit's name.
-    #[metastructure(field = "code.function", pii = "maybe")]
-    pub code_function: Annotated<Value>,
-    /// The "namespace" within which `code.function` is defined.
-    ///
-    /// Usually the qualified class or module name, such that
-    /// `code.namespace + some separator + code.function`
-    /// form a unique identifier for the code unit.
-    #[metastructure(field = "code.namespace", pii = "maybe")]
-    pub code_namespace: Annotated<Value>,
 
     /// The name of the operation being executed.
     ///
@@ -845,18 +795,6 @@ pub struct SpanData {
     #[metastructure(field = "user")]
     pub user: Annotated<Value>,
 
-    /// User email address.
-    ///
-    /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
-    #[metastructure(field = "user.email")]
-    pub user_email: Annotated<String>,
-
-    /// User’s full name.
-    ///
-    /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
-    #[metastructure(field = "user.full_name")]
-    pub user_full_name: Annotated<String>,
-
     /// Two-letter country code (ISO 3166-1 alpha-2).
     ///
     /// This is not an OTel convention (yet).
@@ -881,36 +819,17 @@ pub struct SpanData {
     #[metastructure(field = "user.geo.region")]
     pub user_geo_region: Annotated<String>,
 
-    /// Unique user hash to correlate information for a user in anonymized form.
-    ///
-    /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
-    #[metastructure(field = "user.hash")]
-    pub user_hash: Annotated<String>,
-
-    /// Unique identifier of the user.
-    ///
-    /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
-    #[metastructure(field = "user.id")]
-    pub user_id: Annotated<String>,
-
-    /// Short name or login/username of the user.
-    ///
-    /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
-    #[metastructure(field = "user.name")]
-    pub user_name: Annotated<String>,
-
-    /// Array of user roles at the time of the event.
-    ///
-    /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
-    #[metastructure(field = "user.roles")]
-    pub user_roles: Annotated<Array<String>>,
-
     /// Exclusive Time
     #[metastructure(field = "sentry.exclusive_time")]
     pub exclusive_time: Annotated<Value>,
 
     /// Profile ID
-    #[metastructure(field = "profile_id")]
+    #[metastructure(
+        field = "profile_id",
+        // This field is not defined in conventions, so we need to set
+        // PII explicitly.
+        pii = "false"
+    )]
     pub profile_id: Annotated<Value>,
 
     /// Replay ID
@@ -992,12 +911,13 @@ pub struct SpanData {
     /// The current route in the application.
     ///
     /// Set by React Native SDK.
-    #[metastructure(pii = "maybe", skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "empty")]
     pub route: Annotated<Route>,
+
     /// The previous route in the application
     ///
     /// Set by React Native SDK.
-    #[metastructure(field = "previousRoute", pii = "maybe", skip_serialization = "empty")]
+    #[metastructure(field = "previousRoute", skip_serialization = "empty")]
     pub previous_route: Annotated<Route>,
 
     // The dom element responsible for the largest contentful paint.
@@ -1024,7 +944,6 @@ pub struct SpanData {
     /// Other fields in `span.data`.
     #[metastructure(
         additional_properties,
-        pii = "true",
         retain = true,
         skip_serialization = "null" // applies to child elements
     )]
@@ -1036,14 +955,9 @@ impl Getter for SpanData {
         Some(match path {
             "app_start_type" => self.app_start_type.value()?.into(),
             "browser\\.name" => self.browser_name.as_str()?.into(),
-            "code\\.filepath" => self.code_filepath.value()?.into(),
-            "code\\.function" => self.code_function.value()?.into(),
-            "code\\.lineno" => self.code_lineno.value()?.into(),
-            "code\\.namespace" => self.code_namespace.value()?.into(),
             "db.operation" => self.db_operation.value()?.into(),
             "db\\.system" => self.db_system.value()?.into(),
             "environment" => self.environment.as_str()?.into(),
-            "gen_ai\\.request\\.max_tokens" => self.gen_ai_request_max_tokens.value()?.into(),
             "gen_ai\\.usage\\.total_tokens" => self.gen_ai_usage_total_tokens.value()?.into(),
             "gen_ai\\.cost\\.total_tokens" => self.gen_ai_cost_total_tokens.value()?.into(),
             "gen_ai\\.cost\\.input_tokens" => self.gen_ai_cost_input_tokens.value()?.into(),
@@ -1074,15 +988,10 @@ impl Getter for SpanData {
             "url\\.query" => self.url_query.as_str()?.into(),
             "http\\.query" => self.http_query.as_str()?.into(),
             "user" => self.user.value()?.into(),
-            "user\\.email" => self.user_email.as_str()?.into(),
-            "user\\.full_name" => self.user_full_name.as_str()?.into(),
             "user\\.geo\\.city" => self.user_geo_city.as_str()?.into(),
             "user\\.geo\\.country_code" => self.user_geo_country_code.as_str()?.into(),
             "user\\.geo\\.region" => self.user_geo_region.as_str()?.into(),
             "user\\.geo\\.subdivision" => self.user_geo_subdivision.as_str()?.into(),
-            "user\\.hash" => self.user_hash.as_str()?.into(),
-            "user\\.id" => self.user_id.as_str()?.into(),
-            "user\\.name" => self.user_name.as_str()?.into(),
             "transaction" => self.segment_name.as_str()?.into(),
             "release" => self.release.as_str()?.into(),
             _ => {
@@ -1508,20 +1417,16 @@ mod tests {
             .unwrap()
             .into_value()
             .unwrap();
-        insta::assert_debug_snapshot!(data, @r#"
+        insta::assert_debug_snapshot!(data, @r###"
         SpanData {
             app_start_type: ~,
-            gen_ai_request_max_tokens: ~,
             gen_ai_pipeline_name: ~,
             gen_ai_usage_total_tokens: ~,
             gen_ai_usage_input_tokens: ~,
             gen_ai_usage_input_tokens_cached: ~,
             gen_ai_usage_input_tokens_cache_write: ~,
-            gen_ai_usage_input_tokens_cache_miss: ~,
             gen_ai_usage_output_tokens: ~,
             gen_ai_usage_output_tokens_reasoning: ~,
-            gen_ai_usage_output_tokens_prediction_accepted: ~,
-            gen_ai_usage_output_tokens_prediction_rejected: ~,
             gen_ai_response_model: ~,
             gen_ai_request_model: ~,
             gen_ai_context_window_size: ~,
@@ -1533,10 +1438,8 @@ mod tests {
             gen_ai_tool_call_arguments: ~,
             gen_ai_tool_call_result: ~,
             gen_ai_output_messages: ~,
-            gen_ai_response_object: ~,
             gen_ai_response_streaming: ~,
             gen_ai_response_tokens_per_second: ~,
-            gen_ai_response_time_to_first_token: ~,
             gen_ai_tool_definitions: ~,
             gen_ai_request_frequency_penalty: ~,
             gen_ai_request_presence_penalty: ~,
@@ -1553,21 +1456,7 @@ mod tests {
             gen_ai_operation_type: ~,
             gen_ai_agent_name: ~,
             gen_ai_function_id: ~,
-            mcp_prompt_result: ~,
-            mcp_tool_result_content: ~,
             browser_name: ~,
-            code_filepath: String(
-                "task.py",
-            ),
-            code_lineno: I64(
-                123,
-            ),
-            code_function: String(
-                "fn()",
-            ),
-            code_namespace: String(
-                "ns",
-            ),
             db_operation: ~,
             db_system: String(
                 "mysql",
@@ -1591,16 +1480,10 @@ mod tests {
             ui_component_name: ~,
             url_scheme: ~,
             user: ~,
-            user_email: ~,
-            user_full_name: ~,
             user_geo_country_code: ~,
             user_geo_city: ~,
             user_geo_subdivision: ~,
             user_geo_region: ~,
-            user_hash: ~,
-            user_id: ~,
-            user_name: ~,
-            user_roles: ~,
             exclusive_time: ~,
             profile_id: ~,
             replay_id: ~,
@@ -1649,12 +1532,24 @@ mod tests {
                 "bar": String(
                     "3",
                 ),
+                "code.filepath": String(
+                    "task.py",
+                ),
+                "code.function": String(
+                    "fn()",
+                ),
+                "code.lineno": I64(
+                    123,
+                ),
+                "code.namespace": String(
+                    "ns",
+                ),
                 "foo": I64(
                     2,
                 ),
             },
         }
-        "#);
+        "###);
 
         assert_eq!(data.get_value("foo"), Some(Val::U64(2)));
         assert_eq!(data.get_value("bar"), Some(Val::String("3")));

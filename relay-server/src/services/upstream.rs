@@ -18,7 +18,7 @@ use itertools::Itertools;
 use relay_auth::{
     RegisterChallenge, RegisterRequest, RegisterResponse, Registration, SecretKey, Signature,
 };
-use relay_config::{Config, Credentials, RelayMode};
+use relay_config::{Config, Credentials, RelayMode, UpstreamDescriptor};
 use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode, RetryAfter,
     Scoping,
@@ -364,6 +364,14 @@ impl SignatureType {
 
 /// Represents a generic HTTP request to be sent to the upstream.
 pub trait UpstreamRequest: Send + Sync + fmt::Debug {
+    /// The upstream to send the request to.
+    ///
+    /// Requests may override the default upstream descriptor with a different upstream descriptor
+    /// to influence routing.
+    fn upstream(&self) -> Option<&UpstreamDescriptor> {
+        None
+    }
+
     /// The HTTP method of the request.
     fn method(&self) -> Method;
 
@@ -477,6 +485,14 @@ pub trait UpstreamQuery: Serialize + Send + Sync + fmt::Debug {
     /// The response type that will be deserialized from successful queries.
     type Response: DeserializeOwned + Send;
 
+    /// The upstream to send the request to.
+    ///
+    /// Requests may override the default upstream descriptor with a different upstream descriptor
+    /// to influence routing.
+    fn upstream(&self) -> Option<&UpstreamDescriptor> {
+        None
+    }
+
     /// The HTTP method of the query.
     fn method(&self) -> Method;
 
@@ -554,6 +570,10 @@ impl<T> UpstreamRequest for UpstreamQueryRequest<T>
 where
     T: UpstreamQuery + 'static,
 {
+    fn upstream(&self) -> Option<&UpstreamDescriptor> {
+        self.query.upstream()
+    }
+
     fn retry(&self) -> bool {
         T::retry()
     }
@@ -721,11 +741,13 @@ fn emit_response_metrics(
         Err(error) => error.status_code(),
     };
     let status_str = status_code.as_ref().map(|c| c.as_str()).unwrap_or("-");
+    let upstream = entry.request.upstream().map(|up| up.to_string());
 
     relay_statsd::metric!(
         timer(RelayTimers::UpstreamRequestsDuration) = send_start.elapsed(),
         result = description,
         status_code = status_str,
+        upstream = upstream.as_deref().unwrap_or("default"),
         route = entry.request.route(),
         retries = match entry.retries {
             0 => "0",
@@ -740,6 +762,7 @@ fn emit_response_metrics(
         distribution(RelayDistributions::UpstreamRetries) = entry.retries as u64,
         result = description,
         status_code = status_str,
+        upstream = upstream.as_deref().unwrap_or("default"),
         route = entry.request.route(),
     );
 }
@@ -875,15 +898,15 @@ impl SharedClient {
         request: &mut dyn UpstreamRequest,
     ) -> Result<reqwest::Request, UpstreamRequestError> {
         tokio::task::block_in_place(|| {
-            let url = self.config.upstream().get_url(request.path().as_ref());
-
-            let host_header = self
-                .config
-                .http_host_header()
-                .unwrap_or_else(|| self.config.upstream().host());
+            let url = request
+                .upstream()
+                .unwrap_or_else(|| self.config.upstream())
+                .get_url(request.path().as_ref());
 
             let mut builder = RequestBuilder::reqwest(self.reqwest.request(request.method(), url));
-            builder.header("Host", host_header.as_bytes());
+            if let Some(host_header) = self.config.http_host_header() {
+                builder.header("Host", host_header.as_bytes());
+            }
 
             if request.set_relay_id()
                 && let Some(credentials) = self.config.credentials()

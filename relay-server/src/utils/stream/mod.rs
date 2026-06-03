@@ -1,9 +1,9 @@
 mod bounded;
 mod metered;
-#[cfg(feature = "processing")]
+mod peek;
 mod retryable;
 
 pub use bounded::*;
 pub use metered::*;
-#[cfg(feature = "processing")]
+pub use peek::*;
 pub use retryable::*;

@@ -40,7 +40,6 @@ mod traces {
 
         let envelope = builder
             .with_type(SpansIntegration::OtelV1 { format })
-            .with_required_feature(Feature::OtelTracesEndpoint)
             .build();
 
         common::handle_envelope(&state, envelope)
@@ -71,7 +70,7 @@ mod logs {
 
         let envelope = builder
             .with_type(LogsIntegration::OtelV1 { format })
-            .with_required_feature(Feature::OtelLogsEndpoint)
+            .with_required_feature(Feature::OurLogsIngestion)
             .build();
 
         common::handle_envelope(&state, envelope)

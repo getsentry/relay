@@ -9,7 +9,7 @@ use std::str::FromStr;
 use uuid::Uuid;
 
 use crate::processor::ProcessValue;
-use crate::protocol::{OperationType, OriginType, SpanData, SpanLink, SpanStatus};
+use crate::protocol::{EventId, OperationType, OriginType, SpanData, SpanLink, SpanStatus};
 
 /// Represents a W3C Trace Context `trace-id`.
 ///
@@ -112,6 +112,12 @@ impl From<Uuid> for TraceId {
     }
 }
 
+impl From<EventId> for TraceId {
+    fn from(event_id: EventId) -> Self {
+        Self::from(event_id.0)
+    }
+}
+
 impl From<TraceId> for Uuid {
     fn from(trace_id: TraceId) -> Self {
         trace_id.0
@@ -170,7 +176,7 @@ impl IntoValue for TraceId {
 /// A 16-character hex string as described in the W3C trace context spec, stored
 /// internally as an array of 8 bytes.
 #[derive(Clone, Copy, Default, Eq, Hash, PartialEq, Ord, PartialOrd)]
-pub struct SpanId([u8; 8]);
+pub struct SpanId(pub [u8; 8]);
 
 relay_common::impl_str_serde!(SpanId, "a span identifier");
 
@@ -178,6 +184,31 @@ impl SpanId {
     pub fn random() -> Self {
         let value: u64 = rand::random_range(1..=u64::MAX);
         Self(value.to_ne_bytes())
+    }
+
+    /// Derives a [`SpanId`] deterministically from a [`TraceId`].
+    ///
+    /// ```
+    /// # use relay_event_schema::protocol::{SpanId, TraceId};
+    /// #
+    /// let trace_id: TraceId = "515539018c9b4260a6f999572f1661ee".parse().unwrap();
+    /// let span_id = SpanId::derive_from_trace_id(&trace_id);
+    /// assert_eq!(span_id, "515539018c9b4260".parse().unwrap());
+    ///
+    /// let trace_id: TraceId = "00000000000000000000000000000001".parse().unwrap();
+    /// let span_id = SpanId::derive_from_trace_id(&trace_id);
+    /// assert_eq!(span_id, "0000000000000001".parse().unwrap());
+    /// ```
+    pub fn derive_from_trace_id(trace_id: &TraceId) -> Self {
+        let [first @ .., a, b, c, d, e, f, g, h]: [u8; 16] = *trace_id.as_bytes();
+        let second = [a, b, c, d, e, f, g, h];
+
+        // A trace id may never be nil, this means either the first or the second half needs to
+        // contain at least one non-zero value, making the resulting span id valid.
+        match first {
+            [0, 0, 0, 0, 0, 0, 0, 0] => SpanId(second),
+            _ => SpanId(first),
+        }
     }
 }
 
@@ -335,23 +366,6 @@ pub struct TraceContext {
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = true, pii = "maybe")]
     pub other: Object<Value>,
-}
-
-impl TraceContext {
-    /// Generates a random [`SpanId`] and takes `[TraceId]` from the event's UUID.
-    /// Leaves all other fields blank.
-    pub fn random(event_id: Uuid) -> Self {
-        let mut trace_meta = Meta::default();
-        trace_meta.add_remark(Remark::new(RemarkType::Substituted, "trace_id.missing"));
-
-        let mut span_meta = Meta::default();
-        span_meta.add_remark(Remark::new(RemarkType::Substituted, "span_id.missing"));
-        TraceContext {
-            trace_id: Annotated(Some(TraceId::from(event_id)), trace_meta),
-            span_id: Annotated(Some(SpanId::random()), span_meta),
-            ..Default::default()
-        }
-    }
 }
 
 impl super::DefaultContext for TraceContext {
@@ -644,32 +658,5 @@ mod tests {
         let annotated = TraceId::try_from_slice_or_random(invalid_bytes.as_slice());
         let remark = annotated.meta().iter_remarks().next().unwrap();
         assert_eq!(remark.rule_id(), "trace_id.invalid");
-    }
-
-    #[test]
-    fn test_random_trace_context() {
-        let rand_context = TraceContext::random(Uuid::new_v4());
-        assert!(rand_context.trace_id.value().is_some());
-        assert_eq!(
-            rand_context
-                .trace_id
-                .meta()
-                .iter_remarks()
-                .next()
-                .unwrap()
-                .rule_id(),
-            "trace_id.missing"
-        );
-        assert!(rand_context.span_id.value().is_some());
-        assert_eq!(
-            rand_context
-                .span_id
-                .meta()
-                .iter_remarks()
-                .next()
-                .unwrap()
-                .rule_id(),
-            "span_id.missing"
-        );
     }
 }

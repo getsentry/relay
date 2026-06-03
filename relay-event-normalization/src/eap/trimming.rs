@@ -446,7 +446,9 @@ impl Processor for TrimmingProcessor {
 #[cfg(test)]
 mod tests {
     use relay_event_schema::protocol::{AttributeType, AttributeValue};
-    use relay_protocol::{Annotated, FromValue, IntoValue, SerializableAnnotated, Value};
+    use relay_protocol::{
+        Annotated, FromValue, IntoValue, SerializableAnnotated, Value, assert_annotated_snapshot,
+    };
 
     use super::*;
 
@@ -979,5 +981,141 @@ mod tests {
           }
         }
         "###);
+    }
+
+    #[test]
+    fn test_tuple_inner_trim_settings() {
+        #[derive(Debug, Clone, Empty, IntoValue, FromValue, ProcessValue)]
+        struct Outer {
+            inner: Annotated<TestTuple>,
+        }
+
+        #[derive(Debug, Clone, Empty, IntoValue, FromValue, ProcessValue)]
+        struct TestTuple(#[metastructure(max_bytes = 10, trim = true)] String);
+
+        let mut value = Annotated::new(Outer {
+            inner: Annotated::new(TestTuple("This is longer than allowed".to_owned())),
+        });
+
+        let mut processor = TrimmingProcessor::new(100);
+        let state = ProcessingState::new_root(Default::default(), []);
+        processor::process_value(&mut value, &mut processor, &state).unwrap();
+
+        assert_annotated_snapshot!(value, @r#"
+        {
+          "inner": "This is...",
+          "_meta": {
+            "inner": {
+              "": {
+                "rem": [
+                  [
+                    "!limit",
+                    "s",
+                    7,
+                    10
+                  ]
+                ],
+                "len": 27
+              }
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_enum_inner_trim_settings() {
+        #[derive(Debug, Clone, Empty, IntoValue, FromValue, ProcessValue)]
+        struct Outer {
+            inner: Annotated<TestEnum>,
+        }
+
+        #[derive(Debug, Clone, Empty, IntoValue, FromValue, ProcessValue)]
+        enum TestEnum {
+            Inner(#[metastructure(max_bytes = 10, trim = true)] TestEnumInner),
+            #[metastructure(fallback_variant)]
+            Other(#[metastructure(max_bytes = 10, trim = true)] Object<Value>),
+        }
+
+        #[derive(Debug, Clone, Empty, IntoValue, FromValue, ProcessValue)]
+        struct TestEnumInner {
+            value: Annotated<String>,
+        }
+
+        let mut value = Annotated::new(Outer {
+            inner: Annotated::new(TestEnum::Inner(TestEnumInner {
+                value: Annotated::new("This is longer than allowed".to_owned()),
+            })),
+        });
+
+        let mut processor = TrimmingProcessor::new(100);
+        let state = ProcessingState::new_root(Default::default(), []);
+        processor::process_value(&mut value, &mut processor, &state).unwrap();
+
+        assert_annotated_snapshot!(value, @r#"
+        {
+          "inner": {
+            "value": "This is...",
+            "type": "inner"
+          },
+          "_meta": {
+            "inner": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "!limit",
+                      "s",
+                      7,
+                      10
+                    ]
+                  ],
+                  "len": 27
+                }
+              }
+            }
+          }
+        }
+        "#);
+
+        let mut value = Annotated::new(Outer {
+            inner: Annotated::new(TestEnum::Other({
+                let mut other = Object::new();
+                other.insert(
+                    "foo".to_owned(),
+                    Value::String("This is longer than allowed".to_owned()).into(),
+                );
+                other
+            })),
+        });
+
+        let mut processor = TrimmingProcessor::new(100);
+        let state = ProcessingState::new_root(Default::default(), []);
+        processor::process_value(&mut value, &mut processor, &state).unwrap();
+
+        assert_annotated_snapshot!(value, @r#"
+        {
+          "inner": {
+            "foo": "This is..."
+          },
+          "_meta": {
+            "inner": {
+              "foo": {
+                "": {
+                  "rem": [
+                    [
+                      "!limit",
+                      "s",
+                      7,
+                      10
+                    ]
+                  ],
+                  "len": 27
+                }
+              }
+            }
+          }
+        }
+        "#);
     }
 }

@@ -61,7 +61,7 @@ impl OutcomeError for Error {
     fn consume(self) -> (Option<Outcome>, Self::Error) {
         let outcome = match &self {
             Self::DuplicateItem => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
-            Self::TooLarge => Some(Outcome::Invalid(DiscardReason::TooLarge(
+            Self::TooLarge => Some(Outcome::Invalid(DiscardReason::ItemTooLarge(
                 DiscardItemType::Log,
             ))),
             Self::FilterFeatureFlag => None,
@@ -136,7 +136,7 @@ impl processing::Processor for LogsProcessor {
             items,
             invalid,
         };
-        Some(Managed::with_meta_from(envelope, work))
+        Some(Managed::with_meta_from_managed_envelope(envelope, work))
     }
 
     async fn process(

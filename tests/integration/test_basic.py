@@ -410,3 +410,11 @@ def test_size_limit_status_code(mini_sentry, relay):
     )
     with pytest.raises(HTTPError, match="413 Client Error"):
         relay.send_event(project_id)
+
+
+@pytest.mark.skip("outside connections")
+@pytest.mark.parametrize(
+    "upstream", ["https://sentry.io", "https://o1.ingest.us.sentry.io"]
+)
+def test_sentry_io(relay, upstream):
+    relay = relay(upstream)

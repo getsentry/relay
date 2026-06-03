@@ -78,7 +78,7 @@ impl Processor for UserReportsProcessor {
         }
 
         let reports = SerializedUserReports { headers, reports };
-        Some(Managed::with_meta_from(envelope, reports))
+        Some(Managed::with_meta_from_managed_envelope(envelope, reports))
     }
 
     async fn process(

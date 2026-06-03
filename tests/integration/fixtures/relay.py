@@ -146,7 +146,7 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
 
         default_opts = {
             "relay": {
-                "upstream": upstream.url,
+                "upstream": getattr(upstream, "url", upstream),
                 "host": host,
                 "port": port,
                 "tls_port": None,

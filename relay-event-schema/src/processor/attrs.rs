@@ -594,10 +594,11 @@ impl<'a> ProcessingState<'a> {
 
     /// Derives the attrs for recursion.
     pub fn inner_attrs(&self) -> Option<Cow<'_, FieldAttrs>> {
-        match self.pii() {
-            Pii::True => Some(Cow::Borrowed(&PII_TRUE_FIELD_ATTRS)),
-            Pii::False => None,
-            Pii::Maybe => Some(Cow::Borrowed(&PII_MAYBE_FIELD_ATTRS)),
+        match self.attrs().pii {
+            PiiMode::Static(Pii::True) => Some(Cow::Borrowed(&PII_TRUE_FIELD_ATTRS)),
+            PiiMode::Static(Pii::False) => None,
+            PiiMode::Static(Pii::Maybe) => Some(Cow::Borrowed(&PII_MAYBE_FIELD_ATTRS)),
+            PiiMode::Dynamic(f) => Some(Cow::Owned(DEFAULT_FIELD_ATTRS.pii_dynamic(f))),
         }
     }
 

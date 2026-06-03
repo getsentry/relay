@@ -169,7 +169,7 @@ impl processing::Processor for ProfileChunksProcessor {
             return None;
         }
 
-        Some(Managed::with_meta_from(
+        Some(Managed::with_meta_from_managed_envelope(
             envelope,
             SerializedProfileChunks {
                 headers: envelope.envelope().headers().clone(),

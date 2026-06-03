@@ -30,8 +30,11 @@ use crate::service::ServiceState;
 #[cfg(feature = "processing")]
 use crate::services::objectstore;
 use crate::services::projects::cache::Project;
-use crate::services::upload::{self, ByteStream, SignedLocation};
+use crate::services::upload::{
+    self, ByteStream, Final, LocationQueryParams, Provisional, SignedLocation, UploadLength,
+};
 use crate::services::upstream::UpstreamRequestError;
+use crate::statsd::RelayCounters;
 use crate::utils::{ApiErrorResponse, MeteredStream};
 use crate::utils::{BoundedStream, find_error_source, tus};
 
@@ -75,7 +78,6 @@ impl IntoResponse for Error {
         }
 
         let status = match self {
-            Error::Tus(tus::Error::DeferLengthNotAllowed) => StatusCode::FORBIDDEN,
             Error::Tus(_) => StatusCode::BAD_REQUEST,
             Error::Request(error) => return error.into_response(),
             Error::SendError(_) => StatusCode::INTERNAL_SERVER_ERROR,
@@ -87,6 +89,8 @@ impl IntoResponse for Error {
                     {
                         StatusCode::BAD_REQUEST
                     }
+                    UpstreamRequestError::RateLimited(_) => StatusCode::TOO_MANY_REQUESTS,
+                    UpstreamRequestError::ResponseError(status, _) => status,
                     _ => return e.into_response(),
                 },
                 upload::Error::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
@@ -99,7 +103,7 @@ impl IntoResponse for Error {
                     StatusCode::INTERNAL_SERVER_ERROR
                 }
                 upload::Error::InvalidSignature => StatusCode::BAD_REQUEST,
-                upload::Error::ServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
+                upload::Error::ObjectstoreServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
                 #[cfg(feature = "processing")]
                 upload::Error::Objectstore(service_error) => match service_error.kind {
                     objectstore::ErrorKind::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
@@ -126,7 +130,7 @@ impl IntoResponse for Error {
     }
 }
 
-impl IntoResponse for SignedLocation {
+impl<L: UploadLength> IntoResponse for SignedLocation<L> {
     fn into_response(self) -> Response {
         let mut headers = tus::response_headers();
         match self.into_header_value() {
@@ -146,9 +150,11 @@ async fn handle_post(
     meta: RequestMeta,
     headers: HeaderMap,
 ) -> axum::response::Result<impl IntoResponse> {
+    relay_log::trace!("Checking project fetching kill switch");
+    check_kill_switch(&state)?;
+
     relay_log::trace!("Validating headers");
-    let upload_length = tus::validate_post_headers(&headers, meta.request_trust().is_trusted())
-        .map_err(Error::from)?;
+    let upload_length = tus::validate_post_headers(&headers).map_err(Error::from)?;
     let config = state.config();
 
     if upload_length.is_some_and(|len| len > config.max_upload_size()) {
@@ -162,12 +168,16 @@ async fn handle_post(
         .project_cache_handle()
         .ready(meta.public_key(), config.query_timeout()) // uses same timeout as `Upstream`
         .await
-        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+        .ok_or_else(|| {
+            relay_log::warn!("timeout waiting for project config");
+            StatusCode::SERVICE_UNAVAILABLE
+        })?;
 
     relay_log::trace!("Checking request");
     let scoping = check_request(&state, meta, upload_length, project).await?;
 
     // Unconditionally create the upload location:
+    relay_log::trace!("Creating upload location");
     let result = create(&state, scoping, upload_length).await;
     let location = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "create failed");
@@ -186,9 +196,11 @@ async fn handle_patch(
     meta: RequestMeta,
     headers: HeaderMap,
     Path(upload::LocationPath { project_id, key }): Path<upload::LocationPath>,
-    Query(upload::LocationQueryParams { length, signature }): Query<upload::LocationQueryParams>,
+    Query(LocationQueryParams { length, signature }): Query<LocationQueryParams<Provisional>>,
     body: Body,
 ) -> axum::response::Result<impl IntoResponse> {
+    check_kill_switch(&state)?;
+
     relay_log::trace!("Validating headers");
     tus::validate_patch_headers(&headers).map_err(Error::from)?;
 
@@ -203,10 +215,13 @@ async fn handle_patch(
         .project_cache_handle()
         .ready(meta.public_key(), config.query_timeout()) // uses same timeout as `Upstream`
         .await
-        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+        .ok_or_else(|| {
+            relay_log::warn!("timeout waiting for project config");
+            StatusCode::SERVICE_UNAVAILABLE
+        })?;
 
     relay_log::trace!("Checking request");
-    let scoping = check_request(&state, meta, length, project).await?;
+    let scoping = check_request(&state, meta, length.value(), project).await?;
 
     let stream = body
         .into_data_stream()
@@ -214,7 +229,7 @@ async fn handle_patch(
         .boxed();
     let stream = MeteredStream::new(stream, "upload");
 
-    let (lower_bound, upper_bound) = match length {
+    let (lower_bound, upper_bound) = match length.value() {
         None => (1, config.max_upload_size()),
         Some(u) => (u, u),
     };
@@ -248,11 +263,33 @@ async fn handle_patch(
     Ok(response)
 }
 
+fn check_kill_switch(state: &ServiceState) -> Result<(), StatusCode> {
+    if !state.global_config_handle().is_ready() {
+        relay_log::warn!("global config not available");
+    }
+
+    if state.global_config_handle().current().is_none() {
+        relay_log::info!("check_kill_switch global config is none");
+    }
+
+    if !state
+        .global_config_handle()
+        .current()
+        .unwrap_or_default()
+        .options
+        .endpoint_fetch_config_enabled
+    {
+        relay_statsd::metric!(counter(RelayCounters::UploadKillswitched) += 1);
+        return Err(StatusCode::SERVICE_UNAVAILABLE);
+    }
+    Ok(())
+}
+
 async fn create(
     state: &ServiceState,
     scoping: Scoping,
     upload_length: Option<usize>,
-) -> Result<SignedLocation, Error> {
+) -> Result<SignedLocation<Provisional>, Error> {
     let location = state
         .upload()
         .send(upload::Create {
@@ -267,9 +304,9 @@ async fn create(
 async fn upload(
     state: &ServiceState,
     scoping: Scoping,
-    location: SignedLocation,
+    location: SignedLocation<Provisional>,
     stream: BoundedStream<MeteredStream<ByteStream>>,
-) -> Result<SignedLocation, Error> {
+) -> Result<SignedLocation<Final>, Error> {
     let location = state
         .upload()
         .send(upload::Stream {

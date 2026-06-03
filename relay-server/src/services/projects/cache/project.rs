@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use relay_config::Config;
 use relay_quotas::{CachedRateLimits, DataCategory, MetricNamespaceScoping, RateLimits};
-use relay_sampling::evaluation::ReservoirCounters;
 
 use crate::Envelope;
 use crate::envelope::ItemType;
@@ -33,11 +32,6 @@ impl<'a> Project<'a> {
         self.shared.cached_rate_limits()
     }
 
-    /// Returns a reference to the currently reservoir counters.
-    pub fn reservoir_counters(&self) -> &ReservoirCounters {
-        self.shared.reservoir_counters()
-    }
-
     /// Checks the envelope against project configuration and rate limits.
     ///
     /// When `fetched`, then the project state is ensured to be up to date. When `cached`, an outdated
@@ -53,6 +47,7 @@ impl<'a> Project<'a> {
     ) -> Result<RateLimits, Rejected<DiscardReason>> {
         let state = match self.state() {
             ProjectState::Enabled(state) => Some(Arc::clone(state)),
+            ProjectState::Dummy => None,
             ProjectState::Disabled => {
                 // TODO(jjbayer): We should refactor this function to either return a Result or
                 // handle envelope rejections internally, but not both.

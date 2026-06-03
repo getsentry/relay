@@ -1,9 +1,10 @@
 import os
-from unittest import mock
 
+from flask import Response
 import msgpack
 
 import json
+import queue
 import pytest
 from requests import HTTPError
 from sentry_sdk.envelope import Envelope
@@ -12,6 +13,7 @@ from uuid import UUID
 from urllib3.filepost import encode_multipart_formdata
 
 from sentry_relay.consts import DataCategory
+from .asserts import any, time_within_delta
 from .test_attachment_ref import upload_and_make_ref
 from .consts import DUMMY_UPLOAD_LOCATION
 
@@ -279,30 +281,127 @@ def test_minidump_invalid_json(mini_sentry, relay):
     assert_only_minidump(envelope)
 
 
-def test_minidump_invalid_magic(mini_sentry, relay):
+def test_minidump_invalid_magic(mini_sentry, relay_with_processing, outcomes_consumer):
     project_id = 42
-    relay = relay(mini_sentry)
     mini_sentry.add_full_project_config(project_id)
+    outcomes_consumer = outcomes_consumer()
+    relay = relay_with_processing()
 
-    attachments = [
-        (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", "content without MDMP magic"),
-    ]
-
-    with pytest.raises(HTTPError):
+    content = b"content without MDMP magic"
+    attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", content)]
+    with pytest.raises(HTTPError) as exc_info:
         relay.send_minidump(project_id=project_id, files=attachments)
 
-
-def test_minidump_invalid_field(mini_sentry, relay):
-    project_id = 42
-    relay = relay(mini_sentry)
-    mini_sentry.add_full_project_config(project_id)
-
-    attachments = [
-        ("unknown_field_name", "minidump.dmp", "MDMP content"),
+    assert exc_info.value.response.status_code == 400
+    assert outcomes_consumer.get_outcomes() == [
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "invalid_minidump",
+            "category": DataCategory.ATTACHMENT.value,
+            "quantity": len(content),
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "invalid_minidump",
+            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "invalid_minidump",
+            "category": DataCategory.ERROR.value,
+            "quantity": 1,
+        },
     ]
 
-    with pytest.raises(HTTPError):
+
+def test_minidump_invalid_field(mini_sentry, relay_with_processing, outcomes_consumer):
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    outcomes_consumer = outcomes_consumer()
+    relay = relay_with_processing()
+
+    content = b"MDMP content"
+    attachments = [("unknown_field_name", "minidump.dmp", content)]
+    with pytest.raises(HTTPError) as exc_info:
         relay.send_minidump(project_id=project_id, files=attachments)
+
+    assert exc_info.value.response.status_code == 400
+    assert outcomes_consumer.get_outcomes() == [
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "missing_minidump_upload",
+            "category": DataCategory.ATTACHMENT.value,
+            "quantity": len(content),
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "missing_minidump_upload",
+            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "missing_minidump_upload",
+            "category": DataCategory.ERROR.value,
+            "quantity": 1,
+        },
+    ]
+
+
+def test_minidump_invalid_compression_outcome(
+    mini_sentry, relay_with_processing, outcomes_consumer
+):
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    outcomes_consumer = outcomes_consumer()
+    relay = relay_with_processing()
+    content = b"\x1f\x8b" + b"not a valid gzip stream"
+    attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp.gz", content)]
+
+    with pytest.raises(HTTPError) as exc_info:
+        relay.send_minidump(project_id=project_id, files=attachments)
+
+    assert exc_info.value.response.status_code == 400
+    outcomes = outcomes_consumer.get_outcomes()
+    assert outcomes == [
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "invalid_compression",
+            "category": DataCategory.ATTACHMENT.value,
+            "quantity": len(content),
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "invalid_compression",
+            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "invalid_compression",
+            "category": DataCategory.ERROR.value,
+            "quantity": 1,
+        },
+    ]
 
 
 @pytest.mark.parametrize(
@@ -756,18 +855,26 @@ def test_minidump_placeholder(
                 },
             ],
         },
-        "grouping_config": mock.ANY,
+        "contexts": {
+            "trace": {
+                "span_id": "515539018c9b4260",
+                "status": "unknown",
+                "trace_id": "515539018c9b4260a6f999572f1661ee",
+                "type": "trace",
+            },
+        },
+        "grouping_config": any(),
         "key_id": "123",
         "level": "fatal",
         "logger": "",
         "platform": "native",
         "project": 42,
-        "received": mock.ANY,
+        "received": any(),
         "sdk": {
             "name": "minidump.upload",
             "version": "0.0.0",
         },
-        "timestamp": mock.ANY,
+        "timestamp": any(),
         "type": "error",
         "version": "5",
     }
@@ -779,12 +886,12 @@ def test_minidump_placeholder(
     assert attachment == {
         "attachment_type": "event.minidump",
         "content_type": "application/x-dmp",
-        "id": mock.ANY,
+        "id": any(),
         "name": "minidump.dmp",
         "rate_limited": False,
         "retention_days": 90,
         "size": 26,
-        "stored_id": mock.ANY,
+        "stored_id": any(),
     }
 
     # Verify the actual data is retrievable from the objectstore.
@@ -825,40 +932,61 @@ def test_size_limits(mini_sentry, relay, limit, expected_status_code):
 
 
 @pytest.mark.parametrize(
-    "rollout_enabled,feature_enabled",
+    "config_fetch,upload_attachments,upload_minidump",
     [
-        (False, False),
-        (True, False),
-        (True, True),
+        (False, True, True),  # if the option is not set we don't check the features
+        (True, True, False),
+        (True, False, True),
+        (True, True, True),
     ],
-    ids=["no-option", "no-feature", "both-enabled"],
+    ids=["no-option", "stream-attachments", "stream-minidumps", "stream-all"],
 )
 def test_minidump_objectstore_uploads(
     mini_sentry,
     relay,
     dummy_upload,
-    rollout_enabled,
-    feature_enabled,
+    config_fetch,
+    upload_attachments,
+    upload_minidump,
 ):
     project_id = 42
     minidump_content = b"MDMP content"
-    log_content = b"Some log file content"
+    log_content = b"\x1f\x8b Some log file content"
 
     project_config = mini_sentry.add_full_project_config(project_id)
-    if feature_enabled:
+    if upload_attachments:
         project_config["config"].setdefault("features", []).append(
             "projects:relay-minidump-attachment-uploads"
         )
+    if upload_minidump:
+        project_config["config"].setdefault("features", []).append(
+            "projects:relay-minidump-uploads"
+        )
     mini_sentry.global_config["options"][
-        "relay.minidump-endpoint-fetch-config.rollout-rate"
-    ] = (1.0 if rollout_enabled else 0.0)
+        "relay.endpoint-fetch-config.enabled"
+    ] = config_fetch
 
     relay = relay(mini_sentry)
+
+    event = {"event_id": "2dd132e467174db48dbaddabd3cbed57", "user": {"id": "123"}}
+    breadcrumbs1 = {"timestamp": 1461185755, "message": "A"}
+    breadcrumbs2 = {"timestamp": 1461185750, "message": "B"}
 
     response = relay.send_minidump(
         project_id=project_id,
         files=[
             (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", minidump_content),
+            (EVENT_ATTACHMENT_NAME, EVENT_ATTACHMENT_NAME, msgpack.packb(event)),
+            (
+                BREADCRUMB_ATTACHMENT_NAME1,
+                BREADCRUMB_ATTACHMENT_NAME1,
+                msgpack.packb(breadcrumbs1),
+            ),
+            (
+                BREADCRUMB_ATTACHMENT_NAME2,
+                BREADCRUMB_ATTACHMENT_NAME2,
+                msgpack.packb(breadcrumbs2),
+            ),
             ("logs", "log.txt", log_content),
         ],
     )
@@ -870,16 +998,11 @@ def test_minidump_objectstore_uploads(
         for i in envelope.items
         if i.headers.get("type") == "attachment"
     }
+    assert len(by_name) == 2  # other attachments are absorbed into event
     minidump = by_name["minidump.dmp"]
     logs = by_name["log.txt"]
 
-    assert (
-        minidump.headers.get("content_type")
-        != "application/vnd.sentry.attachment-ref+json"
-    )
-    assert minidump.payload.bytes == minidump_content
-
-    if rollout_enabled and feature_enabled:
+    if config_fetch and upload_attachments:
         assert (
             logs.headers["content_type"] == "application/vnd.sentry.attachment-ref+json"
         )
@@ -892,6 +1015,132 @@ def test_minidump_objectstore_uploads(
             != "application/vnd.sentry.attachment-ref+json"
         )
         assert logs.payload.bytes == log_content
+
+    if config_fetch and upload_minidump:
+        assert (
+            minidump.headers["content_type"]
+            == "application/vnd.sentry.attachment-ref+json"
+        )
+        assert json.loads(minidump.payload.bytes) == {
+            "location": DUMMY_UPLOAD_LOCATION,
+        }
+    else:
+        assert (
+            minidump.headers.get("content_type")
+            != "application/vnd.sentry.attachment-ref+json"
+        )
+        assert minidump.payload.bytes == minidump_content
+
+    # The event.payload attachment is merged into the event item, and the event.breadcrumbs
+    # attachments are merged as breadcrumbs on that event.
+    event_item = envelope.get_event()
+    assert event_item["event_id"] == "2dd132e467174db48dbaddabd3cbed57"
+    assert event_item["user"]["id"] == "123"
+    assert event_item["breadcrumbs"]["values"][0]["message"] == "A"
+
+
+def test_minidump_objectstore_uploads_external_chain(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    attachments_consumer,
+):
+    """Uploads with `Defer-Length: 1` are accepted from untrusted relays"""
+    mini_sentry.global_config["options"][
+        "relay.objectstore-attachments.sample-rate"
+    ] = 1.0
+    mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = True
+
+    project_id = 42
+    minidump_content = b"MDMP content"
+    log_content = b"Some log file content"
+
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).extend(
+        [
+            "projects:relay-minidump-attachment-uploads",
+            "projects:relay-upload-endpoint",
+        ]
+    )
+
+    relay = relay(relay_with_processing(), external=True)
+    project_config["config"]["trustedRelays"] = list(relay.iter_public_keys())
+
+    attachments_consumer = attachments_consumer()
+
+    response = relay.send_minidump(
+        project_id=project_id,
+        files=[
+            (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", minidump_content),
+            ("logs", "log.txt", log_content),
+        ],
+    )
+    assert response.ok
+
+    _, unpacked = attachments_consumer.get_message()
+    assert {att["name"] for att in unpacked["attachments"]} == {
+        "log.txt",
+        "minidump.dmp",
+    }
+
+
+def test_minidump_objectstore_errors(
+    mini_sentry,
+    relay,
+):
+    project_id = 42
+    minidump_content = b"MDMP content"
+    log_content = b"Some log file content"
+
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).append(
+        "projects:relay-minidump-attachment-uploads"
+    )
+
+    @mini_sentry.app.route("/api/<project>/upload/", methods=["POST"])
+    def create(**opts):
+
+        return Response(
+            "Hell no",
+            status=400,
+        )
+
+    relay = relay(
+        mini_sentry,
+        options={
+            "outcomes": {
+                "emit_outcomes": True,
+                "batch_size": 1,
+                "batch_interval": 1,
+            }
+        },
+    )
+
+    relay.send_minidump(
+        project_id=project_id,
+        files=[
+            (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", minidump_content),
+            ("logs", "log.txt", log_content),
+        ],
+    )
+    mini_sentry.captured_envelopes.get()
+
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "category": DataCategory.ATTACHMENT,
+            "outcome": 3,  # invalid
+            "project_id": 42,
+            "reason": "internal",
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.ATTACHMENT_ITEM,
+            "outcome": 3,  # invalid
+            "project_id": 42,
+            "reason": "internal",
+            "quantity": 1,
+        },
+    ]
 
 
 def test_size_limits_multipart_chunked(mini_sentry, relay):
@@ -925,3 +1174,397 @@ def test_size_limits_multipart_chunked(mini_sentry, relay):
         data=iter([body]),
     )
     assert response.status_code == 413, response.json()
+
+
+@pytest.mark.parametrize(
+    "rate_limited",
+    [
+        pytest.param([], id="no-limits"),
+        pytest.param(["error"], id="error-limited"),
+        pytest.param(["attachment"], id="attachment-limited"),
+    ],
+)
+def test_minidump_objectstore_uploads_rate_limits(
+    mini_sentry,
+    relay,
+    dummy_upload,
+    rate_limited,
+):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).extend(
+        [
+            "projects:relay-minidump-uploads",
+            "projects:relay-minidump-attachment-uploads",
+        ]
+    )
+    if rate_limited:
+        project_config["config"]["quotas"] = [
+            {
+                "categories": rate_limited,
+                "limit": 0,
+                "reasonCode": "test_endpoint_check",
+            }
+        ]
+    mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = True
+
+    relay = relay(
+        mini_sentry,
+        options={
+            "outcomes": {
+                "emit_outcomes": True,
+                "batch_size": 1,
+                "batch_interval": 1,
+            }
+        },
+    )
+
+    response = relay.send_minidump(
+        project_id=project_id,
+        files=[
+            (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", b"MDMP content"),
+            ("logs", "log.txt", b"Some log content"),
+        ],
+        raise_for_status=False,
+    )
+
+    assert response.ok
+
+    if "error" in rate_limited:
+        with pytest.raises(queue.Empty):
+            mini_sentry.get_captured_envelope()
+    else:
+        envelope = mini_sentry.get_captured_envelope()
+        by_name = {
+            i.headers["filename"]: i
+            for i in envelope.items
+            if i.headers.get("type") == "attachment"
+        }
+        assert (
+            by_name["minidump.dmp"].headers["content_type"]
+            == "application/vnd.sentry.attachment-ref+json"
+        )
+
+        if "attachment" in rate_limited:
+            assert "log.txt" not in by_name
+        else:
+            assert (
+                by_name["log.txt"].headers["content_type"]
+                == "application/vnd.sentry.attachment-ref+json"
+            )
+
+    expected_outcomes = []
+    if "error" in rate_limited:
+        # The minidump is dropped at the endpoint with a single Error outcome.
+        # Attachments are not accounted for since we never read them and hence know nothing about them.
+        expected_outcomes.append(
+            {
+                "category": DataCategory.ERROR.value,
+                "outcome": 2,
+                "project_id": 42,
+                "reason": "test_endpoint_check",
+                "quantity": 1,
+            }
+        )
+    elif "attachment" in rate_limited:
+        # We get outcomes for both the log.txt and the minidump (although it keeps going with the
+        # rate_limited header true).
+        expected_outcomes.extend(
+            [
+                {
+                    "category": 4,
+                    "key_id": 123,
+                    "org_id": 1,
+                    "outcome": 2,
+                    "project_id": 42,
+                    "quantity": 12,
+                    "reason": "test_endpoint_check",
+                },
+                {
+                    "category": 22,
+                    "key_id": 123,
+                    "org_id": 1,
+                    "outcome": 2,
+                    "project_id": 42,
+                    "quantity": 1,
+                    "reason": "test_endpoint_check",
+                },
+                {
+                    "category": 4,
+                    "outcome": 2,
+                    "project_id": 42,
+                    "quantity": 1,
+                    "reason": "test_endpoint_check",
+                },
+                {
+                    "category": 22,
+                    "outcome": 2,
+                    "project_id": 42,
+                    "quantity": 1,
+                    "reason": "test_endpoint_check",
+                },
+            ]
+        )
+
+    assert mini_sentry.get_aggregated_outcomes() == sorted(
+        expected_outcomes, key=lambda o: sorted(o.items())
+    )
+
+
+def test_minidump_unknown_project(relay_with_processing, outcomes_consumer):
+    project_id = 42
+    # Deliberately do NOT register the project, so it resolves as Disabled upstream.
+    # mini_sentry.add_full_project_config(project_id)
+    outcomes_consumer = outcomes_consumer()
+    relay = relay_with_processing()
+    attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", "MDMP content")]
+
+    response = relay.send_minidump(
+        project_id=project_id,
+        files=attachments,
+        raise_for_status=False,
+    )
+
+    assert response.status_code == 403
+    assert outcomes_consumer.get_aggregated_outcomes() == [
+        {
+            "category": DataCategory.ERROR.value,
+            "outcome": 3,
+            "project_id": project_id,
+            "reason": "project_id",
+            "quantity": 1,
+        }
+    ]
+
+
+def test_minidump_project_unavailable(
+    mini_sentry, relay_with_processing, outcomes_consumer
+):
+    project_id = 42
+    # Force the upstream to keep returning the project as pending so `ready()` times out.
+    mini_sentry.project_config_simulate_pending = True
+    mini_sentry.add_full_project_config(project_id)
+    outcomes_consumer = outcomes_consumer()
+    relay = relay_with_processing(
+        {"limits": {"query_timeout": 1}, "cache": {"batch_interval": 500}}
+    )
+    attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", "MDMP content")]
+
+    response = relay.send_minidump(
+        project_id=project_id, files=attachments, raise_for_status=False
+    )
+
+    assert response.status_code == 503
+    assert outcomes_consumer.get_aggregated_outcomes() == [
+        {
+            "category": DataCategory.ERROR.value,
+            "outcome": 3,
+            "project_id": project_id,
+            "reason": "project_unavailable",
+            "quantity": 1,
+        }
+    ]
+
+
+def test_minidump_max_attachment_size_exceeded(
+    mini_sentry, relay_with_processing, outcomes_consumer
+):
+    project_id = 42
+    dmp_path = os.path.join(os.path.dirname(__file__), "fixtures/native/minidump.dmp")
+    with open(dmp_path, "rb") as f:
+        minidump_content = f.read()
+    attachment_content = b"yo"
+
+    mini_sentry.add_full_project_config(project_id)
+    outcomes_consumer = outcomes_consumer()
+    relay = relay_with_processing(
+        {
+            "limits": {
+                "max_attachment_size": len(minidump_content) - 1,
+                "max_attachments_size": 1000 * 1024 * 1024,
+            }
+        }
+    )
+
+    attachments = [
+        ("attachment1", "attach1.txt", attachment_content),
+        (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", minidump_content),
+    ]
+    with pytest.raises(HTTPError) as exc_info:
+        relay.send_minidump(project_id=project_id, files=attachments)
+
+    assert exc_info.value.response.status_code == 400
+    outcomes = outcomes_consumer.get_outcomes()
+    assert outcomes == [
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "too_large:attachment:minidump",
+            "category": DataCategory.ATTACHMENT.value,
+            "quantity": len(minidump_content),
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "too_large:attachment:minidump",
+            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "too_large:attachment:minidump",
+            "category": DataCategory.ATTACHMENT.value,
+            "quantity": len(attachment_content),
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "too_large:attachment:minidump",
+            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "invalid_multipart",
+            "category": DataCategory.ERROR.value,
+            "quantity": 1,
+        },
+    ]
+
+
+def test_minidump_large_attachment_skipped_when_no_project_fetching(mini_sentry, relay):
+    """
+    When the project fetching in the endpoints is disabled (and as a consequence
+    large attachments can not be uploaded to the objectstore), oversized regular
+    attachments should be silently skipped rather than rejecting the entire request.
+    The minidump must still be present in the forwarded envelope.
+    """
+    project_id = 42
+    minidump_content = b"MDMP content"
+    attachment_content = b"some attachment" * 100
+
+    mini_sentry.add_full_project_config(project_id)
+    mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = False
+
+    relay = relay(
+        mini_sentry,
+        options={
+            "limits": {
+                "max_attachment_size": len(attachment_content) - 1,
+                "max_attachments_size": 1000 * 1024 * 1024,
+            },
+            "outcomes": {
+                "emit_outcomes": True,
+                "batch_size": 1,
+                "batch_interval": 1,
+            },
+        },
+    )
+
+    attachments = [
+        ("attachment1", "attach1.txt", attachment_content),
+        (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", minidump_content),
+    ]
+
+    response = relay.send_minidump(project_id=project_id, files=attachments)
+    assert response.ok
+
+    outcomes = mini_sentry.get_aggregated_outcomes()
+
+    assert outcomes == [
+        {
+            "category": 4,
+            "outcome": 3,
+            "project_id": 42,
+            "quantity": 1500,
+            "reason": "too_large:attachment:attachment",
+        },
+        {
+            "category": 22,
+            "outcome": 3,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "too_large:attachment:attachment",
+        },
+    ]
+
+    envelope = mini_sentry.get_captured_envelope()
+
+    assert len(envelope.items) == 1
+    assert envelope.items[0].payload.bytes == minidump_content
+
+
+@pytest.mark.parametrize(
+    "magic,filename",
+    [
+        pytest.param(b"\x1f\x8b", "minidump.dmp.gz", id="gzip"),
+        pytest.param(b"\xfd7zXZ\x00", "minidump.dmp.xz", id="xz"),
+        pytest.param(b"BZh", "minidump.dmp.bz2", id="bzip2"),
+        pytest.param(b"\x28\xb5\x2f\xfd", "minidump.dmp.zst", id="zstd"),
+    ],
+)
+def test_minidump_objectstore_uploads_rejects_compressed(
+    mini_sentry,
+    relay,
+    magic,
+    filename,
+):
+    """
+    When streaming a minidump to objectstore, a compressed payload should be reject
+    (untill objectstore or minidump can handle them).
+    """
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).append(
+        "projects:relay-minidump-uploads"
+    )
+
+    relay = relay(
+        mini_sentry,
+        options={
+            "outcomes": {
+                "emit_outcomes": True,
+                "batch_size": 1,
+                "batch_interval": 1,
+            },
+        },
+    )
+
+    with pytest.raises(HTTPError) as exc_info:
+        relay.send_minidump(
+            project_id=project_id,
+            files=[(MINIDUMP_ATTACHMENT_NAME, filename, magic + b"\x00" * 32)],
+        )
+
+    assert exc_info.value.response.status_code == 400
+
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "category": 1,
+            "outcome": 3,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "missing_minidump_upload",
+        },
+        {
+            "category": 4,
+            "outcome": 3,
+            "project_id": 42,
+            "reason": "invalid_minidump",
+            "quantity": 1,
+        },
+        {
+            "category": 22,
+            "outcome": 3,
+            "project_id": 42,
+            "reason": "invalid_minidump",
+            "quantity": 1,
+        },
+    ]
