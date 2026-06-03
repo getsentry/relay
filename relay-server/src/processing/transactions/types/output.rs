@@ -79,9 +79,14 @@ impl Forward for TransactionOutput {
             let retention = ctx.retention(|r| r.span.as_ref());
 
             for span in spans.split(|spans| spans.into_iter()) {
-                if let Ok(span) = span.try_map(|span, _| {
-                    store::convert_span(span, event_id, retention, performance_issues_spans)
-                }) {
+                if let Ok(span) =
+                    span.try_map(|span, _| store::convert_span(span, event_id, retention))
+                {
+                    if performance_issues_spans && *span.item.is_segment.value().unwrap_or(&false) {
+                        span.map(|mut span, _| {
+                            span.performance_issues_spans = true;
+                        });
+                    }
                     s.send_to_store(span)
                 };
             }
@@ -146,7 +151,6 @@ mod store {
         span: ExtractedIndexedSpan,
         event_id: Option<EventId>,
         retentions: Retention,
-        performance_issues_spans: bool,
     ) -> Result<Box<StoreSpanV2>, Outcome> {
         let span = match span.0 {
             Annotated(Some(span), _) => span,
@@ -161,7 +165,7 @@ mod store {
             retention_days: retentions.standard,
             downsampled_retention_days: retentions.downsampled,
             event_id,
-            performance_issues_spans,
+            performance_issues_spans: false,
             item: span,
         }))
     }

@@ -63,12 +63,6 @@ pub mod attributes {
         // TODO(buenaflor): Add as sentry convention once mobile SDKs can migrate to it.
         // Tracking issue: https://github.com/getsentry/sentry-conventions/issues/318
         pub const APP__VITALS__START__VALUE: &str = "app.vitals.start.value";
-
-        // TODO: We might promote this to a top-level field, there's no real use
-        // to it being an attribute.
-        // (Internal) tracking issue: https://linear.app/getsentry/issue/INGEST-879/fix-flag-performance-issues-spans
-        pub const SENTRY___INTERNAL__PERFORMANCE_ISSUES_SPANS: &str =
-            "sentry._internal.performance_issues_spans";
     }
     pub use self::not_yet_defined::*;
 }

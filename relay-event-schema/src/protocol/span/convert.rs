@@ -17,7 +17,7 @@ impl From<&Event> for Span {
 
             measurements,
             _metrics,
-            performance_issues_spans,
+            performance_issues_spans: _,
             ..
         } = event;
 
@@ -81,7 +81,6 @@ impl From<&Event> for Span {
             platform: platform.clone(),
             was_transaction: true.into(),
             kind: Default::default(),
-            performance_issues_spans: performance_issues_spans.clone(),
             other: Default::default(),
         }
     }
