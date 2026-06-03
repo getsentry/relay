@@ -51,14 +51,6 @@ impl ProjectState {
         matches!(self, Self::Pending)
     }
 
-    /// Utility function that returns the project config if enabled.
-    pub fn enabled(self) -> Option<Arc<ProjectInfo>> {
-        match self {
-            Self::Enabled(info) => Some(info),
-            Self::Dummy | Self::Disabled | Self::Pending => None,
-        }
-    }
-
     /// Returns the revision of the contained project info.
     ///
     /// `None` if the revision is missing or not available.
