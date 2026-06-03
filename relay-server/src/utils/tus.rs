@@ -363,23 +363,64 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_tus_headers_upload_meta_bad_base64() {
-        let mut headers = HeaderMap::new();
-        headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
-        headers.insert(UPLOAD_DEFER_LENGTH, HeaderValue::from_static("1"));
-        headers.insert(UPLOAD_METADATA, HeaderValue::from_static("sentry e="));
-        let result = validate_post_headers(&headers);
-        assert!(matches!(result, Err(Error::InvalidMetadataBase64(_))));
+    fn test_parse_sentry_metadata_valid() {
+        let payload = "eyJhdHRhY2htZW50X3R5cGUiOiAiZXZlbnQubWluaWR1bXAifQ==";
+        assert_eq!(
+            parse_sentry_metadata(payload).unwrap(),
+            Metadata {
+                attachment_type: AttachmentType::Minidump
+            }
+        );
     }
 
     #[test]
-    fn test_validate_tus_headers_upload_meta_bad_json() {
+    fn test_parse_sentry_metadata_invalid_base64() {
+        assert!(matches!(
+            parse_sentry_metadata("e="),
+            Err(Error::InvalidMetadataBase64(_))
+        ));
+    }
+
+    #[test]
+    fn test_parse_sentry_metadata_invalid_json() {
+        assert!(matches!(
+            parse_sentry_metadata("e30="),
+            Err(Error::InvalidMetadata(_))
+        ));
+    }
+
+    #[test]
+    fn test_upload_metadata_absent() {
+        assert_eq!(upload_metadata(&HeaderMap::new()).unwrap(), None);
+    }
+
+    #[test]
+    fn test_upload_metadata_no_sentry_entry() {
         let mut headers = HeaderMap::new();
-        headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
-        headers.insert(UPLOAD_DEFER_LENGTH, HeaderValue::from_static("1"));
-        headers.insert(UPLOAD_METADATA, HeaderValue::from_static("sentry e30="));
-        let result = validate_post_headers(&headers);
-        assert!(matches!(result, Err(Error::InvalidMetadata(_))));
+        headers.insert(
+            UPLOAD_METADATA,
+            HeaderValue::from_static(
+                "filename d29ybGRfZG9taW5hdGlvbl9wbGFuLnBkZg==,is_confidential",
+            ),
+        );
+        assert_eq!(upload_metadata(&headers).unwrap(), None);
+    }
+
+    #[test]
+    fn test_upload_metadata_with_sentry_entry() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            UPLOAD_METADATA,
+            HeaderValue::from_static(
+                "filename d29ybGRfZG9taW5hdGlvbl9wbGFuLnBkZg==,sentry eyJhdHRhY2htZW50X3R5cGUiOiAiZXZlbnQubWluaWR1bXAifQ==",
+            ),
+    );
+        assert_eq!(
+            upload_metadata(&headers).unwrap(),
+            Some(Metadata {
+                attachment_type: AttachmentType::Minidump
+            })
+        );
     }
 
     #[test]
