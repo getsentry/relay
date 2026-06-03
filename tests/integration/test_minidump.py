@@ -1609,7 +1609,7 @@ def test_minidump_objectstore_uploads_rejects_compressed(
             "outcome": 3,
             "project_id": 42,
             "quantity": 1,
-            "reason": "missing_minidump_upload",
+            "reason": "invalid_minidump",
         },
         {
             "category": 4,
@@ -1623,6 +1623,64 @@ def test_minidump_objectstore_uploads_rejects_compressed(
             "outcome": 3,
             "project_id": 42,
             "reason": "invalid_minidump",
+            "quantity": 1,
+        },
+    ]
+
+
+def test_minidump_upload_failure_bubbles_up(mini_sentry, relay):
+    project_id = 42
+    minidump_content = b"MDMP content"
+
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).append(
+        "projects:relay-minidump-uploads"
+    )
+
+    @mini_sentry.app.route("/api/<project>/upload/", methods=["POST"])
+    def create(**opts):
+        return Response("nope", status=400)
+
+    mini_sentry.fail_on_relay_error = False
+    relay = relay(
+        mini_sentry,
+        options={
+            "outcomes": {
+                "emit_outcomes": True,
+                "batch_size": 1,
+                "batch_interval": 1,
+            }
+        },
+    )
+
+    response = relay.send_minidump(
+        project_id=project_id,
+        files=[(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", minidump_content)],
+        raise_for_status=False,
+    )
+
+    assert response.status_code == 500
+    assert mini_sentry.captured_envelopes.empty()
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "category": DataCategory.ERROR,
+            "outcome": 3,  # invalid
+            "project_id": 42,
+            "reason": "objectstore_upload_failed",
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.ATTACHMENT,
+            "outcome": 3,  # invalid
+            "project_id": 42,
+            "reason": "internal",
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.ATTACHMENT_ITEM,
+            "outcome": 3,  # invalid
+            "project_id": 42,
+            "reason": "internal",
             "quantity": 1,
         },
     ]

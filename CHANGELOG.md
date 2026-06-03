@@ -6,6 +6,10 @@
 
 - Add metadata support for the `/upload` endpoint. ([#6028](https://github.com/getsentry/relay/pull/6028))
 
+**Bug Fixes**:
+
+- Correctly handle minidump objecstore upload failures. ([#6033](https://github.com/getsentry/relay/pull/6033))
+
 ## 26.5.2
 
 **Features**:

@@ -137,7 +137,7 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
         field: Field<'static>,
         item: Managed<Item>,
         config: &Config,
-    ) -> Result<Option<Managed<Item>>, multer::Error> {
+    ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
         match &self.upload_context {
             Some(upload_context) if self.infer_type(&field) != AttachmentType::Prosperodump => {
                 let content_type = field.content_type().map(ToString::to_string);
@@ -157,7 +157,7 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
                 // Don't bubble up errors caused by large attachments, skip over them and continue
                 // with the next item.
                 Err(multer::Error::FieldSizeExceeded { .. }) => Ok(None),
-                r => r.map(Some),
+                r => Ok(Some(r?)),
             },
         }
     }
