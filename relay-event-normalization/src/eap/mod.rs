@@ -9,7 +9,9 @@ use chrono::{DateTime, Utc};
 use relay_common::time::UnixTimestamp;
 use relay_conventions::attributes::*;
 use relay_conventions::{AttributeInfo, ReplacementName, WriteBehavior};
-use relay_event_schema::protocol::{Attribute, AttributeType, Attributes, BrowserContext, Geo};
+use relay_event_schema::protocol::{
+    Attribute, AttributeType, Attributes, BrowserContext, Geo, SpanV2,
+};
 use relay_protocol::{Annotated, Error, ErrorKind, Meta, Remark, RemarkType, Value};
 use relay_spans::derive_op_for_v2_span;
 
@@ -740,6 +742,22 @@ fn normalize_http_attributes(
         if let Some(raw_url) = raw_url {
             attributes.insert_if_missing(URL__FULL, || raw_url);
         }
+    }
+}
+
+/// Makes sure web vital spans are not identified with segments.
+pub fn normalize_web_vital_span_segment(span: &mut SpanV2) {
+    let Some(attributes) = span.attributes.value_mut() else {
+        return;
+    };
+
+    if let Some(op) = attributes.get_value(SENTRY__OP)
+        && let Some(op_name) = op.as_str()
+        && (op_name.starts_with("ui.interaction.") || op_name.starts_with("ui.webvital."))
+    {
+        span.is_segment = None.into();
+        span.parent_span_id = None.into();
+        attributes.remove(SENTRY__SEGMENT__ID);
     }
 }
 

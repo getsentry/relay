@@ -116,13 +116,12 @@ def lcp_cls_inp_differences(mode):
     All these differences should be resolved.
     """
     if mode == "legacy":
-        attributes = {
+        return {
             # The legacy pipeline extracts this attribute from `sentry_tags`.
             "sentry.browser.name": {"type": "string", "value": "Chrome"},
         }
-        fields = {}
     else:
-        attributes = {
+        return {
             # We additionally extract the browser version for EAP items
             "browser.version": {"type": "string", "value": "141.0.0"},
             # New for EAP items
@@ -130,17 +129,7 @@ def lcp_cls_inp_differences(mode):
                 "type": "string",
                 "value": time_within_delta(expect_resolution="ns"),
             },
-            # Maybe should not exist. Segment information in legacy processing is removed.
-            "sentry.segment.id": {"type": "string", "value": "8a6626cc9bdd5d9b"},
         }
-        fields = {
-            # See `set_segment_attributes` which removes segment information on LCP and CLS spans.
-            # Introduced in https://github.com/getsentry/relay/pull/3522.
-            # Not fully clear what the intention of that change is and if we still need it.
-            "parent_span_id": "8a6626cc9bdd5d9b",
-        }
-
-    return (attributes, fields)
 
 
 @pytest.mark.parametrize("mode", ["legacy", "v2"])
@@ -208,8 +197,6 @@ def test_lcp_span(
     )
 
     relay.send_envelope(project_id, envelope)
-
-    attributes, fields = lcp_cls_inp_differences(mode)
 
     lcp_backfill = {}
     if mode == "v2":
@@ -298,7 +285,7 @@ def test_lcp_span(
                 "value": 0.0,
             },
             **lcp_backfill,
-            **attributes,
+            **lcp_cls_inp_differences(mode),
         },
         "downsampled_retention_days": 90,
         "end_timestamp": time_within(ts),
@@ -313,7 +300,6 @@ def test_lcp_span(
         "start_timestamp": time_within(ts.timestamp() - 0.5),
         "status": "ok",
         "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
-        **fields,
     }
 
     assert metrics_consumer.get_metrics(with_headers=False) == [
@@ -412,8 +398,6 @@ def test_cls_span(
 
     relay.send_envelope(project_id, envelope)
 
-    attributes, fields = lcp_cls_inp_differences(mode)
-
     cls_backfill = {}
     if mode == "v2":
         cls_backfill = {
@@ -508,7 +492,7 @@ def test_cls_span(
                 "value": 0.0,
             },
             **cls_backfill,
-            **attributes,
+            **lcp_cls_inp_differences(mode),
         },
         "downsampled_retention_days": 90,
         "end_timestamp": time_within(ts),
@@ -523,7 +507,6 @@ def test_cls_span(
         "start_timestamp": time_within(ts.timestamp() - 0.5),
         "status": "ok",
         "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
-        **fields,
     }
 
     assert metrics_consumer.get_metrics(with_headers=False) == [
@@ -617,8 +600,6 @@ def test_inp_span(
 
     relay.send_envelope(project_id, envelope)
 
-    attributes, fields = lcp_cls_inp_differences(mode)
-
     inp_backfill = {}
     if mode == "v2":
         inp_backfill = {
@@ -681,7 +662,7 @@ def test_inp_span(
                 "value": 1.0,
             },
             **inp_backfill,
-            **attributes,
+            **lcp_cls_inp_differences(mode),
         },
         "downsampled_retention_days": 90,
         "end_timestamp": time_within(ts),
@@ -696,7 +677,6 @@ def test_inp_span(
         "start_timestamp": time_within(ts.timestamp() - 0.5),
         "status": "ok",
         "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
-        **fields,
     }
 
     assert metrics_consumer.get_metrics(with_headers=False) == [
@@ -864,7 +844,6 @@ def test_mobile_measurements(
     )
 
     relay.send_envelope(project_id, envelope)
-    attributes, fields = lcp_cls_inp_differences(mode)
 
     assert spans_consumer.get_span() == {
         "attributes": {
@@ -908,7 +887,7 @@ def test_mobile_measurements(
             "app.vitals.frames.total.count": {"value": 4.0, "type": "double"},
             "frames_frozen_rate": {"value": 0.5, "type": "double"},
             "frames_slow_rate": {"value": 0.25, "type": "double"},
-            **attributes,
+            **lcp_cls_inp_differences(mode),
         },
         "downsampled_retention_days": 90,
         "end_timestamp": time_within(ts),
@@ -923,5 +902,4 @@ def test_mobile_measurements(
         "start_timestamp": time_within(ts.timestamp() - 5),
         "status": "ok",
         "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
-        **fields,
     }
