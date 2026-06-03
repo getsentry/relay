@@ -415,6 +415,7 @@ async fn upload_context<'a>(
     if !state
         .global_config_handle()
         .current()
+        .unwrap_or_default()
         .options
         .endpoint_fetch_config_enabled
     {

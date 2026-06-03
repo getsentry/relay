@@ -164,6 +164,17 @@ impl AggregatorService {
 
                     let project_info = match project.state() {
                         ProjectState::Enabled(info) => Arc::clone(info),
+                        // The dummy state should never happen, as a proxy Relay must not use the
+                        // metrics aggregator.
+                        ProjectState::Dummy => {
+                            relay_log::error!(
+                                tags.aggregator = self.aggregator.name(),
+                                tags.project_key = project_key.as_str(),
+                                "metrics aggregator requires a project config"
+                            );
+                            // Drop the bucket.
+                            continue;
+                        }
                         ProjectState::Disabled => continue, // Drop the bucket.
                         ProjectState::Pending => {
                             // Return to the aggregator, which will assign a new flush time.

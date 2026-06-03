@@ -86,7 +86,7 @@ impl IntoResponse for BadEventMeta {
 ///
 /// This type caches the parsed project key in addition to the DSN. Other than that, it
 /// transparently serializes to and deserializes from a DSN string.
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct PartialDsn {
     pub scheme: Scheme,
     pub public_key: ProjectKey,
@@ -154,6 +154,12 @@ impl fmt::Display for PartialDsn {
     }
 }
 
+impl fmt::Debug for PartialDsn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{self}")
+    }
+}
+
 impl FromStr for PartialDsn {
     type Err = ParseDsnError;
 
@@ -194,7 +200,7 @@ fn make_false() -> bool {
 }
 
 /// Request information for sentry ingest data, such as events, envelopes or metrics.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
 pub struct RequestMeta<D = PartialDsn> {
     /// The DSN describing the target of this envelope.
     dsn: D,
@@ -422,6 +428,65 @@ impl RequestMeta {
             project_id: self.project_id(),
             project_key: self.public_key(),
         }
+    }
+}
+
+impl<D> fmt::Debug for RequestMeta<D>
+where
+    D: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self {
+            dsn,
+            client,
+            version,
+            origin,
+            remote_addr,
+            forwarded_for,
+            user_agent,
+            client_hints,
+            no_cache,
+            received_at,
+            signature,
+            request_trust,
+        } = self;
+
+        let mut map = f.debug_map();
+
+        map.entry(&"dsn", &dsn);
+
+        if let Some(client) = client {
+            map.entry(&"client", client);
+        }
+        map.entry(&"version", version);
+
+        if let Some(origin) = origin {
+            map.entry(&"origin", origin);
+        }
+        if let Some(remote_addr) = remote_addr {
+            map.entry(&"remote_addr", remote_addr);
+        }
+        if !forwarded_for.is_empty() {
+            map.entry(&"forwarded_for", forwarded_for);
+        }
+        if let Some(user_agent) = user_agent {
+            map.entry(&"user_agent", user_agent);
+        }
+        if !client_hints.is_empty() {
+            map.entry(&"client_hints", client_hints);
+        }
+        if *no_cache {
+            map.entry(&"no_cache", no_cache);
+        }
+        map.entry(&"received_at", received_at);
+        if let Some(signature) = signature {
+            map.entry(&"signature", signature);
+        }
+        if let Some(request_trust) = request_trust {
+            map.entry(&"request_trust", request_trust);
+        }
+
+        map.finish()
     }
 }
 

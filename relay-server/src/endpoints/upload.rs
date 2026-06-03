@@ -270,9 +270,15 @@ fn check_kill_switch(state: &ServiceState) -> Result<(), StatusCode> {
     if !state.global_config_handle().is_ready() {
         relay_log::warn!("global config not available");
     }
+
+    if state.global_config_handle().current().is_none() {
+        relay_log::info!("check_kill_switch global config is none");
+    }
+
     if !state
         .global_config_handle()
         .current()
+        .unwrap_or_default()
         .options
         .endpoint_fetch_config_enabled
     {

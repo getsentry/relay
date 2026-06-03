@@ -95,9 +95,6 @@ pub enum Feature {
     /// Upload non-prosperodmp playstation attachments via the upload endpoint.
     #[serde(rename = "projects:relay-playstation-uploads")]
     PlaystationUploads,
-    /// Add a random trace ID to events that lack one.
-    #[serde(rename = "organizations:relay-default-trace-id")]
-    AddDefaultTraceID,
     /// Enable experimental expansion of the unreal report in the endpoint rather than in the
     /// processor. Only enable for organizations with sufficient attachment quota.
     #[serde(rename = "organizations:relay-unreal-endpoint-expansion")]
@@ -108,10 +105,6 @@ pub enum Feature {
     /// Stream minidumps to objectstore.
     #[serde(rename = "projects:relay-minidump-uploads")]
     MinidumpUploads,
-    /// When converting measurements into attributes, use the name from the measurement
-    /// definition.
-    #[serde(rename = "projects:relay-measurements-smart-conversion")]
-    MeasurementsSmartConversion,
 
     /// Enables OTLP spans to use the Span V2 processing pipeline in Relay.
     ///

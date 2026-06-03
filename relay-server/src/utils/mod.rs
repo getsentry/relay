@@ -1,4 +1,5 @@
 mod api;
+mod debug;
 mod dynamic_sampling;
 mod error;
 mod multipart;
@@ -26,6 +27,7 @@ mod serde;
 mod unreal;
 
 pub use self::api::*;
+pub use self::debug::*;
 pub use self::dynamic_sampling::*;
 pub use self::error::*;
 pub use self::forward::*;

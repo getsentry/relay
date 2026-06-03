@@ -44,6 +44,7 @@ pub fn convert(span: IndexedSpanOnly, ctx: &Context) -> Result<Box<StoreSpanV2>>
         routing_key,
         retention_days: ctx.retention.standard,
         downsampled_retention_days: ctx.retention.downsampled,
+        event_id: None,
         item: span,
     }))
 }

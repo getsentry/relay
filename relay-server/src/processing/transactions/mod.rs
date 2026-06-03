@@ -3,11 +3,10 @@ use std::sync::Arc;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::Metrics;
 use relay_quotas::RateLimits;
-use relay_sampling::evaluation::SamplingDecision;
 
 use crate::envelope::ItemType;
 use crate::managed::{Managed, ManagedEnvelope, OutcomeError, Rejected};
-use crate::processing::transactions::process::{SamplingOutput, split_indexed_and_total};
+use crate::processing::transactions::process::SamplingOutput;
 use crate::processing::transactions::types::{SerializedTransaction, TransactionOutput};
 use crate::processing::utils::attachments;
 use crate::processing::utils::event::event_type;
@@ -101,11 +100,13 @@ impl Processor for TransactionProcessor {
 
         let attachments = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::Attachment));
+            .take_items_by(|item| matches!(*item.ty(), ItemType::Attachment))
+            .into_vec();
 
         let profiles = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::Profile));
+            .take_items_by(|item| matches!(*item.ty(), ItemType::Profile))
+            .into_vec();
 
         let work = SerializedTransaction {
             headers,
@@ -144,7 +145,7 @@ impl Processor for TransactionProcessor {
         process::process_profile(&mut tx, ctx);
 
         relay_log::trace!("Sample transaction");
-        let (tx, server_sample_rate) = match process::run_dynamic_sampling(tx, ctx, filters_status)?
+        let (tx, server_sample_rate) = match process::run_dynamic_sampling(tx, ctx, filters_status)
         {
             SamplingOutput::Keep {
                 payload,
@@ -170,8 +171,6 @@ impl Processor for TransactionProcessor {
         #[allow(unused_mut)]
         let mut tx = process::scrub(tx, ctx)?;
 
-        tx = process::extract_spans(tx, ctx, server_sample_rate);
-
         relay_log::trace!("Enforce quotas");
         let tx = self.limiter.enforce_quotas(tx, ctx).await?;
         let tx = match tx.transpose() {
@@ -188,10 +187,14 @@ impl Processor for TransactionProcessor {
                 );
             };
 
-            let (indexed, metrics) = split_indexed_and_total(tx, ctx, SamplingDecision::Keep)?;
+            let (spans, tx) = process::extract_spans(tx, ctx, server_sample_rate);
+            let spans = self.limiter.enforce_quotas(spans, ctx).await.ok();
+
+            let (transaction, spans, metrics) =
+                process::split_indexed_and_total_with_extracted_spans(tx, spans, ctx);
 
             return Ok(Output {
-                main: Some(TransactionOutput::Indexed(indexed)),
+                main: Some(TransactionOutput::Indexed { spans, transaction }),
                 metrics: Some(metrics),
             });
         }

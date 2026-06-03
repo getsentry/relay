@@ -4,15 +4,17 @@ use relay_profiling::{ProfileError, ProfileType};
 use relay_quotas::{DataCategory, RateLimits};
 use smallvec::smallvec;
 
+use crate::Envelope;
 use crate::envelope::{EnvelopeHeaders, Item, ItemType, Items};
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
-use crate::processing::{Context, CountRateLimited, Output, Processor, QuotaRateLimiter};
+use crate::processing::{
+    Context, CountRateLimited, Forward, ForwardContext, Output, Processor, QuotaRateLimiter,
+};
 use crate::services::outcome::{DiscardReason, Outcome};
 
 mod filter;
-mod forward;
 mod process;
 
 #[derive(Debug, thiserror::Error)]
@@ -159,3 +161,44 @@ impl CountRateLimited for Managed<ExpandedProfile> {
 /// Output produced by the [`ProfilesProcessor`].
 #[derive(Debug)]
 pub struct ProfilesOutput(Managed<ExpandedProfile>);
+
+impl Forward for ProfilesOutput {
+    fn serialize_envelope(
+        self,
+        _ctx: ForwardContext<'_>,
+    ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
+        let Self(profile) = self;
+        let envelope = profile.map(
+            |ExpandedProfile {
+                 headers,
+                 profile,
+                 profile_type: _,
+             },
+             _| { Envelope::from_parts(headers, smallvec![profile]) },
+        );
+
+        Ok(envelope)
+    }
+
+    #[cfg(feature = "processing")]
+    fn forward_store(
+        self,
+        s: crate::processing::StoreHandle<'_>,
+        ctx: ForwardContext<'_>,
+    ) -> Result<(), Rejected<()>> {
+        use crate::services::store::StoreProfile;
+
+        let Self(profile) = self;
+
+        let retention_days = ctx.event_retention().standard;
+
+        let store_profile = profile.map(|profile, _| StoreProfile {
+            retention_days,
+            quantities: profile.quantities(),
+            profile: profile.profile,
+        });
+        s.send_to_store(store_profile);
+
+        Ok(())
+    }
+}

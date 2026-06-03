@@ -9,7 +9,7 @@ use relay_sampling::evaluation::SamplingDecision;
 
 use crate::processing::Context;
 use crate::processing::utils::event::EventMetricsExtracted;
-use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
+use crate::services::processor::ProcessingExtractedMetrics;
 
 /// Creates a span from the transaction and applies tag extraction on it.
 ///
@@ -42,7 +42,7 @@ pub fn extract_metrics(
     event: &mut Annotated<Event>,
     extracted_metrics: &mut ProcessingExtractedMetrics,
     ctx: ExtractMetricsContext,
-) -> Result<EventMetricsExtracted, ProcessingError> {
+) -> EventMetricsExtracted {
     let ExtractMetricsContext {
         dsc,
         project_id,
@@ -55,11 +55,11 @@ pub fn extract_metrics(
     // the full metrics extraction config and skip sampling if it is incomplete.
 
     if metrics_extracted {
-        return Ok(EventMetricsExtracted(true));
+        return EventMetricsExtracted(true);
     }
     let Some(event) = event.value_mut() else {
         // Nothing to extract, but metrics extraction was called.
-        return Ok(EventMetricsExtracted(true));
+        return EventMetricsExtracted(true);
     };
 
     // NOTE: This function requires a `metric_extraction` in the project config. Legacy configs
@@ -68,7 +68,7 @@ pub fn extract_metrics(
     let combined_config = {
         let config = match &ctx.project_info.config.metric_extraction {
             ErrorBoundary::Ok(config) if config.is_supported() => config,
-            _ => return Ok(EventMetricsExtracted(false)),
+            _ => return EventMetricsExtracted(false),
         };
         let global_config = match &ctx.global_config.metric_extraction {
             ErrorBoundary::Ok(global_config) => global_config,
@@ -83,7 +83,7 @@ pub fn extract_metrics(
                     // If there's an error with global metrics extraction, it is safe to assume that this
                     // Relay instance is not up-to-date, and we should skip extraction.
                     relay_log::debug!("Failed to parse global extraction config: {e}");
-                    return Ok(EventMetricsExtracted(false));
+                    return EventMetricsExtracted(false);
                 }
             }
         };
@@ -106,5 +106,5 @@ pub fn extract_metrics(
     );
     extracted_metrics.extend(metrics, Some(sampling_decision));
 
-    Ok(EventMetricsExtracted(true))
+    EventMetricsExtracted(true)
 }

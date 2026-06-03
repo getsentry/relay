@@ -168,11 +168,11 @@ impl GlobalConfigHandle {
     /// Returns the currently loaded or a default global config.
     ///
     /// When no global config has been received from upstream yet,
-    /// this will return a default global config.
-    pub fn current(&self) -> Arc<GlobalConfig> {
+    /// this will return None.
+    pub fn current(&self) -> Option<Arc<GlobalConfig>> {
         match &*self.watch.borrow() {
-            Status::Ready(config) => Arc::clone(config),
-            Status::Pending => Default::default(),
+            Status::Ready(config) => Some(Arc::clone(config)),
+            Status::Pending => None,
         }
     }
 }
