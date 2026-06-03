@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Bug Fixes**:
+
+- Correctly handle minidump objecstore upload failures. ([#6033](https://github.com/getsentry/relay/pull/6033))
+
 ## 26.5.2
 
 **Features**:
@@ -16,10 +22,6 @@
 **Internal**:
 
 - Forwards extracted transaction spans directly to Kafka instead of serializing to an intermediate envelope first. ([#6029](https://github.com/getsentry/relay/pull/6029))
-
-**Bug Fixes**:
-
-- Correctly handle minidump objecstore upload failures. ([#6033](https://github.com/getsentry/relay/pull/6033))
 
 ## 26.5.1
 
