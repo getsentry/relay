@@ -147,7 +147,7 @@ mod tests {
         .unwrap();
 
         let span_from_event = Span::from(&event);
-        insta::assert_debug_snapshot!(span_from_event, @r###"
+        insta::assert_debug_snapshot!(span_from_event, @r#"
         Span {
             timestamp: ~,
             start_timestamp: ~,
@@ -297,9 +297,8 @@ mod tests {
             platform: "php",
             was_transaction: true,
             kind: ~,
-            performance_issues_spans: ~,
             other: {},
         }
-        "###);
+        "#);
     }
 }
