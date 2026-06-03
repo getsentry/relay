@@ -8,7 +8,7 @@ use relay_profiling::ProfileType;
 use relay_quotas::DataCategory;
 
 use crate::envelope::ContentType;
-use crate::managed::{Quantities, RecordKeeper};
+use crate::managed::Quantities;
 use crate::processing::Context;
 use crate::processing::Managed;
 use crate::processing::profile_chunks::{
@@ -42,15 +42,29 @@ pub fn expand(
                 expand_json_item(&item, client_ip, filter_settings, ctx, payload)
             };
 
+            // Plain JSON chunks may omit the platform attribute in the header, so their profile
+            // type only becomes known while parsing the payload and they are not reflected in the
+            // input quantities.
+            let header_has_type = item.profile_type().is_some();
+            if !header_has_type {
+                relay_statsd::metric!(
+                    counter(RelayCounters::ProfileChunksWithoutPlatform) += 1,
+                    sdk = sdk
+                );
+            }
+
             match result {
                 Ok(chunk) => {
-                    track_quantities(&item, sdk, &chunk.quantities, records);
+                    // Chunks without a header type aren't counted in the input quantities;
+                    // reconcile the record keeper with the resolved category.
+                    if !header_has_type {
+                        for &(category, quantity) in &chunk.quantities {
+                            records.modify_by(category, quantity as isize);
+                        }
+                    }
                     expanded.push(chunk);
                 }
-                Err(err) => {
-                    track_quantities(&item, sdk, &item.quantities(), records);
-                    drop(records.reject_err(err, &item));
-                }
+                Err(err) => drop(records.reject_err(err, &item)),
             }
         }
 
@@ -129,23 +143,6 @@ fn validate_profile_type(item: &crate::envelope::Item, profile_type: ProfileType
         return Err(relay_profiling::ProfileError::InvalidProfileType.into());
     }
     Ok(())
-}
-
-fn track_quantities(
-    item: &crate::envelope::Item,
-    sdk: &str,
-    quantities: &Quantities,
-    records: &mut RecordKeeper<'_>,
-) {
-    if item.profile_type().is_none() {
-        relay_statsd::metric!(
-            counter(RelayCounters::ProfileChunksWithoutPlatform) += 1,
-            sdk = sdk
-        );
-        for &(category, quantity) in quantities {
-            records.modify_by(category, quantity as isize);
-        }
-    }
 }
 
 fn quantities_for(profile_type: ProfileType) -> Quantities {
@@ -415,6 +412,37 @@ mod tests {
         );
         handle.assert_outcome(
             &Outcome::Invalid(DiscardReason::Profiling("profiling_invalid_profile_type")),
+            DataCategory::ProfileChunk,
+            1,
+        );
+    }
+
+    #[test]
+    fn test_expand_rejects_broken_chunk_individually() {
+        // A valid and a broken chunk share the same envelope. The broken chunk must be rejected
+        // on its own while the valid chunk is still expanded and retained.
+        let valid = make_json_item(JSON_FIXTURE);
+
+        // `meta_length` is not allowed on JSON chunks, so this chunk fails to expand. The
+        // platform header attributes its rejection to the backend profile chunk category.
+        let mut broken = make_json_item(JSON_FIXTURE);
+        broken.set_meta_length(10);
+        broken.set_platform("node".to_owned());
+
+        let (managed, mut handle) = make_chunks(vec![valid, broken]);
+
+        let expanded = expand(managed, Context::for_test());
+        let chunks = expanded.accept(|c| c);
+        assert_eq!(
+            chunks.chunks.len(),
+            1,
+            "only the valid chunk should be retained"
+        );
+
+        handle.assert_outcome(
+            &Outcome::Invalid(DiscardReason::Profiling(
+                "profiling_invalid_sampled_profile",
+            )),
             DataCategory::ProfileChunk,
             1,
         );
