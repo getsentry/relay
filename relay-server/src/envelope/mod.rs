@@ -33,6 +33,7 @@
 use relay_base_schema::project::ProjectKey;
 use std::borrow::Borrow;
 use std::collections::BTreeMap;
+use std::fmt;
 use std::io::{self, Write};
 use std::time::Duration;
 
@@ -82,7 +83,7 @@ pub enum EnvelopeError {
     PayloadIoFailed(#[source] io::Error),
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct EnvelopeHeaders<M = RequestMeta> {
     /// Unique identifier of the event associated to this envelope.
     ///
@@ -101,13 +102,6 @@ pub struct EnvelopeHeaders<M = RequestMeta> {
     /// configuration.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     retention: Option<u16>,
-
-    /// Data retention in days for the items of this envelope.
-    ///
-    /// This value is always overwritten in processing mode by the value specified in the project
-    /// configuration.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    downsampled_retention: Option<u16>,
 
     /// Timestamp when the event has been sent, according to the SDK.
     ///
@@ -164,7 +158,6 @@ impl EnvelopeHeaders<PartialMeta> {
             event_id: self.event_id,
             meta: meta.copy_to(request_meta),
             retention: self.retention,
-            downsampled_retention: self.downsampled_retention,
             sent_at: self.sent_at,
             trace: self.trace,
             required_features: self.required_features,
@@ -221,6 +214,47 @@ impl<M> EnvelopeHeaders<M> {
     }
 }
 
+impl<M> fmt::Debug for EnvelopeHeaders<M>
+where
+    M: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self {
+            event_id,
+            meta,
+            retention,
+            sent_at,
+            trace,
+            required_features,
+            other,
+        } = self;
+
+        let mut map = f.debug_map();
+
+        if let Some(event_id) = event_id {
+            map.entry(&"event_id", &event_id.0);
+        }
+        map.entry(&"meta", &meta);
+        if let Some(retention) = retention {
+            map.entry(&"retention", retention);
+        }
+        if let Some(sent_at) = sent_at {
+            map.entry(&"sent_at", sent_at);
+        }
+        if let Some(trace) = trace {
+            map.entry(&"trace", trace);
+        }
+        if !required_features.is_empty() {
+            map.entry(&"required_features", required_features);
+        }
+        for (key, value) in other {
+            map.entry(key, value);
+        }
+
+        map.finish()
+    }
+}
+
 #[doc(hidden)]
 #[derive(Clone, Debug)]
 pub struct Envelope {
@@ -256,7 +290,6 @@ impl Envelope {
                 event_id,
                 meta,
                 retention: None,
-                downsampled_retention: None,
                 sent_at: None,
                 other: BTreeMap::new(),
                 trace: None,
@@ -360,14 +393,6 @@ impl Envelope {
         self.headers.retention.unwrap_or(DEFAULT_EVENT_RETENTION)
     }
 
-    /// Returns the data retention in days for items in this envelope.
-    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
-    pub fn downsampled_retention(&self) -> u16 {
-        self.headers
-            .downsampled_retention
-            .unwrap_or(self.retention())
-    }
-
     /// When the event has been sent, according to the SDK.
     pub fn sent_at(&self) -> Option<DateTime<Utc>> {
         self.headers.sent_at
@@ -423,11 +448,6 @@ impl Envelope {
     /// Sets the data retention in days for items in this envelope.
     pub fn set_retention(&mut self, retention: u16) {
         self.headers.retention = Some(retention);
-    }
-
-    /// Sets the data retention in days for items in this envelope.
-    pub fn set_downsampled_retention(&mut self, retention: u16) {
-        self.headers.downsampled_retention = Some(retention);
     }
 
     /// Runs transaction parametrization on the DSC trace transaction.

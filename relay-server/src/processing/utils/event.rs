@@ -314,7 +314,7 @@ pub fn normalize(
             performance_issues_spans: ctx
                 .project_info
                 .has_feature(Feature::PerformanceIssuesSpans),
-            derive_trace_id: project_info.has_feature(Feature::AddDefaultTraceID),
+            force_trace_context: true,
             dsc,
         };
 
@@ -407,10 +407,6 @@ pub struct EventFullyNormalized(pub bool);
 /// New type representing whether metrics were extracted from transactions/spans.
 #[derive(Debug, Copy, Clone)]
 pub struct EventMetricsExtracted(pub bool);
-
-/// New type representing whether spans were extracted.
-#[derive(Debug, Copy, Clone)]
-pub struct SpansExtracted(pub bool);
 
 /// Checks if the Event includes unprintable fields.
 fn has_unprintable_fields(event: &Annotated<Event>) -> bool {

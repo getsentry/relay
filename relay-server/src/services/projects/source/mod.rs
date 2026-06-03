@@ -61,7 +61,7 @@ impl ProjectSource {
         current_revision: Revision,
     ) -> Result<SourceProjectState, ProjectSourceError> {
         match self.config.relay_mode() {
-            RelayMode::Proxy => return Ok(ProjectState::new_allowed().into()),
+            RelayMode::Proxy => return Ok(ProjectState::Dummy.into()),
             RelayMode::Managed => (), // Proceed with loading the config from redis or upstream
         }
 

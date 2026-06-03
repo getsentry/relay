@@ -1105,14 +1105,6 @@ impl EnvelopeProcessorService {
             managed_envelope.envelope_mut().set_retention(retention);
         }
 
-        // Set the event retention. Effectively, this value will only be available in processing
-        // mode when the full project config is queried from the upstream.
-        if let Some(retention) = ctx.project_info.config.downsampled_event_retention {
-            managed_envelope
-                .envelope_mut()
-                .set_downsampled_retention(retention);
-        }
-
         // Ensure the project ID is updated to the stored instance for this project cache. This can
         // differ in two cases:
         //  1. The envelope was sent to the legacy `/store/` endpoint without a project ID.
@@ -1346,7 +1338,7 @@ impl EnvelopeProcessorService {
                 ManagedEnvelope::new(envelope, self.inner.addrs.outcome_aggregator.clone());
             envelope.scope(scoping);
 
-            let global_config = self.inner.global_config.current();
+            let global_config = self.inner.global_config.current().unwrap_or_default();
 
             let ctx = processing::Context {
                 config: &self.inner.config,
@@ -1687,7 +1679,7 @@ impl EnvelopeProcessorService {
             return buckets;
         };
 
-        let global_config = self.inner.global_config.current();
+        let global_config = self.inner.global_config.current().unwrap_or_default();
         let namespaces = buckets
             .iter()
             .filter_map(|bucket| bucket.name.try_namespace())
@@ -1747,7 +1739,7 @@ impl EnvelopeProcessorService {
         let scoping = *bucket_limiter.scoping();
 
         if let Some(rate_limiter) = self.inner.rate_limiter.as_ref() {
-            let global_config = self.inner.global_config.current();
+            let global_config = self.inner.global_config.current().unwrap_or_default();
             let quotas = CombinedQuotas::new(&global_config, bucket_limiter.quotas());
 
             // We set over_accept_once such that the limit is actually reached, which allows subsequent

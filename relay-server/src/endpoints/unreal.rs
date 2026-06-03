@@ -51,7 +51,7 @@ impl UnrealParams {
             envelope.set_header(UNREAL_USER_HEADER, user_id);
         }
 
-        let global_config = state.global_config_handle().current();
+        let global_config = state.global_config_handle().current().unwrap_or_default();
 
         if global_config.options.endpoint_fetch_config_enabled {
             // Ensure that we really make it here.

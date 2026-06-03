@@ -1,6 +1,4 @@
-use smallvec::SmallVec;
-
-use crate::envelope::{EnvelopeHeaders, Item, Items};
+use crate::envelope::{EnvelopeHeaders, Item};
 use crate::managed::{Counted, Quantities};
 
 /// A transaction in its serialized state, as transported in an envelope.
@@ -8,8 +6,8 @@ use crate::managed::{Counted, Quantities};
 pub struct SerializedTransaction {
     pub headers: EnvelopeHeaders,
     pub event: Item,
-    pub attachments: Items,
-    pub profiles: SmallVec<[Item; 3]>,
+    pub attachments: Vec<Item>,
+    pub profiles: Vec<Item>,
 }
 
 impl Counted for SerializedTransaction {

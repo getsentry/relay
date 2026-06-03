@@ -1765,7 +1765,7 @@ mod tests {
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         processor::process_value(&mut span, &mut pii_processor, ProcessingState::root()).unwrap();
         assert_eq!(
-            get_value!(span.data.code_filepath!).as_str(),
+            span.0.unwrap().data.0.unwrap().other["code.filepath"].as_str(),
             Some("src/sentry/api/authentication.py")
         );
     }

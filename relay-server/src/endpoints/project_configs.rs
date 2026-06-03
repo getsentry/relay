@@ -170,6 +170,16 @@ async fn inner(
 
         let project_info = match project.state() {
             ProjectState::Enabled(info) => info,
+            ProjectState::Dummy => {
+                // We have no data for this project.
+                //
+                // This really would only happen if someone tried to run a managed relay behind a
+                // proxy relay, which currently is not a supported setup.
+                //
+                // To support this, the proxy Relay would have to act as a pure proxy and not fetch
+                // the project configuration from its own cache.
+                continue;
+            }
             ProjectState::Disabled => {
                 // Don't insert project config. Downstream Relay will consider it disabled.
                 continue;

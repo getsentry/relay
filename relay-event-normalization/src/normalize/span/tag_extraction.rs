@@ -11,7 +11,8 @@ use regex::Regex;
 use relay_base_schema::metrics::{DurationUnit, InformationUnit, MetricUnit};
 use relay_event_schema::protocol::{
     AppContext, BrowserContext, DeviceContext, Event, GpuContext, Measurement, MonitorContext,
-    OsContext, ProfileContext, RuntimeContext, SentryTags, Span, Timestamp, TraceContext,
+    OsContext, ProfileContext, ReplayContext, RuntimeContext, SentryTags, Span, Timestamp,
+    TraceContext,
 };
 use relay_protocol::{Annotated, Empty, FiniteF64, Value};
 use relay_spans::name_for_span;
@@ -182,6 +183,7 @@ struct SharedTags {
     os_name: Annotated<String>,
     platform: Annotated<String>,
     profiler_id: Annotated<String>,
+    replay_id: Annotated<String>,
     release: Annotated<String>,
     sdk_name: Annotated<String>,
     sdk_version: Annotated<String>,
@@ -213,6 +215,7 @@ impl SharedTags {
             os_name,
             platform,
             profiler_id,
+            replay_id,
             release,
             sdk_name,
             sdk_version,
@@ -253,6 +256,9 @@ impl SharedTags {
         };
         if tags.profiler_id.value().is_none() {
             tags.profiler_id = profiler_id.clone();
+        };
+        if tags.replay_id.value().is_none() {
+            tags.replay_id = replay_id.clone();
         };
         if tags.release.value().is_none() {
             tags.release = release.clone();
@@ -429,6 +435,13 @@ fn extract_shared_tags(event: &Event) -> SharedTags {
         .and_then(|profile_context| profile_context.profiler_id.value())
     {
         tags.profiler_id = profiler_id.to_string().into();
+    }
+
+    if let Some(replay_id) = event
+        .context::<ReplayContext>()
+        .and_then(|replay_context| replay_context.replay_id.value())
+    {
+        tags.replay_id = replay_id.to_string().into();
     }
 
     tags.sdk_name = event.sdk_name().to_owned().into();
@@ -3100,6 +3113,51 @@ LIMIT 1
 
         assert_eq!(
             get_value!(span.sentry_tags.profiler_id!),
+            "ff62a8b040f340bda5d830223def1d81",
+        );
+    }
+
+    #[test]
+    fn extract_replay_id_into_sentry_tags() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "platform": "javascript",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "replay": {
+                        "replay_id": "ff62a8b040f340bda5d830223def1d81"
+                    }
+                },
+                "spans": [
+                    {
+                        "op": "before_first_display",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                enrich_spans: true,
+                ..Default::default()
+            },
+        );
+
+        let spans = get_value!(event.spans!);
+        let span = &spans[0];
+
+        assert_eq!(
+            get_value!(span.sentry_tags.replay_id!),
             "ff62a8b040f340bda5d830223def1d81",
         );
     }

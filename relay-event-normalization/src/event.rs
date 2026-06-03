@@ -24,10 +24,10 @@ use relay_conventions::measurements::{
 };
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
-    AsPair, Attributes, AutoInferSetting, ClientSdkInfo, Context, ContextInner, Contexts,
-    DebugImage, DeviceClass, Event, EventId, EventType, Exception, Headers, IpAddr, Level,
-    LogEntry, Measurement, Measurements, PerformanceScoreContext, ReplayContext, Request, Span,
-    SpanStatus, SpanV2, Tags, Timestamp, TraceContext, User, VALID_PLATFORMS,
+    AsPair, Attributes, AutoInferSetting, ClientSdkInfo, Contexts, DebugImage, DeviceClass, Event,
+    EventId, EventType, Exception, Headers, IpAddr, Level, LogEntry, Measurement, Measurements,
+    PerformanceScoreContext, ReplayContext, Request, Span, SpanId, SpanV2, Tags, Timestamp,
+    TraceContext, TraceId, User, VALID_PLATFORMS,
 };
 use relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FiniteF64, FromValue, Getter, Meta, Object, Remark,
@@ -173,8 +173,17 @@ pub struct NormalizationConfig<'a> {
     /// Set a flag to enable performance issue detection on spans.
     pub performance_issues_spans: bool,
 
-    /// Should add a random trace ID to events that lack one.
-    pub derive_trace_id: bool,
+    /// Forces a valid trace context for error events.
+    ///
+    /// Sentry requires a valid trace context for events. This ensures a valid trace context always
+    /// exists.
+    ///
+    /// If the error does not contain a trace context, one will be created. If there is already an
+    /// existing trace context, it ensures it's valid and has a trace id.
+    ///
+    /// This is never applied to transaction events, which require a valid transaction context from
+    /// the SDK.
+    pub force_trace_context: bool,
 
     /// Dynamic sampling context and additional attributes used for dsc span normalization.
     pub dsc: Option<EnrichedDsc<'a>>,
@@ -212,7 +221,7 @@ impl Default for NormalizationConfig<'_> {
             span_allowed_hosts: Default::default(),
             span_op_defaults: Default::default(),
             performance_issues_spans: Default::default(),
-            derive_trace_id: Default::default(),
+            force_trace_context: Default::default(),
             dsc: None,
         }
     }
@@ -332,17 +341,19 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
     normalize_default_attributes(event, meta, config);
     normalize_trace_context_tags(event);
+    normalize_replay_context(event, config.replay_id);
 
     let _ = processor::apply(&mut event.request, |request, _| {
         request::normalize_request(request);
         Ok(())
     });
 
-    // We know this exists thanks to normalize_default_attributes.
-    let event_id = event.id.value().unwrap().0;
+    if config.force_trace_context && event.ty.value() != Some(&EventType::Transaction) {
+        normalize_force_trace_context(event);
+    }
 
     // Some contexts need to be normalized before metrics extraction takes place.
-    normalize_contexts(&mut event.contexts, event_id, config);
+    normalize_contexts(&mut event.contexts);
 
     if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
         span::normalize_dsc_for_event_spans(event, config.dsc);
@@ -366,13 +377,11 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     if let Some(context) = event.context_mut::<TraceContext>() {
         context.client_sample_rate = Annotated::from(config.client_sample_rate);
     }
-    normalize_replay_context(event, config.replay_id);
 }
 
 fn normalize_replay_context(event: &mut Event, replay_id: Option<Uuid>) {
-    if let Some(contexts) = event.contexts.value_mut()
-        && let Some(replay_id) = replay_id
-    {
+    if let Some(replay_id) = replay_id {
+        let contexts = event.contexts.get_or_insert_with(Contexts::default);
         contexts.add(ReplayContext {
             replay_id: Annotated::new(EventId(replay_id)),
             other: Object::default(),
@@ -1363,34 +1372,31 @@ fn remove_logger_word(tokens: &mut Vec<&str>) {
     }
 }
 
-/// Normalizes incoming contexts for the downstream metric extraction.
-fn normalize_contexts(
-    contexts: &mut Annotated<Contexts>,
-    event_id: Uuid,
-    config: &NormalizationConfig,
-) {
-    if config.derive_trace_id {
-        // We will always need a TraceContext.
-        let _ = contexts.get_or_insert_with(Contexts::new);
-    }
+/// Creates a new trace context if it is missing and ensures the context has a valid trace and span id.
+///
+/// The function keeps existing meta on trace and span id intact, still surfacing user errors in the
+/// original payload.
+fn normalize_force_trace_context(event: &mut Event) {
+    let contexts = event.contexts.get_or_insert_with(Contexts::new);
+    let trace = contexts.get_or_default::<TraceContext>();
 
+    let trace_id = trace
+        .trace_id
+        .get_or_insert_with(|| TraceId::from(*event.id.get_or_insert_with(Default::default)));
+    let _ = trace
+        .span_id
+        .get_or_insert_with(|| SpanId::derive_from_trace_id(trace_id));
+}
+
+/// Normalizes incoming contexts for the downstream metric extraction.
+fn normalize_contexts(contexts: &mut Annotated<Contexts>) {
     let _ = processor::apply(contexts, |contexts, _meta| {
         // Reprocessing context sent from SDKs must not be accepted, it is a Sentry-internal
         // construct.
         // [`normalize`] does not run on renormalization anyway.
         contexts.0.remove("reprocessing");
 
-        // We need a TraceId to ingest the event into EAP.
-        // If the event lacks a TraceContext, add a random one.
-
-        if config.derive_trace_id && !contexts.contains::<TraceContext>() {
-            contexts.add(TraceContext::random(event_id))
-        }
-
         for annotated in &mut contexts.0.values_mut() {
-            if let Some(ContextInner(Context::Trace(context))) = annotated.value_mut() {
-                context.status.get_or_insert_with(|| SpanStatus::Unknown);
-            }
             if let Some(context_inner) = annotated.value_mut() {
                 crate::normalize::contexts::normalize_context(&mut context_inner.0);
             }
@@ -4930,48 +4936,23 @@ mod tests {
     }
 
     #[test]
-    fn test_normalize_adds_trace_id() {
+    fn test_normalize_adds_trace_context() {
         let json = r#"
         {
-            "type": "transaction",
-            "timestamp": "2021-04-26T08:00:05+0100",
-            "start_timestamp": "2021-04-26T08:00:00+0100",
-            "measurements": {
-                "inp": {"value": 120.0}
+            "type": "error",
+            "exception": {
+                "values": [{"type": "ValueError", "value": "Should not happen"}]
             }
         }
         "#;
 
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
-        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
-            "profiles": [
-                {
-                    "name": "Desktop",
-                    "scoreComponents": [
-                        {
-                            "measurement": "inp",
-                            "weight": 1.0,
-                            "p10": 0.1,
-                            "p50": 0.25
-                        },
-                    ],
-                    "condition": {
-                        "op":"and",
-                        "inner": []
-                    },
-                    "version": "beta"
-                }
-            ]
-        }))
-        .unwrap();
-
         normalize(
             &mut event,
             &mut Meta::default(),
             &NormalizationConfig {
-                performance_score: Some(&performance_score),
-                derive_trace_id: true,
+                force_trace_context: true,
                 ..Default::default()
             },
         );
@@ -4982,67 +4963,14 @@ mod tests {
             ".trace.span_id" => "[span-id]"
         }, @r#"
         {
-          "performance_score": {
-            "score_profile_version": "beta",
-            "type": "performancescore",
-          },
           "trace": {
             "trace_id": "[trace-id]",
             "span_id": "[span-id]",
             "status": "unknown",
-            "exclusive_time": 5000.0,
             "type": "trace",
-          },
-          "_meta": {
-            "trace": {
-              "span_id": {
-                "": Meta(Some(MetaInner(
-                  rem: [
-                    [
-                      "span_id.missing",
-                      s,
-                    ],
-                  ],
-                ))),
-              },
-              "trace_id": {
-                "": Meta(Some(MetaInner(
-                  rem: [
-                    [
-                      "trace_id.missing",
-                      s,
-                    ],
-                  ],
-                ))),
-              },
-            },
           },
         }
         "#);
-        insta::assert_ron_snapshot!(SerializableAnnotated(&event.measurements), {}, @r###"
-        {
-          "inp": {
-            "value": 120.0,
-            "unit": "millisecond",
-          },
-          "score.inp": {
-            "value": 0.0,
-            "unit": "ratio",
-          },
-          "score.ratio.inp": {
-            "value": 0.0,
-            "unit": "ratio",
-          },
-          "score.total": {
-            "value": 0.0,
-            "unit": "ratio",
-          },
-          "score.weight.inp": {
-            "value": 1.0,
-            "unit": "ratio",
-          },
-        }
-        "###);
     }
 
     #[test]
