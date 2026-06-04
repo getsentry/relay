@@ -5,6 +5,7 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
+use itertools::Either;
 use relay_config::Config;
 use relay_event_schema::protocol::EventId;
 use serde::Deserialize;
@@ -46,37 +47,28 @@ impl SecurityReportParams {
         report_item
     }
 
-    #[expect(
-        clippy::vec_box,
-        reason = "Box<Envelope> is created by Envelope::from_request and used for processing"
-    )]
-    fn extract_envelopes(self) -> Result<Vec<Box<Envelope>>, BadStoreRequest> {
+    fn extract_envelopes(&self) -> Result<impl Iterator<Item = Box<Envelope>>, BadStoreRequest> {
         let Self { meta, query, body } = self;
 
         if body.is_empty() {
             return Err(BadStoreRequest::EmptyBody);
         }
 
-        Ok(match serde_json::from_slice::<Vec<&RawValue>>(&body) {
-            Ok(items) => items
-                .into_iter()
-                .map(|item| {
-                    let mut envelope = Envelope::from_request(Some(EventId::new()), meta.clone());
-                    let report = Self::create_security_item(
-                        &query,
-                        Bytes::from(item.to_owned().to_string()),
-                    );
-                    envelope.add_item(report);
-                    envelope
-                })
-                .collect(),
-            Err(_) => {
-                let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
-                let report_item = Self::create_security_item(&query, body);
-                envelope.add_item(report_item);
-                vec![envelope]
-            }
-        })
+        let items = match serde_json::from_slice::<Vec<&RawValue>>(body) {
+            Ok(items) => Either::Left(
+                items
+                    .into_iter()
+                    .map(|item| Bytes::from(item.to_owned().to_string())),
+            ),
+            Err(_) => Either::Right(std::iter::once(body.clone())),
+        };
+
+        Ok(items.map(move |data| {
+            let mut envelope = Envelope::from_request(Some(EventId::new()), meta.clone());
+            let report_item = Self::create_security_item(query, data);
+            envelope.add_item(report_item);
+            envelope
+        }))
     }
 }
 

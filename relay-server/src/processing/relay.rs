@@ -89,8 +89,8 @@ impl RelayProcessor {
 
     /// Fully processes an envelope and returns the resulting outputs.
     ///
-    /// Since an envelope may contain payloads which need to be processed independently, the
-    /// function may return multiple results at once.
+    /// Since an envelope may contain payloads which need to be processed independently,
+    /// the function may return multiple results at once.
     pub async fn run(
         &self,
         mut envelope: ManagedEnvelope,
@@ -114,7 +114,7 @@ impl RelayProcessor {
         // process the same item types.
         //
         // Currently this allows for never intended combinations of different item types in envelopes,
-        // ideally we make Relay slowly and slowly more restrictive and properly define and follow
+        // ideally we make Relay gradually more restrictive and properly define and follow
         // the rules of item combinations allowed in a single envelope.
 
         // Item types which can be mixed into any envelope.
@@ -191,7 +191,7 @@ impl RelayProcessor {
             Err(error) => {
                 // This is not a fatal error case. For example a processor may reject an
                 // item because it was filtered by an inbound filter or rate limit.
-                // This means, other items from the same original envelope must still be processed.
+                // This means that other items from the same original envelope must still be processed.
                 relay_log::debug!(
                     error = &error as &dyn std::error::Error,
                     processor = std::any::type_name::<T>(),

@@ -72,7 +72,7 @@ impl processing::Processor for InvalidUnhandledProcessor {
 #[derive(Debug)]
 pub struct InvalidUnhandledItems {
     /// List of unknown envelope items.
-    pub invalid_items: Vec<Item>,
+    invalid_items: Vec<Item>,
 }
 
 impl Counted for InvalidUnhandledItems {
