@@ -220,7 +220,7 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
         # If an external Relay/Client makes modifications, sizes can change,
         # this is fuzzy due to slight changes in sizes due to added timestamps
         # and may need to be adjusted when changing normalization.
-        ("managed", 106, 437),
+        ("managed", 165, 496),
     ],
 )
 def test_ourlog_extraction_with_sentry_logs(
@@ -317,6 +317,9 @@ def test_ourlog_extraction_with_sentry_logs(
                 "sentry.severity_text": {"stringValue": "error"},
                 "sentry.payload_size_bytes": {"intValue": any()},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
+                "user_agent.original": {
+                    "stringValue": "RelayIntegrationTests/1.0.0 Firefox/42.0",
+                },
                 **timestamps(ts),
             },
             "clientSampleRate": 1.0,
@@ -395,6 +398,9 @@ def test_ourlog_extraction_with_sentry_logs(
                 "http.response.body.size": {"intValue": "17"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
                 "string.attribute": {"stringValue": "some string"},
+                "user_agent.original": {
+                    "stringValue": "RelayIntegrationTests/1.0.0 Firefox/42.0",
+                },
                 "string_array": {
                     "arrayValue": {
                         "values": [{"stringValue": "foo"}, {"stringValue": "bar"}]
@@ -508,6 +514,10 @@ def test_ourlog_extraction_with_string_pii_scrubbing(
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
+            },
+            "user_agent.original": {
+                "type": "string",
+                "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
             },
         },
         "__header": {"byte_size": any()},
@@ -697,6 +707,9 @@ def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attribut
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
             "sentry.payload_size_bytes": any(),
             "browser.name": {"stringValue": "Firefox"},
+            "user_agent.original": {
+                "stringValue": "RelayIntegrationTests/1.0.0 Firefox/42.0"
+            },
             **timestamps(ts),
         },
         "clientSampleRate": 1.0,
@@ -748,6 +761,9 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
             "browser.version": {"stringValue": "42.0"},
             "sentry.severity_text": {"stringValue": "warn"},
             "sentry.payload_size_bytes": {"intValue": any()},
+            "user_agent.original": {
+                "stringValue": "RelayIntegrationTests/1.0.0 Firefox/42.0"
+            },
             **timestamps(ts),
         },
         "clientSampleRate": 1.0,
@@ -888,6 +904,7 @@ def test_browser_name_version_extraction(
             "sentry.body": {"stringValue": "This is really bad"},
             "browser.name": {"stringValue": expected_browser_name},
             "browser.version": {"stringValue": expected_browser_version},
+            "user_agent.original": {"stringValue": user_agent},
             "sentry.severity_text": {"stringValue": "error"},
             "sentry.payload_size_bytes": {"intValue": any()},
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
@@ -1135,6 +1152,9 @@ def test_time_sequence_shift(mini_sentry, relay_with_processing, items_consumer)
             "browser.version": {
                 "stringValue": "42.0",
             },
+            "user_agent.original": {
+                "stringValue": "RelayIntegrationTests/1.0.0 Firefox/42.0"
+            },
             "sentry._meta.fields.timestamp": {
                 "stringValue": '{"meta":{"":{"rem":[["timestamp.sequence","s"]]}}}',
             },
@@ -1263,6 +1283,10 @@ def test_ourlog_container_metadata(
                     "browser.version": {
                         "type": "string",
                         "value": "42.0",
+                    },
+                    "user_agent.original": {
+                        "type": "string",
+                        "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
                     },
                 },
             ),

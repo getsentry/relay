@@ -1027,6 +1027,10 @@ def test_trace_metric_container_metadata(
                         "type": "string",
                         "value": "42.0",
                     },
+                    "user_agent.original": {
+                        "type": "string",
+                        "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
+                    },
                 },
             ),
             "sentry.observed_timestamp_nanos": {
