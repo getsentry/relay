@@ -6,6 +6,10 @@
 
 - Add metadata support for the `/upload` endpoint. ([#6028](https://github.com/getsentry/relay/pull/6028))
 
+**Internal**:
+
+- Restore top-level _performance_issues_spans. ([#6045](https://github.com/getsentry/relay/pull/6045))
+
 ## 26.5.2
 
 **Features**:
