@@ -32,5 +32,6 @@ pub fn convert(span: Annotated<Span>, retentions: Retention) -> Result<Box<Store
         downsampled_retention_days: retentions.downsampled,
         event_id: None,
         item: span,
+        performance_issues_spans: false,
     }))
 }
