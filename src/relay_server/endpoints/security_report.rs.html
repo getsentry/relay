@@ -5,70 +5,70 @@
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>axum::response::IntoResponse;
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>axum::routing::{MethodRouter, post};
 <a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>bytes::Bytes;
-<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>relay_config::Config;
-<a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>relay_event_schema::protocol::EventId;
-<a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>serde::Deserialize;
-<a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>serde_json::value::RawValue;
-<a href=#12 id=12 data-nosnippet>12</a>
-<a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest};
-<a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item, ItemType};
-<a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span><span class="kw">crate</span>::extractors::{Mime, RequestMeta};
-<a href=#16 id=16 data-nosnippet>16</a><span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
-<a href=#17 id=17 data-nosnippet>17</a>
-<a href=#18 id=18 data-nosnippet>18</a><span class="attr">#[derive(Debug, Deserialize)]
-<a href=#19 id=19 data-nosnippet>19</a></span><span class="kw">struct </span>SecurityReportQuery {
-<a href=#20 id=20 data-nosnippet>20</a>    sentry_release: <span class="prelude-ty">Option</span>&lt;String&gt;,
-<a href=#21 id=21 data-nosnippet>21</a>    sentry_environment: <span class="prelude-ty">Option</span>&lt;String&gt;,
-<a href=#22 id=22 data-nosnippet>22</a>}
-<a href=#23 id=23 data-nosnippet>23</a>
-<a href=#24 id=24 data-nosnippet>24</a><span class="attr">#[derive(Debug, FromRequest)]
-<a href=#25 id=25 data-nosnippet>25</a>#[from_request(state(ServiceState))]
-<a href=#26 id=26 data-nosnippet>26</a></span><span class="kw">struct </span>SecurityReportParams {
-<a href=#27 id=27 data-nosnippet>27</a>    meta: RequestMeta,
-<a href=#28 id=28 data-nosnippet>28</a>    <span class="attr">#[from_request(via(Query))]
-<a href=#29 id=29 data-nosnippet>29</a>    </span>query: SecurityReportQuery,
-<a href=#30 id=30 data-nosnippet>30</a>    body: Bytes,
-<a href=#31 id=31 data-nosnippet>31</a>}
-<a href=#32 id=32 data-nosnippet>32</a>
-<a href=#33 id=33 data-nosnippet>33</a><span class="kw">impl </span>SecurityReportParams {
-<a href=#34 id=34 data-nosnippet>34</a>    <span class="kw">fn </span>create_security_item(query: <span class="kw-2">&amp;</span>SecurityReportQuery, item: Bytes) -&gt; Item {
-<a href=#35 id=35 data-nosnippet>35</a>        <span class="kw">let </span><span class="kw-2">mut </span>report_item = Item::new(ItemType::RawSecurity);
-<a href=#36 id=36 data-nosnippet>36</a>        report_item.set_payload(ContentType::Json, item);
-<a href=#37 id=37 data-nosnippet>37</a>
-<a href=#38 id=38 data-nosnippet>38</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(sentry_release) = <span class="kw-2">&amp;</span>query.sentry_release {
-<a href=#39 id=39 data-nosnippet>39</a>            report_item.set_sentry_release(sentry_release.clone());
-<a href=#40 id=40 data-nosnippet>40</a>        }
-<a href=#41 id=41 data-nosnippet>41</a>
-<a href=#42 id=42 data-nosnippet>42</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(sentry_environment) = <span class="kw-2">&amp;</span>query.sentry_environment {
-<a href=#43 id=43 data-nosnippet>43</a>            report_item.set_sentry_environment(sentry_environment.clone());
-<a href=#44 id=44 data-nosnippet>44</a>        }
-<a href=#45 id=45 data-nosnippet>45</a>
-<a href=#46 id=46 data-nosnippet>46</a>        report_item
-<a href=#47 id=47 data-nosnippet>47</a>    }
-<a href=#48 id=48 data-nosnippet>48</a>
-<a href=#49 id=49 data-nosnippet>49</a>    <span class="kw">fn </span>extract_envelope(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
-<a href=#50 id=50 data-nosnippet>50</a>        <span class="kw">let </span><span class="self">Self </span>{ meta, query, body } = <span class="self">self</span>;
-<a href=#51 id=51 data-nosnippet>51</a>
-<a href=#52 id=52 data-nosnippet>52</a>        <span class="kw">if </span>body.is_empty() {
-<a href=#53 id=53 data-nosnippet>53</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::EmptyBody);
-<a href=#54 id=54 data-nosnippet>54</a>        }
-<a href=#55 id=55 data-nosnippet>55</a>
-<a href=#56 id=56 data-nosnippet>56</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(EventId::new()), meta);
-<a href=#57 id=57 data-nosnippet>57</a>        <span class="kw">let </span>variant =
-<a href=#58 id=58 data-nosnippet>58</a>            serde_json::from_slice::&lt;Vec&lt;<span class="kw-2">&amp;</span>RawValue&gt;&gt;(<span class="kw-2">&amp;</span>body).map_err(BadStoreRequest::InvalidJson);
-<a href=#59 id=59 data-nosnippet>59</a>
-<a href=#60 id=60 data-nosnippet>60</a>        <span class="kw">if let </span><span class="prelude-val">Ok</span>(items) = variant {
-<a href=#61 id=61 data-nosnippet>61</a>            <span class="kw">for </span>item <span class="kw">in </span>items {
-<a href=#62 id=62 data-nosnippet>62</a>                <span class="kw">let </span>report_item =
-<a href=#63 id=63 data-nosnippet>63</a>                    <span class="self">Self</span>::create_security_item(<span class="kw-2">&amp;</span>query, Bytes::from(item.to_owned().to_string()));
-<a href=#64 id=64 data-nosnippet>64</a>                envelope.add_item(report_item);
-<a href=#65 id=65 data-nosnippet>65</a>            }
-<a href=#66 id=66 data-nosnippet>66</a>        } <span class="kw">else </span>{
-<a href=#67 id=67 data-nosnippet>67</a>            <span class="kw">let </span>report_item = <span class="self">Self</span>::create_security_item(<span class="kw-2">&amp;</span>query, body);
-<a href=#68 id=68 data-nosnippet>68</a>            envelope.add_item(report_item);
-<a href=#69 id=69 data-nosnippet>69</a>        }
-<a href=#70 id=70 data-nosnippet>70</a>
-<a href=#71 id=71 data-nosnippet>71</a>        <span class="prelude-val">Ok</span>(envelope)
+<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>itertools::Either;
+<a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>relay_config::Config;
+<a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>relay_event_schema::protocol::EventId;
+<a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>serde::Deserialize;
+<a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span>serde_json::value::RawValue;
+<a href=#13 id=13 data-nosnippet>13</a>
+<a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest};
+<a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item, ItemType};
+<a href=#16 id=16 data-nosnippet>16</a><span class="kw">use </span><span class="kw">crate</span>::extractors::{Mime, RequestMeta};
+<a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
+<a href=#18 id=18 data-nosnippet>18</a>
+<a href=#19 id=19 data-nosnippet>19</a><span class="attr">#[derive(Debug, Deserialize)]
+<a href=#20 id=20 data-nosnippet>20</a></span><span class="kw">struct </span>SecurityReportQuery {
+<a href=#21 id=21 data-nosnippet>21</a>    sentry_release: <span class="prelude-ty">Option</span>&lt;String&gt;,
+<a href=#22 id=22 data-nosnippet>22</a>    sentry_environment: <span class="prelude-ty">Option</span>&lt;String&gt;,
+<a href=#23 id=23 data-nosnippet>23</a>}
+<a href=#24 id=24 data-nosnippet>24</a>
+<a href=#25 id=25 data-nosnippet>25</a><span class="attr">#[derive(Debug, FromRequest)]
+<a href=#26 id=26 data-nosnippet>26</a>#[from_request(state(ServiceState))]
+<a href=#27 id=27 data-nosnippet>27</a></span><span class="kw">struct </span>SecurityReportParams {
+<a href=#28 id=28 data-nosnippet>28</a>    meta: RequestMeta,
+<a href=#29 id=29 data-nosnippet>29</a>    <span class="attr">#[from_request(via(Query))]
+<a href=#30 id=30 data-nosnippet>30</a>    </span>query: SecurityReportQuery,
+<a href=#31 id=31 data-nosnippet>31</a>    body: Bytes,
+<a href=#32 id=32 data-nosnippet>32</a>}
+<a href=#33 id=33 data-nosnippet>33</a>
+<a href=#34 id=34 data-nosnippet>34</a><span class="kw">impl </span>SecurityReportParams {
+<a href=#35 id=35 data-nosnippet>35</a>    <span class="kw">fn </span>create_security_item(query: <span class="kw-2">&amp;</span>SecurityReportQuery, item: Bytes) -&gt; Item {
+<a href=#36 id=36 data-nosnippet>36</a>        <span class="kw">let </span><span class="kw-2">mut </span>report_item = Item::new(ItemType::RawSecurity);
+<a href=#37 id=37 data-nosnippet>37</a>        report_item.set_payload(ContentType::Json, item);
+<a href=#38 id=38 data-nosnippet>38</a>
+<a href=#39 id=39 data-nosnippet>39</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(sentry_release) = <span class="kw-2">&amp;</span>query.sentry_release {
+<a href=#40 id=40 data-nosnippet>40</a>            report_item.set_sentry_release(sentry_release.clone());
+<a href=#41 id=41 data-nosnippet>41</a>        }
+<a href=#42 id=42 data-nosnippet>42</a>
+<a href=#43 id=43 data-nosnippet>43</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(sentry_environment) = <span class="kw-2">&amp;</span>query.sentry_environment {
+<a href=#44 id=44 data-nosnippet>44</a>            report_item.set_sentry_environment(sentry_environment.clone());
+<a href=#45 id=45 data-nosnippet>45</a>        }
+<a href=#46 id=46 data-nosnippet>46</a>
+<a href=#47 id=47 data-nosnippet>47</a>        report_item
+<a href=#48 id=48 data-nosnippet>48</a>    }
+<a href=#49 id=49 data-nosnippet>49</a>
+<a href=#50 id=50 data-nosnippet>50</a>    <span class="kw">fn </span>extract_envelopes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">impl </span>Iterator&lt;Item = Box&lt;Envelope&gt;&gt;, BadStoreRequest&gt; {
+<a href=#51 id=51 data-nosnippet>51</a>        <span class="kw">let </span><span class="self">Self </span>{ meta, query, body } = <span class="self">self</span>;
+<a href=#52 id=52 data-nosnippet>52</a>
+<a href=#53 id=53 data-nosnippet>53</a>        <span class="kw">if </span>body.is_empty() {
+<a href=#54 id=54 data-nosnippet>54</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::EmptyBody);
+<a href=#55 id=55 data-nosnippet>55</a>        }
+<a href=#56 id=56 data-nosnippet>56</a>
+<a href=#57 id=57 data-nosnippet>57</a>        <span class="kw">let </span>items = <span class="kw">match </span>serde_json::from_slice::&lt;Vec&lt;<span class="kw-2">&amp;</span>RawValue&gt;&gt;(body) {
+<a href=#58 id=58 data-nosnippet>58</a>            <span class="prelude-val">Ok</span>(items) =&gt; Either::Left(
+<a href=#59 id=59 data-nosnippet>59</a>                items
+<a href=#60 id=60 data-nosnippet>60</a>                    .into_iter()
+<a href=#61 id=61 data-nosnippet>61</a>                    .map(|item| Bytes::from(item.to_owned().to_string())),
+<a href=#62 id=62 data-nosnippet>62</a>            ),
+<a href=#63 id=63 data-nosnippet>63</a>            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; Either::Right(std::iter::once(body.clone())),
+<a href=#64 id=64 data-nosnippet>64</a>        };
+<a href=#65 id=65 data-nosnippet>65</a>
+<a href=#66 id=66 data-nosnippet>66</a>        <span class="prelude-val">Ok</span>(items.map(<span class="kw">move </span>|data| {
+<a href=#67 id=67 data-nosnippet>67</a>            <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(EventId::new()), meta.clone());
+<a href=#68 id=68 data-nosnippet>68</a>            <span class="kw">let </span>report_item = <span class="self">Self</span>::create_security_item(query, data);
+<a href=#69 id=69 data-nosnippet>69</a>            envelope.add_item(report_item);
+<a href=#70 id=70 data-nosnippet>70</a>            envelope
+<a href=#71 id=71 data-nosnippet>71</a>        }))
 <a href=#72 id=72 data-nosnippet>72</a>    }
 <a href=#73 id=73 data-nosnippet>73</a>}
 <a href=#74 id=74 data-nosnippet>74</a>
@@ -100,15 +100,16 @@
 <a href=#100 id=100 data-nosnippet>100</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response());
 <a href=#101 id=101 data-nosnippet>101</a>    }
 <a href=#102 id=102 data-nosnippet>102</a>
-<a href=#103 id=103 data-nosnippet>103</a>    <span class="kw">let </span>envelope = params.extract_envelope()<span class="question-mark">?</span>;
-<a href=#104 id=104 data-nosnippet>104</a>    common::handle_envelope(<span class="kw-2">&amp;</span>state, envelope)
-<a href=#105 id=105 data-nosnippet>105</a>        .<span class="kw">await</span><span class="question-mark">?
-<a href=#106 id=106 data-nosnippet>106</a>        </span>.check_rate_limits()<span class="question-mark">?</span>;
-<a href=#107 id=107 data-nosnippet>107</a>
-<a href=#108 id=108 data-nosnippet>108</a>    <span class="prelude-val">Ok</span>(().into_response())
-<a href=#109 id=109 data-nosnippet>109</a>}
-<a href=#110 id=110 data-nosnippet>110</a>
-<a href=#111 id=111 data-nosnippet>111</a><span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState&gt; {
-<a href=#112 id=112 data-nosnippet>112</a>    post(handle).route_layer(DefaultBodyLimit::max(config.max_event_size()))
-<a href=#113 id=113 data-nosnippet>113</a>}
+<a href=#103 id=103 data-nosnippet>103</a>    <span class="kw">for </span>envelope <span class="kw">in </span>params.extract_envelopes()<span class="question-mark">? </span>{
+<a href=#104 id=104 data-nosnippet>104</a>        common::handle_envelope(<span class="kw-2">&amp;</span>state, envelope)
+<a href=#105 id=105 data-nosnippet>105</a>            .<span class="kw">await</span><span class="question-mark">?
+<a href=#106 id=106 data-nosnippet>106</a>            </span>.check_rate_limits()<span class="question-mark">?</span>;
+<a href=#107 id=107 data-nosnippet>107</a>    }
+<a href=#108 id=108 data-nosnippet>108</a>
+<a href=#109 id=109 data-nosnippet>109</a>    <span class="prelude-val">Ok</span>(().into_response())
+<a href=#110 id=110 data-nosnippet>110</a>}
+<a href=#111 id=111 data-nosnippet>111</a>
+<a href=#112 id=112 data-nosnippet>112</a><span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState&gt; {
+<a href=#113 id=113 data-nosnippet>113</a>    post(handle).route_layer(DefaultBodyLimit::max(config.max_event_size()))
+<a href=#114 id=114 data-nosnippet>114</a>}
 </code></pre></div></section></main></body></html>

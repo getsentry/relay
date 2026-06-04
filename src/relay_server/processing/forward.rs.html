@@ -152,44 +152,45 @@
 <a href=#152 id=152 data-nosnippet>152</a><span class="doccomment">/// The [`Nothing`] output.
 <a href=#153 id=153 data-nosnippet>153</a>///
 <a href=#154 id=154 data-nosnippet>154</a>/// Some processors may only produce by-products and not have any output of their own.
-<a href=#155 id=155 data-nosnippet>155</a></span><span class="kw">pub struct </span>Nothing(std::convert::Infallible);
-<a href=#156 id=156 data-nosnippet>156</a>
-<a href=#157 id=157 data-nosnippet>157</a><span class="kw">impl </span>Forward <span class="kw">for </span>Nothing {
-<a href=#158 id=158 data-nosnippet>158</a>    <span class="kw">fn </span>serialize_envelope(
-<a href=#159 id=159 data-nosnippet>159</a>        <span class="self">self</span>,
-<a href=#160 id=160 data-nosnippet>160</a>        <span class="kw">_</span>: ForwardContext&lt;<span class="lifetime">'_</span>&gt;,
-<a href=#161 id=161 data-nosnippet>161</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;Managed&lt;Box&lt;Envelope&gt;&gt;, Rejected&lt;()&gt;&gt; {
-<a href=#162 id=162 data-nosnippet>162</a>        <span class="kw">match </span><span class="self">self </span>{}
-<a href=#163 id=163 data-nosnippet>163</a>    }
-<a href=#164 id=164 data-nosnippet>164</a>
-<a href=#165 id=165 data-nosnippet>165</a>    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#166 id=166 data-nosnippet>166</a>    </span><span class="kw">fn </span>forward_store(<span class="self">self</span>, <span class="kw">_</span>: StoreHandle&lt;<span class="lifetime">'_</span>&gt;, <span class="kw">_</span>: ForwardContext&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), Rejected&lt;()&gt;&gt; {
-<a href=#167 id=167 data-nosnippet>167</a>        <span class="kw">match </span><span class="self">self </span>{}
-<a href=#168 id=168 data-nosnippet>168</a>    }
-<a href=#169 id=169 data-nosnippet>169</a>}
-<a href=#170 id=170 data-nosnippet>170</a>
-<a href=#171 id=171 data-nosnippet>171</a><span class="kw">impl </span>From&lt;Nothing&gt; <span class="kw">for </span><span class="kw">crate</span>::processing::Outputs {
-<a href=#172 id=172 data-nosnippet>172</a>    <span class="kw">fn </span>from(value: Nothing) -&gt; <span class="self">Self </span>{
-<a href=#173 id=173 data-nosnippet>173</a>        <span class="kw">match </span>value {}
-<a href=#174 id=174 data-nosnippet>174</a>    }
-<a href=#175 id=175 data-nosnippet>175</a>}
-<a href=#176 id=176 data-nosnippet>176</a>
-<a href=#177 id=177 data-nosnippet>177</a><span class="doccomment">/// Full retention settings to apply to specific payloads.
-<a href=#178 id=178 data-nosnippet>178</a></span><span class="attr">#[derive(Debug, Copy, Clone)]
-<a href=#179 id=179 data-nosnippet>179</a></span><span class="kw">pub struct </span>Retention {
-<a href=#180 id=180 data-nosnippet>180</a>    <span class="doccomment">/// Standard / full fidelity retention policy in days.
-<a href=#181 id=181 data-nosnippet>181</a>    </span><span class="kw">pub </span>standard: u16,
-<a href=#182 id=182 data-nosnippet>182</a>    <span class="doccomment">/// Downsampled retention policy in days.
-<a href=#183 id=183 data-nosnippet>183</a>    </span><span class="attr">#[cfg_attr(not(feature = <span class="string">"processing"</span>), expect(unused))]
-<a href=#184 id=184 data-nosnippet>184</a>    </span><span class="kw">pub </span>downsampled: u16,
-<a href=#185 id=185 data-nosnippet>185</a>}
-<a href=#186 id=186 data-nosnippet>186</a>
-<a href=#187 id=187 data-nosnippet>187</a><span class="kw">impl </span>From&lt;RetentionConfig&gt; <span class="kw">for </span>Retention {
-<a href=#188 id=188 data-nosnippet>188</a>    <span class="kw">fn </span>from(value: RetentionConfig) -&gt; <span class="self">Self </span>{
-<a href=#189 id=189 data-nosnippet>189</a>        <span class="self">Self </span>{
-<a href=#190 id=190 data-nosnippet>190</a>            standard: value.standard,
-<a href=#191 id=191 data-nosnippet>191</a>            downsampled: value.downsampled.unwrap_or(value.standard),
-<a href=#192 id=192 data-nosnippet>192</a>        }
-<a href=#193 id=193 data-nosnippet>193</a>    }
-<a href=#194 id=194 data-nosnippet>194</a>}
+<a href=#155 id=155 data-nosnippet>155</a></span><span class="attr">#[derive(Debug, Copy, Clone)]
+<a href=#156 id=156 data-nosnippet>156</a></span><span class="kw">pub struct </span>Nothing(std::convert::Infallible);
+<a href=#157 id=157 data-nosnippet>157</a>
+<a href=#158 id=158 data-nosnippet>158</a><span class="kw">impl </span>Forward <span class="kw">for </span>Nothing {
+<a href=#159 id=159 data-nosnippet>159</a>    <span class="kw">fn </span>serialize_envelope(
+<a href=#160 id=160 data-nosnippet>160</a>        <span class="self">self</span>,
+<a href=#161 id=161 data-nosnippet>161</a>        <span class="kw">_</span>: ForwardContext&lt;<span class="lifetime">'_</span>&gt;,
+<a href=#162 id=162 data-nosnippet>162</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;Managed&lt;Box&lt;Envelope&gt;&gt;, Rejected&lt;()&gt;&gt; {
+<a href=#163 id=163 data-nosnippet>163</a>        <span class="kw">match </span><span class="self">self </span>{}
+<a href=#164 id=164 data-nosnippet>164</a>    }
+<a href=#165 id=165 data-nosnippet>165</a>
+<a href=#166 id=166 data-nosnippet>166</a>    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#167 id=167 data-nosnippet>167</a>    </span><span class="kw">fn </span>forward_store(<span class="self">self</span>, <span class="kw">_</span>: StoreHandle&lt;<span class="lifetime">'_</span>&gt;, <span class="kw">_</span>: ForwardContext&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), Rejected&lt;()&gt;&gt; {
+<a href=#168 id=168 data-nosnippet>168</a>        <span class="kw">match </span><span class="self">self </span>{}
+<a href=#169 id=169 data-nosnippet>169</a>    }
+<a href=#170 id=170 data-nosnippet>170</a>}
+<a href=#171 id=171 data-nosnippet>171</a>
+<a href=#172 id=172 data-nosnippet>172</a><span class="kw">impl </span>From&lt;Nothing&gt; <span class="kw">for </span><span class="kw">crate</span>::processing::Outputs {
+<a href=#173 id=173 data-nosnippet>173</a>    <span class="kw">fn </span>from(value: Nothing) -&gt; <span class="self">Self </span>{
+<a href=#174 id=174 data-nosnippet>174</a>        <span class="kw">match </span>value {}
+<a href=#175 id=175 data-nosnippet>175</a>    }
+<a href=#176 id=176 data-nosnippet>176</a>}
+<a href=#177 id=177 data-nosnippet>177</a>
+<a href=#178 id=178 data-nosnippet>178</a><span class="doccomment">/// Full retention settings to apply to specific payloads.
+<a href=#179 id=179 data-nosnippet>179</a></span><span class="attr">#[derive(Debug, Copy, Clone)]
+<a href=#180 id=180 data-nosnippet>180</a></span><span class="kw">pub struct </span>Retention {
+<a href=#181 id=181 data-nosnippet>181</a>    <span class="doccomment">/// Standard / full fidelity retention policy in days.
+<a href=#182 id=182 data-nosnippet>182</a>    </span><span class="kw">pub </span>standard: u16,
+<a href=#183 id=183 data-nosnippet>183</a>    <span class="doccomment">/// Downsampled retention policy in days.
+<a href=#184 id=184 data-nosnippet>184</a>    </span><span class="attr">#[cfg_attr(not(feature = <span class="string">"processing"</span>), expect(unused))]
+<a href=#185 id=185 data-nosnippet>185</a>    </span><span class="kw">pub </span>downsampled: u16,
+<a href=#186 id=186 data-nosnippet>186</a>}
+<a href=#187 id=187 data-nosnippet>187</a>
+<a href=#188 id=188 data-nosnippet>188</a><span class="kw">impl </span>From&lt;RetentionConfig&gt; <span class="kw">for </span>Retention {
+<a href=#189 id=189 data-nosnippet>189</a>    <span class="kw">fn </span>from(value: RetentionConfig) -&gt; <span class="self">Self </span>{
+<a href=#190 id=190 data-nosnippet>190</a>        <span class="self">Self </span>{
+<a href=#191 id=191 data-nosnippet>191</a>            standard: value.standard,
+<a href=#192 id=192 data-nosnippet>192</a>            downsampled: value.downsampled.unwrap_or(value.standard),
+<a href=#193 id=193 data-nosnippet>193</a>        }
+<a href=#194 id=194 data-nosnippet>194</a>    }
+<a href=#195 id=195 data-nosnippet>195</a>}
 </code></pre></div></section></main></body></html>
