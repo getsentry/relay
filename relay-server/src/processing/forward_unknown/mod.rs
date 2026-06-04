@@ -1,3 +1,5 @@
+use relay_cogs::{AppFeature, FeatureWeights};
+
 use crate::Envelope;
 use crate::envelope::{EnvelopeHeaders, Item, ItemType, Items};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
@@ -33,6 +35,10 @@ impl processing::Processor for ForwardUnknownProcessor {
     type Input = UnknownItems;
     type Output = ForwardUnknownOutput;
     type Error = UnsupportedItem;
+
+    fn cogs() -> FeatureWeights {
+        AppFeature::UnattributedEnvelope.into()
+    }
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let unknown_items = envelope

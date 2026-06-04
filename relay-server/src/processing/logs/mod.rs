@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use relay_cogs::{AppFeature, FeatureWeights};
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{OurLog, ourlog};
 use relay_filter::FilterStatKey;
@@ -103,6 +104,10 @@ impl processing::Processor for LogsProcessor {
     type Input = SerializedLogs;
     type Output = LogOutput;
     type Error = Error;
+
+    fn cogs() -> FeatureWeights {
+        AppFeature::Logs.into()
+    }
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
