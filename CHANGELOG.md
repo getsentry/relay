@@ -6,6 +6,10 @@
 
 - Add metadata support for the `/upload` endpoint. ([#6028](https://github.com/getsentry/relay/pull/6028))
 
+**Bug Fixes**:
+
+- Correctly handle minidump objecstore upload failures. ([#6033](https://github.com/getsentry/relay/pull/6033))
+
 **Internal**:
 
 - Restore top-level _performance_issues_spans. ([#6045](https://github.com/getsentry/relay/pull/6045))
@@ -46,9 +50,6 @@
 
 - Add the transaction replay id as an attribute to all contained spans. ([#6017](https://github.com/getsentry/relay/pull/6017))
 - Always allow `Upload-Defer-Length: 1` on the `/upload` endpoint. ([#5977](https://github.com/getsentry/relay/pull/5977))
-
-**Internal**:
-
 - Unconditionally create a trace context with a trace id for errors. ([#6009](https://github.com/getsentry/relay/pull/6009))
 
 ## 26.5.0

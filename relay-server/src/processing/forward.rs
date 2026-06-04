@@ -152,6 +152,7 @@ impl ForwardContext<'_> {
 /// The [`Nothing`] output.
 ///
 /// Some processors may only produce by-products and not have any output of their own.
+#[derive(Debug, Copy, Clone)]
 pub struct Nothing(std::convert::Infallible);
 
 impl Forward for Nothing {

@@ -1,4 +1,6 @@
 #[cfg(feature = "processing")]
+use relay_dynamic_config::Feature;
+#[cfg(feature = "processing")]
 use relay_protocol::Annotated;
 
 use crate::Envelope;
@@ -57,8 +59,6 @@ impl Forward for TransactionOutput {
         s: StoreHandle<'_>,
         ctx: ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        use relay_dynamic_config::Feature;
-
         let (spans, transaction) = match self {
             TransactionOutput::Full(managed) => {
                 return Err(managed.internal_error("only indexed transactions can be stored"));

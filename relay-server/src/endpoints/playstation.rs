@@ -20,6 +20,7 @@ use crate::managed::{Managed, ManagedResult};
 use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::DiscardReason;
+use crate::services::projects::project::ProjectState;
 use crate::services::upload::Upload;
 use crate::utils::{self, AttachmentStrategy};
 
@@ -90,11 +91,13 @@ async fn upload_context<'a>(
         .await
         .ok_or(BadStoreRequest::ProjectUnavailable)?;
 
-    let project_config = project
-        .state()
-        .clone()
-        .enabled()
-        .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
+    let project_config = match project.state() {
+        ProjectState::Enabled(info) => info.clone(),
+        // TODO(INGEST-925): Support proxy mode
+        ProjectState::Dummy | ProjectState::Disabled | ProjectState::Pending => {
+            return Err(BadStoreRequest::EventRejected(DiscardReason::ProjectId));
+        }
+    };
 
     let scoping = project_config
         .scoping(meta.public_key())
@@ -137,7 +140,7 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
         field: Field<'static>,
         item: Managed<Item>,
         config: &Config,
-    ) -> Result<Option<Managed<Item>>, multer::Error> {
+    ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
         match &self.upload_context {
             Some(upload_context) if self.infer_type(&field) != AttachmentType::Prosperodump => {
                 let content_type = field.content_type().map(ToString::to_string);
@@ -157,7 +160,7 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
                 // Don't bubble up errors caused by large attachments, skip over them and continue
                 // with the next item.
                 Err(multer::Error::FieldSizeExceeded { .. }) => Ok(None),
-                r => r.map(Some),
+                r => Ok(Some(r?)),
             },
         }
     }

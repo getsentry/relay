@@ -5,6 +5,7 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
+use itertools::Either;
 use relay_config::Config;
 use relay_event_schema::protocol::EventId;
 use serde::Deserialize;
@@ -46,29 +47,28 @@ impl SecurityReportParams {
         report_item
     }
 
-    fn extract_envelope(self) -> Result<Box<Envelope>, BadStoreRequest> {
+    fn extract_envelopes(&self) -> Result<impl Iterator<Item = Box<Envelope>>, BadStoreRequest> {
         let Self { meta, query, body } = self;
 
         if body.is_empty() {
             return Err(BadStoreRequest::EmptyBody);
         }
 
-        let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
-        let variant =
-            serde_json::from_slice::<Vec<&RawValue>>(&body).map_err(BadStoreRequest::InvalidJson);
+        let items = match serde_json::from_slice::<Vec<&RawValue>>(body) {
+            Ok(items) => Either::Left(
+                items
+                    .into_iter()
+                    .map(|item| Bytes::from(item.to_owned().to_string())),
+            ),
+            Err(_) => Either::Right(std::iter::once(body.clone())),
+        };
 
-        if let Ok(items) = variant {
-            for item in items {
-                let report_item =
-                    Self::create_security_item(&query, Bytes::from(item.to_owned().to_string()));
-                envelope.add_item(report_item);
-            }
-        } else {
-            let report_item = Self::create_security_item(&query, body);
+        Ok(items.map(move |data| {
+            let mut envelope = Envelope::from_request(Some(EventId::new()), meta.clone());
+            let report_item = Self::create_security_item(query, data);
             envelope.add_item(report_item);
-        }
-
-        Ok(envelope)
+            envelope
+        }))
     }
 }
 
@@ -100,10 +100,11 @@ async fn handle(
         return Ok(StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response());
     }
 
-    let envelope = params.extract_envelope()?;
-    common::handle_envelope(&state, envelope)
-        .await?
-        .check_rate_limits()?;
+    for envelope in params.extract_envelopes()? {
+        common::handle_envelope(&state, envelope)
+            .await?
+            .check_rate_limits()?;
+    }
 
     Ok(().into_response())
 }

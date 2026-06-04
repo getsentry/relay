@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use either::Either;
+use relay_cogs::{AppFeature, FeatureWeights};
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{SpanV2, span_v2};
@@ -116,6 +117,10 @@ impl processing::Processor for SpansProcessor {
     type Input = SerializedSpans;
     type Output = SpanOutput;
     type Error = Error;
+
+    fn cogs() -> FeatureWeights {
+        AppFeature::Spans.into()
+    }
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
