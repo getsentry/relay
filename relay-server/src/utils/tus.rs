@@ -8,10 +8,13 @@
 use std::str::FromStr;
 
 use axum::http::HeaderMap;
+use data_encoding::BASE64;
 use http::HeaderValue;
 use http::header::AsHeaderName;
+use serde::{Deserialize, Serialize};
 
-use crate::http::RequestBuilder;
+use crate::envelope::AttachmentType;
+use crate::http::{HttpError, RequestBuilder};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -35,6 +38,12 @@ pub enum Error {
         expected: &'static str,
         received: String,
     },
+    /// The `sentry` entry in `Upload-Metadata` is not valid base64.
+    #[error("invalid base64 in `sentry` Upload-Metadata value: {0}")]
+    InvalidMetadataBase64(#[from] data_encoding::DecodeError),
+    /// The decoded `sentry` entry in `Upload-Metadata` is not valid JSON or does not match the schema.
+    #[error("invalid `sentry` Upload-Metadata payload: {0}")]
+    InvalidMetadata(#[from] serde_json::Error),
 }
 
 /// TUS protocol header for the protocol version.
@@ -67,15 +76,36 @@ pub const UPLOAD_DEFER_LENGTH: &str = "Upload-Defer-Length";
 /// See <https://tus.io/protocols/resumable-upload#upload-offset>.
 pub const UPLOAD_OFFSET: &str = "Upload-Offset";
 
+/// TUS protocol header for metadata.
+///
+/// See <https://tus.io/protocols/resumable-upload#upload-metadata>.
+pub const UPLOAD_METADATA: &str = "Upload-Metadata";
+
 /// Expected value of the content-type header.
 pub const EXPECTED_CONTENT_TYPE: HeaderValue = HeaderValue::from_static(EXPECTED_CONTENT_TYPE_STR);
 
 const EXPECTED_CONTENT_TYPE_STR: &str = "application/offset+octet-stream";
 
+/// Sentry-specific metadata extracted from the TUS `Upload-Metadata` header.
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
+pub struct Metadata {
+    /// The [`AttachmentType`] of the upload.
+    ///
+    /// Used for preliminary rate-limiting checks.
+    pub attachment_type: AttachmentType,
+}
+
+/// Subset of TUS request headers.
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct Headers {
+    /// The declared `Upload-Length`, or `None` if `Upload-Defer-Length: 1` was used.
+    pub upload_length: Option<usize>,
+    /// Sentry-specific `Upload-Metadata` entry.
+    pub metadata: Option<Metadata>,
+}
+
 /// Validates TUS protocol headers and returns a subset of parsed values.
-///
-/// Returns the declared `Upload-Length`.
-pub fn validate_post_headers(headers: &HeaderMap) -> Result<Option<usize>, Error> {
+pub fn validate_post_headers(headers: &HeaderMap) -> Result<Headers, Error> {
     let tus_version = headers.get(TUS_RESUMABLE);
     if tus_version != Some(&TUS_VERSION) {
         return Err(Error::Version(
@@ -94,8 +124,7 @@ pub fn validate_post_headers(headers: &HeaderMap) -> Result<Option<usize>, Error
     let upload_defer_length: Option<usize> = parse_header(headers, UPLOAD_DEFER_LENGTH);
 
     // Exactly one of Upload-Length and Upload-Defer-Length must be present.
-    // Upload-Defer-Length is only accepted if its value is 1 (as demanded by the TUS protocol)
-    // and `allow_defer_length` is true (i.e. the sender is trusted/internal).
+    // Upload-Defer-Length is only accepted if its value is 1 (as demanded by the TUS protocol).
     let upload_length = match (upload_length, upload_defer_length) {
         (Some(u), None) => Ok(Some(u)),
         (None, Some(1)) => Ok(None),
@@ -105,7 +134,12 @@ pub fn validate_post_headers(headers: &HeaderMap) -> Result<Option<usize>, Error
         }),
     }?;
 
-    Ok(upload_length)
+    let metadata = upload_metadata(headers)?;
+
+    Ok(Headers {
+        upload_length,
+        metadata,
+    })
 }
 
 /// Validates TUS protocol headers and returns the expected upload length.
@@ -139,13 +173,25 @@ pub fn validate_patch_headers(headers: &HeaderMap) -> Result<(), Error> {
 }
 
 /// Prepares the required TUS request headers for upstream requests.
-pub fn add_creation_headers(upload_length: Option<usize>, builder: &mut RequestBuilder) {
+pub fn add_creation_headers(
+    upload_length: Option<usize>,
+    attachment_type: Option<AttachmentType>,
+    builder: &mut RequestBuilder,
+) -> Result<(), HttpError> {
+    if let Some(attachment_type) = attachment_type {
+        let json = serde_json::to_vec(&Metadata { attachment_type })?;
+        let header = HeaderValue::from_str(&format!("sentry {}", BASE64.encode(&json)))?;
+        builder.header(UPLOAD_METADATA, header);
+    }
+
     builder.header(TUS_RESUMABLE, TUS_VERSION);
     if let Some(upload_length) = upload_length {
         builder.header(UPLOAD_LENGTH, HeaderValue::from(upload_length));
     } else {
         builder.header(UPLOAD_DEFER_LENGTH, "1");
-    }
+    };
+
+    Ok(())
 }
 
 /// Prepares the required TUS request headers for upstream requests.
@@ -161,6 +207,29 @@ pub fn response_headers() -> HeaderMap {
     headers.insert(TUS_RESUMABLE, TUS_VERSION);
     headers.insert(TUS_EXTENSION, SUPPORTED_EXTENSIONS);
     headers
+}
+
+/// Extracts the sentry metadata payload from the `Upload-Metadata` header.
+fn upload_metadata(headers: &HeaderMap) -> Result<Option<Metadata>, Error> {
+    let Some(payload) = parse_upload_metadata(headers) else {
+        return Ok(None);
+    };
+    Some(parse_sentry_metadata(&payload)).transpose()
+}
+
+/// Extracts the raw (base64) sentry payload from the `Upload-Metadata` header.
+fn parse_upload_metadata(headers: &HeaderMap) -> Option<String> {
+    let metadata: String = parse_header(headers, UPLOAD_METADATA)?;
+    metadata.split(',').find_map(|kv| match kv.split_once(' ') {
+        Some(("sentry", value)) => Some(value.to_owned()),
+        _ => None,
+    })
+}
+
+/// Decodes and deserializes the sentry metadata payload.
+fn parse_sentry_metadata(payload: &str) -> Result<Metadata, Error> {
+    let decoded = BASE64.decode(payload.as_bytes())?;
+    Ok(serde_json::from_slice(&decoded)?)
 }
 
 fn parse_header<K: AsHeaderName, V: FromStr>(headers: &HeaderMap, header_name: K) -> Option<V> {
@@ -205,7 +274,13 @@ mod tests {
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
         headers.insert(UPLOAD_LENGTH, HeaderValue::from_static("1024"));
         let result = validate_post_headers(&headers);
-        assert_eq!(result.unwrap(), Some(1024));
+        assert_eq!(
+            result.unwrap(),
+            Headers {
+                upload_length: Some(1024),
+                metadata: None
+            }
+        );
     }
 
     #[test]
@@ -218,7 +293,13 @@ mod tests {
         );
         headers.insert(UPLOAD_LENGTH, HeaderValue::from_static("1024"));
         let result = validate_post_headers(&headers);
-        assert_eq!(result.unwrap(), Some(1024));
+        assert!(matches!(
+            result,
+            Ok(Headers {
+                upload_length: Some(1024),
+                metadata: None
+            })
+        ));
     }
 
     #[test]
@@ -240,7 +321,13 @@ mod tests {
         );
         headers.insert(UPLOAD_DEFER_LENGTH, HeaderValue::from_static("1"));
         let result = validate_post_headers(&headers);
-        assert!(matches!(result, Ok(None)));
+        assert!(matches!(
+            result,
+            Ok(Headers {
+                upload_length: None,
+                metadata: None
+            })
+        ));
     }
 
     #[test]
@@ -250,6 +337,90 @@ mod tests {
         headers.insert(UPLOAD_DEFER_LENGTH, HeaderValue::from_static("2"));
         let result = validate_post_headers(&headers);
         assert!(matches!(result, Err(Error::UploadLength { .. })));
+    }
+
+    #[test]
+    fn test_validate_tus_headers_upload_meta() {
+        let mut headers = HeaderMap::new();
+        headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
+        headers.insert(UPLOAD_DEFER_LENGTH, HeaderValue::from_static("1"));
+        headers.insert(
+            UPLOAD_METADATA,
+            HeaderValue::from_static(
+                "filename d29ybGRfZG9taW5hdGlvbl9wbGFuLnBkZg==,is_confidential,sentry eyJhdHRhY2htZW50X3R5cGUiOiAiZXZlbnQubWluaWR1bXAiLCAgInBhcmVudF90eXBlIjogImVycm9yIn0=",
+            ),
+        );
+        let result = validate_post_headers(&headers);
+        assert!(matches!(
+            result,
+            Ok(Headers {
+                upload_length: None,
+                metadata: Some(Metadata {
+                    attachment_type: AttachmentType::Minidump
+                })
+            })
+        ));
+    }
+
+    #[test]
+    fn test_parse_sentry_metadata_valid() {
+        let payload = "eyJhdHRhY2htZW50X3R5cGUiOiAiZXZlbnQubWluaWR1bXAifQ==";
+        assert_eq!(
+            parse_sentry_metadata(payload).unwrap(),
+            Metadata {
+                attachment_type: AttachmentType::Minidump
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_sentry_metadata_invalid_base64() {
+        assert!(matches!(
+            parse_sentry_metadata("e="),
+            Err(Error::InvalidMetadataBase64(_))
+        ));
+    }
+
+    #[test]
+    fn test_parse_sentry_metadata_invalid_json() {
+        assert!(matches!(
+            parse_sentry_metadata("e30="),
+            Err(Error::InvalidMetadata(_))
+        ));
+    }
+
+    #[test]
+    fn test_upload_metadata_absent() {
+        assert_eq!(upload_metadata(&HeaderMap::new()).unwrap(), None);
+    }
+
+    #[test]
+    fn test_upload_metadata_no_sentry_entry() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            UPLOAD_METADATA,
+            HeaderValue::from_static(
+                "filename d29ybGRfZG9taW5hdGlvbl9wbGFuLnBkZg==,is_confidential",
+            ),
+        );
+        assert_eq!(upload_metadata(&headers).unwrap(), None);
+    }
+
+    #[test]
+    fn test_upload_metadata_with_sentry_entry() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            UPLOAD_METADATA,
+            HeaderValue::from_static(
+                "filename d29ybGRfZG9taW5hdGlvbl9wbGFuLnBkZg==,sentry eyJhdHRhY2htZW50X3R5cGUiOiAiZXZlbnQubWluaWR1bXAifQ==",
+            ),
+    );
+        assert_eq!(
+            upload_metadata(&headers).unwrap(),
+            Some(Metadata {
+                attachment_type: AttachmentType::Minidump
+            })
+        );
     }
 
     #[test]

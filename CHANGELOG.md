@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add metadata support for the `/upload` endpoint. ([#6028](https://github.com/getsentry/relay/pull/6028))
+
+**Bug Fixes**:
+
+- Correctly handle minidump objecstore upload failures. ([#6033](https://github.com/getsentry/relay/pull/6033))
+
+## 26.5.2
+
+**Features**:
+
+- Implement mobile measurements calculation for V2 spans. ([#6022](https://github.com/getsentry/relay/pull/6022))
+- Globally enable `sentry-conventions`-based conversion from measurements to attributes and remove the
+  `projects:relay-measurements-smart-conversion` feature flag. ([#6034](https://github.com/getsentry/relay/pull/6034))
+
+**Bug Fixes**:
+
+- Copy user Sentry tags into conventional attributes. ([#6030](https://github.com/getsentry/relay/pull/6030))
+- Do not trim DSC attributes in transaction spans. ([#6038](https://github.com/getsentry/relay/pull/6038))
+
+**Internal**:
+
+- Forwards extracted transaction spans directly to Kafka instead of serializing to an intermediate envelope first. ([#6029](https://github.com/getsentry/relay/pull/6029))
+
 ## 26.5.1
 
 **Features**:
