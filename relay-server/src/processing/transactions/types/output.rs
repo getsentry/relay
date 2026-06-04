@@ -103,8 +103,10 @@ impl Forward for TransactionOutput {
             // instead of an envelope. As long as we have this hack, ignore bookkeeping
             record_keeper.lenient(relay_quotas::DataCategory::Transaction);
 
-            if let Some(event) = work.event.value_mut() {
-                event.performance_issues_spans = Annotated::new(performance_issues_spans)
+            if let Some(event) = work.event.value_mut()
+                && performance_issues_spans
+            {
+                event.performance_issues_spans = Annotated::new(true);
             }
 
             work.serialize_envelope()

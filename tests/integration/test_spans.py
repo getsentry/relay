@@ -213,7 +213,7 @@ def test_span_extraction(
     del transaction_span["received"]
 
     if performance_issues_spans:
-        assert transaction_span["performance_issues_spans"] is True
+        assert transaction_span.pop("_performance_issues_spans") is True
 
     expected_transaction_span = {
         "attributes": {

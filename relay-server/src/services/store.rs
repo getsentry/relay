@@ -1586,7 +1586,12 @@ struct SpanMeta {
     /// Indicates whether Relay already emitted an accepted outcome or if EAP still needs to emit it.
     accepted_outcome_emitted: bool,
     /// Whether the segment span should be used for issue detection instead of the transaction.
+    #[serde(rename = "_performance_issues_spans", skip_serializing_if = "is_false")]
     performance_issues_spans: bool,
+}
+
+fn is_false(val: &bool) -> bool {
+    !val
 }
 
 #[derive(Clone, Debug, Serialize)]
