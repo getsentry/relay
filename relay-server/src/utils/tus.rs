@@ -92,6 +92,7 @@ pub struct Metadata {
     /// The [`AttachmentType`] of the upload.
     ///
     /// Used for preliminary rate-limiting checks.
+    #[serde(default)]
     pub attachment_type: AttachmentType,
 }
 
@@ -384,8 +385,18 @@ mod tests {
     #[test]
     fn test_parse_sentry_metadata_invalid_json() {
         assert!(matches!(
-            parse_sentry_metadata("e30="),
+            parse_sentry_metadata("ew=="),
             Err(Error::InvalidMetadata(_))
+        ));
+    }
+
+    #[test]
+    fn test_parse_sentry_metadata_default() {
+        assert!(matches!(
+            parse_sentry_metadata("e30="),
+            Ok(Metadata {
+                attachment_type: AttachmentType::Attachment
+            })
         ));
     }
 
