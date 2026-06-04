@@ -1,4 +1,5 @@
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import Literal
 import uuid
 import json
 
@@ -7,6 +8,7 @@ from .asserts import only_items
 import pytest
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 import queue
+from .asserts import time_within_delta
 
 
 def _create_transaction_item(trace_id=None, event_id=None, transaction=None, **kwargs):
@@ -858,3 +860,294 @@ def test_invalid_global_generic_filters_skip_dynamic_sampling(mini_sentry, relay
 
     relay.send_envelope(project_id, envelope)
     assert mini_sentry.get_captured_envelope()
+
+
+def get_transaction_envelope(
+    trace_id: str,
+    segment_id: str,
+    child_id_1: str,
+    child_id_2: str,
+    dsc: Literal["dsc_with_tx", "dsc_no_tx", "no_dsc"],
+    sampling_project_config: dict,
+):
+    ts = datetime.now(timezone.utc)
+
+    # Create transaction
+    event = {
+        "type": "transaction",
+        "timestamp": ts.isoformat(),
+        "start_timestamp": ts.timestamp(),
+        "spans": [],
+        "contexts": {
+            "trace": {
+                "op": "/trace/",
+                "trace_id": trace_id,
+                "span_id": segment_id,
+            }
+        },
+        "transaction": "/event/",
+    }
+
+    # Add child spans
+    event["spans"] = [
+        {
+            "trace_id": trace_id,
+            "span_id": child_id_1,
+            "parent_span_id": segment_id,
+            "start_timestamp": ts.timestamp(),
+            "timestamp": ts.timestamp() + 0.3,
+        },
+        {
+            "trace_id": trace_id,
+            "span_id": child_id_2,
+            "parent_span_id": segment_id,
+            "start_timestamp": ts.timestamp(),
+            "timestamp": ts.timestamp() + 0.3,
+            "data": {
+                "sentry.dsc.trace_id": trace_id,
+                "sentry.dsc.transaction": "/spandata/",
+                "sentry.dsc.project_id": "41",
+            },
+        },
+    ]
+
+    # Add transaction to envelope
+    envelope = Envelope()
+    envelope.add_item(Item(payload=PayloadRef(json=event), type="transaction"))
+
+    # Add DSC to envelope
+    if dsc != "no_dsc":
+        envelope.headers["trace"] = {
+            "trace_id": trace_id,
+            "public_key": sampling_project_config["publicKeys"][0]["publicKey"],
+            "sample_rate": "1",
+            "sample_rand": "0.9",
+            "sampled": "true",
+            "release": "some_release",
+            "environment": "some_environment",
+            **({"transaction": "/dsc/"} if dsc == "dsc_with_tx" else {}),
+            "org_id": sampling_project_config["organizationId"],
+        }
+
+    return envelope
+
+
+def get_v2_envelope(
+    trace_id: str,
+    segment_id: str,
+    child_id_1: str,
+    child_id_2: str,
+    dsc: Literal["dsc_with_tx", "dsc_no_tx", "no_dsc"],
+    sampling_project_config: dict,
+):
+    ts = datetime.now(timezone.utc)
+
+    spans = [
+        # Segment span.
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": trace_id,
+            "span_id": segment_id,
+            "is_segment": True,
+            "name": "root",
+            "status": "ok",
+        },
+        # Child span.
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.3,
+            "trace_id": trace_id,
+            "span_id": child_id_1,
+            "parent_span_id": segment_id,
+            "is_segment": False,
+            "name": "child1",
+            "status": "ok",
+        },
+        # Child span which already has `sentry.dsc.*` attributes set.
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.3,
+            "trace_id": trace_id,
+            "span_id": child_id_2,
+            "parent_span_id": segment_id,
+            "is_segment": False,
+            "name": "child2",
+            "status": "ok",
+            "attributes": {
+                "sentry.dsc.trace_id": {"type": "string", "value": trace_id},
+                "sentry.dsc.transaction": {"type": "string", "value": "/spandata/"},
+                "sentry.dsc.project_id": {"type": "string", "value": "41"},
+            },
+        },
+    ]
+
+    # Add spans to envelope
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="span",
+            payload=PayloadRef(json={"items": spans}),
+            content_type="application/vnd.sentry.items.span.v2+json",
+            headers={"item_count": len(spans)},
+        )
+    )
+
+    # Add DSC to envelope
+    trace_info = (
+        {
+            "trace_id": trace_id,
+            "public_key": sampling_project_config["publicKeys"][0]["publicKey"],
+            "sample_rate": "1",
+            "sampled": "true",
+            "release": "some_release",
+            "environment": "some_environment",
+            **({"transaction": "/dsc/"} if dsc == "dsc_with_tx" else {}),
+        }
+        if dsc != "no_dsc"
+        else None
+    )
+    envelope.headers["trace"] = trace_info
+
+    return envelope
+
+
+@pytest.mark.parametrize("span_type", ["tx", "v2"])
+@pytest.mark.parametrize("org", ["same_org", "diff_org"])
+@pytest.mark.parametrize("dsc", ["dsc_with_tx", "dsc_no_tx", "no_dsc"])
+def test_dsc_normalization(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+    metrics_consumer,
+    dsc,
+    org,
+    span_type,
+):
+    segment_id = "a" * 16
+    child_id_1 = "b" * 16
+    child_id_2 = "c" * 16
+    trace_id = "a0fa8803753e40fd8124b21eeb2986b5"
+    project_id = 42
+    sampling_project_id = 43
+    org_id = 1
+    sampling_org_id = 1 if org == "same_org" else 2
+    mini_sentry.add_full_project_config(project_id, extra={"organizationId": org_id})
+    sampling_project_config = mini_sentry.add_full_project_config(
+        sampling_project_id, extra={"organizationId": sampling_org_id}
+    )
+    relay = relay(relay_with_processing())
+    spans_consumer = spans_consumer()
+    metrics_consumer = metrics_consumer()
+    # Expected results based on the parameters
+    expected_tx, expected_project_id, expected_root_org_id = {
+        # DSC with tx + same org
+        ("dsc_with_tx", "same_org", "tx"): ("/dsc/", sampling_project_id, org_id),
+        ("dsc_with_tx", "same_org", "v2"): ("/dsc/", sampling_project_id, org_id),
+        # ----------------------------------------------------------------------
+        # DSC without tx + same org
+        ("dsc_no_tx", "same_org", "tx"): (None, sampling_project_id, org_id),
+        ("dsc_no_tx", "same_org", "v2"): (None, sampling_project_id, org_id),
+        # ----------------------------------------------------------------------
+        # DSC with tx + different org
+        ("dsc_with_tx", "diff_org", "tx"): ("/event/", project_id, org_id),
+        ("dsc_with_tx", "diff_org", "v2"): ("/dsc/", project_id, org_id),
+        # ----------------------------------------------------------------------
+        # DSC without tx + different org
+        ("dsc_no_tx", "diff_org", "tx"): ("/event/", project_id, org_id),
+        ("dsc_no_tx", "diff_org", "v2"): (None, project_id, org_id),
+        # ----------------------------------------------------------------------
+        # No DSC
+        ("no_dsc", "same_org", "tx"): ("/event/", project_id, org_id),
+        ("no_dsc", "diff_org", "tx"): ("/event/", project_id, org_id),
+        ("no_dsc", "same_org", "v2"): (None, None, None),  # rejected, see early return
+        ("no_dsc", "diff_org", "v2"): (None, None, None),  # rejected, see early return
+        # ----------------------------------------------------------------------
+    }[dsc, org, span_type]
+
+    envelope = (
+        get_transaction_envelope(
+            trace_id=trace_id,
+            segment_id=segment_id,
+            child_id_1=child_id_1,
+            child_id_2=child_id_2,
+            dsc=dsc,
+            sampling_project_config=sampling_project_config,
+        )
+        if span_type == "tx"
+        else get_v2_envelope(
+            trace_id=trace_id,
+            segment_id=segment_id,
+            child_id_1=child_id_1,
+            child_id_2=child_id_2,
+            dsc=dsc,
+            sampling_project_config=sampling_project_config,
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+    metrics = metrics_consumer.get_metrics(with_headers=False)
+    metrics = [m for m in metrics if "count_per_root_project" in m["name"]]
+    spans = {s["span_id"]: s for s in spans_consumer.get_spans()}
+
+    if dsc == "no_dsc" and span_type == "v2":
+        assert len(spans) == 0
+        assert len(metrics) == 0
+        return
+
+    def get_dsc_attr(attr: str, span_id: str):
+        return spans[span_id]["attributes"].get(f"sentry.dsc.{attr}", {}).get("value")
+
+    # Segment span
+    assert spans[segment_id]["is_segment"] is True
+    assert get_dsc_attr("transaction", segment_id) == expected_tx
+    assert get_dsc_attr("project_id", segment_id) == str(expected_project_id)
+    assert get_dsc_attr("trace_id", segment_id) == trace_id
+
+    # Child span
+    assert spans[child_id_1]["is_segment"] is False
+    assert get_dsc_attr("transaction", child_id_1) == expected_tx
+    assert get_dsc_attr("project_id", child_id_1) == str(expected_project_id)
+    assert get_dsc_attr("trace_id", child_id_1) == trace_id
+
+    # Child span with sentry.dsc.* attributes already set in its span data
+    assert spans[child_id_2]["is_segment"] is False
+    assert get_dsc_attr("transaction", child_id_2) == "/spandata/"
+    assert get_dsc_attr("project_id", child_id_2) == "41"
+    assert get_dsc_attr("trace_id", child_id_2) == trace_id
+
+    assert metrics == [
+        {
+            "name": "c:spans/count_per_root_project@none",
+            "org_id": expected_root_org_id,
+            "project_id": expected_project_id,
+            "received_at": time_within_delta(),
+            "retention_days": 90,
+            "tags": {
+                "decision": "keep",
+                "is_segment": "false",
+                "target_project_id": str(project_id),
+                **({"transaction": expected_tx} if expected_tx else {}),
+            },
+            "timestamp": time_within_delta(),
+            "type": "c",
+            "value": 2.0,
+        },
+        {
+            "name": "c:spans/count_per_root_project@none",
+            "org_id": expected_root_org_id,
+            "project_id": expected_project_id,
+            "received_at": time_within_delta(),
+            "retention_days": 90,
+            "tags": {
+                "decision": "keep",
+                "is_segment": "true",
+                "target_project_id": str(project_id),
+                **({"transaction": expected_tx} if expected_tx else {}),
+            },
+            "timestamp": time_within_delta(),
+            "type": "c",
+            "value": 1.0,
+        },
+    ]
