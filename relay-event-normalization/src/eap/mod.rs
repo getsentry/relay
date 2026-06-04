@@ -1285,7 +1285,7 @@ mod tests {
             }),
         );
 
-        assert_annotated_snapshot!(attributes, @r#"
+        assert_annotated_snapshot!(attributes, @r###"
         {
           "browser.name": {
             "type": "string",
@@ -1294,9 +1294,13 @@ mod tests {
           "browser.version": {
             "type": "string",
             "value": "13.3.7"
+          },
+          "user_agent.original": {
+            "type": "string",
+            "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
           }
         }
-        "#
+        "###
         );
     }
 
