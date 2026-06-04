@@ -1849,7 +1849,7 @@
 <a href=#1849 id=1849 data-nosnippet>1849</a>            ..Default::default()
 <a href=#1850 id=1850 data-nosnippet>1850</a>        };
 <a href=#1851 id=1851 data-nosnippet>1851</a>        span::normalize_app_start_spans(<span class="kw-2">&amp;mut </span>event);
-<a href=#1852 id=1852 data-nosnippet>1852</a>        <span class="macro">assert_debug_snapshot!</span>(event.spans, @<span class="string">r###"
+<a href=#1852 id=1852 data-nosnippet>1852</a>        <span class="macro">assert_debug_snapshot!</span>(event.spans, @<span class="string">r#"
 <a href=#1853 id=1853 data-nosnippet>1853</a>        [
 <a href=#1854 id=1854 data-nosnippet>1854</a>            Span {
 <a href=#1855 id=1855 data-nosnippet>1855</a>                timestamp: ~,
@@ -1875,107 +1875,104 @@
 <a href=#1875 id=1875 data-nosnippet>1875</a>                platform: ~,
 <a href=#1876 id=1876 data-nosnippet>1876</a>                was_transaction: ~,
 <a href=#1877 id=1877 data-nosnippet>1877</a>                kind: ~,
-<a href=#1878 id=1878 data-nosnippet>1878</a>                performance_issues_spans: ~,
-<a href=#1879 id=1879 data-nosnippet>1879</a>                other: {},
-<a href=#1880 id=1880 data-nosnippet>1880</a>            },
-<a href=#1881 id=1881 data-nosnippet>1881</a>        ]
-<a href=#1882 id=1882 data-nosnippet>1882</a>        "###</span>);
-<a href=#1883 id=1883 data-nosnippet>1883</a>    }
-<a href=#1884 id=1884 data-nosnippet>1884</a>
-<a href=#1885 id=1885 data-nosnippet>1885</a>    <span class="attr">#[test]
-<a href=#1886 id=1886 data-nosnippet>1886</a>    </span><span class="kw">fn </span>test_normalize_app_start_cold_spans_for_react_native() {
-<a href=#1887 id=1887 data-nosnippet>1887</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Event {
-<a href=#1888 id=1888 data-nosnippet>1888</a>            spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
-<a href=#1889 id=1889 data-nosnippet>1889</a>                op: Annotated::new(<span class="string">"app_start_cold"</span>.to_owned()),
-<a href=#1890 id=1890 data-nosnippet>1890</a>                ..Default::default()
-<a href=#1891 id=1891 data-nosnippet>1891</a>            })]),
-<a href=#1892 id=1892 data-nosnippet>1892</a>            client_sdk: Annotated::new(ClientSdkInfo {
-<a href=#1893 id=1893 data-nosnippet>1893</a>                name: Annotated::new(<span class="string">"sentry.javascript.react-native"</span>.to_owned()),
-<a href=#1894 id=1894 data-nosnippet>1894</a>                version: Annotated::new(<span class="string">"4.4.0"</span>.to_owned()),
-<a href=#1895 id=1895 data-nosnippet>1895</a>                ..Default::default()
-<a href=#1896 id=1896 data-nosnippet>1896</a>            }),
-<a href=#1897 id=1897 data-nosnippet>1897</a>            ..Default::default()
-<a href=#1898 id=1898 data-nosnippet>1898</a>        };
-<a href=#1899 id=1899 data-nosnippet>1899</a>        span::normalize_app_start_spans(<span class="kw-2">&amp;mut </span>event);
-<a href=#1900 id=1900 data-nosnippet>1900</a>        <span class="macro">assert_debug_snapshot!</span>(event.spans, @<span class="string">r###"
-<a href=#1901 id=1901 data-nosnippet>1901</a>        [
-<a href=#1902 id=1902 data-nosnippet>1902</a>            Span {
-<a href=#1903 id=1903 data-nosnippet>1903</a>                timestamp: ~,
-<a href=#1904 id=1904 data-nosnippet>1904</a>                start_timestamp: ~,
-<a href=#1905 id=1905 data-nosnippet>1905</a>                exclusive_time: ~,
-<a href=#1906 id=1906 data-nosnippet>1906</a>                op: "app.start.cold",
-<a href=#1907 id=1907 data-nosnippet>1907</a>                span_id: ~,
-<a href=#1908 id=1908 data-nosnippet>1908</a>                parent_span_id: ~,
-<a href=#1909 id=1909 data-nosnippet>1909</a>                trace_id: ~,
-<a href=#1910 id=1910 data-nosnippet>1910</a>                segment_id: ~,
-<a href=#1911 id=1911 data-nosnippet>1911</a>                is_segment: ~,
-<a href=#1912 id=1912 data-nosnippet>1912</a>                is_remote: ~,
-<a href=#1913 id=1913 data-nosnippet>1913</a>                status: ~,
-<a href=#1914 id=1914 data-nosnippet>1914</a>                description: ~,
-<a href=#1915 id=1915 data-nosnippet>1915</a>                tags: ~,
-<a href=#1916 id=1916 data-nosnippet>1916</a>                origin: ~,
-<a href=#1917 id=1917 data-nosnippet>1917</a>                profile_id: ~,
-<a href=#1918 id=1918 data-nosnippet>1918</a>                data: ~,
-<a href=#1919 id=1919 data-nosnippet>1919</a>                links: ~,
-<a href=#1920 id=1920 data-nosnippet>1920</a>                sentry_tags: ~,
-<a href=#1921 id=1921 data-nosnippet>1921</a>                received: ~,
-<a href=#1922 id=1922 data-nosnippet>1922</a>                measurements: ~,
-<a href=#1923 id=1923 data-nosnippet>1923</a>                platform: ~,
-<a href=#1924 id=1924 data-nosnippet>1924</a>                was_transaction: ~,
-<a href=#1925 id=1925 data-nosnippet>1925</a>                kind: ~,
-<a href=#1926 id=1926 data-nosnippet>1926</a>                performance_issues_spans: ~,
-<a href=#1927 id=1927 data-nosnippet>1927</a>                other: {},
-<a href=#1928 id=1928 data-nosnippet>1928</a>            },
-<a href=#1929 id=1929 data-nosnippet>1929</a>        ]
-<a href=#1930 id=1930 data-nosnippet>1930</a>        "###</span>);
-<a href=#1931 id=1931 data-nosnippet>1931</a>    }
-<a href=#1932 id=1932 data-nosnippet>1932</a>
-<a href=#1933 id=1933 data-nosnippet>1933</a>    <span class="attr">#[test]
-<a href=#1934 id=1934 data-nosnippet>1934</a>    </span><span class="kw">fn </span>test_normalize_app_start_warm_spans_for_react_native() {
-<a href=#1935 id=1935 data-nosnippet>1935</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Event {
-<a href=#1936 id=1936 data-nosnippet>1936</a>            spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
-<a href=#1937 id=1937 data-nosnippet>1937</a>                op: Annotated::new(<span class="string">"app_start_warm"</span>.to_owned()),
-<a href=#1938 id=1938 data-nosnippet>1938</a>                ..Default::default()
-<a href=#1939 id=1939 data-nosnippet>1939</a>            })]),
-<a href=#1940 id=1940 data-nosnippet>1940</a>            client_sdk: Annotated::new(ClientSdkInfo {
-<a href=#1941 id=1941 data-nosnippet>1941</a>                name: Annotated::new(<span class="string">"sentry.javascript.react-native"</span>.to_owned()),
-<a href=#1942 id=1942 data-nosnippet>1942</a>                version: Annotated::new(<span class="string">"4.4.0"</span>.to_owned()),
-<a href=#1943 id=1943 data-nosnippet>1943</a>                ..Default::default()
-<a href=#1944 id=1944 data-nosnippet>1944</a>            }),
-<a href=#1945 id=1945 data-nosnippet>1945</a>            ..Default::default()
-<a href=#1946 id=1946 data-nosnippet>1946</a>        };
-<a href=#1947 id=1947 data-nosnippet>1947</a>        span::normalize_app_start_spans(<span class="kw-2">&amp;mut </span>event);
-<a href=#1948 id=1948 data-nosnippet>1948</a>        <span class="macro">assert_debug_snapshot!</span>(event.spans, @<span class="string">r###"
-<a href=#1949 id=1949 data-nosnippet>1949</a>        [
-<a href=#1950 id=1950 data-nosnippet>1950</a>            Span {
-<a href=#1951 id=1951 data-nosnippet>1951</a>                timestamp: ~,
-<a href=#1952 id=1952 data-nosnippet>1952</a>                start_timestamp: ~,
-<a href=#1953 id=1953 data-nosnippet>1953</a>                exclusive_time: ~,
-<a href=#1954 id=1954 data-nosnippet>1954</a>                op: "app.start.warm",
-<a href=#1955 id=1955 data-nosnippet>1955</a>                span_id: ~,
-<a href=#1956 id=1956 data-nosnippet>1956</a>                parent_span_id: ~,
-<a href=#1957 id=1957 data-nosnippet>1957</a>                trace_id: ~,
-<a href=#1958 id=1958 data-nosnippet>1958</a>                segment_id: ~,
-<a href=#1959 id=1959 data-nosnippet>1959</a>                is_segment: ~,
-<a href=#1960 id=1960 data-nosnippet>1960</a>                is_remote: ~,
-<a href=#1961 id=1961 data-nosnippet>1961</a>                status: ~,
-<a href=#1962 id=1962 data-nosnippet>1962</a>                description: ~,
-<a href=#1963 id=1963 data-nosnippet>1963</a>                tags: ~,
-<a href=#1964 id=1964 data-nosnippet>1964</a>                origin: ~,
-<a href=#1965 id=1965 data-nosnippet>1965</a>                profile_id: ~,
-<a href=#1966 id=1966 data-nosnippet>1966</a>                data: ~,
-<a href=#1967 id=1967 data-nosnippet>1967</a>                links: ~,
-<a href=#1968 id=1968 data-nosnippet>1968</a>                sentry_tags: ~,
-<a href=#1969 id=1969 data-nosnippet>1969</a>                received: ~,
-<a href=#1970 id=1970 data-nosnippet>1970</a>                measurements: ~,
-<a href=#1971 id=1971 data-nosnippet>1971</a>                platform: ~,
-<a href=#1972 id=1972 data-nosnippet>1972</a>                was_transaction: ~,
-<a href=#1973 id=1973 data-nosnippet>1973</a>                kind: ~,
-<a href=#1974 id=1974 data-nosnippet>1974</a>                performance_issues_spans: ~,
-<a href=#1975 id=1975 data-nosnippet>1975</a>                other: {},
-<a href=#1976 id=1976 data-nosnippet>1976</a>            },
-<a href=#1977 id=1977 data-nosnippet>1977</a>        ]
-<a href=#1978 id=1978 data-nosnippet>1978</a>        "###</span>);
-<a href=#1979 id=1979 data-nosnippet>1979</a>    }
-<a href=#1980 id=1980 data-nosnippet>1980</a>}
+<a href=#1878 id=1878 data-nosnippet>1878</a>                other: {},
+<a href=#1879 id=1879 data-nosnippet>1879</a>            },
+<a href=#1880 id=1880 data-nosnippet>1880</a>        ]
+<a href=#1881 id=1881 data-nosnippet>1881</a>        "#</span>);
+<a href=#1882 id=1882 data-nosnippet>1882</a>    }
+<a href=#1883 id=1883 data-nosnippet>1883</a>
+<a href=#1884 id=1884 data-nosnippet>1884</a>    <span class="attr">#[test]
+<a href=#1885 id=1885 data-nosnippet>1885</a>    </span><span class="kw">fn </span>test_normalize_app_start_cold_spans_for_react_native() {
+<a href=#1886 id=1886 data-nosnippet>1886</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Event {
+<a href=#1887 id=1887 data-nosnippet>1887</a>            spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
+<a href=#1888 id=1888 data-nosnippet>1888</a>                op: Annotated::new(<span class="string">"app_start_cold"</span>.to_owned()),
+<a href=#1889 id=1889 data-nosnippet>1889</a>                ..Default::default()
+<a href=#1890 id=1890 data-nosnippet>1890</a>            })]),
+<a href=#1891 id=1891 data-nosnippet>1891</a>            client_sdk: Annotated::new(ClientSdkInfo {
+<a href=#1892 id=1892 data-nosnippet>1892</a>                name: Annotated::new(<span class="string">"sentry.javascript.react-native"</span>.to_owned()),
+<a href=#1893 id=1893 data-nosnippet>1893</a>                version: Annotated::new(<span class="string">"4.4.0"</span>.to_owned()),
+<a href=#1894 id=1894 data-nosnippet>1894</a>                ..Default::default()
+<a href=#1895 id=1895 data-nosnippet>1895</a>            }),
+<a href=#1896 id=1896 data-nosnippet>1896</a>            ..Default::default()
+<a href=#1897 id=1897 data-nosnippet>1897</a>        };
+<a href=#1898 id=1898 data-nosnippet>1898</a>        span::normalize_app_start_spans(<span class="kw-2">&amp;mut </span>event);
+<a href=#1899 id=1899 data-nosnippet>1899</a>        <span class="macro">assert_debug_snapshot!</span>(event.spans, @<span class="string">r#"
+<a href=#1900 id=1900 data-nosnippet>1900</a>        [
+<a href=#1901 id=1901 data-nosnippet>1901</a>            Span {
+<a href=#1902 id=1902 data-nosnippet>1902</a>                timestamp: ~,
+<a href=#1903 id=1903 data-nosnippet>1903</a>                start_timestamp: ~,
+<a href=#1904 id=1904 data-nosnippet>1904</a>                exclusive_time: ~,
+<a href=#1905 id=1905 data-nosnippet>1905</a>                op: "app.start.cold",
+<a href=#1906 id=1906 data-nosnippet>1906</a>                span_id: ~,
+<a href=#1907 id=1907 data-nosnippet>1907</a>                parent_span_id: ~,
+<a href=#1908 id=1908 data-nosnippet>1908</a>                trace_id: ~,
+<a href=#1909 id=1909 data-nosnippet>1909</a>                segment_id: ~,
+<a href=#1910 id=1910 data-nosnippet>1910</a>                is_segment: ~,
+<a href=#1911 id=1911 data-nosnippet>1911</a>                is_remote: ~,
+<a href=#1912 id=1912 data-nosnippet>1912</a>                status: ~,
+<a href=#1913 id=1913 data-nosnippet>1913</a>                description: ~,
+<a href=#1914 id=1914 data-nosnippet>1914</a>                tags: ~,
+<a href=#1915 id=1915 data-nosnippet>1915</a>                origin: ~,
+<a href=#1916 id=1916 data-nosnippet>1916</a>                profile_id: ~,
+<a href=#1917 id=1917 data-nosnippet>1917</a>                data: ~,
+<a href=#1918 id=1918 data-nosnippet>1918</a>                links: ~,
+<a href=#1919 id=1919 data-nosnippet>1919</a>                sentry_tags: ~,
+<a href=#1920 id=1920 data-nosnippet>1920</a>                received: ~,
+<a href=#1921 id=1921 data-nosnippet>1921</a>                measurements: ~,
+<a href=#1922 id=1922 data-nosnippet>1922</a>                platform: ~,
+<a href=#1923 id=1923 data-nosnippet>1923</a>                was_transaction: ~,
+<a href=#1924 id=1924 data-nosnippet>1924</a>                kind: ~,
+<a href=#1925 id=1925 data-nosnippet>1925</a>                other: {},
+<a href=#1926 id=1926 data-nosnippet>1926</a>            },
+<a href=#1927 id=1927 data-nosnippet>1927</a>        ]
+<a href=#1928 id=1928 data-nosnippet>1928</a>        "#</span>);
+<a href=#1929 id=1929 data-nosnippet>1929</a>    }
+<a href=#1930 id=1930 data-nosnippet>1930</a>
+<a href=#1931 id=1931 data-nosnippet>1931</a>    <span class="attr">#[test]
+<a href=#1932 id=1932 data-nosnippet>1932</a>    </span><span class="kw">fn </span>test_normalize_app_start_warm_spans_for_react_native() {
+<a href=#1933 id=1933 data-nosnippet>1933</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Event {
+<a href=#1934 id=1934 data-nosnippet>1934</a>            spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
+<a href=#1935 id=1935 data-nosnippet>1935</a>                op: Annotated::new(<span class="string">"app_start_warm"</span>.to_owned()),
+<a href=#1936 id=1936 data-nosnippet>1936</a>                ..Default::default()
+<a href=#1937 id=1937 data-nosnippet>1937</a>            })]),
+<a href=#1938 id=1938 data-nosnippet>1938</a>            client_sdk: Annotated::new(ClientSdkInfo {
+<a href=#1939 id=1939 data-nosnippet>1939</a>                name: Annotated::new(<span class="string">"sentry.javascript.react-native"</span>.to_owned()),
+<a href=#1940 id=1940 data-nosnippet>1940</a>                version: Annotated::new(<span class="string">"4.4.0"</span>.to_owned()),
+<a href=#1941 id=1941 data-nosnippet>1941</a>                ..Default::default()
+<a href=#1942 id=1942 data-nosnippet>1942</a>            }),
+<a href=#1943 id=1943 data-nosnippet>1943</a>            ..Default::default()
+<a href=#1944 id=1944 data-nosnippet>1944</a>        };
+<a href=#1945 id=1945 data-nosnippet>1945</a>        span::normalize_app_start_spans(<span class="kw-2">&amp;mut </span>event);
+<a href=#1946 id=1946 data-nosnippet>1946</a>        <span class="macro">assert_debug_snapshot!</span>(event.spans, @<span class="string">r#"
+<a href=#1947 id=1947 data-nosnippet>1947</a>        [
+<a href=#1948 id=1948 data-nosnippet>1948</a>            Span {
+<a href=#1949 id=1949 data-nosnippet>1949</a>                timestamp: ~,
+<a href=#1950 id=1950 data-nosnippet>1950</a>                start_timestamp: ~,
+<a href=#1951 id=1951 data-nosnippet>1951</a>                exclusive_time: ~,
+<a href=#1952 id=1952 data-nosnippet>1952</a>                op: "app.start.warm",
+<a href=#1953 id=1953 data-nosnippet>1953</a>                span_id: ~,
+<a href=#1954 id=1954 data-nosnippet>1954</a>                parent_span_id: ~,
+<a href=#1955 id=1955 data-nosnippet>1955</a>                trace_id: ~,
+<a href=#1956 id=1956 data-nosnippet>1956</a>                segment_id: ~,
+<a href=#1957 id=1957 data-nosnippet>1957</a>                is_segment: ~,
+<a href=#1958 id=1958 data-nosnippet>1958</a>                is_remote: ~,
+<a href=#1959 id=1959 data-nosnippet>1959</a>                status: ~,
+<a href=#1960 id=1960 data-nosnippet>1960</a>                description: ~,
+<a href=#1961 id=1961 data-nosnippet>1961</a>                tags: ~,
+<a href=#1962 id=1962 data-nosnippet>1962</a>                origin: ~,
+<a href=#1963 id=1963 data-nosnippet>1963</a>                profile_id: ~,
+<a href=#1964 id=1964 data-nosnippet>1964</a>                data: ~,
+<a href=#1965 id=1965 data-nosnippet>1965</a>                links: ~,
+<a href=#1966 id=1966 data-nosnippet>1966</a>                sentry_tags: ~,
+<a href=#1967 id=1967 data-nosnippet>1967</a>                received: ~,
+<a href=#1968 id=1968 data-nosnippet>1968</a>                measurements: ~,
+<a href=#1969 id=1969 data-nosnippet>1969</a>                platform: ~,
+<a href=#1970 id=1970 data-nosnippet>1970</a>                was_transaction: ~,
+<a href=#1971 id=1971 data-nosnippet>1971</a>                kind: ~,
+<a href=#1972 id=1972 data-nosnippet>1972</a>                other: {},
+<a href=#1973 id=1973 data-nosnippet>1973</a>            },
+<a href=#1974 id=1974 data-nosnippet>1974</a>        ]
+<a href=#1975 id=1975 data-nosnippet>1975</a>        "#</span>);
+<a href=#1976 id=1976 data-nosnippet>1976</a>    }
+<a href=#1977 id=1977 data-nosnippet>1977</a>}
 </code></pre></div></section></main></body></html>
