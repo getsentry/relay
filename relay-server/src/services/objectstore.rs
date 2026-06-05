@@ -413,7 +413,7 @@ impl ObjectstoreServiceInner {
             .filter(|item| *item.ty() == ItemType::Attachment);
 
         match session {
-            Err(error) => Error::from(error)
+            Err(error) => error
                 .with_amount(attachments.count())
                 .log(MessageKind::Envelope),
             Ok(session) => {
@@ -465,7 +465,7 @@ impl ObjectstoreServiceInner {
         );
 
         match session {
-            Err(error) => Error::from(error).log(MessageKind::EventAttachment),
+            Err(error) => error.log(MessageKind::EventAttachment),
             Ok(session) => {
                 let result = self
                     .upload_bytes(
