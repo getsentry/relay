@@ -29,6 +29,34 @@ pub enum Subregion {
 }
 
 impl Subregion {
+    /// Returns the human-readable name of the subregion.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Subregion::NorthernAmerica => "Northern America",
+            Subregion::CentralAmerica => "Central America",
+            Subregion::Caribbean => "Caribbean",
+            Subregion::SouthAmerica => "South America",
+            Subregion::NorthernEurope => "Northern Europe",
+            Subregion::WesternEurope => "Western Europe",
+            Subregion::SouthernEurope => "Southern Europe",
+            Subregion::EasternEurope => "Eastern Europe",
+            Subregion::EasternAsia => "Eastern Asia",
+            Subregion::SouthernAsia => "Southern Asia",
+            Subregion::SouthEasternAsia => "South-Eastern Asia",
+            Subregion::WesternAsia => "Western Asia",
+            Subregion::CentralAsia => "Central Asia",
+            Subregion::NorthernAfrica => "Northern Africa",
+            Subregion::WesternAfrica => "Western Africa",
+            Subregion::MiddleAfrica => "Middle Africa",
+            Subregion::EasternAfrica => "Eastern Africa",
+            Subregion::SouthernAfrica => "Southern Africa",
+            Subregion::Melanesia => "Melanesia",
+            Subregion::Micronesia => "Micronesia",
+            Subregion::Polynesia => "Polynesia",
+            Subregion::AustraliaAndNewZealand => "Australia and New Zealand",
+        }
+    }
+
     /// Maps 2 ISO letter country codes to geoscheme regions based on the UN M.49 standard.
     pub fn from_iso2(iso2_letter: &str) -> Option<Self> {
         Some(match iso2_letter {

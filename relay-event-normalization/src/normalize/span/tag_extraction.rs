@@ -353,8 +353,7 @@ fn extract_shared_tags(event: &Event) -> SharedTags {
             if let Some(country_code) = geo.country_code.value() {
                 tags.user_country_code = country_code.clone().into();
                 if let Some(subregion) = Subregion::from_iso2(country_code.as_str()) {
-                    let numerical_subregion = subregion as u8;
-                    tags.user_subregion = numerical_subregion.to_string().into();
+                    tags.user_subregion = subregion.as_str().to_owned().into();
                 }
             }
 
@@ -1078,8 +1077,7 @@ pub fn extract_tags(
             {
                 span_tags.user_country_code = country_code.to_owned().into();
                 if let Some(subregion) = Subregion::from_iso2(country_code.as_str()) {
-                    let numerical_subregion = subregion as u8;
-                    span_tags.user_subregion = numerical_subregion.to_string().into();
+                    span_tags.user_subregion = subregion.as_str().to_owned().into();
                 }
             }
         }
@@ -3226,7 +3224,10 @@ LIMIT 1
         assert_eq!(get_value!(span.sentry_tags.user_city!), "Vienna");
         assert_eq!(get_value!(span.sentry_tags.user_region!), "Austria");
         assert_eq!(get_value!(span.sentry_tags.user_subdivision!), "Vienna");
-        assert_eq!(get_value!(span.sentry_tags.user_subregion!), "155");
+        assert_eq!(
+            get_value!(span.sentry_tags.user_subregion!),
+            "Western Europe"
+        );
     }
 
     #[test]
@@ -3451,7 +3452,10 @@ LIMIT 1
 
         let tags = extract_tags(&span, 200, None, None, false, None, &[], &lookup);
         assert_eq!(tags.user_country_code.value(), Some(&"GB".to_owned()));
-        assert_eq!(tags.user_subregion.value(), Some(&"154".to_owned()));
+        assert_eq!(
+            tags.user_subregion.value(),
+            Some(&"Northern Europe".to_owned())
+        );
     }
 
     #[test]
