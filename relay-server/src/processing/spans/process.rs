@@ -138,7 +138,15 @@ fn expand_legacy_spans(
         })
         .collect();
 
-    (Settings::default(), spans)
+    // In the legacy standalone span pipeline we always
+    // inferred both IPs and user agents. If this function
+    // is ever applied to transactions, we may need to rethink this.
+    let settings = Settings {
+        infer_ip: true,
+        infer_user_agent: true,
+    };
+
+    (settings, spans)
 }
 
 fn expand_legacy_span(item: &Item) -> Result<WithHeader<SpanV2>> {

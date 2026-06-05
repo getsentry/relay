@@ -122,6 +122,10 @@ def test_spansv2_basic(
             "invalid": None,
             "browser.name": {"type": "string", "value": "Firefox"},
             "browser.version": {"type": "string", "value": "42.0"},
+            "user_agent.original": {
+                "type": "string",
+                "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
+            },
             "sentry.dsc.environment": {"type": "string", "value": "prod"},
             "sentry.dsc.public_key": {
                 "type": "string",
@@ -238,7 +242,7 @@ def test_spansv2_trimming_basic(
             # This is sufficient for all builtin attributes not
             # to be trimmed. The span fields that aren't trimmed
             # also still count for the size limit.
-            "trimming": {"span": {"maxSize": 454}},
+            "trimming": {"span": {"maxSize": 513}},
         }
     )
 
@@ -315,6 +319,10 @@ def test_spansv2_trimming_basic(
             "custom.invalid.attribute": None,
             "browser.name": {"type": "string", "value": "Firefox"},
             "browser.version": {"type": "string", "value": "42.0"},
+            "user_agent.original": {
+                "type": "string",
+                "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
+            },
             "sentry.dsc.environment": {"type": "string", "value": "prod"},
             "sentry.dsc.public_key": {
                 "type": "string",
@@ -335,7 +343,7 @@ def test_spansv2_trimming_basic(
         },
         "_meta": {
             "attributes": {
-                "": {"len": 506},
+                "": {"len": 565},
                 "custom.array.attribute": {
                     "value": {
                         "2": {
