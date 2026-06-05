@@ -875,7 +875,7 @@ def get_transaction_envelope(
     # Create transaction
     event = {
         "type": "transaction",
-        "timestamp": ts.isoformat(),
+        "timestamp": ts.timestamp(),
         "start_timestamp": ts.timestamp(),
         "spans": [],
         "contexts": {
