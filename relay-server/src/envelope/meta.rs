@@ -1,3 +1,5 @@
+use std::fmt;
+
 /// A list well known clients.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ClientName<'a> {
@@ -30,7 +32,11 @@ impl<'a> ClientName<'a> {
     ///
     /// Returns `None` if the client name is not a well known client.
     pub fn as_static_str(&self) -> Option<&'static str> {
-        Some(match self {
+        self.maybe_static().ok()
+    }
+
+    fn maybe_static(&self) -> Result<&'static str, &'a str> {
+        Ok(match self {
             Self::Relay => "sentry.relay",
             Self::Ruby => "sentry-ruby",
             Self::CocoaFlutter => "sentry.cocoa.flutter",
@@ -52,7 +58,7 @@ impl<'a> ClientName<'a> {
             Self::Symfony => "sentry.php.symfony",
             Self::Php => "sentry.php",
             Self::Python => "sentry.python",
-            Self::Other(_) => return None,
+            Self::Other(s) => return Err(s),
         })
     }
 }
@@ -82,6 +88,15 @@ impl<'a> From<&'a str> for ClientName<'a> {
             "sentry.php" => Self::Php,
             "sentry.python" => Self::Python,
             other => Self::Other(other),
+        }
+    }
+}
+
+impl fmt::Display for ClientName<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.maybe_static() {
+            Ok(s) => f.write_str(s),
+            Err(s) => f.write_str(s),
         }
     }
 }
