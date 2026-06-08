@@ -804,15 +804,14 @@ impl Getter for Event {
                     self.extra_at(rest)?.into()
                 } else if let Some(rest) = path.strip_prefix("tags.") {
                     self.tags.value()?.get(rest)?.into()
-                } else if let Some(rest) = path.strip_prefix("request.headers.") {
+                } else {
+                    let rest = path.strip_prefix("request.headers.")?;
                     self.request
                         .value()?
                         .headers
                         .value()?
                         .get_header(rest)?
                         .into()
-                } else {
-                    return None;
                 }
             }
         })
