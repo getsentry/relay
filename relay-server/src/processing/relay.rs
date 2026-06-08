@@ -27,6 +27,7 @@ use crate::processing::transactions::TransactionProcessor;
 use crate::processing::user_reports::UserReportsProcessor;
 use crate::processing::{Context, Output, Outputs, Processor, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::statsd::RelayTimers;
 
 /// Implementation of Relays processing pipeline.
 ///
@@ -184,7 +185,12 @@ impl RelayProcessor {
         );
 
         let _token = self.cogs.timed(ResourceId::Relay, T::cogs());
-        let output = processor.process(item, ctx).await;
+
+        let output = relay_statsd::metric!(
+            timer(RelayTimers::EventProcessingProcess),
+            processor = std::any::type_name::<T>(),
+            { processor.process(item, ctx).await }
+        );
 
         match output {
             Ok(output) => Some(output),
