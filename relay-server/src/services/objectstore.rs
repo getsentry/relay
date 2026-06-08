@@ -19,7 +19,7 @@ use relay_system::{
 };
 use sentry_protos::snuba::v1::TraceItem;
 
-use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
+use crate::constants::{DEFAULT_ATTACHMENT_RETENTION, DEFAULT_PROFILE_RETENTION};
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
@@ -339,8 +339,8 @@ impl ObjectstoreService {
             .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
         let trace_attachments = Usecase::new("trace_attachments")
             .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
-        let profiles = Usecase::new("profiles_raw")
-            .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
+        let profiles = Usecase::new("profile_raw")
+            .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_PROFILE_RETENTION));
 
         let inner = ObjectstoreServiceInner {
             store,

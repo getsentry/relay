@@ -42,6 +42,9 @@ pub const DEFAULT_CHECK_IN_CLIENT: &str = "relay-http";
 #[cfg(feature = "processing")]
 pub const DEFAULT_ATTACHMENT_RETENTION: Duration = Duration::from_hours(24 * 30);
 
+#[cfg(feature = "processing")]
+pub const DEFAULT_PROFILE_RETENTION: Duration = Duration::from_hours(24 * 90);
+
 /// Magic number indicating the dying message file is encoded by sentry-switch SDK.
 pub const NNSWITCH_SENTRY_MAGIC: &[u8] = b"sntr";
 
