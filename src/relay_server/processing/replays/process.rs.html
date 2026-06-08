@@ -79,7 +79,7 @@
 <a href=#79 id=79 data-nosnippet>79</a>                expand_video(video).map(|payload| ExpandedReplay { headers, payload })
 <a href=#80 id=80 data-nosnippet>80</a>            }
 <a href=#81 id=81 data-nosnippet>81</a>            (events, recordings, videos) =&gt; {
-<a href=#82 id=82 data-nosnippet>82</a>                <span class="macro">relay_log::error!</span>(
+<a href=#82 id=82 data-nosnippet>82</a>                <span class="macro">relay_log::info!</span>(
 <a href=#83 id=83 data-nosnippet>83</a>                    sdk = headers.meta().client().unwrap_or(<span class="string">"unknown"</span>),
 <a href=#84 id=84 data-nosnippet>84</a>                    event_count = events.len(),
 <a href=#85 id=85 data-nosnippet>85</a>                    recording_count = recordings.len(),
