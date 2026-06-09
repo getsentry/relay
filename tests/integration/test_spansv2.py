@@ -3,7 +3,7 @@ from datetime import datetime, timezone, timedelta
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 
-from .asserts import match_any, time_within_delta, time_within, time_is
+from .asserts import matches_any, time_within_delta, time_within, time_is
 
 from .test_dynamic_sampling import add_sampling_config
 
@@ -496,7 +496,7 @@ def test_spansv2_ds_drop(mini_sentry, relay, span, rule_type):
 
     assert mini_sentry.get_metrics() == [
         {
-            "metadata": match_any(),
+            "metadata": matches_any(),
             "name": "c:spans/count_per_root_project@none",
             "tags": {
                 "decision": "drop",
@@ -510,7 +510,7 @@ def test_spansv2_ds_drop(mini_sentry, relay, span, rule_type):
             "width": 1,
         },
         {
-            "metadata": match_any(),
+            "metadata": matches_any(),
             "name": "c:spans/usage@none",
             "tags": {
                 "is_segment": "false",
@@ -597,7 +597,7 @@ def test_spansv2_rate_limits(mini_sentry, relay, rate_limit):
     if rate_limit == DataCategory.SPAN_INDEXED:
         assert mini_sentry.get_metrics() == [
             {
-                "metadata": match_any(),
+                "metadata": matches_any(),
                 "name": "c:spans/count_per_root_project@none",
                 "tags": {
                     "decision": "keep",
@@ -610,7 +610,7 @@ def test_spansv2_rate_limits(mini_sentry, relay, rate_limit):
                 "width": 1,
             },
             {
-                "metadata": match_any(),
+                "metadata": matches_any(),
                 "name": "c:spans/usage@none",
                 "tags": {
                     "was_transaction": "false",
@@ -1200,8 +1200,10 @@ def test_spanv2_with_string_pii_scrubbing(
                 "test_pii": {
                     "value": {
                         "": {
-                            "len": match_any(),
-                            "rem": [[rule_type, match_any(), match_any(), match_any()]],
+                            "len": matches_any(),
+                            "rem": [
+                                [rule_type, matches_any(), matches_any(), matches_any()]
+                            ],
                         }
                     }
                 }
@@ -1338,13 +1340,13 @@ def test_spanv2_meta_pii_scrubbing_complex_attribute(mini_sentry, relay):
                     "value": {
                         "1": {
                             "": {
-                                "len": match_any(),
+                                "len": matches_any(),
                                 "rem": [
                                     [
                                         "@creditcard",
-                                        match_any(),
-                                        match_any(),
-                                        match_any(),
+                                        matches_any(),
+                                        matches_any(),
+                                        matches_any(),
                                     ]
                                 ],
                             }
@@ -1728,7 +1730,7 @@ def test_time_corrections(mini_sentry, relay, delta, error):
                 }
             }
         },
-        "attributes": match_any(),
+        "attributes": matches_any(),
         "status": "ok",
         "is_segment": True,
         "name": "some op",

@@ -7,7 +7,7 @@ from requests import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 
-from .asserts import time_within_delta, time_within, matches, match_any
+from .asserts import time_within_delta, time_within, matches, matches_any
 
 import pytest
 
@@ -315,7 +315,7 @@ def test_ourlog_extraction_with_sentry_logs(
                 "browser.name": {"stringValue": "Firefox"},
                 "browser.version": {"stringValue": "42.0"},
                 "sentry.severity_text": {"stringValue": "error"},
-                "sentry.payload_size_bytes": {"intValue": match_any()},
+                "sentry.payload_size_bytes": {"intValue": matches_any()},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
                 "user_agent.original": {
                     "stringValue": "RelayIntegrationTests/1.0.0 Firefox/42.0",
@@ -323,7 +323,7 @@ def test_ourlog_extraction_with_sentry_logs(
                 **timestamps(ts),
             },
             "clientSampleRate": 1.0,
-            "itemId": match_any(),
+            "itemId": matches_any(),
             "itemType": "TRACE_ITEM_TYPE_LOG",
             "organizationId": "1",
             "projectId": "42",
@@ -393,7 +393,7 @@ def test_ourlog_extraction_with_sentry_logs(
                 "browser.name": {"stringValue": "Firefox"},
                 "browser.version": {"stringValue": "42.0"},
                 "sentry.severity_text": {"stringValue": "info"},
-                "sentry.payload_size_bytes": {"intValue": match_any()},
+                "sentry.payload_size_bytes": {"intValue": matches_any()},
                 "http.response_content_length": {"intValue": "17"},
                 "http.response.body.size": {"intValue": "17"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
@@ -410,7 +410,7 @@ def test_ourlog_extraction_with_sentry_logs(
                 **timestamps(ts),
             },
             "clientSampleRate": 1.0,
-            "itemId": match_any(),
+            "itemId": matches_any(),
             "itemType": "TRACE_ITEM_TYPE_LOG",
             "organizationId": "1",
             "projectId": "42",
@@ -520,14 +520,16 @@ def test_ourlog_extraction_with_string_pii_scrubbing(
                 "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
             },
         },
-        "__header": {"byte_size": match_any()},
+        "__header": {"byte_size": matches_any()},
         "_meta": {
             "attributes": {
                 "test_pii": {
                     "value": {
                         "": {
-                            "len": match_any(),
-                            "rem": [[rule_type, match_any(), match_any(), match_any()]],
+                            "len": matches_any(),
+                            "rem": [
+                                [rule_type, matches_any(), matches_any(), matches_any()]
+                            ],
                         }
                     }
                 }
@@ -630,15 +632,15 @@ def test_ourlog_default_pii_body(
     assert log == {
         **_if_dict(
             non_destructive.scrubs(),
-            {"_meta": {"body": {"": {"len": match_any(), "rem": match_any()}}}},
+            {"_meta": {"body": {"": {"len": matches_any(), "rem": matches_any()}}}},
         ),
-        "attributes": match_any(),
+        "attributes": matches_any(),
         "body": non_destructive.expected_output,
         "level": "info",
         "span_id": "eee19b7ec3c1b174",
         "timestamp": time_within(ts),
         "trace_id": "5b8efff798038103d269b633813fc60c",
-        "__header": match_any(),
+        "__header": matches_any(),
     }
 
     if non_destructive.additional_checks:
@@ -705,7 +707,7 @@ def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attribut
             "sentry.body": {"stringValue": "Test log"},
             "sentry.severity_text": {"stringValue": "info"},
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
-            "sentry.payload_size_bytes": match_any(),
+            "sentry.payload_size_bytes": matches_any(),
             "browser.name": {"stringValue": "Firefox"},
             "user_agent.original": {
                 "stringValue": "RelayIntegrationTests/1.0.0 Firefox/42.0"
@@ -713,7 +715,7 @@ def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attribut
             **timestamps(ts),
         },
         "clientSampleRate": 1.0,
-        "itemId": match_any(),
+        "itemId": matches_any(),
         "itemType": "TRACE_ITEM_TYPE_LOG",
         "organizationId": "1",
         "projectId": "42",
@@ -760,14 +762,14 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
             "browser.name": {"stringValue": "Firefox"},
             "browser.version": {"stringValue": "42.0"},
             "sentry.severity_text": {"stringValue": "warn"},
-            "sentry.payload_size_bytes": {"intValue": match_any()},
+            "sentry.payload_size_bytes": {"intValue": matches_any()},
             "user_agent.original": {
                 "stringValue": "RelayIntegrationTests/1.0.0 Firefox/42.0"
             },
             **timestamps(ts),
         },
         "clientSampleRate": 1.0,
-        "itemId": match_any(),
+        "itemId": matches_any(),
         "itemType": "TRACE_ITEM_TYPE_LOG",
         "organizationId": "1",
         "projectId": "42",
@@ -906,12 +908,12 @@ def test_browser_name_version_extraction(
             "browser.version": {"stringValue": expected_browser_version},
             "user_agent.original": {"stringValue": user_agent},
             "sentry.severity_text": {"stringValue": "error"},
-            "sentry.payload_size_bytes": {"intValue": match_any()},
+            "sentry.payload_size_bytes": {"intValue": matches_any()},
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
             **timestamps(ts),
         },
         "clientSampleRate": 1.0,
-        "itemId": match_any(),
+        "itemId": matches_any(),
         "itemType": "TRACE_ITEM_TYPE_LOG",
         "organizationId": "1",
         "projectId": "42",
@@ -1046,7 +1048,7 @@ def test_filters_are_applied_to_logs(
             "org_id": 1,
             "outcome": 1,
             "project_id": 42,
-            "quantity": match_any(),
+            "quantity": matches_any(),
             "reason": filter_name,
             "timestamp": time_within_delta(ts),
         },
@@ -1105,7 +1107,7 @@ def test_time_corrections(mini_sentry, relay, delta, error):
                 }
             }
         },
-        "attributes": match_any(),
+        "attributes": matches_any(),
         "body": "foo",
         "level": "error",
         "span_id": "eee19b7ec3c1b175",
@@ -1189,7 +1191,7 @@ def test_time_sequence_shift(mini_sentry, relay_with_processing, items_consumer)
         },
         "clientSampleRate": 1.0,
         "downsampledRetentionDays": 90,
-        "itemId": match_any(),
+        "itemId": matches_any(),
         "itemType": "TRACE_ITEM_TYPE_LOG",
         "organizationId": "1",
         "projectId": "42",
@@ -1295,7 +1297,7 @@ def test_ourlog_container_metadata(
                 "value": time_within(ts, expect_resolution="ns"),
             },
         },
-        "__header": match_any(),
+        "__header": matches_any(),
         "body": "Test log",
         "level": "info",
         "timestamp": time_within(ts),

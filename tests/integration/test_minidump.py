@@ -13,7 +13,7 @@ from uuid import UUID
 from urllib3.filepost import encode_multipart_formdata
 
 from sentry_relay.consts import DataCategory
-from .asserts import match_any, time_within_delta
+from .asserts import matches_any, time_within_delta
 from .test_attachment_ref import upload_and_make_ref
 from .consts import DUMMY_UPLOAD_LOCATION
 
@@ -863,18 +863,18 @@ def test_minidump_placeholder(
                 "type": "trace",
             },
         },
-        "grouping_config": match_any(),
+        "grouping_config": matches_any(),
         "key_id": "123",
         "level": "fatal",
         "logger": "",
         "platform": "native",
         "project": 42,
-        "received": match_any(),
+        "received": matches_any(),
         "sdk": {
             "name": "minidump.upload",
             "version": "0.0.0",
         },
-        "timestamp": match_any(),
+        "timestamp": matches_any(),
         "type": "error",
         "version": "5",
     }
@@ -886,12 +886,12 @@ def test_minidump_placeholder(
     assert attachment == {
         "attachment_type": "event.minidump",
         "content_type": "application/x-dmp",
-        "id": match_any(),
+        "id": matches_any(),
         "name": "minidump.dmp",
         "rate_limited": False,
         "retention_days": 90,
         "size": 26,
-        "stored_id": match_any(),
+        "stored_id": matches_any(),
     }
 
     # Verify the actual data is retrievable from the objectstore.

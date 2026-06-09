@@ -4,7 +4,7 @@ from .protocol import only_items
 from .utils import PrintLastCompare
 
 __all__ = [
-    "match_any",
+    "matches_any",
     "matches",
     "only_items",
     "time_after",
@@ -52,7 +52,7 @@ class _Any(PrintLastCompare):
         return "<ANY>"
 
 
-def match_any():
+def matches_any():
     """
     A helper object that compares equal to everything."
     """
