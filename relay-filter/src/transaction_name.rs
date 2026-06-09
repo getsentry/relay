@@ -95,8 +95,10 @@ mod tests {
             "/up",
             "123/up",
             "/actuator/health",
+            "/actuator/health/",
             "foo/actuator/health/db",
             "/manage/health",
+            "/manage/health/",
             "foo/manage/health/db",
         ];
 
