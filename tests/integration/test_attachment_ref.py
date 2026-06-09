@@ -6,7 +6,7 @@ from requests.exceptions import HTTPError
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
-from .asserts import any
+from .asserts import matches_any
 from .test_store import make_transaction
 
 
@@ -199,14 +199,14 @@ def test_attachment_ref(
 
     relay.send_envelope(project_id, envelope)
     expected_attachment = {
-        "id": any(),
+        "id": matches_any(),
         "name": "test.txt",
         "content_type": "text/plain",
         "attachment_type": "event.attachment",
         "size": len(attachment_data),
         "rate_limited": False,
-        "stored_id": any(),
-        "retention_days": any(),
+        "stored_id": matches_any(),
+        "retention_days": matches_any(),
     }
 
     if event_type == "event":

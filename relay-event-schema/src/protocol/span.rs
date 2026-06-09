@@ -167,7 +167,8 @@ impl Getter for Span {
                         self.attribute(key)?
                     } else if let Some(key) = path.strip_prefix("sentry_tags.") {
                         self.sentry_tags.value()?.get_value(key)?
-                    } else if let Some(rest) = path.strip_prefix("measurements.") {
+                    } else {
+                        let rest = path.strip_prefix("measurements.")?;
                         let name = rest.strip_suffix(".value")?;
                         self.measurements
                             .value()?
@@ -176,8 +177,6 @@ impl Getter for Span {
                             .value
                             .value()?
                             .into()
-                    } else {
-                        return None;
                     }
                 }
             });

@@ -2,7 +2,7 @@ import uuid
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
-from .asserts import any
+from .asserts import matches_any
 
 
 def test_event_with_span_link_in_transaction(relay, mini_sentry):
@@ -99,7 +99,7 @@ def test_event_with_span_link_in_transaction(relay, mini_sentry):
             "status": "ok",
             "start_timestamp": 1624366926.0,
             "timestamp": 1624366927.0,
-            "sentry_tags": any(),
+            "sentry_tags": matches_any(),
             "data": {"sentry.segment.name": "/users"},
             "links": [
                 {

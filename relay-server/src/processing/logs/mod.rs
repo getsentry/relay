@@ -117,14 +117,11 @@ impl processing::Processor for LogsProcessor {
             .take_item_by(|item| matches!(*item.ty(), ItemType::Log))
         {
             LogItems::Container(container)
-        } else if let Some(integration) = envelope
-            .envelope_mut()
-            .take_item_by(|item| matches!(item.integration(), Some(Integration::Logs(_))))
-        {
-            LogItems::Integration(integration)
         } else {
-            // No log items found.
-            return None;
+            let integration = envelope
+                .envelope_mut()
+                .take_item_by(|item| matches!(item.integration(), Some(Integration::Logs(_))))?;
+            LogItems::Integration(integration)
         };
 
         // Duplicates which are not allowed to be in the envelope.

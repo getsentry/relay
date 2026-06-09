@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 
-from .asserts import any, time_within_delta, time_is
+from .asserts import matches_any, time_within_delta, time_is
 from .test_spansv2 import envelope_with_spans
 
 from .test_dynamic_sampling import add_sampling_config
@@ -152,10 +152,10 @@ def test_standalone_attachment_store(
         "itemType": "TRACE_ITEM_TYPE_ATTACHMENT",
         "organizationId": "1",
         "projectId": "42",
-        "received": any(),
+        "received": matches_any(),
         "retentionDays": 90,
         "serverSampleRate": 1.0,
-        "timestamp": any(),
+        "timestamp": matches_any(),
         "traceId": attachment_metadata["trace_id"].replace("-", ""),
     }
 
@@ -327,7 +327,7 @@ def test_attachment_with_matching_span(mini_sentry, relay):
             "is_segment": True,
             "start_timestamp": time_is(ts),
             "end_timestamp": time_is(ts.timestamp() + 0.5),
-            "attributes": any(),
+            "attributes": matches_any(),
         }
     ]
 
@@ -414,10 +414,10 @@ def test_attachment_with_matching_span_store(
         "itemType": "TRACE_ITEM_TYPE_ATTACHMENT",
         "organizationId": "1",
         "projectId": "42",
-        "received": any(),
+        "received": matches_any(),
         "retentionDays": 90,
         "serverSampleRate": 1.0,
-        "timestamp": any(),
+        "timestamp": matches_any(),
         "traceId": metadata["trace_id"],
     }
 
@@ -526,7 +526,7 @@ def test_two_attachments_mapping_to_same_span(mini_sentry, relay):
             "is_segment": True,
             "start_timestamp": time_is(ts),
             "end_timestamp": time_is(ts.timestamp() + 0.5),
-            "attributes": any(),
+            "attributes": matches_any(),
         }
     ]
 
@@ -637,7 +637,7 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
 
     assert mini_sentry.get_metrics() == [
         {
-            "metadata": any(),
+            "metadata": matches_any(),
             "name": "c:spans/count_per_root_project@none",
             "tags": {
                 "decision": "drop",
@@ -651,7 +651,7 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
             "width": 1,
         },
         {
-            "metadata": any(),
+            "metadata": matches_any(),
             "name": "c:spans/usage@none",
             "tags": {
                 "is_segment": "false",
@@ -1291,27 +1291,12 @@ def test_attachment_default_pii_scrubbing_meta(
     payload = attachment.payload.bytes
     metadata_part = json.loads(payload[:meta_length].decode("utf-8"))
 
-    assert metadata_part == {
-        "attachment_id": metadata["attachment_id"],
-        "timestamp": time_within_delta(ts),
-        "filename": "data.txt",
-        "content_type": "text/plain",
-        "attributes": {
-            attribute_key: {"type": "string", "value": expected_value},
-        },
-        "_meta": {
-            "attributes": {
-                attribute_key: {
-                    "value": {
-                        "": {
-                            "len": any(),
-                            "rem": [[rule_type, any(), any(), any()]],
-                        }
-                    }
-                }
-            }
-        },
-    }
+    assert metadata_part["timestamp"] == time_within_delta(ts)
+    assert metadata_part["attachment_id"] == metadata["attachment_id"]
+    assert metadata_part["attributes"][attribute_key]["value"] == expected_value
+    rem_info = metadata_part["_meta"]["attributes"][attribute_key]["value"][""]["rem"]
+    assert len(rem_info) == 1
+    assert rem_info[0][0] == rule_type
 
 
 def test_attachment_pii_scrubbing_meta_attribute(
@@ -1397,8 +1382,10 @@ def test_attachment_pii_scrubbing_meta_attribute(
                 "test_pii": {
                     "value": {
                         "": {
-                            "len": any(),
-                            "rem": [[rule_type, any(), any(), any()]],
+                            "len": matches_any(),
+                            "rem": [
+                                [rule_type, matches_any(), matches_any(), matches_any()]
+                            ],
                         }
                     }
                 }

@@ -7,7 +7,7 @@ import json
 from requests.exceptions import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
-from .asserts import any
+from .asserts import matches_any
 from .test_store import make_transaction
 
 
@@ -164,7 +164,7 @@ def test_attachments_with_objectstore(
     assert stored == {
         "type": "attachment",
         "attachment": {
-            "id": any(),
+            "id": matches_any(),
             "name": "foo.txt",
             "rate_limited": False,
             "attachment_type": "event.attachment",
@@ -181,7 +181,7 @@ def test_attachments_with_objectstore(
     assert empty == {
         "type": "attachment",
         "attachment": {
-            "id": any(),
+            "id": matches_any(),
             "name": "foobar.txt",
             "rate_limited": False,
             "attachment_type": "event.attachment",
@@ -670,7 +670,7 @@ def test_event_with_attachment(
             "attachment_type": "event.attachment",
             "size": len(b"event attachment"),
             "retention_days": 90,
-            **({"stored_id": any()} if use_objectstore else {"chunks": 1}),
+            **({"stored_id": matches_any()} if use_objectstore else {"chunks": 1}),
         }
     ]
 
@@ -699,7 +699,7 @@ def test_event_with_attachment(
         "size": len(b"transaction attachment"),
         "retention_days": 90,
         **(
-            {"stored_id": any()}
+            {"stored_id": matches_any()}
             if use_objectstore
             else {"data": b"transaction attachment"}
         ),

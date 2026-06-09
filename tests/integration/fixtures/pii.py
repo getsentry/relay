@@ -56,8 +56,14 @@ def scrubbing_rule(request):
         ("password", "my_password_123", "[Filtered]", "@password:filter"),
         ("secret_key", "my_secret_key_123", "[Filtered]", "@password:filter"),
         ("api_key", "my_api_key_123", "[Filtered]", "@password:filter"),
+        (
+            "client.address",
+            "should be removed because this is a known IP field",
+            None,
+            "@anything:remove",
+        ),
     ],
-    ids=["password", "secret_key", "api_key"],
+    ids=["password", "secret_key", "api_key", "client.address"],
 )
 def secret_attribute(request):
     return request.param

@@ -106,6 +106,7 @@ impl IntoResponse for Error {
                 upload::Error::ObjectstoreServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
                 #[cfg(feature = "processing")]
                 upload::Error::Objectstore(service_error) => match service_error.kind {
+                    objectstore::ErrorKind::InvalidScoping => StatusCode::INTERNAL_SERVER_ERROR,
                     objectstore::ErrorKind::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
                     objectstore::ErrorKind::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
                     objectstore::ErrorKind::UploadFailed(error) => match error {

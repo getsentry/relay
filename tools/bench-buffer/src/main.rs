@@ -43,7 +43,7 @@ struct Args {
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
-    println!("{:?}", &args);
+    println!("{:?}", args);
     let Args {
         envelope_size_bytes,
         compression_ratio,
