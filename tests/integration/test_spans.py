@@ -213,12 +213,7 @@ def test_span_extraction(
     del transaction_span["received"]
 
     if performance_issues_spans:
-        assert (
-            transaction_span["attributes"].pop(
-                "sentry._internal.performance_issues_spans"
-            )["value"]
-            is True
-        )
+        assert transaction_span.pop("_performance_issues_spans") is True
 
     expected_transaction_span = {
         "attributes": {
@@ -509,20 +504,14 @@ def envelope_with_transaction_and_spans(start: datetime, end: datetime) -> Envel
     return envelope
 
 
-@pytest.mark.parametrize("measurements_conversion", ["direct", "smart"])
 def test_span_ingestion_with_performance_scores(
-    mini_sentry, relay_with_processing, spans_consumer, measurements_conversion
+    mini_sentry, relay_with_processing, spans_consumer
 ):
     spans_consumer = spans_consumer()
     relay = relay_with_processing()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    if measurements_conversion == "smart":
-        project_config["config"]["features"] = [
-            "projects:relay-measurements-smart-conversion"
-        ]
-
     project_config["config"]["performanceScore"] = {
         "profiles": [
             {
@@ -628,29 +617,6 @@ def test_span_ingestion_with_performance_scores(
     # endpoint might overtake envelope
     spans.sort(key=lambda msg: msg["span_id"])
 
-    if measurements_conversion == "smart":
-        measurements1 = {
-            "browser.web_vital.cls.value": 100.0,
-            "browser.web_vital.fcp.value": 200.0,
-            "fid": 300.0,
-            "browser.web_vital.lcp.value": 400.0,
-            "browser.web_vital.ttfb.value": 500.0,
-        }
-        measurements2 = {
-            "browser.web_vital.inp.value": 100.0,
-        }
-    else:
-        measurements1 = {
-            "cls": 100.0,
-            "fcp": 200.0,
-            "fid": 300.0,
-            "lcp": 400.0,
-            "ttfb": 500.0,
-        }
-        measurements2 = {
-            "inp": 100.0,
-        }
-
     expected_scores = [
         {
             "score.fcp": 0.14999972769539766,
@@ -668,15 +634,19 @@ def test_span_ingestion_with_performance_scores(
             "score.weight.fid": 0.3,
             "score.weight.lcp": 0.3,
             "score.weight.ttfb": 0.0,
+            "browser.web_vital.cls.value": 100.0,
+            "browser.web_vital.fcp.value": 200.0,
+            "fid": 300.0,
+            "browser.web_vital.lcp.value": 400.0,
+            "browser.web_vital.ttfb.value": 500.0,
             "score.cls": 0.0,
-            **measurements1,
         },
         {
+            "browser.web_vital.inp.value": 100.0,
             "score.inp": 0.9948129113413748,
             "score.ratio.inp": 0.9948129113413748,
             "score.total": 0.9948129113413748,
             "score.weight.inp": 1.0,
-            **measurements2,
         },
     ]
 
@@ -1278,60 +1248,3 @@ def test_outcomes_for_trimmed_spans(mini_sentry, relay):
             "timestamp": any(),
         },
     ]
-
-
-def test_spans_dsc_normalization(
-    mini_sentry, relay, relay_with_processing, spans_consumer
-):
-    project_id = 42
-    mini_sentry.add_full_project_config(project_id)
-    relay = relay(relay_with_processing())
-    spans_consumer = spans_consumer()
-    ts = datetime.now(timezone.utc)
-    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
-    event["spans"] = [
-        {
-            "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
-            "span_id": "bbbbbbbbbbbbbbbb",
-            "parent_span_id": "968cff94913ebb07",
-            "start_timestamp": ts.timestamp(),
-            "timestamp": ts.timestamp() + 0.3,
-        },
-        {
-            "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
-            "span_id": "cccccccccccccccc",
-            "parent_span_id": "968cff94913ebb07",
-            "start_timestamp": ts.timestamp(),
-            "timestamp": ts.timestamp() + 0.3,
-            "data": {
-                "sentry.dsc.trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
-                "sentry.dsc.transaction": "/transaction/already/exists",
-                "sentry.dsc.project_id": "41",
-            },
-        },
-    ]
-
-    relay.send_event(project_id, event)
-    spans = {s["span_id"]: s for s in spans_consumer.get_spans()}
-
-    def get_transaction(span_id: str):
-        return spans[span_id]["attributes"]["sentry.dsc.transaction"]["value"]
-
-    def get_project_id(span_id: str):
-        return spans[span_id]["attributes"]["sentry.dsc.project_id"]["value"]
-
-    def get_trace_id(span_id: str):
-        return spans[span_id]["attributes"]["sentry.dsc.trace_id"]["value"]
-
-    assert spans["968cff94913ebb07"]["is_segment"] is True
-    assert spans["bbbbbbbbbbbbbbbb"]["is_segment"] is False
-    assert spans["cccccccccccccccc"]["is_segment"] is False
-    assert get_transaction("968cff94913ebb07") == "hi"
-    assert get_transaction("bbbbbbbbbbbbbbbb") == "hi"
-    assert get_transaction("cccccccccccccccc") == "/transaction/already/exists"
-    assert get_project_id("968cff94913ebb07") == "42"
-    assert get_project_id("bbbbbbbbbbbbbbbb") == "42"
-    assert get_project_id("cccccccccccccccc") == "41"
-    assert get_trace_id("968cff94913ebb07") == "a0fa8803753e40fd8124b21eeb2986b5"
-    assert get_trace_id("bbbbbbbbbbbbbbbb") == "a0fa8803753e40fd8124b21eeb2986b5"
-    assert get_trace_id("cccccccccccccccc") == "a0fa8803753e40fd8124b21eeb2986b5"

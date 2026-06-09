@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use either::Either;
+use relay_cogs::{AppFeature, FeatureWeights};
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{SpanV2, span_v2};
@@ -117,6 +118,10 @@ impl processing::Processor for SpansProcessor {
     type Output = SpanOutput;
     type Error = Error;
 
+    fn cogs() -> FeatureWeights {
+        AppFeature::Spans.into()
+    }
+
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
 
@@ -180,7 +185,7 @@ impl processing::Processor for SpansProcessor {
         dynamic_sampling::validate_configs(ctx);
         dynamic_sampling::validate_dsc_presence(&spans).reject(&spans)?;
 
-        let spans = process::expand(spans, ctx)?;
+        let spans = process::expand(spans)?;
 
         let mut spans = match dynamic_sampling::run(spans, ctx) {
             Ok(spans) => spans,

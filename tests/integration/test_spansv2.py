@@ -122,6 +122,10 @@ def test_spansv2_basic(
             "invalid": None,
             "browser.name": {"type": "string", "value": "Firefox"},
             "browser.version": {"type": "string", "value": "42.0"},
+            "user_agent.original": {
+                "type": "string",
+                "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
+            },
             "sentry.dsc.environment": {"type": "string", "value": "prod"},
             "sentry.dsc.public_key": {
                 "type": "string",
@@ -238,7 +242,7 @@ def test_spansv2_trimming_basic(
             # This is sufficient for all builtin attributes not
             # to be trimmed. The span fields that aren't trimmed
             # also still count for the size limit.
-            "trimming": {"span": {"maxSize": 454}},
+            "trimming": {"span": {"maxSize": 513}},
         }
     )
 
@@ -315,6 +319,10 @@ def test_spansv2_trimming_basic(
             "custom.invalid.attribute": None,
             "browser.name": {"type": "string", "value": "Firefox"},
             "browser.version": {"type": "string", "value": "42.0"},
+            "user_agent.original": {
+                "type": "string",
+                "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
+            },
             "sentry.dsc.environment": {"type": "string", "value": "prod"},
             "sentry.dsc.public_key": {
                 "type": "string",
@@ -335,7 +343,7 @@ def test_spansv2_trimming_basic(
         },
         "_meta": {
             "attributes": {
-                "": {"len": 506},
+                "": {"len": 565},
                 "custom.array.attribute": {
                     "value": {
                         "2": {
@@ -1885,85 +1893,3 @@ def test_spansv2_ingestion_with_performance_scores(
     for span, scores in zip(spans, expected_scores):
         for key, score in scores.items():
             assert span["attributes"][key]["value"] == score
-
-
-def test_spansv2_dsc_normalization(
-    mini_sentry, relay, relay_with_processing, spans_consumer
-):
-    spans_consumer = spans_consumer()
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
-    ts = datetime.now(timezone.utc) - timedelta(seconds=1)
-    envelope = envelope_with_spans(
-        {
-            "start_timestamp": ts.timestamp(),
-            "end_timestamp": ts.timestamp() + 0.5,
-            "trace_id": "5b8efff798038103d269b633813fc60c",
-            "span_id": "aaaaaaaaaaaaaaaa",
-            "is_segment": True,
-            "name": "root",
-            "status": "ok",
-        },
-        {
-            "start_timestamp": ts.timestamp(),
-            "end_timestamp": ts.timestamp() + 0.3,
-            "trace_id": "5b8efff798038103d269b633813fc60c",
-            "span_id": "bbbbbbbbbbbbbbbb",
-            "parent_span_id": "aaaaaaaaaaaaaaaa",
-            "is_segment": False,
-            "name": "child",
-            "status": "ok",
-        },
-        {
-            "start_timestamp": ts.timestamp(),
-            "end_timestamp": ts.timestamp() + 0.3,
-            "trace_id": "5b8efff798038103d269b633813fc60c",
-            "span_id": "cccccccccccccccc",
-            "parent_span_id": "aaaaaaaaaaaaaaaa",
-            "is_segment": False,
-            "name": "child",
-            "status": "ok",
-            "attributes": {
-                "sentry.dsc.trace_id": {
-                    "type": "string",
-                    "value": "5b8efff798038103d269b633813fc60c",
-                },
-                "sentry.dsc.transaction": {
-                    "type": "string",
-                    "value": "/transaction/already/exists",
-                },
-                "sentry.dsc.project_id": {"type": "string", "value": "41"},
-            },
-        },
-        trace_info={
-            "trace_id": "5b8efff798038103d269b633813fc60c",
-            "public_key": project_config["publicKeys"][0]["publicKey"],
-            "transaction": "/my/fancy/endpoint",
-        },
-    )
-
-    relay.send_envelope(project_id, envelope)
-
-    def get_transaction(span_id: str):
-        return spans[span_id]["attributes"]["sentry.dsc.transaction"]["value"]
-
-    def get_project_id(span_id: str):
-        return spans[span_id]["attributes"]["sentry.dsc.project_id"]["value"]
-
-    def get_trace_id(span_id: str):
-        return spans[span_id]["attributes"]["sentry.dsc.trace_id"]["value"]
-
-    spans = {s["span_id"]: s for s in spans_consumer.get_spans()}
-    assert spans["aaaaaaaaaaaaaaaa"]["is_segment"] is True
-    assert spans["bbbbbbbbbbbbbbbb"]["is_segment"] is False
-    assert spans["cccccccccccccccc"]["is_segment"] is False
-    assert get_transaction("aaaaaaaaaaaaaaaa") == "/my/fancy/endpoint"
-    assert get_transaction("bbbbbbbbbbbbbbbb") == "/my/fancy/endpoint"
-    assert get_transaction("cccccccccccccccc") == "/transaction/already/exists"
-    assert get_project_id("aaaaaaaaaaaaaaaa") == "42"
-    assert get_project_id("bbbbbbbbbbbbbbbb") == "42"
-    assert get_project_id("cccccccccccccccc") == "41"
-    assert get_trace_id("aaaaaaaaaaaaaaaa") == "5b8efff798038103d269b633813fc60c"
-    assert get_trace_id("bbbbbbbbbbbbbbbb") == "5b8efff798038103d269b633813fc60c"
-    assert get_trace_id("cccccccccccccccc") == "5b8efff798038103d269b633813fc60c"

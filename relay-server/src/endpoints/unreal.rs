@@ -15,6 +15,7 @@ use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::{DiscardItemType, DiscardReason};
 use crate::services::processor::ProcessingError;
+use crate::services::projects::project::ProjectState;
 use crate::statsd::RelayCounters;
 use crate::utils::extract_items;
 
@@ -63,11 +64,13 @@ impl UnrealParams {
                 .await
                 .ok_or(BadStoreRequest::ProjectUnavailable)?;
 
-            let project_config = project
-                .state()
-                .clone()
-                .enabled()
-                .ok_or(BadStoreRequest::EventRejected(DiscardReason::ProjectId))?;
+            let project_config = match project.state() {
+                ProjectState::Enabled(info) => info.clone(),
+                // TODO(INGEST-925): Support proxy mode
+                ProjectState::Dummy | ProjectState::Disabled | ProjectState::Pending => {
+                    return Err(BadStoreRequest::EventRejected(DiscardReason::ProjectId));
+                }
+            };
 
             if project_config.has_feature(Feature::UnrealEndpointExpansion) {
                 for mut item in

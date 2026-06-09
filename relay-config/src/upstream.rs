@@ -107,7 +107,7 @@ impl Default for UpstreamDescriptor {
 
 impl fmt::Display for UpstreamDescriptor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}://{}", &self.scheme, &self.host)?;
+        write!(f, "{}://{}", self.scheme, self.host)?;
         if self.port() != self.scheme.default_port() {
             write!(f, ":{}", self.port())?;
         }

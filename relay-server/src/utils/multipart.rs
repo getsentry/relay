@@ -183,7 +183,7 @@ pub trait AttachmentStrategy {
         field: Field<'static>,
         item: Managed<Item>,
         config: &Config,
-    ) -> impl Future<Output = Result<Option<Managed<Item>>, multer::Error>> + Send;
+    ) -> impl Future<Output = Result<Option<Managed<Item>>, BadStoreRequest>> + Send;
 }
 
 pub async fn read_bytes_into_item(
@@ -233,7 +233,7 @@ pub async fn multipart_items(
     attachment_strategy: impl AttachmentStrategy,
     request_meta: &RequestMeta,
     outcome_aggregator: &Addr<TrackOutcome>,
-) -> Result<Managed<Items>, multer::Error> {
+) -> Result<Managed<Items>, BadStoreRequest> {
     let mut items =
         Managed::with_meta_from_request_meta(request_meta, outcome_aggregator, Items::new());
     let mut form_data = FormDataWriter::new();
@@ -250,7 +250,10 @@ pub async fn multipart_items(
                 .add_to_item(field, item, config)
                 .await
                 .inspect_err(|e| {
-                    if let multer::Error::FieldSizeExceeded { .. } = e {
+                    if matches!(
+                        e,
+                        BadStoreRequest::InvalidMultipart(multer::Error::FieldSizeExceeded { .. })
+                    ) {
                         let attachment_type = DiscardAttachmentType::from(attachment_type);
                         let item_type = DiscardItemType::Attachment(attachment_type);
                         let discard_reason = DiscardReason::ItemTooLarge(item_type);
@@ -267,9 +270,7 @@ pub async fn multipart_items(
                     let item_type = DiscardItemType::Attachment(DiscardAttachmentType::Attachment);
                     let _ =
                         items.reject_err(Outcome::Invalid(DiscardReason::ItemTooLarge(item_type)));
-                    return Err(multer::Error::StreamSizeExceeded {
-                        limit: config.max_attachments_size() as u64,
-                    });
+                    return Err(BadStoreRequest::RequestTooLarge);
                 }
             }
         } else if let Some(field_name) = field.name().map(str::to_owned) {
@@ -417,8 +418,8 @@ mod tests {
                 field: Field<'static>,
                 item: Managed<Item>,
                 config: &Config,
-            ) -> Result<Option<Managed<Item>>, multer::Error> {
-                read_bytes_into_item(field, item, config).await.map(Some)
+            ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
+                Ok(Some(read_bytes_into_item(field, item, config).await?))
             }
 
             fn infer_type(&self, _: &Field) -> AttachmentType {
@@ -434,7 +435,10 @@ mod tests {
             &Addr::dummy(),
         )
         .await;
-        assert!(res.is_err_and(|x| matches!(x, multer::Error::FieldSizeExceeded { .. })));
+        assert!(res.is_err_and(|x| matches!(
+            x,
+            BadStoreRequest::InvalidMultipart(multer::Error::FieldSizeExceeded { .. })
+        )));
     }
 
     #[tokio::test]
@@ -469,8 +473,8 @@ mod tests {
                 field: Field<'static>,
                 item: Managed<Item>,
                 config: &Config,
-            ) -> Result<Option<Managed<Item>>, multer::Error> {
-                read_bytes_into_item(field, item, config).await.map(Some)
+            ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
+                Ok(Some(read_bytes_into_item(field, item, config).await?))
             }
 
             fn infer_type(&self, _: &Field) -> AttachmentType {
@@ -488,6 +492,6 @@ mod tests {
         .await;
 
         // Should be warned if the overall stream limit is being breached.
-        assert!(result.is_err_and(|x| matches!(x, multer::Error::StreamSizeExceeded { limit: _ })));
+        assert!(result.is_err_and(|x| matches!(x, BadStoreRequest::RequestTooLarge)));
     }
 }

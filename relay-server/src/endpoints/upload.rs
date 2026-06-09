@@ -23,7 +23,7 @@ use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::Envelope;
 use crate::endpoints::common::BadStoreRequest;
-use crate::envelope::{ContentType, Item, ItemType};
+use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::managed::Managed;
 use crate::service::ServiceState;
@@ -106,6 +106,7 @@ impl IntoResponse for Error {
                 upload::Error::ObjectstoreServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
                 #[cfg(feature = "processing")]
                 upload::Error::Objectstore(service_error) => match service_error.kind {
+                    objectstore::ErrorKind::InvalidScoping => StatusCode::INTERNAL_SERVER_ERROR,
                     objectstore::ErrorKind::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
                     objectstore::ErrorKind::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
                     objectstore::ErrorKind::UploadFailed(error) => match error {
@@ -154,10 +155,13 @@ async fn handle_post(
     check_kill_switch(&state)?;
 
     relay_log::trace!("Validating headers");
-    let upload_length = tus::validate_post_headers(&headers).map_err(Error::from)?;
+    let headers = tus::validate_post_headers(&headers).map_err(Error::from)?;
     let config = state.config();
 
-    if upload_length.is_some_and(|len| len > config.max_upload_size()) {
+    if headers
+        .upload_length
+        .is_some_and(|len| len > config.max_upload_size())
+    {
         return Err(StatusCode::PAYLOAD_TOO_LARGE.into());
     }
 
@@ -174,11 +178,11 @@ async fn handle_post(
         })?;
 
     relay_log::trace!("Checking request");
-    let scoping = check_request(&state, meta, upload_length, project).await?;
+    let scoping = validate_and_limit(&state, meta, &headers, project).await?;
 
     // Unconditionally create the upload location:
     relay_log::trace!("Creating upload location");
-    let result = create(&state, scoping, upload_length).await;
+    let result = create(&state, scoping, &headers).await;
     let location = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "create failed");
     })?;
@@ -221,7 +225,7 @@ async fn handle_patch(
         })?;
 
     relay_log::trace!("Checking request");
-    let scoping = check_request(&state, meta, length.value(), project).await?;
+    let scoping = validate(&state, meta, project).await?;
 
     let stream = body
         .into_data_stream()
@@ -288,13 +292,14 @@ fn check_kill_switch(state: &ServiceState) -> Result<(), StatusCode> {
 async fn create(
     state: &ServiceState,
     scoping: Scoping,
-    upload_length: Option<usize>,
+    headers: &tus::Headers,
 ) -> Result<SignedLocation<Provisional>, Error> {
     let location = state
         .upload()
         .send(upload::Create {
             scoping,
-            length: upload_length,
+            length: headers.upload_length,
+            attachment_type: headers.metadata.map(|m| m.attachment_type),
         })
         .await??;
 
@@ -324,17 +329,24 @@ async fn upload(
 ///
 /// This is currently the easiest way to guarantee that the upload gets checked the same way as
 /// the envelope.
-async fn check_request(
+async fn validate_and_limit(
     state: &ServiceState,
     meta: RequestMeta,
-    upload_length: Option<usize>,
+    headers: &tus::Headers,
     project: Project<'_>,
 ) -> Result<Scoping, BadStoreRequest> {
     let mut envelope = Envelope::from_request(None, meta);
     envelope.require_feature(Feature::UploadEndpoint);
     let mut item = Item::new(ItemType::Attachment);
     item.set_payload(ContentType::AttachmentRef, vec![]);
-    item.set_attachment_length(upload_length.unwrap_or(1));
+    item.set_attachment_length(headers.upload_length.unwrap_or(1));
+    if let Some(ref metadata) = headers.metadata {
+        item.set_attachment_type(metadata.attachment_type);
+
+        if let Some(feature) = required_feature(metadata.attachment_type) {
+            envelope.require_feature(feature);
+        }
+    }
     envelope.add_item(item);
     let mut envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
     let rate_limits = project
@@ -346,6 +358,34 @@ async fn check_request(
             .reject_err((None, BadStoreRequest::RateLimited(rate_limits)))
             .into_inner());
     }
+
+    // We are not really processing an envelope here, only keep the updated scoping:
+    let scoping = envelope.scoping();
+    envelope.accept(|x| x);
+    Ok(scoping)
+}
+
+/// Returns the feature a project must have enabled to upload attachments with the given type.
+fn required_feature(attachment_type: AttachmentType) -> Option<Feature> {
+    match attachment_type {
+        AttachmentType::Minidump => Some(Feature::MinidumpUploads),
+        _ => None,
+    }
+}
+
+async fn validate(
+    state: &ServiceState,
+    meta: RequestMeta,
+    project: Project<'_>,
+) -> Result<Scoping, BadStoreRequest> {
+    let mut envelope = Envelope::from_request(None, meta);
+    envelope.require_feature(Feature::UploadEndpoint);
+    let mut envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
+
+    let _ = project
+        .check_envelope(&mut envelope)
+        .await
+        .map_err(|err| err.map(BadStoreRequest::EventRejected).into_inner())?;
 
     // We are not really processing an envelope here, only keep the updated scoping:
     let scoping = envelope.scoping();

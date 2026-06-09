@@ -9,7 +9,7 @@ import pytest
 # Some profiles from Sentry
 performance_score_profiles = [
     {
-        "name": "Chrome",
+        "name": "Firefox",
         "scoreComponents": [
             {
                 "measurement": "fcp",
@@ -46,18 +46,18 @@ performance_score_profiles = [
                 {
                     "op": "eq",
                     "name": "event.contexts.browser.name",
-                    "value": "Chrome",
+                    "value": "Firefox",
                 },
                 {
                     "op": "eq",
                     "name": "span.attributes.browser.name.value",
-                    "value": "Chrome",
+                    "value": "Firefox",
                 },
             ],
         },
     },
     {
-        "name": "Chrome INP",
+        "name": "Firefox INP",
         "scoreComponents": [
             {
                 "measurement": "inp",
@@ -73,22 +73,12 @@ performance_score_profiles = [
                 {
                     "op": "eq",
                     "name": "event.contexts.browser.name",
-                    "value": "Chrome",
-                },
-                {
-                    "op": "eq",
-                    "name": "event.contexts.browser.name",
-                    "value": "Google Chrome",
+                    "value": "Firefox",
                 },
                 {
                     "op": "eq",
                     "name": "span.attributes.browser.name.value",
-                    "value": "Chrome",
-                },
-                {
-                    "op": "eq",
-                    "name": "span.attributes.browser.name.value",
-                    "value": "Google Chrome",
+                    "value": "Firefox",
                 },
             ],
         },
@@ -118,13 +108,13 @@ def lcp_cls_inp_differences(mode):
     if mode == "legacy":
         attributes = {
             # The legacy pipeline extracts this attribute from `sentry_tags`.
-            "sentry.browser.name": {"type": "string", "value": "Chrome"},
+            "sentry.browser.name": {"type": "string", "value": "Firefox"},
         }
         fields = {}
     else:
         attributes = {
             # We additionally extract the browser version for EAP items
-            "browser.version": {"type": "string", "value": "141.0.0"},
+            "browser.version": {"type": "string", "value": "42.0"},
             # New for EAP items
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
@@ -144,15 +134,8 @@ def lcp_cls_inp_differences(mode):
 
 
 @pytest.mark.parametrize("mode", ["legacy", "v2"])
-@pytest.mark.parametrize("measurements_conversion", ["direct", "smart"])
 def test_lcp_span(
-    mini_sentry,
-    relay,
-    relay_with_processing,
-    spans_consumer,
-    metrics_consumer,
-    mode,
-    measurements_conversion,
+    mini_sentry, relay, relay_with_processing, spans_consumer, metrics_consumer, mode
 ):
     """
     Test verifies LCP spans processed via the SpanV2 and legacy standalone processing pipeline are equally processed.
@@ -171,10 +154,6 @@ def test_lcp_span(
         project_config["config"].setdefault("features", []).append(
             "projects:span-v2-experimental-processing"
         )
-    if measurements_conversion == "smart":
-        project_config["config"].setdefault("features", []).append(
-            "projects:relay-measurements-smart-conversion"
-        )
 
     relay = relay(relay_with_processing())
 
@@ -189,7 +168,7 @@ def test_lcp_span(
                 "environment": "prod",
                 "replay_id": "3d76a6311de149b9b3f560827ea0ecf9",
                 "transaction": "/insights/projects/",
-                "user_agent.original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+                "user_agent.original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
                 "client.address": "{{auto}}",
                 "sentry.exclusive_time": 0,
                 "sentry.pageload.span_id": "8a6626cc9bdd5d9b",
@@ -225,8 +204,6 @@ def test_lcp_span(
     lcp_backfill = {}
     if mode == "v2":
         lcp_backfill = {
-            # In the v2 pipeline we will always get this attribute regardless of whether we use "smart"
-            # measurement conversion, because of backfilling.
             "browser.web_vital.lcp.value": {"type": "double", "value": 548.0},
             "browser.web_vital.lcp.load_time": {"type": "double", "value": 527.5},
             "browser.web_vital.lcp.render_time": {"type": "integer", "value": 548},
@@ -237,15 +214,10 @@ def test_lcp_span(
             },
         }
 
-    if measurements_conversion == "smart":
-        lcp_measurement_name = "browser.web_vital.lcp.value"
-    else:
-        lcp_measurement_name = "lcp"
-
     assert spans_consumer.get_span() == {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
-            lcp_measurement_name: {"type": "double", "value": 548.0},
+            "browser.web_vital.lcp.value": {"type": "double", "value": 548.0},
             "lcp.loadTime": {"type": "double", "value": 527.5},
             "lcp.renderTime": {"type": "integer", "value": 548},
             "lcp.size": {"type": "integer", "value": 8100},
@@ -253,7 +225,7 @@ def test_lcp_span(
                 "type": "string",
                 "value": "https://s1.sentry-cdn.com/../sentry-loader.svg",
             },
-            "browser.name": {"type": "string", "value": "Chrome"},
+            "browser.name": {"type": "string", "value": "Firefox"},
             "sentry.description": {"type": "string", "value": "<unknown>"},
             "sentry.dsc.transaction": {
                 "type": "string",
@@ -283,8 +255,7 @@ def test_lcp_span(
             "user_agent.original": {
                 "type": "string",
                 "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 "
-                "Safari/537.36",
+                "AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
             },
             # Attributes computed by performace score normalization
             "score.lcp": {
@@ -366,15 +337,8 @@ def test_lcp_span(
 
 
 @pytest.mark.parametrize("mode", ["legacy", "v2"])
-@pytest.mark.parametrize("measurements_conversion", ["direct", "smart"])
 def test_cls_span(
-    mini_sentry,
-    relay,
-    relay_with_processing,
-    spans_consumer,
-    metrics_consumer,
-    mode,
-    measurements_conversion,
+    mini_sentry, relay, relay_with_processing, spans_consumer, metrics_consumer, mode
 ):
     """
     Test verifies CLS spans processed via the SpanV2 and legacy standalone processing pipeline are equally processed.
@@ -393,10 +357,6 @@ def test_cls_span(
         project_config["config"].setdefault("features", []).append(
             "projects:span-v2-experimental-processing"
         )
-    if measurements_conversion == "smart":
-        project_config["config"].setdefault("features", []).append(
-            "projects:relay-measurements-smart-conversion"
-        )
 
     relay = relay(relay_with_processing())
 
@@ -411,7 +371,7 @@ def test_cls_span(
                 "environment": "prod",
                 "replay_id": "3d76a6311de149b9b3f560827ea0ecf9",
                 "transaction": "/insights/projects/",
-                "user_agent.original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+                "user_agent.original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
                 "client.address": "{{auto}}",
                 "sentry.exclusive_time": 0,
                 "sentry.pageload.span_id": "8a6626cc9bdd5d9b",
@@ -446,8 +406,6 @@ def test_cls_span(
     cls_backfill = {}
     if mode == "v2":
         cls_backfill = {
-            # In the v2 pipeline we will always get this attribute regardless of whether we use "smart"
-            # measurement conversion, because of backfilling.
             "browser.web_vital.cls.value": {"type": "double", "value": 0.1},
             "browser.web_vital.cls.source.1": {
                 "type": "string",
@@ -460,15 +418,10 @@ def test_cls_span(
             "browser.web_vital.cls.source.3": {"type": "string", "value": "<unknown>"},
         }
 
-    if measurements_conversion == "smart":
-        cls_measurement_name = "browser.web_vital.cls.value"
-    else:
-        cls_measurement_name = "cls"
-
     assert spans_consumer.get_span() == {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
-            cls_measurement_name: {"type": "double", "value": 0.1},
+            "browser.web_vital.cls.value": {"type": "double", "value": 0.1},
             "cls.source.1": {
                 "type": "string",
                 "value": "AppContainer > NavContent > MobileTopbar > StyledButton",
@@ -478,7 +431,7 @@ def test_cls_span(
                 "value": "div.app-1azrk9k.etjky0h0 > AppContainer > BodyContainer > BaseFooter",
             },
             "cls.source.3": {"type": "string", "value": "<unknown>"},
-            "browser.name": {"type": "string", "value": "Chrome"},
+            "browser.name": {"type": "string", "value": "Firefox"},
             "sentry.description": {
                 "type": "string",
                 "value": "AppContainer > NavContent > MobileTopbar > StyledButton",
@@ -511,8 +464,7 @@ def test_cls_span(
             "user_agent.original": {
                 "type": "string",
                 "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 "
-                "Safari/537.36",
+                "AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
             },
             # Attributes computed by performace score normalization
             "score.cls": {
@@ -594,15 +546,8 @@ def test_cls_span(
 
 
 @pytest.mark.parametrize("mode", ["legacy", "v2"])
-@pytest.mark.parametrize("measurements_conversion", ["direct", "smart"])
 def test_inp_span(
-    mini_sentry,
-    relay,
-    relay_with_processing,
-    spans_consumer,
-    metrics_consumer,
-    mode,
-    measurements_conversion,
+    mini_sentry, relay, relay_with_processing, spans_consumer, metrics_consumer, mode
 ):
     """
     Test verifies INP spans processed via the SpanV2 and legacy standalone processing pipeline are equally processed.
@@ -621,10 +566,6 @@ def test_inp_span(
         project_config["config"].setdefault("features", []).append(
             "projects:span-v2-experimental-processing"
         )
-    if measurements_conversion == "smart":
-        project_config["config"].setdefault("features", []).append(
-            "projects:relay-measurements-smart-conversion"
-        )
 
     relay = relay(relay_with_processing())
 
@@ -639,7 +580,7 @@ def test_inp_span(
                 "environment": "prod",
                 "replay_id": "3d76a6311de149b9b3f560827ea0ecf9",
                 "transaction": "/insights/projects/",
-                "user_agent.original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+                "user_agent.original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
                 "client.address": "{{auto}}",
                 "sentry.exclusive_time": 104,
             },
@@ -669,21 +610,14 @@ def test_inp_span(
     inp_backfill = {}
     if mode == "v2":
         inp_backfill = {
-            # In the v2 pipeline we will always get this attribute regardless of whether we use "smart"
-            # measurement conversion, because of backfilling.
             "browser.web_vital.inp.value": {"type": "double", "value": 104.0},
         }
-
-    if measurements_conversion == "smart":
-        inp_measurement_name = "browser.web_vital.inp.value"
-    else:
-        inp_measurement_name = "inp"
 
     assert spans_consumer.get_span() == {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
-            inp_measurement_name: {"type": "double", "value": 104.0},
-            "browser.name": {"type": "string", "value": "Chrome"},
+            "browser.web_vital.inp.value": {"type": "double", "value": 104.0},
+            "browser.name": {"type": "string", "value": "Firefox"},
             "sentry.description": {
                 "type": "string",
                 "value": "<unknown>",
@@ -714,8 +648,7 @@ def test_inp_span(
             "user_agent.original": {
                 "type": "string",
                 "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 "
-                "Safari/537.36",
+                "AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
             },
             # Attributes computed by performace score normalization
             "score.inp": {
@@ -858,14 +791,12 @@ def test_spans_standalone_dsc_normalization(
 
 
 @pytest.mark.parametrize("mode", ["legacy", "v2"])
-@pytest.mark.parametrize("measurements_conversion", ["direct", "smart"])
 def test_mobile_measurements(
     mini_sentry,
     relay,
     relay_with_processing,
     spans_consumer,
     mode,
-    measurements_conversion,
 ):
     """
     Verify mobile measurements calculations (slow/frozen frames, stalls).
@@ -877,10 +808,6 @@ def test_mobile_measurements(
     if mode == "v2":
         project_config["config"].setdefault("features", []).append(
             "projects:span-v2-experimental-processing"
-        )
-    if measurements_conversion == "smart":
-        project_config["config"].setdefault("features", []).append(
-            "projects:relay-measurements-smart-conversion"
         )
 
     relay = relay(relay_with_processing())
@@ -895,7 +822,7 @@ def test_mobile_measurements(
                 "release": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
                 "environment": "prod",
                 "replay_id": "3d76a6311de149b9b3f560827ea0ecf9",
-                "user_agent.original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+                "user_agent.original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
                 "client.address": "{{auto}}",
                 "sentry.exclusive_time": 104,
             },
@@ -926,67 +853,10 @@ def test_mobile_measurements(
     relay.send_envelope(project_id, envelope)
     attributes, fields = lcp_cls_inp_differences(mode)
 
-    measurement_attributes = {
-        "stall_total_time": {"value": 4000.0, "type": "double"},
-        "stall_percentage": {"value": 0.8, "type": "double"},
-    }
-    if mode == "legacy":
-        if measurements_conversion == "direct":
-            # Measurements are computed by the old pipeline and measurements
-            # are converted to attributes verbatim, with no normalization.
-            measurement_attributes.update(
-                {
-                    "frames_slow": {"value": 1.0, "type": "double"},
-                    "frames_frozen": {"value": 2.0, "type": "double"},
-                    "frames_total": {"value": 4.0, "type": "double"},
-                    "frames_frozen_rate": {"value": 0.5, "type": "double"},
-                    "frames_slow_rate": {"value": 0.25, "type": "double"},
-                }
-            )
-        elif measurements_conversion == "smart":
-            # Measurements are computed by the old pipeline and measurements
-            # are converted to attributes with current names.
-            #
-            # "frames_frozen_rate" and "frames_slow_rate" don't have "better"
-            # names yet.
-            measurement_attributes.update(
-                {
-                    "app.vitals.frames.slow.count": {"value": 1.0, "type": "double"},
-                    "app.vitals.frames.frozen.count": {"value": 2.0, "type": "double"},
-                    "app.vitals.frames.total.count": {"value": 4.0, "type": "double"},
-                    "frames_frozen_rate": {"value": 0.5, "type": "double"},
-                    "frames_slow_rate": {"value": 0.25, "type": "double"},
-                }
-            )
-    elif mode == "v2":
-        if measurements_conversion == "direct":
-            # Measurements are _first_ converted verbatim, then the calculation
-            # runs. Since the frame count attributes aren't present under their
-            # expected names, the calculation doesn't work.
-            measurement_attributes.update(
-                {
-                    "frames_slow": {"value": 1.0, "type": "double"},
-                    "frames_frozen": {"value": 2.0, "type": "double"},
-                    "frames_total": {"value": 4.0, "type": "double"},
-                }
-            )
-        elif measurements_conversion == "smart":
-            # Measurements are _first_ converted to attribute with "current"
-            # names, then the calculation runs.
-            measurement_attributes.update(
-                {
-                    "app.vitals.frames.slow.count": {"value": 1.0, "type": "double"},
-                    "app.vitals.frames.frozen.count": {"value": 2.0, "type": "double"},
-                    "app.vitals.frames.total.count": {"value": 4.0, "type": "double"},
-                    "frames_frozen_rate": {"value": 0.5, "type": "double"},
-                    "frames_slow_rate": {"value": 0.25, "type": "double"},
-                }
-            )
-
     assert spans_consumer.get_span() == {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
-            "browser.name": {"type": "string", "value": "Chrome"},
+            "browser.name": {"type": "string", "value": "Firefox"},
             "sentry.description": {
                 "type": "string",
                 "value": "<unknown>",
@@ -1015,10 +885,15 @@ def test_mobile_measurements(
             "user_agent.original": {
                 "type": "string",
                 "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 "
-                "Safari/537.36",
+                "AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
             },
-            **measurement_attributes,
+            "stall_total_time": {"value": 4000.0, "type": "double"},
+            "stall_percentage": {"value": 0.8, "type": "double"},
+            "app.vitals.frames.slow.count": {"value": 1.0, "type": "double"},
+            "app.vitals.frames.frozen.count": {"value": 2.0, "type": "double"},
+            "app.vitals.frames.total.count": {"value": 4.0, "type": "double"},
+            "frames_frozen_rate": {"value": 0.5, "type": "double"},
+            "frames_slow_rate": {"value": 0.25, "type": "double"},
             **attributes,
         },
         "downsampled_retention_days": 90,
@@ -1036,3 +911,118 @@ def test_mobile_measurements(
         "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
         **fields,
     }
+
+
+@pytest.mark.parametrize("mode", ["legacy", "v2"])
+@pytest.mark.parametrize("client_address_auto", [True, False])
+def test_ua_ip_inference(
+    mini_sentry, relay, relay_with_processing, spans_consumer, client_address_auto, mode
+):
+    """
+    Tests that IP addresses and user agent attributes are inferred.
+    """
+    spans_consumer = spans_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    if mode == "v2":
+        project_config["config"].setdefault("features", []).append(
+            "projects:span-v2-experimental-processing"
+        )
+
+    relay = relay(relay_with_processing())
+
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_spans(
+        {
+            "data": {
+                "sentry.origin": "auto.http.browser.lcp",
+                "sentry.op": "ui.webvital.lcp",
+                "release": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
+                "environment": "prod",
+                "replay_id": "3d76a6311de149b9b3f560827ea0ecf9",
+                "transaction": "/insights/projects/",
+                **_if_dict(client_address_auto, {"client.address": "{{auto}}"}),
+                "sentry.exclusive_time": 0,
+                "sentry.pageload.span_id": "8a6626cc9bdd5d9b",
+                "sentry.report_event": "navigation",
+            },
+            "description": "<unknown>",
+            "op": "ui.webvital.lcp",
+            "parent_span_id": "8a6626cc9bdd5d9b",
+            "span_id": "9fd17741416e8e4e",
+            "start_timestamp": ts.timestamp() - 0.5,
+            "timestamp": ts.timestamp(),
+            "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+            "origin": "auto.http.browser.lcp",
+            "exclusive_time": 0,
+            "measurements": {},
+            "segment_id": "8a6626cc9bdd5d9b",
+        },
+        trace_info={
+            "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+            "transaction": "/insights/projects/",
+        },
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    attributes, fields = lcp_cls_inp_differences(mode)
+
+    assert spans_consumer.get_span() == {
+        "attributes": {
+            "client.address": {"type": "string", "value": "127.0.0.1"},
+            "browser.name": {"type": "string", "value": "Firefox"},
+            "sentry.description": {"type": "string", "value": "<unknown>"},
+            "sentry.dsc.transaction": {
+                "type": "string",
+                "value": "/insights/projects/",
+            },
+            "sentry.dsc.project_id": {"type": "string", "value": "42"},
+            "sentry.dsc.trace_id": {
+                "type": "string",
+                "value": "d3d20f000885466b8c8f947c9b92b8d3",
+            },
+            "sentry.environment": {"type": "string", "value": "prod"},
+            "sentry.exclusive_time": {"type": "double", "value": 0.0},
+            "sentry.op": {"type": "string", "value": "ui.webvital.lcp"},
+            "sentry.origin": {"type": "string", "value": "auto.http.browser.lcp"},
+            "sentry.pageload.span_id": {"type": "string", "value": "8a6626cc9bdd5d9b"},
+            "sentry.release": {
+                "type": "string",
+                "value": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
+            },
+            "sentry.replay_id": {
+                "type": "string",
+                "value": "3d76a6311de149b9b3f560827ea0ecf9",
+            },
+            "sentry.report_event": {"type": "string", "value": "navigation"},
+            "sentry.segment.name": {"type": "string", "value": "/insights/projects/"},
+            "sentry.transaction": {"type": "string", "value": "/insights/projects/"},
+            "user_agent.original": {
+                "type": "string",
+                "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
+            },
+            **attributes,
+        },
+        "downsampled_retention_days": 90,
+        "end_timestamp": time_within(ts),
+        "key_id": 123,
+        "name": "ui.webvital.lcp",
+        "organization_id": 1,
+        "project_id": 42,
+        "received": time_within(ts),
+        "retention_days": 90,
+        "accepted_outcome_emitted": True,
+        "span_id": "9fd17741416e8e4e",
+        "start_timestamp": time_within(ts.timestamp() - 0.5),
+        "status": "ok",
+        "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+        **fields,
+    }
+
+
+def _if_dict(cond, then):
+    return then if cond else {}
