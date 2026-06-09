@@ -95,8 +95,7 @@ impl<'a> From<&'a str> for ClientName<'a> {
 impl fmt::Display for ClientName<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.maybe_static() {
-            Ok(s) => f.write_str(s),
-            Err(s) => f.write_str(s),
+            Ok(s) | Err(s) => f.write_str(s),
         }
     }
 }

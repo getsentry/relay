@@ -1450,7 +1450,9 @@ impl Service for EnvelopeProcessorService {
     async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
         while let Some(message) = rx.recv().await {
             let service = self.clone();
+            // Create a new hub to prevent sentry scopes from bleeding to other tasks.
             let hub = relay_log::Hub::with(|h| relay_log::Hub::new_from_top(h));
+
             self.inner
                 .pool
                 .spawn_async(Box::pin(service.handle_message(message).bind_hub(hub)))
