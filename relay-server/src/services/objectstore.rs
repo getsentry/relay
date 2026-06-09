@@ -29,9 +29,7 @@ use crate::services::outcome::DiscardReason;
 use crate::services::store::{Store, StoreAttachment, StoreEnvelope, StoreTraceItem};
 use crate::services::upload::ByteStream;
 use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::{
-    BoundedStream, MeteredStream, RetryableStream, TakeOnce, find_error_source, is_hyper_user_error,
-};
+use crate::utils::{BoundedStream, MeteredStream, RetryableStream, TakeOnce, find_error_source};
 
 use super::outcome::Outcome;
 
@@ -234,7 +232,7 @@ impl ErrorKind {
             ErrorKind::Timeout(_) => false, // debatable, let's treat it as a server error for now
             ErrorKind::LoadShed => false,
             ErrorKind::UploadFailed(objectstore_client::Error::Reqwest(error)) => {
-                find_error_source(error, is_hyper_user_error).is_some()
+                find_error_source(error, is_user_error).is_some()
             }
             ErrorKind::UploadFailed(_) => false,
             ErrorKind::Uuid(_) => false,
@@ -758,6 +756,15 @@ fn is_retryable(error: &objectstore_client::Error) -> bool {
         }
         _ => false,
     }
+}
+
+fn is_user_error(error: &(dyn std::error::Error + 'static)) -> bool {
+    error.downcast_ref::<std::io::Error>().is_some_and(|error| {
+        matches!(
+            error.kind(),
+            std::io::ErrorKind::FileTooLarge | std::io::ErrorKind::UnexpectedEof
+        )
+    })
 }
 
 #[cfg(test)]

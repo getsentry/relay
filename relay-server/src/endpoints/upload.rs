@@ -36,7 +36,7 @@ use crate::services::upload::{
 use crate::services::upstream::UpstreamRequestError;
 use crate::statsd::RelayCounters;
 use crate::utils::{ApiErrorResponse, MeteredStream};
-use crate::utils::{BoundedStream, find_error_source, is_hyper_user_error, tus};
+use crate::utils::{BoundedStream, find_error_source, tus};
 
 pub fn route_post(config: &Config) -> MethodRouter<ServiceState> {
     post(handle_post)
@@ -391,4 +391,10 @@ async fn validate(
     let scoping = envelope.scoping();
     envelope.accept(|x| x);
     Ok(scoping)
+}
+
+fn is_hyper_user_error(error: &(dyn std::error::Error + 'static)) -> bool {
+    error
+        .downcast_ref::<hyper::Error>()
+        .is_some_and(hyper::Error::is_user)
 }
