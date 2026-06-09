@@ -25,7 +25,7 @@ use relay_event_schema::protocol::ClientReport;
 use relay_filter::FilterStatKey;
 use relay_log::sentry::SentryFutureExt;
 use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricNamespace};
-use relay_quotas::{DataCategory, RateLimits, Scoping};
+use relay_quotas::{RateLimits, Scoping};
 use relay_sampling::evaluation::SamplingDecision;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -773,7 +773,8 @@ impl EnvelopeProcessorService {
                 return false;
             }
 
-            if !self::metrics::is_valid_namespace(bucket) {
+            if !self::metrics::is_valid_namespace(bucket, source) {
+                relay_log::debug!("dropping bucket in invalid namespace {bucket:?}");
                 return false;
             }
 
@@ -997,16 +998,17 @@ impl EnvelopeProcessorService {
             scoping,
         );
 
-        let namespaces: BTreeSet<MetricNamespace> = buckets
+        let mut namespaces: BTreeSet<MetricNamespace> = buckets
             .iter()
             .filter_map(|bucket| bucket.name.try_namespace())
             .collect();
 
+        // Never rate limit outcomes.
+        namespaces.remove(&MetricNamespace::Outcomes);
+
         for namespace in namespaces {
-            let limits = rate_limits.check_with_quotas(
-                project_info.get_quotas(),
-                scoping.item(DataCategory::MetricBucket),
-            );
+            let limits = rate_limits
+                .check_with_quotas(project_info.get_quotas(), scoping.metric_bucket(namespace));
 
             if limits.is_limited() {
                 let rejected;
@@ -1045,10 +1047,13 @@ impl EnvelopeProcessorService {
         };
 
         let global_config = self.inner.global_config.current().unwrap_or_default();
-        let namespaces = buckets
+        let mut namespaces = buckets
             .iter()
             .filter_map(|bucket| bucket.name.try_namespace())
             .counts();
+
+        // Never rate limit outcomes.
+        namespaces.remove(&MetricNamespace::Outcomes);
 
         let quotas = CombinedQuotas::new(&global_config, project_info.get_quotas());
 
@@ -1822,6 +1827,8 @@ mod tests {
     use relay_event_schema::protocol::{Event, EventId, TransactionSource};
     use relay_pii::DataScrubbingConfig;
     use relay_protocol::Annotated;
+    #[cfg(feature = "processing")]
+    use relay_quotas::DataCategory;
     use similar_asserts::assert_eq;
 
     use crate::testutils::{create_test_processor, create_test_processor_with_addrs};

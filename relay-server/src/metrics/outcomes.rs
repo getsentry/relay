@@ -147,7 +147,12 @@ where
     let mut quantities = SourceQuantities::default();
 
     for bucket in buckets {
-        quantities.buckets += 1;
+        let namespace = bucket.name().namespace();
+        // Never count unsupported metrics, they are considered invalid.
+        // Never count outcomes, as that would create more outcomes creating a loop of outcomes.
+        if namespace != MetricNamespace::Unsupported && namespace != MetricNamespace::Outcomes {
+            quantities.buckets += 1;
+        }
 
         // Only count metrics for outcomes, where the indexed payload no longer exists.
         let summary = bucket.summary();
