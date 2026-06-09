@@ -345,16 +345,16 @@
 <a href=#345 id=345 data-nosnippet>345</a>    /// header.
 <a href=#346 id=346 data-nosnippet>346</a>    </span><span class="kw">pub fn </span>verify_meta(<span class="kw-2">&amp;</span><span class="self">self</span>, data: <span class="kw-2">&amp;</span>[u8], sig: SignatureRef&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;SignatureHeader&gt; {
 <a href=#347 id=347 data-nosnippet>347</a>        <span class="kw">let </span><span class="kw-2">mut </span>iter = sig.<span class="number">0</span>.splitn(<span class="number">2</span>, <span class="string">'.'</span>);
-<a href=#348 id=348 data-nosnippet>348</a>        <span class="kw">let </span>sig_bytes = <span class="kw">match </span>iter.next() {
-<a href=#349 id=349 data-nosnippet>349</a>            <span class="prelude-val">Some</span>(sig_encoded) =&gt; BASE64URL_NOPAD.decode(sig_encoded.as_bytes()).ok()<span class="question-mark">?</span>,
-<a href=#350 id=350 data-nosnippet>350</a>            <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
-<a href=#351 id=351 data-nosnippet>351</a>        };
+<a href=#348 id=348 data-nosnippet>348</a>        <span class="kw">let </span>sig_bytes = {
+<a href=#349 id=349 data-nosnippet>349</a>            <span class="kw">let </span>sig_encoded = iter.next()<span class="question-mark">?</span>;
+<a href=#350 id=350 data-nosnippet>350</a>            BASE64URL_NOPAD.decode(sig_encoded.as_bytes()).ok()<span class="question-mark">?
+<a href=#351 id=351 data-nosnippet>351</a>        </span>};
 <a href=#352 id=352 data-nosnippet>352</a>        <span class="kw">let </span>sig = ed25519_dalek::Signature::from_slice(<span class="kw-2">&amp;</span>sig_bytes).ok()<span class="question-mark">?</span>;
 <a href=#353 id=353 data-nosnippet>353</a>
-<a href=#354 id=354 data-nosnippet>354</a>        <span class="kw">let </span>header = <span class="kw">match </span>iter.next() {
-<a href=#355 id=355 data-nosnippet>355</a>            <span class="prelude-val">Some</span>(header_encoded) =&gt; BASE64URL_NOPAD.decode(header_encoded.as_bytes()).ok()<span class="question-mark">?</span>,
-<a href=#356 id=356 data-nosnippet>356</a>            <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
-<a href=#357 id=357 data-nosnippet>357</a>        };
+<a href=#354 id=354 data-nosnippet>354</a>        <span class="kw">let </span>header = {
+<a href=#355 id=355 data-nosnippet>355</a>            <span class="kw">let </span>header_encoded = iter.next()<span class="question-mark">?</span>;
+<a href=#356 id=356 data-nosnippet>356</a>            BASE64URL_NOPAD.decode(header_encoded.as_bytes()).ok()<span class="question-mark">?
+<a href=#357 id=357 data-nosnippet>357</a>        </span>};
 <a href=#358 id=358 data-nosnippet>358</a>        <span class="kw">let </span>parsed: SignatureHeader = serde_json::from_slice(<span class="kw-2">&amp;</span>header).ok()<span class="question-mark">?</span>;
 <a href=#359 id=359 data-nosnippet>359</a>
 <a href=#360 id=360 data-nosnippet>360</a>        <span class="kw">let </span>verification_result = <span class="kw">match </span>parsed
