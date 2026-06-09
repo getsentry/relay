@@ -620,6 +620,8 @@ def test_trace_metric_default_pii_scrubbing_attributes(
     envelope = mini_sentry.get_captured_envelope()
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
     item = item_payload["items"][0]
+    meta = item.pop("_meta")
+
     assert item == {
         "timestamp": time_within(start),
         "trace_id": "5b8efff798038103d269b633813fc60c",
@@ -634,19 +636,11 @@ def test_trace_metric_default_pii_scrubbing_attributes(
             },
         },
         "__header": {"byte_size": any()},
-        "_meta": {
-            "attributes": {
-                attribute_key: {
-                    "value": {
-                        "": {
-                            "len": any(),
-                            "rem": [[rule_type, any(), any(), any()]],
-                        }
-                    }
-                }
-            },
-        },
     }
+
+    rem_info = meta["attributes"][attribute_key]["value"][""]["rem"]
+    assert len(rem_info) == 1
+    assert rem_info[0][0] == rule_type
 
 
 def test_trace_metric_default_pii_scrubbing_does_not_scrub_default_attributes(

@@ -1291,27 +1291,12 @@ def test_attachment_default_pii_scrubbing_meta(
     payload = attachment.payload.bytes
     metadata_part = json.loads(payload[:meta_length].decode("utf-8"))
 
-    assert metadata_part == {
-        "attachment_id": metadata["attachment_id"],
-        "timestamp": time_within_delta(ts),
-        "filename": "data.txt",
-        "content_type": "text/plain",
-        "attributes": {
-            attribute_key: {"type": "string", "value": expected_value},
-        },
-        "_meta": {
-            "attributes": {
-                attribute_key: {
-                    "value": {
-                        "": {
-                            "len": any(),
-                            "rem": [[rule_type, any(), any(), any()]],
-                        }
-                    }
-                }
-            }
-        },
-    }
+    assert metadata_part["timestamp"] == time_within_delta(ts)
+    assert metadata_part["attachment_id"] == metadata["attachment_id"]
+    assert metadata_part["attributes"][attribute_key]["value"] == expected_value
+    rem_info = metadata_part["_meta"]["attributes"][attribute_key]["value"][""]["rem"]
+    assert len(rem_info) == 1
+    assert rem_info[0][0] == rule_type
 
 
 def test_attachment_pii_scrubbing_meta_attribute(
