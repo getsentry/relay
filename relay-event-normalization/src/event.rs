@@ -1423,8 +1423,8 @@ fn normalize_mobile_measurements(measurements: &mut Measurements) {
 }
 
 const APP_START_SOURCES: [(&str, Option<&str>); 5] = [
-    ("app_start_cold", Some("cold")),
-    ("app_start_warm", Some("warm")),
+    (APP_START_COLD, Some("cold")),
+    (APP_START_WARM, Some("warm")),
     (APP__VITALS__START__VALUE, None),
     (APP__VITALS__START__COLD__VALUE, None),
     (APP__VITALS__START__WARM__VALUE, None),

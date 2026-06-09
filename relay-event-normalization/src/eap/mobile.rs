@@ -48,15 +48,19 @@ pub fn normalize_mobile_attributes(attributes: &mut Annotated<Attributes>) {
 
     // Normalize app start measurements into unified attributes.
     // V1 spans have measurements `app_start_cold`/`app_start_warm` which become
-    // attributes with those names after v1→v2 conversion.
-    // V2 spans will at some point send `app.vitals.start.value` + `app.vitals.start.type` directly.
+    // attributes `app.vitals.start.cold.value` and `app.vitals.start.warm.value`, respectively,
+    // after v1→v2 conversion. V2 spans will at some point send `app.vitals.start.value` + `app.vitals.start.type` directly.
     if !attrs.contains_key(APP__VITALS__START__VALUE) {
-        if let Some(value) = attrs.get_value("app_start_cold").and_then(|v| v.as_f64())
+        if let Some(value) = attrs
+            .get_value(APP__VITALS__START__COLD__VALUE)
+            .and_then(|v| v.as_f64())
             && value <= MAX_DURATION_MOBILE_MS
         {
             attrs.insert(APP__VITALS__START__VALUE, value);
             attrs.insert_if_missing(APP__VITALS__START__TYPE, || "cold".to_owned());
-        } else if let Some(value) = attrs.get_value("app_start_warm").and_then(|v| v.as_f64())
+        } else if let Some(value) = attrs
+            .get_value(APP__VITALS__START__WARM__VALUE)
+            .and_then(|v| v.as_f64())
             && value <= MAX_DURATION_MOBILE_MS
         {
             attrs.insert(APP__VITALS__START__VALUE, value);
@@ -315,22 +319,22 @@ mod tests {
     #[test]
     fn test_app_start_cold_normalized() {
         let mut attributes = Annotated::new(attributes! {
-            "app_start_cold" => 1234.0,
+            "app.vitals.start.cold.value" => 1234.0,
         });
 
         normalize_mobile_attributes(&mut attributes);
 
         assert_annotated_snapshot!(attributes, @r#"
         {
+          "app.vitals.start.cold.value": {
+            "type": "double",
+            "value": 1234.0
+          },
           "app.vitals.start.type": {
             "type": "string",
             "value": "cold"
           },
           "app.vitals.start.value": {
-            "type": "double",
-            "value": 1234.0
-          },
-          "app_start_cold": {
             "type": "double",
             "value": 1234.0
           }
@@ -341,7 +345,7 @@ mod tests {
     #[test]
     fn test_app_start_warm_normalized() {
         let mut attributes = Annotated::new(attributes! {
-            "app_start_warm" => 567.0,
+            "app.vitals.start.warm.value" => 567.0,
         });
 
         normalize_mobile_attributes(&mut attributes);
@@ -356,7 +360,7 @@ mod tests {
             "type": "double",
             "value": 567.0
           },
-          "app_start_warm": {
+          "app.vitals.start.warm.value": {
             "type": "double",
             "value": 567.0
           }
@@ -369,13 +373,17 @@ mod tests {
         let mut attributes = Annotated::new(attributes! {
             APP__VITALS__START__VALUE => 999.0,
             APP__VITALS__START__TYPE => "warm",
-            "app_start_cold" => 1234.0,
+            "app.vitals.start.cold.value" => 1234.0,
         });
 
         normalize_mobile_attributes(&mut attributes);
 
         assert_annotated_snapshot!(attributes, @r#"
         {
+          "app.vitals.start.cold.value": {
+            "type": "double",
+            "value": 1234.0
+          },
           "app.vitals.start.type": {
             "type": "string",
             "value": "warm"
@@ -383,10 +391,6 @@ mod tests {
           "app.vitals.start.value": {
             "type": "double",
             "value": 999.0
-          },
-          "app_start_cold": {
-            "type": "double",
-            "value": 1234.0
           }
         }
         "#);

@@ -9,6 +9,7 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 use relay_base_schema::metrics::{DurationUnit, InformationUnit, MetricUnit};
+use relay_conventions::measurements::{APP_START_COLD, APP_START_WARM};
 use relay_event_schema::protocol::{
     AppContext, BrowserContext, DeviceContext, Event, GpuContext, Measurement, MonitorContext,
     OsContext, ProfileContext, ReplayContext, RuntimeContext, SentryTags, Span, Timestamp,
@@ -1546,9 +1547,9 @@ pub fn span_op_to_category(op: &str) -> Option<&str> {
 /// Reads the event measurements to determine the start type of the event.
 fn get_event_start_type(event: &Event) -> Option<&'static str> {
     // Check the measurements on the event to determine what kind of start type the event is.
-    if event.measurement("app_start_cold").is_some() {
+    if event.measurement(APP_START_COLD).is_some() {
         Some("cold")
-    } else if event.measurement("app_start_warm").is_some() {
+    } else if event.measurement(APP_START_WARM).is_some() {
         Some("warm")
     } else {
         None
