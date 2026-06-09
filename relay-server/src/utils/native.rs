@@ -65,6 +65,7 @@ fn write_native_placeholder(event: &mut Event, placeholder: NativePlaceholder) {
         .value_mut()
         .get_or_insert_with(Vec::new);
 
+    // TODO: guard this by feature flag
     // exceptions.clear(); // clear previous errors if any
 
     exceptions.push(Annotated::new(Exception {

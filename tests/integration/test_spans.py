@@ -9,7 +9,7 @@ from requests import HTTPError
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
-from .asserts import any
+from .asserts import matches_any
 from .test_store import make_transaction
 
 TEST_CONFIG = {
@@ -1235,7 +1235,7 @@ def test_outcomes_for_trimmed_spans(mini_sentry, relay):
             "project_id": 42,
             "quantity": 1,
             "reason": "too_large:span",
-            "timestamp": any(),
+            "timestamp": matches_any(),
         },
         {
             "category": DataCategory.SPAN_INDEXED,
@@ -1245,6 +1245,6 @@ def test_outcomes_for_trimmed_spans(mini_sentry, relay):
             "project_id": 42,
             "quantity": 1,
             "reason": "too_large:span",
-            "timestamp": any(),
+            "timestamp": matches_any(),
         },
     ]

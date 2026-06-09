@@ -47,10 +47,12 @@ mod tests {
             "*[/-]ready",
             "*[/-]ready[z/-]*",
             "*heartbeat*",
-            "*/health",
+            "*/health{/,}",
             "*/healthz",
             "*/ping",
             "*/up",
+            "*/actuator/health{/*,}",
+            "*/manage/health{/*,}",
         ]
         .map(|val| val.to_owned())
         .to_vec();
@@ -92,6 +94,12 @@ mod tests {
             "123/ping",
             "/up",
             "123/up",
+            "/actuator/health",
+            "/actuator/health/",
+            "foo/actuator/health/db",
+            "/manage/health",
+            "/manage/health/",
+            "foo/manage/health/db",
         ];
 
         for name in transaction_names {
@@ -115,7 +123,6 @@ mod tests {
             "a/b/c",
             "health",
             "healthz",
-            "/health/",
             "/healthz/",
             "/healthx",
             "/healthzx",
@@ -124,6 +131,7 @@ mod tests {
             "notready",
             "already",
             "/upload",
+            "foo/health/bar",
         ];
         let config = _get_config();
 

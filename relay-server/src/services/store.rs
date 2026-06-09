@@ -4,12 +4,12 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::error::Error;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task;
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use futures::FutureExt;
-use futures::future::BoxFuture;
 use prost::Message as _;
 use sentry_protos::snuba::v1::{TraceItem, TraceItemType};
 use serde::Serialize;
@@ -247,7 +247,7 @@ impl Counted for StoreProfile {
 }
 
 /// The asynchronous thread pool used for scheduling storing tasks in the envelope store.
-pub type StoreServicePool = AsyncPool<BoxFuture<'static, ()>>;
+pub type StoreServicePool = AsyncPool<StoreTask>;
 
 /// Service interface for the [`StoreEnvelope`] message.
 #[derive(Debug)]
@@ -399,11 +399,6 @@ impl StoreService {
     }
 
     fn handle_message(&self, message: Store) {
-        // relay_kafka configures the scope
-        relay_log::with_scope(|_| {}, || self.handle_message_inner(message))
-    }
-
-    fn handle_message_inner(&self, message: Store) {
         let ty = message.variant();
         relay_statsd::metric!(timer(RelayTimers::StoreServiceDuration), message = ty, {
             let result = match message {
@@ -1287,15 +1282,33 @@ impl Service for StoreService {
         relay_log::info!("store forwarder started");
 
         while let Some(message) = rx.recv().await {
-            let service = Arc::clone(&this);
-            // For now, we run each task synchronously, in the future we might explore how to make
-            // the store async.
-            this.pool
-                .spawn_async(async move { service.handle_message(message) }.boxed())
-                .await;
+            let task = StoreTask {
+                service: Arc::clone(&this),
+                message: Some(message),
+            };
+            this.pool.spawn_async(task).await;
         }
 
         relay_log::info!("store forwarder stopped");
+    }
+}
+
+/// Task executed by [`StoreService`].
+pub struct StoreTask {
+    service: Arc<StoreService>,
+    message: Option<Store>,
+}
+
+impl Future for StoreTask {
+    type Output = ();
+
+    fn poll(mut self: Pin<&mut Self>, _: &mut task::Context<'_>) -> task::Poll<Self::Output> {
+        let message = self
+            .message
+            .take()
+            .expect("StoreTask polled after completion");
+        let () = relay_log::with_scope(|_| {}, || self.service.handle_message(message));
+        task::Poll::Ready(())
     }
 }
 

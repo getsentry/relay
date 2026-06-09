@@ -8,7 +8,7 @@ from functools import cache
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from urllib3 import encode_multipart_formdata
-from .asserts import any, time_within_delta
+from .asserts import matches_any, time_within_delta
 
 
 @cache
@@ -40,7 +40,7 @@ def playstation_project_config():
 def user_data_event_json(response):
     return {
         "event_id": response.text.replace("-", ""),
-        "timestamp": any(),
+        "timestamp": matches_any(),
         "received": time_within_delta(),
         "level": "error",
         "version": "7",
@@ -75,7 +75,7 @@ def user_data_event_json(response):
         "breadcrumbs": {
             "values": [
                 {
-                    "timestamp": any(),
+                    "timestamp": matches_any(),
                     "type": "default",
                     "level": "info",
                     "message": "crumb",
@@ -109,20 +109,20 @@ def user_data_event_json(response):
         },
         "key_id": "123",
         "project": 42,
-        "_metrics": any(),
-        "grouping_config": any(),
+        "_metrics": matches_any(),
+        "grouping_config": matches_any(),
     }
 
 
-def playstation_event_json(sdk=any()):
+def playstation_event_json(sdk=matches_any()):
     return {
-        "event_id": any(),
+        "event_id": matches_any(),
         "level": "fatal",
-        "version": any(),
+        "version": matches_any(),
         "type": "error",
         "logger": "",
         "platform": "native",
-        "timestamp": any(),
+        "timestamp": matches_any(),
         "received": time_within_delta(),
         "contexts": {
             "app": {"app_version": "", "type": "app"},
@@ -146,7 +146,7 @@ def playstation_event_json(sdk=any()):
                 "version": "9.20.00.05-00.00.00.0.1",
                 "type": "runtime",
             },
-            "trace": any(),
+            "trace": matches_any(),
         },
         "exception": {
             "values": [
@@ -175,15 +175,19 @@ def playstation_event_json(sdk=any()):
         "sdk": sdk,
         "key_id": "123",
         "project": 42,
-        "grouping_config": any(),
-        "_metrics": any(),
+        "grouping_config": matches_any(),
+        "_metrics": matches_any(),
     }
 
 
-def attachments(log_size=any(), generated_dump_size=any(), playstation_dump_size=any()):
+def attachments(
+    log_size=matches_any(),
+    generated_dump_size=matches_any(),
+    playstation_dump_size=matches_any(),
+):
     return [
         {
-            "id": any(),
+            "id": matches_any(),
             "name": "console.log",
             "rate_limited": False,
             "content_type": "text/plain",
@@ -193,7 +197,7 @@ def attachments(log_size=any(), generated_dump_size=any(), playstation_dump_size
             "chunks": 1,
         },
         {
-            "id": any(),
+            "id": matches_any(),
             "name": "generated_minidump.dmp",
             "rate_limited": False,
             "content_type": "application/x-dmp",
@@ -203,7 +207,7 @@ def attachments(log_size=any(), generated_dump_size=any(), playstation_dump_size
             "chunks": 1,
         },
         {
-            "id": any(),
+            "id": matches_any(),
             "name": "playstation.prosperodmp",
             "rate_limited": False,
             "content_type": "application/octet-stream",
@@ -769,20 +773,20 @@ def test_playstation_attachment_no_feature_flag(
     event, payload = attachments_consumer.get_event_only()
 
     assert payload == {
-        "event_id": any(),
+        "event_id": matches_any(),
         "level": "error",
         "version": "5",
         "type": "error",
         "logger": "",
         "platform": "other",
-        "timestamp": any(),
+        "timestamp": matches_any(),
         "received": time_within_delta(),
         "exception": {"values": [{"type": "ValueError", "value": "Should not happen"}]},
         "sdk": {"name": "raven-node", "version": "2.6.3"},
         "key_id": "123",
         "project": 42,
         "contexts": {
-            "trace": any(),
+            "trace": matches_any(),
         },
         "grouping_config": {
             "enhancements": "eJybzDhxY05qemJypZWRgaGlroGxrqHRBABbEwcC",
@@ -795,7 +799,7 @@ def test_playstation_attachment_no_feature_flag(
 
     assert event["attachments"] == (
         {
-            "id": any(),
+            "id": matches_any(),
             "name": "playstation.prosperodmp",
             "rate_limited": False,
             "content_type": "application/octet-stream",
@@ -879,7 +883,7 @@ def test_event_merging(
 
     event, payload = attachments_consumer.get_event_only()
     assert payload == {
-        "event_id": any(),
+        "event_id": matches_any(),
         "level": "fatal",
         "version": "5",
         "type": "error",
