@@ -14,7 +14,6 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use flate2::Compression;
 use flate2::write::{GzEncoder, ZlibEncoder};
-use futures::FutureExt;
 use futures::future::BoxFuture;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
@@ -24,6 +23,7 @@ use relay_event_normalization::{ClockDriftProcessor, GeoIpLookup};
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::ClientReport;
 use relay_filter::FilterStatKey;
+use relay_log::sentry::SentryFutureExt;
 use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricNamespace};
 use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_sampling::evaluation::SamplingDecision;
@@ -677,30 +677,11 @@ impl EnvelopeProcessorService {
             return Vec::new();
         };
 
-        let client = envelope.envelope().meta().client().map(str::to_owned);
-        let user_agent = envelope.envelope().meta().user_agent().map(str::to_owned);
-
-        // We set additional information on the scope, which will be removed after processing the
-        // envelope.
         relay_log::configure_scope(|scope| {
-            scope.set_tag("project", project_id);
-            if let Some(client) = client {
-                scope.set_tag("sdk", client);
-            }
-            if let Some(user_agent) = user_agent {
-                scope.set_extra("user_agent", user_agent.into());
-            }
+            scope.set_tag("project_id", project_id);
         });
 
-        let result = self.process_envelope(project_id, envelope, ctx).await;
-
-        relay_log::configure_scope(|scope| {
-            scope.remove_tag("project");
-            scope.remove_tag("sdk");
-            scope.remove_tag("user_agent");
-        });
-
-        result
+        self.process_envelope(project_id, envelope, ctx).await
     }
 
     async fn handle_process_envelope(&self, cogs: &mut Token, message: ProcessEnvelope) {
@@ -729,6 +710,21 @@ impl EnvelopeProcessorService {
             .sampling_project_info
             .and_then(|p| p.get_public_key_config())
             .map(|pkc| pkc.public_key);
+
+        relay_log::configure_scope(|scope| {
+            scope.set_tag("project_key", project_key);
+            if let Some(sampling_key) = sampling_key {
+                scope.set_tag("sampling_key", sampling_key);
+            }
+            let meta = message.envelope.envelope().meta();
+            scope.set_tag("sdk_name", meta.client_name());
+            if let Some(client) = meta.client() {
+                scope.set_tag("sdk", client);
+            }
+            if let Some(user_agent) = meta.user_agent() {
+                scope.set_extra("user_agent", user_agent.into());
+            }
+        });
 
         let outputs = metric!(timer(RelayTimers::EnvelopeProcessingTime), {
             self.process(message.envelope, ctx).await
@@ -1401,7 +1397,7 @@ impl EnvelopeProcessorService {
         self.inner.rate_limiter.is_some()
     }
 
-    async fn handle_message(&self, message: EnvelopeProcessor) {
+    async fn handle_message(self, message: EnvelopeProcessor) {
         let ty = message.variant();
         let feature_weights = self.feature_weights(&message);
 
@@ -1454,14 +1450,12 @@ impl Service for EnvelopeProcessorService {
     async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
         while let Some(message) = rx.recv().await {
             let service = self.clone();
+            // Create a new hub to prevent sentry scopes from bleeding to other tasks.
+            let hub = relay_log::Hub::with(|h| relay_log::Hub::new_from_top(h));
+
             self.inner
                 .pool
-                .spawn_async(
-                    async move {
-                        service.handle_message(message).await;
-                    }
-                    .boxed(),
-                )
+                .spawn_async(Box::pin(service.handle_message(message).bind_hub(hub)))
                 .await;
         }
     }
