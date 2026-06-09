@@ -29,7 +29,9 @@ use crate::services::outcome::DiscardReason;
 use crate::services::store::{Store, StoreAttachment, StoreEnvelope, StoreTraceItem};
 use crate::services::upload::ByteStream;
 use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::{BoundedStream, MeteredStream, RetryableStream, TakeOnce};
+use crate::utils::{
+    BoundedStream, MeteredStream, RetryableStream, TakeOnce, find_error_source, is_hyper_user_error,
+};
 
 use super::outcome::Outcome;
 
@@ -175,6 +177,9 @@ impl Error {
             type = kind.as_str(),
             attempts = self.attempts.to_string(),
         );
+        if self.kind.is_client_error() {
+            return;
+        }
         relay_log::error!(
             error = &self.kind as &dyn std::error::Error,
             amount = self.amount,
@@ -220,6 +225,19 @@ impl ErrorKind {
             Self::LoadShed => "load_shed",
             Self::UploadFailed(_) => "upload_failed",
             Self::Uuid(_) => "uuid",
+        }
+    }
+
+    fn is_client_error(&self) -> bool {
+        match self {
+            ErrorKind::InvalidScoping => false,
+            ErrorKind::Timeout(_) => false, // debatable, let's treat it as a server error for now
+            ErrorKind::LoadShed => false,
+            ErrorKind::UploadFailed(objectstore_client::Error::Reqwest(error)) => {
+                find_error_source(error, is_hyper_user_error).is_some()
+            }
+            ErrorKind::UploadFailed(_) => false,
+            ErrorKind::Uuid(_) => false,
         }
     }
 }

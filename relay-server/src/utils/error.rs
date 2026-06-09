@@ -25,3 +25,10 @@ pub fn is_length_limit_error(error: &(dyn Error + 'static)) -> bool {
         .downcast_ref::<http_body_util::LengthLimitError>()
         .is_some()
 }
+
+/// Returns whether an error was raised by Hyper while reading a user-provided body stream.
+pub fn is_hyper_user_error(error: &(dyn Error + 'static)) -> bool {
+    error
+        .downcast_ref::<hyper::Error>()
+        .is_some_and(hyper::Error::is_user)
+}
