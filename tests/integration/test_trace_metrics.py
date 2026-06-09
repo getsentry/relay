@@ -5,7 +5,7 @@ from requests import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 
-from .asserts import any, time_within_delta, time_within, only_items, matches
+from .asserts import matches_any, time_within_delta, time_within, only_items, matches
 
 import pytest
 import json
@@ -221,7 +221,7 @@ def test_trace_metric_extraction(
         },
         "clientSampleRate": 0.25,
         "downsampledRetentionDays": 390,
-        "itemId": any(),
+        "itemId": matches_any(),
         "itemType": "TRACE_ITEM_TYPE_METRIC",
         "organizationId": "1",
         "projectId": "42",
@@ -481,7 +481,7 @@ def test_trace_metric_pii_scrubbing(
         },
         "clientSampleRate": 1.0,
         "downsampledRetentionDays": 90,
-        "itemId": any(),
+        "itemId": matches_any(),
         "itemType": "TRACE_ITEM_TYPE_METRIC",
         "organizationId": "1",
         "projectId": "42",
@@ -562,14 +562,16 @@ def test_trace_metric_string_pii_scrubbing(
                 "value": time_within(start, expect_resolution="ns"),
             },
         },
-        "__header": {"byte_size": any()},
+        "__header": {"byte_size": matches_any()},
         "_meta": {
             "attributes": {
                 "test_pii": {
                     "value": {
                         "": {
-                            "len": any(),
-                            "rem": [[rule_type, any(), any(), any()]],
+                            "len": matches_any(),
+                            "rem": [
+                                [rule_type, matches_any(), matches_any(), matches_any()]
+                            ],
                         }
                     }
                 }
@@ -635,7 +637,7 @@ def test_trace_metric_default_pii_scrubbing_attributes(
                 "value": time_within(start, expect_resolution="ns"),
             },
         },
-        "__header": {"byte_size": any()},
+        "__header": {"byte_size": matches_any()},
     }
 
     rem_info = meta["attributes"][attribute_key]["value"][""]["rem"]
@@ -706,14 +708,21 @@ def test_trace_metric_default_pii_scrubbing_does_not_scrub_default_attributes(
                 "value": time_within(start, expect_resolution="ns"),
             },
         },
-        "__header": {"byte_size": any()},
+        "__header": {"byte_size": matches_any()},
         "_meta": {
             "attributes": {
                 "custom_field": {
                     "value": {
                         "": {
-                            "len": any(),
-                            "rem": [["remove_custom_field", any(), any(), any()]],
+                            "len": matches_any(),
+                            "rem": [
+                                [
+                                    "remove_custom_field",
+                                    matches_any(),
+                                    matches_any(),
+                                    matches_any(),
+                                ]
+                            ],
                         }
                     }
                 }
@@ -819,7 +828,7 @@ def test_time_corrections(mini_sentry, relay, delta, error):
     envelope = mini_sentry.get_captured_envelope()
     item_payload = json.loads(envelope.items[0].payload.bytes.decode())
     assert item_payload["items"][0] == {
-        "__header": any(),
+        "__header": matches_any(),
         "_meta": {
             "timestamp": {
                 "": {
@@ -835,7 +844,7 @@ def test_time_corrections(mini_sentry, relay, delta, error):
                 }
             }
         },
-        "attributes": any(),
+        "attributes": matches_any(),
         "name": "http.request.duration",
         "type": "distribution",
         "value": 123.45,
@@ -904,7 +913,7 @@ def test_time_sequence_shift(mini_sentry, relay_with_processing, items_consumer)
             "sentry.observed_timestamp_nanos": {
                 "stringValue": time_within_delta(ts, expect_resolution="ns")
             },
-            "sentry.payload_size_bytes": any(),
+            "sentry.payload_size_bytes": matches_any(),
             "sentry.span_id": {
                 "stringValue": "eee19b7ec3c1b175",
             },
@@ -927,7 +936,7 @@ def test_time_sequence_shift(mini_sentry, relay_with_processing, items_consumer)
         },
         "clientSampleRate": 1.0,
         "downsampledRetentionDays": 90,
-        "itemId": any(),
+        "itemId": matches_any(),
         "itemType": "TRACE_ITEM_TYPE_METRIC",
         "organizationId": "1",
         "projectId": "42",
@@ -937,7 +946,7 @@ def test_time_sequence_shift(mini_sentry, relay_with_processing, items_consumer)
         "timestamp": time_within_delta(
             ts + timedelta(seconds=seq_shift_in_secs), delta=timedelta(), precision="ms"
         ),
-        "traceId": any(),
+        "traceId": matches_any(),
     }
 
 
@@ -1032,7 +1041,7 @@ def test_trace_metric_container_metadata(
                 "value": time_within(ts, expect_resolution="ns"),
             },
         },
-        "__header": any(),
+        "__header": matches_any(),
         "name": "test.metric",
         "type": "counter",
         "value": 1.0,
