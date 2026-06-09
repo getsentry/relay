@@ -48,7 +48,10 @@ def test_span_ingestion(
     relay = relay(relay_with_processing())
 
     project_id = 42
-    mini_sentry.add_full_project_config(project_id)
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).extend(
+        ["organizations:relay-generate-billing-outcome"]
+    )
 
     ts = datetime.now(timezone.utc)
 
@@ -170,7 +173,11 @@ def test_span_ingestion(
             "project_id": 42,
             "received_at": time_within_delta(),
             "retention_days": 90,
-            "tags": {"is_segment": "true", "was_transaction": "false"},
+            "tags": {
+                "is_segment": "true",
+                "was_transaction": "false",
+                "billing_outcome_accepted": "true",
+            },
             "timestamp": time_within_delta(),
             "type": "c",
             "value": 1.0,
@@ -180,11 +187,46 @@ def test_span_ingestion(
     if relay_emits_accepted_outcome:
         assert outcomes_consumer.get_aggregated_outcomes() == [
             {
+                "category": DataCategory.TRANSACTION.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 1,
+            },
+            {
+                "category": DataCategory.SPAN.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 1,
+            },
+            {
                 "category": DataCategory.SPAN_INDEXED.value,
                 "key_id": 123,
                 "org_id": 1,
                 "outcome": 0,
                 "project_id": 42,
                 "quantity": 1,
-            }
+            },
+        ]
+    else:
+        assert outcomes_consumer.get_aggregated_outcomes() == [
+            {
+                "category": DataCategory.TRANSACTION.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 1,
+            },
+            {
+                "category": DataCategory.SPAN.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 1,
+            },
         ]

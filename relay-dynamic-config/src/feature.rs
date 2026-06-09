@@ -153,6 +153,10 @@ pub enum Feature {
     #[serde(rename = "organizations:standalone-span-ingestion")]
     DeprecatedStandaloneSpanIngestion,
 
+    /// Enable relay billing outcome generation.
+    #[serde(rename = "organizations:relay-generate-billing-outcome")]
+    GenerateBillingOutcome,
+
     /// Forward compatibility.
     #[doc(hidden)]
     #[serde(other)]

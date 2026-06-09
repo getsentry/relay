@@ -55,7 +55,9 @@ def test_span_extraction(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
 
-    project_config["config"].setdefault("features", [])
+    project_config["config"].setdefault("features", []).append(
+        "organizations:relay-generate-billing-outcome"
+    )
     if performance_issues_spans:
         project_config["config"]["features"].append(
             "organizations:performance-issues-spans"
@@ -398,6 +400,22 @@ def test_span_extraction(
 
     if relay_emits_accepted_outcome:
         assert outcomes_consumer.get_aggregated_outcomes() == [
+            {
+                "category": DataCategory.TRANSACTION.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 1,
+            },
+            {
+                "category": DataCategory.SPAN.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 2,
+            },
             {
                 "category": DataCategory.SPAN_INDEXED.value,
                 "key_id": 123,
@@ -778,6 +796,9 @@ def test_rate_limit_indexed_consistent(
     relay = relay_with_processing()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).extend(
+        ["organizations:relay-generate-billing-outcome"]
+    )
     project_config["config"]["quotas"] = [
         {
             "categories": ["span_indexed"],
@@ -806,11 +827,19 @@ def test_rate_limit_indexed_consistent(
     relay.send_envelope(project_id, envelope)
     spans = spans_consumer.get_spans(n=3, timeout=10)
     assert len(spans) == 3
-    assert summarize_outcomes() == {(16, 0): 3}  # SpanIndexed, Accepted
+    assert summarize_outcomes() == {
+        (16, 0): 3,
+        (12, 0): 3,
+        (2, 0): 1,
+    }  # SpanIndexed, Accepted
 
     # Second batch is limited
     relay.send_envelope(project_id, envelope)
-    assert summarize_outcomes() == {(16, 2): 3}  # SpanIndexed, RateLimited
+    assert summarize_outcomes() == {
+        (16, 2): 3,
+        (12, 0): 3,
+        (2, 0): 1,
+    }  # SpanIndexed, RateLimited
 
     spans_consumer.assert_empty()
     outcomes_consumer.assert_empty()
@@ -827,6 +856,9 @@ def test_rate_limit_consistent_extracted(
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).append(
+        "organizations:relay-generate-billing-outcome"
+    )
     project_config["config"]["quotas"] = [
         {
             "categories": ["span"],
@@ -871,7 +903,11 @@ def test_rate_limit_consistent_extracted(
     spans = spans_consumer.get_spans(n=2, timeout=10)
     # one for the transaction, one for the contained span
     assert len(spans) == 2
-    assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
+    assert summarize_outcomes() == {
+        (16, 0): 2,
+        (12, 0): 2,
+        (2, 0): 1,
+    }  # SpanIndexed, Accepted
     # A limit only for span_indexed does not affect extracted metrics
     metrics = metrics_consumer.get_metrics(n=4)
     span_count = sum(
@@ -955,6 +991,10 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).extend(
+        ["organizations:relay-generate-billing-outcome"]
+    )
+
     project_config["config"]["quotas"] = [
         {
             "categories": [category],
@@ -998,7 +1038,11 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     # We have one nested span and the transaction itself becomes a span
     spans = spans_consumer.get_spans(n=2, timeout=10)
     assert len(spans) == 2
-    assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
+    assert summarize_outcomes() == {
+        (16, 0): 2,
+        (2, 0): 1,
+        (12, 0): 2,
+    }  # SpanIndexed, Accepted
     assert span_usage_metric() == 2
 
     # Second batch nothing passes
@@ -1016,7 +1060,9 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
         assert span_usage_metric() == 0
     elif category == "transaction_indexed":
         assert summarize_outcomes() == {
+            (2, 0): 1,
             (9, 2): 1,  # TransactionIndexed, Rate Limited
+            (12, 0): 2,
             (16, 2): 2,  # SpanIndexed, Rate Limited
         }
         assert span_usage_metric() == 2
@@ -1045,7 +1091,9 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
         # We do not check indexed limits on the fast path,
         # so we count the correct number of spans (ignoring the span_count header):
         assert summarize_outcomes() == {
+            (2, 0): 1,
             (9, 2): 1,  # TransactionIndexed, Rate Limited
+            (12, 0): 2,
             (16, 2): 2,  # SpanIndexed, Rate Limited
         }
         # Metrics are always correct:
@@ -1127,10 +1175,18 @@ def test_dynamic_sampling(
     outcomes_consumer = outcomes_consumer()
 
     project_id = 42
-    mini_sentry.add_basic_project_config(project_id)
+    config = mini_sentry.add_basic_project_config(project_id)
+    config["config"].setdefault("features", []).extend(
+        ["organizations:relay-generate-billing-outcome"]
+    )
 
     sampling_config = mini_sentry.add_basic_project_config(43)
+    sampling_config["config"].setdefault("features", []).extend(
+        ["organizations:relay-generate-billing-outcome"]
+    )
+
     sampling_public_key = sampling_config["publicKeys"][0]["publicKey"]
+
     sampling_config["config"]["txNameRules"] = [
         {
             "pattern": "/auth/login/*/**",
@@ -1195,14 +1251,20 @@ def test_dynamic_sampling(
     if sample_rate == 1.0:
         spans = spans_consumer.get_spans(timeout=10, n=3)
         assert len(spans) == 3
-        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=1)
-        assert summarize_outcomes(outcomes) == {(16, 0): 3}  # SpanIndexed, Accepted
+        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=8)
+        assert summarize_outcomes(outcomes) == {
+            (16, 0): 3,
+            (12, 0): 3,
+            (2, 0): 1,
+        }  # SpanIndexed, Accepted
     else:
-        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=1)
+        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=4)
         assert summarize_outcomes(outcomes) == {
             (16, 1): 3,  # SpanIndexed, Filtered
+            (12, 0): 3,
+            (2, 0): 1,
         }
-        assert {o["reason"] for o in outcomes} == {
+        assert {o["reason"] for o in outcomes if o["outcome"] != 0} == {
             "Sampled:3000",
         }
 

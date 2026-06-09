@@ -58,6 +58,43 @@ impl MetricOutcomes {
             }
         }
     }
+
+    /// Tracks billing-related outcomes for the list of buckets, adding the
+    /// "billing_outcome_accepted" tag to the bucket if that bucket is accepted.
+    pub fn track_billing_outcome(&self, scoping: Scoping, buckets: &mut [Bucket]) {
+        let timestamp = Utc::now();
+        for bucket in buckets {
+            let summary = bucket.summary();
+            match summary {
+                BucketSummary::Spans {
+                    count,
+                    is_segment,
+                    was_transaction: _,
+                } if count > 0 => {
+                    let all_categories = [DataCategory::Span, DataCategory::Transaction];
+                    let num_categories = if is_segment { 2 } else { 1 };
+                    let categories = &all_categories[0..num_categories];
+
+                    bucket
+                        .tags
+                        .insert("billing_outcome_accepted".to_owned(), "true".to_owned());
+
+                    for category in categories {
+                        self.outcomes.send(TrackOutcome {
+                            timestamp,
+                            scoping,
+                            outcome: Outcome::Accepted,
+                            event_id: None,
+                            remote_addr: None,
+                            category: *category,
+                            quantity: count as u32,
+                        });
+                    }
+                }
+                _ => continue,
+            };
+        }
+    }
 }
 
 /// The return value of [`TrackableBucket::summary`].

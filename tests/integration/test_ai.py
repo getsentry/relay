@@ -32,8 +32,10 @@ def test_ai_spans_example_transaction(
     outcomes_consumer = outcomes_consumer()
 
     project_id = 42
-    mini_sentry.add_full_project_config(project_id)
-
+    project = mini_sentry.add_full_project_config(project_id)
+    project["config"].setdefault("features", []).extend(
+        ["organizations:relay-generate-billing-outcome"]
+    )
     mini_sentry.global_config["aiModelMetadata"] = {
         "version": 1,
         "models": {
@@ -1299,11 +1301,46 @@ def test_ai_spans_example_transaction(
     if relay_emits_accepted_outcome:
         assert outcomes_consumer.get_aggregated_outcomes() == [
             {
+                "category": DataCategory.TRANSACTION.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 1,
+            },
+            {
+                "category": DataCategory.SPAN.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 10,
+            },
+            {
                 "category": DataCategory.SPAN_INDEXED.value,
                 "key_id": 123,
                 "org_id": 1,
                 "outcome": 0,
                 "project_id": 42,
                 "quantity": 10,
-            }
+            },
+        ]
+    else:
+        assert outcomes_consumer.get_aggregated_outcomes() == [
+            {
+                "category": DataCategory.TRANSACTION.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 1,
+            },
+            {
+                "category": DataCategory.SPAN.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 10,
+            },
         ]

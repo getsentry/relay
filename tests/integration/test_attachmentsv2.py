@@ -347,6 +347,7 @@ def test_attachment_with_matching_span_store(
     project_config["config"]["features"] = [
         "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
+        "organizations:relay-generate-billing-outcome",
     ]
     relay = relay_with_processing()
 
@@ -418,8 +419,16 @@ def test_attachment_with_matching_span_store(
     objectstore = objectstore(usecase="trace_attachments", project_id=project_id)
     assert objectstore.get(metadata["attachment_id"]).payload.read() == body
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=3)
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=5)
     assert outcomes == [
+        {
+            "category": DataCategory.TRANSACTION.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 1,
+        },
         {
             "category": DataCategory.ATTACHMENT.value,
             "key_id": 123,
@@ -427,6 +436,14 @@ def test_attachment_with_matching_span_store(
             "outcome": 0,
             "project_id": 42,
             "quantity": 23,
+        },
+        {
+            "category": DataCategory.SPAN.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 1,
         },
         {
             "category": DataCategory.SPAN_INDEXED.value,
