@@ -65,7 +65,7 @@ fn write_native_placeholder(event: &mut Event, placeholder: NativePlaceholder) {
         .value_mut()
         .get_or_insert_with(Vec::new);
 
-    exceptions.clear(); // clear previous errors if any
+    // exceptions.clear(); // clear previous errors if any
 
     exceptions.push(Annotated::new(Exception {
         ty: Annotated::new(placeholder.exception_type.to_owned()),
