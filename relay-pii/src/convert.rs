@@ -21,7 +21,7 @@ static DATASCRUBBER_IGNORE: LazyLock<SelectorSpec> = LazyLock::new(|| {
 
 /// Fields that are known to contain IPs. Used for legacy IP scrubbing.
 static KNOWN_IP_FIELDS: LazyLock<SelectorSpec> = LazyLock::new(|| {
-    "($request.env.REMOTE_ADDR | $user.ip_address | $sdk.client_ip | $span.sentry_tags.'user.ip')"
+    "($request.env.REMOTE_ADDR | $user.ip_address | $sdk.client_ip | $span.sentry_tags.'user.ip' | attributes.'client.address')"
         .parse()
         .unwrap()
 });
@@ -358,7 +358,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@common:filter",
               "@ip:replace"
             ],
-            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip' || attributes.'client.address'": [
               "@anything:remove"
             ],
             "$logentry.formatted || $log.body || $span.data.'gen_ai.input.messages' || attributes.'gen_ai.input.messages'.value || attributes.'gen_ai.prompt'.value || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.call.arguments' || attributes.'gen_ai.tool.call.arguments'.value || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.call.result' || attributes.'gen_ai.tool.call.result'.value || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.output.messages' || attributes.'gen_ai.output.messages'.value || attributes.'gen_ai.response.tool_calls'.value || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.tool.definitions' || attributes.'gen_ai.tool.definitions'.value || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
@@ -390,7 +390,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@common:filter",
               "@ip:replace"
             ],
-            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip' || attributes.'client.address'": [
               "@anything:remove"
             ],
             "$logentry.formatted || $log.body || $span.data.'gen_ai.input.messages' || attributes.'gen_ai.input.messages'.value || attributes.'gen_ai.prompt'.value || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.call.arguments' || attributes.'gen_ai.tool.call.arguments'.value || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.call.result' || attributes.'gen_ai.tool.call.result'.value || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.output.messages' || attributes.'gen_ai.output.messages'.value || attributes.'gen_ai.response.tool_calls'.value || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.tool.definitions' || attributes.'gen_ai.tool.definitions'.value || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
@@ -433,7 +433,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@ip:replace",
               "strip-fields"
             ],
-            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip' || attributes.'client.address'": [
               "@anything:remove"
             ],
             "$logentry.formatted || $log.body || $span.data.'gen_ai.input.messages' || attributes.'gen_ai.input.messages'.value || attributes.'gen_ai.prompt'.value || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.call.arguments' || attributes.'gen_ai.tool.call.arguments'.value || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.call.result' || attributes.'gen_ai.tool.call.result'.value || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.output.messages' || attributes.'gen_ai.output.messages'.value || attributes.'gen_ai.response.tool_calls'.value || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.tool.definitions' || attributes.'gen_ai.tool.definitions'.value || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
@@ -465,7 +465,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@common:filter",
               "@ip:replace"
             ],
-            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip' || attributes.'client.address'": [
               "@anything:remove"
             ],
             "$logentry.formatted || $log.body || $span.data.'gen_ai.input.messages' || attributes.'gen_ai.input.messages'.value || attributes.'gen_ai.prompt'.value || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.call.arguments' || attributes.'gen_ai.tool.call.arguments'.value || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.call.result' || attributes.'gen_ai.tool.call.result'.value || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.output.messages' || attributes.'gen_ai.output.messages'.value || attributes.'gen_ai.response.tool_calls'.value || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.tool.definitions' || attributes.'gen_ai.tool.definitions'.value || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
@@ -498,7 +498,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
               "@ip:replace"
             ],
-            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip' || attributes.'client.address'": [
               "@anything:remove"
             ]
           }
@@ -651,6 +651,32 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = to_pii_config(&scrubbing_config).unwrap();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data);
+    }
+
+    #[test]
+    fn test_ip_stripped_spanv2() {
+        let mut data = SpanV2::from_value(
+            serde_json::json!({
+                "attributes": {
+                    "user.name": {"type": "string", "value": "73.133.27.120"}, // should be stripped despite not being "known ip field"
+                    "client.address": {"type": "string", "value": "should be stripped despite lacking ip address"},
+                },
+            })
+            .into(),
+        );
+
+        let scrubbing_config = DataScrubbingConfig {
+            scrub_data: false,
+            scrub_ip_addresses: true,
+            scrub_defaults: false,
+            ..Default::default()
+        };
+
+        let pii_config = to_pii_config(&scrubbing_config).unwrap();
+        let mut pii_processor =
+            PiiProcessor::new(pii_config.compiled()).attribute_mode(AttributeMode::ValueOnly);
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
         assert_annotated_snapshot!(data);
     }
@@ -938,13 +964,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
-        assert_annotated_snapshot!(data, @r###"
+        assert_annotated_snapshot!(data, @r#"
         {
           "extra": {
             "foo": "1453843029218310"
           }
         }
-        "###);
+        "#);
     }
 
     macro_rules! sanitize_url_test {
@@ -1040,13 +1066,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
 
-        assert_annotated_snapshot!(data, @r###"
+        assert_annotated_snapshot!(data, @r#"
         {
           "extra": {
             "foo": 1
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1207,13 +1233,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
 
-        assert_annotated_snapshot!(data, @r###"
+        assert_annotated_snapshot!(data, @r#"
         {
           "extra": {
             "foobar": "123-45-6789"
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1235,13 +1261,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
 
-        assert_annotated_snapshot!(data, @r###"
+        assert_annotated_snapshot!(data, @r#"
         {
           "extra": {
             "foobar": "xxx"
           }
         }
-        "###);
+        "#);
     }
 
     macro_rules! should_have_mysql_pwd_as_a_default_test {
@@ -1414,7 +1440,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@ip:replace",
               "strip-fields"
             ],
-            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip' || attributes.'client.address'": [
               "@anything:remove"
             ],
             "$logentry.formatted || $log.body || $span.data.'gen_ai.input.messages' || attributes.'gen_ai.input.messages'.value || attributes.'gen_ai.prompt'.value || attributes.'gen_ai.request.messages'.value || $span.data.'gen_ai.tool.call.arguments' || attributes.'gen_ai.tool.call.arguments'.value || attributes.'gen_ai.tool.input'.value || $span.data.'gen_ai.tool.call.result' || attributes.'gen_ai.tool.call.result'.value || attributes.'gen_ai.tool.output'.value || $span.data.'gen_ai.output.messages' || attributes.'gen_ai.output.messages'.value || attributes.'gen_ai.response.tool_calls'.value || attributes.'gen_ai.response.text'.value || $span.data.'gen_ai.response.object' || attributes.'gen_ai.response.object'.value || $span.data.'gen_ai.tool.definitions' || attributes.'gen_ai.tool.definitions'.value || attributes.'gen_ai.request.available_tools'.value || $span.data.'gen_ai.tool.name' || attributes.'gen_ai.tool.name'.value || $span.data.'mcp.prompt.result' || attributes.'mcp.prompt.result'.value || $span.data.'mcp.tool.result.content' || attributes.'mcp.tool.result.content'.value": [
@@ -1795,7 +1821,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
-        assert_annotated_snapshot!(data, @r###"
+        assert_annotated_snapshot!(data, @r#"
         {
           "user": {
             "id": "5355849125500546"
@@ -1810,7 +1836,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ]
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1841,7 +1867,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
-        assert_annotated_snapshot!(data, @r###"
+        assert_annotated_snapshot!(data, @r#"
         {
           "request": {
             "data": {
@@ -1870,7 +1896,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             }
           }
         }
-        "###);
+        "#);
     }
 
     #[test]

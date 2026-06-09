@@ -547,8 +547,6 @@ fn emit_envelope_metrics(envelope: &Envelope) {
 
 /// Uploads the content of `field` to the objectstore and returns an [Item] with an
 /// [AttachmentPlaceholder] as payload.
-///
-/// Returns `None` if uploading fails due to any reason.
 pub async fn upload_to_objectstore<S, E>(
     stream: S,
     content_type: Option<String>,
@@ -600,6 +598,7 @@ where
         .send(Create {
             scoping,
             length: None,
+            attachment_type: item.attachment_type(),
         })
         .await
         .ok()?

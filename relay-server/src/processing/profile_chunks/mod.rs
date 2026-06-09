@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use relay_cogs::{AppFeature, FeatureWeights};
 use relay_profiling::ProfileType;
 use relay_quotas::{DataCategory, RateLimits};
 
@@ -75,6 +76,10 @@ impl processing::Processor for ProfileChunksProcessor {
     type Input = SerializedProfileChunks;
     type Output = ProfileChunkOutput;
     type Error = Error;
+
+    fn cogs() -> FeatureWeights {
+        AppFeature::Profiles.into()
+    }
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let profile_chunks = envelope

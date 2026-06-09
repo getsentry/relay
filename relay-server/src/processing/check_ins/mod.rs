@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use relay_cogs::{AppFeature, FeatureWeights};
 use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
@@ -63,6 +64,10 @@ impl processing::Processor for CheckInsProcessor {
     type Output = CheckInsOutput;
     type Error = Error;
 
+    fn cogs() -> FeatureWeights {
+        AppFeature::CheckIns.into()
+    }
+
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
 
@@ -70,6 +75,10 @@ impl processing::Processor for CheckInsProcessor {
             .envelope_mut()
             .take_items_by(|item| matches!(*item.ty(), ItemType::CheckIn))
             .into_vec();
+
+        if check_ins.is_empty() {
+            return None;
+        }
 
         let work = SerializedCheckIns { headers, check_ins };
         Some(Managed::with_meta_from_managed_envelope(envelope, work))

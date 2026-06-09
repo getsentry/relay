@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 use std::time::Duration;
 
-use relay_dynamic_config::Feature;
 use relay_event_normalization::eap::ClientUserAgentInfo;
 use relay_event_normalization::{EnrichedDsc, GeoIpLookup, RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
@@ -20,10 +19,7 @@ use crate::services::outcome::DiscardReason;
 /// Parses all serialized spans.
 ///
 /// Individual, invalid spans are discarded.
-pub fn expand(
-    spans: Managed<SerializedSpans>,
-    ctx: Context<'_>,
-) -> Result<Managed<ExpandedSpans>, Rejected<Error>> {
+pub fn expand(spans: Managed<SerializedSpans>) -> Result<Managed<ExpandedSpans>, Rejected<Error>> {
     spans.try_map(|spans, records| {
         let SerializedSpans {
             headers,
@@ -39,7 +35,7 @@ pub fn expand(
 
         let (settings, spans) = match items {
             SpanItems::Container(item) => expand_span_container(&item)?,
-            SpanItems::Legacy(items) => expand_legacy_spans(items, records, ctx),
+            SpanItems::Legacy(items) => expand_legacy_spans(items, records),
             SpanItems::Integration(item) => spans::integrations::expand(records, &[item]),
             SpanItems::None => (Default::default(), Vec::new()),
         };
@@ -130,11 +126,10 @@ fn expand_span_container(item: &Item) -> Result<(Settings, ContainerItems<SpanV2
 fn expand_legacy_spans(
     items: Vec<Item>,
     records: &mut RecordKeeper<'_>,
-    ctx: Context<'_>,
 ) -> (Settings, ContainerItems<SpanV2>) {
     let spans = items
         .into_iter()
-        .filter_map(|item| match expand_legacy_span(&item, ctx) {
+        .filter_map(|item| match expand_legacy_span(&item) {
             Ok(span) => Some(span),
             Err(err) => {
                 records.reject_err(err, item);
@@ -143,21 +138,26 @@ fn expand_legacy_spans(
         })
         .collect();
 
-    (Settings::default(), spans)
+    // In the legacy standalone span pipeline we always
+    // inferred both IPs and user agents. If this function
+    // is ever applied to transactions, we may need to rethink this.
+    let settings = Settings {
+        infer_ip: true,
+        infer_user_agent: true,
+    };
+
+    (settings, spans)
 }
 
-fn expand_legacy_span(item: &Item, ctx: Context<'_>) -> Result<WithHeader<SpanV2>> {
+fn expand_legacy_span(item: &Item) -> Result<WithHeader<SpanV2>> {
     let payload = item.payload();
-    let use_measurements_smart_conversion = ctx
-        .project_info
-        .has_feature(Feature::MeasurementsSmartConversion);
 
     let span = Annotated::<Span>::from_json_bytes(&payload)
         .map_err(|err| {
             relay_log::debug!("failed to parse span: {err}");
             Error::Invalid(DiscardReason::InvalidJson)
         })?
-        .map_value(|span| relay_spans::span_v1_to_span_v2(span, use_measurements_smart_conversion));
+        .map_value(relay_spans::span_v1_to_span_v2);
 
     Ok(WithHeader::new(span))
 }

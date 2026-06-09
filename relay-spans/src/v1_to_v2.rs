@@ -14,10 +14,9 @@ use crate::name::name_for_attributes;
 /// - `tags`, `sentry_tags`, `measurements` and `data` are transferred to `attributes`.
 /// - Nested `data` items are encoded as JSON.
 ///
-/// If `use_measurements_smart_conversion` is `true`, measurements will be converted
-/// to attributes by looking up the replacement attribute's name in `sentry-conventions`.
-/// Otherwise, the measurement name will be reused as the attribute name verbatim.
-pub fn span_v1_to_span_v2(span_v1: SpanV1, use_measurements_smart_conversion: bool) -> SpanV2 {
+/// Measurements will be converted to attributes by looking up the
+/// replacement attribute's name in `sentry-conventions`.
+pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     let SpanV1 {
         timestamp,
         start_timestamp,
@@ -42,7 +41,6 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1, use_measurements_smart_conversion: bo
         platform,
         was_transaction: _,
         kind,
-        performance_issues_spans,
         other: _,
     } = span_v1;
 
@@ -57,25 +55,17 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1, use_measurements_smart_conversion: bo
     attributes.insert(SENTRY__ORIGIN, origin);
     attributes.insert(SENTRY__PROFILE_ID, profile_id.map_value(|v| v.to_string()));
     attributes.insert(SENTRY__PLATFORM, platform);
-    attributes.insert(
-        SENTRY___INTERNAL__PERFORMANCE_ISSUES_SPANS,
-        performance_issues_spans,
-    );
 
     // Use same precedence as `backfill_data` for data bags:
     if let Some(measurements) = measurements.into_value() {
         for (key, measurement) in measurements.0 {
             let key = match key.as_str() {
-                // TODO: If these measurements were defined in conventions we could get rid of the match entirely
+                // These measurements aren't defined in conventions; they are not sent
+                // by SDKs but inserted into `measurements` by Relay. As such, we
+                // special-case them here.
                 "client_sample_rate" => SENTRY__CLIENT_SAMPLE_RATE,
                 "server_sample_rate" => SENTRY__SERVER_SAMPLE_RATE,
-                other => {
-                    if use_measurements_smart_conversion {
-                        relay_conventions::measurement_to_attribute(other).unwrap_or(other)
-                    } else {
-                        other
-                    }
-                }
+                other => relay_conventions::measurement_to_attribute(other).unwrap_or(other),
             };
 
             attributes.insert_if_missing(key, || match measurement {
@@ -100,11 +90,32 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1, use_measurements_smart_conversion: bo
         && let Value::Object(tags) = tags.into_value()
     {
         for (key, value) in tags {
+            if value.is_empty() {
+                continue;
+            }
+            let conventional_key = match key.as_str() {
+                "user.email" => Some(USER__EMAIL),
+                "user.geo.city" => Some(USER__GEO__CITY),
+                "user.geo.country_code" => Some(USER__GEO__COUNTRY_CODE),
+                "user.geo.region" => Some(USER__GEO__REGION),
+                "user.geo.subdivision" => Some(USER__GEO__SUBDIVISION),
+                "user.id" => Some(USER__ID),
+                "user.ip" => Some(USER__IP_ADDRESS),
+                "user.username" => Some(USER__NAME),
+                _ => None,
+            };
+            if let Some(conv_key) = conventional_key
+                && !attributes.contains_key(conv_key)
+            {
+                attributes
+                    .0
+                    .insert(conv_key.to_owned(), attribute_from_value(value.clone()));
+            }
             let key = match key.as_str() {
                 "description" => SENTRY__NORMALIZED_DESCRIPTION.into(),
                 other => Cow::Owned(format!("sentry.{}", other)),
             };
-            if !value.is_empty() && !attributes.contains_key(key.as_ref()) {
+            if !attributes.contains_key(key.as_ref()) {
                 attributes
                     .0
                     .insert(key.into_owned(), attribute_from_value(value));
@@ -312,6 +323,15 @@ mod tests {
           "sentry_tags": {
             "description": "normalized description",
             "user": "id:user123",
+            "user.email": "john@example.com",
+            "user.geo.city": "Vienna",
+            "user.geo.country_code": "AT",
+            "user.geo.region": "Europe",
+            "user.geo.subdivision": "AT-9",
+            "user.geo.subregion": "155",
+            "user.id": "user123",
+            "user.ip": "127.0.0.1",
+            "user.username": "john",
           },
           "op": "operation",
           "origin": "auto.http",
@@ -325,7 +345,7 @@ mod tests {
         });
 
         let span_v1 = SpanV1::from_value(json.into()).into_value().unwrap();
-        let span_v2 = span_v1_to_span_v2(span_v1, false);
+        let span_v2 = span_v1_to_span_v2(span_v1);
 
         let annotated_span_v2: Annotated<SpanV2> = Annotated::new(span_v2);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span_v2), @r#"
@@ -380,10 +400,6 @@ mod tests {
               "type": "string",
               "value": "{\"numbers\":[1,2,3]}"
             },
-            "sentry._internal.performance_issues_spans": {
-              "type": "boolean",
-              "value": true
-            },
             "sentry.client_sample_rate": {
               "type": "double",
               "value": 0.11
@@ -435,6 +451,74 @@ mod tests {
             "sentry.user": {
               "type": "string",
               "value": "id:user123"
+            },
+            "sentry.user.email": {
+              "type": "string",
+              "value": "john@example.com"
+            },
+            "sentry.user.geo.city": {
+              "type": "string",
+              "value": "Vienna"
+            },
+            "sentry.user.geo.country_code": {
+              "type": "string",
+              "value": "AT"
+            },
+            "sentry.user.geo.region": {
+              "type": "string",
+              "value": "Europe"
+            },
+            "sentry.user.geo.subdivision": {
+              "type": "string",
+              "value": "AT-9"
+            },
+            "sentry.user.geo.subregion": {
+              "type": "string",
+              "value": "155"
+            },
+            "sentry.user.id": {
+              "type": "string",
+              "value": "user123"
+            },
+            "sentry.user.ip": {
+              "type": "string",
+              "value": "127.0.0.1"
+            },
+            "sentry.user.username": {
+              "type": "string",
+              "value": "john"
+            },
+            "user.email": {
+              "type": "string",
+              "value": "john@example.com"
+            },
+            "user.geo.city": {
+              "type": "string",
+              "value": "Vienna"
+            },
+            "user.geo.country_code": {
+              "type": "string",
+              "value": "AT"
+            },
+            "user.geo.region": {
+              "type": "string",
+              "value": "Europe"
+            },
+            "user.geo.subdivision": {
+              "type": "string",
+              "value": "AT-9"
+            },
+            "user.id": {
+              "type": "string",
+              "value": "user123"
+            },
+            "user.ip_address": {
+              "type": "string",
+              "value": "127.0.0.1"
+            },
+            "user.name": {
+              "type": "string",
+              "value": "john"
             }
           },
           "_meta": {
@@ -492,7 +576,7 @@ mod tests {
         }
         "###);
 
-        let span_v2 = span_v1_to_span_v2(span_v1, false);
+        let span_v2 = span_v1_to_span_v2(span_v1);
 
         // The `name` and the `sentry.segment.name` attribute are the same as the transaction.
         insta::assert_json_snapshot!(SerializableAnnotated(&Annotated::new(span_v2)), @r###"
@@ -522,7 +606,7 @@ mod tests {
     fn start_timestamp() {
         let json = r#"{"timestamp": 123, "end_timestamp": "invalid data"}"#;
         let span_v1 = Annotated::<SpanV1>::from_json(json).unwrap();
-        let span_v2 = span_v1_to_span_v2(span_v1.into_value().unwrap(), false);
+        let span_v2 = span_v1_to_span_v2(span_v1.into_value().unwrap());
 
         // Parsed version is still fine:
         assert_eq!(

@@ -4,16 +4,15 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::error::Error;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task;
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use futures::FutureExt;
-use futures::future::BoxFuture;
 use prost::Message as _;
 use sentry_protos::snuba::v1::{TraceItem, TraceItemType};
 use serde::Serialize;
-use serde_json::value::RawValue;
 use uuid::Uuid;
 
 use relay_base_schema::data_category::DataCategory;
@@ -33,7 +32,7 @@ use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_threading::AsyncPool;
 
-use crate::envelope::{AttachmentPlaceholder, AttachmentType, ContentType, Item, ItemType};
+use crate::envelope::{AttachmentPlaceholder, AttachmentType, Item, ItemType};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
@@ -137,8 +136,13 @@ pub struct StoreSpanV2 {
     pub retention_days: u16,
     /// Downsampled retention of the span.
     pub downsampled_retention_days: u16,
+    /// Optional event id, if the span was extracted from a transaction.
+    pub event_id: Option<EventId>,
     /// The final Sentry compatible span item.
     pub item: SpanV2,
+    // Whether to run issue detection on the transaction or on the segment span.
+    // (only true for segment spans created from a transaction).
+    pub performance_issues_spans: bool,
 }
 
 impl Counted for StoreSpanV2 {
@@ -258,7 +262,7 @@ impl Counted for StoreProfile {
 }
 
 /// The asynchronous thread pool used for scheduling storing tasks in the envelope store.
-pub type StoreServicePool = AsyncPool<BoxFuture<'static, ()>>;
+pub type StoreServicePool = AsyncPool<StoreTask>;
 
 /// Service interface for the [`StoreEnvelope`] message.
 #[derive(Debug)]
@@ -410,11 +414,6 @@ impl StoreService {
     }
 
     fn handle_message(&self, message: Store) {
-        // relay_kafka configures the scope
-        relay_log::with_scope(|_| {}, || self.handle_message_inner(message))
-    }
-
-    fn handle_message_inner(&self, message: Store) {
         let ty = message.variant();
         relay_statsd::metric!(timer(RelayTimers::StoreServiceDuration), message = ty, {
             let result = match message {
@@ -465,7 +464,6 @@ impl StoreService {
         let scoping = managed_envelope.scoping();
 
         let retention = envelope.retention();
-        let downsampled_retention = envelope.downsampled_retention();
 
         let event_id = envelope.event_id();
         let event_item = envelope.as_mut().take_item_by(|item| {
@@ -492,7 +490,6 @@ impl StoreService {
         let mut attachments = Vec::new();
 
         for item in envelope.items() {
-            let content_type = item.content_type();
             match item.ty() {
                 ItemType::Attachment => {
                     if let Some(attachment) = self.produce_attachment(
@@ -546,15 +543,7 @@ impl StoreService {
                         item,
                     )?
                 }
-                ItemType::Span if content_type == Some(ContentType::Json) => self.produce_span(
-                    scoping,
-                    received_at,
-                    event_id,
-                    retention,
-                    downsampled_retention,
-                    item,
-                )?,
-                ty @ ItemType::Log => {
+                ty @ (ItemType::Log | ItemType::Span) => {
                     debug_assert!(
                         false,
                         "received {ty} through an envelope, \
@@ -800,11 +789,12 @@ impl StoreService {
             organization_id: scoping.organization_id,
             project_id: scoping.project_id,
             key_id: scoping.key_id,
-            event_id: None,
+            event_id: message.event_id,
             retention_days: message.retention_days,
             downsampled_retention_days: message.downsampled_retention_days,
             received: datetime_to_timestamp(received_at),
             accepted_outcome_emitted: relay_emits_accepted_outcome,
+            performance_issues_spans: message.performance_issues_spans,
         };
 
         message.try_accept(|span| {
@@ -1298,88 +1288,6 @@ impl StoreService {
 
         Ok(())
     }
-
-    fn produce_span(
-        &self,
-        scoping: Scoping,
-        received_at: DateTime<Utc>,
-        event_id: Option<EventId>,
-        retention_days: u16,
-        downsampled_retention_days: u16,
-        item: &Item,
-    ) -> Result<(), StoreError> {
-        debug_assert_eq!(item.ty(), &ItemType::Span);
-        debug_assert_eq!(item.content_type(), Some(ContentType::Json));
-
-        let Scoping {
-            organization_id,
-            project_id,
-            project_key: _,
-            key_id,
-        } = scoping;
-
-        let relay_emits_accepted_outcome = !utils::is_rolled_out(
-            scoping.organization_id.value(),
-            self.global_config
-                .current()
-                .unwrap_or_default()
-                .options
-                .eap_span_outcomes_rollout_rate,
-        )
-        .is_keep();
-
-        let payload = item.payload();
-        let message = SpanKafkaMessageRaw {
-            meta: SpanMeta {
-                organization_id,
-                project_id,
-                key_id,
-                event_id,
-                retention_days,
-                downsampled_retention_days,
-                received: datetime_to_timestamp(received_at),
-                accepted_outcome_emitted: relay_emits_accepted_outcome,
-            },
-            span: serde_json::from_slice(&payload)
-                .map_err(|e| StoreError::EncodingFailed(e.into()))?,
-        };
-
-        // Verify that this is a V2 span:
-        debug_assert!(message.span.contains_key("attributes"));
-        relay_statsd::metric!(
-            counter(RelayCounters::SpanV2Produced) += 1,
-            via = "envelope"
-        );
-
-        self.produce(
-            KafkaTopic::Spans,
-            KafkaMessage::SpanRaw {
-                routing_key: item.routing_hint(),
-                headers: BTreeMap::from([(
-                    "project_id".to_owned(),
-                    scoping.project_id.to_string(),
-                )]),
-                message,
-                org_id: organization_id,
-            },
-        )?;
-
-        if relay_emits_accepted_outcome {
-            // XXX: Temporarily produce span outcomes. Keep in sync with either EAP
-            // or the segments consumer, depending on which will produce outcomes later.
-            self.outcome_aggregator.send(TrackOutcome {
-                category: DataCategory::SpanIndexed,
-                event_id: None,
-                outcome: Outcome::Accepted,
-                quantity: 1,
-                remote_addr: None,
-                scoping,
-                timestamp: received_at,
-            });
-        }
-
-        Ok(())
-    }
 }
 
 impl Service for StoreService {
@@ -1391,15 +1299,33 @@ impl Service for StoreService {
         relay_log::info!("store forwarder started");
 
         while let Some(message) = rx.recv().await {
-            let service = Arc::clone(&this);
-            // For now, we run each task synchronously, in the future we might explore how to make
-            // the store async.
-            this.pool
-                .spawn_async(async move { service.handle_message(message) }.boxed())
-                .await;
+            let task = StoreTask {
+                service: Arc::clone(&this),
+                message: Some(message),
+            };
+            this.pool.spawn_async(task).await;
         }
 
         relay_log::info!("store forwarder stopped");
+    }
+}
+
+/// Task executed by [`StoreService`].
+pub struct StoreTask {
+    service: Arc<StoreService>,
+    message: Option<Store>,
+}
+
+impl Future for StoreTask {
+    type Output = ();
+
+    fn poll(mut self: Pin<&mut Self>, _: &mut task::Context<'_>) -> task::Poll<Self::Output> {
+        let message = self
+            .message
+            .take()
+            .expect("StoreTask polled after completion");
+        let () = relay_log::with_scope(|_| {}, || self.service.handle_message(message));
+        task::Poll::Ready(())
     }
 }
 
@@ -1665,14 +1591,6 @@ struct CheckInKafkaMessage {
 }
 
 #[derive(Debug, Serialize)]
-struct SpanKafkaMessageRaw<'a> {
-    #[serde(flatten)]
-    meta: SpanMeta,
-    #[serde(flatten)]
-    span: BTreeMap<&'a str, &'a RawValue>,
-}
-
-#[derive(Debug, Serialize)]
 struct SpanKafkaMessage<'a> {
     #[serde(flatten)]
     meta: SpanMeta,
@@ -1697,6 +1615,13 @@ struct SpanMeta {
     downsampled_retention_days: u16,
     /// Indicates whether Relay already emitted an accepted outcome or if EAP still needs to emit it.
     accepted_outcome_emitted: bool,
+    /// Whether the segment span should be used for issue detection instead of the transaction.
+    #[serde(rename = "_performance_issues_spans", skip_serializing_if = "is_false")]
+    performance_issues_spans: bool,
+}
+
+fn is_false(val: &bool) -> bool {
+    !val
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -1735,18 +1660,6 @@ enum KafkaMessage<'a> {
         item_type: TraceItemType,
         #[serde(skip)]
         message: TraceItem,
-    },
-    SpanRaw {
-        #[serde(skip)]
-        routing_key: Option<Uuid>,
-        #[serde(skip)]
-        headers: BTreeMap<String, String>,
-        #[serde(flatten)]
-        message: SpanKafkaMessageRaw<'a>,
-
-        /// Used for [`KafkaMessage::key`]
-        #[serde(skip)]
-        org_id: OrganizationId,
     },
     SpanV2 {
         #[serde(skip)]
@@ -1798,7 +1711,7 @@ impl Message for KafkaMessage<'_> {
                 MetricNamespace::Unsupported => "metric_unsupported",
             },
             KafkaMessage::CheckIn(_) => "check_in",
-            KafkaMessage::SpanRaw { .. } | KafkaMessage::SpanV2 { .. } => "span",
+            KafkaMessage::SpanV2 { .. } => "span",
             KafkaMessage::Item { item_type, .. } => item_type.as_str_name(),
 
             KafkaMessage::Attachment(_) => "attachment",
@@ -1816,12 +1729,7 @@ impl Message for KafkaMessage<'_> {
         match self {
             Self::Event(message) => Some((message.event_id.0, message.org_id)),
             Self::UserReport(message) => Some((message.event_id.0, message.org_id)),
-            Self::SpanRaw {
-                routing_key,
-                org_id,
-                ..
-            }
-            | Self::SpanV2 {
+            Self::SpanV2 {
                 routing_key,
                 org_id,
                 ..
@@ -1858,7 +1766,6 @@ impl Message for KafkaMessage<'_> {
     fn headers(&self) -> Option<&BTreeMap<String, String>> {
         match &self {
             KafkaMessage::Metric { headers, .. }
-            | KafkaMessage::SpanRaw { headers, .. }
             | KafkaMessage::SpanV2 { headers, .. }
             | KafkaMessage::Item { headers, .. }
             | KafkaMessage::Profile(ProfileKafkaMessage { headers, .. })
@@ -1876,7 +1783,6 @@ impl Message for KafkaMessage<'_> {
     fn serialize(&self) -> Result<SerializationOutput<'_>, ClientError> {
         match self {
             KafkaMessage::Metric { message, .. } => serialize_as_json(message),
-            KafkaMessage::SpanRaw { message, .. } => serialize_as_json(message),
             KafkaMessage::SpanV2 { message, .. } => serialize_as_json(message),
             KafkaMessage::Item { message, .. } => {
                 let mut payload = Vec::new();

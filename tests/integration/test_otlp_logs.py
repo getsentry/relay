@@ -2,7 +2,7 @@ from datetime import datetime, timezone, timedelta
 
 from sentry_relay.consts import DataCategory
 
-from .asserts import any, time_within_delta, time_within, only_items
+from .asserts import matches_any, time_within_delta, time_within, only_items
 
 TEST_CONFIG = {
     "outcomes": {
@@ -129,7 +129,7 @@ def test_otlp_logs_conversion(
                     "stringValue": time_within(ts, expect_resolution="ns")
                 },
                 "sentry.origin": {"stringValue": "auto.otlp.logs"},
-                "sentry.payload_size_bytes": {"intValue": any()},
+                "sentry.payload_size_bytes": {"intValue": matches_any()},
                 "sentry.severity_text": {"stringValue": "info"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
                 "sentry.timestamp_precise": {
@@ -143,7 +143,7 @@ def test_otlp_logs_conversion(
                 "string.attribute": {"stringValue": "some string"},
             },
             "clientSampleRate": 1.0,
-            "itemId": any(),
+            "itemId": matches_any(),
             "itemType": "TRACE_ITEM_TYPE_LOG",
             "organizationId": "1",
             "projectId": "42",
@@ -238,7 +238,7 @@ def test_otlp_logs_multiple_records(
                     "stringValue": time_within(ts, expect_resolution="ns")
                 },
                 "sentry.origin": {"stringValue": "auto.otlp.logs"},
-                "sentry.payload_size_bytes": {"intValue": any()},
+                "sentry.payload_size_bytes": {"intValue": matches_any()},
                 "sentry.severity_text": {"stringValue": "error"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
                 "sentry.timestamp_precise": {
@@ -251,7 +251,7 @@ def test_otlp_logs_multiple_records(
                 },
             },
             "clientSampleRate": 1.0,
-            "itemId": any(),
+            "itemId": matches_any(),
             "itemType": "TRACE_ITEM_TYPE_LOG",
             "organizationId": "1",
             "projectId": "42",
@@ -269,7 +269,7 @@ def test_otlp_logs_multiple_records(
                     "stringValue": time_within(ts, expect_resolution="ns")
                 },
                 "sentry.origin": {"stringValue": "auto.otlp.logs"},
-                "sentry.payload_size_bytes": {"intValue": any()},
+                "sentry.payload_size_bytes": {"intValue": matches_any()},
                 "sentry.severity_text": {"stringValue": "debug"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
                 "sentry.timestamp_precise": {
@@ -282,7 +282,7 @@ def test_otlp_logs_multiple_records(
                 },
             },
             "clientSampleRate": 1.0,
-            "itemId": any(),
+            "itemId": matches_any(),
             "itemType": "TRACE_ITEM_TYPE_LOG",
             "organizationId": "1",
             "projectId": "42",

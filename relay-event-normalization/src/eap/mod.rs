@@ -248,10 +248,13 @@ pub fn normalize_user_agent(
     }
 
     // Prefer the stored/explicitly sent user agent over the user agent from the client/transport.
+    if let Some(ua) = client_info.and_then(|ci| ci.user_agent) {
+        attributes.insert_if_missing(USER_AGENT__ORIGINAL, || ua.to_owned());
+    }
+
     let user_agent = attributes
         .get_value(USER_AGENT__ORIGINAL)
-        .and_then(|v| v.as_str())
-        .or(client_info.and_then(|ci| ci.user_agent));
+        .and_then(|v| v.as_str());
 
     let Some(context) = BrowserContext::from_hints_or_ua(&RawUserAgentInfo {
         user_agent,
@@ -1238,7 +1241,7 @@ mod tests {
             }),
         );
 
-        assert_annotated_snapshot!(attributes, @r#"
+        assert_annotated_snapshot!(attributes, @r###"
         {
           "browser.name": {
             "type": "string",
@@ -1247,9 +1250,13 @@ mod tests {
           "browser.version": {
             "type": "string",
             "value": "131.0.0"
+          },
+          "user_agent.original": {
+            "type": "string",
+            "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
           }
         }
-        "#);
+        "###);
     }
 
     #[test]

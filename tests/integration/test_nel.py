@@ -2,7 +2,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from time import sleep
 
-from .asserts import any, time_within_delta
+from .asserts import matches_any, time_within_delta
 
 
 def test_nel_converted_to_logs(mini_sentry, relay):
@@ -23,7 +23,7 @@ def test_nel_converted_to_logs(mini_sentry, relay):
         "version": 2,
         "items": [
             {
-                "__header": any(),
+                "__header": matches_any(),
                 "attributes": {
                     "sentry.origin": {
                         "type": "string",
@@ -66,6 +66,10 @@ def test_nel_converted_to_logs(mini_sentry, relay):
                         "value": "Firefox",
                     },
                     "browser.version": {"type": "string", "value": "42.0"},
+                    "user_agent.original": {
+                        "type": "string",
+                        "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
+                    },
                     "sentry.observed_timestamp_nanos": {
                         "type": "string",
                         "value": time_within_delta(expect_resolution="ns"),
@@ -74,7 +78,7 @@ def test_nel_converted_to_logs(mini_sentry, relay):
                 "body": "The user agent successfully received a response, but it had a 500 status code",
                 "level": "warn",
                 "timestamp": time_within_delta(expected_ts),
-                "trace_id": any(),
+                "trace_id": matches_any(),
             }
         ],
     }

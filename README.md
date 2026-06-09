@@ -45,6 +45,8 @@ workspace with multiple features, so when running building or running tests
 always make sure to pass the `--all` and `--all-features` flags.
 The `processing` feature additionally requires a C compiler and CMake.
 
+To install cmake run `brew install cmake`.
+
 To install the development environment, run `direnv allow` then `devenv sync`.
 ([Install devenv](https://github.com/getsentry/devenv/?tab=readme-ov-file#install) if you haven't already.)
 
