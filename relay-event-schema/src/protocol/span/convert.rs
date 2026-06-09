@@ -17,7 +17,6 @@ impl From<&Event> for Span {
 
             measurements,
             _metrics,
-            performance_issues_spans: _,
             ..
         } = event;
 
