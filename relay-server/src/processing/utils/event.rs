@@ -11,7 +11,6 @@ use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_config::NormalizationLevel;
-use relay_dynamic_config::Feature;
 use relay_event_normalization::EnrichedDsc;
 use relay_event_normalization::GeoIpLookup;
 use relay_event_normalization::{
@@ -311,9 +310,6 @@ pub fn normalize(
             replay_id: headers.dsc().and_then(|ctx| ctx.replay_id),
             span_allowed_hosts: http_span_allowed_hosts,
             span_op_defaults: ctx.global_config.span_op_defaults.borrow(),
-            performance_issues_spans: ctx
-                .project_info
-                .has_feature(Feature::PerformanceIssuesSpans),
             force_trace_context: true,
             dsc,
         };

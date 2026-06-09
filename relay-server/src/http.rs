@@ -11,6 +11,7 @@
 use std::io;
 use std::time::Duration;
 
+use http::header::InvalidHeaderValue;
 use relay_config::HttpEncoding;
 pub use reqwest::StatusCode;
 use reqwest::header::{HeaderMap, HeaderValue};
@@ -28,6 +29,8 @@ pub enum HttpError {
     Json(#[from] serde_json::Error),
     #[error("request was retried or not initialized")]
     Misconfigured,
+    #[error("failed to construct header")]
+    Header(#[from] InvalidHeaderValue),
 }
 
 impl HttpError {
@@ -41,6 +44,7 @@ impl HttpError {
             Self::Json(_) => false,
             Self::Overflow => false,
             Self::Misconfigured => false,
+            Self::Header(_) => false,
         }
     }
 }

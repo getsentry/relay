@@ -6,6 +6,7 @@
 //!
 //! The processor service, will then do its actual work using the processing logic defined here.
 
+use relay_cogs::FeatureWeights;
 use relay_config::{Config, RelayMode};
 use relay_dynamic_config::GlobalConfig;
 use relay_quotas::RateLimits;
@@ -27,10 +28,12 @@ pub mod check_ins;
 pub mod client_reports;
 pub mod errors;
 pub mod forward_unknown;
+pub mod invalid;
 pub mod legacy_spans;
 pub mod logs;
 pub mod profile_chunks;
 pub mod profiles;
+pub mod relay;
 pub mod replays;
 pub mod sessions;
 pub mod spans;
@@ -54,6 +57,9 @@ pub trait Processor {
     type Output: Forward;
     /// The error returned by [`Self::process`].
     type Error: std::error::Error + 'static;
+
+    /// Returns [`FeatureWeights`] for this processor to attribute COGS.
+    fn cogs() -> FeatureWeights;
 
     /// Extracts a [`Self::Input`] from a [`ManagedEnvelope`].
     ///

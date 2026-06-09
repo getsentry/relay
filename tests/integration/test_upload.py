@@ -24,6 +24,7 @@ def project_config(mini_sentry):
     project_id = 42
     config = mini_sentry.add_full_project_config(project_id)["config"]
     config.setdefault("features", []).append("projects:relay-upload-endpoint")
+    config.setdefault("features", []).append("projects:relay-minidump-uploads")
     return config
 
 
@@ -180,6 +181,28 @@ def test_upload_unsupported_tus_version(
         "detail": "TUS protocol error: expected Tus-Resumable: 1.0.0, got: 0.2.0",
         "causes": ["expected Tus-Resumable: 1.0.0, got: 0.2.0"],
     }
+
+
+def test_upload_with_metadata(
+    mini_sentry,
+    relay,
+    dummy_upload,
+    project_config,
+):
+    project_id = 42
+    relay = relay(mini_sentry)
+
+    response = relay.post(
+        "/api/%s/upload/?sentry_key=%s"
+        % (project_id, mini_sentry.get_dsn_public_key(project_id)),
+        headers={
+            "Tus-Resumable": "1.0.0",
+            "Upload-Defer-Length": "1",
+            "Upload-Metadata": "sentry eyJhdHRhY2htZW50X3R5cGUiOiAiZXZlbnQubWluaWR1bXAifQ==",
+        },
+    )
+
+    assert response.status_code == 201
 
 
 def test_upload_missing_upload_length(mini_sentry, relay, dummy_upload, project_config):
@@ -632,3 +655,68 @@ def upload_something(relay, project_id, project_key):
         },
         data=data,
     )
+
+
+@pytest.mark.parametrize(
+    "opted_in,metadata,expected_status_code",
+    [
+        pytest.param(False, False, 201, id="default_type_allowed"),
+        pytest.param(True, True, 201, id="minidump_opted_in"),
+        pytest.param(False, True, 403, id="minidump_not_opted_in"),
+    ],
+)
+def test_upload_minidump_opt_in(
+    mini_sentry,
+    relay,
+    dummy_upload,
+    project_config,
+    opted_in,
+    metadata,
+    expected_status_code,
+):
+    project_id = 42
+    config = mini_sentry.add_full_project_config(project_id)["config"]
+    features = config.setdefault("features", [])
+    features.append("projects:relay-upload-endpoint")
+    if opted_in:
+        features.append("projects:relay-minidump-uploads")
+
+    relay = relay(
+        mini_sentry,
+        options={
+            "outcomes": {
+                "emit_outcomes": True,
+                "batch_size": 1,
+                "batch_interval": 1,
+            }
+        },
+    )
+
+    headers = {
+        "Tus-Resumable": "1.0.0",
+        "Upload-Length": "11",
+    }
+    if metadata:
+        headers["Upload-Metadata"] = (
+            "sentry eyJhdHRhY2htZW50X3R5cGUiOiAiZXZlbnQubWluaWR1bXAifQ=="
+        )
+
+    response = relay.post(
+        "/api/%s/upload/?sentry_key=%s"
+        % (project_id, mini_sentry.get_dsn_public_key(project_id)),
+        headers=headers,
+    )
+
+    assert response.status_code == expected_status_code
+
+    if expected_status_code == 403:
+        assert (
+            response.json()["detail"]
+            == "event submission rejected with_reason: FeatureDisabled(MinidumpUploads)"
+        )
+        outcomes = mini_sentry.get_outcomes(1)
+        assert any(
+            o["outcome"] == 3 and o["reason"] == "feature_disabled" for o in outcomes
+        )
+    else:
+        assert mini_sentry.captured_outcomes.empty()

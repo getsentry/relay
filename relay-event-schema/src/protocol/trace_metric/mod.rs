@@ -76,12 +76,9 @@ impl Getter for TraceMetric {
         Some(match path.strip_prefix("trace_metric.")? {
             "name" => self.name.as_str()?.into(),
             path => {
-                if let Some(key) = path.strip_prefix("attributes.") {
-                    let key = key.strip_suffix(".value")?;
-                    self.attributes.value()?.get_value(key)?.into()
-                } else {
-                    return None;
-                }
+                let key = path.strip_prefix("attributes.")?;
+                let key = key.strip_suffix(".value")?;
+                self.attributes.value()?.get_value(key)?.into()
             }
         })
     }

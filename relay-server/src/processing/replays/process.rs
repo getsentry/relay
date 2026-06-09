@@ -79,7 +79,7 @@ pub fn expand(
                 expand_video(video).map(|payload| ExpandedReplay { headers, payload })
             }
             (events, recordings, videos) => {
-                relay_log::error!(
+                relay_log::info!(
                     sdk = headers.meta().client().unwrap_or("unknown"),
                     event_count = events.len(),
                     recording_count = recordings.len(),

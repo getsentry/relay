@@ -1,3 +1,4 @@
+use relay_cogs::{AppFeature, FeatureWeights};
 use relay_common::time::UnixTimestamp;
 use relay_quotas::DataCategory;
 use relay_system::Addr;
@@ -67,6 +68,10 @@ impl processing::Processor for ClientReportsProcessor {
     type Input = SerializedClientReports;
     type Output = Nothing;
     type Error = Error;
+
+    fn cogs() -> FeatureWeights {
+        AppFeature::ClientReports.into()
+    }
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();

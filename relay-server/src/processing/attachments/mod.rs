@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use relay_cogs::{AppFeature, FeatureWeights};
 use relay_quotas::RateLimits;
 
 use crate::envelope::{EnvelopeHeaders, Item, ItemType, Items};
@@ -63,6 +64,10 @@ impl processing::Processor for AttachmentProcessor {
     type Input = SerializedAttachments;
     type Output = AttachmentsOutput;
     type Error = Error;
+
+    fn cogs() -> FeatureWeights {
+        AppFeature::StandaloneAttachments.into()
+    }
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         debug_assert!(

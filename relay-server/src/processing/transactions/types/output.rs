@@ -1,3 +1,8 @@
+#[cfg(feature = "processing")]
+use relay_dynamic_config::Feature;
+#[cfg(feature = "processing")]
+use relay_protocol::Annotated;
+
 use crate::Envelope;
 use crate::managed::{Managed, ManagedResult, Rejected};
 #[cfg(feature = "processing")]
@@ -65,14 +70,24 @@ impl Forward for TransactionOutput {
             TransactionOutput::Indexed { spans, transaction } => (spans, transaction),
         };
 
+        let performance_issues_spans = ctx
+            .project_info
+            .has_feature(Feature::PerformanceIssuesSpans);
+
         if let Some(spans) = spans {
             let event_id = transaction.headers.event_id();
             let retention = ctx.retention(|r| r.span.as_ref());
 
             for span in spans.split(|spans| spans.into_iter()) {
-                if let Ok(span) =
+                if let Ok(mut span) =
                     span.try_map(|span, _| store::convert_span(span, event_id, retention))
                 {
+                    if performance_issues_spans && *(span.item.is_segment.value().unwrap_or(&false))
+                    {
+                        span.modify(|span, _| {
+                            span.performance_issues_spans = true;
+                        });
+                    }
                     s.send_to_store(span)
                 };
             }
@@ -83,10 +98,16 @@ impl Forward for TransactionOutput {
             s.send_to_store(profile.map(|p, _| store::convert_profile(p, true, ctx)));
         }
 
-        let envelope = transaction.try_map(|work, record_keeper| {
+        let envelope = transaction.try_map(|mut work, record_keeper| {
             // TODO: This should raise an error, Indexed output should go straight to Kafka
             // instead of an envelope. As long as we have this hack, ignore bookkeeping
             record_keeper.lenient(relay_quotas::DataCategory::Transaction);
+
+            if let Some(event) = work.event.value_mut()
+                && performance_issues_spans
+            {
+                event.performance_issues_spans = Annotated::new(true);
+            }
 
             work.serialize_envelope()
                 .map_err(drop)
@@ -147,6 +168,7 @@ mod store {
             retention_days: retentions.standard,
             downsampled_retention_days: retentions.downsampled,
             event_id,
+            performance_issues_spans: false,
             item: span,
         }))
     }
