@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from .asserts import time_within_delta, any
+from .asserts import time_within_delta, match_any
 
 
 def test_session_eap_double_write(
@@ -56,8 +56,8 @@ def test_session_eap_double_write(
         {
             "organizationId": "1",
             "projectId": "42",
-            "traceId": any(),
-            "itemId": any(),
+            "traceId": match_any(),
+            "itemId": match_any(),
             "itemType": "TRACE_ITEM_TYPE_USER_SESSION",
             "timestamp": time_within_delta(started, delta=timedelta(seconds=2)),
             "received": time_within_delta(),
@@ -77,8 +77,8 @@ def test_session_eap_double_write(
         {
             "organizationId": "1",
             "projectId": "42",
-            "traceId": any(),
-            "itemId": any(),
+            "traceId": match_any(),
+            "itemId": match_any(),
             "itemType": "TRACE_ITEM_TYPE_USER_SESSION",
             "timestamp": time_within_delta(started, delta=timedelta(seconds=2)),
             "received": time_within_delta(),

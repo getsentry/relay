@@ -2,7 +2,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from time import sleep
 
-from .asserts import any, time_within_delta
+from .asserts import match_any, time_within_delta
 
 
 def test_nel_converted_to_logs(mini_sentry, relay):
@@ -23,7 +23,7 @@ def test_nel_converted_to_logs(mini_sentry, relay):
         "version": 2,
         "items": [
             {
-                "__header": any(),
+                "__header": match_any(),
                 "attributes": {
                     "sentry.origin": {
                         "type": "string",
@@ -78,7 +78,7 @@ def test_nel_converted_to_logs(mini_sentry, relay):
                 "body": "The user agent successfully received a response, but it had a 500 status code",
                 "level": "warn",
                 "timestamp": time_within_delta(expected_ts),
-                "trace_id": any(),
+                "trace_id": match_any(),
             }
         ],
     }

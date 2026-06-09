@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 import json
 
-from .asserts import any, time_within_delta
+from .asserts import match_any, time_within_delta
 
 from sentry_relay.consts import DataCategory
 
@@ -59,10 +59,10 @@ EXPECTED_ITEMS = [
     {
         "organizationId": "1",
         "projectId": "42",
-        "traceId": any(),
-        "itemId": any(),
+        "traceId": match_any(),
+        "itemId": match_any(),
         "itemType": "TRACE_ITEM_TYPE_LOG",
-        "timestamp": any(),
+        "timestamp": match_any(),
         "attributes": {
             "vercel.id": {"stringValue": "1573817187330377061717300000"},
             "sentry.origin": {"stringValue": "auto.log_drain.vercel"},
@@ -73,12 +73,12 @@ EXPECTED_ITEMS = [
             "sentry.body": {"stringValue": "Build completed successfully"},
             "vercel.project_name": {"stringValue": "my-app"},
             "sentry.severity_text": {"stringValue": "info"},
-            "sentry.observed_timestamp_nanos": {"stringValue": any()},
+            "sentry.observed_timestamp_nanos": {"stringValue": match_any()},
             "sentry.timestamp_precise": {
                 "intValue": time_within_delta(expect_resolution="ns")
             },
             "vercel.build_id": {"stringValue": "bld_cotnkcr76"},
-            "sentry.payload_size_bytes": {"intValue": any()},
+            "sentry.payload_size_bytes": {"intValue": match_any()},
             "vercel.project_id": {"stringValue": "gdufoJxB6b9b1fEqr1jUtFkyavUU"},
             "sentry._meta.fields.trace_id": {
                 "stringValue": '{"meta":{"":{"rem":[["trace_id.missing","s"]]}}}'
@@ -87,16 +87,16 @@ EXPECTED_ITEMS = [
         "clientSampleRate": 1.0,
         "serverSampleRate": 1.0,
         "retentionDays": 90,
-        "received": any(),
+        "received": match_any(),
         "downsampledRetentionDays": 90,
     },
     {
         "organizationId": "1",
         "projectId": "42",
         "traceId": "1b02cd14bb8642fd092bc23f54c7ffcd",
-        "itemId": any(),
+        "itemId": match_any(),
         "itemType": "TRACE_ITEM_TYPE_LOG",
-        "timestamp": any(),
+        "timestamp": match_any(),
         "attributes": {
             "vercel.path": {"stringValue": "/api/users"},
             "vercel.proxy.scheme": {"stringValue": "https"},
@@ -125,17 +125,17 @@ EXPECTED_ITEMS = [
             "vercel.proxy.timestamp": {"intValue": "1573817250172"},
             "sentry.body": {"stringValue": "API request processed"},
             "vercel.proxy.status_code": {"intValue": "200"},
-            "sentry.observed_timestamp_nanos": {"stringValue": any()},
+            "sentry.observed_timestamp_nanos": {"stringValue": match_any()},
             "sentry.timestamp_precise": {
                 "intValue": time_within_delta(expect_resolution="ns")
             },
-            "sentry.payload_size_bytes": {"intValue": any()},
+            "sentry.payload_size_bytes": {"intValue": match_any()},
             "vercel.proxy.region": {"stringValue": "sfo1"},
         },
         "clientSampleRate": 1.0,
         "serverSampleRate": 1.0,
         "retentionDays": 90,
-        "received": any(),
+        "received": match_any(),
         "downsampledRetentionDays": 90,
     },
 ]
