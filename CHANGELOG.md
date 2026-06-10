@@ -6,6 +6,7 @@
 
 - Add metadata support for the `/upload` endpoint. ([#6028](https://github.com/getsentry/relay/pull/6028))
 - Infer user agents and client addresses in the V2 standalone span pipeline. ([#6047](https://github.com/getsentry/relay/pull/6047))
+- Equalize name and description for spans with "manual" origin. ([#6070](https://github.com/getsentry/relay/pull/6070))
 
 **Bug Fixes**:
 
