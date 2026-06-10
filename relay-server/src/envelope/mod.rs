@@ -179,11 +179,14 @@ impl<M> EnvelopeHeaders<M> {
 
     /// Returns the dynamic sampling context from envelope headers, if present.
     pub fn dsc(&self) -> Option<&DynamicSamplingContext> {
-        let trace = self.trace.as_ref()?;
-        if let ErrorBoundary::Err(e) = trace {
-            relay_log::debug!(error = e.as_ref(), "failed to parse sampling context");
-        };
-        trace.as_ref().ok()
+        match &self.trace {
+            None => None,
+            Some(ErrorBoundary::Err(e)) => {
+                relay_log::debug!(error = e.as_ref(), "failed to parse sampling context");
+                None
+            }
+            Some(ErrorBoundary::Ok(t)) => Some(t),
+        }
     }
 
     /// Returns the dynamic sampling context from envelope headers, if present.
