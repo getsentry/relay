@@ -102,10 +102,12 @@ impl FromRequest<ServiceState> for SignedBytes {
 
         let body = Bytes::from_request(request, state).await?;
 
-        signature
+        let _verified = signature
             .verify(body.as_ref(), &relay.public_key, Utc::now(), max_age)
-            .map(|_verified| SignedBytes { body, relay })
-            .ok_or(SignatureError::BadSignature(UnpackError::BadSignature))
+            .map_err(Into::into)
+            .map_err(SignatureError::BadSignature)?;
+
+        Ok(SignedBytes { body, relay })
     }
 }
 

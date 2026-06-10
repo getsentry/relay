@@ -508,16 +508,17 @@ impl<L: UploadLength> SignedLocation<L> {
     #[cfg(feature = "processing")]
     pub fn verify(self, received: DateTime<Utc>, config: &Config) -> Result<Location<L>, Error> {
         let public_key = config.public_key().ok_or(Error::SigningFailed)?;
-        let is_valid = self.signature.verify(
-            self.location.as_uri().as_bytes(),
-            public_key,
-            received,
-            chrono::Duration::seconds(config.upload().max_age),
-        );
-        match is_valid {
-            true => Ok(self.location),
-            false => Err(Error::InvalidSignature),
-        }
+        let _verified = self
+            .signature
+            .verify(
+                self.location.as_uri().as_bytes(),
+                public_key,
+                received,
+                chrono::Duration::seconds(config.upload().max_age),
+            )
+            .map_err(|_| Error::InvalidSignature)?;
+
+        Ok(self.location)
     }
 }
 

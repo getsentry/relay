@@ -69,7 +69,7 @@ pub unsafe extern "C" fn relay_publickey_verify(
                 DateTime::from_timestamp_nanos(0),
                 Duration::MAX,
             )
-            .is_some()
+            .is_ok()
     }
 }
 
@@ -88,7 +88,7 @@ pub unsafe extern "C" fn relay_publickey_verify_timestamp(
     unsafe {
         (*pk)
             .verify((*data).as_bytes(), signature, Utc::now(), max_age)
-            .is_some()
+            .is_ok()
     }
 }
 

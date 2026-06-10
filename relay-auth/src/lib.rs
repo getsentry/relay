@@ -131,6 +131,20 @@ pub enum KeyParseError {
     BadKey,
 }
 
+/// Raised to indicate errors when verifying a signature.
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+pub enum SignatureError {
+    /// Raised if the signature is structurally invalid.
+    #[error("invalid signature")]
+    Invalid,
+    /// Raised if the signature is structurally valid but cannot be verified.
+    #[error("signature cannot be verified")]
+    Unverifiable,
+    /// Raised if the signature is expired.
+    #[error("signature is too old")]
+    Expired,
+}
+
 /// Raised to indicate failure on unpacking.
 #[derive(Debug, thiserror::Error)]
 pub enum UnpackError {
@@ -146,6 +160,15 @@ pub enum UnpackError {
     /// Raised on unpacking if the data is too old.
     #[error("signature is too old")]
     SignatureExpired,
+}
+
+impl From<SignatureError> for UnpackError {
+    fn from(value: SignatureError) -> Self {
+        match value {
+            SignatureError::Invalid | SignatureError::Unverifiable => Self::BadSignature,
+            SignatureError::Expired => Self::SignatureExpired,
+        }
+    }
 }
 
 /// Used to tell which algorithm was used for signature creation.
@@ -357,24 +380,30 @@ impl PublicKey {
         data: &[u8],
         sig: SignatureRef<'_>,
         start_time: DateTime<Utc>,
-        max_age: Duration,
-    ) -> Option<VerifiedSignatureHeader> {
+        max_age_diff: Duration,
+    ) -> Result<VerifiedSignatureHeader, SignatureError> {
         let mut iter = sig.0.splitn(2, '.');
         let sig_bytes = {
-            let sig_encoded = iter.next()?;
-            BASE64URL_NOPAD.decode(sig_encoded.as_bytes()).ok()?
+            let sig_encoded = iter.next().ok_or(SignatureError::Invalid)?;
+            BASE64URL_NOPAD
+                .decode(sig_encoded.as_bytes())
+                .map_err(|_| SignatureError::Invalid)?
         };
-        let sig = ed25519_dalek::Signature::from_slice(&sig_bytes).ok()?;
+        let sig = ed25519_dalek::Signature::from_slice(&sig_bytes)
+            .map_err(|_| SignatureError::Invalid)?;
 
         let header = {
-            let header_encoded = iter.next()?;
-            BASE64URL_NOPAD.decode(header_encoded.as_bytes()).ok()?
+            let header_encoded = iter.next().ok_or(SignatureError::Invalid)?;
+            BASE64URL_NOPAD
+                .decode(header_encoded.as_bytes())
+                .map_err(|_| SignatureError::Invalid)?
         };
-        let parsed: SignatureHeader = serde_json::from_slice(&header).ok()?;
+        let parsed: SignatureHeader =
+            serde_json::from_slice(&header).map_err(|_| SignatureError::Invalid)?;
 
         // Make sure the provided timestamp is not expired or too far in the future.
-        if (start_time - parsed.timestamp).abs() > max_age {
-            return None;
+        if (start_time - parsed.timestamp).abs() > max_age_diff {
+            return Err(SignatureError::Expired);
         }
 
         let signature_algorithm = parsed
@@ -395,13 +424,14 @@ impl PublicKey {
             }
         };
 
-        match verification_result {
-            Ok(()) => Some(VerifiedSignatureHeader {
-                timestamp: parsed.timestamp,
-                signature_algorithm,
-            }),
-            Err(_) => None,
-        }
+        let Ok(()) = verification_result else {
+            return Err(SignatureError::Unverifiable);
+        };
+
+        Ok(VerifiedSignatureHeader {
+            timestamp: parsed.timestamp,
+            signature_algorithm,
+        })
     }
 
     /// Unpacks signed data and returns it with header.
@@ -410,13 +440,10 @@ impl PublicKey {
         data: &[u8],
         signature: SignatureRef<'_>,
         start_time: DateTime<Utc>,
-        max_age: Duration,
+        max_age_diff: Duration,
     ) -> Result<D, UnpackError> {
-        if let Some(_) = self.verify(data, signature, start_time, max_age) {
-            serde_json::from_slice(data).map_err(UnpackError::BadPayload)
-        } else {
-            Err(UnpackError::BadSignature)
-        }
+        let _verified = self.verify(data, signature, start_time, max_age_diff)?;
+        serde_json::from_slice(data).map_err(UnpackError::BadPayload)
     }
 }
 
@@ -527,7 +554,7 @@ impl SignedRegisterState {
         &self,
         secret: &[u8],
         start_time: DateTime<Utc>,
-        max_age: Duration,
+        max_age_diff: Duration,
     ) -> Result<RegisterState, UnpackError> {
         let (token, signature) = self.split();
         let code = BASE64URL_NOPAD
@@ -546,7 +573,7 @@ impl SignedRegisterState {
             serde_json::from_slice::<RegisterState>(&json).map_err(UnpackError::BadPayload)?;
 
         let secs = state.timestamp().as_secs() as i64;
-        if secs + max_age.num_seconds() < start_time.timestamp() {
+        if (secs - start_time.timestamp()).abs() > max_age_diff.num_seconds() {
             return Err(UnpackError::SignatureExpired);
         }
 
@@ -630,11 +657,11 @@ impl RegisterRequest {
         data: &[u8],
         signature: SignatureRef<'_>,
         start_time: DateTime<Utc>,
-        max_age: Duration,
+        max_age_diff: Duration,
     ) -> Result<RegisterRequest, UnpackError> {
         let req: RegisterRequest = serde_json::from_slice(data).map_err(UnpackError::BadPayload)?;
         let pk = req.public_key();
-        pk.unpack(data, signature, start_time, max_age)
+        pk.unpack(data, signature, start_time, max_age_diff)
     }
 
     /// Returns the Relay ID of the registering Relay.
@@ -710,15 +737,14 @@ impl RegisterResponse {
         signature: SignatureRef<'_>,
         secret: &[u8],
         start_time: DateTime<Utc>,
-        max_age: Duration,
+        max_age_diff: Duration,
     ) -> Result<(Self, RegisterState), UnpackError> {
         let response: Self = serde_json::from_slice(data).map_err(UnpackError::BadPayload)?;
-        let state = response.token.unpack(secret, start_time, max_age)?;
+        let state = response.token.unpack(secret, start_time, max_age_diff)?;
 
-        let _header = state
+        let _verified = state
             .public_key()
-            .verify(data, signature, start_time, max_age)
-            .ok_or(UnpackError::BadSignature)?;
+            .verify(data, signature, start_time, max_age_diff)?;
 
         Ok((response, state))
     }
@@ -754,15 +780,15 @@ impl Signature {
     ///
     /// Returns `true` if the signature is valid with one of the given
     /// public keys and satisfies the timestamp constraints defined by `start_time`
-    /// and `max_age`.
+    /// and `max_age_diff`.
     pub fn verify_any<'a>(
         &self,
         public_key: &'a [PublicKey],
         start_time: DateTime<Utc>,
-        max_age: Duration,
+        max_age_diff: Duration,
     ) -> Option<(&'a PublicKey, VerifiedSignatureHeader)> {
         public_key.iter().find_map(|p| {
-            let verified = self.verify(&[], p, start_time, max_age)?;
+            let verified = self.verify(&[], p, start_time, max_age_diff).ok()?;
             Some((p, verified))
         })
     }
@@ -771,15 +797,15 @@ impl Signature {
     ///
     /// The signature is considered valid if it can be verified using the given
     /// public key and its embedded timestamp falls within the valid time range,
-    /// starting from `start_time` and not exceeding `max_age`.
+    /// starting from `start_time` and not exceeding `max_age_diff` (future and past).
     pub fn verify(
         &self,
         data: &[u8],
         public_key: &PublicKey,
         start_time: DateTime<Utc>,
-        max_age: Duration,
-    ) -> Option<VerifiedSignatureHeader> {
-        public_key.verify(data, self.as_signature_ref(), start_time, max_age)
+        max_age_diff: Duration,
+    ) -> Result<VerifiedSignatureHeader, SignatureError> {
+        public_key.verify(data, self.as_signature_ref(), start_time, max_age_diff)
     }
 
     /// Returns a borrowed view of the signature as a `SignatureRef`.
@@ -864,20 +890,18 @@ mod tests {
         let data = b"Hello World!";
 
         let sig = sk.sign(data);
-        assert!(
-            pk.verify(
-                data,
-                sig.as_signature_ref(),
-                Utc::now(),
-                Duration::seconds(1)
-            )
-            .is_some()
+        let _verified = pk.verify(
+            data,
+            sig.as_signature_ref(),
+            Utc::now(),
+            Duration::seconds(1),
         );
 
         let bad_sig = "jgubwSf2wb2wuiRpgt2H9_bdDSMr88hXLp5zVuhbr65EGkSxOfT5ILIWr623twLgLd0bDgHg6xzOaUCX7XvUCw";
-        assert!(
+        assert_eq!(
             pk.verify(data, SignatureRef(bad_sig), Utc::now(), Duration::MAX)
-                .is_none()
+                .unwrap_err(),
+            SignatureError::Invalid
         );
     }
 
@@ -1060,23 +1084,33 @@ mod tests {
         let pair = generate_key_pair();
         let signature = pair.0.sign(&[]);
         let start_time = Utc::now();
+
         // The signature is valid in general
-        assert!(
-            signature
-                .verify(&[], &pair.1, start_time, Duration::seconds(10))
-                .is_some()
-        );
+        let _verified = signature
+            .verify(&[], &pair.1, start_time, Duration::seconds(10))
+            .unwrap();
+
+        // Signature is no longer valid because too far in the future.
+        let err = signature
+            .verify(
+                &[],
+                &pair.1,
+                start_time - Duration::seconds(1),
+                Duration::milliseconds(500),
+            )
+            .unwrap_err();
+        assert_eq!(err, SignatureError::Expired);
+
         // Signature is no longer valid because too much time elapsed
-        assert!(
-            !signature
-                .verify(
-                    &[],
-                    &pair.1,
-                    start_time - Duration::seconds(1),
-                    Duration::milliseconds(500)
-                )
-                .is_some()
-        )
+        let err = signature
+            .verify(
+                &[],
+                &pair.1,
+                start_time + Duration::seconds(1),
+                Duration::milliseconds(500),
+            )
+            .unwrap_err();
+        assert_eq!(err, SignatureError::Expired);
     }
 
     #[test]
@@ -1128,11 +1162,9 @@ mod tests {
     fn test_regular_algorithm() {
         let (secret, public) = generate_key_pair();
         let signature = secret.sign(&[]);
-        assert!(
-            signature
-                .verify(&[], &public, Utc::now(), Duration::seconds(10))
-                .is_some()
-        );
+        let _verified = signature
+            .verify(&[], &public, Utc::now(), Duration::seconds(10))
+            .unwrap();
     }
 
     #[test]
@@ -1143,11 +1175,9 @@ mod tests {
             signature_algorithm: Some(SignatureAlgorithm::Prehashed),
         };
         let signature = secret.sign_with_header(&[], &header);
-        assert!(
-            signature
-                .verify(&[], &public, Utc::now(), Duration::seconds(10))
-                .is_some()
-        );
+        let _verified = signature
+            .verify(&[], &public, Utc::now(), Duration::seconds(10))
+            .unwrap();
     }
 
     #[test]
@@ -1174,15 +1204,13 @@ mod tests {
         sig_encoded.push('.');
         sig_encoded.push_str(BASE64URL_NOPAD.encode(header.as_bytes()).as_str());
 
-        assert!(
-            public
-                .verify(
-                    data,
-                    SignatureRef(sig_encoded.as_str()),
-                    Utc::now(),
-                    Duration::seconds(3)
-                )
-                .is_some()
-        );
+        let _verified = public
+            .verify(
+                data,
+                SignatureRef(sig_encoded.as_str()),
+                Utc::now(),
+                Duration::seconds(3),
+            )
+            .unwrap();
     }
 }
