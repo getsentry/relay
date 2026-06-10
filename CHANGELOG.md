@@ -12,7 +12,7 @@
 - Correctly handle minidump objecstore upload failures. ([#6033](https://github.com/getsentry/relay/pull/6033))
 - Add `client.address` attribute to known IP fields. ([#6058](https://github.com/getsentry/relay/pull/6058))
 - Fix a bug in mobile attribute normalization. ([#6065](https://github.com/getsentry/relay/pull/6065))
-- Stop using cross-org DSC data in v2 span normalization ([#6073]https://github.com/getsentry/relay/pull/6073)
+- Stop using cross-org DSC data in v2 span normalization. ([#6073](https://github.com/getsentry/relay/pull/6073))
 
 **Internal**:
 
