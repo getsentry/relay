@@ -373,7 +373,7 @@ mod tests {
         let mut attributes = Annotated::new(attributes! {
             APP__VITALS__START__VALUE => 999.0,
             APP__VITALS__START__TYPE => "warm",
-            "app.vitals.start.cold.value" => 1234.0,
+            APP__VITALS__START__COLD__VALUE => 1234.0,
         });
 
         normalize_mobile_attributes(&mut attributes);
