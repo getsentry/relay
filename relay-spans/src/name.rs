@@ -5,7 +5,7 @@ use relay_protocol::{Getter, GetterIter, Val};
 
 /// Constructs a name attribute for a V1 span.
 ///
-/// If the span's origin is `"manual"`, its description will be used as the name.
+/// If the span's origin is `"manual"`, its description is used as the name.
 /// Otherwise, the name is constructed following the rules defined in sentry-conventions.
 pub fn name_for_span(span: &Span) -> Option<String> {
     let origin = span.origin.value().map(|o| o.as_str());
@@ -33,7 +33,7 @@ pub fn name_for_span(span: &Span) -> Option<String> {
 /// Constructs a name attribute for a V2 span, based on its attributes.
 ///
 /// If the attributes contain [`SENTRY__ORIGIN`] with the value `"manual"`,
-/// the description (contained in [`SENTRY__DESCRIPTION`]) will be used as the name.
+/// the description (contained in [`SENTRY__DESCRIPTION`]) is used as the name.
 /// Otherwise, the name is constructed following the rules defined in sentry-conventions.
 pub fn name_for_attributes(attributes: &Attributes) -> Option<String> {
     let origin = attributes
