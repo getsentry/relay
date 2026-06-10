@@ -14,10 +14,10 @@ use crate::services::outcome::{DiscardReason, Outcome};
 pub enum DscError {
     #[error("the DSC is required but missing on the envelope")]
     MissingDynamicSamplingContext,
-    #[error("the DSC or the attributes for inferring it are invalid or inconsistent across spans")]
+    #[error(
+        "the DSC or attributes required for inferring it are missing or inconsistent across spans"
+    )]
     InvalidDynamicSamplingContext,
-    #[error("missing a public key for the project that sent the spans")]
-    MissingPublicKey,
 }
 
 impl DscError {
@@ -29,7 +29,6 @@ impl DscError {
             Self::InvalidDynamicSamplingContext => {
                 Outcome::Invalid(DiscardReason::InvalidDynamicSamplingContext)
             }
-            Self::MissingPublicKey => Outcome::Invalid(DiscardReason::PublicKey),
         }
     }
 }
@@ -176,7 +175,7 @@ pub fn validate_and_set_dsc_for_v2_spans(
                 let public_key = ctx
                     .project_info
                     .get_public_key_config()
-                    .ok_or(DscError::MissingPublicKey)?
+                    .ok_or(DscError::InvalidDynamicSamplingContext)?
                     .public_key;
                 *dsc = DynamicSamplingContext {
                     trace_id: dsc.trace_id,
