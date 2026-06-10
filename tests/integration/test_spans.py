@@ -186,7 +186,8 @@ def test_span_extraction(
                 "attributes": {"span_key": {"type": "string", "value": "span_value"}},
             },
         ],
-        "name": "http",
+        # This span has origin "manual", so the name should just be the description.
+        "name": "GET /api/0/organizations/?member=1",
         "organization_id": 1,
         "parent_span_id": "968cff94913ebb07",
         "project_id": 42,
@@ -268,6 +269,8 @@ def test_span_extraction(
                 "attributes": {"txn_key": {"type": "integer", "value": 123}},
             },
         ],
+        # This is a segment span, so its name should be the transaction
+        # (despite the origin being "manual").
         "name": "hi",
         "organization_id": 1,
         "project_id": 42,

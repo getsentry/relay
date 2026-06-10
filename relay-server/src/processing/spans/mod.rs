@@ -204,6 +204,7 @@ impl processing::Processor for SpansProcessor {
         };
 
         process::scrub(&mut spans, ctx);
+        process::backfill_description(&mut spans);
 
         match dynamic_sampling::try_split_indexed_and_total(spans, ctx) {
             Either::Left(spans) => Ok(Output::just(SpanOutput::TotalAndIndexed(spans))),

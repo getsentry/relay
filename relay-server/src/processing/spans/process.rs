@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::convert::Infallible;
 use std::time::Duration;
 
 use relay_event_normalization::eap::ClientUserAgentInfo;
@@ -285,6 +286,21 @@ fn normalize_span(
         return Err(Error::Invalid(DiscardReason::NoData));
     }
 
+    Ok(())
+}
+
+pub fn backfill_description(spans: &mut Managed<ExpandedSpans>) {
+    spans.retain_with_context(
+        |spans| (&mut spans.spans, &()),
+        |span, _, _| backfill_span_description(&mut span.span),
+    );
+}
+
+fn backfill_span_description(span: &mut Annotated<SpanV2>) -> Result<(), Infallible> {
+    let Some(span) = span.value_mut() else {
+        return Ok(());
+    };
+    eap::normalize_sentry_description(&mut span.attributes, &span.name);
     Ok(())
 }
 
@@ -928,7 +944,6 @@ mod tests {
         assert_attributes_contains(
             &span,
             &[
-                (SENTRY__DESCRIPTION, "select * from users where id = 1"),
                 (
                     SENTRY__NORMALIZED_DESCRIPTION,
                     "SELECT * FROM users WHERE id = %s",
@@ -990,10 +1005,6 @@ mod tests {
             &[
                 (SENTRY__CATEGORY, "http"),
                 (SENTRY__OP, "http.client"),
-                (
-                    SENTRY__DESCRIPTION,
-                    "GET https://www.example.com/path?param=value",
-                ),
                 (SENTRY__ACTION, "GET"),
                 (SENTRY__DOMAIN, "*.example.com"),
             ],
@@ -1113,7 +1124,6 @@ mod tests {
             &span,
             &[
                 (SENTRY__OP, "db"),
-                (SENTRY__DESCRIPTION, "select * from users where id = 1"),
                 (
                     SENTRY__NORMALIZED_DESCRIPTION,
                     "SELECT * FROM users WHERE id = %s",

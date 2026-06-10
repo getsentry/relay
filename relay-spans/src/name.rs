@@ -1,10 +1,20 @@
-use relay_conventions::attributes::SENTRY__OP;
+use relay_conventions::attributes::{SENTRY__DESCRIPTION, SENTRY__OP, SENTRY__ORIGIN};
 use relay_conventions::name_for_op_and_attributes;
 use relay_event_schema::protocol::{Attributes, Span};
 use relay_protocol::{Getter, GetterIter, Val};
 
-/// Constructs a name attribute for a span, following the rules defined in sentry-conventions.
+/// Constructs a name attribute for a V1 span.
+///
+/// If the span's origin is `"manual"`, its description will be used as the name.
+/// Otherwise, the name is constructed following the rules defined in sentry-conventions.
 pub fn name_for_span(span: &Span) -> Option<String> {
+    let origin = span.origin.value().map(|o| o.as_str());
+    let description = span.description.value().map(|d| d.as_str());
+
+    if let Some(name) = name_for_origin_and_description(origin, description) {
+        return Some(name);
+    }
+
     let op = span.op.value()?;
 
     let Some(data) = span.data.value() else {
@@ -20,10 +30,36 @@ pub fn name_for_span(span: &Span) -> Option<String> {
     ))
 }
 
-/// Constructs a name attribute for a span, following the rules defined in sentry-conventions.
+/// Constructs a name attribute for a V2 span, based on its attributes.
+///
+/// If the attributes contain [`SENTRY__ORIGIN`] with the value `"manual"`,
+/// the description (contained in [`SENTRY__DESCRIPTION`]) will be used as the name.
+/// Otherwise, the name is constructed following the rules defined in sentry-conventions.
 pub fn name_for_attributes(attributes: &Attributes) -> Option<String> {
+    let origin = attributes
+        .get_value(SENTRY__ORIGIN)
+        .and_then(|o| o.as_str());
+    let description = attributes
+        .get_value(SENTRY__DESCRIPTION)
+        .and_then(|d| d.as_str());
+
+    if let Some(name) = name_for_origin_and_description(origin, description) {
+        return Some(name);
+    }
+
     let op = attributes.get_value(SENTRY__OP)?.as_str()?;
     Some(name_for_op_and_attributes(op, &AttributeGetter(attributes)))
+}
+
+fn name_for_origin_and_description(
+    origin: Option<&str>,
+    description: Option<&str>,
+) -> Option<String> {
+    if origin == Some("manual") {
+        description.map(String::from)
+    } else {
+        None
+    }
 }
 
 struct EmptyGetter {}
@@ -201,6 +237,69 @@ mod tests {
         assert_eq!(
             name_for_attributes(&attributes),
             Some("Database operation".to_owned())
+        );
+    }
+
+    #[test]
+    fn test_manual_spans_use_description_v1() {
+        let span = Span {
+            origin: Annotated::new("manual".to_owned()),
+            description: Annotated::new("Custom name".to_owned()),
+            op: Annotated::new("db".to_owned()),
+            data: Annotated::new(SpanData {
+                other: Object::from([
+                    (
+                        "db.query.summary".to_owned(),
+                        Value::String("SELECT users".to_owned()).into(),
+                    ),
+                    (
+                        "db.operation.name".to_owned(),
+                        Value::String("INSERT".to_owned()).into(),
+                    ),
+                    (
+                        "db.collection.name".to_owned(),
+                        Value::String("widgets".to_owned()).into(),
+                    ),
+                ]),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert_eq!(name_for_span(&span), Some("Custom name".to_owned()));
+    }
+
+    #[test]
+    fn test_manual_spans_use_description_v2() {
+        let attributes = Attributes::from([
+            (
+                "sentry.origin".to_owned(),
+                Annotated::new("manual".to_owned().into()),
+            ),
+            (
+                "sentry.description".to_owned(),
+                Annotated::new("Custom name".to_owned().into()),
+            ),
+            (
+                "sentry.op".to_owned(),
+                Annotated::new("db".to_owned().into()),
+            ),
+            (
+                "db.query.summary".to_owned(),
+                Annotated::new("SELECT users".to_owned().into()),
+            ),
+            (
+                "db.operation.name".to_owned(),
+                Annotated::new("INSERT".to_owned().into()),
+            ),
+            (
+                "db.collection.name".to_owned(),
+                Annotated::new("widgets".to_owned().into()),
+            ),
+        ]);
+
+        assert_eq!(
+            name_for_attributes(&attributes),
+            Some("Custom name".to_owned())
         );
     }
 }
