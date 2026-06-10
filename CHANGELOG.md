@@ -14,6 +14,7 @@
 
 **Internal**:
 
+- Require timestamps and verification in auth signatures. ([#6069](https://github.com/getsentry/relay/pull/6069))
 - Restore top-level _performance_issues_spans. ([#6045](https://github.com/getsentry/relay/pull/6045))
 
 ## 26.5.2

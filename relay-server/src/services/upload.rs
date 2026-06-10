@@ -431,7 +431,7 @@ impl<L: UploadLength> Location<L> {
             .sign_with_header(
                 uri.as_bytes(),
                 &SignatureHeader {
-                    timestamp: Some(Utc::now()),
+                    timestamp: Utc::now(),
                     signature_algorithm: None,
                 },
             );
