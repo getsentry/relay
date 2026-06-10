@@ -911,53 +911,14 @@ impl Default for Http {
             host_header: None,
             auth_interval: Some(600), // 10 minutes
             outage_grace_period: DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD,
-            retry_delay: default_retry_delay(),
-            project_failure_interval: default_project_failure_interval(),
+            retry_delay: 1,
+            project_failure_interval: 90,
             encoding: HttpEncoding::Zstd,
             global_metrics: false,
             forward: true,
             dns_cache: true,
         }
     }
-}
-
-/// Default for unavailable upstream retry period, 1s.
-fn default_retry_delay() -> u64 {
-    1
-}
-
-/// Default for project failure interval, 90s.
-fn default_project_failure_interval() -> u64 {
-    90
-}
-
-/// Default for max disk size, 500 MB.
-fn spool_envelopes_max_disk_size() -> ByteSize {
-    ByteSize::mebibytes(500)
-}
-
-/// Default number of encoded envelope bytes to cache before writing to disk.
-fn spool_envelopes_batch_size_bytes() -> ByteSize {
-    ByteSize::kibibytes(10)
-}
-
-fn spool_envelopes_max_envelope_delay_secs() -> u64 {
-    24 * 60 * 60
-}
-
-/// Default refresh frequency in ms for the disk usage monitoring.
-fn spool_disk_usage_refresh_frequency_ms() -> u64 {
-    100
-}
-
-/// Default max memory usage for unspooling.
-fn spool_max_backpressure_memory_percent() -> f32 {
-    0.8
-}
-
-/// Default number of partitions for the buffer.
-fn spool_envelopes_partitions() -> NonZeroU8 {
-    NonZeroU8::new(1).unwrap()
 }
 
 /// Strategy used to assign envelopes to buffer partitions.
@@ -1069,12 +1030,12 @@ impl Default for EnvelopeSpool {
     fn default() -> Self {
         Self {
             path: None,
-            max_disk_size: spool_envelopes_max_disk_size(),
-            batch_size_bytes: spool_envelopes_batch_size_bytes(),
-            max_envelope_delay_secs: spool_envelopes_max_envelope_delay_secs(),
-            disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
-            max_backpressure_memory_percent: spool_max_backpressure_memory_percent(),
-            partitions: spool_envelopes_partitions(),
+            max_disk_size: ByteSize::mebibytes(500),
+            batch_size_bytes: ByteSize::kibibytes(10),
+            max_envelope_delay_secs: 24 * 60 * 60,
+            disk_usage_refresh_frequency_ms: 100,
+            max_backpressure_memory_percent: 0.8,
+            partitions: NonZeroU8::new(1).unwrap(),
             partitioning: EnvelopeSpoolPartitioning::default(),
             ephemeral: false,
         }
@@ -1156,27 +1117,6 @@ impl Default for Cache {
     }
 }
 
-fn default_max_secs_in_future() -> u32 {
-    60 // 1 minute
-}
-
-fn default_max_session_secs_in_past() -> u32 {
-    5 * 24 * 3600 // 5 days
-}
-
-fn default_chunk_size() -> ByteSize {
-    ByteSize::mebibytes(1)
-}
-
-fn default_projectconfig_cache_prefix() -> String {
-    "relayconfig".to_owned()
-}
-
-#[allow(clippy::unnecessary_wraps)]
-fn default_max_rate_limit() -> Option<u32> {
-    Some(300) // 5 minutes
-}
-
 /// Controls Sentry-internal event processing.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -1252,16 +1192,16 @@ impl Default for Processing {
         Self {
             enabled: false,
             geoip_path: None,
-            max_secs_in_future: default_max_secs_in_future(),
-            max_session_secs_in_past: default_max_session_secs_in_past(),
+            max_secs_in_future: 60,                  // 1 minute
+            max_session_secs_in_past: 5 * 24 * 3600, // 5 days
             kafka_config: Vec::new(),
             secondary_kafka_configs: BTreeMap::new(),
             topics: TopicAssignments::default(),
             kafka_validate_topics: false,
             redis: None,
-            attachment_chunk_size: default_chunk_size(),
-            projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
-            max_rate_limit: default_max_rate_limit(),
+            attachment_chunk_size: ByteSize::mebibytes(1),
+            projectconfig_cache_prefix: "relayconfig".to_owned(),
+            max_rate_limit: Some(300), // 5 minutes
             quota_cache_ratio: None,
             quota_cache_max: None,
             objectstore: ObjectstoreServiceConfig::default(),
@@ -1601,16 +1541,12 @@ pub struct AuthConfig {
     pub signature_max_age: u64,
 }
 
-fn default_max_age() -> u64 {
-    300
-}
-
 impl Default for AuthConfig {
     fn default() -> Self {
         Self {
             ready: ReadinessCondition::default(),
             static_relays: HashMap::new(),
-            signature_max_age: default_max_age(),
+            signature_max_age: 300, // 5 minutes
         }
     }
 }
