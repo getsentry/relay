@@ -189,7 +189,7 @@ impl<M> EnvelopeHeaders<M> {
         }
     }
 
-    /// Returns the dynamic sampling context from envelope headers, if present.
+    /// Returns a mutable reference to the dynamic sampling context from the headers, if present.
     pub fn dsc_mut(&mut self) -> Option<&mut DynamicSamplingContext> {
         match &mut self.trace {
             None => None,
