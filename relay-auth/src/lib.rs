@@ -829,7 +829,7 @@ pub struct SignatureRef<'a>(pub &'a str);
 /// Verifies a timestamp `ts` is not in the future and not expired.
 fn is_valid_time(ts: DateTime<Utc>, start_time: DateTime<Utc>, max_age: Duration) -> bool {
     let diff = start_time - ts;
-    diff >= Duration::zero() && diff < max_age
+    diff >= Duration::zero() && diff <= max_age
 }
 
 #[cfg(test)]
