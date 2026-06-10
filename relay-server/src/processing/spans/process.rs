@@ -1042,7 +1042,7 @@ mod tests {
                 (DEVICE__MODEL, "iPhone17,5"),
             ],
             &[
-                ("app_start_cold", 1234.0),
+                (APP__VITALS__START__COLD__VALUE, 1234.0),
                 (APP__VITALS__TTFD__VALUE, 200_000.0),
             ],
         );
