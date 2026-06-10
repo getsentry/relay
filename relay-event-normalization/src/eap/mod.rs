@@ -9,7 +9,9 @@ use chrono::{DateTime, Utc};
 use relay_common::time::UnixTimestamp;
 use relay_conventions::attributes::*;
 use relay_conventions::{AttributeInfo, ReplacementName, WriteBehavior};
-use relay_event_schema::protocol::{Attribute, AttributeType, Attributes, BrowserContext, Geo};
+use relay_event_schema::protocol::{
+    Attribute, AttributeType, Attributes, BrowserContext, Geo, SpanV2,
+};
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Remark, RemarkType, Value};
 use relay_sampling::DynamicSamplingContext;
 use relay_spans::{derive_description_for_v2_span, derive_op_for_v2_span};
@@ -72,6 +74,27 @@ pub fn normalize_sentry_description(
 
     if let Some(description) = derive_description_for_v2_span(attributes, name) {
         attributes.insert(SENTRY__DESCRIPTION, description);
+    }
+}
+
+/// Normalizes a V2 span's name.
+///
+/// If the span has no name, this will attempt to synthesize one from its
+/// attributes using [relay_spans::name_for_attributes].
+///
+/// This is only relevant for spans converted from V1. Spans that were sent
+/// as V2 should always have a name.
+pub fn normalize_span_name(span: &mut SpanV2) {
+    if span.name.value().is_some() {
+        return;
+    }
+
+    let Some(attributes) = span.attributes.value() else {
+        return;
+    };
+
+    if let Some(name) = relay_spans::name_for_attributes(attributes) {
+        span.name = name.into();
     }
 }
 

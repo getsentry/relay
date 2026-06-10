@@ -276,6 +276,10 @@ pub fn normalize_derived(spans: &mut Managed<ExpandedSpans>, ctx: Context<'_>) {
 
 fn normalize_span_derived(span: &mut Annotated<SpanV2>, ctx: Context<'_>) -> Result<()> {
     if let Some(span) = span.value_mut() {
+        // The order of operations shouldn't matter here—we should never _actually_
+        // need to synthesize both the name and description. If the span was sent as
+        // V2 it should have a name and if it was sent as V1 it should have a description.
+        eap::normalize_span_name(span);
         eap::normalize_sentry_description(&mut span.attributes, &span.name);
     }
 
