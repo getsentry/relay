@@ -5,18 +5,21 @@ use relay_quotas::Scoping;
 
 use crate::metrics::MetricOutcomes;
 use crate::services::outcome::Outcome;
+use crate::services::processor::BucketSource;
 use crate::services::projects::project::ProjectInfo;
 
 /// Checks if the namespace of the passed bucket is valid.
 ///
 /// This is returns `true` for most namespaces except:
 ///  - [`MetricNamespace::Unsupported`]: Equal to invalid/unknown namespaces.
-pub fn is_valid_namespace(bucket: &Bucket) -> bool {
+///  - [`MetricNamespace::Outcomes`]: Outcomes are only allowed if the `source` is [`BucketSource::Internal`].
+pub fn is_valid_namespace(bucket: &Bucket, source: BucketSource) -> bool {
     match bucket.name.namespace() {
         MetricNamespace::Sessions => true,
         MetricNamespace::Spans => true,
         MetricNamespace::Transactions => true,
         MetricNamespace::Custom => true,
+        MetricNamespace::Outcomes => source == BucketSource::Internal,
         MetricNamespace::Unsupported => false,
     }
 }
@@ -32,8 +35,13 @@ pub fn apply_project_info(
     buckets = buckets
         .into_iter()
         .filter_map(|bucket| {
-            if !is_metric_namespace_valid(project_info, bucket.name.namespace()) {
-                relay_log::trace!(mri = &*bucket.name, "dropping metric in disabled namespace");
+            let namespace = bucket.name.namespace();
+            if !is_metric_namespace_valid(project_info, namespace) {
+                relay_log::trace!(
+                    mri = &*bucket.name,
+                    namespace = %namespace,
+                    "dropping metric in disabled namespace"
+                );
                 disabled_namespace_buckets.push(bucket);
                 return None;
             };
@@ -59,6 +67,7 @@ fn is_metric_namespace_valid(state: &ProjectInfo, namespace: MetricNamespace) ->
         MetricNamespace::Spans => true,
         MetricNamespace::Transactions => true,
         MetricNamespace::Custom => state.has_feature(Feature::CustomMetrics),
+        MetricNamespace::Outcomes => true,
         MetricNamespace::Unsupported => false,
     }
 }

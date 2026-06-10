@@ -14,7 +14,8 @@ use std::time::Duration;
 
 #[cfg(feature = "processing")]
 use crate::service::ServiceError;
-use crate::services::outcome::{DiscardReason, Outcome, OutcomeId, TrackOutcomeLike};
+use crate::services::metrics::{Aggregator, MergeBuckets};
+use crate::services::outcome::{self, DiscardReason, Outcome, OutcomeId, TrackOutcomeLike};
 use crate::services::processor::{EnvelopeProcessor, SubmitClientReports};
 use crate::services::upstream::{Method, SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::statsd::RelayCounters;
@@ -186,7 +187,7 @@ impl TrackRawOutcome {
 
     #[cfg(feature = "processing")]
     fn is_billing(&self) -> bool {
-        matches!(self.outcome, OutcomeId::ACCEPTED | OutcomeId::RATE_LIMITED)
+        self.outcome.is_billing()
     }
 }
 
@@ -491,6 +492,7 @@ fn send_outcome_metric(message: &impl TrackOutcomeLike, to: &'static str) {
 enum OutcomeBroker {
     ClientReport(Addr<TrackOutcome>),
     Http(Addr<TrackRawOutcome>),
+    Metric(Addr<Aggregator>),
     #[cfg(feature = "processing")]
     Kafka(KafkaOutcomesProducer),
     Disabled,
@@ -539,6 +541,13 @@ impl OutcomeBroker {
                 send_outcome_metric(&message, "http");
                 producer.send(TrackRawOutcome::from_outcome(message, config));
             }
+            Self::Metric(metrics) => {
+                send_outcome_metric(&message, "metric");
+                metrics.send(MergeBuckets {
+                    project_key: message.scoping.project_key,
+                    buckets: vec![outcome::metric::to_metric(&message, config)],
+                })
+            }
             Self::Disabled => (),
         }
     }
@@ -555,6 +564,12 @@ impl OutcomeBroker {
                 producer.send(message);
             }
             Self::ClientReport(_) => (),
+            // Currently not supported. Processing Relays must send raw outcomes to Kafka, which is
+            // also enforced in the config.
+            //
+            // Once the rollout is complete and the `Http` and `Kafka` transports are replaced with
+            // `Metric` this branch will go away completely.
+            Self::Metric(_) => (),
             Self::Disabled => (),
         }
     }
@@ -590,6 +605,7 @@ enum ProducerInner {
     #[cfg(feature = "processing")]
     Kafka(KafkaOutcomesProducer),
     Http(HttpOutcomeProducer),
+    Metric(Addr<Aggregator>),
     ClientReport(ClientReportOutcomeProducer),
     Disabled,
 }
@@ -600,6 +616,7 @@ impl ProducerInner {
             #[cfg(feature = "processing")]
             ProducerInner::Kafka(inner) => OutcomeBroker::Kafka(inner),
             ProducerInner::Http(inner) => OutcomeBroker::Http(inner.start_detached()),
+            ProducerInner::Metric(inner) => OutcomeBroker::Metric(inner),
             ProducerInner::ClientReport(inner) => {
                 OutcomeBroker::ClientReport(inner.start_detached())
             }
@@ -620,6 +637,7 @@ impl OutcomeProducerService {
         config: Arc<Config>,
         upstream_relay: Addr<UpstreamRelay>,
         envelope_processor: Addr<EnvelopeProcessor>,
+        metric_aggregator: Addr<Aggregator>,
     ) -> anyhow::Result<Self> {
         let inner = match config.emit_outcomes() {
             #[cfg(feature = "processing")]
@@ -642,6 +660,10 @@ impl OutcomeProducerService {
                     &config,
                     envelope_processor,
                 ))
+            }
+            EmitOutcomes::AsMetrics => {
+                relay_log::info!("Configured to emit outcomes as metrics");
+                ProducerInner::Metric(metric_aggregator)
             }
             EmitOutcomes::None => {
                 relay_log::info!("Configured to drop all outcomes");

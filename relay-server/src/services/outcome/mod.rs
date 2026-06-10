@@ -10,6 +10,7 @@ use relay_sampling::config::RuleId;
 use relay_sampling::evaluation::MatchedRuleIds;
 
 mod aggregator;
+pub mod metric;
 mod service;
 
 use crate::envelope::{AttachmentType, ItemType};
@@ -33,6 +34,11 @@ impl OutcomeId {
 
     pub fn as_u8(self) -> u8 {
         self.0
+    }
+
+    /// Returns `true` for outcomes which are critical for billing.
+    pub fn is_billing(self) -> bool {
+        matches!(self, OutcomeId::ACCEPTED | OutcomeId::RATE_LIMITED)
     }
 }
 

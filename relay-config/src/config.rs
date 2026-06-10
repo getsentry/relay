@@ -1409,12 +1409,16 @@ impl Default for ObjectstoreServiceConfig {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 
 pub enum EmitOutcomes {
-    /// Do not emit any outcomes
+    /// Do not emit any outcomes.
     None,
-    /// Emit outcomes as client reports
+    /// Emit outcomes as client reports.
     AsClientReports,
-    /// Emit outcomes as outcomes
+    /// Emit outcomes as outcomes.
     AsOutcomes,
+    /// Emit outcomes as metrics.
+    ///
+    /// This is a temporary and experimental option which should not be used and will be removed again.
+    AsMetrics,
 }
 
 impl EmitOutcomes {
@@ -1434,6 +1438,7 @@ impl Serialize for EmitOutcomes {
             Self::None => serializer.serialize_bool(false),
             Self::AsClientReports => serializer.serialize_str("as_client_reports"),
             Self::AsOutcomes => serializer.serialize_bool(true),
+            Self::AsMetrics => serializer.serialize_str("as_metrics"),
         }
     }
 }
@@ -1444,7 +1449,7 @@ impl Visitor<'_> for EmitOutcomesVisitor {
     type Value = EmitOutcomes;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("true, false, or 'as_client_reports'")
+        formatter.write_str("true, false, 'as_client_reports' or 'as_metrics'")
     }
 
     fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E>
@@ -1462,10 +1467,10 @@ impl Visitor<'_> for EmitOutcomesVisitor {
     where
         E: serde::de::Error,
     {
-        if v == "as_client_reports" {
-            Ok(EmitOutcomes::AsClientReports)
-        } else {
-            Err(E::invalid_value(Unexpected::Str(v), &"as_client_reports"))
+        match v {
+            "as_client_reports" => Ok(EmitOutcomes::AsClientReports),
+            "as_metrics" => Ok(EmitOutcomes::AsMetrics),
+            _ => Err(E::invalid_value(Unexpected::Str(v), &self)),
         }
     }
 }

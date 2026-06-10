@@ -41,6 +41,7 @@ fn to_app_feature(ns: MetricNamespace) -> AppFeature {
         MetricNamespace::Spans => AppFeature::MetricsSpans,
         MetricNamespace::Transactions => AppFeature::MetricsTransactions,
         MetricNamespace::Custom => AppFeature::MetricsCustom,
+        MetricNamespace::Outcomes => AppFeature::UnattributedMetrics,
         MetricNamespace::Unsupported => AppFeature::MetricsUnsupported,
     }
 }
