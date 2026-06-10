@@ -145,7 +145,7 @@ pub fn dsc_from_event(
 ///
 /// Like [`validate_and_set_dsc_for_transaction`], an unresolved sampling project causes the
 /// DSC to be rebuilt and the trace attributed to the spans' own project. However, this function
-/// is stricter as it doesn't allow missing a DSC (except for OTel spans, recognized by the
+/// is stricter as it doesn't allow a missing DSC (except for OTel spans, recognized by the
 /// client name being `Relay`) nor missing attributes required for DSC resynthesis (when resynthesis
 /// is needed).
 pub fn validate_and_set_dsc_for_v2_spans(
