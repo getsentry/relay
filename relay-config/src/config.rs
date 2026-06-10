@@ -1596,25 +1596,31 @@ mod config_relay_info {
 }
 
 /// Authentication options.
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
 pub struct AuthConfig {
     /// Controls responses from the readiness health check endpoint based on authentication.
-    #[serde(default, skip_serializing_if = "is_default")]
+    #[serde(skip_serializing_if = "is_default")]
     pub ready: ReadinessCondition,
 
     /// Statically authenticated downstream relays.
-    #[serde(default, with = "config_relay_info")]
+    #[serde(with = "config_relay_info")]
     pub static_relays: HashMap<RelayId, RelayInfo>,
 
     /// How old a signature can be before it is considered invalid, in seconds.
     ///
     /// Defaults to 5 minutes.
-    #[serde(default = "default_max_age")]
     pub signature_max_age: u64,
 }
 
-fn default_max_age() -> u64 {
-    300
+impl Default for AuthConfig {
+    fn default() -> Self {
+        Self {
+            ready: Default::default(),
+            static_relays: Default::default(),
+            signature_max_age: 300,
+        }
+    }
 }
 
 /// GeoIp database configuration options.

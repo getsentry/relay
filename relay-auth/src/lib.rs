@@ -401,10 +401,6 @@ impl PublicKey {
         let parsed: SignatureHeader =
             serde_json::from_slice(&header).map_err(|_| SignatureError::Invalid)?;
 
-        if !is_valid_time(parsed.timestamp, start_time, max_age) {
-            return Err(SignatureError::Expired);
-        }
-
         let signature_algorithm = parsed
             .signature_algorithm
             // Default to the regular algorithm for backwards compatibility.
@@ -426,6 +422,10 @@ impl PublicKey {
         let Ok(()) = verification_result else {
             return Err(SignatureError::Unverifiable);
         };
+
+        if !is_valid_time(parsed.timestamp, start_time, max_age) {
+            return Err(SignatureError::Expired);
+        }
 
         Ok(VerifiedSignatureHeader {
             timestamp: parsed.timestamp,
