@@ -61,6 +61,10 @@ impl OutcomeError for DscError {
 /// event payload, similar to how SDKs do this.
 ///
 /// If there is no transaction event in the envelope, this function will do nothing.
+///
+/// The function will use the sampling project information of the trace root project. If
+/// the sampling project information is missing - due to the project being disabled or belonging to
+/// a separate org - the event’s own project information will be used instead.
 pub fn validate_and_set_dsc_for_transaction(
     headers: &mut EnvelopeHeaders,
     event: &Annotated<Event>,
