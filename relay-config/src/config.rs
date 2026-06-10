@@ -980,6 +980,7 @@ pub enum EnvelopeSpoolPartitioning {
 
 /// Persistent buffering configuration for incoming envelopes.
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(default)]
 pub struct EnvelopeSpool {
     /// The path of the SQLite database file(s) which persist the data.
     ///
@@ -992,7 +993,6 @@ pub struct EnvelopeSpool {
     /// When the on-disk buffer reaches this size, new envelopes will be dropped.
     ///
     /// Defaults to 500MB.
-    #[serde(default = "spool_envelopes_max_disk_size")]
     pub max_disk_size: ByteSize,
     /// Size of the batch of compressed envelopes that are spooled to disk at once.
     ///
@@ -1000,7 +1000,6 @@ pub struct EnvelopeSpool {
     /// that exactly this size will be spooled, it can be greater or equal.
     ///
     /// Defaults to 10 KiB.
-    #[serde(default = "spool_envelopes_batch_size_bytes")]
     pub batch_size_bytes: ByteSize,
     /// Maximum time between receiving the envelope and processing it.
     ///
@@ -1008,13 +1007,11 @@ pub struct EnvelopeSpool {
     /// they are dropped.
     ///
     /// Defaults to 24h.
-    #[serde(default = "spool_envelopes_max_envelope_delay_secs")]
     pub max_envelope_delay_secs: u64,
     /// The refresh frequency in ms of how frequently disk usage is updated by querying SQLite
     /// internal page stats.
     ///
     /// Defaults to 100ms.
-    #[serde(default = "spool_disk_usage_refresh_frequency_ms")]
     pub disk_usage_refresh_frequency_ms: u64,
     /// The relative memory usage above which the buffer service will stop dequeueing envelopes.
     ///
@@ -1045,7 +1042,6 @@ pub struct EnvelopeSpool {
     /// - A deadlock occurs, with the system unable to recover without manual intervention.
     ///
     /// Defaults to 90% (5% less than max memory).
-    #[serde(default = "spool_max_backpressure_memory_percent")]
     pub max_backpressure_memory_percent: f32,
     /// Number of partitions of the buffer.
     ///
@@ -1053,14 +1049,12 @@ pub struct EnvelopeSpool {
     /// and other resources.
     ///
     /// Defaults to 1.
-    #[serde(default = "spool_envelopes_partitions")]
     pub partitions: NonZeroU8,
     /// Strategy used to assign envelopes to buffer partitions.
     ///
     /// Defaults to partitioning by `ProjectKeyPair`, which keeps all envelopes of a given project
     /// pair on the same partition. See [`EnvelopeSpoolPartitioning`] for alternatives and
     /// trade-offs.
-    #[serde(default)]
     pub partitioning: EnvelopeSpoolPartitioning,
     /// Whether the database defined in `path` is on an ephemeral storage disk.
     ///
@@ -1068,7 +1062,6 @@ pub struct EnvelopeSpool {
     /// during graceful shutdown. Instead, it attempts to process all data before it terminates.
     ///
     /// Defaults to `false`.
-    #[serde(default)]
     pub ephemeral: bool,
 }
 
@@ -1090,9 +1083,9 @@ impl Default for EnvelopeSpool {
 
 /// Persistent buffering configuration.
 #[derive(Debug, Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct Spool {
     /// Configuration for envelope spooling.
-    #[serde(default)]
     pub envelopes: EnvelopeSpool,
 }
 
@@ -1186,17 +1179,15 @@ fn default_max_rate_limit() -> Option<u32> {
 
 /// Controls Sentry-internal event processing.
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
 pub struct Processing {
     /// True if the Relay should do processing. Defaults to `false`.
     pub enabled: bool,
     /// GeoIp DB file source.
-    #[serde(default)]
     pub geoip_path: Option<PathBuf>,
     /// Maximum future timestamp of ingested events.
-    #[serde(default = "default_max_secs_in_future")]
     pub max_secs_in_future: u32,
     /// Maximum age of ingested sessions. Older sessions will be dropped.
-    #[serde(default = "default_max_session_secs_in_past")]
     pub max_session_secs_in_past: u32,
     /// Kafka producer configurations.
     pub kafka_config: Vec<KafkaConfigParam>,
@@ -1219,25 +1210,18 @@ pub struct Processing {
     /// ```
     ///
     /// Then metrics will be produced to an entirely different Kafka cluster.
-    #[serde(default)]
     pub secondary_kafka_configs: BTreeMap<String, Vec<KafkaConfigParam>>,
     /// Kafka topic names.
-    #[serde(default)]
     pub topics: TopicAssignments,
     /// Whether to validate the supplied topics by calling Kafka's metadata endpoints.
-    #[serde(default)]
     pub kafka_validate_topics: bool,
     /// Redis hosts to connect to for storing state for rate limits.
-    #[serde(default)]
     pub redis: Option<RedisConfigs>,
     /// Maximum chunk size of attachments for Kafka.
-    #[serde(default = "default_chunk_size")]
     pub attachment_chunk_size: ByteSize,
     /// Prefix to use when looking up project configs in Redis. Defaults to "relayconfig".
-    #[serde(default = "default_projectconfig_cache_prefix")]
     pub projectconfig_cache_prefix: String,
     /// Maximum rate limit to report to clients.
-    #[serde(default = "default_max_rate_limit")]
     pub max_rate_limit: Option<u32>,
     /// Configures the quota cache ratio between `0.0` and `1.0`.
     ///
@@ -1258,7 +1242,7 @@ pub struct Processing {
     /// Must be between `0.0` and `1.0`, by default there is no limit configured.
     pub quota_cache_max: Option<f32>,
     /// Configuration for the objectstore service.
-    #[serde(default, alias = "upload")]
+    #[serde(alias = "upload")]
     pub objectstore: ObjectstoreServiceConfig,
 }
 
@@ -1290,7 +1274,6 @@ impl Default for Processing {
 #[serde(default)]
 pub struct Normalization {
     /// Level of normalization for Relay to apply to incoming data.
-    #[serde(default)]
     pub level: NormalizationLevel,
 }
 
@@ -1601,25 +1584,35 @@ mod config_relay_info {
 }
 
 /// Authentication options.
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
 pub struct AuthConfig {
     /// Controls responses from the readiness health check endpoint based on authentication.
-    #[serde(default, skip_serializing_if = "is_default")]
+    #[serde(skip_serializing_if = "is_default")]
     pub ready: ReadinessCondition,
 
     /// Statically authenticated downstream relays.
-    #[serde(default, with = "config_relay_info")]
+    #[serde(with = "config_relay_info")]
     pub static_relays: HashMap<RelayId, RelayInfo>,
 
     /// How old a signature can be before it is considered invalid, in seconds.
     ///
     /// Defaults to 5 minutes.
-    #[serde(default = "default_max_age")]
     pub signature_max_age: u64,
 }
 
 fn default_max_age() -> u64 {
     300
+}
+
+impl Default for AuthConfig {
+    fn default() -> Self {
+        Self {
+            ready: ReadinessCondition::default(),
+            static_relays: HashMap::new(),
+            signature_max_age: default_max_age(),
+        }
+    }
 }
 
 /// GeoIp database configuration options.
@@ -1754,47 +1747,28 @@ impl Default for Upload {
 
 /// All configuration values that can be deserialized from `config.yml`.
 #[derive(Serialize, Deserialize, Debug, Default)]
+#[serde(default)]
 #[allow(missing_docs)]
 pub struct ConfigValues {
-    #[serde(default)]
     pub relay: Relay,
-    #[serde(default)]
     pub http: Http,
-    #[serde(default)]
     pub cache: Cache,
-    #[serde(default)]
     pub spool: Spool,
-    #[serde(default)]
     pub limits: Limits,
-    #[serde(default)]
     pub logging: relay_log::LogConfig,
-    #[serde(default)]
     pub routing: Routing,
-    #[serde(default)]
     pub metrics: Metrics,
-    #[serde(default)]
     pub sentry: relay_log::SentryConfig,
-    #[serde(default)]
     pub processing: Processing,
-    #[serde(default)]
     pub outcomes: Outcomes,
-    #[serde(default)]
     pub aggregator: AggregatorServiceConfig,
-    #[serde(default)]
     pub secondary_aggregators: Vec<ScopedAggregatorConfig>,
-    #[serde(default)]
     pub auth: AuthConfig,
-    #[serde(default)]
     pub geoip: GeoIpConfig,
-    #[serde(default)]
     pub normalization: Normalization,
-    #[serde(default)]
     pub cardinality_limiter: CardinalityLimiter,
-    #[serde(default)]
     pub health: Health,
-    #[serde(default)]
     pub cogs: Cogs,
-    #[serde(default)]
     pub upload: Upload,
 }
 
