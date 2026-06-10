@@ -113,7 +113,7 @@ fn make_span_item(
         })
         .map_err(|_| ())?;
 
-    Ok(span.map_value(relay_spans::span_v1_to_span_v2))
+    Ok(span.map_value(relay_spans::span_v1_to_span_v2_with_name_inference))
 }
 
 /// Any violation of the span schema.
