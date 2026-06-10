@@ -194,10 +194,10 @@ fn normalize_ai_costs(attributes: &mut Attributes, model_metadata: Option<&Model
 
     let tokens = ai::UsedTokens {
         input_tokens: get_tokens(GEN_AI__USAGE__INPUT_TOKENS),
-        input_cached_tokens: get_tokens(GEN_AI__USAGE__INPUT_TOKENS__CACHED),
-        input_cache_write_tokens: get_tokens(GEN_AI__USAGE__INPUT_TOKENS__CACHE_WRITE),
+        input_cached_tokens: get_tokens(GEN_AI__USAGE__CACHE_READ__INPUT_TOKENS),
+        input_cache_write_tokens: get_tokens(GEN_AI__USAGE__CACHE_CREATION__INPUT_TOKENS),
         output_tokens: get_tokens(GEN_AI__USAGE__OUTPUT_TOKENS),
-        output_reasoning_tokens: get_tokens(GEN_AI__USAGE__OUTPUT_TOKENS__REASONING),
+        output_reasoning_tokens: get_tokens(GEN_AI__USAGE__REASONING__OUTPUT_TOKENS),
     };
 
     let Some(costs) = ai::calculate_costs(model_cost, tokens, integration, platform_tag) else {
