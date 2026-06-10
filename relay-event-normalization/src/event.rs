@@ -33,6 +33,7 @@ use relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FiniteF64, FromValue, Getter, Meta, Object, Remark,
     RemarkType, TryFromFloatError, Value,
 };
+use relay_sampling::DynamicSamplingContext;
 use smallvec::SmallVec;
 use uuid::Uuid;
 
@@ -41,8 +42,8 @@ use crate::span::ai::enrich_ai_event_data;
 use crate::span::tag_extraction::{extract_segment_name_from_event, extract_span_tags_from_event};
 use crate::utils::{self, MAX_DURATION_MOBILE_MS, get_event_user_tag};
 use crate::{
-    BorrowedSpanOpDefaults, BreakdownsConfig, CombinedMeasurementsConfig, EnrichedDsc, GeoIpLookup,
-    MaxChars, ModelMetadata, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule,
+    BorrowedSpanOpDefaults, BreakdownsConfig, CombinedMeasurementsConfig, GeoIpLookup, MaxChars,
+    ModelMetadata, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule,
     TransactionNameConfig, breakdowns, event_error, legacy, mechanism, remove_other, schema, span,
     stacktrace, transactions, trimming, user_agent,
 };
@@ -182,8 +183,8 @@ pub struct NormalizationConfig<'a> {
     /// the SDK.
     pub force_trace_context: bool,
 
-    /// Dynamic sampling context and additional attributes used for dsc span normalization.
-    pub dsc: Option<EnrichedDsc<'a>>,
+    /// Dynamic sampling context used for dsc span normalization.
+    pub dsc: Option<&'a DynamicSamplingContext>,
 }
 
 impl Default for NormalizationConfig<'_> {

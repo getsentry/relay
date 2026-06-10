@@ -179,7 +179,16 @@ impl<M> EnvelopeHeaders<M> {
 
     /// Returns the dynamic sampling context from envelope headers, if present.
     pub fn dsc(&self) -> Option<&DynamicSamplingContext> {
-        match &self.trace {
+        let trace = self.trace.as_ref()?;
+        if let ErrorBoundary::Err(e) = trace {
+            relay_log::debug!(error = e.as_ref(), "failed to parse sampling context");
+        };
+        trace.as_ref().ok()
+    }
+
+    /// Returns the dynamic sampling context from envelope headers, if present.
+    pub fn dsc_mut(&mut self) -> Option<&mut DynamicSamplingContext> {
+        match &mut self.trace {
             None => None,
             Some(ErrorBoundary::Err(e)) => {
                 relay_log::debug!(error = e.as_ref(), "failed to parse sampling context");
@@ -1243,6 +1252,7 @@ mod tests {
         let dsc = DynamicSamplingContext {
             trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            project_id: None,
             release: Some("1.1.1".to_owned()),
             user: Default::default(),
             replay_id: None,

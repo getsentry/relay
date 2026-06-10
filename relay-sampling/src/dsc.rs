@@ -10,7 +10,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use relay_base_schema::project::ProjectKey;
+use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_event_schema::protocol::TraceId;
 use relay_protocol::{Getter, Val};
 use serde::{Deserialize, Serialize};
@@ -28,6 +28,11 @@ pub struct DynamicSamplingContext {
     pub trace_id: TraceId,
     /// The project key.
     pub public_key: ProjectKey,
+    /// The sampling project id. Not part of the DSC protocol, but accessed and used together with
+    /// the rest of the DSC. Placed here for ergonomy and to avoid having to mutate the request
+    /// context when the sampling org is different from the sending org.
+    #[serde(skip)]
+    pub project_id: Option<ProjectId>,
     /// The release.
     #[serde(default)]
     pub release: Option<String>,
@@ -562,6 +567,7 @@ mod tests {
         let dsc = DynamicSamplingContext {
             trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            project_id: Some(ProjectId::new(42)),
             release: Some("1.1.1".into()),
             user: TraceUserContext {
                 user_segment: "user-seg".into(),
@@ -600,6 +606,7 @@ mod tests {
         let dsc = DynamicSamplingContext {
             trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            project_id: Some(ProjectId::new(42)),
             release: None,
             user: TraceUserContext::default(),
             environment: None,
@@ -619,6 +626,7 @@ mod tests {
         let dsc = DynamicSamplingContext {
             trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            project_id: Some(ProjectId::new(42)),
             release: None,
             user: TraceUserContext::default(),
             environment: None,

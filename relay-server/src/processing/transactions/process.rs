@@ -137,7 +137,7 @@ fn expand_profile(
 /// Validates and massages the data.
 pub fn prepare_data(
     work: &mut Managed<Box<ExpandedTransaction>>,
-    ctx: &mut Context<'_>,
+    ctx: &Context<'_>,
     metrics: &mut Metrics,
 ) -> Result<(), Rejected<Error>> {
     let scoping = work.scoping();
@@ -146,7 +146,7 @@ pub fn prepare_data(
         profile::transfer_id(&mut work.event, work.profile.as_ref().map(|p| p.meta.id));
         profile::remove_context_if_rate_limited(&mut work.event, scoping, *ctx);
 
-        utils::dsc::validate_and_set_dsc(&mut work.headers, &work.event, ctx);
+        utils::dsc::validate_and_set_dsc_for_transaction(&mut work.headers, &work.event, ctx);
 
         utils::event::finalize(
             &work.headers,

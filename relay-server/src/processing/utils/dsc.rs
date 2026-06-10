@@ -1,10 +1,47 @@
-use relay_base_schema::{events::EventType, project::ProjectKey};
+use relay_base_schema::events::EventType;
+use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_event_schema::protocol::{Event, TraceContext};
-use relay_protocol::Annotated;
+use relay_protocol::{Annotated, get_value};
 use relay_sampling::{DynamicSamplingContext, dsc::TraceUserContext};
 
-use crate::envelope::EnvelopeHeaders;
+use crate::envelope::{ClientName, EnvelopeHeaders};
+use crate::managed::{Managed, OutcomeError, Rejected};
 use crate::processing::Context;
+use crate::processing::spans::ExpandedSpans;
+use crate::services::outcome::{DiscardReason, Outcome};
+
+#[derive(Debug, thiserror::Error, Copy, Clone)]
+pub enum DscError {
+    #[error("the DSC is required but missing on the envelope")]
+    MissingDynamicSamplingContext,
+    #[error("the DSC or the attributes for inferring it are invalid or inconsistent across spans")]
+    InvalidDynamicSamplingContext,
+    #[error("missing a public key for the project that sent the spans")]
+    MissingPublicKey,
+}
+
+impl DscError {
+    pub fn to_outcome(self) -> Outcome {
+        match &self {
+            Self::MissingDynamicSamplingContext => {
+                Outcome::Invalid(DiscardReason::MissingDynamicSamplingContext)
+            }
+            Self::InvalidDynamicSamplingContext => {
+                Outcome::Invalid(DiscardReason::InvalidDynamicSamplingContext)
+            }
+            Self::MissingPublicKey => Outcome::Invalid(DiscardReason::PublicKey),
+        }
+    }
+}
+
+impl OutcomeError for DscError {
+    type Error = Self;
+
+    fn consume(self) -> (Option<Outcome>, Self::Error) {
+        let outcome = self.to_outcome();
+        (Some(outcome), self)
+    }
+}
 
 /// Ensures there is a valid dynamic sampling context and corresponding project state.
 ///
@@ -22,21 +59,19 @@ use crate::processing::Context;
 ///    should fall back to the next-best sampling rule set.
 ///
 /// In all of the above cases, this function will compute a new DSC using information from the
-/// event payload, similar to how SDKs do this. The `sampling_project_state` is also switched to
-/// the main project state.
+/// event payload, similar to how SDKs do this.
 ///
 /// If there is no transaction event in the envelope, this function will do nothing.
-///
-/// The function will return the sampling project information of the root project for the event. If
-/// no sampling project information is specified, the project information of the event’s project
-/// will be returned.
-pub fn validate_and_set_dsc(
+pub fn validate_and_set_dsc_for_transaction(
     headers: &mut EnvelopeHeaders,
     event: &Annotated<Event>,
-    ctx: &mut Context,
+    ctx: &Context,
 ) {
-    let original_dsc = headers.dsc();
-    if original_dsc.is_some() && ctx.sampling_project_info.is_some() {
+    let mut original_dsc = headers.dsc_mut();
+    if let Some(dsc) = original_dsc.as_mut()
+        && let Some(sp) = ctx.sampling_project_info
+    {
+        dsc.project_id = sp.project_id;
         return;
     }
 
@@ -44,16 +79,14 @@ pub fn validate_and_set_dsc(
     // below already checks for the event type.
     if let Some(event) = event.value()
         && let Some(key_config) = ctx.project_info.get_public_key_config()
-        && let Some(mut dsc) = dsc_from_event(key_config.public_key, event)
+        && let Some(mut dsc) =
+            dsc_from_event(key_config.public_key, ctx.project_info.project_id, event)
     {
         // All other information in the DSC must be discarded, but the sample rate was
         // actually applied by the client and is therefore correct.
-        let original_sample_rate = original_dsc.and_then(|dsc| dsc.sample_rate);
-        dsc.sample_rate = dsc.sample_rate.or(original_sample_rate);
+        dsc.sample_rate = original_dsc.as_ref().and_then(|dsc| dsc.sample_rate);
 
         headers.set_dsc(dsc);
-
-        ctx.sampling_project_info = Some(ctx.project_info);
         return;
     }
 
@@ -69,7 +102,11 @@ pub fn validate_and_set_dsc(
 ///
 /// Since sampling information is not available in the event payload, the `sample_rate` field
 /// cannot be set when computing the dynamic sampling context from a transaction event.
-pub fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSamplingContext> {
+pub fn dsc_from_event(
+    public_key: ProjectKey,
+    project_id: Option<ProjectId>,
+    event: &Event,
+) -> Option<DynamicSamplingContext> {
     if event.ty.value() != Some(&EventType::Transaction) {
         return None;
     }
@@ -81,6 +118,7 @@ pub fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSa
     Some(DynamicSamplingContext {
         trace_id,
         public_key,
+        project_id,
         release: event.release.as_str().map(str::to_owned),
         environment: event.environment.value().cloned(),
         transaction: event.transaction.value().cloned(),
@@ -97,5 +135,67 @@ pub fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSa
         },
         sampled: None,
         other: Default::default(),
+    })
+}
+
+/// Validates and, if necessary, re-synthesizes the DSC for a batch of V2 spans.
+///
+/// Like [`validate_and_set_dsc_for_transaction`], an unresolved sampling project causes the
+/// DSC to be rebuilt and the trace attributed to the spans' own project. However, this function
+/// is stricter and returns errors in certain cases allowed by [`validate_and_set_dsc_for_transaction`]:
+///
+/// - the DSC is missing (except for OTel spans, recognized by the client name being `Relay`)
+/// - the public key of the spans' project is missing
+pub fn validate_and_set_dsc_for_v2_spans(
+    spans: &mut Managed<ExpandedSpans>,
+    ctx: &Context<'_>,
+) -> Result<(), Rejected<DscError>> {
+    spans.try_modify(|spans, _| {
+        // Validate that DSC exists. If the client is `Relay`, the spans are assumed to be from an
+        // OTel SDK in which case a missing DSC is allowed.
+        let is_relay = spans.headers.meta().client_name() == ClientName::Relay;
+        let dsc = match spans.headers.dsc_mut() {
+            None if is_relay => return Ok(()),
+            None => return Err(DscError::MissingDynamicSamplingContext),
+            Some(dsc) => dsc,
+        };
+
+        // Validate that all spans share the same trace id
+        for span in &spans.spans {
+            let span = &span.span;
+            if get_value!(span.trace_id) != Some(&dsc.trace_id) {
+                return Err(DscError::InvalidDynamicSamplingContext);
+            }
+        }
+
+        match ctx.sampling_project_info {
+            // Resynthesize the DSC if the trace root (sampling) project could not be resolved. This
+            // happens when the sampling project is disabled or belongs to a different org than the
+            // spans.
+            None => {
+                let public_key = ctx
+                    .project_info
+                    .get_public_key_config()
+                    .ok_or(DscError::MissingPublicKey)?
+                    .public_key;
+                *dsc = DynamicSamplingContext {
+                    trace_id: dsc.trace_id,
+                    public_key,
+                    project_id: ctx.project_info.project_id,
+                    release: None,
+                    environment: None,
+                    transaction: None,
+                    sample_rate: dsc.sample_rate,
+                    sampled: None,
+                    user: TraceUserContext::default(),
+                    replay_id: None,
+                    other: Default::default(),
+                };
+            }
+            Some(sampling_project_info) => {
+                dsc.project_id = sampling_project_info.project_id;
+            }
+        };
+        Ok(())
     })
 }

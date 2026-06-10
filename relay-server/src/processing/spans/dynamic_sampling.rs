@@ -5,19 +5,16 @@ use chrono::Utc;
 use either::Either;
 use relay_dynamic_config::ErrorBoundary;
 use relay_metrics::{Bucket, BucketMetadata, BucketValue, UnixTimestamp};
-use relay_protocol::{FiniteF64, get_value};
+use relay_protocol::FiniteF64;
 use relay_quotas::{DataCategory, Scoping};
 use relay_sampling::config::RuleType;
 use relay_sampling::evaluation::{SamplingDecision, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
-use crate::envelope::ClientName;
 use crate::managed::Managed;
 use crate::metrics_extraction::ExtractedMetrics;
 use crate::processing::Context;
-use crate::processing::spans::{
-    Error, ExpandedSpan, ExpandedSpans, Indexed, Result, SerializedSpans,
-};
+use crate::processing::spans::{Error, ExpandedSpan, ExpandedSpans, Indexed, Result};
 use crate::services::outcome::Outcome;
 use crate::services::projects::project::ProjectInfo;
 use crate::statsd::RelayCounters;
@@ -50,56 +47,6 @@ pub fn validate_configs(ctx: Context<'_>) {
             "found unsupported dynamic sampling rules in a processing relay"
         );
     }
-}
-
-/// Validates the presence of a dynamic sampling context when processing Spans.
-///
-/// Each envelope received by Relay must contain a valid dynamic sampling context.
-/// This is not a technical requirement as a missing dynamic sampling context is treated as having
-/// a sample rate of 100%, but to ensure SDKs implement the protocol correctly it is validated.
-///
-/// An exception exists for our OTeL integration, which currently never sets a dynamic sampling
-/// context. In the future we may want to extract a DSC from the OTeL payload to allow dynamic
-/// sampling if the necessary attributes are present.
-pub fn validate_dsc_presence(spans: &SerializedSpans) -> Result<()> {
-    let dsc = spans.headers.dsc();
-
-    // Envelopes created by Relay may not carry a DSC. This is currently the case for envelopes
-    // created through the OTeL integration.
-    //
-    // This validation is only best effort (not a hard requirement) to get SDKs to implement DSC
-    // correctly, so it is okay to be a bit more lenient here and trust ourselves.
-    let client_is_relay = spans.headers.meta().client_name() == ClientName::Relay;
-
-    if !client_is_relay && dsc.is_none() {
-        return Err(Error::MissingDynamicSamplingContext);
-    }
-
-    Ok(())
-}
-
-/// Validates the dynamic sampling context against the parsed spans.
-///
-/// The values of the dynamic sampling context must match the values provided in the spans.
-/// Currently this only validates the trace id.
-pub fn validate_dsc(spans: &ExpandedSpans) -> Result<()> {
-    let Some(dsc) = spans.headers.dsc() else {
-        // It's okay if we don't have a DSC here. We may be in a processing path which has spans
-        // from mixed traces without a DSC (=100% sample rate).
-        // For example via the OTeL integration.
-        return Ok(());
-    };
-
-    for span in &spans.spans {
-        let span = &span.span;
-        let trace_id = get_value!(span.trace_id);
-
-        if trace_id != Some(&dsc.trace_id) {
-            return Err(Error::DynamicSamplingContextMismatch);
-        }
-    }
-
-    Ok(())
 }
 
 /// Computes the sampling decision for a batch of spans.

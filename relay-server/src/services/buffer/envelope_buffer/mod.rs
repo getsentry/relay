@@ -713,6 +713,7 @@ impl Readiness {
 
 #[cfg(test)]
 mod tests {
+    use relay_base_schema::project::ProjectId;
     use relay_common::Dsn;
     use relay_event_schema::protocol::EventId;
     use relay_sampling::DynamicSamplingContext;
@@ -748,6 +749,7 @@ mod tests {
         if let Some(sampling_key) = sampling_key {
             envelope.set_dsc(DynamicSamplingContext {
                 public_key: sampling_key,
+                project_id: Some(ProjectId::new(42)),
                 trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
                 release: None,
                 user: Default::default(),
