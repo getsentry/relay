@@ -1,4 +1,4 @@
-use chrono::{DateTime, Duration, Utc};
+use chrono::{Duration, Utc};
 use relay_auth::{
     PublicKey, RegisterRequest, RegisterResponse, RelayId, RelayVersion, SecretKey, SignatureRef,
     generate_key_pair, generate_relay_id,
@@ -63,12 +63,7 @@ pub unsafe extern "C" fn relay_publickey_verify(
     let signature = SignatureRef(unsafe { (*sig).as_str() });
     unsafe {
         (*pk)
-            .verify(
-                (*data).as_bytes(),
-                signature,
-                DateTime::from_timestamp_nanos(0),
-                Duration::MAX,
-            )
+            .verify((*data).as_bytes(), signature, Utc::now(), Duration::MAX)
             .is_ok()
     }
 }

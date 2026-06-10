@@ -140,7 +140,7 @@ pub enum SignatureError {
     /// Raised if the signature is structurally valid but cannot be verified.
     #[error("signature cannot be verified")]
     Unverifiable,
-    /// Raised if the signature is expired.
+    /// Raised if the signature timestamp cannot be verified.
     #[error("signature is too old")]
     Expired,
 }
@@ -380,7 +380,7 @@ impl PublicKey {
         data: &[u8],
         sig: SignatureRef<'_>,
         start_time: DateTime<Utc>,
-        max_age_diff: Duration,
+        max_age: Duration,
     ) -> Result<VerifiedSignatureHeader, SignatureError> {
         let mut iter = sig.0.splitn(2, '.');
         let sig_bytes = {
@@ -401,8 +401,7 @@ impl PublicKey {
         let parsed: SignatureHeader =
             serde_json::from_slice(&header).map_err(|_| SignatureError::Invalid)?;
 
-        // Make sure the provided timestamp is not expired or too far in the future.
-        if (start_time - parsed.timestamp).abs() > max_age_diff {
+        if !is_valid_time(parsed.timestamp, start_time, max_age) {
             return Err(SignatureError::Expired);
         }
 
@@ -549,12 +548,12 @@ impl SignedRegisterState {
     /// Unpacks the encoded state and validates the signature.
     ///
     /// If `max_age` is specified, then the timestamp in the state is validated against the current
-    /// time stamp. If the stored timestamp is too old, `UnpackError::SignatureExpired` is returned.
+    /// time stamp. If the stored timestamp is too old, [`UnpackError::SignatureExpired`] is returned.
     pub fn unpack(
         &self,
         secret: &[u8],
         start_time: DateTime<Utc>,
-        max_age_diff: Duration,
+        max_age: Duration,
     ) -> Result<RegisterState, UnpackError> {
         let (token, signature) = self.split();
         let code = BASE64URL_NOPAD
@@ -572,8 +571,11 @@ impl SignedRegisterState {
         let state =
             serde_json::from_slice::<RegisterState>(&json).map_err(UnpackError::BadPayload)?;
 
-        let secs = state.timestamp().as_secs() as i64;
-        if (secs - start_time.timestamp()).abs() > max_age_diff.num_seconds() {
+        let ts = state
+            .timestamp
+            .as_datetime()
+            .ok_or(UnpackError::SignatureExpired)?;
+        if !is_valid_time(ts, start_time, max_age) {
             return Err(UnpackError::SignatureExpired);
         }
 
@@ -657,11 +659,11 @@ impl RegisterRequest {
         data: &[u8],
         signature: SignatureRef<'_>,
         start_time: DateTime<Utc>,
-        max_age_diff: Duration,
+        max_age: Duration,
     ) -> Result<RegisterRequest, UnpackError> {
         let req: RegisterRequest = serde_json::from_slice(data).map_err(UnpackError::BadPayload)?;
         let pk = req.public_key();
-        pk.unpack(data, signature, start_time, max_age_diff)
+        pk.unpack(data, signature, start_time, max_age)
     }
 
     /// Returns the Relay ID of the registering Relay.
@@ -737,14 +739,14 @@ impl RegisterResponse {
         signature: SignatureRef<'_>,
         secret: &[u8],
         start_time: DateTime<Utc>,
-        max_age_diff: Duration,
+        max_age: Duration,
     ) -> Result<(Self, RegisterState), UnpackError> {
         let response: Self = serde_json::from_slice(data).map_err(UnpackError::BadPayload)?;
-        let state = response.token.unpack(secret, start_time, max_age_diff)?;
+        let state = response.token.unpack(secret, start_time, max_age)?;
 
         let _verified = state
             .public_key()
-            .verify(data, signature, start_time, max_age_diff)?;
+            .verify(data, signature, start_time, max_age)?;
 
         Ok((response, state))
     }
@@ -780,15 +782,15 @@ impl Signature {
     ///
     /// Returns `true` if the signature is valid with one of the given
     /// public keys and satisfies the timestamp constraints defined by `start_time`
-    /// and `max_age_diff`.
+    /// and `max_age`.
     pub fn verify_any<'a>(
         &self,
         public_key: &'a [PublicKey],
         start_time: DateTime<Utc>,
-        max_age_diff: Duration,
+        max_age: Duration,
     ) -> Option<(&'a PublicKey, VerifiedSignatureHeader)> {
         public_key.iter().find_map(|p| {
-            let verified = self.verify(&[], p, start_time, max_age_diff).ok()?;
+            let verified = self.verify(&[], p, start_time, max_age).ok()?;
             Some((p, verified))
         })
     }
@@ -797,7 +799,7 @@ impl Signature {
     ///
     /// The signature is considered valid if it can be verified using the given
     /// public key and its embedded timestamp falls within the valid time range,
-    /// starting from `start_time` and not exceeding `max_age_diff` (future and past).
+    /// starting from `start_time` and not exceeding `max_age`.
     pub fn verify(
         &self,
         data: &[u8],
@@ -823,6 +825,12 @@ impl Signature {
 /// allowing verification to work with borrowed data without unnecessary allocations.
 /// This type is typically obtained by borrowing from an owned [`Signature`].
 pub struct SignatureRef<'a>(pub &'a str);
+
+/// Verifies a timestamp `ts` is not in the future and not expired.
+fn is_valid_time(ts: DateTime<Utc>, start_time: DateTime<Utc>, max_age: Duration) -> bool {
+    let diff = start_time - ts;
+    diff >= Duration::zero() && diff < max_age
+}
 
 #[cfg(test)]
 mod tests {
@@ -1149,11 +1157,7 @@ mod tests {
         );
         // Signature is valid (and verification doesn't panic) with `Duration::MAX`.
         let v = signature
-            .verify_any(
-                public_keys,
-                DateTime::from_timestamp_nanos(0),
-                Duration::MAX,
-            )
+            .verify_any(public_keys, start_time, Duration::MAX)
             .unwrap();
         assert_eq!(v.0, &public_keys[2]);
     }
