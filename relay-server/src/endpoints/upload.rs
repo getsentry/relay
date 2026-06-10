@@ -102,6 +102,7 @@ impl IntoResponse for Error {
                 upload::Error::InvalidLocation(_) | upload::Error::SigningFailed => {
                     StatusCode::INTERNAL_SERVER_ERROR
                 }
+                upload::Error::SerializeFailed(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 upload::Error::InvalidSignature => StatusCode::BAD_REQUEST,
                 upload::Error::ObjectstoreServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
                 #[cfg(feature = "processing")]
@@ -200,7 +201,11 @@ async fn handle_patch(
     meta: RequestMeta,
     headers: HeaderMap,
     Path(upload::LocationPath { project_id, key }): Path<upload::LocationPath>,
-    Query(LocationQueryParams { length, signature }): Query<LocationQueryParams<Provisional>>,
+    Query(LocationQueryParams {
+        upload_length,
+        upload_signature,
+        other,
+    }): Query<LocationQueryParams<Provisional>>,
     body: Body,
 ) -> axum::response::Result<impl IntoResponse> {
     check_kill_switch(&state)?;
@@ -208,7 +213,8 @@ async fn handle_patch(
     relay_log::trace!("Validating headers");
     tus::validate_patch_headers(&headers).map_err(Error::from)?;
 
-    let location = SignedLocation::from_parts(project_id, key, length, signature);
+    let location =
+        SignedLocation::from_parts(project_id, key, upload_length, upload_signature, other);
 
     let config = state.config();
 
@@ -233,7 +239,7 @@ async fn handle_patch(
         .boxed();
     let stream = MeteredStream::new(stream, "upload");
 
-    let (lower_bound, upper_bound) = match length.value() {
+    let (lower_bound, upper_bound) = match upload_length.value() {
         None => (1, config.max_upload_size()),
         Some(u) => (u, u),
     };

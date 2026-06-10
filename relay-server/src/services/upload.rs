@@ -1,5 +1,7 @@
 //! Utilities for uploading large files.
 
+use std::borrow::Cow;
+use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
@@ -58,6 +60,8 @@ pub enum Error {
     Upstream(#[source] reqwest::Error),
     #[error("upstream provided invalid location: {0:?}")]
     InvalidLocation(Option<HeaderValue>),
+    #[error("serializing location failed: {0}")]
+    SerializeFailed(#[from] serde_urlencoded::ser::Error),
     #[error("failed to sign location")]
     SigningFailed,
     #[error("invalid signature")]
@@ -82,6 +86,7 @@ impl Error {
             Error::Upstream(_) => "upstream_response",
             Error::InvalidLocation(_) => "invalid_location",
             Error::SigningFailed => "signing_failed",
+            Error::SerializeFailed(_) => "serialize_failed",
             Error::InvalidSignature => "invalid_signature",
             Error::ObjectstoreServiceUnavailable(_) => "service_unavailable",
             #[cfg(feature = "processing")]
@@ -265,6 +270,7 @@ impl Service {
                     project_id: scoping.project_id,
                     key,
                     length: Provisional(length),
+                    other: Default::default(),
                 }
                 .try_sign(config)
             }
@@ -291,6 +297,7 @@ impl Service {
                     project_id,
                     key,
                     length,
+                    other,
                 } = location.verify(received, config)?;
 
                 debug_assert_eq!(scoping.project_id, project_id);
@@ -313,6 +320,7 @@ impl Service {
                     project_id,
                     key,
                     length,
+                    other,
                 }
                 .try_sign(config)
             }
@@ -406,24 +414,33 @@ pub struct Location<L> {
     pub key: String,
     /// Value of the `Upload-Length` header. `None` if `Upload-Defer-Length: 1`.
     pub length: L,
+    pub other: UploadParams,
 }
 
 impl<L: UploadLength> Location<L> {
-    fn as_uri(&self) -> String {
+    fn try_to_uri(&self) -> Result<String, Error> {
         let Location {
             project_id,
             key,
             length,
+            other,
         } = self;
-        match length.value() {
-            Some(length) => format!("/api/{project_id}/upload/{key}/?length={length}"),
-            None => format!("/api/{project_id}/upload/{key}/"),
+        let mut fields = other
+            .0
+            .iter()
+            .map(|(k, v)| (k.as_str(), Cow::Borrowed(v)))
+            .collect::<Vec<_>>();
+        if let Some(length) = length.value() {
+            fields.push(("upload_length", Cow::Owned(length.to_string())));
         }
+
+        let query = serde_urlencoded::to_string(fields)?;
+        Ok(format!("/api/{project_id}/upload/{key}/?{query}"))
     }
 
     #[cfg(feature = "processing")]
     fn try_sign(self, config: &Config) -> Result<SignedLocation<L>, Error> {
-        let uri = self.as_uri();
+        let uri = self.try_to_uri()?;
         let signature = config
             .credentials()
             .ok_or(Error::SigningFailed)?
@@ -454,8 +471,51 @@ pub struct LocationPath {
 #[derive(Debug, Deserialize)]
 #[serde(bound = "L: UploadLength")]
 pub struct LocationQueryParams<L: UploadLength> {
-    pub length: L,
-    pub signature: String,
+    #[serde(alias = "length")]
+    pub upload_length: L,
+    #[serde(alias = "signature")]
+    pub upload_signature: String,
+    #[serde(flatten)]
+    pub other: UploadParams,
+}
+
+#[derive(Debug, Default)]
+pub struct UploadParams(BTreeMap<String, String>);
+
+impl<'de> Deserialize<'de> for UploadParams {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct UploadParamsVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for UploadParamsVisitor {
+            type Value = UploadParams;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("upload query parameters")
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                let mut upload_params = BTreeMap::new();
+
+                while let Some(key) = map.next_key::<&str>()? {
+                    if key.starts_with("upload_") {
+                        upload_params.insert(key.to_owned(), map.next_value()?);
+                    } else {
+                        map.next_value::<serde::de::IgnoredAny>()?;
+                    }
+                }
+
+                Ok(UploadParams(upload_params))
+            }
+        }
+
+        deserializer.deserialize_map(UploadParamsVisitor)
+    }
 }
 
 /// A verifiable [`Location`] signed by this Relay or an upstream Relay.
@@ -469,13 +529,19 @@ impl<L: UploadLength> SignedLocation<L> {
     /// Creates an unverified location from path and query params.
     ///
     /// Call `verify` to make sure the signature is correct.
-    pub fn from_parts(project_id: ProjectId, key: String, length: L, signature: String) -> Self {
-        // TODO: forward compat: allow other query params?
+    pub fn from_parts(
+        project_id: ProjectId,
+        key: String,
+        length: L,
+        signature: String,
+        other: UploadParams,
+    ) -> Self {
         Self {
             location: Location {
                 project_id,
                 key,
                 length,
+                other,
             },
             signature: Signature(signature),
         }
@@ -483,23 +549,25 @@ impl<L: UploadLength> SignedLocation<L> {
 
     /// Converts the location into an URI for future reference.
     pub fn into_header_value(self) -> Result<HeaderValue, Error> {
-        HeaderValue::from_str(&self.as_uri()).map_err(Error::Internal)
+        HeaderValue::from_str(&self.try_to_uri()?).map_err(Error::Internal)
     }
 
-    fn as_uri(&self) -> String {
+    fn try_to_uri(&self) -> Result<String, Error> {
         let Self {
             location,
             signature,
         } = self;
-        let mut uri = location.as_uri();
-        uri.push(if location.length.value().is_some() {
-            '&'
-        } else {
-            '?'
-        }); // TODO: brittle.
+        let mut uri = location.try_to_uri()?;
+        uri.push(
+            if location.length.value().is_some() || !location.other.0.is_empty() {
+                '&'
+            } else {
+                '?'
+            },
+        ); // TODO: brittle.
         uri.push_str("signature=");
         uri.push_str(&signature.to_string());
-        uri
+        Ok(uri)
     }
 
     /// Converts the signed location into a location object.
@@ -509,7 +577,7 @@ impl<L: UploadLength> SignedLocation<L> {
     pub fn verify(self, received: DateTime<Utc>, config: &Config) -> Result<Location<L>, Error> {
         let public_key = config.public_key().ok_or(Error::SigningFailed)?;
         let is_valid = self.signature.verify(
-            self.location.as_uri().as_bytes(),
+            self.location.try_to_uri()?.as_bytes(),
             public_key,
             received,
             chrono::Duration::seconds(config.upload().max_age),
@@ -559,9 +627,19 @@ where
         };
 
         // Parse query parameters.
-        let LocationQueryParams { length, signature } = serde_urlencoded::from_str(query).ok()?;
+        let LocationQueryParams {
+            upload_length,
+            upload_signature,
+            other,
+        } = serde_urlencoded::from_str(query).ok()?;
 
-        Some(Self::from_parts(project_id, key, length, signature))
+        Some(Self::from_parts(
+            project_id,
+            key,
+            upload_length,
+            upload_signature,
+            other,
+        ))
     }
 }
 
@@ -657,7 +735,9 @@ impl UpstreamRequest for UploadRequest {
         let project_id = self.scoping.project_id;
         match &self.kind {
             RequestKind::Create { .. } => format!("/api/{project_id}/upload/"),
-            RequestKind::Upload { location, .. } => location.as_uri(),
+            RequestKind::Upload { location, .. } => location
+                .try_to_uri()
+                .expect("upload location should be serializable"),
         }
         .into()
     }
@@ -756,7 +836,7 @@ mod tests {
         // Can only parse provisional:
         let provisional: LocationQueryParams<Provisional> =
             serde_urlencoded::from_str(url).unwrap();
-        assert!(provisional.length.0.is_none());
+        assert!(provisional.upload_length.0.is_none());
         assert!(serde_urlencoded::from_str::<LocationQueryParams::<Final>>(url).is_err());
     }
 
@@ -767,8 +847,8 @@ mod tests {
         // Can only parse provisional:
         let provisional: LocationQueryParams<Provisional> =
             serde_urlencoded::from_str(json).unwrap();
-        assert_eq!(provisional.length.0, Some(123));
+        assert_eq!(provisional.upload_length.0, Some(123));
         let full: LocationQueryParams<Final> = serde_urlencoded::from_str(json).unwrap();
-        assert_eq!(full.length.0, 123);
+        assert_eq!(full.upload_length.0, 123);
     }
 }
