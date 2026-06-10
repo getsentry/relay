@@ -16,9 +16,7 @@ use relay_event_schema::protocol::{
     TraceContext,
 };
 use relay_protocol::{Annotated, Empty, FiniteF64, Value};
-use relay_spans::name_for_span;
-use sqlparser::ast::{ObjectName, Visitor};
-use sqlparser::ast::{ObjectNamePart, Visit};
+use sqlparser::ast::{ObjectName, ObjectNamePart, Visit, Visitor};
 use url::Url;
 
 use crate::GeoIpLookup;
@@ -1142,8 +1140,6 @@ pub fn extract_tags(
         && !name.is_empty()
     {
         span_tags.name = name.to_owned().into();
-    } else if let Some(name) = name_for_span(span) {
-        span_tags.name = name.into();
     }
 
     span_tags
