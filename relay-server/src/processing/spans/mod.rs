@@ -387,14 +387,14 @@ pub struct ExpandedSpans<C = TotalAndIndexed> {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
 
-    /// Expanded and parsed spans, with optional associated attachments.
-    spans: Vec<ExpandedSpan>,
-
     /// Server side applied (dynamic) sample rate.
     server_sample_rate: Option<f64>,
 
     /// Client/protocol supplied settings controlling how spans should be normalized.
     settings: Settings,
+
+    /// Expanded and parsed spans, with optional associated attachments.
+    spans: Vec<ExpandedSpan>,
 
     /// Span attachments that are not associated with any one specific span.
     stand_alone_attachments: Vec<ExpandedAttachment>,
