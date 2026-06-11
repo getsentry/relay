@@ -293,7 +293,7 @@ pub fn backfill_description(spans: &mut Managed<ExpandedSpans>) {
     spans.modify(|span, _| {
         for span in &mut span.spans {
             let Some(span) = span.span.value_mut() else {
-                return;
+                continue;
             };
 
             eap::normalize_sentry_description(&mut span.attributes, &span.name);
