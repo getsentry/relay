@@ -31,7 +31,7 @@ use crate::service::ServiceState;
 use crate::services::objectstore;
 use crate::services::projects::cache::Project;
 use crate::services::upload::{
-    self, ByteStream, Final, LocationQueryParams, Provisional, SignedLocation, UploadLength,
+    self, ByteStream, Final, Provisional, SignedLocation, SignedLocationQueryParams, UploadLength,
 };
 use crate::services::upstream::UpstreamRequestError;
 use crate::statsd::RelayCounters;
@@ -201,11 +201,11 @@ async fn handle_patch(
     meta: RequestMeta,
     headers: HeaderMap,
     Path(upload::LocationPath { project_id, key }): Path<upload::LocationPath>,
-    Query(LocationQueryParams {
+    Query(SignedLocationQueryParams {
         upload_length,
         upload_signature,
         other,
-    }): Query<LocationQueryParams<Provisional>>,
+    }): Query<SignedLocationQueryParams<Provisional>>,
     body: Body,
 ) -> axum::response::Result<impl IntoResponse> {
     check_kill_switch(&state)?;

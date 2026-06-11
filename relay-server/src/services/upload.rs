@@ -1,6 +1,5 @@
 //! Utilities for uploading large files.
 
-use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
@@ -25,6 +24,7 @@ use relay_system::{
     SimpleService,
 };
 use serde::Deserialize;
+use serde::Serialize;
 use tokio::io::BufReader;
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::error::RecvError;
@@ -425,16 +425,12 @@ impl<L: UploadLength> Location<L> {
             length,
             other,
         } = self;
-        let mut fields = other
-            .0
-            .iter()
-            .map(|(k, v)| (k.as_str(), Cow::Borrowed(v)))
-            .collect::<Vec<_>>();
-        if let Some(length) = length.value() {
-            fields.push(("upload_length", Cow::Owned(length.to_string())));
-        }
+        let params = LocationQueryParams {
+            upload_length: length.value(),
+            other,
+        };
 
-        let query = serde_urlencoded::to_string(fields)?;
+        let query = serde_urlencoded::to_string(params)?;
         match query.as_str() {
             "" => Ok(format!("/api/{project_id}/upload/{key}/")),
             _ => Ok(format!("/api/{project_id}/upload/{key}/?{query}")),
@@ -473,7 +469,7 @@ pub struct LocationPath {
 /// Query parameters for the upload endpoint.
 #[derive(Debug, Deserialize)]
 #[serde(bound = "L: UploadLength")]
-pub struct LocationQueryParams<L: UploadLength> {
+pub struct SignedLocationQueryParams<L: UploadLength> {
     #[serde(alias = "length")]
     pub upload_length: L,
     #[serde(alias = "signature")]
@@ -482,7 +478,14 @@ pub struct LocationQueryParams<L: UploadLength> {
     pub other: UploadParams,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Serialize)]
+struct LocationQueryParams<'a> {
+    pub upload_length: Option<usize>,
+    #[serde(flatten)]
+    pub other: &'a UploadParams,
+}
+
+#[derive(Debug, Default, Serialize)]
 pub struct UploadParams(BTreeMap<String, String>);
 
 impl<'de> Deserialize<'de> for UploadParams {
@@ -589,7 +592,7 @@ impl<L: UploadLength> SignedLocation<L> {
 impl<L> SignedLocation<L>
 where
     L: UploadLength,
-    LocationQueryParams<L>: for<'de> Deserialize<'de>,
+    SignedLocationQueryParams<L>: for<'de> Deserialize<'de>,
 {
     fn try_from_response(response: Response) -> Result<Self, Error> {
         match response.0.error_for_status() {
@@ -624,7 +627,7 @@ where
         };
 
         // Parse query parameters.
-        let LocationQueryParams {
+        let SignedLocationQueryParams {
             upload_length,
             upload_signature,
             other,
@@ -831,10 +834,10 @@ mod tests {
         let url = "signature=foo";
 
         // Can only parse provisional:
-        let provisional: LocationQueryParams<Provisional> =
+        let provisional: SignedLocationQueryParams<Provisional> =
             serde_urlencoded::from_str(url).unwrap();
         assert!(provisional.upload_length.0.is_none());
-        assert!(serde_urlencoded::from_str::<LocationQueryParams::<Final>>(url).is_err());
+        assert!(serde_urlencoded::from_str::<SignedLocationQueryParams::<Final>>(url).is_err());
     }
 
     #[test]
@@ -842,10 +845,10 @@ mod tests {
         let json = r#"signature=foo&length=123"#;
 
         // Can only parse provisional:
-        let provisional: LocationQueryParams<Provisional> =
+        let provisional: SignedLocationQueryParams<Provisional> =
             serde_urlencoded::from_str(json).unwrap();
         assert_eq!(provisional.upload_length.0, Some(123));
-        let full: LocationQueryParams<Final> = serde_urlencoded::from_str(json).unwrap();
+        let full: SignedLocationQueryParams<Final> = serde_urlencoded::from_str(json).unwrap();
         assert_eq!(full.upload_length.0, 123);
     }
 }
