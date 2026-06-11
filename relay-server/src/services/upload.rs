@@ -404,7 +404,7 @@ impl UploadLength for Final {
 /// The location can be converted into a URI to be put in the `Location` HTTP header
 /// used by the TUS protocol.
 ///
-/// Calling [`Self::try_sign`] appends a `&signature=` query parameter that can later be used
+/// Calling [`Self::try_sign`] appends an `&upload_signature=` query parameter that can later be used
 /// to validate whether the URI (especially the length) has been tempered with.
 #[derive(Debug)]
 pub struct Location<L> {
@@ -565,7 +565,7 @@ impl<L: UploadLength> SignedLocation<L> {
                 '?'
             },
         ); // TODO: brittle.
-        uri.push_str("signature=");
+        uri.push_str("upload_signature=");
         uri.push_str(&signature.to_string());
         Ok(uri)
     }
