@@ -45,6 +45,11 @@ const MAX_TRACE_PACKETS: usize = MAX_SAMPLES + 10_000;
 /// before handing the packet body to prost for decoding.
 const MAX_TRACE_PACKET_BYTES: usize = 4 * 1024 * 1024;
 
+/// Upper bound on the number of frames in a call stack.
+///
+/// Resolved frame indices are used as keys in a hash map so we should avoid excessive hashing.
+const MAX_CALLSTACK_DEPTH: usize = 1000;
+
 /// See <https://perfetto.dev/docs/reference/trace-packet-proto#SequenceFlags>.
 const SEQ_INCREMENTAL_STATE_CLEARED: u32 = 1;
 
@@ -342,6 +347,10 @@ fn resolve_callstack(
     ctx: &mut ResolveContext,
 ) -> Option<usize> {
     let callstack = tables.callstacks.get(&cs_iid)?;
+
+    if callstack.frame_ids.len() > MAX_CALLSTACK_DEPTH {
+        return None;
+    }
 
     let mut resolved_frame_indices: Vec<usize> = Vec::with_capacity(callstack.frame_ids.len());
 
