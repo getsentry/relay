@@ -5,6 +5,7 @@ use relay_sampling::{DynamicSamplingContext, dsc::TraceUserContext};
 
 use crate::envelope::EnvelopeHeaders;
 use crate::processing::Context;
+use crate::statsd::RelayCounters;
 
 /// Ensures there is a valid dynamic sampling context and corresponding project state.
 ///
@@ -38,6 +39,12 @@ pub fn validate_and_set_dsc(
     let original_dsc = headers.dsc();
     if original_dsc.is_some() && ctx.sampling_project_info.is_some() {
         return;
+    }
+    if ctx.sampling_project_info.is_none() {
+        relay_statsd::metric!(
+            counter(RelayCounters::SamplingProjectUnresolved) += 1,
+            item = "transaction"
+        );
     }
 
     // The DSC can only be computed if there's a transaction event. Note that `dsc_from_event`

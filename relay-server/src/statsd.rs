@@ -967,6 +967,11 @@ pub enum RelayCounters {
     /// The amount of times PlayStation processing was attempted.
     #[cfg(all(sentry, feature = "processing"))]
     PlaystationProcessing,
+    /// The number of times the sampling project was unresolved.
+    ///
+    /// This metric is tagged with:
+    /// - `item`: what item the decision is taken for (transaction vs span).
+    SamplingProjectUnresolved,
     /// The number of times a sampling decision was made.
     ///
     /// This metric is tagged with:
@@ -1066,6 +1071,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::MetricDelayCount => "metrics.delay.count",
             #[cfg(all(sentry, feature = "processing"))]
             RelayCounters::PlaystationProcessing => "processing.playstation",
+            RelayCounters::SamplingProjectUnresolved => "sampling.project_unresolved",
             RelayCounters::SamplingDecision => "sampling.decision",
             RelayCounters::UploadKillswitched => "upload.killswitched",
             RelayCounters::UploadCreate => "upload.create",
