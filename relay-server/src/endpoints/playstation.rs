@@ -93,7 +93,7 @@ async fn upload_context<'a>(
 
     let project_config = match project.state() {
         ProjectState::Enabled(info) => info.clone(),
-        // TODO(INGEST-925): Support proxy mode
+        // Note: The playstation endpoint is not available in customer hosted relays.
         ProjectState::Dummy | ProjectState::Disabled | ProjectState::Pending => {
             return Err(BadStoreRequest::EventRejected(DiscardReason::ProjectId));
         }
