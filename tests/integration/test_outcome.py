@@ -853,9 +853,6 @@ def test_profile_outcomes(
         project_id, make_envelope("ho")
     )  # should be kept by dynamic sampling
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(timeout=5)
-    outcomes.sort(key=lambda o: sorted(o.items()))
-
     expected_source = {
         0: "processing-relay",
         1: "pop-relay",
@@ -932,14 +929,14 @@ def test_profile_outcomes(
         },
     ]
 
+    outcomes_consumer.expect_aggregated_outcomes(expected_outcomes)
+
     metrics = [
         m
         for m, _ in metrics_consumer.get_metrics()
         if m["name"] == "c:spans/usage@none" and m["tags"].get("is_segment") == "true"
     ]
     assert sum(metric["value"] for metric in metrics) == 2
-
-    assert outcomes == expected_outcomes, outcomes
 
     assert profiles_consumer.get_profile()
     assert profiles_consumer.get_profile()
@@ -1448,16 +1445,13 @@ def test_span_outcomes(
         project_id, make_envelope("ho")
     )  # should be kept by dynamic sampling
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(timeout=5)
-    outcomes.sort(key=lambda o: sorted(o.items()))
-
     expected_source = {
         0: "processing-relay",
         1: "pop-relay",
         2: "pop-relay",
     }[num_intermediate_relays]
 
-    assert outcomes == [
+    expected_outcomes = [
         {
             "category": DataCategory.TRANSACTION.value,
             "key_id": 123,
@@ -1506,6 +1500,8 @@ def test_span_outcomes(
             "source": expected_source,
         },
     ]
+
+    outcomes_consumer.expect_aggregated_outcomes(expected_outcomes)
 
 
 def test_span_outcomes_invalid(

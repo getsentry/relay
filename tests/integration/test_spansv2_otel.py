@@ -185,48 +185,52 @@ def test_span_ingestion(
     ]
 
     if relay_emits_accepted_outcome:
-        assert outcomes_consumer.get_aggregated_outcomes() == [
-            {
-                "category": DataCategory.TRANSACTION.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 1,
-            },
-            {
-                "category": DataCategory.SPAN.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 1,
-            },
-            {
-                "category": DataCategory.SPAN_INDEXED.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 1,
-            },
-        ]
+        outcomes_consumer.expect_aggregated_outcomes(
+            [
+                {
+                    "category": DataCategory.TRANSACTION.value,
+                    "key_id": 123,
+                    "org_id": 1,
+                    "outcome": 0,
+                    "project_id": 42,
+                    "quantity": 1,
+                },
+                {
+                    "category": DataCategory.SPAN.value,
+                    "key_id": 123,
+                    "org_id": 1,
+                    "outcome": 0,
+                    "project_id": 42,
+                    "quantity": 1,
+                },
+                {
+                    "category": DataCategory.SPAN_INDEXED.value,
+                    "key_id": 123,
+                    "org_id": 1,
+                    "outcome": 0,
+                    "project_id": 42,
+                    "quantity": 1,
+                },
+            ]
+        )
     else:
-        assert outcomes_consumer.get_aggregated_outcomes() == [
-            {
-                "category": DataCategory.TRANSACTION.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 1,
-            },
-            {
-                "category": DataCategory.SPAN.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 1,
-            },
-        ]
+        outcomes_consumer.expect_aggregated_outcomes(
+            [
+                {
+                    "category": DataCategory.TRANSACTION.value,
+                    "key_id": 123,
+                    "org_id": 1,
+                    "outcome": 0,
+                    "project_id": 42,
+                    "quantity": 1,
+                },
+                {
+                    "category": DataCategory.SPAN.value,
+                    "key_id": 123,
+                    "org_id": 1,
+                    "outcome": 0,
+                    "project_id": 42,
+                    "quantity": 1,
+                },
+            ]
+        )

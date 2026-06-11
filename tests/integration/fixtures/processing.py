@@ -3,6 +3,7 @@ from copy import deepcopy
 import json
 import os
 import time
+from typing import Any
 import uuid
 
 from google.protobuf.json_format import MessageToDict
@@ -316,6 +317,45 @@ class OutcomesConsumer(ConsumerBase):
         for outcome in outcomes:
             assert outcome.error() is None
         return [json.loads(outcome.value()) for outcome in outcomes]
+
+    def expect_aggregated_outcomes(self, expected_outcomes: list[Any], timeout=5):
+        outcome_map = {}
+        for outcome in expected_outcomes:
+            outcome = deepcopy(outcome)
+            quantity = outcome.pop("quantity")
+            outcome_map[frozenset(outcome.items())] = quantity
+
+        deadline = time.monotonic() + timeout
+        aggregated: dict[Any, int] = defaultdict(int)
+
+        while deadline - time.monotonic() > 0:
+            # Short timeout so we can poll faster (and end the test sooner.)
+            outcomes = self.get_outcomes(timeout=2)
+
+            for outcome in outcomes:
+                del outcome["timestamp"]
+                quantity = outcome.pop("quantity")
+                aggregated[frozenset(outcome.items())] += quantity
+
+            to_remove = []
+            for item, quantity in aggregated.items():
+                if item in outcome_map:
+                    if outcome_map[item] == quantity:
+                        to_remove.append(item)
+
+            for item in to_remove:
+                del aggregated[item]
+                del outcome_map[item]
+
+            if len(outcome_map) == 0:
+                break
+
+        assert (
+            len(outcome_map) == 0
+        ), f"OutcomesConsumer: Expected to receieve {outcome_map}"
+        assert (
+            len(aggregated) == 0
+        ), f"OutcomesConsumer: received extra outcomes: {aggregated}"
 
     def get_aggregated_outcomes(self, **kwargs):
         outcomes = self.get_outcomes(**kwargs)

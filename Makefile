@@ -75,12 +75,6 @@ test-integration: build setup-venv ## run integration tests
 	.venv/bin/pytest tests -n $(PYTEST_N) -v
 .PHONY: test-integration
 
-PYTEST_N ?= auto
-TEST ?= tests
-test-custom: build setup-venv ## run arbitrary tests
-	.venv/bin/pytest -n $(PYTEST_N) $(TEST) -vv
-.PHONY: test-custom
-
 # Documentation
 
 doc: doc-rust ## generate all API docs

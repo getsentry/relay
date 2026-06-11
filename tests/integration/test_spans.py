@@ -399,32 +399,55 @@ def test_span_extraction(
     spans_consumer.assert_empty()
 
     if relay_emits_accepted_outcome:
-        assert outcomes_consumer.get_aggregated_outcomes() == [
-            {
-                "category": DataCategory.TRANSACTION.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 1,
-            },
-            {
-                "category": DataCategory.SPAN.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 2,
-            },
-            {
-                "category": DataCategory.SPAN_INDEXED.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 3,
-            }
-        ]
+        outcomes_consumer.expect_aggregated_outcomes(
+            [
+                {
+                    "category": DataCategory.TRANSACTION.value,
+                    "key_id": 123,
+                    "org_id": 1,
+                    "outcome": 0,
+                    "project_id": 42,
+                    "quantity": 1,
+                },
+                {
+                    "category": DataCategory.SPAN.value,
+                    "key_id": 123,
+                    "org_id": 1,
+                    "outcome": 0,
+                    "project_id": 42,
+                    "quantity": 2,
+                },
+                {
+                    "category": DataCategory.SPAN_INDEXED.value,
+                    "key_id": 123,
+                    "org_id": 1,
+                    "outcome": 0,
+                    "project_id": 42,
+                    "quantity": 3,
+                },
+            ]
+        )
+    else:
+        outcomes_consumer.expect_aggregated_outcomes(
+            [
+                {
+                    "category": DataCategory.TRANSACTION.value,
+                    "key_id": 123,
+                    "org_id": 1,
+                    "outcome": 0,
+                    "project_id": 42,
+                    "quantity": 1,
+                },
+                {
+                    "category": DataCategory.SPAN.value,
+                    "key_id": 123,
+                    "org_id": 1,
+                    "outcome": 0,
+                    "project_id": 42,
+                    "quantity": 2,
+                },
+            ]
+        )
 
 
 def _send_transaction_with_measurements(

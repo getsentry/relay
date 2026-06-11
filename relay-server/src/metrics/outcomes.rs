@@ -28,8 +28,8 @@ impl MetricOutcomes {
     pub fn track(&self, scoping: Scoping, buckets: &[impl TrackableBucket], outcome: Outcome) {
         let timestamp = Utc::now();
 
-        // Never emit accepted outcomes for surrogate metrics.
-        // These are handled from within Sentry.
+        // Accepted outcomes go through `track_accepted_outcome`, which does
+        // additional work to prevent billing double-counting.
         if !matches!(outcome, Outcome::Accepted) {
             let SourceQuantities {
                 transactions,
@@ -59,9 +59,11 @@ impl MetricOutcomes {
         }
     }
 
-    /// Tracks billing-related outcomes for the list of buckets, adding the
-    /// "billing_outcome_accepted" tag to the bucket if that bucket is accepted.
-    pub fn track_billing_outcome(&self, scoping: Scoping, buckets: &mut [Bucket]) {
+    /// Emits accepted outcomes, for the provided list of buckets.
+    ///
+    /// Additionally, adds a marker tag `billing_outcome_accepted` to all buckets for which an
+    /// outcome has been emitted.
+    pub fn track_accepted_outcome(&self, scoping: Scoping, buckets: &mut [Bucket]) {
         let timestamp = Utc::now();
         for bucket in buckets {
             let summary = bucket.summary();
@@ -70,10 +72,15 @@ impl MetricOutcomes {
                     count,
                     is_segment,
                     was_transaction: _,
-                } if count > 0 => {
-                    let all_categories = [DataCategory::Span, DataCategory::Transaction];
-                    let num_categories = if is_segment { 2 } else { 1 };
-                    let categories = &all_categories[0..num_categories];
+                } => {
+                    if count == 0 {
+                        continue;
+                    }
+
+                    let categories = match is_segment {
+                        true => [DataCategory::Span, DataCategory::Transaction].as_slice(),
+                        false => [DataCategory::Span].as_slice(),
+                    };
 
                     bucket
                         .tags
@@ -91,7 +98,7 @@ impl MetricOutcomes {
                         });
                     }
                 }
-                _ => continue,
+                BucketSummary::None => continue,
             };
         }
     }
