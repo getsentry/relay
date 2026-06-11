@@ -203,7 +203,6 @@ impl ServiceState {
 
         let outcome_producer = services.start(OutcomeProducerService::create(
             config.clone(),
-            upstream_relay.clone(),
             processor.clone(),
             aggregator.clone(),
         )?);

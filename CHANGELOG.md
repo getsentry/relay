@@ -15,6 +15,7 @@
 
 **Internal**:
 
+- Handle outcomes as metrics. ([#6082](https://github.com/getsentry/relay/pull/6082))
 - Restore top-level _performance_issues_spans. ([#6045](https://github.com/getsentry/relay/pull/6045))
 
 ## 26.5.2

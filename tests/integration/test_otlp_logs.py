@@ -295,7 +295,7 @@ def test_otlp_logs_multiple_records(
         },
     ]
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=4)
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
     assert outcomes == [
         {
             "category": DataCategory.LOG_ITEM.value,
@@ -363,19 +363,13 @@ def test_otlp_logs_size_limits(mini_sentry, relay):
     assert mini_sentry.get_aggregated_outcomes() == [
         {
             "category": DataCategory.LOG_ITEM,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 3,
-            "project_id": project_id,
             "quantity": 1,
             "reason": "too_large:log",
         },
         {
             "category": DataCategory.LOG_BYTE,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 3,
-            "project_id": project_id,
             "quantity": 127,
             "reason": "too_large:log",
         },

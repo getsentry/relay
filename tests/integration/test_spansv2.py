@@ -481,16 +481,12 @@ def test_spansv2_ds_drop(mini_sentry, relay, span, rule_type):
 
     relay.send_envelope(project_id, envelope)
 
-    assert mini_sentry.captured_outcomes.get(timeout=5).get("outcomes") == [
+    assert mini_sentry.get_aggregated_outcomes() == [
         {
             "category": DataCategory.SPAN_INDEXED.value,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 1,
-            "project_id": 42,
             "quantity": 1,
             "reason": "Sampled:0",
-            "timestamp": time_within_delta(),
         },
     ]
 
@@ -572,10 +568,7 @@ def test_spansv2_rate_limits(mini_sentry, relay, rate_limit):
             [
                 {
                     "category": 12,
-                    "key_id": 123,
-                    "org_id": 1,
                     "outcome": 2,
-                    "project_id": 42,
                     "quantity": 1,
                     "reason": "rate_limit_exceeded",
                 }
@@ -585,10 +578,7 @@ def test_spansv2_rate_limits(mini_sentry, relay, rate_limit):
         ),
         {
             "category": DataCategory.SPAN_INDEXED.value,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 2,
-            "project_id": 42,
             "quantity": 1,
             "reason": "rate_limit_exceeded",
         },
@@ -755,7 +745,7 @@ def test_spansv2_ds_sampled(
         },
     ]
 
-    assert outcomes_consumer.get_aggregated_outcomes(n=2) == [
+    assert outcomes_consumer.get_aggregated_outcomes(n=1) == [
         {
             "category": DataCategory.SPAN_INDEXED.value,
             "key_id": 123,
@@ -793,7 +783,8 @@ def test_spansv2_ds_root_in_different_org(
     sampling_config["organizationId"] = 99
     add_sampling_config(sampling_config, sample_rate=1.0, rule_type="trace")
 
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    config = {**TEST_CONFIG, "http": {"global_metrics": True}}
+    relay = relay(relay_with_processing(options=config), options=config)
 
     ts = datetime.now(timezone.utc)
     envelope = envelope_with_spans(
@@ -975,12 +966,9 @@ def test_spanv2_inbound_filters(
 
     relay.send_envelope(project_id, envelope, headers=headers)
 
-    assert mini_sentry.get_outcomes(2) == [
+    assert mini_sentry.get_outcomes(n=2) == [
         {
             "category": DataCategory.SPAN.value,
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
             "outcome": 1,  # Filtered
             "reason": filter_name,
             "quantity": 1,
@@ -988,10 +976,7 @@ def test_spanv2_inbound_filters(
         },
         {
             "category": DataCategory.SPAN_INDEXED.value,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 1,
-            "project_id": 42,
             "quantity": 1,
             "reason": filter_name,
             "timestamp": time_within_delta(ts),
@@ -1040,24 +1025,18 @@ def test_spans_v2_multiple_containers_not_allowed(
 
     relay.send_envelope(project_id, envelope)
 
-    assert mini_sentry.get_outcomes(2) == [
+    assert mini_sentry.get_outcomes(n=2) == [
         {
             "category": DataCategory.SPAN.value,
             "timestamp": time_within_delta(),
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 3,  # Invalid
-            "project_id": 42,
             "quantity": 3,
             "reason": "duplicate_item",
         },
         {
             "category": DataCategory.SPAN_INDEXED.value,
             "timestamp": time_within_delta(),
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 3,  # Invalid
-            "project_id": 42,
             "quantity": 3,
             "reason": "duplicate_item",
         },
@@ -1116,24 +1095,18 @@ def test_spans_v2_dsc_validations(
 
     relay.send_envelope(project_id, envelope)
 
-    assert mini_sentry.get_outcomes(2) == [
+    assert mini_sentry.get_outcomes(n=2) == [
         {
             "category": DataCategory.SPAN.value,
             "timestamp": time_within_delta(),
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 3,  # Invalid
-            "project_id": 42,
             "quantity": 2,
             "reason": validation,
         },
         {
             "category": DataCategory.SPAN_INDEXED.value,
             "timestamp": time_within_delta(),
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 3,  # Invalid
-            "project_id": 42,
             "quantity": 2,
             "reason": validation,
         },
@@ -1619,55 +1592,37 @@ def test_invalid_spans(mini_sentry, relay):
     assert outcomes == [
         {
             "category": DataCategory.SPAN.value,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 3,
-            "project_id": 42,
             "quantity": 3,
             "reason": "invalid_span",
         },
         {
             "category": DataCategory.SPAN.value,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 3,
-            "project_id": 42,
             "reason": "no_data",
             "quantity": 4,
         },
         {
             "category": DataCategory.SPAN.value,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 3,
-            "project_id": 42,
             "reason": "timestamp",
             "quantity": 6,
         },
         {
             "category": DataCategory.SPAN_INDEXED.value,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 3,
-            "project_id": 42,
             "quantity": 3,
             "reason": "invalid_span",
         },
         {
             "category": DataCategory.SPAN_INDEXED.value,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 3,
-            "project_id": 42,
             "reason": "no_data",
             "quantity": 4,
         },
         {
             "category": DataCategory.SPAN_INDEXED.value,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 3,
-            "project_id": 42,
             "reason": "timestamp",
             "quantity": 6,
         },
