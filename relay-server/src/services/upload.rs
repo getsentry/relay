@@ -435,7 +435,10 @@ impl<L: UploadLength> Location<L> {
         }
 
         let query = serde_urlencoded::to_string(fields)?;
-        Ok(format!("/api/{project_id}/upload/{key}/?{query}"))
+        match query.as_str() {
+            "" => Ok(format!("/api/{project_id}/upload/{key}/")),
+            _ => Ok(format!("/api/{project_id}/upload/{key}/?{query}")),
+        }
     }
 
     #[cfg(feature = "processing")]
@@ -557,17 +560,11 @@ impl<L: UploadLength> SignedLocation<L> {
             location,
             signature,
         } = self;
-        let mut uri = location.try_to_uri()?;
-        uri.push(
-            if location.length.value().is_some() || !location.other.0.is_empty() {
-                '&'
-            } else {
-                '?'
-            },
-        ); // TODO: brittle.
+        let mut uri = dbg!(location.try_to_uri()?);
+        uri.push(if uri.ends_with('/') { '?' } else { '&' });
         uri.push_str("upload_signature=");
         uri.push_str(&signature.to_string());
-        Ok(uri)
+        Ok(dbg!(uri))
     }
 
     /// Converts the signed location into a location object.
