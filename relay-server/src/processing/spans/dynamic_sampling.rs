@@ -53,9 +53,9 @@ pub fn validate_configs(ctx: Context<'_>) {
 
 /// Validates and, if necessary, resynthesizes the DSC for a batch of V2 spans.
 ///
-/// A DSC must be present. This is not a technical requirement as it is simply leads to a sample
-/// rate of 100%. Instead, the intention of the enforcement is to ensure that SDKs implement the
-/// protocol correctly.
+/// A DSC must be present. This is not a technical requirement as it simply leads to a 100 % sample
+/// rate. Instead, the intention of the enforcement is to ensure that SDKs implement the protocol
+/// correctly.
 ///
 /// An exception exists for our OTeL integration, which currently never sets a dynamic sampling
 /// context. In the future we may want to extract a DSC from the OTeL payload to allow dynamic
