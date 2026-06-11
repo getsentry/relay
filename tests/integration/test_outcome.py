@@ -206,9 +206,7 @@ def test_outcomes_not_sent_when_disabled(relay, mini_sentry):
     Set batching to a very short interval and verify that we don't receive any outcome
     when we disable outcomes.
     """
-    config = {
-        "outcomes": {"emit_outcomes": False, "batch_size": 1, "batch_interval": 1}
-    }
+    config = {"outcomes": {"emit_outcomes": False}}
 
     _disable_quota(mini_sentry.add_full_project_config(42))
 
@@ -601,9 +599,6 @@ def test_filtered_event_outcome_client_reports(relay, mini_sentry):
             "outcomes": {
                 "emit_outcomes": "as_client_reports",
                 "source": "downstream-layer",
-                "aggregator": {
-                    "flush_interval": 1,
-                },
             }
         },
     )
@@ -928,8 +923,10 @@ def test_profile_outcomes(
             "source": expected_source,
         },
     ]
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=12)
+    outcomes.sort(key=lambda o: sorted(o.items()))
 
-    outcomes_consumer.expect_aggregated_outcomes(expected_outcomes)
+    assert outcomes == expected_outcomes, outcomes
 
     metrics = [
         m
@@ -1451,6 +1448,9 @@ def test_span_outcomes(
         2: "pop-relay",
     }[num_intermediate_relays]
 
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=10)
+    outcomes.sort(key=lambda o: sorted(o.items()))
+
     expected_outcomes = [
         {
             "category": DataCategory.TRANSACTION.value,
@@ -1501,7 +1501,7 @@ def test_span_outcomes(
         },
     ]
 
-    outcomes_consumer.expect_aggregated_outcomes(expected_outcomes)
+    assert outcomes == expected_outcomes
 
 
 def test_span_outcomes_invalid(

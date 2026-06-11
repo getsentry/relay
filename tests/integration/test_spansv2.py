@@ -211,56 +211,59 @@ def test_spansv2_basic(
         },
     ]
 
+    num_messages = 2
     if relay_emits_accepted_outcome:
-        outcomes_consumer.expect_aggregated_outcomes(
-            [
-                {
-                    "category": DataCategory.TRANSACTION.value,
-                    "key_id": 123,
-                    "org_id": 1,
-                    "outcome": 0,
-                    "project_id": 42,
-                    "quantity": 1,
-                },
-                {
-                    "category": DataCategory.SPAN.value,
-                    "key_id": 123,
-                    "org_id": 1,
-                    "outcome": 0,
-                    "project_id": 42,
-                    "quantity": 1,
-                },
-                {
-                    "category": DataCategory.SPAN_INDEXED.value,
-                    "key_id": 123,
-                    "org_id": 1,
-                    "outcome": 0,
-                    "project_id": 42,
-                    "quantity": 1,
-                },
-            ]
-        )
+        num_messages = 3
+
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=num_messages)
+
+    if relay_emits_accepted_outcome:
+        assert outcomes == [
+            {
+                "category": DataCategory.TRANSACTION.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 1,
+            },
+            {
+                "category": DataCategory.SPAN.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 1,
+            },
+            {
+                "category": DataCategory.SPAN_INDEXED.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 1,
+            },
+        ]
+
     else:
-        outcomes_consumer.expect_aggregated_outcomes(
-            [
-                {
-                    "category": DataCategory.TRANSACTION.value,
-                    "key_id": 123,
-                    "org_id": 1,
-                    "outcome": 0,
-                    "project_id": 42,
-                    "quantity": 1,
-                },
-                {
-                    "category": DataCategory.SPAN.value,
-                    "key_id": 123,
-                    "org_id": 1,
-                    "outcome": 0,
-                    "project_id": 42,
-                    "quantity": 1,
-                },
-            ]
-        )
+        assert outcomes == [
+            {
+                "category": DataCategory.TRANSACTION.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 1,
+            },
+            {
+                "category": DataCategory.SPAN.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 1,
+            },
+        ]
 
 
 def test_spansv2_trimming_basic(
@@ -800,34 +803,34 @@ def test_spansv2_ds_sampled(
         },
     ]
 
-    outcomes_consumer.expect_aggregated_outcomes(
-        [
-            {
-                "category": DataCategory.TRANSACTION.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 1,
-            },
-            {
-                "category": DataCategory.SPAN.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 2,
-            },
-            {
-                "category": DataCategory.SPAN_INDEXED.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 2,
-            },
-        ]
-    )
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=5)
+
+    assert outcomes == [
+        {
+            "category": DataCategory.TRANSACTION.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.SPAN.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 2,
+        },
+        {
+            "category": DataCategory.SPAN_INDEXED.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 2,
+        },
+    ]
 
 
 def test_spansv2_ds_root_in_different_org(

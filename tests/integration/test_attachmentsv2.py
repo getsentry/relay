@@ -419,50 +419,49 @@ def test_attachment_with_matching_span_store(
     objectstore = objectstore(usecase="trace_attachments", project_id=project_id)
     assert objectstore.get(metadata["attachment_id"]).payload.read() == body
 
-    outcomes_consumer.get_aggregated_outcomes(
-        [
-            {
-                "category": DataCategory.TRANSACTION.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 1,
-            },
-            {
-                "category": DataCategory.ATTACHMENT.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 23,
-            },
-            {
-                "category": DataCategory.SPAN.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 1,
-            },
-            {
-                "category": DataCategory.SPAN_INDEXED.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 1,
-            },
-            {
-                "category": DataCategory.ATTACHMENT_ITEM.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 1,
-            },
-        ]
-    )
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=5)
+    assert outcomes == [
+        {
+            "category": DataCategory.TRANSACTION.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.ATTACHMENT.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 23,
+        },
+        {
+            "category": DataCategory.SPAN.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.SPAN_INDEXED.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 1,
+        },
+    ]
 
 
 def test_two_attachments_mapping_to_same_span(mini_sentry, relay):

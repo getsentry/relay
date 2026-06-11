@@ -1298,53 +1298,54 @@ def test_ai_spans_example_transaction(
         },
     ]
 
+    num_messages = 3
     if relay_emits_accepted_outcome:
-        outcomes_consumer.expect_aggregated_outcomes(
-            [
-                {
-                    "category": DataCategory.TRANSACTION.value,
-                    "key_id": 123,
-                    "org_id": 1,
-                    "outcome": 0,
-                    "project_id": 42,
-                    "quantity": 1,
-                },
-                {
-                    "category": DataCategory.SPAN.value,
-                    "key_id": 123,
-                    "org_id": 1,
-                    "outcome": 0,
-                    "project_id": 42,
-                    "quantity": 10,
-                },
-                {
-                    "category": DataCategory.SPAN_INDEXED.value,
-                    "key_id": 123,
-                    "org_id": 1,
-                    "outcome": 0,
-                    "project_id": 42,
-                    "quantity": 10,
-                },
-            ]
-        )
+        num_messages = 13
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=num_messages)
+
+    if relay_emits_accepted_outcome:
+        assert outcomes == [
+            {
+                "category": DataCategory.TRANSACTION.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 1,
+            },
+            {
+                "category": DataCategory.SPAN.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 10,
+            },
+            {
+                "category": DataCategory.SPAN_INDEXED.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 10,
+            },
+        ]
     else:
-        outcomes_consumer.expect_aggregated_outcomes(
-            [
-                {
-                    "category": DataCategory.TRANSACTION.value,
-                    "key_id": 123,
-                    "org_id": 1,
-                    "outcome": 0,
-                    "project_id": 42,
-                    "quantity": 1,
-                },
-                {
-                    "category": DataCategory.SPAN.value,
-                    "key_id": 123,
-                    "org_id": 1,
-                    "outcome": 0,
-                    "project_id": 42,
-                    "quantity": 10,
-                },
-            ]
-        )
+        assert outcomes == [
+            {
+                "category": DataCategory.TRANSACTION.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 1,
+            },
+            {
+                "category": DataCategory.SPAN.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 10,
+            },
+        ]
