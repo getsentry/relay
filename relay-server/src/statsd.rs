@@ -1014,6 +1014,9 @@ pub enum RelayCounters {
     /// The number of times that relay receives a compressed minidump.
     CompressedMinidump,
     /// The number of times a trace metric has a nil trace ID.
+    ///
+    /// This metric is tagged with:
+    /// - `sdk`: low-cardinality client name
     TraceMetricNilTraceId,
 }
 

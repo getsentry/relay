@@ -1,6 +1,7 @@
 use relay_event_schema::protocol::{MetricType, TraceMetric};
 use relay_protocol::Annotated;
 
+use crate::envelope::ClientName;
 use crate::managed::Managed;
 use crate::processing::Context;
 use crate::processing::trace_metrics::{
@@ -8,6 +9,7 @@ use crate::processing::trace_metrics::{
 };
 use crate::services::outcome::DiscardReason;
 use crate::statsd::{RelayCounters, RelayDistributions};
+use crate::utils::client_name_tag;
 
 /// Validates that there are no duplicated trace metric containers.
 ///
@@ -58,17 +60,18 @@ pub fn size(metrics: &mut Managed<ExpandedTraceMetrics>, ctx: Context<'_>) {
 
 /// Validates the semantic validity of a trace metric.
 pub fn validate(metrics: &mut Managed<ExpandedTraceMetrics>) {
+    let client_name = client_name_tag(metrics.headers.meta().client_name());
     metrics.retain(
         |metrics| &mut metrics.metrics,
         |metric, _| {
-            validate_trace_metric(metric).inspect_err(|err| {
+            validate_trace_metric(metric, client_name).inspect_err(|err| {
                 relay_log::debug!("failed to validate trace metric: {err}");
             })
         },
     );
 }
 
-fn validate_trace_metric(metric: &Annotated<TraceMetric>) -> Result<()> {
+fn validate_trace_metric(metric: &Annotated<TraceMetric>, client_name: &str) -> Result<()> {
     match metric.value().and_then(|m| m.ty.value()) {
         Some(MetricType::Gauge | MetricType::Distribution | MetricType::Counter) => {}
         Some(MetricType::Unknown(_)) | None => {
@@ -82,7 +85,10 @@ fn validate_trace_metric(metric: &Annotated<TraceMetric>) -> Result<()> {
             .find(|rem| rem.rule_id == "nil_trace_id")
             .is_some()
     {
-        relay_statsd::metric!(counter(RelayCounters::TraceMetricNilTraceId) += 1);
+        relay_statsd::metric!(
+            counter(RelayCounters::TraceMetricNilTraceId) += 1,
+            sdk = client_name
+        );
     }
 
     Ok(())
