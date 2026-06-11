@@ -75,6 +75,7 @@ fn validate_trace_metric(metric: &Annotated<TraceMetric>) -> Result<()> {
             return Err(Error::Invalid(DiscardReason::InvalidTraceMetric));
         }
     }
+
     Ok(())
 }
 

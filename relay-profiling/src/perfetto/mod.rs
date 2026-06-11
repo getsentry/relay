@@ -5,9 +5,11 @@
 
 use std::collections::BTreeMap;
 
+use bytes::Buf;
 use hashbrown::{HashMap, HashSet};
 use itertools::Itertools;
 use prost::Message;
+use prost::encoding::{self, WireType};
 
 use relay_event_schema::protocol::{Addr, DebugId};
 use relay_protocol::FiniteF64;
@@ -26,6 +28,21 @@ use proto::trace_packet::Data;
 /// produces at most ~6 600 samples per thread; 100 000 provides generous
 /// headroom while bounding memory usage against adversarial input.
 const MAX_SAMPLES: usize = 100_000;
+
+/// Maximum number of top-level Perfetto trace packets we decode before
+/// bailing out.
+///
+/// `MAX_SAMPLES` only counts useful `PerfSample` packets. Valid traces also
+/// need clock snapshots, interned data updates, incremental state resets, and
+/// other metadata packets. The extra 10 000 packets are allocation headroom for
+/// that metadata while keeping the top-level packet vector bounded.
+const MAX_TRACE_PACKETS: usize = MAX_SAMPLES + 10_000;
+
+/// Maximum encoded size of a single top-level Perfetto trace packet.
+///
+/// This bounds allocations from repeated fields inside an individual packet
+/// before handing the packet body to prost for decoding.
+const MAX_TRACE_PACKET_BYTES: usize = 4 * 1024 * 1024;
 
 /// See <https://perfetto.dev/docs/reference/trace-packet-proto#SequenceFlags>.
 const SEQ_INCREMENTAL_STATE_CLEARED: u32 = 1;
@@ -70,6 +87,52 @@ fn extract_clock_offset(cs: &proto::ClockSnapshot) -> Option<i128> {
         (Some(rt), Some(bt)) => Some(rt as i128 - bt as i128),
         _ => None,
     }
+}
+
+fn decode_trace_packets(
+    mut perfetto_bytes: &[u8],
+) -> Result<Vec<proto::TracePacket>, ProfileError> {
+    let mut packets = Vec::new();
+
+    while perfetto_bytes.has_remaining() {
+        let (tag, wire_type) = encoding::decode_key(&mut perfetto_bytes)
+            .map_err(|_| ProfileError::InvalidSampledProfile)?;
+
+        match (tag, wire_type) {
+            (1, WireType::LengthDelimited) => {
+                if packets.len() >= MAX_TRACE_PACKETS {
+                    return Err(ProfileError::ExceedSizeLimit);
+                }
+
+                let len = encoding::decode_varint(&mut perfetto_bytes)
+                    .map_err(|_| ProfileError::InvalidSampledProfile)?;
+                let len = usize::try_from(len).map_err(|_| ProfileError::ExceedSizeLimit)?;
+
+                if len > MAX_TRACE_PACKET_BYTES {
+                    return Err(ProfileError::ExceedSizeLimit);
+                }
+
+                if len > perfetto_bytes.remaining() {
+                    return Err(ProfileError::InvalidSampledProfile);
+                }
+
+                let packet = proto::TracePacket::decode(&perfetto_bytes[..len])
+                    .map_err(|_| ProfileError::InvalidSampledProfile)?;
+                perfetto_bytes.advance(len);
+                packets.push(packet);
+            }
+            (1, _) => return Err(ProfileError::InvalidSampledProfile),
+            _ => encoding::skip_field(
+                wire_type,
+                tag,
+                &mut perfetto_bytes,
+                encoding::DecodeContext::default(),
+            )
+            .map_err(|_| ProfileError::InvalidSampledProfile)?,
+        }
+    }
+
+    Ok(packets)
 }
 
 /// Per-sequence interned data tables, mirroring Perfetto's incremental state.
@@ -153,8 +216,7 @@ struct ResolveContext {
 
 /// Converts a Perfetto binary trace into Sample v2 [`ProfileData`] and debug images.
 pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), ProfileError> {
-    let trace =
-        proto::Trace::decode(perfetto_bytes).map_err(|_| ProfileError::InvalidSampledProfile)?;
+    let trace_packets = decode_trace_packets(perfetto_bytes)?;
 
     let mut tables_by_seq: BTreeMap<u32, InternTables> = BTreeMap::new();
     let mut thread_meta: BTreeMap<u32, ThreadMetadata> = BTreeMap::new();
@@ -170,7 +232,7 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
     let mut sample_count: usize = 0;
     let empty_tables = InternTables::default();
 
-    for packet in trace.packet {
+    for packet in trace_packets {
         let seq_id = trusted_packet_sequence_id(&packet);
 
         if has_incremental_state_cleared(&packet) && tables_by_seq.contains_key(&seq_id) {
@@ -632,6 +694,11 @@ mod tests {
         trace.encode_to_vec()
     }
 
+    fn write_trace_packet_field_header(bytes: &mut Vec<u8>, len: usize) {
+        encoding::encode_key(1, WireType::LengthDelimited, bytes);
+        encoding::encode_varint(len as u64, bytes);
+    }
+
     #[test]
     fn test_convert_minimal_trace() {
         let bytes = build_minimal_trace();
@@ -690,6 +757,32 @@ mod tests {
     fn test_convert_invalid_protobuf() {
         let result = convert(b"not a valid protobuf");
         assert!(matches!(result, Err(ProfileError::InvalidSampledProfile)));
+    }
+
+    #[test]
+    fn test_decode_trace_packets_exceeds_max_packets() {
+        let mut bytes = Vec::with_capacity((MAX_TRACE_PACKETS + 1) * 2);
+        for _ in 0..=MAX_TRACE_PACKETS {
+            write_trace_packet_field_header(&mut bytes, 0);
+        }
+
+        let result = decode_trace_packets(&bytes);
+        assert!(
+            matches!(result, Err(ProfileError::ExceedSizeLimit)),
+            "expected ExceedSizeLimit, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_decode_trace_packets_exceeds_max_packet_bytes() {
+        let mut bytes = Vec::new();
+        write_trace_packet_field_header(&mut bytes, MAX_TRACE_PACKET_BYTES + 1);
+
+        let result = decode_trace_packets(&bytes);
+        assert!(
+            matches!(result, Err(ProfileError::ExceedSizeLimit)),
+            "expected ExceedSizeLimit, got {result:?}"
+        );
     }
 
     #[test]
