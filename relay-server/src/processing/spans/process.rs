@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::convert::Infallible;
 use std::time::Duration;
 
 use relay_event_normalization::eap::ClientUserAgentInfo;
