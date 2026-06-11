@@ -19,6 +19,7 @@ use crate::error::ProfileError;
 use crate::sample::v2::{ProfileData, Sample};
 use crate::sample::{Frame, ThreadMetadata};
 
+#[allow(dead_code)]
 mod proto;
 
 use proto::trace_packet::Data;
