@@ -98,7 +98,7 @@ impl TryFrom<&[u8]> for TraceId {
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         Uuid::from_slice(value)
             .map_err(|_| InvalidTraceId::Uuid)
-            .map(TraceId)
+            .and_then(Self::try_from)
     }
 }
 
