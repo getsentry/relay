@@ -415,7 +415,7 @@ fn collect_debug_image(
     // Insert into dedup set only after validating we have a valid debug_id,
     // so that a mapping first seen without a build_id doesn't block a later
     // valid encounter from a different packet sequence.
-    if image_addr.is_some_and(|image_addr| !seen_images.insert((code_file.clone(), image_addr))) {
+    if !seen_images.insert((code_file.clone(), image_addr.unwrap_or(0))) {
         return None;
     }
 
