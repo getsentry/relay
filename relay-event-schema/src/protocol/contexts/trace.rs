@@ -66,13 +66,13 @@ impl TraceId {
 
 relay_common::impl_str_serde!(TraceId, "a trace identifier");
 
-/// Error for an invalid UUID.
+/// Error for an invalid trace ID.
 #[derive(Debug)]
 pub enum InvalidTraceId {
-    /// The UUID is all zeros.
+    /// The trace ID is all zeros.
     Nil,
-    /// Not a valid UUID.
-    Uuid,
+    /// The trace ID is syntactically invalid.
+    Invalid,
 }
 
 impl FromStr for TraceId {
