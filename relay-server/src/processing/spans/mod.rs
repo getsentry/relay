@@ -19,7 +19,6 @@ use crate::metrics_extraction::ExtractedMetrics;
 use crate::processing::trace_attachments::forward::attachment_to_item;
 use crate::processing::trace_attachments::process::ScrubAttachmentError;
 use crate::processing::trace_attachments::types::ExpandedAttachment;
-use crate::processing::utils::dsc::{self, DscError};
 use crate::processing::{self, Context, Forward, Output, QuotaRateLimiter, RateLimited};
 use crate::services::outcome::{DiscardReason, Outcome};
 
@@ -35,14 +34,16 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("dsc validation or resynthesizing failed")]
-    DscError(DscError),
     /// Multiple item containers and mixed span items are not allowed to be in the same envelope.
     #[error("duplicate or mixed span items in the same envelope")]
     DuplicateItem,
     /// Standalone spans filtered because of a missing feature flag.
     #[error("spans feature flag missing")]
     FilterFeatureFlag,
+    #[error("a dynamic sampling context is required")]
+    MissingDynamicSamplingContext,
+    #[error("the dynamic sampling context does not match the payload")]
+    DynamicSamplingContextMismatch,
     /// The spans are rate limited.
     #[error("rate limited")]
     RateLimited(RateLimits),
@@ -62,16 +63,21 @@ impl OutcomeError for Error {
 
     fn consume(self) -> (Option<Outcome>, Self::Error) {
         let outcome = match &self {
-            Self::DscError(dsc_error) => Some(dsc_error.to_outcome()),
             Self::DuplicateItem => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::FilterFeatureFlag => None,
+            Self::MissingDynamicSamplingContext => Some(Outcome::Invalid(
+                DiscardReason::MissingDynamicSamplingContext,
+            )),
+            Self::DynamicSamplingContextMismatch => Some(Outcome::Invalid(
+                DiscardReason::InvalidDynamicSamplingContext,
+            )),
             Self::Filtered(f) => Some(Outcome::Filtered(f.clone())),
-            Self::Invalid(reason) => Some(Outcome::Invalid(*reason)),
-            Self::ProcessingFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
             Self::RateLimited(limits) => {
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
                 Some(Outcome::RateLimited(reason_code))
             }
+            Self::ProcessingFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
+            Self::Invalid(reason) => Some(Outcome::Invalid(*reason)),
         };
         (outcome, self)
     }
@@ -180,8 +186,7 @@ impl processing::Processor for SpansProcessor {
 
         let mut spans = process::expand(spans)?;
 
-        dsc::validate_and_set_dsc_for_v2_spans(&mut spans, &ctx)
-            .map_err(|e| e.map(Error::DscError))?;
+        dynamic_sampling::validate_and_set_dsc(&mut spans, &ctx)?;
 
         let mut spans = match dynamic_sampling::run(spans, ctx) {
             Ok(spans) => spans,
@@ -380,10 +385,10 @@ struct Settings {
 #[derive(Debug)]
 pub struct ExpandedSpans<C = TotalAndIndexed> {
     /// Original envelope headers.
-    pub headers: EnvelopeHeaders,
+    headers: EnvelopeHeaders,
 
     /// Expanded and parsed spans, with optional associated attachments.
-    pub spans: Vec<ExpandedSpan>,
+    spans: Vec<ExpandedSpan>,
 
     /// Server side applied (dynamic) sample rate.
     server_sample_rate: Option<f64>,
@@ -681,8 +686,8 @@ impl Counted for IndexedSpanOnly {
 ///
 /// Allows for dropping the attachment together with the Span.
 #[derive(Debug)]
-pub struct ExpandedSpan {
-    pub span: WithHeader<SpanV2>,
+struct ExpandedSpan {
+    span: WithHeader<SpanV2>,
     attachments: Vec<ExpandedAttachment>,
 }
 

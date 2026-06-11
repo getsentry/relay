@@ -1,46 +1,11 @@
 use relay_base_schema::events::EventType;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_event_schema::protocol::{Event, TraceContext};
-use relay_protocol::{Annotated, get_value};
+use relay_protocol::Annotated;
 use relay_sampling::{DynamicSamplingContext, dsc::TraceUserContext};
 
-use crate::envelope::{ClientName, EnvelopeHeaders};
-use crate::managed::{Managed, OutcomeError, Rejected};
+use crate::envelope::EnvelopeHeaders;
 use crate::processing::Context;
-use crate::processing::spans::ExpandedSpans;
-use crate::services::outcome::{DiscardReason, Outcome};
-
-#[derive(Debug, thiserror::Error, Copy, Clone)]
-pub enum DscError {
-    #[error("the DSC is required but missing on the envelope")]
-    MissingDynamicSamplingContext,
-    #[error(
-        "the DSC or attributes required for inferring it are missing or inconsistent across spans"
-    )]
-    InvalidDynamicSamplingContext,
-}
-
-impl DscError {
-    pub fn to_outcome(self) -> Outcome {
-        match &self {
-            Self::MissingDynamicSamplingContext => {
-                Outcome::Invalid(DiscardReason::MissingDynamicSamplingContext)
-            }
-            Self::InvalidDynamicSamplingContext => {
-                Outcome::Invalid(DiscardReason::InvalidDynamicSamplingContext)
-            }
-        }
-    }
-}
-
-impl OutcomeError for DscError {
-    type Error = Self;
-
-    fn consume(self) -> (Option<Outcome>, Self::Error) {
-        let outcome = self.to_outcome();
-        (Some(outcome), self)
-    }
-}
 
 /// Ensures there is a valid dynamic sampling context and corresponding project state.
 ///
@@ -65,7 +30,7 @@ impl OutcomeError for DscError {
 /// The function will use the sampling project information of the trace root project. If
 /// the sampling project information is missing - due to the project being disabled or belonging to
 /// a separate org - the event’s own project information will be used instead.
-pub fn validate_and_set_dsc_for_transaction(
+pub fn validate_and_set_dsc(
     headers: &mut EnvelopeHeaders,
     event: &Annotated<Event>,
     ctx: &Context,
@@ -138,66 +103,5 @@ pub fn dsc_from_event(
         },
         sampled: None,
         other: Default::default(),
-    })
-}
-
-/// Validates and, if necessary, re-synthesizes the DSC for a batch of V2 spans.
-///
-/// Like [`validate_and_set_dsc_for_transaction`], an unresolved sampling project causes the
-/// DSC to be rebuilt and the trace attributed to the spans' own project. However, this function
-/// is stricter as it doesn't allow a missing DSC (except for OTel spans, recognized by the
-/// client name being `Relay`) nor missing attributes required for DSC resynthesis (when resynthesis
-/// is needed).
-pub fn validate_and_set_dsc_for_v2_spans(
-    spans: &mut Managed<ExpandedSpans>,
-    ctx: &Context<'_>,
-) -> Result<(), Rejected<DscError>> {
-    spans.try_modify(|spans, _| {
-        // Validate that DSC exists. If the client is `Relay`, the spans are assumed to be from an
-        // OTel SDK in which case a missing DSC is allowed.
-        let is_relay = spans.headers.meta().client_name() == ClientName::Relay;
-        let dsc = match spans.headers.dsc_mut() {
-            None if is_relay => return Ok(()),
-            None => return Err(DscError::MissingDynamicSamplingContext),
-            Some(dsc) => dsc,
-        };
-
-        // Validate that all spans share the same trace id
-        for span in &spans.spans {
-            let span = &span.span;
-            if get_value!(span.trace_id) != Some(&dsc.trace_id) {
-                return Err(DscError::InvalidDynamicSamplingContext);
-            }
-        }
-
-        match ctx.sampling_project_info {
-            // Resynthesize the DSC if the trace root (sampling) project could not be resolved. This
-            // happens when the sampling project is disabled or belongs to a different org than the
-            // spans.
-            None => {
-                let public_key = ctx
-                    .project_info
-                    .get_public_key_config()
-                    .ok_or(DscError::InvalidDynamicSamplingContext)?
-                    .public_key;
-                *dsc = DynamicSamplingContext {
-                    trace_id: dsc.trace_id,
-                    public_key,
-                    project_id: ctx.project_info.project_id,
-                    release: None,
-                    environment: None,
-                    transaction: None,
-                    sample_rate: dsc.sample_rate,
-                    sampled: None,
-                    user: TraceUserContext::default(),
-                    replay_id: None,
-                    other: Default::default(),
-                };
-            }
-            Some(sampling_project_info) => {
-                dsc.project_id = sampling_project_info.project_id;
-            }
-        };
-        Ok(())
     })
 }

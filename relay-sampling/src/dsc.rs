@@ -28,9 +28,11 @@ pub struct DynamicSamplingContext {
     pub trace_id: TraceId,
     /// The project key.
     pub public_key: ProjectKey,
-    /// The sampling project id. Not part of the DSC protocol, but accessed and used together with
-    /// the rest of the DSC. Placed here for ergonomy and to avoid having to mutate the request
-    /// context when the sampling org is different from the sending org.
+    /// The sampling project id.
+    ///
+    /// Not part of the DSC protocol, but accessed and used together with the rest of the DSC.
+    /// Placed here for ergonomy and to avoid having to mutate the request context when the sampling
+    /// org is different from the sending org.
     #[serde(skip)]
     pub project_id: Option<ProjectId>,
     /// The release.
