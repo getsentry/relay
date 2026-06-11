@@ -79,7 +79,7 @@ impl FromStr for TraceId {
     type Err = InvalidTraceId;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let uuid = Uuid::from_str(s).map_err(|_| InvalidTraceId::Uuid)?;
+        let uuid = Uuid::from_str(s).map_err(|_| InvalidTraceId::Invalid)?;
         Self::try_from(uuid)
     }
 }
@@ -97,7 +97,7 @@ impl TryFrom<&[u8]> for TraceId {
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         Uuid::from_slice(value)
-            .map_err(|_| InvalidTraceId::Uuid)
+            .map_err(|_| InvalidTraceId::Invalid)
             .and_then(Self::try_from)
     }
 }
@@ -158,7 +158,7 @@ impl FromValue for TraceId {
                     meta.set_original_value(Some(value));
                     Annotated(Some(TraceId::random()), meta)
                 }
-                Err(InvalidTraceId::Uuid) => {
+                Err(InvalidTraceId::Invalid) => {
                     meta.add_error(Error::invalid("not a valid trace id"));
                     meta.set_original_value(Some(value));
                     Annotated(None, meta)
