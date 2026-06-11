@@ -7,7 +7,8 @@ use crate::processing::trace_metrics::{
     Error, ExpandedTraceMetrics, Result, SerializedTraceMetrics, get_calculated_byte_size,
 };
 use crate::services::outcome::DiscardReason;
-use crate::statsd::RelayDistributions;
+use crate::statsd::{RelayCounters, RelayDistributions};
+use crate::utils::client_name_tag;
 
 /// Validates that there are no duplicated trace metric containers.
 ///
@@ -58,22 +59,35 @@ pub fn size(metrics: &mut Managed<ExpandedTraceMetrics>, ctx: Context<'_>) {
 
 /// Validates the semantic validity of a trace metric.
 pub fn validate(metrics: &mut Managed<ExpandedTraceMetrics>) {
+    let client_name = client_name_tag(metrics.headers.meta().client_name());
     metrics.retain(
         |metrics| &mut metrics.metrics,
         |metric, _| {
-            validate_trace_metric(metric).inspect_err(|err| {
+            validate_trace_metric(metric, client_name).inspect_err(|err| {
                 relay_log::debug!("failed to validate trace metric: {err}");
             })
         },
     );
 }
 
-fn validate_trace_metric(metric: &Annotated<TraceMetric>) -> Result<()> {
+fn validate_trace_metric(metric: &Annotated<TraceMetric>, client_name: &str) -> Result<()> {
     match metric.value().and_then(|m| m.ty.value()) {
         Some(MetricType::Gauge | MetricType::Distribution | MetricType::Counter) => {}
         Some(MetricType::Unknown(_)) | None => {
             return Err(Error::Invalid(DiscardReason::InvalidTraceMetric));
         }
+    }
+
+    if let Some(trace_id_meta) = metric.value().map(|m| m.trace_id.meta())
+        && trace_id_meta
+            .iter_remarks()
+            .find(|rem| rem.rule_id == "nil_trace_id")
+            .is_some()
+    {
+        relay_statsd::metric!(
+            counter(RelayCounters::TraceMetricNilTraceId) += 1,
+            sdk = client_name
+        );
     }
 
     Ok(())

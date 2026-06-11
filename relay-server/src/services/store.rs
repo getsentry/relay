@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::task;
 
 use bytes::Bytes;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, SecondsFormat, Utc};
 use prost::Message as _;
 use sentry_protos::snuba::v1::{TraceItem, TraceItemType};
 use serde::Serialize;
@@ -37,7 +37,7 @@ use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
-use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::services::outcome::{self, DiscardReason, Outcome, OutcomeId, TrackOutcome};
 use crate::services::upload::{Final, SignedLocation};
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
 use crate::utils::{self, FormDataIter};
@@ -83,11 +83,7 @@ impl Producer {
     pub fn create(config: &Config) -> anyhow::Result<Self> {
         let mut client_builder = KafkaClient::builder();
 
-        for topic in KafkaTopic::iter().filter(|t| {
-            // Outcomes should not be sent from the store forwarder.
-            // See `KafkaOutcomesProducer`.
-            **t != KafkaTopic::Outcomes && **t != KafkaTopic::OutcomesBilling
-        }) {
+        for topic in KafkaTopic::iter() {
             let kafka_configs = config.kafka_configs(*topic)?;
             client_builder = client_builder
                 .add_kafka_topic_config(*topic, &kafka_configs, config.kafka_validate_topics())
@@ -657,14 +653,8 @@ impl StoreService {
                 .by_size(batch_size)
                 .flatten()
             {
-                let message = self.create_metric_message(
-                    scoping.organization_id,
-                    scoping.project_id,
-                    &mut encoder,
-                    namespace,
-                    &view,
-                    retention,
-                );
+                let message =
+                    self.create_metric_message(&scoping, &mut encoder, namespace, &view, retention);
 
                 let result =
                     message.and_then(|message| self.send_metric_message(namespace, message));
@@ -949,8 +939,7 @@ impl StoreService {
 
     fn create_metric_message<'a>(
         &self,
-        organization_id: OrganizationId,
-        project_id: ProjectId,
+        scoping: &Scoping,
         encoder: &'a mut BucketEncoder,
         namespace: MetricNamespace,
         view: &BucketView<'a>,
@@ -972,8 +961,9 @@ impl StoreService {
         };
 
         Ok(MetricKafkaMessage {
-            org_id: organization_id,
-            project_id,
+            org_id: scoping.organization_id,
+            project_id: scoping.project_id,
+            key_id: scoping.key_id,
             name: view.name(),
             value,
             timestamp: view.timestamp(),
@@ -1221,10 +1211,13 @@ impl StoreService {
     ) -> Result<(), StoreError> {
         let topic = match namespace {
             MetricNamespace::Sessions => KafkaTopic::MetricsSessions,
+            MetricNamespace::Outcomes => {
+                return self.send_metric_based_outcome(message);
+            }
             MetricNamespace::Unsupported => {
-                relay_log::with_scope(
-                    |scope| scope.set_extra("metric_message.name", message.name.as_ref().into()),
-                    || relay_log::error!("store service dropping unknown metric usecase"),
+                relay_log::error!(
+                    metric_message.name = message.name.as_ref(),
+                    "store service dropping unknown metric usecase"
                 );
                 return Ok(());
             }
@@ -1234,6 +1227,52 @@ impl StoreService {
         let headers = BTreeMap::from([("namespace".to_owned(), namespace.to_string())]);
         self.produce(topic, KafkaMessage::Metric { headers, message })?;
         Ok(())
+    }
+
+    fn send_metric_based_outcome(&self, message: MetricKafkaMessage) -> Result<(), StoreError> {
+        let Some(outcome) = outcome::metric::to_outcome_id(message.name) else {
+            relay_log::error!(
+                mri = message.name.as_ref(),
+                "invalid outcome metric, cannot infer outcome id from metric name"
+            );
+            return Ok(());
+        };
+        let quantity = match message.value {
+            MetricValue::Counter(c) => c.to_f64() as u32,
+            v => {
+                relay_log::error!(
+                    mri = message.name.as_ref(),
+                    "invalid outcome metric, expected a counter got '{}'",
+                    v.variant()
+                );
+                return Ok(());
+            }
+        };
+
+        let outcome = OutcomeMessage {
+            timestamp: message
+                .timestamp
+                .as_datetime()
+                .unwrap_or_else(Utc::now)
+                .to_rfc3339_opts(SecondsFormat::Micros, true),
+            org_id: Some(message.org_id).filter(|id| id.value() != 0),
+            project_id: message.project_id,
+            key_id: message.key_id,
+            outcome,
+            reason: message.tags.get("reason").map(|s| s.as_str()),
+            event_id: message.tags.get("event_id").map(|s| s.as_str()),
+            remote_addr: message.tags.get("remote_addr").map(|s| s.as_str()),
+            source: message.tags.get("source").map(|s| s.as_str()),
+            category: message.tags.get("category").and_then(|s| s.parse().ok()),
+            quantity: Some(quantity),
+        };
+
+        let topic = match outcome.outcome.is_billing() {
+            true => KafkaTopic::OutcomesBilling,
+            false => KafkaTopic::Outcomes,
+        };
+
+        self.produce(topic, KafkaMessage::Outcome(outcome))
     }
 
     fn produce_profile(
@@ -1500,6 +1539,8 @@ struct UserReportKafkaMessage {
 struct MetricKafkaMessage<'a> {
     org_id: OrganizationId,
     project_id: ProjectId,
+    #[serde(skip)]
+    key_id: Option<u64>,
     name: &'a MetricName,
     #[serde(flatten)]
     value: MetricValue<'a>,
@@ -1540,6 +1581,41 @@ impl MetricValue<'_> {
             _ => None,
         }
     }
+}
+
+/// Raw representation of an outcome for Kafka.
+#[derive(Debug, Serialize, Clone)]
+pub struct OutcomeMessage<'a> {
+    /// The timespan of the event outcome.
+    timestamp: String,
+    /// Organization id.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    org_id: Option<OrganizationId>,
+    /// Project id.
+    project_id: ProjectId,
+    /// The DSN project key id.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    key_id: Option<u64>,
+    /// The outcome.
+    outcome: OutcomeId,
+    /// Reason for the outcome.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reason: Option<&'a str>,
+    /// The event id.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    event_id: Option<&'a str>,
+    /// The client ip address.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    remote_addr: Option<&'a str>,
+    /// The source of the outcome (which Relay sent it)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    source: Option<&'a str>,
+    /// The event's data category.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    category: Option<u8>,
+    /// The number of events or total attachment size in bytes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    quantity: Option<u32>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -1681,6 +1757,8 @@ enum KafkaMessage<'a> {
     ProfileChunk(ProfileChunkKafkaMessage),
 
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage<'a>),
+
+    Outcome(OutcomeMessage<'a>),
 }
 
 impl KafkaMessage<'_> {
@@ -1708,6 +1786,7 @@ impl Message for KafkaMessage<'_> {
                 MetricNamespace::Spans => "metric_spans",
                 MetricNamespace::Transactions => "metric_transactions",
                 MetricNamespace::Custom => "metric_custom",
+                MetricNamespace::Outcomes => "metric_outcomes",
                 MetricNamespace::Unsupported => "metric_unsupported",
             },
             KafkaMessage::CheckIn(_) => "check_in",
@@ -1721,6 +1800,8 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::ProfileChunk(_) => "profile_chunk",
 
             KafkaMessage::ReplayRecordingNotChunked(_) => "replay_recording_not_chunked",
+
+            KafkaMessage::Outcome(_) => "outcome",
         }
     }
 
@@ -1749,7 +1830,8 @@ impl Message for KafkaMessage<'_> {
             | Self::Item { .. }
             | Self::Profile(_)
             | Self::ProfileChunk(_)
-            | Self::ReplayRecordingNotChunked(_) => None,
+            | Self::ReplayRecordingNotChunked(_)
+            | Self::Outcome(_) => None,
         }
         .filter(|(uuid, _)| !uuid.is_nil())
         .map(|(uuid, org_id)| {
@@ -1776,7 +1858,8 @@ impl Message for KafkaMessage<'_> {
             | KafkaMessage::CheckIn(_)
             | KafkaMessage::Attachment(_)
             | KafkaMessage::AttachmentChunk(_)
-            | KafkaMessage::ReplayRecordingNotChunked(_) => None,
+            | KafkaMessage::ReplayRecordingNotChunked(_)
+            | KafkaMessage::Outcome(_) => None,
         }
     }
 
@@ -1791,6 +1874,7 @@ impl Message for KafkaMessage<'_> {
                     Err(_) => Err(ClientError::ProtobufEncodingFailed),
                 }
             }
+            KafkaMessage::Outcome(outcome) => serialize_as_json(outcome),
             KafkaMessage::Event(_)
             | KafkaMessage::UserReport(_)
             | KafkaMessage::CheckIn(_)
@@ -1837,43 +1921,4 @@ fn safe_timestamp(timestamp: DateTime<Utc>) -> u64 {
 
     // We assume this call can't return < 0.
     Utc::now().timestamp() as u64
-}
-
-#[cfg(test)]
-mod tests {
-
-    use super::*;
-
-    #[test]
-    fn disallow_outcomes() {
-        struct TestMessage;
-        impl relay_kafka::Message for TestMessage {
-            fn key(&self) -> Option<relay_kafka::Key> {
-                None
-            }
-
-            fn variant(&self) -> &'static str {
-                "test"
-            }
-
-            fn headers(&self) -> Option<&BTreeMap<String, String>> {
-                None
-            }
-
-            fn serialize(&self) -> Result<SerializationOutput<'_>, ClientError> {
-                Ok(SerializationOutput::Json(Cow::Borrowed(
-                    br#"{"timestamp": "foo", "outcome": 1}"#,
-                )))
-            }
-        }
-
-        let config = Config::default();
-        let producer = Producer::create(&config).unwrap();
-
-        for topic in [KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
-            let res = producer.client.send_message(topic, &TestMessage);
-
-            assert!(matches!(res, Err(ClientError::InvalidTopicName)));
-        }
-    }
 }

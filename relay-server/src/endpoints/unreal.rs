@@ -65,14 +65,18 @@ impl UnrealParams {
                 .ok_or(BadStoreRequest::ProjectUnavailable)?;
 
             let project_config = match project.state() {
-                ProjectState::Enabled(info) => info.clone(),
-                // TODO(INGEST-925): Support proxy mode
-                ProjectState::Dummy | ProjectState::Disabled | ProjectState::Pending => {
+                ProjectState::Enabled(info) => Some(info.clone()),
+                // Note: In Proxy mode we should never make it here since the endpoint_fetch_config_enabled
+                // check should already fail.
+                ProjectState::Dummy => None,
+                ProjectState::Disabled | ProjectState::Pending => {
                     return Err(BadStoreRequest::EventRejected(DiscardReason::ProjectId));
                 }
             };
 
-            if project_config.has_feature(Feature::UnrealEndpointExpansion) {
+            if let Some(project_config) = project_config
+                && project_config.has_feature(Feature::UnrealEndpointExpansion)
+            {
                 for mut item in
                     extract_items(data, state.config()).map_err(|error| match error {
                         ProcessingError::PayloadTooLarge(_) => {

@@ -2006,3 +2006,172 @@ def test_replay_outcomes_item_failed(
     }
     expected["timestamp"] = outcomes[0]["timestamp"]
     assert outcomes[0] == expected
+
+
+def test_outcomes_as_metrics_forwarded_as_metrics(relay, mini_sentry):
+    """
+    Test forwarding of outcomes as metrics to the next upstream.
+    """
+    config = {"outcomes": {"emit_outcomes": "as_metrics"}}
+
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+
+    relay = relay(mini_sentry, config)
+
+    relay.send_client_report(
+        project_id,
+        {
+            "timestamp": datetime.now(tz=timezone.utc).timestamp(),
+            "discarded_events": [
+                {"reason": "queue_overflow", "category": "error", "quantity": 42},
+            ],
+        },
+    )
+
+    envelope = mini_sentry.get_captured_envelope()
+    assert len(envelope.items) == 1
+    payload = json.loads(envelope.items[0].payload.get_bytes())
+
+    assert payload == [
+        {
+            "name": "c:outcomes/client_discard@none",
+            "tags": {
+                "category": "1",
+                "reason": "queue_overflow",
+            },
+            "timestamp": time_within_delta(),
+            "type": "c",
+            "value": 42.0,
+            "width": 1,
+        }
+    ]
+
+    assert mini_sentry.captured_envelopes.empty()
+
+
+@pytest.mark.parametrize("to_billing", [True, False])
+def test_outcomes_as_metrics_forwarded_to_kafka_billing(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    relay_credentials,
+    outcomes_consumer,
+    processing_config,
+    get_topic_name,
+    to_billing,
+):
+    """
+    Test forwarding of outcomes as metrics and production to Kafka.
+
+    Outcomes need to be produced to the billing topic if configured.
+    """
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["quotas"] = [
+        {
+            "categories": ["error"],
+            "limit": 0,
+            "reasonCode": "static_disabled_quota",
+        },
+        # This quota should not affect the metric outcomes.
+        {
+            "categories": ["metric_bucket"],
+            "limit": 0,
+            "reasonCode": "metric_bucket_quota",
+        },
+    ]
+
+    billing_consumer = outcomes_consumer(topic="outbilling")
+    outcomes_consumer = outcomes_consumer()
+
+    consumer_with_outcome, consumer_empty = (
+        (billing_consumer, outcomes_consumer)
+        if to_billing
+        else (outcomes_consumer, billing_consumer)
+    )
+
+    credentials = relay_credentials()
+    static_relays = {
+        credentials["id"]: {
+            "public_key": credentials["public_key"],
+            "internal": True,
+        },
+    }
+    # Change from default, which would inherit the outcomes topic
+    processing = processing_config(None)
+    # Create an additional processing for outcomes_billing topic
+    processing["processing"]["secondary_kafka_config"] = {
+        "bar": processing["processing"]["kafka_config"]
+    }
+    if to_billing:
+        processing["processing"]["topics"]["outcomes_billing"] = {
+            "name": get_topic_name("outbilling"),
+            "processing": "bar",
+        }
+
+    relay = relay(
+        relay_with_processing(options=processing, static_relays=static_relays),
+        options={"outcomes": {"emit_outcomes": "as_metrics", "source": "aaa"}},
+        credentials=credentials,
+    )
+
+    # First event does not have a cached rate limit in the first Relay.
+    relay.send_event(42, {"message": "this is rate limited"})
+    assert consumer_with_outcome.get_aggregated_outcomes(n=1) == [
+        {
+            "category": 1,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 2,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "static_disabled_quota",
+        },
+    ]
+    consumer_empty.assert_empty()
+
+    # Second event now will actually be sent as a metric, we can verify that with the source.
+    with pytest.raises(requests.HTTPError, match="429 Client Error"):
+        relay.send_event(42, {"message": "this is rate limited"})
+    assert consumer_with_outcome.get_aggregated_outcomes(n=1) == [
+        {
+            "category": 1,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 2,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "static_disabled_quota",
+            "source": "aaa",
+        },
+    ]
+    consumer_empty.assert_empty()
+
+
+def test_outcomes_as_metrics_forwarded_non_internal(
+    mini_sentry, relay, relay_with_processing, outcomes_consumer
+):
+    """
+    Test making sure Relay does not accept outcome metrics from non-internal Relays.
+    """
+    config = {"outcomes": {"emit_outcomes": "as_metrics"}}
+
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+
+    outcomes_consumer = outcomes_consumer()
+
+    relay = relay(relay_with_processing(), options=config)
+
+    relay.send_client_report(
+        project_id,
+        {
+            "timestamp": datetime.now(tz=timezone.utc).timestamp(),
+            "discarded_events": [
+                {"reason": "queue_overflow", "category": "error", "quantity": 42},
+            ],
+        },
+    )
+
+    outcomes_consumer.assert_empty()
