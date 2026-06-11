@@ -79,11 +79,8 @@ impl FromStr for TraceId {
     type Err = InvalidTraceId;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let uuid = Uuid::parse_str(s).map_err(|_| InvalidTraceId::Uuid)?;
-        if uuid.is_nil() {
-            return Err(InvalidTraceId::Nil);
-        }
-        Ok(TraceId::from(uuid))
+        let uuid = Uuid::from_str(s).map_err(|_| InvalidTraceId::Uuid)?;
+        Self::try_from(uuid)
     }
 }
 
@@ -96,12 +93,35 @@ impl TryFrom<&str> for TraceId {
 }
 
 impl TryFrom<&[u8]> for TraceId {
-    type Error = Error;
+    type Error = InvalidTraceId;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        let uuid =
-            Uuid::from_slice(value).map_err(|_| Error::invalid("the trace id is not valid"))?;
-        Ok(Self(uuid))
+        Uuid::from_slice(value)
+            .map_err(|_| InvalidTraceId::Uuid)
+            .map(TraceId)
+    }
+}
+
+impl TryFrom<Uuid> for TraceId {
+    type Error = InvalidTraceId;
+    fn try_from(uuid: Uuid) -> Result<Self, Self::Error> {
+        if uuid.is_nil() {
+            return Err(InvalidTraceId::Nil);
+        }
+        Ok(TraceId(uuid))
+    }
+}
+
+impl TryFrom<EventId> for TraceId {
+    type Error = InvalidTraceId;
+    fn try_from(event_id: EventId) -> Result<Self, Self::Error> {
+        Self::try_from(event_id.0)
+    }
+}
+
+impl From<TraceId> for Uuid {
+    fn from(trace_id: TraceId) -> Self {
+        trace_id.0
     }
 }
 
@@ -114,24 +134,6 @@ impl fmt::Display for TraceId {
 impl fmt::Debug for TraceId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "TraceId(\"{}\")", self.0.as_simple())
-    }
-}
-
-impl From<Uuid> for TraceId {
-    fn from(uuid: Uuid) -> Self {
-        TraceId(uuid)
-    }
-}
-
-impl From<EventId> for TraceId {
-    fn from(event_id: EventId) -> Self {
-        Self::from(event_id.0)
-    }
-}
-
-impl From<TraceId> for Uuid {
-    fn from(trace_id: TraceId) -> Self {
-        trace_id.0
     }
 }
 

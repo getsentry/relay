@@ -1,7 +1,6 @@
 use relay_event_schema::protocol::{MetricType, TraceMetric};
 use relay_protocol::Annotated;
 
-use crate::envelope::ClientName;
 use crate::managed::Managed;
 use crate::processing::Context;
 use crate::processing::trace_metrics::{
