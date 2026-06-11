@@ -11,7 +11,7 @@ pub fn name_for_span(span: &Span) -> Option<String> {
     let origin = span.origin.value().map(|o| o.as_str());
     let description = span.description.value().map(|d| d.as_str());
 
-    if let Some(name) = name_for_origin_and_description(origin, description) {
+    if let Some(name) = name_from_origin_and_description(origin, description) {
         return Some(name);
     }
 
@@ -43,7 +43,7 @@ pub fn name_for_attributes(attributes: &Attributes) -> Option<String> {
         .get_value(SENTRY__DESCRIPTION)
         .and_then(|d| d.as_str());
 
-    if let Some(name) = name_for_origin_and_description(origin, description) {
+    if let Some(name) = name_from_origin_and_description(origin, description) {
         return Some(name);
     }
 
@@ -51,7 +51,7 @@ pub fn name_for_attributes(attributes: &Attributes) -> Option<String> {
     Some(name_for_op_and_attributes(op, &AttributeGetter(attributes)))
 }
 
-fn name_for_origin_and_description(
+fn name_from_origin_and_description(
     origin: Option<&str>,
     description: Option<&str>,
 ) -> Option<String> {
