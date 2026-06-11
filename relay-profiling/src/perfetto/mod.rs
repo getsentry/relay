@@ -89,6 +89,9 @@ fn extract_clock_offset(cs: &proto::ClockSnapshot) -> Option<i128> {
     }
 }
 
+/// Parse trace packets but limit the amount of packets that end up in the vector.
+///
+/// This prevents memory bombs, as the wire format can be much smaller than the in-memory representation.
 fn decode_trace_packets(
     mut perfetto_bytes: &[u8],
 ) -> Result<Vec<proto::TracePacket>, ProfileError> {
