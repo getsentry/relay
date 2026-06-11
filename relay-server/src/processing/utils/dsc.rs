@@ -23,7 +23,8 @@ use crate::processing::Context;
 ///    should fall back to the next-best sampling rule set.
 ///
 /// In all of the above cases, this function will compute a new DSC using information from the
-/// event payload, similar to how SDKs do this.
+/// event payload, similar to how SDKs do this. The `sampling_project_state` is also switched to
+/// the main project state.
 ///
 /// If there is no transaction event in the envelope, this function will do nothing.
 ///
@@ -33,7 +34,7 @@ use crate::processing::Context;
 pub fn validate_and_set_dsc(
     headers: &mut EnvelopeHeaders,
     event: &Annotated<Event>,
-    ctx: &Context,
+    ctx: &mut Context,
 ) {
     let mut original_dsc = headers.dsc_mut();
     if let Some(dsc) = original_dsc.as_mut()
@@ -55,6 +56,8 @@ pub fn validate_and_set_dsc(
         dsc.sample_rate = original_dsc.as_ref().and_then(|dsc| dsc.sample_rate);
 
         headers.set_dsc(dsc);
+
+        ctx.sampling_project_info = Some(ctx.project_info);
         return;
     }
 

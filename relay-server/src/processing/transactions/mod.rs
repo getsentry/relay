@@ -126,7 +126,7 @@ impl Processor for TransactionProcessor {
     async fn process(
         &self,
         tx: Managed<Self::Input>,
-        ctx: Context<'_>,
+        mut ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
         let project_id = tx.scoping().project_id;
         let mut metrics = Metrics::default();
@@ -138,7 +138,7 @@ impl Processor for TransactionProcessor {
         attachments::validate_attachments(&mut tx, |t| &mut t.attachments, ctx);
 
         relay_log::trace!("Prepare transaction data");
-        process::prepare_data(&mut tx, &ctx, &mut metrics)?;
+        process::prepare_data(&mut tx, &mut ctx, &mut metrics)?;
 
         relay_log::trace!("Normalize transaction");
         let mut tx = process::normalize(tx, ctx, &self.geoip_lookup)?;

@@ -137,7 +137,7 @@ fn expand_profile(
 /// Validates and massages the data.
 pub fn prepare_data(
     work: &mut Managed<Box<ExpandedTransaction>>,
-    ctx: &Context<'_>,
+    ctx: &mut Context<'_>,
     metrics: &mut Metrics,
 ) -> Result<(), Rejected<Error>> {
     let scoping = work.scoping();
