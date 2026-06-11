@@ -7,7 +7,7 @@ import json
 import queue
 import pytest
 from requests import HTTPError
-from sentry_sdk.envelope import Envelope
+from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from uuid import UUID
 
 from urllib3.filepost import encode_multipart_formdata
@@ -675,6 +675,94 @@ def test_minidump_with_processing_invalid(
             "chunks": num_chunks,
         }
     ]
+
+
+@pytest.mark.parametrize("feature_flag", [False, True])
+def test_minidump_with_event_exception(
+    mini_sentry, relay_with_processing, attachments_consumer, feature_flag
+):
+    """
+    An envelope can carry both a minidump attachment and an event item that already
+    contains an exception with a stack trace. The user-provided exception must be
+    preserved alongside the minidump placeholder exception.
+    """
+    dmp_path = os.path.join(os.path.dirname(__file__), "fixtures/native/minidump.dmp")
+    with open(dmp_path, "rb") as f:
+        content = f.read()
+
+    relay = relay_with_processing()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    config = project_config["config"]
+    if feature_flag:
+        config.setdefault("features", []).append("projects:minidump-multi-exception")
+
+    # Disable scrubbing, the basic and full project configs from the mini_sentry fixture
+    # will modify the minidump since it contains user paths in the module list.
+    del config["piiConfig"]
+
+    attachments_consumer = attachments_consumer()
+
+    event_id = "2dd132e467174db48dbaddabd3cbed57"
+    envelope = Envelope(headers=[["event_id", event_id]])
+    envelope.add_event(
+        {
+            "event_id": event_id,
+            "exception": {
+                "values": [
+                    {
+                        "type": "ZeroDivisionError",
+                        "value": "division by zero",
+                        "stacktrace": {
+                            "frames": [
+                                {
+                                    "function": "divide",
+                                    "filename": "app.py",
+                                    "lineno": 42,
+                                }
+                            ]
+                        },
+                    }
+                ]
+            },
+        }
+    )
+    envelope.add_item(
+        Item(
+            headers=[
+                ["attachment_type", "event.minidump"],
+                ["content_type", "application/x-dmp"],
+            ],
+            type="attachment",
+            payload=PayloadRef(bytes=content),
+            filename="minidump.dmp",
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    _ = attachments_consumer.get_attachment_chunk()
+    event, message = attachments_consumer.get_event()
+
+    assert event["event_id"] == event_id
+    assert event["platform"] == "native"
+
+    # The minidump placeholder exception must be present and first in the list,
+    # so the event is picked up for native processing in Sentry.
+    minidump_exception, *additional_exceptions = event["exception"]["values"]
+    assert minidump_exception["mechanism"]["type"] == "minidump"
+
+    # The user-provided exception with its stack trace must be preserved.
+    if feature_flag:
+        (user_exception,) = additional_exceptions
+        assert user_exception["value"] == "division by zero"
+        assert user_exception["stacktrace"]["frames"][0]["function"] == "divide"
+    else:
+        assert not additional_exceptions
+
+    # The minidump must still be forwarded as an attachment.
+    assert any(att["name"] == "minidump.dmp" for att in message["attachments"])
 
 
 @pytest.mark.parametrize("rate_limits", [[], ["error"], ["error", "attachment"]])
