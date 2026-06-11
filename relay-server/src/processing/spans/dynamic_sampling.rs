@@ -51,18 +51,18 @@ pub fn validate_configs(ctx: Context<'_>) {
     }
 }
 
-/// Validates and, if necessary, re-synthesizes the DSC for a batch of V2 spans.
+/// Validates and, if necessary, resynthesizes the DSC for a batch of V2 spans.
 ///
-/// Like [`validate_and_set_dsc_for_transaction`], an unresolved sampling project causes the
-/// DSC to be rebuilt and the trace attributed to the spans' own project. However, this function
-/// is stricter as it doesn't allow a missing DSC.
-///
-/// The presence of a DSC is not a technical requirement as it is simply leads to a 100% sample rate.
-/// Instead, the intention of the enforcement is to ensure that SDKs implement the protocol correctly.
+/// A DSC must be present. This is not a technical requirement as it is simply leads to a sample
+/// rate of 100%. Instead, the intention of the enforcement is to ensure that SDKs implement the
+/// protocol correctly.
 ///
 /// An exception exists for our OTeL integration, which currently never sets a dynamic sampling
 /// context. In the future we may want to extract a DSC from the OTeL payload to allow dynamic
 /// sampling if the necessary attributes are present.
+///
+/// An unresolved sampling project causes the DSC to be resynthesized and the trace attributed to
+/// the spans' own project.
 pub fn validate_and_set_dsc(
     spans: &mut Managed<ExpandedSpans>,
     ctx: &Context<'_>,
