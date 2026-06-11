@@ -404,7 +404,7 @@ fn collect_debug_image(
         return None;
     }
 
-    let image_addr = mapping.start.unwrap_or(0);
+    let image_addr = mapping.start;
 
     let debug_id = mapping
         .build_id
@@ -414,19 +414,22 @@ fn collect_debug_image(
     // Insert into dedup set only after validating we have a valid debug_id,
     // so that a mapping first seen without a build_id doesn't block a later
     // valid encounter from a different packet sequence.
-    if !seen_images.insert((code_file.clone(), image_addr)) {
+    if image_addr.is_some_and(|image_addr| !seen_images.insert((code_file.clone(), image_addr))) {
         return None;
     }
 
-    let image_size = mapping.end.unwrap_or(0).saturating_sub(image_addr);
-    let image_vmaddr = mapping.load_bias.unwrap_or(0);
+    let image_size = mapping
+        .end
+        .unwrap_or(0)
+        .saturating_sub(image_addr.unwrap_or(0));
+    let image_vmaddr = mapping.load_bias;
 
     Some(DebugImage {
         code_file: Some(code_file.into()),
         debug_id: Some(debug_id),
         image_type: ImageType::Symbolic,
-        image_addr: Some(Addr(image_addr)),
-        image_vmaddr: Some(Addr(image_vmaddr)),
+        image_addr: image_addr.map(Addr),
+        image_vmaddr: image_vmaddr.map(Addr),
         image_size,
         uuid: None,
     })
