@@ -1684,3 +1684,22 @@ def test_minidump_upload_failure_bubbles_up(mini_sentry, relay):
             "quantity": 1,
         },
     ]
+
+
+def test_minidump_proxy_mode(mini_sentry, relay):
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(mini_sentry, options={"relay": {"mode": "proxy"}})
+
+    response = relay.send_minidump(
+        project_id=project_id,
+        files=[(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", "MDMP content")],
+    )
+    assert response.ok
+
+    envelope = mini_sentry.get_captured_envelope()
+    assert envelope
+    assert len(envelope.items) == 1
+    item = envelope.items[0]
+    assert item.headers.get("type") == "attachment"
+    assert item.headers.get("attachment_type") == "event.minidump"

@@ -441,8 +441,10 @@ async fn upload_context<'a>(
 
     let project_config = match project.state() {
         ProjectState::Enabled(info) => info.clone(),
-        // TODO(INGEST-925): Support proxy mode
-        ProjectState::Dummy | ProjectState::Disabled | ProjectState::Pending => {
+        // Note: In Proxy mode we should never make it here since the endpoint_fetch_config_enabled
+        // check should already fail.
+        ProjectState::Dummy => return Ok(None),
+        ProjectState::Disabled | ProjectState::Pending => {
             return Err(BadStoreRequest::EventRejected(DiscardReason::ProjectId));
         }
     };

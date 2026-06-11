@@ -386,3 +386,19 @@ def test_unreal_minidump_with_config_and_processing(
 
     assert mini_dump_process_marker_found
     assert "errors" not in event
+
+
+def test_unreal_proxy_mode(mini_sentry, relay):
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(mini_sentry, options={"relay": {"mode": "proxy"}})
+
+    response = relay.send_unreal_request(project_id, load_dump_file("unreal_crash"))
+    assert response.ok
+
+    envelope = mini_sentry.get_captured_envelope()
+    assert envelope
+    assert len(envelope.items) == 1
+    item = envelope.items[0]
+    assert item.headers.get("type") == "unreal_report"
+    assert item.headers.get("content_type") == "application/octet-stream"
