@@ -50,6 +50,11 @@ const MAX_TRACE_PACKET_BYTES: usize = 4 * 1024 * 1024;
 /// Resolved frame indices are used as keys in a hash map so we should avoid excessive hashing.
 const MAX_CALLSTACK_DEPTH: usize = 1000;
 
+/// Upper bound on joinable path segments.
+///
+/// Prevents excessive string joins.
+const MAX_PATH_SEGMENTS: usize = 100;
+
 /// See <https://perfetto.dev/docs/reference/trace-packet-proto#SequenceFlags>.
 const SEQ_INCREMENTAL_STATE_CLEARED: u32 = 1;
 
@@ -518,6 +523,10 @@ fn build_frame(
 ///
 /// Returns `None` if the mapping has no resolvable path segments.
 fn resolve_mapping_path(mapping: &proto::Mapping, tables: &InternTables) -> Option<String> {
+    if mapping.path_string_ids.len() > MAX_PATH_SEGMENTS {
+        return None;
+    }
+
     let path = mapping
         .path_string_ids
         .iter()
