@@ -6,6 +6,7 @@
 
 - Add metadata support for the `/upload` endpoint. ([#6028](https://github.com/getsentry/relay/pull/6028))
 - Infer user agents and client addresses in the V2 standalone span pipeline. ([#6047](https://github.com/getsentry/relay/pull/6047))
+- Replace nil Trace IDs with random ones. ([#6079](https://github.com/getsentry/relay/pull/6079))
 
 **Bug Fixes**:
 
