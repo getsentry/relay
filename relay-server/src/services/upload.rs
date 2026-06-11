@@ -560,11 +560,11 @@ impl<L: UploadLength> SignedLocation<L> {
             location,
             signature,
         } = self;
-        let mut uri = dbg!(location.try_to_uri()?);
+        let mut uri = location.try_to_uri()?;
         uri.push(if uri.ends_with('/') { '?' } else { '&' });
         uri.push_str("upload_signature=");
         uri.push_str(&signature.to_string());
-        Ok(dbg!(uri))
+        Ok(uri)
     }
 
     /// Converts the signed location into a location object.
