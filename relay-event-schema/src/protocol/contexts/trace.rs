@@ -66,18 +66,29 @@ impl TraceId {
 
 relay_common::impl_str_serde!(TraceId, "a trace identifier");
 
+/// Error for an invalid UUID.
+#[derive(Debug)]
+pub enum InvalidTraceId {
+    /// The UUID is all zeros.
+    Nil,
+    /// Not a valid UUID.
+    Uuid,
+}
+
 impl FromStr for TraceId {
-    type Err = Error;
+    type Err = InvalidTraceId;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Uuid::parse_str(s)
-            .map(Into::into)
-            .map_err(|_| Error::invalid("the trace id is not valid"))
+        let uuid = Uuid::parse_str(s).map_err(|_| InvalidTraceId::Uuid)?;
+        if uuid.is_nil() {
+            return Err(InvalidTraceId::Nil);
+        }
+        Ok(TraceId::from(uuid))
     }
 }
 
 impl TryFrom<&str> for TraceId {
-    type Error = Error;
+    type Error = InvalidTraceId;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         value.parse()
@@ -139,16 +150,13 @@ impl FromValue for TraceId {
     {
         match value {
             Annotated(Some(Value::String(value)), mut meta) => match value.parse::<TraceId>() {
-                Ok(trace_id) => {
-                    if trace_id.0.is_nil() {
-                        meta.add_remark(Remark::new(RemarkType::Substituted, "nil_trace_id"));
-                        meta.set_original_value(Some(value));
-                        Annotated(Some(TraceId::random()), meta)
-                    } else {
-                        Annotated(Some(trace_id), meta)
-                    }
+                Ok(trace_id) => Annotated(Some(trace_id), meta),
+                Err(InvalidTraceId::Nil) => {
+                    meta.add_remark(Remark::new(RemarkType::Substituted, "nil_trace_id"));
+                    meta.set_original_value(Some(value));
+                    Annotated(Some(TraceId::random()), meta)
                 }
-                Err(_) => {
+                Err(InvalidTraceId::Uuid) => {
                     meta.add_error(Error::invalid("not a valid trace id"));
                     meta.set_original_value(Some(value));
                     Annotated(None, meta)
@@ -419,18 +427,18 @@ mod tests {
         assert_eq!(trace_id.as_u128(), 0x4c79f60c11214eb38604f4ae0781bfb2);
 
         // Test empty string (should return 0)
-        let empty_trace_id: Result<TraceId, Error> = "".parse();
+        let empty_trace_id: Result<TraceId, _> = "".parse();
         assert!(empty_trace_id.is_err());
 
         // Test string with invalid length (should return 0)
-        let short_trace_id: Result<TraceId, Error> = "4c79f60c11214eb38604f4ae0781bfb".parse(); // 31 chars
+        let short_trace_id: Result<TraceId, _> = "4c79f60c11214eb38604f4ae0781bfb".parse(); // 31 chars
         assert!(short_trace_id.is_err());
 
-        let long_trace_id: Result<TraceId, Error> = "4c79f60c11214eb38604f4ae0781bfb2a".parse(); // 33 chars
+        let long_trace_id: Result<TraceId, _> = "4c79f60c11214eb38604f4ae0781bfb2a".parse(); // 33 chars
         assert!(long_trace_id.is_err());
 
         // Test string with invalid hex characters (should return 0)
-        let invalid_trace_id: Result<TraceId, Error> = "4c79f60c11214eb38604f4ae0781bfbg".parse(); // 'g' is not a hex char
+        let invalid_trace_id: Result<TraceId, _> = "4c79f60c11214eb38604f4ae0781bfbg".parse(); // 'g' is not a hex char
         assert!(invalid_trace_id.is_err());
     }
 
