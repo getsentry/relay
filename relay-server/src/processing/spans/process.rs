@@ -290,18 +290,15 @@ fn normalize_span(
 }
 
 pub fn backfill_description(spans: &mut Managed<ExpandedSpans>) {
-    spans.retain_with_context(
-        |spans| (&mut spans.spans, &()),
-        |span, _, _| backfill_span_description(&mut span.span),
-    );
-}
+    spans.modify(|span, _| {
+        for span in &mut span.spans {
+            let Some(span) = span.span.value_mut() else {
+                return;
+            };
 
-fn backfill_span_description(span: &mut Annotated<SpanV2>) -> Result<(), Infallible> {
-    let Some(span) = span.value_mut() else {
-        return Ok(());
-    };
-    eap::normalize_sentry_description(&mut span.attributes, &span.name);
-    Ok(())
+            eap::normalize_sentry_description(&mut span.attributes, &span.name);
+        }
+    });
 }
 
 /// Validates the start and end timestamps of a span.
