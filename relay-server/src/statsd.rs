@@ -1013,6 +1013,11 @@ pub enum RelayCounters {
     UnrealEndpointExpansion,
     /// The number of times that relay receives a compressed minidump.
     CompressedMinidump,
+    /// The number of times a trace metric has a nil trace ID.
+    ///
+    /// This metric is tagged with:
+    /// - `sdk`: low-cardinality client name
+    TraceMetricNilTraceId,
 }
 
 impl CounterMetric for RelayCounters {
@@ -1077,6 +1082,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ErrorProcessed => "event.error.processed",
             RelayCounters::UnrealEndpointExpansion => "unreal.endpoint_expansion",
             RelayCounters::CompressedMinidump => "minidump.compressed.count",
+            RelayCounters::TraceMetricNilTraceId => "trace_metric.nil_trace_id",
         }
     }
 }

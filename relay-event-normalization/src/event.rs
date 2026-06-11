@@ -1372,9 +1372,10 @@ fn normalize_force_trace_context(event: &mut Event) {
     let contexts = event.contexts.get_or_insert_with(Contexts::new);
     let trace = contexts.get_or_default::<TraceContext>();
 
-    let trace_id = trace
-        .trace_id
-        .get_or_insert_with(|| TraceId::from(*event.id.get_or_insert_with(Default::default)));
+    let trace_id = trace.trace_id.get_or_insert_with(|| {
+        TraceId::try_from(*event.id.get_or_insert_with(Default::default))
+            .unwrap_or_else(|_| TraceId::random())
+    });
     let _ = trace
         .span_id
         .get_or_insert_with(|| SpanId::derive_from_trace_id(trace_id));

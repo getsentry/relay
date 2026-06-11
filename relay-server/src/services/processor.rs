@@ -2108,7 +2108,7 @@ mod tests {
         let mut envelope = Envelope::from_request(None, request_meta);
 
         let dsc = r#"{
-            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "trace_id": "00000000-0000-0000-0000-000000000001",
             "public_key": "e12d836b15bb49d7bbf99e64295d995b",
             "sample_rate": "0.2"
         }"#;
@@ -2163,7 +2163,7 @@ mod tests {
                     "0.2",
                 ),
                 "trace_id": String(
-                    "00000000000000000000000000000000",
+                    "00000000000000000000000000000001",
                 ),
                 "transaction": ~,
             },
