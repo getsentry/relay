@@ -12,6 +12,7 @@
 - Correctly handle minidump objecstore upload failures. ([#6033](https://github.com/getsentry/relay/pull/6033))
 - Add `client.address` attribute to known IP fields. ([#6058](https://github.com/getsentry/relay/pull/6058))
 - Fix a bug in mobile attribute normalization. ([#6065](https://github.com/getsentry/relay/pull/6065))
+- Replace all-zero trace IDs on trace metrics with a randomly generated one. ([#6077](https://github.com/getsentry/relay/pull/6077))
 
 **Internal**:
 

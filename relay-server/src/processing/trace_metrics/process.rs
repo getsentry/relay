@@ -157,6 +157,7 @@ fn normalize_trace_metric(
         });
 
         eap::trace_metric::normalize_metric_name(metric_value)?;
+        eap::trace_metric::normalize_trace_id(metric_value);
         if ctx.is_processing() {
             eap::trace_metric::normalize_metric_unit(metric_value);
         }

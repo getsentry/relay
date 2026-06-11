@@ -4,7 +4,7 @@ use std::{borrow::Cow, sync::LazyLock};
 
 use regex::Regex;
 use relay_base_schema::metrics::MetricUnit;
-use relay_event_schema::protocol::TraceMetric;
+use relay_event_schema::protocol::{TraceId, TraceMetric};
 use relay_protocol::Annotated;
 
 /// Returned by [`normalize_metric_name`].
@@ -31,6 +31,13 @@ pub fn normalize_metric_name(metric: &mut TraceMetric) -> Result<(), InvalidMetr
     }
 
     Ok(())
+}
+
+/// Replaces a nil (all-zero) trace ID with a randomly generated one.
+pub fn normalize_trace_id(metric: &mut TraceMetric) {
+    if metric.trace_id.value().is_some_and(|id| id.is_nil()) {
+        metric.trace_id = Annotated::new(TraceId::random());
+    }
 }
 
 /// Strips custom metric units, replacing them with [`MetricUnit::None`].
@@ -83,6 +90,26 @@ mod tests {
         assert_metric_name!("foo!@#bar", "foo_bar");
         assert_metric_name!("   foo.bar    ", "_foo.bar_");
         assert_metric_name!("unicøøde", "unic_de");
+    }
+
+    #[test]
+    fn test_normalize_trace_id_replaces_nil() {
+        let mut m = metric("test");
+        m.trace_id = Annotated::new("00000000000000000000000000000000".parse().unwrap());
+        normalize_trace_id(&mut m);
+        let trace_id = m.trace_id.value().unwrap();
+        assert!(!trace_id.is_nil());
+
+        let mut m = metric("test");
+        let original: TraceId = "5b8efff798038103d269b633813fc60c".parse().unwrap();
+        m.trace_id = Annotated::new(original);
+        normalize_trace_id(&mut m);
+        assert_eq!(m.trace_id.value(), Some(&original));
+
+        // A missing trace id is left for schema validation to reject.
+        let mut m = metric("test");
+        normalize_trace_id(&mut m);
+        assert_eq!(m.trace_id.value(), None);
     }
 
     #[test]
