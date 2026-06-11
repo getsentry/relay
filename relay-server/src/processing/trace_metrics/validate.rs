@@ -76,14 +76,13 @@ fn validate_trace_metric(metric: &Annotated<TraceMetric>) -> Result<()> {
         }
     }
 
-    if let Some(trace_id_meta) = metric.value().map(|m| m.trace_id.meta()) {
-        if trace_id_meta
+    if let Some(trace_id_meta) = metric.value().map(|m| m.trace_id.meta())
+        && trace_id_meta
             .iter_remarks()
             .find(|rem| rem.rule_id == "nil_trace_id")
             .is_some()
-        {
-            relay_statsd::metric!(counter(RelayCounters::TraceMetricNilTraceId) += 1);
-        }
+    {
+        relay_statsd::metric!(counter(RelayCounters::TraceMetricNilTraceId) += 1);
     }
 
     Ok(())
