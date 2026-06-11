@@ -7,7 +7,7 @@ use crate::processing::trace_metrics::{
     Error, ExpandedTraceMetrics, Result, SerializedTraceMetrics, get_calculated_byte_size,
 };
 use crate::services::outcome::DiscardReason;
-use crate::statsd::RelayDistributions;
+use crate::statsd::{RelayCounters, RelayDistributions};
 
 /// Validates that there are no duplicated trace metric containers.
 ///
@@ -75,6 +75,17 @@ fn validate_trace_metric(metric: &Annotated<TraceMetric>) -> Result<()> {
             return Err(Error::Invalid(DiscardReason::InvalidTraceMetric));
         }
     }
+
+    if let Some(trace_id_meta) = metric.value().map(|m| m.trace_id.meta()) {
+        if trace_id_meta
+            .iter_remarks()
+            .find(|rem| rem.rule_id == "nil_trace_id")
+            .is_some()
+        {
+            relay_statsd::metric!(counter(RelayCounters::TraceMetricNilTraceId) += 1);
+        }
+    }
+
     Ok(())
 }
 
