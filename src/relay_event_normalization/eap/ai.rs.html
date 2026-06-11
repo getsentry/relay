@@ -194,10 +194,10 @@
 <a href=#194 id=194 data-nosnippet>194</a>
 <a href=#195 id=195 data-nosnippet>195</a>    <span class="kw">let </span>tokens = ai::UsedTokens {
 <a href=#196 id=196 data-nosnippet>196</a>        input_tokens: get_tokens(GEN_AI__USAGE__INPUT_TOKENS),
-<a href=#197 id=197 data-nosnippet>197</a>        input_cached_tokens: get_tokens(GEN_AI__USAGE__INPUT_TOKENS__CACHED),
-<a href=#198 id=198 data-nosnippet>198</a>        input_cache_write_tokens: get_tokens(GEN_AI__USAGE__INPUT_TOKENS__CACHE_WRITE),
+<a href=#197 id=197 data-nosnippet>197</a>        input_cached_tokens: get_tokens(GEN_AI__USAGE__CACHE_READ__INPUT_TOKENS),
+<a href=#198 id=198 data-nosnippet>198</a>        input_cache_write_tokens: get_tokens(GEN_AI__USAGE__CACHE_CREATION__INPUT_TOKENS),
 <a href=#199 id=199 data-nosnippet>199</a>        output_tokens: get_tokens(GEN_AI__USAGE__OUTPUT_TOKENS),
-<a href=#200 id=200 data-nosnippet>200</a>        output_reasoning_tokens: get_tokens(GEN_AI__USAGE__OUTPUT_TOKENS__REASONING),
+<a href=#200 id=200 data-nosnippet>200</a>        output_reasoning_tokens: get_tokens(GEN_AI__USAGE__REASONING__OUTPUT_TOKENS),
 <a href=#201 id=201 data-nosnippet>201</a>    };
 <a href=#202 id=202 data-nosnippet>202</a>
 <a href=#203 id=203 data-nosnippet>203</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(costs) = ai::calculate_costs(model_cost, tokens, integration, platform_tag) <span class="kw">else </span>{
@@ -292,8 +292,8 @@
 <a href=#292 id=292 data-nosnippet>292</a>            <span class="string">"gen_ai.operation.type" </span>=&gt; <span class="string">"ai_client"</span>.to_owned(),
 <a href=#293 id=293 data-nosnippet>293</a>            <span class="string">"gen_ai.usage.input_tokens" </span>=&gt; <span class="number">1000</span>,
 <a href=#294 id=294 data-nosnippet>294</a>            <span class="string">"gen_ai.usage.output_tokens" </span>=&gt; <span class="number">2000</span>,
-<a href=#295 id=295 data-nosnippet>295</a>            <span class="string">"gen_ai.usage.output_tokens.reasoning" </span>=&gt; <span class="number">1000</span>,
-<a href=#296 id=296 data-nosnippet>296</a>            <span class="string">"gen_ai.usage.input_tokens.cached" </span>=&gt; <span class="number">500</span>,
+<a href=#295 id=295 data-nosnippet>295</a>            <span class="string">"gen_ai.usage.reasoning.output_tokens" </span>=&gt; <span class="number">1000</span>,
+<a href=#296 id=296 data-nosnippet>296</a>            <span class="string">"gen_ai.usage.cache_read.input_tokens" </span>=&gt; <span class="number">500</span>,
 <a href=#297 id=297 data-nosnippet>297</a>            <span class="string">"gen_ai.request.model" </span>=&gt; <span class="string">"claude-2.1"</span>.to_owned(),
 <a href=#298 id=298 data-nosnippet>298</a>        });
 <a href=#299 id=299 data-nosnippet>299</a>
@@ -333,19 +333,19 @@
 <a href=#333 id=333 data-nosnippet>333</a>            "type": "double",
 <a href=#334 id=334 data-nosnippet>334</a>            "value": 2000.0
 <a href=#335 id=335 data-nosnippet>335</a>          },
-<a href=#336 id=336 data-nosnippet>336</a>          "gen_ai.usage.input_tokens": {
+<a href=#336 id=336 data-nosnippet>336</a>          "gen_ai.usage.cache_read.input_tokens": {
 <a href=#337 id=337 data-nosnippet>337</a>            "type": "integer",
-<a href=#338 id=338 data-nosnippet>338</a>            "value": 1000
+<a href=#338 id=338 data-nosnippet>338</a>            "value": 500
 <a href=#339 id=339 data-nosnippet>339</a>          },
-<a href=#340 id=340 data-nosnippet>340</a>          "gen_ai.usage.input_tokens.cached": {
+<a href=#340 id=340 data-nosnippet>340</a>          "gen_ai.usage.input_tokens": {
 <a href=#341 id=341 data-nosnippet>341</a>            "type": "integer",
-<a href=#342 id=342 data-nosnippet>342</a>            "value": 500
+<a href=#342 id=342 data-nosnippet>342</a>            "value": 1000
 <a href=#343 id=343 data-nosnippet>343</a>          },
 <a href=#344 id=344 data-nosnippet>344</a>          "gen_ai.usage.output_tokens": {
 <a href=#345 id=345 data-nosnippet>345</a>            "type": "integer",
 <a href=#346 id=346 data-nosnippet>346</a>            "value": 2000
 <a href=#347 id=347 data-nosnippet>347</a>          },
-<a href=#348 id=348 data-nosnippet>348</a>          "gen_ai.usage.output_tokens.reasoning": {
+<a href=#348 id=348 data-nosnippet>348</a>          "gen_ai.usage.reasoning.output_tokens": {
 <a href=#349 id=349 data-nosnippet>349</a>            "type": "integer",
 <a href=#350 id=350 data-nosnippet>350</a>            "value": 1000
 <a href=#351 id=351 data-nosnippet>351</a>          },
