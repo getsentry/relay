@@ -138,8 +138,16 @@ impl FromValue for TraceId {
         Self: Sized,
     {
         match value {
-            Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
-                Ok(trace_id) => Annotated(Some(trace_id), meta),
+            Annotated(Some(Value::String(value)), mut meta) => match value.parse::<TraceId>() {
+                Ok(trace_id) => {
+                    if trace_id.0.is_nil() {
+                        meta.add_remark(Remark::new(RemarkType::Substituted, "nil_trace_id"));
+                        meta.set_original_value(Some(value));
+                        Annotated(Some(TraceId::random()), meta)
+                    } else {
+                        Annotated(Some(trace_id), meta)
+                    }
+                }
                 Err(_) => {
                     meta.add_error(Error::invalid("not a valid trace id"));
                     meta.set_original_value(Some(value));
