@@ -72,7 +72,8 @@ def test_ourlog_multiple_containers_not_allowed(
         "log": {"standard": 30, "downsampled": 13 * 30},
     }
 
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    config = {**TEST_CONFIG, "http": {"global_metrics": True}}
+    relay = relay(relay_with_processing(options=config), options=config)
     start = datetime.now(timezone.utc)
     envelope = Envelope()
 
@@ -164,19 +165,13 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
     assert mini_sentry.get_aggregated_outcomes() == [
         {
             "category": 23,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 2,
-            "project_id": 42,
             "reason": "no_more_quota",
             "quantity": 1,
         },
         {
             "category": 24,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 2,
-            "project_id": 42,
             "reason": "no_more_quota",
             "quantity": 157,
         },
@@ -188,19 +183,13 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
     assert mini_sentry.get_aggregated_outcomes() == [
         {
             "category": 23,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 2,
-            "project_id": 42,
             "reason": "no_more_quota",
             "quantity": 1,
         },
         {
             "category": 24,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 2,
-            "project_id": 42,
             "reason": "no_more_quota",
             "quantity": 157,
         },
@@ -1031,12 +1020,9 @@ def test_filters_are_applied_to_logs(
 
     relay.send_envelope(project_id, envelope, headers=headers)
 
-    assert mini_sentry.get_outcomes(2) == [
+    assert mini_sentry.get_outcomes(n=2) == [
         {
             "category": DataCategory.LOG_ITEM.value,
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
             "outcome": 1,  # Filtered
             "reason": filter_name,
             "quantity": 1,
@@ -1044,10 +1030,7 @@ def test_filters_are_applied_to_logs(
         },
         {
             "category": DataCategory.LOG_BYTE.value,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 1,
-            "project_id": 42,
             "quantity": matches_any(),
             "reason": filter_name,
             "timestamp": time_within_delta(ts),

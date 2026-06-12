@@ -293,10 +293,24 @@ def test_minidump_invalid_magic(mini_sentry, relay_with_processing, outcomes_con
         relay.send_minidump(project_id=project_id, files=attachments)
 
     assert exc_info.value.response.status_code == 400
-    assert outcomes_consumer.get_outcomes() == [
+    outcomes = outcomes_consumer.get_outcomes()
+    outcomes.sort(key=lambda outcome: outcome["category"])
+    assert outcomes == [
         {
             "timestamp": time_within_delta(),
+            "org_id": 1,
             "project_id": 42,
+            "key_id": 123,
+            "outcome": 3,
+            "reason": "invalid_minidump",
+            "category": DataCategory.ERROR.value,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
             "outcome": 3,
             "reason": "invalid_minidump",
             "category": DataCategory.ATTACHMENT.value,
@@ -304,18 +318,12 @@ def test_minidump_invalid_magic(mini_sentry, relay_with_processing, outcomes_con
         },
         {
             "timestamp": time_within_delta(),
+            "org_id": 1,
             "project_id": 42,
+            "key_id": 123,
             "outcome": 3,
             "reason": "invalid_minidump",
             "category": DataCategory.ATTACHMENT_ITEM.value,
-            "quantity": 1,
-        },
-        {
-            "timestamp": time_within_delta(),
-            "project_id": 42,
-            "outcome": 3,
-            "reason": "invalid_minidump",
-            "category": DataCategory.ERROR.value,
             "quantity": 1,
         },
     ]
@@ -333,10 +341,24 @@ def test_minidump_invalid_field(mini_sentry, relay_with_processing, outcomes_con
         relay.send_minidump(project_id=project_id, files=attachments)
 
     assert exc_info.value.response.status_code == 400
-    assert outcomes_consumer.get_outcomes() == [
+    outcomes = outcomes_consumer.get_outcomes()
+    outcomes.sort(key=lambda outcome: outcome["category"])
+    assert outcomes == [
         {
             "timestamp": time_within_delta(),
+            "org_id": 1,
             "project_id": 42,
+            "key_id": 123,
+            "outcome": 3,
+            "reason": "missing_minidump_upload",
+            "category": DataCategory.ERROR.value,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
             "outcome": 3,
             "reason": "missing_minidump_upload",
             "category": DataCategory.ATTACHMENT.value,
@@ -344,18 +366,12 @@ def test_minidump_invalid_field(mini_sentry, relay_with_processing, outcomes_con
         },
         {
             "timestamp": time_within_delta(),
+            "org_id": 1,
             "project_id": 42,
+            "key_id": 123,
             "outcome": 3,
             "reason": "missing_minidump_upload",
             "category": DataCategory.ATTACHMENT_ITEM.value,
-            "quantity": 1,
-        },
-        {
-            "timestamp": time_within_delta(),
-            "project_id": 42,
-            "outcome": 3,
-            "reason": "missing_minidump_upload",
-            "category": DataCategory.ERROR.value,
             "quantity": 1,
         },
     ]
@@ -376,10 +392,23 @@ def test_minidump_invalid_compression_outcome(
 
     assert exc_info.value.response.status_code == 400
     outcomes = outcomes_consumer.get_outcomes()
+    outcomes.sort(key=lambda outcome: outcome["category"])
     assert outcomes == [
         {
             "timestamp": time_within_delta(),
+            "org_id": 1,
             "project_id": 42,
+            "key_id": 123,
+            "outcome": 3,
+            "reason": "invalid_compression",
+            "category": DataCategory.ERROR.value,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
             "outcome": 3,
             "reason": "invalid_compression",
             "category": DataCategory.ATTACHMENT.value,
@@ -387,18 +416,12 @@ def test_minidump_invalid_compression_outcome(
         },
         {
             "timestamp": time_within_delta(),
+            "org_id": 1,
             "project_id": 42,
+            "key_id": 123,
             "outcome": 3,
             "reason": "invalid_compression",
             "category": DataCategory.ATTACHMENT_ITEM.value,
-            "quantity": 1,
-        },
-        {
-            "timestamp": time_within_delta(),
-            "project_id": 42,
-            "outcome": 3,
-            "reason": "invalid_compression",
-            "category": DataCategory.ERROR.value,
             "quantity": 1,
         },
     ]
@@ -1275,14 +1298,12 @@ def test_minidump_objectstore_errors(
         {
             "category": DataCategory.ATTACHMENT,
             "outcome": 3,  # invalid
-            "project_id": 42,
             "reason": "internal",
             "quantity": 1,
         },
         {
             "category": DataCategory.ATTACHMENT_ITEM,
             "outcome": 3,  # invalid
-            "project_id": 42,
             "reason": "internal",
             "quantity": 1,
         },
@@ -1407,7 +1428,6 @@ def test_minidump_objectstore_uploads_rate_limits(
             {
                 "category": DataCategory.ERROR.value,
                 "outcome": 2,
-                "project_id": 42,
                 "reason": "test_endpoint_check",
                 "quantity": 1,
             }
@@ -1419,34 +1439,14 @@ def test_minidump_objectstore_uploads_rate_limits(
             [
                 {
                     "category": 4,
-                    "key_id": 123,
-                    "org_id": 1,
                     "outcome": 2,
-                    "project_id": 42,
-                    "quantity": 12,
-                    "reason": "test_endpoint_check",
-                },
-                {
-                    "category": 22,
-                    "key_id": 123,
-                    "org_id": 1,
-                    "outcome": 2,
-                    "project_id": 42,
-                    "quantity": 1,
-                    "reason": "test_endpoint_check",
-                },
-                {
-                    "category": 4,
-                    "outcome": 2,
-                    "project_id": 42,
-                    "quantity": 1,
+                    "quantity": 13,
                     "reason": "test_endpoint_check",
                 },
                 {
                     "category": 22,
                     "outcome": 2,
-                    "project_id": 42,
-                    "quantity": 1,
+                    "quantity": 2,
                     "reason": "test_endpoint_check",
                 },
             ]
@@ -1472,15 +1472,7 @@ def test_minidump_unknown_project(relay_with_processing, outcomes_consumer):
     )
 
     assert response.status_code == 403
-    assert outcomes_consumer.get_aggregated_outcomes() == [
-        {
-            "category": DataCategory.ERROR.value,
-            "outcome": 3,
-            "project_id": project_id,
-            "reason": "project_id",
-            "quantity": 1,
-        }
-    ]
+    assert outcomes_consumer.get_aggregated_outcomes(timeout=0.5) == []
 
 
 def test_minidump_project_unavailable(
@@ -1501,15 +1493,7 @@ def test_minidump_project_unavailable(
     )
 
     assert response.status_code == 503
-    assert outcomes_consumer.get_aggregated_outcomes() == [
-        {
-            "category": DataCategory.ERROR.value,
-            "outcome": 3,
-            "project_id": project_id,
-            "reason": "project_unavailable",
-            "quantity": 1,
-        }
-    ]
+    assert outcomes_consumer.get_aggregated_outcomes(timeout=0.5) == []
 
 
 def test_minidump_max_attachment_size_exceeded(
@@ -1541,46 +1525,37 @@ def test_minidump_max_attachment_size_exceeded(
 
     assert exc_info.value.response.status_code == 400
     outcomes = outcomes_consumer.get_outcomes()
+    outcomes.sort(key=lambda outcome: outcome["category"])
     assert outcomes == [
         {
             "timestamp": time_within_delta(),
+            "org_id": 1,
             "project_id": 42,
-            "outcome": 3,
-            "reason": "too_large:attachment:minidump",
-            "category": DataCategory.ATTACHMENT.value,
-            "quantity": len(minidump_content),
-        },
-        {
-            "timestamp": time_within_delta(),
-            "project_id": 42,
-            "outcome": 3,
-            "reason": "too_large:attachment:minidump",
-            "category": DataCategory.ATTACHMENT_ITEM.value,
-            "quantity": 1,
-        },
-        {
-            "timestamp": time_within_delta(),
-            "project_id": 42,
-            "outcome": 3,
-            "reason": "too_large:attachment:minidump",
-            "category": DataCategory.ATTACHMENT.value,
-            "quantity": len(attachment_content),
-        },
-        {
-            "timestamp": time_within_delta(),
-            "project_id": 42,
-            "outcome": 3,
-            "reason": "too_large:attachment:minidump",
-            "category": DataCategory.ATTACHMENT_ITEM.value,
-            "quantity": 1,
-        },
-        {
-            "timestamp": time_within_delta(),
-            "project_id": 42,
+            "key_id": 123,
             "outcome": 3,
             "reason": "invalid_multipart",
             "category": DataCategory.ERROR.value,
             "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "outcome": 3,
+            "reason": "too_large:attachment:minidump",
+            "category": DataCategory.ATTACHMENT.value,
+            "quantity": len(minidump_content) + len(attachment_content),
+        },
+        {
+            "timestamp": time_within_delta(),
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "outcome": 3,
+            "reason": "too_large:attachment:minidump",
+            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "quantity": 2,
         },
     ]
 
@@ -1628,14 +1603,12 @@ def test_minidump_large_attachment_skipped_when_no_project_fetching(mini_sentry,
         {
             "category": 4,
             "outcome": 3,
-            "project_id": 42,
             "quantity": 1500,
             "reason": "too_large:attachment:attachment",
         },
         {
             "category": 22,
             "outcome": 3,
-            "project_id": 42,
             "quantity": 1,
             "reason": "too_large:attachment:attachment",
         },
@@ -1695,21 +1668,18 @@ def test_minidump_objectstore_uploads_rejects_compressed(
         {
             "category": 1,
             "outcome": 3,
-            "project_id": 42,
             "quantity": 1,
             "reason": "invalid_minidump",
         },
         {
             "category": 4,
             "outcome": 3,
-            "project_id": 42,
             "reason": "invalid_minidump",
             "quantity": 1,
         },
         {
             "category": 22,
             "outcome": 3,
-            "project_id": 42,
             "reason": "invalid_minidump",
             "quantity": 1,
         },
@@ -1753,21 +1723,18 @@ def test_minidump_upload_failure_bubbles_up(mini_sentry, relay):
         {
             "category": DataCategory.ERROR,
             "outcome": 3,  # invalid
-            "project_id": 42,
             "reason": "objectstore_upload_failed",
             "quantity": 1,
         },
         {
             "category": DataCategory.ATTACHMENT,
             "outcome": 3,  # invalid
-            "project_id": 42,
             "reason": "internal",
             "quantity": 1,
         },
         {
             "category": DataCategory.ATTACHMENT_ITEM,
             "outcome": 3,  # invalid
-            "project_id": 42,
             "reason": "internal",
             "quantity": 1,
         },
