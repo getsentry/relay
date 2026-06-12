@@ -16,6 +16,7 @@
 **Internal**:
 
 - Restore top-level _performance_issues_spans. ([#6045](https://github.com/getsentry/relay/pull/6045))
+- Prefix upload location query params for forward compatibility. ([#6076](https://github.com/getsentry/relay/pull/6076))
 
 ## 26.5.2
 
