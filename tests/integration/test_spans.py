@@ -9,7 +9,7 @@ from requests import HTTPError
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
-from .asserts import matches_any
+from .asserts import matches_any, time_within_delta
 from .test_store import make_transaction
 
 TEST_CONFIG = {
@@ -217,6 +217,7 @@ def test_span_extraction(
             "start_timestamp": start.timestamp(),
             "status": "ok",
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            "received": time_within_delta(),
         },
         {
             "_meta": {
@@ -299,15 +300,14 @@ def test_span_extraction(
             "start_timestamp": start.timestamp(),
             "status": "ok",
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            "received": time_within_delta(),
         },
     ]
 
     child_span = spans_consumer.get_span()
-    del child_span["received"]
     assert child_span == expected_child_spans[0]
 
     child_span = spans_consumer.get_span()
-    del child_span["received"]
     assert child_span == expected_child_spans[1]
 
     start_timestamp = datetime.fromisoformat(event["start_timestamp"]).replace(
