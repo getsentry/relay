@@ -8,7 +8,6 @@ pub(crate) mod common;
 mod attachments;
 mod autoscaling;
 mod batch_metrics;
-mod batch_outcomes;
 mod envelope;
 mod forward;
 mod health_check;
@@ -78,7 +77,6 @@ fn public_routes_raw(config: &Config) -> Router<ServiceState> {
         .route_layer(DefaultBodyLimit::max(crate::constants::MAX_JSON_SIZE));
 
     let batch_routes = Router::new()
-        .route("/api/0/relays/outcomes/", post(batch_outcomes::handle))
         .route("/api/0/relays/metrics/", post(batch_metrics::handle))
         .route_layer(DefaultBodyLimit::max(BATCH_JSON_BODY_LIMIT));
 

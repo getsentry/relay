@@ -105,6 +105,9 @@ pub enum Feature {
     /// Stream minidumps to objectstore.
     #[serde(rename = "projects:relay-minidump-uploads")]
     MinidumpUploads,
+    /// Allow additional exceptions to accompany minidumps.
+    #[serde(rename = "projects:minidump-multi-exception")]
+    MinidumpMultiException,
 
     /// Enables OTLP spans to use the Span V2 processing pipeline in Relay.
     ///

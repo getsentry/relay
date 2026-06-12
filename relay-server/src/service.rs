@@ -199,10 +199,12 @@ impl ServiceState {
             relay_config::RelayMode::Managed => channel(EnvelopeProcessorService::name()),
         };
 
+        let (aggregator, aggregator_rx) = channel(RouterService::name());
+
         let outcome_producer = services.start(OutcomeProducerService::create(
             config.clone(),
-            upstream_relay.clone(),
             processor.clone(),
+            aggregator.clone(),
         )?);
         let outcome_aggregator =
             services.start(OutcomeAggregator::new(&config, outcome_producer.clone()));
@@ -282,15 +284,15 @@ impl ServiceState {
             relay_config::RelayMode::Managed => {
                 let processor_pool = create_processor_pool(&config)?;
 
-                let aggregator = RouterService::new(
+                let router = RouterService::new(
                     handle.clone(),
                     config.default_aggregator_config().clone(),
                     config.secondary_aggregator_configs().clone(),
                     Some(processor.clone().recipient()),
                     project_cache_handle.clone(),
                 );
-                let aggregator_handle = aggregator.handle();
-                let aggregator = services.start(aggregator);
+                let router_handle = router.handle();
+                services.start_with(router, aggregator_rx);
 
                 let cogs = CogsService::new(&config);
                 let cogs = Cogs::new(CogsServiceRecorder::new(&config, services.start(cogs)));
@@ -325,11 +327,7 @@ impl ServiceState {
                     processor_pool.clone(),
                 ));
 
-                (
-                    Some(processor_pool),
-                    Some(aggregator_handle),
-                    Some(autoscaling),
-                )
+                (Some(processor_pool), Some(router_handle), Some(autoscaling))
             }
         };
 

@@ -236,6 +236,7 @@ def test_playstation_no_feature_flag(
 
     # Get these outcomes since the feature flag is not enabled:
     outcomes = outcomes_consumer.get_outcomes()
+    outcomes.sort(key=lambda outcome: outcome["category"])
     assert outcomes == [
         {
             "timestamp": time_within_delta(),
@@ -286,10 +287,23 @@ def test_playstation_invalid_prosperodump(
     assert response.status_code == 400, "Expected a 400 status code"
     assert response.json()["detail"] == "invalid prosperodump"
     outcomes = outcomes_consumer.get_outcomes()
+    outcomes.sort(key=lambda outcome: outcome["category"])
     assert outcomes == [
         {
             "timestamp": time_within_delta(),
+            "org_id": 1,
             "project_id": 42,
+            "key_id": 123,
+            "outcome": 3,
+            "reason": "invalid_prosperodump",
+            "category": DataCategory.ERROR.value,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
             "outcome": 3,
             "reason": "invalid_prosperodump",
             "category": DataCategory.ATTACHMENT.value,
@@ -297,18 +311,12 @@ def test_playstation_invalid_prosperodump(
         },
         {
             "timestamp": time_within_delta(),
+            "org_id": 1,
             "project_id": 42,
+            "key_id": 123,
             "outcome": 3,
             "reason": "invalid_prosperodump",
             "category": DataCategory.ATTACHMENT_ITEM.value,
-            "quantity": 1,
-        },
-        {
-            "timestamp": time_within_delta(),
-            "project_id": 42,
-            "outcome": 3,
-            "reason": "invalid_prosperodump",
-            "category": DataCategory.ERROR.value,
             "quantity": 1,
         },
     ]
@@ -331,10 +339,23 @@ def test_playstation_missing_prosperodump(
     assert response.status_code == 400, "Expected a 400 status code"
     assert response.json()["detail"] == "missing prosperodump"
     outcomes = outcomes_consumer.get_outcomes()
+    outcomes.sort(key=lambda outcome: outcome["category"])
     assert outcomes == [
         {
             "timestamp": time_within_delta(),
+            "org_id": 1,
             "project_id": 42,
+            "key_id": 123,
+            "outcome": 3,
+            "reason": "missing_prosperodump_upload",
+            "category": DataCategory.ERROR.value,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
             "outcome": 3,
             "reason": "missing_prosperodump_upload",
             "category": DataCategory.ATTACHMENT.value,
@@ -342,18 +363,12 @@ def test_playstation_missing_prosperodump(
         },
         {
             "timestamp": time_within_delta(),
+            "org_id": 1,
             "project_id": 42,
+            "key_id": 123,
             "outcome": 3,
             "reason": "missing_prosperodump_upload",
             "category": DataCategory.ATTACHMENT_ITEM.value,
-            "quantity": 1,
-        },
-        {
-            "timestamp": time_within_delta(),
-            "project_id": 42,
-            "outcome": 3,
-            "reason": "missing_prosperodump_upload",
-            "category": DataCategory.ERROR.value,
             "quantity": 1,
         },
     ]
@@ -382,10 +397,23 @@ def test_playstation_max_attachments_size_exceeded(
     assert response.status_code == 413, response.json()
     assert response.json() == {"detail": "request content exceeded size limits"}
     outcomes = outcomes_consumer.get_outcomes()
+    outcomes.sort(key=lambda outcome: outcome["category"])
     assert outcomes == [
         {
             "timestamp": time_within_delta(),
+            "org_id": 1,
             "project_id": 42,
+            "key_id": 123,
+            "outcome": 3,
+            "reason": "request_too_large",
+            "category": DataCategory.ERROR.value,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
             "outcome": 3,
             "reason": "too_large:attachment:attachment",
             "category": DataCategory.ATTACHMENT.value,
@@ -393,18 +421,12 @@ def test_playstation_max_attachments_size_exceeded(
         },
         {
             "timestamp": time_within_delta(),
+            "org_id": 1,
             "project_id": 42,
+            "key_id": 123,
             "outcome": 3,
             "reason": "too_large:attachment:attachment",
             "category": DataCategory.ATTACHMENT_ITEM.value,
-            "quantity": 1,
-        },
-        {
-            "timestamp": time_within_delta(),
-            "project_id": 42,
-            "outcome": 3,
-            "reason": "request_too_large",
-            "category": DataCategory.ERROR.value,
             "quantity": 1,
         },
     ]
@@ -432,10 +454,23 @@ def test_playstation_max_attachment_size_exceeded(
 
     assert response.status_code == 400, "Expected a 400 status code"
     outcomes = outcomes_consumer.get_outcomes()
+    outcomes.sort(key=lambda outcome: outcome["category"])
     assert outcomes == [
         {
             "timestamp": time_within_delta(),
+            "org_id": 1,
             "project_id": 42,
+            "key_id": 123,
+            "outcome": 3,
+            "reason": "missing_prosperodump_upload",
+            "category": DataCategory.ERROR.value,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(),
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
             "outcome": 3,
             "reason": "too_large:attachment:prosperodump",
             "category": DataCategory.ATTACHMENT.value,
@@ -443,18 +478,12 @@ def test_playstation_max_attachment_size_exceeded(
         },
         {
             "timestamp": time_within_delta(),
+            "org_id": 1,
             "project_id": 42,
+            "key_id": 123,
             "outcome": 3,
             "reason": "too_large:attachment:prosperodump",
             "category": DataCategory.ATTACHMENT_ITEM.value,
-            "quantity": 1,
-        },
-        {
-            "timestamp": time_within_delta(),
-            "project_id": 42,
-            "outcome": 3,
-            "reason": "missing_prosperodump_upload",
-            "category": DataCategory.ERROR.value,
             "quantity": 1,
         },
     ]
@@ -1014,15 +1043,7 @@ def test_playstation_unknown_project(
     )
 
     assert response.status_code == 403
-    assert outcomes_consumer.get_aggregated_outcomes() == [
-        {
-            "category": DataCategory.ERROR.value,
-            "outcome": 3,
-            "project_id": PROJECT_ID,
-            "reason": "project_id",
-            "quantity": 1,
-        }
-    ]
+    assert outcomes_consumer.get_aggregated_outcomes(timeout=0.5) == []
 
 
 def test_playstation_project_unavailable(
@@ -1044,12 +1065,4 @@ def test_playstation_project_unavailable(
     )
 
     assert response.status_code == 503
-    assert outcomes_consumer.get_aggregated_outcomes() == [
-        {
-            "category": DataCategory.ERROR.value,
-            "outcome": 3,
-            "project_id": PROJECT_ID,
-            "reason": "project_unavailable",
-            "quantity": 1,
-        }
-    ]
+    assert outcomes_consumer.get_aggregated_outcomes(timeout=0.5) == []

@@ -178,6 +178,9 @@ pub enum AppFeature {
     /// Event attachments not associated with an event.
     StandaloneAttachments,
 
+    /// Outcomes.
+    Outcomes,
+
     /// Metrics in the spans namespace.
     MetricsSpans,
     /// Metrics in the transactions namespace.
@@ -213,6 +216,7 @@ impl AppFeature {
             Self::Replays => "replays",
             Self::UserReports => "user_reports",
             Self::StandaloneAttachments => "standalone_attachments",
+            Self::Outcomes => "outcomes",
             Self::MetricsSpans => "metrics_spans",
             Self::MetricsTransactions => "metrics_transactions",
             Self::MetricsSessions => "metrics_sessions",

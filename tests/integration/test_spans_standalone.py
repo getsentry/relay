@@ -832,6 +832,7 @@ def test_mobile_measurements(
             "origin": "mobile",
             "exclusive_time": 104,
             "measurements": {
+                "app_start_cold": {"value": 0.123, "unit": "millisecond"},
                 "frames_slow": {"value": 1},
                 "frames_frozen": {"value": 2},
                 "frames_total": {"value": 4},
@@ -890,6 +891,16 @@ def test_mobile_measurements(
             "app.vitals.frames.total.count": {"value": 4.0, "type": "double"},
             "frames_frozen_rate": {"value": 0.5, "type": "double"},
             "frames_slow_rate": {"value": 0.25, "type": "double"},
+            "app.vitals.start.cold.value": {"value": 0.123, "type": "double"},
+            # These attributes are backfilled only in the V2 pipeline. In the legacy
+            # pipeline this logic doesn't exist.
+            **_if_dict(
+                mode == "v2",
+                {
+                    "app.vitals.start.value": {"value": 0.123, "type": "double"},
+                    "app.vitals.start.type": {"value": "cold", "type": "string"},
+                },
+            ),
             **attributes,
         },
         "downsampled_retention_days": 90,
