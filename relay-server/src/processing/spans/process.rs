@@ -288,7 +288,11 @@ fn normalize_span(
     Ok(())
 }
 
-pub fn backfill_description(spans: &mut Managed<ExpandedSpans>) {
+/// Normalize derived fields and attributes.
+///
+/// This is separate from [`normalize`] because it needs to run
+/// after PII scrubbing; PII might get leaked otherwise.
+pub fn normalize_derived(spans: &mut Managed<ExpandedSpans>) {
     spans.modify(|span, _| {
         for span in &mut span.spans {
             let Some(span) = span.span.value_mut() else {
