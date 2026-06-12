@@ -8,6 +8,7 @@
 - Infer user agents and client addresses in the V2 standalone span pipeline. ([#6047](https://github.com/getsentry/relay/pull/6047))
 - Conditionally allow additional exceptions on minidumps. ([#6063](https://github.com/getsentry/relay/pull/6063))
 - Replace nil Trace IDs with random ones. ([#6079](https://github.com/getsentry/relay/pull/6079))
+- Equalize name and description for spans with "manual" origin. ([#6070](https://github.com/getsentry/relay/pull/6070))
 
 **Bug Fixes**:
 
