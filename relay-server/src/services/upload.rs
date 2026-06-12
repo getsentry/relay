@@ -442,6 +442,7 @@ impl<L: UploadLength> Location<L> {
     }
 
     /// Temporary function used to verify legacy signatures.
+    #[cfg(feature = "processing")]
     fn try_to_legacy_uri(&self) -> Result<String, Error> {
         let Location {
             project_id,
