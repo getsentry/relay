@@ -1,26 +1,14 @@
 from datetime import datetime, timezone
 
-import pytest
-
-from sentry_relay.consts import DataCategory
-
 from .asserts import matches_any, time_within_delta
 
 
-@pytest.mark.parametrize(
-    "eap_span_outcomes_rollout_rate",
-    [
-        pytest.param(0.0, id="relay_emits_accepted_outcome"),
-        pytest.param(1.0, id="eap_emits_accepted_outcome"),
-    ],
-)
 def test_ai_spans_example_transaction(
     mini_sentry,
     relay,
     relay_with_processing,
     spans_consumer,
     outcomes_consumer,
-    eap_span_outcomes_rollout_rate,
 ):
     """
     Asserts the span output of an example AI agent workflow.
@@ -49,10 +37,6 @@ def test_ai_spans_example_transaction(
             },
         },
     }
-    mini_sentry.global_config["options"][
-        "relay.eap-span-outcomes.rollout-rate"
-    ] = eap_span_outcomes_rollout_rate
-    relay_emits_accepted_outcome = eap_span_outcomes_rollout_rate == 0.0
 
     relay = relay(relay_with_processing())
 
@@ -476,7 +460,6 @@ def test_ai_spans_example_transaction(
             "project_id": 42,
             "received": time_within_delta(),
             "retention_days": 90,
-            "accepted_outcome_emitted": relay_emits_accepted_outcome,
             "span_id": "13e7c1ffd66981f0",
             "start_timestamp": time_within_delta(),
             "status": "ok",
@@ -620,7 +603,6 @@ def test_ai_spans_example_transaction(
             "project_id": 42,
             "received": time_within_delta(),
             "retention_days": 90,
-            "accepted_outcome_emitted": relay_emits_accepted_outcome,
             "span_id": "af7b547f4d5f4f49",
             "start_timestamp": time_within_delta(),
             "status": "ok",
@@ -701,7 +683,6 @@ def test_ai_spans_example_transaction(
             "project_id": 42,
             "received": time_within_delta(),
             "retention_days": 90,
-            "accepted_outcome_emitted": relay_emits_accepted_outcome,
             "span_id": "5ff84ff6bf512012",
             "start_timestamp": time_within_delta(),
             "status": "ok",
@@ -776,7 +757,6 @@ def test_ai_spans_example_transaction(
             "project_id": 42,
             "received": time_within_delta(),
             "retention_days": 90,
-            "accepted_outcome_emitted": relay_emits_accepted_outcome,
             "span_id": "d2fd68d7cf6eb933",
             "start_timestamp": time_within_delta(),
             "status": "ok",
@@ -855,7 +835,6 @@ def test_ai_spans_example_transaction(
             "project_id": 42,
             "received": time_within_delta(),
             "retention_days": 90,
-            "accepted_outcome_emitted": relay_emits_accepted_outcome,
             "span_id": "672681a999129905",
             "start_timestamp": time_within_delta(),
             "status": "ok",
@@ -930,7 +909,6 @@ def test_ai_spans_example_transaction(
             "project_id": 42,
             "received": time_within_delta(),
             "retention_days": 90,
-            "accepted_outcome_emitted": relay_emits_accepted_outcome,
             "span_id": "e5bb8f1d156e7649",
             "start_timestamp": time_within_delta(),
             "status": "ok",
@@ -1009,7 +987,6 @@ def test_ai_spans_example_transaction(
             "project_id": 42,
             "received": time_within_delta(),
             "retention_days": 90,
-            "accepted_outcome_emitted": relay_emits_accepted_outcome,
             "span_id": "3d755d9884113eba",
             "start_timestamp": time_within_delta(),
             "status": "ok",
@@ -1153,7 +1130,6 @@ def test_ai_spans_example_transaction(
             "project_id": 42,
             "received": time_within_delta(),
             "retention_days": 90,
-            "accepted_outcome_emitted": relay_emits_accepted_outcome,
             "span_id": "bdf1648756367ee5",
             "start_timestamp": time_within_delta(),
             "status": "ok",
@@ -1234,7 +1210,6 @@ def test_ai_spans_example_transaction(
             "project_id": 42,
             "received": time_within_delta(),
             "retention_days": 90,
-            "accepted_outcome_emitted": relay_emits_accepted_outcome,
             "span_id": "203e925b464ad87b",
             "start_timestamp": time_within_delta(),
             "status": "ok",
@@ -1288,22 +1263,9 @@ def test_ai_spans_example_transaction(
             "project_id": 42,
             "received": time_within_delta(),
             "retention_days": 90,
-            "accepted_outcome_emitted": relay_emits_accepted_outcome,
             "span_id": "657cf984a6a4e59b",
             "start_timestamp": time_within_delta(),
             "status": "ok",
             "trace_id": "a9351cd574f092f6acad48e250981f11",
         },
     ]
-
-    if relay_emits_accepted_outcome:
-        assert outcomes_consumer.get_aggregated_outcomes() == [
-            {
-                "category": DataCategory.SPAN_INDEXED.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 10,
-            }
-        ]

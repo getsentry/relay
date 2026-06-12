@@ -885,15 +885,6 @@ def test_profile_outcomes(
             "category": DataCategory.SPAN_INDEXED.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 2,
-            "source": "processing-relay",
-        },
-        {
-            "category": DataCategory.SPAN_INDEXED.value,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 1,  # Filtered
             "project_id": 42,
             "quantity": 2,
@@ -1005,15 +996,6 @@ def test_profile_outcomes_invalid(
             "reason": expected_outcome,
             "timestamp": time_within_delta(),
         },
-        {
-            "category": DataCategory.SPAN_INDEXED.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 2,
-            "timestamp": time_within_delta(),
-        },
     ]
 
 
@@ -1088,15 +1070,6 @@ def test_profile_outcomes_too_many(
             "project_id": 42,
             "quantity": 1,
             "reason": "profiling_too_many_profiles",
-            "timestamp": time_within_delta(),
-        },
-        {
-            "category": DataCategory.SPAN_INDEXED.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 2,
             "timestamp": time_within_delta(),
         },
     ]
@@ -1201,19 +1174,6 @@ def test_profile_outcomes_rate_limited(
         }
         for (category, quantity) in expected_categories
     ]
-
-    if quota_category != "transaction":
-        expected_outcomes.append(
-            {
-                "category": DataCategory.SPAN_INDEXED,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 2,
-                "timestamp": time_within_delta(),
-            }
-        )
 
     outcomes.sort(key=lambda o: sorted(o.items()))
     expected_outcomes.sort(key=lambda o: sorted(o.items()))
@@ -1382,16 +1342,6 @@ def test_span_outcomes(
             "quantity": 1,
             "reason": "Sampled:3000",
             "source": expected_source,
-        },
-        {
-            "timestamp": time_within_delta(),
-            "category": DataCategory.SPAN_INDEXED.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,  # Accepted
-            "project_id": 42,
-            "quantity": 2,
-            "source": "processing-relay",
         },
         {
             "timestamp": time_within_delta(),
