@@ -563,6 +563,7 @@ impl<L: UploadLength> SignedLocation<L> {
             location,
             signature,
         } = self;
+
         let mut uri = location.try_to_uri()?;
         uri.push(if uri.ends_with('/') { '?' } else { '&' });
         uri.push_str("upload_signature=");
@@ -844,11 +845,48 @@ mod tests {
     fn parse_location_complete() {
         let json = r#"signature=foo&length=123"#;
 
-        // Can only parse provisional:
         let provisional: SignedLocationQueryParams<Provisional> =
             serde_urlencoded::from_str(json).unwrap();
         assert_eq!(provisional.upload_length.0, Some(123));
         let full: SignedLocationQueryParams<Final> = serde_urlencoded::from_str(json).unwrap();
         assert_eq!(full.upload_length.0, 123);
+    }
+
+    #[test]
+    fn parse_location_with_other() {
+        let json =
+            r#"upload_signature=foo&upload_length=123&not_an_upload_param=123&upload_type=bar"#;
+
+        let provisional: SignedLocationQueryParams<Provisional> =
+            serde_urlencoded::from_str(json).unwrap();
+        insta::assert_debug_snapshot!(provisional, @r#"
+        SignedLocationQueryParams {
+            upload_length: Provisional(
+                Some(
+                    123,
+                ),
+            ),
+            upload_signature: "foo",
+            other: UploadParams(
+                {
+                    "upload_type": "bar",
+                },
+            ),
+        }
+        "#);
+        let full: SignedLocationQueryParams<Final> = serde_urlencoded::from_str(json).unwrap();
+        insta::assert_debug_snapshot!(full, @r#"
+        SignedLocationQueryParams {
+            upload_length: Final(
+                123,
+            ),
+            upload_signature: "foo",
+            other: UploadParams(
+                {
+                    "upload_type": "bar",
+                },
+            ),
+        }
+        "#);
     }
 }
