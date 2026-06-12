@@ -328,7 +328,7 @@ mod tests {
             "user.geo.country_code": "AT",
             "user.geo.region": "Europe",
             "user.geo.subdivision": "AT-9",
-            "user.geo.subregion": "155",
+            "user.geo.subregion": "Western Europe",
             "user.id": "user123",
             "user.ip": "127.0.0.1",
             "user.username": "john",
@@ -474,7 +474,7 @@ mod tests {
             },
             "sentry.user.geo.subregion": {
               "type": "string",
-              "value": "155"
+              "value": "Western Europe"
             },
             "sentry.user.id": {
               "type": "string",
