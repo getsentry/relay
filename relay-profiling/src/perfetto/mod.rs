@@ -242,47 +242,50 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
     // against a post-reset intern table. We collect (ts_ns, tid, stack_id)
     // tuples and apply clock offset + sorting after the loop.
     let mut ctx = ResolveContext::default();
-    let mut resolved_samples: Vec<(u64, u32, usize)> = Vec::new();
+    let mut resolved_samples: Vec<ResolvedSample> = Vec::new();
     let mut sample_count: usize = 0;
-    let empty_tables = InternTables::default();
 
     for packet in trace_packets {
         let seq_id = trusted_packet_sequence_id(&packet);
 
-        if has_incremental_state_cleared(&packet) && tables_by_seq.contains_key(&seq_id) {
-            tables_by_seq.insert(seq_id, InternTables::default());
+        let intern_tables = tables_by_seq.entry(seq_id).or_default();
+
+        if has_incremental_state_cleared(&packet) {
+            *intern_tables = Default::default();
         }
 
-        if let Some(interned) = packet.interned_data {
-            tables_by_seq.entry(seq_id).or_default().merge(interned);
+        if let Some(interned_data) = packet.interned_data {
+            intern_tables.merge(interned_data);
         }
 
         match packet.data {
             Some(Data::ClockSnapshot(cs)) if clock_offset_ns.is_none() => {
                 clock_offset_ns = extract_clock_offset(&cs);
             }
-            Some(Data::PerfSample(ps)) => {
-                if let Some(callstack_iid) = ps.callstack_iid {
-                    let ts = packet.timestamp.unwrap_or(0);
-                    let tid = ps.tid.unwrap_or(0);
+            Some(Data::PerfSample(sample)) => {
+                if let Some(callstack_iid) = sample.callstack_iid {
+                    let timestamp_ns = packet.timestamp.unwrap_or(0);
+                    let thread_id = sample.tid.unwrap_or(0);
                     if observed_pid.is_none() {
-                        observed_pid = ps.pid;
+                        observed_pid = sample.pid;
                     }
                     sample_count += 1;
-                    if let Some(stack_id) = resolve_callstack(
-                        callstack_iid,
-                        tables_by_seq.get(&seq_id).unwrap_or(&empty_tables),
-                        &mut ctx,
-                    ) {
-                        resolved_samples.push((ts, tid, stack_id));
+                    if sample_count > MAX_SAMPLES {
+                        return Err(ProfileError::ExceedSizeLimit);
+                    }
+
+                    if let Some(stack_id) =
+                        resolve_callstack(callstack_iid, intern_tables, &mut ctx)
+                    {
+                        resolved_samples.push(ResolvedSample {
+                            timestamp_ns,
+                            thread_id,
+                            stack_id,
+                        });
                     }
                 }
             }
             _ => {}
-        }
-
-        if sample_count > MAX_SAMPLES {
-            return Err(ProfileError::ExceedSizeLimit);
         }
     }
 
@@ -301,13 +304,18 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
 
     let clock_offset_ns = clock_offset_ns.ok_or(ProfileError::InvalidSampledProfile)?;
 
-    resolved_samples.sort_by_key(|s| s.0);
+    resolved_samples.sort_by_key(|s| s.timestamp_ns);
 
     let mut samples: Vec<Sample> = Vec::new();
-    for (ts_ns, tid, stack_id) in resolved_samples {
+    for ResolvedSample {
+        timestamp_ns,
+        thread_id,
+        stack_id,
+    } in resolved_samples
+    {
         // Compute absolute timestamp in integer nanoseconds first, then convert
         // to f64 seconds once to avoid precision loss from adding large floats.
-        let abs_ns = ts_ns as i128 + clock_offset_ns;
+        let abs_ns = timestamp_ns as i128 + clock_offset_ns;
         let ts_secs = abs_ns as f64 / 1_000_000_000.0;
         let ts_secs = (ts_secs * 1000.0).round() / 1000.0;
 
@@ -315,7 +323,7 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
             samples.push(Sample {
                 timestamp: ts,
                 stack_id,
-                thread_id: tid.to_string(),
+                thread_id: thread_id.to_string(),
             });
         }
     }
@@ -339,6 +347,12 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
         },
         ctx.debug_images,
     ))
+}
+
+struct ResolvedSample {
+    timestamp_ns: u64,
+    thread_id: u32,
+    stack_id: usize,
 }
 
 /// Resolves a callstack iid against the current intern tables, deduplicating
