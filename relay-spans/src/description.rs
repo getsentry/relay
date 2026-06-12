@@ -13,11 +13,9 @@ use relay_protocol::{Annotated, Value};
 ///
 /// In the future, this logic will be partly moved to and extended in `sentry-conventions`.
 pub fn derive_description_for_v2_span(
-    attributes: &Annotated<Attributes>,
+    attributes: &Attributes,
     name: &Annotated<String>,
 ) -> Option<String> {
-    let attributes = attributes.value()?;
-
     if attributes
         .get_value(SENTRY__ORIGIN)
         .and_then(|o| o.as_str())

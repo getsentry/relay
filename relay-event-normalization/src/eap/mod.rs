@@ -10,7 +10,7 @@ use relay_common::time::UnixTimestamp;
 use relay_conventions::attributes::*;
 use relay_conventions::{AttributeInfo, ReplacementName, WriteBehavior};
 use relay_event_schema::protocol::{Attribute, AttributeType, Attributes, BrowserContext, Geo};
-use relay_protocol::{Annotated, Error, ErrorKind, Meta, Remark, RemarkType, Value};
+use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Remark, RemarkType, Value};
 use relay_spans::{derive_description_for_v2_span, derive_op_for_v2_span};
 
 use crate::span::TABLE_NAME_REGEX;
@@ -59,17 +59,18 @@ pub fn normalize_sentry_description(
     attributes: &mut Annotated<Attributes>,
     name: &Annotated<String>,
 ) {
-    if attributes
-        .value()
-        .is_some_and(|attrs| attrs.contains_key(SENTRY__DESCRIPTION))
-    {
+    let Some(attributes) = attributes.value_mut() else {
+        return;
+    };
+
+    let description = attributes.get_annotated_value(SENTRY__DESCRIPTION);
+
+    if description.is_some_and(|d| !d.is_empty()) {
         return;
     }
 
     if let Some(description) = derive_description_for_v2_span(attributes, name) {
-        attributes
-            .get_or_insert_with(Default::default)
-            .insert(SENTRY__DESCRIPTION, description);
+        attributes.insert(SENTRY__DESCRIPTION, description);
     }
 }
 
