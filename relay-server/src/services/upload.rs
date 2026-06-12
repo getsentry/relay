@@ -425,11 +425,38 @@ impl<L: UploadLength> Location<L> {
             length,
             other,
         } = self;
-        let params = LocationQueryParams {
+        #[derive(Debug, Serialize)]
+        struct QueryParams<'a> {
+            pub upload_length: Option<usize>,
+            #[serde(flatten)]
+            pub other: &'a UploadParams,
+        }
+        let params = QueryParams {
             upload_length: length.value(),
             other,
         };
+        let query = serde_urlencoded::to_string(params)?;
+        match query.as_str() {
+            "" => Ok(format!("/api/{project_id}/upload/{key}/")),
+            _ => Ok(format!("/api/{project_id}/upload/{key}/?{query}")),
+        }
+    }
 
+    /// Temporary function used to verify legacy signatures.
+    fn try_to_legacy_uri(&self) -> Result<String, Error> {
+        let Location {
+            project_id,
+            key,
+            length,
+            other: _,
+        } = self;
+        #[derive(Debug, Serialize)]
+        struct QueryParams {
+            pub length: Option<usize>,
+        }
+        let params = QueryParams {
+            length: length.value(),
+        };
         let query = serde_urlencoded::to_string(params)?;
         match query.as_str() {
             "" => Ok(format!("/api/{project_id}/upload/{key}/")),
@@ -469,20 +496,13 @@ pub struct LocationPath {
 /// Query parameters for the upload endpoint.
 #[derive(Debug, Deserialize)]
 #[serde(bound = "L: UploadLength")]
-pub struct SignedLocationQueryParams<L: UploadLength> {
+pub struct LocationQueryParams<L: UploadLength> {
     #[serde(alias = "length")]
     pub upload_length: L,
     #[serde(alias = "signature")]
     pub upload_signature: String,
     #[serde(flatten)]
     pub other: UploadParams,
-}
-
-#[derive(Debug, Serialize)]
-struct LocationQueryParams<'a> {
-    pub upload_length: Option<usize>,
-    #[serde(flatten)]
-    pub other: &'a UploadParams,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -577,12 +597,24 @@ impl<L: UploadLength> SignedLocation<L> {
     #[cfg(feature = "processing")]
     pub fn verify(self, received: DateTime<Utc>, config: &Config) -> Result<Location<L>, Error> {
         let public_key = config.public_key().ok_or(Error::SigningFailed)?;
-        let is_valid = self.signature.verify(
+
+        let mut is_valid = self.signature.verify(
             self.location.try_to_uri()?.as_bytes(),
             public_key,
             received,
             chrono::Duration::seconds(config.upload().max_age),
         );
+
+        // NOTE: This code path can be removed once all legacy URIs are invalid (~1h after rollout)
+        if !is_valid {
+            is_valid = self.signature.verify(
+                self.location.try_to_legacy_uri()?.as_bytes(),
+                public_key,
+                received,
+                chrono::Duration::seconds(config.upload().max_age),
+            )
+        }
+
         match is_valid {
             true => Ok(self.location),
             false => Err(Error::InvalidSignature),
@@ -593,7 +625,7 @@ impl<L: UploadLength> SignedLocation<L> {
 impl<L> SignedLocation<L>
 where
     L: UploadLength,
-    SignedLocationQueryParams<L>: for<'de> Deserialize<'de>,
+    LocationQueryParams<L>: for<'de> Deserialize<'de>,
 {
     fn try_from_response(response: Response) -> Result<Self, Error> {
         match response.0.error_for_status() {
@@ -628,7 +660,7 @@ where
         };
 
         // Parse query parameters.
-        let SignedLocationQueryParams {
+        let LocationQueryParams {
             upload_length,
             upload_signature,
             other,
@@ -835,20 +867,20 @@ mod tests {
         let url = "signature=foo";
 
         // Can only parse provisional:
-        let provisional: SignedLocationQueryParams<Provisional> =
+        let provisional: LocationQueryParams<Provisional> =
             serde_urlencoded::from_str(url).unwrap();
         assert!(provisional.upload_length.0.is_none());
-        assert!(serde_urlencoded::from_str::<SignedLocationQueryParams::<Final>>(url).is_err());
+        assert!(serde_urlencoded::from_str::<LocationQueryParams::<Final>>(url).is_err());
     }
 
     #[test]
     fn parse_location_complete() {
         let json = r#"signature=foo&length=123"#;
 
-        let provisional: SignedLocationQueryParams<Provisional> =
+        let provisional: LocationQueryParams<Provisional> =
             serde_urlencoded::from_str(json).unwrap();
         assert_eq!(provisional.upload_length.0, Some(123));
-        let full: SignedLocationQueryParams<Final> = serde_urlencoded::from_str(json).unwrap();
+        let full: LocationQueryParams<Final> = serde_urlencoded::from_str(json).unwrap();
         assert_eq!(full.upload_length.0, 123);
     }
 
@@ -857,10 +889,10 @@ mod tests {
         let json =
             r#"upload_signature=foo&upload_length=123&not_an_upload_param=123&upload_type=bar"#;
 
-        let provisional: SignedLocationQueryParams<Provisional> =
+        let provisional: LocationQueryParams<Provisional> =
             serde_urlencoded::from_str(json).unwrap();
         insta::assert_debug_snapshot!(provisional, @r#"
-        SignedLocationQueryParams {
+        LocationQueryParams {
             upload_length: Provisional(
                 Some(
                     123,
@@ -874,9 +906,9 @@ mod tests {
             ),
         }
         "#);
-        let full: SignedLocationQueryParams<Final> = serde_urlencoded::from_str(json).unwrap();
+        let full: LocationQueryParams<Final> = serde_urlencoded::from_str(json).unwrap();
         insta::assert_debug_snapshot!(full, @r#"
-        SignedLocationQueryParams {
+        LocationQueryParams {
             upload_length: Final(
                 123,
             ),
@@ -888,5 +920,27 @@ mod tests {
             ),
         }
         "#);
+    }
+
+    #[cfg(feature = "processing")]
+    #[test]
+    fn verify_rejects_location_signed_with_legacy_length_param() {
+        let mut config = Config::default();
+        config.regenerate_credentials(false).unwrap();
+
+        let legacy_uri = "/api/42/upload/my_objectstore_key/?length=123";
+        let signature = config.credentials().unwrap().secret_key.sign_with_header(
+            legacy_uri.as_bytes(),
+            &SignatureHeader {
+                timestamp: Some(Utc::now()),
+                signature_algorithm: None,
+            },
+        );
+        let signed_location = SignedLocation::<Provisional>::try_from_str(&format!(
+            "{legacy_uri}&upload_signature={signature}"
+        ))
+        .unwrap();
+
+        assert!(signed_location.verify(Utc::now(), &config).is_ok());
     }
 }
