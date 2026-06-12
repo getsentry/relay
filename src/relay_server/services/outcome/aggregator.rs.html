@@ -55,7 +55,7 @@
 <a href=#55 id=55 data-nosnippet>55</a><span class="kw">impl </span>OutcomeAggregator {
 <a href=#56 id=56 data-nosnippet>56</a>    <span class="kw">pub fn </span>new(config: <span class="kw-2">&amp;</span>Config, outcome_producer: Addr&lt;OutcomeProducer&gt;) -&gt; <span class="self">Self </span>{
 <a href=#57 id=57 data-nosnippet>57</a>        <span class="kw">let </span>disabled = <span class="macro">matches!</span>(config.emit_outcomes(), EmitOutcomes::None);
-<a href=#58 id=58 data-nosnippet>58</a>        <span class="kw">let </span>aggregate = !<span class="macro">matches!</span>(config.emit_outcomes(), EmitOutcomes::AsMetrics);
+<a href=#58 id=58 data-nosnippet>58</a>        <span class="kw">let </span>aggregate = !<span class="macro">matches!</span>(config.emit_outcomes(), EmitOutcomes::AsOutcomes);
 <a href=#59 id=59 data-nosnippet>59</a>
 <a href=#60 id=60 data-nosnippet>60</a>        <span class="self">Self </span>{
 <a href=#61 id=61 data-nosnippet>61</a>            disabled,
