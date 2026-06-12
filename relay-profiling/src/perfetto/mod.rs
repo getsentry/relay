@@ -6,6 +6,7 @@
 use std::collections::BTreeMap;
 
 use bytes::Buf;
+use hashbrown::hash_map::Entry;
 use hashbrown::{HashMap, HashSet};
 use itertools::Itertools;
 use prost::Message;
@@ -54,6 +55,8 @@ const MAX_CALLSTACK_DEPTH: usize = 1000;
 ///
 /// Prevents excessive string joins.
 const MAX_PATH_SEGMENTS: usize = 100;
+
+const MAX_UNIQUE_FRAMES: usize = 1_000_000;
 
 /// See <https://perfetto.dev/docs/reference/trace-packet-proto#SequenceFlags>.
 const SEQ_INCREMENTAL_STATE_CLEARED: u32 = 1;
@@ -167,10 +170,13 @@ struct InternTables {
     frames: HashMap<u64, proto::Frame>,
     callstacks: HashMap<u64, proto::Callstack>,
     mappings: HashMap<u64, proto::Mapping>,
+    callstack_cache: HashMap<u64, usize>,
 }
 
 impl InternTables {
     fn merge(&mut self, data: proto::InternedData) {
+        self.callstack_cache.clear();
+
         let proto::InternedData {
             function_names,
             mapping_paths,
@@ -275,7 +281,7 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
                     }
 
                     if let Some(stack_id) =
-                        resolve_callstack(callstack_iid, intern_tables, &mut ctx)
+                        resolve_callstack(callstack_iid, intern_tables, &mut ctx)?
                     {
                         resolved_samples.push(ResolvedSample {
                             timestamp_ns,
@@ -362,13 +368,19 @@ struct ResolvedSample {
 /// callstack iid was not found in the tables.
 fn resolve_callstack(
     cs_iid: u64,
-    tables: &InternTables,
+    tables: &mut InternTables,
     ctx: &mut ResolveContext,
-) -> Option<usize> {
-    let callstack = tables.callstacks.get(&cs_iid)?;
+) -> Result<Option<usize>, ProfileError> {
+    if let Some(&stack_id) = tables.callstack_cache.get(&cs_iid) {
+        return Ok(Some(stack_id));
+    }
+
+    let Some(callstack) = tables.callstacks.get(&cs_iid) else {
+        return Ok(None);
+    };
 
     if callstack.frame_ids.len() > MAX_CALLSTACK_DEPTH {
-        return None;
+        return Err(ProfileError::ExceedSizeLimit);
     }
 
     let mut resolved_frame_indices: Vec<usize> = Vec::with_capacity(callstack.frame_ids.len());
@@ -391,11 +403,18 @@ fn resolve_callstack(
 
         let (key, frame) = build_frame(function_name, pf, tables);
 
-        let idx = *ctx.frame_index.entry(key).or_insert_with(|| {
-            let next_idx = ctx.frames.len();
-            ctx.frames.push(frame);
-            next_idx
-        });
+        let idx = match ctx.frame_index.entry(key) {
+            Entry::Occupied(entry) => *entry.get(),
+            Entry::Vacant(entry) => {
+                let next_idx = ctx.frames.len();
+                if next_idx >= MAX_UNIQUE_FRAMES {
+                    return Err(ProfileError::ExceedSizeLimit);
+                }
+                ctx.frames.push(frame);
+                entry.insert(next_idx);
+                next_idx
+            }
+        };
 
         resolved_frame_indices.push(idx);
     }
@@ -412,7 +431,9 @@ fn resolve_callstack(
         id
     };
 
-    Some(stack_id)
+    tables.callstack_cache.insert(cs_iid, stack_id);
+
+    Ok(Some(stack_id))
 }
 
 /// Builds a debug image from a native mapping if not already seen.
