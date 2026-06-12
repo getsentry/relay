@@ -155,7 +155,6 @@ impl FromValue for TraceId {
                 Ok(trace_id) => Annotated(Some(trace_id), meta),
                 Err(InvalidTraceId::Nil) => {
                     meta.add_remark(Remark::new(RemarkType::Substituted, "nil_trace_id"));
-                    meta.set_original_value(Some(value));
                     Annotated(Some(TraceId::random()), meta)
                 }
                 Err(InvalidTraceId::Invalid) => {
