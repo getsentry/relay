@@ -1,4 +1,5 @@
 mod attributes;
+mod description;
 mod measurements;
 mod name;
 
@@ -11,6 +12,7 @@ use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 const ATTRIBUTE_DIR: &str = "sentry-conventions/model/attributes";
+const DESCRIPTION_DIR: &str = "sentry-conventions/model/description";
 const MEASUREMENT_DIR: &str = "sentry-conventions/model/measurements";
 const NAME_DIR: &str = "sentry-conventions/model/name";
 
@@ -20,6 +22,7 @@ fn main() {
     write_attribute_rs(&crate_dir);
     write_measurement_rs(&crate_dir);
     write_name_rs(&crate_dir);
+    write_description_rs(&crate_dir);
 
     // Ideally this would only run when compiling for tests, but #[cfg(test)] doesn't seem to work
     // here.
@@ -124,6 +127,29 @@ fn write_name_rs(crate_dir: &Path) {
     let out_path = Path::new(&env::var("OUT_DIR").unwrap()).join("name_fn.rs");
     let mut out_file = BufWriter::new(File::create(&out_path).unwrap());
     let output = name::name_file_output(names);
+
+    writeln!(&mut out_file, "{}", output).unwrap();
+}
+
+fn write_description_rs(crate_dir: &Path) {
+    let descriptions = WalkDir::new(crate_dir.join(DESCRIPTION_DIR))
+        .into_iter()
+        .flat_map(|file| {
+            let file = file.unwrap();
+            if file.file_type().is_file()
+                && let Some(ext) = file.path().extension()
+                && ext.to_str() == Some("json")
+            {
+                let contents = std::fs::read_to_string(file.path()).unwrap();
+                Some(serde_json::from_str::<description::Description>(&contents).unwrap())
+            } else {
+                None
+            }
+        });
+
+    let out_path = Path::new(&env::var("OUT_DIR").unwrap()).join("description_fn.rs");
+    let mut out_file = BufWriter::new(File::create(&out_path).unwrap());
+    let output = description::description_file_output(descriptions);
 
     writeln!(&mut out_file, "{}", output).unwrap();
 }
