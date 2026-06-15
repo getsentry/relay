@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
 use relay_config::Config;
-use relay_metrics::{Bucket, BucketMetadata, BucketValue, MetricName, UnixTimestamp};
+use relay_metrics::{Bucket, BucketValue, MetricName, UnixTimestamp};
 
 #[cfg(any(test, feature = "processing"))]
 use crate::services::outcome::OutcomeId;
@@ -72,15 +72,13 @@ pub fn to_metric(outcome: &TrackOutcome, config: &Config) -> Bucket {
         tags
     };
 
-    let timestamp = UnixTimestamp::from_datetime(*timestamp).unwrap_or_else(UnixTimestamp::now);
-
     Bucket {
         name,
         value: BucketValue::Counter((*quantity).into()),
-        timestamp,
+        timestamp: UnixTimestamp::from_datetime(*timestamp).unwrap_or_else(UnixTimestamp::now),
         tags,
         width: 0,
-        metadata: BucketMetadata::new(timestamp),
+        metadata: Default::default(),
     }
 }
 
@@ -190,10 +188,6 @@ mod tests {
             "category": "1",
             "reason": "invalid_event_id",
             "source": "I bims"
-          },
-          "metadata": {
-            "merges": 1,
-            "received_at": 123
           }
         }
         "#);
@@ -223,10 +217,6 @@ mod tests {
           "tags": {
             "category": "1",
             "source": "I bims"
-          },
-          "metadata": {
-            "merges": 1,
-            "received_at": 123
           }
         }
         "#);
