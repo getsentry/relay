@@ -63,6 +63,7 @@ impl MetricOutcomes {
     ///
     /// Additionally, adds a marker tag `billing_outcome_accepted` to all buckets for which an
     /// outcome has been emitted.
+    #[cfg(feature = "processing")]
     pub fn track_accepted_outcome(&self, scoping: Scoping, buckets: &mut [Bucket]) {
         let timestamp = Utc::now();
         for bucket in buckets {
