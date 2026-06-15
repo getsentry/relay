@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Add Perfetto trace format support for continuous profiling. ([#5659](https://github.com/getsentry/relay/pull/5659))
 - Add metadata support for the `/upload` endpoint. ([#6028](https://github.com/getsentry/relay/pull/6028))
 - Infer user agents and client addresses in the V2 standalone span pipeline. ([#6047](https://github.com/getsentry/relay/pull/6047))
 - Conditionally allow additional exceptions on minidumps. ([#6063](https://github.com/getsentry/relay/pull/6063))

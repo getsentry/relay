@@ -192,6 +192,8 @@ relay_common::impl_str_de!(ContentType, "a content type string");
 
 #[cfg(test)]
 mod tests {
+    use similar_asserts::assert_eq;
+
     use super::*;
 
     #[test]
