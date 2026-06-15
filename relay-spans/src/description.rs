@@ -1,38 +1,45 @@
 use relay_conventions::attributes::*;
+use relay_conventions::description;
 use relay_event_schema::protocol::Attributes;
-use relay_protocol::{Annotated, Value};
+use relay_protocol::{Annotated, Getter, Val};
 
 /// Derives a description for a V2 span, based on its name
 /// and attributes.
 ///
-/// For now, this tries the following steps, in order:
-/// - returns the span's name if its [`SENTRY__ORIGIN`] attribute is `"manual"`
-/// - returns the span's [`DB__QUERY__TEXT`] attribute if it exists
-/// - returns a combination of the span's [`HTTP__REQUEST__METHOD`] and
-///   [`URL__FULL`] attributes, if they both exists.
-///
-/// In the future, this logic will be partly moved to and extended in `sentry-conventions`.
+/// For now, this attempts to return the following values, in order:
+/// - the span's name if its [`SENTRY__ORIGIN`] attribute is `"manual"`
+/// - a name constructed following the rules defined in sentry-conventions
+/// - the `[SENTRY__OP]` attribute if it exists
+/// - `None`
 pub fn derive_description_for_v2_span(
     attributes: &Attributes,
     name: &Annotated<String>,
 ) -> Option<String> {
-    if attributes
+    let origin = attributes
         .get_value(SENTRY__ORIGIN)
-        .and_then(|o| o.as_str())
-        == Some("manual")
+        .and_then(|o| o.as_str());
+
+    let name = name.as_str();
+
+    if let Some(name) = name
+        && origin == Some("manual")
     {
-        return name.value().cloned();
+        return Some(name.to_owned());
     }
 
-    if let Some(&Value::String(db_query)) = attributes.get_value(DB__QUERY__TEXT).as_ref() {
-        return Some(db_query.clone());
-    }
+    let op = attributes.get_value(SENTRY__OP)?.as_str()?;
 
-    if let Some(&Value::String(method)) = attributes.get_value(HTTP__REQUEST__METHOD).as_ref()
-        && let Some(&Value::String(url)) = attributes.get_value(URL__FULL).as_ref()
-    {
-        return Some(format!("{method} {url}"));
-    }
+    description::description_for_op_and_attributes(op, &AttributeGetter(attributes))
+}
 
-    None
+/// A custom getter for [`Attributes`] which only resolves values based on the attribute name.
+///
+/// This [`Getter`] does not implement nested traversals, which is the behaviour required for
+/// [`name_for_op_and_attributes`].
+struct AttributeGetter<'a>(&'a Attributes);
+
+impl<'a> Getter for AttributeGetter<'a> {
+    fn get_value(&self, path: &str) -> Option<Val<'_>> {
+        self.0.get_value(path).map(|value| value.into())
+    }
 }
