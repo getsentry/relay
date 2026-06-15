@@ -16,6 +16,7 @@
 - Correctly handle minidump objecstore upload failures. ([#6033](https://github.com/getsentry/relay/pull/6033))
 - Add `client.address` attribute to known IP fields. ([#6058](https://github.com/getsentry/relay/pull/6058))
 - Fix a bug in mobile attribute normalization. ([#6065](https://github.com/getsentry/relay/pull/6065))
+- Don't infer names during tag extraction in transaction processing. ([#6080](https://github.com/getsentry/relay/pull/6080))
 
 **Internal**:
 
