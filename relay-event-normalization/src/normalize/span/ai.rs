@@ -51,11 +51,14 @@ impl UsedTokens {
         self.input_tokens > 0.0 || self.output_tokens > 0.0
     }
 
-    /// Calculates the total amount of uncached input tokens.
+    /// Calculates the total amount of input tokens billed at the standard rate.
     ///
-    /// Subtracts cached tokens from the total token count.
+    /// Both [`Self::input_cached_tokens`] and [`Self::input_cache_write_tokens`] are
+    /// subsets of [`Self::input_tokens`] and are billed separately at their own
+    /// (cached / cache-write) rates, so both are subtracted here to avoid charging
+    /// them twice.
     pub fn raw_input_tokens(&self) -> f64 {
-        self.input_tokens - self.input_cached_tokens
+        self.input_tokens - self.input_cached_tokens - self.input_cache_write_tokens
     }
 
     /// Calculates the total amount of raw, non-reasoning output tokens.
@@ -618,9 +621,12 @@ mod tests {
         )
         .unwrap();
 
+        // input: (100 - 20 - 30) * 1.0 + 20 * 0.5 + 30 * 0.75 = 50 + 10 + 22.5 = 82.5
+        //   (cache-write tokens are billed once at the cache-write rate, not also at
+        //    the standard input rate). output: 40 * 2.0 + 10 * 3.0 = 110.0
         insta::assert_debug_snapshot!(cost, @r"
         CalculatedCost {
-            input: 112.5,
+            input: 82.5,
             output: 110.0,
         }
         ");
