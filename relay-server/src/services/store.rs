@@ -32,7 +32,7 @@ use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_threading::AsyncPool;
 
-use crate::envelope::{AttachmentPlaceholder, AttachmentType, Item, ItemType};
+use crate::envelope::{AttachmentPlaceholder, AttachmentType, ContentType, Item, ItemType};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::processing::profile_chunks::RawProfile;
