@@ -80,10 +80,10 @@ pub fn process(profile_chunks: &mut Managed<SerializedProfileChunks>, ctx: Conte
             }
 
             *item = {
-                let mut new_item = Item::new(ItemType::ProfileChunk);
-                new_item.set_platform(pc.platform().to_owned());
-                new_item.set_payload(ContentType::Json, expanded);
-                new_item
+                let mut item = Item::new(ItemType::ProfileChunk);
+                item.set_platform(pc.platform().to_owned());
+                item.set_payload(ContentType::Json, expanded);
+                item
             };
 
             Ok(())
