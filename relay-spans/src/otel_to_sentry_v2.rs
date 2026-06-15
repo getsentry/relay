@@ -194,8 +194,9 @@ fn otel_to_sentry_link(otel_link: OtelLink) -> Result<SpanV2Link, Error> {
         Some((kv.key, Annotated::new(attr_value)))
     }));
 
+    let trace_id = TraceId::try_from_or_random(otel_link.trace_id.as_slice());
     let span_link = SpanV2Link {
-        trace_id: Annotated::new(hex::encode(otel_link.trace_id).parse()?),
+        trace_id,
         span_id: SpanId::try_from(otel_link.span_id.as_slice())?.into(),
         sampled: (otel_link.flags & W3C_TRACE_CONTEXT_SAMPLED != 0).into(),
         attributes: Annotated::new(attributes),

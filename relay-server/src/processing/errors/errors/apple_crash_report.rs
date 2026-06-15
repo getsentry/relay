@@ -26,7 +26,10 @@ impl SentryError for AppleCrashReport {
         let mut event = utils::take_event_from_crash_items(items, &mut metrics, ctx)?;
 
         utils::if_processing!(ctx, {
-            crate::utils::process_apple_crash_report(event.get_or_insert_with(Default::default));
+            crate::utils::process_apple_crash_report(
+                event.get_or_insert_with(Default::default),
+                ctx.processing.project_info,
+            );
             metrics.bytes_ingested_event_applecrashreport =
                 (apple_crash_report.len() as u64).into();
         });

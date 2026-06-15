@@ -4770,6 +4770,7 @@ dependencies = [
  "hashbrown 0.15.5",
  "insta",
  "itertools 0.14.0",
+ "prost 0.14.3",
  "relay-base-schema",
  "relay-dynamic-config",
  "relay-event-schema",

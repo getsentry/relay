@@ -714,7 +714,7 @@ def test_upload_minidump_opt_in(
             response.json()["detail"]
             == "event submission rejected with_reason: FeatureDisabled(MinidumpUploads)"
         )
-        outcomes = mini_sentry.get_outcomes(1)
+        outcomes = mini_sentry.get_outcomes(n=1)
         assert any(
             o["outcome"] == 3 and o["reason"] == "feature_disabled" for o in outcomes
         )

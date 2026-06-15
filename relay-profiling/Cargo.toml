@@ -19,6 +19,7 @@ chrono = { workspace = true }
 data-encoding = { workspace = true }
 hashbrown = { workspace = true }
 itertools = { workspace = true }
+prost = { workspace = true }
 relay-base-schema = { workspace = true }
 relay-dynamic-config = { workspace = true }
 relay-event-schema = { workspace = true }

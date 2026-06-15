@@ -277,6 +277,22 @@ fn normalize_span(
     Ok(())
 }
 
+/// Normalize derived fields and attributes.
+///
+/// This is separate from [`normalize`] because it needs to run
+/// after PII scrubbing; PII might get leaked otherwise.
+pub fn normalize_derived(spans: &mut Managed<ExpandedSpans>) {
+    spans.modify(|span, _| {
+        for span in &mut span.spans {
+            let Some(span) = span.span.value_mut() else {
+                continue;
+            };
+
+            eap::normalize_sentry_description(&mut span.attributes, &span.name);
+        }
+    });
+}
+
 /// Validates the start and end timestamps of a span.
 ///
 /// The start timestamp must not be after the end timestamp.
@@ -917,7 +933,6 @@ mod tests {
         assert_attributes_contains(
             &span,
             &[
-                (SENTRY__DESCRIPTION, "select * from users where id = 1"),
                 (
                     SENTRY__NORMALIZED_DESCRIPTION,
                     "SELECT * FROM users WHERE id = %s",
@@ -979,10 +994,6 @@ mod tests {
             &[
                 (SENTRY__CATEGORY, "http"),
                 (SENTRY__OP, "http.client"),
-                (
-                    SENTRY__DESCRIPTION,
-                    "GET https://www.example.com/path?param=value",
-                ),
                 (SENTRY__ACTION, "GET"),
                 (SENTRY__DOMAIN, "*.example.com"),
             ],
@@ -1102,7 +1113,6 @@ mod tests {
             &span,
             &[
                 (SENTRY__OP, "db"),
-                (SENTRY__DESCRIPTION, "select * from users where id = 1"),
                 (
                     SENTRY__NORMALIZED_DESCRIPTION,
                     "SELECT * FROM users WHERE id = %s",
