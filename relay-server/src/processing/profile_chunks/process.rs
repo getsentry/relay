@@ -10,6 +10,7 @@ use relay_quotas::DataCategory;
 use crate::envelope::ContentType;
 use crate::envelope::Item;
 use crate::managed::Quantities;
+use crate::managed::RecordKeeper;
 use crate::processing::Context;
 use crate::processing::Managed;
 use crate::processing::profile_chunks::{
@@ -32,38 +33,18 @@ pub fn expand(
     chunks.map(|serialized, records| {
         let mut expanded = Vec::with_capacity(serialized.profile_chunks.len());
 
-        for item in serialized.profile_chunks {
+        for mut item in serialized.profile_chunks {
             let payload = item.payload();
 
             let result = match item.content_type() {
                 Some(ContentType::PerfettoTrace) => {
                     expand_perfetto_profile_chunk(&item, client_ip, ctx, payload)
                 }
-                _ => expand_json_item(&item, client_ip, ctx, payload),
+                _ => expand_json_item(&mut item, client_ip, ctx, payload, sdk, records),
             };
 
-            // Plain JSON chunks may omit the platform attribute in the header, so their profile
-            // type only becomes known while parsing the payload and they are not reflected in the
-            // input quantities.
-            let header_has_type = item.profile_type().is_some();
-            if !header_has_type {
-                relay_statsd::metric!(
-                    counter(RelayCounters::ProfileChunksWithoutPlatform) += 1,
-                    sdk = sdk
-                );
-            }
-
             match result {
-                Ok(chunk) => {
-                    // Chunks without a header type aren't counted in the input quantities;
-                    // reconcile the record keeper with the resolved category.
-                    if !header_has_type {
-                        for &(category, quantity) in &chunk.quantities {
-                            records.modify_by(category, quantity as isize);
-                        }
-                    }
-                    expanded.push(chunk);
-                }
+                Ok(chunk) => expanded.push(chunk),
                 Err(err) => drop(records.reject_err(err, &item)),
             }
         }
@@ -117,17 +98,46 @@ fn expand_perfetto_profile_chunk(
 }
 
 fn expand_json_item(
-    item: &Item,
+    item: &mut Item,
     client_ip: Option<IpAddr>,
     ctx: Context<'_>,
     payload: Bytes,
+    sdk: &str,
+    records: &mut RecordKeeper<'_>,
 ) -> Result<ExpandedProfileChunk> {
     if item.meta_length().is_some() {
         return Err(relay_profiling::ProfileError::InvalidSampledProfile.into());
     }
     let pc = relay_profiling::ProfileChunk::new(payload)?;
     let profile_type = pc.profile_type();
-    validate_profile_type(item, profile_type)?;
+
+    // Validate the item inferred profile type with the one from the payload.
+    //
+    // This is currently necessary to ensure profile chunks are emitted in the correct
+    // data category, as well as rate limited with the correct data category.
+    //
+    // In the future we plan to make the profile type on the item header a necessity.
+    // For more context see also: <https://github.com/getsentry/relay/pull/4595>.
+    if item.profile_type().is_some_and(|pt| pt != profile_type) {
+        return Err(relay_profiling::ProfileError::InvalidProfileType.into());
+    }
+    // Update the profile type to ensure the following outcomes are emitted in the correct
+    // data category.
+    //
+    // Once the item header on the item is required, this is no longer required.
+    if item.profile_type().is_none() {
+        relay_statsd::metric!(
+            counter(RelayCounters::ProfileChunksWithoutPlatform) += 1,
+            sdk = sdk
+        );
+
+        item.set_platform(pc.platform().to_owned());
+        debug_assert_eq!(item.profile_type(), Some(pc.profile_type()));
+        match pc.profile_type() {
+            ProfileType::Ui => records.modify_by(DataCategory::ProfileChunkUi, 1),
+            ProfileType::Backend => records.modify_by(DataCategory::ProfileChunk, 1),
+        }
+    }
 
     let filter_settings = &ctx.project_info.config.filter_settings;
     pc.filter(client_ip, filter_settings, ctx.global_config)?;
@@ -142,20 +152,6 @@ fn expand_json_item(
         raw_profile: None,
         quantities: quantities_for(profile_type),
     })
-}
-
-/// Validate the item inferred profile type with the one from the payload.
-///
-/// This is currently necessary to ensure profile chunks are emitted in the correct
-/// data category, as well as rate limited with the correct data category.
-///
-/// In the future we plan to make the profile type on the item header a necessity.
-/// For more context see also: <https://github.com/getsentry/relay/pull/4595>.
-fn validate_profile_type(item: &Item, profile_type: ProfileType) -> Result<()> {
-    if item.profile_type().is_some_and(|pt| pt != profile_type) {
-        return Err(relay_profiling::ProfileError::InvalidProfileType.into());
-    }
-    Ok(())
 }
 
 fn quantities_for(profile_type: ProfileType) -> Quantities {
