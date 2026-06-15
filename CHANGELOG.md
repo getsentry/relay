@@ -10,6 +10,7 @@
 - Conditionally allow additional exceptions on minidumps. ([#6063](https://github.com/getsentry/relay/pull/6063))
 - Replace nil Trace IDs with random ones. ([#6079](https://github.com/getsentry/relay/pull/6079))
 - Equalize name and description for spans with "manual" origin. ([#6070](https://github.com/getsentry/relay/pull/6070))
+- Infer span descriptions via `sentry-conventions`. ([#6093](https://github.com/getsentry/relay/pull/6093))
 
 **Bug Fixes**:
 
