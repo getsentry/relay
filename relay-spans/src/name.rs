@@ -8,6 +8,11 @@ use relay_protocol::{Getter, Val};
 /// If the attributes contain [`SENTRY__ORIGIN`] with the value `"manual"`,
 /// the description (contained in [`SENTRY__DESCRIPTION`]) is used as the name.
 /// Otherwise, the name is constructed following the rules defined in sentry-conventions.
+///
+/// If no rule in `sentry-conventions` matches the span's [`SENTRY__OP`], the op is
+/// returned as the name.
+///
+/// Finally, if the span doesn't have an op, `None` is returned.
 pub fn name_for_attributes(attributes: &Attributes) -> Option<String> {
     let origin = attributes
         .get_value(SENTRY__ORIGIN)
@@ -23,7 +28,7 @@ pub fn name_for_attributes(attributes: &Attributes) -> Option<String> {
     }
 
     let op = attributes.get_value(SENTRY__OP)?.as_str()?;
-    Some(name_for_op_and_attributes(op, &AttributeGetter(attributes)))
+    Some(name_for_op_and_attributes(op, &AttributeGetter(attributes)).unwrap_or(op.to_owned()))
 }
 
 /// A custom getter for [`Attributes`] which only resolves values based on the attribute name.
