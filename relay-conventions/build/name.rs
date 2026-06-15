@@ -149,7 +149,7 @@ fn parse_template_into_parts(template: &'_ str) -> Vec<TemplatePart<'_>> {
 
 mod parser {
     #[derive(pest_derive::Parser)]
-    #[grammar = "../build/name_template.pest"]
+    #[grammar = "../build/name_description_template.pest"]
     pub struct TemplateParser;
 }
 
