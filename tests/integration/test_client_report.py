@@ -7,13 +7,7 @@ def test_client_reports(relay, mini_sentry):
     config = {
         "outcomes": {
             "emit_outcomes": True,
-            "batch_size": 1,
-            "batch_interval": 1,
             "source": "my-layer",
-            "aggregator": {
-                "bucket_interval": 1,
-                "flush_interval": 1,
-            },
         }
     }
 
@@ -37,13 +31,8 @@ def test_client_reports(relay, mini_sentry):
     report_payload["timestamp"] = (timestamp + timedelta(milliseconds=100)).isoformat()
     relay.send_client_report(project_id, report_payload)
 
-    timestamp_formatted = timestamp.isoformat().split(".")[0] + ".000000Z"
-    assert mini_sentry.get_outcomes(2) == [
+    assert mini_sentry.get_aggregated_outcomes(n=2) == [
         {
-            "timestamp": timestamp_formatted,
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
             "outcome": 5,
             "reason": "queue_overflow",
             "source": "my-layer",
@@ -51,10 +40,6 @@ def test_client_reports(relay, mini_sentry):
             "quantity": 84,
         },
         {
-            "timestamp": timestamp_formatted,
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
             "outcome": 5,
             "reason": "queue_overflow",
             "source": "my-layer",
@@ -62,21 +47,14 @@ def test_client_reports(relay, mini_sentry):
             "quantity": 2462,
         },
     ]
-
     assert mini_sentry.captured_outcomes.empty()
+    assert mini_sentry.captured_envelopes.empty()
 
 
 def test_client_reports_bad_timestamps(relay, mini_sentry):
     config = {
         "outcomes": {
             "emit_outcomes": True,
-            "batch_size": 1,
-            "batch_interval": 1,
-            "source": "my-layer",
-            "aggregator": {
-                "bucket_interval": 1,
-                "flush_interval": 1,
-            },
         },
     }
 
@@ -99,4 +77,7 @@ def test_client_reports_bad_timestamps(relay, mini_sentry):
 
     # we should not have received any outcomes because they are too far into the future
     with pytest.raises(Empty):
-        mini_sentry.captured_outcomes.get(timeout=1.5)["outcomes"]
+        mini_sentry.captured_outcomes.get(timeout=1.5)
+
+    with pytest.raises(Empty):
+        mini_sentry.captured_envelopes.get(timeout=1.5)

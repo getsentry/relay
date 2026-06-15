@@ -9,7 +9,7 @@ from requests import HTTPError
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
-from .asserts import matches_any, time_within_delta
+from .asserts import time_within_delta
 from .test_store import make_transaction
 
 TEST_CONFIG = {
@@ -206,7 +206,7 @@ def test_span_extraction(
                     },
                 },
             ],
-            "name": "http",
+            "name": "GET /api/0/organizations/?member=1",
             "organization_id": 1,
             "parent_span_id": "968cff94913ebb07",
             "project_id": 42,
@@ -378,6 +378,8 @@ def test_span_extraction(
                 "attributes": {"txn_key": {"type": "integer", "value": 123}},
             },
         ],
+        # This is a segment span, so its name should be the transaction
+        # (despite the origin being "manual").
         "name": "hi",
         "organization_id": 1,
         "project_id": 42,
@@ -1193,7 +1195,7 @@ def test_dynamic_sampling(
     if sample_rate == 1.0:
         spans = spans_consumer.get_spans(timeout=10, n=3)
         assert len(spans) == 3
-        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=3)
+        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=1)
         assert summarize_outcomes(outcomes) == {(16, 0): 3}  # SpanIndexed, Accepted
     else:
         outcomes = outcomes_consumer.get_outcomes(timeout=10, n=1)
@@ -1339,22 +1341,16 @@ def test_outcomes_for_trimmed_spans(mini_sentry, relay):
     assert outcomes == [
         {
             "category": DataCategory.SPAN,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 3,  # invalid
-            "project_id": 42,
             "quantity": 1,
             "reason": "too_large:span",
-            "timestamp": matches_any(),
+            "timestamp": time_within_delta(),
         },
         {
             "category": DataCategory.SPAN_INDEXED,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 3,  # invalid
-            "project_id": 42,
             "quantity": 1,
             "reason": "too_large:span",
-            "timestamp": matches_any(),
+            "timestamp": time_within_delta(),
         },
     ]

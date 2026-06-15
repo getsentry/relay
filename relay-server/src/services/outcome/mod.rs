@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 use std::fmt;
 
 use relay_filter::FilterStatKey;
-use relay_quotas::{DataCategory, ReasonCode};
+use relay_quotas::ReasonCode;
 use relay_sampling::config::RuleId;
 use relay_sampling::evaluation::MatchedRuleIds;
 
@@ -30,6 +30,7 @@ impl OutcomeId {
     const INVALID: OutcomeId = OutcomeId(3);
     const ABUSE: OutcomeId = OutcomeId(4);
     const CLIENT_DISCARD: OutcomeId = OutcomeId(5);
+    #[cfg_attr(not(any(test, feature = "processing")), expect(unused))]
     const CARDINALITY_LIMITED: OutcomeId = OutcomeId(6);
 
     pub fn as_u8(self) -> u8 {
@@ -40,34 +41,6 @@ impl OutcomeId {
     pub fn is_billing(self) -> bool {
         matches!(self, OutcomeId::ACCEPTED | OutcomeId::RATE_LIMITED)
     }
-}
-
-trait TrackOutcomeLike {
-    /// TODO: Doc
-    fn reason(&self) -> Option<Cow<'_, str>>;
-
-    /// TODO: Doc
-    fn outcome_id(&self) -> OutcomeId;
-
-    /// TODO: Doc
-    fn tag_name(&self) -> &'static str {
-        match self.outcome_id() {
-            OutcomeId::ACCEPTED => "accepted",
-            OutcomeId::FILTERED => "filtered",
-            OutcomeId::RATE_LIMITED => "rate_limited",
-            OutcomeId::INVALID => "invalid",
-            OutcomeId::ABUSE => "abuse",
-            OutcomeId::CLIENT_DISCARD => "client_discard",
-            OutcomeId::CARDINALITY_LIMITED => "cardinality_limited",
-            _ => "<unknown>",
-        }
-    }
-
-    /// Returns the number of items for that outcome.
-    fn quantity(&self) -> Option<u32>;
-
-    /// The category for the outcome.
-    fn category(&self) -> DataCategory;
 }
 
 /// Defines the possible outcomes from processing an event.

@@ -66,18 +66,26 @@ impl TraceId {
 
 relay_common::impl_str_serde!(TraceId, "a trace identifier");
 
+/// Error for an invalid trace ID.
+#[derive(Debug)]
+pub enum InvalidTraceId {
+    /// The trace ID is all zeros.
+    Nil,
+    /// The trace ID is syntactically invalid.
+    Invalid,
+}
+
 impl FromStr for TraceId {
-    type Err = Error;
+    type Err = InvalidTraceId;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Uuid::parse_str(s)
-            .map(Into::into)
-            .map_err(|_| Error::invalid("the trace id is not valid"))
+        let uuid = Uuid::from_str(s).map_err(|_| InvalidTraceId::Invalid)?;
+        Self::try_from(uuid)
     }
 }
 
 impl TryFrom<&str> for TraceId {
-    type Error = Error;
+    type Error = InvalidTraceId;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         value.parse()
@@ -85,12 +93,35 @@ impl TryFrom<&str> for TraceId {
 }
 
 impl TryFrom<&[u8]> for TraceId {
-    type Error = Error;
+    type Error = InvalidTraceId;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        let uuid =
-            Uuid::from_slice(value).map_err(|_| Error::invalid("the trace id is not valid"))?;
-        Ok(Self(uuid))
+        Uuid::from_slice(value)
+            .map_err(|_| InvalidTraceId::Invalid)
+            .and_then(Self::try_from)
+    }
+}
+
+impl TryFrom<Uuid> for TraceId {
+    type Error = InvalidTraceId;
+    fn try_from(uuid: Uuid) -> Result<Self, Self::Error> {
+        if uuid.is_nil() {
+            return Err(InvalidTraceId::Nil);
+        }
+        Ok(TraceId(uuid))
+    }
+}
+
+impl TryFrom<EventId> for TraceId {
+    type Error = InvalidTraceId;
+    fn try_from(event_id: EventId) -> Result<Self, Self::Error> {
+        Self::try_from(event_id.0)
+    }
+}
+
+impl From<TraceId> for Uuid {
+    fn from(trace_id: TraceId) -> Self {
+        trace_id.0
     }
 }
 
@@ -103,24 +134,6 @@ impl fmt::Display for TraceId {
 impl fmt::Debug for TraceId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "TraceId(\"{}\")", self.0.as_simple())
-    }
-}
-
-impl From<Uuid> for TraceId {
-    fn from(uuid: Uuid) -> Self {
-        TraceId(uuid)
-    }
-}
-
-impl From<EventId> for TraceId {
-    fn from(event_id: EventId) -> Self {
-        Self::from(event_id.0)
-    }
-}
-
-impl From<TraceId> for Uuid {
-    fn from(trace_id: TraceId) -> Self {
-        trace_id.0
     }
 }
 
@@ -138,9 +151,14 @@ impl FromValue for TraceId {
         Self: Sized,
     {
         match value {
-            Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
+            Annotated(Some(Value::String(value)), mut meta) => match value.parse::<TraceId>() {
                 Ok(trace_id) => Annotated(Some(trace_id), meta),
-                Err(_) => {
+                Err(InvalidTraceId::Nil) => {
+                    meta.add_remark(Remark::new(RemarkType::Substituted, "nil_trace_id"));
+                    meta.set_original_value(Some(value));
+                    Annotated(Some(TraceId::random()), meta)
+                }
+                Err(InvalidTraceId::Invalid) => {
                     meta.add_error(Error::invalid("not a valid trace id"));
                     meta.set_original_value(Some(value));
                     Annotated(None, meta)
@@ -411,18 +429,18 @@ mod tests {
         assert_eq!(trace_id.as_u128(), 0x4c79f60c11214eb38604f4ae0781bfb2);
 
         // Test empty string (should return 0)
-        let empty_trace_id: Result<TraceId, Error> = "".parse();
+        let empty_trace_id: Result<TraceId, _> = "".parse();
         assert!(empty_trace_id.is_err());
 
         // Test string with invalid length (should return 0)
-        let short_trace_id: Result<TraceId, Error> = "4c79f60c11214eb38604f4ae0781bfb".parse(); // 31 chars
+        let short_trace_id: Result<TraceId, _> = "4c79f60c11214eb38604f4ae0781bfb".parse(); // 31 chars
         assert!(short_trace_id.is_err());
 
-        let long_trace_id: Result<TraceId, Error> = "4c79f60c11214eb38604f4ae0781bfb2a".parse(); // 33 chars
+        let long_trace_id: Result<TraceId, _> = "4c79f60c11214eb38604f4ae0781bfb2a".parse(); // 33 chars
         assert!(long_trace_id.is_err());
 
         // Test string with invalid hex characters (should return 0)
-        let invalid_trace_id: Result<TraceId, Error> = "4c79f60c11214eb38604f4ae0781bfbg".parse(); // 'g' is not a hex char
+        let invalid_trace_id: Result<TraceId, _> = "4c79f60c11214eb38604f4ae0781bfbg".parse(); // 'g' is not a hex char
         assert!(invalid_trace_id.is_err());
     }
 

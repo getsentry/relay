@@ -4,7 +4,7 @@ use crate::processing;
 use crate::processing::utils::event::event_type;
 use relay_base_schema::events::EventType;
 use relay_config::Config;
-use relay_event_schema::protocol::{Event, Measurement, Measurements, Span, SpanV2};
+use relay_event_schema::protocol::{Event, Measurement, Measurements, Span, SpanV2, TraceContext};
 use relay_metrics::MetricNamespace;
 use relay_metrics::{FractionUnit, MetricUnit};
 use relay_protocol::{Annotated, Empty};
@@ -41,6 +41,11 @@ pub fn extract_from_event(
 
     // Add child spans.
     if let Some(spans) = event.spans.value() {
+        let origin = event
+            .context::<TraceContext>()
+            .map(|trace| trace.origin.clone())
+            .unwrap_or_default();
+
         for span in spans {
             let Some(inner_span) = span.value() else {
                 continue;
@@ -53,6 +58,10 @@ pub fn extract_from_event(
             new_span.received = transaction_span.received.clone();
             new_span.segment_id = transaction_span.segment_id.clone();
             new_span.platform = transaction_span.platform.clone();
+
+            if new_span.origin.value().is_none() {
+                new_span.origin = origin.clone();
+            }
 
             // If a profile is associated with the transaction, also associate it with its
             // child spans.

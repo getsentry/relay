@@ -10,8 +10,8 @@ use relay_common::time::UnixTimestamp;
 use relay_conventions::attributes::*;
 use relay_conventions::{AttributeInfo, ReplacementName, WriteBehavior};
 use relay_event_schema::protocol::{Attribute, AttributeType, Attributes, BrowserContext, Geo};
-use relay_protocol::{Annotated, Error, ErrorKind, Meta, Remark, RemarkType, Value};
-use relay_spans::derive_op_for_v2_span;
+use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Remark, RemarkType, Value};
+use relay_spans::{derive_description_for_v2_span, derive_op_for_v2_span};
 
 use crate::span::TABLE_NAME_REGEX;
 use crate::span::description::{scrub_db_query, scrub_http};
@@ -44,6 +44,34 @@ pub fn normalize_sentry_op(attributes: &mut Annotated<Attributes>) {
     let inferred_op = derive_op_for_v2_span(attributes);
     let attrs = attributes.get_or_insert_with(Default::default);
     attrs.insert_if_missing(SENTRY__OP, || inferred_op);
+}
+
+/// Normalizes a V2 span's [`SENTRY__DESCRIPTION`] attribute.
+///
+/// For now, this tries the following steps, in order:
+/// - backfill from the span's name if its [`SENTRY__ORIGIN`] attribute is `"manual"`
+/// - backfill from the span's [`DB__QUERY__TEXT`] attribute if it exists
+/// - backfill a combination of the span's [`HTTP__REQUEST__METHOD`] and
+///   [`URL__FULL`] attributes, if they both exists.
+///
+/// In the future, this logic will be partly moved to and extended in `sentry-conventions`.
+pub fn normalize_sentry_description(
+    attributes: &mut Annotated<Attributes>,
+    name: &Annotated<String>,
+) {
+    let Some(attributes) = attributes.value_mut() else {
+        return;
+    };
+
+    let description = attributes.get_annotated_value(SENTRY__DESCRIPTION);
+
+    if description.is_some_and(|d| !d.is_empty()) {
+        return;
+    }
+
+    if let Some(description) = derive_description_for_v2_span(attributes, name) {
+        attributes.insert(SENTRY__DESCRIPTION, description);
+    }
 }
 
 /// Infers the sentry.category attribute and inserts it into `attributes` if not
@@ -765,7 +793,6 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
     )]
     let current_to_legacy_attributes = [
         // DB attributes
-        (DB__QUERY__TEXT, SENTRY__DESCRIPTION),
         (SENTRY__NORMALIZED_DB_QUERY, SENTRY__NORMALIZED_DESCRIPTION),
         (DB__OPERATION__NAME, SENTRY__ACTION),
         (DB__SYSTEM__NAME, DB__SYSTEM),
@@ -778,12 +805,15 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
     ];
 
     for (current_attribute, legacy_attribute) in current_to_legacy_attributes {
-        if attributes.contains_key(current_attribute) {
-            let Some(attr) = attributes.get_attribute(current_attribute) else {
-                continue;
-            };
-            attributes.insert(legacy_attribute, attr.value.clone());
+        if attributes.contains_key(legacy_attribute) {
+            continue;
         }
+
+        let Some(attr) = attributes.get_attribute(current_attribute) else {
+            continue;
+        };
+
+        attributes.insert(legacy_attribute, attr.value.clone());
     }
 
     if !attributes.contains_key(SENTRY__DOMAIN)
@@ -802,12 +832,6 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
                 (false, false) => format!(",{db_domain},"),
             },
         );
-    }
-
-    if let Some(&Value::String(method)) = attributes.get_value(HTTP__REQUEST__METHOD).as_ref()
-        && let Some(&Value::String(url)) = attributes.get_value(URL__FULL).as_ref()
-    {
-        attributes.insert(SENTRY__DESCRIPTION, format!("{method} {url}"))
     }
 }
 
@@ -2248,10 +2272,6 @@ mod tests {
           "sentry.action": {
             "type": "string",
             "value": "FIND"
-          },
-          "sentry.description": {
-            "type": "string",
-            "value": "{\"find\": \"documents\", \"foo\": \"bar\"}"
           },
           "sentry.domain": {
             "type": "string",

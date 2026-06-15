@@ -55,7 +55,7 @@ pub struct OutcomeAggregator {
 impl OutcomeAggregator {
     pub fn new(config: &Config, outcome_producer: Addr<OutcomeProducer>) -> Self {
         let disabled = matches!(config.emit_outcomes(), EmitOutcomes::None);
-        let aggregate = !matches!(config.emit_outcomes(), EmitOutcomes::AsMetrics);
+        let aggregate = !matches!(config.emit_outcomes(), EmitOutcomes::AsOutcomes);
 
         Self {
             disabled,

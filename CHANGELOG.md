@@ -6,6 +6,9 @@
 
 - Add metadata support for the `/upload` endpoint. ([#6028](https://github.com/getsentry/relay/pull/6028))
 - Infer user agents and client addresses in the V2 standalone span pipeline. ([#6047](https://github.com/getsentry/relay/pull/6047))
+- Conditionally allow additional exceptions on minidumps. ([#6063](https://github.com/getsentry/relay/pull/6063))
+- Replace nil Trace IDs with random ones. ([#6079](https://github.com/getsentry/relay/pull/6079))
+- Equalize name and description for spans with "manual" origin. ([#6070](https://github.com/getsentry/relay/pull/6070))
 
 **Bug Fixes**:
 
@@ -16,7 +19,9 @@
 
 **Internal**:
 
+- Handle outcomes as metrics. ([#6082](https://github.com/getsentry/relay/pull/6082))
 - Restore top-level _performance_issues_spans. ([#6045](https://github.com/getsentry/relay/pull/6045))
+- Update sentry-conventions to 0.11.0, migrating deprecated `gen_ai` attribute constants. ([#6068](https://github.com/getsentry/relay/pull/6068))
 
 ## 26.5.2
 

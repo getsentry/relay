@@ -962,7 +962,10 @@ impl StoreService {
         // Takes message by value to ensure it is not being produced twice.
         message: KafkaMessage,
     ) -> Result<(), StoreError> {
-        relay_log::trace!("Sending kafka message of type {}", message.variant());
+        relay_log::trace!(
+            "Sending kafka message of type {} to {topic:?}",
+            message.variant()
+        );
 
         let topic_name = self.producer.client.send_message(topic, &message)?;
 
