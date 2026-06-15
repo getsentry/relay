@@ -35,7 +35,6 @@ use relay_threading::AsyncPool;
 use crate::envelope::{AttachmentPlaceholder, AttachmentType, ContentType, Item, ItemType};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
-use crate::processing::profile_chunks::RawProfile;
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{self, DiscardReason, Outcome, OutcomeId, TrackOutcome};
@@ -164,6 +163,15 @@ pub struct StoreProfileChunk {
     /// Sent alongside the expanded JSON payload because the expansion only extracts a
     /// minimum of information; the raw profile is preserved for further processing downstream.
     pub raw_profile: Option<RawProfile>,
+}
+
+/// Optional raw binary blob associated with [`profile chunk`](StoreProfileChunk).
+#[derive(Debug)]
+pub struct RawProfile {
+    /// Bytes of the profile.
+    pub payload: Bytes,
+    /// Content type of the raw profile.
+    pub content_type: ContentType,
 }
 
 impl Counted for StoreProfileChunk {

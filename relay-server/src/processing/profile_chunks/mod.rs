@@ -60,87 +60,6 @@ impl crate::managed::OutcomeError for Error {
     }
 }
 
-/// Serialized profile chunks extracted from an envelope.
-#[derive(Debug)]
-pub struct SerializedProfileChunks {
-    /// Original envelope headers.
-    pub headers: EnvelopeHeaders,
-    /// List of serialized profile chunk items.
-    pub profile_chunks: Vec<Item>,
-}
-
-impl Counted for SerializedProfileChunks {
-    fn quantities(&self) -> Quantities {
-        let mut ui = 0;
-        let mut backend = 0;
-
-        for pc in &self.profile_chunks {
-            match pc.profile_type() {
-                Some(ProfileType::Ui) => ui += 1,
-                Some(ProfileType::Backend) => backend += 1,
-                None => {}
-            }
-        }
-
-        let mut quantities = smallvec![];
-        if ui > 0 {
-            quantities.push((DataCategory::ProfileChunkUi, ui));
-        }
-        if backend > 0 {
-            quantities.push((DataCategory::ProfileChunk, backend));
-        }
-
-        quantities
-    }
-}
-
-impl CountRateLimited for Managed<SerializedProfileChunks> {
-    type Error = Error;
-}
-
-#[derive(Debug)]
-#[cfg_attr(all(not(feature = "processing"), not(test)), expect(dead_code))]
-pub struct RawProfile {
-    pub payload: Bytes,
-    pub content_type: ContentType,
-}
-
-/// A single profile chunk after expansion.
-#[derive(Debug)]
-#[cfg_attr(all(not(feature = "processing"), not(test)), expect(dead_code))]
-pub struct ExpandedProfileChunk {
-    pub payload: Bytes,
-    pub raw_profile: Option<RawProfile>,
-    pub quantities: Quantities,
-}
-
-impl Counted for ExpandedProfileChunk {
-    fn quantities(&self) -> Quantities {
-        self.quantities.clone()
-    }
-}
-
-/// Profile chunks after expansion: all items have been parsed, validated, and
-/// converted into typed representations.
-#[derive(Debug)]
-pub struct ExpandedProfileChunks {
-    pub chunks: Vec<ExpandedProfileChunk>,
-}
-
-impl Counted for ExpandedProfileChunks {
-    fn quantities(&self) -> Quantities {
-        let mut q = Quantities::new();
-        for chunk in &self.chunks {
-            q.extend(chunk.quantities());
-        }
-        q
-    }
-}
-
-impl CountRateLimited for Managed<ExpandedProfileChunks> {
-    type Error = Error;
-}
-
 /// A processor for profile chunks.
 ///
 /// It processes items of type: [`ItemType::ProfileChunk`].
@@ -236,7 +155,7 @@ impl Forward for ProfileChunkOutput {
         s: processing::forward::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        use crate::services::store::StoreProfileChunk;
+        use crate::services::store::{self, StoreProfileChunk};
 
         let expanded = match self {
             Self::Expanded(e) => e,
@@ -246,6 +165,7 @@ impl Forward for ProfileChunkOutput {
                 );
             }
         };
+
         let retention_days = ctx.event_retention().standard;
 
         for chunk in expanded.split(|e| e.chunks) {
@@ -253,12 +173,94 @@ impl Forward for ProfileChunkOutput {
                 retention_days,
                 payload: chunk.payload,
                 quantities: chunk.quantities,
-                raw_profile: chunk.raw_profile,
+                raw_profile: chunk.raw_profile.map(|p| store::RawProfile {
+                    payload: p.payload,
+                    content_type: p.content_type,
+                }),
             }));
         }
 
         Ok(())
     }
+}
+
+/// Serialized profile chunks extracted from an envelope.
+#[derive(Debug)]
+pub struct SerializedProfileChunks {
+    /// Original envelope headers.
+    pub headers: EnvelopeHeaders,
+    /// List of serialized profile chunk items.
+    pub profile_chunks: Vec<Item>,
+}
+
+impl Counted for SerializedProfileChunks {
+    fn quantities(&self) -> Quantities {
+        let mut ui = 0;
+        let mut backend = 0;
+
+        for pc in &self.profile_chunks {
+            match pc.profile_type() {
+                Some(ProfileType::Ui) => ui += 1,
+                Some(ProfileType::Backend) => backend += 1,
+                None => {}
+            }
+        }
+
+        let mut quantities = smallvec![];
+        if ui > 0 {
+            quantities.push((DataCategory::ProfileChunkUi, ui));
+        }
+        if backend > 0 {
+            quantities.push((DataCategory::ProfileChunk, backend));
+        }
+
+        quantities
+    }
+}
+
+impl CountRateLimited for Managed<SerializedProfileChunks> {
+    type Error = Error;
+}
+
+/// A single profile chunk after expansion.
+#[derive(Debug)]
+struct ExpandedProfileChunk {
+    payload: Bytes,
+    raw_profile: Option<RawProfile>,
+    quantities: Quantities,
+}
+
+impl Counted for ExpandedProfileChunk {
+    fn quantities(&self) -> Quantities {
+        self.quantities.clone()
+    }
+}
+
+#[derive(Debug)]
+struct RawProfile {
+    payload: Bytes,
+    content_type: ContentType,
+}
+
+/// Profile chunks after expansion: all items have been parsed, validated, and
+/// converted into typed representations.
+#[derive(Debug)]
+pub struct ExpandedProfileChunks {
+    chunks: Vec<ExpandedProfileChunk>,
+}
+
+impl Counted for ExpandedProfileChunks {
+    fn quantities(&self) -> Quantities {
+        let mut q = Quantities::new();
+        for chunk in &self.chunks {
+            q.extend(chunk.quantities());
+        }
+        q
+    }
+}
+
+impl CountRateLimited for Managed<ExpandedProfileChunks> {
+    type Error = Error;
 }
 
 #[cfg(test)]

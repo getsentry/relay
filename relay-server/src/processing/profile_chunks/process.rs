@@ -8,6 +8,7 @@ use relay_profiling::ProfileType;
 use relay_quotas::DataCategory;
 
 use crate::envelope::ContentType;
+use crate::envelope::Item;
 use crate::managed::Quantities;
 use crate::processing::Context;
 use crate::processing::Managed;
@@ -25,21 +26,20 @@ pub fn expand(
     chunks: Managed<SerializedProfileChunks>,
     ctx: Context<'_>,
 ) -> Managed<ExpandedProfileChunks> {
-    chunks.map(|serialized, records| {
-        let sdk = utils::client_name_tag(serialized.headers.meta().client_name());
-        let client_ip = serialized.headers.meta().client_addr();
-        let filter_settings = &ctx.project_info.config.filter_settings;
+    let sdk = utils::client_name_tag(chunks.headers.meta().client_name());
+    let client_ip = chunks.headers.meta().client_addr();
 
+    chunks.map(|serialized, records| {
         let mut expanded = Vec::with_capacity(serialized.profile_chunks.len());
 
         for item in serialized.profile_chunks {
             let payload = item.payload();
-            let is_perfetto = matches!(item.content_type(), Some(ContentType::PerfettoTrace));
 
-            let result = if is_perfetto {
-                expand_perfetto_profile_chunk(&item, client_ip, filter_settings, ctx, payload)
-            } else {
-                expand_json_item(&item, client_ip, filter_settings, ctx, payload)
+            let result = match item.content_type() {
+                Some(ContentType::PerfettoTrace) => {
+                    expand_perfetto_profile_chunk(&item, client_ip, ctx, payload)
+                }
+                _ => expand_json_item(&item, client_ip, ctx, payload),
             };
 
             // Plain JSON chunks may omit the platform attribute in the header, so their profile
@@ -73,9 +73,8 @@ pub fn expand(
 }
 
 fn expand_perfetto_profile_chunk(
-    item: &crate::envelope::Item,
+    item: &Item,
     client_ip: Option<IpAddr>,
-    filter_settings: &relay_filter::ProjectFiltersConfig,
     ctx: Context<'_>,
     payload: Bytes,
 ) -> Result<ExpandedProfileChunk> {
@@ -99,10 +98,14 @@ fn expand_perfetto_profile_chunk(
     if expanded.profile_type() != profile_type {
         return Err(relay_profiling::ProfileError::InvalidProfileType.into());
     }
+
+    let filter_settings = &ctx.project_info.config.filter_settings;
     expanded.filter(client_ip, filter_settings, ctx.global_config)?;
+
     if expanded.payload.len() > ctx.config.max_profile_size() {
         return Err(relay_profiling::ProfileError::ExceedSizeLimit.into());
     }
+
     Ok(ExpandedProfileChunk {
         payload: Bytes::from(expanded.payload),
         raw_profile: Some(RawProfile {
@@ -114,9 +117,8 @@ fn expand_perfetto_profile_chunk(
 }
 
 fn expand_json_item(
-    item: &crate::envelope::Item,
+    item: &Item,
     client_ip: Option<IpAddr>,
-    filter_settings: &relay_filter::ProjectFiltersConfig,
     ctx: Context<'_>,
     payload: Bytes,
 ) -> Result<ExpandedProfileChunk> {
@@ -126,11 +128,15 @@ fn expand_json_item(
     let pc = relay_profiling::ProfileChunk::new(payload)?;
     let profile_type = pc.profile_type();
     validate_profile_type(item, profile_type)?;
+
+    let filter_settings = &ctx.project_info.config.filter_settings;
     pc.filter(client_ip, filter_settings, ctx.global_config)?;
+
     let expanded = pc.expand()?;
     if expanded.len() > ctx.config.max_profile_size() {
         return Err(relay_profiling::ProfileError::ExceedSizeLimit.into());
     }
+
     Ok(ExpandedProfileChunk {
         payload: Bytes::from(expanded),
         raw_profile: None,
@@ -138,7 +144,14 @@ fn expand_json_item(
     })
 }
 
-fn validate_profile_type(item: &crate::envelope::Item, profile_type: ProfileType) -> Result<()> {
+/// Validate the item inferred profile type with the one from the payload.
+///
+/// This is currently necessary to ensure profile chunks are emitted in the correct
+/// data category, as well as rate limited with the correct data category.
+///
+/// In the future we plan to make the profile type on the item header a necessity.
+/// For more context see also: <https://github.com/getsentry/relay/pull/4595>.
+fn validate_profile_type(item: &Item, profile_type: ProfileType) -> Result<()> {
     if item.profile_type().is_some_and(|pt| pt != profile_type) {
         return Err(relay_profiling::ProfileError::InvalidProfileType.into());
     }
