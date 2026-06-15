@@ -115,7 +115,7 @@ impl processing::Processor for ProfileChunksProcessor {
             return Ok(Output::just(ProfileChunkOutput::Serialized(profile_chunks)));
         }
 
-        let expanded: Managed<ExpandedProfileChunks> = process::expand(profile_chunks, ctx);
+        let expanded = process::expand(profile_chunks, ctx);
         let expanded = self.limiter.enforce_quotas(expanded, ctx).await?;
 
         Ok(Output::just(ProfileChunkOutput::Expanded(expanded)))
@@ -225,7 +225,9 @@ impl CountRateLimited for Managed<SerializedProfileChunks> {
 /// A single profile chunk after expansion.
 #[derive(Debug)]
 struct ExpandedProfileChunk {
+    #[cfg_attr(not(any(feature = "processing", test)), expect(unused))]
     payload: Bytes,
+    #[cfg_attr(not(any(feature = "processing", test)), expect(unused))]
     raw_profile: Option<RawProfile>,
     quantities: Quantities,
 }
@@ -238,7 +240,9 @@ impl Counted for ExpandedProfileChunk {
 
 #[derive(Debug)]
 struct RawProfile {
+    #[cfg_attr(not(any(feature = "processing", test)), expect(unused))]
     payload: Bytes,
+    #[cfg_attr(not(any(feature = "processing", test)), expect(unused))]
     content_type: ContentType,
 }
 
