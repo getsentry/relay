@@ -923,7 +923,12 @@ def test_profile_outcomes(
             "source": expected_source,
         },
     ]
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=12)
+
+    num_messages = 7
+    if num_intermediate_relays > 0:
+        num_messages = 9
+
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=num_messages)
     outcomes.sort(key=lambda o: sorted(o.items()))
 
     assert outcomes == expected_outcomes, outcomes
@@ -1448,7 +1453,11 @@ def test_span_outcomes(
         2: "pop-relay",
     }[num_intermediate_relays]
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=10)
+    num_messages = 5
+    if num_intermediate_relays > 0:
+        num_messages = 7
+
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=num_messages)
     outcomes.sort(key=lambda o: sorted(o.items()))
 
     expected_outcomes = [

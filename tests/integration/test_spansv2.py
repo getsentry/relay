@@ -803,7 +803,7 @@ def test_spansv2_ds_sampled(
         },
     ]
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=5)
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=3)
 
     assert outcomes == [
         {

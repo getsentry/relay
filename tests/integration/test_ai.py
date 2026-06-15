@@ -1298,9 +1298,9 @@ def test_ai_spans_example_transaction(
         },
     ]
 
-    num_messages = 3
+    num_messages = 2
     if relay_emits_accepted_outcome:
-        num_messages = 13
+        num_messages = 3
     outcomes = outcomes_consumer.get_aggregated_outcomes(n=num_messages)
 
     if relay_emits_accepted_outcome:

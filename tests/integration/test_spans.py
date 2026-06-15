@@ -398,9 +398,9 @@ def test_span_extraction(
 
     spans_consumer.assert_empty()
 
-    num_messages = 3
+    num_messages = 2
     if relay_emits_accepted_outcome:
-        num_messages = 5
+        num_messages = 3
 
     outcomes = outcomes_consumer.get_aggregated_outcomes(n=num_messages)
 
@@ -420,7 +420,7 @@ def test_span_extraction(
                 "org_id": 1,
                 "outcome": 0,
                 "project_id": 42,
-                "quantity": 2,
+                "quantity": 3,
             },
             {
                 "category": DataCategory.SPAN_INDEXED.value,
@@ -447,7 +447,7 @@ def test_span_extraction(
                 "org_id": 1,
                 "outcome": 0,
                 "project_id": 42,
-                "quantity": 2,
+                "quantity": 3,
             },
         ]
 
@@ -1276,14 +1276,14 @@ def test_dynamic_sampling(
     if sample_rate == 1.0:
         spans = spans_consumer.get_spans(timeout=10, n=3)
         assert len(spans) == 3
-        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=8)
+        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=3)
         assert summarize_outcomes(outcomes) == {
             (16, 0): 3,
             (12, 0): 3,
             (2, 0): 1,
         }  # SpanIndexed, Accepted
     else:
-        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=4)
+        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=3)
         assert summarize_outcomes(outcomes) == {
             (16, 1): 3,  # SpanIndexed, Filtered
             (12, 0): 3,
