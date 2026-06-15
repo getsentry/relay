@@ -1022,6 +1022,9 @@ def get_v2_envelope(
             "is_segment": True,
             "name": "root",
             "status": "ok",
+            "attributes": {
+                "sentry.segment.name": {"type": "string", "value": "/segment/"},
+            },
         },
         # Child span.
         {
@@ -1033,6 +1036,9 @@ def get_v2_envelope(
             "is_segment": False,
             "name": "child1",
             "status": "ok",
+            "attributes": {
+                "sentry.segment.name": {"type": "string", "value": "/segment/"},
+            },
         },
         # Child span which already has `sentry.dsc.*` attributes set.
         {
@@ -1048,6 +1054,7 @@ def get_v2_envelope(
                 "sentry.dsc.trace_id": {"type": "string", "value": trace_id},
                 "sentry.dsc.transaction": {"type": "string", "value": "/spandata/"},
                 "sentry.dsc.project_id": {"type": "string", "value": "41"},
+                "sentry.segment.name": {"type": "string", "value": "/segment/"},
             },
         },
     ]
@@ -1122,7 +1129,7 @@ def test_dsc_normalization(
         # ----------------------------------------------------------------------
         # DSC with tx + different org
         ("dsc_with_tx", "diff_org", "tx"): ("/event/", project_id, org_id),
-        ("dsc_with_tx", "diff_org", "v2"): ("/dsc/", project_id, org_id),
+        ("dsc_with_tx", "diff_org", "v2"): (None, project_id, org_id),
         # ----------------------------------------------------------------------
         # DSC without tx + different org
         ("dsc_no_tx", "diff_org", "tx"): ("/event/", project_id, org_id),

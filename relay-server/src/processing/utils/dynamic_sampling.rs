@@ -98,7 +98,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     use relay_base_schema::events::EventType;
-    use relay_base_schema::project::ProjectKey;
+    use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_event_schema::protocol::{EventId, LenientString};
     use relay_protocol::{Annotated, RuleCondition};
     use relay_sampling::config::{
@@ -122,6 +122,7 @@ mod tests {
         DynamicSamplingContext {
             trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            project_id: Some(ProjectId::new(42)),
             release: Some("1.1.1".to_owned()),
             user: Default::default(),
             replay_id: None,
