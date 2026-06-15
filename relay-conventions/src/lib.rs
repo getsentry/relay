@@ -310,7 +310,7 @@ mod tests {
     fn only_literal_template() {
         let attributes = GetterMap(HashMap::new());
         assert_eq!(
-            name_for_op_and_attributes("op_with_literal_name", &attributes,).unwrap(),
+            name_for_op_and_attributes("op_with_literal_name", &attributes,),
             "literal name"
         );
     }
@@ -319,11 +319,11 @@ mod tests {
     fn multiple_ops_same_template() {
         let attributes = GetterMap(HashMap::from([("attr1", Val::String("foo"))]));
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_1", &attributes).unwrap(),
+            name_for_op_and_attributes("op_with_attributes_1", &attributes),
             "foo"
         );
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_2", &attributes).unwrap(),
+            name_for_op_and_attributes("op_with_attributes_2", &attributes),
             "foo"
         );
     }
@@ -335,7 +335,7 @@ mod tests {
             ("attr3", Val::String("baz")),
         ]));
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_1", &attributes).unwrap(),
+            name_for_op_and_attributes("op_with_attributes_1", &attributes),
             "bar baz"
         );
     }
@@ -344,7 +344,7 @@ mod tests {
     fn handles_literal_prefixes_and_suffixes() {
         let attributes = GetterMap(HashMap::from([("attr3", Val::String("baz"))]));
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_1", &attributes).unwrap(),
+            name_for_op_and_attributes("op_with_attributes_1", &attributes),
             "prefix baz suffix",
         );
     }
@@ -353,40 +353,43 @@ mod tests {
     fn considers_multiple_files() {
         let attributes = GetterMap(HashMap::new());
         assert_eq!(
-            name_for_op_and_attributes("op_in_second_name_file", &attributes).unwrap(),
+            name_for_op_and_attributes("op_in_second_name_file", &attributes),
             "second file literal name",
         );
     }
 
     #[test]
-    fn returns_none_for_unknown_ops() {
+    fn falls_back_to_op_for_unknown_ops() {
         let attributes = GetterMap(HashMap::new());
-        assert!(name_for_op_and_attributes("unknown_op", &attributes).is_none());
+        assert_eq!(
+            name_for_op_and_attributes("unknown_op", &attributes),
+            "unknown_op",
+        );
     }
 
     #[test]
     fn handles_multiple_value_types() {
         let attributes = GetterMap(HashMap::from([("attr1", Val::Bool(true))]));
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_1", &attributes).unwrap(),
+            name_for_op_and_attributes("op_with_attributes_1", &attributes),
             "true",
         );
 
         let attributes = GetterMap(HashMap::from([("attr1", Val::I64(123))]));
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_1", &attributes).unwrap(),
+            name_for_op_and_attributes("op_with_attributes_1", &attributes),
             "123",
         );
 
         let attributes = GetterMap(HashMap::from([("attr1", Val::U64(123))]));
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_1", &attributes).unwrap(),
+            name_for_op_and_attributes("op_with_attributes_1", &attributes),
             "123",
         );
 
         let attributes = GetterMap(HashMap::from([("attr1", Val::F64(1.23))]));
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_1", &attributes).unwrap(),
+            name_for_op_and_attributes("op_with_attributes_1", &attributes),
             "1.23",
         );
     }

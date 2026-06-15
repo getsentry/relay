@@ -69,13 +69,13 @@ pub fn name_file_output(names: impl Iterator<Item = Name>) -> TokenStream {
 
             Some(quote! {
                 if #(#if_clauses)&&* {
-                    return Some(format!(#format_string, #(#format_args),*));
+                    return format!(#format_string, #(#format_args),*);
                 };
             })
         });
 
         let literal_name_fallback = quote! {
-            Some(#literal_template.to_owned())
+            #literal_template.to_owned()
         };
 
         // Assemble the match arm, with `ops` forming the match clause and the match body checking
@@ -93,10 +93,10 @@ pub fn name_file_output(names: impl Iterator<Item = Name>) -> TokenStream {
         use std::fmt;
         use std::fmt::Display;
 
-        pub fn name_for_op_and_attributes(op: &str, attributes: &impl Getter) -> Option<String> {
+        pub fn name_for_op_and_attributes(op: &str, attributes: &impl Getter) -> String {
             match op {
                 #(#match_arms)*
-                _ => None
+                _ => op.to_owned()
             }
         }
 
