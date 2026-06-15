@@ -8,7 +8,6 @@ use std::collections::BTreeMap;
 use bytes::Buf;
 use hashbrown::hash_map::Entry;
 use hashbrown::{HashMap, HashSet};
-use itertools::Itertools;
 use prost::Message;
 use prost::encoding::{self, WireType};
 
@@ -86,38 +85,45 @@ fn trusted_packet_sequence_id(packet: &proto::TracePacket) -> u32 {
 }
 
 fn extract_clock_offset(cs: &proto::ClockSnapshot) -> Option<i128> {
-    let mut boottime_ns: Option<u64> = None;
+    let primary_clock = cs.primary_trace_clock.unwrap_or(CLOCK_BOOTTIME);
+
+    if primary_clock == CLOCK_REALTIME {
+        return Some(0);
+    }
+
+    let mut primary_ns: Option<u64> = None;
     let mut realtime_ns: Option<u64> = None;
 
     for clock in &cs.clocks {
         match clock.clock_id {
-            Some(CLOCK_BOOTTIME) => boottime_ns = clock.timestamp,
             Some(CLOCK_REALTIME) => realtime_ns = clock.timestamp,
+            Some(clock_id) if clock_id == primary_clock => primary_ns = clock.timestamp,
             _ => {}
         }
     }
 
-    match (realtime_ns, boottime_ns) {
-        (Some(rt), Some(bt)) => Some(rt as i128 - bt as i128),
+    match (realtime_ns, primary_ns) {
+        (Some(rt), Some(primary)) => Some(rt as i128 - primary as i128),
         _ => None,
     }
 }
 
-/// Parse trace packets but limit the amount of packets that end up in the vector.
+/// Parse trace packets, passing each decoded packet to `visit`.
 ///
-/// This prevents memory bombs, as the wire format can be much smaller than the in-memory representation.
-fn decode_trace_packets(
+/// This avoids holding all decoded packet allocations at once. The packet count
+/// and per-packet byte limits still bound adversarial traces.
+fn visit_trace_packets(
     mut perfetto_bytes: &[u8],
-) -> Result<Vec<proto::TracePacket>, ProfileError> {
-    let mut packets = Vec::new();
-
+    mut visit: impl FnMut(proto::TracePacket) -> Result<(), ProfileError>,
+) -> Result<(), ProfileError> {
+    let mut packet_count = 0;
     while perfetto_bytes.has_remaining() {
         let (tag, wire_type) = encoding::decode_key(&mut perfetto_bytes)
             .map_err(|_| ProfileError::InvalidSampledProfile)?;
 
         match (tag, wire_type) {
             (1, WireType::LengthDelimited) => {
-                if packets.len() >= MAX_TRACE_PACKETS {
+                if packet_count >= MAX_TRACE_PACKETS {
                     return Err(ProfileError::ExceedSizeLimit);
                 }
 
@@ -136,7 +142,8 @@ fn decode_trace_packets(
                 let packet = proto::TracePacket::decode(&perfetto_bytes[..len])
                     .map_err(|_| ProfileError::InvalidSampledProfile)?;
                 perfetto_bytes.advance(len);
-                packets.push(packet);
+                packet_count += 1;
+                visit(packet)?;
             }
             (1, _) => return Err(ProfileError::InvalidSampledProfile),
             _ => encoding::skip_field(
@@ -149,7 +156,7 @@ fn decode_trace_packets(
         }
     }
 
-    Ok(packets)
+    Ok(())
 }
 
 /// Per-sequence interned data tables, mirroring Perfetto's incremental state.
@@ -170,11 +177,15 @@ struct InternTables {
     frames: HashMap<u64, proto::Frame>,
     callstacks: HashMap<u64, proto::Callstack>,
     mappings: HashMap<u64, proto::Mapping>,
+    mapping_path_cache: HashMap<u64, Option<String>>,
+    frame_cache: HashMap<u64, usize>,
     callstack_cache: HashMap<u64, usize>,
 }
 
 impl InternTables {
     fn merge(&mut self, data: proto::InternedData) {
+        self.mapping_path_cache.clear();
+        self.frame_cache.clear();
         self.callstack_cache.clear();
 
         let proto::InternedData {
@@ -199,6 +210,19 @@ impl InternTables {
             .extend(callstacks.into_iter().filter_map(|c| Some((c.iid?, c))));
         self.mappings
             .extend(mappings.into_iter().filter_map(|m| Some((m.iid?, m))));
+    }
+
+    fn mapping_path(&mut self, mapping_id: u64) -> Option<String> {
+        if let Some(path) = self.mapping_path_cache.get(&mapping_id) {
+            return path.clone();
+        }
+
+        let path = self
+            .mappings
+            .get(&mapping_id)
+            .and_then(|mapping| resolve_mapping_path(mapping, &self.mapping_paths));
+        self.mapping_path_cache.insert(mapping_id, path.clone());
+        path
     }
 }
 
@@ -236,9 +260,7 @@ struct ResolveContext {
 
 /// Converts a Perfetto binary trace into Sample v2 [`ProfileData`] and debug images.
 pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), ProfileError> {
-    let trace_packets = decode_trace_packets(perfetto_bytes)?;
-
-    let mut tables_by_seq: BTreeMap<u32, InternTables> = BTreeMap::new();
+    let mut tables_by_seq: HashMap<u32, InternTables> = HashMap::new();
     let mut thread_meta: BTreeMap<u32, ThreadMetadata> = BTreeMap::new();
     let mut clock_offset_ns: Option<i128> = None;
     let mut observed_pid: Option<u32> = None;
@@ -251,7 +273,7 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
     let mut resolved_samples: Vec<ResolvedSample> = Vec::new();
     let mut sample_count: usize = 0;
 
-    for packet in trace_packets {
+    visit_trace_packets(perfetto_bytes, |packet| {
         let seq_id = trusted_packet_sequence_id(&packet);
 
         let intern_tables = tables_by_seq.entry(seq_id).or_default();
@@ -293,7 +315,9 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
             }
             _ => {}
         }
-    }
+
+        Ok(())
+    })?;
 
     if resolved_samples.is_empty() {
         return Err(ProfileError::NotEnoughSamples);
@@ -312,7 +336,7 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
 
     resolved_samples.sort_by_key(|s| s.timestamp_ns);
 
-    let mut samples: Vec<Sample> = Vec::new();
+    let mut samples: Vec<Sample> = Vec::with_capacity(resolved_samples.len());
     for ResolvedSample {
         timestamp_ns,
         thread_id,
@@ -383,10 +407,16 @@ fn resolve_callstack(
         return Err(ProfileError::ExceedSizeLimit);
     }
 
-    let mut resolved_frame_indices: Vec<usize> = Vec::with_capacity(callstack.frame_ids.len());
+    let frame_ids = callstack.frame_ids.clone();
+    let mut resolved_frame_indices: Vec<usize> = Vec::with_capacity(frame_ids.len());
 
-    for &frame_iid in &callstack.frame_ids {
-        let Some(pf) = tables.frames.get(&frame_iid) else {
+    for frame_iid in frame_ids {
+        if let Some(&idx) = tables.frame_cache.get(&frame_iid) {
+            resolved_frame_indices.push(idx);
+            continue;
+        }
+
+        let Some(&pf) = tables.frames.get(&frame_iid) else {
             continue;
         };
 
@@ -401,7 +431,7 @@ fn resolve_callstack(
             ctx.debug_images.push(image);
         }
 
-        let (key, frame) = build_frame(function_name, pf, tables);
+        let (key, frame) = build_frame(function_name, &pf, tables);
 
         let idx = match ctx.frame_index.entry(key) {
             Entry::Occupied(entry) => *entry.get(),
@@ -416,6 +446,7 @@ fn resolve_callstack(
             }
         };
 
+        tables.frame_cache.insert(frame_iid, idx);
         resolved_frame_indices.push(idx);
     }
 
@@ -443,17 +474,16 @@ fn resolve_callstack(
 /// a valid debug ID.
 fn collect_debug_image(
     mapping_id: u64,
-    tables: &InternTables,
+    tables: &mut InternTables,
     seen_images: &mut HashSet<(String, u64)>,
 ) -> Option<DebugImage> {
-    let mapping = tables.mappings.get(&mapping_id)?;
-
-    let code_file = resolve_mapping_path(mapping, tables)?;
+    let code_file = tables.mapping_path(mapping_id)?;
 
     if is_java_mapping(&code_file) {
         return None;
     }
 
+    let mapping = tables.mappings.get(&mapping_id)?;
     let image_addr = mapping.start;
 
     let debug_id = mapping
@@ -493,11 +523,9 @@ fn collect_debug_image(
 fn build_frame(
     function_name: Option<String>,
     pf: &proto::Frame,
-    tables: &InternTables,
+    tables: &mut InternTables,
 ) -> (FrameKey, Frame) {
-    let mapping = pf.mapping_id.and_then(|mid| tables.mappings.get(&mid));
-
-    let mapping_path = mapping.and_then(|m| resolve_mapping_path(m, tables));
+    let mapping_path = pf.mapping_id.and_then(|mid| tables.mapping_path(mid));
 
     let is_java = mapping_path.as_deref().is_some_and(is_java_mapping);
 
@@ -529,11 +557,8 @@ fn build_frame(
 
         (key, frame)
     } else {
-        let instruction_addr = match (pf.rel_pc, mapping) {
-            (Some(rel_pc), Some(m)) => Some(rel_pc.wrapping_add(m.start.unwrap_or(0))),
-            (Some(rel_pc), None) => Some(rel_pc),
-            (None, _) => None,
-        };
+        let mapping = pf.mapping_id.and_then(|mid| tables.mappings.get(&mid));
+        let instruction_addr = frame_instruction_addr(pf, mapping);
 
         let key = FrameKey {
             function: function_name.clone(),
@@ -554,19 +579,40 @@ fn build_frame(
     }
 }
 
+fn frame_instruction_addr(pf: &proto::Frame, mapping: Option<&proto::Mapping>) -> Option<u64> {
+    let rel_pc = pf.rel_pc?;
+
+    match mapping.and_then(|m| m.start) {
+        Some(start) => start.checked_add(rel_pc),
+        None => Some(rel_pc),
+    }
+}
+
 /// Joins a mapping's interned path segments with `/` into a single file path.
 ///
 /// Returns `None` if the mapping has no resolvable path segments.
-fn resolve_mapping_path(mapping: &proto::Mapping, tables: &InternTables) -> Option<String> {
+fn resolve_mapping_path(
+    mapping: &proto::Mapping,
+    mapping_paths: &HashMap<u64, String>,
+) -> Option<String> {
     if mapping.path_string_ids.len() > MAX_PATH_SEGMENTS {
         return None;
     }
 
-    let path = mapping
-        .path_string_ids
-        .iter()
-        .filter_map(|id| tables.mapping_paths.get(id).map(|s| s.as_str()))
-        .join("/");
+    let mut path = String::new();
+    let mut has_segment = false;
+    for id in &mapping.path_string_ids {
+        let Some(segment) = mapping_paths.get(id) else {
+            continue;
+        };
+
+        if has_segment {
+            path.push('/');
+        }
+        path.push_str(segment);
+        has_segment = true;
+    }
+
     if path.is_empty() { None } else { Some(path) }
 }
 
@@ -601,6 +647,7 @@ fn build_id_to_debug_id(raw: &[u8]) -> Option<DebugId> {
 mod tests {
     use super::*;
 
+    const CLOCK_MONOTONIC: u32 = 3;
     const TEST_BOOTTIME_NS: u64 = 1_000_000_000;
     const TEST_REALTIME_NS: u64 = 1_700_000_001_000_000_000;
 
@@ -711,6 +758,17 @@ mod tests {
             ),
             data: None,
         }
+    }
+
+    fn decode_trace_packets(
+        perfetto_bytes: &[u8],
+    ) -> Result<Vec<proto::TracePacket>, ProfileError> {
+        let mut packets = Vec::new();
+        visit_trace_packets(perfetto_bytes, |packet| {
+            packets.push(packet);
+            Ok(())
+        })?;
+        Ok(packets)
     }
 
     fn build_minimal_trace() -> Vec<u8> {
@@ -869,6 +927,63 @@ mod tests {
         let bytes = trace.encode_to_vec();
         let result = convert(&bytes);
         assert!(matches!(result, Err(ProfileError::InvalidSampledProfile)));
+    }
+
+    #[test]
+    fn test_convert_uses_primary_trace_clock() {
+        let trace = proto::Trace {
+            packet: vec![
+                proto::TracePacket {
+                    timestamp: None,
+                    interned_data: None,
+                    sequence_flags: None,
+                    optional_trusted_packet_sequence_id: None,
+                    data: Some(Data::ClockSnapshot(proto::ClockSnapshot {
+                        clocks: vec![
+                            proto::clock_snapshot::Clock {
+                                clock_id: Some(CLOCK_MONOTONIC),
+                                timestamp: Some(500_000_000),
+                            },
+                            proto::clock_snapshot::Clock {
+                                clock_id: Some(CLOCK_BOOTTIME),
+                                timestamp: Some(TEST_BOOTTIME_NS),
+                            },
+                            proto::clock_snapshot::Clock {
+                                clock_id: Some(CLOCK_REALTIME),
+                                timestamp: Some(TEST_REALTIME_NS),
+                            },
+                        ],
+                        primary_trace_clock: Some(CLOCK_MONOTONIC),
+                    })),
+                },
+                make_interned_data_packet(
+                    1,
+                    true,
+                    proto::InternedData {
+                        function_names: vec![make_interned_string(1, b"func")],
+                        frames: vec![make_frame(1, 1)],
+                        callstacks: vec![proto::Callstack {
+                            iid: Some(1),
+                            frame_ids: vec![1],
+                        }],
+                        ..Default::default()
+                    },
+                ),
+                make_perf_sample_packet(600_000_000, 1, 1, 1),
+            ],
+        };
+        let bytes = trace.encode_to_vec();
+        let (data, _images) = convert(&bytes).unwrap();
+
+        insta::assert_json_snapshot!(data.samples, @r###"
+        [
+          {
+            "timestamp": 1700000001.1,
+            "stack_id": 0,
+            "thread_id": "1"
+          }
+        ]
+        "###);
     }
 
     #[test]
@@ -1309,6 +1424,46 @@ mod tests {
           }
         ]
         "###);
+    }
+
+    #[test]
+    fn test_native_instruction_addr_overflow_does_not_wrap() {
+        let trace = proto::Trace {
+            packet: vec![
+                make_clock_snapshot_packet(),
+                make_interned_data_packet(
+                    1,
+                    true,
+                    proto::InternedData {
+                        function_names: vec![make_interned_string(1, b"native_func")],
+                        frames: vec![proto::Frame {
+                            iid: Some(1),
+                            function_name_id: Some(1),
+                            mapping_id: Some(1),
+                            rel_pc: Some(2),
+                        }],
+                        callstacks: vec![proto::Callstack {
+                            iid: Some(1),
+                            frame_ids: vec![1],
+                        }],
+                        mappings: vec![proto::Mapping {
+                            iid: Some(1),
+                            start: Some(u64::MAX - 1),
+                            path_string_ids: vec![10],
+                            ..Default::default()
+                        }],
+                        mapping_paths: vec![make_interned_string(10, b"liboverflow.so")],
+                        ..Default::default()
+                    },
+                ),
+                make_perf_sample_packet(1_000_000_000, 1, 1, 1),
+            ],
+        };
+        let bytes = trace.encode_to_vec();
+        let (data, _images) = convert(&bytes).unwrap();
+
+        assert_eq!(data.frames.len(), 1);
+        assert!(data.frames[0].instruction_addr.is_none());
     }
 
     #[test]
