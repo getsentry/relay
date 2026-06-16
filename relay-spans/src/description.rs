@@ -1,5 +1,5 @@
 use relay_conventions::attributes::*;
-use relay_conventions::description;
+use relay_conventions::description::description_for_op_and_attributes;
 use relay_event_schema::protocol::Attributes;
 use relay_protocol::{Annotated, Getter, Val};
 
@@ -29,13 +29,13 @@ pub fn derive_description_for_v2_span(
 
     let op = attributes.get_value(SENTRY__OP)?.as_str()?;
 
-    description::description_for_op_and_attributes(op, &AttributeGetter(attributes))
+    description_for_op_and_attributes(op, &AttributeGetter(attributes))
 }
 
 /// A custom getter for [`Attributes`] which only resolves values based on the attribute name.
 ///
 /// This [`Getter`] does not implement nested traversals, which is the behaviour required for
-/// [`name_for_op_and_attributes`].
+/// [`description_for_op_and_attributes`].
 struct AttributeGetter<'a>(&'a Attributes);
 
 impl<'a> Getter for AttributeGetter<'a> {
