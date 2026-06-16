@@ -270,7 +270,7 @@ fn verify_value_nonempty<T>(
 where
     T: Empty,
 {
-    if state.attrs().nonempty && value.is_empty() && meta.is_empty() {
+    if state.attrs().nonempty && value.is_empty() {
         meta.add_error(Error::nonempty());
         Err(ProcessingAction::DeleteValueHard)
     } else {
@@ -286,7 +286,7 @@ fn verify_value_nonempty_string<T>(
 where
     T: Empty,
 {
-    if state.attrs().nonempty && value.is_empty() && meta.is_empty() {
+    if state.attrs().nonempty && value.is_empty() {
         meta.add_error(Error::nonempty_string());
         Err(ProcessingAction::DeleteValueHard)
     } else {
