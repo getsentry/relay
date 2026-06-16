@@ -9,7 +9,6 @@ use relay_protocol::{Annotated, Getter, Val};
 /// For now, this attempts to return the following values, in order:
 /// - the span's name if its [`SENTRY__ORIGIN`] attribute is `"manual"`
 /// - a name constructed following the rules defined in sentry-conventions
-/// - the `[SENTRY__OP]` attribute if it exists
 /// - `None`
 pub fn derive_description_for_v2_span(
     attributes: &Attributes,
