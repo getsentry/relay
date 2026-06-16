@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Have relay generate metric billing outcomes. ([#6066](https://github.com/getsentry/relay/pull/6066))
+
 ## 26.6.0
 
 **Features**:
