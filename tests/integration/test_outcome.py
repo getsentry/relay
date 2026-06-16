@@ -1458,7 +1458,7 @@ def test_span_outcomes(
 
     outcomes = outcomes_consumer.get_aggregated_outcomes(n=num_messages)
 
-    expected_outcomes = [
+    assert outcomes == [
         {
             "category": DataCategory.TRANSACTION.value,
             "key_id": 123,
@@ -1507,8 +1507,6 @@ def test_span_outcomes(
             "source": expected_source,
         },
     ]
-
-    assert outcomes == expected_outcomes
 
 
 def test_span_outcomes_invalid(
