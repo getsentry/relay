@@ -100,6 +100,10 @@ pub fn validate_and_set_dsc(
                     replay_id: None,
                     other: Default::default(),
                 };
+                relay_statsd::metric!(
+                    counter(RelayCounters::SamplingProjectUnresolved) += 1,
+                    item = "span"
+                );
             }
             Some(sampling_project_info) => {
                 dsc.project_id = sampling_project_info.project_id;
