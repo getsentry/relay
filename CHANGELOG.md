@@ -22,10 +22,10 @@
 
 **Internal**:
 
-- Have relay generate metric billing outcomes. ([#6066](https://github.com/getsentry/relay/pull/6066))
 - Handle outcomes as metrics. ([#6082](https://github.com/getsentry/relay/pull/6082))
 - Restore top-level _performance_issues_spans. ([#6045](https://github.com/getsentry/relay/pull/6045))
 - Update sentry-conventions to 0.11.0, migrating deprecated `gen_ai` attribute constants. ([#6068](https://github.com/getsentry/relay/pull/6068))
+- Have relay generate metric billing outcomes. ([#6066](https://github.com/getsentry/relay/pull/6066))
 
 ## 26.5.2
 
