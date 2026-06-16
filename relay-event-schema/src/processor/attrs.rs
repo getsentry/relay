@@ -126,13 +126,24 @@ pub enum SizeMode {
     Dynamic(fn(&ProcessingState) -> Option<usize>),
 }
 
+/// Whether a field must be present.
+#[derive(Debug, Clone, Copy)]
+pub enum Required {
+    /// The field is not required.
+    False,
+    /// The field requires a value or metadata.
+    ValueOrMeta,
+    /// The field requires a value.
+    Value,
+}
+
 /// Meta information about a field.
 #[derive(Debug, Clone, Copy)]
 pub struct FieldAttrs {
     /// Optionally the name of the field.
     pub name: Option<&'static str>,
     /// If the field is required.
-    pub required: bool,
+    pub required: Required,
     /// If the field should be non-empty.
     pub nonempty: bool,
     /// Whether to trim whitespace from this string.
@@ -190,7 +201,7 @@ impl FieldAttrs {
     pub const fn new() -> Self {
         FieldAttrs {
             name: None,
-            required: false,
+            required: Required::False,
             nonempty: false,
             trim_whitespace: false,
             characters: None,
@@ -206,7 +217,7 @@ impl FieldAttrs {
     }
 
     /// Sets whether a value in this field is required.
-    pub const fn required(mut self, required: bool) -> Self {
+    pub const fn required(mut self, required: Required) -> Self {
         self.required = required;
         self
     }
@@ -373,7 +384,7 @@ impl ProcessingStateBuilder {
     }
 
     /// Sets whether a value in the root field is required.
-    pub fn required(self, required: bool) -> Self {
+    pub fn required(self, required: Required) -> Self {
         self.attrs(|attrs| attrs.required(required))
     }
 
