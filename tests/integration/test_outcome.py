@@ -929,7 +929,6 @@ def test_profile_outcomes(
         num_messages = 9
 
     outcomes = outcomes_consumer.get_aggregated_outcomes(n=num_messages)
-    outcomes.sort(key=lambda o: sorted(o.items()))
 
     assert outcomes == expected_outcomes, outcomes
 
@@ -1241,10 +1240,10 @@ def test_profile_outcomes_rate_limited(
     if quota_category == "transaction":
         # Transaction got rate limited as well:
         expected_categories += [
-            (DataCategory.TRANSACTION.value, 1),
-            (DataCategory.TRANSACTION_INDEXED.value, 1),
-            (DataCategory.SPAN.value, 2),
-            (DataCategory.SPAN_INDEXED.value, 2),
+            (DataCategory.TRANSACTION, 1),
+            (DataCategory.TRANSACTION_INDEXED, 1),
+            (DataCategory.SPAN, 2),
+            (DataCategory.SPAN_INDEXED, 2),
         ]
 
     expected_outcomes = [
@@ -1458,7 +1457,6 @@ def test_span_outcomes(
         num_messages = 7
 
     outcomes = outcomes_consumer.get_aggregated_outcomes(n=num_messages)
-    outcomes.sort(key=lambda o: sorted(o.items()))
 
     expected_outcomes = [
         {
