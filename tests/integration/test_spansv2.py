@@ -203,7 +203,7 @@ def test_spansv2_basic(
             "tags": {
                 "was_transaction": "false",
                 "is_segment": "true",
-                "billing_outcome_accepted": "true",
+                "billing_outcome_emitted": "true",
             },
             "timestamp": time_within_delta(),
             "type": "c",
@@ -458,7 +458,7 @@ def test_spansv2_trimming_basic(
             "tags": {
                 "was_transaction": "false",
                 "is_segment": "true",
-                "billing_outcome_accepted": "true",
+                "billing_outcome_emitted": "true",
             },
             "timestamp": time_within_delta(),
             "type": "c",
@@ -780,7 +780,7 @@ def test_spansv2_ds_sampled(
             "retention_days": 90,
             "tags": {
                 "is_segment": "false",
-                "billing_outcome_accepted": "true",
+                "billing_outcome_emitted": "true",
             },
             "timestamp": time_within_delta(),
             "type": "c",
@@ -795,7 +795,7 @@ def test_spansv2_ds_sampled(
             "tags": {
                 "was_transaction": "false",
                 "is_segment": "true",
-                "billing_outcome_accepted": "true",
+                "billing_outcome_emitted": "true",
             },
             "timestamp": time_within_delta(),
             "type": "c",
@@ -913,7 +913,7 @@ def test_spansv2_ds_root_in_different_org(
             "retention_days": 90,
             "tags": {
                 "is_segment": "false",
-                "billing_outcome_accepted": "true",
+                "billing_outcome_emitted": "true",
             },
             "timestamp": time_within_delta(),
             "type": "c",

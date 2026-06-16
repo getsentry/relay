@@ -176,7 +176,7 @@ def test_span_ingestion(
             "tags": {
                 "is_segment": "true",
                 "was_transaction": "false",
-                "billing_outcome_accepted": "true",
+                "billing_outcome_emitted": "true",
             },
             "timestamp": time_within_delta(),
             "type": "c",

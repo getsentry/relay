@@ -61,7 +61,7 @@ impl MetricOutcomes {
 
     /// Emits accepted outcomes, for the provided list of buckets.
     ///
-    /// Additionally, adds a marker tag `billing_outcome_accepted` to all buckets for which an
+    /// Additionally, adds a marker tag `billing_outcome_emitted` to all buckets for which an
     /// outcome has been emitted.
     #[cfg(feature = "processing")]
     pub fn track_accepted_outcome(&self, scoping: Scoping, buckets: &mut [Bucket]) {
@@ -85,7 +85,7 @@ impl MetricOutcomes {
 
                     bucket
                         .tags
-                        .insert("billing_outcome_accepted".to_owned(), "true".to_owned());
+                        .insert("billing_outcome_emitted".to_owned(), "true".to_owned());
 
                     for category in categories {
                         self.outcomes.send(TrackOutcome {
