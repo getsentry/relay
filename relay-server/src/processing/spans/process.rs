@@ -364,7 +364,7 @@ mod tests {
     use relay_conventions::attributes::*;
     use relay_event_schema::protocol::{Attributes, EventId, SpanKind};
     use relay_pii::PiiConfig;
-    use relay_protocol::SerializableAnnotated;
+    use relay_protocol::{SerializableAnnotated, assert_annotated_snapshot};
 
     use crate::Envelope;
     use crate::extractors::RequestMeta;
@@ -1168,5 +1168,89 @@ mod tests {
             ],
             &[],
         );
+    }
+
+    /// Tests that schema validation doesn't reject attributes that have no value, but
+    /// do have metadata (such as attributes that have been deleted by scrubbing).
+    #[test]
+    fn test_schema_validation_scrubbed_attribute() {
+        let mut span = Annotated::<SpanV2>::from_json(
+            r#"
+        {
+            "start_timestamp": 1544719859.0,
+            "end_timestamp": 1544719860.0,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b174",
+            "name": "test",
+            "status": "ok",
+            "attributes": {
+                "foo": {"type": "string", "value": null},
+                "bar": {"type": "string", "value": null}
+            },
+            "_meta": {
+                "attributes": {
+                    "foo": {
+                        "value": {
+                            "": {
+                                "rem": [["@anything:remove", "x"]]
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    "#,
+        )
+        .unwrap();
+
+        process_value(
+            &mut span,
+            &mut SchemaProcessor::new()
+                .with_required(RequiredMode::DeleteParent)
+                .with_verbose_errors(relay_log::enabled!(relay_log::Level::DEBUG)),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(span, @r#"
+        {
+          "trace_id": "5b8efff798038103d269b633813fc60c",
+          "span_id": "eee19b7ec3c1b174",
+          "name": "test",
+          "status": "ok",
+          "start_timestamp": 1544719859.0,
+          "end_timestamp": 1544719860.0,
+          "attributes": {
+            "bar": null,
+            "foo": {
+              "type": "string",
+              "value": null
+            }
+          },
+          "_meta": {
+            "attributes": {
+              "bar": {
+                "": {
+                  "err": [
+                    "missing_attribute"
+                  ]
+                }
+              },
+              "foo": {
+                "value": {
+                  "": {
+                    "rem": [
+                      [
+                        "@anything:remove",
+                        "x"
+                      ]
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+        "#);
     }
 }
