@@ -102,3 +102,7 @@ def test_perfetto_profile_chunk_end_to_end(
     for tid, meta in thread_metadata.items():
         assert isinstance(tid, str)
         assert "name" in meta and isinstance(meta["name"], str)
+
+    assert "raw_profile" in profile, "expected raw_profile in Kafka message"
+    assert len(profile["raw_profile"]) == 97252, "raw_profile size mismatch"
+    assert profile.get("raw_profile_content_type") == "application/x-perfetto-trace"

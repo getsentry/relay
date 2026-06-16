@@ -1,6 +1,4 @@
-use relay_event_normalization::{
-    CombinedMeasurementsConfig, EnrichedDsc, GeoIpLookup, MeasurementsConfig,
-};
+use relay_event_normalization::{CombinedMeasurementsConfig, GeoIpLookup, MeasurementsConfig};
 use relay_event_schema::processor::{ProcessingAction, ProcessingState, process_value};
 use relay_event_schema::protocol::Span;
 use relay_metrics::MetricNamespace;
@@ -46,18 +44,14 @@ pub fn normalize(
 ) {
     let aggregator_config = ctx.config.aggregator_config_for(MetricNamespace::Spans);
     let model_data = ctx.global_config.ai_model_metadata();
-    let sampling_project_id = ctx
+    let mut dsc = spans.headers.dsc().cloned();
+    let project_id = ctx
         .sampling_project_info
-        .and_then(|p| p.project_id)
-        .or(ctx.project_info.project_id);
-    let dsc = spans.headers.dsc().cloned();
-    let dsc = dsc
-        .as_ref()
-        .zip(sampling_project_id)
-        .map(|(dsc, sampling_project_id)| EnrichedDsc {
-            dsc,
-            sampling_project_id,
-        });
+        .unwrap_or(ctx.project_info)
+        .project_id;
+    if let Some(dsc) = &mut dsc {
+        dsc.project_id = project_id;
+    }
     let norm = normalize::NormalizeSpanConfig {
         received_at: spans.received_at(),
         timestamp_range: aggregator_config.timestamp_range(),
@@ -79,7 +73,7 @@ pub fn normalize(
         client_ip: spans.headers.meta().client_addr().map(Into::into),
         geo_lookup,
         span_op_defaults: ctx.global_config.span_op_defaults.borrow(),
-        dsc,
+        dsc: dsc.as_ref(),
     };
 
     spans.retain(

@@ -252,11 +252,7 @@ mod tests {
             ],
             errors: [],
             original_length: None,
-            original_value: Some(
-                String(
-                    "00000000000000000000000000000000",
-                ),
-            ),
+            original_value: None,
         }
         "#);
     }
