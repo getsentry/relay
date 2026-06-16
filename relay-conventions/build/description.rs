@@ -23,15 +23,23 @@ pub fn description_file_output(descriptions: impl Iterator<Item = Description>) 
     let operations = descriptions.flat_map(|description| description.operations);
 
     let match_arms = operations.map(|Operation { ops, templates }| {
-        let conditional_attribute_blocks = templates.iter().map(|template| {
+        let (templates_with_attributes, literal_template)  = match templates.split_last() {
+            Some((last, init)) if !last.contains("{{")=> (init, Some(last.as_str())),
+            _ => (&templates[..], None),
+        };
+
+        let conditional_attribute_blocks = templates_with_attributes.iter().map(|template| {
             let parts = parse_template_into_parts(template);
+            if !parts.iter().any(|part| matches!(part, TemplatePart::Attribute(_, _))) {
+                panic!("templates before the final template must contain attributes (bad template: {})", template);
+            }
+
             // First, each attribute becomes a let clause for our if block.
             let if_clauses = parts.iter().flat_map(|part| {
                 if let TemplatePart::Attribute(name, ident) = part {
                     Some(quote! {
                         let Some(#ident @ (Val::String(_) | Val::Bool(_) | Val::U64(_) | Val::I64(_) | Val::F64(_))) = attributes.get_value(#name)
                     })
-
                 } else {
                     None
                 }
@@ -57,13 +65,17 @@ pub fn description_file_output(descriptions: impl Iterator<Item = Description>) 
             })
         });
 
+        let literal_name_fallback = match literal_template {
+            Some(literal_template) => quote! { Some(#literal_template.to_owned()) },
+            None => quote! { None },
+        };
 
         // Assemble the match arm, with `ops` forming the match clause and the match body checking
         // each template in turn before falling back to a literal (zero-attribute) template.
         quote! {
             #(#ops)|* => {
                 #(#conditional_attribute_blocks)*
-                None
+                #literal_name_fallback
             }
         }
     });
