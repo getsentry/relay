@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ProfileError","ProfileType"],"fn":["discard_reason","expand_perfetto","expand_profile","parse_metadata"],"struct":["ExpandedPerfettoChunk","ProfileChunk","ProfileMetadata"],"type":["ProfileId"]};
+window.SIDEBAR_ITEMS = {"enum":["AndroidOrV2ProfileChunk","AnyProfileChunk","ProfileError","ProfileType"],"fn":["discard_reason","expand_profile","parse_metadata"],"struct":["AndroidProfileChunk","PerfettoProfileChunk","ProfileMetadata","V2ProfileChunk"],"trait":["ProfileChunk"],"type":["ProfileId"]};
