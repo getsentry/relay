@@ -213,7 +213,7 @@ fn normalize_log_derived(log: &mut Annotated<OurLog>) -> Result<()> {
     )?;
 
     if let Annotated(None, meta) = log {
-        relay_log::debug!("empty span: {meta:?}");
+        relay_log::debug!("empty log: {meta:?}");
         return Err(Error::Invalid(DiscardReason::NoData));
     }
 
