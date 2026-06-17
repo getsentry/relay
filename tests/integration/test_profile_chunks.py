@@ -144,8 +144,11 @@ def test_profile_chunk_outcomes_invalid(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
 
-    project_config.setdefault("features", []).append(
-        "organizations:continuous-profiling"
+    project_config.setdefault("features", []).extend(
+        [
+            "organizations:continuous-profiling",
+            "organizations:relay-generate-billing-outcome",
+        ]
     )
 
     upstream = relay_with_processing(TEST_CONFIG)

@@ -187,6 +187,7 @@ def test_otlp_logs_multiple_records(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
+        "organizations:relay-generate-billing-outcome",
     ]
     project_config["config"]["retentions"] = {
         "log": {"standard": 30, "downsampled": 13 * 30},

@@ -374,11 +374,13 @@ mod tests {
 
     #[test]
     fn test_scrub_span_pii_default_rules_links() {
-        // `user.name`, `sentry.release`, and `url.path` are marked as follows in `sentry-conventions`:
+        // `sentry.description`, `user.name`, `sentry.release`, `url.domain`, and `url.path` are marked as follows in `sentry-conventions`:
+        // * `sentry.description`: `true`
         // * `user.name`: `true`
         // * `sentry.release`: `false`
-        // * `url.path`: `maybe`
-        // Therefore, `user.name` is the only one that should be scrubbed by default rules.
+        // * `url.domain`: `maybe`
+        // * `url.path`: `true`
+        // Therefore, default rules should scrub the `true` attributes and leave the `false` and `maybe` attributes intact.
         let json = r#"{
             "start_timestamp": 1544719859.0,
             "end_timestamp": 1544719860.0,
@@ -398,6 +400,14 @@ mod tests {
                         "value": "secret123"
                     },
                     "sentry.release": {
+                        "type": "string",
+                        "value": "secret123"
+                    },
+                    "url.domain": {
+                        "type": "string",
+                        "value": "secret123"
+                    },
+                    "url.path": {
                         "type": "string",
                         "value": "secret123"
                     }
@@ -436,17 +446,55 @@ mod tests {
         {
           "sentry.description": {
             "type": "string",
-            "value": "secret123"
+            "value": "[Filtered]"
           },
           "sentry.release": {
             "type": "string",
             "value": "secret123"
+          },
+          "url.domain": {
+            "type": "string",
+            "value": "secret123"
+          },
+          "url.path": {
+            "type": "string",
+            "value": "[Filtered]"
           },
           "user.name": {
             "type": "string",
             "value": "[Filtered]"
           },
           "_meta": {
+            "sentry.description": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@password:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 9
+                }
+              }
+            },
+            "url.path": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@password:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 9
+                }
+              }
+            },
             "user.name": {
               "value": {
                 "": {
@@ -469,11 +517,13 @@ mod tests {
 
     #[test]
     fn test_scrub_span_pii_custom_object_rules_links() {
-        // `user.name`, `sentry.release`, and `url.path` are marked as follows in `sentry-conventions`:
+        // `sentry.description`, `user.name`, `sentry.release`, `url.domain`, and `url.path` are marked as follows in `sentry-conventions`:
+        // * `sentry.description`: `true`
         // * `user.name`: `true`
         // * `sentry.release`: `false`
-        // * `url.path`: `maybe`
-        // Therefore, `sentry.release` is the only one that should not be scrubbed by custom rules.
+        // * `url.domain`: `maybe`
+        // * `url.path`: `true`
+        // Therefore, custom rules should scrub the `true` and `maybe` attributes addressed explicitly, but not the `false` attribute.
         let json = r#"
         {
             "start_timestamp": 1544719859.0,
@@ -496,6 +546,10 @@ mod tests {
                         "value": "secret123"
                     },
                     "url.path": {
+                        "type": "string",
+                        "value": "secret123"
+                    },
+                    "url.domain": {
                         "type": "string",
                         "value": "secret123"
                     },
@@ -593,6 +647,13 @@ mod tests {
                         "method": "replace",
                         "text": "[DESCRIPTION]"
                     }
+                },
+                "project:8": {
+                    "type": "anything",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "[URL DOMAIN]"
+                    }
                 }
             },
             "applications": {
@@ -619,6 +680,9 @@ mod tests {
                 ],
                 "'sentry.description'.value": [
                     "project:7"
+                ],
+                "'url.domain'.value": [
+                    "project:8"
                 ]
             }
         }
@@ -674,6 +738,10 @@ mod tests {
           "test_field_uuid": {
             "type": "string",
             "value": "BYE"
+          },
+          "url.domain": {
+            "type": "string",
+            "value": "[URL DOMAIN]"
           },
           "url.path": {
             "type": "string",
@@ -756,6 +824,21 @@ mod tests {
                     ]
                   ],
                   "len": 36
+                }
+              }
+            },
+            "url.domain": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "project:8",
+                      "s",
+                      0,
+                      12
+                    ]
+                  ],
+                  "len": 9
                 }
               }
             },

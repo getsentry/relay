@@ -28,8 +28,8 @@ impl MetricOutcomes {
     pub fn track(&self, scoping: Scoping, buckets: &[impl TrackableBucket], outcome: Outcome) {
         let timestamp = Utc::now();
 
-        // Never emit accepted outcomes for surrogate metrics.
-        // These are handled from within Sentry.
+        // Accepted outcomes go through `track_accepted_outcome`, which does
+        // additional work to prevent billing double-counting.
         if !matches!(outcome, Outcome::Accepted) {
             let SourceQuantities {
                 transactions,
@@ -56,6 +56,51 @@ impl MetricOutcomes {
                     });
                 }
             }
+        }
+    }
+
+    /// Emits accepted outcomes, for the provided list of buckets.
+    ///
+    /// Additionally, adds a marker tag `billing_outcome_emitted` to all buckets for which an
+    /// outcome has been emitted.
+    #[cfg(feature = "processing")]
+    pub fn track_accepted_outcome(&self, scoping: Scoping, buckets: &mut [Bucket]) {
+        let timestamp = Utc::now();
+        for bucket in buckets {
+            let summary = bucket.summary();
+            match summary {
+                BucketSummary::Spans {
+                    count,
+                    is_segment,
+                    was_transaction: _,
+                } => {
+                    if count == 0 {
+                        continue;
+                    }
+
+                    let categories = match is_segment {
+                        true => [DataCategory::Span, DataCategory::Transaction].as_slice(),
+                        false => [DataCategory::Span].as_slice(),
+                    };
+
+                    bucket
+                        .tags
+                        .insert("billing_outcome_emitted".to_owned(), "true".to_owned());
+
+                    for category in categories {
+                        self.outcomes.send(TrackOutcome {
+                            timestamp,
+                            scoping,
+                            outcome: Outcome::Accepted,
+                            event_id: None,
+                            remote_addr: None,
+                            category: *category,
+                            quantity: count as u32,
+                        });
+                    }
+                }
+                BucketSummary::None => continue,
+            };
         }
     }
 }
