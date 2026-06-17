@@ -921,6 +921,8 @@ jobs:
           /name/ { pkg = $2 }
           /version/ { if (pkg == "devservices") print "version="$2 }
         ' uv.lock >> $GITHUB_OUTPUT
+        mkdir -p ~/.config/sentry-devenv
+        printf '[devenv]\ncoderoot = %s\n' "$(dirname "$GITHUB_WORKSPACE")" >> ~/.config/sentry-devenv/config.ini
 
     - uses: getsentry/action-validate-devservices-config@711ae7221998ddf81211f25f5e3873ecffd22387
       name: Validate devservices config
