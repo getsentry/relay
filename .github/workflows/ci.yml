@@ -728,16 +728,13 @@ jobs:
       - name: Upload gocd deployment assets
         run: |
           set -euxo pipefail
-          # Keep resumable upload state out of ~/.gsutil, which may be unwritable in CI.
-          GSUTIL_STATE_DIR="${RUNNER_TEMP}/gsutil-state"
-          mkdir -p "${GSUTIL_STATE_DIR}"
-
           VERSION="$(docker run --rm "us-central1-docker.pkg.dev/internal-sentry/relay/${{ matrix.image_name }}:${REVISION}" --version | cut -d" " -f2)"
           echo "${{ matrix.image_name }}@${VERSION}+${REVISION}" > release-name
 
+          # the upload SA has no delete perms; disable parallel composite uploads since their chunk cleanup would fail on delete
+          export CLOUDSDK_STORAGE_PARALLEL_COMPOSITE_UPLOAD_ENABLED=false
           for PLATFORM in "linux/amd64" "linux/arm64"; do
-            gsutil -o "GSUtil:state_dir=${GSUTIL_STATE_DIR}" -m cp \
-              "${PLATFORM}/relay-debug.zip" "${PLATFORM}/relay.src.zip" ./release-name \
+            gcloud storage cp --no-clobber $PLATFORM/relay-debug.zip $PLATFORM/relay.src.zip ./release-name \
               "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${{ matrix.image_name }}/${PLATFORM}/"
           done
 
