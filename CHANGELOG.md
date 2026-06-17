@@ -4,6 +4,7 @@
 
 **Internal**:
 
+- Require timestamps and verification in auth signatures. ([#6069](https://github.com/getsentry/relay/pull/6069))
 - Have relay generate metric billing outcomes. ([#6066](https://github.com/getsentry/relay/pull/6066))
 
 ## 26.6.0
