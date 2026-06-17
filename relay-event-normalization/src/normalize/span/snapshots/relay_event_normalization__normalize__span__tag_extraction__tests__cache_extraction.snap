@@ -33,8 +33,7 @@ expression: event.to_json_pretty().unwrap()
         "cache.hit": "true",
         "cache.key": "[\"my_key\"]",
         "thread.name": "Thread-4 (process_request_thread)",
-        "thread.id": "6286962688",
-        "name": "cache.get_item"
+        "thread.id": "6286962688"
       },
       "measurements": {
         "cache.item_size": {
@@ -74,8 +73,7 @@ expression: event.to_json_pretty().unwrap()
         "cache.hit": "false",
         "cache.key": "[\"my_key\",\"my_key_2\"]",
         "thread.name": "Thread-4 (process_request_thread)",
-        "thread.id": "6286962688",
-        "name": "cache.get_item"
+        "thread.id": "6286962688"
       },
       "measurements": {
         "cache.item_size": {
@@ -114,8 +112,7 @@ expression: event.to_json_pretty().unwrap()
         "cache.hit": "false",
         "cache.key": "[\"my_key_2\"]",
         "thread.name": "Thread-4 (process_request_thread)",
-        "thread.id": "6286962688",
-        "name": "cache.get"
+        "thread.id": "6286962688"
       },
       "measurements": {
         "cache.item_size": {

@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 
 use relay_event_normalization::eap::ClientUserAgentInfo;
-use relay_event_normalization::{EnrichedDsc, GeoIpLookup, RequiredMode, SchemaProcessor, eap};
+use relay_event_normalization::{GeoIpLookup, RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{Span, SpanId, SpanV2};
 use relay_protocol::Annotated;
@@ -207,17 +207,6 @@ fn normalize_span(
     );
 
     if let Some(span) = span.value_mut() {
-        let sampling_project_id = ctx
-            .sampling_project_info
-            .and_then(|p| p.project_id)
-            .or(ctx.project_info.project_id);
-        let dsc = headers
-            .dsc()
-            .zip(sampling_project_id)
-            .map(|(dsc, sampling_project_id)| EnrichedDsc {
-                dsc,
-                sampling_project_id,
-            });
         let duration = span_duration(span);
         let allowed_hosts = ctx.global_config.options.http_span_allowed_hosts.as_slice();
         let model_metdata = ctx.global_config.ai_model_metadata();
@@ -243,7 +232,7 @@ fn normalize_span(
         }
         eap::normalize_user_agent(&mut span.attributes, client_ua_info);
         eap::normalize_user_geo(&mut span.attributes, |ip| geo_lookup.lookup(ip));
-        eap::normalize_dsc(&mut span.attributes, &span.is_segment, dsc);
+        eap::normalize_dsc(&mut span.attributes, &span.is_segment, headers.dsc());
         if ctx.is_processing() {
             eap::normalize_ai(&mut span.attributes, duration, model_metdata);
         }
@@ -286,6 +275,22 @@ fn normalize_span(
     }
 
     Ok(())
+}
+
+/// Normalize derived fields and attributes.
+///
+/// This is separate from [`normalize`] because it needs to run
+/// after PII scrubbing; PII might get leaked otherwise.
+pub fn normalize_derived(spans: &mut Managed<ExpandedSpans>) {
+    spans.modify(|span, _| {
+        for span in &mut span.spans {
+            let Some(span) = span.span.value_mut() else {
+                continue;
+            };
+
+            eap::normalize_sentry_description(&mut span.attributes, &span.name);
+        }
+    });
 }
 
 /// Validates the start and end timestamps of a span.
@@ -369,11 +374,13 @@ mod tests {
 
     #[test]
     fn test_scrub_span_pii_default_rules_links() {
-        // `user.name`, `sentry.release`, and `url.path` are marked as follows in `sentry-conventions`:
+        // `sentry.description`, `user.name`, `sentry.release`, `url.domain`, and `url.path` are marked as follows in `sentry-conventions`:
+        // * `sentry.description`: `true`
         // * `user.name`: `true`
         // * `sentry.release`: `false`
-        // * `url.path`: `maybe`
-        // Therefore, `user.name` is the only one that should be scrubbed by default rules.
+        // * `url.domain`: `maybe`
+        // * `url.path`: `true`
+        // Therefore, default rules should scrub the `true` attributes and leave the `false` and `maybe` attributes intact.
         let json = r#"{
             "start_timestamp": 1544719859.0,
             "end_timestamp": 1544719860.0,
@@ -393,6 +400,14 @@ mod tests {
                         "value": "secret123"
                     },
                     "sentry.release": {
+                        "type": "string",
+                        "value": "secret123"
+                    },
+                    "url.domain": {
+                        "type": "string",
+                        "value": "secret123"
+                    },
+                    "url.path": {
                         "type": "string",
                         "value": "secret123"
                     }
@@ -431,17 +446,55 @@ mod tests {
         {
           "sentry.description": {
             "type": "string",
-            "value": "secret123"
+            "value": "[Filtered]"
           },
           "sentry.release": {
             "type": "string",
             "value": "secret123"
+          },
+          "url.domain": {
+            "type": "string",
+            "value": "secret123"
+          },
+          "url.path": {
+            "type": "string",
+            "value": "[Filtered]"
           },
           "user.name": {
             "type": "string",
             "value": "[Filtered]"
           },
           "_meta": {
+            "sentry.description": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@password:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 9
+                }
+              }
+            },
+            "url.path": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@password:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 9
+                }
+              }
+            },
             "user.name": {
               "value": {
                 "": {
@@ -464,11 +517,13 @@ mod tests {
 
     #[test]
     fn test_scrub_span_pii_custom_object_rules_links() {
-        // `user.name`, `sentry.release`, and `url.path` are marked as follows in `sentry-conventions`:
+        // `sentry.description`, `user.name`, `sentry.release`, `url.domain`, and `url.path` are marked as follows in `sentry-conventions`:
+        // * `sentry.description`: `true`
         // * `user.name`: `true`
         // * `sentry.release`: `false`
-        // * `url.path`: `maybe`
-        // Therefore, `sentry.release` is the only one that should not be scrubbed by custom rules.
+        // * `url.domain`: `maybe`
+        // * `url.path`: `true`
+        // Therefore, custom rules should scrub the `true` and `maybe` attributes addressed explicitly, but not the `false` attribute.
         let json = r#"
         {
             "start_timestamp": 1544719859.0,
@@ -491,6 +546,10 @@ mod tests {
                         "value": "secret123"
                     },
                     "url.path": {
+                        "type": "string",
+                        "value": "secret123"
+                    },
+                    "url.domain": {
                         "type": "string",
                         "value": "secret123"
                     },
@@ -588,6 +647,13 @@ mod tests {
                         "method": "replace",
                         "text": "[DESCRIPTION]"
                     }
+                },
+                "project:8": {
+                    "type": "anything",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "[URL DOMAIN]"
+                    }
                 }
             },
             "applications": {
@@ -614,6 +680,9 @@ mod tests {
                 ],
                 "'sentry.description'.value": [
                     "project:7"
+                ],
+                "'url.domain'.value": [
+                    "project:8"
                 ]
             }
         }
@@ -669,6 +738,10 @@ mod tests {
           "test_field_uuid": {
             "type": "string",
             "value": "BYE"
+          },
+          "url.domain": {
+            "type": "string",
+            "value": "[URL DOMAIN]"
           },
           "url.path": {
             "type": "string",
@@ -751,6 +824,21 @@ mod tests {
                     ]
                   ],
                   "len": 36
+                }
+              }
+            },
+            "url.domain": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "project:8",
+                      "s",
+                      0,
+                      12
+                    ]
+                  ],
+                  "len": 9
                 }
               }
             },
@@ -928,7 +1016,6 @@ mod tests {
         assert_attributes_contains(
             &span,
             &[
-                (SENTRY__DESCRIPTION, "select * from users where id = 1"),
                 (
                     SENTRY__NORMALIZED_DESCRIPTION,
                     "SELECT * FROM users WHERE id = %s",
@@ -990,10 +1077,6 @@ mod tests {
             &[
                 (SENTRY__CATEGORY, "http"),
                 (SENTRY__OP, "http.client"),
-                (
-                    SENTRY__DESCRIPTION,
-                    "GET https://www.example.com/path?param=value",
-                ),
                 (SENTRY__ACTION, "GET"),
                 (SENTRY__DOMAIN, "*.example.com"),
             ],
@@ -1042,7 +1125,7 @@ mod tests {
                 (DEVICE__MODEL, "iPhone17,5"),
             ],
             &[
-                ("app_start_cold", 1234.0),
+                (APP__VITALS__START__COLD__VALUE, 1234.0),
                 (APP__VITALS__TTFD__VALUE, 200_000.0),
             ],
         );
@@ -1113,7 +1196,6 @@ mod tests {
             &span,
             &[
                 (SENTRY__OP, "db"),
-                (SENTRY__DESCRIPTION, "select * from users where id = 1"),
                 (
                     SENTRY__NORMALIZED_DESCRIPTION,
                     "SELECT * FROM users WHERE id = %s",

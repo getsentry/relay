@@ -167,7 +167,7 @@ def test_vercel_logs_json_array(
     items = items_consumer.get_items(n=2)
     assert items == EXPECTED_ITEMS
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=4)
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
     assert outcomes == [
         {
             "category": DataCategory.LOG_ITEM.value,
@@ -212,7 +212,7 @@ def test_vercel_logs_ndjson(
     items = items_consumer.get_items(n=2)
     assert items == EXPECTED_ITEMS
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=4)
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
     assert outcomes == [
         {
             "category": DataCategory.LOG_ITEM.value,

@@ -25,7 +25,7 @@ use relay_event_schema::protocol::ClientReport;
 use relay_filter::FilterStatKey;
 use relay_log::sentry::SentryFutureExt;
 use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricNamespace};
-use relay_quotas::{DataCategory, RateLimits, Scoping};
+use relay_quotas::{RateLimits, Scoping};
 use relay_sampling::evaluation::SamplingDecision;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -773,7 +773,8 @@ impl EnvelopeProcessorService {
                 return false;
             }
 
-            if !self::metrics::is_valid_namespace(bucket) {
+            if !self::metrics::is_valid_namespace(bucket, source) {
+                relay_log::debug!("dropping bucket in invalid namespace {bucket:?}");
                 return false;
             }
 
@@ -997,16 +998,17 @@ impl EnvelopeProcessorService {
             scoping,
         );
 
-        let namespaces: BTreeSet<MetricNamespace> = buckets
+        let mut namespaces: BTreeSet<MetricNamespace> = buckets
             .iter()
             .filter_map(|bucket| bucket.name.try_namespace())
             .collect();
 
+        // Never rate limit outcomes.
+        namespaces.remove(&MetricNamespace::Outcomes);
+
         for namespace in namespaces {
-            let limits = rate_limits.check_with_quotas(
-                project_info.get_quotas(),
-                scoping.item(DataCategory::MetricBucket),
-            );
+            let limits = rate_limits
+                .check_with_quotas(project_info.get_quotas(), scoping.metric_bucket(namespace));
 
             if limits.is_limited() {
                 let rejected;
@@ -1045,10 +1047,13 @@ impl EnvelopeProcessorService {
         };
 
         let global_config = self.inner.global_config.current().unwrap_or_default();
-        let namespaces = buckets
+        let mut namespaces = buckets
             .iter()
             .filter_map(|bucket| bucket.name.try_namespace())
             .counts();
+
+        // Never rate limit outcomes.
+        namespaces.remove(&MetricNamespace::Outcomes);
 
         let quotas = CombinedQuotas::new(&global_config, project_info.get_quotas());
 
@@ -1171,6 +1176,7 @@ impl EnvelopeProcessorService {
     ///
     /// This function runs the following steps:
     ///  - rate limiting
+    ///  - emit billing outcomes
     ///  - submit to `StoreForwarder`
     #[cfg(feature = "processing")]
     async fn encode_metrics_processing(
@@ -1180,6 +1186,7 @@ impl EnvelopeProcessorService {
     ) {
         use crate::constants::DEFAULT_EVENT_RETENTION;
         use crate::services::store::StoreMetrics;
+        use relay_dynamic_config::Feature;
 
         for ProjectBuckets {
             buckets,
@@ -1188,12 +1195,23 @@ impl EnvelopeProcessorService {
             ..
         } in message.buckets.into_values()
         {
-            let buckets = self
+            let mut buckets = self
                 .rate_limit_buckets(scoping, &project_info, buckets)
                 .await;
 
             if buckets.is_empty() {
                 continue;
+            }
+
+            if project_info
+                .config
+                .features
+                .has(Feature::GenerateBillingOutcome)
+            {
+                // Emit metric billing outcomes.
+                self.inner
+                    .metric_outcomes
+                    .track_accepted_outcome(scoping, &mut buckets);
             }
 
             let retention = project_info
@@ -1822,6 +1840,8 @@ mod tests {
     use relay_event_schema::protocol::{Event, EventId, TransactionSource};
     use relay_pii::DataScrubbingConfig;
     use relay_protocol::Annotated;
+    #[cfg(feature = "processing")]
+    use relay_quotas::DataCategory;
     use similar_asserts::assert_eq;
 
     use crate::testutils::{create_test_processor, create_test_processor_with_addrs};
@@ -2101,7 +2121,7 @@ mod tests {
         let mut envelope = Envelope::from_request(None, request_meta);
 
         let dsc = r#"{
-            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "trace_id": "00000000-0000-0000-0000-000000000001",
             "public_key": "e12d836b15bb49d7bbf99e64295d995b",
             "sample_rate": "0.2"
         }"#;
@@ -2156,7 +2176,7 @@ mod tests {
                     "0.2",
                 ),
                 "trace_id": String(
-                    "00000000000000000000000000000000",
+                    "00000000000000000000000000000001",
                 ),
                 "transaction": ~,
             },

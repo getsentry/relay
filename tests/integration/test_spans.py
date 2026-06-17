@@ -9,7 +9,7 @@ from requests import HTTPError
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
-from .asserts import matches_any
+from .asserts import time_within_delta
 from .test_store import make_transaction
 
 TEST_CONFIG = {
@@ -55,11 +55,16 @@ def test_span_extraction(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
 
-    project_config["config"].setdefault("features", [])
+    project_config["config"].setdefault("features", []).append(
+        "organizations:relay-generate-billing-outcome"
+    )
     if performance_issues_spans:
         project_config["config"]["features"].append(
             "organizations:performance-issues-spans"
         )
+    project_config["config"]["piiConfig"]["applications"]["$span.data.'http.route'"] = [
+        "@anything:mask"
+    ]
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
     event["contexts"]["trace"]["status"] = "success"
@@ -96,6 +101,24 @@ def test_span_extraction(
             "timestamp": end.isoformat(),
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
+        {
+            "description": "Some http operation",
+            # The combination of op, `http.request.method`, and
+            # `http.route` means this span has its name synthesized as
+            # `GET https://example.com`.
+            "op": "http.client",
+            "data": {
+                "http.request.method": "GET",
+                "http.route": "https://example.com",
+            },
+            "origin": "auto",
+            "parent_span_id": "968cff94913ebb07",
+            "span_id": "cccccccccccccccc",
+            "start_timestamp": start.isoformat(),
+            "status": "success",
+            "timestamp": end.isoformat(),
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        },
     ]
 
     user_id = str(uuid.uuid4())
@@ -123,82 +146,171 @@ def test_span_extraction(
         ("namespace", b"spans"),
     }
 
-    child_span = spans_consumer.get_span()
-
-    del child_span["received"]
-
-    expected_child_span = {
-        "attributes": {  # Backfilled from `sentry_tags`
-            "sentry.category": {"type": "string", "value": "http"},
-            "sentry.exclusive_time": {"type": "double", "value": 500.0},
-            "sentry.normalized_description": {"type": "string", "value": "GET *"},
-            "sentry.group": {"type": "string", "value": "37e3d9fab1ae9162"},
-            "sentry.op": {"type": "string", "value": "http"},
-            "sentry.origin": {"type": "string", "value": "manual"},
-            "sentry.platform": {"type": "string", "value": "other"},
-            "sentry.replay_id": {
-                "type": "string",
-                "value": "4c79f60c11214eb38604f4ae0781bfb2",
+    expected_child_spans = [
+        {
+            "attributes": {  # Backfilled from `sentry_tags`
+                "sentry.category": {"type": "string", "value": "http"},
+                "sentry.exclusive_time": {"type": "double", "value": 500.0},
+                "sentry.normalized_description": {"type": "string", "value": "GET *"},
+                "sentry.group": {"type": "string", "value": "37e3d9fab1ae9162"},
+                "sentry.op": {"type": "string", "value": "http"},
+                "sentry.origin": {"type": "string", "value": "manual"},
+                "sentry.platform": {"type": "string", "value": "other"},
+                "sentry.replay_id": {
+                    "type": "string",
+                    "value": "4c79f60c11214eb38604f4ae0781bfb2",
+                },
+                "sentry.sdk.name": {"type": "string", "value": "raven-node"},
+                "sentry.sdk.version": {"type": "string", "value": "2.6.3"},
+                "sentry.status": {"type": "string", "value": "ok"},
+                "sentry.segment.name": {"type": "string", "value": "hi"},
+                "sentry.trace.status": {"type": "string", "value": "ok"},
+                "sentry.transaction": {"type": "string", "value": "hi"},
+                "sentry.transaction.op": {"type": "string", "value": "hi"},
+                "sentry.user": {"type": "string", "value": f"id:{user_id}"},
+                "sentry.user.geo.city": {"type": "string", "value": "Vienna"},
+                "sentry.user.geo.country_code": {"type": "string", "value": "AT"},
+                "sentry.user.geo.region": {"type": "string", "value": "Austria"},
+                "sentry.user.geo.subdivision": {"type": "string", "value": "Vienna"},
+                "sentry.user.geo.subregion": {"type": "string", "value": "155"},
+                "sentry.user.id": {"type": "string", "value": user_id},
+                "sentry.user.ip": {"type": "string", "value": "192.168.0.1"},
+                "user.geo.city": {"type": "string", "value": "Vienna"},
+                "user.geo.country_code": {"type": "string", "value": "AT"},
+                "user.geo.region": {"type": "string", "value": "Austria"},
+                "user.geo.subdivision": {"type": "string", "value": "Vienna"},
+                "user.id": {"type": "string", "value": user_id},
+                "user.ip_address": {"type": "string", "value": "192.168.0.1"},
+                "sentry.description": {
+                    "type": "string",
+                    "value": "GET /api/0/organizations/?member=1",
+                },
+                "sentry.is_remote": {"type": "boolean", "value": False},
+                "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},
+                "sentry.dsc.project_id": {"type": "string", "value": "42"},
+                "sentry.dsc.trace_id": {
+                    "type": "string",
+                    "value": "a0fa8803753e40fd8124b21eeb2986b5",
+                },
+                "sentry.dsc.transaction": {"type": "string", "value": "hi"},
             },
-            "sentry.sdk.name": {"type": "string", "value": "raven-node"},
-            "sentry.sdk.version": {"type": "string", "value": "2.6.3"},
-            "sentry.status": {"type": "string", "value": "ok"},
-            "sentry.segment.name": {"type": "string", "value": "hi"},
-            "sentry.trace.status": {"type": "string", "value": "ok"},
-            "sentry.transaction": {"type": "string", "value": "hi"},
-            "sentry.transaction.op": {"type": "string", "value": "hi"},
-            "sentry.user": {"type": "string", "value": f"id:{user_id}"},
-            "sentry.user.geo.city": {"type": "string", "value": "Vienna"},
-            "sentry.user.geo.country_code": {"type": "string", "value": "AT"},
-            "sentry.user.geo.region": {"type": "string", "value": "Austria"},
-            "sentry.user.geo.subdivision": {"type": "string", "value": "Vienna"},
-            "sentry.user.geo.subregion": {"type": "string", "value": "155"},
-            "sentry.user.id": {"type": "string", "value": user_id},
-            "sentry.user.ip": {"type": "string", "value": "192.168.0.1"},
-            "user.geo.city": {"type": "string", "value": "Vienna"},
-            "user.geo.country_code": {"type": "string", "value": "AT"},
-            "user.geo.region": {"type": "string", "value": "Austria"},
-            "user.geo.subdivision": {"type": "string", "value": "Vienna"},
-            "user.id": {"type": "string", "value": user_id},
-            "user.ip_address": {"type": "string", "value": "192.168.0.1"},
-            "sentry.description": {
-                "type": "string",
-                "value": "GET /api/0/organizations/?member=1",
-            },
-            "sentry.is_remote": {"type": "boolean", "value": False},
-            "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},
-            "sentry.dsc.project_id": {"type": "string", "value": "42"},
-            "sentry.dsc.trace_id": {
-                "type": "string",
-                "value": "a0fa8803753e40fd8124b21eeb2986b5",
-            },
-            "sentry.dsc.transaction": {"type": "string", "value": "hi"},
+            "downsampled_retention_days": 90,
+            "end_timestamp": end.timestamp(),
+            "event_id": "cbf6960622e14a45abc1f03b2055b186",
+            "is_segment": False,
+            "links": [
+                {
+                    "trace_id": "0f62a8b040f340bda5d830223def1d82",
+                    "span_id": "cbbbbbbbbbbbbbbc",
+                    "sampled": True,
+                    "attributes": {
+                        "span_key": {"type": "string", "value": "span_value"}
+                    },
+                },
+            ],
+            "name": "GET /api/0/organizations/?member=1",
+            "organization_id": 1,
+            "parent_span_id": "968cff94913ebb07",
+            "project_id": 42,
+            "key_id": 123,
+            "retention_days": 90,
+            "accepted_outcome_emitted": relay_emits_accepted_outcome,
+            "span_id": "bbbbbbbbbbbbbbbb",
+            "start_timestamp": start.timestamp(),
+            "status": "ok",
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            "received": time_within_delta(),
         },
-        "downsampled_retention_days": 90,
-        "end_timestamp": end.timestamp(),
-        "event_id": "cbf6960622e14a45abc1f03b2055b186",
-        "is_segment": False,
-        "links": [
-            {
-                "trace_id": "0f62a8b040f340bda5d830223def1d82",
-                "span_id": "cbbbbbbbbbbbbbbc",
-                "sampled": True,
-                "attributes": {"span_key": {"type": "string", "value": "span_value"}},
+        {
+            "_meta": {
+                "attributes": {
+                    "http.route": {
+                        "": {
+                            "len": 19,
+                            "rem": [
+                                [
+                                    "@anything:mask",
+                                    "m",
+                                    0,
+                                    19,
+                                ],
+                            ],
+                        },
+                    },
+                },
             },
-        ],
-        "name": "http",
-        "organization_id": 1,
-        "parent_span_id": "968cff94913ebb07",
-        "project_id": 42,
-        "key_id": 123,
-        "retention_days": 90,
-        "accepted_outcome_emitted": relay_emits_accepted_outcome,
-        "span_id": "bbbbbbbbbbbbbbbb",
-        "start_timestamp": start.timestamp(),
-        "status": "ok",
-        "trace_id": "ff62a8b040f340bda5d830223def1d81",
-    }
-    assert child_span == expected_child_span
+            "attributes": {  # Backfilled from `sentry_tags`
+                "http.request.method": {"type": "string", "value": "GET"},
+                "http.route": {"type": "string", "value": "*******************"},
+                "sentry.category": {"type": "string", "value": "http"},
+                "sentry.exclusive_time": {"type": "double", "value": 500.0},
+                "sentry.op": {"type": "string", "value": "http.client"},
+                "sentry.origin": {"type": "string", "value": "auto"},
+                "sentry.platform": {"type": "string", "value": "other"},
+                "sentry.replay_id": {
+                    "type": "string",
+                    "value": "4c79f60c11214eb38604f4ae0781bfb2",
+                },
+                "sentry.sdk.name": {"type": "string", "value": "raven-node"},
+                "sentry.sdk.version": {"type": "string", "value": "2.6.3"},
+                "sentry.status": {"type": "string", "value": "ok"},
+                "sentry.segment.name": {"type": "string", "value": "hi"},
+                "sentry.trace.status": {"type": "string", "value": "ok"},
+                "sentry.transaction": {"type": "string", "value": "hi"},
+                "sentry.transaction.op": {"type": "string", "value": "hi"},
+                "sentry.user": {"type": "string", "value": f"id:{user_id}"},
+                "sentry.user.geo.city": {"type": "string", "value": "Vienna"},
+                "sentry.user.geo.country_code": {"type": "string", "value": "AT"},
+                "sentry.user.geo.region": {"type": "string", "value": "Austria"},
+                "sentry.user.geo.subdivision": {"type": "string", "value": "Vienna"},
+                "sentry.user.geo.subregion": {"type": "string", "value": "155"},
+                "sentry.user.id": {"type": "string", "value": user_id},
+                "sentry.user.ip": {"type": "string", "value": "192.168.0.1"},
+                "user.geo.city": {"type": "string", "value": "Vienna"},
+                "user.geo.country_code": {"type": "string", "value": "AT"},
+                "user.geo.region": {"type": "string", "value": "Austria"},
+                "user.geo.subdivision": {"type": "string", "value": "Vienna"},
+                "user.id": {"type": "string", "value": user_id},
+                "user.ip_address": {"type": "string", "value": "192.168.0.1"},
+                "sentry.description": {
+                    "type": "string",
+                    "value": "Some http operation",
+                },
+                "sentry.is_remote": {"type": "boolean", "value": False},
+                "sentry.segment.id": {"type": "string", "value": "968cff94913ebb07"},
+                "sentry.dsc.project_id": {"type": "string", "value": "42"},
+                "sentry.dsc.trace_id": {
+                    "type": "string",
+                    "value": "a0fa8803753e40fd8124b21eeb2986b5",
+                },
+                "sentry.dsc.transaction": {"type": "string", "value": "hi"},
+            },
+            "downsampled_retention_days": 90,
+            "end_timestamp": end.timestamp(),
+            "event_id": "cbf6960622e14a45abc1f03b2055b186",
+            "is_segment": False,
+            # Since `http.route` is redacted and the name is synthesized
+            # from it, it needs to be redacted too.
+            "name": "GET *******************",
+            "organization_id": 1,
+            "parent_span_id": "968cff94913ebb07",
+            "project_id": 42,
+            "key_id": 123,
+            "retention_days": 90,
+            "accepted_outcome_emitted": relay_emits_accepted_outcome,
+            "span_id": "cccccccccccccccc",
+            "start_timestamp": start.timestamp(),
+            "status": "ok",
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            "received": time_within_delta(),
+        },
+    ]
+
+    child_span = spans_consumer.get_span()
+    assert child_span == expected_child_spans[0]
+
+    child_span = spans_consumer.get_span()
+    assert child_span == expected_child_spans[1]
 
     start_timestamp = datetime.fromisoformat(event["start_timestamp"]).replace(
         tzinfo=timezone.utc
@@ -268,6 +380,8 @@ def test_span_extraction(
                 "attributes": {"txn_key": {"type": "integer", "value": 123}},
             },
         ],
+        # This is a segment span, so its name should be the transaction
+        # (despite the origin being "manual").
         "name": "hi",
         "organization_id": 1,
         "project_id": 42,
@@ -284,16 +398,57 @@ def test_span_extraction(
 
     spans_consumer.assert_empty()
 
+    num_messages = 2
     if relay_emits_accepted_outcome:
-        assert outcomes_consumer.get_aggregated_outcomes() == [
+        num_messages = 3
+
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=num_messages)
+
+    if relay_emits_accepted_outcome:
+        assert outcomes == [
+            {
+                "category": DataCategory.TRANSACTION.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 1,
+            },
+            {
+                "category": DataCategory.SPAN.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 3,
+            },
             {
                 "category": DataCategory.SPAN_INDEXED.value,
                 "key_id": 123,
                 "org_id": 1,
                 "outcome": 0,
                 "project_id": 42,
-                "quantity": 2,
-            }
+                "quantity": 3,
+            },
+        ]
+    else:
+        assert outcomes == [
+            {
+                "category": DataCategory.TRANSACTION.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 1,
+            },
+            {
+                "category": DataCategory.SPAN.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 3,
+            },
         ]
 
 
@@ -666,6 +821,9 @@ def test_rate_limit_indexed_consistent(
     relay = relay_with_processing()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).extend(
+        ["organizations:relay-generate-billing-outcome"]
+    )
     project_config["config"]["quotas"] = [
         {
             "categories": ["span_indexed"],
@@ -694,11 +852,19 @@ def test_rate_limit_indexed_consistent(
     relay.send_envelope(project_id, envelope)
     spans = spans_consumer.get_spans(n=3, timeout=10)
     assert len(spans) == 3
-    assert summarize_outcomes() == {(16, 0): 3}  # SpanIndexed, Accepted
+    assert summarize_outcomes() == {
+        (16, 0): 3,
+        (12, 0): 3,
+        (2, 0): 1,
+    }  # SpanIndexed, Accepted
 
     # Second batch is limited
     relay.send_envelope(project_id, envelope)
-    assert summarize_outcomes() == {(16, 2): 3}  # SpanIndexed, RateLimited
+    assert summarize_outcomes() == {
+        (16, 2): 3,
+        (12, 0): 3,
+        (2, 0): 1,
+    }  # SpanIndexed, RateLimited
 
     spans_consumer.assert_empty()
     outcomes_consumer.assert_empty()
@@ -715,6 +881,9 @@ def test_rate_limit_consistent_extracted(
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).append(
+        "organizations:relay-generate-billing-outcome"
+    )
     project_config["config"]["quotas"] = [
         {
             "categories": ["span"],
@@ -759,7 +928,11 @@ def test_rate_limit_consistent_extracted(
     spans = spans_consumer.get_spans(n=2, timeout=10)
     # one for the transaction, one for the contained span
     assert len(spans) == 2
-    assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
+    assert summarize_outcomes() == {
+        (16, 0): 2,
+        (12, 0): 2,
+        (2, 0): 1,
+    }  # SpanIndexed, Accepted
     # A limit only for span_indexed does not affect extracted metrics
     metrics = metrics_consumer.get_metrics(n=4)
     span_count = sum(
@@ -843,6 +1016,10 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).extend(
+        ["organizations:relay-generate-billing-outcome"]
+    )
+
     project_config["config"]["quotas"] = [
         {
             "categories": [category],
@@ -886,7 +1063,11 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     # We have one nested span and the transaction itself becomes a span
     spans = spans_consumer.get_spans(n=2, timeout=10)
     assert len(spans) == 2
-    assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
+    assert summarize_outcomes() == {
+        (16, 0): 2,
+        (2, 0): 1,
+        (12, 0): 2,
+    }  # SpanIndexed, Accepted
     assert span_usage_metric() == 2
 
     # Second batch nothing passes
@@ -904,7 +1085,9 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
         assert span_usage_metric() == 0
     elif category == "transaction_indexed":
         assert summarize_outcomes() == {
+            (2, 0): 1,
             (9, 2): 1,  # TransactionIndexed, Rate Limited
+            (12, 0): 2,
             (16, 2): 2,  # SpanIndexed, Rate Limited
         }
         assert span_usage_metric() == 2
@@ -933,7 +1116,9 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
         # We do not check indexed limits on the fast path,
         # so we count the correct number of spans (ignoring the span_count header):
         assert summarize_outcomes() == {
+            (2, 0): 1,
             (9, 2): 1,  # TransactionIndexed, Rate Limited
+            (12, 0): 2,
             (16, 2): 2,  # SpanIndexed, Rate Limited
         }
         # Metrics are always correct:
@@ -1015,10 +1200,18 @@ def test_dynamic_sampling(
     outcomes_consumer = outcomes_consumer()
 
     project_id = 42
-    mini_sentry.add_basic_project_config(project_id)
+    config = mini_sentry.add_basic_project_config(project_id)
+    config["config"].setdefault("features", []).extend(
+        ["organizations:relay-generate-billing-outcome"]
+    )
 
     sampling_config = mini_sentry.add_basic_project_config(43)
+    sampling_config["config"].setdefault("features", []).extend(
+        ["organizations:relay-generate-billing-outcome"]
+    )
+
     sampling_public_key = sampling_config["publicKeys"][0]["publicKey"]
+
     sampling_config["config"]["txNameRules"] = [
         {
             "pattern": "/auth/login/*/**",
@@ -1084,13 +1277,19 @@ def test_dynamic_sampling(
         spans = spans_consumer.get_spans(timeout=10, n=3)
         assert len(spans) == 3
         outcomes = outcomes_consumer.get_outcomes(timeout=10, n=3)
-        assert summarize_outcomes(outcomes) == {(16, 0): 3}  # SpanIndexed, Accepted
+        assert summarize_outcomes(outcomes) == {
+            (16, 0): 3,
+            (12, 0): 3,
+            (2, 0): 1,
+        }  # SpanIndexed, Accepted
     else:
-        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=1)
+        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=3)
         assert summarize_outcomes(outcomes) == {
             (16, 1): 3,  # SpanIndexed, Filtered
+            (12, 0): 3,
+            (2, 0): 1,
         }
-        assert {o["reason"] for o in outcomes} == {
+        assert {o["reason"] for o in outcomes if o["outcome"] != 0} == {
             "Sampled:3000",
         }
 
@@ -1229,22 +1428,16 @@ def test_outcomes_for_trimmed_spans(mini_sentry, relay):
     assert outcomes == [
         {
             "category": DataCategory.SPAN,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 3,  # invalid
-            "project_id": 42,
             "quantity": 1,
             "reason": "too_large:span",
-            "timestamp": matches_any(),
+            "timestamp": time_within_delta(),
         },
         {
             "category": DataCategory.SPAN_INDEXED,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 3,  # invalid
-            "project_id": 42,
             "quantity": 1,
             "reason": "too_large:span",
-            "timestamp": matches_any(),
+            "timestamp": time_within_delta(),
         },
     ]

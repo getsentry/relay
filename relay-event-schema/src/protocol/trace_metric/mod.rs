@@ -225,4 +225,35 @@ mod tests {
             Some(&MetricUnit::Custom("customunit".parse().unwrap()))
         );
     }
+
+    #[test]
+    fn test_trace_metric_with_nil_uuid() {
+        let json = r#"{
+            "timestamp": 1544719860.0,
+            "trace_id": "00000000000000000000000000000000",
+            "name": "custom.metric",
+            "type": "counter",
+            "value": 42
+        }"#;
+
+        let data = Annotated::<TraceMetric>::from_json(json).unwrap();
+        let trace_metric = data.value().unwrap();
+
+        assert!(!trace_metric.trace_id.value().unwrap().is_nil());
+
+        insta::assert_debug_snapshot!(trace_metric.trace_id.meta(), @r#"
+        Meta {
+            remarks: [
+                Remark {
+                    ty: Substituted,
+                    rule_id: "nil_trace_id",
+                    range: None,
+                },
+            ],
+            errors: [],
+            original_length: None,
+            original_value: None,
+        }
+        "#);
+    }
 }

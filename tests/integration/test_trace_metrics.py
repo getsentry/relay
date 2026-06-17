@@ -70,27 +70,21 @@ def test_trace_metric_multiple_containers_not_allowed(
 
     relay.send_envelope(project_id, envelope)
 
-    outcomes = mini_sentry.get_outcomes(2)
+    outcomes = mini_sentry.get_outcomes(n=2)
     outcomes.sort(key=lambda o: sorted(o.items()))
 
     assert outcomes == [
         {
             "category": DataCategory.TRACE_METRIC.value,
             "timestamp": time_within_delta(),
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 3,  # Invalid
-            "project_id": 42,
             "quantity": 3,
             "reason": "duplicate_item",
         },
         {
             "category": DataCategory.TRACE_METRIC_BYTE.value,
             "timestamp": time_within_delta(),
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 3,  # Invalid
-            "project_id": 42,
             "quantity": matches(lambda x: 400 < x < 500),
             "reason": "duplicate_item",
         },
@@ -314,19 +308,13 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
     assert mini_sentry.get_aggregated_outcomes() == [
         {
             "category": 33,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 2,
-            "project_id": 42,
             "reason": "no_more_quota",
             "quantity": 1,
         },
         {
             "category": 37,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 2,
-            "project_id": 42,
             "reason": "no_more_quota",
             "quantity": 134,
         },
@@ -338,19 +326,13 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
     assert mini_sentry.get_aggregated_outcomes() == [
         {
             "category": 33,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 2,
-            "project_id": 42,
             "reason": "no_more_quota",
             "quantity": 1,
         },
         {
             "category": 37,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 2,
-            "project_id": 42,
             "reason": "no_more_quota",
             "quantity": 134,
         },
@@ -372,7 +354,8 @@ def test_trace_metric_validation(
         "organizations:tracemetrics-ingestion",
     ]
 
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    config = {**TEST_CONFIG, "http": {"global_metrics": True}}
+    relay = relay(relay_with_processing(options=config), options=config)
     start = datetime.now(timezone.utc)
 
     # Missing required field type
@@ -773,19 +756,13 @@ def test_trace_metric_size_limits(
     assert mini_sentry.get_aggregated_outcomes() == [
         {
             "category": 33,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 3,
-            "project_id": 42,
             "quantity": 1,
             "reason": "too_large:trace_metric",
         },
         {
             "category": 37,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 3,
-            "project_id": 42,
             "quantity": 608,
             "reason": "too_large:trace_metric",
         },

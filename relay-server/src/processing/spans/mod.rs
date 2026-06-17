@@ -183,16 +183,15 @@ impl processing::Processor for SpansProcessor {
         validate::invalid(&spans).reject(&spans)?;
 
         dynamic_sampling::validate_configs(ctx);
-        dynamic_sampling::validate_dsc_presence(&spans).reject(&spans)?;
 
-        let spans = process::expand(spans)?;
+        let mut spans = process::expand(spans)?;
+
+        dynamic_sampling::validate_and_set_dsc(&mut spans, &ctx)?;
 
         let mut spans = match dynamic_sampling::run(spans, ctx) {
             Ok(spans) => spans,
             Err(metrics) => return Ok(Output::metrics(metrics)),
         };
-
-        dynamic_sampling::validate_dsc(&spans).reject(&spans)?;
 
         process::normalize(&mut spans, &self.geo_lookup, ctx);
         filter::filter(&mut spans, ctx);
@@ -204,6 +203,7 @@ impl processing::Processor for SpansProcessor {
         };
 
         process::scrub(&mut spans, ctx);
+        process::normalize_derived(&mut spans);
 
         match dynamic_sampling::try_split_indexed_and_total(spans, ctx) {
             Either::Left(spans) => Ok(Output::just(SpanOutput::TotalAndIndexed(spans))),

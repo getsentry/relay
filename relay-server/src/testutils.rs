@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
+use relay_base_schema::project::ProjectId;
 use relay_cogs::Cogs;
 use relay_config::Config;
 use relay_event_schema::protocol::EventId;
@@ -23,6 +24,7 @@ pub fn create_sampling_context(sample_rate: Option<f64>) -> DynamicSamplingConte
     DynamicSamplingContext {
         trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
         public_key: "12345678901234567890123456789012".parse().unwrap(),
+        project_id: Some(ProjectId::new(42)),
         release: None,
         environment: None,
         transaction: None,

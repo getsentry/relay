@@ -189,6 +189,18 @@ impl<M> EnvelopeHeaders<M> {
         }
     }
 
+    /// Returns a mutable reference to the dynamic sampling context from the headers, if present.
+    pub fn dsc_mut(&mut self) -> Option<&mut DynamicSamplingContext> {
+        match &mut self.trace {
+            None => None,
+            Some(ErrorBoundary::Err(e)) => {
+                relay_log::debug!(error = e.as_ref(), "failed to parse sampling context");
+                None
+            }
+            Some(ErrorBoundary::Ok(t)) => Some(t),
+        }
+    }
+
     /// Overrides the dynamic sampling context in envelope headers.
     pub fn set_dsc(&mut self, dsc: DynamicSamplingContext) {
         self.trace = Some(ErrorBoundary::Ok(dsc));
@@ -1243,6 +1255,7 @@ mod tests {
         let dsc = DynamicSamplingContext {
             trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            project_id: None,
             release: Some("1.1.1".to_owned()),
             user: Default::default(),
             replay_id: None,

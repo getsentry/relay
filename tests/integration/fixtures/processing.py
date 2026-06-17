@@ -502,7 +502,7 @@ class EventsConsumer(ConsumerBase):
         assert message.error() is None
 
         event = msgpack.unpackb(message.value(), raw=False, use_list=False)
-        assert event["type"] == "event"
+        assert event["type"] == "event", event["type"]
         return json.loads(event["payload"].decode("utf8")), event
 
     def get_message(self):

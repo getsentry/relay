@@ -9,15 +9,14 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 use relay_base_schema::metrics::{DurationUnit, InformationUnit, MetricUnit};
+use relay_conventions::measurements::{APP_START_COLD, APP_START_WARM};
 use relay_event_schema::protocol::{
     AppContext, BrowserContext, DeviceContext, Event, GpuContext, Measurement, MonitorContext,
     OsContext, ProfileContext, ReplayContext, RuntimeContext, SentryTags, Span, Timestamp,
     TraceContext,
 };
 use relay_protocol::{Annotated, Empty, FiniteF64, Value};
-use relay_spans::name_for_span;
-use sqlparser::ast::{ObjectName, Visitor};
-use sqlparser::ast::{ObjectNamePart, Visit};
+use sqlparser::ast::{ObjectName, ObjectNamePart, Visit, Visitor};
 use url::Url;
 
 use crate::GeoIpLookup;
@@ -1141,8 +1140,6 @@ pub fn extract_tags(
         && !name.is_empty()
     {
         span_tags.name = name.to_owned().into();
-    } else if let Some(name) = name_for_span(span) {
-        span_tags.name = name.into();
     }
 
     span_tags
@@ -1546,9 +1543,9 @@ pub fn span_op_to_category(op: &str) -> Option<&str> {
 /// Reads the event measurements to determine the start type of the event.
 fn get_event_start_type(event: &Event) -> Option<&'static str> {
     // Check the measurements on the event to determine what kind of start type the event is.
-    if event.measurement("app_start_cold").is_some() {
+    if event.measurement(APP_START_COLD).is_some() {
         Some("cold")
-    } else if event.measurement("app_start_warm").is_some() {
+    } else if event.measurement(APP_START_WARM).is_some() {
         Some("warm")
     } else {
         None
@@ -3483,36 +3480,5 @@ LIMIT 1
         );
 
         assert_eq!(tags.name.value(), Some(&"my name".to_owned()));
-    }
-
-    #[test]
-    fn generate_name_from_attributes() {
-        let span: Span = Annotated::<Span>::from_json(
-            r#"{
-                "start_timestamp": 0,
-                "timestamp": 1,
-                "span_id": "922dda2462ea4ac2",
-                "data": {
-                    "db.query.summary": "SELECT users"
-                },
-                "op": "db"
-            }"#,
-        )
-        .unwrap()
-        .into_value()
-        .unwrap();
-
-        let tags = extract_tags(
-            &span,
-            200,
-            None,
-            None,
-            false,
-            None,
-            &[],
-            &GeoIpLookup::empty(),
-        );
-
-        assert_eq!(tags.name.value(), Some(&"SELECT users".to_owned()));
     }
 }
