@@ -1,6 +1,6 @@
 ---
-source: relay-profiling/src/lib.rs
-expression: output
+source: relay-profiling/src/perfetto/mod.rs
+expression: chunk.inner
 ---
 {
   "chunk_id": "0432a0a4c25f4697bf9f0a2fcbe6a814",
@@ -418,6 +418,11 @@ expression: output
         "timestamp": 1771278046.614,
         "stack_id": 7,
         "thread_id": "24820"
+      },
+      {
+        "timestamp": 1771278046.614,
+        "stack_id": 31,
+        "thread_id": "24804"
       },
       {
         "timestamp": 1771278046.664,
