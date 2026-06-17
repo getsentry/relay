@@ -656,7 +656,7 @@ jobs:
         uses: "google-github-actions/setup-gcloud@v3"
         with:
           # https://github.com/google-github-actions/auth#authenticating-via-workload-identity-federation
-          # You must use the Cloud SDK version 390.0.0 or later to authenticate the bq and gsutil tools.
+          # You must use the Cloud SDK version 390.0.0 or later to authenticate with workload identity federation.
           version: ">= 390.0.0"
 
       - name: Configure docker
@@ -707,7 +707,7 @@ jobs:
         uses: "google-github-actions/setup-gcloud@v3"
         with:
           # https://github.com/google-github-actions/auth#authenticating-via-workload-identity-federation
-          # You must use the Cloud SDK version 390.0.0 or later to authenticate the bq and gsutil tools.
+          # You must use the Cloud SDK version 390.0.0 or later to authenticate with workload identity federation.
           version: ">= 390.0.0"
 
       - uses: actions/download-artifact@v8
@@ -728,15 +728,11 @@ jobs:
       - name: Upload gocd deployment assets
         run: |
           set -euxo pipefail
-          # Keep resumable upload state out of ~/.gsutil, which may be unwritable in CI.
-          GSUTIL_STATE_DIR="${RUNNER_TEMP}/gsutil-state"
-          mkdir -p "${GSUTIL_STATE_DIR}"
-
           VERSION="$(docker run --rm "us-central1-docker.pkg.dev/internal-sentry/relay/${{ matrix.image_name }}:${REVISION}" --version | cut -d" " -f2)"
           echo "${{ matrix.image_name }}@${VERSION}+${REVISION}" > release-name
 
           for PLATFORM in "linux/amd64" "linux/arm64"; do
-            gsutil -o "GSUtil:state_dir=${GSUTIL_STATE_DIR}" -m cp \
+            gcloud storage cp \
               "${PLATFORM}/relay-debug.zip" "${PLATFORM}/relay.src.zip" ./release-name \
               "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${{ matrix.image_name }}/${PLATFORM}/"
           done
