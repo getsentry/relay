@@ -14,6 +14,7 @@ use objectstore_client::{
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_config::ObjectstoreServiceConfig;
+use relay_quotas::Scoping;
 use relay_system::{
     Addr, AsyncResponse, FromMessage, Interface, LoadShed, NoResponse, Sender, SimpleService,
 };
@@ -27,7 +28,7 @@ use crate::managed::{
 use crate::processing::utils::store::item_id_to_uuid;
 use crate::services::outcome::DiscardReason;
 use crate::services::store::{
-    Store, StoreAttachment, StoreEnvelope, StoreProfileChunk, StoreTraceItem,
+    ProfileAttachment, Store, StoreAttachment, StoreEnvelope, StoreProfileChunk, StoreTraceItem,
 };
 use crate::services::upload::ByteStream;
 use crate::statsd::{RelayCounters, RelayTimers};
@@ -164,20 +165,26 @@ impl Counted for StoreTraceAttachment {
 /// with the objectstore key set, so the Kafka message carries a reference
 /// instead of the full binary blob.
 pub struct StoreRawProfile {
-    /// The raw binary profile payload to upload.
-    pub payload: Bytes,
-    /// Content type of the raw profile.
-    pub content_type: ContentType,
     /// The profile chunk message to forward to Kafka after upload.
-    pub store_message: StoreProfileChunk,
-    /// Data retention in days.
-    pub retention: u16,
+    pub profile_chunk: StoreProfileChunk,
+    /// The raw profile to be stored in objectstore.
+    pub raw: RawProfile,
 }
 
 impl Counted for StoreRawProfile {
     fn quantities(&self) -> Quantities {
-        self.store_message.quantities()
+        self.profile_chunk.quantities()
     }
+}
+
+/// A raw profile to be stored in objectstore.
+pub struct RawProfile {
+    /// Name of the raw profile attachment.
+    pub name: String,
+    /// Bytes of the raw profile.
+    pub payload: Bytes,
+    /// Content type of the raw profile.
+    pub content_type: ContentType,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -402,7 +409,7 @@ impl LoadShed<Objectstore> for ObjectstoreService {
             Objectstore::RawProfile(managed) => {
                 self.inner
                     .store
-                    .send(managed.map(|profile, _| profile.store_message));
+                    .send(managed.map(|profile, _| profile.profile_chunk));
             }
             Objectstore::Stream(_, sender) => {
                 sender.send(Err(error));
@@ -618,49 +625,65 @@ impl ObjectstoreServiceInner {
 
     async fn handle_raw_profile(&self, managed: Managed<StoreRawProfile>) {
         let scoping = managed.scoping();
+
+        let payload = managed.raw.payload.clone();
+        let content_type = managed.raw.content_type;
+        let name = managed.raw.name.clone();
+
+        let mut store_message = managed.map(|profile, _| profile.profile_chunk);
+
+        match self
+            .try_upload_raw_profile(payload, content_type, store_message.retention_days, scoping)
+            .await
+        {
+            Ok(Some(stored_id)) => {
+                store_message.modify(|message, _| {
+                    message.attachments.push(ProfileAttachment {
+                        name,
+                        content_type,
+                        stored_id,
+                    })
+                });
+            }
+            Ok(None) => {}
+            Err(error) => {
+                // Always forward to store even if the raw profile upload failed,
+                // to ensure the Kafka message is produced.
+                error.log(MessageKind::RawProfile);
+            }
+        }
+
+        self.store.send(store_message);
+    }
+
+    async fn try_upload_raw_profile(
+        &self,
+        payload: Bytes,
+        content_type: ContentType,
+        retention: u16,
+        scoping: Scoping,
+    ) -> Result<Option<ObjectstoreKey>, Error> {
+        if payload.is_empty() {
+            return Ok(None);
+        }
+
         let session = self
             .profiles
             .for_project(scoping.organization_id.value(), scoping.project_id.value())
-            .session(&self.objectstore_client);
+            .session(&self.objectstore_client)?;
 
-        let payload = managed.payload.clone();
-        let content_type = managed.content_type;
-        let retention = managed.retention;
+        let stored_key = self
+            .upload_bytes(
+                MessageKind::RawProfile,
+                &session,
+                payload,
+                retention,
+                None,
+                Some(content_type),
+            )
+            .await?;
 
-        let mut store_message = managed.map(|profile, _| profile.store_message);
-
-        match session {
-            Err(error) => Error::from(error).log(MessageKind::RawProfile),
-            Ok(session) if !payload.is_empty() => {
-                let result = self
-                    .upload_bytes(
-                        MessageKind::RawProfile,
-                        &session,
-                        payload,
-                        retention,
-                        None,
-                        Some(content_type),
-                    )
-                    .await;
-
-                match result {
-                    Ok(stored_key) => {
-                        store_message.modify(|msg, _| {
-                            msg.raw_profile_object_store_key = Some(stored_key.into_inner());
-                            msg.raw_profile_content_type = Some(content_type);
-                        });
-                    }
-                    Err(error) => {
-                        error.log(MessageKind::RawProfile);
-                    }
-                }
-            }
-            Ok(_) => {}
-        }
-
-        // Always forward to store even if the raw profile upload failed,
-        // to ensure the kafka message is produced.
-        self.store.send(store_message);
+        Ok(Some(stored_key))
     }
 
     async fn handle_stream(&self, stream: Stream) -> Result<ObjectstoreKey, Error> {

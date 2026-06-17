@@ -168,7 +168,10 @@ impl Forward for ProfileChunkOutput {
 
         for chunk in expanded.split(|e| e.profile_chunks) {
             if let Ok(pc) = chunk.try_map(|pc, _| store::convert(pc, ctx)) {
-                s.send_to_store(pc);
+                match pc.transpose() {
+                    either::Either::Left(message) => s.send_to_store(message),
+                    either::Either::Right(message) => s.send_to_objectstore(message),
+                }
             }
         }
 

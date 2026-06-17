@@ -1,0 +1,6997 @@
+{
+  "chunk_id": "c3b09c0608844f558eaf6e65df6b9cdf",
+  "client_sdk": {
+    "name": "sentry.java.android",
+    "version": "8.38.0"
+  },
+  "content_type": "perfetto",
+  "debug_meta": {
+    "images": [
+      {
+        "code_file": "apex/com.android.runtime/lib64/bionic/libc.so",
+        "debug_id": "f8ec9f1b-d634-f710-7e64-1f026ca7269b",
+        "image_addr": "0x7ef9a46000",
+        "image_size": 569344,
+        "image_vmaddr": "0x0",
+        "type": "symbolic"
+      },
+      {
+        "code_file": "apex/com.android.art/lib64/libart.so",
+        "debug_id": "2bfeb9dc-995c-3faa-1a68-2a6008427d08",
+        "image_addr": "0x7c56e00000",
+        "image_size": 8105984,
+        "image_vmaddr": "0x0",
+        "type": "symbolic"
+      },
+      {
+        "code_file": "system/lib64/libutils.so",
+        "debug_id": "25d916eb-01d3-bedc-28e7-61592a8de52d",
+        "image_addr": "0x7ef09e9000",
+        "image_size": 61440,
+        "image_vmaddr": "0x0",
+        "type": "symbolic"
+      },
+      {
+        "code_file": "system/lib64/libhwui.so",
+        "debug_id": "47071bef-100a-296b-f768-d74baf71122d",
+        "image_addr": "0x7eec000000",
+        "image_size": 6119424,
+        "image_vmaddr": "0x0",
+        "type": "symbolic"
+      },
+      {
+        "code_file": "vendor/lib64/libGLESv2_enc.so",
+        "debug_id": "5507dd8d-4672-f1a6-3058-3396a25d7a40",
+        "image_addr": "0x7c1aec6000",
+        "image_size": 348160,
+        "image_vmaddr": "0x0",
+        "type": "symbolic"
+      },
+      {
+        "code_file": "apex/com.android.art/lib64/libjavacore.so",
+        "debug_id": "1631858d-fd07-69ef-ea90-1998b2a938b1",
+        "image_addr": "0x7c2e33e000",
+        "image_size": 188416,
+        "image_vmaddr": "0x0",
+        "type": "symbolic"
+      },
+      {
+        "code_file": "vendor/lib64/libOpenglSystemCommon.so",
+        "debug_id": "42e08821-4f9a-cbb6-a703-b0e5b424b8ae",
+        "image_addr": "0x7c17ae2000",
+        "image_size": 1048576,
+        "image_vmaddr": "0x0",
+        "type": "symbolic"
+      },
+      {
+        "code_file": "system/lib64/libandroid_runtime.so",
+        "debug_id": "6b882a7e-457a-de23-bea2-7d91258da727",
+        "image_addr": "0x7ef071f000",
+        "image_size": 1560576,
+        "image_vmaddr": "0x0",
+        "type": "symbolic"
+      },
+      {
+        "code_file": "system/lib64/libbinder.so",
+        "debug_id": "1d3231a8-e387-f9b9-42d5-97a6789a803c",
+        "image_addr": "0x7efe882000",
+        "image_size": 389120,
+        "image_vmaddr": "0x0",
+        "type": "symbolic"
+      },
+      {
+        "code_file": "system/lib64/libgui.so",
+        "debug_id": "115209c6-d868-ce49-2b9a-5d5bc4aaedcd",
+        "image_addr": "0x7efed11000",
+        "image_size": 745472,
+        "image_vmaddr": "0x0",
+        "type": "symbolic"
+      },
+      {
+        "code_file": "system/lib64/libui.so",
+        "debug_id": "67dbc580-1313-7dc1-b5a2-aeb2cb24a4a1",
+        "image_addr": "0x7effcfd000",
+        "image_size": 188416,
+        "image_vmaddr": "0x0",
+        "type": "symbolic"
+      },
+      {
+        "code_file": "vendor/lib64/egl/libGLESv2_emulation.so",
+        "debug_id": "5a70c28a-ba77-a19a-13bd-d2de128deae0",
+        "image_addr": "0x7bcf5aa000",
+        "image_size": 36864,
+        "image_vmaddr": "0x0",
+        "type": "symbolic"
+      },
+      {
+        "code_file": "vendor/lib64/libOpenglCodecCommon.so",
+        "debug_id": "fccde862-ed08-8dba-7393-1243511197fa",
+        "image_addr": "0x7c1bd94000",
+        "image_size": 110592,
+        "image_vmaddr": "0x0",
+        "type": "symbolic"
+      },
+      {
+        "code_file": "system/bin/app_process64",
+        "debug_id": "316b42ca-d0a2-ac6f-00c8-86329fb5d520",
+        "image_addr": "0x561c4c8000",
+        "image_size": 4096,
+        "image_vmaddr": "0x0",
+        "type": "symbolic"
+      },
+      {
+        "code_file": "system/lib64/libEGL.so",
+        "debug_id": "c6a6bc9d-1b37-05c4-0081-cc7d6c1e1977",
+        "image_addr": "0x7f13db9000",
+        "image_size": 122880,
+        "image_vmaddr": "0x0",
+        "type": "symbolic"
+      },
+      {
+        "code_file": "vendor/lib64/egl/libEGL_emulation.so",
+        "debug_id": "1f6a1e55-0001-7559-de0e-63175d4b9018",
+        "image_addr": "0x7bd084d000",
+        "image_size": 61440,
+        "image_vmaddr": "0x0",
+        "type": "symbolic"
+      },
+      {
+        "code_file": "vendor/lib64/lib_renderControl_enc.so",
+        "debug_id": "cf1120c3-83ba-f803-884f-aea85899309c",
+        "image_addr": "0x7c1ae2b000",
+        "image_size": 45056,
+        "image_vmaddr": "0x0",
+        "type": "symbolic"
+      }
+    ]
+  },
+  "environment": "debug",
+  "measurements": {
+    "cpu_usage": {
+      "unit": "percent",
+      "values": [
+        {
+          "timestamp": 1777358020.895,
+          "value": 56.20094079375762
+        },
+        {
+          "timestamp": 1777358020.994,
+          "value": 47.72786092177692
+        },
+        {
+          "timestamp": 1777358021.094,
+          "value": 52.289708049827254
+        },
+        {
+          "timestamp": 1777358021.193999,
+          "value": 50.05019634291624
+        },
+        {
+          "timestamp": 1777358021.294,
+          "value": 52.620478795841386
+        },
+        {
+          "timestamp": 1777358021.393999,
+          "value": 49.83694994597027
+        },
+        {
+          "timestamp": 1777358021.494,
+          "value": 52.61821576681683
+        },
+        {
+          "timestamp": 1777358021.593999,
+          "value": 50.00733407561553
+        },
+        {
+          "timestamp": 1777358021.695,
+          "value": 52.31104830862539
+        },
+        {
+          "timestamp": 1777358021.794,
+          "value": 50.08750688152257
+        },
+        {
+          "timestamp": 1777358021.894,
+          "value": 52.61428295786996
+        },
+        {
+          "timestamp": 1777358021.995,
+          "value": 49.84011689221911
+        },
+        {
+          "timestamp": 1777358022.094,
+          "value": 50.07609463188072
+        },
+        {
+          "timestamp": 1777358022.193999,
+          "value": 52.764437950744615
+        },
+        {
+          "timestamp": 1777358022.294,
+          "value": 49.7033742388127
+        },
+        {
+          "timestamp": 1777358022.393999,
+          "value": 52.63426105211958
+        },
+        {
+          "timestamp": 1777358022.495,
+          "value": 49.80619165671581
+        },
+        {
+          "timestamp": 1777358022.593999,
+          "value": 52.61114103543736
+        },
+        {
+          "timestamp": 1777358022.694,
+          "value": 32.55163503106803
+        },
+        {
+          "timestamp": 1777358022.794,
+          "value": 2.50511253386361
+        }
+      ]
+    },
+    "frozen_frame_renders": {
+      "unit": "nanosecond",
+      "values": [
+        {
+          "timestamp": 1777358020.888,
+          "value": 749833322.0
+        }
+      ]
+    },
+    "memory_footprint": {
+      "unit": "byte",
+      "values": [
+        {
+          "timestamp": 1777358020.895,
+          "value": 11888400.0
+        },
+        {
+          "timestamp": 1777358020.994,
+          "value": 12003504.0
+        },
+        {
+          "timestamp": 1777358021.094,
+          "value": 12056752.0
+        },
+        {
+          "timestamp": 1777358021.193999,
+          "value": 12110000.0
+        },
+        {
+          "timestamp": 1777358021.294,
+          "value": 12130480.0
+        },
+        {
+          "timestamp": 1777358021.393999,
+          "value": 12150960.0
+        },
+        {
+          "timestamp": 1777358021.494,
+          "value": 12212400.0
+        },
+        {
+          "timestamp": 1777358021.593999,
+          "value": 12232880.0
+        },
+        {
+          "timestamp": 1777358021.695,
+          "value": 12286128.0
+        },
+        {
+          "timestamp": 1777358021.794,
+          "value": 12339376.0
+        },
+        {
+          "timestamp": 1777358021.894,
+          "value": 12359856.0
+        },
+        {
+          "timestamp": 1777358021.995,
+          "value": 12421296.0
+        },
+        {
+          "timestamp": 1777358022.094,
+          "value": 12441776.0
+        },
+        {
+          "timestamp": 1777358022.193999,
+          "value": 12495024.0
+        },
+        {
+          "timestamp": 1777358022.294,
+          "value": 12515504.0
+        },
+        {
+          "timestamp": 1777358022.393999,
+          "value": 12535984.0
+        },
+        {
+          "timestamp": 1777358022.495,
+          "value": 12597424.0
+        },
+        {
+          "timestamp": 1777358022.593999,
+          "value": 12617904.0
+        },
+        {
+          "timestamp": 1777358022.694,
+          "value": 12892512.0
+        },
+        {
+          "timestamp": 1777358022.794,
+          "value": 12945760.0
+        }
+      ]
+    },
+    "memory_native_footprint": {
+      "unit": "byte",
+      "values": [
+        {
+          "timestamp": 1777358020.895,
+          "value": 36631152.0
+        },
+        {
+          "timestamp": 1777358020.994,
+          "value": 36636000.0
+        },
+        {
+          "timestamp": 1777358021.094,
+          "value": 36598336.0
+        },
+        {
+          "timestamp": 1777358021.193999,
+          "value": 36600496.0
+        },
+        {
+          "timestamp": 1777358021.294,
+          "value": 36601984.0
+        },
+        {
+          "timestamp": 1777358021.393999,
+          "value": 36604128.0
+        },
+        {
+          "timestamp": 1777358021.494,
+          "value": 36606272.0
+        },
+        {
+          "timestamp": 1777358021.593999,
+          "value": 36608416.0
+        },
+        {
+          "timestamp": 1777358021.695,
+          "value": 36614672.0
+        },
+        {
+          "timestamp": 1777358021.794,
+          "value": 36616816.0
+        },
+        {
+          "timestamp": 1777358021.894,
+          "value": 36618960.0
+        },
+        {
+          "timestamp": 1777358021.995,
+          "value": 36621104.0
+        },
+        {
+          "timestamp": 1777358022.094,
+          "value": 36623248.0
+        },
+        {
+          "timestamp": 1777358022.193999,
+          "value": 36625392.0
+        },
+        {
+          "timestamp": 1777358022.294,
+          "value": 36627536.0
+        },
+        {
+          "timestamp": 1777358022.393999,
+          "value": 36629680.0
+        },
+        {
+          "timestamp": 1777358022.495,
+          "value": 36631824.0
+        },
+        {
+          "timestamp": 1777358022.593999,
+          "value": 36672752.0
+        },
+        {
+          "timestamp": 1777358022.694,
+          "value": 36748144.0
+        },
+        {
+          "timestamp": 1777358022.794,
+          "value": 36754304.0
+        }
+      ]
+    },
+    "screen_frame_rates": {
+      "unit": "hertz",
+      "values": [
+        {
+          "timestamp": 1777358020.888,
+          "value": 60.000003814697266
+        }
+      ]
+    }
+  },
+  "platform": "android",
+  "profile": {
+    "frames": [
+      {
+        "function": "__start_thread",
+        "instruction_addr": "0x7ef9aa4fc4",
+        "package": "apex/com.android.runtime/lib64/bionic/libc.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZL15__pthread_startPv",
+        "instruction_addr": "0x7ef9ab2354",
+        "package": "apex/com.android.runtime/lib64/bionic/libc.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art6Thread24CreateCallbackWithUffdGcEPv",
+        "instruction_addr": "0x7c5743e144",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art6Thread14CreateCallbackEPv",
+        "instruction_addr": "0x7c5743e694",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art9ArtMethod14InvokeInstanceILc86ETpTncJEEENS_6detail12ShortyTraitsIXT_EE4TypeEPNS_6ThreadENS_6ObjPtrINS_6mirror6ObjectEEEDpNS3_IXT0_EE4TypeE",
+        "instruction_addr": "0x7c577430d8",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art9ArtMethod6InvokeEPNS_6ThreadEPjjPNS_6JValueEPKc",
+        "instruction_addr": "0x7c5714def0",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "art_quick_invoke_stub",
+        "instruction_addr": "0x7c57162774",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "art_quick_to_interpreter_bridge",
+        "instruction_addr": "0x7c57179098",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "artQuickToInterpreterBridge",
+        "instruction_addr": "0x7c5714d5a8",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "java.lang.Thread.run",
+        "instruction_addr": "0x7f14a6809c",
+        "package": "[anon:dalvik-/apex/com.android.art/javalib/core-oj.jar-transformed]",
+        "platform": "native"
+      },
+      {
+        "function": "ExecuteSwitchImplAsm",
+        "instruction_addr": "0x7c5717b5d8",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art11interpreter20ExecuteSwitchImplCppILb0EEEvPNS0_17SwitchImplContextE",
+        "instruction_addr": "0x7c5756da48",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art11interpreter6DoCallILb0EEEbPNS_9ArtMethodEPNS_6ThreadERNS_11ShadowFrameEPKNS_11InstructionEtbPNS_6JValueE",
+        "instruction_addr": "0x7c5715bd1c",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "run",
+        "module": "java.util.concurrent.ThreadPoolExecutor$Worker",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "runWorker",
+        "module": "java.util.concurrent.ThreadPoolExecutor",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "run",
+        "module": "java.util.concurrent.FutureTask",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "call",
+        "module": "java.util.concurrent.Executors$RunnableAdapter",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "run",
+        "module": "io.sentry.samples.android.ProfilingActivity$$ExternalSyntheticLambda5",
+        "package": "data/data/io.sentry.samples.android/code_cache/.overlay/base.apk/classes19.dex",
+        "platform": "java"
+      },
+      {
+        "function": "_ZN3art11interpreter6DoCallILb0EEEbPNS_9ArtMethodEPNS_6ThreadERNS_11ShadowFrameEPKNS_11InstructionEtbPNS_6JValueE",
+        "instruction_addr": "0x7c5715c5b0",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art11interpreterL7ExecuteEPNS_6ThreadERKNS_20CodeItemDataAccessorERNS_11ShadowFrameENS_6JValueEbb.__uniq.112435418011751916792819755956732575238.llvm.2845697060370838518",
+        "instruction_addr": "0x7c5714e21c",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "$r8$lambda$X9B0bkXYlGwrLTB23XqGg4LznRs",
+        "module": "io.sentry.samples.android.ProfilingActivity",
+        "package": "data/data/io.sentry.samples.android/code_cache/.overlay/base.apk/classes19.dex",
+        "platform": "java"
+      },
+      {
+        "function": "onCreate$lambda$9$lambda$8$lambda$7",
+        "module": "io.sentry.samples.android.ProfilingActivity",
+        "package": "data/data/io.sentry.samples.android/code_cache/.overlay/base.apk/classes19.dex",
+        "platform": "java"
+      },
+      {
+        "function": "runMathOperations",
+        "module": "io.sentry.samples.android.ProfilingActivity",
+        "package": "data/data/io.sentry.samples.android/code_cache/.overlay/base.apk/classes19.dex",
+        "platform": "java"
+      },
+      {
+        "function": "fibonacci",
+        "module": "io.sentry.samples.android.ProfilingActivity",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "io.sentry.transport.AsyncHttpTransport$EnvelopeSender.run",
+        "instruction_addr": "0x7efe6302ec",
+        "platform": "native"
+      },
+      {
+        "function": "io.sentry.transport.AsyncHttpTransport$EnvelopeSender.flush",
+        "instruction_addr": "0x7efe62fec8",
+        "platform": "native"
+      },
+      {
+        "function": "io.sentry.transport.HttpConnection.send",
+        "instruction_addr": "0x7efe630b64",
+        "platform": "native"
+      },
+      {
+        "function": "io.sentry.transport.HttpConnection.createConnection",
+        "instruction_addr": "0x7efe630db8",
+        "platform": "native"
+      },
+      {
+        "function": "connect",
+        "module": "com.android.okhttp.internal.huc.HttpsURLConnectionImpl",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "connect",
+        "module": "com.android.okhttp.internal.huc.DelegatingHttpsURLConnection",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "connect",
+        "module": "com.android.okhttp.internal.huc.HttpURLConnectionImpl",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "execute",
+        "module": "com.android.okhttp.internal.huc.HttpURLConnectionImpl",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "sendRequest",
+        "module": "com.android.okhttp.internal.http.HttpEngine",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "connect",
+        "module": "com.android.okhttp.internal.http.HttpEngine",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "newStream",
+        "module": "com.android.okhttp.internal.http.StreamAllocation",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "findHealthyConnection",
+        "module": "com.android.okhttp.internal.http.StreamAllocation",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "findConnection",
+        "module": "com.android.okhttp.internal.http.StreamAllocation",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "connect",
+        "module": "com.android.okhttp.internal.io.RealConnection",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "connectSocket",
+        "module": "com.android.okhttp.internal.io.RealConnection",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "connectTls",
+        "module": "com.android.okhttp.internal.io.RealConnection",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "startHandshake",
+        "module": "com.android.org.conscrypt.ConscryptEngineSocket",
+        "package": "apex/com.android.conscrypt/javalib/conscrypt.jar",
+        "platform": "java"
+      },
+      {
+        "function": "doHandshake",
+        "module": "com.android.org.conscrypt.ConscryptEngineSocket",
+        "package": "apex/com.android.conscrypt/javalib/conscrypt.jar",
+        "platform": "java"
+      },
+      {
+        "function": "-$$Nest$mwriteInternal",
+        "module": "com.android.org.conscrypt.ConscryptEngineSocket$SSLOutputStream",
+        "package": "apex/com.android.conscrypt/javalib/conscrypt.jar",
+        "platform": "java"
+      },
+      {
+        "function": "writeInternal",
+        "module": "com.android.org.conscrypt.ConscryptEngineSocket$SSLOutputStream",
+        "package": "apex/com.android.conscrypt/javalib/conscrypt.jar",
+        "platform": "java"
+      },
+      {
+        "function": "wrap",
+        "module": "com.android.org.conscrypt.ConscryptEngine",
+        "package": "apex/com.android.conscrypt/javalib/conscrypt.jar",
+        "platform": "java"
+      },
+      {
+        "function": "wrap",
+        "module": "javax.net.ssl.SSLEngine",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "_ZN3art11interpreter20ExecuteSwitchImplCppILb0EEEvPNS0_17SwitchImplContextE",
+        "instruction_addr": "0x7c5756db3c",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art11interpreter6DoCallILb1EEEbPNS_9ArtMethodEPNS_6ThreadERNS_11ShadowFrameEPKNS_11InstructionEtbPNS_6JValueE",
+        "instruction_addr": "0x7c571489ac",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art11interpreter33ArtInterpreterToInterpreterBridgeEPNS_6ThreadERKNS_20CodeItemDataAccessorEPNS_11ShadowFrameEPNS_6JValueE",
+        "instruction_addr": "0x7c5714f868",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "handshake",
+        "module": "com.android.org.conscrypt.ConscryptEngine",
+        "package": "apex/com.android.conscrypt/javalib/conscrypt.jar",
+        "platform": "java"
+      },
+      {
+        "function": "onPeerCertificateAvailable",
+        "module": "com.android.org.conscrypt.ActiveSession",
+        "package": "apex/com.android.conscrypt/javalib/conscrypt.jar",
+        "platform": "java"
+      },
+      {
+        "function": "getPeerCertificates",
+        "module": "com.android.org.conscrypt.NativeSsl",
+        "package": "apex/com.android.conscrypt/javalib/conscrypt.jar",
+        "platform": "java"
+      },
+      {
+        "function": "decodeX509CertificateChain",
+        "module": "com.android.org.conscrypt.SSLUtils",
+        "package": "apex/com.android.conscrypt/javalib/conscrypt.jar",
+        "platform": "java"
+      },
+      {
+        "function": "decodeX509Certificate",
+        "module": "com.android.org.conscrypt.SSLUtils",
+        "package": "apex/com.android.conscrypt/javalib/conscrypt.jar",
+        "platform": "java"
+      },
+      {
+        "function": "generateCertificate",
+        "module": "java.security.cert.CertificateFactory",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "engineGenerateCertificate",
+        "module": "com.android.org.conscrypt.OpenSSLX509CertificateFactory",
+        "package": "apex/com.android.conscrypt/javalib/conscrypt.jar",
+        "platform": "java"
+      },
+      {
+        "function": "generateItem",
+        "module": "com.android.org.conscrypt.OpenSSLX509CertificateFactory$Parser",
+        "package": "apex/com.android.conscrypt/javalib/conscrypt.jar",
+        "platform": "java"
+      },
+      {
+        "function": "fromX509DerInputStream",
+        "module": "com.android.org.conscrypt.OpenSSLX509CertificateFactory$1",
+        "package": "apex/com.android.conscrypt/javalib/conscrypt.jar",
+        "platform": "java"
+      },
+      {
+        "function": "fromX509DerInputStream",
+        "module": "com.android.org.conscrypt.OpenSSLX509Certificate",
+        "package": "apex/com.android.conscrypt/javalib/conscrypt.jar",
+        "platform": "java"
+      },
+      {
+        "function": "<init>",
+        "module": "com.android.org.conscrypt.OpenSSLX509Certificate",
+        "package": "apex/com.android.conscrypt/javalib/conscrypt.jar",
+        "platform": "java"
+      },
+      {
+        "function": "toDate",
+        "module": "com.android.org.conscrypt.OpenSSLX509Certificate",
+        "package": "apex/com.android.conscrypt/javalib/conscrypt.jar",
+        "platform": "java"
+      },
+      {
+        "function": "_ZN3art11interpreter6DoCallILb0EEEbPNS_9ArtMethodEPNS_6ThreadERNS_11ShadowFrameEPKNS_11InstructionEtbPNS_6JValueE",
+        "instruction_addr": "0x7c5715bd94",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "art_quick_invoke_static_stub",
+        "instruction_addr": "0x7c57162a40",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "getTimeZone",
+        "module": "java.util.TimeZone",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "clone",
+        "module": "java.util.SimpleTimeZone",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "clone",
+        "module": "java.util.TimeZone",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "clone",
+        "module": "java.lang.Object",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "art_jni_trampoline",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "_ZN3art24JniDecodeReferenceResultEP8_jobjectPNS_6ThreadE",
+        "instruction_addr": "0x7c571b5dd4",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art12StackVisitor9WalkStackILNS0_16CountTransitionsE0EEEvb",
+        "instruction_addr": "0x7c57119b30",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art3jit12JitCodeCache14GetJniStubCodeEPNS_9ArtMethodE",
+        "instruction_addr": "0x7c5711cd9c",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "",
+        "instruction_addr": "0x7c577b5624",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android6Thread11_threadLoopEPv",
+        "instruction_addr": "0x7ef09ffb14",
+        "package": "system/lib64/libutils.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android10uirenderer12renderthread12RenderThread10threadLoopEv",
+        "instruction_addr": "0x7eec4e17e4",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android10uirenderer12renderthread12RenderThread22dispatchFrameCallbacksEv",
+        "instruction_addr": "0x7eec3b7338",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android10uirenderer12renderthread13CanvasContext14prepareAndDrawEPNS0_10RenderNodeE",
+        "instruction_addr": "0x7eec369908",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android10uirenderer12renderthread13CanvasContext4drawEb",
+        "instruction_addr": "0x7eec36babc",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android10uirenderer12skiapipeline18SkiaOpenGLPipeline4drawERKNS0_12renderthread5FrameERK6SkRectS9_RKNS0_13LightGeometryEPNS0_16LayerUpdateQueueERKNS0_4RectEbRKNS0_9LightInfoERKNSt3__16vectorINS_2spINS0_10RenderNodeEEENSL_9allocatorISP_EEEEPNS0_19FrameInfoVisualizerERKNS3_26HardwareBufferRenderParamsERNSL_5mutexE",
+        "instruction_addr": "0x7eec5c8878",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android10uirenderer12skiapipeline12SkiaPipeline11renderFrameERKNS0_16LayerUpdateQueueERK6SkRectRKNSt3__16vectorINS_2spINS0_10RenderNodeEEENS9_9allocatorISD_EEEEbRKNS0_4RectE5sk_spI9SkSurfaceERK8SkMatrix",
+        "instruction_addr": "0x7eec59e8f8",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android10uirenderer12skiapipeline12SkiaPipeline15renderFrameImplERK6SkRectRKNSt3__16vectorINS_2spINS0_10RenderNodeEEENS6_9allocatorISA_EEEEbRKNS0_4RectEP8SkCanvasRK8SkMatrix",
+        "instruction_addr": "0x7eec268e80",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android10uirenderer12skiapipeline18RenderNodeDrawable6onDrawEP8SkCanvas",
+        "instruction_addr": "0x7eec5a0f10",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZNK7android10uirenderer12skiapipeline18RenderNodeDrawable11drawContentEP8SkCanvas",
+        "instruction_addr": "0x7eec25fd2c",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN10SkDrawable4drawEP8SkCanvasPK8SkMatrix",
+        "instruction_addr": "0x7eec510824",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android10uirenderer14VectorDrawable4Tree4drawEP8SkCanvasRK6SkRectRK7SkPaint",
+        "instruction_addr": "0x7eec345474",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN8SkCanvas16onDrawImageRect2EPK7SkImageRK6SkRectS5_RK17SkSamplingOptionsPK7SkPaintNS_17SrcRectConstraintE",
+        "instruction_addr": "0x7eec57e8e0",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN5skgpu6ganesh6Device13drawImageRectEPK7SkImagePK6SkRectRS6_RK17SkSamplingOptionsRK7SkPaintN8SkCanvas17SrcRectConstraintE",
+        "instruction_addr": "0x7eec530c28",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN5skgpu6ganesh6Device19drawImageQuadDirectEPK7SkImageRK6SkRectS7_PK7SkPointN8SkCanvas11QuadAAFlagsEPK8SkMatrixRK17SkSamplingOptionsRK7SkPaintNSB_17SrcRectConstraintE",
+        "instruction_addr": "0x7eec27d1c0",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN5skgpu6ganesh6Device15drawEdgeAAImageEPK7SkImageRK6SkRectS7_PK7SkPointN8SkCanvas11QuadAAFlagsERK8SkMatrixRK17SkSamplingOptionsRK7SkPaintNSB_17SrcRectConstraintESF_10SkTileMode",
+        "instruction_addr": "0x7eec27d5d0",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN5skgpu6ganesh19AsFragmentProcessorEP18GrRecordingContextPK7SkImage17SkSamplingOptionsPK10SkTileModeRK8SkMatrixPK6SkRectSF_",
+        "instruction_addr": "0x7eec2846bc",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_Z27GrMakeCachedBitmapProxyViewP18GrRecordingContextRK8SkBitmapNSt3__117basic_string_viewIcNS4_11char_traitsIcEEEEN5skgpu9MipmappedE",
+        "instruction_addr": "0x7eec28cdd4",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZL14make_bmp_proxyP15GrProxyProviderRK8SkBitmap11GrColorTypeN5skgpu9MipmappedE12SkBackingFitNS5_8BudgetedE.__uniq.200737704020540266365245535337625923746.llvm.4713520714591973661",
+        "instruction_addr": "0x7eec3f9608",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN15GrProxyProvider21createProxyFromBitmapERK8SkBitmapN5skgpu9MipmappedE12SkBackingFitNS3_8BudgetedE",
+        "instruction_addr": "0x7eec3f9ca8",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN18GrSurfaceProxyPriv19doLazyInstantiationEP18GrResourceProvider",
+        "instruction_addr": "0x7eec3fa5dc",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZZN15GrProxyProvider30createNonMippedProxyFromBitmapERK8SkBitmap12SkBackingFitN5skgpu8BudgetedEENK3$_0clEP18GrResourceProviderRKN14GrSurfaceProxy15LazySurfaceDescE.__uniq.252253999279826135392268071311710482442",
+        "instruction_addr": "0x7eec3f52dc",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN18GrResourceProvider13createTextureE7SkISizeRK15GrBackendFormat13GrTextureType11GrColorTypeN5skgpu10RenderableEiNS6_8BudgetedENS6_9MipmappedENS6_9ProtectedEPK10GrMipLevelNSt3__117basic_string_viewIcNSE_11char_traitsIcEEEE",
+        "instruction_addr": "0x7eec3f58dc",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZNK18GrResourceProvider11writePixelsE5sk_spI9GrTextureE11GrColorType7SkISizePK10GrMipLeveli",
+        "instruction_addr": "0x7eec3f5e58",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN5GrGpu11writePixelsEP9GrSurface7SkIRect11GrColorTypeS3_PK10GrMipLevelib",
+        "instruction_addr": "0x7eec3f6154",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7GrGLGpu13onWritePixelsEP9GrSurface7SkIRect11GrColorTypeS3_PK10GrMipLevelib",
+        "instruction_addr": "0x7eec7197c8",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7GrGLGpu24bindTextureToScratchUnitEji",
+        "instruction_addr": "0x7eec719954",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN10GL2Encoder17s_glActiveTextureEPvj",
+        "instruction_addr": "0x7c1af058ac",
+        "package": "vendor/lib64/libGLESv2_enc.so",
+        "platform": "native"
+      },
+      {
+        "function": "run",
+        "module": "android.os.HandlerThread",
+        "package": "system/framework/framework.jar",
+        "platform": "java"
+      },
+      {
+        "function": "loop",
+        "module": "android.os.Looper",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "loopOnce",
+        "module": "android.os.Looper",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "dispatchMessage",
+        "module": "android.os.Handler",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "handleCallback",
+        "module": "android.os.Handler",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "run",
+        "module": "android.graphics.HardwareRendererObserver$$ExternalSyntheticLambda0",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "$r8$lambda$PeqK8_uy-Wp8rbu7N1ihQlz9qD4",
+        "module": "android.graphics.HardwareRendererObserver",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "lambda$notifyDataAvailable$0",
+        "module": "android.graphics.HardwareRendererObserver",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "onFrameMetricsAvailable",
+        "module": "android.view.FrameMetricsObserver",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "onFrameMetricsAvailable",
+        "module": "io.sentry.android.core.internal.util.SentryFrameMetricsCollector$$ExternalSyntheticLambda4",
+        "package": "data/data/io.sentry.samples.android/code_cache/.overlay/base.apk/classes16.dex",
+        "platform": "java"
+      },
+      {
+        "function": "lambda$new$2$io-sentry-android-core-internal-util-SentryFrameMetricsCollector",
+        "module": "io.sentry.android.core.internal.util.SentryFrameMetricsCollector",
+        "package": "data/data/io.sentry.samples.android/code_cache/.overlay/base.apk/classes16.dex",
+        "platform": "java"
+      },
+      {
+        "function": "onFrameMetricCollected",
+        "module": "io.sentry.android.core.PerfettoContinuousProfiler$ChunkMeasurementCollector$1",
+        "package": "data/data/io.sentry.samples.android/code_cache/.overlay/base.apk/classes7.dex",
+        "platform": "java"
+      },
+      {
+        "function": "<init>",
+        "module": "io.sentry.SentryNanotimeDate",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "getCurrentDateTime",
+        "module": "io.sentry.DateUtils",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "getInstance",
+        "module": "java.util.Calendar",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "getDefault",
+        "module": "java.util.Locale",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "io.sentry.cache.EnvelopeCache.discard",
+        "instruction_addr": "0x7f0d87bb40",
+        "platform": "native"
+      },
+      {
+        "function": "delete",
+        "module": "java.io.File",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "delete",
+        "module": "java.io.UnixFileSystem",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "remove",
+        "module": "android.app.ActivityThread$AndroidOs",
+        "package": "system/framework/framework.jar",
+        "platform": "java"
+      },
+      {
+        "function": "remove",
+        "module": "libcore.io.ForwardingOs",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "remove",
+        "module": "libcore.io.BlockGuardOs",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "_ZL12Linux_removeP7_JNIEnvP8_jobjectP8_jstring",
+        "instruction_addr": "0x7c2e36b68c",
+        "package": "apex/com.android.art/lib64/libjavacore.so",
+        "platform": "native"
+      },
+      {
+        "function": "remove",
+        "instruction_addr": "0x7ef9ac329c",
+        "package": "apex/com.android.runtime/lib64/bionic/libc.so",
+        "platform": "native"
+      },
+      {
+        "function": "unlinkat",
+        "instruction_addr": "0x7ef9b03d68",
+        "package": "apex/com.android.runtime/lib64/bionic/libc.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN10GL2Encoder17s_glActiveTextureEPvj",
+        "instruction_addr": "0x7c1af059bc",
+        "package": "vendor/lib64/libGLESv2_enc.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN12_GLOBAL__N_119glActiveTexture_encEPvj",
+        "instruction_addr": "0x7c1af26b14",
+        "package": "vendor/lib64/libGLESv2_enc.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN9gfxstream5guest8IOStream5allocEm",
+        "instruction_addr": "0x7c17bc7a58",
+        "package": "vendor/lib64/libOpenglSystemCommon.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN14QemuPipeStream11allocBufferEm",
+        "instruction_addr": "0x7c17bc75a8",
+        "package": "vendor/lib64/libOpenglSystemCommon.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android10uirenderer12skiapipeline18SkiaOpenGLPipeline4drawERKNS0_12renderthread5FrameERK6SkRectS9_RKNS0_13LightGeometryEPNS0_16LayerUpdateQueueERKNS0_4RectEbRKNS0_9LightInfoERKNSt3__16vectorINS_2spINS0_10RenderNodeEEENSL_9allocatorISP_EEEEPNS0_19FrameInfoVisualizerERKNS3_26HardwareBufferRenderParamsERNSL_5mutexE",
+        "instruction_addr": "0x7eec5c88f4",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN15GrDirectContext14flushAndSubmitEP9SkSurface9GrSyncCpu",
+        "instruction_addr": "0x7eec368c9c",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN19GrDirectContextPriv13flushSurfacesE6SkSpanIP14GrSurfaceProxyEN10SkSurfaces20BackendSurfaceAccessERK11GrFlushInfoPKN5skgpu19MutableTextureStateE",
+        "instruction_addr": "0x7eec368e28",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN16GrDrawingManager13flushSurfacesE6SkSpanIP14GrSurfaceProxyEN10SkSurfaces20BackendSurfaceAccessERK11GrFlushInfoPKN5skgpu19MutableTextureStateE",
+        "instruction_addr": "0x7eec369268",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN16GrDrawingManager5flushE6SkSpanIP14GrSurfaceProxyEN10SkSurfaces20BackendSurfaceAccessERK11GrFlushInfoPKN5skgpu19MutableTextureStateE",
+        "instruction_addr": "0x7eec215b10",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN10GrGLBuffer12onUpdateDataEPKvmmb",
+        "instruction_addr": "0x7eec70d8d4",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZL17invalidate_bufferP7GrGLGpujjjm.__uniq.147469646724423224731015792193028044282",
+        "instruction_addr": "0x7eec70d694",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZZL17invalidate_bufferP7GrGLGpujjjmENKUlvE_clEv.__uniq.147469646724423224731015792193028044282",
+        "instruction_addr": "0x7eec70dd94",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN12_GLOBAL__N_124glBufferDataSyncAEMU_encEPvjlPKvj",
+        "instruction_addr": "0x7c1af46e28",
+        "package": "vendor/lib64/libGLESv2_enc.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN14QemuPipeStream24commitBufferAndReadFullyEmPvm",
+        "instruction_addr": "0x7c17bc77a8",
+        "package": "vendor/lib64/libOpenglSystemCommon.so",
+        "platform": "native"
+      },
+      {
+        "function": "qemu_pipe_read",
+        "instruction_addr": "0x7c17bc8de0",
+        "package": "vendor/lib64/libOpenglSystemCommon.so",
+        "platform": "native"
+      },
+      {
+        "function": "read",
+        "instruction_addr": "0x7ef9b036a8",
+        "package": "apex/com.android.runtime/lib64/bionic/libc.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN14QemuPipeStream24commitBufferAndReadFullyEmPvm",
+        "instruction_addr": "0x7c17bc7734",
+        "package": "vendor/lib64/libOpenglSystemCommon.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN16GrDrawingManager5flushE6SkSpanIP14GrSurfaceProxyEN10SkSurfaces20BackendSurfaceAccessERK11GrFlushInfoPKN5skgpu19MutableTextureStateE",
+        "instruction_addr": "0x7eec2141a4",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN12GrRenderTask7prepareEP14GrOpFlushState",
+        "instruction_addr": "0x7eec2132b0",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN5skgpu6ganesh7OpsTask9onPrepareEP14GrOpFlushState",
+        "instruction_addr": "0x7eec746234",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN5skgpu6ganesh11AtlasTextOp14onPrepareDrawsEP16GrMeshDrawTarget",
+        "instruction_addr": "0x7eec4ddfe4",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZNKSt3__18functionIFNS_5tupleIJbiEEEPN6sktext3gpu11GlyphVectorEiiN5skgpu10MaskFormatEiEEclES6_iiS8_i",
+        "instruction_addr": "0x7eec38e8cc",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN6sktext3gpu11GlyphVector24regenerateAtlasForGaneshEiiN5skgpu10MaskFormatEiP16GrMeshDrawTarget",
+        "instruction_addr": "0x7eec29f3c4",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZThn8_NK14GrOpFlushState12atlasManagerEv",
+        "instruction_addr": "0x7eec6ec15c",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android14AndroidRuntime15javaThreadShellEPv",
+        "instruction_addr": "0x7ef0809b08",
+        "package": "system/lib64/libandroid_runtime.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android10PoolThread10threadLoopEv",
+        "instruction_addr": "0x7efe8efafc",
+        "package": "system/lib64/libbinder.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android14IPCThreadState14joinThreadPoolEb",
+        "instruction_addr": "0x7efe8d8e48",
+        "package": "system/lib64/libbinder.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android14IPCThreadState14executeCommandEi",
+        "instruction_addr": "0x7efe8d9ed8",
+        "package": "system/lib64/libbinder.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android30BnTransactionCompletedListener10onTransactEjRKNS_6ParcelEPS1_j",
+        "instruction_addr": "0x7efedbb0f0",
+        "package": "system/lib64/libgui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android28TransactionCompletedListener22onTransactionCompletedENS_13ListenerStatsE",
+        "instruction_addr": "0x7efedd7cec",
+        "package": "system/lib64/libgui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZNSt3__18__invokeB8nn180000IRPFvN7android2wpINS1_16BLASTBufferQueueEEERKNS1_17ReleaseCallbackIdERKNS1_2spINS1_5FenceEEENS_8optionalIjEEEJRS4_S7_SC_SE_EEEDTclclsr3stdE7declvalIT_EEspclsr3stdE7declvalIT0_EEEEOSJ_DpOSK_",
+        "instruction_addr": "0x7efedce7e0",
+        "package": "system/lib64/libgui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7androidL26releaseBufferCallbackThunkENS_2wpINS_16BLASTBufferQueueEEERKNS_17ReleaseCallbackIdERKNS_2spINS_5FenceEEENSt3__18optionalIjEE.__uniq.45450631312074835429881721991590974130",
+        "instruction_addr": "0x7efedd5ec0",
+        "package": "system/lib64/libgui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android18BufferItemConsumer13releaseBufferERKNS_10BufferItemERKNS_2spINS_5FenceEEE",
+        "instruction_addr": "0x7efedd5628",
+        "package": "system/lib64/libgui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android12ConsumerBase21addReleaseFenceLockedEiNS_2spINS_13GraphicBufferEEERKNS1_INS_5FenceEEE",
+        "instruction_addr": "0x7efedd5870",
+        "package": "system/lib64/libgui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android5Fence9getStatusEv",
+        "instruction_addr": "0x7effd294d4",
+        "package": "system/lib64/libui.so",
+        "platform": "native"
+      },
+      {
+        "function": "createCalendar",
+        "module": "java.util.Calendar",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "<init>",
+        "module": "java.util.GregorianCalendar",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "<init>",
+        "module": "java.util.Calendar",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "setWeekCountData",
+        "module": "java.util.Calendar",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "get",
+        "module": "java.util.concurrent.ConcurrentHashMap",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "hashCode",
+        "module": "java.util.Locale",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "_ZN7GrGLGpu22uploadColorTypeTexDataE10GrGLFormat11GrColorType7SkISizej7SkIRectS1_PK10GrMipLeveli",
+        "instruction_addr": "0x7eec719a7c",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7GrGLGpu13uploadTexDataE7SkISizej7SkIRectjjmPK10GrMipLeveli",
+        "instruction_addr": "0x7eec71a2c4",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "glTexSubImage2D",
+        "instruction_addr": "0x7bcf5bbef4",
+        "package": "vendor/lib64/egl/libGLESv2_emulation.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN10GL2Encoder17s_glTexSubImage2DEPvjiiiiijjPKv",
+        "instruction_addr": "0x7c1af07b40",
+        "package": "vendor/lib64/libGLESv2_enc.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN12_GLOBAL__N_119glTexSubImage2D_encEPvjiiiiijjPKv",
+        "instruction_addr": "0x7c1af30d58",
+        "package": "vendor/lib64/libGLESv2_enc.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN9gfxstream5guest8IOStream12uploadPixelsEPviiijjPKv",
+        "instruction_addr": "0x7c1af50c2c",
+        "package": "vendor/lib64/libGLESv2_enc.so",
+        "platform": "native"
+      },
+      {
+        "function": "qemu_pipe_write_fully",
+        "instruction_addr": "0x7c17bc8a20",
+        "package": "vendor/lib64/libOpenglSystemCommon.so",
+        "platform": "native"
+      },
+      {
+        "function": "qemu_pipe_write",
+        "instruction_addr": "0x7c17bc8e20",
+        "package": "vendor/lib64/libOpenglSystemCommon.so",
+        "platform": "native"
+      },
+      {
+        "function": "write",
+        "instruction_addr": "0x7ef9b036c8",
+        "package": "apex/com.android.runtime/lib64/bionic/libc.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN12_GLOBAL__N_119glTexSubImage2D_encEPvjiiiiijjPKv",
+        "instruction_addr": "0x7c1af30d20",
+        "package": "vendor/lib64/libGLESv2_enc.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZZN15GrProxyProvider30createNonMippedProxyFromBitmapERK8SkBitmap12SkBackingFitN5skgpu8BudgetedEENK3$_0clEP18GrResourceProviderRKN14GrSurfaceProxy15LazySurfaceDescE.__uniq.252253999279826135392268071311710482442",
+        "instruction_addr": "0x7eec3f5250",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7GrGLGpu13uploadTexDataE7SkISizej7SkIRectjjmPK10GrMipLeveli",
+        "instruction_addr": "0x7eec71a254",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN9gfxstream5guest13GLClientState13setPixelStoreEji",
+        "instruction_addr": "0x7c1bda8fb0",
+        "package": "vendor/lib64/libOpenglCodecCommon.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZZL17invalidate_bufferP7GrGLGpujjjmENKUlvE_clEv.__uniq.147469646724423224731015792193028044282",
+        "instruction_addr": "0x7eec70dd48",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN10GL2Encoder12s_glGetErrorEPv",
+        "instruction_addr": "0x7c1af03764",
+        "package": "vendor/lib64/libGLESv2_enc.so",
+        "platform": "native"
+      },
+      {
+        "function": "artQuickToInterpreterBridge",
+        "instruction_addr": "0x7c5714cfd0",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "__memset_aarch64",
+        "instruction_addr": "0x7ef9a9bbd4",
+        "package": "apex/com.android.runtime/lib64/bionic/libc.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZNK7android10uirenderer4$_27clEPKvP8SkCanvasRK8SkMatrix.__uniq.150848978645254602633048518174355561839",
+        "instruction_addr": "0x7eec2a79cc",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN8SkCanvas16onDrawImageRect2EPK7SkImageRK6SkRectS5_RK17SkSamplingOptionsPK7SkPaintNS_17SrcRectConstraintE",
+        "instruction_addr": "0x7eec57e844",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN5skgpu6ganesh6Device20drawAsTiledImageRectEP8SkCanvasPK7SkImagePK6SkRectRS8_RK17SkSamplingOptionsRK7SkPaintNS2_17SrcRectConstraintE",
+        "instruction_addr": "0x7eec6db4e0",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZNK12SkImage_Base15isTextureBackedEv",
+        "instruction_addr": "0x7eec65effc",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art11interpreter20ExecuteSwitchImplCppILb0EEEvPNS0_17SwitchImplContextE",
+        "instruction_addr": "0x7c5756c414",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android10uirenderer14VectorDrawable4Tree4drawEP8SkCanvasRK6SkRectRK7SkPaint",
+        "instruction_addr": "0x7eec345658",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android10uirenderer14VectorDrawable4Tree17updateBitmapCacheERNS_6BitmapEb",
+        "instruction_addr": "0x7eec3461cc",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android10uirenderer14VectorDrawable5Group4drawEP8SkCanvasb",
+        "instruction_addr": "0x7eec514590",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android10uirenderer14VectorDrawable8FullPath4drawEP8SkCanvasb",
+        "instruction_addr": "0x7eec4b3544",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN8SkCanvas8drawPathERK6SkPathRK7SkPaint",
+        "instruction_addr": "0x7eec2649ac",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN8SkCanvas10onDrawPathERK6SkPathRK7SkPaint",
+        "instruction_addr": "0x7eec5f69fc",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN14SkBitmapDevice8drawPathERK6SkPathRK7SkPaintb",
+        "instruction_addr": "0x7eec411468",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZNK10SkDrawBase8drawPathERK6SkPathRK7SkPaintPK8SkMatrixbbP9SkBlitter",
+        "instruction_addr": "0x7eec256308",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN6SkScan12AntiFillPathERK6SkPathRK12SkRasterClipP9SkBlitter",
+        "instruction_addr": "0x7eec5754e4",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN6SkScan11AAAFillPathERK6SkPathP9SkBlitterRK7SkIRectS7_b",
+        "instruction_addr": "0x7eec244804",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN13SkEdgeBuilder10buildEdgesERK6SkPathPK7SkIRect",
+        "instruction_addr": "0x7eec40ac40",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN21SkAnalyticEdgeBuilder7addLineEPK7SkPoint",
+        "instruction_addr": "0x7eec5527cc",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "realloc",
+        "instruction_addr": "0x7ef9a8b8b0",
+        "package": "apex/com.android.runtime/lib64/bionic/libc.so",
+        "platform": "native"
+      },
+      {
+        "function": "scudo_realloc",
+        "instruction_addr": "0x7ef9a91548",
+        "package": "apex/com.android.runtime/lib64/bionic/libc.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN5scudo9AllocatorINS_19AndroidNormalConfigEXadL_Z21scudo_malloc_postinitEEE10reallocateEPvmm",
+        "instruction_addr": "0x7ef9a915f0",
+        "package": "apex/com.android.runtime/lib64/bionic/libc.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN15GrProxyProvider21createProxyFromBitmapERK8SkBitmapN5skgpu9MipmappedE12SkBackingFitNS3_8BudgetedE",
+        "instruction_addr": "0x7eec3f9d7c",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZNSt3__110__function6__funcIZN7GrGLGpu25createRenderTargetObjectsERKN11GrGLTexture4DescEiPN16GrGLRenderTarget3IDsEE3$_0NS_9allocatorISA_EEFvvEE7destroyEv.__uniq.111230615403708898952873255848304878871.0de7bae3ebde0cf49b23739a6271b511",
+        "instruction_addr": "0x7eec4aea70",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN8SkCanvas12drawTextBlobEPK10SkTextBlobffRK7SkPaint",
+        "instruction_addr": "0x7eec2187a4",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN8SkCanvas14onDrawTextBlobEPK10SkTextBlobffRK7SkPaint",
+        "instruction_addr": "0x7eec5268e4",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN8SkCanvas18onDrawGlyphRunListERKN6sktext12GlyphRunListERK7SkPaint",
+        "instruction_addr": "0x7eec4c988c",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN5skgpu6ganesh6Device18onDrawGlyphRunListEP8SkCanvasRKN6sktext12GlyphRunListERK7SkPaint",
+        "instruction_addr": "0x7eec55c1d0",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN6sktext3gpu25TextBlobRedrawCoordinator16drawGlyphRunListEP8SkCanvasRK8SkMatrixRKNS_12GlyphRunListERK7SkPaint18SkStrikeDeviceInfoRKNSt3__18functionIFvPKNS0_11AtlasSubRunE7SkPointSC_5sk_spI8SkRefCntENS0_12RendererDataEEEE",
+        "instruction_addr": "0x7eec3a36fc",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZNK6sktext3gpu15SubRunContainer4drawEP8SkCanvas7SkPointRK7SkPaintPK8SkRefCntRKNSt3__18functionIFvPKNS0_11AtlasSubRunES4_S7_5sk_spIS8_ENS0_12RendererDataEEEE",
+        "instruction_addr": "0x7eec3a1194",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZNK12_GLOBAL__N_116DirectMaskSubRun4drawEP8SkCanvas7SkPointRK7SkPaint5sk_spI8SkRefCntERKNSt3__18functionIFvPKN6sktext3gpu11AtlasSubRunES3_S6_S9_NSD_12RendererDataEEEE.__uniq.174293967548894696757720325934719502794",
+        "instruction_addr": "0x7eec38e47c",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZNKSt3__18functionIFvPKN6sktext3gpu11AtlasSubRunE7SkPointRK7SkPaint5sk_spI8SkRefCntENS2_12RendererDataEEEclES5_S6_S9_SC_SD_",
+        "instruction_addr": "0x7eec38e55c",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZNSt3__18__invokeB8ne180000IRZN5skgpu6ganesh18SurfaceDrawContext16drawGlyphRunListEP8SkCanvasPK6GrClipRK8SkMatrixRKN6sktext12GlyphRunListE18SkStrikeDeviceInfoRK7SkPaintE3$_1JPKNSC_3gpu11AtlasSubRunE7SkPointSJ_5sk_spI8SkRefCntENSM_12RendererDataEEEEDTclclsr3stdE7declvalIT_EEspclsr3stdE7declvalIT0_EEEEOSV_DpOSW_.__uniq.126963779068130672566403203175510579496",
+        "instruction_addr": "0x7eec2ee3dc",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN5skgpu6ganesh11AtlasTextOp8finalizeERK6GrCapsPK13GrAppliedClip11GrClampType",
+        "instruction_addr": "0x7eec53d7d0",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "get",
+        "module": "java.lang.ref.Reference",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "art_quick_generic_jni_trampoline",
+        "instruction_addr": "0x7c57178f3c",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "artQuickGenericJniTrampoline",
+        "instruction_addr": "0x7c57089cfc",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art27BuildGenericJniFrameVisitor5VisitEv",
+        "instruction_addr": "0x7c57792848",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN12_GLOBAL__N_119glTexSubImage2D_encEPvjiiiiijjPKv",
+        "instruction_addr": "0x7c1af30d08",
+        "package": "vendor/lib64/libGLESv2_enc.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN9gfxstream5guest8IOStream5flushEv",
+        "instruction_addr": "0x7c17bc7af8",
+        "package": "vendor/lib64/libOpenglSystemCommon.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android10uirenderer12renderthread13CanvasContext14prepareAndDrawEPNS0_10RenderNodeE",
+        "instruction_addr": "0x7eec3698f4",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android10uirenderer12renderthread13CanvasContext11prepareTreeERNS0_8TreeInfoEPllPNS0_10RenderNodeE",
+        "instruction_addr": "0x7eec36a7e0",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android10uirenderer14RootRenderNode11prepareTreeERNS0_8TreeInfoE",
+        "instruction_addr": "0x7eec546d48",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android10uirenderer10RenderNode11prepareTreeERNS0_8TreeInfoE",
+        "instruction_addr": "0x7eec2413b0",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZNSt3__110__function6__funcIZN7android10uirenderer10RenderNode15prepareTreeImplERNS3_12TreeObserverERNS3_8TreeInfoEbE3$_0NS_9allocatorIS9_EEFvPS4_S6_S8_bEEclEOSC_S6_S8_Ob.__uniq.10397782060659495822194741288103189803.203475ed07c5ffb5392ca8a2a4b019a1",
+        "instruction_addr": "0x7eec50f470",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android10uirenderer10RenderNode15prepareTreeImplERNS0_12TreeObserverERNS0_8TreeInfoEb",
+        "instruction_addr": "0x7eec2075f0",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android10uirenderer10RenderNode15prepareTreeImplERNS0_12TreeObserverERNS0_8TreeInfoEb",
+        "instruction_addr": "0x7eec20754c",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android10uirenderer14VectorDrawable4Tree17updateBitmapCacheERNS_6BitmapEb",
+        "instruction_addr": "0x7eec346170",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN8SkCanvasC2ERK8SkBitmapNSt3__110unique_ptrI23SkRasterHandleAllocatorNS3_14default_deleteIS5_EEEEPvPK14SkSurfaceProps",
+        "instruction_addr": "0x7eec2679ac",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN14SkBitmapDeviceC1ERK8SkBitmapRK14SkSurfacePropsPv",
+        "instruction_addr": "0x7eec267ba0",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN17SkRasterClipStackC2Eii",
+        "instruction_addr": "0x7eec30ff34",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN12SkRasterClipC1ERKS_",
+        "instruction_addr": "0x7eec3100fc",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN5skgpu6ganesh6Device15drawEdgeAAImageEPK7SkImageRK6SkRectS7_PK7SkPointN8SkCanvas11QuadAAFlagsERK8SkMatrixRK17SkSamplingOptionsRK7SkPaintNSB_17SrcRectConstraintESF_10SkTileMode",
+        "instruction_addr": "0x7eec27ddfc",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN5skgpu6ganesh18SurfaceDrawContext9addDrawOpEPK6GrClipNSt3__110unique_ptrI4GrOpNS5_14default_deleteIS7_EEEERKNS5_8functionIFvPS7_jEEE",
+        "instruction_addr": "0x7eec2ec640",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZNK12_GLOBAL__N_114FillRectOpImpl12visitProxiesERKNSt3__18functionIFvP14GrSurfaceProxyN5skgpu9MipmappedEEEE.__uniq.296536696735338101786510625415314891244.82f04894e2d02c5f3d5f5eaed87a27c2",
+        "instruction_addr": "0x7eec740850",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZNK19GrFragmentProcessor19visitTextureEffectsERKNSt3__18functionIFvRK15GrTextureEffectEEE",
+        "instruction_addr": "0x7eec21a07c",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "run",
+        "module": "java.util.TimerThread",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "mainLoop",
+        "module": "java.util.TimerThread",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "run",
+        "module": "io.sentry.DefaultCompositePerformanceCollector$2",
+        "package": "data/data/io.sentry.samples.android/code_cache/.overlay/base.apk/classes16.dex",
+        "platform": "java"
+      },
+      {
+        "function": "collect",
+        "module": "io.sentry.android.core.AndroidCpuCollector",
+        "package": "data/data/io.sentry.samples.android/code_cache/.overlay/base.apk/classes7.dex",
+        "platform": "java"
+      },
+      {
+        "function": "readTotalCpuNanos",
+        "module": "io.sentry.android.core.AndroidCpuCollector",
+        "package": "data/data/io.sentry.samples.android/code_cache/.overlay/base.apk/classes7.dex",
+        "platform": "java"
+      },
+      {
+        "function": "io.sentry.util.FileUtils.readText",
+        "instruction_addr": "0x7f0a7ed86c",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art11interpreter6DoCallILb0EEEbPNS_9ArtMethodEPNS_6ThreadERNS_11ShadowFrameEPKNS_11InstructionEtbPNS_6JValueE",
+        "instruction_addr": "0x7c5715bcb8",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN14QemuPipeStream24commitBufferAndReadFullyEmPvm",
+        "instruction_addr": "0x7c17bc7718",
+        "package": "vendor/lib64/libOpenglSystemCommon.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN6SkScan11AAAFillPathERK6SkPathP9SkBlitterRK7SkIRectS7_b",
+        "instruction_addr": "0x7eec244974",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZL14aaa_walk_edgesP14SkAnalyticEdgeS0_14SkPathFillTypeP15AdditiveBlitteriiiibbb.__uniq.264207111679842201773772860248711733734",
+        "instruction_addr": "0x7eec473124",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN23SkARGB32_Opaque_Blitter10blitAntiH2Eiijj",
+        "instruction_addr": "0x7eec5efcf8",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "setTimeInMillis",
+        "module": "java.util.Calendar",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "computeFields",
+        "module": "java.util.GregorianCalendar",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "getCalendarDateFromFixedDate",
+        "module": "sun.util.calendar.BaseCalendar",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "setDayOfMonth",
+        "module": "sun.util.calendar.CalendarDate",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "__libc_init",
+        "instruction_addr": "0x7ef9a9b2cc",
+        "package": "apex/com.android.runtime/lib64/bionic/libc.so",
+        "platform": "native"
+      },
+      {
+        "function": "main",
+        "instruction_addr": "0x561c4cc568",
+        "package": "system/bin/app_process64",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android14AndroidRuntime5startEPKcRKNS_6VectorINS_7String8EEEb",
+        "instruction_addr": "0x7ef080974c",
+        "package": "system/lib64/libandroid_runtime.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7_JNIEnv20CallStaticVoidMethodEP7_jclassP10_jmethodIDz",
+        "instruction_addr": "0x7ef07f4290",
+        "package": "system/lib64/libandroid_runtime.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art3JNIILb1EE21CallStaticVoidMethodVEP7_JNIEnvP7_jclassP10_jmethodIDSt9__va_list",
+        "instruction_addr": "0x7c575398bc",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art17InvokeWithVarArgsIP10_jmethodIDEENS_6JValueERKNS_33ScopedObjectAccessAlreadyRunnableEP8_jobjectT_St9__va_list",
+        "instruction_addr": "0x7c5714beec",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art9ArtMethod6InvokeEPNS_6ThreadEPjjPNS_6JValueEPKc",
+        "instruction_addr": "0x7c5714df38",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "main",
+        "module": "com.android.internal.os.ZygoteInit",
+        "package": "system/framework/arm64/boot-framework.oat",
+        "platform": "java"
+      },
+      {
+        "function": "run",
+        "module": "com.android.internal.os.RuntimeInit$MethodAndArgsCaller",
+        "package": "system/framework/framework.jar",
+        "platform": "java"
+      },
+      {
+        "function": "art_quick_generic_jni_trampoline",
+        "instruction_addr": "0x7c57178f70",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3artL13Method_invokeEP7_JNIEnvP8_jobjectS3_P13_jobjectArray.__uniq.165753521025965369065708152063621506277",
+        "instruction_addr": "0x7c574c87f8",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art12InvokeMethodILNS_11PointerSizeE8EEEP8_jobjectRKNS_33ScopedObjectAccessAlreadyRunnableES3_S3_S3_m",
+        "instruction_addr": "0x7c5715e42c",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "main",
+        "module": "android.app.ActivityThread",
+        "package": "system/framework/framework.jar",
+        "platform": "java"
+      },
+      {
+        "function": "loop",
+        "module": "android.os.Looper",
+        "package": "system/framework/framework.jar",
+        "platform": "java"
+      },
+      {
+        "function": "next",
+        "module": "android.os.MessageQueue",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "_ZN7androidL38android_os_MessageQueue_nativePollOnceEP7_JNIEnvP8_jobjectli",
+        "instruction_addr": "0x7ef08a2bb8",
+        "package": "system/lib64/libandroid_runtime.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android6Looper8pollOnceEiPiS1_PPv",
+        "instruction_addr": "0x7ef09fc498",
+        "package": "system/lib64/libutils.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android24NativeInputEventReceiver11handleEventEiiPv",
+        "instruction_addr": "0x7ef0876024",
+        "package": "system/lib64/libandroid_runtime.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android24NativeInputEventReceiver13consumeEventsEP7_JNIEnvblPb",
+        "instruction_addr": "0x7ef0876260",
+        "package": "system/lib64/libandroid_runtime.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7_JNIEnv14CallVoidMethodEP8_jobjectP10_jmethodIDz",
+        "instruction_addr": "0x7ef07f27ec",
+        "package": "system/lib64/libandroid_runtime.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art12_GLOBAL__N_18CheckJNI15CallVoidMethodVEP7_JNIEnvP8_jobjectP10_jmethodIDSt9__va_list.__uniq.99033978352804627313491551960229047428.llvm.10145813973330161544",
+        "instruction_addr": "0x7c573a7464",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art12_GLOBAL__N_18CheckJNI11CallMethodVEPKcP7_JNIEnvP8_jobjectP7_jclassP10_jmethodIDSt9__va_listNS_9Primitive4TypeENS_10InvokeTypeE.__uniq.99033978352804627313491551960229047428",
+        "instruction_addr": "0x7c573a489c",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art3JNIILb1EE15CallVoidMethodVEP7_JNIEnvP8_jobjectP10_jmethodIDSt9__va_list",
+        "instruction_addr": "0x7c57551de8",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art35InvokeVirtualOrInterfaceWithVarArgsIPNS_9ArtMethodEEENS_6JValueERKNS_33ScopedObjectAccessAlreadyRunnableEP8_jobjectT_St9__va_list",
+        "instruction_addr": "0x7c571610a0",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "dispatchInputEvent",
+        "module": "android.view.InputEventReceiver",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "onInputEvent",
+        "module": "android.view.ViewRootImpl$WindowInputEventReceiver",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "enqueueInputEvent",
+        "module": "android.view.ViewRootImpl",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "doProcessInputEvents",
+        "module": "android.view.ViewRootImpl",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "deliverInputEvent",
+        "module": "android.view.ViewRootImpl",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "deliver",
+        "module": "android.view.ViewRootImpl$InputStage",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "apply",
+        "module": "android.view.ViewRootImpl$InputStage",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "forward",
+        "module": "android.view.ViewRootImpl$InputStage",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "onDeliverToNext",
+        "module": "android.view.ViewRootImpl$InputStage",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "apply",
+        "module": "android.view.ViewRootImpl$AsyncInputStage",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "forward",
+        "module": "android.view.ViewRootImpl$AsyncInputStage",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "onProcess",
+        "module": "android.view.ViewRootImpl$ViewPostImeInputStage",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "processPointerEvent",
+        "module": "android.view.ViewRootImpl$ViewPostImeInputStage",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "dispatchPointerEvent",
+        "module": "android.view.View",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "dispatchTouchEvent",
+        "module": "com.android.internal.policy.DecorView",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "io.sentry.android.core.internal.gestures.SentryWindowCallback.dispatchTouchEvent",
+        "instruction_addr": "0x7efe61d0ac",
+        "platform": "native"
+      },
+      {
+        "function": "io.sentry.android.core.internal.gestures.SentryWindowCallback.handleTouchEvent",
+        "instruction_addr": "0x7efe61d1a0",
+        "platform": "native"
+      },
+      {
+        "function": "",
+        "instruction_addr": "0x7bc950b568",
+        "platform": "native"
+      },
+      {
+        "function": "onTouchEvent",
+        "module": "android.view.GestureDetector",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "addMovement",
+        "module": "android.view.VelocityTracker",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "_ZN7androidL46android_view_VelocityTracker_nativeAddMovementEP7_JNIEnvP7_jclasslP8_jobject",
+        "instruction_addr": "0x7ef0803a70",
+        "package": "system/lib64/libandroid_runtime.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android37android_view_MotionEvent_getNativePtrEP7_JNIEnvP8_jobject",
+        "instruction_addr": "0x7ef07fdc24",
+        "package": "system/lib64/libandroid_runtime.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art12_GLOBAL__N_18CheckJNI8GetFieldEPKcP7_JNIEnvP8_jobjectP9_jfieldIDbNS_9Primitive4TypeE.__uniq.99033978352804627313491551960229047428",
+        "instruction_addr": "0x7c573a0f9c",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art12_GLOBAL__N_111ScopedCheck5CheckERNS_18ScopedObjectAccessEbPKcPNS0_12JniValueTypeE.__uniq.99033978352804627313491551960229047428",
+        "instruction_addr": "0x7c5739f5e4",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZNK3art6Thread24IsJniTransitionReferenceEP8_jobject",
+        "instruction_addr": "0x7c571ef4e0",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art3jit12JitCodeCache14GetJniStubCodeEPNS_9ArtMethodE",
+        "instruction_addr": "0x7c5711cd24",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZNK3art3jit12JitCodeCache10JniStubKeyltERKS2_",
+        "instruction_addr": "0x7c5711cbf0",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "__strcmp_aarch64",
+        "instruction_addr": "0x7ef9a9c2ec",
+        "package": "apex/com.android.runtime/lib64/bionic/libc.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android10uirenderer12renderthread13DrawFrameTask3runEv",
+        "instruction_addr": "0x7eec369e34",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN10GrGLBuffer12onUpdateDataEPKvmmb",
+        "instruction_addr": "0x7eec70d8a8",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN12_GLOBAL__N_119glBufferSubData_encEPvjllPKv",
+        "instruction_addr": "0x7c1af27908",
+        "package": "vendor/lib64/libGLESv2_enc.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN16GrDrawingManager5flushE6SkSpanIP14GrSurfaceProxyEN10SkSurfaces20BackendSurfaceAccessERK11GrFlushInfoPKN5skgpu19MutableTextureStateE",
+        "instruction_addr": "0x7eec215b80",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art16ThreadPoolWorker8CallbackEPv",
+        "instruction_addr": "0x7c57454b38",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art16ThreadPoolWorker3RunEv",
+        "instruction_addr": "0x7c5745d728",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art3jit14JitCompileTask3RunEPNS_6ThreadE",
+        "instruction_addr": "0x7c57507f0c",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art3jit3Jit21CompileMethodInternalEPNS_9ArtMethodEPNS_6ThreadENS_15CompilationKindEb",
+        "instruction_addr": "0x7c571497b0",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art3jit11JitCompiler13CompileMethodEPNS_6ThreadEPNS0_15JitMemoryRegionEPNS_9ArtMethodENS_15CompilationKindE",
+        "instruction_addr": "0x7c5723e3f8",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art18OptimizingCompiler10JitCompileEPNS_6ThreadEPNS_3jit12JitCodeCacheEPNS3_15JitMemoryRegionEPNS_9ArtMethodENS_15CompilationKindEPNS3_9JitLoggerE",
+        "instruction_addr": "0x7c5728a8b0",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZNK3art18OptimizingCompiler10TryCompileEPNS_14ArenaAllocatorEPNS_10ArenaStackERKNS_18DexCompilationUnitEPNS_9ArtMethodENS_15CompilationKindEPNS_24VariableSizedHandleScopeE",
+        "instruction_addr": "0x7c57199880",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3artL17AllocateRegistersEPNS_6HGraphEPNS_13CodeGeneratorEPNS_12PassObserverEPNS_23OptimizingCompilerStatsE.__uniq.81204301368937791589323527496456919116",
+        "instruction_addr": "0x7c5719acf0",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art19SsaLivenessAnalysis7AnalyzeEv",
+        "instruction_addr": "0x7c570c9da4",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art19SsaLivenessAnalysis24RecursivelyProcessInputsEPNS_12HInstructionES2_PNS_9BitVectorE",
+        "instruction_addr": "0x7c570cb674",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art19SsaLivenessAnalysis24RecursivelyProcessInputsEPNS_12HInstructionES2_PNS_9BitVectorE",
+        "instruction_addr": "0x7c570cb3b0",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art11HExpressionILm2EE15GetInputRecordsEv",
+        "instruction_addr": "0x7c575b957c",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art11interpreter20ExecuteSwitchImplCppILb0EEEvPNS0_17SwitchImplContextE",
+        "instruction_addr": "0x7c5756bdd0",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN3art3jit3Jit25MaybeDoOnStackReplacementEPNS_6ThreadEPNS_9ArtMethodEjiPNS_6JValueE",
+        "instruction_addr": "0x7c5714caf8",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "art_quick_osr_stub",
+        "instruction_addr": "0x7c57162ad0",
+        "package": "apex/com.android.art/lib64/libart.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android6Looper8pollOnceEiPiS1_PPv",
+        "instruction_addr": "0x7ef09fbf7c",
+        "package": "system/lib64/libutils.so",
+        "platform": "native"
+      },
+      {
+        "function": "__epoll_pwait",
+        "instruction_addr": "0x7ef9b04988",
+        "package": "apex/com.android.runtime/lib64/bionic/libc.so",
+        "platform": "native"
+      },
+      {
+        "function": "run",
+        "module": "java.util.concurrent.ThreadPoolExecutor$Worker",
+        "package": "apex/com.android.art/javalib/core-oj.jar",
+        "platform": "java"
+      },
+      {
+        "function": "runWorker",
+        "module": "java.util.concurrent.ThreadPoolExecutor",
+        "package": "apex/com.android.art/javalib/core-oj.jar",
+        "platform": "java"
+      },
+      {
+        "function": "run",
+        "module": "java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask",
+        "package": "apex/com.android.art/javalib/core-oj.jar",
+        "platform": "java"
+      },
+      {
+        "function": "io.sentry.cache.PersistingScopeObserver$$ExternalSyntheticLambda9.run",
+        "instruction_addr": "0x7f0d87c888",
+        "platform": "native"
+      },
+      {
+        "function": "io.sentry.cache.PersistingScopeObserver.lambda$serializeToDisk$13$io-sentry-cache-PersistingScopeObserver",
+        "instruction_addr": "0x7f0d87cd04",
+        "platform": "native"
+      },
+      {
+        "function": "io.sentry.cache.PersistingScopeObserver$$ExternalSyntheticLambda3.run",
+        "instruction_addr": "0x7f0d87c710",
+        "platform": "native"
+      },
+      {
+        "function": "io.sentry.cache.PersistingScopeObserver.lambda$setTrace$10$io-sentry-cache-PersistingScopeObserver",
+        "instruction_addr": "0x7f0d87ce7c",
+        "platform": "native"
+      },
+      {
+        "function": "io.sentry.cache.PersistingScopeObserver.store",
+        "instruction_addr": "0x7f0d87d224",
+        "platform": "native"
+      },
+      {
+        "function": "io.sentry.cache.PersistingScopeObserver.store",
+        "instruction_addr": "0x7f0d87d208",
+        "platform": "native"
+      },
+      {
+        "function": "io.sentry.cache.CacheUtils.store",
+        "instruction_addr": "0x7f0d87b2f0",
+        "platform": "native"
+      },
+      {
+        "function": "serialize",
+        "module": "io.sentry.JsonSerializer",
+        "package": "data/data/io.sentry.samples.android/code_cache/.overlay/base.apk/classes16.dex",
+        "platform": "java"
+      },
+      {
+        "function": "flush",
+        "module": "java.io.BufferedWriter",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "flush",
+        "module": "java.io.OutputStreamWriter",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "flush",
+        "module": "sun.nio.cs.StreamEncoder",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "implFlush",
+        "module": "sun.nio.cs.StreamEncoder",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "implFlushBuffer",
+        "module": "sun.nio.cs.StreamEncoder",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "writeBytes",
+        "module": "sun.nio.cs.StreamEncoder",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "write",
+        "module": "java.io.FileOutputStream",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "write",
+        "module": "libcore.io.IoBridge",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "write",
+        "module": "libcore.io.ForwardingOs",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "write",
+        "module": "libcore.io.BlockGuardOs",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "write",
+        "module": "libcore.io.Linux",
+        "package": "[anon_shmem:dalvik-jit-code-cache]",
+        "platform": "java"
+      },
+      {
+        "function": "_ZL16Linux_writeBytesP7_JNIEnvP8_jobjectS2_S2_ii",
+        "instruction_addr": "0x7c2e36fd60",
+        "package": "apex/com.android.art/lib64/libjavacore.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android10uirenderer12renderthread13CanvasContext4drawEb",
+        "instruction_addr": "0x7eec36bc30",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android10uirenderer12skiapipeline18SkiaOpenGLPipeline11swapBuffersERKNS0_12renderthread5FrameERNS3_15IRenderPipeline10DrawResultERK6SkRectPNS0_9FrameInfoEPb",
+        "instruction_addr": "0x7eec5c8b8c",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android10uirenderer12renderthread10EglManager11swapBuffersERKNS1_5FrameERK6SkRect",
+        "instruction_addr": "0x7eec5cb598",
+        "package": "system/lib64/libhwui.so",
+        "platform": "native"
+      },
+      {
+        "function": "eglSwapBuffersWithDamageKHR",
+        "instruction_addr": "0x7f13ddaf70",
+        "package": "system/lib64/libEGL.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN7android31eglSwapBuffersWithDamageKHRImplEPvS0_Pii",
+        "instruction_addr": "0x7f13ddf640",
+        "package": "system/lib64/libEGL.so",
+        "platform": "native"
+      },
+      {
+        "function": "eglSwapBuffers",
+        "instruction_addr": "0x7bd08616c4",
+        "package": "vendor/lib64/egl/libEGL_emulation.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN20egl_window_surface_t11swapBuffersEv",
+        "instruction_addr": "0x7bd085c73c",
+        "package": "vendor/lib64/egl/libEGL_emulation.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZL16createNativeSyncjPKiibiPi",
+        "instruction_addr": "0x7bd086246c",
+        "package": "vendor/lib64/egl/libEGL_emulation.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN12_GLOBAL__N_119rcCreateSyncKHR_encEPvjPijiPmS2_",
+        "instruction_addr": "0x7c1ae372b4",
+        "package": "vendor/lib64/lib_renderControl_enc.so",
+        "platform": "native"
+      },
+      {
+        "function": "_ZN12_GLOBAL__N_119glBufferSubData_encEPvjllPKv",
+        "instruction_addr": "0x7c1af27894",
+        "package": "vendor/lib64/libGLESv2_enc.so",
+        "platform": "native"
+      }
+    ],
+    "samples": [
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358020.894
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14997",
+        "timestamp": 1777358020.894
+      },
+      {
+        "stack_id": 1,
+        "thread_id": "14996",
+        "timestamp": 1777358020.904
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358020.904
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358020.914
+      },
+      {
+        "stack_id": 1,
+        "thread_id": "14997",
+        "timestamp": 1777358020.914
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14996",
+        "timestamp": 1777358020.924
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358020.924
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358020.934
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358020.934
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14996",
+        "timestamp": 1777358020.944
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358020.944
+      },
+      {
+        "stack_id": 5,
+        "thread_id": "14935",
+        "timestamp": 1777358020.954
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14996",
+        "timestamp": 1777358020.954
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358020.954
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14996",
+        "timestamp": 1777358020.964
+      },
+      {
+        "stack_id": 10,
+        "thread_id": "14997",
+        "timestamp": 1777358020.964
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358020.974
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358020.974
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358020.984
+      },
+      {
+        "stack_id": 8,
+        "thread_id": "14926",
+        "timestamp": 1777358020.984
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358020.984
+      },
+      {
+        "stack_id": 7,
+        "thread_id": "14996",
+        "timestamp": 1777358020.994
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358020.994
+      },
+      {
+        "stack_id": 6,
+        "thread_id": "14941",
+        "timestamp": 1777358021.004
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358021.004
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358021.004
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358021.014
+      },
+      {
+        "stack_id": 9,
+        "thread_id": "14935",
+        "timestamp": 1777358021.014
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358021.015
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14996",
+        "timestamp": 1777358021.024
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14997",
+        "timestamp": 1777358021.024
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14996",
+        "timestamp": 1777358021.034
+      },
+      {
+        "stack_id": 1,
+        "thread_id": "14997",
+        "timestamp": 1777358021.034
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14996",
+        "timestamp": 1777358021.044
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358021.044
+      },
+      {
+        "stack_id": 11,
+        "thread_id": "14941",
+        "timestamp": 1777358021.054
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14996",
+        "timestamp": 1777358021.054
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358021.054
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358021.064
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358021.064
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358021.074
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358021.074
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358021.084
+      },
+      {
+        "stack_id": 7,
+        "thread_id": "14997",
+        "timestamp": 1777358021.084
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358021.094
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358021.094
+      },
+      {
+        "stack_id": 12,
+        "thread_id": "14941",
+        "timestamp": 1777358021.104
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358021.104
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14997",
+        "timestamp": 1777358021.104
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14996",
+        "timestamp": 1777358021.114
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14997",
+        "timestamp": 1777358021.114
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14996",
+        "timestamp": 1777358021.124
+      },
+      {
+        "stack_id": 7,
+        "thread_id": "14997",
+        "timestamp": 1777358021.124
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358021.134
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14997",
+        "timestamp": 1777358021.134
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358021.144
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14997",
+        "timestamp": 1777358021.144
+      },
+      {
+        "stack_id": 14,
+        "thread_id": "14941",
+        "timestamp": 1777358021.154
+      },
+      {
+        "stack_id": 16,
+        "thread_id": "14996",
+        "timestamp": 1777358021.154
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14997",
+        "timestamp": 1777358021.154
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358021.164
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14997",
+        "timestamp": 1777358021.164
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358021.174
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358021.174
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14996",
+        "timestamp": 1777358021.184
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14997",
+        "timestamp": 1777358021.184
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14996",
+        "timestamp": 1777358021.194
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14997",
+        "timestamp": 1777358021.194
+      },
+      {
+        "stack_id": 15,
+        "thread_id": "14941",
+        "timestamp": 1777358021.204
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358021.205
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14996",
+        "timestamp": 1777358021.205
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14996",
+        "timestamp": 1777358021.214
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358021.214
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358021.224
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358021.224
+      },
+      {
+        "stack_id": 1,
+        "thread_id": "14996",
+        "timestamp": 1777358021.234
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358021.234
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358021.244
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14997",
+        "timestamp": 1777358021.244
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14996",
+        "timestamp": 1777358021.254
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358021.254
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358021.264
+      },
+      {
+        "stack_id": 18,
+        "thread_id": "14997",
+        "timestamp": 1777358021.264
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358021.274
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14997",
+        "timestamp": 1777358021.274
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358021.284
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358021.284
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14996",
+        "timestamp": 1777358021.294
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358021.294
+      },
+      {
+        "stack_id": 12,
+        "thread_id": "14941",
+        "timestamp": 1777358021.304
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358021.304
+      },
+      {
+        "stack_id": 16,
+        "thread_id": "14997",
+        "timestamp": 1777358021.304
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358021.314
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14997",
+        "timestamp": 1777358021.314
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14996",
+        "timestamp": 1777358021.324
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14997",
+        "timestamp": 1777358021.324
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358021.334
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358021.334
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358021.344
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358021.344
+      },
+      {
+        "stack_id": 12,
+        "thread_id": "14941",
+        "timestamp": 1777358021.354
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14996",
+        "timestamp": 1777358021.354
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358021.354
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358021.364
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358021.364
+      },
+      {
+        "stack_id": 18,
+        "thread_id": "14996",
+        "timestamp": 1777358021.374
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358021.374
+      },
+      {
+        "stack_id": 19,
+        "thread_id": "14926",
+        "timestamp": 1777358021.384
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14996",
+        "timestamp": 1777358021.384
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14997",
+        "timestamp": 1777358021.384
+      },
+      {
+        "stack_id": 1,
+        "thread_id": "14996",
+        "timestamp": 1777358021.394
+      },
+      {
+        "stack_id": 7,
+        "thread_id": "14997",
+        "timestamp": 1777358021.394
+      },
+      {
+        "stack_id": 20,
+        "thread_id": "14941",
+        "timestamp": 1777358021.404
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358021.404
+      },
+      {
+        "stack_id": 21,
+        "thread_id": "14997",
+        "timestamp": 1777358021.404
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358021.414
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14997",
+        "timestamp": 1777358021.414
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358021.424
+      },
+      {
+        "stack_id": 7,
+        "thread_id": "14997",
+        "timestamp": 1777358021.424
+      },
+      {
+        "stack_id": 7,
+        "thread_id": "14996",
+        "timestamp": 1777358021.434
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358021.434
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358021.444
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358021.444
+      },
+      {
+        "stack_id": 22,
+        "thread_id": "14941",
+        "timestamp": 1777358021.454
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358021.454
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358021.454
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14996",
+        "timestamp": 1777358021.464
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14997",
+        "timestamp": 1777358021.464
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358021.474
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358021.474
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358021.484
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14997",
+        "timestamp": 1777358021.484
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358021.494
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358021.494
+      },
+      {
+        "stack_id": 23,
+        "thread_id": "14941",
+        "timestamp": 1777358021.504
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14996",
+        "timestamp": 1777358021.504
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14997",
+        "timestamp": 1777358021.504
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358021.514
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14997",
+        "timestamp": 1777358021.514
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358021.524
+      },
+      {
+        "stack_id": 7,
+        "thread_id": "14997",
+        "timestamp": 1777358021.524
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358021.534
+      },
+      {
+        "stack_id": 1,
+        "thread_id": "14997",
+        "timestamp": 1777358021.534
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358021.544
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358021.544
+      },
+      {
+        "stack_id": 24,
+        "thread_id": "14941",
+        "timestamp": 1777358021.554
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358021.554
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358021.554
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14996",
+        "timestamp": 1777358021.564
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358021.564
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358021.574
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14997",
+        "timestamp": 1777358021.574
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14996",
+        "timestamp": 1777358021.584
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14997",
+        "timestamp": 1777358021.584
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14996",
+        "timestamp": 1777358021.594
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14997",
+        "timestamp": 1777358021.594
+      },
+      {
+        "stack_id": 25,
+        "thread_id": "14941",
+        "timestamp": 1777358021.604
+      },
+      {
+        "stack_id": 16,
+        "thread_id": "14996",
+        "timestamp": 1777358021.604
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14997",
+        "timestamp": 1777358021.604
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358021.614
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14997",
+        "timestamp": 1777358021.614
+      },
+      {
+        "stack_id": 1,
+        "thread_id": "14996",
+        "timestamp": 1777358021.624
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358021.624
+      },
+      {
+        "stack_id": 26,
+        "thread_id": "14926",
+        "timestamp": 1777358021.634
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358021.634
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14997",
+        "timestamp": 1777358021.634
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14996",
+        "timestamp": 1777358021.644
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358021.644
+      },
+      {
+        "stack_id": 27,
+        "thread_id": "14941",
+        "timestamp": 1777358021.654
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14996",
+        "timestamp": 1777358021.654
+      },
+      {
+        "stack_id": 7,
+        "thread_id": "14997",
+        "timestamp": 1777358021.654
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14996",
+        "timestamp": 1777358021.664
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14997",
+        "timestamp": 1777358021.664
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14996",
+        "timestamp": 1777358021.674
+      },
+      {
+        "stack_id": 29,
+        "thread_id": "14997",
+        "timestamp": 1777358021.674
+      },
+      {
+        "stack_id": 28,
+        "thread_id": "14996",
+        "timestamp": 1777358021.684
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358021.684
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14996",
+        "timestamp": 1777358021.694
+      },
+      {
+        "stack_id": 7,
+        "thread_id": "14997",
+        "timestamp": 1777358021.694
+      },
+      {
+        "stack_id": 20,
+        "thread_id": "14941",
+        "timestamp": 1777358021.704
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14996",
+        "timestamp": 1777358021.704
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14997",
+        "timestamp": 1777358021.704
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358021.714
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358021.714
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14996",
+        "timestamp": 1777358021.724
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358021.724
+      },
+      {
+        "stack_id": 30,
+        "thread_id": "14926",
+        "timestamp": 1777358021.734
+      },
+      {
+        "stack_id": 29,
+        "thread_id": "14996",
+        "timestamp": 1777358021.734
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358021.734
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358021.744
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358021.744
+      },
+      {
+        "stack_id": 31,
+        "thread_id": "14941",
+        "timestamp": 1777358021.754
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358021.754
+      },
+      {
+        "stack_id": 1,
+        "thread_id": "14997",
+        "timestamp": 1777358021.754
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14996",
+        "timestamp": 1777358021.764
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358021.764
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14996",
+        "timestamp": 1777358021.774
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358021.774
+      },
+      {
+        "stack_id": 21,
+        "thread_id": "14996",
+        "timestamp": 1777358021.784
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14997",
+        "timestamp": 1777358021.784
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358021.794
+      },
+      {
+        "stack_id": 16,
+        "thread_id": "14997",
+        "timestamp": 1777358021.794
+      },
+      {
+        "stack_id": 6,
+        "thread_id": "14941",
+        "timestamp": 1777358021.804
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14996",
+        "timestamp": 1777358021.804
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14997",
+        "timestamp": 1777358021.804
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358021.814
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358021.814
+      },
+      {
+        "stack_id": 16,
+        "thread_id": "14996",
+        "timestamp": 1777358021.824
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14997",
+        "timestamp": 1777358021.824
+      },
+      {
+        "stack_id": 1,
+        "thread_id": "14996",
+        "timestamp": 1777358021.834
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14997",
+        "timestamp": 1777358021.834
+      },
+      {
+        "stack_id": 7,
+        "thread_id": "14996",
+        "timestamp": 1777358021.844
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14997",
+        "timestamp": 1777358021.844
+      },
+      {
+        "stack_id": 32,
+        "thread_id": "14941",
+        "timestamp": 1777358021.854
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358021.854
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14997",
+        "timestamp": 1777358021.854
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358021.864
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358021.864
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14996",
+        "timestamp": 1777358021.874
+      },
+      {
+        "stack_id": 7,
+        "thread_id": "14997",
+        "timestamp": 1777358021.874
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358021.884
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358021.885
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358021.894
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14997",
+        "timestamp": 1777358021.894
+      },
+      {
+        "stack_id": 33,
+        "thread_id": "14941",
+        "timestamp": 1777358021.904
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14996",
+        "timestamp": 1777358021.904
+      },
+      {
+        "stack_id": 7,
+        "thread_id": "14997",
+        "timestamp": 1777358021.904
+      },
+      {
+        "stack_id": 29,
+        "thread_id": "14996",
+        "timestamp": 1777358021.914
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14997",
+        "timestamp": 1777358021.914
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358021.924
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358021.924
+      },
+      {
+        "stack_id": 34,
+        "thread_id": "14926",
+        "timestamp": 1777358021.934
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358021.934
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358021.934
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14996",
+        "timestamp": 1777358021.944
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14997",
+        "timestamp": 1777358021.944
+      },
+      {
+        "stack_id": 35,
+        "thread_id": "14941",
+        "timestamp": 1777358021.954
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358021.954
+      },
+      {
+        "stack_id": 7,
+        "thread_id": "14997",
+        "timestamp": 1777358021.954
+      },
+      {
+        "stack_id": 1,
+        "thread_id": "14996",
+        "timestamp": 1777358021.964
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358021.964
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14996",
+        "timestamp": 1777358021.974
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358021.974
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358021.984
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358021.984
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358021.994
+      },
+      {
+        "stack_id": 1,
+        "thread_id": "14997",
+        "timestamp": 1777358021.994
+      },
+      {
+        "stack_id": 36,
+        "thread_id": "14941",
+        "timestamp": 1777358022.004
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358022.004
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358022.004
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14996",
+        "timestamp": 1777358022.014
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14997",
+        "timestamp": 1777358022.014
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14996",
+        "timestamp": 1777358022.024
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14997",
+        "timestamp": 1777358022.024
+      },
+      {
+        "stack_id": 16,
+        "thread_id": "14996",
+        "timestamp": 1777358022.034
+      },
+      {
+        "stack_id": 16,
+        "thread_id": "14997",
+        "timestamp": 1777358022.034
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14996",
+        "timestamp": 1777358022.044
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14997",
+        "timestamp": 1777358022.044
+      },
+      {
+        "stack_id": 37,
+        "thread_id": "14941",
+        "timestamp": 1777358022.054
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14996",
+        "timestamp": 1777358022.054
+      },
+      {
+        "stack_id": 29,
+        "thread_id": "14997",
+        "timestamp": 1777358022.054
+      },
+      {
+        "stack_id": 10,
+        "thread_id": "14996",
+        "timestamp": 1777358022.064
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358022.064
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14996",
+        "timestamp": 1777358022.074
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358022.074
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358022.084
+      },
+      {
+        "stack_id": 16,
+        "thread_id": "14997",
+        "timestamp": 1777358022.084
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358022.094
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14997",
+        "timestamp": 1777358022.094
+      },
+      {
+        "stack_id": 12,
+        "thread_id": "14941",
+        "timestamp": 1777358022.104
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358022.104
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358022.104
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358022.114
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14997",
+        "timestamp": 1777358022.114
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14996",
+        "timestamp": 1777358022.124
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358022.124
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358022.134
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358022.134
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14996",
+        "timestamp": 1777358022.144
+      },
+      {
+        "stack_id": 10,
+        "thread_id": "14997",
+        "timestamp": 1777358022.144
+      },
+      {
+        "stack_id": 38,
+        "thread_id": "14941",
+        "timestamp": 1777358022.154
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358022.154
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358022.154
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358022.164
+      },
+      {
+        "stack_id": 16,
+        "thread_id": "14997",
+        "timestamp": 1777358022.164
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14996",
+        "timestamp": 1777358022.174
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358022.174
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358022.184
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358022.184
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358022.194
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358022.194
+      },
+      {
+        "stack_id": 14,
+        "thread_id": "14941",
+        "timestamp": 1777358022.204
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14996",
+        "timestamp": 1777358022.204
+      },
+      {
+        "stack_id": 1,
+        "thread_id": "14997",
+        "timestamp": 1777358022.204
+      },
+      {
+        "stack_id": 21,
+        "thread_id": "14996",
+        "timestamp": 1777358022.214
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14997",
+        "timestamp": 1777358022.214
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358022.224
+      },
+      {
+        "stack_id": 1,
+        "thread_id": "14997",
+        "timestamp": 1777358022.224
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358022.234
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358022.234
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358022.244
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14997",
+        "timestamp": 1777358022.244
+      },
+      {
+        "stack_id": 35,
+        "thread_id": "14941",
+        "timestamp": 1777358022.254
+      },
+      {
+        "stack_id": 29,
+        "thread_id": "14996",
+        "timestamp": 1777358022.254
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358022.254
+      },
+      {
+        "stack_id": 7,
+        "thread_id": "14996",
+        "timestamp": 1777358022.264
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358022.264
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14996",
+        "timestamp": 1777358022.274
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14997",
+        "timestamp": 1777358022.274
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358022.284
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358022.285
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14996",
+        "timestamp": 1777358022.294
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358022.294
+      },
+      {
+        "stack_id": 22,
+        "thread_id": "14941",
+        "timestamp": 1777358022.304
+      },
+      {
+        "stack_id": 7,
+        "thread_id": "14996",
+        "timestamp": 1777358022.304
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358022.304
+      },
+      {
+        "stack_id": 1,
+        "thread_id": "14996",
+        "timestamp": 1777358022.314
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14997",
+        "timestamp": 1777358022.314
+      },
+      {
+        "stack_id": 16,
+        "thread_id": "14996",
+        "timestamp": 1777358022.324
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358022.324
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358022.334
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14997",
+        "timestamp": 1777358022.334
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358022.344
+      },
+      {
+        "stack_id": 1,
+        "thread_id": "14997",
+        "timestamp": 1777358022.344
+      },
+      {
+        "stack_id": 40,
+        "thread_id": "14941",
+        "timestamp": 1777358022.354
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358022.354
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14997",
+        "timestamp": 1777358022.354
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358022.364
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358022.364
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358022.374
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358022.374
+      },
+      {
+        "stack_id": 1,
+        "thread_id": "14996",
+        "timestamp": 1777358022.384
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358022.384
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358022.394
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14997",
+        "timestamp": 1777358022.394
+      },
+      {
+        "stack_id": 14,
+        "thread_id": "14941",
+        "timestamp": 1777358022.404
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358022.404
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14997",
+        "timestamp": 1777358022.404
+      },
+      {
+        "stack_id": 7,
+        "thread_id": "14996",
+        "timestamp": 1777358022.414
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358022.414
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358022.424
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14997",
+        "timestamp": 1777358022.424
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358022.434
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358022.434
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358022.444
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14997",
+        "timestamp": 1777358022.444
+      },
+      {
+        "stack_id": 20,
+        "thread_id": "14941",
+        "timestamp": 1777358022.454
+      },
+      {
+        "stack_id": 42,
+        "thread_id": "14996",
+        "timestamp": 1777358022.454
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358022.455
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14996",
+        "timestamp": 1777358022.464
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358022.464
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358022.474
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14997",
+        "timestamp": 1777358022.474
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14996",
+        "timestamp": 1777358022.484
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14997",
+        "timestamp": 1777358022.484
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358022.494
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14997",
+        "timestamp": 1777358022.494
+      },
+      {
+        "stack_id": 41,
+        "thread_id": "14941",
+        "timestamp": 1777358022.504
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14996",
+        "timestamp": 1777358022.504
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14997",
+        "timestamp": 1777358022.505
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358022.514
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14997",
+        "timestamp": 1777358022.514
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358022.524
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14997",
+        "timestamp": 1777358022.524
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358022.534
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358022.534
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14996",
+        "timestamp": 1777358022.544
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358022.544
+      },
+      {
+        "stack_id": 35,
+        "thread_id": "14941",
+        "timestamp": 1777358022.554
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358022.554
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358022.554
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14996",
+        "timestamp": 1777358022.564
+      },
+      {
+        "stack_id": 44,
+        "thread_id": "14908",
+        "timestamp": 1777358022.564
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14997",
+        "timestamp": 1777358022.564
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14996",
+        "timestamp": 1777358022.574
+      },
+      {
+        "stack_id": 7,
+        "thread_id": "14997",
+        "timestamp": 1777358022.574
+      },
+      {
+        "stack_id": 43,
+        "thread_id": "14926",
+        "timestamp": 1777358022.584
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14996",
+        "timestamp": 1777358022.584
+      },
+      {
+        "stack_id": 45,
+        "thread_id": "14941",
+        "timestamp": 1777358022.584
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14997",
+        "timestamp": 1777358022.584
+      },
+      {
+        "stack_id": 2,
+        "thread_id": "14996",
+        "timestamp": 1777358022.594
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358022.594
+      },
+      {
+        "stack_id": 16,
+        "thread_id": "14996",
+        "timestamp": 1777358022.604
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14997",
+        "timestamp": 1777358022.604
+      },
+      {
+        "stack_id": 13,
+        "thread_id": "14996",
+        "timestamp": 1777358022.614
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14997",
+        "timestamp": 1777358022.614
+      },
+      {
+        "stack_id": 4,
+        "thread_id": "14996",
+        "timestamp": 1777358022.624
+      },
+      {
+        "stack_id": 7,
+        "thread_id": "14997",
+        "timestamp": 1777358022.624
+      },
+      {
+        "stack_id": 46,
+        "thread_id": "14941",
+        "timestamp": 1777358022.634
+      },
+      {
+        "stack_id": 3,
+        "thread_id": "14996",
+        "timestamp": 1777358022.634
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14997",
+        "timestamp": 1777358022.634
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14996",
+        "timestamp": 1777358022.644
+      },
+      {
+        "stack_id": 0,
+        "thread_id": "14997",
+        "timestamp": 1777358022.644
+      },
+      {
+        "stack_id": 50,
+        "thread_id": "14941",
+        "timestamp": 1777358022.654
+      },
+      {
+        "stack_id": 48,
+        "thread_id": "14908",
+        "timestamp": 1777358022.684
+      },
+      {
+        "stack_id": 51,
+        "thread_id": "14941",
+        "timestamp": 1777358022.734
+      },
+      {
+        "stack_id": 14,
+        "thread_id": "14941",
+        "timestamp": 1777358022.854
+      }
+    ],
+    "stacks": [
+      [
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        6,
+        12,
+        11,
+        10,
+        22,
+        19,
+        18,
+        11,
+        10,
+        21,
+        19,
+        18,
+        11,
+        10,
+        20,
+        19,
+        18,
+        11,
+        10,
+        17,
+        8,
+        7,
+        16,
+        15,
+        14,
+        13,
+        6,
+        12,
+        11,
+        10,
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1,
+        0
+      ],
+      [
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        6,
+        12,
+        11,
+        10,
+        22,
+        19,
+        18,
+        11,
+        10,
+        21,
+        19,
+        18,
+        11,
+        10,
+        20,
+        19,
+        18,
+        11,
+        10,
+        17,
+        8,
+        7,
+        16,
+        15,
+        14,
+        13,
+        6,
+        12,
+        11,
+        10,
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1,
+        0
+      ],
+      [
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        6,
+        12,
+        11,
+        10,
+        22,
+        19,
+        18,
+        11,
+        10,
+        21,
+        19,
+        18,
+        11,
+        10,
+        20,
+        19,
+        18,
+        11,
+        10,
+        17,
+        8,
+        7,
+        16,
+        15,
+        14,
+        13,
+        6,
+        12,
+        11,
+        10,
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1,
+        0
+      ],
+      [
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        6,
+        12,
+        11,
+        10,
+        22,
+        19,
+        18,
+        11,
+        10,
+        21,
+        19,
+        18,
+        11,
+        10,
+        20,
+        19,
+        18,
+        11,
+        10,
+        17,
+        8,
+        7,
+        16,
+        15,
+        14,
+        13,
+        6,
+        12,
+        11,
+        10,
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1,
+        0
+      ],
+      [
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        6,
+        12,
+        11,
+        10,
+        22,
+        19,
+        18,
+        11,
+        10,
+        21,
+        19,
+        18,
+        11,
+        10,
+        20,
+        19,
+        18,
+        11,
+        10,
+        17,
+        8,
+        7,
+        16,
+        15,
+        14,
+        13,
+        6,
+        12,
+        11,
+        10,
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1,
+        0
+      ],
+      [
+        71,
+        70,
+        69,
+        68,
+        67,
+        66,
+        65,
+        64,
+        63,
+        62,
+        61,
+        11,
+        10,
+        60,
+        19,
+        18,
+        11,
+        10,
+        59,
+        19,
+        18,
+        11,
+        10,
+        58,
+        19,
+        18,
+        11,
+        10,
+        57,
+        19,
+        18,
+        11,
+        10,
+        57,
+        19,
+        18,
+        11,
+        10,
+        56,
+        19,
+        18,
+        11,
+        10,
+        55,
+        8,
+        7,
+        54,
+        6,
+        12,
+        11,
+        10,
+        53,
+        19,
+        18,
+        11,
+        10,
+        52,
+        19,
+        18,
+        11,
+        10,
+        51,
+        19,
+        18,
+        11,
+        10,
+        50,
+        19,
+        18,
+        11,
+        10,
+        49,
+        19,
+        48,
+        47,
+        46,
+        10,
+        44,
+        8,
+        7,
+        45,
+        6,
+        12,
+        11,
+        10,
+        44,
+        19,
+        18,
+        11,
+        10,
+        43,
+        19,
+        18,
+        11,
+        10,
+        42,
+        19,
+        18,
+        11,
+        10,
+        41,
+        19,
+        18,
+        11,
+        10,
+        40,
+        8,
+        7,
+        39,
+        38,
+        37,
+        36,
+        35,
+        34,
+        33,
+        32,
+        31,
+        30,
+        29,
+        28,
+        6,
+        12,
+        11,
+        10,
+        27,
+        19,
+        18,
+        11,
+        10,
+        26,
+        19,
+        18,
+        11,
+        10,
+        25,
+        19,
+        18,
+        11,
+        10,
+        24,
+        8,
+        7,
+        16,
+        15,
+        14,
+        13,
+        6,
+        12,
+        11,
+        10,
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1,
+        0
+      ],
+      [
+        99,
+        98,
+        97,
+        96,
+        95,
+        94,
+        93,
+        92,
+        91,
+        90,
+        89,
+        88,
+        87,
+        86,
+        85,
+        84,
+        83,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        79,
+        78,
+        77,
+        76,
+        75,
+        74,
+        73,
+        72,
+        1,
+        0
+      ],
+      [
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        6,
+        12,
+        11,
+        10,
+        22,
+        19,
+        18,
+        11,
+        10,
+        21,
+        19,
+        18,
+        11,
+        10,
+        20,
+        19,
+        18,
+        11,
+        10,
+        17,
+        8,
+        7,
+        16,
+        15,
+        14,
+        13,
+        6,
+        12,
+        11,
+        10,
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1,
+        0
+      ],
+      [
+        115,
+        114,
+        113,
+        112,
+        6,
+        12,
+        11,
+        10,
+        111,
+        19,
+        48,
+        47,
+        46,
+        10,
+        110,
+        19,
+        18,
+        11,
+        10,
+        109,
+        8,
+        7,
+        108,
+        107,
+        106,
+        105,
+        104,
+        103,
+        102,
+        101,
+        62,
+        61,
+        11,
+        10,
+        100,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1,
+        0
+      ],
+      [
+        124,
+        123,
+        122,
+        67,
+        120,
+        121,
+        120,
+        6,
+        12,
+        11,
+        10,
+        119,
+        8,
+        7,
+        118,
+        117,
+        6,
+        12,
+        11,
+        10,
+        116,
+        19,
+        18,
+        11,
+        10,
+        25,
+        19,
+        18,
+        11,
+        10,
+        24,
+        8,
+        7,
+        16,
+        15,
+        14,
+        13,
+        6,
+        12,
+        11,
+        10,
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1,
+        0
+      ],
+      [
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        6,
+        12,
+        11,
+        10,
+        22,
+        19,
+        18,
+        11,
+        10,
+        21,
+        19,
+        18,
+        11,
+        10,
+        20,
+        19,
+        18,
+        11,
+        10,
+        17,
+        8,
+        7,
+        16,
+        15,
+        14,
+        13,
+        6,
+        12,
+        11,
+        10,
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1,
+        0
+      ],
+      [
+        128,
+        127,
+        126,
+        125,
+        98,
+        97,
+        96,
+        95,
+        94,
+        93,
+        92,
+        91,
+        90,
+        89,
+        88,
+        87,
+        86,
+        85,
+        84,
+        83,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        79,
+        78,
+        77,
+        76,
+        75,
+        74,
+        73,
+        72,
+        1,
+        0
+      ],
+      [
+        140,
+        139,
+        138,
+        137,
+        136,
+        135,
+        134,
+        133,
+        132,
+        131,
+        130,
+        129,
+        76,
+        75,
+        74,
+        73,
+        72,
+        1,
+        0
+      ],
+      [
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        6,
+        12,
+        11,
+        10,
+        22,
+        19,
+        18,
+        11,
+        10,
+        21,
+        19,
+        18,
+        11,
+        10,
+        20,
+        19,
+        18,
+        11,
+        10,
+        17,
+        8,
+        7,
+        16,
+        15,
+        14,
+        13,
+        6,
+        12,
+        11,
+        10,
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1,
+        0
+      ],
+      [
+        140,
+        139,
+        141,
+        137,
+        136,
+        135,
+        134,
+        133,
+        132,
+        131,
+        130,
+        129,
+        76,
+        75,
+        74,
+        73,
+        72,
+        1,
+        0
+      ],
+      [
+        148,
+        147,
+        146,
+        145,
+        144,
+        143,
+        142,
+        132,
+        131,
+        130,
+        129,
+        76,
+        75,
+        74,
+        73,
+        72,
+        1,
+        0
+      ],
+      [
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        6,
+        12,
+        11,
+        10,
+        22,
+        19,
+        18,
+        11,
+        10,
+        21,
+        19,
+        18,
+        11,
+        10,
+        20,
+        19,
+        18,
+        11,
+        10,
+        17,
+        8,
+        7,
+        16,
+        15,
+        14,
+        13,
+        6,
+        12,
+        11,
+        10,
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1,
+        0
+      ],
+      [
+        159,
+        158,
+        157,
+        156,
+        155,
+        154,
+        153,
+        152,
+        151,
+        150,
+        72,
+        149,
+        1,
+        0
+      ],
+      [
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        6,
+        12,
+        11,
+        10,
+        22,
+        19,
+        18,
+        11,
+        10,
+        21,
+        19,
+        18,
+        11,
+        10,
+        20,
+        19,
+        18,
+        11,
+        10,
+        17,
+        8,
+        7,
+        16,
+        15,
+        14,
+        13,
+        6,
+        12,
+        11,
+        10,
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1,
+        0
+      ],
+      [
+        165,
+        164,
+        163,
+        162,
+        161,
+        160,
+        114,
+        113,
+        112,
+        6,
+        12,
+        11,
+        10,
+        111,
+        19,
+        48,
+        47,
+        46,
+        10,
+        110,
+        19,
+        18,
+        11,
+        10,
+        109,
+        8,
+        7,
+        108,
+        107,
+        106,
+        105,
+        104,
+        103,
+        102,
+        101,
+        62,
+        61,
+        11,
+        10,
+        100,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1,
+        0
+      ],
+      [
+        174,
+        173,
+        172,
+        171,
+        170,
+        169,
+        168,
+        167,
+        166,
+        96,
+        95,
+        94,
+        93,
+        92,
+        91,
+        90,
+        89,
+        88,
+        87,
+        86,
+        85,
+        84,
+        83,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        79,
+        78,
+        77,
+        76,
+        75,
+        74,
+        73,
+        72,
+        1,
+        0
+      ],
+      [
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        6,
+        12,
+        11,
+        10,
+        22,
+        19,
+        18,
+        11,
+        10,
+        21,
+        19,
+        18,
+        11,
+        10,
+        20,
+        19,
+        18,
+        11,
+        10,
+        17,
+        8,
+        7,
+        16,
+        15,
+        14,
+        13,
+        6,
+        12,
+        11,
+        10,
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1,
+        0
+      ],
+      [
+        174,
+        173,
+        172,
+        175,
+        169,
+        168,
+        167,
+        166,
+        96,
+        95,
+        94,
+        93,
+        92,
+        91,
+        90,
+        89,
+        88,
+        87,
+        86,
+        85,
+        84,
+        83,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        79,
+        78,
+        77,
+        76,
+        75,
+        74,
+        73,
+        72,
+        1,
+        0
+      ],
+      [
+        176,
+        92,
+        91,
+        90,
+        89,
+        88,
+        87,
+        86,
+        85,
+        84,
+        83,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        79,
+        78,
+        77,
+        76,
+        75,
+        74,
+        73,
+        72,
+        1,
+        0
+      ],
+      [
+        178,
+        177,
+        166,
+        96,
+        95,
+        94,
+        93,
+        92,
+        91,
+        90,
+        89,
+        88,
+        87,
+        86,
+        85,
+        84,
+        83,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        79,
+        78,
+        77,
+        76,
+        75,
+        74,
+        73,
+        72,
+        1,
+        0
+      ],
+      [
+        180,
+        179,
+        135,
+        134,
+        133,
+        132,
+        131,
+        130,
+        129,
+        76,
+        75,
+        74,
+        73,
+        72,
+        1,
+        0
+      ],
+      [
+        182,
+        181,
+        7,
+        108,
+        107,
+        106,
+        105,
+        104,
+        103,
+        102,
+        101,
+        62,
+        61,
+        11,
+        10,
+        100,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1,
+        0
+      ],
+      [
+        186,
+        185,
+        184,
+        183,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        79,
+        78,
+        77,
+        76,
+        75,
+        74,
+        73,
+        72,
+        1,
+        0
+      ],
+      [
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        6,
+        12,
+        11,
+        10,
+        22,
+        19,
+        18,
+        11,
+        10,
+        21,
+        19,
+        18,
+        11,
+        10,
+        20,
+        19,
+        18,
+        11,
+        10,
+        17,
+        8,
+        7,
+        16,
+        15,
+        14,
+        13,
+        6,
+        12,
+        11,
+        10,
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1,
+        0
+      ],
+      [
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        6,
+        12,
+        11,
+        10,
+        22,
+        19,
+        18,
+        11,
+        10,
+        21,
+        19,
+        18,
+        11,
+        10,
+        20,
+        19,
+        18,
+        11,
+        10,
+        17,
+        8,
+        7,
+        16,
+        15,
+        14,
+        13,
+        6,
+        12,
+        11,
+        10,
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1,
+        0
+      ],
+      [
+        187,
+        10,
+        109,
+        8,
+        7,
+        108,
+        107,
+        106,
+        105,
+        104,
+        103,
+        102,
+        101,
+        62,
+        61,
+        11,
+        10,
+        100,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1,
+        0
+      ],
+      [
+        202,
+        201,
+        200,
+        199,
+        198,
+        197,
+        196,
+        195,
+        194,
+        193,
+        192,
+        191,
+        190,
+        190,
+        189,
+        188,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        79,
+        78,
+        77,
+        76,
+        75,
+        74,
+        73,
+        72,
+        1,
+        0
+      ],
+      [
+        204,
+        203,
+        90,
+        89,
+        88,
+        87,
+        86,
+        85,
+        84,
+        83,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        79,
+        78,
+        77,
+        76,
+        75,
+        74,
+        73,
+        72,
+        1,
+        0
+      ],
+      [
+        214,
+        213,
+        212,
+        211,
+        210,
+        209,
+        208,
+        207,
+        206,
+        205,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        79,
+        78,
+        77,
+        76,
+        75,
+        74,
+        73,
+        72,
+        1,
+        0
+      ],
+      [
+        218,
+        217,
+        216,
+        215,
+        108,
+        107,
+        106,
+        105,
+        104,
+        103,
+        102,
+        101,
+        62,
+        61,
+        11,
+        10,
+        100,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1,
+        0
+      ],
+      [
+        174,
+        173,
+        172,
+        220,
+        219,
+        169,
+        168,
+        167,
+        166,
+        96,
+        95,
+        94,
+        93,
+        92,
+        91,
+        90,
+        89,
+        88,
+        87,
+        86,
+        85,
+        84,
+        83,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        79,
+        78,
+        77,
+        76,
+        75,
+        74,
+        73,
+        72,
+        1,
+        0
+      ],
+      [
+        227,
+        225,
+        226,
+        225,
+        226,
+        225,
+        226,
+        225,
+        226,
+        225,
+        226,
+        225,
+        224,
+        223,
+        222,
+        221,
+        74,
+        73,
+        72,
+        1,
+        0
+      ],
+      [
+        232,
+        231,
+        230,
+        229,
+        228,
+        188,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        79,
+        78,
+        77,
+        76,
+        75,
+        74,
+        73,
+        72,
+        1,
+        0
+      ],
+      [
+        236,
+        235,
+        234,
+        233,
+        86,
+        85,
+        84,
+        83,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        79,
+        78,
+        77,
+        76,
+        75,
+        74,
+        73,
+        72,
+        1,
+        0
+      ],
+      [
+        243,
+        11,
+        10,
+        242,
+        19,
+        18,
+        11,
+        10,
+        241,
+        19,
+        18,
+        11,
+        10,
+        240,
+        19,
+        18,
+        11,
+        10,
+        239,
+        8,
+        7,
+        238,
+        237,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1,
+        0
+      ],
+      [
+        174,
+        173,
+        172,
+        244,
+        137,
+        136,
+        135,
+        134,
+        133,
+        132,
+        131,
+        130,
+        129,
+        76,
+        75,
+        74,
+        73,
+        72,
+        1,
+        0
+      ],
+      [
+        247,
+        246,
+        245,
+        196,
+        195,
+        194,
+        193,
+        192,
+        191,
+        190,
+        190,
+        189,
+        188,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        82,
+        81,
+        80,
+        79,
+        78,
+        77,
+        76,
+        75,
+        74,
+        73,
+        72,
+        1,
+        0
+      ],
+      [
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        6,
+        12,
+        11,
+        10,
+        22,
+        19,
+        18,
+        11,
+        10,
+        21,
+        19,
+        18,
+        11,
+        10,
+        20,
+        19,
+        18,
+        11,
+        10,
+        17,
+        8,
+        7,
+        16,
+        15,
+        14,
+        13,
+        6,
+        12,
+        11,
+        10,
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1,
+        0
+      ],
+      [
+        251,
+        250,
+        249,
+        249,
+        248,
+        161,
+        160,
+        114,
+        113,
+        112,
+        6,
+        12,
+        11,
+        10,
+        111,
+        19,
+        48,
+        47,
+        46,
+        10,
+        110,
+        19,
+        18,
+        11,
+        10,
+        109,
+        8,
+        7,
+        108,
+        107,
+        106,
+        105,
+        104,
+        103,
+        102,
+        101,
+        62,
+        61,
+        11,
+        10,
+        100,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1,
+        0
+      ],
+      [
+        303,
+        302,
+        301,
+        69,
+        300,
+        299,
+        298,
+        297,
+        296,
+        67,
+        295,
+        294,
+        6,
+        12,
+        11,
+        10,
+        293,
+        19,
+        18,
+        11,
+        10,
+        292,
+        19,
+        18,
+        11,
+        10,
+        291,
+        8,
+        7,
+        290,
+        289,
+        288,
+        287,
+        281,
+        284,
+        283,
+        286,
+        282,
+        285,
+        281,
+        284,
+        283,
+        282,
+        281,
+        280,
+        279,
+        278,
+        277,
+        276,
+        6,
+        275,
+        274,
+        273,
+        272,
+        271,
+        270,
+        269,
+        268,
+        267,
+        67,
+        266,
+        102,
+        62,
+        61,
+        11,
+        10,
+        265,
+        19,
+        18,
+        11,
+        10,
+        264,
+        8,
+        7,
+        62,
+        263,
+        262,
+        261,
+        6,
+        12,
+        11,
+        10,
+        260,
+        8,
+        7,
+        259,
+        62,
+        258,
+        257,
+        256,
+        255,
+        254,
+        253,
+        252
+      ],
+      [
+        174,
+        173,
+        172,
+        306,
+        305,
+        133,
+        132,
+        131,
+        130,
+        129,
+        76,
+        304,
+        73,
+        72,
+        1,
+        0
+      ],
+      [
+        174,
+        173,
+        172,
+        306,
+        305,
+        307,
+        132,
+        131,
+        130,
+        129,
+        76,
+        304,
+        73,
+        72,
+        1,
+        0
+      ],
+      [
+        319,
+        318,
+        317,
+        316,
+        315,
+        314,
+        313,
+        312,
+        311,
+        310,
+        309,
+        308,
+        1,
+        0
+      ],
+      [
+        324,
+        323,
+        267,
+        67,
+        266,
+        102,
+        101,
+        322,
+        321,
+        320,
+        10,
+        265,
+        19,
+        18,
+        11,
+        10,
+        264,
+        8,
+        7,
+        62,
+        263,
+        262,
+        261,
+        6,
+        12,
+        11,
+        10,
+        260,
+        8,
+        7,
+        259,
+        62,
+        258,
+        257,
+        256,
+        255,
+        254,
+        253,
+        252
+      ],
+      [
+        174,
+        347,
+        67,
+        346,
+        344,
+        345,
+        344,
+        343,
+        342,
+        341,
+        340,
+        339,
+        338,
+        337,
+        336,
+        6,
+        12,
+        11,
+        10,
+        335,
+        19,
+        18,
+        11,
+        10,
+        334,
+        19,
+        18,
+        11,
+        10,
+        333,
+        19,
+        18,
+        11,
+        10,
+        332,
+        19,
+        18,
+        11,
+        10,
+        331,
+        19,
+        18,
+        11,
+        10,
+        330,
+        19,
+        18,
+        11,
+        10,
+        329,
+        19,
+        18,
+        11,
+        10,
+        328,
+        8,
+        7,
+        16,
+        15,
+        6,
+        12,
+        11,
+        10,
+        327,
+        19,
+        18,
+        11,
+        10,
+        326,
+        19,
+        18,
+        11,
+        10,
+        325,
+        19,
+        18,
+        11,
+        10,
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1,
+        0
+      ],
+      [
+        140,
+        139,
+        138,
+        356,
+        355,
+        354,
+        353,
+        352,
+        351,
+        350,
+        349,
+        348,
+        304,
+        73,
+        72,
+        1,
+        0
+      ],
+      [
+        174,
+        173,
+        172,
+        220,
+        357,
+        305,
+        133,
+        132,
+        131,
+        130,
+        129,
+        76,
+        304,
+        73,
+        72,
+        1,
+        0
+      ]
+    ],
+    "thread_metadata": {
+      "14908": {
+        "name": "main"
+      }
+    }
+  },
+  "profiler_id": "814b081c638b4ad982ae351547bfe499",
+  "release": "io.sentry.samples.android@8.38.0+2",
+  "version": "2"
+}

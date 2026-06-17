@@ -3,13 +3,10 @@ from pathlib import Path
 
 from sentry_sdk.envelope import Envelope
 
+from .asserts import matches, matches_any, time_within_delta
+
 RELAY_ROOT = Path(__file__).parent.parent.parent
 
-TEST_CONFIG = {
-    "outcomes": {
-        "emit_outcomes": True,
-    },
-}
 
 PERFETTO_ENVELOPE_FIXTURE = (
     RELAY_ROOT
@@ -17,11 +14,30 @@ PERFETTO_ENVELOPE_FIXTURE = (
 )
 
 
+def _expected_profile_chunk(project_id):
+    return {
+        "type": "profile_chunk",
+        "organization_id": 1,
+        "project_id": project_id,
+        "received": time_within_delta(),
+        "retention_days": 90,
+        "payload": matches_any(),
+        "attachments": [
+            {
+                "name": "profile.perfetto",
+                "content_type": "application/x-perfetto-trace",
+                "stored_id": matches(bool),
+            }
+        ],
+    }
+
+
 def test_perfetto_profile_chunk_end_to_end(
     mini_sentry,
     relay_with_processing,
     outcomes_consumer,
     profiles_consumer,
+    json_fixture_provider,
 ):
     """
     Ingests a real Perfetto `profile_chunk` envelope end-to-end and verifies
@@ -44,7 +60,7 @@ def test_perfetto_profile_chunk_end_to_end(
         ]
     )
 
-    upstream = relay_with_processing(TEST_CONFIG)
+    upstream = relay_with_processing()
 
     with open(PERFETTO_ENVELOPE_FIXTURE, "rb") as f:
         envelope = Envelope.deserialize_from(f)
@@ -58,55 +74,10 @@ def test_perfetto_profile_chunk_end_to_end(
     profile, headers = profiles_consumer.get_profile()
     assert headers == [("project_id", b"42")]
 
-    payload = json.loads(profile["payload"])
-
-    assert {
-        k: payload[k] for k in ("version", "platform", "chunk_id", "profiler_id")
-    } == {
-        "version": "2",
-        "platform": "android",
-        "chunk_id": "c3b09c0608844f558eaf6e65df6b9cdf",
-        "profiler_id": "814b081c638b4ad982ae351547bfe499",
-    }
-    assert payload["client_sdk"]["name"] == "sentry.java.android"
-
-    profile_data = payload["profile"]
-    assert len(profile_data["samples"]) == 398
-    assert len(profile_data["stacks"]) == 52
-    assert len(profile_data["frames"]) == 358
-    assert len(payload["debug_meta"]["images"]) == 17
-
-    samples = profile_data["samples"]
-    timestamps = [s["timestamp"] for s in samples]
-    assert timestamps == sorted(timestamps)
-    assert abs((timestamps[-1] - timestamps[0]) - 1.96) < 0.01
-
-    num_stacks = len(profile_data["stacks"])
-    num_frames = len(profile_data["frames"])
-    for sample in samples:
-        assert 0 <= sample["stack_id"] < num_stacks
-        assert isinstance(sample["thread_id"], str)
-
-    for stack in profile_data["stacks"]:
-        for frame_id in stack:
-            assert 0 <= frame_id < num_frames
-
-    frames = profile_data["frames"]
-    assert sum(1 for f in frames if f.get("function")) >= 350
-    assert any(f.get("function", "").startswith("io.sentry.") for f in frames)
-
-    sample_thread_ids = {s["thread_id"] for s in samples}
-    assert len(sample_thread_ids) == 6
-    thread_metadata = profile_data["thread_metadata"]
-    assert any(meta.get("name") == "main" for meta in thread_metadata.values())
-    for tid, meta in thread_metadata.items():
-        assert isinstance(tid, str)
-        assert "name" in meta and isinstance(meta["name"], str)
-
-    assert profile[
-        "raw_profile_object_store_key"
-    ], "expected raw_profile_object_store_key in Kafka message"
-    assert profile.get("raw_profile_content_type") == "application/x-perfetto-trace"
+    assert profile == _expected_profile_chunk(project_id)
+    assert json.loads(profile["payload"]) == json_fixture_provider(__file__).load(
+        "profile_chunk", ".output"
+    )
 
 
 def test_perfetto_profile_chunk_objectstore_content_type(
@@ -115,6 +86,7 @@ def test_perfetto_profile_chunk_objectstore_content_type(
     outcomes_consumer,
     profiles_consumer,
     objectstore,
+    json_fixture_provider,
 ):
     """
     Verifies that the raw Perfetto trace is uploaded to objectstore with its
@@ -133,7 +105,7 @@ def test_perfetto_profile_chunk_objectstore_content_type(
         ]
     )
 
-    upstream = relay_with_processing(TEST_CONFIG)
+    upstream = relay_with_processing()
 
     with open(PERFETTO_ENVELOPE_FIXTURE, "rb") as f:
         envelope = Envelope.deserialize_from(f)
@@ -143,8 +115,14 @@ def test_perfetto_profile_chunk_objectstore_content_type(
     outcomes_consumer.assert_empty()
 
     profile, _ = profiles_consumer.get_profile()
-    object_store_key = profile["raw_profile_object_store_key"]
-    assert object_store_key, "expected raw_profile_object_store_key in Kafka message"
+
+    assert profile == _expected_profile_chunk(project_id)
+    assert json.loads(profile["payload"]) == json_fixture_provider(__file__).load(
+        "profile_chunk", ".output"
+    )
+
+    attachments = profile["attachments"]
+    object_store_key = attachments[0]["stored_id"]
 
     stored = objectstore("profiles_raw", project_id).get(object_store_key)
     assert stored.metadata.content_type == "application/x-perfetto-trace"
