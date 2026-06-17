@@ -374,7 +374,7 @@ pub struct PublicKey {
 impl PublicKey {
     /// Verifies the signature and returns the embedded signature header.
     ///
-    /// Returns `None` when the signature cannot be verified.
+    /// Returns [`SignatureError`] when the signature cannot be verified.
     pub fn verify(
         &self,
         data: &[u8],
@@ -547,8 +547,8 @@ impl SignedRegisterState {
 
     /// Unpacks the encoded state and validates the signature.
     ///
-    /// If `max_age` is specified, then the timestamp in the state is validated against the current
-    /// time stamp. If the stored timestamp is too old, [`UnpackError::SignatureExpired`] is returned.
+    /// The timestamp in the state is validated against the current timestamp.
+    /// If the stored timestamp is older than `max_age`, [`UnpackError::SignatureExpired`] is returned.
     pub fn unpack(
         &self,
         secret: &[u8],
