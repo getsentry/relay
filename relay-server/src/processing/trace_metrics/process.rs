@@ -205,7 +205,7 @@ fn normalize_trace_metric_derived(metric: &mut Annotated<TraceMetric>) -> Result
     )?;
 
     if let Annotated(None, meta) = metric {
-        relay_log::debug!("empty span: {meta:?}");
+        relay_log::debug!("empty metric: {meta:?}");
         return Err(Error::Invalid(DiscardReason::NoData));
     }
 
