@@ -164,10 +164,10 @@ fn expand_legacy_span(item: &Item) -> Result<WithHeader<SpanV2>> {
             relay_log::debug!("failed to parse span: {err}");
             Error::Invalid(DiscardReason::InvalidJson)
         })?
-        // We can't use `relay_spans::span_v1_to_span_v2_with_name_inference` here:
+        // We can't enable `infer_name` here:
         // These spans haven't been PII scrubbed yet, so inferring a name would risk
         // leaking PII.
-        .map_value(relay_spans::span_v1_to_span_v2);
+        .map_value(|span| relay_spans::span_v1_to_span_v2(span, false));
 
     Ok(WithHeader::new(span))
 }

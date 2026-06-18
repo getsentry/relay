@@ -9,21 +9,6 @@ use relay_protocol::{Annotated, Empty, Error, IntoValue, Meta, Value};
 
 use crate::name::name_for_attributes;
 
-/// Like [`span_v1_to_span_v2`], but also infers a name for the span based on `sentry-conventions`.
-///
-/// Use this only if the source span has gone through PII scrubbing, otherwise the name
-/// might end up containing PII that doesn't get scrubbed later!
-pub fn span_v1_to_span_v2_with_name_inference(span_v1: SpanV1) -> SpanV2 {
-    let mut span_v2 = span_v1_to_span_v2(span_v1);
-
-    if span_v2.name.value().is_none() {
-        span_v2.name =
-            name_for_attributes(span_v2.attributes.get_or_insert_with(Default::default)).into();
-    }
-
-    span_v2
-}
-
 /// Converts a legacy span to the new Span V2 schema.
 ///
 /// - `tags`, `sentry_tags`, `measurements` and `data` are transferred to `attributes`.
@@ -31,7 +16,11 @@ pub fn span_v1_to_span_v2_with_name_inference(span_v1: SpanV1) -> SpanV2 {
 ///
 /// Measurements are converted to attributes by looking up the
 /// replacement attribute's name in `sentry-conventions`.
-pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
+///
+/// `infer_name` controls whether the span's name is inferred based on its attributes.
+/// Only enable it if the source span has gone through PII scrubbing, otherwise the name
+/// might end up containing PII that doesn't get scrubbed later!
+pub fn span_v1_to_span_v2(span_v1: SpanV1, infer_name: bool) -> SpanV2 {
     let SpanV1 {
         timestamp,
         start_timestamp,
@@ -141,6 +130,13 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     let name = attributes
         .remove("sentry.name")
         .and_then(|name| name.map_value(|attr| attr.into_string()).transpose())
+        .or_else(|| {
+            if infer_name {
+                name_for_attributes(attributes).map(Annotated::new)
+            } else {
+                None
+            }
+        })
         .unwrap_or(Annotated::empty());
 
     if let Some(is_remote) = is_remote.value() {
@@ -360,7 +356,7 @@ mod tests {
         });
 
         let span_v1 = SpanV1::from_value(json.into()).into_value().unwrap();
-        let span_v2 = span_v1_to_span_v2(span_v1);
+        let span_v2 = span_v1_to_span_v2(span_v1, false);
 
         insta::assert_json_snapshot!(SerializableAnnotated(&Annotated::new(span_v2)), @r#"
         {
@@ -644,7 +640,7 @@ mod tests {
         });
 
         let span_v1 = SpanV1::from_value(json.into()).into_value().unwrap();
-        let span_v2 = span_v1_to_span_v2_with_name_inference(span_v1);
+        let span_v2 = span_v1_to_span_v2(span_v1, true);
 
         insta::assert_json_snapshot!(SerializableAnnotated(&Annotated::new(span_v2)), @r#"
         {
@@ -874,7 +870,7 @@ mod tests {
         }
         "###);
 
-        let span_v2 = span_v1_to_span_v2(span_v1);
+        let span_v2 = span_v1_to_span_v2(span_v1, false);
 
         // The `name` and the `sentry.segment.name` attribute are the same as the transaction.
         insta::assert_json_snapshot!(SerializableAnnotated(&Annotated::new(span_v2)), @r###"
@@ -904,7 +900,7 @@ mod tests {
     fn start_timestamp() {
         let json = r#"{"timestamp": 123, "end_timestamp": "invalid data"}"#;
         let span_v1 = Annotated::<SpanV1>::from_json(json).unwrap();
-        let span_v2 = span_v1_to_span_v2(span_v1.into_value().unwrap());
+        let span_v2 = span_v1_to_span_v2(span_v1.into_value().unwrap(), false);
 
         // Parsed version is still fine:
         assert_eq!(
