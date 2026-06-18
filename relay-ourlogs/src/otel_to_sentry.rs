@@ -702,9 +702,9 @@ mod tests {
     #[test]
     fn test_otel_body_double_value() {
         let body = Some(AnyValue {
-            value: Some(OtelValue::DoubleValue(3.14)),
+            value: Some(OtelValue::DoubleValue(1.23)),
         });
-        assert_eq!(otel_body_to_sentry_body(body), Some("3.14".to_owned()));
+        assert_eq!(otel_body_to_sentry_body(body), Some("1.23".to_owned()));
     }
 
     #[test]
