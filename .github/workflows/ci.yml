@@ -726,13 +726,15 @@ jobs:
           done
 
       - name: Upload gocd deployment assets
+        env:
+          # the upload SA has no delete perms; disable parallel composite uploads 
+          # since their chunk cleanup would fail on delete
+          CLOUDSDK_STORAGE_PARALLEL_COMPOSITE_UPLOAD_ENABLED: false
         run: |
           set -euxo pipefail
           VERSION="$(docker run --rm "us-central1-docker.pkg.dev/internal-sentry/relay/${{ matrix.image_name }}:${REVISION}" --version | cut -d" " -f2)"
           echo "${{ matrix.image_name }}@${VERSION}+${REVISION}" > release-name
 
-          # the upload SA has no delete perms; disable parallel composite uploads since their chunk cleanup would fail on delete
-          export CLOUDSDK_STORAGE_PARALLEL_COMPOSITE_UPLOAD_ENABLED=false
           for PLATFORM in "linux/amd64" "linux/arm64"; do
             gcloud storage cp --no-clobber $PLATFORM/relay-debug.zip $PLATFORM/relay.src.zip ./release-name \
               "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${{ matrix.image_name }}/${PLATFORM}/"
