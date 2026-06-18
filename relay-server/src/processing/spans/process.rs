@@ -113,6 +113,9 @@ fn expand_span_container(item: &Item) -> Result<(Settings, ContainerItems<SpanV2
                     infer_user_agent: is
                         .and_then(|is| is.infer_user_agent)
                         .is_some_and(|infer| infer.is_auto()),
+                    // We don't want to infer names for V2 spans. If an SDK sent a
+                    // V2 span without a name it's just invalid.
+                    infer_name: false,
                 },
                 // Unsupported, fall back to the safe default.
                 Some(_) => Default::default(),
@@ -138,12 +141,16 @@ fn expand_legacy_spans(
         })
         .collect();
 
-    // In the legacy standalone span pipeline we always
-    // inferred both IPs and user agents. If this function
-    // is ever applied to transactions, we may need to rethink this.
     let settings = Settings {
+        // In the legacy standalone span pipeline we always
+        // inferred both IPs and user agents. If this function
+        // is ever applied to transactions, we may need to rethink this.
         infer_ip: true,
         infer_user_agent: true,
+        // We want to infer names during processing for legacy spans.
+        // The inference can't happen during the conversion
+        // because PII scrubbing needs to run first.
+        infer_name: true,
     };
 
     (settings, spans)
@@ -264,22 +271,29 @@ fn normalize_span(
 /// It also takes care of trimming and schema validation because those procedures need
 /// to also run for derived fields.
 pub fn normalize_derived(spans: &mut Managed<ExpandedSpans>, ctx: Context<'_>) {
+    let settings = spans.settings;
     spans.retain_with_context(
         |spans| (&mut spans.spans, &()),
         |span, _, _| {
-            normalize_span_derived(&mut span.span, ctx).inspect_err(|err| {
+            normalize_span_derived(&mut span.span, settings, ctx).inspect_err(|err| {
                 relay_log::debug!("failed to normalize span: {err}");
             })
         },
     );
 }
 
-fn normalize_span_derived(span: &mut Annotated<SpanV2>, ctx: Context<'_>) -> Result<()> {
+fn normalize_span_derived(
+    span: &mut Annotated<SpanV2>,
+    settings: Settings,
+    ctx: Context<'_>,
+) -> Result<()> {
     if let Some(span) = span.value_mut() {
         // The order of operations shouldn't matter here—we should never _actually_
         // need to synthesize both the name and description. If the span was sent as
         // V2 it should have a name and if it was sent as V1 it should have a description.
-        eap::normalize_span_name(span);
+        if settings.infer_name {
+            eap::normalize_span_name(span);
+        }
         eap::normalize_sentry_description(&mut span.attributes, &span.name);
     }
 
