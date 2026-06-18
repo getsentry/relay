@@ -1026,5 +1026,132 @@ def test_trace_metric_container_metadata(
     }
 
 
+@pytest.mark.parametrize(
+    "filter_name,filter_config,args",
+    [
+        pytest.param(
+            "release-version",
+            {"releases": {"releases": ["foobar@1.0"]}},
+            {},
+            id="release",
+        ),
+        pytest.param(
+            "legacy-browsers",
+            {"legacyBrowsers": {"isEnabled": True, "options": ["ie9"]}},
+            {
+                "user-agent": "Mozilla/4.0 (compatible; MSIE 9.0; Windows NT 6.0; Trident/5.0)"
+            },
+            id="legacy-browsers",
+        ),
+        pytest.param(
+            "web-crawlers",
+            {"webCrawlers": {"isEnabled": True}},
+            {
+                "user-agent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)"
+            },
+            id="web-crawlers",
+        ),
+        pytest.param(
+            "gen_name",
+            {
+                "op": "glob",
+                "name": "trace_metric.name",
+                "value": ["test.*"],
+            },
+            {},
+            id="gen_name",
+        ),
+        pytest.param(
+            "gen_attr",
+            {
+                "op": "gte",
+                "name": "trace_metric.attributes.http.status_code.value",
+                "value": 500,
+            },
+            {},
+            id="gen_attr",
+        ),
+    ],
+)
+def test_filters_are_applied_to_trace_metrics(
+    mini_sentry,
+    relay,
+    filter_name,
+    filter_config,
+    args,
+):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:tracemetrics-ingestion",
+    ]
+
+    if filter_name.startswith("gen_"):
+        filter_config = {
+            "generic": {
+                "version": 1,
+                "filters": [
+                    {
+                        "id": filter_name,
+                        "isEnabled": True,
+                        "condition": filter_config,
+                    }
+                ],
+            }
+        }
+
+    project_config["config"]["filterSettings"] = filter_config
+
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+
+    ts = datetime.now(timezone.utc)
+
+    metadata = {
+        "version": 2,
+        "ingest_settings": {"infer_ip": "auto", "infer_user_agent": "auto"},
+    }
+
+    envelope = envelope_with_trace_metrics(
+        {
+            "timestamp": ts.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "name": "test.metric",
+            "type": "counter",
+            "value": 1.0,
+            "attributes": {
+                "http.status_code": {"value": 500, "type": "integer"},
+                "sentry.release": {"value": "foobar@1.0", "type": "string"},
+            },
+        },
+        metadata=metadata,
+    )
+
+    headers = None
+    if user_agent := args.get("user-agent"):
+        headers = {"User-Agent": user_agent}
+
+    relay.send_envelope(project_id, envelope, headers=headers)
+
+    outcomes = mini_sentry.get_outcomes(n=2)
+    outcomes.sort(key=lambda o: o["category"])
+
+    assert outcomes == [
+        {
+            "category": DataCategory.TRACE_METRIC.value,
+            "outcome": 1,  # Filtered
+            "reason": filter_name,
+            "quantity": 1,
+            "timestamp": time_within_delta(ts),
+        },
+        {
+            "category": DataCategory.TRACE_METRIC_BYTE.value,
+            "outcome": 1,
+            "quantity": matches_any(),
+            "reason": filter_name,
+            "timestamp": time_within_delta(ts),
+        },
+    ]
+
+
 def _if_dict(cond, then):
     return then if cond else {}
