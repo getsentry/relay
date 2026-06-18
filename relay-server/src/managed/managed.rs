@@ -5,8 +5,8 @@ use std::fmt;
 use std::iter::FusedIterator;
 use std::mem::ManuallyDrop;
 use std::net::IpAddr;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use itertools::Either;
@@ -15,12 +15,12 @@ use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 use smallvec::SmallVec;
 
-use crate::Envelope;
 use crate::endpoints::common::BadStoreRequest;
 use crate::extractors::RequestMeta;
 use crate::managed::{Counted, ManagedEnvelope, Quantities};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::ProcessingError;
+use crate::Envelope;
 
 #[cfg(debug_assertions)]
 mod debug;
@@ -187,19 +187,6 @@ impl<I, const N: usize> RetainMut<I> for SmallVec<[I; N]> {
 }
 
 impl<T: Counted> Managed<T> {
-    /// Merges two managed instances into one managed tuple.
-    ///
-    /// The returned instance uses the metadata from `first`. `second` is accepted, transferring
-    /// outcome responsibility to the merged instance.
-    pub fn merge<S>(first: Self, second: Managed<S>) -> Managed<(T, S)>
-    where
-        S: Counted,
-    {
-        let (first, meta) = first.destructure();
-        let second = second.accept(|second| second);
-        Managed::from_parts((first, second), meta)
-    }
-
     /// Creates new [`Managed`] instance with the provided `value` and metadata from a [`ManagedEnvelope`].
     ///
     /// The [`Managed`] instance, inherits all metadata from the passed [`ManagedEnvelope`],
@@ -286,6 +273,23 @@ impl<T: Counted> Managed<T> {
                 records.modify_by(category, quantity as isize);
             }
             other.accept(|o| f(s, o, records));
+        })
+    }
+    /// Zips two managed instances into one managed tuple.
+    ///
+    /// The returned instance uses the metadata from `first`. `second` is accepted, transferring
+    /// outcome responsibility to the merged instance.
+    pub fn zip<S>(first: Self, second: Managed<S>) -> Managed<(T, S)>
+    where
+        S: Counted,
+    {
+        first.map(|first, recordkepping| {
+            for (category, quantity) in second.quantities() {
+                recordkepping.modify_by(category, quantity as isize);
+            }
+
+            let second = second.accept(|second| second);
+            (first, second)
         })
     }
 
@@ -1191,14 +1195,14 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_into_tuple() {
+    fn test_zip_into_tuple() {
         let (a, mut handle_a) = Managed::for_test(CountedVec(vec![1, 2])).build();
         let (b, mut handle_b) = Managed::for_test(CountedValue(3)).build();
 
-        let merged = Managed::merge(a, b);
+        let merged = Managed::zip(a, b);
 
-        assert_eq!(merged.as_ref().0.0, vec![1, 2]);
-        assert_eq!(merged.as_ref().1.0, 3);
+        assert_eq!(merged.as_ref().0 .0, vec![1, 2]);
+        assert_eq!(merged.as_ref().1 .0, 3);
         drop(merged);
         handle_a.assert_internal_outcome(DataCategory::Error, 2);
         handle_a.assert_internal_outcome(DataCategory::Error, 1);
