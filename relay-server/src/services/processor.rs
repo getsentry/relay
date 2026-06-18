@@ -18,7 +18,7 @@ use futures::future::BoxFuture;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
-use relay_config::{Config, HttpEncoding, UpstreamDescriptor};
+use relay_config::{Config, EmitOutcomes, HttpEncoding, UpstreamDescriptor};
 use relay_event_normalization::{ClockDriftProcessor, GeoIpLookup};
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::ClientReport;
@@ -43,7 +43,7 @@ use crate::processing::{Forward as _, Output, Outputs, QuotaRateLimiter};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets, ProjectBuckets};
-use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOutcome};
+use crate::services::outcome::{self, DiscardItemType, DiscardReason, Outcome, TrackOutcome};
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::{ProjectInfo, ProjectState};
 use crate::services::upstream::{
@@ -951,6 +951,16 @@ impl EnvelopeProcessorService {
             scoping,
         } = message;
 
+        relay_log::trace!(
+            "sending {} client report(s) to project id {}",
+            client_reports.len(),
+            scoping.project_id
+        );
+
+        if client_reports.is_empty() {
+            return;
+        }
+
         let upstream = self.inner.config.upstream();
         let dsn = PartialDsn::outbound(&scoping, upstream);
 
@@ -1387,6 +1397,25 @@ impl EnvelopeProcessorService {
         }
     }
 
+    /// Removes all outcome metrics from `message` and sends them as client reports.
+    ///
+    /// Returns a new [`FlushBuckets`] message, without any outcome metrics remaining.
+    fn encode_metrics_client_reports(&self, mut message: FlushBuckets) -> FlushBuckets {
+        for ProjectBuckets {
+            buckets, scoping, ..
+        } in message.buckets.values_mut()
+        {
+            let client_reports = outcome::metric::extract_client_reports(buckets).collect();
+
+            self.handle_submit_client_reports(SubmitClientReports {
+                client_reports,
+                scoping: *scoping,
+            });
+        }
+
+        message
+    }
+
     async fn handle_flush_buckets(&self, mut message: FlushBuckets) {
         for (project_key, pb) in message.buckets.iter_mut() {
             let buckets = std::mem::take(&mut pb.buckets);
@@ -1401,6 +1430,14 @@ impl EnvelopeProcessorService {
             return self
                 .encode_metrics_processing(message, store_forwarder)
                 .await;
+        }
+
+        // Processing Relays never send outcomes as client reports, which is why this check is after
+        // the processing check.
+        if self.inner.config.emit_outcomes() == EmitOutcomes::AsClientReports {
+            // Remove client reports from metrics to be sent, if configured as client reports
+            // and send them separately.
+            message = self.encode_metrics_client_reports(message);
         }
 
         if self.inner.config.http_global_metrics() {

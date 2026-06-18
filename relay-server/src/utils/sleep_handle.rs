@@ -3,6 +3,9 @@ use std::pin::Pin;
 use std::task::Poll;
 use std::time::Duration;
 
+use futures::FutureExt;
+use futures::future::FusedFuture;
+
 /// A future wrapper around [`tokio::time::Sleep`].
 ///
 /// When initialized with [`SleepHandle::idle`], this future is pending indefinitely every time it
@@ -28,7 +31,14 @@ impl SleepHandle {
         self.0 = Some(Box::pin(tokio::time::sleep(duration)));
     }
 
-    /// Checks wether the internal state is currently pending indefinite.
+    /// Primes the internal state like [`Self::set`], only if currently [`Self::idle`].
+    pub fn set_if_idle(&mut self, duration: Duration) {
+        if self.is_idle() {
+            self.set(duration)
+        }
+    }
+
+    /// Checks whether the internal state is currently pending indefinite.
     pub fn is_idle(&self) -> bool {
         self.0.is_none()
     }
@@ -39,7 +49,7 @@ impl Future for SleepHandle {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
         let poll = match &mut self.0 {
-            Some(sleep) => Pin::new(sleep).poll(cx),
+            Some(sleep) => sleep.poll_unpin(cx),
             None => Poll::Pending,
         };
 
@@ -48,5 +58,12 @@ impl Future for SleepHandle {
         }
 
         poll
+    }
+}
+
+impl FusedFuture for SleepHandle {
+    fn is_terminated(&self) -> bool {
+        // The handle never terminates, it may be reset or primed at any time.
+        false
     }
 }

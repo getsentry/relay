@@ -9,6 +9,7 @@
 **Internal**:
 
 - Require timestamps and verification in auth signatures. ([#6069](https://github.com/getsentry/relay/pull/6069))
+- Internally handle outcomes as metrics. ([#6107](https://github.com/getsentry/relay/pull/6107))
 - Have relay generate metric billing outcomes. ([#6066](https://github.com/getsentry/relay/pull/6066))
 - Update sentry-conventions to 0.12.0.
 

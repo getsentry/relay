@@ -1233,25 +1233,6 @@ pub enum NormalizationLevel {
     Full,
 }
 
-/// Configuration values for the outcome aggregator
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(default)]
-pub struct OutcomeAggregatorConfig {
-    /// Defines the width of the buckets into which outcomes are aggregated, in seconds.
-    pub bucket_interval: u64,
-    /// Defines how often all buckets are flushed, in seconds.
-    pub flush_interval: u64,
-}
-
-impl Default for OutcomeAggregatorConfig {
-    fn default() -> Self {
-        Self {
-            bucket_interval: 60,
-            flush_interval: 120,
-        }
-    }
-}
-
 /// Configuration options for objectstore's auth scheme.
 #[derive(Serialize, Deserialize)]
 pub struct ObjectstoreAuthConfig {
@@ -1418,8 +1399,6 @@ pub struct Outcomes {
     /// Defines the source string registered in the outcomes originating from
     /// this Relay (typically something like the region or the layer).
     pub source: Option<String>,
-    /// Configures the outcome aggregator.
-    pub aggregator: OutcomeAggregatorConfig,
 }
 
 impl Default for Outcomes {
@@ -1429,7 +1408,6 @@ impl Default for Outcomes {
             batch_size: 1000,
             batch_interval: 500,
             source: None,
-            aggregator: OutcomeAggregatorConfig::default(),
         }
     }
 }
@@ -2161,11 +2139,6 @@ impl Config {
     /// The originating source of the outcome
     pub fn outcome_source(&self) -> Option<&str> {
         self.values.outcomes.source.as_deref()
-    }
-
-    /// Returns the width of the buckets into which outcomes are aggregated, in seconds.
-    pub fn outcome_aggregator(&self) -> &OutcomeAggregatorConfig {
-        &self.values.outcomes.aggregator
     }
 
     /// Returns logging configuration.

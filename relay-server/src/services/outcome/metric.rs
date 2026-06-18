@@ -1,8 +1,10 @@
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
+use relay_base_schema::data_category::DataCategory;
 use relay_config::Config;
-use relay_metrics::{Bucket, BucketValue, MetricName, UnixTimestamp};
+use relay_event_schema::protocol::{ClientReport, DiscardedEvent};
+use relay_metrics::{Bucket, BucketValue, MetricName, MetricNamespace, UnixTimestamp};
 
 #[cfg(any(test, feature = "processing"))]
 use crate::services::outcome::OutcomeId;
@@ -99,6 +101,98 @@ pub fn to_outcome_id(name: &MetricName) -> Option<OutcomeId> {
     })
 }
 
+/// Converts a list of outcome metrics to client reports.
+///
+/// Metrics in the outcome namespace are removed from `buckets`. Outcome metrics which cannot be converted
+/// to a client report are dropped. This includes outcomes which cannot be mapped to client reports
+/// (e.g. [`OutcomeId::INVALID`] outcomes) as well as malformed outcome metrics.
+pub fn extract_client_reports(buckets: &mut Vec<Bucket>) -> impl Iterator<Item = ClientReport> {
+    let outcomes = buckets.extract_if(.., |bucket| {
+        bucket.name.namespace() == MetricNamespace::Outcomes
+    });
+
+    let mut reports = BTreeMap::new();
+
+    for bucket in outcomes {
+        let Some((section, discarded_event)) = to_discarded_event(&bucket) else {
+            continue;
+        };
+
+        let report = reports
+            .entry(bucket.timestamp)
+            .or_insert_with(|| ClientReport {
+                timestamp: Some(bucket.timestamp),
+                ..Default::default()
+            });
+
+        match section {
+            ClientReportSection::Discarded => report.discarded_events.push(discarded_event),
+            ClientReportSection::RateLimited => report.rate_limited_events.push(discarded_event),
+            ClientReportSection::Filtered => report.filtered_events.push(discarded_event),
+            ClientReportSection::FilteredSampling => {
+                report.filtered_sampling_events.push(discarded_event)
+            }
+        }
+    }
+
+    reports.into_values()
+}
+
+#[derive(Copy, Clone)]
+enum ClientReportSection {
+    Discarded,
+    RateLimited,
+    Filtered,
+    FilteredSampling,
+}
+
+fn to_discarded_event(bucket: &Bucket) -> Option<(ClientReportSection, DiscardedEvent)> {
+    let reason = bucket
+        .tags
+        .get("reason")
+        .map(String::as_str)
+        .unwrap_or_default();
+
+    let section = match bucket.name.as_ref() {
+        FILTERED_MRI if reason.starts_with("Sampled:") => ClientReportSection::FilteredSampling,
+        FILTERED_MRI => ClientReportSection::Filtered,
+        RATE_LIMITED_MRI => ClientReportSection::RateLimited,
+        CLIENT_DISCARD_MRI => ClientReportSection::Discarded,
+        // Ported over the from the existing logic, ticket exists to expand it to all invalid outcomes
+        // <https://github.com/getsentry/relay/issues/5249>.
+        INVALID_MRI if matches!(reason, "invalid_signature" | "missing_signature") => {
+            ClientReportSection::Discarded
+        }
+        _ => {
+            relay_log::debug!("outcome bucket '{bucket:?}' cannot be converted to client report");
+            return None;
+        }
+    };
+
+    let category = bucket
+        .tags
+        .get("category")
+        .and_then(|value| value.parse::<u8>().ok())
+        .and_then(|value| DataCategory::try_from(value).ok());
+
+    debug_assert!(category.is_some());
+    debug_assert_ne!(category, Some(DataCategory::Unknown));
+
+    let quantity = match &bucket.value {
+        BucketValue::Counter(value) => value.to_f64() as u32,
+        _ => return None,
+    };
+
+    Some((
+        section,
+        DiscardedEvent {
+            reason: reason.to_owned(),
+            category: category?,
+            quantity,
+        },
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use relay_base_schema::data_category::DataCategory;
@@ -128,6 +222,31 @@ mod tests {
             }
         }))
         .unwrap()
+    }
+
+    fn bucket(
+        name: &str,
+        timestamp: u64,
+        reason: Option<&str>,
+        category: Option<DataCategory>,
+        quantity: u32,
+    ) -> Bucket {
+        let mut tags = BTreeMap::new();
+        if let Some(reason) = reason {
+            tags.insert("reason".to_owned(), reason.to_owned());
+        }
+        if let Some(category) = category.and_then(DataCategory::value) {
+            tags.insert("category".to_owned(), category.to_string());
+        }
+
+        Bucket {
+            name: name.into(),
+            value: BucketValue::Counter(quantity.into()),
+            timestamp: UnixTimestamp::from_secs(timestamp),
+            tags,
+            width: 0,
+            metadata: Default::default(),
+        }
     }
 
     #[test]
@@ -251,5 +370,99 @@ mod tests {
             let id = to_outcome_id(&bucket.name).unwrap();
             assert_eq!(id, outcome.to_outcome_id(), "{} | {outcome:?}", bucket.name);
         }
+    }
+
+    #[test]
+    fn test_to_client_report() {
+        let mut buckets = vec![
+            bucket("c:custom/foo@none", 123, None, Some(DataCategory::Error), 7),
+            bucket(
+                FILTERED_MRI,
+                123,
+                Some("release-version"),
+                Some(DataCategory::Error),
+                2,
+            ),
+            bucket(
+                FILTERED_MRI,
+                123,
+                Some("Sampled:3000"),
+                Some(DataCategory::Transaction),
+                3,
+            ),
+            bucket(RATE_LIMITED_MRI, 123, None, Some(DataCategory::Session), 4),
+            bucket(
+                INVALID_MRI,
+                123,
+                Some("invalid_signature"),
+                Some(DataCategory::Error),
+                5,
+            ),
+            bucket(
+                INVALID_MRI,
+                123,
+                Some("invalid_json"),
+                Some(DataCategory::Error),
+                6,
+            ),
+            bucket(
+                CLIENT_DISCARD_MRI,
+                124,
+                Some("queue_overflow"),
+                Some(DataCategory::Error),
+                8,
+            ),
+        ];
+
+        let reports = extract_client_reports(&mut buckets).collect::<Vec<_>>();
+
+        assert_eq!(buckets.len(), 1);
+        assert_eq!(buckets[0].name.as_ref(), "c:custom/foo@none");
+
+        insta::assert_json_snapshot!(reports, @r#"
+        [
+          {
+            "timestamp": 123,
+            "discarded_events": [
+              {
+                "reason": "invalid_signature",
+                "category": "error",
+                "quantity": 5
+              }
+            ],
+            "rate_limited_events": [
+              {
+                "reason": "",
+                "category": "session",
+                "quantity": 4
+              }
+            ],
+            "filtered_events": [
+              {
+                "reason": "release-version",
+                "category": "error",
+                "quantity": 2
+              }
+            ],
+            "filtered_sampling_events": [
+              {
+                "reason": "Sampled:3000",
+                "category": "transaction",
+                "quantity": 3
+              }
+            ]
+          },
+          {
+            "timestamp": 124,
+            "discarded_events": [
+              {
+                "reason": "queue_overflow",
+                "category": "error",
+                "quantity": 8
+              }
+            ]
+          }
+        ]
+        "#);
     }
 }

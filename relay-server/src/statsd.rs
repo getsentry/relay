@@ -536,8 +536,6 @@ pub enum RelayTimers {
     ///  - `category`: The data category of the payload. Can be one of: `event`, `transaction`,
     ///    `security`, or `session`.
     TimestampDelay,
-    /// The time it takes the outcome aggregator to flush aggregated outcomes.
-    OutcomeAggregatorFlushTime,
     /// Time in milliseconds spent on parsing, normalizing and scrubbing replay recordings.
     ReplayRecordingProcessing,
     /// Total time spent to send a request and receive the response from upstream.
@@ -668,7 +666,6 @@ impl TimerMetric for RelayTimers {
             RelayTimers::AttachmentScrubbing => "scrubbing.attachments.duration",
             RelayTimers::UpstreamRequestsDuration => "upstream.requests.duration",
             RelayTimers::TimestampDelay => "requests.timestamp_delay",
-            RelayTimers::OutcomeAggregatorFlushTime => "outcomes.aggregator.flush_time",
             RelayTimers::ReplayRecordingProcessing => "replay.recording.process",
             RelayTimers::GlobalConfigRequestDuration => "global_config.requests.duration",
             RelayTimers::ProcessMessageDuration => "processor.message.duration",
