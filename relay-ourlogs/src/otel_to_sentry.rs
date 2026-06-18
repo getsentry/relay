@@ -4,14 +4,17 @@
 //! into Sentry's internal log format (`OurLog`).
 
 use chrono::{TimeZone, Utc};
-use opentelemetry_proto::tonic::common::v1::InstrumentationScope;
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
+use opentelemetry_proto::tonic::common::v1::{AnyValue, InstrumentationScope};
 use opentelemetry_proto::tonic::logs::v1::LogRecord as OtelLogRecord;
 
 use opentelemetry_proto::tonic::resource::v1::Resource;
 use relay_conventions::attributes::{EVENT__NAME, SENTRY__ORIGIN, SENTRY__PLATFORM};
 use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId, Timestamp, TraceId};
-use relay_otel::{otel_resource_to_platform, otel_value_to_attribute};
+use relay_otel::{
+    otel_array_to_sentry_array, otel_kvlist_to_string, otel_resource_to_platform,
+    otel_value_to_attribute,
+};
 use relay_protocol::{Annotated, Object};
 
 /// Maps OpenTelemetry severity number to Sentry log level.
@@ -45,6 +48,24 @@ fn map_severity_to_level(severity_number: i32, severity_text: &str) -> OurLogLev
     }
 }
 
+fn otel_body_to_sentry_body(body: Option<AnyValue>) -> Option<String> {
+    body.and_then(|v| v.value).and_then(|v| match v {
+        OtelValue::StringValue(s) => Some(s),
+        OtelValue::BoolValue(b) => Some(b.to_string()),
+        OtelValue::IntValue(i) => Some(i.to_string()),
+        OtelValue::DoubleValue(d) => Some(d.to_string()),
+        OtelValue::BytesValue(bytes) => String::from_utf8(bytes).ok(),
+        OtelValue::KvlistValue(kvlist) => otel_kvlist_to_string(kvlist),
+        OtelValue::ArrayValue(array) => {
+            let values: Vec<_> = otel_array_to_sentry_array(array)
+                .into_iter()
+                .filter_map(|v| v.into_value())
+                .collect();
+            serde_json::to_string(&values).ok()
+        }
+    })
+}
+
 /// Transforms an OpenTelemetry log record to a Sentry log.
 pub fn otel_to_sentry_log(
     otel_log: OtelLogRecord,
@@ -72,10 +93,7 @@ pub fn otel_to_sentry_log(
     let trace_id = TraceId::try_from_slice_or_random(trace_id.as_slice());
     let timestamp = Utc.timestamp_nanos(time_unix_nano as i64);
     let level = map_severity_to_level(severity_number, &severity_text);
-    let body = body.and_then(|v| v.value).and_then(|v| match v {
-        OtelValue::StringValue(s) => Some(s),
-        _ => None,
-    });
+    let body = otel_body_to_sentry_body(body);
 
     let mut attribute_data = Attributes::default();
     attribute_data.insert(SENTRY__ORIGIN, "auto.otlp.logs".to_owned());
@@ -114,6 +132,7 @@ pub fn otel_to_sentry_log(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use opentelemetry_proto::tonic::common::v1::{ArrayValue, KeyValue, KeyValueList};
     use relay_protocol::{SerializableAnnotated, get_path};
 
     #[test]
@@ -651,5 +670,96 @@ mod tests {
           }
         }
         "#);
+    }
+
+    #[test]
+    fn test_otel_body_string_value() {
+        let body = Some(AnyValue {
+            value: Some(OtelValue::StringValue("hello world".to_owned())),
+        });
+        assert_eq!(
+            otel_body_to_sentry_body(body),
+            Some("hello world".to_owned())
+        );
+    }
+
+    #[test]
+    fn test_otel_body_bool_value() {
+        let body = Some(AnyValue {
+            value: Some(OtelValue::BoolValue(true)),
+        });
+        assert_eq!(otel_body_to_sentry_body(body), Some("true".to_owned()));
+    }
+
+    #[test]
+    fn test_otel_body_int_value() {
+        let body = Some(AnyValue {
+            value: Some(OtelValue::IntValue(42)),
+        });
+        assert_eq!(otel_body_to_sentry_body(body), Some("42".to_owned()));
+    }
+
+    #[test]
+    fn test_otel_body_double_value() {
+        let body = Some(AnyValue {
+            value: Some(OtelValue::DoubleValue(3.14)),
+        });
+        assert_eq!(otel_body_to_sentry_body(body), Some("3.14".to_owned()));
+    }
+
+    #[test]
+    fn test_otel_body_bytes_value() {
+        let body = Some(AnyValue {
+            value: Some(OtelValue::BytesValue(b"hello bytes".to_vec())),
+        });
+        assert_eq!(
+            otel_body_to_sentry_body(body),
+            Some("hello bytes".to_owned())
+        );
+    }
+
+    #[test]
+    fn test_otel_body_array_value() {
+        let body = Some(AnyValue {
+            value: Some(OtelValue::ArrayValue(ArrayValue {
+                values: vec![
+                    AnyValue {
+                        value: Some(OtelValue::StringValue("a".to_owned())),
+                    },
+                    AnyValue {
+                        value: Some(OtelValue::IntValue(1)),
+                    },
+                ],
+            })),
+        });
+        let result = otel_body_to_sentry_body(body).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed, serde_json::json!(["a", 1]));
+    }
+
+    #[test]
+    fn test_otel_body_kvlist_value() {
+        let body = Some(AnyValue {
+            value: Some(OtelValue::KvlistValue(KeyValueList {
+                values: vec![
+                    KeyValue {
+                        key: "key1".to_owned(),
+                        value: Some(AnyValue {
+                            value: Some(OtelValue::StringValue("value1".to_owned())),
+                        }),
+                    },
+                    KeyValue {
+                        key: "key2".to_owned(),
+                        value: Some(AnyValue {
+                            value: Some(OtelValue::IntValue(42)),
+                        }),
+                    },
+                ],
+            })),
+        });
+        let result = otel_body_to_sentry_body(body).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["key1"], "value1");
+        assert_eq!(parsed["key2"], 42);
     }
 }
