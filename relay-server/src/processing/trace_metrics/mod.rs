@@ -151,6 +151,7 @@ impl processing::Processor for TraceMetricsProcessor {
         process::normalize(&mut metrics, ctx);
         filter::filter(&mut metrics, ctx);
         process::scrub(&mut metrics, ctx);
+        process::normalize_derived(&mut metrics);
 
         let metrics = self.limiter.enforce_quotas(metrics, ctx).await?;
 
