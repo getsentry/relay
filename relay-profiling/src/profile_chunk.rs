@@ -123,6 +123,9 @@ impl AndroidOrV2ProfileChunk {
             platform: String,
             #[serde(default)]
             version: sample::Version,
+            // Present only on legacy android profiles: the raw, unparsed profile.
+            // Ignored here, we only care whether it's set.
+            sampled_profile: Option<serde::de::IgnoredAny>,
         }
 
         let minimal: MinimalProfile = {
@@ -130,16 +133,24 @@ impl AndroidOrV2ProfileChunk {
             serde_path_to_error::deserialize(d)
         }?;
 
-        match (minimal.platform.as_str(), minimal.version) {
-            // This has always been parsed with higher priority than `v2`, so this was kept as-is
-            // when refactoring, but from the looks of it, this may cause issues with v2 profiles
-            // which happen to be sent from android.
-            ("android", _) => AndroidProfileChunk::parse(data)
+        // Android profiles used to always be parsed with higher priority than `v2`,
+        // but that misroutes android profiles which are actually in the sample `v2`
+        // format.
+        // The `sampled_profile` check is an interim fix: the Android SDK
+        // sends legacy profiles with version "2" even though they don't follow the
+        // sample `v2` format, so we keep routing those to the legacy android format.
+        let is_legacy_android = minimal.platform == "android"
+            && (minimal.version == sample::Version::Unknown || minimal.sampled_profile.is_some());
+        if is_legacy_android {
+            return AndroidProfileChunk::parse(data)
                 .map(Box::new)
-                .map(Self::Android),
-            (_, sample::Version::V2) => V2ProfileChunk::parse(data).map(Box::new).map(Self::V2),
-            (_, sample::Version::V1) => Err(ProfileError::PlatformNotSupported),
-            (_, sample::Version::Unknown) => Err(ProfileError::PlatformNotSupported),
+                .map(Self::Android);
+        }
+
+        match minimal.version {
+            sample::Version::V2 => V2ProfileChunk::parse(data).map(Box::new).map(Self::V2),
+            sample::Version::V1 => Err(ProfileError::PlatformNotSupported),
+            sample::Version::Unknown => Err(ProfileError::PlatformNotSupported),
         }
     }
 }
