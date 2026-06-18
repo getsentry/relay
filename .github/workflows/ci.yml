@@ -726,13 +726,17 @@ jobs:
           done
 
       - name: Upload gocd deployment assets
+        env:
+          # the upload SA has no delete perms; disable parallel composite uploads 
+          # since their chunk cleanup would fail on delete
+          CLOUDSDK_STORAGE_PARALLEL_COMPOSITE_UPLOAD_ENABLED: false
         run: |
           set -euxo pipefail
           VERSION="$(docker run --rm "us-central1-docker.pkg.dev/internal-sentry/relay/${{ matrix.image_name }}:${REVISION}" --version | cut -d" " -f2)"
           echo "${{ matrix.image_name }}@${VERSION}+${REVISION}" > release-name
 
           for PLATFORM in "linux/amd64" "linux/arm64"; do
-            gsutil -m cp $PLATFORM/relay-debug.zip $PLATFORM/relay.src.zip ./release-name \
+            gcloud storage cp --no-clobber $PLATFORM/relay-debug.zip $PLATFORM/relay.src.zip ./release-name \
               "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${{ matrix.image_name }}/${PLATFORM}/"
           done
 
@@ -916,6 +920,8 @@ jobs:
           /name/ { pkg = $2 }
           /version/ { if (pkg == "devservices") print "version="$2 }
         ' uv.lock >> $GITHUB_OUTPUT
+        mkdir -p ~/.config/sentry-devenv
+        printf '[devenv]\ncoderoot = %s\n' "$(dirname "$GITHUB_WORKSPACE")" >> ~/.config/sentry-devenv/config.ini
 
     - uses: getsentry/action-validate-devservices-config@711ae7221998ddf81211f25f5e3873ecffd22387
       name: Validate devservices config
