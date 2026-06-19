@@ -361,7 +361,7 @@
 <a href=#361 id=361 data-nosnippet>361</a>            .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
 <a href=#362 id=362 data-nosnippet>362</a>        <span class="kw">let </span>trace_attachments = Usecase::new(<span class="string">"trace_attachments"</span>)
 <a href=#363 id=363 data-nosnippet>363</a>            .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
-<a href=#364 id=364 data-nosnippet>364</a>        <span class="kw">let </span>profiles = Usecase::new(<span class="string">"profiles_raw"</span>)
+<a href=#364 id=364 data-nosnippet>364</a>        <span class="kw">let </span>profile_attachments = Usecase::new(<span class="string">"profile_attachments"</span>)
 <a href=#365 id=365 data-nosnippet>365</a>            .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
 <a href=#366 id=366 data-nosnippet>366</a>
 <a href=#367 id=367 data-nosnippet>367</a>        <span class="kw">let </span>inner = ObjectstoreServiceInner {
@@ -369,7 +369,7 @@
 <a href=#369 id=369 data-nosnippet>369</a>            objectstore_client,
 <a href=#370 id=370 data-nosnippet>370</a>            event_attachments,
 <a href=#371 id=371 data-nosnippet>371</a>            trace_attachments,
-<a href=#372 id=372 data-nosnippet>372</a>            profiles,
+<a href=#372 id=372 data-nosnippet>372</a>            profile_attachments,
 <a href=#373 id=373 data-nosnippet>373</a>            timeout: Duration::from_secs(<span class="kw-2">*</span>timeout),
 <a href=#374 id=374 data-nosnippet>374</a>            stream_timeout: Duration::from_secs(<span class="kw-2">*</span>stream_timeout),
 <a href=#375 id=375 data-nosnippet>375</a>            retry_interval: Duration::from_secs_f64(<span class="kw-2">*</span>retry_delay),
@@ -424,7 +424,7 @@
 <a href=#424 id=424 data-nosnippet>424</a>    objectstore_client: Client,
 <a href=#425 id=425 data-nosnippet>425</a>    event_attachments: Usecase,
 <a href=#426 id=426 data-nosnippet>426</a>    trace_attachments: Usecase,
-<a href=#427 id=427 data-nosnippet>427</a>    profiles: Usecase,
+<a href=#427 id=427 data-nosnippet>427</a>    profile_attachments: Usecase,
 <a href=#428 id=428 data-nosnippet>428</a>    timeout: Duration,
 <a href=#429 id=429 data-nosnippet>429</a>    stream_timeout: Duration,
 <a href=#430 id=430 data-nosnippet>430</a>    retry_interval: Duration,
@@ -668,7 +668,7 @@
 <a href=#668 id=668 data-nosnippet>668</a>        }
 <a href=#669 id=669 data-nosnippet>669</a>
 <a href=#670 id=670 data-nosnippet>670</a>        <span class="kw">let </span>session = <span class="self">self
-<a href=#671 id=671 data-nosnippet>671</a>            </span>.profiles
+<a href=#671 id=671 data-nosnippet>671</a>            </span>.profile_attachments
 <a href=#672 id=672 data-nosnippet>672</a>            .for_project(scoping.organization_id.value(), scoping.project_id.value())
 <a href=#673 id=673 data-nosnippet>673</a>            .session(<span class="kw-2">&amp;</span><span class="self">self</span>.objectstore_client)<span class="question-mark">?</span>;
 <a href=#674 id=674 data-nosnippet>674</a>
