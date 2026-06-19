@@ -361,7 +361,7 @@ impl ObjectstoreService {
             .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
         let trace_attachments = Usecase::new("trace_attachments")
             .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
-        let profiles = Usecase::new("profiles_raw")
+        let profile_attachments = Usecase::new("profile_attachments")
             .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
 
         let inner = ObjectstoreServiceInner {
@@ -369,7 +369,7 @@ impl ObjectstoreService {
             objectstore_client,
             event_attachments,
             trace_attachments,
-            profiles,
+            profile_attachments,
             timeout: Duration::from_secs(*timeout),
             stream_timeout: Duration::from_secs(*stream_timeout),
             retry_interval: Duration::from_secs_f64(*retry_delay),
@@ -424,7 +424,7 @@ struct ObjectstoreServiceInner {
     objectstore_client: Client,
     event_attachments: Usecase,
     trace_attachments: Usecase,
-    profiles: Usecase,
+    profile_attachments: Usecase,
     timeout: Duration,
     stream_timeout: Duration,
     retry_interval: Duration,
@@ -668,7 +668,7 @@ impl ObjectstoreServiceInner {
         }
 
         let session = self
-            .profiles
+            .profile_attachments
             .for_project(scoping.organization_id.value(), scoping.project_id.value())
             .session(&self.objectstore_client)?;
 
