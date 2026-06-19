@@ -1132,23 +1132,18 @@ def test_filters_are_applied_to_trace_metrics(
 
     relay.send_envelope(project_id, envelope, headers=headers)
 
-    outcomes = mini_sentry.get_outcomes(n=2)
-    outcomes.sort(key=lambda o: o["category"])
-
-    assert outcomes == [
+    assert mini_sentry.get_aggregated_outcomes(n=2) == [
         {
             "category": DataCategory.TRACE_METRIC.value,
             "outcome": 1,  # Filtered
             "reason": filter_name,
             "quantity": 1,
-            "timestamp": time_within_delta(ts),
         },
         {
             "category": DataCategory.TRACE_METRIC_BYTE.value,
             "outcome": 1,
             "quantity": matches_any(),
             "reason": filter_name,
-            "timestamp": time_within_delta(ts),
         },
     ]
 
