@@ -11,32 +11,23 @@ pub struct Operation {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct Name {
+pub struct Description {
     pub operations: Vec<Operation>,
 }
 
-/// Returns a `TokenStream` representing Rust code defining a `name_for_op_and_attributes` method.
-/// This method constructs a name for the given op and attributes based on the span naming
+/// Returns a `TokenStream` representing Rust code defining a `description_for_op_and_attributes` method.
+/// This method constructs a description for the given op and attributes based on the span description
 /// conventions defined in the `sentry-conventions` repository.
 ///
-/// This function depends on the invariants that:
-/// - each list of name templates contains a single template without attributes, and
-/// - the template without attributes is the final template in the list
-///
-/// In other words, each template list must have a fallback name for the case
-/// where all names are missing. These invariants are enforced by a test in `sentry-conventions`.
-///
 /// Some clippy lints are explicitly allowed, when fixing them would complicate the codegen.
-pub fn name_file_output(names: impl Iterator<Item = Name>) -> TokenStream {
-    let operations = names.flat_map(|name| name.operations);
+pub fn description_file_output(descriptions: impl Iterator<Item = Description>) -> TokenStream {
+    let operations = descriptions.flat_map(|description| description.operations);
 
     let match_arms = operations.map(|Operation { ops, templates }| {
-        let Some((literal_template, templates_with_attributes)) = templates.split_last() else {
-            panic!("name definition had empty template list");
+        let (templates_with_attributes, literal_template)  = match templates.split_last() {
+            Some((last, init)) if !last.contains("{{")=> (init, Some(last.as_str())),
+            _ => (&templates[..], None),
         };
-        if literal_template.contains("{{") {
-            panic!("final template must not contain attributes (bad template: {})", literal_template);
-        }
 
         let conditional_attribute_blocks = templates_with_attributes.iter().map(|template| {
             let parts = parse_template_into_parts(template);
@@ -75,8 +66,9 @@ pub fn name_file_output(names: impl Iterator<Item = Name>) -> TokenStream {
             })
         });
 
-        let literal_name_fallback = quote! {
-            Some(#literal_template.to_owned())
+        let literal_name_fallback = match literal_template {
+            Some(literal_template) => quote! { Some(#literal_template.to_owned()) },
+            None => quote! { None },
         };
 
         // Assemble the match arm, with `ops` forming the match clause and the match body checking
@@ -94,7 +86,7 @@ pub fn name_file_output(names: impl Iterator<Item = Name>) -> TokenStream {
         use std::fmt;
         use std::fmt::Display;
 
-        pub fn name_for_op_and_attributes(op: &str, attributes: &impl Getter) -> Option<String> {
+        pub fn description_for_op_and_attributes(op: &str, attributes: &impl Getter) -> Option<String> {
             match op {
                 #(#match_arms)*
                 _ => None

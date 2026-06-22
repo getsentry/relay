@@ -1,5 +1,5 @@
 use relay_conventions::attributes::{SENTRY__DESCRIPTION, SENTRY__OP, SENTRY__ORIGIN};
-use relay_conventions::name_for_op_and_attributes;
+use relay_conventions::name::name_for_op_and_attributes;
 use relay_event_schema::protocol::Attributes;
 use relay_protocol::{Getter, Val};
 

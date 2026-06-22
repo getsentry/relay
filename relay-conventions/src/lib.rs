@@ -53,6 +53,8 @@
 //!
 //! ### I want to reference an attribute in Relay but it's not defined in `sentry-conventions`, what should I do?
 //! **Always** define it in `sentry-conventions` before using it in Relay. This makes sure we have proper
+
+use std::fmt;
 pub mod attributes {
     //! Attribute constant definitions.
     #![allow(rustdoc::bare_urls)]
@@ -79,9 +81,16 @@ pub mod interpolate {
     include!(concat!(env!("OUT_DIR"), "/interpolation_fns.rs"));
 }
 
+pub mod name {
+    include!(concat!(env!("OUT_DIR"), "/name_fn.rs"));
+}
+
+pub mod description {
+    include!(concat!(env!("OUT_DIR"), "/description_fn.rs"));
+}
+
 include!(concat!(env!("OUT_DIR"), "/attribute_map.rs"));
 include!(concat!(env!("OUT_DIR"), "/canonical_fn.rs"));
-include!(concat!(env!("OUT_DIR"), "/name_fn.rs"));
 include!(concat!(env!("OUT_DIR"), "/measurement_replacement_fn.rs"));
 
 /// Whether an attribute should be PII-strippable/should be subject to datascrubbers

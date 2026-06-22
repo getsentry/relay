@@ -113,7 +113,9 @@ fn make_span_item(
         })
         .map_err(|_| ())?;
 
-    Ok(span.map_value(relay_spans::span_v1_to_span_v2))
+    // It's ok to enable `infer_name` here—the span has gone through the transaction pipeline,
+    // so PII has been scrubbed.
+    Ok(span.map_value(|span| relay_spans::span_v1_to_span_v2(span, true)))
 }
 
 /// Any violation of the span schema.
