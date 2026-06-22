@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Infer span descriptions via `sentry-conventions`. ([#6093](https://github.com/getsentry/relay/pull/6093))
+
 **Bug Fixes**:
 
 - Wider type support for OTel log bodies. ([#6106](https://github.com/getsentry/relay/pull/6106))
