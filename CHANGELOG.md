@@ -6,6 +6,7 @@
 
 - Wider type support for OTel log bodies. ([#6106](https://github.com/getsentry/relay/pull/6106))
 - Don't reject attributes that don't have values, but do have metadata. ([#6098](https://github.com/getsentry/relay/pull/6098))
+- Infer span names PII-safely. ([#6112](https://github.com/getsentry/relay/pull/6112))
 
 **Internal**:
 
