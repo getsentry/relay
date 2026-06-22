@@ -98,14 +98,21 @@ fn expand_span_container(item: &Item) -> Result<(Settings, ContainerItems<SpanV2
         .into_parts();
 
     relay_log::trace!("span container metadata: {metadata:?}");
+
+    // By default, we only want to infer descriptions for V2 spans.
+    let default_settings = Settings {
+        infer_description: true,
+        ..Default::default()
+    };
+
     let settings = metadata
         .map(|metadata| {
             let is = metadata.ingest_settings.as_ref();
 
             match metadata.version {
-                None => Settings::default(),
+                None => default_settings,
                 // Technically invalid.
-                Some(0 | 1) => Settings::default(),
+                Some(0 | 1) => default_settings,
                 Some(2) => Settings {
                     infer_ip: is
                         .and_then(|is| is.infer_ip)
@@ -120,10 +127,10 @@ fn expand_span_container(item: &Item) -> Result<(Settings, ContainerItems<SpanV2
                     infer_description: true,
                 },
                 // Unsupported, fall back to the safe default.
-                Some(_) => Default::default(),
+                Some(_) => default_settings,
             }
         })
-        .unwrap_or_default();
+        .unwrap_or(default_settings);
 
     Ok((settings, spans))
 }
