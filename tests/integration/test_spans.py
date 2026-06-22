@@ -22,13 +22,6 @@ TEST_CONFIG = {
 
 
 @pytest.mark.parametrize("performance_issues_spans", [False, True])
-@pytest.mark.parametrize(
-    "eap_span_outcomes_rollout_rate",
-    [
-        pytest.param(0.0, id="relay_emits_accepted_outcome"),
-        pytest.param(1.0, id="eap_emits_accepted_outcome"),
-    ],
-)
 def test_span_extraction(
     mini_sentry,
     relay_with_processing,
@@ -38,18 +31,12 @@ def test_span_extraction(
     metrics_consumer,
     performance_issues_spans,
     outcomes_consumer,
-    eap_span_outcomes_rollout_rate,
 ):
     spans_consumer = spans_consumer()
     transactions_consumer = transactions_consumer()
     events_consumer = events_consumer()
     metrics_consumer = metrics_consumer()
     outcomes_consumer = outcomes_consumer()
-
-    mini_sentry.global_config["options"][
-        "relay.eap-span-outcomes.rollout-rate"
-    ] = eap_span_outcomes_rollout_rate
-    relay_emits_accepted_outcome = eap_span_outcomes_rollout_rate == 0.0
 
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
@@ -214,7 +201,7 @@ def test_span_extraction(
             "project_id": 42,
             "key_id": 123,
             "retention_days": 90,
-            "accepted_outcome_emitted": relay_emits_accepted_outcome,
+            "accepted_outcome_emitted": False,
             "span_id": "bbbbbbbbbbbbbbbb",
             "start_timestamp": start.timestamp(),
             "status": "ok",
@@ -297,7 +284,7 @@ def test_span_extraction(
             "project_id": 42,
             "key_id": 123,
             "retention_days": 90,
-            "accepted_outcome_emitted": relay_emits_accepted_outcome,
+            "accepted_outcome_emitted": False,
             "span_id": "cccccccccccccccc",
             "start_timestamp": start.timestamp(),
             "status": "ok",
@@ -387,7 +374,7 @@ def test_span_extraction(
         "project_id": 42,
         "key_id": 123,
         "retention_days": 90,
-        "accepted_outcome_emitted": relay_emits_accepted_outcome,
+        "accepted_outcome_emitted": False,
         "span_id": "968cff94913ebb07",
         "start_timestamp": start_timestamp.timestamp(),
         "status": "ok",
@@ -398,58 +385,24 @@ def test_span_extraction(
 
     spans_consumer.assert_empty()
 
-    num_messages = 2
-    if relay_emits_accepted_outcome:
-        num_messages = 3
-
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=num_messages)
-
-    if relay_emits_accepted_outcome:
-        assert outcomes == [
-            {
-                "category": DataCategory.TRANSACTION.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 1,
-            },
-            {
-                "category": DataCategory.SPAN.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 3,
-            },
-            {
-                "category": DataCategory.SPAN_INDEXED.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 3,
-            },
-        ]
-    else:
-        assert outcomes == [
-            {
-                "category": DataCategory.TRANSACTION.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 1,
-            },
-            {
-                "category": DataCategory.SPAN.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 3,
-            },
-        ]
+    assert outcomes_consumer.get_aggregated_outcomes(n=2) == [
+        {
+            "category": DataCategory.TRANSACTION.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.SPAN.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 3,
+        },
+    ]
 
 
 def _send_transaction_with_measurements(
@@ -853,7 +806,6 @@ def test_rate_limit_indexed_consistent(
     spans = spans_consumer.get_spans(n=3, timeout=10)
     assert len(spans) == 3
     assert summarize_outcomes() == {
-        (16, 0): 3,
         (12, 0): 3,
         (2, 0): 1,
     }  # SpanIndexed, Accepted
@@ -929,7 +881,6 @@ def test_rate_limit_consistent_extracted(
     # one for the transaction, one for the contained span
     assert len(spans) == 2
     assert summarize_outcomes() == {
-        (16, 0): 2,
         (12, 0): 2,
         (2, 0): 1,
     }  # SpanIndexed, Accepted
@@ -1064,7 +1015,6 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     spans = spans_consumer.get_spans(n=2, timeout=10)
     assert len(spans) == 2
     assert summarize_outcomes() == {
-        (16, 0): 2,
         (2, 0): 1,
         (12, 0): 2,
     }  # SpanIndexed, Accepted
@@ -1276,9 +1226,8 @@ def test_dynamic_sampling(
     if sample_rate == 1.0:
         spans = spans_consumer.get_spans(timeout=10, n=3)
         assert len(spans) == 3
-        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=3)
+        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=2)
         assert summarize_outcomes(outcomes) == {
-            (16, 0): 3,
             (12, 0): 3,
             (2, 0): 1,
         }  # SpanIndexed, Accepted

@@ -419,7 +419,7 @@ def test_attachment_with_matching_span_store(
     objectstore = objectstore(usecase="trace_attachments", project_id=project_id)
     assert objectstore.get(metadata["attachment_id"]).payload.read() == body
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=5)
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=4)
     assert outcomes == [
         {
             "category": DataCategory.TRANSACTION.value,
@@ -439,14 +439,6 @@ def test_attachment_with_matching_span_store(
         },
         {
             "category": DataCategory.SPAN.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 1,
-        },
-        {
-            "category": DataCategory.SPAN_INDEXED.value,
             "key_id": 123,
             "org_id": 1,
             "outcome": 0,

@@ -278,7 +278,7 @@ def test_attachment_ref_validation(
 
     relay.send_envelope(project_id, envelope)
 
-    outcomes = outcomes_consumer.get_outcomes(n=5 if event_type == "transaction" else 2)
+    outcomes = outcomes_consumer.get_outcomes(n=4 if event_type == "transaction" else 2)
     o = {DataCategory(o["category"]): o for o in outcomes}
     assert o[DataCategory.ATTACHMENT]["reason"] == "invalid_placeholder_attachment"
     assert o[DataCategory.ATTACHMENT]["quantity"] == expected_bytes_quantity
