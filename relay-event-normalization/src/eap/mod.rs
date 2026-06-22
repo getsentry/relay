@@ -12,8 +12,9 @@ use relay_conventions::{AttributeInfo, ReplacementName, WriteBehavior};
 use relay_event_schema::protocol::{
     Attribute, AttributeType, Attributes, BrowserContext, Geo, SpanV2,
 };
-use relay_protocol::{Annotated, Error, ErrorKind, Meta, Remark, RemarkType, Value};
-use relay_spans::derive_op_for_v2_span;
+use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Remark, RemarkType, Value};
+use relay_sampling::DynamicSamplingContext;
+use relay_spans::{derive_description_for_v2_span, derive_op_for_v2_span};
 
 use crate::span::TABLE_NAME_REGEX;
 use crate::span::description::{scrub_db_query, scrub_http};
@@ -21,7 +22,7 @@ use crate::span::tag_extraction::{
     domain_from_scrubbed_http, domain_from_server_address, span_op_to_category,
     sql_action_from_query, sql_tables_from_query,
 };
-use crate::{ClientHints, EnrichedDsc, FromUserAgentInfo as _, RawUserAgentInfo};
+use crate::{ClientHints, FromUserAgentInfo as _, RawUserAgentInfo};
 
 mod ai;
 mod mobile;
@@ -46,6 +47,55 @@ pub fn normalize_sentry_op(attributes: &mut Annotated<Attributes>) {
     let inferred_op = derive_op_for_v2_span(attributes);
     let attrs = attributes.get_or_insert_with(Default::default);
     attrs.insert_if_missing(SENTRY__OP, || inferred_op);
+}
+
+/// Normalizes a V2 span's [`SENTRY__DESCRIPTION`] attribute.
+///
+/// For now, this tries the following steps, in order:
+/// - backfill from the span's name if its [`SENTRY__ORIGIN`] attribute is `"manual"`
+/// - backfill from the span's [`DB__QUERY__TEXT`] attribute if it exists
+/// - backfill a combination of the span's [`HTTP__REQUEST__METHOD`] and
+///   [`URL__FULL`] attributes, if they both exists.
+///
+/// In the future, this logic will be partly moved to and extended in `sentry-conventions`.
+pub fn normalize_sentry_description(
+    attributes: &mut Annotated<Attributes>,
+    name: &Annotated<String>,
+) {
+    let Some(attributes) = attributes.value_mut() else {
+        return;
+    };
+
+    let description = attributes.get_annotated_value(SENTRY__DESCRIPTION);
+
+    if description.is_some_and(|d| !d.is_empty()) {
+        return;
+    }
+
+    if let Some(description) = derive_description_for_v2_span(attributes, name) {
+        attributes.insert(SENTRY__DESCRIPTION, description);
+    }
+}
+
+/// Normalizes a V2 span's name.
+///
+/// If the span has no name, this will attempt to synthesize one from its
+/// attributes using [relay_spans::name_for_attributes].
+///
+/// This is only relevant for spans converted from V1. Spans that were sent
+/// as V2 should always have a name.
+pub fn normalize_span_name(span: &mut SpanV2) {
+    if span.name.value().is_some() {
+        return;
+    }
+
+    let Some(attributes) = span.attributes.value() else {
+        return;
+    };
+
+    if let Some(name) = relay_spans::name_for_attributes(attributes) {
+        span.name = name.into();
+    }
 }
 
 /// Infers the sentry.category attribute and inserts it into `attributes` if not
@@ -250,10 +300,13 @@ pub fn normalize_user_agent(
     }
 
     // Prefer the stored/explicitly sent user agent over the user agent from the client/transport.
+    if let Some(ua) = client_info.and_then(|ci| ci.user_agent) {
+        attributes.insert_if_missing(USER_AGENT__ORIGINAL, || ua.to_owned());
+    }
+
     let user_agent = attributes
         .get_value(USER_AGENT__ORIGINAL)
-        .and_then(|v| v.as_str())
-        .or(client_info.and_then(|ci| ci.user_agent));
+        .and_then(|v| v.as_str());
 
     let Some(context) = BrowserContext::from_hints_or_ua(&RawUserAgentInfo {
         user_agent,
@@ -355,7 +408,7 @@ pub fn normalize_user_geo(
 pub fn normalize_dsc(
     attributes: &mut Annotated<Attributes>,
     is_segment: &Annotated<bool>,
-    dsc: Option<EnrichedDsc>,
+    dsc: Option<&DynamicSamplingContext>,
 ) {
     let Some(dsc) = dsc else {
         return;
@@ -367,26 +420,28 @@ pub fn normalize_dsc(
     if attributes.contains_key(SENTRY__DSC__TRACE_ID) {
         return;
     }
-    attributes.insert(SENTRY__DSC__TRACE_ID, dsc.dsc.trace_id.to_string());
+    attributes.insert(SENTRY__DSC__TRACE_ID, dsc.trace_id.to_string());
 
-    if let Some(transaction) = &dsc.dsc.transaction {
+    if let Some(transaction) = &dsc.transaction {
         attributes.insert(SENTRY__DSC__TRANSACTION, transaction.clone());
     }
 
-    attributes.insert(SENTRY__DSC__PROJECT_ID, dsc.sampling_project_id.to_string());
+    if let Some(project_id) = &dsc.project_id {
+        attributes.insert(SENTRY__DSC__PROJECT_ID, project_id.to_string());
+    }
 
     if is_segment.value().is_some_and(|is_segment| *is_segment) {
-        attributes.insert(SENTRY__DSC__PUBLIC_KEY, dsc.dsc.public_key.to_string());
-        if let Some(release) = &dsc.dsc.release {
+        attributes.insert(SENTRY__DSC__PUBLIC_KEY, dsc.public_key.to_string());
+        if let Some(release) = &dsc.release {
             attributes.insert(SENTRY__DSC__RELEASE, release.clone());
         }
-        if let Some(environment) = &dsc.dsc.environment {
+        if let Some(environment) = &dsc.environment {
             attributes.insert(SENTRY__DSC__ENVIRONMENT, environment.clone());
         }
-        if let Some(sample_rate) = dsc.dsc.sample_rate {
+        if let Some(sample_rate) = dsc.sample_rate {
             attributes.insert(SENTRY__DSC__SAMPLE_RATE, sample_rate);
         }
-        if let Some(sampled) = dsc.dsc.sampled {
+        if let Some(sampled) = dsc.sampled {
             attributes.insert(SENTRY__DSC__SAMPLED, sampled);
         }
     }
@@ -783,7 +838,6 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
     )]
     let current_to_legacy_attributes = [
         // DB attributes
-        (DB__QUERY__TEXT, SENTRY__DESCRIPTION),
         (SENTRY__NORMALIZED_DB_QUERY, SENTRY__NORMALIZED_DESCRIPTION),
         (DB__OPERATION__NAME, SENTRY__ACTION),
         (DB__SYSTEM__NAME, DB__SYSTEM),
@@ -796,12 +850,15 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
     ];
 
     for (current_attribute, legacy_attribute) in current_to_legacy_attributes {
-        if attributes.contains_key(current_attribute) {
-            let Some(attr) = attributes.get_attribute(current_attribute) else {
-                continue;
-            };
-            attributes.insert(legacy_attribute, attr.value.clone());
+        if attributes.contains_key(legacy_attribute) {
+            continue;
         }
+
+        let Some(attr) = attributes.get_attribute(current_attribute) else {
+            continue;
+        };
+
+        attributes.insert(legacy_attribute, attr.value.clone());
     }
 
     if !attributes.contains_key(SENTRY__DOMAIN)
@@ -821,12 +878,6 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
             },
         );
     }
-
-    if let Some(&Value::String(method)) = attributes.get_value(HTTP__REQUEST__METHOD).as_ref()
-        && let Some(&Value::String(url)) = attributes.get_value(URL__FULL).as_ref()
-    {
-        attributes.insert(SENTRY__DESCRIPTION, format!("{method} {url}"))
-    }
 }
 
 #[cfg(test)]
@@ -843,6 +894,7 @@ mod tests {
         DynamicSamplingContext {
             trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
             public_key: "12345678901234567890123456789012".parse().unwrap(),
+            project_id: Some(ProjectId::new(42)),
             release: None,
             environment: None,
             transaction: transaction.map(str::to_owned),
@@ -865,15 +917,7 @@ mod tests {
     fn test_normalize_dsc_child_span_no_transaction() {
         let mut attributes = Annotated::empty();
         let dsc = &mock_dsc(None);
-        let sampling_project_id = ProjectId::new(42);
-        normalize_dsc(
-            &mut attributes,
-            &Annotated::new(false),
-            Some(EnrichedDsc {
-                dsc,
-                sampling_project_id,
-            }),
-        );
+        normalize_dsc(&mut attributes, &Annotated::new(false), Some(dsc));
         assert_annotated_snapshot!(attributes, @r#"
         {
           "sentry.dsc.project_id": {
@@ -892,15 +936,7 @@ mod tests {
     fn test_normalize_dsc_child_span() {
         let mut attributes = Annotated::empty();
         let dsc = &mock_dsc(Some("/some/endpoint"));
-        let sampling_project_id = ProjectId::new(42);
-        normalize_dsc(
-            &mut attributes,
-            &Annotated::new(false),
-            Some(EnrichedDsc {
-                dsc,
-                sampling_project_id,
-            }),
-        );
+        normalize_dsc(&mut attributes, &Annotated::new(false), Some(dsc));
         assert_annotated_snapshot!(attributes, @r#"
         {
           "sentry.dsc.project_id": {
@@ -923,15 +959,7 @@ mod tests {
     fn test_normalize_dsc_segment() {
         let mut attributes = Annotated::empty();
         let dsc = &mock_dsc(Some("/some/endpoint"));
-        let sampling_project_id = ProjectId::new(42);
-        normalize_dsc(
-            &mut attributes,
-            &Annotated::new(true),
-            Some(EnrichedDsc {
-                dsc,
-                sampling_project_id,
-            }),
-        );
+        normalize_dsc(&mut attributes, &Annotated::new(true), Some(dsc));
         assert_annotated_snapshot!(attributes, @r#"
         {
           "sentry.dsc.project_id": {
@@ -1259,7 +1287,7 @@ mod tests {
             }),
         );
 
-        assert_annotated_snapshot!(attributes, @r#"
+        assert_annotated_snapshot!(attributes, @r###"
         {
           "browser.name": {
             "type": "string",
@@ -1268,9 +1296,13 @@ mod tests {
           "browser.version": {
             "type": "string",
             "value": "131.0.0"
+          },
+          "user_agent.original": {
+            "type": "string",
+            "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
           }
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -2262,10 +2294,6 @@ mod tests {
           "sentry.action": {
             "type": "string",
             "value": "FIND"
-          },
-          "sentry.description": {
-            "type": "string",
-            "value": "{\"find\": \"documents\", \"foo\": \"bar\"}"
           },
           "sentry.domain": {
             "type": "string",

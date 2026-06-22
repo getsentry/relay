@@ -4,117 +4,24 @@
 //! outcome must be emitted in the entire ingestion pipeline. Since Relay is only one part in this
 //! pipeline, outcomes may not be emitted if the item is accepted.
 
-use std::borrow::Cow;
-use std::collections::{BTreeMap, BTreeSet};
-use std::error::Error;
+use std::collections::BTreeMap;
+use std::mem;
 use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use std::{fmt, mem};
 
-use crate::envelope::{AttachmentType, ItemType};
-#[cfg(feature = "processing")]
-use crate::service::ServiceError;
+use crate::services::metrics::{Aggregator, MergeBuckets};
+use crate::services::outcome::{self, DiscardReason, Outcome};
 use crate::services::processor::{EnvelopeProcessor, SubmitClientReports};
-use crate::services::upstream::{Method, SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::statsd::RelayCounters;
 use crate::utils::SleepHandle;
-use chrono::{DateTime, SecondsFormat, Utc};
-use relay_base_schema::organization::OrganizationId;
-use relay_base_schema::project::ProjectId;
+use chrono::{DateTime, Utc};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, EmitOutcomes};
-use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::{ClientReport, DiscardedEvent, EventId};
-use relay_filter::FilterStatKey;
-#[cfg(feature = "processing")]
-use relay_kafka::{ClientError, KafkaClient, KafkaTopic, SerializationOutput};
-use relay_quotas::{DataCategory, ReasonCode, Scoping};
-use relay_sampling::config::RuleId;
-use relay_sampling::evaluation::MatchedRuleIds;
+use relay_quotas::{DataCategory, Scoping};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
-use serde::{Deserialize, Serialize};
-
-/// Defines the structure of the HTTP outcomes requests
-#[derive(Debug, Default, Deserialize, Serialize)]
-pub struct SendOutcomes {
-    #[serde(default)]
-    pub outcomes: Vec<TrackRawOutcome>,
-}
-
-impl UpstreamQuery for SendOutcomes {
-    type Response = SendOutcomesResponse;
-
-    fn method(&self) -> Method {
-        Method::POST
-    }
-
-    fn path(&self) -> Cow<'static, str> {
-        Cow::Borrowed("/api/0/relays/outcomes/")
-    }
-
-    fn retry() -> bool {
-        true
-    }
-
-    fn route(&self) -> &'static str {
-        "outcomes"
-    }
-}
-
-/// Defines the structure of the HTTP outcomes responses for successful requests
-#[derive(Debug, Deserialize, Serialize)]
-pub struct SendOutcomesResponse {
-    // nothing yet, future features will go here
-}
-
-/// The numerical identifier of the outcome category (Accepted, Filtered, ...)
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, Eq, PartialEq)]
-pub struct OutcomeId(u8);
-
-impl OutcomeId {
-    // This is not an enum because we still want to forward unknown outcome IDs transparently
-    const ACCEPTED: OutcomeId = OutcomeId(0);
-    const FILTERED: OutcomeId = OutcomeId(1);
-    const RATE_LIMITED: OutcomeId = OutcomeId(2);
-    const INVALID: OutcomeId = OutcomeId(3);
-    const ABUSE: OutcomeId = OutcomeId(4);
-    const CLIENT_DISCARD: OutcomeId = OutcomeId(5);
-    const CARDINALITY_LIMITED: OutcomeId = OutcomeId(6);
-
-    pub fn as_u8(self) -> u8 {
-        self.0
-    }
-}
-
-trait TrackOutcomeLike {
-    /// TODO: Doc
-    fn reason(&self) -> Option<Cow<'_, str>>;
-
-    /// TODO: Doc
-    fn outcome_id(&self) -> OutcomeId;
-
-    /// TODO: Doc
-    fn tag_name(&self) -> &'static str {
-        match self.outcome_id() {
-            OutcomeId::ACCEPTED => "accepted",
-            OutcomeId::FILTERED => "filtered",
-            OutcomeId::RATE_LIMITED => "rate_limited",
-            OutcomeId::INVALID => "invalid",
-            OutcomeId::ABUSE => "abuse",
-            OutcomeId::CLIENT_DISCARD => "client_discard",
-            OutcomeId::CARDINALITY_LIMITED => "cardinality_limited",
-            _ => "<unknown>",
-        }
-    }
-
-    /// Returns the number of items for that outcome.
-    fn quantity(&self) -> Option<u32>;
-
-    /// The category for the outcome.
-    fn category(&self) -> DataCategory;
-}
 
 /// Tracks an [`Outcome`] of an Envelope item.
 ///
@@ -137,24 +44,6 @@ pub struct TrackOutcome {
     pub quantity: u32,
 }
 
-impl TrackOutcomeLike for TrackOutcome {
-    fn reason(&self) -> Option<Cow<'_, str>> {
-        self.outcome.to_reason()
-    }
-
-    fn outcome_id(&self) -> OutcomeId {
-        self.outcome.to_outcome_id()
-    }
-
-    fn quantity(&self) -> Option<u32> {
-        Some(self.quantity)
-    }
-
-    fn category(&self) -> DataCategory {
-        self.category
-    }
-}
-
 impl Interface for TrackOutcome {}
 
 impl FromMessage<Self> for TrackOutcome {
@@ -162,852 +51,6 @@ impl FromMessage<Self> for TrackOutcome {
 
     fn from_message(message: Self, _: ()) -> Self {
         message
-    }
-}
-
-/// Defines the possible outcomes from processing an event.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum Outcome {
-    /// The event has been accepted and handled completely.
-    ///
-    /// This is only emitted for items going from Relay to Snuba directly.
-    #[allow(dead_code)]
-    Accepted,
-
-    /// The event has been filtered due to a configured filter.
-    Filtered(FilterStatKey),
-
-    /// The event has been filtered by a Sampling Rule
-    FilteredSampling(RuleCategories),
-
-    /// The event has been rate limited.
-    RateLimited(Option<ReasonCode>),
-
-    /// The event has been discarded because of invalid data.
-    Invalid(DiscardReason),
-
-    /// Reserved but unused in Relay.
-    #[allow(dead_code)]
-    Abuse,
-
-    /// The event has already been discarded on the client side.
-    ClientDiscard(String),
-}
-
-impl Outcome {
-    /// Returns the raw numeric value of this outcome for the JSON and Kafka schema.
-    pub fn to_outcome_id(&self) -> OutcomeId {
-        match self {
-            Outcome::Filtered(_) | Outcome::FilteredSampling(_) => OutcomeId::FILTERED,
-            Outcome::RateLimited(_) => OutcomeId::RATE_LIMITED,
-            Outcome::Invalid(_) => OutcomeId::INVALID,
-            Outcome::Abuse => OutcomeId::ABUSE,
-            Outcome::ClientDiscard(_) => OutcomeId::CLIENT_DISCARD,
-            Outcome::Accepted => OutcomeId::ACCEPTED,
-        }
-    }
-
-    /// Returns the `reason` code field of this outcome.
-    pub fn to_reason(&self) -> Option<Cow<'_, str>> {
-        match self {
-            Outcome::Invalid(DiscardReason::ItemTooLarge(too_large_reason)) => Some(Cow::Owned(
-                format!("too_large:{}", too_large_reason.as_str()),
-            )),
-            Outcome::Invalid(discard_reason) => Some(Cow::Borrowed(discard_reason.name())),
-            Outcome::Filtered(filter_key) => Some(filter_key.clone().name()),
-            Outcome::FilteredSampling(rule_ids) => Some(Cow::Owned(format!("Sampled:{rule_ids}"))),
-            Outcome::RateLimited(code_opt) => {
-                code_opt.as_ref().map(|code| Cow::Borrowed(code.as_str()))
-            }
-            Outcome::ClientDiscard(discard_reason) => Some(Cow::Borrowed(discard_reason)),
-            Outcome::Abuse => None,
-            Outcome::Accepted => None,
-        }
-    }
-
-    /// Returns true if there is a bug or an infrastructure problem causing event loss.
-    ///
-    /// This can happen when we introduce bugs or during incidents.
-    ///
-    /// During healthy operation, this should always return false.
-    pub fn is_unexpected(&self) -> bool {
-        matches!(
-            self,
-            Outcome::Invalid(
-                DiscardReason::Internal
-                    | DiscardReason::ProjectState
-                    | DiscardReason::ProjectStatePii,
-            )
-        )
-    }
-}
-
-impl fmt::Display for Outcome {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Outcome::Filtered(key) => write!(f, "filtered by {key}"),
-            Outcome::FilteredSampling(rule_ids) => write!(f, "sampling rule {rule_ids}"),
-            Outcome::RateLimited(None) => write!(f, "rate limited"),
-            Outcome::RateLimited(Some(reason)) => write!(f, "rate limited with reason {reason}"),
-            Outcome::Invalid(DiscardReason::Internal) => write!(f, "internal error"),
-            Outcome::Invalid(reason) => write!(f, "invalid data ({reason})"),
-            Outcome::Abuse => write!(f, "abuse limit reached"),
-            Outcome::ClientDiscard(reason) => write!(f, "discarded by client ({reason})"),
-            Outcome::Accepted => write!(f, "accepted"),
-        }
-    }
-}
-
-/// A lower-cardinality version of [`RuleId`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum RuleCategory {
-    BoostLowVolumeProjects,
-    BoostEnvironments,
-    IgnoreHealthChecks,
-    BoostKeyTransactions,
-    Recalibration,
-    BoostReplayId,
-    BoostLowVolumeTransactions,
-    BoostLatestReleases,
-    Custom,
-    Other,
-}
-
-impl RuleCategory {
-    fn as_str(&self) -> &'static str {
-        match self {
-            Self::BoostLowVolumeProjects => "1000",
-            Self::BoostEnvironments => "1001",
-            Self::IgnoreHealthChecks => "1002",
-            Self::BoostKeyTransactions => "1003",
-            Self::Recalibration => "1004",
-            Self::BoostReplayId => "1005",
-            Self::BoostLowVolumeTransactions => "1400",
-            Self::BoostLatestReleases => "1500",
-            Self::Custom => "3000",
-            Self::Other => "0",
-        }
-    }
-}
-
-impl From<RuleId> for RuleCategory {
-    fn from(value: RuleId) -> Self {
-        match value.0 {
-            1000 => Self::BoostLowVolumeProjects,
-            1001 => Self::BoostEnvironments,
-            1002 => Self::IgnoreHealthChecks,
-            1003 => Self::BoostKeyTransactions,
-            1004 => Self::Recalibration,
-            1005 => Self::BoostReplayId,
-            1400..=1499 => Self::BoostLowVolumeTransactions,
-            1500..=1599 => Self::BoostLatestReleases,
-            3000..=4999 => Self::Custom,
-            _ => Self::Other,
-        }
-    }
-}
-
-/// An ordered set of categories that can be used as outcome reason.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct RuleCategories(pub BTreeSet<RuleCategory>);
-
-impl fmt::Display for RuleCategories {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (i, c) in self.0.iter().enumerate() {
-            if i > 0 {
-                write!(f, ",")?;
-            }
-            write!(f, "{}", c.as_str())?;
-        }
-        Ok(())
-    }
-}
-
-impl From<MatchedRuleIds> for RuleCategories {
-    fn from(value: MatchedRuleIds) -> Self {
-        RuleCategories(BTreeSet::from_iter(
-            value.0.into_iter().map(RuleCategory::from),
-        ))
-    }
-}
-
-/// Reason for a discarded invalid event.
-///
-/// Used in `Outcome::Invalid`. Synchronize overlap with Sentry.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-#[allow(dead_code)]
-pub enum DiscardReason {
-    /// (Post Processing) An event with the same id has already been processed for this project.
-    /// Sentry does not allow duplicate events and only stores the first one.
-    Duplicate,
-
-    /// (Relay) There was no valid project id in the request or the required project does not exist.
-    ProjectId,
-
-    /// (Relay) The request had an invalid event id.
-    InvalidEventId,
-
-    /// (Relay) The protocol version sent by the SDK is not supported and parts of the payload may
-    /// be invalid.
-    AuthVersion,
-
-    /// (Legacy) The SDK did not send a client identifier.
-    ///
-    /// In Relay, this is no longer required.
-    AuthClient,
-
-    /// (Relay) The store request was missing an event payload.
-    NoData,
-
-    /// (Relay) The size limit was exceeded for the specified type.
-    ItemTooLarge(DiscardItemType),
-
-    /// (Relay) The request exceeded the endpoint's size limit.
-    RequestTooLarge,
-
-    /// (Relay) Sentry dropped data due to a quota or internal rate limit being reached.
-    RateLimited,
-
-    /// (Legacy) A store request was received with an invalid method.
-    ///
-    /// This outcome is no longer emitted by Relay, as HTTP method validation occurs before an event
-    /// id or project id are extracted for a request.
-    DisallowedMethod,
-
-    /// (Relay) The content type for a specific endpoint was not allowed.
-    ///
-    /// While the standard store endpoint allows all content types, other endpoints may have
-    /// stricter requirements.
-    ContentType,
-
-    /// (Legacy) The project id in the URL does not match the one specified for the public key.
-    ///
-    /// This outcome is no longer emitted by Relay. Instead, Relay will emit a standard `ProjectId`
-    /// since it resolves the project first, and then checks for the valid project key.
-    MultiProjectId,
-
-    /// (Relay) A request without a prosperodump was made to the playstation endpoint.
-    MissingProsperodump,
-
-    /// (Relay) The prosperodump submitted to the playstation endpoint was invalid.
-    InvalidProsperodump,
-
-    /// (Relay) A minidump file was missing for the minidump endpoint.
-    MissingMinidump,
-
-    /// (Relay) The file submitted as minidump is not a valid minidump file.
-    InvalidMinidump,
-
-    /// (Relay) The security report was not recognized due to missing data.
-    SecurityReportType,
-
-    /// (Relay) The security report did not pass schema validation.
-    SecurityReport,
-
-    /// (Relay) The request origin is not allowed for the project.
-    Cors,
-
-    /// (Relay) Reading or decoding the payload from the socket failed for any reason.
-    Payload,
-
-    /// (Relay) The request body was empty.
-    EmptyBody,
-
-    /// (Relay) The request body was invalid.
-    InvalidBody,
-
-    /// (Relay) Parsing the event JSON payload failed due to a syntax error.
-    InvalidJson,
-
-    /// (Relay) Parsing an OTLP payload failed.
-    InvalidProtobuf,
-
-    /// (Relay) Parsing the event msgpack payload failed due to a syntax error.
-    InvalidMsgpack,
-
-    /// (Relay) Parsing a multipart form-data request failed.
-    InvalidMultipart,
-
-    /// (Relay) The event is parseable but semantically invalid. This should only happen with
-    /// transaction events.
-    InvalidTransaction,
-
-    /// (Relay) Parsing an event envelope failed (likely missing a required header).
-    InvalidEnvelope,
-
-    /// (Relay) The payload had an invalid compression format.
-    InvalidCompression,
-
-    /// (Relay) The envelope contains internal items.
-    InternalEnvelope,
-
-    /// (Relay) Failed to queue the envelope.
-    QueueFailed,
-
-    /// (Relay) The project could not be retrieved in time.
-    ProjectUnavailable,
-
-    /// (Relay) A project state returned by the upstream could not be parsed.
-    ProjectState,
-
-    /// (Relay) A project state returned by the upstream contained datascrubbing settings
-    /// that could not be converted to PII config.
-    ProjectStatePii,
-
-    /// (Relay) An envelope was submitted with two items that need to be unique.
-    DuplicateItem,
-
-    /// (Relay) An event envelope was submitted but no payload could be extracted.
-    NoEventPayload,
-
-    /// (Relay) The timestamp of an event was required for processing and either missing out of the
-    /// supported time range for ingestion.
-    Timestamp,
-
-    /// (All) An error in Relay caused event ingestion to fail. This is the catch-all and usually
-    /// indicates bugs in Relay, rather than an expected failure.
-    Internal,
-
-    /// (Relay) The Unreal Crash report submitted to the Unreal endpoint was invalid.
-    InvalidUnrealReport,
-
-    /// (Relay) Symbolic failed to extract an Unreal Crash report from a request sent to the
-    /// Unreal endpoint.
-    ProcessUnreal,
-
-    /// (Relay) The envelope, which contained only a transaction, was discarded by the
-    /// dynamic sampling rules.
-    TransactionSampled,
-
-    /// (Relay) We failed to parse the replay so we discard it.
-    InvalidReplayEvent,
-    InvalidReplayEventNoPayload,
-    InvalidReplayEventPii,
-    InvalidReplayRecordingEvent,
-    InvalidReplayVideoEvent,
-    InvalidReplayMissingRecording,
-
-    /// (Relay) Profiling related discard reasons
-    Profiling(&'static str),
-
-    /// (Relay) A log that is not valid after normalization.
-    InvalidLog,
-
-    /// (Relay) A trace metric that is not valid after normalization.
-    InvalidTraceMetric,
-
-    /// (Relay) A span is not valid after normalization.
-    InvalidSpan,
-
-    /// (Relay) A span attachment that has invalid item headers or attachment meta-data.
-    InvalidSpanAttachment,
-
-    /// (Relay) A trace attachment that has invalid item headers or attachment meta-data.
-    InvalidTraceAttachment,
-
-    /// (Relay) An attachment ref that has invalid item headers or payload.
-    #[cfg(feature = "processing")]
-    InvalidAttachmentRef,
-
-    /// (Relay) A required feature is not enabled.
-    FeatureDisabled(Feature),
-
-    /// An attachment was submitted with a transaction.
-    TransactionAttachment,
-
-    /// (Relay) The signature from a trusted Relay was invalid.
-    InvalidSignature,
-
-    /// (Relay) The signature from a trusted Relay was missing but required.
-    MissingSignature,
-
-    /// (Relay) The signature from a trusted Relay was missing but required.
-    InvalidCheckIn,
-
-    /// (Relay) The dynamic sampling context is required but missing on the envelope.
-    MissingDynamicSamplingContext,
-
-    /// (Relay) The dynamic sampling context is invalid or does not match the payload.
-    InvalidDynamicSamplingContext,
-
-    /// (Relay) Failed to upload to objectstore.
-    ObjectstoreUploadFailed,
-}
-
-impl DiscardReason {
-    pub fn name(self) -> &'static str {
-        match self {
-            DiscardReason::Duplicate => "duplicate",
-            DiscardReason::ProjectId => "project_id",
-            DiscardReason::AuthVersion => "auth_version",
-            DiscardReason::AuthClient => "auth_client",
-            DiscardReason::NoData => "no_data",
-            DiscardReason::ItemTooLarge(discard) => discard.as_str(),
-            DiscardReason::RequestTooLarge => "request_too_large",
-            DiscardReason::RateLimited => "rate_limited",
-            DiscardReason::DisallowedMethod => "disallowed_method",
-            DiscardReason::ContentType => "content_type",
-            DiscardReason::MultiProjectId => "multi_project_id",
-            DiscardReason::MissingProsperodump => "missing_prosperodump_upload",
-            DiscardReason::InvalidProsperodump => "invalid_prosperodump",
-            DiscardReason::MissingMinidump => "missing_minidump_upload",
-            DiscardReason::InvalidMinidump => "invalid_minidump",
-            DiscardReason::SecurityReportType => "security_report_type",
-            DiscardReason::SecurityReport => "security_report",
-            DiscardReason::Cors => "cors",
-            DiscardReason::InvalidUnrealReport => "invalid_unreal_report",
-            DiscardReason::ProcessUnreal => "process_unreal",
-            DiscardReason::InvalidSignature => "invalid_signature",
-            DiscardReason::MissingSignature => "missing_signature",
-            DiscardReason::Payload => "payload",
-            DiscardReason::EmptyBody => "empty_body",
-            DiscardReason::InvalidBody => "invalid_body",
-            DiscardReason::InvalidJson => "invalid_json",
-            DiscardReason::InvalidMultipart => "invalid_multipart",
-            DiscardReason::InvalidMsgpack => "invalid_msgpack",
-            DiscardReason::InvalidProtobuf => "invalid_proto",
-            DiscardReason::InvalidTransaction => "invalid_transaction",
-            DiscardReason::InvalidEnvelope => "invalid_envelope",
-            DiscardReason::InvalidCompression => "invalid_compression",
-            DiscardReason::InvalidEventId => "invalid_event_id",
-            DiscardReason::InternalEnvelope => "internal_envelope",
-            DiscardReason::QueueFailed => "queue_failed",
-            DiscardReason::Timestamp => "timestamp",
-            DiscardReason::ProjectState => "project_state",
-            DiscardReason::ProjectStatePii => "project_state_pii",
-            DiscardReason::ProjectUnavailable => "project_unavailable",
-            DiscardReason::DuplicateItem => "duplicate_item",
-            DiscardReason::NoEventPayload => "no_event_payload",
-            DiscardReason::Internal => "internal",
-            DiscardReason::TransactionSampled => "transaction_sampled",
-            DiscardReason::InvalidReplayEvent => "invalid_replay",
-            DiscardReason::InvalidReplayEventNoPayload => "invalid_replay_no_payload",
-            DiscardReason::InvalidReplayEventPii => "invalid_replay_pii_scrubber_failed",
-            DiscardReason::InvalidReplayRecordingEvent => "invalid_replay_recording",
-            DiscardReason::InvalidReplayVideoEvent => "invalid_replay_video",
-            DiscardReason::InvalidReplayMissingRecording => "invalid_replay_missing_recording",
-            DiscardReason::Profiling(reason) => reason,
-            DiscardReason::InvalidLog => "invalid_log",
-            DiscardReason::InvalidTraceMetric => "invalid_trace_metric",
-            DiscardReason::InvalidSpan => "invalid_span",
-            DiscardReason::InvalidSpanAttachment => "invalid_span_attachment",
-            DiscardReason::InvalidTraceAttachment => "invalid_trace_attachment",
-            #[cfg(feature = "processing")]
-            DiscardReason::InvalidAttachmentRef => "invalid_placeholder_attachment",
-            DiscardReason::FeatureDisabled(_) => "feature_disabled",
-            DiscardReason::TransactionAttachment => "transaction_attachment",
-            DiscardReason::InvalidCheckIn => "invalid_check_in",
-            DiscardReason::MissingDynamicSamplingContext => "missing_dsc",
-            DiscardReason::InvalidDynamicSamplingContext => "invalid_dsc",
-            DiscardReason::ObjectstoreUploadFailed => "objectstore_upload_failed",
-        }
-    }
-}
-
-impl fmt::Display for DiscardReason {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.name())
-    }
-}
-
-/// Similar to [`ItemType`] but it does not have any additional information in the
-/// Unknown variant so that it can derive [`Copy`] and be used from [`DiscardReason`].
-/// The variants should be the same as [`ItemType`] except for `Attachment` which has a
-/// [`DiscardAttachmentType`] parameter.
-#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub enum DiscardItemType {
-    /// Event payload encoded in JSON.
-    Event,
-    /// Transaction event payload encoded in JSON.
-    Transaction,
-    /// Security report event payload encoded in JSON.
-    Security,
-    /// Raw payload of an arbitrary attachment.
-    Attachment(DiscardAttachmentType),
-    /// Multipart form data collected into a stream of JSON tuples.
-    FormData,
-    /// Security report as sent by the browser in JSON.
-    RawSecurity,
-    /// Raw compressed UE4 crash report.
-    UnrealReport,
-    /// User feedback encoded as JSON.
-    UserReport,
-    /// Session update data.
-    Session,
-    /// Aggregated session data.
-    Sessions,
-    /// Individual metrics in text encoding.
-    Statsd,
-    /// Buckets of preaggregated metrics encoded as JSON.
-    MetricBuckets,
-    /// Client internal report (eg: outcomes).
-    ClientReport,
-    /// Profile event payload encoded as JSON.
-    Profile,
-    /// Replay metadata and breadcrumb payload.
-    ReplayEvent,
-    /// Replay Recording data.
-    ReplayRecording,
-    /// Replay Video data.
-    ReplayVideo,
-    /// Monitor check-in encoded as JSON.
-    CheckIn,
-    /// A log for the log product, not internal logs.
-    Log,
-    /// A trace metric item.
-    TraceMetric,
-    /// A standalone span.
-    Span,
-    /// UserReport as an Event
-    UserReportV2,
-    /// ProfileChunk is a chunk of a profiling session.
-    ProfileChunk,
-    /// An integration item.
-    Integration,
-    /// A new item type that is yet unknown by this version of Relay.
-    ///
-    /// By default, items of this type are forwarded without modification. Processing Relays and
-    /// Relays explicitly configured to do so will instead drop those items. This allows
-    /// forward-compatibility with new item types where we expect outdated Relays.
-    Unknown,
-    // Keep `Unknown` last in the list. Add new items above `Unknown`.
-}
-
-impl DiscardItemType {
-    /// Returns the enum variant as string representation in snake case.
-    ///
-    /// For example, `DiscardItemType::UserReportV2` gets converted into `user_report_v2`.
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Unknown => "unknown",
-            Self::Event => "event",
-            Self::Transaction => "transaction",
-            Self::Security => "security",
-            Self::Attachment(DiscardAttachmentType::Attachment) => "attachment:attachment",
-            Self::Attachment(DiscardAttachmentType::Minidump) => "attachment:minidump",
-            Self::Attachment(DiscardAttachmentType::AppleCrashReport) => {
-                "attachment:apple_crash_report"
-            }
-            Self::Attachment(DiscardAttachmentType::EventPayload) => "attachment:event_payload",
-            Self::Attachment(DiscardAttachmentType::Breadcrumbs) => "attachment:breadcrumbs",
-            Self::Attachment(DiscardAttachmentType::Prosperodump) => "attachment:prosperodump",
-            Self::Attachment(DiscardAttachmentType::NnswitchDyingMessage) => {
-                "attachment:nnswitch_dying_message"
-            }
-            Self::Attachment(DiscardAttachmentType::UnrealContext) => "attachment:unreal_context",
-            Self::Attachment(DiscardAttachmentType::UnrealLogs) => "attachment:unreal_logs",
-            Self::Attachment(DiscardAttachmentType::ViewHierarchy) => "attachment:view_hierarchy",
-            Self::FormData => "form_data",
-            Self::RawSecurity => "raw_security",
-            Self::UnrealReport => "unreal_report",
-            Self::UserReport => "user_report",
-            Self::Session => "session",
-            Self::Sessions => "sessions",
-            Self::Statsd => "statsd",
-            Self::MetricBuckets => "metric_buckets",
-            Self::ClientReport => "client_report",
-            Self::Profile => "profile",
-            Self::ReplayEvent => "replay_event",
-            Self::ReplayRecording => "replay_recording",
-            Self::ReplayVideo => "replay_video",
-            Self::CheckIn => "check_in",
-            Self::Log => "log",
-            Self::TraceMetric => "trace_metric",
-            Self::Span => "span",
-            Self::UserReportV2 => "user_report_v2",
-            Self::ProfileChunk => "profile_chunk",
-            Self::Integration => "integration",
-        }
-    }
-}
-
-impl From<&ItemType> for DiscardItemType {
-    fn from(value: &ItemType) -> Self {
-        match value {
-            ItemType::Event => Self::Event,
-            ItemType::Transaction => Self::Transaction,
-            ItemType::Security => Self::Security,
-            ItemType::Attachment => Self::Attachment(DiscardAttachmentType::Attachment),
-            ItemType::FormData => Self::FormData,
-            ItemType::RawSecurity => Self::RawSecurity,
-            ItemType::UnrealReport => Self::UnrealReport,
-            ItemType::UserReport => Self::UserReport,
-            ItemType::Session => Self::Session,
-            ItemType::Sessions => Self::Sessions,
-            ItemType::Statsd => Self::Statsd,
-            ItemType::MetricBuckets => Self::MetricBuckets,
-            ItemType::ClientReport => Self::ClientReport,
-            ItemType::Profile => Self::Profile,
-            ItemType::ReplayEvent => Self::ReplayEvent,
-            ItemType::ReplayRecording => Self::ReplayRecording,
-            ItemType::ReplayVideo => Self::ReplayVideo,
-            ItemType::CheckIn => Self::CheckIn,
-            ItemType::Log => Self::Log,
-            ItemType::TraceMetric => Self::TraceMetric,
-            ItemType::Span => Self::Span,
-            ItemType::UserReportV2 => Self::UserReportV2,
-            ItemType::ProfileChunk => Self::ProfileChunk,
-            ItemType::Integration => Self::Integration,
-            ItemType::Unknown(_) => Self::Unknown,
-        }
-    }
-}
-
-impl From<ItemType> for DiscardItemType {
-    fn from(value: ItemType) -> Self {
-        From::from(&value)
-    }
-}
-
-impl From<&AttachmentType> for DiscardItemType {
-    fn from(value: &AttachmentType) -> Self {
-        Self::Attachment(value.into())
-    }
-}
-
-impl From<AttachmentType> for DiscardItemType {
-    fn from(value: AttachmentType) -> Self {
-        From::from(&value)
-    }
-}
-
-/// Similar to [`AttachmentType`] but it does not have any additional information in the
-/// Unknown variant so that it can derive [`Copy`] and be used from [`DiscardReason`].
-/// The variants should be the same as [`AttachmentType`].
-#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub enum DiscardAttachmentType {
-    /// A regular attachment without special meaning.
-    Attachment,
-    /// A minidump crash report (binary data).
-    Minidump,
-    /// An apple crash report (text data).
-    AppleCrashReport,
-    /// A msgpack-encoded event payload submitted as part of multipart uploads.
-    EventPayload,
-    /// A msgpack-encoded list of payloads.
-    Breadcrumbs,
-    /// A Nintendo switch dying message.
-    NnswitchDyingMessage,
-    // A prosperodump crash report (binary data)
-    Prosperodump,
-    /// Binary attachment present in Unreal 4 events containing event context information.
-    UnrealContext,
-    /// Binary attachment present in Unreal 4 events containing event Logs.
-    UnrealLogs,
-    /// An application UI view hierarchy (json payload).
-    ViewHierarchy,
-}
-
-impl From<&AttachmentType> for DiscardAttachmentType {
-    fn from(value: &AttachmentType) -> Self {
-        match value {
-            AttachmentType::Attachment => Self::Attachment,
-            AttachmentType::Minidump => Self::Minidump,
-            AttachmentType::AppleCrashReport => Self::AppleCrashReport,
-            AttachmentType::EventPayload => Self::EventPayload,
-            AttachmentType::Breadcrumbs => Self::Breadcrumbs,
-            AttachmentType::Prosperodump => Self::Prosperodump,
-            AttachmentType::NintendoSwitchDyingMessage => Self::NnswitchDyingMessage,
-            AttachmentType::UnrealContext => Self::UnrealContext,
-            AttachmentType::UnrealLogs => Self::UnrealLogs,
-            AttachmentType::ViewHierarchy => Self::ViewHierarchy,
-        }
-    }
-}
-
-impl From<AttachmentType> for DiscardAttachmentType {
-    fn from(value: AttachmentType) -> Self {
-        From::from(&value)
-    }
-}
-
-impl fmt::Display for DiscardItemType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
-}
-
-/// Raw representation of an outcome for serialization.
-///
-/// The JSON serialization of this structure is placed on the Kafka topic and used in the HTTP
-/// endpoints. To create a new outcome, use [`TrackOutcome`], instead.
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct TrackRawOutcome {
-    /// The timespan of the event outcome.
-    timestamp: String,
-    /// Organization id.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    org_id: Option<OrganizationId>,
-    /// Project id.
-    project_id: ProjectId,
-    /// The DSN project key id.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    key_id: Option<u64>,
-    /// The outcome.
-    outcome: OutcomeId,
-    /// Reason for the outcome.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    reason: Option<String>,
-    /// The event id.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    event_id: Option<EventId>,
-    /// The client ip address.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    remote_addr: Option<String>,
-    /// The source of the outcome (which Relay sent it)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    source: Option<String>,
-    /// The event's data category.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub category: Option<u8>,
-    /// The number of events or total attachment size in bytes.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub quantity: Option<u32>,
-}
-
-impl TrackRawOutcome {
-    fn from_outcome(msg: TrackOutcome, config: &Config) -> Self {
-        let reason = msg.outcome.to_reason().map(|reason| reason.to_string());
-
-        // convert to a RFC 3339 formatted date with the shape YYYY-MM-DDTHH:MM:SS.mmmmmmZ
-        // e.g. something like: "2019-09-29T09:46:40.123456Z"
-        let timestamp = msg.timestamp.to_rfc3339_opts(SecondsFormat::Micros, true);
-
-        let org_id = match msg.scoping.organization_id.value() {
-            0 => None,
-            id => Some(OrganizationId::new(id)),
-        };
-
-        // since TrackOutcome objects come only from this Relay (and not any downstream
-        // Relays), set the source to whatever our current outcome source is.
-        let source = config.outcome_source().map(str::to_owned);
-
-        TrackRawOutcome {
-            timestamp,
-            org_id,
-            project_id: msg.scoping.project_id,
-            key_id: msg.scoping.key_id,
-            outcome: msg.outcome.to_outcome_id(),
-            reason,
-            event_id: msg.event_id,
-            remote_addr: msg.remote_addr.map(|addr| addr.to_string()),
-            source,
-            category: msg.category.value(),
-            quantity: Some(msg.quantity),
-        }
-    }
-
-    #[cfg(feature = "processing")]
-    fn is_billing(&self) -> bool {
-        matches!(self.outcome, OutcomeId::ACCEPTED | OutcomeId::RATE_LIMITED)
-    }
-}
-
-impl TrackOutcomeLike for TrackRawOutcome {
-    fn reason(&self) -> Option<Cow<'_, str>> {
-        self.reason.as_ref().map(|s| s.into())
-    }
-
-    fn outcome_id(&self) -> OutcomeId {
-        self.outcome
-    }
-
-    fn quantity(&self) -> Option<u32> {
-        self.quantity
-    }
-
-    fn category(&self) -> DataCategory {
-        match self.category {
-            Some(cat) => DataCategory::try_from(cat).unwrap_or(DataCategory::Unknown),
-            None => DataCategory::Unknown,
-        }
-    }
-}
-
-impl Interface for TrackRawOutcome {}
-
-impl FromMessage<Self> for TrackRawOutcome {
-    type Response = NoResponse;
-
-    fn from_message(message: Self, _: ()) -> Self {
-        message
-    }
-}
-
-/// Outcome producer backend via HTTP as [`TrackRawOutcome`].
-#[derive(Debug)]
-struct HttpOutcomeProducer {
-    config: Arc<Config>,
-    upstream_relay: Addr<UpstreamRelay>,
-    unsent_outcomes: Vec<TrackRawOutcome>,
-    flush_handle: SleepHandle,
-}
-
-impl HttpOutcomeProducer {
-    pub fn new(config: Arc<Config>, upstream_relay: Addr<UpstreamRelay>) -> Self {
-        Self {
-            config,
-            upstream_relay,
-            unsent_outcomes: Vec::new(),
-            flush_handle: SleepHandle::idle(),
-        }
-    }
-
-    fn send_batch(&mut self) {
-        self.flush_handle.reset();
-
-        if self.unsent_outcomes.is_empty() {
-            relay_log::warn!("unexpected send_batch scheduled with no outcomes to send");
-            return;
-        } else {
-            relay_log::trace!(
-                "sending outcome batch of size {}",
-                self.unsent_outcomes.len()
-            );
-        }
-
-        let request = SendOutcomes {
-            outcomes: mem::take(&mut self.unsent_outcomes),
-        };
-
-        let upstream_relay = self.upstream_relay.clone();
-
-        relay_system::spawn!(async move {
-            match upstream_relay.send(SendQuery(request)).await {
-                Ok(_) => relay_log::trace!("outcome batch sent"),
-                Err(error) => {
-                    relay_log::error!(error = &error as &dyn Error, "outcome batch sending failed")
-                }
-            }
-        });
-    }
-
-    fn handle_message(&mut self, message: TrackRawOutcome) {
-        relay_log::trace!("batching outcome");
-        self.unsent_outcomes.push(message);
-
-        if self.unsent_outcomes.len() >= self.config.outcome_batch_size() {
-            self.send_batch();
-        } else if self.flush_handle.is_idle() {
-            self.flush_handle.set(self.config.outcome_batch_interval());
-        }
-    }
-}
-
-impl Service for HttpOutcomeProducer {
-    type Interface = TrackRawOutcome;
-
-    async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        loop {
-            tokio::select! {
-                // Prioritize flush over receiving messages to prevent starving.
-                biased;
-
-                () = &mut self.flush_handle => self.send_batch(),
-                Some(message) = rx.recv() => self.handle_message(message),
-                else => break,
-            }
-        }
     }
 }
 
@@ -1108,62 +151,15 @@ impl Service for ClientReportOutcomeProducer {
     }
 }
 
-/// Outcomes producer backend for Kafka.
-///
-/// Internally, this type creates at least one Kafka producer for the cluster of the `outcomes`
-/// topic assignment. If the `outcomes-billing` topic specifies a different cluster, it creates a
-/// second producer.
-///
-/// Use `KafkaOutcomesProducer::billing` for outcomes that are critical to billing (see
-/// `is_billing`), otherwise use `KafkaOutcomesProducer::default`. This will return the correct
-/// producer instance internally.
-#[cfg(feature = "processing")]
-#[derive(Debug)]
-struct KafkaOutcomesProducer {
-    client: KafkaClient,
-}
-
-#[cfg(feature = "processing")]
-impl KafkaOutcomesProducer {
-    /// Creates and connects the Kafka producers.
-    ///
-    /// If the given Kafka configuration parameters are invalid, or an error
-    /// happens while connecting to the broker, an error is returned.
-    pub fn create(config: &Config) -> anyhow::Result<Self> {
-        let mut client_builder = KafkaClient::builder();
-
-        for topic in &[KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
-            let kafka_config = config
-                .kafka_configs(*topic)
-                .map_err(|e| ServiceError::Kafka(e.to_string()))?;
-            client_builder = client_builder
-                .add_kafka_topic_config(*topic, &kafka_config, config.kafka_validate_topics())
-                .map_err(|e| ServiceError::Kafka(e.to_string()))?;
-        }
-
-        Ok(Self {
-            client: client_builder.build(),
-        })
-    }
-}
-
 /// Produces [`Outcome`]s to a configurable backend.
-///
-/// There are two variants based on the source of outcomes. When logging outcomes, [`TrackOutcome`]
-/// should be heavily preferred. When processing outcomes from endpoints, [`TrackRawOutcome`] can be
-/// used instead.
 ///
 /// The backend is configured through the `outcomes` configuration object and can be:
 ///
-///  1. Kafka in processing mode
-///  2. Upstream Relay via batch HTTP request in point-of-presence configuration
-///  3. Upstream Relay via client reports in external configuration
-///  4. (default) Disabled
+///  1. Metrics
+///  2. Upstream Relay via client reports in external configuration
+///  3. (default) Disabled
 #[derive(Debug)]
-pub enum OutcomeProducer {
-    TrackOutcome(TrackOutcome),
-    TrackRawOutcome(TrackRawOutcome),
-}
+pub struct OutcomeProducer(TrackOutcome);
 
 impl Interface for OutcomeProducer {}
 
@@ -1171,31 +167,30 @@ impl FromMessage<TrackOutcome> for OutcomeProducer {
     type Response = NoResponse;
 
     fn from_message(message: TrackOutcome, _: ()) -> Self {
-        Self::TrackOutcome(message)
+        Self(message)
     }
 }
 
-impl FromMessage<TrackRawOutcome> for OutcomeProducer {
-    type Response = NoResponse;
+fn send_outcome_metric(message: &TrackOutcome, to: &'static str) {
+    let outcome_name = match message.outcome {
+        Outcome::Accepted => "accepted",
+        Outcome::Filtered(_) | Outcome::FilteredSampling(_) => "filtered",
+        Outcome::RateLimited(_) => "rate_limited",
+        Outcome::Invalid(_) => "invalid",
+        Outcome::Abuse => "abuse",
+        Outcome::ClientDiscard(_) => "client_discard",
+    };
 
-    fn from_message(message: TrackRawOutcome, _: ()) -> Self {
-        Self::TrackRawOutcome(message)
-    }
-}
-
-fn send_outcome_metric(message: &impl TrackOutcomeLike, to: &'static str) {
-    if let Some(quantity) = message.quantity() {
-        metric!(
-            counter(RelayCounters::OutcomeQuantity) += quantity.into(),
-            category = message.category().name(),
-            outcome = message.tag_name(),
-            to = to,
-        );
-    }
+    metric!(
+        counter(RelayCounters::OutcomeQuantity) += message.quantity.into(),
+        category = message.category.name(),
+        outcome = outcome_name,
+        to = to,
+    );
     metric!(
         counter(RelayCounters::Outcomes) += 1,
-        reason = message.reason().as_deref().unwrap_or(""),
-        outcome = message.tag_name(),
+        reason = message.outcome.to_reason().unwrap_or_default(),
+        outcome = outcome_name,
         to = to,
     );
 }
@@ -1203,106 +198,36 @@ fn send_outcome_metric(message: &impl TrackOutcomeLike, to: &'static str) {
 #[derive(Debug)]
 enum OutcomeBroker {
     ClientReport(Addr<TrackOutcome>),
-    Http(Addr<TrackRawOutcome>),
-    #[cfg(feature = "processing")]
-    Kafka(KafkaOutcomesProducer),
+    Metric(Addr<Aggregator>),
     Disabled,
 }
 
 impl OutcomeBroker {
     fn handle_message(&self, message: OutcomeProducer, config: &Config) {
-        relay_log::with_scope(
-            |_| {},
-            || match message {
-                OutcomeProducer::TrackOutcome(msg) => self.handle_track_outcome(msg, config),
-                OutcomeProducer::TrackRawOutcome(msg) => self.handle_track_raw_outcome(msg),
-            },
-        )
-    }
-
-    #[cfg(feature = "processing")]
-    fn send_kafka_message(&self, producer: &KafkaOutcomesProducer, message: TrackRawOutcome) {
-        relay_log::trace!("Tracking kafka outcome: {message:?}");
-
-        // Dispatch to the correct topic and cluster based on the kind of outcome.
-        let topic = if message.is_billing() {
-            KafkaTopic::OutcomesBilling
-        } else {
-            KafkaTopic::Outcomes
-        };
-
-        if let Err(error) = producer.client.send_message(topic, &message) {
-            relay_log::error!(error = &error as &dyn Error, "failed to produce outcome");
-        }
+        relay_log::with_scope(|_| {}, || self.handle_track_outcome(message.0, config))
     }
 
     fn handle_track_outcome(&self, message: TrackOutcome, config: &Config) {
         match self {
-            #[cfg(feature = "processing")]
-            Self::Kafka(kafka_producer) => {
-                send_outcome_metric(&message, "kafka");
-                let raw_message = TrackRawOutcome::from_outcome(message, config);
-                self.send_kafka_message(kafka_producer, raw_message);
+            Self::Metric(metrics) => {
+                send_outcome_metric(&message, "metric");
+                metrics.send(MergeBuckets {
+                    project_key: message.scoping.project_key,
+                    buckets: vec![outcome::metric::to_metric(&message, config)],
+                })
             }
             Self::ClientReport(producer) => {
                 send_outcome_metric(&message, "client_report");
                 producer.send(message);
             }
-            Self::Http(producer) => {
-                send_outcome_metric(&message, "http");
-                producer.send(TrackRawOutcome::from_outcome(message, config));
-            }
             Self::Disabled => (),
         }
-    }
-
-    fn handle_track_raw_outcome(&self, message: TrackRawOutcome) {
-        match self {
-            #[cfg(feature = "processing")]
-            Self::Kafka(kafka_producer) => {
-                send_outcome_metric(&message, "kafka");
-                self.send_kafka_message(kafka_producer, message);
-            }
-            Self::Http(producer) => {
-                send_outcome_metric(&message, "http");
-                producer.send(message);
-            }
-            Self::ClientReport(_) => (),
-            Self::Disabled => (),
-        }
-    }
-}
-
-#[cfg(feature = "processing")]
-impl relay_kafka::Message for TrackRawOutcome {
-    fn key(&self) -> Option<relay_kafka::Key> {
-        // At the moment, we support outcomes with optional EventId.
-        // Here we create a fake EventId, when we don't have the real one, so that we can
-        // create a kafka message key that spreads the events nicely over all the
-        // kafka consumer groups.
-        let key = self.event_id.unwrap_or_default().0;
-        Some(key.as_u128())
-    }
-
-    fn variant(&self) -> &'static str {
-        "outcome"
-    }
-
-    fn headers(&self) -> Option<&BTreeMap<String, String>> {
-        None
-    }
-
-    fn serialize(&self) -> Result<SerializationOutput<'_>, ClientError> {
-        let serialized = serde_json::to_vec(self)?;
-        Ok(SerializationOutput::Json(Cow::Owned(serialized)))
     }
 }
 
 #[derive(Debug)]
 enum ProducerInner {
-    #[cfg(feature = "processing")]
-    Kafka(KafkaOutcomesProducer),
-    Http(HttpOutcomeProducer),
+    Metric(Addr<Aggregator>),
     ClientReport(ClientReportOutcomeProducer),
     Disabled,
 }
@@ -1310,9 +235,7 @@ enum ProducerInner {
 impl ProducerInner {
     fn start(self) -> OutcomeBroker {
         match self {
-            #[cfg(feature = "processing")]
-            ProducerInner::Kafka(inner) => OutcomeBroker::Kafka(inner),
-            ProducerInner::Http(inner) => OutcomeBroker::Http(inner.start_detached()),
+            ProducerInner::Metric(inner) => OutcomeBroker::Metric(inner),
             ProducerInner::ClientReport(inner) => {
                 OutcomeBroker::ClientReport(inner.start_detached())
             }
@@ -1331,22 +254,13 @@ pub struct OutcomeProducerService {
 impl OutcomeProducerService {
     pub fn create(
         config: Arc<Config>,
-        upstream_relay: Addr<UpstreamRelay>,
         envelope_processor: Addr<EnvelopeProcessor>,
+        metric_aggregator: Addr<Aggregator>,
     ) -> anyhow::Result<Self> {
         let inner = match config.emit_outcomes() {
-            #[cfg(feature = "processing")]
-            EmitOutcomes::AsOutcomes if config.processing_enabled() => {
-                // We emit raw outcomes, and accept raw outcomes emitted by downstream Relays
-                relay_log::info!("Configured to emit outcomes via kafka");
-                ProducerInner::Kafka(KafkaOutcomesProducer::create(&config)?)
-            }
             EmitOutcomes::AsOutcomes => {
-                relay_log::info!("Configured to emit outcomes via http");
-                ProducerInner::Http(HttpOutcomeProducer::new(
-                    Arc::clone(&config),
-                    upstream_relay,
-                ))
+                relay_log::info!("Configured to emit outcomes via metrics");
+                ProducerInner::Metric(metric_aggregator)
             }
             EmitOutcomes::AsClientReports => {
                 // We emit client reports, and we do NOT accept raw outcomes
@@ -1379,53 +293,5 @@ impl Service for OutcomeProducerService {
             broker.handle_message(message, &config);
         }
         relay_log::info!("OutcomeProducer stopped.");
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn rule_category_roundtrip() {
-        let input = "123,1004,1500,1403,1403,1404,1000";
-        let rule_ids = MatchedRuleIds::parse(input).unwrap();
-        let rule_categories = RuleCategories::from(rule_ids);
-
-        let serialized = rule_categories.to_string();
-        assert_eq!(&serialized, "1000,1004,1400,1500,0");
-
-        assert_eq!(
-            MatchedRuleIds::parse(&serialized).unwrap(),
-            MatchedRuleIds([1000, 1004, 1400, 1500, 0].map(RuleId).into())
-        );
-    }
-
-    #[test]
-    fn test_outcome_discard_reason() {
-        assert_eq!(
-            Some(Cow::from("too_large:attachment:attachment")),
-            Outcome::Invalid(DiscardReason::ItemTooLarge(DiscardItemType::Attachment(
-                DiscardAttachmentType::Attachment
-            )))
-            .to_reason()
-        );
-        assert_eq!(
-            Some(Cow::from("too_large:unknown")),
-            Outcome::Invalid(DiscardReason::ItemTooLarge(DiscardItemType::Unknown)).to_reason()
-        );
-        assert_eq!(
-            Some(Cow::from("too_large:unreal_report")),
-            Outcome::Invalid(DiscardReason::ItemTooLarge(DiscardItemType::UnrealReport))
-                .to_reason()
-        );
-
-        assert_eq!(
-            Some(Cow::from("too_large:attachment:breadcrumbs")),
-            Outcome::Invalid(DiscardReason::ItemTooLarge(DiscardItemType::Attachment(
-                DiscardAttachmentType::Breadcrumbs
-            )))
-            .to_reason()
-        );
     }
 }

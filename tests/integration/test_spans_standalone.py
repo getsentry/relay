@@ -9,7 +9,7 @@ import pytest
 # Some profiles from Sentry
 performance_score_profiles = [
     {
-        "name": "Chrome",
+        "name": "Firefox",
         "scoreComponents": [
             {
                 "measurement": "fcp",
@@ -46,18 +46,18 @@ performance_score_profiles = [
                 {
                     "op": "eq",
                     "name": "event.contexts.browser.name",
-                    "value": "Chrome",
+                    "value": "Firefox",
                 },
                 {
                     "op": "eq",
                     "name": "span.attributes.browser.name.value",
-                    "value": "Chrome",
+                    "value": "Firefox",
                 },
             ],
         },
     },
     {
-        "name": "Chrome INP",
+        "name": "Firefox INP",
         "scoreComponents": [
             {
                 "measurement": "inp",
@@ -73,22 +73,12 @@ performance_score_profiles = [
                 {
                     "op": "eq",
                     "name": "event.contexts.browser.name",
-                    "value": "Chrome",
-                },
-                {
-                    "op": "eq",
-                    "name": "event.contexts.browser.name",
-                    "value": "Google Chrome",
+                    "value": "Firefox",
                 },
                 {
                     "op": "eq",
                     "name": "span.attributes.browser.name.value",
-                    "value": "Chrome",
-                },
-                {
-                    "op": "eq",
-                    "name": "span.attributes.browser.name.value",
-                    "value": "Google Chrome",
+                    "value": "Firefox",
                 },
             ],
         },
@@ -118,12 +108,12 @@ def lcp_cls_inp_differences(mode):
     if mode == "legacy":
         return {
             # The legacy pipeline extracts this attribute from `sentry_tags`.
-            "sentry.browser.name": {"type": "string", "value": "Chrome"},
+            "sentry.browser.name": {"type": "string", "value": "Firefox"},
         }
     else:
         return {
             # We additionally extract the browser version for EAP items
-            "browser.version": {"type": "string", "value": "141.0.0"},
+            "browser.version": {"type": "string", "value": "42.0"},
             # New for EAP items
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
@@ -149,8 +139,11 @@ def test_lcp_span(
     project_config["config"]["performanceScore"] = {
         "profiles": performance_score_profiles
     }
+    project_config["config"].setdefault(
+        "features", ["organizations:relay-generate-billing-outcome"]
+    )
     if mode == "v2":
-        project_config["config"].setdefault("features", []).append(
+        project_config["config"]["features"].append(
             "projects:span-v2-experimental-processing"
         )
 
@@ -161,13 +154,12 @@ def test_lcp_span(
     envelope = envelope_with_spans(
         {
             "data": {
-                "sentry.origin": "auto.http.browser.lcp",
                 "sentry.op": "ui.webvital.lcp",
                 "release": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
                 "environment": "prod",
                 "replay_id": "3d76a6311de149b9b3f560827ea0ecf9",
                 "transaction": "/insights/projects/",
-                "user_agent.original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+                "user_agent.original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
                 "client.address": "{{auto}}",
                 "sentry.exclusive_time": 0,
                 "sentry.pageload.span_id": "8a6626cc9bdd5d9b",
@@ -222,7 +214,7 @@ def test_lcp_span(
                 "type": "string",
                 "value": "https://s1.sentry-cdn.com/../sentry-loader.svg",
             },
-            "browser.name": {"type": "string", "value": "Chrome"},
+            "browser.name": {"type": "string", "value": "Firefox"},
             "sentry.description": {"type": "string", "value": "<unknown>"},
             "sentry.dsc.transaction": {
                 "type": "string",
@@ -252,8 +244,7 @@ def test_lcp_span(
             "user_agent.original": {
                 "type": "string",
                 "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 "
-                "Safari/537.36",
+                "AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
             },
             # Attributes computed by performace score normalization
             "score.lcp": {
@@ -295,7 +286,7 @@ def test_lcp_span(
         "project_id": 42,
         "received": time_within(ts),
         "retention_days": 90,
-        "accepted_outcome_emitted": True,
+        "accepted_outcome_emitted": False,
         "span_id": "9fd17741416e8e4e",
         "start_timestamp": time_within(ts.timestamp() - 0.5),
         "status": "ok",
@@ -326,7 +317,7 @@ def test_lcp_span(
             "type": "c",
             "value": 1.0,
             "timestamp": time_within_delta(ts),
-            "tags": {"is_segment": "false"},
+            "tags": {"is_segment": "false", "billing_outcome_emitted": "true"},
             "retention_days": 90,
             "received_at": time_within(ts, precision="s"),
         },
@@ -350,8 +341,12 @@ def test_cls_span(
     project_config["config"]["performanceScore"] = {
         "profiles": performance_score_profiles
     }
+    project_config["config"].setdefault("features", []).append(
+        "organizations:relay-generate-billing-outcome"
+    )
+
     if mode == "v2":
-        project_config["config"].setdefault("features", []).append(
+        project_config["config"]["features"].append(
             "projects:span-v2-experimental-processing"
         )
 
@@ -362,13 +357,12 @@ def test_cls_span(
     envelope = envelope_with_spans(
         {
             "data": {
-                "sentry.origin": "auto.http.browser.cls",
                 "sentry.op": "ui.webvital.cls",
                 "release": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
                 "environment": "prod",
                 "replay_id": "3d76a6311de149b9b3f560827ea0ecf9",
                 "transaction": "/insights/projects/",
-                "user_agent.original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+                "user_agent.original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
                 "client.address": "{{auto}}",
                 "sentry.exclusive_time": 0,
                 "sentry.pageload.span_id": "8a6626cc9bdd5d9b",
@@ -426,7 +420,7 @@ def test_cls_span(
                 "value": "div.app-1azrk9k.etjky0h0 > AppContainer > BodyContainer > BaseFooter",
             },
             "cls.source.3": {"type": "string", "value": "<unknown>"},
-            "browser.name": {"type": "string", "value": "Chrome"},
+            "browser.name": {"type": "string", "value": "Firefox"},
             "sentry.description": {
                 "type": "string",
                 "value": "AppContainer > NavContent > MobileTopbar > StyledButton",
@@ -459,8 +453,7 @@ def test_cls_span(
             "user_agent.original": {
                 "type": "string",
                 "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 "
-                "Safari/537.36",
+                "AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
             },
             # Attributes computed by performace score normalization
             "score.cls": {
@@ -502,7 +495,7 @@ def test_cls_span(
         "project_id": 42,
         "received": time_within(ts),
         "retention_days": 90,
-        "accepted_outcome_emitted": True,
+        "accepted_outcome_emitted": False,
         "span_id": "be6fa380c55f2fcb",
         "start_timestamp": time_within(ts.timestamp() - 0.5),
         "status": "ok",
@@ -533,7 +526,7 @@ def test_cls_span(
             "type": "c",
             "value": 1.0,
             "timestamp": time_within_delta(ts),
-            "tags": {"is_segment": "false"},
+            "tags": {"is_segment": "false", "billing_outcome_emitted": "true"},
             "retention_days": 90,
             "received_at": time_within(ts, precision="s"),
         },
@@ -557,6 +550,9 @@ def test_inp_span(
     project_config["config"]["performanceScore"] = {
         "profiles": performance_score_profiles
     }
+    project_config["config"].setdefault("features", []).append(
+        "organizations:relay-generate-billing-outcome"
+    )
     if mode == "v2":
         project_config["config"].setdefault("features", []).append(
             "projects:span-v2-experimental-processing"
@@ -569,13 +565,12 @@ def test_inp_span(
     envelope = envelope_with_spans(
         {
             "data": {
-                "sentry.origin": "auto.http.browser.inp",
                 "sentry.op": "ui.interaction.click",
                 "release": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
                 "environment": "prod",
                 "replay_id": "3d76a6311de149b9b3f560827ea0ecf9",
                 "transaction": "/insights/projects/",
-                "user_agent.original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+                "user_agent.original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
                 "client.address": "{{auto}}",
                 "sentry.exclusive_time": 104,
             },
@@ -610,7 +605,7 @@ def test_inp_span(
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
             "browser.web_vital.inp.value": {"type": "double", "value": 104.0},
-            "browser.name": {"type": "string", "value": "Chrome"},
+            "browser.name": {"type": "string", "value": "Firefox"},
             "sentry.description": {
                 "type": "string",
                 "value": "<unknown>",
@@ -641,8 +636,7 @@ def test_inp_span(
             "user_agent.original": {
                 "type": "string",
                 "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 "
-                "Safari/537.36",
+                "AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
             },
             # Attributes computed by performace score normalization
             "score.inp": {
@@ -672,7 +666,7 @@ def test_inp_span(
         "project_id": 42,
         "received": time_within(ts),
         "retention_days": 90,
-        "accepted_outcome_emitted": True,
+        "accepted_outcome_emitted": False,
         "span_id": "a6f029fbe0e2389a",
         "start_timestamp": time_within(ts.timestamp() - 0.5),
         "status": "ok",
@@ -703,7 +697,7 @@ def test_inp_span(
             "type": "c",
             "value": 1.0,
             "timestamp": time_within_delta(ts),
-            "tags": {"is_segment": "false"},
+            "tags": {"is_segment": "false", "billing_outcome_emitted": "true"},
             "retention_days": 90,
             "received_at": time_within(ts, precision="s"),
         },
@@ -810,12 +804,11 @@ def test_mobile_measurements(
     envelope = envelope_with_spans(
         {
             "data": {
-                "sentry.origin": "auto.http.browser.inp",
                 "sentry.op": "ui.interaction.click",
                 "release": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
                 "environment": "prod",
                 "replay_id": "3d76a6311de149b9b3f560827ea0ecf9",
-                "user_agent.original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+                "user_agent.original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
                 "client.address": "{{auto}}",
                 "sentry.exclusive_time": 104,
             },
@@ -829,6 +822,7 @@ def test_mobile_measurements(
             "origin": "mobile",
             "exclusive_time": 104,
             "measurements": {
+                "app_start_cold": {"value": 0.123, "unit": "millisecond"},
                 "frames_slow": {"value": 1},
                 "frames_frozen": {"value": 2},
                 "frames_total": {"value": 4},
@@ -848,7 +842,7 @@ def test_mobile_measurements(
     assert spans_consumer.get_span() == {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
-            "browser.name": {"type": "string", "value": "Chrome"},
+            "browser.name": {"type": "string", "value": "Firefox"},
             "sentry.description": {
                 "type": "string",
                 "value": "<unknown>",
@@ -877,8 +871,7 @@ def test_mobile_measurements(
             "user_agent.original": {
                 "type": "string",
                 "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 "
-                "Safari/537.36",
+                "AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
             },
             "stall_total_time": {"value": 4000.0, "type": "double"},
             "stall_percentage": {"value": 0.8, "type": "double"},
@@ -887,6 +880,16 @@ def test_mobile_measurements(
             "app.vitals.frames.total.count": {"value": 4.0, "type": "double"},
             "frames_frozen_rate": {"value": 0.5, "type": "double"},
             "frames_slow_rate": {"value": 0.25, "type": "double"},
+            "app.vitals.start.cold.value": {"value": 0.123, "type": "double"},
+            # These attributes are backfilled only in the V2 pipeline. In the legacy
+            # pipeline this logic doesn't exist.
+            **_if_dict(
+                mode == "v2",
+                {
+                    "app.vitals.start.value": {"value": 0.123, "type": "double"},
+                    "app.vitals.start.type": {"value": "cold", "type": "string"},
+                },
+            ),
             **lcp_cls_inp_differences(mode),
         },
         "downsampled_retention_days": 90,
@@ -897,9 +900,279 @@ def test_mobile_measurements(
         "project_id": 42,
         "received": time_within(ts),
         "retention_days": 90,
-        "accepted_outcome_emitted": True,
+        "accepted_outcome_emitted": False,
         "span_id": "a6f029fbe0e2389a",
         "start_timestamp": time_within(ts.timestamp() - 5),
         "status": "ok",
         "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
     }
+
+
+@pytest.mark.parametrize("mode", ["legacy", "v2"])
+@pytest.mark.parametrize("client_address_auto", [True, False])
+def test_ua_ip_inference(
+    mini_sentry, relay, relay_with_processing, spans_consumer, client_address_auto, mode
+):
+    """
+    Tests that IP addresses and user agent attributes are inferred.
+    """
+    spans_consumer = spans_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    if mode == "v2":
+        project_config["config"].setdefault("features", []).append(
+            "projects:span-v2-experimental-processing"
+        )
+
+    relay = relay(relay_with_processing())
+
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_spans(
+        {
+            "data": {
+                "sentry.op": "ui.webvital.lcp",
+                "release": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
+                "environment": "prod",
+                "replay_id": "3d76a6311de149b9b3f560827ea0ecf9",
+                "transaction": "/insights/projects/",
+                **_if_dict(client_address_auto, {"client.address": "{{auto}}"}),
+                "sentry.exclusive_time": 0,
+                "sentry.pageload.span_id": "8a6626cc9bdd5d9b",
+                "sentry.report_event": "navigation",
+            },
+            "description": "<unknown>",
+            "op": "ui.webvital.lcp",
+            "parent_span_id": "8a6626cc9bdd5d9b",
+            "span_id": "9fd17741416e8e4e",
+            "start_timestamp": ts.timestamp() - 0.5,
+            "timestamp": ts.timestamp(),
+            "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+            "origin": "auto.http.browser.lcp",
+            "exclusive_time": 0,
+            "measurements": {},
+            "segment_id": "8a6626cc9bdd5d9b",
+        },
+        trace_info={
+            "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+            "transaction": "/insights/projects/",
+        },
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    assert spans_consumer.get_span() == {
+        "attributes": {
+            "client.address": {"type": "string", "value": "127.0.0.1"},
+            "browser.name": {"type": "string", "value": "Firefox"},
+            "sentry.description": {"type": "string", "value": "<unknown>"},
+            "sentry.dsc.transaction": {
+                "type": "string",
+                "value": "/insights/projects/",
+            },
+            "sentry.dsc.project_id": {"type": "string", "value": "42"},
+            "sentry.dsc.trace_id": {
+                "type": "string",
+                "value": "d3d20f000885466b8c8f947c9b92b8d3",
+            },
+            "sentry.environment": {"type": "string", "value": "prod"},
+            "sentry.exclusive_time": {"type": "double", "value": 0.0},
+            "sentry.op": {"type": "string", "value": "ui.webvital.lcp"},
+            "sentry.origin": {"type": "string", "value": "auto.http.browser.lcp"},
+            "sentry.pageload.span_id": {"type": "string", "value": "8a6626cc9bdd5d9b"},
+            "sentry.release": {
+                "type": "string",
+                "value": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
+            },
+            "sentry.replay_id": {
+                "type": "string",
+                "value": "3d76a6311de149b9b3f560827ea0ecf9",
+            },
+            "sentry.report_event": {"type": "string", "value": "navigation"},
+            "sentry.segment.name": {"type": "string", "value": "/insights/projects/"},
+            "sentry.transaction": {"type": "string", "value": "/insights/projects/"},
+            "user_agent.original": {
+                "type": "string",
+                "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
+            },
+            **lcp_cls_inp_differences(mode),
+        },
+        "downsampled_retention_days": 90,
+        "end_timestamp": time_within(ts),
+        "key_id": 123,
+        "name": "ui.webvital.lcp",
+        "organization_id": 1,
+        "project_id": 42,
+        "received": time_within(ts),
+        "retention_days": 90,
+        "accepted_outcome_emitted": False,
+        "span_id": "9fd17741416e8e4e",
+        "start_timestamp": time_within(ts.timestamp() - 0.5),
+        "status": "ok",
+        "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+    }
+
+
+@pytest.mark.parametrize("mode", ["legacy", "v2"])
+@pytest.mark.parametrize("origin", ["manual", "auto.http.browser.lcp"])
+def test_name_inference(
+    mini_sentry, relay, relay_with_processing, spans_consumer, mode, origin
+):
+    """
+    Tests that span names are inferred.
+    """
+    spans_consumer = spans_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    if mode == "v2":
+        project_config["config"].setdefault("features", []).append(
+            "projects:span-v2-experimental-processing"
+        )
+    project_config["config"]["piiConfig"]["applications"]["data.'http.route'"] = [
+        "@anything:mask"
+    ]
+    project_config["config"]["piiConfig"]["applications"][
+        "$span.attributes.'http.route'.value"
+    ] = ["@anything:mask"]
+
+    relay = relay(relay_with_processing())
+
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_spans(
+        {
+            # The combination of op, `http.request.method`, and
+            # `http.route` means this span has its name synthesized as
+            # `GET https://example.com`.
+            "op": "http.client",
+            "data": {
+                "http.request.method": "GET",
+                "http.route": "https://example.com",
+            },
+            "description": "Test span",
+            "parent_span_id": "8a6626cc9bdd5d9b",
+            "span_id": "9fd17741416e8e4e",
+            "start_timestamp": ts.timestamp() - 0.5,
+            "timestamp": ts.timestamp(),
+            "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+            "origin": origin,
+            "exclusive_time": 0,
+            "measurements": {},
+            "segment_id": "8a6626cc9bdd5d9b",
+            "is_segment": False,
+        },
+        trace_info={
+            "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+            "transaction": "/insights/projects/",
+        },
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    # If the span's origin is "manual", the name should be the same as the description.
+    # Otherwise it should be backfilled according to conventions, which includes
+    # a redacted attribute.
+    if origin == "manual":
+        expected_name = "Test span"
+    else:
+        expected_name = "GET *******************"
+
+    # _meta unfortunately differs slightly between the pipelines
+    if mode == "v2":
+        meta = {
+            "attributes": {
+                "http.route": {
+                    "value": {
+                        "": {
+                            "len": 19,
+                            "rem": [
+                                [
+                                    "@anything:mask",
+                                    "m",
+                                    0,
+                                    19,
+                                ],
+                            ],
+                        },
+                    },
+                },
+            },
+        }
+    else:
+        meta = {
+            "attributes": {
+                "http.route": {
+                    "": {
+                        "len": 19,
+                        "rem": [
+                            [
+                                "@anything:mask",
+                                "m",
+                                0,
+                                19,
+                            ],
+                        ],
+                    },
+                },
+            }
+        }
+
+    assert spans_consumer.get_span() == {
+        "attributes": {
+            "client.address": {"type": "string", "value": "127.0.0.1"},
+            "browser.name": {"type": "string", "value": "Firefox"},
+            "http.request.method": {"type": "string", "value": "GET"},
+            "http.route": {"type": "string", "value": "*******************"},
+            "sentry.category": {"type": "string", "value": "http"},
+            "sentry.description": {"type": "string", "value": "Test span"},
+            "sentry.dsc.transaction": {
+                "type": "string",
+                "value": "/insights/projects/",
+            },
+            "sentry.dsc.project_id": {"type": "string", "value": "42"},
+            "sentry.dsc.trace_id": {
+                "type": "string",
+                "value": "d3d20f000885466b8c8f947c9b92b8d3",
+            },
+            "sentry.exclusive_time": {"type": "double", "value": 0.0},
+            "sentry.op": {"type": "string", "value": "http.client"},
+            "sentry.origin": {"type": "string", "value": origin},
+            "sentry.segment.id": {"type": "string", "value": "8a6626cc9bdd5d9b"},
+            "user_agent.original": {
+                "type": "string",
+                "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
+            },
+            **_if_dict(
+                mode == "v2",
+                {
+                    # The V2 pipeline backfills `sentry.action` from `http.method`.
+                    "sentry.action": {"type": "string", "value": "GET"}
+                },
+            ),
+            **lcp_cls_inp_differences(mode),
+        },
+        "downsampled_retention_days": 90,
+        "end_timestamp": time_within(ts),
+        "key_id": 123,
+        "name": expected_name,
+        "organization_id": 1,
+        "project_id": 42,
+        "received": time_within(ts),
+        "retention_days": 90,
+        "accepted_outcome_emitted": False,
+        "span_id": "9fd17741416e8e4e",
+        "start_timestamp": time_within(ts.timestamp() - 0.5),
+        "status": "ok",
+        "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+        "is_segment": False,
+        "parent_span_id": "8a6626cc9bdd5d9b",
+        "_meta": meta,
+    }
+
+
+def _if_dict(cond, then):
+    return then if cond else {}

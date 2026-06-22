@@ -258,6 +258,7 @@ impl fmt::Display for MatchedRuleIds {
 #[cfg(test)]
 mod tests {
     use chrono::TimeZone;
+    use relay_base_schema::project::ProjectId;
     use relay_protocol::RuleCondition;
     use similar_asserts::assert_eq;
     use std::str::FromStr;
@@ -299,6 +300,7 @@ mod tests {
         let mut dsc = DynamicSamplingContext {
             trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
             public_key: "12345678123456781234567812345678".parse().unwrap(),
+            project_id: Some(ProjectId::new(42)),
             release: None,
             environment: None,
             transaction: None,

@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use relay_cogs::{AppFeature, FeatureWeights};
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{OurLog, ourlog};
 use relay_filter::FilterStatKey;
@@ -104,6 +105,10 @@ impl processing::Processor for LogsProcessor {
     type Output = LogOutput;
     type Error = Error;
 
+    fn cogs() -> FeatureWeights {
+        AppFeature::Logs.into()
+    }
+
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
 
@@ -112,14 +117,11 @@ impl processing::Processor for LogsProcessor {
             .take_item_by(|item| matches!(*item.ty(), ItemType::Log))
         {
             LogItems::Container(container)
-        } else if let Some(integration) = envelope
-            .envelope_mut()
-            .take_item_by(|item| matches!(item.integration(), Some(Integration::Logs(_))))
-        {
-            LogItems::Integration(integration)
         } else {
-            // No log items found.
-            return None;
+            let integration = envelope
+                .envelope_mut()
+                .take_item_by(|item| matches!(item.integration(), Some(Integration::Logs(_))))?;
+            LogItems::Integration(integration)
         };
 
         // Duplicates which are not allowed to be in the envelope.
@@ -156,10 +158,10 @@ impl processing::Processor for LogsProcessor {
 
         process::normalize(&mut logs, ctx);
         filter::filter(&mut logs, ctx);
-
-        let mut logs = self.limiter.enforce_quotas(logs, ctx).await?;
-
         process::scrub(&mut logs, ctx);
+        process::normalize_derived(&mut logs);
+
+        let logs = self.limiter.enforce_quotas(logs, ctx).await?;
 
         Ok(Output::just(LogOutput(logs)))
     }

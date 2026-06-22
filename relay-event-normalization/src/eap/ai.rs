@@ -194,10 +194,10 @@ fn normalize_ai_costs(attributes: &mut Attributes, model_metadata: Option<&Model
 
     let tokens = ai::UsedTokens {
         input_tokens: get_tokens(GEN_AI__USAGE__INPUT_TOKENS),
-        input_cached_tokens: get_tokens(GEN_AI__USAGE__INPUT_TOKENS__CACHED),
-        input_cache_write_tokens: get_tokens(GEN_AI__USAGE__INPUT_TOKENS__CACHE_WRITE),
+        input_cached_tokens: get_tokens(GEN_AI__USAGE__CACHE_READ__INPUT_TOKENS),
+        input_cache_write_tokens: get_tokens(GEN_AI__USAGE__CACHE_CREATION__INPUT_TOKENS),
         output_tokens: get_tokens(GEN_AI__USAGE__OUTPUT_TOKENS),
-        output_reasoning_tokens: get_tokens(GEN_AI__USAGE__OUTPUT_TOKENS__REASONING),
+        output_reasoning_tokens: get_tokens(GEN_AI__USAGE__REASONING__OUTPUT_TOKENS),
     };
 
     let Some(costs) = ai::calculate_costs(model_cost, tokens, integration, platform_tag) else {
@@ -292,8 +292,8 @@ mod tests {
             "gen_ai.operation.type" => "ai_client".to_owned(),
             "gen_ai.usage.input_tokens" => 1000,
             "gen_ai.usage.output_tokens" => 2000,
-            "gen_ai.usage.output_tokens.reasoning" => 1000,
-            "gen_ai.usage.input_tokens.cached" => 500,
+            "gen_ai.usage.reasoning.output_tokens" => 1000,
+            "gen_ai.usage.cache_read.input_tokens" => 500,
             "gen_ai.request.model" => "claude-2.1".to_owned(),
         });
 
@@ -333,19 +333,19 @@ mod tests {
             "type": "double",
             "value": 2000.0
           },
+          "gen_ai.usage.cache_read.input_tokens": {
+            "type": "integer",
+            "value": 500
+          },
           "gen_ai.usage.input_tokens": {
             "type": "integer",
             "value": 1000
-          },
-          "gen_ai.usage.input_tokens.cached": {
-            "type": "integer",
-            "value": 500
           },
           "gen_ai.usage.output_tokens": {
             "type": "integer",
             "value": 2000
           },
-          "gen_ai.usage.output_tokens.reasoning": {
+          "gen_ai.usage.reasoning.output_tokens": {
             "type": "integer",
             "value": 1000
           },

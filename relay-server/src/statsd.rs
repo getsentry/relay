@@ -405,6 +405,11 @@ pub enum RelayTimers {
     EventProcessingSerialization,
     /// Time used to extract span metrics from an event.
     EventProcessingSpanMetricsExtraction,
+    /// Time in milliseconds spent in each processor.
+    ///
+    /// This metric is tagged with:
+    ///  - `processor`: The processor executed.
+    EventProcessingProcess,
     /// Time spent between the start of request handling and processing of the envelope.
     ///
     /// This includes streaming the request body, scheduling overheads, project config fetching,
@@ -647,6 +652,7 @@ impl TimerMetric for RelayTimers {
                 "event_processing.span_metrics_extraction"
             }
             RelayTimers::EventProcessingSerialization => "event_processing.serialization",
+            RelayTimers::EventProcessingProcess => "event_processing.process",
             RelayTimers::EnvelopeWaitTime => "event.wait_time",
             RelayTimers::EnvelopeProcessingTime => "event.processing_time",
             RelayTimers::EnvelopeTotalTime => "event.total_time",
@@ -961,6 +967,11 @@ pub enum RelayCounters {
     /// The amount of times PlayStation processing was attempted.
     #[cfg(all(sentry, feature = "processing"))]
     PlaystationProcessing,
+    /// The number of times the sampling project was unresolved.
+    ///
+    /// This metric is tagged with:
+    /// - `item`: what item the decision is taken for (transaction vs span).
+    SamplingProjectUnresolved,
     /// The number of times a sampling decision was made.
     ///
     /// This metric is tagged with:
@@ -1007,6 +1018,11 @@ pub enum RelayCounters {
     UnrealEndpointExpansion,
     /// The number of times that relay receives a compressed minidump.
     CompressedMinidump,
+    /// The number of times a trace metric has a nil trace ID.
+    ///
+    /// This metric is tagged with:
+    /// - `sdk`: low-cardinality client name
+    TraceMetricNilTraceId,
 }
 
 impl CounterMetric for RelayCounters {
@@ -1060,6 +1076,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::MetricDelayCount => "metrics.delay.count",
             #[cfg(all(sentry, feature = "processing"))]
             RelayCounters::PlaystationProcessing => "processing.playstation",
+            RelayCounters::SamplingProjectUnresolved => "sampling.project_unresolved",
             RelayCounters::SamplingDecision => "sampling.decision",
             RelayCounters::UploadKillswitched => "upload.killswitched",
             RelayCounters::UploadCreate => "upload.create",
@@ -1071,6 +1088,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ErrorProcessed => "event.error.processed",
             RelayCounters::UnrealEndpointExpansion => "unreal.endpoint_expansion",
             RelayCounters::CompressedMinidump => "minidump.compressed.count",
+            RelayCounters::TraceMetricNilTraceId => "trace_metric.nil_trace_id",
         }
     }
 }

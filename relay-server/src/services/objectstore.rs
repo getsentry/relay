@@ -14,22 +14,25 @@ use objectstore_client::{
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_config::ObjectstoreServiceConfig;
+use relay_quotas::Scoping;
 use relay_system::{
     Addr, AsyncResponse, FromMessage, Interface, LoadShed, NoResponse, Sender, SimpleService,
 };
 use sentry_protos::snuba::v1::TraceItem;
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
-use crate::envelope::{Item, ItemType};
+use crate::envelope::{ContentType, Item, ItemType};
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
 use crate::processing::utils::store::item_id_to_uuid;
 use crate::services::outcome::DiscardReason;
-use crate::services::store::{Store, StoreAttachment, StoreEnvelope, StoreTraceItem};
+use crate::services::store::{
+    ProfileAttachment, Store, StoreAttachment, StoreEnvelope, StoreProfileChunk, StoreTraceItem,
+};
 use crate::services::upload::ByteStream;
 use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::{BoundedStream, MeteredStream, RetryableStream, TakeOnce};
+use crate::utils::{BoundedStream, MeteredStream, RetryableStream, TakeOnce, find_error_source};
 
 use super::outcome::Outcome;
 
@@ -38,6 +41,7 @@ pub enum Objectstore {
     Envelope(StoreEnvelope),
     TraceAttachment(Managed<StoreTraceAttachment>),
     EventAttachment(Managed<StoreAttachment>),
+    RawProfile(Managed<StoreRawProfile>),
     Stream(Stream, Sender<Result<ObjectstoreKey, Error>>),
 }
 
@@ -47,6 +51,7 @@ impl Objectstore {
             Self::Envelope(_) => MessageKind::Envelope,
             Self::TraceAttachment(_) => MessageKind::TraceAttachment,
             Self::EventAttachment(_) => MessageKind::EventAttachment,
+            Self::RawProfile(_) => MessageKind::RawProfile,
             Self::Stream { .. } => MessageKind::Stream,
         }
     }
@@ -60,6 +65,7 @@ impl Objectstore {
                 .count(),
             Self::TraceAttachment(_) => 1,
             Self::EventAttachment(_) => 1,
+            Self::RawProfile(_) => 1,
             Self::Stream { .. } => 1,
         }
     }
@@ -91,12 +97,21 @@ impl FromMessage<Managed<StoreAttachment>> for Objectstore {
     }
 }
 
+impl FromMessage<Managed<StoreRawProfile>> for Objectstore {
+    type Response = NoResponse;
+
+    fn from_message(message: Managed<StoreRawProfile>, _sender: ()) -> Self {
+        Self::RawProfile(message)
+    }
+}
+
 /// A type tag used for logging.
 #[derive(Debug, Clone, Copy)]
 enum MessageKind {
     Envelope,
     EventAttachment,
     TraceAttachment,
+    RawProfile,
     Stream,
 }
 
@@ -106,6 +121,7 @@ impl MessageKind {
             Self::Envelope => "envelope",
             Self::EventAttachment => "attachment",
             Self::TraceAttachment => "attachment_v2",
+            Self::RawProfile => "profile_raw",
             Self::Stream => "stream",
         }
     }
@@ -143,6 +159,34 @@ impl Counted for StoreTraceAttachment {
     }
 }
 
+/// A raw profile (e.g. Perfetto trace) ready for objectstore upload.
+///
+/// After upload, the [`StoreProfileChunk`] is forwarded to the Store service
+/// with the objectstore key set, so the Kafka message carries a reference
+/// instead of the full binary blob.
+pub struct StoreRawProfile {
+    /// The profile chunk message to forward to Kafka after upload.
+    pub profile_chunk: StoreProfileChunk,
+    /// The raw profile to be stored in objectstore.
+    pub raw: RawProfile,
+}
+
+impl Counted for StoreRawProfile {
+    fn quantities(&self) -> Quantities {
+        self.profile_chunk.quantities()
+    }
+}
+
+/// A raw profile to be stored in objectstore.
+pub struct RawProfile {
+    /// Name of the raw profile attachment.
+    pub name: String,
+    /// Bytes of the raw profile.
+    pub payload: Bytes,
+    /// Content type of the raw profile.
+    pub content_type: ContentType,
+}
+
 #[derive(Debug, thiserror::Error)]
 #[error("objectstore upload failed")]
 pub struct Error {
@@ -175,6 +219,9 @@ impl Error {
             type = kind.as_str(),
             attempts = self.attempts.to_string(),
         );
+        if self.kind.is_client_error() {
+            return;
+        }
         relay_log::error!(
             error = &self.kind as &dyn std::error::Error,
             amount = self.amount,
@@ -200,6 +247,8 @@ impl<E: Into<ErrorKind>> From<E> for Error {
 /// Errors that can occur when trying to upload an attachment.
 #[derive(Debug, thiserror::Error)]
 pub enum ErrorKind {
+    #[error("invalid scoping")]
+    InvalidScoping,
     #[error("timeout: {0}")]
     Timeout(#[from] tokio::time::error::Elapsed),
     #[error("load shed")]
@@ -213,10 +262,20 @@ pub enum ErrorKind {
 impl ErrorKind {
     fn as_str(&self) -> &'static str {
         match self {
+            Self::InvalidScoping => "invalid_scoping",
             Self::Timeout(_) => "timeout",
             Self::LoadShed => "load_shed",
             Self::UploadFailed(_) => "upload_failed",
             Self::Uuid(_) => "uuid",
+        }
+    }
+
+    fn is_client_error(&self) -> bool {
+        match self {
+            ErrorKind::UploadFailed(objectstore_client::Error::Reqwest(error)) => {
+                find_error_source(error, is_user_error).is_some()
+            }
+            _ => false,
         }
     }
 }
@@ -302,12 +361,15 @@ impl ObjectstoreService {
             .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
         let trace_attachments = Usecase::new("trace_attachments")
             .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
+        let profile_attachments = Usecase::new("profile_attachments")
+            .with_expiration_policy(ExpirationPolicy::TimeToLive(DEFAULT_ATTACHMENT_RETENTION));
 
         let inner = ObjectstoreServiceInner {
             store,
             objectstore_client,
             event_attachments,
             trace_attachments,
+            profile_attachments,
             timeout: Duration::from_secs(*timeout),
             stream_timeout: Duration::from_secs(*stream_timeout),
             retry_interval: Duration::from_secs_f64(*retry_delay),
@@ -344,6 +406,11 @@ impl LoadShed<Objectstore> for ObjectstoreService {
             Objectstore::TraceAttachment(managed) => {
                 let _ = managed.reject_err(error);
             }
+            Objectstore::RawProfile(managed) => {
+                self.inner
+                    .store
+                    .send(managed.map(|profile, _| profile.profile_chunk));
+            }
             Objectstore::Stream(_, sender) => {
                 sender.send(Err(error));
             }
@@ -357,6 +424,7 @@ struct ObjectstoreServiceInner {
     objectstore_client: Client,
     event_attachments: Usecase,
     trace_attachments: Usecase,
+    profile_attachments: Usecase,
     timeout: Duration,
     stream_timeout: Duration,
     retry_interval: Duration,
@@ -381,6 +449,9 @@ impl ObjectstoreServiceInner {
             Objectstore::EventAttachment(attachment) => {
                 self.handle_event_attachment(attachment).await;
             }
+            Objectstore::RawProfile(profile) => {
+                self.handle_raw_profile(profile).await;
+            }
             Objectstore::Stream(stream, sender) => {
                 let result = self.handle_stream(stream).await;
                 if let Err(error) = &result {
@@ -397,10 +468,11 @@ impl ObjectstoreServiceInner {
     /// in objectstore.
     async fn handle_envelope(&self, mut envelope: ManagedEnvelope) {
         let scoping = envelope.scoping();
-        let session = self
-            .event_attachments
-            .for_project(scoping.organization_id.value(), scoping.project_id.value())
-            .session(&self.objectstore_client);
+        let session = self.session(
+            &self.event_attachments,
+            scoping.organization_id,
+            scoping.project_id,
+        );
         let retention = envelope.envelope().retention();
 
         let attachments = envelope
@@ -409,7 +481,7 @@ impl ObjectstoreServiceInner {
             .filter(|item| *item.ty() == ItemType::Attachment);
 
         match session {
-            Err(error) => Error::from(error)
+            Err(error) => error
                 .with_amount(attachments.count())
                 .log(MessageKind::Envelope),
             Ok(session) => {
@@ -423,6 +495,7 @@ impl ObjectstoreServiceInner {
                             &session,
                             attachment.payload(),
                             retention,
+                            None,
                             None,
                         )
                         .await;
@@ -454,13 +527,14 @@ impl ObjectstoreServiceInner {
         }
 
         let scoping = attachment.scoping();
-        let session = self
-            .event_attachments
-            .for_project(scoping.organization_id.value(), scoping.project_id.value())
-            .session(&self.objectstore_client);
+        let session = self.session(
+            &self.event_attachments,
+            scoping.organization_id,
+            scoping.project_id,
+        );
 
         match session {
-            Err(error) => Error::from(error).log(MessageKind::EventAttachment),
+            Err(error) => error.log(MessageKind::EventAttachment),
             Ok(session) => {
                 let result = self
                     .upload_bytes(
@@ -468,6 +542,7 @@ impl ObjectstoreServiceInner {
                         &session,
                         attachment.attachment.payload(),
                         attachment.retention,
+                        None,
                         None,
                     )
                     .await;
@@ -494,10 +569,11 @@ impl ObjectstoreServiceInner {
     ) -> Result<(), Rejected<Error>> {
         let scoping = managed.scoping();
         let session = self
-            .trace_attachments
-            .for_project(scoping.organization_id.value(), scoping.project_id.value())
-            .session(&self.objectstore_client)
-            .map_err(|e| Error::from(ErrorKind::UploadFailed(e)))
+            .session(
+                &self.trace_attachments,
+                scoping.organization_id,
+                scoping.project_id,
+            )
             .reject(&managed)?;
 
         let body = Bytes::clone(&managed.body);
@@ -532,6 +608,7 @@ impl ObjectstoreServiceInner {
                     body,
                     retention,
                     Some(key),
+                    None,
                 )
                 .await
                 .reject(&trace_item)?;
@@ -546,6 +623,69 @@ impl ObjectstoreServiceInner {
         Ok(())
     }
 
+    async fn handle_raw_profile(&self, managed: Managed<StoreRawProfile>) {
+        let scoping = managed.scoping();
+
+        let payload = managed.raw.payload.clone();
+        let content_type = managed.raw.content_type;
+        let name = managed.raw.name.clone();
+
+        let mut store_message = managed.map(|profile, _| profile.profile_chunk);
+
+        match self
+            .try_upload_raw_profile(payload, content_type, store_message.retention_days, scoping)
+            .await
+        {
+            Ok(Some(stored_id)) => {
+                store_message.modify(|message, _| {
+                    message.attachments.push(ProfileAttachment {
+                        name,
+                        content_type,
+                        stored_id,
+                    })
+                });
+            }
+            Ok(None) => {}
+            Err(error) => {
+                // Always forward to store even if the raw profile upload failed,
+                // to ensure the Kafka message is produced.
+                error.log(MessageKind::RawProfile);
+            }
+        }
+
+        self.store.send(store_message);
+    }
+
+    async fn try_upload_raw_profile(
+        &self,
+        payload: Bytes,
+        content_type: ContentType,
+        retention: u16,
+        scoping: Scoping,
+    ) -> Result<Option<ObjectstoreKey>, Error> {
+        if payload.is_empty() {
+            return Ok(None);
+        }
+
+        let session = self
+            .profile_attachments
+            .for_project(scoping.organization_id.value(), scoping.project_id.value())
+            .session(&self.objectstore_client)?;
+
+        let stored_key = self
+            .upload_bytes(
+                MessageKind::RawProfile,
+                &session,
+                payload,
+                retention,
+                None,
+                Some(content_type),
+            )
+            .await?;
+
+        Ok(Some(stored_key))
+    }
+
     async fn handle_stream(&self, stream: Stream) -> Result<ObjectstoreKey, Error> {
         let Stream {
             organization_id,
@@ -553,16 +693,14 @@ impl ObjectstoreServiceInner {
             key,
             stream,
         } = stream;
-        let session = self
-            .event_attachments
-            .for_project(organization_id.value(), project_id.value())
-            .session(&self.objectstore_client)?;
+        let session = self.session(&self.event_attachments, organization_id, project_id)?;
 
         self.upload(
             MessageKind::Stream,
             &session,
             Some(key),
             Body::Stream(TakeOnce::new(stream)),
+            None,
             None,
         )
         .await
@@ -575,10 +713,18 @@ impl ObjectstoreServiceInner {
         payload: Bytes,
         retention: u16,
         key: Option<String>,
+        content_type: Option<ContentType>,
     ) -> Result<ObjectstoreKey, Error> {
         let retention_hours = retention.checked_mul(24);
-        self.upload(kind, session, key, Body::Bytes(payload), retention_hours)
-            .await
+        self.upload(
+            kind,
+            session,
+            key,
+            Body::Bytes(payload),
+            retention_hours,
+            content_type,
+        )
+        .await
     }
 
     async fn upload(
@@ -588,6 +734,7 @@ impl ObjectstoreServiceInner {
         key: Option<String>,
         body: Body,
         retention_hours: Option<u16>,
+        content_type: Option<ContentType>,
     ) -> Result<ObjectstoreKey, Error> {
         let mut attempts = 0;
         let timeout = match &body {
@@ -602,8 +749,15 @@ impl ObjectstoreServiceInner {
                 };
                 attempts += 1;
                 result.replace(
-                    self.attempt_upload(kind, session, key.clone(), body, retention_hours)
-                        .await,
+                    self.attempt_upload(
+                        kind,
+                        session,
+                        key.clone(),
+                        body,
+                        retention_hours,
+                        content_type,
+                    )
+                    .await,
                 );
 
                 if attempts < self.max_attempts.get()
@@ -642,12 +796,16 @@ impl ObjectstoreServiceInner {
         key: Option<String>,
         body: BodyAttempt,
         retention_hours: Option<u16>,
+        content_type: Option<ContentType>,
     ) -> Result<ObjectstoreKey, objectstore_client::Error> {
         let mut request = match body {
             BodyAttempt::Bytes(bytes) => session.put(bytes),
             BodyAttempt::Stream(stream) => session.put_stream(stream.boxed()),
         };
 
+        if let Some(content_type) = content_type {
+            request = request.content_type(content_type.as_str());
+        }
         if let Some(retention_hours) = retention_hours {
             request = request.expiration_policy(ExpirationPolicy::TimeToLive(
                 Duration::from_hours(retention_hours.into()),
@@ -675,6 +833,21 @@ impl ObjectstoreServiceInner {
     /// - Attachment placeholders
     fn should_skip_upload(item: &Item) -> bool {
         item.is_empty() || item.is_attachment_ref()
+    }
+
+    fn session(
+        &self,
+        usecase: &Usecase,
+        organization_id: OrganizationId,
+        project_id: ProjectId,
+    ) -> Result<Session, Error> {
+        if organization_id.value() == 0 || project_id.value() == 0 {
+            return Err(ErrorKind::InvalidScoping.into());
+        }
+        let session = usecase
+            .for_project(organization_id.value(), project_id.value())
+            .session(&self.objectstore_client)?;
+        Ok(session)
     }
 }
 
@@ -721,5 +894,61 @@ fn is_retryable(error: &objectstore_client::Error) -> bool {
                 )
         }
         _ => false,
+    }
+}
+
+fn is_user_error(error: &(dyn std::error::Error + 'static)) -> bool {
+    error.downcast_ref::<std::io::Error>().is_some_and(|error| {
+        matches!(
+            error.kind(),
+            std::io::ErrorKind::FileTooLarge | std::io::ErrorKind::UnexpectedEof
+        )
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use relay_system::Service;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn org_zero_rejected() {
+        let service = ObjectstoreService::new(&test_config(), Some(Addr::dummy()))
+            .unwrap()
+            .unwrap();
+        let addr = service.start_detached();
+
+        let stream = BoundedStream::new(
+            MeteredStream::new(futures::stream::empty().boxed(), "test"),
+            0,
+            usize::MAX,
+        );
+
+        let result = addr
+            .send(Stream {
+                organization_id: OrganizationId::new(0),
+                project_id: ProjectId::new(1),
+                key: "my_file".into(),
+                stream,
+            })
+            .await
+            .unwrap();
+        let err = result.unwrap_err();
+
+        assert!(matches!(err.kind, ErrorKind::InvalidScoping));
+    }
+
+    fn test_config() -> ObjectstoreServiceConfig {
+        ObjectstoreServiceConfig {
+            objectstore_url: Some("http://objectstore".to_owned()),
+            max_concurrent_requests: 1,
+            max_backlog: 1,
+            timeout: 1,
+            stream_timeout: 1,
+            retry_delay: 1.0,
+            max_attempts: 1.try_into().unwrap(),
+            auth: None,
+        }
     }
 }

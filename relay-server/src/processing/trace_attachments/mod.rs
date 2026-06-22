@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use relay_cogs::{AppFeature, FeatureWeights};
 use relay_dynamic_config::Feature;
 use relay_event_schema::processor::ProcessingAction;
 use relay_quotas::RateLimits;
@@ -93,10 +94,12 @@ impl TraceAttachmentsProcessor {
 
 impl Processor for TraceAttachmentsProcessor {
     type Input = SerializedAttachments;
-
     type Output = Managed<ExpandedAttachments>;
-
     type Error = Error;
+
+    fn cogs() -> FeatureWeights {
+        AppFeature::TraceAttachments.into()
+    }
 
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();

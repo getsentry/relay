@@ -1,13 +1,14 @@
 use std::sync::Arc;
 
 use either::Either;
+use relay_cogs::{AppFeature, FeatureWeights};
 use relay_event_normalization::GeoIpLookup;
-use relay_event_schema::protocol::Span;
+use relay_event_schema::protocol::{Span, SpanV2};
 use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
-use crate::envelope::{EnvelopeHeaders, Item, ItemType, Items};
+use crate::envelope::{EnvelopeHeaders, Item, ItemContainer, ItemType, Items};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
 use crate::metrics_extraction::ExtractedMetrics;
 use crate::processing::{
@@ -85,12 +86,18 @@ impl processing::Processor for LegacySpansProcessor {
     type Output = LegacySpanOutput;
     type Error = Error;
 
+    fn cogs() -> FeatureWeights {
+        AppFeature::Spans.into()
+    }
+
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
 
         let spans = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(item.ty(), ItemType::Span))
+            .take_items_by(|item| {
+                matches!(item.ty(), ItemType::Span) && !ItemContainer::<SpanV2>::is_container(item)
+            })
             .into_vec();
 
         if spans.is_empty() {

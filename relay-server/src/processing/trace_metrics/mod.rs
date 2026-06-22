@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use relay_cogs::{AppFeature, FeatureWeights};
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{TraceMetric, trace_metric};
 use relay_filter::FilterStatKey;
@@ -109,6 +110,10 @@ impl processing::Processor for TraceMetricsProcessor {
     type Output = TraceMetricOutput;
     type Error = Error;
 
+    fn cogs() -> FeatureWeights {
+        AppFeature::TraceMetrics.into()
+    }
+
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
 
@@ -146,6 +151,7 @@ impl processing::Processor for TraceMetricsProcessor {
         process::normalize(&mut metrics, ctx);
         filter::filter(&mut metrics, ctx);
         process::scrub(&mut metrics, ctx);
+        process::normalize_derived(&mut metrics);
 
         let metrics = self.limiter.enforce_quotas(metrics, ctx).await?;
 

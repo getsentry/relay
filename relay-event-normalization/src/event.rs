@@ -33,6 +33,7 @@ use relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FiniteF64, FromValue, Getter, Meta, Object, Remark,
     RemarkType, TryFromFloatError, Value,
 };
+use relay_sampling::DynamicSamplingContext;
 use smallvec::SmallVec;
 use uuid::Uuid;
 
@@ -41,8 +42,8 @@ use crate::span::ai::enrich_ai_event_data;
 use crate::span::tag_extraction::{extract_segment_name_from_event, extract_span_tags_from_event};
 use crate::utils::{self, MAX_DURATION_MOBILE_MS, get_event_user_tag};
 use crate::{
-    BorrowedSpanOpDefaults, BreakdownsConfig, CombinedMeasurementsConfig, EnrichedDsc, GeoIpLookup,
-    MaxChars, ModelMetadata, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule,
+    BorrowedSpanOpDefaults, BreakdownsConfig, CombinedMeasurementsConfig, GeoIpLookup, MaxChars,
+    ModelMetadata, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule,
     TransactionNameConfig, breakdowns, event_error, legacy, mechanism, remove_other, schema, span,
     stacktrace, transactions, trimming, user_agent,
 };
@@ -170,9 +171,6 @@ pub struct NormalizationConfig<'a> {
     /// Rules to infer `span.op` from other span fields.
     pub span_op_defaults: BorrowedSpanOpDefaults<'a>,
 
-    /// Set a flag to enable performance issue detection on spans.
-    pub performance_issues_spans: bool,
-
     /// Forces a valid trace context for error events.
     ///
     /// Sentry requires a valid trace context for events. This ensures a valid trace context always
@@ -185,8 +183,8 @@ pub struct NormalizationConfig<'a> {
     /// the SDK.
     pub force_trace_context: bool,
 
-    /// Dynamic sampling context and additional attributes used for dsc span normalization.
-    pub dsc: Option<EnrichedDsc<'a>>,
+    /// Dynamic sampling context used for dsc span normalization.
+    pub dsc: Option<&'a DynamicSamplingContext>,
 }
 
 impl Default for NormalizationConfig<'_> {
@@ -220,7 +218,6 @@ impl Default for NormalizationConfig<'_> {
             replay_id: Default::default(),
             span_allowed_hosts: Default::default(),
             span_op_defaults: Default::default(),
-            performance_issues_spans: Default::default(),
             force_trace_context: Default::default(),
             dsc: None,
         }
@@ -359,10 +356,6 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
         span::normalize_dsc_for_event_spans(event, config.dsc);
         span::normalize_app_start_spans(event);
         span::exclusive_time::compute_span_exclusive_time(event);
-    }
-
-    if config.performance_issues_spans && event.ty.value() == Some(&EventType::Transaction) {
-        event.performance_issues_spans = Annotated::new(true);
     }
 
     if config.enrich_spans {
@@ -1380,9 +1373,10 @@ fn normalize_force_trace_context(event: &mut Event) {
     let contexts = event.contexts.get_or_insert_with(Contexts::new);
     let trace = contexts.get_or_default::<TraceContext>();
 
-    let trace_id = trace
-        .trace_id
-        .get_or_insert_with(|| TraceId::from(*event.id.get_or_insert_with(Default::default)));
+    let trace_id = trace.trace_id.get_or_insert_with(|| {
+        TraceId::try_from(*event.id.get_or_insert_with(Default::default))
+            .unwrap_or_else(|_| TraceId::random())
+    });
     let _ = trace
         .span_id
         .get_or_insert_with(|| SpanId::derive_from_trace_id(trace_id));
@@ -1431,8 +1425,8 @@ fn normalize_mobile_measurements(measurements: &mut Measurements) {
 }
 
 const APP_START_SOURCES: [(&str, Option<&str>); 5] = [
-    ("app_start_cold", Some("cold")),
-    ("app_start_warm", Some("warm")),
+    (APP_START_COLD, Some("cold")),
+    (APP_START_WARM, Some("warm")),
     (APP__VITALS__START__VALUE, None),
     (APP__VITALS__START__COLD__VALUE, None),
     (APP__VITALS__START__WARM__VALUE, None),

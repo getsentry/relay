@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 
-from .asserts import any, time_within_delta, time_is
+from .asserts import matches_any, time_within_delta, time_is
 from .test_spansv2 import envelope_with_spans
 
 from .test_dynamic_sampling import add_sampling_config
@@ -152,10 +152,10 @@ def test_standalone_attachment_store(
         "itemType": "TRACE_ITEM_TYPE_ATTACHMENT",
         "organizationId": "1",
         "projectId": "42",
-        "received": any(),
+        "received": matches_any(),
         "retentionDays": 90,
         "serverSampleRate": 1.0,
-        "timestamp": any(),
+        "timestamp": matches_any(),
         "traceId": attachment_metadata["trace_id"].replace("-", ""),
     }
 
@@ -243,20 +243,14 @@ def test_invalid_item_headers(mini_sentry, relay, invalid_headers, quantity, rea
     assert mini_sentry.get_outcomes(n=2) == [
         {
             "category": DataCategory.ATTACHMENT.value,
-            "org_id": 1,
             "outcome": 3,
-            "key_id": 123,
-            "project_id": 42,
             "reason": reason,
             "quantity": quantity,
             "timestamp": time_within_delta(),
         },
         {
             "category": DataCategory.ATTACHMENT_ITEM.value,
-            "org_id": 1,
             "outcome": 3,
-            "key_id": 123,
-            "project_id": 42,
             "reason": reason,
             "quantity": 1,
             "timestamp": time_within_delta(),
@@ -327,7 +321,7 @@ def test_attachment_with_matching_span(mini_sentry, relay):
             "is_segment": True,
             "start_timestamp": time_is(ts),
             "end_timestamp": time_is(ts.timestamp() + 0.5),
-            "attributes": any(),
+            "attributes": matches_any(),
         }
     ]
 
@@ -353,6 +347,7 @@ def test_attachment_with_matching_span_store(
     project_config["config"]["features"] = [
         "projects:span-v2-experimental-processing",
         "projects:span-v2-attachment-processing",
+        "organizations:relay-generate-billing-outcome",
     ]
     relay = relay_with_processing()
 
@@ -414,18 +409,26 @@ def test_attachment_with_matching_span_store(
         "itemType": "TRACE_ITEM_TYPE_ATTACHMENT",
         "organizationId": "1",
         "projectId": "42",
-        "received": any(),
+        "received": matches_any(),
         "retentionDays": 90,
         "serverSampleRate": 1.0,
-        "timestamp": any(),
+        "timestamp": matches_any(),
         "traceId": metadata["trace_id"],
     }
 
     objectstore = objectstore(usecase="trace_attachments", project_id=project_id)
     assert objectstore.get(metadata["attachment_id"]).payload.read() == body
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=3)
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=4)
     assert outcomes == [
+        {
+            "category": DataCategory.TRANSACTION.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 1,
+        },
         {
             "category": DataCategory.ATTACHMENT.value,
             "key_id": 123,
@@ -435,7 +438,7 @@ def test_attachment_with_matching_span_store(
             "quantity": 23,
         },
         {
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN.value,
             "key_id": 123,
             "org_id": 1,
             "outcome": 0,
@@ -526,7 +529,7 @@ def test_two_attachments_mapping_to_same_span(mini_sentry, relay):
             "is_segment": True,
             "start_timestamp": time_is(ts),
             "end_timestamp": time_is(ts.timestamp() + 0.5),
-            "attributes": any(),
+            "attributes": matches_any(),
         }
     ]
 
@@ -543,6 +546,7 @@ def test_two_attachments_mapping_to_same_span(mini_sentry, relay):
         }
 
     assert mini_sentry.captured_outcomes.empty()
+    assert mini_sentry.captured_envelopes.empty()
 
 
 @pytest.mark.parametrize(
@@ -605,9 +609,6 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
     assert mini_sentry.get_outcomes(n=3) == [
         {
             "timestamp": time_within_delta(),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
             "outcome": 1,
             "reason": "Sampled:0",
             "category": DataCategory.ATTACHMENT.value,
@@ -615,9 +616,6 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
         },
         {
             "timestamp": time_within_delta(),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
             "outcome": 1,
             "reason": "Sampled:0",
             "category": DataCategory.SPAN_INDEXED.value,
@@ -625,9 +623,6 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
         },
         {
             "timestamp": time_within_delta(),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
             "outcome": 1,
             "reason": "Sampled:0",
             "category": DataCategory.ATTACHMENT_ITEM.value,
@@ -637,7 +632,7 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
 
     assert mini_sentry.get_metrics() == [
         {
-            "metadata": any(),
+            "metadata": matches_any(),
             "name": "c:spans/count_per_root_project@none",
             "tags": {
                 "decision": "drop",
@@ -651,7 +646,7 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
             "width": 1,
         },
         {
-            "metadata": any(),
+            "metadata": matches_any(),
             "name": "c:spans/usage@none",
             "tags": {
                 "is_segment": "false",
@@ -714,9 +709,6 @@ def test_trace_attachment_ds(mini_sentry, relay, rule_type, should_drop):
         assert mini_sentry.get_outcomes(n=2) == [
             {
                 "timestamp": time_within_delta(),
-                "org_id": 1,
-                "project_id": 42,
-                "key_id": 123,
                 "outcome": 1,
                 "reason": "Sampled:0",
                 "category": DataCategory.ATTACHMENT.value,
@@ -724,9 +716,6 @@ def test_trace_attachment_ds(mini_sentry, relay, rule_type, should_drop):
             },
             {
                 "timestamp": time_within_delta(),
-                "org_id": 1,
-                "project_id": 42,
-                "key_id": 123,
                 "outcome": 1,
                 "reason": "Sampled:0",
                 "category": DataCategory.ATTACHMENT_ITEM.value,
@@ -790,9 +779,6 @@ def test_standalone_attachment_only_ds_drop(mini_sentry, relay, rule_type):
     assert mini_sentry.get_outcomes(n=2) == [
         {
             "timestamp": time_within_delta(),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
             "outcome": 1,
             "reason": "Sampled:0",
             "category": DataCategory.ATTACHMENT.value,
@@ -800,9 +786,6 @@ def test_standalone_attachment_only_ds_drop(mini_sentry, relay, rule_type):
         },
         {
             "timestamp": time_within_delta(),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
             "outcome": 1,
             "reason": "Sampled:0",
             "category": DataCategory.ATTACHMENT_ITEM.value,
@@ -873,9 +856,6 @@ def test_attachments_dropped_with_span_inbound_filters(mini_sentry, relay):
     assert mini_sentry.get_outcomes(n=4) == [
         {
             "timestamp": time_within_delta(ts),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
             "outcome": 1,
             "reason": "release-version",
             "category": DataCategory.ATTACHMENT.value,
@@ -883,9 +863,6 @@ def test_attachments_dropped_with_span_inbound_filters(mini_sentry, relay):
         },
         {
             "timestamp": time_within_delta(ts),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
             "outcome": 1,
             "reason": "release-version",
             "category": DataCategory.SPAN.value,
@@ -893,9 +870,6 @@ def test_attachments_dropped_with_span_inbound_filters(mini_sentry, relay):
         },
         {
             "timestamp": time_within_delta(ts),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
             "outcome": 1,
             "reason": "release-version",
             "category": DataCategory.SPAN_INDEXED.value,
@@ -903,9 +877,6 @@ def test_attachments_dropped_with_span_inbound_filters(mini_sentry, relay):
         },
         {
             "timestamp": time_within_delta(ts),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
             "outcome": 1,
             "reason": "release-version",
             "category": DataCategory.ATTACHMENT_ITEM.value,
@@ -965,9 +936,6 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
     assert mini_sentry.get_outcomes(n=4) == [
         {
             "timestamp": time_within_delta(ts),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
             "outcome": 3,
             "reason": "no_data",
             "category": DataCategory.ATTACHMENT.value,
@@ -975,9 +943,6 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
         },
         {
             "timestamp": time_within_delta(ts),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
             "outcome": 3,
             "reason": "no_data",
             "category": DataCategory.SPAN.value,
@@ -985,9 +950,6 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
         },
         {
             "timestamp": time_within_delta(ts),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
             "outcome": 3,
             "reason": "no_data",
             "category": DataCategory.SPAN_INDEXED.value,
@@ -995,9 +957,6 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
         },
         {
             "timestamp": time_within_delta(ts),
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
             "outcome": 3,
             "reason": "no_data",
             "category": DataCategory.ATTACHMENT_ITEM.value,
@@ -1199,7 +1158,6 @@ def test_span_attachment_independent_rate_limiting(
         outcome_counter[key] += outcome["quantity"]
 
     assert outcome_counter == expected_outcomes
-    assert mini_sentry.captured_outcomes.empty()
 
 
 @pytest.mark.parametrize("owned_by", ["single_span", "multiple_spans", "trace"])
@@ -1291,27 +1249,12 @@ def test_attachment_default_pii_scrubbing_meta(
     payload = attachment.payload.bytes
     metadata_part = json.loads(payload[:meta_length].decode("utf-8"))
 
-    assert metadata_part == {
-        "attachment_id": metadata["attachment_id"],
-        "timestamp": time_within_delta(ts),
-        "filename": "data.txt",
-        "content_type": "text/plain",
-        "attributes": {
-            attribute_key: {"type": "string", "value": expected_value},
-        },
-        "_meta": {
-            "attributes": {
-                attribute_key: {
-                    "value": {
-                        "": {
-                            "len": any(),
-                            "rem": [[rule_type, any(), any(), any()]],
-                        }
-                    }
-                }
-            }
-        },
-    }
+    assert metadata_part["timestamp"] == time_within_delta(ts)
+    assert metadata_part["attachment_id"] == metadata["attachment_id"]
+    assert metadata_part["attributes"][attribute_key]["value"] == expected_value
+    rem_info = metadata_part["_meta"]["attributes"][attribute_key]["value"][""]["rem"]
+    assert len(rem_info) == 1
+    assert rem_info[0][0] == rule_type
 
 
 def test_attachment_pii_scrubbing_meta_attribute(
@@ -1397,8 +1340,10 @@ def test_attachment_pii_scrubbing_meta_attribute(
                 "test_pii": {
                     "value": {
                         "": {
-                            "len": any(),
-                            "rem": [[rule_type, any(), any(), any()]],
+                            "len": matches_any(),
+                            "rem": [
+                                [rule_type, matches_any(), matches_any(), matches_any()]
+                            ],
                         }
                     }
                 }

@@ -53,6 +53,8 @@
 //!
 //! ### I want to reference an attribute in Relay but it's not defined in `sentry-conventions`, what should I do?
 //! **Always** define it in `sentry-conventions` before using it in Relay. This makes sure we have proper
+
+use std::fmt;
 pub mod attributes {
     //! Attribute constant definitions.
     #![allow(rustdoc::bare_urls)]
@@ -63,12 +65,6 @@ pub mod attributes {
         // TODO(buenaflor): Add as sentry convention once mobile SDKs can migrate to it.
         // Tracking issue: https://github.com/getsentry/sentry-conventions/issues/318
         pub const APP__VITALS__START__VALUE: &str = "app.vitals.start.value";
-
-        // TODO: We might promote this to a top-level field, there's no real use
-        // to it being an attribute.
-        // (Internal) tracking issue: https://linear.app/getsentry/issue/INGEST-879/fix-flag-performance-issues-spans
-        pub const SENTRY___INTERNAL__PERFORMANCE_ISSUES_SPANS: &str =
-            "sentry._internal.performance_issues_spans";
     }
     pub use self::not_yet_defined::*;
 }
@@ -85,9 +81,16 @@ pub mod interpolate {
     include!(concat!(env!("OUT_DIR"), "/interpolation_fns.rs"));
 }
 
+pub mod name {
+    include!(concat!(env!("OUT_DIR"), "/name_fn.rs"));
+}
+
+pub mod description {
+    include!(concat!(env!("OUT_DIR"), "/description_fn.rs"));
+}
+
 include!(concat!(env!("OUT_DIR"), "/attribute_map.rs"));
 include!(concat!(env!("OUT_DIR"), "/canonical_fn.rs"));
-include!(concat!(env!("OUT_DIR"), "/name_fn.rs"));
 include!(concat!(env!("OUT_DIR"), "/measurement_replacement_fn.rs"));
 
 /// Whether an attribute should be PII-strippable/should be subject to datascrubbers
@@ -241,7 +244,7 @@ mod tests {
         insta::assert_debug_snapshot!(info, @r###"
         AttributeInfo {
             write_behavior: CurrentName,
-            pii: Maybe,
+            pii: True,
             aliases: [
                 "params.<key>",
             ],
@@ -307,7 +310,7 @@ mod tests {
     fn only_literal_template() {
         let attributes = GetterMap(HashMap::new());
         assert_eq!(
-            name_for_op_and_attributes("op_with_literal_name", &attributes,),
+            name_for_op_and_attributes("op_with_literal_name", &attributes,).unwrap(),
             "literal name"
         );
     }
@@ -316,11 +319,11 @@ mod tests {
     fn multiple_ops_same_template() {
         let attributes = GetterMap(HashMap::from([("attr1", Val::String("foo"))]));
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_1", &attributes),
+            name_for_op_and_attributes("op_with_attributes_1", &attributes).unwrap(),
             "foo"
         );
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_2", &attributes),
+            name_for_op_and_attributes("op_with_attributes_2", &attributes).unwrap(),
             "foo"
         );
     }
@@ -332,7 +335,7 @@ mod tests {
             ("attr3", Val::String("baz")),
         ]));
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_1", &attributes),
+            name_for_op_and_attributes("op_with_attributes_1", &attributes).unwrap(),
             "bar baz"
         );
     }
@@ -341,7 +344,7 @@ mod tests {
     fn handles_literal_prefixes_and_suffixes() {
         let attributes = GetterMap(HashMap::from([("attr3", Val::String("baz"))]));
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_1", &attributes),
+            name_for_op_and_attributes("op_with_attributes_1", &attributes).unwrap(),
             "prefix baz suffix",
         );
     }
@@ -350,43 +353,40 @@ mod tests {
     fn considers_multiple_files() {
         let attributes = GetterMap(HashMap::new());
         assert_eq!(
-            name_for_op_and_attributes("op_in_second_name_file", &attributes),
+            name_for_op_and_attributes("op_in_second_name_file", &attributes).unwrap(),
             "second file literal name",
         );
     }
 
     #[test]
-    fn falls_back_to_op_for_unknown_ops() {
+    fn returns_none_for_unknown_ops() {
         let attributes = GetterMap(HashMap::new());
-        assert_eq!(
-            name_for_op_and_attributes("unknown_op", &attributes),
-            "unknown_op",
-        );
+        assert!(name_for_op_and_attributes("unknown_op", &attributes).is_none());
     }
 
     #[test]
     fn handles_multiple_value_types() {
         let attributes = GetterMap(HashMap::from([("attr1", Val::Bool(true))]));
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_1", &attributes),
+            name_for_op_and_attributes("op_with_attributes_1", &attributes).unwrap(),
             "true",
         );
 
         let attributes = GetterMap(HashMap::from([("attr1", Val::I64(123))]));
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_1", &attributes),
+            name_for_op_and_attributes("op_with_attributes_1", &attributes).unwrap(),
             "123",
         );
 
         let attributes = GetterMap(HashMap::from([("attr1", Val::U64(123))]));
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_1", &attributes),
+            name_for_op_and_attributes("op_with_attributes_1", &attributes).unwrap(),
             "123",
         );
 
         let attributes = GetterMap(HashMap::from([("attr1", Val::F64(1.23))]));
         assert_eq!(
-            name_for_op_and_attributes("op_with_attributes_1", &attributes),
+            name_for_op_and_attributes("op_with_attributes_1", &attributes).unwrap(),
             "1.23",
         );
     }

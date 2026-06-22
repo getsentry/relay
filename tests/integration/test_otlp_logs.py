@@ -2,7 +2,7 @@ from datetime import datetime, timezone, timedelta
 
 from sentry_relay.consts import DataCategory
 
-from .asserts import any, time_within_delta, time_within, only_items
+from .asserts import matches_any, time_within_delta, time_within, only_items
 
 TEST_CONFIG = {
     "outcomes": {
@@ -129,7 +129,7 @@ def test_otlp_logs_conversion(
                     "stringValue": time_within(ts, expect_resolution="ns")
                 },
                 "sentry.origin": {"stringValue": "auto.otlp.logs"},
-                "sentry.payload_size_bytes": {"intValue": any()},
+                "sentry.payload_size_bytes": {"intValue": matches_any()},
                 "sentry.severity_text": {"stringValue": "info"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
                 "sentry.timestamp_precise": {
@@ -143,7 +143,7 @@ def test_otlp_logs_conversion(
                 "string.attribute": {"stringValue": "some string"},
             },
             "clientSampleRate": 1.0,
-            "itemId": any(),
+            "itemId": matches_any(),
             "itemType": "TRACE_ITEM_TYPE_LOG",
             "organizationId": "1",
             "projectId": "42",
@@ -187,6 +187,7 @@ def test_otlp_logs_multiple_records(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
+        "organizations:relay-generate-billing-outcome",
     ]
     project_config["config"]["retentions"] = {
         "log": {"standard": 30, "downsampled": 13 * 30},
@@ -238,7 +239,7 @@ def test_otlp_logs_multiple_records(
                     "stringValue": time_within(ts, expect_resolution="ns")
                 },
                 "sentry.origin": {"stringValue": "auto.otlp.logs"},
-                "sentry.payload_size_bytes": {"intValue": any()},
+                "sentry.payload_size_bytes": {"intValue": matches_any()},
                 "sentry.severity_text": {"stringValue": "error"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
                 "sentry.timestamp_precise": {
@@ -251,7 +252,7 @@ def test_otlp_logs_multiple_records(
                 },
             },
             "clientSampleRate": 1.0,
-            "itemId": any(),
+            "itemId": matches_any(),
             "itemType": "TRACE_ITEM_TYPE_LOG",
             "organizationId": "1",
             "projectId": "42",
@@ -269,7 +270,7 @@ def test_otlp_logs_multiple_records(
                     "stringValue": time_within(ts, expect_resolution="ns")
                 },
                 "sentry.origin": {"stringValue": "auto.otlp.logs"},
-                "sentry.payload_size_bytes": {"intValue": any()},
+                "sentry.payload_size_bytes": {"intValue": matches_any()},
                 "sentry.severity_text": {"stringValue": "debug"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
                 "sentry.timestamp_precise": {
@@ -282,7 +283,7 @@ def test_otlp_logs_multiple_records(
                 },
             },
             "clientSampleRate": 1.0,
-            "itemId": any(),
+            "itemId": matches_any(),
             "itemType": "TRACE_ITEM_TYPE_LOG",
             "organizationId": "1",
             "projectId": "42",
@@ -295,7 +296,7 @@ def test_otlp_logs_multiple_records(
         },
     ]
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=4)
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
     assert outcomes == [
         {
             "category": DataCategory.LOG_ITEM.value,
@@ -363,19 +364,13 @@ def test_otlp_logs_size_limits(mini_sentry, relay):
     assert mini_sentry.get_aggregated_outcomes() == [
         {
             "category": DataCategory.LOG_ITEM,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 3,
-            "project_id": project_id,
             "quantity": 1,
             "reason": "too_large:log",
         },
         {
             "category": DataCategory.LOG_BYTE,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 3,
-            "project_id": project_id,
             "quantity": 127,
             "reason": "too_large:log",
         },

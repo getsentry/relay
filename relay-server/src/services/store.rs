@@ -4,12 +4,12 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::error::Error;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task;
 
 use bytes::Bytes;
-use chrono::{DateTime, Utc};
-use futures::FutureExt;
-use futures::future::BoxFuture;
+use chrono::{DateTime, SecondsFormat, Utc};
 use prost::Message as _;
 use sentry_protos::snuba::v1::{TraceItem, TraceItemType};
 use serde::Serialize;
@@ -32,12 +32,13 @@ use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_threading::AsyncPool;
 
-use crate::envelope::{AttachmentPlaceholder, AttachmentType, Item, ItemType};
+use crate::envelope::{AttachmentPlaceholder, AttachmentType, ContentType, Item, ItemType};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
-use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::services::objectstore::ObjectstoreKey;
+use crate::services::outcome::{self, DiscardReason, Outcome, OutcomeId, TrackOutcome};
 use crate::services::upload::{Final, SignedLocation};
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
 use crate::utils::{self, FormDataIter};
@@ -83,11 +84,7 @@ impl Producer {
     pub fn create(config: &Config) -> anyhow::Result<Self> {
         let mut client_builder = KafkaClient::builder();
 
-        for topic in KafkaTopic::iter().filter(|t| {
-            // Outcomes should not be sent from the store forwarder.
-            // See `KafkaOutcomesProducer`.
-            **t != KafkaTopic::Outcomes && **t != KafkaTopic::OutcomesBilling
-        }) {
+        for topic in KafkaTopic::iter() {
             let kafka_configs = config.kafka_configs(*topic)?;
             client_builder = client_builder
                 .add_kafka_topic_config(*topic, &kafka_configs, config.kafka_validate_topics())
@@ -140,6 +137,9 @@ pub struct StoreSpanV2 {
     pub event_id: Option<EventId>,
     /// The final Sentry compatible span item.
     pub item: SpanV2,
+    // Whether to run issue detection on the transaction or on the segment span.
+    // (only true for segment spans created from a transaction).
+    pub performance_issues_spans: bool,
 }
 
 impl Counted for StoreSpanV2 {
@@ -155,10 +155,25 @@ pub struct StoreProfileChunk {
     pub retention_days: u16,
     /// The serialized profile chunk payload.
     pub payload: Bytes,
+    /// Additional attachments associated with this profile chunk.
+    pub attachments: Vec<ProfileAttachment>,
     /// Outcome quantities associated with this profile.
     ///
     /// Quantities are different for backend and ui profile chunks.
     pub quantities: Quantities,
+}
+
+/// Optional raw binary blob associated with [`profile chunk`](StoreProfileChunk).
+#[derive(Debug)]
+pub struct ProfileAttachment {
+    /// Name of the attachment,
+    pub name: String,
+    /// Content type of the attachment.
+    pub content_type: ContentType,
+    /// Objectstore id of the attachment.
+    ///
+    /// Using this id the attachment can be retrieved again.
+    pub stored_id: ObjectstoreKey,
 }
 
 impl Counted for StoreProfileChunk {
@@ -244,7 +259,7 @@ impl Counted for StoreProfile {
 }
 
 /// The asynchronous thread pool used for scheduling storing tasks in the envelope store.
-pub type StoreServicePool = AsyncPool<BoxFuture<'static, ()>>;
+pub type StoreServicePool = AsyncPool<StoreTask>;
 
 /// Service interface for the [`StoreEnvelope`] message.
 #[derive(Debug)]
@@ -396,11 +411,6 @@ impl StoreService {
     }
 
     fn handle_message(&self, message: Store) {
-        // relay_kafka configures the scope
-        relay_log::with_scope(|_| {}, || self.handle_message_inner(message))
-    }
-
-    fn handle_message_inner(&self, message: Store) {
         let ty = message.variant();
         relay_statsd::metric!(timer(RelayTimers::StoreServiceDuration), message = ty, {
             let result = match message {
@@ -644,14 +654,8 @@ impl StoreService {
                 .by_size(batch_size)
                 .flatten()
             {
-                let message = self.create_metric_message(
-                    scoping.organization_id,
-                    scoping.project_id,
-                    &mut encoder,
-                    namespace,
-                    &view,
-                    retention,
-                );
+                let message =
+                    self.create_metric_message(&scoping, &mut encoder, namespace, &view, retention);
 
                 let result =
                     message.and_then(|message| self.send_metric_message(namespace, message));
@@ -762,15 +766,7 @@ impl StoreService {
         let scoping = message.scoping();
         let received_at = message.received_at();
 
-        let relay_emits_accepted_outcome = !utils::is_rolled_out(
-            scoping.organization_id.value(),
-            self.global_config
-                .current()
-                .unwrap_or_default()
-                .options
-                .eap_span_outcomes_rollout_rate,
-        )
-        .is_keep();
+        let relay_emits_accepted_outcome = false;
 
         let meta = SpanMeta {
             organization_id: scoping.organization_id,
@@ -781,6 +777,7 @@ impl StoreService {
             downsampled_retention_days: message.downsampled_retention_days,
             received: datetime_to_timestamp(received_at),
             accepted_outcome_emitted: relay_emits_accepted_outcome,
+            performance_issues_spans: message.performance_issues_spans,
         };
 
         message.try_accept(|span| {
@@ -841,6 +838,15 @@ impl StoreService {
                     scoping.project_id.to_string(),
                 )]),
                 payload: message.payload,
+                attachments: message
+                    .attachments
+                    .into_iter()
+                    .map(|attachment| ProfileChunkKafkaAttachment {
+                        name: attachment.name,
+                        content_type: attachment.content_type.as_str(),
+                        stored_id: attachment.stored_id.into_inner(),
+                    })
+                    .collect(),
             };
 
             self.produce(KafkaTopic::Profiles, KafkaMessage::ProfileChunk(message))
@@ -933,8 +939,7 @@ impl StoreService {
 
     fn create_metric_message<'a>(
         &self,
-        organization_id: OrganizationId,
-        project_id: ProjectId,
+        scoping: &Scoping,
         encoder: &'a mut BucketEncoder,
         namespace: MetricNamespace,
         view: &BucketView<'a>,
@@ -956,8 +961,9 @@ impl StoreService {
         };
 
         Ok(MetricKafkaMessage {
-            org_id: organization_id,
-            project_id,
+            org_id: scoping.organization_id,
+            project_id: scoping.project_id,
+            key_id: scoping.key_id,
             name: view.name(),
             value,
             timestamp: view.timestamp(),
@@ -973,7 +979,10 @@ impl StoreService {
         // Takes message by value to ensure it is not being produced twice.
         message: KafkaMessage,
     ) -> Result<(), StoreError> {
-        relay_log::trace!("Sending kafka message of type {}", message.variant());
+        relay_log::trace!(
+            "Sending kafka message of type {} to {topic:?}",
+            message.variant()
+        );
 
         let topic_name = self.producer.client.send_message(topic, &message)?;
 
@@ -1205,10 +1214,13 @@ impl StoreService {
     ) -> Result<(), StoreError> {
         let topic = match namespace {
             MetricNamespace::Sessions => KafkaTopic::MetricsSessions,
+            MetricNamespace::Outcomes => {
+                return self.send_metric_based_outcome(message);
+            }
             MetricNamespace::Unsupported => {
-                relay_log::with_scope(
-                    |scope| scope.set_extra("metric_message.name", message.name.as_ref().into()),
-                    || relay_log::error!("store service dropping unknown metric usecase"),
+                relay_log::error!(
+                    metric_message.name = message.name.as_ref(),
+                    "store service dropping unknown metric usecase"
                 );
                 return Ok(());
             }
@@ -1218,6 +1230,52 @@ impl StoreService {
         let headers = BTreeMap::from([("namespace".to_owned(), namespace.to_string())]);
         self.produce(topic, KafkaMessage::Metric { headers, message })?;
         Ok(())
+    }
+
+    fn send_metric_based_outcome(&self, message: MetricKafkaMessage) -> Result<(), StoreError> {
+        let Some(outcome) = outcome::metric::to_outcome_id(message.name) else {
+            relay_log::error!(
+                mri = message.name.as_ref(),
+                "invalid outcome metric, cannot infer outcome id from metric name"
+            );
+            return Ok(());
+        };
+        let quantity = match message.value {
+            MetricValue::Counter(c) => c.to_f64() as u32,
+            v => {
+                relay_log::error!(
+                    mri = message.name.as_ref(),
+                    "invalid outcome metric, expected a counter got '{}'",
+                    v.variant()
+                );
+                return Ok(());
+            }
+        };
+
+        let outcome = OutcomeMessage {
+            timestamp: message
+                .timestamp
+                .as_datetime()
+                .unwrap_or_else(Utc::now)
+                .to_rfc3339_opts(SecondsFormat::Micros, true),
+            org_id: Some(message.org_id).filter(|id| id.value() != 0),
+            project_id: message.project_id,
+            key_id: message.key_id,
+            outcome,
+            reason: message.tags.get("reason").map(|s| s.as_str()),
+            event_id: message.tags.get("event_id").map(|s| s.as_str()),
+            remote_addr: message.tags.get("remote_addr").map(|s| s.as_str()),
+            source: message.tags.get("source").map(|s| s.as_str()),
+            category: message.tags.get("category").and_then(|s| s.parse().ok()),
+            quantity: Some(quantity),
+        };
+
+        let topic = match outcome.outcome.is_billing() {
+            true => KafkaTopic::OutcomesBilling,
+            false => KafkaTopic::Outcomes,
+        };
+
+        self.produce(topic, KafkaMessage::Outcome(outcome))
     }
 
     fn produce_profile(
@@ -1283,15 +1341,33 @@ impl Service for StoreService {
         relay_log::info!("store forwarder started");
 
         while let Some(message) = rx.recv().await {
-            let service = Arc::clone(&this);
-            // For now, we run each task synchronously, in the future we might explore how to make
-            // the store async.
-            this.pool
-                .spawn_async(async move { service.handle_message(message) }.boxed())
-                .await;
+            let task = StoreTask {
+                service: Arc::clone(&this),
+                message: Some(message),
+            };
+            this.pool.spawn_async(task).await;
         }
 
         relay_log::info!("store forwarder stopped");
+    }
+}
+
+/// Task executed by [`StoreService`].
+pub struct StoreTask {
+    service: Arc<StoreService>,
+    message: Option<Store>,
+}
+
+impl Future for StoreTask {
+    type Output = ();
+
+    fn poll(mut self: Pin<&mut Self>, _: &mut task::Context<'_>) -> task::Poll<Self::Output> {
+        let message = self
+            .message
+            .take()
+            .expect("StoreTask polled after completion");
+        let () = relay_log::with_scope(|_| {}, || self.service.handle_message(message));
+        task::Poll::Ready(())
     }
 }
 
@@ -1466,6 +1542,8 @@ struct UserReportKafkaMessage {
 struct MetricKafkaMessage<'a> {
     org_id: OrganizationId,
     project_id: ProjectId,
+    #[serde(skip)]
+    key_id: Option<u64>,
     name: &'a MetricName,
     #[serde(flatten)]
     value: MetricValue<'a>,
@@ -1506,6 +1584,41 @@ impl MetricValue<'_> {
             _ => None,
         }
     }
+}
+
+/// Raw representation of an outcome for Kafka.
+#[derive(Debug, Serialize, Clone)]
+pub struct OutcomeMessage<'a> {
+    /// The timespan of the event outcome.
+    timestamp: String,
+    /// Organization id.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    org_id: Option<OrganizationId>,
+    /// Project id.
+    project_id: ProjectId,
+    /// The DSN project key id.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    key_id: Option<u64>,
+    /// The outcome.
+    outcome: OutcomeId,
+    /// Reason for the outcome.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reason: Option<&'a str>,
+    /// The event id.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    event_id: Option<&'a str>,
+    /// The client ip address.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    remote_addr: Option<&'a str>,
+    /// The source of the outcome (which Relay sent it)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    source: Option<&'a str>,
+    /// The event's data category.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    category: Option<u8>,
+    /// The number of events or total attachment size in bytes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    quantity: Option<u32>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -1581,6 +1694,13 @@ struct SpanMeta {
     downsampled_retention_days: u16,
     /// Indicates whether Relay already emitted an accepted outcome or if EAP still needs to emit it.
     accepted_outcome_emitted: bool,
+    /// Whether the segment span should be used for issue detection instead of the transaction.
+    #[serde(rename = "_performance_issues_spans", skip_serializing_if = "is_false")]
+    performance_issues_spans: bool,
+}
+
+fn is_false(val: &bool) -> bool {
+    !val
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -1592,6 +1712,15 @@ struct ProfileChunkKafkaMessage {
     #[serde(skip)]
     headers: BTreeMap<String, String>,
     payload: Bytes,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    attachments: Vec<ProfileChunkKafkaAttachment>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct ProfileChunkKafkaAttachment {
+    name: String,
+    content_type: &'static str,
+    stored_id: String,
 }
 
 /// An enum over all possible ingest messages.
@@ -1636,6 +1765,8 @@ enum KafkaMessage<'a> {
     ProfileChunk(ProfileChunkKafkaMessage),
 
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage<'a>),
+
+    Outcome(OutcomeMessage<'a>),
 }
 
 impl KafkaMessage<'_> {
@@ -1663,6 +1794,7 @@ impl Message for KafkaMessage<'_> {
                 MetricNamespace::Spans => "metric_spans",
                 MetricNamespace::Transactions => "metric_transactions",
                 MetricNamespace::Custom => "metric_custom",
+                MetricNamespace::Outcomes => "metric_outcomes",
                 MetricNamespace::Unsupported => "metric_unsupported",
             },
             KafkaMessage::CheckIn(_) => "check_in",
@@ -1676,6 +1808,8 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::ProfileChunk(_) => "profile_chunk",
 
             KafkaMessage::ReplayRecordingNotChunked(_) => "replay_recording_not_chunked",
+
+            KafkaMessage::Outcome(_) => "outcome",
         }
     }
 
@@ -1704,7 +1838,8 @@ impl Message for KafkaMessage<'_> {
             | Self::Item { .. }
             | Self::Profile(_)
             | Self::ProfileChunk(_)
-            | Self::ReplayRecordingNotChunked(_) => None,
+            | Self::ReplayRecordingNotChunked(_)
+            | Self::Outcome(_) => None,
         }
         .filter(|(uuid, _)| !uuid.is_nil())
         .map(|(uuid, org_id)| {
@@ -1731,7 +1866,8 @@ impl Message for KafkaMessage<'_> {
             | KafkaMessage::CheckIn(_)
             | KafkaMessage::Attachment(_)
             | KafkaMessage::AttachmentChunk(_)
-            | KafkaMessage::ReplayRecordingNotChunked(_) => None,
+            | KafkaMessage::ReplayRecordingNotChunked(_)
+            | KafkaMessage::Outcome(_) => None,
         }
     }
 
@@ -1746,6 +1882,7 @@ impl Message for KafkaMessage<'_> {
                     Err(_) => Err(ClientError::ProtobufEncodingFailed),
                 }
             }
+            KafkaMessage::Outcome(outcome) => serialize_as_json(outcome),
             KafkaMessage::Event(_)
             | KafkaMessage::UserReport(_)
             | KafkaMessage::CheckIn(_)
@@ -1792,43 +1929,4 @@ fn safe_timestamp(timestamp: DateTime<Utc>) -> u64 {
 
     // We assume this call can't return < 0.
     Utc::now().timestamp() as u64
-}
-
-#[cfg(test)]
-mod tests {
-
-    use super::*;
-
-    #[test]
-    fn disallow_outcomes() {
-        struct TestMessage;
-        impl relay_kafka::Message for TestMessage {
-            fn key(&self) -> Option<relay_kafka::Key> {
-                None
-            }
-
-            fn variant(&self) -> &'static str {
-                "test"
-            }
-
-            fn headers(&self) -> Option<&BTreeMap<String, String>> {
-                None
-            }
-
-            fn serialize(&self) -> Result<SerializationOutput<'_>, ClientError> {
-                Ok(SerializationOutput::Json(Cow::Borrowed(
-                    br#"{"timestamp": "foo", "outcome": 1}"#,
-                )))
-            }
-        }
-
-        let config = Config::default();
-        let producer = Producer::create(&config).unwrap();
-
-        for topic in [KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
-            let res = producer.client.send_message(topic, &TestMessage);
-
-            assert!(matches!(res, Err(ClientError::InvalidTopicName)));
-        }
-    }
 }

@@ -71,6 +71,7 @@ impl From<ControlFlow<SamplingMatch, SamplingEvaluator>> for SamplingResult {
 #[cfg(test)]
 mod tests {
     use relay_base_schema::events::EventType;
+    use relay_base_schema::project::ProjectId;
     use relay_event_schema::protocol::Event;
     use relay_event_schema::protocol::{EventId, LenientString};
     use relay_protocol::Annotated;
@@ -104,6 +105,7 @@ mod tests {
         DynamicSamplingContext {
             trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
             public_key: "12345678901234567890123456789012".parse().unwrap(),
+            project_id: Some(ProjectId::new(42)),
             release: release.map(|value| value.to_owned()),
             environment: environment.map(|value| value.to_owned()),
             transaction: transaction.map(|value| value.to_owned()),

@@ -114,6 +114,10 @@ pub enum MetricNamespace {
     Transactions,
     /// User-defined metrics directly sent by SDKs and applications.
     Custom,
+    /// Relay's outcomes forwarded as metrics.
+    ///
+    /// Usage of this transport is restricted to trusted Relays.
+    Outcomes,
     /// An unknown and unsupported metric.
     ///
     /// Metrics that Relay either doesn't know or recognize the namespace of will be dropped before
@@ -128,12 +132,13 @@ pub enum MetricNamespace {
 
 impl MetricNamespace {
     /// Returns all namespaces/variants of this enum.
-    pub fn all() -> [Self; 5] {
+    pub fn all() -> [Self; 6] {
         [
             Self::Sessions,
             Self::Spans,
             Self::Transactions,
             Self::Custom,
+            Self::Outcomes,
             Self::Unsupported,
         ]
     }
@@ -145,6 +150,7 @@ impl MetricNamespace {
             Self::Spans => "spans",
             Self::Transactions => "transactions",
             Self::Custom => "custom",
+            Self::Outcomes => "outcomes",
             Self::Unsupported => "unsupported",
         }
     }
@@ -159,6 +165,7 @@ impl std::str::FromStr for MetricNamespace {
             "spans" => Ok(Self::Spans),
             "transactions" => Ok(Self::Transactions),
             "custom" => Ok(Self::Custom),
+            "outcomes" => Ok(Self::Outcomes),
             _ => Ok(Self::Unsupported),
         }
     }

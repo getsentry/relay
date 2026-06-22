@@ -36,6 +36,10 @@ pub struct OutcomeAggregator {
     ///
     /// If `true`, all outcomes will be dropped.
     disabled: bool,
+    /// Whether outcomes should be aggregated.
+    ///
+    /// If `false` outcomes are not aggregated and just immediately forwarded.
+    aggregate: bool,
     /// The width of each aggregated bucket in seconds
     bucket_interval: u64,
     /// The number of seconds between flushes of all buckets
@@ -51,9 +55,11 @@ pub struct OutcomeAggregator {
 impl OutcomeAggregator {
     pub fn new(config: &Config, outcome_producer: Addr<OutcomeProducer>) -> Self {
         let disabled = matches!(config.emit_outcomes(), EmitOutcomes::None);
+        let aggregate = !matches!(config.emit_outcomes(), EmitOutcomes::AsOutcomes);
 
         Self {
             disabled,
+            aggregate,
             bucket_interval: config.outcome_aggregator().bucket_interval,
             flush_interval: config.outcome_aggregator().flush_interval,
             buckets: HashMap::new(),
@@ -71,6 +77,13 @@ impl OutcomeAggregator {
 
     fn handle_track_outcome(&mut self, msg: TrackOutcome) {
         if self.disabled {
+            return;
+        }
+
+        // This is a temporary measure until the aggregator can be entirely removed in favor of
+        // using metrics as the primary aggregator and forward mechanism for outcomes.
+        if !self.aggregate {
+            self.outcome_producer.send(msg);
             return;
         }
 

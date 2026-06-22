@@ -121,19 +121,6 @@ pub struct Span {
     #[metastructure(skip_serialization = "empty", trim = false)]
     pub kind: Annotated<SpanKind>,
 
-    /// Temporary flag that controls where performance issues are detected.
-    ///
-    /// When the flag is set to true, performance issues will be detected on this span provided it
-    /// is a root (segment) instead of the transaction event.
-    ///
-    /// Only set on root spans extracted from transactions.
-    #[metastructure(
-        field = "_performance_issues_spans",
-        skip_serialization = "empty",
-        trim = false
-    )]
-    pub performance_issues_spans: Annotated<bool>,
-
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii = "maybe")]
     pub other: Object<Value>,
@@ -180,7 +167,8 @@ impl Getter for Span {
                         self.attribute(key)?
                     } else if let Some(key) = path.strip_prefix("sentry_tags.") {
                         self.sentry_tags.value()?.get_value(key)?
-                    } else if let Some(rest) = path.strip_prefix("measurements.") {
+                    } else {
+                        let rest = path.strip_prefix("measurements.")?;
                         let name = rest.strip_suffix(".value")?;
                         self.measurements
                             .value()?
@@ -189,8 +177,6 @@ impl Getter for Span {
                             .value
                             .value()?
                             .into()
-                    } else {
-                        return None;
                     }
                 }
             });

@@ -3,11 +3,9 @@ use std::{collections::HashMap, sync::LazyLock};
 
 use regex::Regex;
 use relay_base_schema::metrics::MetricUnit;
-use relay_base_schema::project::ProjectId;
 use relay_event_schema::protocol::VALID_PLATFORMS;
 use relay_pattern::Pattern;
 use relay_protocol::{FiniteF64, RuleCondition};
-use relay_sampling::DynamicSamplingContext;
 use serde::{Deserialize, Serialize};
 
 pub mod breakdowns;
@@ -364,15 +362,6 @@ pub struct ModelMetadataEntry {
     /// The context window size in tokens.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context_size: Option<u64>,
-}
-
-/// [`DynamicSamplingContext`] plus additional attributes used for dsc span normalization.
-#[derive(Debug, Clone, Copy)]
-pub struct EnrichedDsc<'a> {
-    /// Dynamic sampling context containing the trace id and root transaction that started the trace.
-    pub dsc: &'a DynamicSamplingContext,
-    /// ID of the project where the trace originated.
-    pub sampling_project_id: ProjectId,
 }
 
 #[cfg(test)]
@@ -1849,7 +1838,7 @@ mod tests {
             ..Default::default()
         };
         span::normalize_app_start_spans(&mut event);
-        assert_debug_snapshot!(event.spans, @r###"
+        assert_debug_snapshot!(event.spans, @r#"
         [
             Span {
                 timestamp: ~,
@@ -1875,11 +1864,10 @@ mod tests {
                 platform: ~,
                 was_transaction: ~,
                 kind: ~,
-                performance_issues_spans: ~,
                 other: {},
             },
         ]
-        "###);
+        "#);
     }
 
     #[test]
@@ -1897,7 +1885,7 @@ mod tests {
             ..Default::default()
         };
         span::normalize_app_start_spans(&mut event);
-        assert_debug_snapshot!(event.spans, @r###"
+        assert_debug_snapshot!(event.spans, @r#"
         [
             Span {
                 timestamp: ~,
@@ -1923,11 +1911,10 @@ mod tests {
                 platform: ~,
                 was_transaction: ~,
                 kind: ~,
-                performance_issues_spans: ~,
                 other: {},
             },
         ]
-        "###);
+        "#);
     }
 
     #[test]
@@ -1945,7 +1932,7 @@ mod tests {
             ..Default::default()
         };
         span::normalize_app_start_spans(&mut event);
-        assert_debug_snapshot!(event.spans, @r###"
+        assert_debug_snapshot!(event.spans, @r#"
         [
             Span {
                 timestamp: ~,
@@ -1971,10 +1958,9 @@ mod tests {
                 platform: ~,
                 was_transaction: ~,
                 kind: ~,
-                performance_issues_spans: ~,
                 other: {},
             },
         ]
-        "###);
+        "#);
     }
 }

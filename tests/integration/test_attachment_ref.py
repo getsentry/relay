@@ -6,7 +6,7 @@ from requests.exceptions import HTTPError
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
-from .asserts import any
+from .asserts import matches_any
 from .test_store import make_transaction
 
 
@@ -199,14 +199,14 @@ def test_attachment_ref(
 
     relay.send_envelope(project_id, envelope)
     expected_attachment = {
-        "id": any(),
+        "id": matches_any(),
         "name": "test.txt",
         "content_type": "text/plain",
         "attachment_type": "event.attachment",
         "size": len(attachment_data),
         "rate_limited": False,
-        "stored_id": any(),
-        "retention_days": any(),
+        "stored_id": matches_any(),
+        "retention_days": matches_any(),
     }
 
     if event_type == "event":
@@ -254,8 +254,11 @@ def test_attachment_ref_validation(
     event_id = "515539018c9b4260a6f999572f1661ee"
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"].setdefault("features", []).append(
-        "projects:relay-upload-endpoint"
+    project_config["config"].setdefault("features", []).extend(
+        [
+            "projects:relay-upload-endpoint",
+            "organizations:relay-generate-billing-outcome",
+        ]
     )
 
     relay = relay_with_processing()
@@ -275,7 +278,7 @@ def test_attachment_ref_validation(
 
     relay.send_envelope(project_id, envelope)
 
-    outcomes = outcomes_consumer.get_outcomes(n=3 if event_type == "transaction" else 2)
+    outcomes = outcomes_consumer.get_outcomes(n=4 if event_type == "transaction" else 2)
     o = {DataCategory(o["category"]): o for o in outcomes}
     assert o[DataCategory.ATTACHMENT]["reason"] == "invalid_placeholder_attachment"
     assert o[DataCategory.ATTACHMENT]["quantity"] == expected_bytes_quantity

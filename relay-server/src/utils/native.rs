@@ -10,6 +10,7 @@ use chrono::{TimeZone, Utc};
 use minidump::{
     MinidumpAnnotation, MinidumpCrashpadInfo, MinidumpModuleList, Module, StabilityReport,
 };
+use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::{
     ClientSdkInfo, Context, Contexts, Event, Exception, JsonLenientString, Level, Mechanism,
     StabilityReportContext, Values,
@@ -17,6 +18,7 @@ use relay_event_schema::protocol::{
 use relay_protocol::{Annotated, Value};
 
 use crate::envelope::{Item, ItemType};
+use crate::services::projects::project::ProjectInfo;
 
 type Minidump<'a> = minidump::Minidump<'a, &'a [u8]>;
 
@@ -43,7 +45,11 @@ struct NativePlaceholder {
 ///
 /// This will indicate to the ingestion pipeline that this event will need to be processed. The
 /// payload can be checked via `is_minidump_event`.
-fn write_native_placeholder(event: &mut Event, placeholder: NativePlaceholder) {
+fn write_native_placeholder(
+    event: &mut Event,
+    placeholder: NativePlaceholder,
+    project_info: &ProjectInfo,
+) {
     // Events must be native platform.
     let platform = event.platform.value_mut();
     *platform = Some("native".to_owned());
@@ -65,19 +71,26 @@ fn write_native_placeholder(event: &mut Event, placeholder: NativePlaceholder) {
         .value_mut()
         .get_or_insert_with(Vec::new);
 
-    exceptions.clear(); // clear previous errors if any
+    if !project_info.has_feature(Feature::MinidumpMultiException) {
+        exceptions.clear(); // clear previous errors if any
+    }
 
-    exceptions.push(Annotated::new(Exception {
-        ty: Annotated::new(placeholder.exception_type.to_owned()),
-        value: Annotated::new(JsonLenientString(placeholder.exception_value.to_owned())),
-        mechanism: Annotated::new(Mechanism {
-            ty: Annotated::from(placeholder.mechanism_type.to_owned()),
-            handled: Annotated::from(false),
-            synthetic: Annotated::from(true),
-            ..Mechanism::default()
+    // The placeholder for the minidump exception has to be the first in the list. This is what
+    // sentry expects: https://github.com/getsentry/sentry/blob/f949db3155fcb6b79d3ee5e875b542460ed7c2c4/src/sentry/lang/native/utils.py#L149
+    exceptions.insert(
+        0,
+        Annotated::new(Exception {
+            ty: Annotated::new(placeholder.exception_type.to_owned()),
+            value: Annotated::new(JsonLenientString(placeholder.exception_value.to_owned())),
+            mechanism: Annotated::new(Mechanism {
+                ty: Annotated::from(placeholder.mechanism_type.to_owned()),
+                handled: Annotated::from(false),
+                synthetic: Annotated::from(true),
+                ..Mechanism::default()
+            }),
+            ..Exception::default()
         }),
-        ..Exception::default()
-    }));
+    );
 }
 
 /// Generates crashpad contexts for annotations stored in the minidump.
@@ -196,14 +209,14 @@ fn write_crashpad_annotations(
 ///
 /// This function operates at best-effort. It always attaches the placeholder and returns
 /// successfully, even if the minidump or part of its data cannot be parsed.
-pub fn process_minidump(event: &mut Event, item: &Item) {
+pub fn process_minidump(event: &mut Event, item: &Item, project_info: &ProjectInfo) {
     debug_assert_eq!(item.ty(), &ItemType::Attachment);
     let placeholder = NativePlaceholder {
         exception_type: "Minidump",
         exception_value: "Invalid Minidump",
         mechanism_type: "minidump",
     };
-    write_native_placeholder(event, placeholder);
+    write_native_placeholder(event, placeholder, project_info);
 
     if item.is_attachment_ref() {
         // We don't have a full minidump, just a placeholder for something that was uploaded
@@ -266,11 +279,11 @@ pub fn process_minidump(event: &mut Event, item: &Item) {
 
 /// Writes minimal information into the event to indicate it is associated with an Apple Crash
 /// Report.
-pub fn process_apple_crash_report(event: &mut Event) {
+pub fn process_apple_crash_report(event: &mut Event, project_info: &ProjectInfo) {
     let placeholder = NativePlaceholder {
         exception_type: "AppleCrashReport",
         exception_value: "Invalid Apple Crash Report",
         mechanism_type: "applecrashreport",
     };
-    write_native_placeholder(event, placeholder);
+    write_native_placeholder(event, placeholder, project_info);
 }
