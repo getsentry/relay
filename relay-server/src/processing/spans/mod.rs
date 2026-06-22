@@ -385,6 +385,11 @@ struct Settings {
     /// for the benefit of standalone spans which need to have a name inferred
     /// after conversion to V2.
     infer_name: bool,
+    /// Whether the description should be inferred.
+    ///
+    /// This should only be enabled for V2 (and OTEL) spans sent by SDKs. V1
+    /// spans should already have a description.
+    infer_description: bool,
 }
 
 /// Spans which have been parsed and expanded from their serialized state.

@@ -116,6 +116,8 @@ fn expand_span_container(item: &Item) -> Result<(Settings, ContainerItems<SpanV2
                     // We don't want to infer names for V2 spans. If an SDK sent a
                     // V2 span without a name it's just invalid.
                     infer_name: false,
+                    // We want to infer descriptions for V2 spans.
+                    infer_description: true,
                 },
                 // Unsupported, fall back to the safe default.
                 Some(_) => Default::default(),
@@ -151,6 +153,9 @@ fn expand_legacy_spans(
         // The inference can't happen during the conversion
         // because PII scrubbing needs to run first.
         infer_name: true,
+        // We don't want to infer descriptions for legacy spans; they
+        // should already have one.
+        infer_description: false,
     };
 
     (settings, spans)
@@ -294,7 +299,10 @@ fn normalize_span_derived(
         if settings.infer_name {
             eap::normalize_span_name(span);
         }
-        eap::normalize_sentry_description(&mut span.attributes, &span.name);
+
+        if settings.infer_description {
+            eap::normalize_sentry_description(&mut span.attributes, &span.name);
+        }
     }
 
     // Set a max_bytes value on the root state if it's defined in the project config.
