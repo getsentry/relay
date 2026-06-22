@@ -113,96 +113,98 @@
 <a href=#113 id=113 data-nosnippet>113</a>        })
 <a href=#114 id=114 data-nosnippet>114</a>        .map_err(|<span class="kw">_</span>| ())<span class="question-mark">?</span>;
 <a href=#115 id=115 data-nosnippet>115</a>
-<a href=#116 id=116 data-nosnippet>116</a>    <span class="prelude-val">Ok</span>(span.map_value(relay_spans::span_v1_to_span_v2))
-<a href=#117 id=117 data-nosnippet>117</a>}
-<a href=#118 id=118 data-nosnippet>118</a>
-<a href=#119 id=119 data-nosnippet>119</a><span class="doccomment">/// Any violation of the span schema.
-<a href=#120 id=120 data-nosnippet>120</a></span><span class="attr">#[derive(thiserror::Error, Debug)]
-<a href=#121 id=121 data-nosnippet>121</a></span><span class="kw">pub enum </span>ValidationError {
-<a href=#122 id=122 data-nosnippet>122</a>    <span class="attr">#[error(<span class="string">"empty span"</span>)]
-<a href=#123 id=123 data-nosnippet>123</a>    </span>EmptySpan,
-<a href=#124 id=124 data-nosnippet>124</a>    <span class="attr">#[error(<span class="string">"span is missing `trace_id`"</span>)]
-<a href=#125 id=125 data-nosnippet>125</a>    </span>MissingTraceId,
-<a href=#126 id=126 data-nosnippet>126</a>    <span class="attr">#[error(<span class="string">"span is missing `span_id`"</span>)]
-<a href=#127 id=127 data-nosnippet>127</a>    </span>MissingSpanId,
-<a href=#128 id=128 data-nosnippet>128</a>    <span class="attr">#[error(<span class="string">"span is missing `timestamp`"</span>)]
-<a href=#129 id=129 data-nosnippet>129</a>    </span>MissingTimestamp,
-<a href=#130 id=130 data-nosnippet>130</a>    <span class="attr">#[error(<span class="string">"span is missing `start_timestamp`"</span>)]
-<a href=#131 id=131 data-nosnippet>131</a>    </span>MissingStartTimestamp,
-<a href=#132 id=132 data-nosnippet>132</a>    <span class="attr">#[error(<span class="string">"span end must be after start"</span>)]
-<a href=#133 id=133 data-nosnippet>133</a>    </span>EndBeforeStartTimestamp,
-<a href=#134 id=134 data-nosnippet>134</a>    <span class="attr">#[error(<span class="string">"span is missing `exclusive_time`"</span>)]
-<a href=#135 id=135 data-nosnippet>135</a>    </span>MissingExclusiveTime,
-<a href=#136 id=136 data-nosnippet>136</a>}
-<a href=#137 id=137 data-nosnippet>137</a>
-<a href=#138 id=138 data-nosnippet>138</a><span class="doccomment">/// We do not extract or ingest spans with missing fields if those fields are required on the Kafka topic.
-<a href=#139 id=139 data-nosnippet>139</a></span><span class="kw">pub fn </span>validate(span: <span class="kw-2">&amp;mut </span>Annotated&lt;Span&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), ValidationError&gt; {
-<a href=#140 id=140 data-nosnippet>140</a>    <span class="kw">let </span>inner = span
-<a href=#141 id=141 data-nosnippet>141</a>        .value_mut()
-<a href=#142 id=142 data-nosnippet>142</a>        .as_mut()
-<a href=#143 id=143 data-nosnippet>143</a>        .ok_or(ValidationError::EmptySpan)<span class="question-mark">?</span>;
-<a href=#144 id=144 data-nosnippet>144</a>    <span class="kw">let </span>Span {
-<a href=#145 id=145 data-nosnippet>145</a>        exclusive_time,
-<a href=#146 id=146 data-nosnippet>146</a>        tags,
-<a href=#147 id=147 data-nosnippet>147</a>        sentry_tags,
-<a href=#148 id=148 data-nosnippet>148</a>        start_timestamp,
-<a href=#149 id=149 data-nosnippet>149</a>        timestamp,
-<a href=#150 id=150 data-nosnippet>150</a>        span_id,
-<a href=#151 id=151 data-nosnippet>151</a>        trace_id,
-<a href=#152 id=152 data-nosnippet>152</a>        ..
-<a href=#153 id=153 data-nosnippet>153</a>    } = inner;
-<a href=#154 id=154 data-nosnippet>154</a>
-<a href=#155 id=155 data-nosnippet>155</a>    trace_id.value().ok_or(ValidationError::MissingTraceId)<span class="question-mark">?</span>;
-<a href=#156 id=156 data-nosnippet>156</a>    span_id.value().ok_or(ValidationError::MissingSpanId)<span class="question-mark">?</span>;
-<a href=#157 id=157 data-nosnippet>157</a>
-<a href=#158 id=158 data-nosnippet>158</a>    <span class="kw">match </span>(start_timestamp.value(), timestamp.value()) {
-<a href=#159 id=159 data-nosnippet>159</a>        (<span class="prelude-val">Some</span>(start), <span class="prelude-val">Some</span>(end)) <span class="kw">if </span>end &lt; start =&gt; <span class="prelude-val">Err</span>(ValidationError::EndBeforeStartTimestamp),
-<a href=#160 id=160 data-nosnippet>160</a>        (<span class="prelude-val">Some</span>(<span class="kw">_</span>), <span class="prelude-val">Some</span>(<span class="kw">_</span>)) =&gt; <span class="prelude-val">Ok</span>(()),
-<a href=#161 id=161 data-nosnippet>161</a>        (<span class="kw">_</span>, <span class="prelude-val">None</span>) =&gt; <span class="prelude-val">Err</span>(ValidationError::MissingTimestamp),
-<a href=#162 id=162 data-nosnippet>162</a>        (<span class="prelude-val">None</span>, <span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(ValidationError::MissingStartTimestamp),
-<a href=#163 id=163 data-nosnippet>163</a>    }<span class="question-mark">?</span>;
-<a href=#164 id=164 data-nosnippet>164</a>
-<a href=#165 id=165 data-nosnippet>165</a>    exclusive_time
-<a href=#166 id=166 data-nosnippet>166</a>        .value()
-<a href=#167 id=167 data-nosnippet>167</a>        .ok_or(ValidationError::MissingExclusiveTime)<span class="question-mark">?</span>;
-<a href=#168 id=168 data-nosnippet>168</a>
-<a href=#169 id=169 data-nosnippet>169</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(sentry_tags) = sentry_tags.value_mut() {
-<a href=#170 id=170 data-nosnippet>170</a>        <span class="kw">if </span>sentry_tags
-<a href=#171 id=171 data-nosnippet>171</a>            .group
-<a href=#172 id=172 data-nosnippet>172</a>            .value()
-<a href=#173 id=173 data-nosnippet>173</a>            .is_some_and(|s| s.len() &gt; <span class="number">16 </span>|| s.chars().any(|c| !c.is_ascii_hexdigit()))
-<a href=#174 id=174 data-nosnippet>174</a>        {
-<a href=#175 id=175 data-nosnippet>175</a>            sentry_tags.group.set_value(<span class="prelude-val">None</span>);
-<a href=#176 id=176 data-nosnippet>176</a>        }
-<a href=#177 id=177 data-nosnippet>177</a>
-<a href=#178 id=178 data-nosnippet>178</a>        <span class="kw">if </span>sentry_tags
-<a href=#179 id=179 data-nosnippet>179</a>            .status_code
-<a href=#180 id=180 data-nosnippet>180</a>            .value()
-<a href=#181 id=181 data-nosnippet>181</a>            .is_some_and(|s| s.parse::&lt;u16&gt;().is_err())
-<a href=#182 id=182 data-nosnippet>182</a>        {
-<a href=#183 id=183 data-nosnippet>183</a>            sentry_tags.status_code.set_value(<span class="prelude-val">None</span>);
-<a href=#184 id=184 data-nosnippet>184</a>        }
-<a href=#185 id=185 data-nosnippet>185</a>    }
-<a href=#186 id=186 data-nosnippet>186</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(tags) = tags.value_mut() {
-<a href=#187 id=187 data-nosnippet>187</a>        tags.retain(|<span class="kw">_</span>, value| !value.value().is_empty())
-<a href=#188 id=188 data-nosnippet>188</a>    }
-<a href=#189 id=189 data-nosnippet>189</a>
-<a href=#190 id=190 data-nosnippet>190</a>    <span class="prelude-val">Ok</span>(())
-<a href=#191 id=191 data-nosnippet>191</a>}
-<a href=#192 id=192 data-nosnippet>192</a>
-<a href=#193 id=193 data-nosnippet>193</a><span class="kw">fn </span>add_sample_rate(measurements: <span class="kw-2">&amp;mut </span>Annotated&lt;Measurements&gt;, name: <span class="kw-2">&amp;</span>str, value: <span class="prelude-ty">Option</span>&lt;f64&gt;) {
-<a href=#194 id=194 data-nosnippet>194</a>    <span class="kw">let </span>value = <span class="kw">match </span>value {
-<a href=#195 id=195 data-nosnippet>195</a>        <span class="prelude-val">Some</span>(value) <span class="kw">if </span>value &gt; <span class="number">0.0 </span>=&gt; value,
-<a href=#196 id=196 data-nosnippet>196</a>        <span class="kw">_ </span>=&gt; <span class="kw">return</span>,
-<a href=#197 id=197 data-nosnippet>197</a>    };
-<a href=#198 id=198 data-nosnippet>198</a>
-<a href=#199 id=199 data-nosnippet>199</a>    <span class="kw">let </span>measurement = Annotated::new(Measurement {
-<a href=#200 id=200 data-nosnippet>200</a>        value: Annotated::try_from(value),
-<a href=#201 id=201 data-nosnippet>201</a>        unit: MetricUnit::Fraction(FractionUnit::Ratio).into(),
-<a href=#202 id=202 data-nosnippet>202</a>    });
-<a href=#203 id=203 data-nosnippet>203</a>
-<a href=#204 id=204 data-nosnippet>204</a>    measurements
-<a href=#205 id=205 data-nosnippet>205</a>        .get_or_insert_with(Measurements::default)
-<a href=#206 id=206 data-nosnippet>206</a>        .insert(name.to_owned(), measurement);
-<a href=#207 id=207 data-nosnippet>207</a>}
+<a href=#116 id=116 data-nosnippet>116</a>    <span class="comment">// It's ok to enable `infer_name` here—the span has gone through the transaction pipeline,
+<a href=#117 id=117 data-nosnippet>117</a>    // so PII has been scrubbed.
+<a href=#118 id=118 data-nosnippet>118</a>    </span><span class="prelude-val">Ok</span>(span.map_value(|span| relay_spans::span_v1_to_span_v2(span, <span class="bool-val">true</span>)))
+<a href=#119 id=119 data-nosnippet>119</a>}
+<a href=#120 id=120 data-nosnippet>120</a>
+<a href=#121 id=121 data-nosnippet>121</a><span class="doccomment">/// Any violation of the span schema.
+<a href=#122 id=122 data-nosnippet>122</a></span><span class="attr">#[derive(thiserror::Error, Debug)]
+<a href=#123 id=123 data-nosnippet>123</a></span><span class="kw">pub enum </span>ValidationError {
+<a href=#124 id=124 data-nosnippet>124</a>    <span class="attr">#[error(<span class="string">"empty span"</span>)]
+<a href=#125 id=125 data-nosnippet>125</a>    </span>EmptySpan,
+<a href=#126 id=126 data-nosnippet>126</a>    <span class="attr">#[error(<span class="string">"span is missing `trace_id`"</span>)]
+<a href=#127 id=127 data-nosnippet>127</a>    </span>MissingTraceId,
+<a href=#128 id=128 data-nosnippet>128</a>    <span class="attr">#[error(<span class="string">"span is missing `span_id`"</span>)]
+<a href=#129 id=129 data-nosnippet>129</a>    </span>MissingSpanId,
+<a href=#130 id=130 data-nosnippet>130</a>    <span class="attr">#[error(<span class="string">"span is missing `timestamp`"</span>)]
+<a href=#131 id=131 data-nosnippet>131</a>    </span>MissingTimestamp,
+<a href=#132 id=132 data-nosnippet>132</a>    <span class="attr">#[error(<span class="string">"span is missing `start_timestamp`"</span>)]
+<a href=#133 id=133 data-nosnippet>133</a>    </span>MissingStartTimestamp,
+<a href=#134 id=134 data-nosnippet>134</a>    <span class="attr">#[error(<span class="string">"span end must be after start"</span>)]
+<a href=#135 id=135 data-nosnippet>135</a>    </span>EndBeforeStartTimestamp,
+<a href=#136 id=136 data-nosnippet>136</a>    <span class="attr">#[error(<span class="string">"span is missing `exclusive_time`"</span>)]
+<a href=#137 id=137 data-nosnippet>137</a>    </span>MissingExclusiveTime,
+<a href=#138 id=138 data-nosnippet>138</a>}
+<a href=#139 id=139 data-nosnippet>139</a>
+<a href=#140 id=140 data-nosnippet>140</a><span class="doccomment">/// We do not extract or ingest spans with missing fields if those fields are required on the Kafka topic.
+<a href=#141 id=141 data-nosnippet>141</a></span><span class="kw">pub fn </span>validate(span: <span class="kw-2">&amp;mut </span>Annotated&lt;Span&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), ValidationError&gt; {
+<a href=#142 id=142 data-nosnippet>142</a>    <span class="kw">let </span>inner = span
+<a href=#143 id=143 data-nosnippet>143</a>        .value_mut()
+<a href=#144 id=144 data-nosnippet>144</a>        .as_mut()
+<a href=#145 id=145 data-nosnippet>145</a>        .ok_or(ValidationError::EmptySpan)<span class="question-mark">?</span>;
+<a href=#146 id=146 data-nosnippet>146</a>    <span class="kw">let </span>Span {
+<a href=#147 id=147 data-nosnippet>147</a>        exclusive_time,
+<a href=#148 id=148 data-nosnippet>148</a>        tags,
+<a href=#149 id=149 data-nosnippet>149</a>        sentry_tags,
+<a href=#150 id=150 data-nosnippet>150</a>        start_timestamp,
+<a href=#151 id=151 data-nosnippet>151</a>        timestamp,
+<a href=#152 id=152 data-nosnippet>152</a>        span_id,
+<a href=#153 id=153 data-nosnippet>153</a>        trace_id,
+<a href=#154 id=154 data-nosnippet>154</a>        ..
+<a href=#155 id=155 data-nosnippet>155</a>    } = inner;
+<a href=#156 id=156 data-nosnippet>156</a>
+<a href=#157 id=157 data-nosnippet>157</a>    trace_id.value().ok_or(ValidationError::MissingTraceId)<span class="question-mark">?</span>;
+<a href=#158 id=158 data-nosnippet>158</a>    span_id.value().ok_or(ValidationError::MissingSpanId)<span class="question-mark">?</span>;
+<a href=#159 id=159 data-nosnippet>159</a>
+<a href=#160 id=160 data-nosnippet>160</a>    <span class="kw">match </span>(start_timestamp.value(), timestamp.value()) {
+<a href=#161 id=161 data-nosnippet>161</a>        (<span class="prelude-val">Some</span>(start), <span class="prelude-val">Some</span>(end)) <span class="kw">if </span>end &lt; start =&gt; <span class="prelude-val">Err</span>(ValidationError::EndBeforeStartTimestamp),
+<a href=#162 id=162 data-nosnippet>162</a>        (<span class="prelude-val">Some</span>(<span class="kw">_</span>), <span class="prelude-val">Some</span>(<span class="kw">_</span>)) =&gt; <span class="prelude-val">Ok</span>(()),
+<a href=#163 id=163 data-nosnippet>163</a>        (<span class="kw">_</span>, <span class="prelude-val">None</span>) =&gt; <span class="prelude-val">Err</span>(ValidationError::MissingTimestamp),
+<a href=#164 id=164 data-nosnippet>164</a>        (<span class="prelude-val">None</span>, <span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(ValidationError::MissingStartTimestamp),
+<a href=#165 id=165 data-nosnippet>165</a>    }<span class="question-mark">?</span>;
+<a href=#166 id=166 data-nosnippet>166</a>
+<a href=#167 id=167 data-nosnippet>167</a>    exclusive_time
+<a href=#168 id=168 data-nosnippet>168</a>        .value()
+<a href=#169 id=169 data-nosnippet>169</a>        .ok_or(ValidationError::MissingExclusiveTime)<span class="question-mark">?</span>;
+<a href=#170 id=170 data-nosnippet>170</a>
+<a href=#171 id=171 data-nosnippet>171</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(sentry_tags) = sentry_tags.value_mut() {
+<a href=#172 id=172 data-nosnippet>172</a>        <span class="kw">if </span>sentry_tags
+<a href=#173 id=173 data-nosnippet>173</a>            .group
+<a href=#174 id=174 data-nosnippet>174</a>            .value()
+<a href=#175 id=175 data-nosnippet>175</a>            .is_some_and(|s| s.len() &gt; <span class="number">16 </span>|| s.chars().any(|c| !c.is_ascii_hexdigit()))
+<a href=#176 id=176 data-nosnippet>176</a>        {
+<a href=#177 id=177 data-nosnippet>177</a>            sentry_tags.group.set_value(<span class="prelude-val">None</span>);
+<a href=#178 id=178 data-nosnippet>178</a>        }
+<a href=#179 id=179 data-nosnippet>179</a>
+<a href=#180 id=180 data-nosnippet>180</a>        <span class="kw">if </span>sentry_tags
+<a href=#181 id=181 data-nosnippet>181</a>            .status_code
+<a href=#182 id=182 data-nosnippet>182</a>            .value()
+<a href=#183 id=183 data-nosnippet>183</a>            .is_some_and(|s| s.parse::&lt;u16&gt;().is_err())
+<a href=#184 id=184 data-nosnippet>184</a>        {
+<a href=#185 id=185 data-nosnippet>185</a>            sentry_tags.status_code.set_value(<span class="prelude-val">None</span>);
+<a href=#186 id=186 data-nosnippet>186</a>        }
+<a href=#187 id=187 data-nosnippet>187</a>    }
+<a href=#188 id=188 data-nosnippet>188</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(tags) = tags.value_mut() {
+<a href=#189 id=189 data-nosnippet>189</a>        tags.retain(|<span class="kw">_</span>, value| !value.value().is_empty())
+<a href=#190 id=190 data-nosnippet>190</a>    }
+<a href=#191 id=191 data-nosnippet>191</a>
+<a href=#192 id=192 data-nosnippet>192</a>    <span class="prelude-val">Ok</span>(())
+<a href=#193 id=193 data-nosnippet>193</a>}
+<a href=#194 id=194 data-nosnippet>194</a>
+<a href=#195 id=195 data-nosnippet>195</a><span class="kw">fn </span>add_sample_rate(measurements: <span class="kw-2">&amp;mut </span>Annotated&lt;Measurements&gt;, name: <span class="kw-2">&amp;</span>str, value: <span class="prelude-ty">Option</span>&lt;f64&gt;) {
+<a href=#196 id=196 data-nosnippet>196</a>    <span class="kw">let </span>value = <span class="kw">match </span>value {
+<a href=#197 id=197 data-nosnippet>197</a>        <span class="prelude-val">Some</span>(value) <span class="kw">if </span>value &gt; <span class="number">0.0 </span>=&gt; value,
+<a href=#198 id=198 data-nosnippet>198</a>        <span class="kw">_ </span>=&gt; <span class="kw">return</span>,
+<a href=#199 id=199 data-nosnippet>199</a>    };
+<a href=#200 id=200 data-nosnippet>200</a>
+<a href=#201 id=201 data-nosnippet>201</a>    <span class="kw">let </span>measurement = Annotated::new(Measurement {
+<a href=#202 id=202 data-nosnippet>202</a>        value: Annotated::try_from(value),
+<a href=#203 id=203 data-nosnippet>203</a>        unit: MetricUnit::Fraction(FractionUnit::Ratio).into(),
+<a href=#204 id=204 data-nosnippet>204</a>    });
+<a href=#205 id=205 data-nosnippet>205</a>
+<a href=#206 id=206 data-nosnippet>206</a>    measurements
+<a href=#207 id=207 data-nosnippet>207</a>        .get_or_insert_with(Measurements::default)
+<a href=#208 id=208 data-nosnippet>208</a>        .insert(name.to_owned(), measurement);
+<a href=#209 id=209 data-nosnippet>209</a>}
 </code></pre></div></section></main></body></html>
