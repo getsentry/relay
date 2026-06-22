@@ -93,19 +93,6 @@ wheels = [
 ]
 
 [[package]]
-name = "cryptography"
-version = "47.0.0"
-source = { registry = "https://pypi.devinfra.sentry.io/simple" }
-dependencies = [
-    { name = "cffi", marker = "(platform_python_implementation != 'PyPy' and sys_platform == 'darwin') or (platform_python_implementation != 'PyPy' and sys_platform == 'linux')" },
-]
-wheels = [
-    { url = "https://pypi.devinfra.sentry.io/wheels/cryptography-47.0.0-cp311-abi3-macosx_10_9_universal2.whl", hash = "sha256:160ad728f128972d362e714054f6ba0067cab7fb350c5202a9ae8ae4ce3ef1a0" },
-    { url = "https://pypi.devinfra.sentry.io/wheels/cryptography-47.0.0-cp311-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:9c59ab0e0fa3a180a5a9c59f3a5abe3ef90d474bc56d7fadfbe80359491b615b" },
-    { url = "https://pypi.devinfra.sentry.io/wheels/cryptography-47.0.0-cp311-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:0024b87d47ae2399165a6bfb20d24888881eeab83ae2566d62467c5ff0030ce7" },
-]
-
-[[package]]
 name = "devservices"
 version = "1.3.2"
 source = { registry = "https://pypi.devinfra.sentry.io/simple" }
@@ -331,17 +318,16 @@ wheels = [
 
 [[package]]
 name = "objectstore-client"
-version = "0.1.12"
+version = "0.0.14"
 source = { registry = "https://pypi.devinfra.sentry.io/simple" }
 dependencies = [
     { name = "filetype", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "pyjwt", extra = ["crypto"], marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "sentry-sdk", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "urllib3", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "zstandard", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
 ]
 wheels = [
-    { url = "https://pypi.devinfra.sentry.io/wheels/objectstore_client-0.1.12-py3-none-any.whl", hash = "sha256:f1c76b3b58cfd078c1af42f27c17d619093bbb6f6395df529e4261e03f8a1a44" },
+    { url = "https://pypi.devinfra.sentry.io/wheels/objectstore_client-0.0.14-py3-none-any.whl", hash = "sha256:ca2edd8733bfcfce5463d5f6078ca70b838cb40a74f628fc37fac431e63515f6" },
 ]
 
 [[package]]
@@ -442,19 +428,6 @@ version = "2.20.0"
 source = { registry = "https://pypi.devinfra.sentry.io/simple" }
 wheels = [
     { url = "https://pypi.devinfra.sentry.io/wheels/pygments-2.20.0-py3-none-any.whl", hash = "sha256:81a9e26dd42fd28a23a2d169d86d7ac03b46e2f8b59ed4698fb4785f946d0176" },
-]
-
-[[package]]
-name = "pyjwt"
-version = "2.12.1"
-source = { registry = "https://pypi.devinfra.sentry.io/simple" }
-wheels = [
-    { url = "https://pypi.devinfra.sentry.io/wheels/pyjwt-2.12.1-py3-none-any.whl", hash = "sha256:28ca37c070cad8ba8cd9790cd940535d40274d22f80ab87f3ac6a713e6e8454c" },
-]
-
-[package.optional-dependencies]
-crypto = [
-    { name = "cryptography", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
 ]
 
 [[package]]
@@ -706,17 +679,6 @@ wheels = [
 ]
 
 [[package]]
-name = "types-pyopenssl"
-version = "23.2.0.2"
-source = { registry = "https://pypi.devinfra.sentry.io/simple" }
-dependencies = [
-    { name = "cryptography", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-]
-wheels = [
-    { url = "https://pypi.devinfra.sentry.io/wheels/types_pyOpenSSL-23.2.0.2-py3-none-any.whl", hash = "sha256:19536aa3debfbe25a918cf0d898e9f5fbbe6f3594a429da7914bf331deb1b342" },
-]
-
-[[package]]
 name = "types-pyyaml"
 version = "6.0.12.20241230"
 source = { registry = "https://pypi.devinfra.sentry.io/simple" }
@@ -726,14 +688,10 @@ wheels = [
 
 [[package]]
 name = "types-redis"
-version = "4.6.0.3"
+version = "4.3.20"
 source = { registry = "https://pypi.devinfra.sentry.io/simple" }
-dependencies = [
-    { name = "cryptography", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "types-pyopenssl", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-]
 wheels = [
-    { url = "https://pypi.devinfra.sentry.io/wheels/types_redis-4.6.0.3-py3-none-any.whl", hash = "sha256:67c44c14369c33c2a300da2a50b5607c0fc888f7b85eeb7c73e15c78a0f05edd" },
+    { url = "https://pypi.devinfra.sentry.io/wheels/types_redis-4.3.20-py3-none-any.whl", hash = "sha256:b22e0f5a18b98b6a197dd403daed52a22cb76f50e3cbd7ddc539196af52ec23e" },
 ]
 
 [[package]]
