@@ -2,6 +2,7 @@ mod attributes;
 mod description;
 mod measurements;
 mod name;
+mod template;
 
 use std::collections::BTreeMap;
 use std::env;
