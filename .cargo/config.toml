@@ -1,2 +1,2 @@
 [build]
-rustflags = ["--cfg", "tokio_unstable"]
+rustflags = ["--cfg", "tokio_unstable", "-C", "link-arg=-static-libstdc++", "-C", "link-arg=-static-libgcc"]
