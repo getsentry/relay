@@ -124,6 +124,6 @@ def test_perfetto_profile_chunk_objectstore_content_type(
     attachments = profile["attachments"]
     object_store_key = attachments[0]["stored_id"]
 
-    stored = objectstore("profiles_raw", project_id).get(object_store_key)
+    stored = objectstore("profile_attachments", project_id).get(object_store_key)
     assert stored.metadata.content_type == "application/x-perfetto-trace"
     assert len(stored.payload.read()) == 97252

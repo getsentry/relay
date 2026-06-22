@@ -4,10 +4,12 @@
 
 **Bug Fixes**:
 
+- Wider type support for OTel log bodies. ([#6106](https://github.com/getsentry/relay/pull/6106))
 - Don't reject attributes that don't have values, but do have metadata. ([#6098](https://github.com/getsentry/relay/pull/6098))
 
 **Internal**:
 
+- Rename objectstore use-case from `profiles_raw` to `profile_attachments`. ([#6108](https://github.com/getsentry/relay/pull/6108))
 - Require timestamps and verification in auth signatures. ([#6069](https://github.com/getsentry/relay/pull/6069))
 - Have relay generate metric billing outcomes. ([#6066](https://github.com/getsentry/relay/pull/6066))
 - Update sentry-conventions to 0.12.0.
