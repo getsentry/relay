@@ -379,6 +379,12 @@ struct Settings {
     infer_ip: bool,
     /// Whether the user agent/browser should inferred from client headers.
     infer_user_agent: bool,
+    /// Whether the name should be inferred.
+    ///
+    /// This should never be enabled for V2 spans sent by SDKs, it exists purely
+    /// for the benefit of standalone spans which need to have a name inferred
+    /// after conversion to V2.
+    infer_name: bool,
 }
 
 /// Spans which have been parsed and expanded from their serialized state.

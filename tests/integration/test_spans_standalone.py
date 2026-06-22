@@ -1056,6 +1056,12 @@ def test_name_inference(
         project_config["config"].setdefault("features", []).append(
             "projects:span-v2-experimental-processing"
         )
+    project_config["config"]["piiConfig"]["applications"]["data.'http.route'"] = [
+        "@anything:mask"
+    ]
+    project_config["config"]["piiConfig"]["applications"][
+        "$span.attributes.'http.route'.value"
+    ] = ["@anything:mask"]
 
     relay = relay(relay_with_processing())
 
@@ -1063,18 +1069,15 @@ def test_name_inference(
 
     envelope = envelope_with_spans(
         {
+            # The combination of op, `http.request.method`, and
+            # `http.route` means this span has its name synthesized as
+            # `GET https://example.com`.
+            "op": "http.client",
             "data": {
-                "sentry.op": "ui.webvital.lcp",
-                "release": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
-                "environment": "prod",
-                "replay_id": "3d76a6311de149b9b3f560827ea0ecf9",
-                "transaction": "/insights/projects/",
-                "sentry.exclusive_time": 0,
-                "sentry.pageload.span_id": "8a6626cc9bdd5d9b",
-                "sentry.report_event": "navigation",
+                "http.request.method": "GET",
+                "http.route": "https://example.com",
             },
             "description": "Test span",
-            "op": "ui.webvital.lcp",
             "parent_span_id": "8a6626cc9bdd5d9b",
             "span_id": "9fd17741416e8e4e",
             "start_timestamp": ts.timestamp() - 0.5,
@@ -1084,6 +1087,7 @@ def test_name_inference(
             "exclusive_time": 0,
             "measurements": {},
             "segment_id": "8a6626cc9bdd5d9b",
+            "is_segment": False,
         },
         trace_info={
             "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
@@ -1097,15 +1101,60 @@ def test_name_inference(
     attributes, fields = lcp_cls_inp_differences(mode)
 
     # If the span's origin is "manual", the name should be the same as the description.
-    # Otherwise it should be backfilled according to conventions, which falls back to op.
-    expected_name = "ui.webvital.lcp"
+    # Otherwise it should be backfilled according to conventions, which includes
+    # a redacted attribute.
     if origin == "manual":
         expected_name = "Test span"
+    else:
+        expected_name = "GET *******************"
+
+    # _meta unfortunately differs slightly between the pipelines
+    if mode == "v2":
+        meta = {
+            "attributes": {
+                "http.route": {
+                    "value": {
+                        "": {
+                            "len": 19,
+                            "rem": [
+                                [
+                                    "@anything:mask",
+                                    "m",
+                                    0,
+                                    19,
+                                ],
+                            ],
+                        },
+                    },
+                },
+            },
+        }
+    else:
+        meta = {
+            "attributes": {
+                "http.route": {
+                    "": {
+                        "len": 19,
+                        "rem": [
+                            [
+                                "@anything:mask",
+                                "m",
+                                0,
+                                19,
+                            ],
+                        ],
+                    },
+                },
+            }
+        }
 
     assert spans_consumer.get_span() == {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
             "browser.name": {"type": "string", "value": "Firefox"},
+            "http.request.method": {"type": "string", "value": "GET"},
+            "http.route": {"type": "string", "value": "*******************"},
+            "sentry.category": {"type": "string", "value": "http"},
             "sentry.description": {"type": "string", "value": "Test span"},
             "sentry.dsc.transaction": {
                 "type": "string",
@@ -1116,26 +1165,21 @@ def test_name_inference(
                 "type": "string",
                 "value": "d3d20f000885466b8c8f947c9b92b8d3",
             },
-            "sentry.environment": {"type": "string", "value": "prod"},
             "sentry.exclusive_time": {"type": "double", "value": 0.0},
-            "sentry.op": {"type": "string", "value": "ui.webvital.lcp"},
+            "sentry.op": {"type": "string", "value": "http.client"},
             "sentry.origin": {"type": "string", "value": origin},
-            "sentry.pageload.span_id": {"type": "string", "value": "8a6626cc9bdd5d9b"},
-            "sentry.release": {
-                "type": "string",
-                "value": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
-            },
-            "sentry.replay_id": {
-                "type": "string",
-                "value": "3d76a6311de149b9b3f560827ea0ecf9",
-            },
-            "sentry.report_event": {"type": "string", "value": "navigation"},
-            "sentry.segment.name": {"type": "string", "value": "/insights/projects/"},
-            "sentry.transaction": {"type": "string", "value": "/insights/projects/"},
+            "sentry.segment.id": {"type": "string", "value": "8a6626cc9bdd5d9b"},
             "user_agent.original": {
                 "type": "string",
                 "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
             },
+            **_if_dict(
+                mode == "v2",
+                {
+                    # The V2 pipeline backfills `sentry.action` from `http.method`.
+                    "sentry.action": {"type": "string", "value": "GET"}
+                },
+            ),
             **attributes,
         },
         "downsampled_retention_days": 90,
@@ -1151,6 +1195,9 @@ def test_name_inference(
         "start_timestamp": time_within(ts.timestamp() - 0.5),
         "status": "ok",
         "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+        "is_segment": False,
+        "parent_span_id": "8a6626cc9bdd5d9b",
+        "_meta": meta,
         **fields,
     }
 
