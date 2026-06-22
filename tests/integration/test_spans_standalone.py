@@ -122,9 +122,16 @@ def lcp_cls_inp_differences(mode):
         }
 
 
+@pytest.mark.parametrize("is_segment", [False, True])
 @pytest.mark.parametrize("mode", ["legacy", "v2"])
 def test_lcp_span(
-    mini_sentry, relay, relay_with_processing, spans_consumer, metrics_consumer, mode
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+    metrics_consumer,
+    mode,
+    is_segment,
 ):
     """
     Test verifies LCP spans processed via the SpanV2 and legacy standalone processing pipeline are equally processed.
@@ -180,6 +187,7 @@ def test_lcp_span(
             "exclusive_time": 0,
             "measurements": {"lcp": {"value": 548, "unit": "millisecond"}},
             "segment_id": "8a6626cc9bdd5d9b",
+            "is_segment": is_segment,
         },
         trace_info={
             "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
@@ -324,9 +332,16 @@ def test_lcp_span(
     ]
 
 
+@pytest.mark.parametrize("is_segment", [False, True])
 @pytest.mark.parametrize("mode", ["legacy", "v2"])
 def test_cls_span(
-    mini_sentry, relay, relay_with_processing, spans_consumer, metrics_consumer, mode
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+    metrics_consumer,
+    mode,
+    is_segment,
 ):
     """
     Test verifies CLS spans processed via the SpanV2 and legacy standalone processing pipeline are equally processed.
@@ -382,6 +397,7 @@ def test_cls_span(
             "exclusive_time": 0,
             "measurements": {"cls": {"value": 0.1, "unit": ""}},
             "segment_id": "8a6626cc9bdd5d9b",
+            "is_segment": is_segment,
         },
         trace_info={
             "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
@@ -533,9 +549,16 @@ def test_cls_span(
     ]
 
 
+@pytest.mark.parametrize("is_segment", [False, True])
 @pytest.mark.parametrize("mode", ["legacy", "v2"])
 def test_inp_span(
-    mini_sentry, relay, relay_with_processing, spans_consumer, metrics_consumer, mode
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+    metrics_consumer,
+    mode,
+    is_segment,
 ):
     """
     Test verifies INP spans processed via the SpanV2 and legacy standalone processing pipeline are equally processed.
@@ -585,6 +608,7 @@ def test_inp_span(
             "exclusive_time": 104,
             "measurements": {"inp": {"value": 104, "unit": "millisecond"}},
             "segment_id": "8a6626cc9bdd5d9b",
+            "is_segment": is_segment,
         },
         trace_info={
             "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
