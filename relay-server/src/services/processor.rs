@@ -1176,6 +1176,7 @@ impl EnvelopeProcessorService {
     ///
     /// This function runs the following steps:
     ///  - rate limiting
+    ///  - emit billing outcomes
     ///  - submit to `StoreForwarder`
     #[cfg(feature = "processing")]
     async fn encode_metrics_processing(
@@ -1185,6 +1186,7 @@ impl EnvelopeProcessorService {
     ) {
         use crate::constants::DEFAULT_EVENT_RETENTION;
         use crate::services::store::StoreMetrics;
+        use relay_dynamic_config::Feature;
 
         for ProjectBuckets {
             buckets,
@@ -1193,12 +1195,23 @@ impl EnvelopeProcessorService {
             ..
         } in message.buckets.into_values()
         {
-            let buckets = self
+            let mut buckets = self
                 .rate_limit_buckets(scoping, &project_info, buckets)
                 .await;
 
             if buckets.is_empty() {
                 continue;
+            }
+
+            if project_info
+                .config
+                .features
+                .has(Feature::GenerateBillingOutcome)
+            {
+                // Emit metric billing outcomes.
+                self.inner
+                    .metric_outcomes
+                    .track_accepted_outcome(scoping, &mut buckets);
             }
 
             let retention = project_info

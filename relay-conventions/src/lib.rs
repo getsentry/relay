@@ -244,7 +244,7 @@ mod tests {
         insta::assert_debug_snapshot!(info, @r###"
         AttributeInfo {
             write_behavior: CurrentName,
-            pii: Maybe,
+            pii: True,
             aliases: [
                 "params.<key>",
             ],

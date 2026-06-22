@@ -1,5 +1,5 @@
 use relay_event_schema::processor::{
-    ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
+    ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor, Required,
 };
 use relay_protocol::{Annotated, Array, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
@@ -139,8 +139,15 @@ impl Processor for SchemaProcessor {
             RequiredMode::DeleteParent => {
                 self.stack.push(SchemaState::default());
             }
+
             RequiredMode::DeleteValue => {
-                if value.is_none() && state.attrs().required && !meta.has_errors() {
+                let required_violation = match state.attrs().required {
+                    Required::Value if value.is_none() => true,
+                    Required::ValueOrMeta if value.is_none() && meta.is_empty() => true,
+                    _ => false,
+                };
+
+                if required_violation && !meta.has_errors() {
                     meta.add_error(ErrorKind::MissingAttribute);
                 }
             }
@@ -167,14 +174,26 @@ impl Processor for SchemaProcessor {
         // A local violation indicates that the current field violates a required requirement.
         // In such a case the parent must be deleted.
         let mut local_violation = None;
-        if state.attrs().required {
-            local_violation = current.required_violation.take();
-            if value.is_none() {
-                let violation = local_violation.get_or_insert_default();
-                if self.verbose_errors {
-                    violation.add(state);
+        match state.attrs().required {
+            Required::Value => {
+                local_violation = current.required_violation.take();
+                if value.is_none() {
+                    let violation = local_violation.get_or_insert_default();
+                    if self.verbose_errors {
+                        violation.add(state);
+                    }
                 }
             }
+            Required::ValueOrMeta => {
+                local_violation = current.required_violation.take();
+                if value.is_none() && meta.is_empty() {
+                    let violation = local_violation.get_or_insert_default();
+                    if self.verbose_errors {
+                        violation.add(state);
+                    }
+                }
+            }
+            Required::False => {}
         }
 
         if let Some(violation) = local_violation {

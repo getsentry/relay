@@ -116,6 +116,9 @@ pub enum Feature {
     /// Allow additional exceptions to accompany minidumps.
     #[serde(rename = "projects:minidump-multi-exception")]
     MinidumpMultiException,
+    /// Enable relay billing outcome generation.
+    #[serde(rename = "organizations:relay-generate-billing-outcome")]
+    GenerateBillingOutcome,
 
     /// Enables OTLP spans to use the Span V2 processing pipeline in Relay.
     ///

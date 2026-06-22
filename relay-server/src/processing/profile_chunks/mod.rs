@@ -1,21 +1,20 @@
 use std::sync::Arc;
 
-use bytes::Bytes;
-use smallvec::smallvec;
-
 use relay_cogs::{AppFeature, FeatureWeights};
 
-use relay_profiling::ProfileType;
+use relay_profiling::{ProfileChunk, ProfileType};
 use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
-use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType, Items};
+use crate::envelope::{EnvelopeHeaders, Item, ItemType, Items};
 use crate::managed::{Counted, Managed, ManagedEnvelope, ManagedResult as _, Quantities, Rejected};
 use crate::processing::{self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
 
 mod filter;
 mod process;
+#[cfg(feature = "processing")]
+mod store;
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -24,6 +23,9 @@ pub enum Error {
     /// Error raised in [`relay_profiling`].
     #[error("Profiling Error: {0}")]
     Profiling(#[from] relay_profiling::ProfileError),
+    /// Profile chunks filtered due to a filtering rule.
+    #[error("profile chunk filtered")]
+    Filtered(relay_filter::FilterStatKey),
     /// The profile chunks are rate limited.
     #[error("rate limited")]
     RateLimited(RateLimits),
@@ -49,7 +51,7 @@ impl crate::managed::OutcomeError for Error {
             Self::Profiling(err) => Some(Outcome::Invalid(DiscardReason::Profiling(
                 relay_profiling::discard_reason(err),
             ))),
-
+            Self::Filtered(f) => Some(Outcome::Filtered(f.clone())),
             Self::RateLimited(limits) => {
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
                 Some(Outcome::RateLimited(reason_code))
@@ -105,29 +107,29 @@ impl processing::Processor for ProfileChunksProcessor {
 
     async fn process(
         &self,
-        profile_chunks: Managed<Self::Input>,
+        mut profile_chunks: Managed<Self::Input>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Error>> {
-        filter::feature_flag(ctx).reject(&profile_chunks)?;
+        filter::feature_flag(&mut profile_chunks, ctx).reject(&profile_chunks)?;
 
         if !ctx.is_processing() {
             let profile_chunks = self.limiter.enforce_quotas(profile_chunks, ctx).await?;
             return Ok(Output::just(ProfileChunkOutput::Serialized(profile_chunks)));
         }
 
-        let expanded = process::expand(profile_chunks, ctx);
-        let expanded = self.limiter.enforce_quotas(expanded, ctx).await?;
+        let mut profile_chunks = process::expand(profile_chunks);
 
-        Ok(Output::just(ProfileChunkOutput::Expanded(expanded)))
+        filter::filter(&mut profile_chunks, ctx);
+        process::normalize(&mut profile_chunks);
+
+        let profile_chunks = self.limiter.enforce_quotas(profile_chunks, ctx).await?;
+
+        Ok(Output::just(ProfileChunkOutput::Expanded(profile_chunks)))
     }
 }
 
 /// Output produced by [`ProfileChunksProcessor`].
 #[derive(Debug)]
-#[expect(
-    clippy::large_enum_variant,
-    reason = "variants are sized by Managed<T> which wraps different pipeline stages"
-)]
 pub enum ProfileChunkOutput {
     /// Non-processing relay: items forwarded as-is.
     Serialized(Managed<SerializedProfileChunks>),
@@ -155,8 +157,6 @@ impl Forward for ProfileChunkOutput {
         s: processing::forward::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        use crate::services::store::{self, StoreProfileChunk};
-
         let expanded = match self {
             Self::Expanded(e) => e,
             Self::Serialized(m) => {
@@ -166,18 +166,13 @@ impl Forward for ProfileChunkOutput {
             }
         };
 
-        let retention_days = ctx.event_retention().standard;
-
-        for chunk in expanded.split(|e| e.chunks) {
-            s.send_to_store(chunk.map(|chunk, _| StoreProfileChunk {
-                retention_days,
-                payload: chunk.payload,
-                quantities: chunk.quantities,
-                raw_profile: chunk.raw_profile.map(|p| store::RawProfile {
-                    payload: p.payload,
-                    content_type: p.content_type,
-                }),
-            }));
+        for chunk in expanded.split(|e| e.profile_chunks) {
+            if let Ok(pc) = chunk.try_map(|pc, _| store::convert(pc, ctx)) {
+                match pc.transpose() {
+                    either::Either::Left(message) => s.send_to_store(message),
+                    either::Either::Right(message) => s.send_to_objectstore(message),
+                }
+            }
         }
 
         Ok(())
@@ -188,9 +183,9 @@ impl Forward for ProfileChunkOutput {
 #[derive(Debug)]
 pub struct SerializedProfileChunks {
     /// Original envelope headers.
-    pub headers: EnvelopeHeaders,
+    headers: EnvelopeHeaders,
     /// List of serialized profile chunk items.
-    pub profile_chunks: Vec<Item>,
+    profile_chunks: Vec<Item>,
 }
 
 impl Counted for SerializedProfileChunks {
@@ -206,7 +201,7 @@ impl Counted for SerializedProfileChunks {
             }
         }
 
-        let mut quantities = smallvec![];
+        let mut quantities = smallvec::smallvec![];
         if ui > 0 {
             quantities.push((DataCategory::ProfileChunkUi, ui));
         }
@@ -224,39 +219,32 @@ impl CountRateLimited for Managed<SerializedProfileChunks> {
 
 /// A single profile chunk after expansion.
 #[derive(Debug)]
-struct ExpandedProfileChunk {
-    #[cfg_attr(not(any(feature = "processing", test)), expect(unused))]
-    payload: Bytes,
-    #[cfg_attr(not(any(feature = "processing", test)), expect(unused))]
-    raw_profile: Option<RawProfile>,
-    quantities: Quantities,
-}
+struct ExpandedProfileChunk(relay_profiling::AnyProfileChunk);
 
 impl Counted for ExpandedProfileChunk {
     fn quantities(&self) -> Quantities {
-        self.quantities.clone()
+        let category = match self.0.profile_type() {
+            ProfileType::Backend => DataCategory::ProfileChunk,
+            ProfileType::Ui => DataCategory::ProfileChunkUi,
+        };
+        smallvec::smallvec![(category, 1)]
     }
-}
-
-#[derive(Debug)]
-struct RawProfile {
-    #[cfg_attr(not(any(feature = "processing", test)), expect(unused))]
-    payload: Bytes,
-    #[cfg_attr(not(any(feature = "processing", test)), expect(unused))]
-    content_type: ContentType,
 }
 
 /// Profile chunks after expansion: all items have been parsed, validated, and
 /// converted into typed representations.
 #[derive(Debug)]
 pub struct ExpandedProfileChunks {
-    chunks: Vec<ExpandedProfileChunk>,
+    /// Original envelope headers.
+    headers: EnvelopeHeaders,
+    /// List of parsed and expanded profile chunks.
+    profile_chunks: Vec<ExpandedProfileChunk>,
 }
 
 impl Counted for ExpandedProfileChunks {
     fn quantities(&self) -> Quantities {
         let mut q = Quantities::new();
-        for chunk in &self.chunks {
+        for chunk in &self.profile_chunks {
             q.extend(chunk.quantities());
         }
         q
@@ -265,33 +253,4 @@ impl Counted for ExpandedProfileChunks {
 
 impl CountRateLimited for Managed<ExpandedProfileChunks> {
     type Error = Error;
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::processing::Context;
-
-    fn make_expanded(
-        chunks: Vec<ExpandedProfileChunk>,
-    ) -> (
-        Managed<ExpandedProfileChunks>,
-        crate::managed::ManagedTestHandle,
-    ) {
-        Managed::for_test(ExpandedProfileChunks { chunks }).build()
-    }
-
-    #[test]
-    #[should_panic(expected = "serialize_envelope called with expanded profile chunks")]
-    fn test_serialize_envelope_rejects_expanded() {
-        let chunk = ExpandedProfileChunk {
-            payload: Bytes::from(b"{\"hello\":\"world\"}".as_ref()),
-            raw_profile: None,
-            quantities: smallvec![(DataCategory::ProfileChunk, 1)],
-        };
-        let (managed, _handle) = make_expanded(vec![chunk]);
-        let output = ProfileChunkOutput::Expanded(managed);
-
-        let _ = output.serialize_envelope(Context::for_test().to_forward());
-    }
 }

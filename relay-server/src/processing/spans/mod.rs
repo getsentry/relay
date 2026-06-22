@@ -195,15 +195,14 @@ impl processing::Processor for SpansProcessor {
 
         process::normalize(&mut spans, &self.geo_lookup, ctx);
         filter::filter(&mut spans, ctx);
+        process::scrub(&mut spans, ctx);
+        process::normalize_derived(&mut spans, ctx);
 
         let spans = self.limiter.enforce_quotas(spans, ctx).await?;
-        let mut spans = match spans.transpose() {
+        let spans = match spans.transpose() {
             Either::Left(spans) => spans,
             Either::Right(metrics) => return Ok(Output::metrics(metrics)),
         };
-
-        process::scrub(&mut spans, ctx);
-        process::normalize_derived(&mut spans);
 
         match dynamic_sampling::try_split_indexed_and_total(spans, ctx) {
             Either::Left(spans) => Ok(Output::just(SpanOutput::TotalAndIndexed(spans))),

@@ -170,6 +170,32 @@ fn normalize_trace_metric(
         eap::normalize_user_agent(&mut metric_value.attributes, client_ua_info);
     };
 
+    if let Annotated(None, meta) = metric {
+        relay_log::debug!("empty metric: {meta:?}");
+        return Err(Error::Invalid(DiscardReason::NoData));
+    }
+
+    Ok(())
+}
+
+/// Normalize derived fields and attributes.
+///
+/// This is separate from [`normalize`] because it needs to run
+/// after PII scrubbing; PII might get leaked otherwise.
+///
+/// In practice, for trace metrics, it only performs schema validation.
+pub fn normalize_derived(metrics: &mut Managed<ExpandedTraceMetrics>) {
+    metrics.retain_with_context(
+        |metrics| (&mut metrics.metrics, &()),
+        |metric, _, _| {
+            normalize_trace_metric_derived(metric).inspect_err(|err| {
+                relay_log::debug!("failed to normalize trace metric: {err}");
+            })
+        },
+    );
+}
+
+fn normalize_trace_metric_derived(metric: &mut Annotated<TraceMetric>) -> Result<()> {
     process_value(
         metric,
         &mut SchemaProcessor::new()

@@ -179,13 +179,16 @@ impl ProjectInfo {
             SignatureVerification::Disabled => Ok(()),
             SignatureVerification::Enabled => match envelope.meta().signature() {
                 Some(signature) => {
-                    if signature.verify_any(
-                        &self.config.trusted_relays,
-                        envelope.received_at(),
-                        // conversion should never fail here
-                        Duration::from_std(config.signature_max_age())
-                            .unwrap_or(Duration::milliseconds(i64::MAX)),
-                    ) {
+                    if signature
+                        .verify_any(
+                            &self.config.trusted_relays,
+                            envelope.received_at(),
+                            // conversion should never fail here
+                            Duration::from_std(config.signature_max_age())
+                                .unwrap_or(Duration::milliseconds(i64::MAX)),
+                        )
+                        .is_some()
+                    {
                         Ok(())
                     } else {
                         Err(DiscardReason::InvalidSignature)

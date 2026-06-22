@@ -10,6 +10,7 @@ use std::collections::HashMap;
 
 use android_trace_log::chrono::Utc;
 use android_trace_log::{AndroidTraceLog, Clock, Vm};
+use bytes::Bytes;
 use data_encoding::BASE64_NOPAD;
 use relay_event_schema::protocol::EventId;
 use serde::{Deserialize, Serialize};
@@ -43,7 +44,7 @@ pub struct Metadata {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Chunk {
+pub struct Chunk {
     #[serde(flatten)]
     metadata: Metadata,
 
@@ -78,62 +79,84 @@ impl Chunk {
         }
     }
 
-    fn parse(&mut self) -> Result<(), ProfileError> {
-        let profile_bytes = match BASE64_NOPAD.decode(self.sampled_profile.as_bytes()) {
-            Ok(profile) => profile,
-            Err(_) => return Err(ProfileError::InvalidBase64Value),
-        };
-        self.profile = match android_trace_log::parse(&profile_bytes) {
-            Ok(profile) => profile,
-            Err(_) => return Err(ProfileError::InvalidSampledProfile),
-        };
+    pub fn parse(payload: &[u8]) -> Result<Self, ProfileError> {
+        let d = &mut serde_json::Deserializer::from_slice(payload);
+        let mut profile: Chunk =
+            serde_path_to_error::deserialize(d).map_err(ProfileError::InvalidJson)?;
+
+        if let Some(ref mut js_profile) = profile.js_profile {
+            js_profile.normalize(profile.metadata.platform.as_str())?;
+        }
+
+        if !profile.sampled_profile.is_empty() {
+            let profile_bytes = match BASE64_NOPAD.decode(profile.sampled_profile.as_bytes()) {
+                Ok(profile) => profile,
+                Err(_) => return Err(ProfileError::InvalidBase64Value),
+            };
+            profile.profile = match android_trace_log::parse(&profile_bytes) {
+                Ok(profile) => profile,
+                Err(_) => return Err(ProfileError::InvalidSampledProfile),
+            };
+        }
+
+        if profile.profile.events.is_empty() {
+            return Err(ProfileError::NotEnoughSamples);
+        }
+
+        if profile.profile.elapsed_time > MAX_PROFILE_CHUNK_DURATION {
+            return Err(ProfileError::DurationIsTooLong);
+        }
+
+        if profile.profile.elapsed_time.is_zero() {
+            return Err(ProfileError::DurationIsZero);
+        }
+
+        // Use duration given by the profiler and not reported by the SDK.
+        profile.metadata.duration_ns = profile.profile.elapsed_time.as_nanos() as u64;
+
+        // If build_id is not empty but we don't have any DebugImage set,
+        // we create the proper Proguard image and set the uuid.
+        if !profile.metadata.build_id.is_empty() && profile.metadata.debug_meta.is_none() {
+            profile.metadata.debug_meta = Some(DebugMeta {
+                images: vec![get_proguard_image(&profile.metadata.build_id)?],
+            })
+        }
+
+        Ok(profile)
+    }
+
+    /// Serializes the [`Chunk`] into its JSON form.
+    pub fn serialize(&self) -> Result<Bytes, ProfileError> {
+        serde_json::to_vec(self)
+            .map(Bytes::from)
+            .map_err(|_| ProfileError::CannotSerializePayload)
+    }
+}
+
+impl crate::profile_chunk::ProfileChunk for Chunk {
+    fn platform(&self) -> &str {
+        &self.metadata.platform
+    }
+
+    fn normalize(&mut self) -> Result<(), ProfileError> {
         Ok(())
     }
 }
 
-fn parse_chunk(payload: &[u8]) -> Result<Chunk, ProfileError> {
-    let d = &mut serde_json::Deserializer::from_slice(payload);
-    let mut profile: Chunk =
-        serde_path_to_error::deserialize(d).map_err(ProfileError::InvalidJson)?;
-
-    if let Some(ref mut js_profile) = profile.js_profile {
-        js_profile.normalize(profile.metadata.platform.as_str())?;
+impl relay_filter::Filterable for Chunk {
+    fn release(&self) -> Option<&str> {
+        Some(&self.metadata.release)
     }
-
-    if !profile.sampled_profile.is_empty() {
-        profile.parse()?;
-    }
-
-    if profile.profile.events.is_empty() {
-        return Err(ProfileError::NotEnoughSamples);
-    }
-
-    if profile.profile.elapsed_time > MAX_PROFILE_CHUNK_DURATION {
-        return Err(ProfileError::DurationIsTooLong);
-    }
-
-    if profile.profile.elapsed_time.is_zero() {
-        return Err(ProfileError::DurationIsZero);
-    }
-
-    // Use duration given by the profiler and not reported by the SDK.
-    profile.metadata.duration_ns = profile.profile.elapsed_time.as_nanos() as u64;
-
-    // If build_id is not empty but we don't have any DebugImage set,
-    // we create the proper Proguard image and set the uuid.
-    if !profile.metadata.build_id.is_empty() && profile.metadata.debug_meta.is_none() {
-        profile.metadata.debug_meta = Some(DebugMeta {
-            images: vec![get_proguard_image(&profile.metadata.build_id)?],
-        })
-    }
-
-    Ok(profile)
 }
 
-pub fn parse(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
-    let profile = parse_chunk(payload)?;
-
-    serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
+impl relay_protocol::Getter for Chunk {
+    fn get_value(&self, path: &str) -> Option<relay_protocol::Val<'_>> {
+        match path.strip_prefix(crate::PROFIL_GETTER_PREFIX)? {
+            "release" => Some(self.metadata.release.as_str().into()),
+            "platform" => Some(self.metadata.platform.as_str().into()),
+            _ => None,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -143,26 +166,23 @@ mod tests {
     #[test]
     fn test_roundtrip() {
         let payload = include_bytes!("../../tests/fixtures/android/chunk/valid.json");
-        let profile = parse_chunk(payload);
-        assert!(profile.is_ok());
-        let data = serde_json::to_vec(&profile.unwrap());
-        assert!(parse_chunk(&(data.unwrap())[..]).is_ok());
+        let profile = Chunk::parse(payload).unwrap();
+        let data = profile.serialize();
+        assert!(Chunk::parse(&(data.unwrap())[..]).is_ok());
     }
 
     #[test]
     fn test_roundtrip_react_native() {
         let payload = include_bytes!("../../tests/fixtures/android/chunk/valid-rn.json");
-        let profile = parse_chunk(payload);
-        assert!(profile.is_ok());
-        let data = serde_json::to_vec(&profile.unwrap());
-        assert!(parse_chunk(&(data.unwrap())[..]).is_ok());
+        let profile = Chunk::parse(payload).unwrap();
+        let data = serde_json::to_vec(&profile);
+        assert!(Chunk::parse(&(data.unwrap())[..]).is_ok());
     }
 
     #[test]
     fn test_remove_invalid_events() {
         let payload =
             include_bytes!("../../tests/fixtures/android/chunk/remove_invalid_events.json");
-        let data = parse(payload);
-        assert!(data.is_err());
+        let _ = Chunk::parse(payload).unwrap_err();
     }
 }
