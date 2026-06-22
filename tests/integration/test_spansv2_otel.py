@@ -1,7 +1,5 @@
 from datetime import datetime, timezone
 
-import pytest
-
 from opentelemetry.proto.common.v1.common_pb2 import (
     AnyValue,
     InstrumentationScope,
@@ -20,13 +18,6 @@ from sentry_relay.consts import DataCategory
 from .asserts import time_within_delta, time_within
 
 
-@pytest.mark.parametrize(
-    "eap_span_outcomes_rollout_rate",
-    [
-        pytest.param(0.0, id="relay_emits_accepted_outcome"),
-        pytest.param(1.0, id="eap_emits_accepted_outcome"),
-    ],
-)
 def test_span_ingestion(
     mini_sentry,
     relay,
@@ -34,16 +25,10 @@ def test_span_ingestion(
     spans_consumer,
     metrics_consumer,
     outcomes_consumer,
-    eap_span_outcomes_rollout_rate,
 ):
     spans_consumer = spans_consumer()
     metrics_consumer = metrics_consumer()
     outcomes_consumer = outcomes_consumer()
-
-    mini_sentry.global_config["options"][
-        "relay.eap-span-outcomes.rollout-rate"
-    ] = eap_span_outcomes_rollout_rate
-    relay_emits_accepted_outcome = eap_span_outcomes_rollout_rate == 0.0
 
     relay = relay(relay_with_processing())
 
@@ -144,7 +129,7 @@ def test_span_ingestion(
         "project_id": 42,
         "received": time_within(ts),
         "retention_days": 90,
-        "accepted_outcome_emitted": relay_emits_accepted_outcome,
+        "accepted_outcome_emitted": False,
         "span_id": "f0b809703e783d00",
         "start_timestamp": time_within(ts.timestamp() - 1.0),
         "status": "ok",
@@ -184,55 +169,21 @@ def test_span_ingestion(
         },
     ]
 
-    num_messages = 2
-    if relay_emits_accepted_outcome:
-        num_messages = 3
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=num_messages)
-
-    if relay_emits_accepted_outcome:
-        assert outcomes == [
-            {
-                "category": DataCategory.TRANSACTION.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 1,
-            },
-            {
-                "category": DataCategory.SPAN.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 1,
-            },
-            {
-                "category": DataCategory.SPAN_INDEXED.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 1,
-            },
-        ]
-
-    else:
-        assert outcomes == [
-            {
-                "category": DataCategory.TRANSACTION.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 1,
-            },
-            {
-                "category": DataCategory.SPAN.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 1,
-            },
-        ]
+    assert outcomes_consumer.get_aggregated_outcomes(n=2) == [
+        {
+            "category": DataCategory.TRANSACTION.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.SPAN.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 1,
+        },
+    ]

@@ -766,15 +766,7 @@ impl StoreService {
         let scoping = message.scoping();
         let received_at = message.received_at();
 
-        let relay_emits_accepted_outcome = !utils::is_rolled_out(
-            scoping.organization_id.value(),
-            self.global_config
-                .current()
-                .unwrap_or_default()
-                .options
-                .eap_span_outcomes_rollout_rate,
-        )
-        .is_keep();
+        let relay_emits_accepted_outcome = false;
 
         let meta = SpanMeta {
             organization_id: scoping.organization_id,

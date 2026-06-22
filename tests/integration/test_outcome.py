@@ -897,15 +897,6 @@ def test_profile_outcomes(
             "category": DataCategory.SPAN_INDEXED.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 2,
-            "source": "processing-relay",
-        },
-        {
-            "category": DataCategory.SPAN_INDEXED.value,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 1,  # Filtered
             "project_id": 42,
             "quantity": 2,
@@ -924,9 +915,9 @@ def test_profile_outcomes(
         },
     ]
 
-    num_messages = 7
+    num_messages = 6
     if num_intermediate_relays > 0:
-        num_messages = 9
+        num_messages = 8
 
     outcomes = outcomes_consumer.get_aggregated_outcomes(n=num_messages)
 
@@ -1041,15 +1032,6 @@ def test_profile_outcomes_invalid(
             "quantity": 2,
             "timestamp": time_within_delta(),
         },
-        {
-            "category": DataCategory.SPAN_INDEXED.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 2,
-            "timestamp": time_within_delta(),
-        },
     ]
 
 
@@ -1104,7 +1086,7 @@ def test_profile_outcomes_too_many(
     envelope = make_envelope()
     upstream.send_envelope(project_id, envelope)
 
-    outcomes = outcomes_consumer.get_outcomes(n=5)
+    outcomes = outcomes_consumer.get_outcomes(n=4)
     outcomes.sort(key=lambda o: sorted(o.items()))
 
     assert outcomes == [
@@ -1139,15 +1121,6 @@ def test_profile_outcomes_too_many(
         },
         {
             "category": DataCategory.SPAN.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 2,
-            "timestamp": time_within_delta(),
-        },
-        {
-            "category": DataCategory.SPAN_INDEXED.value,
             "key_id": 123,
             "org_id": 1,
             "outcome": 0,
@@ -1274,17 +1247,6 @@ def test_profile_outcomes_rate_limited(
         expected_outcomes.append(
             {
                 "category": DataCategory.SPAN.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 2,
-            }
-        )
-
-        expected_outcomes.append(
-            {
-                "category": DataCategory.SPAN_INDEXED.value,
                 "key_id": 123,
                 "org_id": 1,
                 "outcome": 0,
@@ -1452,9 +1414,9 @@ def test_span_outcomes(
         2: "pop-relay",
     }[num_intermediate_relays]
 
-    num_messages = 5
+    num_messages = 4
     if num_intermediate_relays > 0:
-        num_messages = 7
+        num_messages = 6
 
     outcomes = outcomes_consumer.get_aggregated_outcomes(n=num_messages)
 
@@ -1485,15 +1447,6 @@ def test_span_outcomes(
             "outcome": 0,
             "project_id": 42,
             "quantity": 4,
-            "source": "processing-relay",
-        },
-        {
-            "category": DataCategory.SPAN_INDEXED.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,  # Accepted
-            "project_id": 42,
-            "quantity": 2,
             "source": "processing-relay",
         },
         {
