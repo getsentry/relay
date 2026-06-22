@@ -234,6 +234,7 @@ fn normalize_span(
         // because category derivation depends on having the sentry.op attribute
         // available.
         eap::normalize_sentry_op(&mut span.attributes);
+        eap::normalize_web_vital_span_segment(span);
         eap::normalize_span_category(&mut span.attributes);
         eap::normalize_received(&mut span.attributes, meta.received_at());
         eap::normalize_client_address(&mut span.attributes, meta.client_addr());
@@ -249,7 +250,6 @@ fn normalize_span(
         // In the old pipeline, the profile would get saved in the performance score context.
         // In the new pipeline, we are not storing it for now.
         let _ = relay_event_normalization::normalize_performance_score(span, performance_score);
-        eap::normalize_web_vital_span_segment(span);
         eap::normalize_mobile_measurements(&mut span.attributes, duration);
         eap::normalize_attribute_values(&mut span.attributes, allowed_hosts);
         eap::write_legacy_attributes(&mut span.attributes);
