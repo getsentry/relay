@@ -172,11 +172,11 @@ impl ClientReportOutcomeProducerService {
 
         // Linear search is fine, we only have a limited amount of outcomes and volume as this
         // service is only supposed to be used for proxy mode Relay.
-        let discaded_event = discarded_events
+        let discarded_event = discarded_events
             .iter_mut()
             .find(|de| de.reason == reason && de.category == category);
 
-        match discaded_event {
+        match discarded_event {
             Some(discarded_event) => discarded_event.quantity += message.quantity,
             None => discarded_events.push(DiscardedEvent {
                 reason: reason.into_owned(),
