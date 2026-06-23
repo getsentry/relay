@@ -19,6 +19,7 @@
 - Have relay generate metric billing outcomes. ([#6066](https://github.com/getsentry/relay/pull/6066))
 - Update sentry-conventions to 0.12.0.
 - Upgrade release image to Debian 13. ([#6110](https://github.com/getsentry/relay/pull/6110))
+- Prefix upload location query params for forward compatibility. ([#6076](https://github.com/getsentry/relay/pull/6076))
 
 ## 26.6.0
 
@@ -45,7 +46,6 @@
 - Handle outcomes as metrics. ([#6082](https://github.com/getsentry/relay/pull/6082))
 - Restore top-level _performance_issues_spans. ([#6045](https://github.com/getsentry/relay/pull/6045))
 - Update sentry-conventions to 0.11.0, migrating deprecated `gen_ai` attribute constants. ([#6068](https://github.com/getsentry/relay/pull/6068))
-- Prefix upload location query params for forward compatibility. ([#6076](https://github.com/getsentry/relay/pull/6076))
 
 ## 26.5.2
 
