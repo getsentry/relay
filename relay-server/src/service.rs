@@ -18,7 +18,8 @@ use crate::services::objectstore::Objectstore;
 #[cfg(feature = "processing")]
 use crate::services::objectstore::ObjectstoreService;
 use crate::services::outcome::{
-    OutcomeAggregator, OutcomeProducer, OutcomeProducerService, TrackOutcome,
+    ClientReportOutcomeProducerService, NullOutcomeProducerService, OutcomeProducerService,
+    TrackOutcome,
 };
 use crate::services::processor::{
     self, EnvelopeProcessor, EnvelopeProcessorService, EnvelopeProcessorServicePool,
@@ -39,7 +40,7 @@ use anyhow::Result;
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use relay_cogs::Cogs;
-use relay_config::Config;
+use relay_config::{Config, EmitOutcomes, RelayMode};
 #[cfg(feature = "processing")]
 use relay_config::{RedisConfigRef, RedisConfigsRef};
 #[cfg(feature = "processing")]
@@ -73,7 +74,6 @@ pub enum ServiceError {
 #[derive(Clone, Debug)]
 pub struct Registry {
     pub health_check: Addr<HealthCheck>,
-    pub outcome_producer: Addr<OutcomeProducer>,
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub processor: Addr<EnvelopeProcessor>,
     pub relay_cache: Addr<RelayCache>,
@@ -195,19 +195,25 @@ impl ServiceState {
         // Create an address for the `EnvelopeProcessor`, which can be injected into the
         // other services.
         let (processor, processor_rx) = match config.relay_mode() {
-            relay_config::RelayMode::Proxy => channel(ProxyProcessorService::name()),
-            relay_config::RelayMode::Managed => channel(EnvelopeProcessorService::name()),
+            RelayMode::Proxy => channel(ProxyProcessorService::name()),
+            RelayMode::Managed => channel(EnvelopeProcessorService::name()),
         };
 
         let (aggregator, aggregator_rx) = channel(RouterService::name());
 
-        let outcome_producer = services.start(OutcomeProducerService::create(
-            config.clone(),
-            processor.clone(),
-            aggregator.clone(),
-        )?);
-        let outcome_aggregator =
-            services.start(OutcomeAggregator::new(&config, outcome_producer.clone()));
+        let outcome_aggregator = match config.emit_outcomes() {
+            EmitOutcomes::None => services.start(NullOutcomeProducerService::new()),
+            _ => match config.relay_mode() {
+                RelayMode::Proxy => services.start(ClientReportOutcomeProducerService::new(
+                    &config,
+                    processor.clone(),
+                )),
+                RelayMode::Managed => services.start(OutcomeProducerService::new(
+                    Arc::clone(&config),
+                    aggregator.clone(),
+                )),
+            },
+        };
 
         let (global_config, global_config_rx) =
             GlobalConfigService::new(config.clone(), upstream_relay.clone());
@@ -267,7 +273,7 @@ impl ServiceState {
         );
 
         let (processor_pool, aggregator_handle, autoscaling) = match config.relay_mode() {
-            relay_config::RelayMode::Proxy => {
+            RelayMode::Proxy => {
                 services.start_with(
                     ProxyProcessorService::new(
                         config.clone(),
@@ -281,7 +287,7 @@ impl ServiceState {
                 );
                 (None, None, None)
             }
-            relay_config::RelayMode::Managed => {
+            RelayMode::Managed => {
                 let processor_pool = create_processor_pool(&config)?;
 
                 let router = RouterService::new(
@@ -365,7 +371,6 @@ impl ServiceState {
         let registry = Registry {
             processor,
             health_check,
-            outcome_producer,
             outcome_aggregator,
             relay_cache,
             global_config,
@@ -426,17 +431,12 @@ impl ServiceState {
         &self.inner.registry.health_check
     }
 
-    /// Returns the address of the [`OutcomeProducer`] service.
-    pub fn outcome_producer(&self) -> &Addr<OutcomeProducer> {
-        &self.inner.registry.outcome_producer
-    }
-
-    /// Returns the address of the [`OutcomeProducer`] service.
+    /// Returns the address of the [`UpstreamRelay`] service.
     pub fn upstream_relay(&self) -> &Addr<UpstreamRelay> {
         &self.inner.registry.upstream_relay
     }
 
-    /// Returns the address of the [`OutcomeProducer`] service.
+    /// Returns the address of the [`EnvelopeProcessor`] service.
     pub fn processor(&self) -> &Addr<EnvelopeProcessor> {
         &self.inner.registry.processor
     }
@@ -446,7 +446,7 @@ impl ServiceState {
         &self.inner.registry.global_config
     }
 
-    /// Returns the address of the [`OutcomeProducer`] service.
+    /// Returns the address of the [`TrackOutcome`] service.
     pub fn outcome_aggregator(&self) -> &Addr<TrackOutcome> {
         &self.inner.registry.outcome_aggregator
     }
