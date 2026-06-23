@@ -21,7 +21,7 @@ use relay_system::{
 use sentry_protos::snuba::v1::TraceItem;
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
-use crate::envelope::{ContentType, Envelope, Item, ItemType};
+use crate::envelope::{ContentType, Item, ItemType};
 use crate::managed::{
     Counted, ItemAction, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities,
     Rejected,
@@ -328,7 +328,7 @@ impl ObjectstoreService {
             stream_timeout,
             retry_delay,
             max_attempts,
-            fallback_to_kafka_on_error,
+            fallback_to_kafka,
             auth,
         } = config;
         let Some(objectstore_url) = objectstore_url else {
@@ -376,7 +376,7 @@ impl ObjectstoreService {
             stream_timeout: Duration::from_secs(*stream_timeout),
             retry_interval: Duration::from_secs_f64(*retry_delay),
             max_attempts: *max_attempts,
-            fallback_to_kafka_on_error: *fallback_to_kafka_on_error,
+            fallback_to_kafka: *fallback_to_kafka,
         };
 
         Ok(Some(Self {
@@ -400,16 +400,17 @@ impl LoadShed<Objectstore> for ObjectstoreService {
         match message {
             Objectstore::Envelope(envelope) => {
                 let StoreEnvelope { mut envelope } = envelope;
-                if !self.inner.fallback_to_kafka_on_error {
-                    ObjectstoreServiceInner::reject_upload_required_attachments(&mut envelope);
+                if !self.inner.fallback_to_kafka {
+                    drop_failed_uploads(&mut envelope);
                 }
                 self.inner.store.send(StoreEnvelope { envelope });
             }
             Objectstore::EventAttachment(message) => {
-                if self.inner.fallback_to_kafka_on_error {
+                if self.inner.fallback_to_kafka {
                     self.inner.store.send(message);
                 } else {
-                    let _ = message.reject_err(objectstore_upload_failed_outcome());
+                    let _ = message
+                        .reject_err(Outcome::Invalid(DiscardReason::ObjectstoreUploadFailed));
                 }
             }
             Objectstore::TraceAttachment(managed) => {
@@ -438,7 +439,7 @@ struct ObjectstoreServiceInner {
     stream_timeout: Duration,
     retry_interval: Duration,
     max_attempts: NonZeroU16,
-    fallback_to_kafka_on_error: bool,
+    fallback_to_kafka: bool,
 }
 
 impl ObjectstoreServiceInner {
@@ -485,26 +486,23 @@ impl ObjectstoreServiceInner {
         );
         let retention = envelope.envelope().retention();
 
+        let attachments = envelope
+            .envelope_mut()
+            .items_mut()
+            .filter(|item| should_upload(item));
+
         match session {
             Err(error) => {
                 error
-                    .with_amount(Self::upload_required_attachment_count(envelope.envelope()))
+                    .with_amount(attachments.count())
                     .log(MessageKind::Envelope);
 
-                if !self.fallback_to_kafka_on_error {
-                    Self::reject_upload_required_attachments(&mut envelope);
+                if !self.fallback_to_kafka {
+                    drop_failed_uploads(&mut envelope);
                 }
             }
             Ok(session) => {
-                let attachments = envelope
-                    .envelope_mut()
-                    .items_mut()
-                    .filter(|item| *item.ty() == ItemType::Attachment);
-
                 for attachment in attachments {
-                    if !Self::should_upload(attachment) {
-                        continue;
-                    }
                     let result = self
                         .upload_bytes(
                             MessageKind::Envelope,
@@ -526,8 +524,8 @@ impl ObjectstoreServiceInner {
                     }
                 }
 
-                if !self.fallback_to_kafka_on_error {
-                    Self::reject_upload_required_attachments(&mut envelope);
+                if !self.fallback_to_kafka {
+                    drop_failed_uploads(&mut envelope);
                 }
             }
         }
@@ -541,7 +539,7 @@ impl ObjectstoreServiceInner {
     /// This mutates the attachment item in-place, setting the `stored_key` field to the key in the
     /// objectstore.
     async fn handle_event_attachment(&self, mut attachment: Managed<StoreAttachment>) {
-        if !Self::should_upload(&attachment.attachment) {
+        if !should_upload(&attachment.attachment) {
             self.store.send(attachment);
             return;
         }
@@ -579,10 +577,11 @@ impl ObjectstoreServiceInner {
             }
             Err(error) => {
                 error.log(MessageKind::EventAttachment);
-                if self.fallback_to_kafka_on_error {
+                if self.fallback_to_kafka {
                     self.store.send(attachment)
                 } else {
-                    let _ = attachment.reject_err(objectstore_upload_failed_outcome());
+                    let _ = attachment
+                        .reject_err(Outcome::Invalid(DiscardReason::ObjectstoreUploadFailed));
                 }
             }
         };
@@ -851,39 +850,6 @@ impl ObjectstoreServiceInner {
         Ok(ObjectstoreKey(response.key))
     }
 
-    /// Returns `true` if the item should **not** be uploaded to the objectstore.
-    ///
-    /// This is the case for:
-    /// - Zero-size attachments
-    /// - Attachment placeholders
-    fn should_skip_upload(item: &Item) -> bool {
-        item.is_empty() || item.is_attachment_ref()
-    }
-
-    fn should_upload(item: &Item) -> bool {
-        *item.ty() == ItemType::Attachment
-            && !Self::should_skip_upload(item)
-            && item.stored_key().is_none()
-    }
-
-    fn upload_required_attachment_count(envelope: &Envelope) -> usize {
-        envelope
-            .items()
-            .filter(|item| Self::should_upload(item))
-            .count()
-    }
-
-    fn reject_upload_required_attachments(envelope: &mut ManagedEnvelope) {
-        envelope.retain_items(|item| {
-            if Self::should_upload(item) {
-                ItemAction::Drop(objectstore_upload_failed_outcome())
-            } else {
-                ItemAction::Keep
-            }
-        });
-        envelope.update();
-    }
-
     fn session(
         &self,
         usecase: &Usecase,
@@ -955,8 +921,19 @@ fn is_user_error(error: &(dyn std::error::Error + 'static)) -> bool {
     })
 }
 
-fn objectstore_upload_failed_outcome() -> Outcome {
-    Outcome::Invalid(DiscardReason::ObjectstoreUploadFailed)
+fn should_upload(item: &Item) -> bool {
+    *item.ty() == ItemType::Attachment && !item.is_empty() && !item.is_attachment_ref()
+}
+
+fn drop_failed_uploads(envelope: &mut ManagedEnvelope) {
+    envelope.retain_items(|item| {
+        if should_upload(item) {
+            ItemAction::Drop(Outcome::Invalid(DiscardReason::ObjectstoreUploadFailed))
+        } else {
+            ItemAction::Keep
+        }
+    });
+    envelope.update();
 }
 
 #[cfg(test)]
@@ -965,6 +942,8 @@ mod tests {
     use relay_event_schema::protocol::EventId;
     use relay_quotas::DataCategory;
     use relay_system::Service;
+
+    use crate::Envelope;
 
     use super::*;
 
@@ -1028,7 +1007,7 @@ mod tests {
         let (store, mut store_rx) = Addr::custom();
         let (outcomes, mut outcome_rx) = Addr::custom();
         let mut config = test_config();
-        config.fallback_to_kafka_on_error = false;
+        config.fallback_to_kafka = false;
         let service = ObjectstoreService::new(&config, Some(store))
             .unwrap()
             .unwrap();
@@ -1049,12 +1028,12 @@ mod tests {
         envelope.accept();
 
         let outcome = outcome_rx.try_recv().unwrap();
-        assert_eq!(outcome.outcome, objectstore_upload_failed_outcome());
+        assert_eq!(outcome.outcome, upload_failed_outcome());
         assert_eq!(outcome.category, DataCategory::Attachment);
         assert_eq!(outcome.quantity, 5);
 
         let outcome = outcome_rx.try_recv().unwrap();
-        assert_eq!(outcome.outcome, objectstore_upload_failed_outcome());
+        assert_eq!(outcome.outcome, upload_failed_outcome());
         assert_eq!(outcome.category, DataCategory::AttachmentItem);
         assert_eq!(outcome.quantity, 1);
 
@@ -1066,7 +1045,7 @@ mod tests {
         let (store, mut store_rx) = Addr::custom();
         let (outcomes, mut outcome_rx) = Addr::custom();
         let mut config = test_config();
-        config.fallback_to_kafka_on_error = false;
+        config.fallback_to_kafka = false;
         let service = ObjectstoreService::new(&config, Some(store))
             .unwrap()
             .unwrap();
@@ -1090,12 +1069,12 @@ mod tests {
         assert!(store_rx.try_recv().is_err());
 
         let outcome = outcome_rx.try_recv().unwrap();
-        assert_eq!(outcome.outcome, objectstore_upload_failed_outcome());
+        assert_eq!(outcome.outcome, upload_failed_outcome());
         assert_eq!(outcome.category, DataCategory::Attachment);
         assert_eq!(outcome.quantity, 5);
 
         let outcome = outcome_rx.try_recv().unwrap();
-        assert_eq!(outcome.outcome, objectstore_upload_failed_outcome());
+        assert_eq!(outcome.outcome, upload_failed_outcome());
         assert_eq!(outcome.category, DataCategory::AttachmentItem);
         assert_eq!(outcome.quantity, 1);
 
@@ -1122,7 +1101,7 @@ mod tests {
             stream_timeout: 1,
             retry_delay: 1.0,
             max_attempts: 1.try_into().unwrap(),
-            fallback_to_kafka_on_error: true,
+            fallback_to_kafka: true,
             auth: None,
         }
     }
