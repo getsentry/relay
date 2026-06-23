@@ -93,16 +93,16 @@
 <a href=#93 id=93 data-nosnippet>93</a><span class="macro">include!</span>(<span class="macro">concat!</span>(<span class="macro">env!</span>(<span class="string">"OUT_DIR"</span>), <span class="string">"/canonical_fn.rs"</span>));
 <a href=#94 id=94 data-nosnippet>94</a><span class="macro">include!</span>(<span class="macro">concat!</span>(<span class="macro">env!</span>(<span class="string">"OUT_DIR"</span>), <span class="string">"/measurement_replacement_fn.rs"</span>));
 <a href=#95 id=95 data-nosnippet>95</a>
-<a href=#96 id=96 data-nosnippet>96</a><span class="doccomment">/// Whether an attribute should be PII-strippable/should be subject to datascrubbers
+<a href=#96 id=96 data-nosnippet>96</a><span class="doccomment">/// Whether an attribute should be scrubbed.
 <a href=#97 id=97 data-nosnippet>97</a></span><span class="attr">#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-<a href=#98 id=98 data-nosnippet>98</a></span><span class="kw">pub enum </span>Pii {
-<a href=#99 id=99 data-nosnippet>99</a>    <span class="doccomment">/// The field will be stripped by default
-<a href=#100 id=100 data-nosnippet>100</a>    </span>True,
-<a href=#101 id=101 data-nosnippet>101</a>    <span class="doccomment">/// The field cannot be stripped at all
-<a href=#102 id=102 data-nosnippet>102</a>    </span>False,
-<a href=#103 id=103 data-nosnippet>103</a>    <span class="doccomment">/// The field will only be stripped when addressed with a specific path selector, but generic
-<a href=#104 id=104 data-nosnippet>104</a>    /// selectors such as `$string` do not apply.
-<a href=#105 id=105 data-nosnippet>105</a>    </span>Maybe,
+<a href=#98 id=98 data-nosnippet>98</a></span><span class="kw">pub enum </span>ApplyScrubbing {
+<a href=#99 id=99 data-nosnippet>99</a>    <span class="doccomment">/// The attribute will be stripped by default.
+<a href=#100 id=100 data-nosnippet>100</a>    </span>Auto,
+<a href=#101 id=101 data-nosnippet>101</a>    <span class="doccomment">/// The attribute will only be stripped when addressed with a specific path selector, but generic
+<a href=#102 id=102 data-nosnippet>102</a>    /// selectors such as `$string` do not apply.
+<a href=#103 id=103 data-nosnippet>103</a>    </span>Manual,
+<a href=#104 id=104 data-nosnippet>104</a>    <span class="doccomment">/// The attribute cannot be stripped at all.
+<a href=#105 id=105 data-nosnippet>105</a>    </span>Never,
 <a href=#106 id=106 data-nosnippet>106</a>}
 <a href=#107 id=107 data-nosnippet>107</a>
 <a href=#108 id=108 data-nosnippet>108</a><span class="doccomment">/// The name of the replacement of a deprecated attribute.
@@ -148,7 +148,7 @@
 <a href=#148 id=148 data-nosnippet>148</a>    <span class="doccomment">/// How this attribute should be saved.
 <a href=#149 id=149 data-nosnippet>149</a>    </span><span class="kw">pub </span>write_behavior: WriteBehavior,
 <a href=#150 id=150 data-nosnippet>150</a>    <span class="doccomment">/// Whether this attribute can contain PII.
-<a href=#151 id=151 data-nosnippet>151</a>    </span><span class="kw">pub </span>pii: Pii,
+<a href=#151 id=151 data-nosnippet>151</a>    </span><span class="kw">pub </span>apply_scrubbing: ApplyScrubbing,
 <a href=#152 id=152 data-nosnippet>152</a>    <span class="doccomment">/// Other attribute names that alias to this attribute.
 <a href=#153 id=153 data-nosnippet>153</a>    </span><span class="kw">pub </span>aliases: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str],
 <a href=#154 id=154 data-nosnippet>154</a>}
@@ -219,20 +219,20 @@
 <a href=#219 id=219 data-nosnippet>219</a>    </span><span class="kw">fn </span>test_http_response_content_length() {
 <a href=#220 id=220 data-nosnippet>220</a>        <span class="kw">let </span>info = attribute_info(<span class="string">"http.response_content_length"</span>).unwrap();
 <a href=#221 id=221 data-nosnippet>221</a>
-<a href=#222 id=222 data-nosnippet>222</a>        <span class="macro">insta::assert_debug_snapshot!</span>(info, @<span class="string">r###"
+<a href=#222 id=222 data-nosnippet>222</a>        <span class="macro">insta::assert_debug_snapshot!</span>(info, @<span class="string">r#"
 <a href=#223 id=223 data-nosnippet>223</a>        AttributeInfo {
 <a href=#224 id=224 data-nosnippet>224</a>            write_behavior: BothNames(
 <a href=#225 id=225 data-nosnippet>225</a>                Static(
 <a href=#226 id=226 data-nosnippet>226</a>                    "http.response.body.size",
 <a href=#227 id=227 data-nosnippet>227</a>                ),
 <a href=#228 id=228 data-nosnippet>228</a>            ),
-<a href=#229 id=229 data-nosnippet>229</a>            pii: Maybe,
+<a href=#229 id=229 data-nosnippet>229</a>            apply_scrubbing: Manual,
 <a href=#230 id=230 data-nosnippet>230</a>            aliases: [
 <a href=#231 id=231 data-nosnippet>231</a>                "http.response.body.size",
 <a href=#232 id=232 data-nosnippet>232</a>                "http.response.header.content-length",
 <a href=#233 id=233 data-nosnippet>233</a>            ],
 <a href=#234 id=234 data-nosnippet>234</a>        }
-<a href=#235 id=235 data-nosnippet>235</a>        "###</span>);
+<a href=#235 id=235 data-nosnippet>235</a>        "#</span>);
 <a href=#236 id=236 data-nosnippet>236</a>    }
 <a href=#237 id=237 data-nosnippet>237</a>
 <a href=#238 id=238 data-nosnippet>238</a>    <span class="attr">#[test]
@@ -241,15 +241,15 @@
 <a href=#241 id=241 data-nosnippet>241</a>        </span><span class="kw">let </span>(info, fragment) = attribute_info_with_fragment(<span class="string">"url.path.parameter.'id=123'"</span>).unwrap();
 <a href=#242 id=242 data-nosnippet>242</a>        <span class="macro">assert_eq!</span>(fragment, <span class="prelude-val">Some</span>(<span class="string">"'id=123'"</span>));
 <a href=#243 id=243 data-nosnippet>243</a>
-<a href=#244 id=244 data-nosnippet>244</a>        <span class="macro">insta::assert_debug_snapshot!</span>(info, @<span class="string">r###"
+<a href=#244 id=244 data-nosnippet>244</a>        <span class="macro">insta::assert_debug_snapshot!</span>(info, @<span class="string">r#"
 <a href=#245 id=245 data-nosnippet>245</a>        AttributeInfo {
 <a href=#246 id=246 data-nosnippet>246</a>            write_behavior: CurrentName,
-<a href=#247 id=247 data-nosnippet>247</a>            pii: True,
+<a href=#247 id=247 data-nosnippet>247</a>            apply_scrubbing: Auto,
 <a href=#248 id=248 data-nosnippet>248</a>            aliases: [
 <a href=#249 id=249 data-nosnippet>249</a>                "params.&lt;key&gt;",
 <a href=#250 id=250 data-nosnippet>250</a>            ],
 <a href=#251 id=251 data-nosnippet>251</a>        }
-<a href=#252 id=252 data-nosnippet>252</a>        "###</span>);
+<a href=#252 id=252 data-nosnippet>252</a>        "#</span>);
 <a href=#253 id=253 data-nosnippet>253</a>    }
 <a href=#254 id=254 data-nosnippet>254</a>
 <a href=#255 id=255 data-nosnippet>255</a>    <span class="doccomment">/// Tests that `cls.source.&lt;key&gt;` is rewritten to `browser.web_vital.cls.source.&lt;key&gt;`.

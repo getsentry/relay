@@ -450,10 +450,10 @@
 <a href=#450 id=450 data-nosnippet>450</a>        // path, i.e. the field name.
 <a href=#451 id=451 data-nosnippet>451</a>        </span><span class="kw">let </span>key = state.keys().next()<span class="question-mark">?</span>;
 <a href=#452 id=452 data-nosnippet>452</a>
-<a href=#453 id=453 data-nosnippet>453</a>        <span class="kw">match </span>relay_conventions::attribute_info(key)<span class="question-mark">?</span>.pii {
-<a href=#454 id=454 data-nosnippet>454</a>            relay_conventions::Pii::True =&gt; <span class="prelude-val">Some</span>(Pii::True),
-<a href=#455 id=455 data-nosnippet>455</a>            relay_conventions::Pii::False =&gt; <span class="prelude-val">Some</span>(Pii::False),
-<a href=#456 id=456 data-nosnippet>456</a>            relay_conventions::Pii::Maybe =&gt; <span class="prelude-val">Some</span>(Pii::Maybe),
+<a href=#453 id=453 data-nosnippet>453</a>        <span class="kw">match </span>relay_conventions::attribute_info(key)<span class="question-mark">?</span>.apply_scrubbing {
+<a href=#454 id=454 data-nosnippet>454</a>            relay_conventions::ApplyScrubbing::Auto =&gt; <span class="prelude-val">Some</span>(Pii::True),
+<a href=#455 id=455 data-nosnippet>455</a>            relay_conventions::ApplyScrubbing::Never =&gt; <span class="prelude-val">Some</span>(Pii::False),
+<a href=#456 id=456 data-nosnippet>456</a>            relay_conventions::ApplyScrubbing::Manual =&gt; <span class="prelude-val">Some</span>(Pii::Maybe),
 <a href=#457 id=457 data-nosnippet>457</a>        }
 <a href=#458 id=458 data-nosnippet>458</a>    }
 <a href=#459 id=459 data-nosnippet>459</a>

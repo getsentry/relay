@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["Pii","ReplacementName","WriteBehavior"],"fn":["attribute_info","attribute_info_with_fragment","canonical","measurement_to_attribute"],"mod":["attributes","description","interpolate","measurements","name"],"struct":["AttributeInfo"]};
+window.SIDEBAR_ITEMS = {"enum":["ApplyScrubbing","ReplacementName","WriteBehavior"],"fn":["attribute_info","attribute_info_with_fragment","canonical","measurement_to_attribute"],"mod":["attributes","description","interpolate","measurements","name"],"struct":["AttributeInfo"]};

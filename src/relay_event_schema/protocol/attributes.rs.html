@@ -123,10 +123,10 @@
 <a href=#123 id=123 data-nosnippet>123</a>            <span class="kw">continue</span>;
 <a href=#124 id=124 data-nosnippet>124</a>        };
 <a href=#125 id=125 data-nosnippet>125</a>
-<a href=#126 id=126 data-nosnippet>126</a>        <span class="kw">return match </span>info.pii {
-<a href=#127 id=127 data-nosnippet>127</a>            relay_conventions::Pii::True =&gt; Pii::True,
-<a href=#128 id=128 data-nosnippet>128</a>            relay_conventions::Pii::False =&gt; Pii::False,
-<a href=#129 id=129 data-nosnippet>129</a>            relay_conventions::Pii::Maybe =&gt; Pii::Maybe,
+<a href=#126 id=126 data-nosnippet>126</a>        <span class="kw">return match </span>info.apply_scrubbing {
+<a href=#127 id=127 data-nosnippet>127</a>            relay_conventions::ApplyScrubbing::Auto =&gt; Pii::True,
+<a href=#128 id=128 data-nosnippet>128</a>            relay_conventions::ApplyScrubbing::Never =&gt; Pii::False,
+<a href=#129 id=129 data-nosnippet>129</a>            relay_conventions::ApplyScrubbing::Manual =&gt; Pii::Maybe,
 <a href=#130 id=130 data-nosnippet>130</a>        };
 <a href=#131 id=131 data-nosnippet>131</a>    }
 <a href=#132 id=132 data-nosnippet>132</a>
