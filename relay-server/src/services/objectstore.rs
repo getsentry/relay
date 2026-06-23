@@ -1028,12 +1028,18 @@ mod tests {
         envelope.accept();
 
         let outcome = outcome_rx.try_recv().unwrap();
-        assert_eq!(outcome.outcome, upload_failed_outcome());
+        assert_eq!(
+            outcome.outcome,
+            Outcome::Invalid(DiscardReason::ObjectstoreUploadFailed)
+        );
         assert_eq!(outcome.category, DataCategory::Attachment);
         assert_eq!(outcome.quantity, 5);
 
         let outcome = outcome_rx.try_recv().unwrap();
-        assert_eq!(outcome.outcome, upload_failed_outcome());
+        assert_eq!(
+            outcome.outcome,
+            Outcome::Invalid(DiscardReason::ObjectstoreUploadFailed)
+        );
         assert_eq!(outcome.category, DataCategory::AttachmentItem);
         assert_eq!(outcome.quantity, 1);
 
@@ -1069,12 +1075,18 @@ mod tests {
         assert!(store_rx.try_recv().is_err());
 
         let outcome = outcome_rx.try_recv().unwrap();
-        assert_eq!(outcome.outcome, upload_failed_outcome());
+        assert_eq!(
+            outcome.outcome,
+            Outcome::Invalid(DiscardReason::ObjectstoreUploadFailed)
+        );
         assert_eq!(outcome.category, DataCategory::Attachment);
         assert_eq!(outcome.quantity, 5);
 
         let outcome = outcome_rx.try_recv().unwrap();
-        assert_eq!(outcome.outcome, upload_failed_outcome());
+        assert_eq!(
+            outcome.outcome,
+            Outcome::Invalid(DiscardReason::ObjectstoreUploadFailed)
+        );
         assert_eq!(outcome.category, DataCategory::AttachmentItem);
         assert_eq!(outcome.quantity, 1);
 
