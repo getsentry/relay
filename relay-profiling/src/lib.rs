@@ -43,13 +43,9 @@ use std::error::Error;
 use std::net::IpAddr;
 use std::time::Duration;
 
-use bytes::Bytes;
-
 use relay_dynamic_config::GlobalConfig;
 use relay_event_schema::protocol::{Event, EventId};
-use relay_filter::{Filterable, ProjectFiltersConfig};
-use relay_protocol::{Getter, Val};
-use serde::Deserialize;
+use relay_filter::ProjectFiltersConfig;
 use serde_json::Deserializer;
 
 use crate::extract_from_transaction::{extract_transaction_metadata, extract_transaction_tags};
@@ -63,10 +59,17 @@ mod error;
 mod extract_from_transaction;
 mod measurements;
 mod outcomes;
+mod perfetto;
+mod profile_chunk;
 mod sample;
 mod transaction_metadata;
 mod types;
 mod utils;
+
+pub use self::android::chunk::Chunk as AndroidProfileChunk;
+pub use self::perfetto::Chunk as PerfettoProfileChunk;
+pub use self::profile_chunk::{AndroidOrV2ProfileChunk, AnyProfileChunk, ProfileChunk};
+pub use self::sample::v2::ProfileChunk as V2ProfileChunk;
 
 const MAX_PROFILE_DURATION: Duration = Duration::from_secs(30);
 /// For continuous profiles, each chunk can be at most 1 minute.
@@ -74,6 +77,11 @@ const MAX_PROFILE_DURATION: Duration = Duration::from_secs(30);
 /// the profiler may be stopped slightly after 60, hence here we
 /// give it a bit more room to handle such cases (66 instead of 60)
 const MAX_PROFILE_CHUNK_DURATION: Duration = Duration::from_secs(66);
+
+/// Prefix used in [`relay_protocol::Getter`] implementations as a prefix.
+///
+/// This is `event.` for historic reasons, we should consider switching this to `profile.`.
+const PROFIL_GETTER_PREFIX: &str = "event.";
 
 /// Unique identifier for a profile.
 ///
@@ -105,7 +113,7 @@ impl ProfileType {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, serde::Deserialize)]
 struct MinimalProfile {
     #[serde(alias = "profile_id", alias = "chunk_id")]
     event_id: ProfileId,
@@ -115,27 +123,27 @@ struct MinimalProfile {
     version: sample::Version,
 }
 
-impl Filterable for MinimalProfile {
+impl MinimalProfile {
+    fn parse(payload: &[u8]) -> Result<Self, serde_path_to_error::Error<serde_json::Error>> {
+        let d = &mut serde_json::Deserializer::from_slice(payload);
+        serde_path_to_error::deserialize(d)
+    }
+}
+
+impl relay_filter::Filterable for MinimalProfile {
     fn release(&self) -> Option<&str> {
         self.release.as_deref()
     }
 }
 
-impl Getter for MinimalProfile {
-    fn get_value(&self, path: &str) -> Option<Val<'_>> {
+impl relay_protocol::Getter for MinimalProfile {
+    fn get_value(&self, path: &str) -> Option<relay_protocol::Val<'_>> {
         match path.strip_prefix("event.")? {
             "release" => self.release.as_deref().map(|release| release.into()),
             "platform" => Some(self.platform.as_str().into()),
             _ => None,
         }
     }
-}
-
-fn minimal_profile_from_json(
-    payload: &[u8],
-) -> Result<MinimalProfile, serde_path_to_error::Error<serde_json::Error>> {
-    let d = &mut Deserializer::from_slice(payload);
-    serde_path_to_error::deserialize(d)
 }
 
 /// Parsed profile metadata returned from [`parse_metadata`].
@@ -155,7 +163,7 @@ impl ProfileMetadata {
 }
 
 pub fn parse_metadata(payload: &[u8]) -> Result<ProfileMetadata, ProfileError> {
-    let profile = match minimal_profile_from_json(payload) {
+    let profile = match MinimalProfile::parse(payload) {
         Ok(profile) => profile,
         Err(err) => {
             relay_log::debug!(
@@ -216,7 +224,7 @@ pub fn expand_profile(
     filter_settings: &ProjectFiltersConfig,
     global_config: &GlobalConfig,
 ) -> Result<(ProfileId, Vec<u8>), ProfileError> {
-    let profile = match minimal_profile_from_json(payload) {
+    let profile = match MinimalProfile::parse(payload) {
         Ok(profile) => profile,
         Err(err) => {
             relay_log::debug!(
@@ -286,73 +294,6 @@ pub fn expand_profile(
     }
 }
 
-/// Intermediate type for all processing on a profile chunk.
-pub struct ProfileChunk {
-    profile: MinimalProfile,
-    payload: Bytes,
-}
-
-impl ProfileChunk {
-    /// Parses a new [`Self`] from raw bytes.
-    pub fn new(payload: Bytes) -> Result<Self, ProfileError> {
-        match minimal_profile_from_json(&payload) {
-            Ok(profile) => Ok(Self { profile, payload }),
-            Err(err) => {
-                relay_log::debug!(
-                    error = &err as &dyn Error,
-                    from = "minimal",
-                    "invalid profile chunk",
-                );
-                Err(ProfileError::InvalidJson(err))
-            }
-        }
-    }
-
-    /// Returns the platform of the profile chunk.
-    pub fn platform(&self) -> &str {
-        &self.profile.platform
-    }
-
-    /// Returns the [`ProfileType`] this chunk belongs to.
-    ///
-    /// This is currently determined from the platform via [`ProfileType::from_platform`].
-    pub fn profile_type(&self) -> ProfileType {
-        ProfileType::from_platform(&self.profile.platform)
-    }
-
-    /// Applies inbound filters to the profile chunk.
-    ///
-    /// The profile needs to be filtered (rejected) when this returns an error.
-    pub fn filter(
-        &self,
-        client_ip: Option<IpAddr>,
-        filter_settings: &ProjectFiltersConfig,
-        global_config: &GlobalConfig,
-    ) -> Result<(), ProfileError> {
-        relay_filter::should_filter(
-            &self.profile,
-            client_ip,
-            filter_settings,
-            global_config.filters(),
-        )
-        .map_err(ProfileError::Filtered)
-    }
-
-    /// Normalizes and 'expands' the profile chunk into its normalized form Sentry expects.
-    pub fn expand(&self) -> Result<Vec<u8>, ProfileError> {
-        match (self.profile.platform.as_str(), self.profile.version) {
-            ("android", _) => android::chunk::parse(&self.payload),
-            (_, sample::Version::V2) => {
-                let mut profile = sample::v2::parse(&self.payload)?;
-                profile.normalize()?;
-                Ok(serde_json::to_vec(&profile)
-                    .map_err(|_| ProfileError::CannotSerializePayload)?)
-            }
-            (_, _) => Err(ProfileError::PlatformNotSupported),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -360,7 +301,7 @@ mod tests {
     #[test]
     fn test_minimal_profile_with_version() {
         let data = r#"{"version":"1","platform":"cocoa","event_id":"751fff80-a266-467b-a6f5-eeeef65f4f84"}"#;
-        let profile = minimal_profile_from_json(data.as_bytes());
+        let profile = MinimalProfile::parse(data.as_bytes());
         assert!(profile.is_ok());
         assert_eq!(profile.unwrap().version, sample::Version::V1);
     }
@@ -368,7 +309,7 @@ mod tests {
     #[test]
     fn test_minimal_profile_without_version() {
         let data = r#"{"platform":"android","event_id":"751fff80-a266-467b-a6f5-eeeef65f4f84"}"#;
-        let profile = minimal_profile_from_json(data.as_bytes());
+        let profile = MinimalProfile::parse(data.as_bytes());
         assert!(profile.is_ok());
         assert_eq!(profile.unwrap().version, sample::Version::Unknown);
     }

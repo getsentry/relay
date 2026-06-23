@@ -138,24 +138,29 @@ def test_profile_chunk_outcomes_invalid(
     """
     Tests that Relay reports correct outcomes for invalid profiles as `ProfileChunk`.
     """
-    outcomes_consumer = outcomes_consumer(timeout=2)
+    outcomes_consumer = outcomes_consumer()
     profiles_consumer = profiles_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
 
-    project_config.setdefault("features", []).append(
-        "organizations:continuous-profiling"
+    project_config.setdefault("features", []).extend(
+        [
+            "organizations:continuous-profiling",
+            "organizations:relay-generate-billing-outcome",
+        ]
     )
 
     upstream = relay_with_processing(TEST_CONFIG)
 
     envelope = Envelope()
-    payload = {
-        "chunk_id": "11111111111111111111111111111111",
-        "platform": "thisisnotvalid",
-    }
-    envelope.add_item(Item(payload=PayloadRef(json=payload), type="profile_chunk"))
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(bytes=b""),
+            type="profile_chunk",
+            headers={"platform": "node"},
+        )
+    )
 
     upstream.send_envelope(project_id, envelope)
 
@@ -171,7 +176,7 @@ def test_profile_chunk_outcomes_invalid(
             "outcome": 3,  # Invalid
             "project_id": 42,
             "quantity": 1,
-            "reason": "profiling_platform_not_supported",
+            "reason": "profiling_invalid_json",
         },
     ]
 

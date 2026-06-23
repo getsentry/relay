@@ -52,6 +52,9 @@ def test_spansv2_basic(
     project_config["config"].update(
         {"retentions": {"span": {"standard": 42, "downsampled": 1337}}}
     )
+    project_config["config"].setdefault("features", []).extend(
+        ["organizations:relay-generate-billing-outcome"]
+    )
 
     relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
 
@@ -154,6 +157,7 @@ def test_spansv2_basic(
         "is_segment": True,
         "status": "ok",
         "retention_days": 42,
+        "accepted_outcome_emitted": False,
         "downsampled_retention_days": 1337,
         "key_id": 123,
         "organization_id": 1,
@@ -186,10 +190,30 @@ def test_spansv2_basic(
             "tags": {
                 "was_transaction": "false",
                 "is_segment": "true",
+                "billing_outcome_emitted": "true",
             },
             "timestamp": time_within_delta(),
             "type": "c",
             "value": 1.0,
+        },
+    ]
+
+    assert outcomes_consumer.get_aggregated_outcomes(n=2) == [
+        {
+            "category": DataCategory.TRANSACTION.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.SPAN.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 1,
         },
     ]
 
@@ -210,6 +234,9 @@ def test_spansv2_trimming_basic(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).append(
+        "organizations:relay-generate-billing-outcome"
+    )
     project_config["config"].update(
         {
             "retentions": {"span": {"standard": 42, "downsampled": 1337}},
@@ -350,6 +377,7 @@ def test_spansv2_trimming_basic(
         "is_segment": True,
         "status": "ok",
         "retention_days": 42,
+        "accepted_outcome_emitted": False,
         "downsampled_retention_days": 1337,
         "key_id": 123,
         "organization_id": 1,
@@ -382,6 +410,7 @@ def test_spansv2_trimming_basic(
             "tags": {
                 "was_transaction": "false",
                 "is_segment": "true",
+                "billing_outcome_emitted": "true",
             },
             "timestamp": time_within_delta(),
             "type": "c",
@@ -608,10 +637,16 @@ def test_spansv2_ds_sampled(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).extend(
+        ["organizations:relay-generate-billing-outcome"]
+    )
     add_sampling_config(project_config, sample_rate=0.0, rule_type="trace")
 
     sampling_project_id = 43
     sampling_config = mini_sentry.add_basic_project_config(sampling_project_id)
+    sampling_config["config"].setdefault("features", []).extend(
+        ["organizations:relay-generate-billing-outcome"]
+    )
     sampling_config["organizationId"] = project_config["organizationId"]
     add_sampling_config(sampling_config, sample_rate=0.9, rule_type="trace")
 
@@ -697,6 +732,7 @@ def test_spansv2_ds_sampled(
             "retention_days": 90,
             "tags": {
                 "is_segment": "false",
+                "billing_outcome_emitted": "true",
             },
             "timestamp": time_within_delta(),
             "type": "c",
@@ -711,10 +747,30 @@ def test_spansv2_ds_sampled(
             "tags": {
                 "was_transaction": "false",
                 "is_segment": "true",
+                "billing_outcome_emitted": "true",
             },
             "timestamp": time_within_delta(),
             "type": "c",
             "value": 1.0,
+        },
+    ]
+
+    assert outcomes_consumer.get_aggregated_outcomes(n=2) == [
+        {
+            "category": DataCategory.TRANSACTION.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.SPAN.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 2,
         },
     ]
 
@@ -738,10 +794,18 @@ def test_spansv2_ds_root_in_different_org(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).extend(
+        ["organizations:relay-generate-billing-outcome"]
+    )
+
     add_sampling_config(project_config, sample_rate=0.0, rule_type="trace")
 
     sampling_project_id = 43
     sampling_config = mini_sentry.add_basic_project_config(sampling_project_id)
+    sampling_config["config"].setdefault("features", []).extend(
+        ["organizations:relay-generate-billing-outcome"]
+    )
+
     sampling_config["organizationId"] = 99
     add_sampling_config(sampling_config, sample_rate=1.0, rule_type="trace")
 
@@ -791,6 +855,7 @@ def test_spansv2_ds_root_in_different_org(
             "retention_days": 90,
             "tags": {
                 "is_segment": "false",
+                "billing_outcome_emitted": "true",
             },
             "timestamp": time_within_delta(),
             "type": "c",
@@ -798,16 +863,27 @@ def test_spansv2_ds_root_in_different_org(
         },
     ]
 
-    assert outcomes_consumer.get_outcome() == {
-        "category": DataCategory.SPAN_INDEXED.value,
-        "key_id": 123,
-        "org_id": 1,
-        "outcome": 1,
-        "project_id": 42,
-        "quantity": 1,
-        "reason": "Sampled:0",
-        "timestamp": time_within_delta(),
-    }
+    assert outcomes_consumer.get_outcomes(n=2) == [
+        {
+            "category": DataCategory.SPAN_INDEXED.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 1,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "Sampled:0",
+            "timestamp": time_within_delta(),
+        },
+        {
+            "category": DataCategory.SPAN.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 1,
+            "timestamp": time_within_delta(),
+        },
+    ]
 
     spans_consumer.assert_empty()
 
@@ -1384,6 +1460,7 @@ def test_spansv2_attribute_normalization(
         "end_timestamp": time_is(ts.timestamp() + 0.5),
         "status": "ok",
         "retention_days": 42,
+        "accepted_outcome_emitted": False,
         "downsampled_retention_days": 1337,
         "key_id": 123,
         "organization_id": 1,

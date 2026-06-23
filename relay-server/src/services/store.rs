@@ -32,11 +32,12 @@ use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_threading::AsyncPool;
 
-use crate::envelope::{AttachmentPlaceholder, AttachmentType, Item, ItemType};
+use crate::envelope::{AttachmentPlaceholder, AttachmentType, ContentType, Item, ItemType};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
+use crate::services::objectstore::ObjectstoreKey;
 use crate::services::outcome::{self, DiscardReason, Outcome, OutcomeId, TrackOutcome};
 use crate::services::upload::{Final, SignedLocation};
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
@@ -154,10 +155,25 @@ pub struct StoreProfileChunk {
     pub retention_days: u16,
     /// The serialized profile chunk payload.
     pub payload: Bytes,
+    /// Additional attachments associated with this profile chunk.
+    pub attachments: Vec<ProfileAttachment>,
     /// Outcome quantities associated with this profile.
     ///
     /// Quantities are different for backend and ui profile chunks.
     pub quantities: Quantities,
+}
+
+/// Optional raw binary blob associated with [`profile chunk`](StoreProfileChunk).
+#[derive(Debug)]
+pub struct ProfileAttachment {
+    /// Name of the attachment,
+    pub name: String,
+    /// Content type of the attachment.
+    pub content_type: ContentType,
+    /// Objectstore id of the attachment.
+    ///
+    /// Using this id the attachment can be retrieved again.
+    pub stored_id: ObjectstoreKey,
 }
 
 impl Counted for StoreProfileChunk {
@@ -750,6 +766,8 @@ impl StoreService {
         let scoping = message.scoping();
         let received_at = message.received_at();
 
+        let relay_emits_accepted_outcome = false;
+
         let meta = SpanMeta {
             organization_id: scoping.organization_id,
             project_id: scoping.project_id,
@@ -805,6 +823,15 @@ impl StoreService {
                     scoping.project_id.to_string(),
                 )]),
                 payload: message.payload,
+                attachments: message
+                    .attachments
+                    .into_iter()
+                    .map(|attachment| ProfileChunkKafkaAttachment {
+                        name: attachment.name,
+                        content_type: attachment.content_type.as_str(),
+                        stored_id: attachment.stored_id.into_inner(),
+                    })
+                    .collect(),
             };
 
             self.produce(KafkaTopic::Profiles, KafkaMessage::ProfileChunk(message))
@@ -1668,6 +1695,15 @@ struct ProfileChunkKafkaMessage {
     #[serde(skip)]
     headers: BTreeMap<String, String>,
     payload: Bytes,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    attachments: Vec<ProfileChunkKafkaAttachment>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct ProfileChunkKafkaAttachment {
+    name: String,
+    content_type: &'static str,
+    stored_id: String,
 }
 
 /// An enum over all possible ingest messages.

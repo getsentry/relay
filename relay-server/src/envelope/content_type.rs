@@ -38,6 +38,8 @@ pub enum ContentType {
     TraceAttachment,
     /// `application/vnd.sentry.attachment-ref+json`
     AttachmentRef,
+    /// `application/x-perfetto-trace`
+    PerfettoTrace,
     /// All integration content types.
     Integration(Integration),
 }
@@ -60,6 +62,7 @@ impl ContentType {
             Self::TraceMetricContainer => "application/vnd.sentry.items.trace-metric+json",
             Self::TraceAttachment => "application/vnd.sentry.trace-attachment",
             Self::AttachmentRef => "application/vnd.sentry.attachment-ref+json",
+            Self::PerfettoTrace => "application/x-perfetto-trace",
             Self::Integration(integration) => integration.as_content_type(),
         }
     }
@@ -109,6 +112,8 @@ impl ContentType {
             || ct.eq_ignore_ascii_case("application/vnd.sentry.attachment-ref")
         {
             Some(Self::AttachmentRef)
+        } else if ct.eq_ignore_ascii_case(Self::PerfettoTrace.as_str()) {
+            Some(Self::PerfettoTrace)
         } else {
             Integration::from_content_type(ct).map(Self::Integration)
         }
@@ -192,6 +197,8 @@ relay_common::impl_str_de!(ContentType, "a content type string");
 
 #[cfg(test)]
 mod tests {
+    use similar_asserts::assert_eq;
+
     use super::*;
 
     #[test]

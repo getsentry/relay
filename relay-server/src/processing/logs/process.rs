@@ -178,6 +178,32 @@ fn normalize_log(
         eap::normalize_user_agent(&mut log.attributes, client_ua_info);
     }
 
+    if let Annotated(None, meta) = log {
+        relay_log::debug!("empty log: {meta:?}");
+        return Err(Error::Invalid(DiscardReason::NoData));
+    }
+
+    Ok(())
+}
+
+/// Normalize derived fields and attributes.
+///
+/// This is separate from [`normalize`] because it needs to run
+/// after PII scrubbing; PII might get leaked otherwise.
+///
+/// In practice, for logs, it only performs schema validation.
+pub fn normalize_derived(logs: &mut Managed<ExpandedLogs>) {
+    logs.retain_with_context(
+        |logs| (&mut logs.logs, &()),
+        |log, _, _| {
+            normalize_log_derived(log).inspect_err(|err| {
+                relay_log::debug!("failed to normalize log: {err}");
+            })
+        },
+    );
+}
+
+fn normalize_log_derived(log: &mut Annotated<OurLog>) -> Result<()> {
     process_value(
         log,
         &mut SchemaProcessor::new()

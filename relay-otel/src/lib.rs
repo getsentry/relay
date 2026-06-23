@@ -9,6 +9,8 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
+use opentelemetry_proto::tonic::common::v1::ArrayValue as OtelArrayValue;
+use opentelemetry_proto::tonic::common::v1::KeyValueList;
 use opentelemetry_proto::tonic::common::v1::any_value;
 use opentelemetry_proto::tonic::{
     common::v1::{InstrumentationScope, any_value::Value as OtelValue},
@@ -17,6 +19,52 @@ use opentelemetry_proto::tonic::{
 use opentelemetry_semantic_conventions::attribute as otel_semconv;
 use relay_event_schema::protocol::{Attribute, AttributeType, Attributes};
 use relay_protocol::{Annotated, Value};
+
+/// Converts a key-value list to a JSON object and serializes it as a string.
+///
+/// Key-value pairs are supported by the type definition, but handling varies between spans and
+/// logs, so we serialize to JSON for consistency.
+pub fn otel_kvlist_to_string(kvlist: KeyValueList) -> Option<String> {
+    let mut json_obj = serde_json::Map::new();
+    for kv in kvlist.values {
+        if let Some(val) = kv.value.and_then(|v| match v.value? {
+            OtelValue::StringValue(s) => Some(serde_json::Value::String(s)),
+            OtelValue::BoolValue(b) => Some(serde_json::Value::Bool(b)),
+            OtelValue::IntValue(i) => Some(serde_json::Value::Number(serde_json::Number::from(i))),
+            OtelValue::DoubleValue(d) => {
+                serde_json::Number::from_f64(d).map(serde_json::Value::Number)
+            }
+            OtelValue::BytesValue(bytes) => {
+                String::from_utf8(bytes).ok().map(serde_json::Value::String)
+            }
+            OtelValue::ArrayValue(_) | OtelValue::KvlistValue(_) => None,
+        }) {
+            json_obj.insert(kv.key, val);
+        }
+    }
+    serde_json::to_string(&json_obj).ok()
+}
+
+/// Converts an OpenTelemetry array value to a vec of Sentry values.
+///
+/// Nested complex types (arrays and key-value lists) are filtered out.
+pub fn otel_array_to_sentry_array(array: OtelArrayValue) -> Vec<Annotated<Value>> {
+    array
+        .values
+        .into_iter()
+        .filter_map(|v| {
+            Some(match v.value? {
+                OtelValue::StringValue(s) => Value::String(s),
+                OtelValue::BoolValue(b) => Value::Bool(b),
+                OtelValue::IntValue(i) => Value::I64(i),
+                OtelValue::DoubleValue(d) => Value::F64(d),
+                OtelValue::BytesValue(bytes) => Value::String(String::from_utf8(bytes).ok()?),
+                OtelValue::ArrayValue(_) | OtelValue::KvlistValue(_) => return None,
+            })
+        })
+        .map(Annotated::new)
+        .collect()
+}
 
 /// Converts an OpenTelemetry AnyValue to a Sentry attribute.
 ///
@@ -36,53 +84,12 @@ pub fn otel_value_to_attribute(otel_value: OtelValue) -> Option<Attribute> {
             let s = String::from_utf8(bytes).ok()?;
             (AttributeType::String, Value::String(s))
         }
-        OtelValue::ArrayValue(array) => {
-            let values: Vec<Annotated<Value>> = array
-                .values
-                .into_iter()
-                .filter_map(|v| {
-                    Some(match v.value? {
-                        OtelValue::StringValue(s) => Value::String(s),
-                        OtelValue::BoolValue(b) => Value::Bool(b),
-                        OtelValue::IntValue(i) => Value::I64(i),
-                        OtelValue::DoubleValue(d) => Value::F64(d),
-                        OtelValue::BytesValue(bytes) => {
-                            Value::String(String::from_utf8(bytes).ok()?)
-                        }
-                        // Currently not supported.
-                        OtelValue::ArrayValue(_) | OtelValue::KvlistValue(_) => return None,
-                    })
-                })
-                .map(Annotated::new)
-                .collect();
-
-            (AttributeType::Array, Value::Array(values))
-        }
+        OtelValue::ArrayValue(array) => (
+            AttributeType::Array,
+            Value::Array(otel_array_to_sentry_array(array)),
+        ),
         OtelValue::KvlistValue(kvlist) => {
-            // Convert key-value list to JSON object and serialize as string.
-            // Key-value pairs are supported by the type definition, but handling
-            // varies between spans and logs, so we serialize to JSON for consistency.
-            let mut json_obj = serde_json::Map::new();
-            for kv in kvlist.values {
-                if let Some(val) = kv.value.and_then(|v| match v.value? {
-                    OtelValue::StringValue(s) => Some(serde_json::Value::String(s)),
-                    OtelValue::BoolValue(b) => Some(serde_json::Value::Bool(b)),
-                    OtelValue::IntValue(i) => {
-                        Some(serde_json::Value::Number(serde_json::Number::from(i)))
-                    }
-                    OtelValue::DoubleValue(d) => {
-                        serde_json::Number::from_f64(d).map(serde_json::Value::Number)
-                    }
-                    OtelValue::BytesValue(bytes) => {
-                        String::from_utf8(bytes).ok().map(serde_json::Value::String)
-                    }
-                    // Skip nested complex types for safety
-                    OtelValue::ArrayValue(_) | OtelValue::KvlistValue(_) => None,
-                }) {
-                    json_obj.insert(kv.key, val);
-                }
-            }
-            let json = serde_json::to_string(&json_obj).ok()?;
+            let json = otel_kvlist_to_string(kvlist)?;
             (AttributeType::String, Value::String(json))
         }
     };

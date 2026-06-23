@@ -32,7 +32,10 @@ def test_span_ingestion(
     relay = relay(relay_with_processing())
 
     project_id = 42
-    mini_sentry.add_full_project_config(project_id)
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).extend(
+        ["organizations:relay-generate-billing-outcome"]
+    )
 
     ts = datetime.now(timezone.utc)
 
@@ -125,6 +128,7 @@ def test_span_ingestion(
         "project_id": 42,
         "received": time_within(ts),
         "retention_days": 90,
+        "accepted_outcome_emitted": False,
         "span_id": "f0b809703e783d00",
         "start_timestamp": time_within(ts.timestamp() - 1.0),
         "status": "ok",
@@ -153,9 +157,32 @@ def test_span_ingestion(
             "project_id": 42,
             "received_at": time_within_delta(),
             "retention_days": 90,
-            "tags": {"is_segment": "true", "was_transaction": "false"},
+            "tags": {
+                "is_segment": "true",
+                "was_transaction": "false",
+                "billing_outcome_emitted": "true",
+            },
             "timestamp": time_within_delta(),
             "type": "c",
             "value": 1.0,
+        },
+    ]
+
+    assert outcomes_consumer.get_aggregated_outcomes(n=2) == [
+        {
+            "category": DataCategory.TRANSACTION.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.SPAN.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 1,
         },
     ]
