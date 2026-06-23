@@ -106,13 +106,12 @@ def lcp_cls_inp_differences(mode):
     All these differences should be resolved.
     """
     if mode == "legacy":
-        attributes = {
+        return {
             # The legacy pipeline extracts this attribute from `sentry_tags`.
             "sentry.browser.name": {"type": "string", "value": "Firefox"},
         }
-        fields = {}
     else:
-        attributes = {
+        return {
             # We additionally extract the browser version for EAP items
             "browser.version": {"type": "string", "value": "42.0"},
             # New for EAP items
@@ -120,22 +119,19 @@ def lcp_cls_inp_differences(mode):
                 "type": "string",
                 "value": time_within_delta(expect_resolution="ns"),
             },
-            # Maybe should not exist. Segment information in legacy processing is removed.
-            "sentry.segment.id": {"type": "string", "value": "8a6626cc9bdd5d9b"},
-        }
-        fields = {
-            # See `set_segment_attributes` which removes segment information on LCP and CLS spans.
-            # Introduced in https://github.com/getsentry/relay/pull/3522.
-            # Not fully clear what the intention of that change is and if we still need it.
-            "parent_span_id": "8a6626cc9bdd5d9b",
         }
 
-    return (attributes, fields)
 
-
+@pytest.mark.parametrize("is_segment", [False, True])
 @pytest.mark.parametrize("mode", ["legacy", "v2"])
 def test_lcp_span(
-    mini_sentry, relay, relay_with_processing, spans_consumer, metrics_consumer, mode
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+    metrics_consumer,
+    mode,
+    is_segment,
 ):
     """
     Test verifies LCP spans processed via the SpanV2 and legacy standalone processing pipeline are equally processed.
@@ -191,6 +187,7 @@ def test_lcp_span(
             "exclusive_time": 0,
             "measurements": {"lcp": {"value": 548, "unit": "millisecond"}},
             "segment_id": "8a6626cc9bdd5d9b",
+            "is_segment": is_segment,
         },
         trace_info={
             "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
@@ -200,8 +197,6 @@ def test_lcp_span(
     )
 
     relay.send_envelope(project_id, envelope)
-
-    attributes, fields = lcp_cls_inp_differences(mode)
 
     lcp_backfill = {}
     if mode == "v2":
@@ -289,7 +284,7 @@ def test_lcp_span(
                 "value": 0.0,
             },
             **lcp_backfill,
-            **attributes,
+            **lcp_cls_inp_differences(mode),
         },
         "downsampled_retention_days": 90,
         "end_timestamp": time_within(ts),
@@ -299,12 +294,10 @@ def test_lcp_span(
         "project_id": 42,
         "received": time_within(ts),
         "retention_days": 90,
-        "accepted_outcome_emitted": False,
         "span_id": "9fd17741416e8e4e",
         "start_timestamp": time_within(ts.timestamp() - 0.5),
         "status": "ok",
         "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
-        **fields,
     }
 
     assert metrics_consumer.get_metrics(with_headers=False) == [
@@ -338,9 +331,16 @@ def test_lcp_span(
     ]
 
 
+@pytest.mark.parametrize("is_segment", [False, True])
 @pytest.mark.parametrize("mode", ["legacy", "v2"])
 def test_cls_span(
-    mini_sentry, relay, relay_with_processing, spans_consumer, metrics_consumer, mode
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+    metrics_consumer,
+    mode,
+    is_segment,
 ):
     """
     Test verifies CLS spans processed via the SpanV2 and legacy standalone processing pipeline are equally processed.
@@ -396,6 +396,7 @@ def test_cls_span(
             "exclusive_time": 0,
             "measurements": {"cls": {"value": 0.1, "unit": ""}},
             "segment_id": "8a6626cc9bdd5d9b",
+            "is_segment": is_segment,
         },
         trace_info={
             "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
@@ -405,8 +406,6 @@ def test_cls_span(
     )
 
     relay.send_envelope(project_id, envelope)
-
-    attributes, fields = lcp_cls_inp_differences(mode)
 
     cls_backfill = {}
     if mode == "v2":
@@ -501,7 +500,7 @@ def test_cls_span(
                 "value": 0.0,
             },
             **cls_backfill,
-            **attributes,
+            **lcp_cls_inp_differences(mode),
         },
         "downsampled_retention_days": 90,
         "end_timestamp": time_within(ts),
@@ -511,12 +510,10 @@ def test_cls_span(
         "project_id": 42,
         "received": time_within(ts),
         "retention_days": 90,
-        "accepted_outcome_emitted": False,
         "span_id": "be6fa380c55f2fcb",
         "start_timestamp": time_within(ts.timestamp() - 0.5),
         "status": "ok",
         "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
-        **fields,
     }
 
     assert metrics_consumer.get_metrics(with_headers=False) == [
@@ -550,9 +547,16 @@ def test_cls_span(
     ]
 
 
+@pytest.mark.parametrize("is_segment", [False, True])
 @pytest.mark.parametrize("mode", ["legacy", "v2"])
 def test_inp_span(
-    mini_sentry, relay, relay_with_processing, spans_consumer, metrics_consumer, mode
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+    metrics_consumer,
+    mode,
+    is_segment,
 ):
     """
     Test verifies INP spans processed via the SpanV2 and legacy standalone processing pipeline are equally processed.
@@ -602,6 +606,7 @@ def test_inp_span(
             "exclusive_time": 104,
             "measurements": {"inp": {"value": 104, "unit": "millisecond"}},
             "segment_id": "8a6626cc9bdd5d9b",
+            "is_segment": is_segment,
         },
         trace_info={
             "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
@@ -611,8 +616,6 @@ def test_inp_span(
     )
 
     relay.send_envelope(project_id, envelope)
-
-    attributes, fields = lcp_cls_inp_differences(mode)
 
     inp_backfill = {}
     if mode == "v2":
@@ -675,7 +678,7 @@ def test_inp_span(
                 "value": 1.0,
             },
             **inp_backfill,
-            **attributes,
+            **lcp_cls_inp_differences(mode),
         },
         "downsampled_retention_days": 90,
         "end_timestamp": time_within(ts),
@@ -685,12 +688,10 @@ def test_inp_span(
         "project_id": 42,
         "received": time_within(ts),
         "retention_days": 90,
-        "accepted_outcome_emitted": False,
         "span_id": "a6f029fbe0e2389a",
         "start_timestamp": time_within(ts.timestamp() - 0.5),
         "status": "ok",
         "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
-        **fields,
     }
 
     assert metrics_consumer.get_metrics(with_headers=False) == [
@@ -858,7 +859,6 @@ def test_mobile_measurements(
     )
 
     relay.send_envelope(project_id, envelope)
-    attributes, fields = lcp_cls_inp_differences(mode)
 
     assert spans_consumer.get_span() == {
         "attributes": {
@@ -911,7 +911,7 @@ def test_mobile_measurements(
                     "app.vitals.start.type": {"value": "cold", "type": "string"},
                 },
             ),
-            **attributes,
+            **lcp_cls_inp_differences(mode),
         },
         "downsampled_retention_days": 90,
         "end_timestamp": time_within(ts),
@@ -921,12 +921,10 @@ def test_mobile_measurements(
         "project_id": 42,
         "received": time_within(ts),
         "retention_days": 90,
-        "accepted_outcome_emitted": False,
         "span_id": "a6f029fbe0e2389a",
         "start_timestamp": time_within(ts.timestamp() - 5),
         "status": "ok",
         "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
-        **fields,
     }
 
 
@@ -985,8 +983,6 @@ def test_ua_ip_inference(
 
     relay.send_envelope(project_id, envelope)
 
-    attributes, fields = lcp_cls_inp_differences(mode)
-
     assert spans_consumer.get_span() == {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
@@ -1021,7 +1017,7 @@ def test_ua_ip_inference(
                 "type": "string",
                 "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
             },
-            **attributes,
+            **lcp_cls_inp_differences(mode),
         },
         "downsampled_retention_days": 90,
         "end_timestamp": time_within(ts),
@@ -1031,12 +1027,10 @@ def test_ua_ip_inference(
         "project_id": 42,
         "received": time_within(ts),
         "retention_days": 90,
-        "accepted_outcome_emitted": False,
         "span_id": "9fd17741416e8e4e",
         "start_timestamp": time_within(ts.timestamp() - 0.5),
         "status": "ok",
         "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
-        **fields,
     }
 
 
@@ -1097,8 +1091,6 @@ def test_name_inference(
     )
 
     relay.send_envelope(project_id, envelope)
-
-    attributes, fields = lcp_cls_inp_differences(mode)
 
     # If the span's origin is "manual", the name should be the same as the description.
     # Otherwise it should be backfilled according to conventions, which includes
@@ -1180,7 +1172,7 @@ def test_name_inference(
                     "sentry.action": {"type": "string", "value": "GET"}
                 },
             ),
-            **attributes,
+            **lcp_cls_inp_differences(mode),
         },
         "downsampled_retention_days": 90,
         "end_timestamp": time_within(ts),
@@ -1190,7 +1182,6 @@ def test_name_inference(
         "project_id": 42,
         "received": time_within(ts),
         "retention_days": 90,
-        "accepted_outcome_emitted": False,
         "span_id": "9fd17741416e8e4e",
         "start_timestamp": time_within(ts.timestamp() - 0.5),
         "status": "ok",
@@ -1198,7 +1189,6 @@ def test_name_inference(
         "is_segment": False,
         "parent_span_id": "8a6626cc9bdd5d9b",
         "_meta": meta,
-        **fields,
     }
 
 

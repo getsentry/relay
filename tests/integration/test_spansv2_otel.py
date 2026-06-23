@@ -129,7 +129,6 @@ def test_span_ingestion(
         "project_id": 42,
         "received": time_within(ts),
         "retention_days": 90,
-        "accepted_outcome_emitted": False,
         "span_id": "f0b809703e783d00",
         "start_timestamp": time_within(ts.timestamp() - 1.0),
         "status": "ok",

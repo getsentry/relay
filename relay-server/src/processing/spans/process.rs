@@ -234,6 +234,7 @@ fn normalize_span(
         // because category derivation depends on having the sentry.op attribute
         // available.
         eap::normalize_sentry_op(&mut span.attributes);
+        eap::normalize_web_vital_span_segment(span);
         eap::normalize_span_category(&mut span.attributes);
         eap::normalize_received(&mut span.attributes, meta.received_at());
         eap::normalize_client_address(&mut span.attributes, meta.client_addr());

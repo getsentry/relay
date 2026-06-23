@@ -9,13 +9,11 @@ use relay_quotas::ReasonCode;
 use relay_sampling::config::RuleId;
 use relay_sampling::evaluation::MatchedRuleIds;
 
-mod aggregator;
 pub mod metric;
 mod service;
 
 use crate::envelope::{AttachmentType, ItemType};
 
-pub use self::aggregator::OutcomeAggregator;
 pub use self::service::*;
 
 /// The numerical identifier of the outcome category (Accepted, Filtered, ...)

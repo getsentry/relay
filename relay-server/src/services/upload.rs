@@ -764,7 +764,7 @@ impl UpstreamRequest for UploadRequest {
         let project_id = self.scoping.project_id;
         match &self.kind {
             RequestKind::Create { .. } => Cow::Owned(format!("/api/{project_id}/upload/")),
-            RequestKind::Upload { uri, .. } => Cow::Borrowed(&uri),
+            RequestKind::Upload { uri, .. } => Cow::Borrowed(uri),
         }
     }
 

@@ -735,8 +735,6 @@ def test_transaction_metrics_extraction_external_relays(
     # Client reports.
     envelope = mini_sentry.get_captured_envelope()
     assert len(envelope.items) == 1
-    envelope = mini_sentry.get_captured_envelope()
-    assert len(envelope.items) == 1
 
     if send_extracted_header:
         _, error = mini_sentry.test_failures.get()
@@ -822,7 +820,7 @@ def test_no_transaction_metrics_when_filtered(mini_sentry, relay):
     relay.send_transaction(project_id, tx)
 
     # The only envelopes received should be outcomes for Transaction{,Indexed}:
-    reports = [mini_sentry.get_client_report() for _ in range(4)]
+    reports = [mini_sentry.get_client_report() for _ in range(1)]
     filtered_events = [
         outcome for report in reports for outcome in report["filtered_events"]
     ]
@@ -1027,19 +1025,12 @@ def test_generic_metric_extraction(mini_sentry, relay):
     relay = relay(relay(mini_sentry, options=TEST_CONFIG), options=TEST_CONFIG)
     relay.send_transaction(PROJECT_ID, transaction)
 
-    # Skip client reports
-    envelope = mini_sentry.get_captured_envelope()
-    assert envelope.get_event() is None
-    envelope = mini_sentry.get_captured_envelope()
-    assert envelope.get_event() is None
-
-    envelope = mini_sentry.get_captured_envelope()
-    for item in envelope.items:
-        # Transaction items should be sampled and not among the envelope items.
-        assert item.headers.get("type") != "transaction"
-
-    item = envelope.items[0]
-    assert item.headers.get("type") == "metric_buckets"
+    while True:
+        envelope = mini_sentry.get_captured_envelope()
+        assert len(envelope.items) == 1
+        item = envelope.items[0]
+        if item.headers.get("type") == "metric_buckets":
+            break
 
     metrics = metrics_without_keys(
         json.loads(item.get_bytes().decode()), keys={"metadata"}
@@ -1324,7 +1315,7 @@ def test_histogram_outliers(mini_sentry, relay):
     relay.send_event(42, event)
 
     tags = {}
-    for _ in range(3):
+    for _ in range(2):
         envelope = mini_sentry.get_captured_envelope()
         for item in envelope:
             if item.type == "metric_buckets":

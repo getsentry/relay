@@ -5,23 +5,23 @@
 //! pipeline, outcomes may not be emitted if the item is accepted.
 
 use std::collections::BTreeMap;
-use std::mem;
 use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Duration;
+
+use chrono::{DateTime, Utc};
+use relay_config::Config;
+use relay_event_schema::protocol::{ClientReport, DiscardedEvent, EventId};
+use relay_metrics::{MetricNamespace, UnixTimestamp};
+use relay_quotas::{DataCategory, Scoping};
+use relay_statsd::metric;
+use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 
 use crate::services::metrics::{Aggregator, MergeBuckets};
 use crate::services::outcome::{self, DiscardReason, Outcome};
 use crate::services::processor::{EnvelopeProcessor, SubmitClientReports};
 use crate::statsd::RelayCounters;
 use crate::utils::SleepHandle;
-use chrono::{DateTime, Utc};
-use relay_common::time::UnixTimestamp;
-use relay_config::{Config, EmitOutcomes};
-use relay_event_schema::protocol::{ClientReport, DiscardedEvent, EventId};
-use relay_quotas::{DataCategory, Scoping};
-use relay_statsd::metric;
-use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 
 /// Tracks an [`Outcome`] of an Envelope item.
 ///
@@ -54,124 +54,206 @@ impl FromMessage<Self> for TrackOutcome {
     }
 }
 
-/// Outcome producer backend via HTTP as [`ClientReport`].
+/// Service implementing the [`TrackOutcome`] interface, dropping all outcomes.
 #[derive(Debug)]
-struct ClientReportOutcomeProducer {
-    flush_interval: Duration,
-    unsent_reports: BTreeMap<Scoping, Vec<ClientReport>>,
-    flush_handle: SleepHandle,
-    envelope_processor: Addr<EnvelopeProcessor>,
+pub struct NullOutcomeProducerService {
+    _priv: (),
 }
 
-impl ClientReportOutcomeProducer {
-    fn new(config: &Config, envelope_processor: Addr<EnvelopeProcessor>) -> Self {
+impl NullOutcomeProducerService {
+    pub fn new() -> Self {
+        Self { _priv: () }
+    }
+}
+
+impl Service for NullOutcomeProducerService {
+    type Interface = TrackOutcome;
+
+    async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
+        while rx.recv().await.is_some() {}
+    }
+}
+
+/// Service implementing the [`TrackOutcome`] interface.
+#[derive(Debug)]
+pub struct OutcomeProducerService {
+    config: Arc<Config>,
+    aggregator: Addr<Aggregator>,
+}
+
+impl OutcomeProducerService {
+    pub fn new(config: Arc<Config>, aggregator: Addr<Aggregator>) -> Self {
+        Self { config, aggregator }
+    }
+
+    fn handle_message(&self, message: TrackOutcome) {
+        send_outcome_metric(&message);
+        self.aggregator.send(MergeBuckets {
+            project_key: message.scoping.project_key,
+            buckets: vec![outcome::metric::to_metric(&message, &self.config)],
+        })
+    }
+}
+
+impl Service for OutcomeProducerService {
+    type Interface = TrackOutcome;
+
+    async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
+        relay_log::info!("outcome producer started.");
+        while let Some(message) = rx.recv().await {
+            self.handle_message(message);
+        }
+        relay_log::info!("outcome producer stopped.");
+    }
+}
+
+/// Service implementing the [`TrackOutcome`] interface only emitting [`ClientReport`]s.
+///
+/// This implementation is only useful for Relay instances running in Proxy mode.
+/// It is much less optimized and the implementation assumes behaviour of a Proxy mode Relay,
+/// like a relatively low volume of data and only a single scoping. It will behave correctly
+/// event outside these parameters, but may not perform optimally.
+#[derive(Debug)]
+pub struct ClientReportOutcomeProducerService {
+    processor: Addr<EnvelopeProcessor>,
+    buckets: BTreeMap<BucketKey, ClientReport>,
+    bucket_interval: u32,
+    flush_interval: u32,
+    flush_handle: SleepHandle,
+}
+
+impl ClientReportOutcomeProducerService {
+    pub fn new(config: &Config, processor: Addr<EnvelopeProcessor>) -> Self {
+        let agg = &config
+            .aggregator_config_for(MetricNamespace::Outcomes)
+            .aggregator;
+
         Self {
-            // Use same batch interval as outcome aggregator
-            flush_interval: Duration::from_secs(config.outcome_aggregator().flush_interval),
-            unsent_reports: BTreeMap::new(),
+            processor,
+            buckets: Default::default(),
+            bucket_interval: agg.bucket_interval.max(1),
+            flush_interval: agg.initial_delay,
             flush_handle: SleepHandle::idle(),
-            envelope_processor,
         }
     }
 
-    fn flush(&mut self) {
-        relay_log::trace!("flushing client reports");
-        self.flush_handle.reset();
+    fn handle_message(&mut self, message: TrackOutcome) {
+        send_outcome_metric(&message);
 
-        let unsent_reports = mem::take(&mut self.unsent_reports);
-        for (scoping, client_reports) in unsent_reports.into_iter() {
-            self.envelope_processor.send(SubmitClientReports {
-                client_reports,
-                scoping,
-            });
-        }
-    }
+        let offset = u64::try_from(message.timestamp.timestamp()).unwrap_or(0)
+            / u64::from(self.bucket_interval);
 
-    fn handle_message(&mut self, msg: TrackOutcome) {
-        let mut client_report = ClientReport {
-            timestamp: Some(UnixTimestamp::from_secs(
-                msg.timestamp.timestamp().try_into().unwrap_or(0),
-            )),
-            ..Default::default()
+        let bucket_key = BucketKey {
+            offset,
+            scoping: message.scoping,
         };
 
-        // The outcome type determines what field to place the outcome in:
-        let discarded_events = match msg.outcome {
-            Outcome::Filtered(_) => &mut client_report.filtered_events,
-            Outcome::FilteredSampling(_) => &mut client_report.filtered_sampling_events,
-            Outcome::RateLimited(_) => &mut client_report.rate_limited_events,
+        let discarded_events: fn(&mut ClientReport) -> &mut _ = match message.outcome {
+            Outcome::Filtered(_) => |cr| &mut cr.filtered_events,
+            Outcome::FilteredSampling(_) => |cr| &mut cr.filtered_sampling_events,
+            Outcome::RateLimited(_) => |cr| &mut cr.rate_limited_events,
             Outcome::Invalid(DiscardReason::InvalidSignature | DiscardReason::MissingSignature) => {
-                &mut client_report.discarded_events
+                |cr| &mut cr.discarded_events
             }
             _ => {
                 relay_log::debug!(
                     "Outcome '{}' cannot be converted to client report",
-                    msg.outcome
+                    message.outcome
                 );
                 return;
             }
         };
 
-        // Now that we know where to put it, let's create a DiscardedEvent
-        let discarded_event = DiscardedEvent {
-            reason: msg.outcome.to_reason().unwrap_or_default().to_string(),
-            category: msg.category,
-            quantity: msg.quantity,
-        };
-        discarded_events.push(discarded_event);
+        let client_report = self.buckets.entry(bucket_key).or_default();
+        let discarded_events = discarded_events(client_report);
 
-        self.unsent_reports
-            .entry(msg.scoping)
-            .or_default()
-            .push(client_report);
+        let reason = message.outcome.to_reason().unwrap_or_default();
+        let category = message.category;
 
-        if self.flush_interval == Duration::ZERO {
-            // Flush immediately. Useful for integration tests.
-            self.flush();
-        } else if self.flush_handle.is_idle() {
-            self.flush_handle.set(self.flush_interval);
+        // Linear search is fine, we only have a limited amount of outcomes and volume as this
+        // service is only supposed to be used for proxy mode Relay.
+        let discarded_event = discarded_events
+            .iter_mut()
+            .find(|de| de.reason == reason && de.category == category);
+
+        match discarded_event {
+            Some(discarded_event) => discarded_event.quantity += message.quantity,
+            None => discarded_events.push(DiscardedEvent {
+                reason: reason.into_owned(),
+                category,
+                quantity: message.quantity,
+            }),
         }
+
+        match self.flush_interval {
+            0 => self.do_flush(),
+            v => self.flush_handle.set_if_idle(Duration::from_secs(v.into())),
+        }
+    }
+
+    fn do_flush(&mut self) {
+        for (bucket_key, client_report) in std::mem::take(&mut self.buckets) {
+            let BucketKey { offset, scoping } = bucket_key;
+
+            let timestamp = Some(offset)
+                // May be zero as we default timestamps out of range to 0.
+                .filter(|offset| *offset > 0)
+                .map(|offset| offset * u64::from(self.bucket_interval))
+                .map(UnixTimestamp::from_secs);
+
+            let client_report = ClientReport {
+                timestamp,
+                ..client_report
+            };
+
+            self.processor.send(SubmitClientReports {
+                client_reports: vec![client_report],
+                scoping,
+            });
+        }
+    }
+
+    fn handle_shutdown(&mut self) {
+        self.flush_interval = 0;
+        self.do_flush();
     }
 }
 
-impl Service for ClientReportOutcomeProducer {
+impl Service for ClientReportOutcomeProducerService {
     type Interface = TrackOutcome;
 
     async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+        let mut shutdown = relay_system::Controller::shutdown_handle();
+        relay_log::info!("client report outcome producer started");
+
         loop {
             tokio::select! {
-                // Prioritize flush over receiving messages to prevent starving.
                 biased;
 
-                () = &mut self.flush_handle => self.flush(),
+                () = &mut self.flush_handle => self.do_flush(),
                 Some(message) = rx.recv() => self.handle_message(message),
+                _ = shutdown.notified() => self.handle_shutdown(),
+
                 else => break,
             }
         }
+        self.do_flush();
+        relay_log::info!("client report outcome producer stopped");
     }
 }
 
-/// Produces [`Outcome`]s to a configurable backend.
-///
-/// The backend is configured through the `outcomes` configuration object and can be:
-///
-///  1. Metrics
-///  2. Upstream Relay via client reports in external configuration
-///  3. (default) Disabled
-#[derive(Debug)]
-pub struct OutcomeProducer(TrackOutcome);
-
-impl Interface for OutcomeProducer {}
-
-impl FromMessage<TrackOutcome> for OutcomeProducer {
-    type Response = NoResponse;
-
-    fn from_message(message: TrackOutcome, _: ()) -> Self {
-        Self(message)
-    }
+/// Contains everything to aggregate a [`ClientReport`].
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct BucketKey {
+    /// The time slot for which outcomes are aggregated.
+    ///
+    /// The offset follows the formula: `timestamp = offset * bucket_interval`.
+    offset: u64,
+    /// Scoping of the outcome.
+    scoping: Scoping,
 }
 
-fn send_outcome_metric(message: &TrackOutcome, to: &'static str) {
+fn send_outcome_metric(message: &TrackOutcome) {
     let outcome_name = match message.outcome {
         Outcome::Accepted => "accepted",
         Outcome::Filtered(_) | Outcome::FilteredSampling(_) => "filtered",
@@ -185,113 +267,10 @@ fn send_outcome_metric(message: &TrackOutcome, to: &'static str) {
         counter(RelayCounters::OutcomeQuantity) += message.quantity.into(),
         category = message.category.name(),
         outcome = outcome_name,
-        to = to,
     );
     metric!(
         counter(RelayCounters::Outcomes) += 1,
         reason = message.outcome.to_reason().unwrap_or_default(),
         outcome = outcome_name,
-        to = to,
     );
-}
-
-#[derive(Debug)]
-enum OutcomeBroker {
-    ClientReport(Addr<TrackOutcome>),
-    Metric(Addr<Aggregator>),
-    Disabled,
-}
-
-impl OutcomeBroker {
-    fn handle_message(&self, message: OutcomeProducer, config: &Config) {
-        relay_log::with_scope(|_| {}, || self.handle_track_outcome(message.0, config))
-    }
-
-    fn handle_track_outcome(&self, message: TrackOutcome, config: &Config) {
-        match self {
-            Self::Metric(metrics) => {
-                send_outcome_metric(&message, "metric");
-                metrics.send(MergeBuckets {
-                    project_key: message.scoping.project_key,
-                    buckets: vec![outcome::metric::to_metric(&message, config)],
-                })
-            }
-            Self::ClientReport(producer) => {
-                send_outcome_metric(&message, "client_report");
-                producer.send(message);
-            }
-            Self::Disabled => (),
-        }
-    }
-}
-
-#[derive(Debug)]
-enum ProducerInner {
-    Metric(Addr<Aggregator>),
-    ClientReport(ClientReportOutcomeProducer),
-    Disabled,
-}
-
-impl ProducerInner {
-    fn start(self) -> OutcomeBroker {
-        match self {
-            ProducerInner::Metric(inner) => OutcomeBroker::Metric(inner),
-            ProducerInner::ClientReport(inner) => {
-                OutcomeBroker::ClientReport(inner.start_detached())
-            }
-            ProducerInner::Disabled => OutcomeBroker::Disabled,
-        }
-    }
-}
-
-/// Service implementing the [`OutcomeProducer`] interface.
-#[derive(Debug)]
-pub struct OutcomeProducerService {
-    config: Arc<Config>,
-    inner: ProducerInner,
-}
-
-impl OutcomeProducerService {
-    pub fn create(
-        config: Arc<Config>,
-        envelope_processor: Addr<EnvelopeProcessor>,
-        metric_aggregator: Addr<Aggregator>,
-    ) -> anyhow::Result<Self> {
-        let inner = match config.emit_outcomes() {
-            EmitOutcomes::AsOutcomes => {
-                relay_log::info!("Configured to emit outcomes via metrics");
-                ProducerInner::Metric(metric_aggregator)
-            }
-            EmitOutcomes::AsClientReports => {
-                // We emit client reports, and we do NOT accept raw outcomes
-                relay_log::info!("Configured to emit outcomes as client reports");
-                ProducerInner::ClientReport(ClientReportOutcomeProducer::new(
-                    &config,
-                    envelope_processor,
-                ))
-            }
-            EmitOutcomes::None => {
-                relay_log::info!("Configured to drop all outcomes");
-                ProducerInner::Disabled
-            }
-        };
-
-        Ok(Self { config, inner })
-    }
-}
-
-impl Service for OutcomeProducerService {
-    type Interface = OutcomeProducer;
-
-    async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
-        let Self { config, inner } = self;
-
-        let broker = inner.start();
-
-        relay_log::info!("OutcomeProducer started.");
-        while let Some(message) = rx.recv().await {
-            broker.handle_message(message, &config);
-        }
-        relay_log::info!("OutcomeProducer stopped.");
-    }
 }
