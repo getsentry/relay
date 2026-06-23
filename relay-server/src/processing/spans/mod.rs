@@ -186,17 +186,17 @@ impl processing::Processor for SpansProcessor {
 
         let mut spans = process::expand(spans)?;
 
-        dynamic_sampling::validate_and_set_dsc(&mut spans, &ctx)?;
-
-        let mut spans = match dynamic_sampling::run(spans, ctx) {
-            Ok(spans) => spans,
-            Err(metrics) => return Ok(Output::metrics(metrics)),
-        };
-
         process::normalize(&mut spans, &self.geo_lookup, ctx);
         filter::filter(&mut spans, ctx);
         process::scrub(&mut spans, ctx);
         process::normalize_derived(&mut spans, ctx);
+
+        dynamic_sampling::validate_and_set_dsc(&mut spans, &ctx)?;
+
+        let spans = match dynamic_sampling::run(spans, ctx) {
+            Ok(spans) => spans,
+            Err(metrics) => return Ok(Output::metrics(metrics)),
+        };
 
         let spans = self.limiter.enforce_quotas(spans, ctx).await?;
         let spans = match spans.transpose() {
