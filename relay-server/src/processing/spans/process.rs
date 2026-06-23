@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 
 use relay_event_normalization::eap::ClientUserAgentInfo;
-use relay_event_normalization::{EnrichedDsc, GeoIpLookup, RequiredMode, SchemaProcessor, eap};
+use relay_event_normalization::{GeoIpLookup, RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{Span, SpanId, SpanV2};
 use relay_protocol::Annotated;
@@ -113,6 +113,9 @@ fn expand_span_container(item: &Item) -> Result<(Settings, ContainerItems<SpanV2
                     infer_user_agent: is
                         .and_then(|is| is.infer_user_agent)
                         .is_some_and(|infer| infer.is_auto()),
+                    // We don't want to infer names for V2 spans. If an SDK sent a
+                    // V2 span without a name it's just invalid.
+                    infer_name: false,
                 },
                 // Unsupported, fall back to the safe default.
                 Some(_) => Default::default(),
@@ -138,12 +141,16 @@ fn expand_legacy_spans(
         })
         .collect();
 
-    // In the legacy standalone span pipeline we always
-    // inferred both IPs and user agents. If this function
-    // is ever applied to transactions, we may need to rethink this.
     let settings = Settings {
+        // In the legacy standalone span pipeline we always
+        // inferred both IPs and user agents. If this function
+        // is ever applied to transactions, we may need to rethink this.
         infer_ip: true,
         infer_user_agent: true,
+        // We want to infer names during processing for legacy spans.
+        // The inference can't happen during the conversion
+        // because PII scrubbing needs to run first.
+        infer_name: true,
     };
 
     (settings, spans)
@@ -157,7 +164,10 @@ fn expand_legacy_span(item: &Item) -> Result<WithHeader<SpanV2>> {
             relay_log::debug!("failed to parse span: {err}");
             Error::Invalid(DiscardReason::InvalidJson)
         })?
-        .map_value(relay_spans::span_v1_to_span_v2);
+        // We can't enable `infer_name` here:
+        // These spans haven't been PII scrubbed yet, so inferring a name would risk
+        // leaking PII.
+        .map_value(|span| relay_spans::span_v1_to_span_v2(span, false));
 
     Ok(WithHeader::new(span))
 }
@@ -207,17 +217,6 @@ fn normalize_span(
     );
 
     if let Some(span) = span.value_mut() {
-        let sampling_project_id = ctx
-            .sampling_project_info
-            .and_then(|p| p.project_id)
-            .or(ctx.project_info.project_id);
-        let dsc = headers
-            .dsc()
-            .zip(sampling_project_id)
-            .map(|(dsc, sampling_project_id)| EnrichedDsc {
-                dsc,
-                sampling_project_id,
-            });
         let duration = span_duration(span);
         let allowed_hosts = ctx.global_config.options.http_span_allowed_hosts.as_slice();
         let model_metdata = ctx.global_config.ai_model_metadata();
@@ -243,7 +242,7 @@ fn normalize_span(
         }
         eap::normalize_user_agent(&mut span.attributes, client_ua_info);
         eap::normalize_user_geo(&mut span.attributes, |ip| geo_lookup.lookup(ip));
-        eap::normalize_dsc(&mut span.attributes, &span.is_segment, dsc);
+        eap::normalize_dsc(&mut span.attributes, &span.is_segment, headers.dsc());
         if ctx.is_processing() {
             eap::normalize_ai(&mut span.attributes, duration, model_metdata);
         }
@@ -255,6 +254,48 @@ fn normalize_span(
         eap::write_legacy_attributes(&mut span.attributes);
         eap::normalize_client_sample_rate(&mut span.attributes);
     };
+
+    if let Annotated(None, meta) = span {
+        relay_log::debug!("empty span: {meta:?}");
+        return Err(Error::Invalid(DiscardReason::NoData));
+    }
+
+    Ok(())
+}
+
+/// Normalize derived fields and attributes.
+///
+/// This is separate from [`normalize`] because it needs to run
+/// after PII scrubbing; PII might get leaked otherwise.
+///
+/// It also takes care of trimming and schema validation because those procedures need
+/// to also run for derived fields.
+pub fn normalize_derived(spans: &mut Managed<ExpandedSpans>, ctx: Context<'_>) {
+    let settings = spans.settings;
+    spans.retain_with_context(
+        |spans| (&mut spans.spans, &()),
+        |span, _, _| {
+            normalize_span_derived(&mut span.span, settings, ctx).inspect_err(|err| {
+                relay_log::debug!("failed to normalize span: {err}");
+            })
+        },
+    );
+}
+
+fn normalize_span_derived(
+    span: &mut Annotated<SpanV2>,
+    settings: Settings,
+    ctx: Context<'_>,
+) -> Result<()> {
+    if let Some(span) = span.value_mut() {
+        // The order of operations shouldn't matter here—we should never _actually_
+        // need to synthesize both the name and description. If the span was sent as
+        // V2 it should have a name and if it was sent as V1 it should have a description.
+        if settings.infer_name {
+            eap::normalize_span_name(span);
+        }
+        eap::normalize_sentry_description(&mut span.attributes, &span.name);
+    }
 
     // Set a max_bytes value on the root state if it's defined in the project config.
     // This causes the whole item to be trimmed down to the limit.
@@ -359,7 +400,7 @@ mod tests {
     use relay_conventions::attributes::*;
     use relay_event_schema::protocol::{Attributes, EventId, SpanKind};
     use relay_pii::PiiConfig;
-    use relay_protocol::SerializableAnnotated;
+    use relay_protocol::{SerializableAnnotated, assert_annotated_snapshot};
 
     use crate::Envelope;
     use crate::extractors::RequestMeta;
@@ -369,11 +410,13 @@ mod tests {
 
     #[test]
     fn test_scrub_span_pii_default_rules_links() {
-        // `user.name`, `sentry.release`, and `url.path` are marked as follows in `sentry-conventions`:
+        // `sentry.description`, `user.name`, `sentry.release`, `url.domain`, and `url.path` are marked as follows in `sentry-conventions`:
+        // * `sentry.description`: `true`
         // * `user.name`: `true`
         // * `sentry.release`: `false`
-        // * `url.path`: `maybe`
-        // Therefore, `user.name` is the only one that should be scrubbed by default rules.
+        // * `url.domain`: `maybe`
+        // * `url.path`: `true`
+        // Therefore, default rules should scrub the `true` attributes and leave the `false` and `maybe` attributes intact.
         let json = r#"{
             "start_timestamp": 1544719859.0,
             "end_timestamp": 1544719860.0,
@@ -393,6 +436,14 @@ mod tests {
                         "value": "secret123"
                     },
                     "sentry.release": {
+                        "type": "string",
+                        "value": "secret123"
+                    },
+                    "url.domain": {
+                        "type": "string",
+                        "value": "secret123"
+                    },
+                    "url.path": {
                         "type": "string",
                         "value": "secret123"
                     }
@@ -431,17 +482,55 @@ mod tests {
         {
           "sentry.description": {
             "type": "string",
-            "value": "secret123"
+            "value": "[Filtered]"
           },
           "sentry.release": {
             "type": "string",
             "value": "secret123"
+          },
+          "url.domain": {
+            "type": "string",
+            "value": "secret123"
+          },
+          "url.path": {
+            "type": "string",
+            "value": "[Filtered]"
           },
           "user.name": {
             "type": "string",
             "value": "[Filtered]"
           },
           "_meta": {
+            "sentry.description": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@password:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 9
+                }
+              }
+            },
+            "url.path": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@password:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 9
+                }
+              }
+            },
             "user.name": {
               "value": {
                 "": {
@@ -464,11 +553,13 @@ mod tests {
 
     #[test]
     fn test_scrub_span_pii_custom_object_rules_links() {
-        // `user.name`, `sentry.release`, and `url.path` are marked as follows in `sentry-conventions`:
+        // `sentry.description`, `user.name`, `sentry.release`, `url.domain`, and `url.path` are marked as follows in `sentry-conventions`:
+        // * `sentry.description`: `true`
         // * `user.name`: `true`
         // * `sentry.release`: `false`
-        // * `url.path`: `maybe`
-        // Therefore, `sentry.release` is the only one that should not be scrubbed by custom rules.
+        // * `url.domain`: `maybe`
+        // * `url.path`: `true`
+        // Therefore, custom rules should scrub the `true` and `maybe` attributes addressed explicitly, but not the `false` attribute.
         let json = r#"
         {
             "start_timestamp": 1544719859.0,
@@ -491,6 +582,10 @@ mod tests {
                         "value": "secret123"
                     },
                     "url.path": {
+                        "type": "string",
+                        "value": "secret123"
+                    },
+                    "url.domain": {
                         "type": "string",
                         "value": "secret123"
                     },
@@ -588,6 +683,13 @@ mod tests {
                         "method": "replace",
                         "text": "[DESCRIPTION]"
                     }
+                },
+                "project:8": {
+                    "type": "anything",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "[URL DOMAIN]"
+                    }
                 }
             },
             "applications": {
@@ -614,6 +716,9 @@ mod tests {
                 ],
                 "'sentry.description'.value": [
                     "project:7"
+                ],
+                "'url.domain'.value": [
+                    "project:8"
                 ]
             }
         }
@@ -669,6 +774,10 @@ mod tests {
           "test_field_uuid": {
             "type": "string",
             "value": "BYE"
+          },
+          "url.domain": {
+            "type": "string",
+            "value": "[URL DOMAIN]"
           },
           "url.path": {
             "type": "string",
@@ -751,6 +860,21 @@ mod tests {
                     ]
                   ],
                   "len": 36
+                }
+              }
+            },
+            "url.domain": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "project:8",
+                      "s",
+                      0,
+                      12
+                    ]
+                  ],
+                  "len": 9
                 }
               }
             },
@@ -928,7 +1052,6 @@ mod tests {
         assert_attributes_contains(
             &span,
             &[
-                (SENTRY__DESCRIPTION, "select * from users where id = 1"),
                 (
                     SENTRY__NORMALIZED_DESCRIPTION,
                     "SELECT * FROM users WHERE id = %s",
@@ -990,10 +1113,6 @@ mod tests {
             &[
                 (SENTRY__CATEGORY, "http"),
                 (SENTRY__OP, "http.client"),
-                (
-                    SENTRY__DESCRIPTION,
-                    "GET https://www.example.com/path?param=value",
-                ),
                 (SENTRY__ACTION, "GET"),
                 (SENTRY__DOMAIN, "*.example.com"),
             ],
@@ -1113,7 +1232,6 @@ mod tests {
             &span,
             &[
                 (SENTRY__OP, "db"),
-                (SENTRY__DESCRIPTION, "select * from users where id = 1"),
                 (
                     SENTRY__NORMALIZED_DESCRIPTION,
                     "SELECT * FROM users WHERE id = %s",
@@ -1169,5 +1287,89 @@ mod tests {
             ],
             &[],
         );
+    }
+
+    /// Tests that schema validation doesn't reject attributes that have no value, but
+    /// do have metadata (such as attributes that have been deleted by scrubbing).
+    #[test]
+    fn test_schema_validation_scrubbed_attribute() {
+        let mut span = Annotated::<SpanV2>::from_json(
+            r#"
+        {
+            "start_timestamp": 1544719859.0,
+            "end_timestamp": 1544719860.0,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b174",
+            "name": "test",
+            "status": "ok",
+            "attributes": {
+                "foo": {"type": "string", "value": null},
+                "bar": {"type": "string", "value": null}
+            },
+            "_meta": {
+                "attributes": {
+                    "foo": {
+                        "value": {
+                            "": {
+                                "rem": [["@anything:remove", "x"]]
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    "#,
+        )
+        .unwrap();
+
+        process_value(
+            &mut span,
+            &mut SchemaProcessor::new()
+                .with_required(RequiredMode::DeleteParent)
+                .with_verbose_errors(relay_log::enabled!(relay_log::Level::DEBUG)),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(span, @r#"
+        {
+          "trace_id": "5b8efff798038103d269b633813fc60c",
+          "span_id": "eee19b7ec3c1b174",
+          "name": "test",
+          "status": "ok",
+          "start_timestamp": 1544719859.0,
+          "end_timestamp": 1544719860.0,
+          "attributes": {
+            "bar": null,
+            "foo": {
+              "type": "string",
+              "value": null
+            }
+          },
+          "_meta": {
+            "attributes": {
+              "bar": {
+                "": {
+                  "err": [
+                    "missing_attribute"
+                  ]
+                }
+              },
+              "foo": {
+                "value": {
+                  "": {
+                    "rem": [
+                      [
+                        "@anything:remove",
+                        "x"
+                      ]
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+        "#);
     }
 }

@@ -69,7 +69,7 @@ expression: SerializableAnnotated(&data)
   },
   "sentry.description": {
     "type": "string",
-    "value": "secret123"
+    "value": "[Filtered]"
   },
   "sentry.release": {
     "type": "string",
@@ -87,9 +87,13 @@ expression: SerializableAnnotated(&data)
     "type": "string",
     "value": "/home/alice/private/data.json"
   },
-  "url.path": {
+  "url.domain": {
     "type": "string",
     "value": "secret123"
+  },
+  "url.path": {
+    "type": "string",
+    "value": "[Filtered]"
   },
   "user.name": {
     "type": "string",
@@ -303,6 +307,21 @@ expression: SerializableAnnotated(&data)
         }
       }
     },
+    "sentry.description": {
+      "value": {
+        "": {
+          "rem": [
+            [
+              "@password:filter",
+              "s",
+              0,
+              10
+            ]
+          ],
+          "len": 9
+        }
+      }
+    },
     "social_security": {
       "value": {
         "": {
@@ -315,6 +334,21 @@ expression: SerializableAnnotated(&data)
             ]
           ],
           "len": 11
+        }
+      }
+    },
+    "url.path": {
+      "value": {
+        "": {
+          "rem": [
+            [
+              "@password:filter",
+              "s",
+              0,
+              10
+            ]
+          ],
+          "len": 9
         }
       }
     },

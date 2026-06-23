@@ -3,9 +3,8 @@
 use regex::Regex;
 use relay_event_schema::protocol::{Event, SpanData, TraceContext};
 use relay_protocol::Annotated;
+use relay_sampling::DynamicSamplingContext;
 use std::sync::LazyLock;
-
-use crate::EnrichedDsc;
 
 pub mod ai;
 pub mod country_subregion;
@@ -61,7 +60,7 @@ pub fn normalize_app_start_spans(event: &mut Event) {
 ///
 /// If `sentry.dsc.trace_id` is already present in a span's `data`, the function does nothing for
 /// that span.
-pub fn normalize_dsc_for_event_spans(event: &mut Event, dsc: Option<EnrichedDsc>) {
+pub fn normalize_dsc_for_event_spans(event: &mut Event, dsc: Option<&DynamicSamplingContext>) {
     if let Some(ctx) = event.context_mut::<TraceContext>() {
         normalize_dsc_for_span_data(&mut ctx.data, dsc);
     }
@@ -77,7 +76,10 @@ pub fn normalize_dsc_for_event_spans(event: &mut Event, dsc: Option<EnrichedDsc>
 /// Writes DSC attributes needed for dynamic sampling into `span_data`.
 ///
 /// If `sentry.dsc.trace_id` is already present in `span_data`, the function does nothing.
-pub fn normalize_dsc_for_span_data(span_data: &mut Annotated<SpanData>, dsc: Option<EnrichedDsc>) {
+pub fn normalize_dsc_for_span_data(
+    span_data: &mut Annotated<SpanData>,
+    dsc: Option<&DynamicSamplingContext>,
+) {
     let Some(dsc) = dsc else {
         return;
     };
@@ -86,9 +88,11 @@ pub fn normalize_dsc_for_span_data(span_data: &mut Annotated<SpanData>, dsc: Opt
     if data.sentry_dsc_trace_id.value().is_some() {
         return;
     }
-    data.sentry_dsc_trace_id = Annotated::new(dsc.dsc.trace_id.to_string());
-    data.sentry_dsc_project_id = Annotated::new(dsc.sampling_project_id.to_string());
-    if let Some(transaction) = &dsc.dsc.transaction {
+    data.sentry_dsc_trace_id = Annotated::new(dsc.trace_id.to_string());
+    if let Some(project_id) = &dsc.project_id {
+        data.sentry_dsc_project_id = Annotated::new(project_id.to_string());
+    }
+    if let Some(transaction) = &dsc.transaction {
         data.sentry_dsc_transaction = Annotated::new(transaction.to_string());
     }
 }

@@ -13,6 +13,7 @@ use futures::StreamExt;
 use futures::stream::BoxStream;
 use http::{HeaderValue, Method};
 use relay_auth::Signature;
+use relay_auth::SignatureError;
 #[cfg(feature = "processing")]
 use relay_auth::SignatureHeader;
 use relay_base_schema::project::ProjectId;
@@ -63,8 +64,8 @@ pub enum Error {
     SerializeFailed(#[from] serde_urlencoded::ser::Error),
     #[error("failed to sign location")]
     SigningFailed,
-    #[error("invalid signature")]
-    InvalidSignature,
+    #[error("invalid signature: {0}")]
+    InvalidSignature(#[from] SignatureError),
     #[error("objectstore service unavailable: {0}")]
     ObjectstoreServiceUnavailable(#[source] SendError),
     #[cfg(feature = "processing")]
@@ -86,7 +87,7 @@ impl Error {
             Error::InvalidLocation(_) => "invalid_location",
             Error::SigningFailed => "signing_failed",
             Error::SerializeFailed(_) => "serialize_failed",
-            Error::InvalidSignature => "invalid_signature",
+            Error::InvalidSignature(_) => "invalid_signature",
             Error::ObjectstoreServiceUnavailable(_) => "service_unavailable",
             #[cfg(feature = "processing")]
             Error::Objectstore(_) => "objectstore_error",
@@ -474,7 +475,7 @@ impl<L: UploadLength> Location<L> {
             .sign_with_header(
                 uri.as_bytes(),
                 &SignatureHeader {
-                    timestamp: Some(Utc::now()),
+                    timestamp: Utc::now(),
                     signature_algorithm: None,
                 },
             );
@@ -598,7 +599,7 @@ impl<L: UploadLength> SignedLocation<L> {
     pub fn verify(self, received: DateTime<Utc>, config: &Config) -> Result<Location<L>, Error> {
         let public_key = config.public_key().ok_or(Error::SigningFailed)?;
 
-        let mut is_valid = self.signature.verify(
+        let mut result = self.signature.verify(
             self.location.try_to_uri()?.as_bytes(),
             public_key,
             received,
@@ -606,19 +607,18 @@ impl<L: UploadLength> SignedLocation<L> {
         );
 
         // NOTE: This code path can be removed once all legacy URIs are invalid (~1h after rollout)
-        if !is_valid {
-            is_valid = self.signature.verify(
+        if result.is_err() {
+            result = self.signature.verify(
                 self.location.try_to_legacy_uri()?.as_bytes(),
                 public_key,
                 received,
                 chrono::Duration::seconds(config.upload().max_age),
-            )
+            );
         }
 
-        match is_valid {
-            true => Ok(self.location),
-            false => Err(Error::InvalidSignature),
-        }
+        result?;
+
+        Ok(self.location)
     }
 }
 
@@ -932,7 +932,7 @@ mod tests {
         let signature = config.credentials().unwrap().secret_key.sign_with_header(
             legacy_uri.as_bytes(),
             &SignatureHeader {
-                timestamp: Some(Utc::now()),
+                timestamp: Utc::now(),
                 signature_algorithm: None,
             },
         );

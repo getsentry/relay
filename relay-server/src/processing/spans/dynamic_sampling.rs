@@ -8,16 +8,15 @@ use relay_metrics::{Bucket, BucketMetadata, BucketValue, UnixTimestamp};
 use relay_protocol::{FiniteF64, get_value};
 use relay_quotas::{DataCategory, Scoping};
 use relay_sampling::config::RuleType;
+use relay_sampling::dsc::TraceUserContext;
 use relay_sampling::evaluation::{SamplingDecision, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
 use crate::envelope::ClientName;
-use crate::managed::Managed;
+use crate::managed::{Managed, Rejected};
 use crate::metrics_extraction::ExtractedMetrics;
 use crate::processing::Context;
-use crate::processing::spans::{
-    Error, ExpandedSpan, ExpandedSpans, Indexed, Result, SerializedSpans,
-};
+use crate::processing::spans::{Error, ExpandedSpan, ExpandedSpans, Indexed, Result};
 use crate::services::outcome::Outcome;
 use crate::services::projects::project::ProjectInfo;
 use crate::statsd::RelayCounters;
@@ -52,54 +51,66 @@ pub fn validate_configs(ctx: Context<'_>) {
     }
 }
 
-/// Validates the presence of a dynamic sampling context when processing Spans.
+/// Validates and, if necessary, resynthesizes the DSC for a batch of V2 spans.
 ///
-/// Each envelope received by Relay must contain a valid dynamic sampling context.
-/// This is not a technical requirement as a missing dynamic sampling context is treated as having
-/// a sample rate of 100%, but to ensure SDKs implement the protocol correctly it is validated.
+/// A DSC must be present. This is not a technical requirement as a missing DSC simply leads to a
+/// 100 % sample rate. Instead, the intention of the enforcement is to ensure that SDKs implement
+/// the protocol correctly.
 ///
 /// An exception exists for our OTeL integration, which currently never sets a dynamic sampling
 /// context. In the future we may want to extract a DSC from the OTeL payload to allow dynamic
-/// sampling if the necessary attributes are present.
-pub fn validate_dsc_presence(spans: &SerializedSpans) -> Result<()> {
-    let dsc = spans.headers.dsc();
-
-    // Envelopes created by Relay may not carry a DSC. This is currently the case for envelopes
-    // created through the OTeL integration.
-    //
-    // This validation is only best effort (not a hard requirement) to get SDKs to implement DSC
-    // correctly, so it is okay to be a bit more lenient here and trust ourselves.
-    let client_is_relay = spans.headers.meta().client_name() == ClientName::Relay;
-
-    if !client_is_relay && dsc.is_none() {
-        return Err(Error::MissingDynamicSamplingContext);
-    }
-
-    Ok(())
-}
-
-/// Validates the dynamic sampling context against the parsed spans.
+/// sampling if the necessary attributes are present. OTeL spans are recognized by the client name
+/// being `Relay`.
 ///
-/// The values of the dynamic sampling context must match the values provided in the spans.
-/// Currently this only validates the trace id.
-pub fn validate_dsc(spans: &ExpandedSpans) -> Result<()> {
-    let Some(dsc) = spans.headers.dsc() else {
-        // It's okay if we don't have a DSC here. We may be in a processing path which has spans
-        // from mixed traces without a DSC (=100% sample rate).
-        // For example via the OTeL integration.
-        return Ok(());
-    };
+/// An unresolved trace root (sampling) project causes the DSC to be resynthesized and the trace attributed to
+/// the spans' own project. This happens when the sampling project is disabled or belongs to a
+/// different org than the spans.
+pub fn validate_and_set_dsc(
+    spans: &mut Managed<ExpandedSpans>,
+    ctx: &Context<'_>,
+) -> Result<(), Rejected<Error>> {
+    let public_key = spans.scoping().project_key;
+    spans.try_modify(|spans, _| {
+        let client_is_relay = spans.headers.meta().client_name() == ClientName::Relay;
+        let dsc = match spans.headers.dsc_mut() {
+            None if client_is_relay => return Ok(()),
+            None => return Err(Error::MissingDynamicSamplingContext),
+            Some(dsc) => dsc,
+        };
 
-    for span in &spans.spans {
-        let span = &span.span;
-        let trace_id = get_value!(span.trace_id);
-
-        if trace_id != Some(&dsc.trace_id) {
-            return Err(Error::DynamicSamplingContextMismatch);
+        for span in &spans.spans {
+            let span = &span.span;
+            if get_value!(span.trace_id) != Some(&dsc.trace_id) {
+                return Err(Error::DynamicSamplingContextMismatch);
+            }
         }
-    }
 
-    Ok(())
+        match ctx.sampling_project_info {
+            None => {
+                *dsc = DynamicSamplingContext {
+                    trace_id: dsc.trace_id,
+                    public_key,
+                    project_id: ctx.project_info.project_id,
+                    release: None,
+                    environment: None,
+                    transaction: None,
+                    sample_rate: dsc.sample_rate,
+                    sampled: None,
+                    user: TraceUserContext::default(),
+                    replay_id: None,
+                    other: Default::default(),
+                };
+                relay_statsd::metric!(
+                    counter(RelayCounters::SamplingProjectUnresolved) += 1,
+                    item = "span"
+                );
+            }
+            Some(sampling_project_info) => {
+                dsc.project_id = sampling_project_info.project_id;
+            }
+        };
+        Ok(())
+    })
 }
 
 /// Computes the sampling decision for a batch of spans.

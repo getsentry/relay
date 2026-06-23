@@ -3,9 +3,8 @@ from typing import Literal
 import uuid
 import json
 
-from .asserts import only_items
-
 import pytest
+from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 import queue
 from .asserts import time_within_delta
@@ -76,10 +75,11 @@ def _outcomes_enabled_config():
     return {
         "outcomes": {
             "emit_outcomes": True,
-            "batch_size": 1,
-            "batch_interval": 1,
             "source": "relay",
-        }
+        },
+        "http": {
+            "global_metrics": True,
+        },
     }
 
 
@@ -250,15 +250,26 @@ def test_it_removes_events(mini_sentry, relay):
 
     # send the event, the transaction should be removed.
     relay.send_envelope(project_id, envelope)
-    # the event should be removed by Relay sampling
-    assert mini_sentry.get_captured_envelope() == only_items("metric_buckets")
-    assert mini_sentry.captured_envelopes.empty()
 
-    outcomes = mini_sentry.captured_outcomes.get(timeout=2)
-    assert outcomes is not None
-    outcome = outcomes["outcomes"][0]
-    assert outcome.get("outcome") == 1
-    assert outcome.get("reason") == "Sampled:0"
+    assert mini_sentry.get_aggregated_outcomes(n=2) == [
+        {
+            "category": DataCategory.TRANSACTION_INDEXED,
+            "outcome": 1,
+            "public_key": public_key,
+            "quantity": 1,
+            "reason": "Sampled:0",
+            "source": "relay",
+        },
+        {
+            "category": DataCategory.SPAN_INDEXED,
+            "outcome": 1,
+            "public_key": public_key,
+            "quantity": 1,
+            "reason": "Sampled:0",
+            "source": "relay",
+        },
+    ]
+    assert mini_sentry.captured_envelopes.empty()
 
 
 def test_it_does_not_sample_error(mini_sentry, relay):
@@ -346,7 +357,8 @@ def test_sample_on_parametrized_root_transaction(mini_sentry, relay):
     # What the transaction is transformed into, which the dynamic sampling rules should respect.
     parametrized_transaction = "/auth/login/*/"
 
-    mini_sentry.add_basic_project_config(project_id)
+    project_config = mini_sentry.add_basic_project_config(project_id)
+    public_key = project_config["publicKeys"][0]["publicKey"]
 
     sampling_config = mini_sentry.add_basic_project_config(43)
     sampling_public_key = sampling_config["publicKeys"][0]["publicKey"]
@@ -392,8 +404,24 @@ def test_sample_on_parametrized_root_transaction(mini_sentry, relay):
 
     relay.send_envelope(project_id, envelope)
 
-    outcome = mini_sentry.captured_outcomes.get(timeout=2)
-    assert outcome["outcomes"][0]["reason"] == "Sampled:0"
+    assert mini_sentry.get_aggregated_outcomes(n=2) == [
+        {
+            "category": DataCategory.TRANSACTION_INDEXED,
+            "outcome": 1,
+            "public_key": public_key,
+            "quantity": 1,
+            "reason": "Sampled:0",
+            "source": "relay",
+        },
+        {
+            "category": DataCategory.SPAN_INDEXED,
+            "outcome": 1,
+            "public_key": public_key,
+            "quantity": 1,
+            "reason": "Sampled:0",
+            "source": "relay",
+        },
+    ]
 
 
 def test_it_keeps_events(mini_sentry, relay):
@@ -474,17 +502,29 @@ def test_uses_trace_public_key(mini_sentry, relay):
 
     # send the event, the transaction should be removed.
     relay.send_envelope(project_id2, envelope)
-    # the event should be removed by Relay sampling
-    assert mini_sentry.get_captured_envelope() == only_items("metric_buckets")
+    # Dynamic sampling metrics
+    assert mini_sentry.get_global_metrics() is not None
+    assert mini_sentry.get_global_metrics() is not None
+    assert mini_sentry.get_aggregated_outcomes(n=2) == [
+        {
+            "category": DataCategory.TRANSACTION_INDEXED,
+            "outcome": 1,
+            "public_key": public_key2,
+            "quantity": 1,
+            "reason": "Sampled:0",
+            "source": "relay",
+        },
+        {
+            "category": DataCategory.SPAN_INDEXED,
+            "outcome": 1,
+            "public_key": public_key2,
+            "quantity": 1,
+            "reason": "Sampled:0",
+            "source": "relay",
+        },
+    ]
     assert mini_sentry.captured_envelopes.empty()
-
-    # and it should create an outcome
-    outcomes = mini_sentry.captured_outcomes.get(timeout=2)  # Spans
-    assert outcomes is not None
-    outcomes = mini_sentry.captured_outcomes.get(timeout=2)  # Transactions
-    assert outcomes is not None
-    with pytest.raises(queue.Empty):
-        mini_sentry.captured_outcomes.get(timeout=1)
+    assert mini_sentry.captured_metrics.empty()
 
     # Second
     # send trace with project_id2 context (should go through)
@@ -501,8 +541,7 @@ def test_uses_trace_public_key(mini_sentry, relay):
     assert evt is not None
 
     # no outcome should be generated (since the event is passed along to the upstream)
-    with pytest.raises(queue.Empty):
-        mini_sentry.captured_outcomes.get(timeout=2)
+    assert mini_sentry.get_aggregated_outcomes(timeout=2) == []
 
 
 @pytest.mark.parametrize(
@@ -550,11 +589,42 @@ def test_multi_item_envelope(mini_sentry, relay, rule_type, event_factory):
         # send the event, the transaction should be removed.
         relay.send_envelope(project_id, envelope)
         # the event should be removed by Relay sampling
-        assert mini_sentry.get_captured_envelope() == only_items("metric_buckets")
         assert mini_sentry.captured_envelopes.empty()
 
-        outcomes = mini_sentry.captured_outcomes.get(timeout=2)
-        assert outcomes is not None
+        assert mini_sentry.get_aggregated_outcomes(n=4) == [
+            {
+                "category": DataCategory.ATTACHMENT,
+                "outcome": 1,
+                "public_key": public_key,
+                "quantity": 52,
+                "reason": "Sampled:0",
+                "source": "relay",
+            },
+            {
+                "category": DataCategory.TRANSACTION_INDEXED,
+                "outcome": 1,
+                "public_key": public_key,
+                "quantity": 1,
+                "reason": "Sampled:0",
+                "source": "relay",
+            },
+            {
+                "category": DataCategory.SPAN_INDEXED,
+                "outcome": 1,
+                "public_key": public_key,
+                "quantity": 1,
+                "reason": "Sampled:0",
+                "source": "relay",
+            },
+            {
+                "category": DataCategory.ATTACHMENT_ITEM,
+                "outcome": 1,
+                "public_key": public_key,
+                "quantity": 2,
+                "reason": "Sampled:0",
+                "source": "relay",
+            },
+        ]
 
 
 @pytest.mark.parametrize(
@@ -952,6 +1022,9 @@ def get_v2_envelope(
             "is_segment": True,
             "name": "root",
             "status": "ok",
+            "attributes": {
+                "sentry.segment.name": {"type": "string", "value": "/segment/"},
+            },
         },
         # Child span.
         {
@@ -963,6 +1036,9 @@ def get_v2_envelope(
             "is_segment": False,
             "name": "child1",
             "status": "ok",
+            "attributes": {
+                "sentry.segment.name": {"type": "string", "value": "/segment/"},
+            },
         },
         # Child span which already has `sentry.dsc.*` attributes set.
         {
@@ -978,6 +1054,7 @@ def get_v2_envelope(
                 "sentry.dsc.trace_id": {"type": "string", "value": trace_id},
                 "sentry.dsc.transaction": {"type": "string", "value": "/spandata/"},
                 "sentry.dsc.project_id": {"type": "string", "value": "41"},
+                "sentry.segment.name": {"type": "string", "value": "/segment/"},
             },
         },
     ]
@@ -1052,7 +1129,7 @@ def test_dsc_normalization(
         # ----------------------------------------------------------------------
         # DSC with tx + different org
         ("dsc_with_tx", "diff_org", "tx"): ("/event/", project_id, org_id),
-        ("dsc_with_tx", "diff_org", "v2"): ("/dsc/", project_id, org_id),
+        ("dsc_with_tx", "diff_org", "v2"): (None, project_id, org_id),
         # ----------------------------------------------------------------------
         # DSC without tx + different org
         ("dsc_no_tx", "diff_org", "tx"): ("/event/", project_id, org_id),

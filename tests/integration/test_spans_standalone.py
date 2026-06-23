@@ -150,8 +150,11 @@ def test_lcp_span(
     project_config["config"]["performanceScore"] = {
         "profiles": performance_score_profiles
     }
+    project_config["config"].setdefault(
+        "features", ["organizations:relay-generate-billing-outcome"]
+    )
     if mode == "v2":
-        project_config["config"].setdefault("features", []).append(
+        project_config["config"]["features"].append(
             "projects:span-v2-experimental-processing"
         )
 
@@ -162,7 +165,6 @@ def test_lcp_span(
     envelope = envelope_with_spans(
         {
             "data": {
-                "sentry.origin": "auto.http.browser.lcp",
                 "sentry.op": "ui.webvital.lcp",
                 "release": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
                 "environment": "prod",
@@ -297,7 +299,7 @@ def test_lcp_span(
         "project_id": 42,
         "received": time_within(ts),
         "retention_days": 90,
-        "accepted_outcome_emitted": True,
+        "accepted_outcome_emitted": False,
         "span_id": "9fd17741416e8e4e",
         "start_timestamp": time_within(ts.timestamp() - 0.5),
         "status": "ok",
@@ -329,7 +331,7 @@ def test_lcp_span(
             "type": "c",
             "value": 1.0,
             "timestamp": time_within_delta(ts),
-            "tags": {"is_segment": "false"},
+            "tags": {"is_segment": "false", "billing_outcome_emitted": "true"},
             "retention_days": 90,
             "received_at": time_within(ts, precision="s"),
         },
@@ -353,8 +355,12 @@ def test_cls_span(
     project_config["config"]["performanceScore"] = {
         "profiles": performance_score_profiles
     }
+    project_config["config"].setdefault("features", []).append(
+        "organizations:relay-generate-billing-outcome"
+    )
+
     if mode == "v2":
-        project_config["config"].setdefault("features", []).append(
+        project_config["config"]["features"].append(
             "projects:span-v2-experimental-processing"
         )
 
@@ -365,7 +371,6 @@ def test_cls_span(
     envelope = envelope_with_spans(
         {
             "data": {
-                "sentry.origin": "auto.http.browser.cls",
                 "sentry.op": "ui.webvital.cls",
                 "release": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
                 "environment": "prod",
@@ -506,7 +511,7 @@ def test_cls_span(
         "project_id": 42,
         "received": time_within(ts),
         "retention_days": 90,
-        "accepted_outcome_emitted": True,
+        "accepted_outcome_emitted": False,
         "span_id": "be6fa380c55f2fcb",
         "start_timestamp": time_within(ts.timestamp() - 0.5),
         "status": "ok",
@@ -538,7 +543,7 @@ def test_cls_span(
             "type": "c",
             "value": 1.0,
             "timestamp": time_within_delta(ts),
-            "tags": {"is_segment": "false"},
+            "tags": {"is_segment": "false", "billing_outcome_emitted": "true"},
             "retention_days": 90,
             "received_at": time_within(ts, precision="s"),
         },
@@ -562,6 +567,9 @@ def test_inp_span(
     project_config["config"]["performanceScore"] = {
         "profiles": performance_score_profiles
     }
+    project_config["config"].setdefault("features", []).append(
+        "organizations:relay-generate-billing-outcome"
+    )
     if mode == "v2":
         project_config["config"].setdefault("features", []).append(
             "projects:span-v2-experimental-processing"
@@ -574,7 +582,6 @@ def test_inp_span(
     envelope = envelope_with_spans(
         {
             "data": {
-                "sentry.origin": "auto.http.browser.inp",
                 "sentry.op": "ui.interaction.click",
                 "release": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
                 "environment": "prod",
@@ -678,7 +685,7 @@ def test_inp_span(
         "project_id": 42,
         "received": time_within(ts),
         "retention_days": 90,
-        "accepted_outcome_emitted": True,
+        "accepted_outcome_emitted": False,
         "span_id": "a6f029fbe0e2389a",
         "start_timestamp": time_within(ts.timestamp() - 0.5),
         "status": "ok",
@@ -710,7 +717,7 @@ def test_inp_span(
             "type": "c",
             "value": 1.0,
             "timestamp": time_within_delta(ts),
-            "tags": {"is_segment": "false"},
+            "tags": {"is_segment": "false", "billing_outcome_emitted": "true"},
             "retention_days": 90,
             "received_at": time_within(ts, precision="s"),
         },
@@ -817,7 +824,6 @@ def test_mobile_measurements(
     envelope = envelope_with_spans(
         {
             "data": {
-                "sentry.origin": "auto.http.browser.inp",
                 "sentry.op": "ui.interaction.click",
                 "release": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
                 "environment": "prod",
@@ -915,7 +921,7 @@ def test_mobile_measurements(
         "project_id": 42,
         "received": time_within(ts),
         "retention_days": 90,
-        "accepted_outcome_emitted": True,
+        "accepted_outcome_emitted": False,
         "span_id": "a6f029fbe0e2389a",
         "start_timestamp": time_within(ts.timestamp() - 5),
         "status": "ok",
@@ -948,7 +954,6 @@ def test_ua_ip_inference(
     envelope = envelope_with_spans(
         {
             "data": {
-                "sentry.origin": "auto.http.browser.lcp",
                 "sentry.op": "ui.webvital.lcp",
                 "release": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
                 "environment": "prod",
@@ -1026,11 +1031,173 @@ def test_ua_ip_inference(
         "project_id": 42,
         "received": time_within(ts),
         "retention_days": 90,
-        "accepted_outcome_emitted": True,
+        "accepted_outcome_emitted": False,
         "span_id": "9fd17741416e8e4e",
         "start_timestamp": time_within(ts.timestamp() - 0.5),
         "status": "ok",
         "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+        **fields,
+    }
+
+
+@pytest.mark.parametrize("mode", ["legacy", "v2"])
+@pytest.mark.parametrize("origin", ["manual", "auto.http.browser.lcp"])
+def test_name_inference(
+    mini_sentry, relay, relay_with_processing, spans_consumer, mode, origin
+):
+    """
+    Tests that span names are inferred.
+    """
+    spans_consumer = spans_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    if mode == "v2":
+        project_config["config"].setdefault("features", []).append(
+            "projects:span-v2-experimental-processing"
+        )
+    project_config["config"]["piiConfig"]["applications"]["data.'http.route'"] = [
+        "@anything:mask"
+    ]
+    project_config["config"]["piiConfig"]["applications"][
+        "$span.attributes.'http.route'.value"
+    ] = ["@anything:mask"]
+
+    relay = relay(relay_with_processing())
+
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_spans(
+        {
+            # The combination of op, `http.request.method`, and
+            # `http.route` means this span has its name synthesized as
+            # `GET https://example.com`.
+            "op": "http.client",
+            "data": {
+                "http.request.method": "GET",
+                "http.route": "https://example.com",
+            },
+            "description": "Test span",
+            "parent_span_id": "8a6626cc9bdd5d9b",
+            "span_id": "9fd17741416e8e4e",
+            "start_timestamp": ts.timestamp() - 0.5,
+            "timestamp": ts.timestamp(),
+            "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+            "origin": origin,
+            "exclusive_time": 0,
+            "measurements": {},
+            "segment_id": "8a6626cc9bdd5d9b",
+            "is_segment": False,
+        },
+        trace_info={
+            "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+            "transaction": "/insights/projects/",
+        },
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    attributes, fields = lcp_cls_inp_differences(mode)
+
+    # If the span's origin is "manual", the name should be the same as the description.
+    # Otherwise it should be backfilled according to conventions, which includes
+    # a redacted attribute.
+    if origin == "manual":
+        expected_name = "Test span"
+    else:
+        expected_name = "GET *******************"
+
+    # _meta unfortunately differs slightly between the pipelines
+    if mode == "v2":
+        meta = {
+            "attributes": {
+                "http.route": {
+                    "value": {
+                        "": {
+                            "len": 19,
+                            "rem": [
+                                [
+                                    "@anything:mask",
+                                    "m",
+                                    0,
+                                    19,
+                                ],
+                            ],
+                        },
+                    },
+                },
+            },
+        }
+    else:
+        meta = {
+            "attributes": {
+                "http.route": {
+                    "": {
+                        "len": 19,
+                        "rem": [
+                            [
+                                "@anything:mask",
+                                "m",
+                                0,
+                                19,
+                            ],
+                        ],
+                    },
+                },
+            }
+        }
+
+    assert spans_consumer.get_span() == {
+        "attributes": {
+            "client.address": {"type": "string", "value": "127.0.0.1"},
+            "browser.name": {"type": "string", "value": "Firefox"},
+            "http.request.method": {"type": "string", "value": "GET"},
+            "http.route": {"type": "string", "value": "*******************"},
+            "sentry.category": {"type": "string", "value": "http"},
+            "sentry.description": {"type": "string", "value": "Test span"},
+            "sentry.dsc.transaction": {
+                "type": "string",
+                "value": "/insights/projects/",
+            },
+            "sentry.dsc.project_id": {"type": "string", "value": "42"},
+            "sentry.dsc.trace_id": {
+                "type": "string",
+                "value": "d3d20f000885466b8c8f947c9b92b8d3",
+            },
+            "sentry.exclusive_time": {"type": "double", "value": 0.0},
+            "sentry.op": {"type": "string", "value": "http.client"},
+            "sentry.origin": {"type": "string", "value": origin},
+            "sentry.segment.id": {"type": "string", "value": "8a6626cc9bdd5d9b"},
+            "user_agent.original": {
+                "type": "string",
+                "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
+            },
+            **_if_dict(
+                mode == "v2",
+                {
+                    # The V2 pipeline backfills `sentry.action` from `http.method`.
+                    "sentry.action": {"type": "string", "value": "GET"}
+                },
+            ),
+            **attributes,
+        },
+        "downsampled_retention_days": 90,
+        "end_timestamp": time_within(ts),
+        "key_id": 123,
+        "name": expected_name,
+        "organization_id": 1,
+        "project_id": 42,
+        "received": time_within(ts),
+        "retention_days": 90,
+        "accepted_outcome_emitted": False,
+        "span_id": "9fd17741416e8e4e",
+        "start_timestamp": time_within(ts.timestamp() - 0.5),
+        "status": "ok",
+        "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+        "is_segment": False,
+        "parent_span_id": "8a6626cc9bdd5d9b",
+        "_meta": meta,
         **fields,
     }
 

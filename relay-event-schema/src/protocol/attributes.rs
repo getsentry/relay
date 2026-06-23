@@ -64,7 +64,7 @@ where
 pub struct AttributeValue {
     #[metastructure(field = "type", required = true, trim = false, pii = "false")]
     pub ty: Annotated<AttributeType>,
-    #[metastructure(required = true, pii = "attribute_pii_from_conventions")]
+    #[metastructure(required = "value_or_meta", pii = "attribute_pii_from_conventions")]
     pub value: Annotated<Value>,
 }
 

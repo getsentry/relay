@@ -4,19 +4,45 @@
 
 **Features**:
 
+- Infer span descriptions via `sentry-conventions`. ([#6093](https://github.com/getsentry/relay/pull/6093))
+
+**Bug Fixes**:
+
+- Wider type support for OTel log bodies. ([#6106](https://github.com/getsentry/relay/pull/6106))
+- Don't reject attributes that don't have values, but do have metadata. ([#6098](https://github.com/getsentry/relay/pull/6098))
+- Infer span names PII-safely. ([#6112](https://github.com/getsentry/relay/pull/6112))
+
+**Internal**:
+
+- Rename objectstore use-case from `profiles_raw` to `profile_attachments`. ([#6108](https://github.com/getsentry/relay/pull/6108))
+- Require timestamps and verification in auth signatures. ([#6069](https://github.com/getsentry/relay/pull/6069))
+- Have relay generate metric billing outcomes. ([#6066](https://github.com/getsentry/relay/pull/6066))
+- Update sentry-conventions to 0.12.0.
+- Upgrade release image to Debian 13. ([#6110](https://github.com/getsentry/relay/pull/6110))
+
+## 26.6.0
+
+**Features**:
+
+- Add Perfetto trace format support for continuous profiling. ([#5659](https://github.com/getsentry/relay/pull/5659))
 - Add metadata support for the `/upload` endpoint. ([#6028](https://github.com/getsentry/relay/pull/6028))
 - Infer user agents and client addresses in the V2 standalone span pipeline. ([#6047](https://github.com/getsentry/relay/pull/6047))
 - Conditionally allow additional exceptions on minidumps. ([#6063](https://github.com/getsentry/relay/pull/6063))
 - Replace nil Trace IDs with random ones. ([#6079](https://github.com/getsentry/relay/pull/6079))
+- Equalize name and description for spans with "manual" origin. ([#6070](https://github.com/getsentry/relay/pull/6070))
 
 **Bug Fixes**:
 
+- Stop double-billing AI cache-write tokens in cost calculation. ([#6090](https://github.com/getsentry/relay/pull/6090))
 - Correctly handle minidump objecstore upload failures. ([#6033](https://github.com/getsentry/relay/pull/6033))
 - Add `client.address` attribute to known IP fields. ([#6058](https://github.com/getsentry/relay/pull/6058))
 - Fix a bug in mobile attribute normalization. ([#6065](https://github.com/getsentry/relay/pull/6065))
+- Don't infer names during tag extraction in transaction processing. ([#6080](https://github.com/getsentry/relay/pull/6080))
+- Stop using cross-org DSC data in v2 span normalization. ([#6073](https://github.com/getsentry/relay/pull/6073))
 
 **Internal**:
 
+- Handle outcomes as metrics. ([#6082](https://github.com/getsentry/relay/pull/6082))
 - Restore top-level _performance_issues_spans. ([#6045](https://github.com/getsentry/relay/pull/6045))
 - Update sentry-conventions to 0.11.0, migrating deprecated `gen_ai` attribute constants. ([#6068](https://github.com/getsentry/relay/pull/6068))
 - Prefix upload location query params for forward compatibility. ([#6076](https://github.com/getsentry/relay/pull/6076))

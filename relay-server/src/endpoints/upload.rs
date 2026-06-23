@@ -103,7 +103,7 @@ impl IntoResponse for Error {
                     StatusCode::INTERNAL_SERVER_ERROR
                 }
                 upload::Error::SerializeFailed(_) => StatusCode::INTERNAL_SERVER_ERROR,
-                upload::Error::InvalidSignature => StatusCode::BAD_REQUEST,
+                upload::Error::InvalidSignature(_) => StatusCode::BAD_REQUEST,
                 upload::Error::ObjectstoreServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
                 #[cfg(feature = "processing")]
                 upload::Error::Objectstore(service_error) => match service_error.kind {

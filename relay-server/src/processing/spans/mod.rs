@@ -183,27 +183,26 @@ impl processing::Processor for SpansProcessor {
         validate::invalid(&spans).reject(&spans)?;
 
         dynamic_sampling::validate_configs(ctx);
-        dynamic_sampling::validate_dsc_presence(&spans).reject(&spans)?;
 
-        let spans = process::expand(spans)?;
+        let mut spans = process::expand(spans)?;
+
+        dynamic_sampling::validate_and_set_dsc(&mut spans, &ctx)?;
 
         let mut spans = match dynamic_sampling::run(spans, ctx) {
             Ok(spans) => spans,
             Err(metrics) => return Ok(Output::metrics(metrics)),
         };
 
-        dynamic_sampling::validate_dsc(&spans).reject(&spans)?;
-
         process::normalize(&mut spans, &self.geo_lookup, ctx);
         filter::filter(&mut spans, ctx);
+        process::scrub(&mut spans, ctx);
+        process::normalize_derived(&mut spans, ctx);
 
         let spans = self.limiter.enforce_quotas(spans, ctx).await?;
-        let mut spans = match spans.transpose() {
+        let spans = match spans.transpose() {
             Either::Left(spans) => spans,
             Either::Right(metrics) => return Ok(Output::metrics(metrics)),
         };
-
-        process::scrub(&mut spans, ctx);
 
         match dynamic_sampling::try_split_indexed_and_total(spans, ctx) {
             Either::Left(spans) => Ok(Output::just(SpanOutput::TotalAndIndexed(spans))),
@@ -380,6 +379,12 @@ struct Settings {
     infer_ip: bool,
     /// Whether the user agent/browser should inferred from client headers.
     infer_user_agent: bool,
+    /// Whether the name should be inferred.
+    ///
+    /// This should never be enabled for V2 spans sent by SDKs, it exists purely
+    /// for the benefit of standalone spans which need to have a name inferred
+    /// after conversion to V2.
+    infer_name: bool,
 }
 
 /// Spans which have been parsed and expanded from their serialized state.

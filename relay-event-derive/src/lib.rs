@@ -354,6 +354,43 @@ impl Pii {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+enum Required {
+    True,
+    False,
+    ValueOrMeta,
+}
+
+impl Required {
+    fn as_tokens(&self) -> TokenStream {
+        match self {
+            Self::True => quote!(::relay_event_schema::processor::Required::Value),
+            Self::False => quote!(::relay_event_schema::processor::Required::False),
+            Self::ValueOrMeta => quote!(::relay_event_schema::processor::Required::ValueOrMeta),
+        }
+    }
+}
+
+impl syn::parse::Parse for Required {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let head = input.fork();
+        if let Ok(bool) = input.parse::<LitBool>() {
+            return match bool.value() {
+                true => Ok(Self::True),
+                false => Ok(Self::False),
+            };
+        }
+
+        let input = head.fork();
+        let value = input.parse::<LitStr>()?;
+
+        match value.value().as_str() {
+            "value_or_meta" => Ok(Self::ValueOrMeta),
+            _ => Err(head.error(r#"Expected one of `true`, `false`, or `"value_or_meta"`"#)),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 enum Size {
     Static(usize),
@@ -426,7 +463,7 @@ struct FieldAttrs {
     omit_from_schema: bool,
     field_name: String,
     flatten: bool,
-    required: Option<bool>,
+    required: Option<Required>,
     nonempty: Option<bool>,
     trim_whitespace: Option<bool>,
     pii: Option<Pii>,
@@ -454,11 +491,11 @@ impl FieldAttrs {
             );
         }
         let required = if let Some(required) = self.required {
-            quote!(#required)
+            required.as_tokens()
         } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
             quote!(#parent_attrs.required)
         } else {
-            quote!(false)
+            quote!(::relay_event_schema::processor::Required::False)
         };
 
         let nonempty = if let Some(nonempty) = self.nonempty {
@@ -601,8 +638,7 @@ fn parse_field_attributes(
             } else if ident == "flatten" {
                 rv.flatten = true;
             } else if ident == "required" {
-                let s = meta.value()?.parse::<LitBool>()?;
-                rv.required = Some(s.value());
+                rv.required = Some(meta.value()?.parse::<Required>()?);
             } else if ident == "nonempty" {
                 let s = meta.value()?.parse::<LitBool>()?;
                 rv.nonempty = Some(s.value());

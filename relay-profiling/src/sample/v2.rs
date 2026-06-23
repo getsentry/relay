@@ -9,6 +9,7 @@
 //!
 //! Spans are expected to carry the profiler ID to know which samples are associated with them.
 //!
+use bytes::Bytes;
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
@@ -23,6 +24,7 @@ use crate::sample::{DebugMeta, Frame, ThreadMetadata, Version};
 use crate::types::ClientSdk;
 
 const MAX_PROFILE_CHUNK_DURATION_SECS: f64 = MAX_PROFILE_CHUNK_DURATION.as_secs_f64();
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProfileMetadata {
     /// Random UUID identifying a chunk
@@ -36,12 +38,24 @@ pub struct ProfileMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub environment: Option<String>,
     pub platform: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_type: Option<String>,
     pub release: Option<String>,
 
     pub client_sdk: ClientSdk,
 
     /// Hard-coded string containing "2" to indicate the format version.
     pub version: Version,
+}
+
+impl relay_protocol::Getter for ProfileMetadata {
+    fn get_value(&self, path: &str) -> Option<relay_protocol::Val<'_>> {
+        match path {
+            "release" => self.release.as_deref().map(|release| release.into()),
+            "platform" => Some(self.platform.as_str().into()),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -64,14 +78,51 @@ pub struct ProfileChunk {
     /// be at the top-level of the object.
     #[serde(flatten)]
     pub metadata: ProfileMetadata,
+    #[serde(default)]
     pub profile: ProfileData,
 }
 
 impl ProfileChunk {
+    /// Parses a [`ProfileChunk`] from a JSON `payload`.
+    pub fn parse(payload: &[u8]) -> Result<Self, ProfileError> {
+        let d = &mut serde_json::Deserializer::from_slice(payload);
+        serde_path_to_error::deserialize(d).map_err(ProfileError::InvalidJson)
+    }
+
+    /// Normalizes the [`ProfileChunk`].
     pub fn normalize(&mut self) -> Result<(), ProfileError> {
         let platform = self.metadata.platform.as_str();
-
         self.profile.normalize(platform)
+    }
+
+    /// Serializes the [`ProfileChunk`] into its JSON form.
+    pub fn serialize(&self) -> Result<Bytes, ProfileError> {
+        serde_json::to_vec(self)
+            .map(Bytes::from)
+            .map_err(|_| ProfileError::CannotSerializePayload)
+    }
+}
+
+impl crate::profile_chunk::ProfileChunk for ProfileChunk {
+    fn platform(&self) -> &str {
+        &self.metadata.platform
+    }
+
+    fn normalize(&mut self) -> Result<(), ProfileError> {
+        ProfileChunk::normalize(self)
+    }
+}
+
+impl relay_filter::Filterable for ProfileChunk {
+    fn release(&self) -> Option<&str> {
+        self.metadata.release.as_deref()
+    }
+}
+
+impl relay_protocol::Getter for ProfileChunk {
+    fn get_value(&self, path: &str) -> Option<relay_protocol::Val<'_>> {
+        self.metadata
+            .get_value(path.strip_prefix(crate::PROFIL_GETTER_PREFIX)?)
     }
 }
 
@@ -95,24 +146,18 @@ pub struct ProfileData {
 }
 
 impl ProfileData {
-    fn is_above_max_duration(&self) -> bool {
-        if self.samples.is_empty() {
-            return false;
-        }
-        let mut min = self.samples[0].timestamp;
-        let mut max = self.samples[0].timestamp;
+    /// Returns `true` if the [`ProfileData`] does not contain any data.
+    pub fn is_empty(&self) -> bool {
+        let Self {
+            samples,
+            stacks,
+            frames,
+            thread_metadata,
+        } = self;
 
-        for sample in self.samples.iter().skip(1) {
-            if sample.timestamp < min {
-                min = sample.timestamp
-            } else if sample.timestamp > max {
-                max = sample.timestamp
-            }
-        }
-
-        let duration = max.saturating_sub(min);
-        duration.to_f64() > MAX_PROFILE_CHUNK_DURATION_SECS
+        samples.is_empty() && stacks.is_empty() && frames.is_empty() && thread_metadata.is_empty()
     }
+
     /// Ensures valid profile chunk or returns an error.
     ///
     /// Mutates the profile chunk. Removes invalid samples and threads.
@@ -143,6 +188,25 @@ impl ProfileData {
         self.remove_unreferenced_threads();
 
         Ok(())
+    }
+
+    fn is_above_max_duration(&self) -> bool {
+        if self.samples.is_empty() {
+            return false;
+        }
+        let mut min = self.samples[0].timestamp;
+        let mut max = self.samples[0].timestamp;
+
+        for sample in self.samples.iter().skip(1) {
+            if sample.timestamp < min {
+                min = sample.timestamp
+            } else if sample.timestamp > max {
+                max = sample.timestamp
+            }
+        }
+
+        let duration = max.saturating_sub(min);
+        duration.to_f64() > MAX_PROFILE_CHUNK_DURATION_SECS
     }
 
     fn strip_pointer_authentication_code(&mut self, platform: &str) {
@@ -206,24 +270,19 @@ impl ProfileData {
     }
 }
 
-pub fn parse(payload: &[u8]) -> Result<ProfileChunk, ProfileError> {
-    let d = &mut serde_json::Deserializer::from_slice(payload);
-    serde_path_to_error::deserialize(d).map_err(ProfileError::InvalidJson)
-}
-
 #[cfg(test)]
 mod tests {
     use relay_protocol::FiniteF64;
 
-    use crate::sample::v2::{ProfileData, Sample, parse};
+    use super::*;
 
     #[test]
     fn test_roundtrip() {
         let first_payload = include_bytes!("../../tests/fixtures/sample/v2/valid.json");
-        let first_parse = parse(first_payload);
+        let first_parse = ProfileChunk::parse(first_payload);
         assert!(first_parse.is_ok(), "{first_parse:#?}");
         let second_payload = serde_json::to_vec(&first_parse.unwrap()).unwrap();
-        let second_parse = parse(&second_payload[..]);
+        let second_parse = ProfileChunk::parse(&second_payload[..]);
         assert!(second_parse.is_ok(), "{second_parse:#?}");
     }
 

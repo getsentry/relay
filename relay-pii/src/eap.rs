@@ -45,11 +45,13 @@ mod tests {
 
     #[test]
     fn test_scrub_attributes_pii_default_rules() {
-        // `user.name`, `sentry.release`, and `url.path` are marked as follows in `sentry-conventions`:
+        // `sentry.description`, `user.name`, `sentry.release`, `url.domain`, and `url.path` are marked as follows in `sentry-conventions`:
+        // * `sentry.description`: `true`
         // * `user.name`: `true`
         // * `sentry.release`: `false`
-        // * `url.path`: `maybe`
-        // Therefore, `user.name` is the only one that should be scrubbed by default rules.
+        // * `url.domain`: `maybe`
+        // * `url.path`: `true`
+        // Therefore, default rules should scrub the `true` attributes and leave the `false` and `maybe` attributes intact.
         let json = r#"{
               "sentry.description": {
                   "type": "string",
@@ -60,6 +62,10 @@ mod tests {
                   "value": "secret123"
               },
               "sentry.release": {
+                  "type": "string",
+                  "value": "secret123"
+              },
+              "url.domain": {
                   "type": "string",
                   "value": "secret123"
               },
@@ -180,11 +186,13 @@ mod tests {
 
     #[test]
     fn test_scrub_attributes_pii_custom_object_rules() {
-        // `user.name`, `sentry.release`, and `url.path` are marked as follows in `sentry-conventions`:
+        // `sentry.description`, `user.name`, `sentry.release`, `url.domain`, and `url.path` are marked as follows in `sentry-conventions`:
+        // * `sentry.description`: `true`
         // * `user.name`: `true`
         // * `sentry.release`: `false`
-        // * `url.path`: `maybe`
-        // Therefore, `sentry.release` is the only one that should not be scrubbed by custom rules.
+        // * `url.domain`: `maybe`
+        // * `url.path`: `true`
+        // Therefore, custom rules should scrub the `true` and `maybe` attributes addressed explicitly, but not the `false` attribute.
         let json = r#"
         {
           "sentry.description": {
@@ -200,6 +208,10 @@ mod tests {
               "value": "secret123"
           },
           "url.path": {
+              "type": "string",
+              "value": "secret123"
+          },
+          "url.domain": {
               "type": "string",
               "value": "secret123"
           },
@@ -299,6 +311,13 @@ mod tests {
                         "method": "replace",
                         "text": "[DESCRIPTION]"
                     }
+                },
+                "project:8": {
+                    "type": "anything",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "[URL DOMAIN]"
+                    }
                 }
             },
             "applications": {
@@ -325,6 +344,9 @@ mod tests {
                 ],
                 "'sentry.description'.value": [
                     "project:7"
+                ],
+                "'url.domain'.value": [
+                    "project:8"
                 ]
             }
         }
@@ -372,6 +394,10 @@ mod tests {
           "test_field_uuid": {
             "type": "string",
             "value": "BYE"
+          },
+          "url.domain": {
+            "type": "string",
+            "value": "[URL DOMAIN]"
           },
           "url.path": {
             "type": "string",
@@ -454,6 +480,21 @@ mod tests {
                     ]
                   ],
                   "len": 36
+                }
+              }
+            },
+            "url.domain": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "project:8",
+                      "s",
+                      0,
+                      12
+                    ]
+                  ],
+                  "len": 9
                 }
               }
             },
