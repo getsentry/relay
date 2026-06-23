@@ -51,6 +51,12 @@ impl<T> ManagedTestBuilder<T> {
         }
     }
 
+    /// Sets the scoping of the managed test instance.
+    pub fn scoping(mut self, scoping: Scoping) -> Self {
+        self.scoping = scoping;
+        self
+    }
+
     /// Creates a new [`Managed`] instance and a [`ManagedTestHandle`] to assert outcomes.
     pub fn build(self) -> (Managed<T>, ManagedTestHandle)
     where

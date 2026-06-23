@@ -5,8 +5,8 @@ use std::fmt;
 use std::iter::FusedIterator;
 use std::mem::ManuallyDrop;
 use std::net::IpAddr;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use itertools::Either;
@@ -15,12 +15,12 @@ use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 use smallvec::SmallVec;
 
-use crate::Envelope;
 use crate::endpoints::common::BadStoreRequest;
 use crate::extractors::RequestMeta;
 use crate::managed::{Counted, ManagedEnvelope, Quantities};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::ProcessingError;
+use crate::Envelope;
 
 #[cfg(debug_assertions)]
 mod debug;
@@ -283,11 +283,18 @@ impl<T: Counted> Managed<T> {
     where
         S: Counted,
     {
-        first.map(|first, recordkepping| {
+        assert!(
+            first
+                .meta
+                .as_ref()
+                .scoping
+                .eq(&second.meta.as_ref().scoping),
+            "cannot zip Managed values with different metadata"
+        );
+        first.map(|first, records| {
             for (category, quantity) in second.quantities() {
-                recordkepping.modify_by(category, quantity as isize);
+                records.modify_by(category, quantity as isize);
             }
-
             let second = second.accept(|second| second);
             (first, second)
         })
@@ -1151,6 +1158,8 @@ where
 mod tests {
     use super::*;
 
+    use relay_base_schema::project::ProjectId;
+
     struct CountedVec(Vec<u32>);
 
     impl Counted for CountedVec {
@@ -1199,14 +1208,36 @@ mod tests {
         let (a, mut handle_a) = Managed::for_test(CountedVec(vec![1, 2])).build();
         let (b, mut handle_b) = Managed::for_test(CountedValue(3)).build();
 
-        let merged = Managed::zip(a, b);
+        let z = Managed::zip(a, b);
 
-        assert_eq!(merged.as_ref().0.0, vec![1, 2]);
-        assert_eq!(merged.as_ref().1.0, 3);
-        drop(merged);
+        assert_eq!(z.as_ref().0 .0, vec![1, 2]);
+        assert_eq!(z.as_ref().1 .0, 3);
+        drop(z);
         handle_a.assert_internal_outcome(DataCategory::Error, 2);
         handle_a.assert_internal_outcome(DataCategory::Error, 1);
         handle_b.assert_no_outcomes();
+    }
+
+    #[test]
+    fn test_zip_rejects_different_metadata() {
+        let (a, mut handle_a) = Managed::for_test(CountedVec(vec![1, 2])).build();
+        let (b, mut handle_b) = Managed::for_test(CountedValue(3))
+            .scoping(Scoping {
+                project_id: ProjectId::new(45),
+                ..a.scoping()
+            })
+            .build();
+
+        let result = std::panic::catch_unwind(move || {
+            Managed::zip(a, b);
+        });
+
+        assert!(
+            result.is_err(),
+            "cannot zip Managed values with different metadata"
+        );
+        handle_a.assert_internal_outcome(DataCategory::Error, 2);
+        handle_b.assert_internal_outcome(DataCategory::Error, 1);
     }
 
     #[test]
