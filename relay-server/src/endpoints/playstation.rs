@@ -5,7 +5,7 @@ use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use multer::{Field, Multipart};
-use relay_config::Config;
+use relay_config::{Config, UpstreamDescriptor};
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::EventId;
 use relay_quotas::{DataCategory, Scoping};
@@ -65,6 +65,7 @@ struct Parts {
 struct UploadContext<'a> {
     upload: &'a Addr<Upload>,
     scoping: Scoping,
+    upstream: Option<UpstreamDescriptor>,
 }
 
 /// Created an [UploadContext].
@@ -114,6 +115,7 @@ async fn upload_context<'a>(
         true => Ok(Some(UploadContext {
             upload: state.upload(),
             scoping,
+            upstream: project_config.upstream.clone(),
         })),
         false => Ok(None),
     }
@@ -150,6 +152,7 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
                     item,
                     config,
                     upload_context.scoping,
+                    upload_context.upstream.clone(),
                     upload_context.upload,
                     "playstation",
                 )

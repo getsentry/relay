@@ -8,7 +8,7 @@ use flate2::read::GzDecoder;
 use futures::{self, Stream};
 use liblzma::read::XzDecoder;
 use multer::{Field, Multipart};
-use relay_config::Config;
+use relay_config::{Config, UpstreamDescriptor};
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::EventId;
 use relay_quotas::{DataCategory, RateLimits, Scoping};
@@ -227,6 +227,7 @@ enum UploadDecision {
 struct UploadContext<'a> {
     upload: &'a Addr<Upload>,
     scoping: Scoping,
+    upstream: Option<UpstreamDescriptor>,
     upload_attachments: UploadDecision,
     upload_minidumps: UploadDecision,
 }
@@ -279,6 +280,7 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
                     item,
                     config,
                     upload_context.scoping,
+                    upload_context.upstream.clone(),
                     upload_context.upload,
                     "minidump",
                 )
@@ -322,6 +324,7 @@ pub async fn upload_to_objectstore_checked<S, E>(
     item: Managed<Item>,
     config: &Config,
     scoping: Scoping,
+    upstream: Option<UpstreamDescriptor>,
     upload: &Addr<Upload>,
     referrer: &'static str,
 ) -> Result<Managed<Item>, BadStoreRequest>
@@ -336,6 +339,7 @@ where
             item,
             config,
             scoping,
+            upstream,
             upload,
             referrer,
         )
@@ -357,6 +361,7 @@ where
         item,
         config,
         scoping,
+        upstream,
         upload,
         referrer,
     )
@@ -484,6 +489,7 @@ async fn upload_context<'a>(
     Ok(Some(UploadContext {
         upload: state.upload(),
         scoping,
+        upstream: project_config.upstream.clone(),
         upload_attachments,
         upload_minidumps,
     }))
@@ -518,6 +524,7 @@ async fn raw_minidump_to_item(
             item,
             state.config(),
             upload_context.scoping,
+            upload_context.upstream.clone(),
             upload_context.upload,
             "minidump",
         )

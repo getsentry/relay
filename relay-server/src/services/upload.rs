@@ -18,8 +18,7 @@ use relay_auth::SignatureError;
 #[cfg(feature = "processing")]
 use relay_auth::SignatureHeader;
 use relay_base_schema::project::ProjectId;
-use relay_config::Config;
-use relay_config::HttpEncoding;
+use relay_config::{Config, HttpEncoding, UpstreamDescriptor};
 use relay_quotas::Scoping;
 use relay_system::{
     Addr, AsyncResponse, ConcurrentService, FromMessage, Interface, LoadShed, SendError, Sender,
@@ -117,6 +116,8 @@ impl Interface for Upload {}
 pub struct Create {
     /// The project to create the upload for.
     pub scoping: Scoping,
+    /// Optional upstream override where the request will be sent to.
+    pub upstream: Option<UpstreamDescriptor>,
     /// The size of the intended upload in bytes, as specified in the `Upload-Length` header.
     ///
     /// Trusted clients (i.e. PoP Relays) are allowed to omit the length (see `Upload-Defer-Length: 1`).
@@ -134,6 +135,8 @@ pub struct Stream {
     pub received: DateTime<Utc>,
     /// The organization & project that the stream belongs to.
     pub scoping: Scoping,
+    /// Optional upstream override where the request will be sent to.
+    pub upstream: Option<UpstreamDescriptor>,
     /// The location to upload to.
     pub location: SignedLocation<Provisional>,
     /// The body to be uploaded to objectstore, with length validation.
@@ -252,13 +255,15 @@ impl Service {
         &self,
         Create {
             scoping,
+            upstream,
             length,
             attachment_type,
         }: Create,
     ) -> Result<SignedLocation<Provisional>, Error> {
         match &self.backend {
             Backend::Upstream { addr } => {
-                let (request, rx) = UploadRequest::create(scoping, length, attachment_type);
+                let (request, rx) =
+                    UploadRequest::create(scoping, upstream, length, attachment_type);
                 addr.send(SendRequest(request));
                 let response = rx.await??;
                 SignedLocation::try_from_response(response)
@@ -283,12 +288,14 @@ impl Service {
             #[cfg_attr(not(feature = "processing"), expect(unused))]
             received,
             scoping,
+            upstream,
             location,
             stream,
         } = stream;
         match &self.backend {
             Backend::Upstream { addr } => {
-                let (request, rx) = UploadRequest::upload(scoping, location.try_to_uri()?, stream);
+                let (request, rx) =
+                    UploadRequest::upload(scoping, upstream, location.try_to_uri()?, stream);
                 addr.send(SendRequest(request));
                 let response = rx.await??;
                 SignedLocation::try_from_response(response)
@@ -693,6 +700,7 @@ enum RequestKind {
 /// An upstream request made to the `/upload` endpoint.
 struct UploadRequest {
     scoping: Scoping,
+    upstream: Option<UpstreamDescriptor>,
     kind: RequestKind,
     sender: oneshot::Sender<Result<Response, UpstreamRequestError>>,
 }
@@ -700,6 +708,7 @@ struct UploadRequest {
 impl UploadRequest {
     fn create(
         scoping: Scoping,
+        upstream: Option<UpstreamDescriptor>,
         length: Option<usize>,
         attachment_type: Option<AttachmentType>,
     ) -> (
@@ -711,6 +720,7 @@ impl UploadRequest {
         (
             Self {
                 scoping,
+                upstream,
                 kind: RequestKind::Create {
                     length,
                     attachment_type,
@@ -723,6 +733,7 @@ impl UploadRequest {
 
     fn upload(
         scoping: Scoping,
+        upstream: Option<UpstreamDescriptor>,
         uri: String,
         stream: BoundedStream<MeteredStream<ByteStream>>,
     ) -> (
@@ -733,6 +744,7 @@ impl UploadRequest {
         (
             Self {
                 scoping,
+                upstream,
                 kind: RequestKind::Upload {
                     uri,
                     stream: TakeOnce::new(stream),
@@ -754,6 +766,10 @@ impl fmt::Debug for UploadRequest {
 }
 
 impl UpstreamRequest for UploadRequest {
+    fn upstream(&self) -> Option<&UpstreamDescriptor> {
+        self.upstream.as_ref()
+    }
+
     fn method(&self) -> Method {
         match self.kind {
             RequestKind::Create { .. } => Method::POST,

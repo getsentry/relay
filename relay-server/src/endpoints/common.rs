@@ -8,7 +8,7 @@ use bytes::Bytes;
 use chrono::Utc;
 use futures::TryStreamExt;
 use futures::stream::BoxStream;
-use relay_config::{Config, RelayMode};
+use relay_config::{Config, RelayMode, UpstreamDescriptor};
 use relay_event_schema::protocol::{EventId, EventType};
 use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_statsd::metric;
@@ -553,6 +553,7 @@ pub async fn upload_to_objectstore<S, E>(
     mut item: Managed<Item>,
     config: &Config,
     scoping: Scoping,
+    upstream: Option<UpstreamDescriptor>,
     upload: &Addr<Upload>,
     referrer: &'static str,
 ) -> Result<Managed<Item>, Rejected<()>>
@@ -566,6 +567,7 @@ where
         &mut item,
         config,
         scoping,
+        upstream,
         upload,
         referrer,
     )
@@ -582,6 +584,7 @@ async fn upload_to_objectstore_inner<S, E>(
     item: &mut Managed<Item>,
     config: &Config,
     scoping: Scoping,
+    upstream: Option<UpstreamDescriptor>,
     upload: &Addr<Upload>,
     referrer: &'static str,
 ) -> Option<()>
@@ -597,6 +600,7 @@ where
     let location = upload
         .send(Create {
             scoping,
+            upstream: upstream.clone(),
             length: None,
             attachment_type: item.attachment_type(),
         })
@@ -608,6 +612,7 @@ where
         .send(Stream {
             received: Utc::now(),
             scoping,
+            upstream,
             location,
             stream,
         })
