@@ -404,7 +404,7 @@ impl UploadLength for Final {
 /// used by the TUS protocol.
 ///
 /// Calling [`Self::try_sign`] appends an `&upload_signature=` query parameter that can later be used
-/// to validate whether the URI (especially the length) has been tempered with.
+/// to validate whether the URI (especially the length) has been tampered with.
 #[derive(Debug)]
 pub struct Location<L> {
     /// Sentry project ID.
