@@ -746,7 +746,10 @@ fn emit_response_metrics(
     let upstream = entry.request.upstream().map(|up| up.to_string());
 
     // To better understand the intermittent send failures that we see, log more info.
-    if let Err(error @ UpstreamRequestError::SendFailed(_)) = send_result {
+    // Only log the first 10 since the information value is diminishing afterwards.
+    if let Err(error @ UpstreamRequestError::SendFailed(_)) = send_result
+        && entry.retries <= 10
+    {
         relay_log::warn!(
             error = error as &dyn std::error::Error,
             route = entry.request.route(),
