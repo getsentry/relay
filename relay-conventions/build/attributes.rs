@@ -19,17 +19,17 @@ static KEY_REGEX: LazyLock<Regex> = LazyLock::new(|| {
         .unwrap()
 });
 
-/// Whether an attribute can contain PII.
+/// Whether an attribute should be scrubbed.
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "key")]
-pub enum Pii {
-    /// The field will be stripped by default
-    True,
-    /// The field will only be stripped when addressed with a specific path selector, but generic
+pub enum ApplyScrubbing {
+    /// The attribute will be stripped by default.
+    Auto,
+    /// The attribute will only be stripped when addressed with a specific path selector, but generic
     /// selectors such as `$string` do not apply.
-    Maybe,
-    /// The field cannot be stripped at all
-    False,
+    Manual,
+    /// The attribute cannot be stripped at all.
+    Never,
 }
 
 /// How to handle an attribute's deprecation.
@@ -61,8 +61,8 @@ pub struct Attribute {
     pub key: String,
     /// Short description of the attribute.
     pub brief: String,
-    /// Whether the attribute can contain PII.
-    pub pii: Pii,
+    /// Whether the attribute should be scrubbed.
+    pub apply_scrubbing: ApplyScrubbing,
     /// If the attribute is deprecated, this contains
     /// information on its replacement name and what should
     /// be done when the original name is encountered.
@@ -83,7 +83,7 @@ pub fn check_attribute(attribute: &Attribute) {
     let Attribute {
         key,
         brief: _,
-        pii: _,
+        apply_scrubbing: _,
         deprecation,
         alias: _,
     } = attribute;
@@ -134,7 +134,7 @@ pub fn format_attribute_info(attr: &Attribute) -> String {
     let Attribute {
         key: _,
         brief: _,
-        pii,
+        apply_scrubbing,
         deprecation,
         alias,
     } = attr;
@@ -144,7 +144,7 @@ pub fn format_attribute_info(attr: &Attribute) -> String {
     format!(
         "AttributeInfo {{
             write_behavior: {write_behavior},
-            pii: Pii::{pii:?},
+            apply_scrubbing: ApplyScrubbing::{apply_scrubbing:?},
             aliases: &{alias:?},
         }}"
     )
@@ -155,7 +155,7 @@ pub fn format_constant(attr: &Attribute) -> String {
     let Attribute {
         key,
         brief,
-        pii,
+        apply_scrubbing,
         deprecation,
         alias,
     } = attr;
@@ -177,7 +177,7 @@ pub fn format_constant(attr: &Attribute) -> String {
         writeln!(&mut out).unwrap();
     }
 
-    writeln!(&mut out, "/// * PII: {pii:?}").unwrap();
+    writeln!(&mut out, "/// * Scrubbing: {apply_scrubbing:?}").unwrap();
     writeln!(
         &mut out,
         "/// * Rewriting behavior: {}",
@@ -214,7 +214,7 @@ pub fn format_interpolating_fn(attribute: &Attribute) -> Option<String> {
     let Attribute {
         key,
         brief: _,
-        pii: _,
+        apply_scrubbing: _,
         deprecation,
         alias: _,
     } = attribute;
@@ -300,7 +300,7 @@ pub fn constant_pair(attribute: &Attribute) -> Option<(String, String)> {
     let Attribute {
         key,
         brief: _,
-        pii: _,
+        apply_scrubbing: _,
         deprecation,
         alias: _,
     } = attribute;

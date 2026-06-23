@@ -93,16 +93,16 @@ include!(concat!(env!("OUT_DIR"), "/attribute_map.rs"));
 include!(concat!(env!("OUT_DIR"), "/canonical_fn.rs"));
 include!(concat!(env!("OUT_DIR"), "/measurement_replacement_fn.rs"));
 
-/// Whether an attribute should be PII-strippable/should be subject to datascrubbers
+/// Whether an attribute should be scrubbed.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub enum Pii {
-    /// The field will be stripped by default
-    True,
-    /// The field cannot be stripped at all
-    False,
-    /// The field will only be stripped when addressed with a specific path selector, but generic
+pub enum ApplyScrubbing {
+    /// The attribute will be stripped by default.
+    Auto,
+    /// The attribute will only be stripped when addressed with a specific path selector, but generic
     /// selectors such as `$string` do not apply.
-    Maybe,
+    Manual,
+    /// The attribute cannot be stripped at all.
+    Never,
 }
 
 /// The name of the replacement of a deprecated attribute.
@@ -148,7 +148,7 @@ pub struct AttributeInfo {
     /// How this attribute should be saved.
     pub write_behavior: WriteBehavior,
     /// Whether this attribute can contain PII.
-    pub pii: Pii,
+    pub apply_scrubbing: ApplyScrubbing,
     /// Other attribute names that alias to this attribute.
     pub aliases: &'static [&'static str],
 }
@@ -219,20 +219,20 @@ mod tests {
     fn test_http_response_content_length() {
         let info = attribute_info("http.response_content_length").unwrap();
 
-        insta::assert_debug_snapshot!(info, @r###"
+        insta::assert_debug_snapshot!(info, @r#"
         AttributeInfo {
             write_behavior: BothNames(
                 Static(
                     "http.response.body.size",
                 ),
             ),
-            pii: Maybe,
+            apply_scrubbing: Manual,
             aliases: [
                 "http.response.body.size",
                 "http.response.header.content-length",
             ],
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -241,15 +241,15 @@ mod tests {
         let (info, fragment) = attribute_info_with_fragment("url.path.parameter.'id=123'").unwrap();
         assert_eq!(fragment, Some("'id=123'"));
 
-        insta::assert_debug_snapshot!(info, @r###"
+        insta::assert_debug_snapshot!(info, @r#"
         AttributeInfo {
             write_behavior: CurrentName,
-            pii: True,
+            apply_scrubbing: Auto,
             aliases: [
                 "params.<key>",
             ],
         }
-        "###);
+        "#);
     }
 
     /// Tests that `cls.source.<key>` is rewritten to `browser.web_vital.cls.source.<key>`.
