@@ -17,7 +17,6 @@ use futures::StreamExt;
 use http::header;
 use relay_config::{Config, UpstreamDescriptor};
 use relay_dynamic_config::Feature;
-use relay_quotas::Scoping;
 use relay_system::SendError;
 use tower_http::limit::RequestBodyLimitLayer;
 
@@ -32,7 +31,8 @@ use crate::services::objectstore;
 use crate::services::projects::cache::Project;
 use crate::services::projects::project::ProjectState;
 use crate::services::upload::{
-    self, ByteStream, Final, LocationQueryParams, Provisional, SignedLocation, UploadLength,
+    self, ByteStream, Final, LocationQueryParams, ProjectContext, Provisional, SignedLocation,
+    UploadLength,
 };
 use crate::services::upstream::UpstreamRequestError;
 use crate::statsd::RelayCounters;
@@ -180,11 +180,11 @@ async fn handle_post(
         })?;
 
     relay_log::trace!("Checking request");
-    let (scoping, upstream) = validate_and_limit(&state, meta, &headers, project).await?;
+    let project_context = validate_and_limit(&state, meta, &headers, project).await?;
 
     // Unconditionally create the upload location:
     relay_log::trace!("Creating upload location");
-    let result = create(&state, scoping, upstream, &headers).await;
+    let result = create(&state, project_context, &headers).await;
     let location = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "create failed");
     })?;
@@ -232,7 +232,7 @@ async fn handle_patch(
         })?;
 
     relay_log::trace!("Checking request");
-    let (scoping, upstream) = validate(&state, meta, project).await?;
+    let project_context = validate(&state, meta, project).await?;
 
     let stream = body
         .into_data_stream()
@@ -248,7 +248,7 @@ async fn handle_patch(
     let byte_counter = stream.byte_counter();
 
     relay_log::trace!("Uploading");
-    let result = upload(&state, scoping, upstream, location, stream).await;
+    let result = upload(&state, project_context, location, stream).await;
     let location = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
     })?;
@@ -298,15 +298,13 @@ fn check_kill_switch(state: &ServiceState) -> Result<(), StatusCode> {
 
 async fn create(
     state: &ServiceState,
-    scoping: Scoping,
-    upstream: Option<UpstreamDescriptor>,
+    project: ProjectContext,
     headers: &tus::Headers,
 ) -> Result<SignedLocation<Provisional>, Error> {
     let location = state
         .upload()
         .send(upload::Create {
-            scoping,
-            upstream,
+            project,
             length: headers.upload_length,
             attachment_type: headers.metadata.map(|m| m.attachment_type),
         })
@@ -317,8 +315,7 @@ async fn create(
 
 async fn upload(
     state: &ServiceState,
-    scoping: Scoping,
-    upstream: Option<UpstreamDescriptor>,
+    project: ProjectContext,
     location: SignedLocation<Provisional>,
     stream: BoundedStream<MeteredStream<ByteStream>>,
 ) -> Result<SignedLocation<Final>, Error> {
@@ -326,8 +323,7 @@ async fn upload(
         .upload()
         .send(upload::Stream {
             received: Utc::now(),
-            scoping,
-            upstream,
+            project,
             location,
             stream,
         })
@@ -345,7 +341,7 @@ async fn validate_and_limit(
     meta: RequestMeta,
     headers: &tus::Headers,
     project: Project<'_>,
-) -> Result<(Scoping, Option<UpstreamDescriptor>), BadStoreRequest> {
+) -> Result<ProjectContext, BadStoreRequest> {
     let mut envelope = Envelope::from_request(None, meta);
     envelope.require_feature(Feature::UploadEndpoint);
     let mut item = Item::new(ItemType::Attachment);
@@ -374,7 +370,7 @@ async fn validate_and_limit(
     let scoping = envelope.scoping();
     let upstream = project_upstream(&project);
     envelope.accept(|x| x);
-    Ok((scoping, upstream))
+    Ok(ProjectContext { scoping, upstream })
 }
 
 /// Returns the feature a project must have enabled to upload attachments with the given type.
@@ -389,7 +385,7 @@ async fn validate(
     state: &ServiceState,
     meta: RequestMeta,
     project: Project<'_>,
-) -> Result<(Scoping, Option<UpstreamDescriptor>), BadStoreRequest> {
+) -> Result<ProjectContext, BadStoreRequest> {
     let mut envelope = Envelope::from_request(None, meta);
     envelope.require_feature(Feature::UploadEndpoint);
     let mut envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
@@ -403,7 +399,7 @@ async fn validate(
     let scoping = envelope.scoping();
     let upstream = project_upstream(&project);
     envelope.accept(|x| x);
-    Ok((scoping, upstream))
+    Ok(ProjectContext { scoping, upstream })
 }
 
 fn project_upstream(project: &Project<'_>) -> Option<UpstreamDescriptor> {

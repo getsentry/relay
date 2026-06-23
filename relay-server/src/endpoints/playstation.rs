@@ -13,7 +13,7 @@ use relay_system::Addr;
 use serde::Serialize;
 use tower_http::limit::RequestBodyLimitLayer;
 
-use crate::endpoints::common::{self, BadStoreRequest, ProjectContext, TextResponse};
+use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, Items};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::managed::{Managed, ManagedResult};
@@ -21,7 +21,7 @@ use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::DiscardReason;
 use crate::services::projects::project::ProjectState;
-use crate::services::upload::Upload;
+use crate::services::upload::{ProjectContext, Upload};
 use crate::utils::{self, AttachmentStrategy};
 
 /// The extension of a prosperodump in the multipart form-data upload.

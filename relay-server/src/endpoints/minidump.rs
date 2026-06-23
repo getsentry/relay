@@ -22,9 +22,7 @@ use tower_http::limit::RequestBodyLimitLayer;
 use zstd::stream::Decoder as ZstdDecoder;
 
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
-use crate::endpoints::common::{
-    self, BadStoreRequest, ProjectContext, TextResponse, upload_to_objectstore,
-};
+use crate::endpoints::common::{self, BadStoreRequest, TextResponse, upload_to_objectstore};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType, Items};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::managed::{Managed, ManagedResult};
@@ -32,7 +30,7 @@ use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome};
 use crate::services::projects::project::ProjectState;
-use crate::services::upload::Upload;
+use crate::services::upload::{ProjectContext, Upload};
 use crate::statsd::RelayCounters;
 use crate::utils::{self, AttachmentStrategy, read_bytes_into_item};
 
