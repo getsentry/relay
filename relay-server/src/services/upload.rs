@@ -1,5 +1,6 @@
 //! Utilities for uploading large files.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
@@ -278,21 +279,21 @@ impl Service {
     }
 
     async fn upload(&self, stream: Stream) -> Result<SignedLocation<Final>, Error> {
+        let Stream {
+            received,
+            scoping,
+            location,
+            stream,
+        } = stream;
         match &self.backend {
             Backend::Upstream { addr } => {
-                let (request, rx) = UploadRequest::upload(stream);
+                let (request, rx) = UploadRequest::upload(scoping, location.try_to_uri()?, stream);
                 addr.send(SendRequest(request));
                 let response = rx.await??;
                 SignedLocation::try_from_response(response)
             }
             #[cfg(feature = "processing")]
             Backend::Objectstore { addr, config } => {
-                let Stream {
-                    received,
-                    scoping,
-                    location,
-                    stream,
-                } = stream;
                 let Location {
                     project_id,
                     key,
@@ -682,7 +683,7 @@ enum RequestKind {
         attachment_type: Option<AttachmentType>,
     },
     Upload {
-        location: SignedLocation<Provisional>,
+        uri: String,
         stream: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
         encoding: HttpEncoding,
     },
@@ -720,24 +721,19 @@ impl UploadRequest {
     }
 
     fn upload(
-        stream: Stream,
+        scoping: Scoping,
+        uri: String,
+        stream: BoundedStream<MeteredStream<ByteStream>>,
     ) -> (
         Self,
         oneshot::Receiver<Result<Response, UpstreamRequestError>>,
     ) {
         let (sender, rx) = oneshot::channel();
-        let Stream {
-            scoping,
-            received: _,
-            location,
-            stream,
-        } = stream;
-
         (
             Self {
                 scoping,
                 kind: RequestKind::Upload {
-                    location,
+                    uri,
                     stream: TakeOnce::new(stream),
                     encoding: HttpEncoding::Zstd, // just a default, will be overwritten by .configure()
                 },
@@ -764,15 +760,12 @@ impl UpstreamRequest for UploadRequest {
         }
     }
 
-    fn path(&self) -> std::borrow::Cow<'_, str> {
+    fn path(&self) -> Cow<'_, str> {
         let project_id = self.scoping.project_id;
         match &self.kind {
-            RequestKind::Create { .. } => format!("/api/{project_id}/upload/"),
-            RequestKind::Upload { location, .. } => location
-                .try_to_uri()
-                .expect("upload location should be serializable"),
+            RequestKind::Create { .. } => Cow::Owned(format!("/api/{project_id}/upload/")),
+            RequestKind::Upload { uri, .. } => Cow::Borrowed(&uri),
         }
-        .into()
     }
 
     fn route(&self) -> &'static str {
@@ -813,7 +806,7 @@ impl UpstreamRequest for UploadRequest {
                 tus::add_creation_headers(*length, *attachment_type, builder)?;
             }
             RequestKind::Upload {
-                location: _,
+                uri: _,
                 stream,
                 encoding,
             } => {
