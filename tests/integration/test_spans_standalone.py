@@ -1,8 +1,11 @@
 from datetime import datetime, timezone
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
+from sentry_relay.consts import DataCategory
 
 from .asserts import time_within_delta, time_within
+
+from .test_dynamic_sampling import add_sampling_config
 
 import pytest
 
@@ -294,6 +297,7 @@ def test_lcp_span(
         "project_id": 42,
         "received": time_within(ts),
         "retention_days": 90,
+        "accepted_outcome_emitted": False,
         "span_id": "9fd17741416e8e4e",
         "start_timestamp": time_within(ts.timestamp() - 0.5),
         "status": "ok",
@@ -510,6 +514,7 @@ def test_cls_span(
         "project_id": 42,
         "received": time_within(ts),
         "retention_days": 90,
+        "accepted_outcome_emitted": False,
         "span_id": "be6fa380c55f2fcb",
         "start_timestamp": time_within(ts.timestamp() - 0.5),
         "status": "ok",
@@ -688,6 +693,7 @@ def test_inp_span(
         "project_id": 42,
         "received": time_within(ts),
         "retention_days": 90,
+        "accepted_outcome_emitted": False,
         "span_id": "a6f029fbe0e2389a",
         "start_timestamp": time_within(ts.timestamp() - 0.5),
         "status": "ok",
@@ -921,6 +927,7 @@ def test_mobile_measurements(
         "project_id": 42,
         "received": time_within(ts),
         "retention_days": 90,
+        "accepted_outcome_emitted": False,
         "span_id": "a6f029fbe0e2389a",
         "start_timestamp": time_within(ts.timestamp() - 5),
         "status": "ok",
@@ -1027,6 +1034,7 @@ def test_ua_ip_inference(
         "project_id": 42,
         "received": time_within(ts),
         "retention_days": 90,
+        "accepted_outcome_emitted": False,
         "span_id": "9fd17741416e8e4e",
         "start_timestamp": time_within(ts.timestamp() - 0.5),
         "status": "ok",
@@ -1182,6 +1190,7 @@ def test_name_inference(
         "project_id": 42,
         "received": time_within(ts),
         "retention_days": 90,
+        "accepted_outcome_emitted": False,
         "span_id": "9fd17741416e8e4e",
         "start_timestamp": time_within(ts.timestamp() - 0.5),
         "status": "ok",
@@ -1190,6 +1199,138 @@ def test_name_inference(
         "parent_span_id": "8a6626cc9bdd5d9b",
         "_meta": meta,
     }
+
+
+@pytest.mark.parametrize("sampled", [False, True])
+def test_inp_span_is_segment_ds(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    metrics_consumer,
+    outcomes_consumer,
+    sampled,
+):
+    """
+    Verifies that the `is_segment` tag on metrics is correctly unset
+    regardless of whether the span is sampled.
+
+    This is specifically related to https://github.com/getsentry/relay/pull/6042.
+    and https://github.com/getsentry/relay/pull/6126.
+    If we ever decide to get rid of the functionality introduced in those PRs, this
+    test becomes obsolete.
+    """
+    metrics_consumer = metrics_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["performanceScore"] = {
+        "profiles": performance_score_profiles
+    }
+    project_config["config"].setdefault("features", []).append(
+        "organizations:relay-generate-billing-outcome"
+    )
+    project_config["config"].setdefault("features", []).append(
+        "projects:span-v2-experimental-processing"
+    )
+
+    add_sampling_config(
+        project_config, sample_rate=1.0 if sampled else 0.0, rule_type="project"
+    )
+
+    relay = relay_with_processing()
+
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_spans(
+        {
+            "data": {
+                "sentry.op": "ui.interaction.click",
+                "release": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
+                "environment": "prod",
+                "replay_id": "3d76a6311de149b9b3f560827ea0ecf9",
+                "transaction": "/insights/projects/",
+                "user_agent.original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
+                "client.address": "{{auto}}",
+                "sentry.exclusive_time": 104,
+            },
+            "description": "<unknown>",
+            "op": "ui.interaction.click",
+            "parent_span_id": "8a6626cc9bdd5d9b",
+            "span_id": "a6f029fbe0e2389a",
+            "start_timestamp": ts.timestamp() - 0.5,
+            "timestamp": ts.timestamp(),
+            "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+            "origin": "auto.http.browser.inp",
+            "exclusive_time": 104,
+            "measurements": {"inp": {"value": 104, "unit": "millisecond"}},
+            "segment_id": "8a6626cc9bdd5d9b",
+            "is_segment": True,
+        },
+        trace_info={
+            "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+            "transaction": "/insights/projects/",
+        },
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    assert metrics_consumer.get_metrics(with_headers=False) == [
+        {
+            "org_id": 1,
+            "project_id": 42,
+            "name": "c:spans/count_per_root_project@none",
+            "type": "c",
+            "value": 1.0,
+            "timestamp": time_within_delta(ts),
+            "tags": {
+                "decision": "keep" if sampled else "drop",
+                "is_segment": "false",
+                "target_project_id": "42",
+                "transaction": "/insights/projects/",
+            },
+            "retention_days": 90,
+            "received_at": time_within(ts, precision="s"),
+        },
+        {
+            "org_id": 1,
+            "project_id": 42,
+            "name": "c:spans/usage@none",
+            "type": "c",
+            "value": 1.0,
+            "timestamp": time_within_delta(ts),
+            "tags": {"is_segment": "false", "billing_outcome_emitted": "true"},
+            "retention_days": 90,
+            "received_at": time_within(ts, precision="s"),
+        },
+    ]
+
+    expected_outcomes = [
+        {
+            "category": DataCategory.SPAN.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 1,
+        }
+    ]
+
+    if not sampled:
+        expected_outcomes.append(
+            {
+                "category": DataCategory.SPAN_INDEXED.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 1,
+                "project_id": 42,
+                "quantity": 1,
+                "reason": "Sampled:0",
+            }
+        )
+
+    assert outcomes_consumer.get_aggregated_outcomes() == expected_outcomes
 
 
 def _if_dict(cond, then):
