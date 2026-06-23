@@ -470,6 +470,7 @@ def test_spansv2_ds_drop(mini_sentry, relay, span, rule_type):
                         "timestamp": ts.timestamp() + 0.5,
                         "trace_id": "5b8efff798038103d269b633813fc60c",
                         "span_id": "eee19b7ec3c1b176",
+                        "parent_span_id": "eee19b7ec3c1b177",
                         "op": "some op",
                         "description": "some description",
                         "data": {"foo": "bar"},
