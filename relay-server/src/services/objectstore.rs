@@ -503,6 +503,7 @@ impl ObjectstoreServiceInner {
             }
             Ok(session) => {
                 for attachment in attachments {
+                    debug_assert!(attachment.stored_key().is_none());
                     let result = self
                         .upload_bytes(
                             MessageKind::Envelope,
@@ -927,7 +928,7 @@ fn should_upload(item: &Item) -> bool {
 
 fn drop_failed_uploads(envelope: &mut ManagedEnvelope) {
     envelope.retain_items(|item| {
-        if should_upload(item) {
+        if item.stored_key().is_none() && should_upload(item) {
             ItemAction::Drop(Outcome::Invalid(DiscardReason::ObjectstoreUploadFailed))
         } else {
             ItemAction::Keep
