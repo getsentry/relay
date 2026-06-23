@@ -180,17 +180,11 @@ async fn handle_post(
         })?;
 
     relay_log::trace!("Checking request");
-    let checked_upload = validate_and_limit(&state, meta, &headers, project).await?;
+    let (scoping, upstream) = validate_and_limit(&state, meta, &headers, project).await?;
 
     // Unconditionally create the upload location:
     relay_log::trace!("Creating upload location");
-    let result = create(
-        &state,
-        checked_upload.scoping,
-        checked_upload.upstream,
-        &headers,
-    )
-    .await;
+    let result = create(&state, scoping, upstream, &headers).await;
     let location = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "create failed");
     })?;
@@ -238,7 +232,7 @@ async fn handle_patch(
         })?;
 
     relay_log::trace!("Checking request");
-    let checked_upload = validate(&state, meta, project).await?;
+    let (scoping, upstream) = validate(&state, meta, project).await?;
 
     let stream = body
         .into_data_stream()
@@ -254,14 +248,7 @@ async fn handle_patch(
     let byte_counter = stream.byte_counter();
 
     relay_log::trace!("Uploading");
-    let result = upload(
-        &state,
-        checked_upload.scoping,
-        checked_upload.upstream,
-        location,
-        stream,
-    )
-    .await;
+    let result = upload(&state, scoping, upstream, location, stream).await;
     let location = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
     })?;
@@ -349,11 +336,6 @@ async fn upload(
     Ok(location)
 }
 
-struct CheckedUpload {
-    scoping: Scoping,
-    upstream: Option<UpstreamDescriptor>,
-}
-
 /// Check request by converting it into a pseudo-envelope.
 ///
 /// This is currently the easiest way to guarantee that the upload gets checked the same way as
@@ -363,7 +345,7 @@ async fn validate_and_limit(
     meta: RequestMeta,
     headers: &tus::Headers,
     project: Project<'_>,
-) -> Result<CheckedUpload, BadStoreRequest> {
+) -> Result<(Scoping, Option<UpstreamDescriptor>), BadStoreRequest> {
     let mut envelope = Envelope::from_request(None, meta);
     envelope.require_feature(Feature::UploadEndpoint);
     let mut item = Item::new(ItemType::Attachment);
@@ -392,7 +374,7 @@ async fn validate_and_limit(
     let scoping = envelope.scoping();
     let upstream = project_upstream(&project);
     envelope.accept(|x| x);
-    Ok(CheckedUpload { scoping, upstream })
+    Ok((scoping, upstream))
 }
 
 /// Returns the feature a project must have enabled to upload attachments with the given type.
@@ -407,7 +389,7 @@ async fn validate(
     state: &ServiceState,
     meta: RequestMeta,
     project: Project<'_>,
-) -> Result<CheckedUpload, BadStoreRequest> {
+) -> Result<(Scoping, Option<UpstreamDescriptor>), BadStoreRequest> {
     let mut envelope = Envelope::from_request(None, meta);
     envelope.require_feature(Feature::UploadEndpoint);
     let mut envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
@@ -421,7 +403,7 @@ async fn validate(
     let scoping = envelope.scoping();
     let upstream = project_upstream(&project);
     envelope.accept(|x| x);
-    Ok(CheckedUpload { scoping, upstream })
+    Ok((scoping, upstream))
 }
 
 fn project_upstream(project: &Project<'_>) -> Option<UpstreamDescriptor> {
