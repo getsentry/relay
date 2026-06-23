@@ -774,6 +774,11 @@ fn emit_response_metrics(
 struct GetHealthCheck;
 
 impl UpstreamRequest for GetHealthCheck {
+    fn upstream(&self) -> Option<&UpstreamDescriptor> {
+        // Always sent to the default upstream, which is also used for authentication.
+        None
+    }
+
     fn method(&self) -> Method {
         Method::GET
     }

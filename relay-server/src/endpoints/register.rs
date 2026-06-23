@@ -10,6 +10,7 @@ use crate::utils::ForwardRequest;
 pub async fn challenge(state: ServiceState, headers: HeaderMap, body: Bytes) -> impl IntoResponse {
     ForwardRequest::builder(Method::POST, "/api/0/relays/register/challenge/")
         .with_name("forward-register")
+        .with_upstream(None)
         .with_headers(headers)
         .with_body(body)
         .with_config(state.config())
@@ -21,6 +22,7 @@ pub async fn challenge(state: ServiceState, headers: HeaderMap, body: Bytes) -> 
 pub async fn response(state: ServiceState, headers: HeaderMap, body: Bytes) -> impl IntoResponse {
     ForwardRequest::builder(Method::POST, "/api/0/relays/register/response/")
         .with_name("forward-register")
+        .with_upstream(None)
         .with_headers(headers)
         .with_body(body)
         .with_config(state.config())
