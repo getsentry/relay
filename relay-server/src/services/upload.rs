@@ -280,6 +280,7 @@ impl Service {
 
     async fn upload(&self, stream: Stream) -> Result<SignedLocation<Final>, Error> {
         let Stream {
+            #[cfg_attr(not(feature = "processing"), expect(unused))]
             received,
             scoping,
             location,
