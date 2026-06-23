@@ -21,9 +21,10 @@ use relay_system::{
 use sentry_protos::snuba::v1::TraceItem;
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
-use crate::envelope::{ContentType, Item, ItemType};
+use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::managed::{
-    Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
+    Counted, ItemAction, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities,
+    Rejected,
 };
 use crate::processing::utils::store::item_id_to_uuid;
 use crate::services::outcome::DiscardReason;
@@ -327,6 +328,7 @@ impl ObjectstoreService {
             stream_timeout,
             retry_delay,
             max_attempts,
+            fallback_to_kafka_on_error,
             auth,
         } = config;
         let Some(objectstore_url) = objectstore_url else {
@@ -374,6 +376,7 @@ impl ObjectstoreService {
             stream_timeout: Duration::from_secs(*stream_timeout),
             retry_interval: Duration::from_secs_f64(*retry_delay),
             max_attempts: *max_attempts,
+            fallback_to_kafka_on_error: *fallback_to_kafka_on_error,
         };
 
         Ok(Some(Self {
@@ -396,12 +399,18 @@ impl LoadShed<Objectstore> for ObjectstoreService {
         error.log(message.kind());
         match message {
             Objectstore::Envelope(envelope) => {
-                // Event attachments can still go the old route.
-                self.inner.store.send(envelope);
+                let StoreEnvelope { mut envelope } = envelope;
+                if !self.inner.fallback_to_kafka_on_error {
+                    ObjectstoreServiceInner::reject_upload_required_attachments(&mut envelope);
+                }
+                self.inner.store.send(StoreEnvelope { envelope });
             }
             Objectstore::EventAttachment(message) => {
-                // Event attachments can still go the old route.
-                self.inner.store.send(message);
+                if self.inner.fallback_to_kafka_on_error {
+                    self.inner.store.send(message);
+                } else {
+                    let _ = message.reject_err(objectstore_upload_failed_outcome());
+                }
             }
             Objectstore::TraceAttachment(managed) => {
                 let _ = managed.reject_err(error);
@@ -429,6 +438,7 @@ struct ObjectstoreServiceInner {
     stream_timeout: Duration,
     retry_interval: Duration,
     max_attempts: NonZeroU16,
+    fallback_to_kafka_on_error: bool,
 }
 
 impl ObjectstoreServiceInner {
@@ -475,18 +485,24 @@ impl ObjectstoreServiceInner {
         );
         let retention = envelope.envelope().retention();
 
-        let attachments = envelope
-            .envelope_mut()
-            .items_mut()
-            .filter(|item| *item.ty() == ItemType::Attachment);
-
         match session {
-            Err(error) => error
-                .with_amount(attachments.count())
-                .log(MessageKind::Envelope),
+            Err(error) => {
+                error
+                    .with_amount(Self::upload_required_attachment_count(envelope.envelope()))
+                    .log(MessageKind::Envelope);
+
+                if !self.fallback_to_kafka_on_error {
+                    Self::reject_upload_required_attachments(&mut envelope);
+                }
+            }
             Ok(session) => {
+                let attachments = envelope
+                    .envelope_mut()
+                    .items_mut()
+                    .filter(|item| *item.ty() == ItemType::Attachment);
+
                 for attachment in attachments {
-                    if Self::should_skip_upload(attachment) {
+                    if !Self::should_upload(attachment) {
                         continue;
                     }
                     let result = self
@@ -509,6 +525,10 @@ impl ObjectstoreServiceInner {
                         }
                     }
                 }
+
+                if !self.fallback_to_kafka_on_error {
+                    Self::reject_upload_required_attachments(&mut envelope);
+                }
             }
         }
 
@@ -521,7 +541,7 @@ impl ObjectstoreServiceInner {
     /// This mutates the attachment item in-place, setting the `stored_key` field to the key in the
     /// objectstore.
     async fn handle_event_attachment(&self, mut attachment: Managed<StoreAttachment>) {
-        if Self::should_skip_upload(&attachment.attachment) {
+        if !Self::should_upload(&attachment.attachment) {
             self.store.send(attachment);
             return;
         }
@@ -533,34 +553,39 @@ impl ObjectstoreServiceInner {
             scoping.project_id,
         );
 
-        match session {
-            Err(error) => error.log(MessageKind::EventAttachment),
+        let upload_result = match session {
+            Err(error) => Err(error),
             Ok(session) => {
-                let result = self
-                    .upload_bytes(
-                        MessageKind::EventAttachment,
-                        &session,
-                        attachment.attachment.payload(),
-                        attachment.retention,
-                        None,
-                        None,
-                    )
-                    .await;
+                self.upload_bytes(
+                    MessageKind::EventAttachment,
+                    &session,
+                    attachment.attachment.payload(),
+                    attachment.retention,
+                    None,
+                    None,
+                )
+                .await
+            }
+        };
 
-                match result {
-                    Ok(stored_key) => {
-                        attachment.modify(|attachment, _| {
-                            attachment
-                                .attachment
-                                .set_stored_key(stored_key.into_inner());
-                        });
-                    }
-                    Err(e) => e.log(MessageKind::EventAttachment),
+        match upload_result {
+            Ok(stored_key) => {
+                attachment.modify(|attachment, _| {
+                    attachment
+                        .attachment
+                        .set_stored_key(stored_key.into_inner());
+                });
+                self.store.send(attachment);
+            }
+            Err(error) => {
+                error.log(MessageKind::EventAttachment);
+                if self.fallback_to_kafka_on_error {
+                    self.store.send(attachment)
+                } else {
+                    let _ = attachment.reject_err(objectstore_upload_failed_outcome());
                 }
             }
-        }
-
-        self.store.send(attachment)
+        };
     }
 
     async fn handle_trace_attachment(
@@ -835,6 +860,30 @@ impl ObjectstoreServiceInner {
         item.is_empty() || item.is_attachment_ref()
     }
 
+    fn should_upload(item: &Item) -> bool {
+        *item.ty() == ItemType::Attachment
+            && !Self::should_skip_upload(item)
+            && item.stored_key().is_none()
+    }
+
+    fn upload_required_attachment_count(envelope: &Envelope) -> usize {
+        envelope
+            .items()
+            .filter(|item| Self::should_upload(item))
+            .count()
+    }
+
+    fn reject_upload_required_attachments(envelope: &mut ManagedEnvelope) {
+        envelope.retain_items(|item| {
+            if Self::should_upload(item) {
+                ItemAction::Drop(objectstore_upload_failed_outcome())
+            } else {
+                ItemAction::Keep
+            }
+        });
+        envelope.update();
+    }
+
     fn session(
         &self,
         usecase: &Usecase,
@@ -906,8 +955,15 @@ fn is_user_error(error: &(dyn std::error::Error + 'static)) -> bool {
     })
 }
 
+fn objectstore_upload_failed_outcome() -> Outcome {
+    Outcome::Invalid(DiscardReason::ObjectstoreUploadFailed)
+}
+
 #[cfg(test)]
 mod tests {
+    use bytes::Bytes;
+    use relay_event_schema::protocol::EventId;
+    use relay_quotas::DataCategory;
     use relay_system::Service;
 
     use super::*;
@@ -939,6 +995,124 @@ mod tests {
         assert!(matches!(err.kind, ErrorKind::InvalidScoping));
     }
 
+    #[tokio::test]
+    async fn envelope_falls_back_to_kafka_by_default() {
+        let (store, mut store_rx) = Addr::custom();
+        let (outcomes, mut outcome_rx) = Addr::custom();
+        let service = ObjectstoreService::new(&test_config(), Some(store))
+            .unwrap()
+            .unwrap();
+
+        service
+            .inner
+            .handle_envelope(ManagedEnvelope::new(test_envelope(), outcomes))
+            .await;
+
+        let Store::Envelope(StoreEnvelope { envelope }) = store_rx.try_recv().unwrap() else {
+            panic!("expected envelope");
+        };
+        {
+            let items = envelope.envelope().items().collect::<Vec<_>>();
+            assert_eq!(items.len(), 2);
+            assert_eq!(items[0].ty(), &ItemType::Event);
+            assert_eq!(items[1].ty(), &ItemType::Attachment);
+            assert_eq!(items[1].stored_key(), None);
+        }
+        envelope.accept();
+
+        assert!(outcome_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn envelope_rejects_failed_attachments_without_fallback() {
+        let (store, mut store_rx) = Addr::custom();
+        let (outcomes, mut outcome_rx) = Addr::custom();
+        let mut config = test_config();
+        config.fallback_to_kafka_on_error = false;
+        let service = ObjectstoreService::new(&config, Some(store))
+            .unwrap()
+            .unwrap();
+
+        service
+            .inner
+            .handle_envelope(ManagedEnvelope::new(test_envelope(), outcomes))
+            .await;
+
+        let Store::Envelope(StoreEnvelope { envelope }) = store_rx.try_recv().unwrap() else {
+            panic!("expected envelope");
+        };
+        {
+            let items = envelope.envelope().items().collect::<Vec<_>>();
+            assert_eq!(items.len(), 1);
+            assert_eq!(items[0].ty(), &ItemType::Event);
+        }
+        envelope.accept();
+
+        let outcome = outcome_rx.try_recv().unwrap();
+        assert_eq!(outcome.outcome, objectstore_upload_failed_outcome());
+        assert_eq!(outcome.category, DataCategory::Attachment);
+        assert_eq!(outcome.quantity, 5);
+
+        let outcome = outcome_rx.try_recv().unwrap();
+        assert_eq!(outcome.outcome, objectstore_upload_failed_outcome());
+        assert_eq!(outcome.category, DataCategory::AttachmentItem);
+        assert_eq!(outcome.quantity, 1);
+
+        assert!(outcome_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn event_attachment_rejects_without_fallback() {
+        let (store, mut store_rx) = Addr::custom();
+        let (outcomes, mut outcome_rx) = Addr::custom();
+        let mut config = test_config();
+        config.fallback_to_kafka_on_error = false;
+        let service = ObjectstoreService::new(&config, Some(store))
+            .unwrap()
+            .unwrap();
+
+        let envelope = ManagedEnvelope::untracked(test_envelope(), outcomes.clone());
+        let mut item = Item::new(ItemType::Attachment);
+        item.set_payload(ContentType::Text, "hello");
+        let quantities = item.quantities();
+        let attachment = Managed::with_meta_from_managed_envelope(
+            &envelope,
+            StoreAttachment {
+                event_id: EventId::new(),
+                attachment: item,
+                quantities,
+                retention: 90,
+            },
+        );
+
+        service.inner.handle_event_attachment(attachment).await;
+
+        assert!(store_rx.try_recv().is_err());
+
+        let outcome = outcome_rx.try_recv().unwrap();
+        assert_eq!(outcome.outcome, objectstore_upload_failed_outcome());
+        assert_eq!(outcome.category, DataCategory::Attachment);
+        assert_eq!(outcome.quantity, 5);
+
+        let outcome = outcome_rx.try_recv().unwrap();
+        assert_eq!(outcome.outcome, objectstore_upload_failed_outcome());
+        assert_eq!(outcome.category, DataCategory::AttachmentItem);
+        assert_eq!(outcome.quantity, 1);
+
+        assert!(outcome_rx.try_recv().is_err());
+    }
+
+    fn test_envelope() -> Box<Envelope> {
+        Envelope::parse_bytes(Bytes::from_static(
+            b"{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
+              {\"type\":\"event\",\"length\":2}\n\
+              {}\n\
+              {\"type\":\"attachment\",\"length\":5,\"filename\":\"hello.txt\"}\n\
+              hello\n",
+        ))
+        .unwrap()
+    }
+
     fn test_config() -> ObjectstoreServiceConfig {
         ObjectstoreServiceConfig {
             objectstore_url: Some("http://objectstore".to_owned()),
@@ -948,6 +1122,7 @@ mod tests {
             stream_timeout: 1,
             retry_delay: 1.0,
             max_attempts: 1.try_into().unwrap(),
+            fallback_to_kafka_on_error: true,
             auth: None,
         }
     }

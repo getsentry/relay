@@ -1289,6 +1289,12 @@ pub struct ObjectstoreServiceConfig {
     /// Maximum number of attempts made to upload.
     pub max_attempts: NonZeroU16,
 
+    /// Whether event attachment payloads may be sent through Kafka if objectstore upload fails.
+    ///
+    /// When disabled, failed event attachments are dropped with an `objectstore_upload_failed`
+    /// outcome instead of falling back to Store's Kafka attachment path.
+    pub fallback_to_kafka_on_error: bool,
+
     /// Configuration values for objectstore's auth scheme.
     pub auth: Option<ObjectstoreAuthConfig>,
 }
@@ -1303,6 +1309,7 @@ impl Default for ObjectstoreServiceConfig {
             stream_timeout: 5 * 60, // synced with `Upload::timeout`
             retry_delay: 1.0,
             max_attempts: NonZeroU16::new(5).unwrap(),
+            fallback_to_kafka_on_error: true,
             auth: None,
         }
     }
