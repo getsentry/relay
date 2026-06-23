@@ -19,6 +19,7 @@ use crate::metrics_extraction::ExtractedMetrics;
 use crate::processing::trace_attachments::forward::attachment_to_item;
 use crate::processing::trace_attachments::process::ScrubAttachmentError;
 use crate::processing::trace_attachments::types::ExpandedAttachment;
+use crate::processing::trace_metrics::produce_webvitals_metrics;
 use crate::processing::{self, Context, Forward, Output, QuotaRateLimiter, RateLimited};
 use crate::services::outcome::{DiscardReason, Outcome};
 
@@ -275,6 +276,9 @@ impl Forward for SpanOutput {
             match either.transpose() {
                 Either::Left(span) => {
                     if let Ok(span) = span.try_map(|span, _| store::convert(span, &ctx)) {
+                        if let Some(metrics) = relay_spans::extract_web_vital_metrics(&span.item) {
+                            produce_webvitals_metrics(s, &span, metrics);
+                        }
                         s.send_to_store(span);
                     }
                 }

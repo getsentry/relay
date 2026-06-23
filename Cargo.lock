@@ -5015,6 +5015,7 @@ dependencies = [
  "opentelemetry-proto",
  "relay-conventions",
  "relay-event-schema",
+ "relay-metrics",
  "relay-otel",
  "relay-protocol",
  "serde",

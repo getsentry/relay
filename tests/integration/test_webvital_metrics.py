@@ -3,14 +3,6 @@ from datetime import datetime, timedelta, timezone
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
-TEST_CONFIG = {
-    "aggregator": {
-        "bucket_interval": 1,
-        "initial_delay": 0,
-        "shift_key": "none",
-    }
-}
-
 
 def v1_envelope_with_spans(*payloads: dict, trace_info=None) -> Envelope:
     envelope = Envelope()
@@ -211,9 +203,10 @@ def test_v2(
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b175",
             "is_segment": True,
-            "name": "some op",
+            "name": "pageload",
             "status": "ok",
             "attributes": {
+                "sentry.op": {"value": "pageload", "type": "string"},
                 "sentry.segment.id": {"value": "bd429c44b67a3eb1", "type": "string"},
                 "cls": {"value": 100.0, "type": "double"},
                 "fcp": {"value": 200.0, "type": "double"},
@@ -227,10 +220,10 @@ def test_v2(
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b176",
             "is_segment": True,
-            "name": "some op",
+            "name": "ui.interaction.drag",
             "status": "ok",
             "attributes": {
-                "sentry.op": {"value": "ui.interaction.click", "type": "string"},
+                "sentry.op": {"value": "ui.interaction.drag", "type": "string"},
                 "sentry.profile_id": {
                     "value": "3d9428087fda4ba0936788b70a7587d0",
                     "type": "string",
