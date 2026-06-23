@@ -13,6 +13,7 @@ from opentelemetry.proto.trace.v1.trace_pb2 import (
     SpanFlags,
     TracesData,
 )
+from sentry_relay.consts import DataCategory
 
 from .asserts import time_within_delta, time_within
 

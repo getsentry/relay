@@ -766,8 +766,6 @@ impl StoreService {
         let scoping = message.scoping();
         let received_at = message.received_at();
 
-        let relay_emits_accepted_outcome = false;
-
         let meta = SpanMeta {
             organization_id: scoping.organization_id,
             project_id: scoping.project_id,
