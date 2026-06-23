@@ -5,8 +5,8 @@ use std::fmt;
 use std::iter::FusedIterator;
 use std::mem::ManuallyDrop;
 use std::net::IpAddr;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use chrono::{DateTime, Utc};
 use itertools::Either;
@@ -15,12 +15,12 @@ use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 use smallvec::SmallVec;
 
+use crate::Envelope;
 use crate::endpoints::common::BadStoreRequest;
 use crate::extractors::RequestMeta;
 use crate::managed::{Counted, ManagedEnvelope, Quantities};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::ProcessingError;
-use crate::Envelope;
 
 #[cfg(debug_assertions)]
 mod debug;
@@ -1210,8 +1210,8 @@ mod tests {
 
         let z = Managed::zip(a, b);
 
-        assert_eq!(z.as_ref().0 .0, vec![1, 2]);
-        assert_eq!(z.as_ref().1 .0, 3);
+        assert_eq!((z.as_ref().0).0, vec![1, 2]);
+        assert_eq!((z.as_ref().1).0, 3);
         drop(z);
         handle_a.assert_internal_outcome(DataCategory::Error, 2);
         handle_a.assert_internal_outcome(DataCategory::Error, 1);
