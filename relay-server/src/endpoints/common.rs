@@ -545,6 +545,13 @@ fn emit_envelope_metrics(envelope: &Envelope) {
     }
 }
 
+/// Combines scoping and upstream information.
+#[derive(Clone)]
+pub struct ProjectContext {
+    pub scoping: Scoping,
+    pub upstream: Option<UpstreamDescriptor>,
+}
+
 /// Uploads the content of `field` to the objectstore and returns an [Item] with an
 /// [AttachmentPlaceholder] as payload.
 pub async fn upload_to_objectstore<S, E>(
@@ -552,8 +559,7 @@ pub async fn upload_to_objectstore<S, E>(
     content_type: Option<String>,
     mut item: Managed<Item>,
     config: &Config,
-    scoping: Scoping,
-    upstream: Option<UpstreamDescriptor>,
+    project: ProjectContext,
     upload: &Addr<Upload>,
     referrer: &'static str,
 ) -> Result<Managed<Item>, Rejected<()>>
@@ -566,8 +572,7 @@ where
         content_type,
         &mut item,
         config,
-        scoping,
-        upstream,
+        project,
         upload,
         referrer,
     )
@@ -583,8 +588,7 @@ async fn upload_to_objectstore_inner<S, E>(
     content_type: Option<String>,
     item: &mut Managed<Item>,
     config: &Config,
-    scoping: Scoping,
-    upstream: Option<UpstreamDescriptor>,
+    project: ProjectContext,
     upload: &Addr<Upload>,
     referrer: &'static str,
 ) -> Option<()>
@@ -596,6 +600,8 @@ where
     let stream = MeteredStream::new(stream, referrer);
     let stream = BoundedStream::new(stream, 1, config.max_upload_size());
     let byte_counter = stream.byte_counter();
+
+    let ProjectContext { scoping, upstream } = project;
 
     let location = upload
         .send(Create {
