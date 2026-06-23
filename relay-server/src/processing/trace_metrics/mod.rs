@@ -17,8 +17,8 @@ use smallvec::smallvec;
 mod filter;
 mod process;
 #[cfg(feature = "processing")]
-mod store;
-mod utils;
+pub(crate) mod store;
+pub(crate) mod utils;
 mod validate;
 
 pub use self::utils::get_calculated_byte_size;
