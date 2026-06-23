@@ -13,7 +13,7 @@ use relay_event_normalization::{
 use relay_event_schema::processor::{ProcessingState, process_value};
 use relay_event_schema::protocol::{BrowserContext, EventId, IpAddr, Span, SpanData};
 use relay_metrics::UnixTimestamp;
-use relay_protocol::{Annotated, Empty, Value};
+use relay_protocol::{Annotated, Value};
 use relay_sampling::DynamicSamplingContext;
 
 /// Config needed to normalize a standalone span.
