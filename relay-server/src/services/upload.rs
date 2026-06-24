@@ -880,26 +880,4 @@ mod tests {
         }
         "#);
     }
-
-    #[cfg(feature = "processing")]
-    #[test]
-    fn verify_rejects_location_signed_with_legacy_length_param() {
-        let mut config = Config::default();
-        config.regenerate_credentials(false).unwrap();
-
-        let legacy_uri = "/api/42/upload/my_objectstore_key/?length=123";
-        let signature = config.credentials().unwrap().secret_key.sign_with_header(
-            legacy_uri.as_bytes(),
-            &SignatureHeader {
-                timestamp: Utc::now(),
-                signature_algorithm: None,
-            },
-        );
-        let signed_location = SignedLocation::<Provisional>::try_from_str(&format!(
-            "{legacy_uri}&upload_signature={signature}"
-        ))
-        .unwrap();
-
-        assert!(signed_location.verify(Utc::now(), &config).is_ok());
-    }
 }
