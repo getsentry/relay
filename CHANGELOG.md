@@ -22,6 +22,7 @@
 - Update sentry-conventions to 0.12.0.
 - Upgrade release image to Debian 13. ([#6110](https://github.com/getsentry/relay/pull/6110))
 - Prefix upload location query params for forward compatibility. ([#6076](https://github.com/getsentry/relay/pull/6076))
+- Use upstream descriptor in upload requests. ([#6128](https://github.com/getsentry/relay/pull/6128))
 
 ## 26.6.0
 
