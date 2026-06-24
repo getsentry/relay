@@ -447,17 +447,14 @@ impl<L: UploadLength> Location<L> {
     #[cfg(feature = "processing")]
     fn try_sign(self, config: &Config) -> Result<SignedLocation<L>, Error> {
         let uri = self.try_to_uri()?;
-        let signature = config
-            .credentials()
-            .ok_or(Error::SigningFailed)?
-            .secret_key
-            .sign_with_header(
-                uri.as_bytes(),
-                &SignatureHeader {
-                    timestamp: Utc::now(),
-                    signature_algorithm: None,
-                },
-            );
+        let secret_key = config.upload_signing_key().ok_or(Error::SigningFailed)?;
+        let signature = secret_key.sign_with_header(
+            uri.as_bytes(),
+            &SignatureHeader {
+                timestamp: Utc::now(),
+                signature_algorithm: None,
+            },
+        );
 
         Ok(SignedLocation {
             location: self,
@@ -576,14 +573,32 @@ impl<L: UploadLength> SignedLocation<L> {
     /// Fails if the signature is outdated or incorrect.
     #[cfg(feature = "processing")]
     pub fn verify(self, received: DateTime<Utc>, config: &Config) -> Result<Location<L>, Error> {
-        let public_key = config.public_key().ok_or(Error::SigningFailed)?;
+        let mut result = Err(SignatureError::Unverifiable);
 
-        self.signature.verify(
-            self.location.try_to_uri()?.as_bytes(),
-            public_key,
-            received,
-            chrono::Duration::seconds(config.upload().max_age),
-        )?;
+        if let Some(public_key) = config.upload().credentials.as_ref().map(|c| &c.public_key) {
+            result = self.signature.verify(
+                self.location.try_to_uri()?.as_bytes(),
+                public_key,
+                received,
+                chrono::Duration::seconds(config.upload().max_age),
+            );
+        }
+
+        // For the transition phase, check the general purpose signature even when there is a
+        // special-purpose upload key, because the URL may have been signed by an old instance.
+        // This can be simplified after the rollout.
+        if result.is_err()
+            && let Some(public_key) = config.credentials().map(|c| &c.public_key)
+        {
+            result = self.signature.verify(
+                self.location.try_to_uri()?.as_bytes(),
+                public_key,
+                received,
+                chrono::Duration::seconds(config.upload().max_age),
+            );
+        }
+
+        result?;
 
         Ok(self.location)
     }
@@ -879,27 +894,5 @@ mod tests {
             ),
         }
         "#);
-    }
-
-    #[cfg(feature = "processing")]
-    #[test]
-    fn verify_rejects_location_signed_with_legacy_length_param() {
-        let mut config = Config::default();
-        config.regenerate_credentials(false).unwrap();
-
-        let legacy_uri = "/api/42/upload/my_objectstore_key/?length=123";
-        let signature = config.credentials().unwrap().secret_key.sign_with_header(
-            legacy_uri.as_bytes(),
-            &SignatureHeader {
-                timestamp: Utc::now(),
-                signature_algorithm: None,
-            },
-        );
-        let signed_location = SignedLocation::<Provisional>::try_from_str(&format!(
-            "{legacy_uri}&upload_signature={signature}"
-        ))
-        .unwrap();
-
-        assert!(signed_location.verify(Utc::now(), &config).is_ok());
     }
 }

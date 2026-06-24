@@ -2601,6 +2601,15 @@ impl Config {
         &self.values.upload
     }
 
+    /// Returns the key used to sign upload locations.
+    pub fn upload_signing_key(&self) -> Option<&SecretKey> {
+        if let Some(credentials) = &self.upload().credentials {
+            return Some(&credentials.secret_key);
+        }
+
+        self.credentials().map(|c| &c.secret_key)
+    }
+
     /// Redis servers to connect to for project configs, cardinality limits,
     /// rate limiting, and metrics metadata.
     pub fn redis(&self) -> Option<RedisConfigsRef<'_>> {
