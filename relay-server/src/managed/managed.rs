@@ -5,8 +5,8 @@ use std::fmt;
 use std::iter::FusedIterator;
 use std::mem::ManuallyDrop;
 use std::net::IpAddr;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use itertools::Either;
@@ -15,12 +15,12 @@ use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 use smallvec::SmallVec;
 
-use crate::Envelope;
 use crate::endpoints::common::BadStoreRequest;
 use crate::extractors::RequestMeta;
 use crate::managed::{Counted, ManagedEnvelope, Quantities};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::ProcessingError;
+use crate::Envelope;
 
 #[cfg(debug_assertions)]
 mod debug;
@@ -283,12 +283,9 @@ impl<T: Counted> Managed<T> {
     where
         S: Counted,
     {
-        assert!(
-            first
-                .meta
-                .as_ref()
-                .scoping
-                .eq(&second.meta.as_ref().scoping),
+        debug_assert_eq!(
+            first.scoping(),
+            second.scoping(),
             "cannot zip Managed values with different metadata"
         );
         first.map(|first, records| {
