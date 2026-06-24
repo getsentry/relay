@@ -11,7 +11,7 @@ use multer::{Field, Multipart};
 use relay_config::Config;
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::EventId;
-use relay_quotas::{DataCategory, RateLimits, Scoping};
+use relay_quotas::{DataCategory, RateLimits};
 use relay_system::Addr;
 use smallvec::smallvec;
 use std::convert::Infallible;
@@ -30,7 +30,7 @@ use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome};
 use crate::services::projects::project::ProjectState;
-use crate::services::upload::Upload;
+use crate::services::upload::{ProjectContext, Upload};
 use crate::statsd::RelayCounters;
 use crate::utils::{self, AttachmentStrategy, read_bytes_into_item};
 
@@ -226,7 +226,7 @@ enum UploadDecision {
 
 struct UploadContext<'a> {
     upload: &'a Addr<Upload>,
-    scoping: Scoping,
+    project: ProjectContext,
     upload_attachments: UploadDecision,
     upload_minidumps: UploadDecision,
 }
@@ -278,7 +278,7 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
                     content_type,
                     item,
                     config,
-                    upload_context.scoping,
+                    upload_context.project.clone(),
                     upload_context.upload,
                     "minidump",
                 )
@@ -321,7 +321,7 @@ pub async fn upload_to_objectstore_checked<S, E>(
     content_type: Option<String>,
     item: Managed<Item>,
     config: &Config,
-    scoping: Scoping,
+    project: ProjectContext,
     upload: &Addr<Upload>,
     referrer: &'static str,
 ) -> Result<Managed<Item>, BadStoreRequest>
@@ -335,7 +335,7 @@ where
             content_type,
             item,
             config,
-            scoping,
+            project,
             upload,
             referrer,
         )
@@ -356,7 +356,7 @@ where
         content_type,
         item,
         config,
-        scoping,
+        project,
         upload,
         referrer,
     )
@@ -483,7 +483,10 @@ async fn upload_context<'a>(
 
     Ok(Some(UploadContext {
         upload: state.upload(),
-        scoping,
+        project: ProjectContext {
+            scoping,
+            upstream: project_config.upstream.clone(),
+        },
         upload_attachments,
         upload_minidumps,
     }))
@@ -517,7 +520,7 @@ async fn raw_minidump_to_item(
             Some(content_type.to_string()).filter(|s| !s.is_empty()),
             item,
             state.config(),
-            upload_context.scoping,
+            upload_context.project,
             upload_context.upload,
             "minidump",
         )
