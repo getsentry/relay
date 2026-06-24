@@ -1,16 +1,16 @@
-FROM gcr.io/distroless/cc-debian13:debug AS builder
+FROM us-docker.pkg.dev/sentryio/dhi-mirror/static:20250419-glibc-debian13 AS base
 
-RUN ["/busybox/busybox", "mkdir", "/work", "/etc/relay"]
-
-
-FROM gcr.io/distroless/cc-debian13:nonroot
+FROM us-docker.pkg.dev/sentryio/dhi-mirror/static:20250419-glibc-debian13
 
 ARG TARGETPLATFORM
 
 EXPOSE 3000
 
-COPY --from=builder --chown=nonroot:nonroot /etc/relay /etc/relay
-COPY --from=builder --chown=nonroot:nonroot /work /work
+# The static base image has no shell, so we can't `mkdir` the volume dirs.
+# Instead seed them from the image's own pre-existing, empty `/home/nonroot`
+# directory, which is already owned by the nonroot user (uid/gid 65532).
+COPY --from=base --chown=nonroot:nonroot /home/nonroot /etc/relay
+COPY --from=base --chown=nonroot:nonroot /home/nonroot /work
 
 VOLUME ["/etc/relay", "/work"]
 WORKDIR /work
