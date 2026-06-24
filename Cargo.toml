@@ -115,6 +115,7 @@ data-encoding = "2"
 deadpool = "0.12"
 debugid = "0.8"
 dialoguer = "0.11"
+dircpy = "0.3"
 dynfmt = "0.1"
 ed25519-dalek = { version = "2", features = ["digest"] }
 enumset = "1"
