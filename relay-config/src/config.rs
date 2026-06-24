@@ -9,7 +9,7 @@ use std::time::Duration;
 use std::{env, fmt, fs, io};
 
 use anyhow::Context;
-use relay_auth::{PublicKey, RelayId, SecretKey, generate_key_pair, generate_relay_id};
+use relay_auth::{KeyPair, PublicKey, RelayId, SecretKey, generate_relay_id};
 use relay_common::Dsn;
 use relay_kafka::{
     ConfigError as KafkaConfigError, KafkaConfigParam, KafkaTopic, KafkaTopicConfig,
@@ -281,10 +281,13 @@ impl Credentials {
     /// Generates new random credentials.
     pub fn generate() -> Self {
         relay_log::info!("generating new relay credentials");
-        let (sk, pk) = generate_key_pair();
+        let KeyPair {
+            secret_key,
+            public_key,
+        } = KeyPair::new();
         Self {
-            secret_key: sk,
-            public_key: pk,
+            secret_key,
+            public_key,
             id: generate_relay_id(),
         }
     }
@@ -1628,7 +1631,7 @@ impl Default for Cogs {
 }
 
 /// Configuration for the upload service.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Upload {
     /// Maximum number of uploads that the service accepts.
@@ -1641,6 +1644,11 @@ pub struct Upload {
     ///
     /// In seconds.
     pub max_age: i64,
+
+    /// Key pair used to sign and verify upload locations.
+    ///
+    /// If omitted, the relay's default [`Credentials`] are used.
+    pub credentials: Option<KeyPair>,
 }
 
 impl Default for Upload {
@@ -1649,6 +1657,7 @@ impl Default for Upload {
             max_concurrent_requests: 100,
             timeout: 5 * 60,  // five minutes
             max_age: 60 * 60, // 1h
+            credentials: None,
         }
     }
 }

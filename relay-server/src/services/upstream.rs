@@ -1691,8 +1691,9 @@ impl Service for UpstreamRelayService {
 
 #[cfg(test)]
 mod tests {
+    use relay_auth::KeyPair;
+
     use super::*;
-    use relay_auth::generate_key_pair;
 
     #[test]
     fn test_required_credentials_missing() {
@@ -1702,17 +1703,17 @@ mod tests {
 
     #[test]
     fn test_required_credentials() {
-        let (secret, _) = generate_key_pair();
+        let KeyPair { secret_key, .. } = KeyPair::new();
         let result =
-            Sign::Required(SignatureType::Body(Bytes::new())).create_signature(Some(&secret));
+            Sign::Required(SignatureType::Body(Bytes::new())).create_signature(Some(&secret_key));
         assert!(result.unwrap().is_some())
     }
 
     #[test]
     fn test_optional_credentials() {
-        let (secret, _) = generate_key_pair();
+        let KeyPair { secret_key, .. } = KeyPair::new();
         let result =
-            Sign::Optional(SignatureType::Body(Bytes::new())).create_signature(Some(&secret));
+            Sign::Optional(SignatureType::Body(Bytes::new())).create_signature(Some(&secret_key));
         assert!(result.unwrap().is_some())
     }
 

@@ -1,7 +1,7 @@
 use chrono::{Duration, Utc};
 use relay_auth::{
-    PublicKey, RegisterRequest, RegisterResponse, RelayId, RelayVersion, SecretKey, SignatureRef,
-    generate_key_pair, generate_relay_id,
+    KeyPair, PublicKey, RegisterRequest, RegisterResponse, RelayId, RelayVersion, SecretKey,
+    SignatureRef, generate_relay_id,
 };
 use serde::Serialize;
 
@@ -129,10 +129,13 @@ pub unsafe extern "C" fn relay_secretkey_sign(
 #[unsafe(no_mangle)]
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_generate_key_pair() -> RelayKeyPair {
-    let (sk, pk) = generate_key_pair();
+    let KeyPair {
+        secret_key,
+        public_key,
+    } = KeyPair::new();
     RelayKeyPair {
-        secret_key: Box::into_raw(Box::new(sk)) as *mut RelaySecretKey,
-        public_key: Box::into_raw(Box::new(pk)) as *mut RelayPublicKey,
+        secret_key: Box::into_raw(Box::new(secret_key)) as *mut RelaySecretKey,
+        public_key: Box::into_raw(Box::new(public_key)) as *mut RelayPublicKey,
     }
 }
 
