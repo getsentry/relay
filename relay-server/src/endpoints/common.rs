@@ -10,7 +10,7 @@ use futures::TryStreamExt;
 use futures::stream::BoxStream;
 use relay_config::{Config, RelayMode};
 use relay_event_schema::protocol::{EventId, EventType};
-use relay_quotas::{DataCategory, RateLimits, Scoping};
+use relay_quotas::{DataCategory, RateLimits};
 use relay_statsd::metric;
 use relay_system::Addr;
 use serde::Deserialize;
@@ -24,7 +24,7 @@ use crate::service::ServiceState;
 use crate::services::buffer::{ProjectKeyPair, PushError};
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
 use crate::services::processor::{BucketSource, MetricData, ProcessMetrics};
-use crate::services::upload::{Create, Stream, Upload};
+use crate::services::upload::{Create, ProjectContext, Stream, Upload};
 use crate::statsd::{RelayCounters, RelayDistributions};
 use crate::utils::{
     self, ApiErrorResponse, BoundedStream, FormDataIter, MeteredStream, find_error_source,
@@ -552,7 +552,7 @@ pub async fn upload_to_objectstore<S, E>(
     content_type: Option<String>,
     mut item: Managed<Item>,
     config: &Config,
-    scoping: Scoping,
+    project: ProjectContext,
     upload: &Addr<Upload>,
     referrer: &'static str,
 ) -> Result<Managed<Item>, Rejected<()>>
@@ -565,7 +565,7 @@ where
         content_type,
         &mut item,
         config,
-        scoping,
+        project,
         upload,
         referrer,
     )
@@ -581,7 +581,7 @@ async fn upload_to_objectstore_inner<S, E>(
     content_type: Option<String>,
     item: &mut Managed<Item>,
     config: &Config,
-    scoping: Scoping,
+    project: ProjectContext,
     upload: &Addr<Upload>,
     referrer: &'static str,
 ) -> Option<()>
@@ -596,7 +596,7 @@ where
 
     let location = upload
         .send(Create {
-            scoping,
+            project: project.clone(),
             length: None,
             attachment_type: item.attachment_type(),
         })
@@ -604,10 +604,12 @@ where
         .ok()?
         .ok()?;
 
+    let scoping = project.scoping;
+
     let result = upload
         .send(Stream {
             received: Utc::now(),
-            scoping,
+            project,
             location,
             stream,
         })

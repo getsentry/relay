@@ -450,10 +450,10 @@ fn span_data_pii_from_conventions(state: &ProcessingState) -> Pii {
         // path, i.e. the field name.
         let key = state.keys().next()?;
 
-        match relay_conventions::attribute_info(key)?.pii {
-            relay_conventions::Pii::True => Some(Pii::True),
-            relay_conventions::Pii::False => Some(Pii::False),
-            relay_conventions::Pii::Maybe => Some(Pii::Maybe),
+        match relay_conventions::attribute_info(key)?.apply_scrubbing {
+            relay_conventions::ApplyScrubbing::Auto => Some(Pii::True),
+            relay_conventions::ApplyScrubbing::Never => Some(Pii::False),
+            relay_conventions::ApplyScrubbing::Manual => Some(Pii::Maybe),
         }
     }
 

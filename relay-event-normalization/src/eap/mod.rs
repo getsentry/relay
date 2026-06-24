@@ -1435,13 +1435,13 @@ mod tests {
         }
 
         fn mock_attribute_info(name: &str) -> Option<(&'static AttributeInfo, Option<&str>)> {
-            use relay_conventions::Pii;
+            use relay_conventions::ApplyScrubbing;
 
             match name {
                 "replace.empty" => Some((
                     &AttributeInfo {
                         write_behavior: WriteBehavior::NewName(ReplacementName::Static("replaced")),
-                        pii: Pii::Maybe,
+                        apply_scrubbing: ApplyScrubbing::Manual,
                         aliases: &["replaced"],
                     },
                     None,
@@ -1451,7 +1451,7 @@ mod tests {
                         write_behavior: WriteBehavior::NewName(ReplacementName::Static(
                             "not.replaced",
                         )),
-                        pii: Pii::Maybe,
+                        apply_scrubbing: ApplyScrubbing::Manual,
                         aliases: &["not.replaced"],
                     },
                     None,
@@ -1461,7 +1461,7 @@ mod tests {
                         write_behavior: WriteBehavior::BothNames(ReplacementName::Static(
                             "backfilled",
                         )),
-                        pii: Pii::Maybe,
+                        apply_scrubbing: ApplyScrubbing::Manual,
                         aliases: &["backfilled"],
                     },
                     None,
@@ -1471,7 +1471,7 @@ mod tests {
                         write_behavior: WriteBehavior::BothNames(ReplacementName::Static(
                             "not.backfilled",
                         )),
-                        pii: Pii::Maybe,
+                        apply_scrubbing: ApplyScrubbing::Manual,
                         aliases: &["not.backfilled"],
                     },
                     None,
@@ -1481,7 +1481,7 @@ mod tests {
                         write_behavior: WriteBehavior::NewName(ReplacementName::Dynamic(
                             replace_key,
                         )),
-                        pii: Pii::Maybe,
+                        apply_scrubbing: ApplyScrubbing::Manual,
                         aliases: &["placeholder.replaced.<key>"],
                     },
                     Some(fragment),
@@ -1491,7 +1491,7 @@ mod tests {
                         write_behavior: WriteBehavior::BothNames(ReplacementName::Dynamic(
                             backfill_key,
                         )),
-                        pii: Pii::Maybe,
+                        apply_scrubbing: ApplyScrubbing::Manual,
                         aliases: &["placeholder.backfilled.<key>"],
                     },
                     Some(fragment),

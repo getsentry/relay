@@ -123,10 +123,10 @@ pub fn attribute_pii_from_conventions(state: &ProcessingState) -> Pii {
             continue;
         };
 
-        return match info.pii {
-            relay_conventions::Pii::True => Pii::True,
-            relay_conventions::Pii::False => Pii::False,
-            relay_conventions::Pii::Maybe => Pii::Maybe,
+        return match info.apply_scrubbing {
+            relay_conventions::ApplyScrubbing::Auto => Pii::True,
+            relay_conventions::ApplyScrubbing::Never => Pii::False,
+            relay_conventions::ApplyScrubbing::Manual => Pii::Maybe,
         };
     }
 

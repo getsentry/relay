@@ -745,6 +745,20 @@ fn emit_response_metrics(
     let status_str = status_code.as_ref().map(|c| c.as_str()).unwrap_or("-");
     let upstream = entry.request.upstream().map(|up| up.to_string());
 
+    // To better understand the intermittent send failures that we see, log more info.
+    // Only log the first 10 since the information value is diminishing afterwards.
+    if let Err(error @ UpstreamRequestError::SendFailed(_)) = send_result
+        && entry.retries <= 10
+    {
+        relay_log::warn!(
+            error = error as &dyn std::error::Error,
+            route = entry.request.route(),
+            retries = entry.retries,
+            upstream = upstream.as_deref().unwrap_or("default"),
+            "upstream request send failed",
+        );
+    }
+
     relay_statsd::metric!(
         timer(RelayTimers::UpstreamRequestsDuration) = send_start.elapsed(),
         result = description,
