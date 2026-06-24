@@ -275,6 +275,27 @@ impl<T: Counted> Managed<T> {
             other.accept(|o| f(s, o, records));
         })
     }
+    /// Zips two managed instances into one managed tuple.
+    ///
+    /// The returned instance uses the metadata from `first`. `second` is accepted, transferring
+    /// outcome responsibility to the merged instance.
+    pub fn zip<S>(first: Self, second: Managed<S>) -> Managed<(T, S)>
+    where
+        S: Counted,
+    {
+        debug_assert_eq!(
+            first.scoping(),
+            second.scoping(),
+            "cannot zip Managed values with different metadata"
+        );
+        first.map(|first, records| {
+            for (category, quantity) in second.quantities() {
+                records.modify_by(category, quantity as isize);
+            }
+            let second = second.accept(|second| second);
+            (first, second)
+        })
+    }
 
     /// Splits [`Self`] into two other [`Managed`] items.
     ///
@@ -1134,6 +1155,8 @@ where
 mod tests {
     use super::*;
 
+    use relay_base_schema::project::ProjectId;
+
     struct CountedVec(Vec<u32>);
 
     impl Counted for CountedVec {
@@ -1175,6 +1198,43 @@ mod tests {
         drop(a);
         handle_a.assert_internal_outcome(DataCategory::Error, 4);
         handle_b.assert_no_outcomes();
+    }
+
+    #[test]
+    fn test_zip_into_tuple() {
+        let (a, mut handle_a) = Managed::for_test(CountedVec(vec![1, 2])).build();
+        let (b, mut handle_b) = Managed::for_test(CountedValue(3)).build();
+
+        let z = Managed::zip(a, b);
+
+        assert_eq!((z.as_ref().0).0, vec![1, 2]);
+        assert_eq!((z.as_ref().1).0, 3);
+        drop(z);
+        handle_a.assert_internal_outcome(DataCategory::Error, 2);
+        handle_a.assert_internal_outcome(DataCategory::Error, 1);
+        handle_b.assert_no_outcomes();
+    }
+
+    #[test]
+    fn test_zip_rejects_different_metadata() {
+        let (a, mut handle_a) = Managed::for_test(CountedVec(vec![1, 2])).build();
+        let (b, mut handle_b) = Managed::for_test(CountedValue(3))
+            .scoping(Scoping {
+                project_id: ProjectId::new(45),
+                ..a.scoping()
+            })
+            .build();
+
+        let result = std::panic::catch_unwind(move || {
+            Managed::zip(a, b);
+        });
+
+        assert!(
+            result.is_err(),
+            "cannot zip Managed values with different metadata"
+        );
+        handle_a.assert_internal_outcome(DataCategory::Error, 2);
+        handle_b.assert_internal_outcome(DataCategory::Error, 1);
     }
 
     #[test]
