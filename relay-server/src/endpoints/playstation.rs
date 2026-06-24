@@ -8,7 +8,7 @@ use multer::{Field, Multipart};
 use relay_config::Config;
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::EventId;
-use relay_quotas::{DataCategory, Scoping};
+use relay_quotas::DataCategory;
 use relay_system::Addr;
 use serde::Serialize;
 use tower_http::limit::RequestBodyLimitLayer;
@@ -21,7 +21,7 @@ use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::DiscardReason;
 use crate::services::projects::project::ProjectState;
-use crate::services::upload::Upload;
+use crate::services::upload::{ProjectContext, Upload};
 use crate::utils::{self, AttachmentStrategy};
 
 /// The extension of a prosperodump in the multipart form-data upload.
@@ -64,7 +64,7 @@ struct Parts {
 
 struct UploadContext<'a> {
     upload: &'a Addr<Upload>,
-    scoping: Scoping,
+    project: ProjectContext,
 }
 
 /// Created an [UploadContext].
@@ -113,7 +113,10 @@ async fn upload_context<'a>(
     {
         true => Ok(Some(UploadContext {
             upload: state.upload(),
-            scoping,
+            project: ProjectContext {
+                scoping,
+                upstream: project_config.upstream.clone(),
+            },
         })),
         false => Ok(None),
     }
@@ -149,7 +152,7 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
                     content_type,
                     item,
                     config,
-                    upload_context.scoping,
+                    upload_context.project.clone(),
                     upload_context.upload,
                     "playstation",
                 )

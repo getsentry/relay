@@ -1,5 +1,6 @@
 //! Utilities for uploading large files.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
@@ -17,8 +18,7 @@ use relay_auth::SignatureError;
 #[cfg(feature = "processing")]
 use relay_auth::SignatureHeader;
 use relay_base_schema::project::ProjectId;
-use relay_config::Config;
-use relay_config::HttpEncoding;
+use relay_config::{Config, HttpEncoding, UpstreamDescriptor};
 use relay_quotas::Scoping;
 use relay_system::{
     Addr, AsyncResponse, ConcurrentService, FromMessage, Interface, LoadShed, SendError, Sender,
@@ -112,10 +112,19 @@ pub enum Upload {
 
 impl Interface for Upload {}
 
+/// Project information necessary for uploading.
+#[derive(Debug, Clone)]
+pub struct ProjectContext {
+    /// The organization and project identifiers.
+    pub scoping: Scoping,
+    /// Where to send the request.
+    pub upstream: Option<UpstreamDescriptor>,
+}
+
 /// Request to create an upload resource.
 pub struct Create {
     /// The project to create the upload for.
-    pub scoping: Scoping,
+    pub project: ProjectContext,
     /// The size of the intended upload in bytes, as specified in the `Upload-Length` header.
     ///
     /// Trusted clients (i.e. PoP Relays) are allowed to omit the length (see `Upload-Defer-Length: 1`).
@@ -131,8 +140,8 @@ pub type ByteStream = BoxStream<'static, std::io::Result<Bytes>>;
 pub struct Stream {
     /// Time of arrival of the request.
     pub received: DateTime<Utc>,
-    /// The organization & project that the stream belongs to.
-    pub scoping: Scoping,
+    /// The project to create the upload for.
+    pub project: ProjectContext,
     /// The location to upload to.
     pub location: SignedLocation<Provisional>,
     /// The body to be uploaded to objectstore, with length validation.
@@ -250,14 +259,14 @@ impl Service {
     async fn create(
         &self,
         Create {
-            scoping,
+            project,
             length,
             attachment_type,
         }: Create,
     ) -> Result<SignedLocation<Provisional>, Error> {
         match &self.backend {
             Backend::Upstream { addr } => {
-                let (request, rx) = UploadRequest::create(scoping, length, attachment_type);
+                let (request, rx) = UploadRequest::create(project, length, attachment_type);
                 addr.send(SendRequest(request));
                 let response = rx.await??;
                 SignedLocation::try_from_response(response)
@@ -267,7 +276,7 @@ impl Service {
                 // We can create & sign a location right here, no need to query the objectstore service.
                 let key = Uuid::now_v7().as_simple().to_string();
                 Location {
-                    project_id: scoping.project_id,
+                    project_id: project.scoping.project_id,
                     key,
                     length: Provisional(length),
                     other: Default::default(),
@@ -278,21 +287,22 @@ impl Service {
     }
 
     async fn upload(&self, stream: Stream) -> Result<SignedLocation<Final>, Error> {
+        let Stream {
+            #[cfg_attr(not(feature = "processing"), expect(unused))]
+            received,
+            project,
+            location,
+            stream,
+        } = stream;
         match &self.backend {
             Backend::Upstream { addr } => {
-                let (request, rx) = UploadRequest::upload(stream);
+                let (request, rx) = UploadRequest::upload(project, location.try_to_uri()?, stream);
                 addr.send(SendRequest(request));
                 let response = rx.await??;
                 SignedLocation::try_from_response(response)
             }
             #[cfg(feature = "processing")]
             Backend::Objectstore { addr, config } => {
-                let Stream {
-                    received,
-                    scoping,
-                    location,
-                    stream,
-                } = stream;
                 let Location {
                     project_id,
                     key,
@@ -300,6 +310,7 @@ impl Service {
                     other,
                 } = location.verify(received, config)?;
 
+                let scoping = project.scoping;
                 debug_assert_eq!(scoping.project_id, project_id);
                 debug_assert!(stream.length().is_none_or(|l| Some(l) == length.value()));
                 let byte_counter = stream.byte_counter();
@@ -682,7 +693,7 @@ enum RequestKind {
         attachment_type: Option<AttachmentType>,
     },
     Upload {
-        location: SignedLocation<Provisional>,
+        uri: String,
         stream: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
         encoding: HttpEncoding,
     },
@@ -690,14 +701,14 @@ enum RequestKind {
 
 /// An upstream request made to the `/upload` endpoint.
 struct UploadRequest {
-    scoping: Scoping,
+    project: ProjectContext,
     kind: RequestKind,
     sender: oneshot::Sender<Result<Response, UpstreamRequestError>>,
 }
 
 impl UploadRequest {
     fn create(
-        scoping: Scoping,
+        project: ProjectContext,
         length: Option<usize>,
         attachment_type: Option<AttachmentType>,
     ) -> (
@@ -708,7 +719,7 @@ impl UploadRequest {
 
         (
             Self {
-                scoping,
+                project,
                 kind: RequestKind::Create {
                     length,
                     attachment_type,
@@ -720,24 +731,19 @@ impl UploadRequest {
     }
 
     fn upload(
-        stream: Stream,
+        project: ProjectContext,
+        uri: String,
+        stream: BoundedStream<MeteredStream<ByteStream>>,
     ) -> (
         Self,
         oneshot::Receiver<Result<Response, UpstreamRequestError>>,
     ) {
         let (sender, rx) = oneshot::channel();
-        let Stream {
-            scoping,
-            received: _,
-            location,
-            stream,
-        } = stream;
-
         (
             Self {
-                scoping,
+                project,
                 kind: RequestKind::Upload {
-                    location,
+                    uri,
                     stream: TakeOnce::new(stream),
                     encoding: HttpEncoding::Zstd, // just a default, will be overwritten by .configure()
                 },
@@ -750,13 +756,22 @@ impl UploadRequest {
 
 impl fmt::Debug for UploadRequest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
+        let Self {
+            project,
+            kind: _,
+            sender: _,
+        } = self;
         f.debug_struct("UploadRequest")
-            .field("scoping", &self.scoping)
+            .field("project", project)
             .finish()
     }
 }
 
 impl UpstreamRequest for UploadRequest {
+    fn upstream(&self) -> Option<&UpstreamDescriptor> {
+        self.project.upstream.as_ref()
+    }
+
     fn method(&self) -> Method {
         match self.kind {
             RequestKind::Create { .. } => Method::POST,
@@ -764,15 +779,12 @@ impl UpstreamRequest for UploadRequest {
         }
     }
 
-    fn path(&self) -> std::borrow::Cow<'_, str> {
-        let project_id = self.scoping.project_id;
+    fn path(&self) -> Cow<'_, str> {
+        let project_id = self.project.scoping.project_id;
         match &self.kind {
-            RequestKind::Create { .. } => format!("/api/{project_id}/upload/"),
-            RequestKind::Upload { location, .. } => location
-                .try_to_uri()
-                .expect("upload location should be serializable"),
+            RequestKind::Create { .. } => Cow::Owned(format!("/api/{project_id}/upload/")),
+            RequestKind::Upload { uri, .. } => Cow::Borrowed(uri),
         }
-        .into()
     }
 
     fn route(&self) -> &'static str {
@@ -813,7 +825,7 @@ impl UpstreamRequest for UploadRequest {
                 tus::add_creation_headers(*length, *attachment_type, builder)?;
             }
             RequestKind::Upload {
-                location: _,
+                uri: _,
                 stream,
                 encoding,
             } => {
@@ -830,7 +842,7 @@ impl UpstreamRequest for UploadRequest {
             }
         };
 
-        let project_key = self.scoping.project_key;
+        let project_key = self.project.scoping.project_key;
         builder.header("X-Sentry-Auth", format!("Sentry sentry_key={project_key}"));
         builder.timeout(Duration::MAX); // rely on service timeout to cancel requests
 
