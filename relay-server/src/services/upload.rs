@@ -453,29 +453,6 @@ impl<L: UploadLength> Location<L> {
         }
     }
 
-    /// Temporary function used to verify legacy signatures.
-    #[cfg(feature = "processing")]
-    fn try_to_legacy_uri(&self) -> Result<String, Error> {
-        let Location {
-            project_id,
-            key,
-            length,
-            other: _,
-        } = self;
-        #[derive(Debug, Serialize)]
-        struct QueryParams {
-            pub length: Option<usize>,
-        }
-        let params = QueryParams {
-            length: length.value(),
-        };
-        let query = serde_urlencoded::to_string(params)?;
-        match query.as_str() {
-            "" => Ok(format!("/api/{project_id}/upload/{key}/")),
-            _ => Ok(format!("/api/{project_id}/upload/{key}/?{query}")),
-        }
-    }
-
     #[cfg(feature = "processing")]
     fn try_sign(self, config: &Config) -> Result<SignedLocation<L>, Error> {
         let uri = self.try_to_uri()?;
@@ -610,24 +587,12 @@ impl<L: UploadLength> SignedLocation<L> {
     pub fn verify(self, received: DateTime<Utc>, config: &Config) -> Result<Location<L>, Error> {
         let public_key = config.public_key().ok_or(Error::SigningFailed)?;
 
-        let mut result = self.signature.verify(
+        self.signature.verify(
             self.location.try_to_uri()?.as_bytes(),
             public_key,
             received,
             chrono::Duration::seconds(config.upload().max_age),
-        );
-
-        // NOTE: This code path can be removed once all legacy URIs are invalid (~1h after rollout)
-        if result.is_err() {
-            result = self.signature.verify(
-                self.location.try_to_legacy_uri()?.as_bytes(),
-                public_key,
-                received,
-                chrono::Duration::seconds(config.upload().max_age),
-            );
-        }
-
-        result?;
+        )?;
 
         Ok(self.location)
     }
@@ -932,27 +897,5 @@ mod tests {
             ),
         }
         "#);
-    }
-
-    #[cfg(feature = "processing")]
-    #[test]
-    fn verify_rejects_location_signed_with_legacy_length_param() {
-        let mut config = Config::default();
-        config.regenerate_credentials(false).unwrap();
-
-        let legacy_uri = "/api/42/upload/my_objectstore_key/?length=123";
-        let signature = config.credentials().unwrap().secret_key.sign_with_header(
-            legacy_uri.as_bytes(),
-            &SignatureHeader {
-                timestamp: Utc::now(),
-                signature_algorithm: None,
-            },
-        );
-        let signed_location = SignedLocation::<Provisional>::try_from_str(&format!(
-            "{legacy_uri}&upload_signature={signature}"
-        ))
-        .unwrap();
-
-        assert!(signed_location.verify(Utc::now(), &config).is_ok());
     }
 }
