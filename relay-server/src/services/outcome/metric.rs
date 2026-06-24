@@ -5,6 +5,7 @@ use relay_base_schema::data_category::DataCategory;
 use relay_config::Config;
 use relay_event_schema::protocol::{ClientReport, DiscardedEvent};
 use relay_metrics::{Bucket, BucketValue, MetricName, MetricNamespace, UnixTimestamp};
+use relay_protocol::FiniteF64;
 
 #[cfg(any(test, feature = "processing"))]
 use crate::services::outcome::OutcomeId;
@@ -76,7 +77,7 @@ pub fn to_metric(outcome: &TrackOutcome, config: &Config) -> Bucket {
 
     Bucket {
         name,
-        value: BucketValue::Counter((*quantity).into()),
+        value: BucketValue::Counter(FiniteF64::cast_from_u64(*quantity)),
         timestamp: UnixTimestamp::from_datetime(*timestamp).unwrap_or_else(UnixTimestamp::now),
         tags,
         width: 0,
@@ -179,7 +180,7 @@ fn to_discarded_event(bucket: &Bucket) -> Option<(ClientReportSection, Discarded
     debug_assert_ne!(category, Some(DataCategory::Unknown));
 
     let quantity = match &bucket.value {
-        BucketValue::Counter(value) => value.to_f64() as u32,
+        BucketValue::Counter(value) => value.to_f64() as _,
         _ => return None,
     };
 

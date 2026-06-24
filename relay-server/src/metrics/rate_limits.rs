@@ -214,7 +214,7 @@ mod tests {
     fn run_limiter(
         metrics: Vec<Bucket>,
         quotas: Vec<Quota>,
-    ) -> (Vec<Bucket>, Vec<(Outcome, DataCategory, u32)>) {
+    ) -> (Vec<Bucket>, Vec<(Outcome, DataCategory, u64)>) {
         let (outcome_sink, mut rx) = Addr::custom();
         let metric_outcomes = MetricOutcomes::new(outcome_sink.clone());
 

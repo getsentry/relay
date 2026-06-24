@@ -766,7 +766,7 @@ impl Meta {
             event_id: self.event_id,
             remote_addr: self.remote_addr,
             category,
-            quantity: quantity.try_into().unwrap_or(u32::MAX),
+            quantity: quantity as _,
         });
     }
 }

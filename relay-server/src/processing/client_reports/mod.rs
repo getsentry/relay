@@ -152,7 +152,7 @@ pub struct ClientOutcome {
     timestamp: UnixTimestamp,
     reason: String,
     category: DataCategory,
-    quantity: u32,
+    quantity: u64,
 }
 
 impl Counted for ClientOutcome {
