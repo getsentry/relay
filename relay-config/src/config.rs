@@ -2794,6 +2794,7 @@ cache:
         assert_eq!(values.cache.envelope_expiry, 1800);
     }
 
+    #[cfg(feature = "processing")]
     #[test]
     fn test_upload_secret_key_from_file() {
         let path = env::temp_dir().join(Uuid::new_v4().to_string());
