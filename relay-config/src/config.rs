@@ -2755,7 +2755,6 @@ impl Default for Config {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
 
     /// Regression test for renaming the envelope buffer flags.
@@ -2770,6 +2769,37 @@ cache:
         let values: ConfigValues = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(values.cache.envelope_buffer_size, 1_000_000);
         assert_eq!(values.cache.envelope_expiry, 1800);
+    }
+
+    #[test]
+    fn test_upload_secret_key_from_file() {
+        let path = env::temp_dir().join(Uuid::new_v4().to_string());
+        fs::create_dir(&path).unwrap();
+        fs::write(
+            path.join("my_secret.txt"),
+            "U3LSQM5NorvgnoYHW_aZpc_43nuuh3lhs3zjjcBwaks",
+        )
+        .unwrap();
+        fs::write(
+            ConfigValues::path(&path),
+            r#"
+upload:
+    credentials:
+        secret_key: ${file:my_secret.txt}
+        public_key: "VNS8haF0VTnuMMDR2t-f7AgnmUcXmcdzV3SVksSk34s"
+            "#,
+        )
+        .unwrap();
+
+        let config = Config::from_path(&path).unwrap();
+
+        fs::remove_dir_all(path).unwrap();
+
+        let upload_credentials = config.upload().credentials.as_ref().unwrap();
+        assert_eq!(
+            upload_credentials.secret_key.to_string(),
+            "U3LSQM5NorvgnoYHW_aZpc_43nuuh3lhs3zjjcBwaks"
+        );
     }
 
     #[test]
