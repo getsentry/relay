@@ -89,6 +89,19 @@ EXPECTED_ITEMS = [
         "retentionDays": 90,
         "received": matches_any(),
         "downsampledRetentionDays": 90,
+        "outcomes": {
+            "categoryCount": [
+                {
+                    "dataCategory": DataCategory.LOG_ITEM.value,
+                    "quantity": "1",
+                },
+                {
+                    "dataCategory": DataCategory.LOG_BYTE.value,
+                    "quantity": "376",
+                },
+            ],
+            "keyId": "123",
+        },
     },
     {
         "organizationId": "1",
@@ -137,6 +150,19 @@ EXPECTED_ITEMS = [
         "retentionDays": 90,
         "received": matches_any(),
         "downsampledRetentionDays": 90,
+        "outcomes": {
+            "categoryCount": [
+                {
+                    "dataCategory": DataCategory.LOG_ITEM.value,
+                    "quantity": "1",
+                },
+                {
+                    "dataCategory": DataCategory.LOG_BYTE.value,
+                    "quantity": "829",
+                },
+            ],
+            "keyId": "123",
+        },
     },
 ]
 
@@ -167,26 +193,6 @@ def test_vercel_logs_json_array(
     items = items_consumer.get_items(n=2)
     assert items == EXPECTED_ITEMS
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
-    assert outcomes == [
-        {
-            "category": DataCategory.LOG_ITEM.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 2,
-        },
-        {
-            "category": DataCategory.LOG_BYTE.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 1205,
-        },
-    ]
-
 
 def test_vercel_logs_ndjson(
     mini_sentry, relay, relay_with_processing, outcomes_consumer, items_consumer
@@ -211,23 +217,3 @@ def test_vercel_logs_ndjson(
 
     items = items_consumer.get_items(n=2)
     assert items == EXPECTED_ITEMS
-
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
-    assert outcomes == [
-        {
-            "category": DataCategory.LOG_ITEM.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 2,
-        },
-        {
-            "category": DataCategory.LOG_BYTE.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 1205,
-        },
-    ]
