@@ -748,7 +748,7 @@ impl StoreService {
                     category,
                     event_id: None,
                     outcome: Outcome::Accepted,
-                    quantity: u32::try_from(quantity).unwrap_or(u32::MAX),
+                    quantity: quantity as u64,
                     remote_addr: None,
                     scoping,
                     timestamp: received_at,
@@ -1224,7 +1224,7 @@ impl StoreService {
             return Ok(());
         };
         let quantity = match message.value {
-            MetricValue::Counter(c) => c.to_f64() as u32,
+            MetricValue::Counter(c) => c.to_f64() as _,
             v => {
                 relay_log::error!(
                     mri = message.name.as_ref(),
@@ -1601,7 +1601,7 @@ pub struct OutcomeMessage<'a> {
     category: Option<u8>,
     /// The number of events or total attachment size in bytes.
     #[serde(skip_serializing_if = "Option::is_none")]
-    quantity: Option<u32>,
+    quantity: Option<u64>,
 }
 
 #[derive(Clone, Debug, Serialize)]

@@ -41,7 +41,7 @@ pub struct TrackOutcome {
     /// The event's data category.
     pub category: DataCategory,
     /// The number of events or total attachment size in bytes.
-    pub quantity: u32,
+    pub quantity: u64,
 }
 
 impl Interface for TrackOutcome {}
@@ -264,7 +264,7 @@ fn send_outcome_metric(message: &TrackOutcome) {
     };
 
     metric!(
-        counter(RelayCounters::OutcomeQuantity) += message.quantity.into(),
+        counter(RelayCounters::OutcomeQuantity) += message.quantity,
         category = message.category.name(),
         outcome = outcome_name,
     );

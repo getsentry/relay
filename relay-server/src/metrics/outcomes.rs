@@ -38,9 +38,9 @@ impl MetricOutcomes {
             } = extract_quantities(buckets);
 
             let categories = [
-                (DataCategory::Transaction, transactions as u32),
-                (DataCategory::Span, spans as u32),
-                (DataCategory::MetricBucket, buckets as u32),
+                (DataCategory::Transaction, transactions as _),
+                (DataCategory::Span, spans as _),
+                (DataCategory::MetricBucket, buckets as _),
             ];
 
             for (category, quantity) in categories {
@@ -95,7 +95,7 @@ impl MetricOutcomes {
                             event_id: None,
                             remote_addr: None,
                             category: *category,
-                            quantity: count as u32,
+                            quantity: count as _,
                         });
                     }
                 }

@@ -205,9 +205,7 @@ impl ManagedEnvelope {
             event_id: self.envelope.event_id(),
             remote_addr: self.meta().remote_addr(),
             category,
-            // Quantities are usually `usize` which lets us go all the way to 64-bit on our
-            // machines, but the protocol and data store can only do 32-bit.
-            quantity: quantity as u32,
+            quantity: quantity as u64,
         });
     }
 
