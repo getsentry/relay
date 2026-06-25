@@ -583,28 +583,24 @@ impl<L: UploadLength> SignedLocation<L> {
     #[cfg(feature = "processing")]
     pub fn verify(self, received: DateTime<Utc>, config: &Config) -> Result<Location<L>, Error> {
         let mut result = Err(SignatureError::Unverifiable);
+        let location = self.location.try_to_uri()?;
+        let max_age = chrono::Duration::seconds(config.upload().max_age);
 
         if let Some(public_key) = config.upload().credentials.as_ref().map(|c| &c.public_key) {
-            result = self.signature.verify(
-                self.location.try_to_uri()?.as_bytes(),
-                public_key,
-                received,
-                chrono::Duration::seconds(config.upload().max_age),
-            );
+            result = self
+                .signature
+                .verify(location.as_bytes(), public_key, received, max_age);
         }
 
         // For the transition phase, check the general purpose signature even when there is a
         // special-purpose upload key, because the URL may have been signed by an old instance.
         // This can be simplified after the rollout.
-        if result.is_err()
+        if (&result).is_err()
             && let Some(public_key) = config.credentials().map(|c| &c.public_key)
         {
-            result = self.signature.verify(
-                self.location.try_to_uri()?.as_bytes(),
-                public_key,
-                received,
-                chrono::Duration::seconds(config.upload().max_age),
-            );
+            result = self
+                .signature
+                .verify(location.as_bytes(), public_key, received, max_age);
         }
 
         result?;
@@ -853,6 +849,80 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "processing")]
+    mod with_processing {
+        use chrono::Utc;
+        use relay_auth::{KeyPair, SignatureError};
+        use relay_base_schema::project::ProjectId;
+        use relay_config::{Config, Credentials};
+
+        use super::*;
+
+        fn location() -> Location<Provisional> {
+            Location {
+                project_id: ProjectId::new(42),
+                key: "upload-key".to_owned(),
+                length: Provisional(Some(123)),
+                other: UploadParams::default(),
+            }
+        }
+
+        fn config(relay_credentials: Credentials, upload_credentials: Option<&KeyPair>) -> Config {
+            let mut config = Config::from_json_value(serde_json::json!({
+                "upload": {
+                    "credentials": upload_credentials,
+                },
+            }))
+            .unwrap();
+            config.replace_credentials(Some(relay_credentials)).unwrap();
+            config
+        }
+
+        #[test]
+        fn verify_legacy() {
+            let relay_credentials = Credentials::generate();
+            let upload_credentials = KeyPair::generate();
+
+            let signing_config = config(relay_credentials.clone(), None);
+            let verification_config = config(relay_credentials, Some(&upload_credentials));
+
+            let signed_location = location().try_sign(&signing_config).unwrap();
+
+            assert!(
+                signed_location
+                    .verify(Utc::now(), &verification_config)
+                    .is_ok()
+            );
+        }
+
+        #[test]
+        fn verify_new() {
+            let relay_credentials = Credentials::generate();
+            let upload_credentials = KeyPair::generate();
+            let config = config(relay_credentials, Some(&upload_credentials));
+
+            let signed_location = location().try_sign(&config).unwrap();
+
+            assert!(signed_location.verify(Utc::now(), &config).is_ok());
+        }
+
+        #[test]
+        fn verify_inverse() {
+            let relay_credentials = Credentials::generate();
+            let upload_credentials = KeyPair::generate();
+
+            let signing_config = config(relay_credentials.clone(), Some(&upload_credentials));
+            let verification_config = config(relay_credentials, None);
+
+            let signed_location = location().try_sign(&signing_config).unwrap();
+
+            assert!(matches!(
+                signed_location.verify(Utc::now(), &verification_config),
+                Err(Error::InvalidSignature(SignatureError::Unverifiable))
+            ));
+        }
+    }
 
     #[test]
     fn parse_location_incomplete() {
