@@ -246,7 +246,6 @@ impl ServiceState {
                     store_pool.clone(),
                     config.clone(),
                     global_config_handle.clone(),
-                    outcome_aggregator.clone(),
                     metric_outcomes.clone(),
                 )
                 .map(|s| services.start(s))

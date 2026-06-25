@@ -91,7 +91,6 @@ def test_trace_metric_multiple_containers_not_allowed(
     ]
 
 
-@pytest.mark.parametrize("eap_emits_outcomes", [True, False])
 @pytest.mark.parametrize(
     "external_mode,expected_byte_size",
     [
@@ -116,15 +115,11 @@ def test_trace_metric_extraction(
     outcomes_consumer,
     external_mode,
     expected_byte_size,
-    eap_emits_outcomes,
 ):
     relay_fn = relay
 
     items_consumer = items_consumer()
     outcomes_consumer = outcomes_consumer()
-
-    if eap_emits_outcomes:
-        mini_sentry.global_config["options"]["relay.eap-outcomes.rollout-rate"] = 1.0
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -224,46 +219,20 @@ def test_trace_metric_extraction(
         "serverSampleRate": 1.0,
         "timestamp": time_within_delta(start, expect_resolution="ns"),
         "traceId": "5b8efff798038103d269b633813fc60c",
-        **_if_dict(
-            eap_emits_outcomes,
-            {
-                "outcomes": {
-                    "categoryCount": [
-                        {
-                            "dataCategory": DataCategory.TRACE_METRIC.value,
-                            "quantity": "1",
-                        },
-                        {
-                            "dataCategory": DataCategory.TRACE_METRIC_BYTE.value,
-                            "quantity": f"{expected_byte_size}",
-                        },
-                    ],
-                    "keyId": "123",
-                }
-            },
-        ),
+        "outcomes": {
+            "categoryCount": [
+                {
+                    "dataCategory": DataCategory.TRACE_METRIC.value,
+                    "quantity": "1",
+                },
+                {
+                    "dataCategory": DataCategory.TRACE_METRIC_BYTE.value,
+                    "quantity": f"{expected_byte_size}",
+                },
+            ],
+            "keyId": "123",
+        },
     }
-
-    if not eap_emits_outcomes:
-        outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
-        assert outcomes == [
-            {
-                "category": DataCategory.TRACE_METRIC.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": 1,
-            },
-            {
-                "category": DataCategory.TRACE_METRIC_BYTE.value,
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 0,
-                "project_id": 42,
-                "quantity": expected_byte_size,
-            },
-        ]
 
 
 @pytest.mark.parametrize(
@@ -473,27 +442,20 @@ def test_trace_metric_pii_scrubbing(
         "serverSampleRate": 1.0,
         "timestamp": time_within_delta(start, expect_resolution="ns"),
         "traceId": "5b8efff798038103d269b633813fc60c",
+        "outcomes": {
+            "categoryCount": [
+                {
+                    "dataCategory": DataCategory.TRACE_METRIC.value,
+                    "quantity": "1",
+                },
+                {
+                    "dataCategory": DataCategory.TRACE_METRIC_BYTE.value,
+                    "quantity": "99",
+                },
+            ],
+            "keyId": "123",
+        },
     }
-
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
-    assert outcomes == [
-        {
-            "category": DataCategory.TRACE_METRIC.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 1,
-        },
-        {
-            "category": DataCategory.TRACE_METRIC_BYTE.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 99,
-        },
-    ]
 
 
 def test_trace_metric_string_pii_scrubbing(
@@ -924,6 +886,19 @@ def test_time_sequence_shift(mini_sentry, relay_with_processing, items_consumer)
             ts + timedelta(seconds=seq_shift_in_secs), delta=timedelta(), precision="ms"
         ),
         "traceId": matches_any(),
+        "outcomes": {
+            "categoryCount": [
+                {
+                    "dataCategory": DataCategory.TRACE_METRIC.value,
+                    "quantity": "1",
+                },
+                {
+                    "dataCategory": DataCategory.TRACE_METRIC_BYTE.value,
+                    "quantity": "62",
+                },
+            ],
+            "keyId": "123",
+        },
     }
 
 
