@@ -600,7 +600,7 @@ impl<L: UploadLength> SignedLocation<L> {
         // For the transition phase, check the general purpose signature even when there is a
         // special-purpose upload key, because the URL may have been signed by an old instance.
         // This can be simplified after the rollout.
-        if result.is_err()
+        if matches!(&result, Err(SignatureError::Unverifiable))
             && let Some(public_key) = config.credentials().map(|c| &c.public_key)
         {
             result = self
