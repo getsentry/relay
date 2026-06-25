@@ -1681,13 +1681,14 @@ pub struct UploadCredentials {
 impl fmt::Debug for UploadCredentials {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self {
-            signing_key: _,
+            #[cfg(feature = "processing")]
+                signing_key: _,
             verification_key,
         } = self;
-        f.debug_struct("UploadCredentials")
-            .field("signing_key", &"[redacted]")
-            .field("verification_key", verification_key)
-            .finish()
+        let mut b = f.debug_struct("UploadCredentials");
+        #[cfg(feature = "processing")]
+        b.field("signing_key", &"[redacted]");
+        b.field("verification_key", verification_key).finish()
     }
 }
 
