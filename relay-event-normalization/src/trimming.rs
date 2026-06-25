@@ -440,8 +440,8 @@ mod tests {
     use crate::MaxChars;
     use chrono::DateTime;
     use relay_event_schema::protocol::{
-        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, PairList, SentryTags, Span,
-        SpanId, TagEntry, Tags, Timestamp, TraceId, Values,
+        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, FlagsContext, PairList,
+        SentryTags, Span, SpanId, TagEntry, Tags, Timestamp, TraceId, Values,
     };
     use relay_protocol::{FromValue, IntoValue, Map, Remark, SerializableAnnotated, get_value};
     use similar_asserts::assert_eq;
@@ -1333,5 +1333,49 @@ mod tests {
           },
         }
         "###);
+    }
+
+    #[test]
+    fn test_flags_context_trimming() {
+        let original_flags_count = 1_000;
+        let values: Vec<_> = (0..original_flags_count)
+            .map(|i| {
+                serde_json::json!({
+                    "flag": format!("feature.flag.{i}"),
+                    "result": "x".repeat(500),
+                })
+            })
+            .collect();
+        let json = serde_json::json!({
+            "contexts": {
+                "flags": {
+                    "values": values,
+                },
+                "my_custom_context": {
+                    "foo": "x".repeat(10_000)
+                }
+            },
+        })
+        .to_string();
+        let mut event = Annotated::<Event>::from_json(&json).unwrap();
+
+        let mut processor = TrimmingProcessor::new();
+        processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        let contexts = get_value!(event.contexts!);
+
+        // Make sure flags contexts has its own limit applied.
+        let values = &contexts.get::<FlagsContext>().unwrap().values;
+
+        assert_eq!(values.value().unwrap().len(), 292);
+        assert_eq!(values.meta().original_length(), Some(original_flags_count));
+
+        // Make sure the custom context is trimmed to 8192.
+        let custom = match contexts.get_key("my_custom_context").unwrap() {
+            Context::Other(custom) => custom,
+            _ => unreachable!(),
+        };
+        assert_eq!(custom["foo"].value().unwrap().as_str().unwrap().len(), 8192);
+        assert_eq!(custom["foo"].meta().original_length(), Some(10_000));
     }
 }
