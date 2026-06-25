@@ -456,7 +456,7 @@ pub fn normalize_trace_status(
     is_segment: &Annotated<bool>,
     status: &Annotated<SpanV2Status>,
 ) {
-    if !is_segment.value().is_some_and(|is_segment| *is_segment) {
+    if is_segment.value().is_none_or(|is_segment| !*is_segment) {
         return;
     }
 
