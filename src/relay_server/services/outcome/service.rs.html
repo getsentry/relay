@@ -41,7 +41,7 @@
 <a href=#41 id=41 data-nosnippet>41</a>    <span class="doccomment">/// The event's data category.
 <a href=#42 id=42 data-nosnippet>42</a>    </span><span class="kw">pub </span>category: DataCategory,
 <a href=#43 id=43 data-nosnippet>43</a>    <span class="doccomment">/// The number of events or total attachment size in bytes.
-<a href=#44 id=44 data-nosnippet>44</a>    </span><span class="kw">pub </span>quantity: u32,
+<a href=#44 id=44 data-nosnippet>44</a>    </span><span class="kw">pub </span>quantity: u64,
 <a href=#45 id=45 data-nosnippet>45</a>}
 <a href=#46 id=46 data-nosnippet>46</a>
 <a href=#47 id=47 data-nosnippet>47</a><span class="kw">impl </span>Interface <span class="kw">for </span>TrackOutcome {}
@@ -264,7 +264,7 @@
 <a href=#264 id=264 data-nosnippet>264</a>    };
 <a href=#265 id=265 data-nosnippet>265</a>
 <a href=#266 id=266 data-nosnippet>266</a>    <span class="macro">metric!</span>(
-<a href=#267 id=267 data-nosnippet>267</a>        counter(RelayCounters::OutcomeQuantity) += message.quantity.into(),
+<a href=#267 id=267 data-nosnippet>267</a>        counter(RelayCounters::OutcomeQuantity) += message.quantity,
 <a href=#268 id=268 data-nosnippet>268</a>        category = message.category.name(),
 <a href=#269 id=269 data-nosnippet>269</a>        outcome = outcome_name,
 <a href=#270 id=270 data-nosnippet>270</a>    );

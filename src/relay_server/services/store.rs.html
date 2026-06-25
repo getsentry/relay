@@ -748,7 +748,7 @@
 <a href=#748 id=748 data-nosnippet>748</a>                    category,
 <a href=#749 id=749 data-nosnippet>749</a>                    event_id: <span class="prelude-val">None</span>,
 <a href=#750 id=750 data-nosnippet>750</a>                    outcome: Outcome::Accepted,
-<a href=#751 id=751 data-nosnippet>751</a>                    quantity: u32::try_from(quantity).unwrap_or(u32::MAX),
+<a href=#751 id=751 data-nosnippet>751</a>                    quantity: quantity <span class="kw">as </span>u64,
 <a href=#752 id=752 data-nosnippet>752</a>                    remote_addr: <span class="prelude-val">None</span>,
 <a href=#753 id=753 data-nosnippet>753</a>                    scoping,
 <a href=#754 id=754 data-nosnippet>754</a>                    timestamp: received_at,
@@ -1224,7 +1224,7 @@
 <a href=#1224 id=1224 data-nosnippet>1224</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
 <a href=#1225 id=1225 data-nosnippet>1225</a>        };
 <a href=#1226 id=1226 data-nosnippet>1226</a>        <span class="kw">let </span>quantity = <span class="kw">match </span>message.value {
-<a href=#1227 id=1227 data-nosnippet>1227</a>            MetricValue::Counter(c) =&gt; c.to_f64() <span class="kw">as </span>u32,
+<a href=#1227 id=1227 data-nosnippet>1227</a>            MetricValue::Counter(c) =&gt; c.to_f64() <span class="kw">as _</span>,
 <a href=#1228 id=1228 data-nosnippet>1228</a>            v =&gt; {
 <a href=#1229 id=1229 data-nosnippet>1229</a>                <span class="macro">relay_log::error!</span>(
 <a href=#1230 id=1230 data-nosnippet>1230</a>                    mri = message.name.as_ref(),
@@ -1601,7 +1601,7 @@
 <a href=#1601 id=1601 data-nosnippet>1601</a>    </span>category: <span class="prelude-ty">Option</span>&lt;u8&gt;,
 <a href=#1602 id=1602 data-nosnippet>1602</a>    <span class="doccomment">/// The number of events or total attachment size in bytes.
 <a href=#1603 id=1603 data-nosnippet>1603</a>    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-<a href=#1604 id=1604 data-nosnippet>1604</a>    </span>quantity: <span class="prelude-ty">Option</span>&lt;u32&gt;,
+<a href=#1604 id=1604 data-nosnippet>1604</a>    </span>quantity: <span class="prelude-ty">Option</span>&lt;u64&gt;,
 <a href=#1605 id=1605 data-nosnippet>1605</a>}
 <a href=#1606 id=1606 data-nosnippet>1606</a>
 <a href=#1607 id=1607 data-nosnippet>1607</a><span class="attr">#[derive(Clone, Debug, Serialize)]

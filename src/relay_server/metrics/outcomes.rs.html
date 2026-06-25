@@ -38,9 +38,9 @@
 <a href=#38 id=38 data-nosnippet>38</a>            } = extract_quantities(buckets);
 <a href=#39 id=39 data-nosnippet>39</a>
 <a href=#40 id=40 data-nosnippet>40</a>            <span class="kw">let </span>categories = [
-<a href=#41 id=41 data-nosnippet>41</a>                (DataCategory::Transaction, transactions <span class="kw">as </span>u32),
-<a href=#42 id=42 data-nosnippet>42</a>                (DataCategory::Span, spans <span class="kw">as </span>u32),
-<a href=#43 id=43 data-nosnippet>43</a>                (DataCategory::MetricBucket, buckets <span class="kw">as </span>u32),
+<a href=#41 id=41 data-nosnippet>41</a>                (DataCategory::Transaction, transactions <span class="kw">as _</span>),
+<a href=#42 id=42 data-nosnippet>42</a>                (DataCategory::Span, spans <span class="kw">as _</span>),
+<a href=#43 id=43 data-nosnippet>43</a>                (DataCategory::MetricBucket, buckets <span class="kw">as _</span>),
 <a href=#44 id=44 data-nosnippet>44</a>            ];
 <a href=#45 id=45 data-nosnippet>45</a>
 <a href=#46 id=46 data-nosnippet>46</a>            <span class="kw">for </span>(category, quantity) <span class="kw">in </span>categories {
@@ -95,7 +95,7 @@
 <a href=#95 id=95 data-nosnippet>95</a>                            event_id: <span class="prelude-val">None</span>,
 <a href=#96 id=96 data-nosnippet>96</a>                            remote_addr: <span class="prelude-val">None</span>,
 <a href=#97 id=97 data-nosnippet>97</a>                            category: <span class="kw-2">*</span>category,
-<a href=#98 id=98 data-nosnippet>98</a>                            quantity: count <span class="kw">as </span>u32,
+<a href=#98 id=98 data-nosnippet>98</a>                            quantity: count <span class="kw">as _</span>,
 <a href=#99 id=99 data-nosnippet>99</a>                        });
 <a href=#100 id=100 data-nosnippet>100</a>                    }
 <a href=#101 id=101 data-nosnippet>101</a>                }

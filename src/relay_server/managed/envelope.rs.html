@@ -205,178 +205,176 @@
 <a href=#205 id=205 data-nosnippet>205</a>            event_id: <span class="self">self</span>.envelope.event_id(),
 <a href=#206 id=206 data-nosnippet>206</a>            remote_addr: <span class="self">self</span>.meta().remote_addr(),
 <a href=#207 id=207 data-nosnippet>207</a>            category,
-<a href=#208 id=208 data-nosnippet>208</a>            <span class="comment">// Quantities are usually `usize` which lets us go all the way to 64-bit on our
-<a href=#209 id=209 data-nosnippet>209</a>            // machines, but the protocol and data store can only do 32-bit.
-<a href=#210 id=210 data-nosnippet>210</a>            </span>quantity: quantity <span class="kw">as </span>u32,
-<a href=#211 id=211 data-nosnippet>211</a>        });
-<a href=#212 id=212 data-nosnippet>212</a>    }
-<a href=#213 id=213 data-nosnippet>213</a>
-<a href=#214 id=214 data-nosnippet>214</a>    <span class="doccomment">/// Accepts the envelope and drops the context.
-<a href=#215 id=215 data-nosnippet>215</a>    ///
-<a href=#216 id=216 data-nosnippet>216</a>    /// This should be called if the envelope has been accepted by the upstream, which means that
-<a href=#217 id=217 data-nosnippet>217</a>    /// the responsibility for logging outcomes has been moved. This function will not log any
-<a href=#218 id=218 data-nosnippet>218</a>    /// outcomes.
-<a href=#219 id=219 data-nosnippet>219</a>    </span><span class="kw">pub fn </span>accept(<span class="kw-2">mut </span><span class="self">self</span>) {
-<a href=#220 id=220 data-nosnippet>220</a>        <span class="kw">if </span>!<span class="self">self</span>.context.done {
-<a href=#221 id=221 data-nosnippet>221</a>            <span class="self">self</span>.finish(RelayCounters::EnvelopeAccepted, Handling::Success);
-<a href=#222 id=222 data-nosnippet>222</a>        }
-<a href=#223 id=223 data-nosnippet>223</a>    }
-<a href=#224 id=224 data-nosnippet>224</a>
-<a href=#225 id=225 data-nosnippet>225</a>    <span class="doccomment">/// Returns the data category of the event item in the envelope.
-<a href=#226 id=226 data-nosnippet>226</a>    </span><span class="kw">fn </span>event_category(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;DataCategory&gt; {
-<a href=#227 id=227 data-nosnippet>227</a>        <span class="self">self</span>.context.summary.event_category
-<a href=#228 id=228 data-nosnippet>228</a>    }
-<a href=#229 id=229 data-nosnippet>229</a>
-<a href=#230 id=230 data-nosnippet>230</a>    <span class="doccomment">/// Records rejection outcomes for all items stored in this context.
-<a href=#231 id=231 data-nosnippet>231</a>    ///
-<a href=#232 id=232 data-nosnippet>232</a>    /// This does not send outcomes for empty envelopes or request-only contexts.
-<a href=#233 id=233 data-nosnippet>233</a>    </span><span class="kw">pub fn </span>reject(<span class="kw-2">&amp;mut </span><span class="self">self</span>, outcome: Outcome) {
-<a href=#234 id=234 data-nosnippet>234</a>        <span class="kw">if </span><span class="self">self</span>.context.done {
-<a href=#235 id=235 data-nosnippet>235</a>            <span class="kw">return</span>;
-<a href=#236 id=236 data-nosnippet>236</a>        }
-<a href=#237 id=237 data-nosnippet>237</a>
-<a href=#238 id=238 data-nosnippet>238</a>        <span class="comment">// Errors are only logged for what we consider failed request handling. In other cases, we
-<a href=#239 id=239 data-nosnippet>239</a>        // "expect" errors and log them as debug level.
-<a href=#240 id=240 data-nosnippet>240</a>        </span><span class="kw">let </span>handling = Handling::from_outcome(<span class="kw-2">&amp;</span>outcome);
-<a href=#241 id=241 data-nosnippet>241</a>        <span class="kw">match </span>handling {
-<a href=#242 id=242 data-nosnippet>242</a>            Handling::Success =&gt; <span class="macro">relay_log::debug!</span>(<span class="string">"dropped envelope: {outcome}"</span>),
-<a href=#243 id=243 data-nosnippet>243</a>            Handling::Failure =&gt; {
-<a href=#244 id=244 data-nosnippet>244</a>                <span class="kw">let </span>summary = <span class="kw-2">&amp;</span><span class="self">self</span>.context.summary;
-<a href=#245 id=245 data-nosnippet>245</a>
-<a href=#246 id=246 data-nosnippet>246</a>                <span class="macro">relay_log::error!</span>(
-<a href=#247 id=247 data-nosnippet>247</a>                    tags.project_key = <span class="self">self</span>.scoping().project_key.to_string(),
-<a href=#248 id=248 data-nosnippet>248</a>                    tags.has_attachments = summary.attachment_quantities.bytes() &gt; <span class="number">0</span>,
-<a href=#249 id=249 data-nosnippet>249</a>                    tags.has_sessions = summary.session_quantity &gt; <span class="number">0</span>,
-<a href=#250 id=250 data-nosnippet>250</a>                    tags.has_profiles = summary.profile_quantity.total &gt; <span class="number">0</span>,
-<a href=#251 id=251 data-nosnippet>251</a>                    tags.has_transactions = summary.secondary_transaction_quantity &gt; <span class="number">0</span>,
-<a href=#252 id=252 data-nosnippet>252</a>                    tags.has_span_metrics = summary.secondary_span_quantity &gt; <span class="number">0</span>,
-<a href=#253 id=253 data-nosnippet>253</a>                    tags.has_replays = summary.replay_quantity &gt; <span class="number">0</span>,
-<a href=#254 id=254 data-nosnippet>254</a>                    tags.has_user_reports = summary.user_report_quantity &gt; <span class="number">0</span>,
-<a href=#255 id=255 data-nosnippet>255</a>                    tags.has_trace_metrics = summary.trace_metric_quantity &gt; <span class="number">0</span>,
-<a href=#256 id=256 data-nosnippet>256</a>                    tags.has_checkins = summary.monitor_quantity &gt; <span class="number">0</span>,
-<a href=#257 id=257 data-nosnippet>257</a>                    tags.event_category = <span class="question-mark">?</span>summary.event_category,
-<a href=#258 id=258 data-nosnippet>258</a>                    cached_summary = <span class="question-mark">?</span>summary,
-<a href=#259 id=259 data-nosnippet>259</a>                    recomputed_summary = <span class="question-mark">?</span>EnvelopeSummary::compute(<span class="self">self</span>.envelope()),
-<a href=#260 id=260 data-nosnippet>260</a>                    <span class="string">"dropped envelope: {outcome}"
-<a href=#261 id=261 data-nosnippet>261</a>                </span>);
-<a href=#262 id=262 data-nosnippet>262</a>            }
-<a href=#263 id=263 data-nosnippet>263</a>        }
-<a href=#264 id=264 data-nosnippet>264</a>
-<a href=#265 id=265 data-nosnippet>265</a>        <span class="kw">for </span>(category, quantity) <span class="kw">in </span><span class="self">self</span>.context.summary.quantities() {
-<a href=#266 id=266 data-nosnippet>266</a>            <span class="self">self</span>.track_outcome(outcome.clone(), category, quantity);
-<a href=#267 id=267 data-nosnippet>267</a>        }
-<a href=#268 id=268 data-nosnippet>268</a>
-<a href=#269 id=269 data-nosnippet>269</a>        <span class="self">self</span>.finish(RelayCounters::EnvelopeRejected, handling);
-<a href=#270 id=270 data-nosnippet>270</a>    }
-<a href=#271 id=271 data-nosnippet>271</a>
-<a href=#272 id=272 data-nosnippet>272</a>    <span class="doccomment">/// Returns scoping stored in this context.
-<a href=#273 id=273 data-nosnippet>273</a>    </span><span class="kw">pub fn </span>scoping(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Scoping {
-<a href=#274 id=274 data-nosnippet>274</a>        <span class="self">self</span>.context.scoping
-<a href=#275 id=275 data-nosnippet>275</a>    }
-<a href=#276 id=276 data-nosnippet>276</a>
-<a href=#277 id=277 data-nosnippet>277</a>    <span class="doccomment">/// Returns the partition key, which is set on upstream requests in the `X-Sentry-Relay-Shard` header.
-<a href=#278 id=278 data-nosnippet>278</a>    </span><span class="kw">pub fn </span>partition_key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;u32&gt; {
-<a href=#279 id=279 data-nosnippet>279</a>        <span class="self">self</span>.context.partition_key
-<a href=#280 id=280 data-nosnippet>280</a>    }
-<a href=#281 id=281 data-nosnippet>281</a>
-<a href=#282 id=282 data-nosnippet>282</a>    <span class="doccomment">/// Sets a new [`Self::partition_key`].
-<a href=#283 id=283 data-nosnippet>283</a>    </span><span class="kw">pub fn </span>set_partition_key(<span class="kw-2">&amp;mut </span><span class="self">self</span>, partition_key: <span class="prelude-ty">Option</span>&lt;u32&gt;) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
-<a href=#284 id=284 data-nosnippet>284</a>        <span class="self">self</span>.context.partition_key = partition_key;
-<a href=#285 id=285 data-nosnippet>285</a>        <span class="self">self
-<a href=#286 id=286 data-nosnippet>286</a>    </span>}
-<a href=#287 id=287 data-nosnippet>287</a>
-<a href=#288 id=288 data-nosnippet>288</a>    <span class="doccomment">/// Returns the contained original request meta.
-<a href=#289 id=289 data-nosnippet>289</a>    </span><span class="kw">pub fn </span>meta(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>RequestMeta {
-<a href=#290 id=290 data-nosnippet>290</a>        <span class="self">self</span>.envelope().meta()
-<a href=#291 id=291 data-nosnippet>291</a>    }
-<a href=#292 id=292 data-nosnippet>292</a>
-<a href=#293 id=293 data-nosnippet>293</a>    <span class="doccomment">/// Returns estimated size of this envelope.
-<a href=#294 id=294 data-nosnippet>294</a>    ///
-<a href=#295 id=295 data-nosnippet>295</a>    /// This is just an estimated size, which in reality can be somewhat bigger, depending on the
-<a href=#296 id=296 data-nosnippet>296</a>    /// list of additional attributes allocated on all of the inner types.
-<a href=#297 id=297 data-nosnippet>297</a>    ///
-<a href=#298 id=298 data-nosnippet>298</a>    /// NOTE: Current implementation counts in only the size of the items payload and stack
-<a href=#299 id=299 data-nosnippet>299</a>    /// allocated parts of [`Envelope`] and [`ManagedEnvelope`]. All the heap allocated fields
-<a href=#300 id=300 data-nosnippet>300</a>    /// within early mentioned types are skipped.
-<a href=#301 id=301 data-nosnippet>301</a>    </span><span class="kw">pub fn </span>estimated_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-<a href=#302 id=302 data-nosnippet>302</a>        <span class="comment">// Always round it up to next 1KB.
-<a href=#303 id=303 data-nosnippet>303</a>        </span>(f64::ceil(
-<a href=#304 id=304 data-nosnippet>304</a>            (<span class="self">self</span>.context.summary.payload_size + size_of::&lt;<span class="self">Self</span>&gt;() + size_of::&lt;Envelope&gt;()) <span class="kw">as </span>f64
-<a href=#305 id=305 data-nosnippet>305</a>                / <span class="number">1000.</span>,
-<a href=#306 id=306 data-nosnippet>306</a>        ) * <span class="number">1000.</span>) <span class="kw">as </span>usize
-<a href=#307 id=307 data-nosnippet>307</a>    }
-<a href=#308 id=308 data-nosnippet>308</a>
-<a href=#309 id=309 data-nosnippet>309</a>    <span class="doccomment">/// Returns the time at which the envelope was received at this Relay.
-<a href=#310 id=310 data-nosnippet>310</a>    ///
-<a href=#311 id=311 data-nosnippet>311</a>    /// This is the date time equivalent to [`start_time`](Self::received_at).
-<a href=#312 id=312 data-nosnippet>312</a>    </span><span class="kw">pub fn </span>received_at(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; DateTime&lt;Utc&gt; {
-<a href=#313 id=313 data-nosnippet>313</a>        <span class="self">self</span>.envelope.received_at()
-<a href=#314 id=314 data-nosnippet>314</a>    }
-<a href=#315 id=315 data-nosnippet>315</a>
-<a href=#316 id=316 data-nosnippet>316</a>    <span class="doccomment">/// Returns the time elapsed in seconds since the envelope was received by this Relay.
-<a href=#317 id=317 data-nosnippet>317</a>    ///
-<a href=#318 id=318 data-nosnippet>318</a>    /// In case the elapsed time is negative, it is assumed that no time elapsed.
-<a href=#319 id=319 data-nosnippet>319</a>    </span><span class="kw">pub fn </span>age(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
-<a href=#320 id=320 data-nosnippet>320</a>        <span class="self">self</span>.envelope.age()
-<a href=#321 id=321 data-nosnippet>321</a>    }
-<a href=#322 id=322 data-nosnippet>322</a>
-<a href=#323 id=323 data-nosnippet>323</a>    <span class="doccomment">/// Escape hatch for the [`super::Managed`] type, to make it possible to construct
-<a href=#324 id=324 data-nosnippet>324</a>    /// from a managed envelope.
-<a href=#325 id=325 data-nosnippet>325</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>outcome_aggregator(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Addr&lt;TrackOutcome&gt; {
-<a href=#326 id=326 data-nosnippet>326</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.outcome_aggregator
-<a href=#327 id=327 data-nosnippet>327</a>    }
-<a href=#328 id=328 data-nosnippet>328</a>
-<a href=#329 id=329 data-nosnippet>329</a>    <span class="doccomment">/// Resets inner state to ensure there's no more logging.
-<a href=#330 id=330 data-nosnippet>330</a>    </span><span class="kw">fn </span>finish(<span class="kw-2">&amp;mut </span><span class="self">self</span>, counter: RelayCounters, handling: Handling) {
-<a href=#331 id=331 data-nosnippet>331</a>        <span class="macro">relay_statsd::metric!</span>(counter(counter) += <span class="number">1</span>, handling = handling.as_str());
-<a href=#332 id=332 data-nosnippet>332</a>        <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::EnvelopeTotalTime) = <span class="self">self</span>.age());
-<a href=#333 id=333 data-nosnippet>333</a>
-<a href=#334 id=334 data-nosnippet>334</a>        <span class="self">self</span>.context.done = <span class="bool-val">true</span>;
-<a href=#335 id=335 data-nosnippet>335</a>    }
-<a href=#336 id=336 data-nosnippet>336</a>}
-<a href=#337 id=337 data-nosnippet>337</a>
-<a href=#338 id=338 data-nosnippet>338</a><span class="kw">impl </span>Drop <span class="kw">for </span>ManagedEnvelope {
-<a href=#339 id=339 data-nosnippet>339</a>    <span class="kw">fn </span>drop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-<a href=#340 id=340 data-nosnippet>340</a>        <span class="self">self</span>.reject(Outcome::Invalid(DiscardReason::Internal));
-<a href=#341 id=341 data-nosnippet>341</a>    }
-<a href=#342 id=342 data-nosnippet>342</a>}
-<a href=#343 id=343 data-nosnippet>343</a>
-<a href=#344 id=344 data-nosnippet>344</a><span class="attr">#[cfg(test)]
-<a href=#345 id=345 data-nosnippet>345</a></span><span class="kw">mod </span>tests {
-<a href=#346 id=346 data-nosnippet>346</a>    <span class="kw">use </span>super::<span class="kw-2">*</span>;
-<a href=#347 id=347 data-nosnippet>347</a>    <span class="kw">use </span>bytes::Bytes;
-<a href=#348 id=348 data-nosnippet>348</a>
-<a href=#349 id=349 data-nosnippet>349</a>    <span class="attr">#[test]
-<a href=#350 id=350 data-nosnippet>350</a>    </span><span class="kw">fn </span>span_metrics_are_reported() {
-<a href=#351 id=351 data-nosnippet>351</a>        <span class="kw">let </span>bytes =
-<a href=#352 id=352 data-nosnippet>352</a>            Bytes::from(<span class="string">r#"{"dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"}"#</span>);
-<a href=#353 id=353 data-nosnippet>353</a>        <span class="kw">let </span>envelope = Envelope::parse_bytes(bytes).unwrap();
-<a href=#354 id=354 data-nosnippet>354</a>
-<a href=#355 id=355 data-nosnippet>355</a>        <span class="kw">let </span>(outcome_aggregator, <span class="kw-2">mut </span>rx) = Addr::custom();
-<a href=#356 id=356 data-nosnippet>356</a>        <span class="kw">let </span><span class="kw-2">mut </span>env = ManagedEnvelope::new(envelope, outcome_aggregator);
-<a href=#357 id=357 data-nosnippet>357</a>        env.context.summary.span_quantity = <span class="number">123</span>;
-<a href=#358 id=358 data-nosnippet>358</a>        env.context.summary.secondary_span_quantity = <span class="number">456</span>;
+<a href=#208 id=208 data-nosnippet>208</a>            quantity: quantity <span class="kw">as </span>u64,
+<a href=#209 id=209 data-nosnippet>209</a>        });
+<a href=#210 id=210 data-nosnippet>210</a>    }
+<a href=#211 id=211 data-nosnippet>211</a>
+<a href=#212 id=212 data-nosnippet>212</a>    <span class="doccomment">/// Accepts the envelope and drops the context.
+<a href=#213 id=213 data-nosnippet>213</a>    ///
+<a href=#214 id=214 data-nosnippet>214</a>    /// This should be called if the envelope has been accepted by the upstream, which means that
+<a href=#215 id=215 data-nosnippet>215</a>    /// the responsibility for logging outcomes has been moved. This function will not log any
+<a href=#216 id=216 data-nosnippet>216</a>    /// outcomes.
+<a href=#217 id=217 data-nosnippet>217</a>    </span><span class="kw">pub fn </span>accept(<span class="kw-2">mut </span><span class="self">self</span>) {
+<a href=#218 id=218 data-nosnippet>218</a>        <span class="kw">if </span>!<span class="self">self</span>.context.done {
+<a href=#219 id=219 data-nosnippet>219</a>            <span class="self">self</span>.finish(RelayCounters::EnvelopeAccepted, Handling::Success);
+<a href=#220 id=220 data-nosnippet>220</a>        }
+<a href=#221 id=221 data-nosnippet>221</a>    }
+<a href=#222 id=222 data-nosnippet>222</a>
+<a href=#223 id=223 data-nosnippet>223</a>    <span class="doccomment">/// Returns the data category of the event item in the envelope.
+<a href=#224 id=224 data-nosnippet>224</a>    </span><span class="kw">fn </span>event_category(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;DataCategory&gt; {
+<a href=#225 id=225 data-nosnippet>225</a>        <span class="self">self</span>.context.summary.event_category
+<a href=#226 id=226 data-nosnippet>226</a>    }
+<a href=#227 id=227 data-nosnippet>227</a>
+<a href=#228 id=228 data-nosnippet>228</a>    <span class="doccomment">/// Records rejection outcomes for all items stored in this context.
+<a href=#229 id=229 data-nosnippet>229</a>    ///
+<a href=#230 id=230 data-nosnippet>230</a>    /// This does not send outcomes for empty envelopes or request-only contexts.
+<a href=#231 id=231 data-nosnippet>231</a>    </span><span class="kw">pub fn </span>reject(<span class="kw-2">&amp;mut </span><span class="self">self</span>, outcome: Outcome) {
+<a href=#232 id=232 data-nosnippet>232</a>        <span class="kw">if </span><span class="self">self</span>.context.done {
+<a href=#233 id=233 data-nosnippet>233</a>            <span class="kw">return</span>;
+<a href=#234 id=234 data-nosnippet>234</a>        }
+<a href=#235 id=235 data-nosnippet>235</a>
+<a href=#236 id=236 data-nosnippet>236</a>        <span class="comment">// Errors are only logged for what we consider failed request handling. In other cases, we
+<a href=#237 id=237 data-nosnippet>237</a>        // "expect" errors and log them as debug level.
+<a href=#238 id=238 data-nosnippet>238</a>        </span><span class="kw">let </span>handling = Handling::from_outcome(<span class="kw-2">&amp;</span>outcome);
+<a href=#239 id=239 data-nosnippet>239</a>        <span class="kw">match </span>handling {
+<a href=#240 id=240 data-nosnippet>240</a>            Handling::Success =&gt; <span class="macro">relay_log::debug!</span>(<span class="string">"dropped envelope: {outcome}"</span>),
+<a href=#241 id=241 data-nosnippet>241</a>            Handling::Failure =&gt; {
+<a href=#242 id=242 data-nosnippet>242</a>                <span class="kw">let </span>summary = <span class="kw-2">&amp;</span><span class="self">self</span>.context.summary;
+<a href=#243 id=243 data-nosnippet>243</a>
+<a href=#244 id=244 data-nosnippet>244</a>                <span class="macro">relay_log::error!</span>(
+<a href=#245 id=245 data-nosnippet>245</a>                    tags.project_key = <span class="self">self</span>.scoping().project_key.to_string(),
+<a href=#246 id=246 data-nosnippet>246</a>                    tags.has_attachments = summary.attachment_quantities.bytes() &gt; <span class="number">0</span>,
+<a href=#247 id=247 data-nosnippet>247</a>                    tags.has_sessions = summary.session_quantity &gt; <span class="number">0</span>,
+<a href=#248 id=248 data-nosnippet>248</a>                    tags.has_profiles = summary.profile_quantity.total &gt; <span class="number">0</span>,
+<a href=#249 id=249 data-nosnippet>249</a>                    tags.has_transactions = summary.secondary_transaction_quantity &gt; <span class="number">0</span>,
+<a href=#250 id=250 data-nosnippet>250</a>                    tags.has_span_metrics = summary.secondary_span_quantity &gt; <span class="number">0</span>,
+<a href=#251 id=251 data-nosnippet>251</a>                    tags.has_replays = summary.replay_quantity &gt; <span class="number">0</span>,
+<a href=#252 id=252 data-nosnippet>252</a>                    tags.has_user_reports = summary.user_report_quantity &gt; <span class="number">0</span>,
+<a href=#253 id=253 data-nosnippet>253</a>                    tags.has_trace_metrics = summary.trace_metric_quantity &gt; <span class="number">0</span>,
+<a href=#254 id=254 data-nosnippet>254</a>                    tags.has_checkins = summary.monitor_quantity &gt; <span class="number">0</span>,
+<a href=#255 id=255 data-nosnippet>255</a>                    tags.event_category = <span class="question-mark">?</span>summary.event_category,
+<a href=#256 id=256 data-nosnippet>256</a>                    cached_summary = <span class="question-mark">?</span>summary,
+<a href=#257 id=257 data-nosnippet>257</a>                    recomputed_summary = <span class="question-mark">?</span>EnvelopeSummary::compute(<span class="self">self</span>.envelope()),
+<a href=#258 id=258 data-nosnippet>258</a>                    <span class="string">"dropped envelope: {outcome}"
+<a href=#259 id=259 data-nosnippet>259</a>                </span>);
+<a href=#260 id=260 data-nosnippet>260</a>            }
+<a href=#261 id=261 data-nosnippet>261</a>        }
+<a href=#262 id=262 data-nosnippet>262</a>
+<a href=#263 id=263 data-nosnippet>263</a>        <span class="kw">for </span>(category, quantity) <span class="kw">in </span><span class="self">self</span>.context.summary.quantities() {
+<a href=#264 id=264 data-nosnippet>264</a>            <span class="self">self</span>.track_outcome(outcome.clone(), category, quantity);
+<a href=#265 id=265 data-nosnippet>265</a>        }
+<a href=#266 id=266 data-nosnippet>266</a>
+<a href=#267 id=267 data-nosnippet>267</a>        <span class="self">self</span>.finish(RelayCounters::EnvelopeRejected, handling);
+<a href=#268 id=268 data-nosnippet>268</a>    }
+<a href=#269 id=269 data-nosnippet>269</a>
+<a href=#270 id=270 data-nosnippet>270</a>    <span class="doccomment">/// Returns scoping stored in this context.
+<a href=#271 id=271 data-nosnippet>271</a>    </span><span class="kw">pub fn </span>scoping(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Scoping {
+<a href=#272 id=272 data-nosnippet>272</a>        <span class="self">self</span>.context.scoping
+<a href=#273 id=273 data-nosnippet>273</a>    }
+<a href=#274 id=274 data-nosnippet>274</a>
+<a href=#275 id=275 data-nosnippet>275</a>    <span class="doccomment">/// Returns the partition key, which is set on upstream requests in the `X-Sentry-Relay-Shard` header.
+<a href=#276 id=276 data-nosnippet>276</a>    </span><span class="kw">pub fn </span>partition_key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;u32&gt; {
+<a href=#277 id=277 data-nosnippet>277</a>        <span class="self">self</span>.context.partition_key
+<a href=#278 id=278 data-nosnippet>278</a>    }
+<a href=#279 id=279 data-nosnippet>279</a>
+<a href=#280 id=280 data-nosnippet>280</a>    <span class="doccomment">/// Sets a new [`Self::partition_key`].
+<a href=#281 id=281 data-nosnippet>281</a>    </span><span class="kw">pub fn </span>set_partition_key(<span class="kw-2">&amp;mut </span><span class="self">self</span>, partition_key: <span class="prelude-ty">Option</span>&lt;u32&gt;) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
+<a href=#282 id=282 data-nosnippet>282</a>        <span class="self">self</span>.context.partition_key = partition_key;
+<a href=#283 id=283 data-nosnippet>283</a>        <span class="self">self
+<a href=#284 id=284 data-nosnippet>284</a>    </span>}
+<a href=#285 id=285 data-nosnippet>285</a>
+<a href=#286 id=286 data-nosnippet>286</a>    <span class="doccomment">/// Returns the contained original request meta.
+<a href=#287 id=287 data-nosnippet>287</a>    </span><span class="kw">pub fn </span>meta(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>RequestMeta {
+<a href=#288 id=288 data-nosnippet>288</a>        <span class="self">self</span>.envelope().meta()
+<a href=#289 id=289 data-nosnippet>289</a>    }
+<a href=#290 id=290 data-nosnippet>290</a>
+<a href=#291 id=291 data-nosnippet>291</a>    <span class="doccomment">/// Returns estimated size of this envelope.
+<a href=#292 id=292 data-nosnippet>292</a>    ///
+<a href=#293 id=293 data-nosnippet>293</a>    /// This is just an estimated size, which in reality can be somewhat bigger, depending on the
+<a href=#294 id=294 data-nosnippet>294</a>    /// list of additional attributes allocated on all of the inner types.
+<a href=#295 id=295 data-nosnippet>295</a>    ///
+<a href=#296 id=296 data-nosnippet>296</a>    /// NOTE: Current implementation counts in only the size of the items payload and stack
+<a href=#297 id=297 data-nosnippet>297</a>    /// allocated parts of [`Envelope`] and [`ManagedEnvelope`]. All the heap allocated fields
+<a href=#298 id=298 data-nosnippet>298</a>    /// within early mentioned types are skipped.
+<a href=#299 id=299 data-nosnippet>299</a>    </span><span class="kw">pub fn </span>estimated_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+<a href=#300 id=300 data-nosnippet>300</a>        <span class="comment">// Always round it up to next 1KB.
+<a href=#301 id=301 data-nosnippet>301</a>        </span>(f64::ceil(
+<a href=#302 id=302 data-nosnippet>302</a>            (<span class="self">self</span>.context.summary.payload_size + size_of::&lt;<span class="self">Self</span>&gt;() + size_of::&lt;Envelope&gt;()) <span class="kw">as </span>f64
+<a href=#303 id=303 data-nosnippet>303</a>                / <span class="number">1000.</span>,
+<a href=#304 id=304 data-nosnippet>304</a>        ) * <span class="number">1000.</span>) <span class="kw">as </span>usize
+<a href=#305 id=305 data-nosnippet>305</a>    }
+<a href=#306 id=306 data-nosnippet>306</a>
+<a href=#307 id=307 data-nosnippet>307</a>    <span class="doccomment">/// Returns the time at which the envelope was received at this Relay.
+<a href=#308 id=308 data-nosnippet>308</a>    ///
+<a href=#309 id=309 data-nosnippet>309</a>    /// This is the date time equivalent to [`start_time`](Self::received_at).
+<a href=#310 id=310 data-nosnippet>310</a>    </span><span class="kw">pub fn </span>received_at(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; DateTime&lt;Utc&gt; {
+<a href=#311 id=311 data-nosnippet>311</a>        <span class="self">self</span>.envelope.received_at()
+<a href=#312 id=312 data-nosnippet>312</a>    }
+<a href=#313 id=313 data-nosnippet>313</a>
+<a href=#314 id=314 data-nosnippet>314</a>    <span class="doccomment">/// Returns the time elapsed in seconds since the envelope was received by this Relay.
+<a href=#315 id=315 data-nosnippet>315</a>    ///
+<a href=#316 id=316 data-nosnippet>316</a>    /// In case the elapsed time is negative, it is assumed that no time elapsed.
+<a href=#317 id=317 data-nosnippet>317</a>    </span><span class="kw">pub fn </span>age(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
+<a href=#318 id=318 data-nosnippet>318</a>        <span class="self">self</span>.envelope.age()
+<a href=#319 id=319 data-nosnippet>319</a>    }
+<a href=#320 id=320 data-nosnippet>320</a>
+<a href=#321 id=321 data-nosnippet>321</a>    <span class="doccomment">/// Escape hatch for the [`super::Managed`] type, to make it possible to construct
+<a href=#322 id=322 data-nosnippet>322</a>    /// from a managed envelope.
+<a href=#323 id=323 data-nosnippet>323</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>outcome_aggregator(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Addr&lt;TrackOutcome&gt; {
+<a href=#324 id=324 data-nosnippet>324</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.outcome_aggregator
+<a href=#325 id=325 data-nosnippet>325</a>    }
+<a href=#326 id=326 data-nosnippet>326</a>
+<a href=#327 id=327 data-nosnippet>327</a>    <span class="doccomment">/// Resets inner state to ensure there's no more logging.
+<a href=#328 id=328 data-nosnippet>328</a>    </span><span class="kw">fn </span>finish(<span class="kw-2">&amp;mut </span><span class="self">self</span>, counter: RelayCounters, handling: Handling) {
+<a href=#329 id=329 data-nosnippet>329</a>        <span class="macro">relay_statsd::metric!</span>(counter(counter) += <span class="number">1</span>, handling = handling.as_str());
+<a href=#330 id=330 data-nosnippet>330</a>        <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::EnvelopeTotalTime) = <span class="self">self</span>.age());
+<a href=#331 id=331 data-nosnippet>331</a>
+<a href=#332 id=332 data-nosnippet>332</a>        <span class="self">self</span>.context.done = <span class="bool-val">true</span>;
+<a href=#333 id=333 data-nosnippet>333</a>    }
+<a href=#334 id=334 data-nosnippet>334</a>}
+<a href=#335 id=335 data-nosnippet>335</a>
+<a href=#336 id=336 data-nosnippet>336</a><span class="kw">impl </span>Drop <span class="kw">for </span>ManagedEnvelope {
+<a href=#337 id=337 data-nosnippet>337</a>    <span class="kw">fn </span>drop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+<a href=#338 id=338 data-nosnippet>338</a>        <span class="self">self</span>.reject(Outcome::Invalid(DiscardReason::Internal));
+<a href=#339 id=339 data-nosnippet>339</a>    }
+<a href=#340 id=340 data-nosnippet>340</a>}
+<a href=#341 id=341 data-nosnippet>341</a>
+<a href=#342 id=342 data-nosnippet>342</a><span class="attr">#[cfg(test)]
+<a href=#343 id=343 data-nosnippet>343</a></span><span class="kw">mod </span>tests {
+<a href=#344 id=344 data-nosnippet>344</a>    <span class="kw">use </span>super::<span class="kw-2">*</span>;
+<a href=#345 id=345 data-nosnippet>345</a>    <span class="kw">use </span>bytes::Bytes;
+<a href=#346 id=346 data-nosnippet>346</a>
+<a href=#347 id=347 data-nosnippet>347</a>    <span class="attr">#[test]
+<a href=#348 id=348 data-nosnippet>348</a>    </span><span class="kw">fn </span>span_metrics_are_reported() {
+<a href=#349 id=349 data-nosnippet>349</a>        <span class="kw">let </span>bytes =
+<a href=#350 id=350 data-nosnippet>350</a>            Bytes::from(<span class="string">r#"{"dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"}"#</span>);
+<a href=#351 id=351 data-nosnippet>351</a>        <span class="kw">let </span>envelope = Envelope::parse_bytes(bytes).unwrap();
+<a href=#352 id=352 data-nosnippet>352</a>
+<a href=#353 id=353 data-nosnippet>353</a>        <span class="kw">let </span>(outcome_aggregator, <span class="kw-2">mut </span>rx) = Addr::custom();
+<a href=#354 id=354 data-nosnippet>354</a>        <span class="kw">let </span><span class="kw-2">mut </span>env = ManagedEnvelope::new(envelope, outcome_aggregator);
+<a href=#355 id=355 data-nosnippet>355</a>        env.context.summary.span_quantity = <span class="number">123</span>;
+<a href=#356 id=356 data-nosnippet>356</a>        env.context.summary.secondary_span_quantity = <span class="number">456</span>;
+<a href=#357 id=357 data-nosnippet>357</a>
+<a href=#358 id=358 data-nosnippet>358</a>        env.reject(Outcome::Abuse);
 <a href=#359 id=359 data-nosnippet>359</a>
-<a href=#360 id=360 data-nosnippet>360</a>        env.reject(Outcome::Abuse);
+<a href=#360 id=360 data-nosnippet>360</a>        rx.close();
 <a href=#361 id=361 data-nosnippet>361</a>
-<a href=#362 id=362 data-nosnippet>362</a>        rx.close();
-<a href=#363 id=363 data-nosnippet>363</a>
-<a href=#364 id=364 data-nosnippet>364</a>        <span class="kw">let </span>outcome = rx.blocking_recv().unwrap();
-<a href=#365 id=365 data-nosnippet>365</a>        <span class="macro">assert_eq!</span>(outcome.category, DataCategory::Span);
-<a href=#366 id=366 data-nosnippet>366</a>        <span class="macro">assert_eq!</span>(outcome.quantity, <span class="number">123</span>);
-<a href=#367 id=367 data-nosnippet>367</a>        <span class="macro">assert_eq!</span>(outcome.outcome, Outcome::Abuse);
-<a href=#368 id=368 data-nosnippet>368</a>
-<a href=#369 id=369 data-nosnippet>369</a>        <span class="kw">let </span>outcome = rx.blocking_recv().unwrap();
-<a href=#370 id=370 data-nosnippet>370</a>        <span class="macro">assert_eq!</span>(outcome.category, DataCategory::SpanIndexed);
-<a href=#371 id=371 data-nosnippet>371</a>        <span class="macro">assert_eq!</span>(outcome.quantity, <span class="number">123</span>);
-<a href=#372 id=372 data-nosnippet>372</a>        <span class="macro">assert_eq!</span>(outcome.outcome, Outcome::Abuse);
-<a href=#373 id=373 data-nosnippet>373</a>
-<a href=#374 id=374 data-nosnippet>374</a>        <span class="kw">let </span>outcome = rx.blocking_recv().unwrap();
-<a href=#375 id=375 data-nosnippet>375</a>        <span class="macro">assert_eq!</span>(outcome.category, DataCategory::Span);
-<a href=#376 id=376 data-nosnippet>376</a>        <span class="macro">assert_eq!</span>(outcome.quantity, <span class="number">456</span>);
-<a href=#377 id=377 data-nosnippet>377</a>        <span class="macro">assert_eq!</span>(outcome.outcome, Outcome::Abuse);
-<a href=#378 id=378 data-nosnippet>378</a>
-<a href=#379 id=379 data-nosnippet>379</a>        <span class="macro">assert!</span>(rx.blocking_recv().is_none());
-<a href=#380 id=380 data-nosnippet>380</a>    }
-<a href=#381 id=381 data-nosnippet>381</a>}
+<a href=#362 id=362 data-nosnippet>362</a>        <span class="kw">let </span>outcome = rx.blocking_recv().unwrap();
+<a href=#363 id=363 data-nosnippet>363</a>        <span class="macro">assert_eq!</span>(outcome.category, DataCategory::Span);
+<a href=#364 id=364 data-nosnippet>364</a>        <span class="macro">assert_eq!</span>(outcome.quantity, <span class="number">123</span>);
+<a href=#365 id=365 data-nosnippet>365</a>        <span class="macro">assert_eq!</span>(outcome.outcome, Outcome::Abuse);
+<a href=#366 id=366 data-nosnippet>366</a>
+<a href=#367 id=367 data-nosnippet>367</a>        <span class="kw">let </span>outcome = rx.blocking_recv().unwrap();
+<a href=#368 id=368 data-nosnippet>368</a>        <span class="macro">assert_eq!</span>(outcome.category, DataCategory::SpanIndexed);
+<a href=#369 id=369 data-nosnippet>369</a>        <span class="macro">assert_eq!</span>(outcome.quantity, <span class="number">123</span>);
+<a href=#370 id=370 data-nosnippet>370</a>        <span class="macro">assert_eq!</span>(outcome.outcome, Outcome::Abuse);
+<a href=#371 id=371 data-nosnippet>371</a>
+<a href=#372 id=372 data-nosnippet>372</a>        <span class="kw">let </span>outcome = rx.blocking_recv().unwrap();
+<a href=#373 id=373 data-nosnippet>373</a>        <span class="macro">assert_eq!</span>(outcome.category, DataCategory::Span);
+<a href=#374 id=374 data-nosnippet>374</a>        <span class="macro">assert_eq!</span>(outcome.quantity, <span class="number">456</span>);
+<a href=#375 id=375 data-nosnippet>375</a>        <span class="macro">assert_eq!</span>(outcome.outcome, Outcome::Abuse);
+<a href=#376 id=376 data-nosnippet>376</a>
+<a href=#377 id=377 data-nosnippet>377</a>        <span class="macro">assert!</span>(rx.blocking_recv().is_none());
+<a href=#378 id=378 data-nosnippet>378</a>    }
+<a href=#379 id=379 data-nosnippet>379</a>}
 </code></pre></div></section></main></body></html>

@@ -214,7 +214,7 @@
 <a href=#214 id=214 data-nosnippet>214</a>    </span><span class="kw">fn </span>run_limiter(
 <a href=#215 id=215 data-nosnippet>215</a>        metrics: Vec&lt;Bucket&gt;,
 <a href=#216 id=216 data-nosnippet>216</a>        quotas: Vec&lt;Quota&gt;,
-<a href=#217 id=217 data-nosnippet>217</a>    ) -&gt; (Vec&lt;Bucket&gt;, Vec&lt;(Outcome, DataCategory, u32)&gt;) {
+<a href=#217 id=217 data-nosnippet>217</a>    ) -&gt; (Vec&lt;Bucket&gt;, Vec&lt;(Outcome, DataCategory, u64)&gt;) {
 <a href=#218 id=218 data-nosnippet>218</a>        <span class="kw">let </span>(outcome_sink, <span class="kw-2">mut </span>rx) = Addr::custom();
 <a href=#219 id=219 data-nosnippet>219</a>        <span class="kw">let </span>metric_outcomes = MetricOutcomes::new(outcome_sink.clone());
 <a href=#220 id=220 data-nosnippet>220</a>

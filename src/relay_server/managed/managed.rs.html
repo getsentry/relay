@@ -787,7 +787,7 @@
 <a href=#787 id=787 data-nosnippet>787</a>            event_id: <span class="self">self</span>.event_id,
 <a href=#788 id=788 data-nosnippet>788</a>            remote_addr: <span class="self">self</span>.remote_addr,
 <a href=#789 id=789 data-nosnippet>789</a>            category,
-<a href=#790 id=790 data-nosnippet>790</a>            quantity: quantity.try_into().unwrap_or(u32::MAX),
+<a href=#790 id=790 data-nosnippet>790</a>            quantity: quantity <span class="kw">as _</span>,
 <a href=#791 id=791 data-nosnippet>791</a>        });
 <a href=#792 id=792 data-nosnippet>792</a>    }
 <a href=#793 id=793 data-nosnippet>793</a>}
