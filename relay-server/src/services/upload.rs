@@ -586,7 +586,12 @@ impl<L: UploadLength> SignedLocation<L> {
         let location = self.location.try_to_uri()?;
         let max_age = chrono::Duration::seconds(config.upload().max_age);
 
-        if let Some(public_key) = &config.upload().verification_key {
+        if let Some(public_key) = &config
+            .upload()
+            .credentials
+            .as_ref()
+            .map(|c| &c.verification_key)
+        {
             result = self
                 .signature
                 .verify(location.as_bytes(), public_key, received, max_age);

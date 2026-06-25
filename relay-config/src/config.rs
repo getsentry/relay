@@ -1649,16 +1649,11 @@ pub struct Upload {
     /// In seconds.
     pub max_age: i64,
 
-    /// Key used to sign upload locations.
+    /// Credentials used for signing & verifying upload locations.
     ///
     /// If omitted, relay's default [`Credentials`] are used.
-    #[cfg(feature = "processing")]
-    pub signing_key: Option<SecretKey>,
-
-    /// Key used to verify upload locations.
-    ///
-    /// If omitted, relay's default [`Credentials`] are used.
-    pub verification_key: Option<PublicKey>,
+    #[serde(flatten)]
+    pub credentials: Option<UploadCredentials>,
 }
 
 impl Default for Upload {
@@ -1667,10 +1662,32 @@ impl Default for Upload {
             max_concurrent_requests: 100,
             timeout: 5 * 60,  // five minutes
             max_age: 60 * 60, // 1h
-            #[cfg(feature = "processing")]
-            signing_key: None,
-            verification_key: None,
+            credentials: None,
         }
+    }
+}
+
+/// Credentials used for signing & verifying upload locations.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct UploadCredentials {
+    /// Key used to sign upload locations.
+    #[cfg(feature = "processing")]
+    pub signing_key: SecretKey,
+
+    /// Key used to verify upload locations.
+    pub verification_key: PublicKey,
+}
+
+impl fmt::Debug for UploadCredentials {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self {
+            signing_key: _,
+            verification_key,
+        } = self;
+        f.debug_struct("UploadCredentials")
+            .field("signing_key", &"[redacted]")
+            .field("verification_key", verification_key)
+            .finish()
     }
 }
 
@@ -2617,8 +2634,9 @@ impl Config {
     #[cfg(feature = "processing")]
     pub fn upload_signing_key(&self) -> Option<&SecretKey> {
         self.upload()
-            .signing_key
+            .credentials
             .as_ref()
+            .map(|c| &c.signing_key)
             .or(self.credentials().map(|c| &c.secret_key))
     }
 
@@ -2798,7 +2816,7 @@ upload:
 
         fs::remove_dir_all(path).unwrap();
 
-        let signing_key = config.upload().signing_key.as_ref().unwrap();
+        let signing_key = &config.upload().credentials.as_ref().unwrap().signing_key;
         assert_eq!(
             signing_key.to_string(),
             "U3LSQM5NorvgnoYHW_aZpc_43nuuh3lhs3zjjcBwaks"
