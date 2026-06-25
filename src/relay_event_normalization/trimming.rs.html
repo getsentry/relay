@@ -440,8 +440,8 @@
 <a href=#440 id=440 data-nosnippet>440</a>    <span class="kw">use </span><span class="kw">crate</span>::MaxChars;
 <a href=#441 id=441 data-nosnippet>441</a>    <span class="kw">use </span>chrono::DateTime;
 <a href=#442 id=442 data-nosnippet>442</a>    <span class="kw">use </span>relay_event_schema::protocol::{
-<a href=#443 id=443 data-nosnippet>443</a>        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, PairList, SentryTags, Span,
-<a href=#444 id=444 data-nosnippet>444</a>        SpanId, TagEntry, Tags, Timestamp, TraceId, Values,
+<a href=#443 id=443 data-nosnippet>443</a>        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, FlagsContext, PairList,
+<a href=#444 id=444 data-nosnippet>444</a>        SentryTags, Span, SpanId, TagEntry, Tags, Timestamp, TraceId, Values,
 <a href=#445 id=445 data-nosnippet>445</a>    };
 <a href=#446 id=446 data-nosnippet>446</a>    <span class="kw">use </span>relay_protocol::{FromValue, IntoValue, Map, Remark, SerializableAnnotated, get_value};
 <a href=#447 id=447 data-nosnippet>447</a>    <span class="kw">use </span>similar_asserts::assert_eq;
@@ -1334,5 +1334,49 @@
 <a href=#1334 id=1334 data-nosnippet>1334</a>        }
 <a href=#1335 id=1335 data-nosnippet>1335</a>        "###</span>);
 <a href=#1336 id=1336 data-nosnippet>1336</a>    }
-<a href=#1337 id=1337 data-nosnippet>1337</a>}
+<a href=#1337 id=1337 data-nosnippet>1337</a>
+<a href=#1338 id=1338 data-nosnippet>1338</a>    <span class="attr">#[test]
+<a href=#1339 id=1339 data-nosnippet>1339</a>    </span><span class="kw">fn </span>test_flags_context_trimming() {
+<a href=#1340 id=1340 data-nosnippet>1340</a>        <span class="kw">let </span>original_flags_count = <span class="number">1_000</span>;
+<a href=#1341 id=1341 data-nosnippet>1341</a>        <span class="kw">let </span>values: Vec&lt;<span class="kw">_</span>&gt; = (<span class="number">0</span>..original_flags_count)
+<a href=#1342 id=1342 data-nosnippet>1342</a>            .map(|i| {
+<a href=#1343 id=1343 data-nosnippet>1343</a>                <span class="macro">serde_json::json!</span>({
+<a href=#1344 id=1344 data-nosnippet>1344</a>                    <span class="string">"flag"</span>: <span class="macro">format!</span>(<span class="string">"feature.flag.{i}"</span>),
+<a href=#1345 id=1345 data-nosnippet>1345</a>                    <span class="string">"result"</span>: <span class="string">"x"</span>.repeat(<span class="number">500</span>),
+<a href=#1346 id=1346 data-nosnippet>1346</a>                })
+<a href=#1347 id=1347 data-nosnippet>1347</a>            })
+<a href=#1348 id=1348 data-nosnippet>1348</a>            .collect();
+<a href=#1349 id=1349 data-nosnippet>1349</a>        <span class="kw">let </span>json = <span class="macro">serde_json::json!</span>({
+<a href=#1350 id=1350 data-nosnippet>1350</a>            <span class="string">"contexts"</span>: {
+<a href=#1351 id=1351 data-nosnippet>1351</a>                <span class="string">"flags"</span>: {
+<a href=#1352 id=1352 data-nosnippet>1352</a>                    <span class="string">"values"</span>: values,
+<a href=#1353 id=1353 data-nosnippet>1353</a>                },
+<a href=#1354 id=1354 data-nosnippet>1354</a>                <span class="string">"my_custom_context"</span>: {
+<a href=#1355 id=1355 data-nosnippet>1355</a>                    <span class="string">"foo"</span>: <span class="string">"x"</span>.repeat(<span class="number">10_000</span>)
+<a href=#1356 id=1356 data-nosnippet>1356</a>                }
+<a href=#1357 id=1357 data-nosnippet>1357</a>            },
+<a href=#1358 id=1358 data-nosnippet>1358</a>        })
+<a href=#1359 id=1359 data-nosnippet>1359</a>        .to_string();
+<a href=#1360 id=1360 data-nosnippet>1360</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(<span class="kw-2">&amp;</span>json).unwrap();
+<a href=#1361 id=1361 data-nosnippet>1361</a>
+<a href=#1362 id=1362 data-nosnippet>1362</a>        <span class="kw">let </span><span class="kw-2">mut </span>processor = TrimmingProcessor::new();
+<a href=#1363 id=1363 data-nosnippet>1363</a>        processor::process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
+<a href=#1364 id=1364 data-nosnippet>1364</a>
+<a href=#1365 id=1365 data-nosnippet>1365</a>        <span class="kw">let </span>contexts = <span class="macro">get_value!</span>(event.contexts!);
+<a href=#1366 id=1366 data-nosnippet>1366</a>
+<a href=#1367 id=1367 data-nosnippet>1367</a>        <span class="comment">// Make sure flags contexts has its own limit applied.
+<a href=#1368 id=1368 data-nosnippet>1368</a>        </span><span class="kw">let </span>values = <span class="kw-2">&amp;</span>contexts.get::&lt;FlagsContext&gt;().unwrap().values;
+<a href=#1369 id=1369 data-nosnippet>1369</a>
+<a href=#1370 id=1370 data-nosnippet>1370</a>        <span class="macro">assert_eq!</span>(values.value().unwrap().len(), <span class="number">292</span>);
+<a href=#1371 id=1371 data-nosnippet>1371</a>        <span class="macro">assert_eq!</span>(values.meta().original_length(), <span class="prelude-val">Some</span>(original_flags_count));
+<a href=#1372 id=1372 data-nosnippet>1372</a>
+<a href=#1373 id=1373 data-nosnippet>1373</a>        <span class="comment">// Make sure the custom context is trimmed to 8192.
+<a href=#1374 id=1374 data-nosnippet>1374</a>        </span><span class="kw">let </span>custom = <span class="kw">match </span>contexts.get_key(<span class="string">"my_custom_context"</span>).unwrap() {
+<a href=#1375 id=1375 data-nosnippet>1375</a>            Context::Other(custom) =&gt; custom,
+<a href=#1376 id=1376 data-nosnippet>1376</a>            <span class="kw">_ </span>=&gt; <span class="macro">unreachable!</span>(),
+<a href=#1377 id=1377 data-nosnippet>1377</a>        };
+<a href=#1378 id=1378 data-nosnippet>1378</a>        <span class="macro">assert_eq!</span>(custom[<span class="string">"foo"</span>].value().unwrap().as_str().unwrap().len(), <span class="number">8192</span>);
+<a href=#1379 id=1379 data-nosnippet>1379</a>        <span class="macro">assert_eq!</span>(custom[<span class="string">"foo"</span>].meta().original_length(), <span class="prelude-val">Some</span>(<span class="number">10_000</span>));
+<a href=#1380 id=1380 data-nosnippet>1380</a>    }
+<a href=#1381 id=1381 data-nosnippet>1381</a>}
 </code></pre></div></section></main></body></html>
