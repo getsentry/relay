@@ -858,9 +858,9 @@ mod tests {
     #[cfg(feature = "processing")]
     mod with_processing {
         use chrono::Utc;
-        use relay_auth::{PublicKey, SecretKey, SignatureError};
+        use relay_auth::SignatureError;
         use relay_base_schema::project::ProjectId;
-        use relay_config::{Config, Credentials};
+        use relay_config::{Config, Credentials, UploadCredentials};
 
         use super::*;
 
@@ -875,13 +875,11 @@ mod tests {
 
         fn config(
             relay_credentials: Credentials,
-            signing_key: Option<&SecretKey>,
-            verification_key: Option<&PublicKey>,
+            credentials: Option<UploadCredentials>,
         ) -> Config {
             let mut config = Config::from_json_value(serde_json::json!({
                 "upload": {
-                    "signing_key": signing_key,
-                    "verification_key": verification_key,
+                    "credentials": credentials,
                 },
             }))
             .unwrap();
@@ -892,11 +890,16 @@ mod tests {
         #[test]
         fn verify_legacy() {
             let relay_credentials = Credentials::generate();
-            let (secret_key, public_key) = relay_auth::generate_key_pair();
+            let (signing_key, verification_key) = relay_auth::generate_key_pair();
 
-            let signing_config = config(relay_credentials.clone(), None, None);
-            let verification_config =
-                config(relay_credentials, Some(&secret_key), Some(&public_key));
+            let signing_config = config(relay_credentials.clone(), None);
+            let verification_config = config(
+                relay_credentials,
+                Some(UploadCredentials {
+                    signing_key,
+                    verification_key,
+                }),
+            );
 
             let signed_location = location().try_sign(&signing_config).unwrap();
 
@@ -910,8 +913,14 @@ mod tests {
         #[test]
         fn verify_new() {
             let relay_credentials = Credentials::generate();
-            let (secret_key, public_key) = relay_auth::generate_key_pair();
-            let config = config(relay_credentials, Some(&secret_key), Some(&public_key));
+            let (signing_key, verification_key) = relay_auth::generate_key_pair();
+            let config = config(
+                relay_credentials,
+                Some(UploadCredentials {
+                    signing_key,
+                    verification_key,
+                }),
+            );
 
             let signed_location = location().try_sign(&config).unwrap();
 
@@ -921,15 +930,17 @@ mod tests {
         #[test]
         fn verify_inverse() {
             let relay_credentials = Credentials::generate();
-            let (secret_key, public_key) = relay_auth::generate_key_pair();
+            let (signing_key, verification_key) = relay_auth::generate_key_pair();
 
             let signing_config = config(
                 relay_credentials.clone(),
-                Some(&secret_key),
-                Some(&public_key),
+                Some(UploadCredentials {
+                    signing_key,
+                    verification_key,
+                }),
             );
 
-            let verification_config = config(relay_credentials, None, None);
+            let verification_config = config(relay_credentials, None);
 
             let signed_location = location().try_sign(&signing_config).unwrap();
 
