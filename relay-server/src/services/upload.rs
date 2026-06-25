@@ -860,7 +860,7 @@ mod tests {
         use chrono::Utc;
         use relay_auth::SignatureError;
         use relay_base_schema::project::ProjectId;
-        use relay_config::{Config, Credentials, UploadCredentials};
+        use relay_config::{Config, Credentials, OverridableConfig, UploadCredentials};
 
         use super::*;
 
@@ -883,7 +883,14 @@ mod tests {
                 },
             }))
             .unwrap();
-            config.replace_credentials(Some(relay_credentials)).unwrap();
+            config
+                .apply_override(OverridableConfig {
+                    id: Some(relay_credentials.id.to_string()),
+                    secret_key: Some(relay_credentials.secret_key.to_string()),
+                    public_key: Some(relay_credentials.public_key.to_string()),
+                    ..Default::default()
+                })
+                .unwrap();
             config
         }
 
