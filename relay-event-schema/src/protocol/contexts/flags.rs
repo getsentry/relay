@@ -1,5 +1,5 @@
 use crate::processor::ProcessValue;
-use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
+use relay_protocol::{Annotated, Array, Empty, FromValue, IntoValue, Object, Value};
 
 /// Flags context.
 ///
@@ -9,7 +9,7 @@ use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct FlagsContext {
     /// An list of flag evaluation results in the order they were evaluated.
-    pub values: Annotated<Vec<Annotated<FlagsContextItem>>>,
+    pub values: Annotated<Array<FlagsContextItem>>,
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = true, pii = "maybe")]
     pub other: Object<Value>,
