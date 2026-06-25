@@ -9,7 +9,7 @@ use std::time::Duration;
 use std::{env, fmt, fs, io};
 
 use anyhow::Context;
-use relay_auth::{KeyPair, PublicKey, RelayId, SecretKey, generate_relay_id};
+use relay_auth::{PublicKey, RelayId, SecretKey, generate_key_pair, generate_relay_id};
 use relay_common::Dsn;
 use relay_kafka::{
     ConfigError as KafkaConfigError, KafkaConfigParam, KafkaTopic, KafkaTopicConfig,
@@ -281,10 +281,7 @@ impl Credentials {
     /// Generates new random credentials.
     pub fn generate() -> Self {
         relay_log::info!("generating new relay credentials");
-        let KeyPair {
-            secret_key,
-            public_key,
-        } = KeyPair::generate();
+        let (secret_key, public_key) = generate_key_pair();
         Self {
             secret_key,
             public_key,
@@ -1652,10 +1649,16 @@ pub struct Upload {
     /// In seconds.
     pub max_age: i64,
 
-    /// Key pair used to sign and verify upload locations.
+    /// Key used to sign upload locations.
     ///
-    /// If omitted, the relay's default [`Credentials`] are used.
-    pub credentials: Option<KeyPair>,
+    /// If omitted, relay's default [`Credentials`] are used.
+    #[cfg(feature = "processing")]
+    pub signing_key: Option<SecretKey>,
+
+    /// Key used to verify upload locations.
+    ///
+    /// If omitted, relay's default [`Credentials`] are used.
+    pub verification_key: Option<PublicKey>,
 }
 
 impl Default for Upload {
@@ -1664,7 +1667,9 @@ impl Default for Upload {
             max_concurrent_requests: 100,
             timeout: 5 * 60,  // five minutes
             max_age: 60 * 60, // 1h
-            credentials: None,
+            #[cfg(feature = "processing")]
+            signing_key: None,
+            verification_key: None,
         }
     }
 }
@@ -2609,12 +2614,12 @@ impl Config {
     }
 
     /// Returns the key used to sign upload locations.
+    #[cfg(feature = "processing")]
     pub fn upload_signing_key(&self) -> Option<&SecretKey> {
-        if let Some(credentials) = &self.upload().credentials {
-            return Some(&credentials.secret_key);
-        }
-
-        self.credentials().map(|c| &c.secret_key)
+        self.upload()
+            .signing_key
+            .as_ref()
+            .or(self.credentials().map(|c| &c.secret_key))
     }
 
     /// Redis servers to connect to for project configs, cardinality limits,
@@ -2795,9 +2800,9 @@ upload:
 
         fs::remove_dir_all(path).unwrap();
 
-        let upload_credentials = config.upload().credentials.as_ref().unwrap();
+        let signing_key = config.upload().signing_key.as_ref().unwrap();
         assert_eq!(
-            upload_credentials.secret_key.to_string(),
+            signing_key.to_string(),
             "U3LSQM5NorvgnoYHW_aZpc_43nuuh3lhs3zjjcBwaks"
         );
     }

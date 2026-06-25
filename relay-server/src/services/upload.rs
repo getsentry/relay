@@ -586,7 +586,7 @@ impl<L: UploadLength> SignedLocation<L> {
         let location = self.location.try_to_uri()?;
         let max_age = chrono::Duration::seconds(config.upload().max_age);
 
-        if let Some(public_key) = config.upload().credentials.as_ref().map(|c| &c.public_key) {
+        if let Some(public_key) = &config.upload().verification_key {
             result = self
                 .signature
                 .verify(location.as_bytes(), public_key, received, max_age);
@@ -853,7 +853,7 @@ mod tests {
     #[cfg(feature = "processing")]
     mod with_processing {
         use chrono::Utc;
-        use relay_auth::{KeyPair, SignatureError};
+        use relay_auth::{PublicKey, SecretKey, SignatureError};
         use relay_base_schema::project::ProjectId;
         use relay_config::{Config, Credentials};
 
@@ -868,10 +868,15 @@ mod tests {
             }
         }
 
-        fn config(relay_credentials: Credentials, upload_credentials: Option<&KeyPair>) -> Config {
+        fn config(
+            relay_credentials: Credentials,
+            signing_key: Option<&SecretKey>,
+            verification_key: Option<&PublicKey>,
+        ) -> Config {
             let mut config = Config::from_json_value(serde_json::json!({
                 "upload": {
-                    "credentials": upload_credentials,
+                    "signing_key": signing_key,
+                    "verification_key": verification_key,
                 },
             }))
             .unwrap();
@@ -882,10 +887,11 @@ mod tests {
         #[test]
         fn verify_legacy() {
             let relay_credentials = Credentials::generate();
-            let upload_credentials = KeyPair::generate();
+            let (secret_key, public_key) = relay_auth::generate_key_pair();
 
-            let signing_config = config(relay_credentials.clone(), None);
-            let verification_config = config(relay_credentials, Some(&upload_credentials));
+            let signing_config = config(relay_credentials.clone(), None, None);
+            let verification_config =
+                config(relay_credentials, Some(&secret_key), Some(&public_key));
 
             let signed_location = location().try_sign(&signing_config).unwrap();
 
@@ -899,8 +905,8 @@ mod tests {
         #[test]
         fn verify_new() {
             let relay_credentials = Credentials::generate();
-            let upload_credentials = KeyPair::generate();
-            let config = config(relay_credentials, Some(&upload_credentials));
+            let (secret_key, public_key) = relay_auth::generate_key_pair();
+            let config = config(relay_credentials, Some(&secret_key), Some(&public_key));
 
             let signed_location = location().try_sign(&config).unwrap();
 
@@ -910,10 +916,15 @@ mod tests {
         #[test]
         fn verify_inverse() {
             let relay_credentials = Credentials::generate();
-            let upload_credentials = KeyPair::generate();
+            let (secret_key, public_key) = relay_auth::generate_key_pair();
 
-            let signing_config = config(relay_credentials.clone(), Some(&upload_credentials));
-            let verification_config = config(relay_credentials, None);
+            let signing_config = config(
+                relay_credentials.clone(),
+                Some(&secret_key),
+                Some(&public_key),
+            );
+
+            let verification_config = config(relay_credentials, None, None);
 
             let signed_location = location().try_sign(&signing_config).unwrap();
 

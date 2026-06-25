@@ -9,12 +9,11 @@
 //!
 //! # Generating Credentials
 //!
-//! Use the [`generate_relay_id`] and [`KeyPair::generate`] function to generate credentials:
+//! Use the [`generate_relay_id`] and [`generate_key_pair`] function to generate credentials:
 //!
 //! ```
-//! use relay_auth::KeyPair;
 //! let relay_id = relay_auth::generate_relay_id();
-//! let KeyPair {secret_key, public_key} = KeyPair::generate();
+//! let (private_key, public_key) = relay_auth::generate_key_pair();
 //! ```
 
 #![warn(missing_docs)]
@@ -484,30 +483,16 @@ pub fn generate_relay_id() -> RelayId {
     Uuid::new_v4()
 }
 
-/// Key pair used for signing / verifying data.
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct KeyPair {
-    /// The private key used for signing.
-    pub secret_key: SecretKey,
-    /// The public key used for signature verification.
-    pub public_key: PublicKey,
-}
-
-impl KeyPair {
-    /// Generates a secret + public key pair.
-    pub fn generate() -> Self {
-        let mut csprng = OsRng;
-        let mut secret = [0; 32];
-        csprng
-            .try_fill_bytes(&mut secret)
-            .expect("os rng should be available");
-        let kp = ed25519_dalek::SigningKey::from_bytes(&secret);
-        let pk = kp.verifying_key();
-        Self {
-            secret_key: SecretKey { inner: kp },
-            public_key: PublicKey { inner: pk },
-        }
-    }
+/// Generates a secret + public key pair.
+pub fn generate_key_pair() -> (SecretKey, PublicKey) {
+    let mut csprng = OsRng;
+    let mut secret = [0; 32];
+    csprng
+        .try_fill_bytes(&mut secret)
+        .expect("os rng should be available");
+    let kp = ed25519_dalek::SigningKey::from_bytes(&secret);
+    let pk = kp.verifying_key();
+    (SecretKey { inner: kp }, PublicKey { inner: pk })
 }
 
 /// An encoded and signed `RegisterState`.
@@ -850,14 +835,6 @@ fn is_valid_time(ts: DateTime<Utc>, start_time: DateTime<Utc>, max_age: Duration
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn generate_key_pair() -> (SecretKey, PublicKey) {
-        let KeyPair {
-            secret_key,
-            public_key,
-        } = KeyPair::generate();
-        (secret_key, public_key)
-    }
 
     #[test]
     fn test_keys() {
