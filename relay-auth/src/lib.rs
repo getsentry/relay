@@ -9,11 +9,12 @@
 //!
 //! # Generating Credentials
 //!
-//! Use the [`generate_relay_id`] and [`generate_key_pair`] function to generate credentials:
+//! Use the [`generate_relay_id`] and [`KeyPair::generate`] function to generate credentials:
 //!
 //! ```
+//! use relay_auth::KeyPair;
 //! let relay_id = relay_auth::generate_relay_id();
-//! let (private_key, public_key) = relay_auth::generate_key_pair();
+//! let KeyPair {secret_key, public_key} = KeyPair::generate();
 //! ```
 
 #![warn(missing_docs)]
