@@ -2789,10 +2789,8 @@ cache:
             ConfigValues::path(&path),
             r#"
 upload:
-    credentials:
-        secret_key: ${file:my_secret.txt}
-        public_key: "VNS8haF0VTnuMMDR2t-f7AgnmUcXmcdzV3SVksSk34s"
-            "#,
+    signing_key: ${file:my_secret.txt}
+    verification_key: "VNS8haF0VTnuMMDR2t-f7AgnmUcXmcdzV3SVksSk34s""#,
         )
         .unwrap();
 
