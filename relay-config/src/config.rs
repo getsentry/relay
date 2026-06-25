@@ -1652,7 +1652,6 @@ pub struct Upload {
     /// Credentials used for signing & verifying upload locations.
     ///
     /// If omitted, relay's default [`Credentials`] are used.
-    #[serde(flatten)]
     pub credentials: Option<UploadCredentials>,
 }
 
@@ -2808,8 +2807,9 @@ cache:
             ConfigValues::path(&path),
             r#"
 upload:
-    signing_key: ${file:my_secret.txt}
-    verification_key: "VNS8haF0VTnuMMDR2t-f7AgnmUcXmcdzV3SVksSk34s""#,
+    credentials:
+        signing_key: ${file:my_secret.txt}
+        verification_key: "VNS8haF0VTnuMMDR2t-f7AgnmUcXmcdzV3SVksSk34s""#,
         )
         .unwrap();
 
