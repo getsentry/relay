@@ -24,7 +24,7 @@ jobs:
       - name: Install dependencies
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends git ca-certificates gcc libc6-dev curl make zip
+          apt-get install -y --no-install-recommends git ca-certificates gcc g++ libc6-dev curl make zip
 
       - uses: actions/checkout@v7.0.0
         with:
