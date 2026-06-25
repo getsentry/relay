@@ -157,6 +157,19 @@ def test_standalone_attachment_store(
         "serverSampleRate": 1.0,
         "timestamp": matches_any(),
         "traceId": attachment_metadata["trace_id"].replace("-", ""),
+        "outcomes": {
+            "categoryCount": [
+                {
+                    "dataCategory": DataCategory.ATTACHMENT.value,
+                    "quantity": "36",
+                },
+                {
+                    "dataCategory": DataCategory.ATTACHMENT_ITEM.value,
+                    "quantity": "1",
+                },
+            ],
+            "keyId": "123",
+        },
     }
 
     objectstore = objectstore(usecase="trace_attachments", project_id=project_id)
@@ -164,26 +177,6 @@ def test_standalone_attachment_store(
         objectstore.get(attachment_metadata["attachment_id"]).payload.read()
         == attachment_body
     )
-
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
-    assert outcomes == [
-        {
-            "category": DataCategory.ATTACHMENT.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 36,
-        },
-        {
-            "category": DataCategory.ATTACHMENT_ITEM.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 1,
-        },
-    ]
 
 
 @pytest.mark.parametrize(
@@ -414,12 +407,25 @@ def test_attachment_with_matching_span_store(
         "serverSampleRate": 1.0,
         "timestamp": matches_any(),
         "traceId": metadata["trace_id"],
+        "outcomes": {
+            "categoryCount": [
+                {
+                    "dataCategory": DataCategory.ATTACHMENT.value,
+                    "quantity": "23",
+                },
+                {
+                    "dataCategory": DataCategory.ATTACHMENT_ITEM.value,
+                    "quantity": "1",
+                },
+            ],
+            "keyId": "123",
+        },
     }
 
     objectstore = objectstore(usecase="trace_attachments", project_id=project_id)
     assert objectstore.get(metadata["attachment_id"]).payload.read() == body
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=4)
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
     assert outcomes == [
         {
             "category": DataCategory.TRANSACTION.value,
@@ -430,23 +436,7 @@ def test_attachment_with_matching_span_store(
             "quantity": 1,
         },
         {
-            "category": DataCategory.ATTACHMENT.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 23,
-        },
-        {
             "category": DataCategory.SPAN.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 1,
-        },
-        {
-            "category": DataCategory.ATTACHMENT_ITEM.value,
             "key_id": 123,
             "org_id": 1,
             "outcome": 0,

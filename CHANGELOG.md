@@ -5,6 +5,7 @@
 **Features**:
 
 - Infer span descriptions via `sentry-conventions`. ([#6093](https://github.com/getsentry/relay/pull/6093))
+- Raises the size limit for the flags context to 64KiB. ([#6137](https://github.com/getsentry/relay/pull/6137))
 
 **Bug Fixes**:
 
@@ -17,6 +18,7 @@
 
 - Rename objectstore use-case from `profiles_raw` to `profile_attachments`. ([#6108](https://github.com/getsentry/relay/pull/6108))
 - Require timestamps and verification in auth signatures. ([#6069](https://github.com/getsentry/relay/pull/6069))
+- Expand size of outcome quantities from `u32` to `u64`. ([#6133](https://github.com/getsentry/relay/pull/6133))
 - Internally handle outcomes as metrics. ([#6107](https://github.com/getsentry/relay/pull/6107))
 - Have relay generate metric billing outcomes. ([#6066](https://github.com/getsentry/relay/pull/6066))
 - Update sentry-conventions to 0.12.0.

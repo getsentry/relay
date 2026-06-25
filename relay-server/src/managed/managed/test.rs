@@ -51,6 +51,12 @@ impl<T> ManagedTestBuilder<T> {
         }
     }
 
+    /// Sets the scoping of the managed test instance.
+    pub fn scoping(mut self, scoping: Scoping) -> Self {
+        self.scoping = scoping;
+        self
+    }
+
     /// Creates a new [`Managed`] instance and a [`ManagedTestHandle`] to assert outcomes.
     pub fn build(self) -> (Managed<T>, ManagedTestHandle)
     where
@@ -99,7 +105,7 @@ impl ManagedTestHandle {
 
     /// Asserts a single emitted outcome.
     #[track_caller]
-    pub fn assert_outcome(&mut self, outcome: &Outcome, category: DataCategory, quantity: u32) {
+    pub fn assert_outcome(&mut self, outcome: &Outcome, category: DataCategory, quantity: u64) {
         match self.outcomes.try_recv() {
             Ok(next) => {
                 assert_eq!(&next.outcome, outcome);
@@ -121,7 +127,7 @@ impl ManagedTestHandle {
     /// A shorthand for [`Self::assert_outcome`] with a [`Outcome::Invalid`] /
     /// [`DiscardReason::Internal`].
     #[track_caller]
-    pub fn assert_internal_outcome(&mut self, category: DataCategory, quantity: u32) {
+    pub fn assert_internal_outcome(&mut self, category: DataCategory, quantity: u64) {
         self.assert_outcome(
             &Outcome::Invalid(DiscardReason::Internal),
             category,

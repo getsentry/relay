@@ -10,7 +10,7 @@ use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
 use hyper::body::{Frame, SizeHint};
-use relay_config::Config;
+use relay_config::{Config, UpstreamDescriptor};
 use relay_system::Addr;
 use sync_wrapper::SyncWrapper;
 use tokio::sync::oneshot;
@@ -107,6 +107,7 @@ impl IntoResponse for ForwardResponse {
 /// A request which can be forwarded to the next upstream Relay.
 pub struct ForwardRequest {
     name: &'static str,
+    upstream: Option<UpstreamDescriptor>,
     method: Method,
     path: Cow<'static, str>,
     headers: HeaderMap<HeaderValue>,
@@ -122,6 +123,7 @@ impl ForwardRequest {
 
         let request = ForwardRequest {
             name: "forward",
+            upstream: None,
             method,
             path: path.into(),
             headers: Default::default(),
@@ -149,6 +151,10 @@ impl fmt::Debug for ForwardRequest {
 }
 
 impl UpstreamRequest for ForwardRequest {
+    fn upstream(&self) -> Option<&UpstreamDescriptor> {
+        self.upstream.as_ref()
+    }
+
     fn method(&self) -> Method {
         self.method.clone()
     }
@@ -266,6 +272,14 @@ impl ForwardRequestBuilder {
     /// If not set the name defaults to `forward`.
     pub fn with_name(mut self, name: &'static str) -> Self {
         self.request.name = name;
+        self
+    }
+
+    /// Changes the upstream of the request.
+    ///
+    /// Defaults to Relay's default upstream.
+    pub fn with_upstream(mut self, upstream: impl Into<Option<UpstreamDescriptor>>) -> Self {
+        self.request.upstream = upstream.into();
         self
     }
 

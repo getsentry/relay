@@ -29,7 +29,7 @@ use relay_metrics::{
 use relay_protocol::{Annotated, FiniteF64, SerializableAnnotated};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
-use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
+use relay_system::{FromMessage, Interface, NoResponse, Service};
 use relay_threading::AsyncPool;
 
 use crate::envelope::{AttachmentPlaceholder, AttachmentType, ContentType, Item, ItemType};
@@ -38,7 +38,7 @@ use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::objectstore::ObjectstoreKey;
-use crate::services::outcome::{self, DiscardReason, Outcome, OutcomeId, TrackOutcome};
+use crate::services::outcome::{self, DiscardReason, Outcome, OutcomeId};
 use crate::services::upload::{Final, SignedLocation};
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
 use crate::utils::{self, FormDataIter};
@@ -386,7 +386,6 @@ pub struct StoreService {
     pool: StoreServicePool,
     config: Arc<Config>,
     global_config: GlobalConfigHandle,
-    outcome_aggregator: Addr<TrackOutcome>,
     metric_outcomes: MetricOutcomes,
     producer: Producer,
 }
@@ -396,7 +395,6 @@ impl StoreService {
         pool: StoreServicePool,
         config: Arc<Config>,
         global_config: GlobalConfigHandle,
-        outcome_aggregator: Addr<TrackOutcome>,
         metric_outcomes: MetricOutcomes,
     ) -> anyhow::Result<Self> {
         let producer = Producer::create(&config)?;
@@ -404,7 +402,6 @@ impl StoreService {
             pool,
             config,
             global_config,
-            outcome_aggregator,
             metric_outcomes,
             producer,
         })
@@ -716,45 +713,11 @@ impl StoreService {
         message: Managed<StoreTraceItem>,
     ) -> Result<(), Rejected<StoreError>> {
         let scoping = message.scoping();
-        let received_at = message.received_at();
 
-        let eap_emits_outcomes = utils::is_rolled_out(
-            scoping.organization_id.value(),
-            self.global_config
-                .current()
-                .unwrap_or_default()
-                .options
-                .eap_outcomes_rollout_rate,
-        )
-        .is_keep();
-
-        let outcomes = message.try_accept(|mut item| {
-            let outcomes = match eap_emits_outcomes {
-                true => None,
-                false => item.trace_item.outcomes.take(),
-            };
-
+        message.try_accept(|item| {
             let message = KafkaMessage::for_item(scoping, item.trace_item);
-            self.produce(KafkaTopic::Items, message).map(|()| outcomes)
+            self.produce(KafkaTopic::Items, message)
         })?;
-
-        // Accepted outcomes when items have been successfully produced to rdkafka.
-        //
-        // This is only a temporary measure, long term these outcomes will be part of the trace
-        // item and emitted by Snuba to guarantee a delivery to storage.
-        if let Some(outcomes) = outcomes {
-            for (category, quantity) in outcomes.quantities() {
-                self.outcome_aggregator.send(TrackOutcome {
-                    category,
-                    event_id: None,
-                    outcome: Outcome::Accepted,
-                    quantity: u32::try_from(quantity).unwrap_or(u32::MAX),
-                    remote_addr: None,
-                    scoping,
-                    timestamp: received_at,
-                });
-            }
-        }
 
         Ok(())
     }
@@ -1224,7 +1187,7 @@ impl StoreService {
             return Ok(());
         };
         let quantity = match message.value {
-            MetricValue::Counter(c) => c.to_f64() as u32,
+            MetricValue::Counter(c) => c.to_f64() as _,
             v => {
                 relay_log::error!(
                     mri = message.name.as_ref(),
@@ -1601,7 +1564,7 @@ pub struct OutcomeMessage<'a> {
     category: Option<u8>,
     /// The number of events or total attachment size in bytes.
     #[serde(skip_serializing_if = "Option::is_none")]
-    quantity: Option<u32>,
+    quantity: Option<u64>,
 }
 
 #[derive(Clone, Debug, Serialize)]

@@ -153,27 +153,20 @@ def test_otlp_logs_conversion(
             "serverSampleRate": 1.0,
             "timestamp": time_within_delta(ts, delta=timedelta(seconds=1)),
             "traceId": "5b8efff798038103d269b633813fc60c",
+            "outcomes": {
+                "categoryCount": [
+                    {
+                        "dataCategory": DataCategory.LOG_ITEM.value,
+                        "quantity": "1",
+                    },
+                    {
+                        "dataCategory": DataCategory.LOG_BYTE.value,
+                        "quantity": "318",
+                    },
+                ],
+                "keyId": "123",
+            },
         }
-    ]
-
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
-    assert outcomes == [
-        {
-            "category": DataCategory.LOG_ITEM.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 1,
-        },
-        {
-            "category": DataCategory.LOG_BYTE.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 318,
-        },
     ]
 
 
@@ -262,6 +255,19 @@ def test_otlp_logs_multiple_records(
             "serverSampleRate": 1.0,
             "timestamp": time_within_delta(ts, delta=timedelta(seconds=1)),
             "traceId": "5b8efff798038103d269b633813fc60c",
+            "outcomes": {
+                "categoryCount": [
+                    {
+                        "dataCategory": DataCategory.LOG_ITEM.value,
+                        "quantity": "1",
+                    },
+                    {
+                        "dataCategory": DataCategory.LOG_BYTE.value,
+                        "quantity": "92",
+                    },
+                ],
+                "keyId": "123",
+            },
         },
         {
             "attributes": {
@@ -293,26 +299,19 @@ def test_otlp_logs_multiple_records(
             "serverSampleRate": 1.0,
             "timestamp": time_within_delta(ts, delta=timedelta(seconds=1)),
             "traceId": "5b8efff798038103d269b633813fc60c",
-        },
-    ]
-
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
-    assert outcomes == [
-        {
-            "category": DataCategory.LOG_ITEM.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 2,
-        },
-        {
-            "category": DataCategory.LOG_BYTE.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
-            "project_id": 42,
-            "quantity": 185,
+            "outcomes": {
+                "categoryCount": [
+                    {
+                        "dataCategory": DataCategory.LOG_ITEM.value,
+                        "quantity": "1",
+                    },
+                    {
+                        "dataCategory": DataCategory.LOG_BYTE.value,
+                        "quantity": "93",
+                    },
+                ],
+                "keyId": "123",
+            },
         },
     ]
 
