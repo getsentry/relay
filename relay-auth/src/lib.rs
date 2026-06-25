@@ -494,7 +494,7 @@ pub struct KeyPair {
 
 impl KeyPair {
     /// Generates a secret + public key pair.
-    pub fn new() -> Self {
+    pub fn generate() -> Self {
         let mut csprng = OsRng;
         let mut secret = [0; 32];
         csprng
@@ -854,7 +854,7 @@ mod tests {
         let KeyPair {
             secret_key,
             public_key,
-        } = KeyPair::new();
+        } = KeyPair::generate();
         (secret_key, public_key)
     }
 

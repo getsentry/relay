@@ -284,7 +284,7 @@ impl Credentials {
         let KeyPair {
             secret_key,
             public_key,
-        } = KeyPair::new();
+        } = KeyPair::generate();
         Self {
             secret_key,
             public_key,

@@ -132,7 +132,7 @@ pub unsafe extern "C" fn relay_generate_key_pair() -> RelayKeyPair {
     let KeyPair {
         secret_key,
         public_key,
-    } = KeyPair::new();
+    } = KeyPair::generate();
     RelayKeyPair {
         secret_key: Box::into_raw(Box::new(secret_key)) as *mut RelaySecretKey,
         public_key: Box::into_raw(Box::new(public_key)) as *mut RelayPublicKey,

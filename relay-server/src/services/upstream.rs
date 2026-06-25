@@ -1703,7 +1703,7 @@ mod tests {
 
     #[test]
     fn test_required_credentials() {
-        let KeyPair { secret_key, .. } = KeyPair::new();
+        let KeyPair { secret_key, .. } = KeyPair::generate();
         let result =
             Sign::Required(SignatureType::Body(Bytes::new())).create_signature(Some(&secret_key));
         assert!(result.unwrap().is_some())
@@ -1711,7 +1711,7 @@ mod tests {
 
     #[test]
     fn test_optional_credentials() {
-        let KeyPair { secret_key, .. } = KeyPair::new();
+        let KeyPair { secret_key, .. } = KeyPair::generate();
         let result =
             Sign::Optional(SignatureType::Body(Bytes::new())).create_signature(Some(&secret_key));
         assert!(result.unwrap().is_some())
