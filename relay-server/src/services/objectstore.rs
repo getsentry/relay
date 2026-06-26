@@ -9,7 +9,8 @@ use bytes::Bytes;
 use futures::StreamExt;
 use http::StatusCode;
 use objectstore_client::{
-    Client, ExpirationPolicy, SecretKey as SigningKey, Session, TokenGenerator, Usecase,
+    Client, Compression, ExpirationPolicy, SecretKey as SigningKey, Session, TokenGenerator,
+    Usecase,
 };
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
@@ -43,6 +44,7 @@ pub enum Objectstore {
     TraceAttachment(Managed<StoreTraceAttachment>),
     EventAttachment(Managed<StoreAttachment>),
     RawProfile(Managed<StoreRawProfile>),
+    Create(Create, Sender<Result<ObjectstoreKey, Error>>),
     Stream(Stream, Sender<Result<ObjectstoreKey, Error>>),
 }
 
@@ -54,6 +56,7 @@ impl Objectstore {
             Self::EventAttachment(_) => MessageKind::EventAttachment,
             Self::RawProfile(_) => MessageKind::RawProfile,
             Self::Stream { .. } => MessageKind::Stream,
+            Self::Create { .. } => MessageKind::Create,
         }
     }
 
@@ -68,6 +71,7 @@ impl Objectstore {
             Self::EventAttachment(_) => 1,
             Self::RawProfile(_) => 1,
             Self::Stream { .. } => 1,
+            Self::Create { .. } => 0,
         }
     }
 }
@@ -114,6 +118,7 @@ enum MessageKind {
     TraceAttachment,
     RawProfile,
     Stream,
+    Create,
 }
 
 impl MessageKind {
@@ -124,7 +129,23 @@ impl MessageKind {
             Self::TraceAttachment => "attachment_v2",
             Self::RawProfile => "profile_raw",
             Self::Stream => "stream",
+            Self::Create => "create",
         }
+    }
+}
+
+/// A request to create a new objectstore multipart upload.
+pub struct Create {
+    pub organization_id: OrganizationId,
+    pub project_id: ProjectId,
+    pub key: String,
+}
+
+impl FromMessage<Create> for Objectstore {
+    type Response = AsyncResponse<Result<ObjectstoreKey, Error>>;
+
+    fn from_message(message: Create, sender: Sender<Result<ObjectstoreKey, Error>>) -> Self {
+        Self::Create(message, sender)
     }
 }
 
@@ -424,6 +445,9 @@ impl LoadShed<Objectstore> for ObjectstoreService {
             Objectstore::Stream(_, sender) => {
                 sender.send(Err(error));
             }
+            Objectstore::Create(_, sender) => {
+                sender.send(Err(error));
+            }
         }
     }
 }
@@ -462,6 +486,13 @@ impl ObjectstoreServiceInner {
             }
             Objectstore::RawProfile(profile) => {
                 self.handle_raw_profile(profile).await;
+            }
+            Objectstore::Create(create, sender) => {
+                let result = self.handle_create(create).await;
+                if let Err(error) = &result {
+                    error.log(MessageKind::Create);
+                }
+                sender.send(result);
             }
             Objectstore::Stream(stream, sender) => {
                 let result = self.handle_stream(stream).await;
@@ -708,6 +739,25 @@ impl ObjectstoreServiceInner {
             .await?;
 
         Ok(Some(stored_key))
+    }
+
+    async fn handle_create(&self, create: Create) -> Result<ObjectstoreKey, Error> {
+        let Create {
+            organization_id,
+            project_id,
+            key,
+        } = create;
+        let session = self.session(&self.event_attachments, organization_id, project_id)?;
+
+        let multipart_upload = session
+            .initiate_multipart_upload()
+            .key(&key)
+            .compression(Compression::Zstd) // make explicit because parts need to be manually compressed.
+            .send()
+            .await?;
+        debug_assert_eq!(&key, multipart_upload.key());
+
+        Ok(ObjectstoreKey(key))
     }
 
     async fn handle_stream(&self, stream: Stream) -> Result<ObjectstoreKey, Error> {

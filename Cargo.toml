@@ -90,7 +90,13 @@ android_trace_log = { version = "0.3", features = ["serde"] }
 # Keep it pinned until it's possible to disable backtrace.
 anyhow = "=1.0.69"
 arc-swap = "1"
-async-compression = { version = "0.4", features = ["tokio", "gzip", "brotli", "deflate", "zstd"] }
+async-compression = { version = "0.4", features = [
+    "tokio",
+    "gzip",
+    "brotli",
+    "deflate",
+    "zstd",
+] }
 async-trait = "0.1"
 axum = "0.8"
 axum-extra = "0.12"
@@ -153,7 +159,7 @@ metrics = "0.24"
 metrics-exporter-dogstatsd = "0.9"
 num-traits = "0.2"
 num_cpus = "1"
-objectstore-client = "0.1"
+objectstore-client = { version = "0.1", features = ["multipart"] }
 opentelemetry-semantic-conventions = "0.31"
 opentelemetry-proto = { version = "0.31", default-features = false }
 papaya = "0.2"

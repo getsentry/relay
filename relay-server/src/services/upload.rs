@@ -272,9 +272,24 @@ impl Service {
                 SignedLocation::try_from_response(response)
             }
             #[cfg(feature = "processing")]
-            Backend::Objectstore { addr: _, config } => {
-                // We can create & sign a location right here, no need to query the objectstore service.
+            Backend::Objectstore { addr, config } => {
                 let key = Uuid::now_v7().as_simple().to_string();
+                let Scoping {
+                    organization_id,
+                    project_id,
+                    ..
+                } = project.scoping;
+
+                let key = addr
+                    .send(objectstore::Create {
+                        organization_id,
+                        project_id,
+                        key,
+                    })
+                    .await
+                    .map_err(Error::ObjectstoreServiceUnavailable)??
+                    .into_inner();
+
                 Location {
                     project_id: project.scoping.project_id,
                     key,
