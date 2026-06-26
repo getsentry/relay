@@ -273,6 +273,8 @@ impl Service {
             }
             #[cfg(feature = "processing")]
             Backend::Objectstore { addr, config } => {
+                use crate::services::objectstore::UploadRef;
+
                 let key = Uuid::now_v7().as_simple().to_string();
                 let Scoping {
                     organization_id,
@@ -280,20 +282,20 @@ impl Service {
                     ..
                 } = project.scoping;
 
-                let key = addr
+                let UploadRef { key, upload_id } = addr
                     .send(objectstore::Create {
                         organization_id,
                         project_id,
                         key,
                     })
                     .await
-                    .map_err(Error::ObjectstoreServiceUnavailable)??
-                    .into_inner();
+                    .map_err(Error::ObjectstoreServiceUnavailable)??;
 
                 Location {
                     project_id: project.scoping.project_id,
                     key,
                     length: Provisional(length),
+                    upload_id,
                     other: Default::default(),
                 }
                 .try_sign(config)
@@ -318,10 +320,13 @@ impl Service {
             }
             #[cfg(feature = "processing")]
             Backend::Objectstore { addr, config } => {
+                use crate::services::objectstore::UploadRef;
+
                 let Location {
                     project_id,
                     key,
                     length,
+                    upload_id,
                     other,
                 } = location.verify(received, config)?;
 
@@ -334,7 +339,7 @@ impl Service {
                     .send(objectstore::Stream {
                         organization_id: scoping.organization_id,
                         project_id,
-                        key,
+                        upload_ref: UploadRef { key, upload_id },
                         stream,
                     })
                     .await
@@ -346,6 +351,7 @@ impl Service {
                     project_id,
                     key,
                     length,
+                    upload_id,
                     other,
                 }
                 .try_sign(config)
@@ -440,6 +446,8 @@ pub struct Location<L> {
     pub key: String,
     /// Value of the `Upload-Length` header. `None` if `Upload-Defer-Length: 1`.
     pub length: L,
+    /// The ID of the upload session, as provided by objectstore.
+    pub upload_id: Option<String>,
     pub other: UploadParams,
 }
 
@@ -449,16 +457,19 @@ impl<L: UploadLength> Location<L> {
             project_id,
             key,
             length,
+            upload_id,
             other,
         } = self;
         #[derive(Debug, Serialize)]
         struct QueryParams<'a> {
             pub upload_length: Option<usize>,
+            pub upload_id: &'a String,
             #[serde(flatten)]
             pub other: &'a UploadParams,
         }
         let params = QueryParams {
             upload_length: length.value(),
+            upload_id,
             other,
         };
         let query = serde_urlencoded::to_string(params)?;
