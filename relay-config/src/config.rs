@@ -281,10 +281,10 @@ impl Credentials {
     /// Generates new random credentials.
     pub fn generate() -> Self {
         relay_log::info!("generating new relay credentials");
-        let (sk, pk) = generate_key_pair();
+        let (secret_key, public_key) = generate_key_pair();
         Self {
-            secret_key: sk,
-            public_key: pk,
+            secret_key,
+            public_key,
             id: generate_relay_id(),
         }
     }
@@ -1635,7 +1635,7 @@ impl Default for Cogs {
 }
 
 /// Configuration for the upload service.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Upload {
     /// Maximum number of uploads that the service accepts.
@@ -1648,6 +1648,11 @@ pub struct Upload {
     ///
     /// In seconds.
     pub max_age: i64,
+
+    /// Credentials used for signing & verifying upload locations.
+    ///
+    /// If omitted, relay's default [`Credentials`] are used.
+    pub credentials: Option<UploadCredentials>,
 }
 
 impl Default for Upload {
@@ -1656,7 +1661,33 @@ impl Default for Upload {
             max_concurrent_requests: 100,
             timeout: 5 * 60,  // five minutes
             max_age: 60 * 60, // 1h
+            credentials: None,
         }
+    }
+}
+
+/// Credentials used for signing & verifying upload locations.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct UploadCredentials {
+    /// Key used to sign upload locations.
+    #[cfg(feature = "processing")]
+    pub signing_key: SecretKey,
+
+    /// Key used to verify upload locations.
+    pub verification_key: PublicKey,
+}
+
+impl fmt::Debug for UploadCredentials {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self {
+            #[cfg(feature = "processing")]
+                signing_key: _,
+            verification_key,
+        } = self;
+        let mut b = f.debug_struct("UploadCredentials");
+        #[cfg(feature = "processing")]
+        b.field("signing_key", &"[redacted]");
+        b.field("verification_key", verification_key).finish()
     }
 }
 
@@ -2599,6 +2630,16 @@ impl Config {
         &self.values.upload
     }
 
+    /// Returns the key used to sign upload locations.
+    #[cfg(feature = "processing")]
+    pub fn upload_signing_key(&self) -> Option<&SecretKey> {
+        self.upload()
+            .credentials
+            .as_ref()
+            .map(|c| &c.signing_key)
+            .or(self.credentials().map(|c| &c.secret_key))
+    }
+
     /// Redis servers to connect to for project configs, cardinality limits,
     /// rate limiting, and metrics metadata.
     pub fn redis(&self) -> Option<RedisConfigsRef<'_>> {
@@ -2737,7 +2778,6 @@ impl Default for Config {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
 
     /// Regression test for renaming the envelope buffer flags.
@@ -2752,6 +2792,37 @@ cache:
         let values: ConfigValues = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(values.cache.envelope_buffer_size, 1_000_000);
         assert_eq!(values.cache.envelope_expiry, 1800);
+    }
+
+    #[cfg(feature = "processing")]
+    #[test]
+    fn test_upload_secret_key_from_file() {
+        let path = env::temp_dir().join(Uuid::new_v4().to_string());
+        fs::create_dir(&path).unwrap();
+        fs::write(
+            path.join("my_secret.txt"),
+            "U3LSQM5NorvgnoYHW_aZpc_43nuuh3lhs3zjjcBwaks",
+        )
+        .unwrap();
+        fs::write(
+            ConfigValues::path(&path),
+            r#"
+upload:
+    credentials:
+        signing_key: ${file:my_secret.txt}
+        verification_key: "VNS8haF0VTnuMMDR2t-f7AgnmUcXmcdzV3SVksSk34s""#,
+        )
+        .unwrap();
+
+        let config = Config::from_path(&path).unwrap();
+
+        fs::remove_dir_all(path).unwrap();
+
+        let signing_key = &config.upload().credentials.as_ref().unwrap().signing_key;
+        assert_eq!(
+            signing_key.to_string(),
+            "U3LSQM5NorvgnoYHW_aZpc_43nuuh3lhs3zjjcBwaks"
+        );
     }
 
     #[test]

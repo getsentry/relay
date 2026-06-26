@@ -26,6 +26,7 @@
 - Prefix upload location query params for forward compatibility. ([#6076](https://github.com/getsentry/relay/pull/6076))
 - Add config option to bypass the kafka fallback for objectstore uploads. ([#6127](https://github.com/getsentry/relay/pull/6127))
 - Use upstream descriptor in upload requests. ([#6128](https://github.com/getsentry/relay/pull/6128))
+- Use dedicated secret to sign upload URLs. ([#6132](https://github.com/getsentry/relay/pull/6132))
 
 ## 26.6.0
 
