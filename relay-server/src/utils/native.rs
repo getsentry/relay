@@ -72,12 +72,12 @@ fn write_native_placeholder(
         .get_or_insert_with(Vec::new);
 
     let allow_multiple_exceptions = project_info.has_feature(Feature::MinidumpMultiException);
-    if let Some(exc) = exceptions.iter().nth(1) {
+    if let Some(exc) = exceptions.get(1) {
         relay_log::info!(
             exceptions = exceptions.len(),
             mechanism = ?get_value!(exc.mechanism.ty),
             project = ?event.project,
-            allow_multiple_exceptions = allow_multiple_exceptions,
+            has_feature = allow_multiple_exceptions,
             "Minidump event has additional exceptions",
         )
     }
