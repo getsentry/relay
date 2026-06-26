@@ -46,6 +46,7 @@ static WEB_CRAWLERS: LazyLock<Regex> = LazyLock::new(|| {
         PerplexityBot|              # Perplexity - see https://docs.perplexity.ai/guides/bots
         Applebot|                   # Apple - see https://support.apple.com/en-us/119829
         DuckDuckBot                 # DuckDuckGo - see https://duckduckgo.com/duckduckgo-help-pages/results/duckduckbot
+        Lightpanda                  # Lightpand - see https://lightpanda.io/
     "
     )
     .expect("Invalid web crawlers filter Regex")
@@ -164,6 +165,7 @@ mod tests {
             "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)",
             "Mozilla/5.0 (Device; OS_version) AppleWebKit/WebKit_version (KHTML, like Gecko)Version/Safari_version [Mobile/Mobile_version] Safari/WebKit_version (Applebot/Applebot_version; +http://www.apple.com/go/applebot)",
             "DuckDuckBot/1.1; (+http://duckduckgo.com/duckduckbot.html)",
+            "Lightpanda/1.0",
         ];
 
         for banned_user_agent in &user_agents {
