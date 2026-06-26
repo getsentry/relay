@@ -8,6 +8,7 @@ use crate::managed::{Managed, ManagedResult, Rejected};
 #[cfg(feature = "processing")]
 use crate::processing::StoreHandle;
 use crate::processing::spans::Indexed;
+use crate::processing::trace_metrics::produce_webvitals_metrics;
 use crate::processing::transactions::types::{
     ExpandedTransaction, ExtractedIndexedSpans, StandaloneProfile,
 };
@@ -88,6 +89,11 @@ impl Forward for TransactionOutput {
                             span.performance_issues_spans = true;
                         });
                     }
+
+                    if let Some(metrics) = relay_spans::extract_web_vital_metrics(&span.item) {
+                        produce_webvitals_metrics(s, &span, metrics);
+                    }
+
                     s.send_to_store(span)
                 };
             }

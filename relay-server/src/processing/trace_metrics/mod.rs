@@ -1,18 +1,24 @@
-use std::sync::Arc;
-
 use relay_cogs::{AppFeature, FeatureWeights};
 use relay_event_schema::processor::ProcessingAction;
+use relay_event_schema::protocol::TraceMetricHeader;
 use relay_event_schema::protocol::{TraceMetric, trace_metric};
 use relay_filter::FilterStatKey;
 use relay_quotas::{DataCategory, RateLimits};
+use smallvec::smallvec;
+use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use crate::Envelope;
 use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemType, Items};
 use crate::envelope::{ContainerWriteError, ItemContainer};
 use crate::managed::{Counted, Managed, ManagedEnvelope, ManagedResult as _, Quantities, Rejected};
-use crate::processing::{self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter};
+use crate::processing::trace_metrics;
+use crate::processing::{
+    self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter, Retention, StoreHandle,
+};
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
-use smallvec::smallvec;
+use crate::services::store::StoreSpanV2;
+use crate::services::store::StoreTraceItem;
 
 mod filter;
 mod process;
@@ -20,6 +26,41 @@ mod process;
 mod store;
 mod utils;
 mod validate;
+
+/// Produce the supplied webvital trace metrics to kafka.
+pub fn produce_webvitals_metrics(
+    s: StoreHandle<'_>,
+    span: &Managed<Box<StoreSpanV2>>,
+    metrics: Vec<TraceMetric>,
+) {
+    for metric in metrics {
+        let trace_metric_headers = TraceMetricHeader {
+            byte_size: Some(trace_metrics::utils::calculate_size(&metric)),
+            other: BTreeMap::default(),
+        };
+
+        let wheader = crate::envelope::WithHeader {
+            header: trace_metric_headers.into(),
+            value: metric.into(),
+        };
+
+        if let Ok(mut item) = trace_metrics::store::convert(
+            wheader,
+            &trace_metrics::store::Context {
+                received_at: span.received_at(),
+                scoping: span.scoping(),
+                retention: Retention {
+                    standard: span.retention_days,
+                    downsampled: span.downsampled_retention_days,
+                },
+            },
+        ) {
+            // Clear outcomes for these metrics, as we don't want them billed.
+            item.trace_item.outcomes = None;
+            s.send_to_store(span.wrap(item));
+        }
+    }
+}
 
 pub use self::utils::get_calculated_byte_size;
 
