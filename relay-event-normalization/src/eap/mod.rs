@@ -461,18 +461,18 @@ pub fn normalize_trace_status(
     }
 
     let attributes = attributes.get_or_insert_with(Default::default);
-    if attributes.contains_key("sentry.trace.status") {
+    if attributes.contains_key(SENTRY__TRACE__STATUS) {
         return;
     }
 
     let trace_status = attributes
-        .get_value("sentry.status")
+        .get_value(SENTRY__STATUS)
         .and_then(|v| v.as_str())
         .map(|s| s.to_owned())
         .or_else(|| status.value().map(|s| s.to_string()));
 
     if let Some(trace_status) = trace_status {
-        attributes.insert("sentry.trace.status", trace_status);
+        attributes.insert(SENTRY__TRACE__STATUS, trace_status);
     }
 }
 
