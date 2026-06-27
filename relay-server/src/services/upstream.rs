@@ -623,10 +623,6 @@ where
     fn build(&mut self, builder: &mut RequestBuilder) -> Result<(), HttpError> {
         let body = self.body()?;
 
-        relay_statsd::metric!(
-            distribution(RelayDistributions::UpstreamQueryBodySize) = body.len() as u64
-        );
-
         builder
             .header(header::CONTENT_TYPE, b"application/json")
             .body(body.clone());
@@ -945,10 +941,19 @@ impl SharedClient {
                 builder.header("x-sentry-relay-signature", &signature.0);
             }
 
-            match builder.finish() {
-                Ok(Request(client_request)) => Ok(client_request),
-                Err(e) => Err(e.into()),
+            let Request(built) = builder.finish()?;
+
+            if let Some(body) = built.body().and_then(|body| body.as_bytes()) {
+                let upstream = request.upstream().map(|up| up.to_string());
+
+                relay_statsd::metric!(
+                    distribution(RelayDistributions::UpstreamBodySize) = body.len() as u64,
+                    upstream = upstream.unwrap_or_else(|| "default".to_owned()),
+                    route = request.route(),
+                );
             }
+
+            Ok(built)
         })
     }
 
