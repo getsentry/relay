@@ -88,14 +88,11 @@ where
 {
     let (head, stream) = utils::stream::peek_n(stream, MAGIC_PEEK).await?;
 
-    if head.starts_with(GZIP_MAGIC_HEADER)
-        || head.starts_with(XZ_MAGIC_HEADER)
-        || head.starts_with(BZIP2_MAGIC_HEADER)
-        || head.starts_with(ZSTD_MAGIC_HEADER)
-    {
-        Err(PeekError::Compressed)
-    } else {
-        Ok(stream)
+    match Compression::from(&head) {
+        Compression::NoCompression => Ok(stream),
+        Compression::Gzip | Compression::Xz | Compression::Bzip2 | Compression::Zstd => {
+            Err(PeekError::Compressed)
+        }
     }
 }
 
@@ -118,25 +115,46 @@ fn run_decoder(mut decoder: impl Read) -> std::io::Result<Vec<u8>> {
     Ok(buffer)
 }
 
-/// Creates a decoder based on the magic bytes the minidump payload
+/// Types of compression we support for minidump payloads.
+enum Compression {
+    NoCompression,
+    Gzip,
+    Xz,
+    Bzip2,
+    Zstd,
+}
+
+impl Compression {
+    fn from(header: &[u8]) -> Self {
+        if header.starts_with(GZIP_MAGIC_HEADER) {
+            Self::Gzip
+        } else if header.starts_with(XZ_MAGIC_HEADER) {
+            Self::Xz
+        } else if header.starts_with(BZIP2_MAGIC_HEADER) {
+            Self::Bzip2
+        } else if header.starts_with(ZSTD_MAGIC_HEADER) {
+            Self::Zstd
+        } else {
+            Self::NoCompression
+        }
+    }
+}
+
+/// Creates a decoder based on the magic bytes in the minidump payload.
 fn decoder_from(minidump_data: Bytes) -> Option<Box<dyn Read>> {
-    if minidump_data.starts_with(GZIP_MAGIC_HEADER) {
-        return Some(Box::new(GzDecoder::new(Cursor::new(minidump_data))));
-    } else if minidump_data.starts_with(XZ_MAGIC_HEADER) {
-        return Some(Box::new(XzDecoder::new(Cursor::new(minidump_data))));
-    } else if minidump_data.starts_with(BZIP2_MAGIC_HEADER) {
-        return Some(Box::new(BzDecoder::new(Cursor::new(minidump_data))));
-    } else if minidump_data.starts_with(ZSTD_MAGIC_HEADER) {
-        return match ZstdDecoder::new(Cursor::new(minidump_data)) {
+    match Compression::from(&minidump_data) {
+        Compression::NoCompression => None,
+        Compression::Gzip => Some(Box::new(GzDecoder::new(Cursor::new(minidump_data)))),
+        Compression::Xz => Some(Box::new(XzDecoder::new(Cursor::new(minidump_data)))),
+        Compression::Bzip2 => Some(Box::new(BzDecoder::new(Cursor::new(minidump_data)))),
+        Compression::Zstd => match ZstdDecoder::new(Cursor::new(minidump_data)) {
             Ok(decoder) => Some(Box::new(decoder)),
             Err(ref err) => {
                 relay_log::error!(error = err as &dyn Error, "failed to create ZstdDecoder");
                 None
             }
-        };
+        },
     }
-
-    None
 }
 
 /// Tries to decode a minidump using any of the supported compression formats
