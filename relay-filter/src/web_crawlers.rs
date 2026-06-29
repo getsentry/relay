@@ -45,7 +45,7 @@ static WEB_CRAWLERS: LazyLock<Regex> = LazyLock::new(|| {
         GPTBot|                     # OpenAI - see https://platform.openai.com/docs/bots
         PerplexityBot|              # Perplexity - see https://docs.perplexity.ai/guides/bots
         Applebot|                   # Apple - see https://support.apple.com/en-us/119829
-        DuckDuckBot                 # DuckDuckGo - see https://duckduckgo.com/duckduckgo-help-pages/results/duckduckbot
+        DuckDuckBot|                # DuckDuckGo - see https://duckduckgo.com/duckduckgo-help-pages/results/duckduckbot
         Lightpanda                  # Lightpand - see https://lightpanda.io/
     "
     )
