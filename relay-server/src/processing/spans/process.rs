@@ -244,6 +244,7 @@ fn normalize_span(
         eap::normalize_user_agent(&mut span.attributes, client_ua_info);
         eap::normalize_user_geo(&mut span.attributes, |ip| geo_lookup.lookup(ip));
         eap::normalize_dsc(&mut span.attributes, &span.is_segment, headers.dsc());
+        eap::normalize_trace_status(&mut span.attributes, &span.is_segment, &span.status);
         if ctx.is_processing() {
             eap::normalize_ai(&mut span.attributes, duration, model_metdata);
         }
@@ -1035,6 +1036,16 @@ mod tests {
                 "attribute mismatch for {key}"
             )
         });
+    }
+
+    #[test]
+    fn test_normalize_trace_status_on_segment_span() {
+        let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(&[], &[]);
+        span.value_mut().as_mut().unwrap().is_segment = Annotated::new(true);
+
+        normalize_span(&mut span, Default::default(), &headers, &geo_lookup, ctx).unwrap();
+
+        assert_attributes_contains(&span, &[("sentry.trace.status", "ok")], &[]);
     }
 
     #[test]
