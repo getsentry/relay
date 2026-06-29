@@ -6,6 +6,7 @@
 
 - Infer span descriptions via `sentry-conventions`. ([#6093](https://github.com/getsentry/relay/pull/6093))
 - Raises the size limit for the flags context to 64KiB. ([#6137](https://github.com/getsentry/relay/pull/6137))
+- Add Lightpanda to web crawler filter. ([#6143](https://github.com/getsentry/relay/pull/6143))
 
 **Bug Fixes**:
 
