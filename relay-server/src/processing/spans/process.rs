@@ -167,7 +167,12 @@ fn expand_legacy_span(item: &Item) -> Result<WithHeader<SpanV2>> {
         // We can't enable `infer_name` here:
         // These spans haven't been PII scrubbed yet, so inferring a name would risk
         // leaking PII.
-        .map_value(|span| relay_spans::span_v1_to_span_v2(span, false));
+        .map_value(|mut span| {
+            // Set some segment-related attributes before converting to V2.
+            // This exists for parity with the legacy standalone span pipeline.
+            relay_spans::set_segment_attributes(&mut span);
+            relay_spans::span_v1_to_span_v2(span, false)
+        });
 
     Ok(WithHeader::new(span))
 }
@@ -234,7 +239,6 @@ fn normalize_span(
         // because category derivation depends on having the sentry.op attribute
         // available.
         eap::normalize_sentry_op(&mut span.attributes);
-        eap::normalize_web_vital_span_segment(span);
         eap::normalize_span_category(&mut span.attributes);
         eap::normalize_received(&mut span.attributes, meta.received_at());
         eap::normalize_client_address(&mut span.attributes, meta.client_addr());

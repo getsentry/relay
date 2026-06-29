@@ -800,26 +800,6 @@ fn normalize_http_attributes(
     }
 }
 
-/// Makes sure web vital spans are not identified with segments.
-///
-/// This was ported from the legacy pipeline for behavior parity.
-/// At some point in the future, web vital spans will become metrics,
-/// and this will become academic.
-pub fn normalize_web_vital_span_segment(span: &mut SpanV2) {
-    let Some(attributes) = span.attributes.value_mut() else {
-        return;
-    };
-
-    if let Some(op) = attributes.get_value(SENTRY__OP)
-        && let Some(op_name) = op.as_str()
-        && (op_name.starts_with("ui.interaction.") || op_name.starts_with("ui.webvital."))
-    {
-        span.is_segment = None.into();
-        span.parent_span_id = None.into();
-        attributes.remove(SENTRY__SEGMENT__ID);
-    }
-}
-
 /// Double writes sentry conventions attributes into legacy attributes.
 ///
 /// This achieves backwards compatibility as it allows products to continue using legacy attributes
