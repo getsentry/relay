@@ -742,14 +742,17 @@ fn emit_response_metrics(
     let upstream = entry.request.upstream().map(|up| up.to_string());
 
     // To better understand the intermittent send failures that we see, log more info.
-    // Only log the first 10 since the information value is diminishing afterwards.
-    if let Err(error @ UpstreamRequestError::SendFailed(_)) = send_result
-        && entry.retries <= 10
+    //
+    // Only log errors which persist over multiple retries.
+    if let Err(UpstreamRequestError::SendFailed(error)) = send_result
+        && (entry.retries == 10 || entry.retries == 100 || entry.retries == 1000)
     {
         relay_log::warn!(
             error = error as &dyn std::error::Error,
-            route = entry.request.route(),
-            retries = entry.retries,
+            error_dbg = ?error,
+            tags.error_url = ?error.url(),
+            tags.route = entry.request.route(),
+            tags.retries = entry.retries,
             upstream = upstream.as_deref().unwrap_or("default"),
             "upstream request send failed",
         );
