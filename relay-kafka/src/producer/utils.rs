@@ -119,25 +119,32 @@ impl ClientContext for Context {
 
         for (_, broker) in statistics.brokers {
             relay_statsd::metric!(
-                gauge(KafkaGauges::OutboundBufferRequests) = broker.outbuf_cnt as u64,
+                gauge(KafkaGauges::BrokerState) = 1,
+                broker_name = &broker.name,
+                producer_name = producer_name,
+                source = broker.source,
+                state = broker.state
+            );
+            relay_statsd::metric!(
+                gauge(KafkaGauges::BrokerOutboundBufferRequests) = broker.outbuf_cnt as u64,
                 broker_name = &broker.name,
                 producer_name = producer_name
             );
             relay_statsd::metric!(
-                gauge(KafkaGauges::OutboundBufferMessages) = broker.outbuf_msg_cnt as u64,
+                gauge(KafkaGauges::BrokerOutboundBufferMessages) = broker.outbuf_msg_cnt as u64,
                 broker_name = &broker.name,
                 producer_name = producer_name
             );
             if let Some(connects) = broker.connects {
                 relay_statsd::metric!(
-                    gauge(KafkaGauges::Connects) = connects as u64,
+                    gauge(KafkaGauges::BrokerConnects) = connects as u64,
                     broker_name = &broker.name,
                     producer_name = producer_name
                 );
             }
             if let Some(disconnects) = broker.disconnects {
                 relay_statsd::metric!(
-                    gauge(KafkaGauges::Disconnects) = disconnects as u64,
+                    gauge(KafkaGauges::BrokerDisconnects) = disconnects as u64,
                     broker_name = &broker.name,
                     producer_name = producer_name
                 );
