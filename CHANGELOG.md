@@ -23,10 +23,12 @@
 - Internally handle outcomes as metrics. ([#6107](https://github.com/getsentry/relay/pull/6107))
 - Have relay generate metric billing outcomes. ([#6066](https://github.com/getsentry/relay/pull/6066))
 - Update sentry-conventions to 0.12.0.
+- Update sentry-conventions to 0.13.0. ([#6139](https://github.com/getsentry/relay/pull/6139))
 - Upgrade release image to Debian 13. ([#6110](https://github.com/getsentry/relay/pull/6110))
 - Prefix upload location query params for forward compatibility. ([#6076](https://github.com/getsentry/relay/pull/6076))
 - Add config option to bypass the kafka fallback for objectstore uploads. ([#6127](https://github.com/getsentry/relay/pull/6127))
 - Use upstream descriptor in upload requests. ([#6128](https://github.com/getsentry/relay/pull/6128))
+- Use dedicated secret to sign upload URLs. ([#6132](https://github.com/getsentry/relay/pull/6132))
 
 ## 26.6.0
 
