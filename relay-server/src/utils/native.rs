@@ -15,7 +15,7 @@ use relay_event_schema::protocol::{
     ClientSdkInfo, Context, Contexts, Event, Exception, JsonLenientString, Level, Mechanism,
     StabilityReportContext, Values,
 };
-use relay_protocol::{Annotated, Value};
+use relay_protocol::{Annotated, Value, get_value};
 
 use crate::envelope::{Item, ItemType};
 use crate::services::projects::project::ProjectInfo;
@@ -71,7 +71,19 @@ fn write_native_placeholder(
         .value_mut()
         .get_or_insert_with(Vec::new);
 
-    if !project_info.has_feature(Feature::MinidumpMultiException) {
+    let allow_multiple_exceptions = project_info.has_feature(Feature::MinidumpMultiException);
+    if let Some(exc) = exceptions.first() {
+        relay_log::info!(
+            additional_exceptions = exceptions.len(),
+            native_exception_mechanism = placeholder.exception_type,
+            additional_exception_mechanism = ?get_value!(exc.mechanism.ty),
+            project = ?event.project,
+            has_feature = allow_multiple_exceptions,
+            "Native event has additional exceptions",
+        )
+    }
+
+    if !allow_multiple_exceptions {
         exceptions.clear(); // clear previous errors if any
     }
 
