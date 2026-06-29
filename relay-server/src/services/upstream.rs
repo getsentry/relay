@@ -148,7 +148,7 @@ impl UpstreamRequestError {
     /// Returns `true` if the error indicates a network downtime.
     fn is_network_error(&self) -> bool {
         match self {
-            Self::SendFailed(_) => true,
+            Self::SendFailed(e) => treat_as_network_error(e),
             Self::ResponseError(code, _) => matches!(code.as_u16(), 502..=504),
             Self::Http(http) => http.is_network_error(),
             _ => false,
@@ -233,6 +233,15 @@ impl IntoResponse for UpstreamRequestError {
             _ => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         }
     }
+}
+
+fn treat_as_network_error(e: &reqwest::Error) -> bool {
+    if find_error_source(e, is_length_limit_error).is_some() {
+        return false;
+    }
+
+    // TODO: there's probably more exceptions to this rule.
+    true
 }
 
 /// Checks the authentication state with the upstream.
