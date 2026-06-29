@@ -50,7 +50,15 @@ pub fn expand(
         }
     }
 
-    (Settings::default(), result)
+    let settings = Settings {
+        infer_ip: false,
+        infer_user_agent: false,
+        infer_name: false,
+        // OTEL spans don't usually have a description, we want to infer it.
+        infer_description: true,
+    };
+
+    (settings, result)
 }
 
 #[derive(Debug, thiserror::Error)]

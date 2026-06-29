@@ -98,14 +98,21 @@ fn expand_span_container(item: &Item) -> Result<(Settings, ContainerItems<SpanV2
         .into_parts();
 
     relay_log::trace!("span container metadata: {metadata:?}");
+
+    // By default, we only want to infer descriptions for V2 spans.
+    let default_settings = Settings {
+        infer_description: true,
+        ..Default::default()
+    };
+
     let settings = metadata
         .map(|metadata| {
             let is = metadata.ingest_settings.as_ref();
 
             match metadata.version {
-                None => Settings::default(),
+                None => default_settings,
                 // Technically invalid.
-                Some(0 | 1) => Settings::default(),
+                Some(0 | 1) => default_settings,
                 Some(2) => Settings {
                     infer_ip: is
                         .and_then(|is| is.infer_ip)
@@ -116,12 +123,14 @@ fn expand_span_container(item: &Item) -> Result<(Settings, ContainerItems<SpanV2
                     // We don't want to infer names for V2 spans. If an SDK sent a
                     // V2 span without a name it's just invalid.
                     infer_name: false,
+                    // We want to infer descriptions for V2 spans.
+                    infer_description: true,
                 },
                 // Unsupported, fall back to the safe default.
-                Some(_) => Default::default(),
+                Some(_) => default_settings,
             }
         })
-        .unwrap_or_default();
+        .unwrap_or(default_settings);
 
     Ok((settings, spans))
 }
@@ -151,6 +160,9 @@ fn expand_legacy_spans(
         // The inference can't happen during the conversion
         // because PII scrubbing needs to run first.
         infer_name: true,
+        // We don't want to infer descriptions for legacy spans; they
+        // should already have one.
+        infer_description: false,
     };
 
     (settings, spans)
@@ -295,7 +307,10 @@ fn normalize_span_derived(
         if settings.infer_name {
             eap::normalize_span_name(span);
         }
-        eap::normalize_sentry_description(&mut span.attributes, &span.name);
+
+        if settings.infer_description {
+            eap::normalize_sentry_description(&mut span.attributes, &span.name);
+        }
     }
 
     // Set a max_bytes value on the root state if it's defined in the project config.
