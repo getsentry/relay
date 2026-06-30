@@ -491,17 +491,20 @@ def test_minidump_invalid_nested_formdata(mini_sentry, relay):
 
 
 @pytest.mark.parametrize(
-    "rate_limit,minidump_filename,use_objectstore",
+    "rate_limit,minidump_filename,use_objectstore,stream_upload",
     [
-        (None, "minidump.dmp", True),
-        (None, "minidump.dmp", False),
-        ("attachment", "minidump.dmp", True),
-        ("attachment", "minidump.dmp", False),
-        ("transaction", "minidump.dmp", False),
-        (None, "minidump.dmp.gz", False),
-        (None, "minidump.dmp.xz", False),
-        (None, "minidump.dmp.bz2", False),
-        (None, "minidump.dmp.zst", False),
+        (None, "minidump.dmp", True, False),
+        (None, "minidump.dmp", False, False),
+        ("attachment", "minidump.dmp", True, False),
+        ("attachment", "minidump.dmp", False, False),
+        ("transaction", "minidump.dmp", False, False),
+        (None, "minidump.dmp.gz", False, False),
+        (None, "minidump.dmp.xz", False, False),
+        (None, "minidump.dmp.bz2", False, False),
+        (None, "minidump.dmp.bz2", True, False),
+        (None, "minidump.dmp.zst", False, False),
+        (None, "minidump.dmp.zst", True, False),
+        (None, "minidump.dmp.zst", True, True),
     ],
 )
 def test_minidump_with_processing(
@@ -513,6 +516,7 @@ def test_minidump_with_processing(
     minidump_filename,
     use_objectstore,
     objectstore,
+    stream_upload,
 ):
     dmp_path = os.path.join(os.path.dirname(__file__), "fixtures/native/minidump.dmp")
     with open(dmp_path, "rb") as f:
@@ -533,6 +537,10 @@ def test_minidump_with_processing(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["eventRetention"] = 50000
+    if stream_upload:
+        project_config["config"].setdefault("features", []).append(
+            "projects:relay-minidump-uploads"
+        )
 
     options = {
         "processing": {
@@ -595,10 +603,15 @@ def test_minidump_with_processing(
     assert event["exception"]["values"][0]["mechanism"]["type"] == "minidump"
 
     # Check information extracted from the minidump
-    assert event["timestamp"] == 1574692481.0  # 11/25/2019 @ 2:34pm (UTC)
+    if not stream_upload:
+        assert event["timestamp"] == 1574692481.0  # 11/25/2019 @ 2:34pm (UTC)
 
     # Check that the SDK name is correctly detected
-    assert event["sdk"]["name"] == "minidump.unknown"
+    assert (
+        event["sdk"]["name"] == "minidump.upload"
+        if stream_upload
+        else "minidump.unknown"
+    )
 
     if not use_objectstore:
         assert list(message["attachments"]) == [
@@ -1618,72 +1631,6 @@ def test_minidump_large_attachment_skipped_when_no_project_fetching(mini_sentry,
 
     assert len(envelope.items) == 1
     assert envelope.items[0].payload.bytes == minidump_content
-
-
-@pytest.mark.parametrize(
-    "magic,filename",
-    [
-        pytest.param(b"\x1f\x8b", "minidump.dmp.gz", id="gzip"),
-        pytest.param(b"\xfd7zXZ\x00", "minidump.dmp.xz", id="xz"),
-        pytest.param(b"BZh", "minidump.dmp.bz2", id="bzip2"),
-        pytest.param(b"\x28\xb5\x2f\xfd", "minidump.dmp.zst", id="zstd"),
-    ],
-)
-def test_minidump_objectstore_uploads_rejects_compressed(
-    mini_sentry,
-    relay,
-    magic,
-    filename,
-):
-    """
-    When streaming a minidump to objectstore, a compressed payload should be reject
-    (untill objectstore or minidump can handle them).
-    """
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"].setdefault("features", []).append(
-        "projects:relay-minidump-uploads"
-    )
-
-    relay = relay(
-        mini_sentry,
-        options={
-            "outcomes": {
-                "emit_outcomes": True,
-                "batch_size": 1,
-                "batch_interval": 1,
-            },
-        },
-    )
-
-    with pytest.raises(HTTPError) as exc_info:
-        relay.send_minidump(
-            project_id=project_id,
-            files=[(MINIDUMP_ATTACHMENT_NAME, filename, magic + b"\x00" * 32)],
-        )
-
-    assert exc_info.value.response.status_code == 400
-
-    assert mini_sentry.get_aggregated_outcomes() == [
-        {
-            "category": 1,
-            "outcome": 3,
-            "quantity": 1,
-            "reason": "invalid_minidump",
-        },
-        {
-            "category": 4,
-            "outcome": 3,
-            "reason": "invalid_minidump",
-            "quantity": 1,
-        },
-        {
-            "category": 22,
-            "outcome": 3,
-            "reason": "invalid_minidump",
-            "quantity": 1,
-        },
-    ]
 
 
 def test_minidump_upload_failure_bubbles_up(mini_sentry, relay):

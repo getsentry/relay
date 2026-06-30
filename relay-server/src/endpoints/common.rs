@@ -608,6 +608,7 @@ where
         })
         .await
         .ok()?
+        .inspect_err(|e| relay_log::debug!(error = ?e))
         .ok()?;
 
     let scoping = project.scoping;
@@ -621,6 +622,7 @@ where
             content_encoding,
         })
         .await
+        .inspect_err(|e| relay_log::debug!(error = ?e))
         .ok()?;
 
     let location = result
@@ -634,6 +636,7 @@ where
                 "multipart item upload failed",
             );
         })
+        .inspect_err(|e| relay_log::debug!(error = ?e))
         .ok()?;
     let location = location.into_header_value().ok()?;
     let location = location.to_str().ok()?;
@@ -641,6 +644,7 @@ where
         location,
         content_type,
     })
+    .inspect_err(|e| relay_log::debug!(error = ?e))
     .ok()?;
 
     item.modify(|inner, records| {
