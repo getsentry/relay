@@ -184,7 +184,7 @@ reqwest = { version = "0.13", default-features = false, features = [
 ] }
 rmp-serde = "1"
 semver = "1"
-sentry = { version = "0.47", default-features = false, features = [
+sentry = { version = "0.48", default-features = false, features = [
     # default features, except `release-health` is disabled
     "backtrace",
     "contexts",
@@ -192,7 +192,7 @@ sentry = { version = "0.47", default-features = false, features = [
     "panic",
     "transport",
 ] }
-sentry-core = "0.47"
+sentry-core = "0.48"
 sentry-kafka-schemas = { version = "2", default-features = false }
 sentry-release-parser = { version = "1", default-features = false, features = [
     "semver-1",
