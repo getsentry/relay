@@ -90,7 +90,13 @@ android_trace_log = { version = "0.3", features = ["serde"] }
 # Keep it pinned until it's possible to disable backtrace.
 anyhow = "=1.0.69"
 arc-swap = "1"
-async-compression = { version = "0.4", features = ["tokio", "gzip", "brotli", "deflate", "zstd"] }
+async-compression = { version = "0.4", features = [
+    "tokio",
+    "gzip",
+    "brotli",
+    "deflate",
+    "zstd",
+] }
 async-trait = "0.1"
 axum = "0.8"
 axum-extra = "0.12"
@@ -117,7 +123,7 @@ debugid = "0.8"
 dialoguer = "0.11"
 dircpy = "0.3"
 dynfmt = "0.1"
-ed25519-dalek = { version = "2", features = ["digest"] }
+ed25519-dalek = { version = "2", features = ["digest", "pem", "pkcs8"] }
 enumset = "1"
 either = "1"
 flate2 = "1"
