@@ -235,12 +235,16 @@ impl IntoResponse for UpstreamRequestError {
     }
 }
 
+/// Whether to treat a [`reqwest`] error as a network error.
+///
+/// When the request body is a stream, errors can occur during sending that relate
+/// to the incoming request (client-side), not the outgoing upstream request.
 fn treat_as_network_error(e: &reqwest::Error) -> bool {
+    // NOTE: there's probably more exceptions but this is the one we know about.
     if find_error_source(e, is_length_limit_error).is_some() {
         return false;
     }
 
-    // TODO: there's probably more exceptions to this rule.
     true
 }
 
