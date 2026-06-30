@@ -145,14 +145,15 @@ pub enum KafkaGauges {
     /// - `producer_name`: The configured producer name/deployment identifier.
     TxMsgs,
 
-    /// The current state of the broker.
+    /// A snapshot of the broker state.
     ///
-    /// The metric is always emitted with the value `1` - the state is available as a tag.
+    /// All broker states are emitted as a separate series tagged with `state`.
+    /// The current state is emitted with value `1`, and all other states are emitted
+    /// with value `0`.
     ///
     /// This metric is tagged with:
     /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
     /// - `producer_name`: The configured producer name/deployment identifier.
-    /// - `source`: The [`rdkafka::statistics::Broker::source`] of the broker.
     /// - `state`: The current [`rdkafka::statistics::Broker::state`] of the broker.
     BrokerState,
 
