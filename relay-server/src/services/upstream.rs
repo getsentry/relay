@@ -1227,16 +1227,20 @@ impl AuthState {
     }
 }
 
-/// Indicates whether an request was sent to the upstream.
+/// Indicates whether a request was sent to the upstream.
 #[derive(Clone, Copy, Debug)]
 enum RequestOutcome {
     /// The request was dropped due to a network outage.
     Dropped,
+
     /// The request was received by the upstream.
     ///
     /// This does not automatically mean that the request was successfully accepted. It could also
     /// have been rate limited or rejected as invalid.
     Received,
+
+    /// The request failed without indicating the state of the upstream connection.
+    Failed,
 }
 
 /// Internal message of the upstream's [`UpstreamBroker`].
@@ -1610,15 +1614,17 @@ impl UpstreamBroker {
             let result = client.send(entry.request.as_mut()).await;
             emit_response_metrics(send_start, &entry, &result);
 
-            let status = match result {
-                Err(ref err) if err.is_network_error() => RequestOutcome::Dropped,
-                _ => RequestOutcome::Received,
+            let outcome = match &result {
+                Err(err) if err.is_network_error() => RequestOutcome::Dropped,
+                Err(err) if err.is_received() => RequestOutcome::Received,
+                Ok(_) => RequestOutcome::Received,
+                Err(_) => RequestOutcome::Failed,
             };
 
-            match status {
+            match outcome {
                 RequestOutcome::Dropped if entry.request.retry() => {
                     entry.retries += 1;
-                    action_tx.send(Action::Retry(entry)).ok();
+                    let _ = action_tx.send(Action::Retry(entry));
                 }
                 _ => entry.request.respond(result).await,
             }
@@ -1626,7 +1632,7 @@ impl UpstreamBroker {
             // Send an action back to the action channel of the broker, which will invoke
             // `handle_action`. This is to let the broker know in a synchronized fashion that the
             // request has finished and may need to be retried (above).
-            action_tx.send(Action::Complete(status)).ok();
+            let _ = action_tx.send(Action::Complete(outcome));
         });
     }
 
@@ -1640,6 +1646,7 @@ impl UpstreamBroker {
                 self.conn.reset_error();
                 self.queue.trigger_retries();
             }
+            RequestOutcome::Failed => {}
         }
     }
 
