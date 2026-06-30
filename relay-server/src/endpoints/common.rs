@@ -548,9 +548,7 @@ fn emit_envelope_metrics(envelope: &Envelope) {
 /// Uploads the content of `field` to the objectstore and returns an [Item] with an
 /// [AttachmentPlaceholder] as payload.
 pub async fn upload_to_objectstore<S, E>(
-    stream: S,
-    content_encoding: Option<ContentEncoding>,
-    content_type: Option<String>,
+    stream: StreamWithHeaders<S>,
     mut item: Managed<Item>,
     config: &Config,
     project: ProjectContext,
@@ -561,27 +559,26 @@ where
     S: futures::Stream<Item = Result<Bytes, E>> + Send + 'static,
     E: Into<Box<dyn std::error::Error + Send + Sync>> + 'static,
 {
-    let res = upload_to_objectstore_inner(
-        stream,
-        content_encoding,
-        content_type,
-        &mut item,
-        config,
-        project,
-        upload,
-        referrer,
-    )
-    .await;
+    let res =
+        upload_to_objectstore_inner(stream, &mut item, config, project, upload, referrer).await;
     match res {
         Some(()) => Ok(item),
         None => Err(Outcome::Invalid(DiscardReason::Internal)).reject(&item),
     }
 }
 
+/// A stream with metadata for request submission.
+pub struct StreamWithHeaders<S> {
+    /// The stream of data.
+    pub stream: S,
+    /// What the data is currently compressed as.
+    pub content_encoding: Option<ContentEncoding>,
+    /// Content-type header to forward.
+    pub content_type: Option<String>,
+}
+
 async fn upload_to_objectstore_inner<S, E>(
-    stream: S,
-    content_encoding: Option<ContentEncoding>,
-    content_type: Option<String>,
+    stream: StreamWithHeaders<S>,
     item: &mut Managed<Item>,
     config: &Config,
     project: ProjectContext,
@@ -592,6 +589,12 @@ where
     S: futures::Stream<Item = Result<Bytes, E>> + Send + 'static,
     E: Into<Box<dyn std::error::Error + Send + Sync>> + 'static,
 {
+    let StreamWithHeaders {
+        stream,
+        content_encoding,
+        content_type,
+    } = stream;
+
     let stream: BoxStream<'static, io::Result<Bytes>> = Box::pin(stream.map_err(io::Error::other));
     let stream = MeteredStream::new(stream, referrer);
     let stream = BoundedStream::new(stream, 1, config.max_upload_size());

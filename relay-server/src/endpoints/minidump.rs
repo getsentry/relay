@@ -24,7 +24,9 @@ use tower_http::limit::RequestBodyLimitLayer;
 use zstd::stream::Decoder as ZstdDecoder;
 
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
-use crate::endpoints::common::{self, BadStoreRequest, TextResponse, upload_to_objectstore};
+use crate::endpoints::common::{
+    self, BadStoreRequest, StreamWithHeaders, TextResponse, upload_to_objectstore,
+};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType, Items};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::managed::{Managed, ManagedResult};
@@ -89,7 +91,7 @@ where
     let stream = stream.map_err(std::io::Error::other);
     let (head, stream) = utils::stream::peek_n(stream, MAGIC_PEEK).await?;
     let decoded = match Compression::from(&head) {
-        Compression::NoCompression => (stream.boxed(), None),
+        Compression::None => (stream.boxed(), None),
         Compression::Zstd => (stream.boxed(), Some(ContentEncoding::Zstd)),
         Compression::Gzip => (wrap_decode!(stream, GzipDecoder), None),
         Compression::Xz => (wrap_decode!(stream, XzDecoder), None),
@@ -119,7 +121,7 @@ fn run_decoder(mut decoder: impl Read) -> std::io::Result<Vec<u8>> {
 
 /// Types of compression we support for minidump payloads.
 enum Compression {
-    NoCompression,
+    None,
     Gzip,
     Xz,
     Bzip2,
@@ -137,7 +139,7 @@ impl Compression {
         } else if header.starts_with(ZSTD_MAGIC_HEADER) {
             Self::Zstd
         } else {
-            Self::NoCompression
+            Self::None
         }
     }
 }
@@ -145,7 +147,7 @@ impl Compression {
 /// Creates a decoder based on the magic bytes in the minidump payload.
 fn decoder_from(minidump_data: Bytes) -> Option<Box<dyn Read>> {
     match Compression::from(&minidump_data) {
-        Compression::NoCompression => None,
+        Compression::None => None,
         Compression::Gzip => Some(Box::new(GzDecoder::new(Cursor::new(minidump_data)))),
         Compression::Xz => Some(Box::new(XzDecoder::new(Cursor::new(minidump_data)))),
         Compression::Bzip2 => Some(Box::new(BzDecoder::new(Cursor::new(minidump_data)))),
@@ -350,21 +352,17 @@ where
     E: Into<Box<dyn std::error::Error + Send + Sync>> + Send + 'static,
 {
     if !matches!(item.attachment_type(), Some(AttachmentType::Minidump)) {
-        return upload_to_objectstore(
+        let stream = StreamWithHeaders {
             stream,
-            None,
+            content_encoding: None,
             content_type,
-            item,
-            config,
-            project,
-            upload,
-            referrer,
-        )
-        .await
-        .map_err(|_| BadStoreRequest::ObjectstoreUploadFailed);
+        };
+        return upload_to_objectstore(stream, item, config, project, upload, referrer)
+            .await
+            .map_err(|_| BadStoreRequest::ObjectstoreUploadFailed);
     }
 
-    let (stream, encoding) = match decode_stream(stream).await {
+    let (stream, content_encoding) = match decode_stream(stream).await {
         Ok(decoded) => decoded,
         Err(_) => {
             let _ = item.reject_err(Outcome::Invalid(DiscardReason::InvalidMinidump));
@@ -372,18 +370,14 @@ where
         }
     };
 
-    upload_to_objectstore(
+    let stream = StreamWithHeaders {
         stream,
-        encoding,
+        content_encoding,
         content_type,
-        item,
-        config,
-        project,
-        upload,
-        referrer,
-    )
-    .await
-    .map_err(|_| BadStoreRequest::ObjectstoreUploadFailed)
+    };
+    upload_to_objectstore(stream, item, config, project, upload, referrer)
+        .await
+        .map_err(|_| BadStoreRequest::ObjectstoreUploadFailed)
 }
 
 async fn multipart_to_items(
@@ -533,14 +527,17 @@ async fn raw_minidump_to_item(
     if let Some(upload_context) = upload_context
         && matches!(upload_context.upload_minidumps, UploadDecision::Upload)
     {
-        let (stream, encoding) = decode_stream(request.into_body().into_data_stream())
+        let (stream, content_encoding) = decode_stream(request.into_body().into_data_stream())
             .await
             .map_err(|_| BadStoreRequest::InvalidMinidump)?;
 
+        let stream = StreamWithHeaders {
+            stream,
+            content_encoding,
+            content_type: Some(content_type.to_string()).filter(|s| !s.is_empty()),
+        };
         item = upload_to_objectstore(
             stream,
-            encoding,
-            Some(content_type.to_string()).filter(|s| !s.is_empty()),
             item,
             state.config(),
             upload_context.project,
