@@ -20,6 +20,7 @@ use relay_system::{
     Addr, AsyncResponse, FromMessage, Interface, LoadShed, NoResponse, Sender, SimpleService,
 };
 use sentry_protos::snuba::v1::TraceItem;
+use tokio_util::io::{ReaderStream, StreamReader};
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
 use crate::envelope::{ContentType, Item, ItemType};
@@ -37,6 +38,11 @@ use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{BoundedStream, MeteredStream, RetryableStream, TakeOnce, find_error_source};
 
 use super::outcome::Outcome;
+
+/// Maximum size of an individual request to objectstore.
+///
+/// This only applies to streams. In-memory attachments are never chunked.
+const CHUNK_SIZE: usize = 100 * 1024 * 1024; // 100 MiB
 
 /// Messages that the objectstore service can handle.
 pub enum Objectstore {
@@ -873,7 +879,7 @@ impl ObjectstoreServiceInner {
         retention_hours: Option<u16>,
         content_type: Option<ContentType>,
     ) -> Result<ObjectstoreKey, objectstore_client::Error> {
-        let mut request = match body {
+        match body {
             BodyAttempt::Bytes { body, session, key } => {
                 let mut request = session.put(body);
                 if let Some(content_type) = content_type {
@@ -887,30 +893,37 @@ impl ObjectstoreServiceInner {
                 if let Some(key) = key {
                     request = request.key(key);
                 }
-                let response = request.send().await?;
+                let response = relay_statsd::metric!(
+                    timer(RelayTimers::AttachmentUploadDuration),
+                    type = kind.as_str(),
+                {
+                    request.send().await?
+                });
+
+                Ok(ObjectstoreKey(response.key))
             }
             BodyAttempt::Stream(stream, multipart_upload) => {
-                while let Some((i, chunk)) = stream.enumerate().next().await {
-                    // TODO: are chunks adequate size?
-                    let chunk = chunk?;
-                    let part_number = u32::try_from(i)?;
-                    let part = multipart_upload.put(chunk, part_number, None).await?;
-                }
-                let mut part = multipart_upload
-                    .put_stream(stream.boxed(), 0, 0, None) // FIXME: set content length
-                    .await?;
-            }
-        };
+                let reader = StreamReader::new(stream);
+                let mut rechunked = ReaderStream::with_capacity(reader, CHUNK_SIZE).enumerate();
 
-        let response = relay_statsd::metric!(
-            timer(RelayTimers::AttachmentUploadDuration),
-            type = kind.as_str(),
-            {
-                request.send().await
-            }
-        )?;
+                let result = relay_statsd::metric!(
+                    timer(RelayTimers::AttachmentUploadDuration),
+                    type = kind.as_str(),
+                {
+                    let mut parts = vec![];
+                    while let Some((i, chunk)) = rechunked.next().await {
+                        let chunk = chunk?;
+                        let part_number = u32::try_from(i)
+                            .map_err(|_| objectstore_client::Error::InvalidPartNumber(u32::MAX))?;
+                        let part = multipart_upload.put(chunk, part_number, None).await?;
+                        parts.push(part);
+                    }
+                    multipart_upload.complete(parts).await?
+                });
 
-        Ok(ObjectstoreKey(response.key))
+                Ok(ObjectstoreKey(result))
+            }
+        }
     }
 
     fn session(
@@ -954,7 +967,7 @@ impl BodyTarget<'_> {
             } => Some(BodyAttempt::Bytes {
                 body: bytes.clone(),
                 session,
-                key,
+                key: key.clone(),
             }),
             Self::Stream(stream, multipart_upload) => RetryableStream::new(stream.clone())
                 .map(|stream| BodyAttempt::Stream(stream, multipart_upload)),
