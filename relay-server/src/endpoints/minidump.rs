@@ -1,6 +1,3 @@
-use async_compression::tokio::bufread::{
-    BzDecoder as AsyncBzDecoder, GzipDecoder as AsyncGzipDecoder, XzDecoder as AsyncXzDecoder,
-};
 use axum::RequestExt;
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
@@ -87,14 +84,16 @@ where
     S: Stream<Item = Result<Bytes, E>> + Send + 'static,
     E: Into<Box<dyn Error + Send + Sync>> + Send + 'static,
 {
+    use async_compression::tokio::bufread::{BzDecoder, GzipDecoder, XzDecoder};
+
     let stream = stream.map_err(std::io::Error::other);
     let (head, stream) = utils::stream::peek_n(stream, MAGIC_PEEK).await?;
     let decoded = match Compression::from(&head) {
         Compression::NoCompression => (stream.boxed(), None),
         Compression::Zstd => (stream.boxed(), Some(ContentEncoding::Zstd)),
-        Compression::Gzip => (wrap_decode!(stream, AsyncGzipDecoder), None),
-        Compression::Xz => (wrap_decode!(stream, AsyncXzDecoder), None),
-        Compression::Bzip2 => (wrap_decode!(stream, AsyncBzDecoder), None),
+        Compression::Gzip => (wrap_decode!(stream, GzipDecoder), None),
+        Compression::Xz => (wrap_decode!(stream, XzDecoder), None),
+        Compression::Bzip2 => (wrap_decode!(stream, BzDecoder), None),
     };
     Ok(decoded)
 }

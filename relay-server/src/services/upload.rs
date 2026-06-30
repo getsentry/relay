@@ -6,7 +6,7 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
-use async_compression::tokio::bufread::{BrotliEncoder, DeflateEncoder, GzipEncoder, ZstdEncoder};
+use async_compression::tokio::bufread::ZstdEncoder;
 use bytes::Bytes;
 use chrono::DateTime;
 use chrono::Utc;
@@ -694,7 +694,6 @@ enum RequestKind {
     Upload {
         uri: String,
         stream: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
-        encoding: HttpEncoding,
         content_encoding: Option<ContentEncoding>,
     },
 }
@@ -746,7 +745,6 @@ impl UploadRequest {
                 kind: RequestKind::Upload {
                     uri,
                     stream: TakeOnce::new(stream),
-                    encoding: HttpEncoding::Zstd, // just a default, will be overwritten by .configure()
                     content_encoding,
                 },
                 sender,
@@ -829,7 +827,6 @@ impl UpstreamRequest for UploadRequest {
             RequestKind::Upload {
                 uri: _,
                 stream,
-                encoding,
                 content_encoding,
             } => {
                 let Some(body) = RetryableStream::new(stream.clone()) else {
@@ -838,13 +835,13 @@ impl UpstreamRequest for UploadRequest {
                 };
                 tus::add_upload_headers(builder);
 
-                let (body, encoding) = match content_encoding {
-                    Some(ContentEncoding::Zstd) => (body.boxed(), HttpEncoding::Zstd),
-                    None => (encode_body(body, *encoding), *encoding),
+                let zstd_body = match content_encoding {
+                    Some(ContentEncoding::Zstd) => reqwest::Body::wrap_stream(body),
+                    None => reqwest::Body::wrap_stream(encode_body(body)),
                 };
-                builder.content_encoding(encoding);
 
-                builder.body(reqwest::Body::wrap_stream(body));
+                builder.content_encoding(HttpEncoding::Zstd);
+                builder.body(zstd_body);
             }
         };
 
@@ -854,26 +851,14 @@ impl UpstreamRequest for UploadRequest {
 
         Ok(())
     }
-
-    fn configure(&mut self, config: &Config) {
-        if let RequestKind::Upload { encoding, .. } = &mut self.kind {
-            *encoding = config.http_encoding();
-        }
-    }
 }
 
-fn encode_body<S>(stream: S, encoding: HttpEncoding) -> ByteStream
+fn encode_body<S>(stream: S) -> ByteStream
 where
     S: futures::Stream<Item = std::io::Result<Bytes>> + Send + 'static,
 {
     let reader = BufReader::new(StreamReader::new(stream));
-    match encoding {
-        HttpEncoding::Identity => ReaderStream::new(reader).boxed(),
-        HttpEncoding::Deflate => ReaderStream::new(DeflateEncoder::new(reader)).boxed(),
-        HttpEncoding::Gzip => ReaderStream::new(GzipEncoder::new(reader)).boxed(),
-        HttpEncoding::Br => ReaderStream::new(BrotliEncoder::new(reader)).boxed(),
-        HttpEncoding::Zstd => ReaderStream::new(ZstdEncoder::new(reader)).boxed(),
-    }
+    ReaderStream::new(ZstdEncoder::new(reader)).boxed()
 }
 
 #[cfg(test)]
