@@ -1,3 +1,6 @@
+use async_compression::tokio::bufread::{
+    BzDecoder as AsyncBzDecoder, GzipDecoder as AsyncGzipDecoder, XzDecoder as AsyncXzDecoder,
+};
 use axum::RequestExt;
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
@@ -5,7 +8,7 @@ use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
 use bzip2::read::BzDecoder;
 use flate2::read::GzDecoder;
-use futures::{self, Stream};
+use futures::{self, Stream, StreamExt, TryStreamExt};
 use liblzma::read::XzDecoder;
 use multer::{Field, Multipart};
 use relay_config::Config;
@@ -18,6 +21,8 @@ use std::convert::Infallible;
 use std::error::Error;
 use std::io::Cursor;
 use std::io::Read;
+use tokio::io::BufReader;
+use tokio_util::io::{ReaderStream, StreamReader};
 use tower_http::limit::RequestBodyLimitLayer;
 use zstd::stream::Decoder as ZstdDecoder;
 
@@ -30,7 +35,7 @@ use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome};
 use crate::services::projects::project::ProjectState;
-use crate::services::upload::{ProjectContext, Upload};
+use crate::services::upload::{ByteStream, ContentEncoding, ProjectContext, Upload};
 use crate::statsd::RelayCounters;
 use crate::utils::{self, AttachmentStrategy, read_bytes_into_item};
 
@@ -69,31 +74,29 @@ const MAGIC_PEEK: usize = 6;
 /// Content types by which standalone uploads can be recognized.
 const MINIDUMP_RAW_CONTENT_TYPES: &[&str] = &["application/octet-stream", "application/x-dmp"];
 
-#[derive(Debug, thiserror::Error)]
-enum PeekError<E> {
-    #[error("compressed minidump payloads are not supported for streaming upload")]
-    Compressed,
-    #[error(transparent)]
-    Source(#[from] E),
+macro_rules! wrap_decode {
+    ($stream:expr, $decoder:ident) => {{ ReaderStream::new($decoder::new(BufReader::new(StreamReader::new($stream)))).boxed() }};
 }
 
-/// Peek the first bytes of `stream` and reject if they look compressed (gzip/xz/bzip2/zstd).
-/// Returns the original stream contents if not.
-async fn reject_if_compressed<S, E>(
-    stream: S,
-) -> Result<impl Stream<Item = Result<Bytes, E>> + Send, PeekError<E>>
+/// Peek the first bytes of `stream` and returns a decoding wrapper if necessary.
+///
+/// Returns raw minidump bytes if the stream is uncompressed, otherwise decompresses
+/// one of the minidump container formats we support for inline uploads.
+async fn decode_stream<S, E>(stream: S) -> std::io::Result<(ByteStream, Option<ContentEncoding>)>
 where
-    S: Stream<Item = Result<Bytes, E>> + Send,
-    E: Send,
+    S: Stream<Item = Result<Bytes, E>> + Send + 'static,
+    E: Into<Box<dyn Error + Send + Sync>> + Send + 'static,
 {
+    let stream = stream.map_err(std::io::Error::other);
     let (head, stream) = utils::stream::peek_n(stream, MAGIC_PEEK).await?;
-
-    match Compression::from(&head) {
-        Compression::NoCompression => Ok(stream),
-        Compression::Gzip | Compression::Xz | Compression::Bzip2 | Compression::Zstd => {
-            Err(PeekError::Compressed)
-        }
-    }
+    let decoded = match Compression::from(&head) {
+        Compression::NoCompression => (stream.boxed(), None),
+        Compression::Zstd => (stream.boxed(), Some(ContentEncoding::Zstd)),
+        Compression::Gzip => (wrap_decode!(stream, AsyncGzipDecoder), None),
+        Compression::Xz => (wrap_decode!(stream, AsyncXzDecoder), None),
+        Compression::Bzip2 => (wrap_decode!(stream, AsyncBzDecoder), None),
+    };
+    Ok(decoded)
 }
 
 fn validate_minidump(data: &[u8]) -> Result<(), BadStoreRequest> {
@@ -350,6 +353,7 @@ where
     if !matches!(item.attachment_type(), Some(AttachmentType::Minidump)) {
         return upload_to_objectstore(
             stream,
+            None,
             content_type,
             item,
             config,
@@ -361,8 +365,8 @@ where
         .map_err(|_| BadStoreRequest::ObjectstoreUploadFailed);
     }
 
-    let stream = match reject_if_compressed(stream).await {
-        Ok(stream) => stream,
+    let (stream, encoding) = match decode_stream(stream).await {
+        Ok(decoded) => decoded,
         Err(_) => {
             let _ = item.reject_err(Outcome::Invalid(DiscardReason::InvalidMinidump));
             return Err(BadStoreRequest::InvalidMinidump);
@@ -371,6 +375,7 @@ where
 
     upload_to_objectstore(
         stream,
+        encoding,
         content_type,
         item,
         config,
@@ -529,12 +534,13 @@ async fn raw_minidump_to_item(
     if let Some(upload_context) = upload_context
         && matches!(upload_context.upload_minidumps, UploadDecision::Upload)
     {
-        let stream = reject_if_compressed(request.into_body().into_data_stream())
+        let (stream, encoding) = decode_stream(request.into_body().into_data_stream())
             .await
             .map_err(|_| BadStoreRequest::InvalidMinidump)?;
 
         item = upload_to_objectstore(
             stream,
+            encoding,
             Some(content_type.to_string()).filter(|s| !s.is_empty()),
             item,
             state.config(),

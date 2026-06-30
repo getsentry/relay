@@ -149,6 +149,7 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
                 let content_type = field.content_type().map(ToString::to_string);
                 Ok(common::upload_to_objectstore(
                     field,
+                    None,
                     content_type,
                     item,
                     config,

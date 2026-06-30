@@ -146,6 +146,18 @@ pub struct Stream {
     pub location: SignedLocation<Provisional>,
     /// The body to be uploaded to objectstore, with length validation.
     pub stream: BoundedStream<MeteredStream<ByteStream>>,
+    /// The content encoding of the stream.
+    ///
+    /// If `Some`, the service treats the stream as already encoded.
+    /// If `None`, the service will apply zstd compression to the stream while uploading.
+    pub content_encoding: Option<ContentEncoding>,
+}
+
+/// Type of compression that both Relay and Objectstore support.
+///
+/// This can be used to pass compressed streams through to Objectstore without decoding.
+pub enum ContentEncoding {
+    Zstd,
 }
 
 impl FromMessage<Create> for Upload {
@@ -293,10 +305,16 @@ impl Service {
             project,
             location,
             stream,
+            content_encoding,
         } = stream;
         match &self.backend {
             Backend::Upstream { addr } => {
-                let (request, rx) = UploadRequest::upload(project, location.try_to_uri()?, stream);
+                let (request, rx) = UploadRequest::upload(
+                    project,
+                    location.try_to_uri()?,
+                    stream,
+                    content_encoding,
+                );
                 addr.send(SendRequest(request));
                 let response = rx.await??;
                 SignedLocation::try_from_response(response)
@@ -677,6 +695,7 @@ enum RequestKind {
         uri: String,
         stream: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
         encoding: HttpEncoding,
+        content_encoding: Option<ContentEncoding>,
     },
 }
 
@@ -715,6 +734,7 @@ impl UploadRequest {
         project: ProjectContext,
         uri: String,
         stream: BoundedStream<MeteredStream<ByteStream>>,
+        content_encoding: Option<ContentEncoding>,
     ) -> (
         Self,
         oneshot::Receiver<Result<Response, UpstreamRequestError>>,
@@ -727,6 +747,7 @@ impl UploadRequest {
                     uri,
                     stream: TakeOnce::new(stream),
                     encoding: HttpEncoding::Zstd, // just a default, will be overwritten by .configure()
+                    content_encoding,
                 },
                 sender,
             },
@@ -809,6 +830,7 @@ impl UpstreamRequest for UploadRequest {
                 uri: _,
                 stream,
                 encoding,
+                content_encoding,
             } => {
                 let Some(body) = RetryableStream::new(stream.clone()) else {
                     relay_log::error!("upload request stream was already consumed");
@@ -816,8 +838,11 @@ impl UpstreamRequest for UploadRequest {
                 };
                 tus::add_upload_headers(builder);
 
-                let body = encode_body(body, *encoding);
-                builder.content_encoding(*encoding);
+                let (body, encoding) = match content_encoding {
+                    Some(ContentEncoding::Zstd) => (body.boxed(), HttpEncoding::Zstd),
+                    None => (encode_body(body, *encoding), *encoding),
+                };
+                builder.content_encoding(encoding);
 
                 builder.body(reqwest::Body::wrap_stream(body));
             }

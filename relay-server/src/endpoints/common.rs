@@ -24,7 +24,7 @@ use crate::service::ServiceState;
 use crate::services::buffer::{ProjectKeyPair, PushError};
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
 use crate::services::processor::{BucketSource, MetricData, ProcessMetrics};
-use crate::services::upload::{Create, ProjectContext, Stream, Upload};
+use crate::services::upload::{ContentEncoding, Create, ProjectContext, Stream, Upload};
 use crate::statsd::{RelayCounters, RelayDistributions};
 use crate::utils::{
     self, ApiErrorResponse, BoundedStream, FormDataIter, MeteredStream, find_error_source,
@@ -549,6 +549,7 @@ fn emit_envelope_metrics(envelope: &Envelope) {
 /// [AttachmentPlaceholder] as payload.
 pub async fn upload_to_objectstore<S, E>(
     stream: S,
+    content_encoding: Option<ContentEncoding>,
     content_type: Option<String>,
     mut item: Managed<Item>,
     config: &Config,
@@ -562,6 +563,7 @@ where
 {
     let res = upload_to_objectstore_inner(
         stream,
+        content_encoding,
         content_type,
         &mut item,
         config,
@@ -578,6 +580,7 @@ where
 
 async fn upload_to_objectstore_inner<S, E>(
     stream: S,
+    content_encoding: Option<ContentEncoding>,
     content_type: Option<String>,
     item: &mut Managed<Item>,
     config: &Config,
@@ -612,6 +615,7 @@ where
             project,
             location,
             stream,
+            content_encoding,
         })
         .await
         .ok()?;
