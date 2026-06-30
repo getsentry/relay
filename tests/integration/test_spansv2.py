@@ -133,6 +133,7 @@ def test_spansv2_basic(
                 "value": time_within(ts, expect_resolution="ns"),
             },
             "sentry.op": {"type": "string", "value": "default"},
+            "sentry.trace.status": {"type": "string", "value": "ok"},
         },
         "_meta": {
             "attributes": {
@@ -310,7 +311,7 @@ def test_spansv2_trimming_basic(
         "attributes": {
             "custom.array.attribute": {
                 "type": "array",
-                "value": ["A string", "Another longer string", "Yet anothe..."],
+                "value": ["A string", "Another lo...", None],
             },
             "custom.string.attribute": {
                 "type": "string",
@@ -340,21 +341,32 @@ def test_spansv2_trimming_basic(
                 "value": time_within(ts, expect_resolution="ns"),
             },
             "sentry.op": {"type": "string", "value": "default"},
+            "sentry.trace.status": {"type": "string", "value": "ok"},
         },
         "_meta": {
             "attributes": {
-                "": {"len": 565},
+                "": {"len": 586},
                 "custom.array.attribute": {
                     "value": {
-                        "2": {
+                        "1": {
                             "": {
-                                "len": 18,
+                                "len": 21,
                                 "rem": [
                                     [
                                         "!limit",
                                         "s",
                                         10,
                                         13,
+                                    ],
+                                ],
+                            },
+                        },
+                        "2": {
+                            "": {
+                                "rem": [
+                                    [
+                                        "trimmed",
+                                        "x",
                                     ],
                                 ],
                             },

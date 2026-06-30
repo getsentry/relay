@@ -503,8 +503,12 @@ def test_uses_trace_public_key(mini_sentry, relay):
     # send the event, the transaction should be removed.
     relay.send_envelope(project_id2, envelope)
     # Dynamic sampling metrics
-    assert mini_sentry.get_global_metrics() is not None
-    assert mini_sentry.get_global_metrics() is not None
+    metrics_batch1 = mini_sentry.get_global_metrics()
+    print(metrics_batch1)
+    metrics_batch2 = mini_sentry.get_global_metrics()
+    print(metrics_batch2)
+    assert metrics_batch1 is not None
+    assert metrics_batch2 is not None
     assert mini_sentry.get_aggregated_outcomes(n=2) == [
         {
             "category": DataCategory.TRANSACTION_INDEXED,
