@@ -370,9 +370,7 @@ pub trait UpstreamRequest: Send + Sync + fmt::Debug {
     ///
     /// Requests may override the default upstream descriptor with a different upstream descriptor
     /// to influence routing.
-    fn upstream(&self) -> Option<&UpstreamDescriptor> {
-        None
-    }
+    fn upstream(&self) -> Option<&UpstreamDescriptor>;
 
     /// The HTTP method of the request.
     fn method(&self) -> Method;
