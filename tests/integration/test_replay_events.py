@@ -19,6 +19,7 @@ def generate_replay_sdk_event(replay_id="d2132d31b39445f1938d7e21b6bf0ec4"):
         "urls": ["sentry.io"],
         "error_ids": [str(uuid.uuid4())],
         "trace_ids": [str(uuid.uuid4())],
+        "segment_names": ["/api/0/organizations/", "/api/0/projects/"],
         "dist": "1.12",
         "platform": "javascript",
         "environment": "production",
@@ -61,6 +62,7 @@ def assert_replay_payload_matches(produced, consumed):
     assert consumed["urls"] == produced["urls"]
     assert consumed["error_ids"] == produced["error_ids"]
     assert consumed["trace_ids"] == produced["trace_ids"]
+    assert consumed["segment_names"] == produced["segment_names"]
     assert consumed["dist"] == produced["dist"]
     assert consumed["platform"] == produced["platform"]
     assert consumed["environment"] == produced["environment"]
