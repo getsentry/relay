@@ -38,7 +38,6 @@
 //!  - [`relay-common`]: Common utilities and crate re-exports.
 //!  - [`relay-config`]: Static configuration for the CLI and server.
 //!  - `relay-conventions`: Attribute definitions extracted from [`sentry-conventions`](https://github.com/getsentry/sentry-conventions).
-//!  - [`relay-crash`]: Crash reporting for the Relay server.
 //!  - [`relay-dynamic-config`]: Dynamic configuration passed from Sentry.
 //!  - [`relay-event-derive`]: Derive for visitor traits on the Event schema.
 //!  - [`relay-event-normalization`]: Event normalization and processing.
@@ -81,7 +80,6 @@
 //! [`relay-common`]: ../relay_common/index.html
 //! [`relay-config`]: ../relay_config/index.html
 //! [`relay-cogs`]: ../relay_cogs/index.html
-//! [`relay-crash`]: ../relay_crash/index.html
 //! [`relay-dynamic-config`]: ../relay_dynamic_config/index.html
 //! [`relay-event-derive`]: ../relay_event_derive/index.html
 //! [`relay-event-normalization`]: ../relay_event_normalization/index.html
