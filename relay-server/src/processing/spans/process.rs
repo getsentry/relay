@@ -154,7 +154,7 @@ fn expand_legacy_spans(
         infer_name: true,
         // We want to do this for V1 standalone spans for parity
         // with the legacy pipeline.
-        clear_web_vital_segment_info: false,
+        clear_web_vital_segment_info: true,
     };
 
     (settings, spans)
