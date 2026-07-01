@@ -1395,6 +1395,17 @@ mod tests {
     }
 
     #[test]
+    fn test_item_parse_length_overflow_does_not_panic() {
+        let header = format!(r#"{{"type":"attachment","length":{}}}"#, usize::MAX)
+            .into_bytes()
+            .into();
+
+        let err = Item::parse(header).unwrap_err();
+
+        std::assert_matches!(err, EnvelopeError::UnexpectedEof);
+    }
+
+    #[test]
     fn test_item_type_names() {
         assert_eq!(ItemType::Span.name(), "span");
         assert_eq!(ItemType::Unknown("test".to_owned()).name(), "unknown");
