@@ -896,12 +896,18 @@ fn normalize_http_attributes(
     }
 }
 
-/// Makes sure web vital spans are not identified with segments.
+/// Normalize segment-related fields and attributes for a span.
 ///
-/// This was ported from the legacy pipeline for behavior parity.
-/// At some point in the future, web vital spans will become metrics,
-/// and this will become academic.
-pub fn normalize_web_vital_span_segment(span: &mut SpanV2) {
+/// * Web vital spans have segment-related information deleted.
+/// * Spans are marked as segments according to whether their span
+///   ID coincides with their segment ID, if they have the latter.
+/// * Spans without a parent span are marked as segments.
+/// * Finally, if a span is a segment, its segment ID is set
+///   to its ID.
+///
+/// This was ported from the function `set_segment_attributes`
+/// in the legacy pipeline for behavior parity.
+pub fn normalize_span_segment(span: &mut SpanV2) {
     let Some(attributes) = span.attributes.value_mut() else {
         return;
     };
@@ -913,6 +919,27 @@ pub fn normalize_web_vital_span_segment(span: &mut SpanV2) {
         span.is_segment = None.into();
         span.parent_span_id = None.into();
         attributes.remove(SENTRY__SEGMENT__ID);
+        return;
+    }
+
+    let Some(span_id) = span.span_id.value() else {
+        return;
+    };
+
+    if let Some(segment_id) = attributes
+        .get_value(SENTRY__SEGMENT__ID)
+        .and_then(|value| value.as_str())
+    {
+        // The span is a segment if and only if the segment_id matches the span_id.
+        span.is_segment = (segment_id == span_id.to_string()).into();
+    } else if span.parent_span_id.is_empty() {
+        // If the span has no parent, it is automatically a segment:
+        span.is_segment = true.into();
+    }
+
+    // If the span is a segment, always set the segment_id to the current span_id:
+    if span.is_segment.value() == Some(&true) {
+        attributes.insert(SENTRY__SEGMENT__ID, span_id.to_string());
     }
 }
 
