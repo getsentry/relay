@@ -71,7 +71,10 @@ impl Item {
             .map_err(EnvelopeError::InvalidItemHeader)?;
         let payload_end = match length {
             Some(len) => {
-                let payload_end = payload_start + len;
+                let payload_end = payload_start
+                    .checked_add(len)
+                    .ok_or(EnvelopeError::UnexpectedEof)?;
+
                 if bytes.len() < payload_end {
                     // NB: `Bytes::slice` panics if the indices are out of range.
                     return Err(EnvelopeError::UnexpectedEof);
