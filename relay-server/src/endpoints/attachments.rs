@@ -14,7 +14,7 @@ use crate::envelope::{AttachmentType, Envelope, Item};
 use crate::extractors::RequestMeta;
 use crate::managed::Managed;
 use crate::service::ServiceState;
-use crate::utils::{self, AttachmentStrategy, read_bytes_into_item};
+use crate::utils::{self, AttachmentStrategy, read_field_into_item};
 
 #[derive(Debug, Deserialize)]
 pub struct AttachmentPath {
@@ -34,7 +34,7 @@ impl AttachmentStrategy for AttachmentsAttachmentStrategy {
         item: Managed<Item>,
         config: &Config,
     ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
-        Ok(Some(read_bytes_into_item(field, item, config).await?))
+        Ok(Some(read_field_into_item(field, item, config).await?))
     }
 }
 

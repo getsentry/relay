@@ -22,7 +22,7 @@ use crate::service::ServiceState;
 use crate::services::outcome::DiscardReason;
 use crate::services::projects::project::ProjectState;
 use crate::services::upload::{ProjectContext, Upload};
-use crate::utils::{self, AttachmentStrategy};
+use crate::utils::{self, AttachmentStrategy, SizeSplit};
 
 /// The extension of a prosperodump in the multipart form-data upload.
 const PROSPERODUMP_EXTENSION: &str = ".prosperodmp";
@@ -65,6 +65,7 @@ struct Parts {
 struct UploadContext<'a> {
     upload: &'a Addr<Upload>,
     project: ProjectContext,
+    inline_limit: usize,
 }
 
 /// Created an [UploadContext].
@@ -75,13 +76,9 @@ async fn upload_context<'a>(
     state: &'a ServiceState,
     meta: &RequestMeta,
 ) -> Result<Option<UploadContext<'a>>, BadStoreRequest> {
-    if !state
-        .global_config_handle()
-        .current()
-        .unwrap_or_default()
-        .options
-        .endpoint_fetch_config_enabled
-    {
+    let global_config = state.global_config_handle().current().unwrap_or_default();
+
+    if !global_config.options.endpoint_fetch_config_enabled {
         return Ok(None);
     }
 
@@ -117,6 +114,7 @@ async fn upload_context<'a>(
                 scoping,
                 upstream: project_config.upstream.clone(),
             },
+            inline_limit: global_config.options.attachment_inline_limit as usize,
         })),
         false => Ok(None),
     }
@@ -147,19 +145,27 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
         match &self.upload_context {
             Some(upload_context) if self.infer_type(&field) != AttachmentType::Prosperodump => {
                 let content_type = field.content_type().map(ToString::to_string);
-                Ok(common::upload_to_objectstore(
-                    field,
-                    content_type,
-                    item,
-                    config,
-                    upload_context.project.clone(),
-                    upload_context.upload,
-                    "playstation",
-                )
-                .await
-                .ok())
+
+                match utils::stream::split_by_size(field, upload_context.inline_limit).await? {
+                    SizeSplit::Small(bytes) => Ok(Some(utils::read_bytes_into_item(
+                        bytes,
+                        item,
+                        content_type.map(|ct| ct.parse().unwrap_or(ContentType::OctetStream)),
+                    ))),
+                    SizeSplit::Large(stream) => Ok(common::upload_to_objectstore(
+                        stream,
+                        content_type,
+                        item,
+                        config,
+                        upload_context.project.clone(),
+                        upload_context.upload,
+                        "playstation",
+                    )
+                    .await
+                    .ok()),
+                }
             }
-            _ => match utils::read_bytes_into_item(field, item, config).await {
+            _ => match utils::read_field_into_item(field, item, config).await {
                 // Don't bubble up errors caused by large attachments, skip over them and continue
                 // with the next item.
                 Err(multer::Error::FieldSizeExceeded { .. }) => Ok(None),

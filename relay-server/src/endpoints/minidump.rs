@@ -32,7 +32,9 @@ use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardRe
 use crate::services::projects::project::ProjectState;
 use crate::services::upload::{ProjectContext, Upload};
 use crate::statsd::RelayCounters;
-use crate::utils::{self, AttachmentStrategy, read_bytes_into_item};
+use crate::utils::{
+    self, AttachmentStrategy, SizeSplit, read_bytes_into_item, read_field_into_item,
+};
 
 /// The field name of a minidump in the multipart form-data upload.
 ///
@@ -229,6 +231,7 @@ struct UploadContext<'a> {
     project: ProjectContext,
     upload_attachments: UploadDecision,
     upload_minidumps: UploadDecision,
+    inline_limit: usize,
 }
 
 impl UploadContext<'_> {
@@ -257,7 +260,7 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
     ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
         let read_inline = async |field: Field<'static>, item: Managed<Item>| {
             let is_minidump = matches!(item.attachment_type(), Some(AttachmentType::Minidump));
-            match read_bytes_into_item(field, item, config).await {
+            match read_field_into_item(field, item, config).await {
                 // Don't bubble up errors caused by large items unless it is the minidump itself.
                 Err(multer::Error::FieldSizeExceeded { .. }) if !is_minidump => Ok(None),
                 r => Ok(Some(r?)),
@@ -270,28 +273,38 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
         };
 
         match upload_context.upload_decision(item.attachment_type()) {
+            UploadDecision::Inline => read_inline(field, item).await,
             UploadDecision::Upload => {
+                let content_type = field.content_type().map(|ct| ct.essence_str().to_owned());
                 let is_minidump = matches!(item.attachment_type(), Some(AttachmentType::Minidump));
-                let content_type = field.content_type().map(ToString::to_string);
-                match upload_to_objectstore_checked(
-                    field,
-                    content_type,
-                    item,
-                    config,
-                    upload_context.project.clone(),
-                    upload_context.upload,
-                    "minidump",
-                )
-                .await
-                {
-                    Ok(item) => Ok(Some(item)),
-                    // A failed minidump upload should cause the entire request to be rejected.
-                    Err(e) if is_minidump => Err(e),
-                    // A failed attachment upload should not cause the entire request to be rejected.
-                    Err(_) => Ok(None),
+
+                match utils::stream::split_by_size(field, upload_context.inline_limit).await? {
+                    SizeSplit::Small(bytes) => Ok(Some(read_bytes_into_item(
+                        bytes,
+                        item,
+                        content_type.map(|ct| ct.parse().unwrap_or(ContentType::OctetStream)),
+                    ))),
+                    SizeSplit::Large(stream) => {
+                        match upload_to_objectstore_checked(
+                            stream,
+                            content_type,
+                            item,
+                            config,
+                            upload_context.project.clone(),
+                            upload_context.upload,
+                            "minidump",
+                        )
+                        .await
+                        {
+                            Ok(item) => Ok(Some(item)),
+                            // A failed minidump upload should cause the entire request to be rejected.
+                            Err(e) if is_minidump => Err(e),
+                            // A failed attachment upload should not cause the entire request to be rejected.
+                            Err(_) => Ok(None),
+                        }
+                    }
                 }
             }
-            UploadDecision::Inline => read_inline(field, item).await,
             UploadDecision::Drop(limits) => {
                 // This is best effort, the item here does not yet have its content set hence size
                 // is not correct.
@@ -423,13 +436,9 @@ async fn upload_context<'a>(
     meta: &RequestMeta,
     state: &'a ServiceState,
 ) -> Result<Option<UploadContext<'a>>, BadStoreRequest> {
-    if !state
-        .global_config_handle()
-        .current()
-        .unwrap_or_default()
-        .options
-        .endpoint_fetch_config_enabled
-    {
+    let global_config = state.global_config_handle().current().unwrap_or_default();
+
+    if !global_config.options.endpoint_fetch_config_enabled {
         return Ok(None);
     }
 
@@ -489,6 +498,7 @@ async fn upload_context<'a>(
         },
         upload_attachments,
         upload_minidumps,
+        inline_limit: global_config.options.attachment_inline_limit as usize,
     }))
 }
 
@@ -511,21 +521,39 @@ async fn raw_minidump_to_item(
     if let Some(upload_context) = upload_context
         && matches!(upload_context.upload_minidumps, UploadDecision::Upload)
     {
-        let stream = reject_if_compressed(request.into_body().into_data_stream())
-            .await
-            .map_err(|_| BadStoreRequest::InvalidMinidump)?;
+        let stream = request.into_body().into_data_stream();
 
-        item = upload_to_objectstore(
-            stream,
-            Some(content_type.to_string()).filter(|s| !s.is_empty()),
-            item,
-            state.config(),
-            upload_context.project,
-            upload_context.upload,
-            "minidump",
-        )
-        .await
-        .map_err(|_| BadStoreRequest::ObjectstoreUploadFailed)?;
+        match utils::stream::split_by_size(stream, upload_context.inline_limit)
+            .await
+            .map_err(|e| BadStoreRequest::InvalidBody(std::io::Error::other(e)))?
+        {
+            SizeSplit::Small(bytes) => {
+                item.try_modify(|inner, records| -> Result<(), BadStoreRequest> {
+                    let payload = decode_minidump(bytes, state.config().max_attachment_size())?;
+                    inner.set_payload(ContentType::Minidump, payload);
+                    records.lenient(DataCategory::Attachment); // decoding changes its size
+                    validate_minidump(&inner.payload())?;
+                    Ok(())
+                })?;
+            }
+            SizeSplit::Large(stream) => {
+                let stream = reject_if_compressed(stream)
+                    .await
+                    .map_err(|_| BadStoreRequest::InvalidMinidump)?;
+
+                item = upload_to_objectstore(
+                    stream,
+                    Some(content_type.to_string()).filter(|s| !s.is_empty()),
+                    item,
+                    state.config(),
+                    upload_context.project,
+                    upload_context.upload,
+                    "minidump",
+                )
+                .await
+                .map_err(|_| BadStoreRequest::ObjectstoreUploadFailed)?;
+            }
+        }
     } else {
         let minidump_data = request.extract().await?;
         item.try_modify(|inner, records| -> Result<(), BadStoreRequest> {
