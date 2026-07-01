@@ -14,9 +14,8 @@
 - Wider type support for OTel log bodies. ([#6106](https://github.com/getsentry/relay/pull/6106))
 - Don't reject attributes that don't have values, but do have metadata. ([#6098](https://github.com/getsentry/relay/pull/6098))
 - Infer span names PII-safely. ([#6112](https://github.com/getsentry/relay/pull/6112))
-- Unset segment info for web vital spans. ([#6042](https://github.com/getsentry/relay/pull/6042))
 - Set sentry.trace.status on segment spans. ([#6140](https://github.com/getsentry/relay/pull/6140))
-- Don't modify segment information for V2 web vital spans. ([#6160](https://github.com/getsentry/relay/pull/6160))
+- Normalize segment-related fields in the experimental standalone spans pipeline. ([#6042](https://github.com/getsentry/relay/pull/6042), [#6160](https://github.com/getsentry/relay/pull/6160), [#6164](https://github.com/getsentry/relay/pull/6164))
 
 **Internal**:
 
