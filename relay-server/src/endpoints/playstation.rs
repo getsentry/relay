@@ -147,7 +147,7 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
         match &self.upload_context {
             Some(upload_context) if self.infer_type(&field) != AttachmentType::Prosperodump => {
                 let content_type = field.content_type().map(ToString::to_string);
-                Ok(common::upload_to_objectstore(
+                Ok(common::upload_stream(
                     field,
                     content_type,
                     item,

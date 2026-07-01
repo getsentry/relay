@@ -22,7 +22,7 @@ use tower_http::limit::RequestBodyLimitLayer;
 use zstd::stream::Decoder as ZstdDecoder;
 
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
-use crate::endpoints::common::{self, BadStoreRequest, TextResponse, upload_to_objectstore};
+use crate::endpoints::common::{self, BadStoreRequest, TextResponse, upload_stream};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType, Items};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::managed::{Managed, ManagedResult};
@@ -273,7 +273,7 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
             UploadDecision::Upload => {
                 let is_minidump = matches!(item.attachment_type(), Some(AttachmentType::Minidump));
                 let content_type = field.content_type().map(ToString::to_string);
-                match upload_to_objectstore_checked(
+                match upload_stream_checked(
                     field,
                     content_type,
                     item,
@@ -315,8 +315,8 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
     }
 }
 
-/// Wrapper around [`upload_to_objectstore`] that enforces that minidumps are not compressed.
-pub async fn upload_to_objectstore_checked<S, E>(
+/// Wrapper around [`upload_stream`] that enforces that minidumps are not compressed.
+pub async fn upload_stream_checked<S, E>(
     stream: S,
     content_type: Option<String>,
     item: Managed<Item>,
@@ -330,7 +330,7 @@ where
     E: Into<Box<dyn std::error::Error + Send + Sync>> + Send + 'static,
 {
     if !matches!(item.attachment_type(), Some(AttachmentType::Minidump)) {
-        return upload_to_objectstore(
+        return upload_stream(
             stream,
             content_type,
             item,
@@ -340,7 +340,7 @@ where
             referrer,
         )
         .await
-        .map_err(|_| BadStoreRequest::ObjectstoreUploadFailed);
+        .map_err(|_| BadStoreRequest::UploadFailed);
     }
 
     let stream = match reject_if_compressed(stream).await {
@@ -351,7 +351,7 @@ where
         }
     };
 
-    upload_to_objectstore(
+    upload_stream(
         stream,
         content_type,
         item,
@@ -361,7 +361,7 @@ where
         referrer,
     )
     .await
-    .map_err(|_| BadStoreRequest::ObjectstoreUploadFailed)
+    .map_err(|_| BadStoreRequest::UploadFailed)
 }
 
 async fn multipart_to_items(
@@ -515,7 +515,7 @@ async fn raw_minidump_to_item(
             .await
             .map_err(|_| BadStoreRequest::InvalidMinidump)?;
 
-        item = upload_to_objectstore(
+        item = upload_stream(
             stream,
             Some(content_type.to_string()).filter(|s| !s.is_empty()),
             item,
@@ -525,7 +525,7 @@ async fn raw_minidump_to_item(
             "minidump",
         )
         .await
-        .map_err(|_| BadStoreRequest::ObjectstoreUploadFailed)?;
+        .map_err(|_| BadStoreRequest::UploadFailed)?;
     } else {
         let minidump_data = request.extract().await?;
         item.try_modify(|inner, records| -> Result<(), BadStoreRequest> {
