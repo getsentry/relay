@@ -335,11 +335,11 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
     }
 }
 
-/// Wrapper around [`upload_to_objectstore`] that enforces that minidumps are not compressed.
+/// Wrapper around [`upload_to_objectstore`] that decompresses minidumps if necessary.
 pub async fn upload_to_objectstore_checked<S, E>(
     stream: S,
     content_type: Option<String>,
-    item: Managed<Item>,
+    mut item: Managed<Item>,
     config: &Config,
     project: ProjectContext,
     upload: &Addr<Upload>,
@@ -370,6 +370,16 @@ where
             return Err(BadStoreRequest::InvalidMinidump);
         }
     };
+
+    item.modify(|item, _| {
+        if let Some(filename) = item.filename() {
+            let new_filename = remove_container_extension(filename);
+            if new_filename != filename {
+                let new_filename = new_filename.to_owned();
+                item.set_filename(new_filename);
+            }
+        }
+    });
 
     upload_to_objectstore(
         stream,
