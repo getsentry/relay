@@ -1192,5 +1192,154 @@ def test_name_inference(
     }
 
 
+@pytest.mark.parametrize("mode", ["legacy", "v2"])
+@pytest.mark.parametrize("segment_id", [None, "same", "different"])
+@pytest.mark.parametrize("has_parent_span", [False, True])
+@pytest.mark.parametrize("is_segment", [False, True])
+def test_segment_normalization(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+    mode,
+    segment_id,
+    has_parent_span,
+    is_segment,
+):
+    """
+    Tests that (non-web-vital-related) segment fields are normalized.
+    """
+    spans_consumer = spans_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    if mode == "v2":
+        project_config["config"].setdefault("features", []).append(
+            "projects:span-v2-experimental-processing"
+        )
+
+    relay = relay(relay_with_processing())
+
+    ts = datetime.now(timezone.utc)
+
+    span_id = "9fd17741416e8e4e"
+
+    if segment_id == "same":
+        segment_id = span_id
+    elif segment_id == "different":
+        segment_id = "aaaaaaaaaaaaaaaa"
+
+    fields = {}
+    if has_parent_span:
+        fields["parent_span_id"] = "8a6626cc9bdd5d9b"
+    if segment_id:
+        fields["segment_id"] = segment_id
+
+    envelope = envelope_with_spans(
+        {
+            "op": "http.client",
+            "description": "http.client",
+            "span_id": span_id,
+            "start_timestamp": ts.timestamp() - 0.5,
+            "timestamp": ts.timestamp(),
+            "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+            "origin": "auto",
+            "exclusive_time": 0,
+            "measurements": {},
+            "is_segment": is_segment,
+            **fields,
+        },
+        trace_info={
+            "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+            "public_key": project_config["publicKeys"][0]["publicKey"],
+            "transaction": "/insights/projects/",
+        },
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    # Mirrors the logic in `set_segment_attributes`.
+    if segment_id:
+        expected_is_segment = segment_id == span_id
+    elif not has_parent_span:
+        expected_is_segment = True
+    else:
+        expected_is_segment = is_segment
+
+    if expected_is_segment:
+        expected_segment_id = span_id
+    else:
+        expected_segment_id = segment_id
+
+    assert spans_consumer.get_span() == {
+        "attributes": {
+            "client.address": {"type": "string", "value": "127.0.0.1"},
+            "browser.name": {"type": "string", "value": "Firefox"},
+            "sentry.category": {"type": "string", "value": "http"},
+            "sentry.description": {"type": "string", "value": "http.client"},
+            "sentry.dsc.transaction": {
+                "type": "string",
+                "value": "/insights/projects/",
+            },
+            "sentry.dsc.project_id": {"type": "string", "value": "42"},
+            "sentry.dsc.trace_id": {
+                "type": "string",
+                "value": "d3d20f000885466b8c8f947c9b92b8d3",
+            },
+            "sentry.exclusive_time": {"type": "double", "value": 0.0},
+            "sentry.op": {"type": "string", "value": "http.client"},
+            "sentry.origin": {"type": "string", "value": "auto"},
+            **_if_dict(
+                expected_segment_id,
+                {
+                    "sentry.segment.id": {
+                        "type": "string",
+                        "value": expected_segment_id,
+                    },
+                },
+            ),
+            "user_agent.original": {
+                "type": "string",
+                "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
+            },
+            # The V2 pipeline has some additional normalizations
+            # for segment spans specifically.
+            **_if_dict(
+                mode == "v2" and expected_is_segment,
+                {
+                    "sentry.trace.status": {
+                        "type": "string",
+                        "value": "ok",
+                    },
+                    "sentry.dsc.public_key": {
+                        "type": "string",
+                        "value": project_config["publicKeys"][0]["publicKey"],
+                    },
+                },
+            ),
+            **lcp_cls_inp_differences(mode),
+        },
+        "downsampled_retention_days": 90,
+        "end_timestamp": time_within(ts),
+        "key_id": 123,
+        "name": "HTTP",
+        "organization_id": 1,
+        "project_id": 42,
+        "received": time_within(ts),
+        "retention_days": 90,
+        "span_id": span_id,
+        "start_timestamp": time_within(ts.timestamp() - 0.5),
+        "status": "ok",
+        "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+        "is_segment": expected_is_segment,
+        **_if_dict(
+            has_parent_span,
+            {
+                "parent_span_id": "8a6626cc9bdd5d9b",
+            },
+        ),
+    }
+
+
 def _if_dict(cond, then):
     return then if cond else {}
