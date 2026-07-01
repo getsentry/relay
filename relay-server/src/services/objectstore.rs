@@ -905,6 +905,7 @@ fn is_retryable(error: &objectstore_client::Error) -> bool {
                             | StatusCode::BAD_GATEWAY
                             | StatusCode::SERVICE_UNAVAILABLE
                             | StatusCode::GATEWAY_TIMEOUT
+                            | StatusCode::INTERNAL_SERVER_ERROR
                     )
                 )
         }
