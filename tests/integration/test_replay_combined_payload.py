@@ -49,6 +49,10 @@ def test_replay_combined_with_processing(
     replay_event = json.loads(combined_replay_message["replay_event"])
 
     assert replay_event["replay_id"] == replay_id
+    assert replay_event["segment_names"] == [
+        "/api/0/organizations/",
+        "/api/0/projects/",
+    ]
 
 
 def test_standalone_recording_from_faulty_sdk(

@@ -71,7 +71,10 @@ impl Item {
             .map_err(EnvelopeError::InvalidItemHeader)?;
         let payload_end = match length {
             Some(len) => {
-                let payload_end = payload_start + len;
+                let payload_end = payload_start
+                    .checked_add(len)
+                    .ok_or(EnvelopeError::UnexpectedEof)?;
+
                 if bytes.len() < payload_end {
                     // NB: `Bytes::slice` panics if the indices are out of range.
                     return Err(EnvelopeError::UnexpectedEof);
@@ -1389,6 +1392,17 @@ mod tests {
             )))
         );
         assert_eq!(item.integration(), None);
+    }
+
+    #[test]
+    fn test_item_parse_length_overflow_does_not_panic() {
+        let header = format!(r#"{{"type":"attachment","length":{}}}"#, usize::MAX)
+            .into_bytes()
+            .into();
+
+        let err = Item::parse(header).unwrap_err();
+
+        std::assert_matches!(err, EnvelopeError::UnexpectedEof);
     }
 
     #[test]
