@@ -116,6 +116,7 @@ fn expand_span_container(item: &Item) -> Result<(Settings, ContainerItems<SpanV2
                     // We don't want to infer names for V2 spans. If an SDK sent a
                     // V2 span without a name it's just invalid.
                     infer_name: false,
+                    clear_web_vital_segment_info: false,
                 },
                 // Unsupported, fall back to the safe default.
                 Some(_) => Default::default(),
@@ -151,6 +152,9 @@ fn expand_legacy_spans(
         // The inference can't happen during the conversion
         // because PII scrubbing needs to run first.
         infer_name: true,
+        // We want to do this for V1 standalone spans for parity
+        // with the legacy pipeline.
+        clear_web_vital_segment_info: false,
     };
 
     (settings, spans)
@@ -234,7 +238,9 @@ fn normalize_span(
         // because category derivation depends on having the sentry.op attribute
         // available.
         eap::normalize_sentry_op(&mut span.attributes);
-        eap::normalize_web_vital_span_segment(span);
+        if settings.clear_web_vital_segment_info {
+            eap::normalize_web_vital_span_segment(span);
+        }
         eap::normalize_span_category(&mut span.attributes);
         eap::normalize_received(&mut span.attributes, meta.received_at());
         eap::normalize_client_address(&mut span.attributes, meta.client_addr());
