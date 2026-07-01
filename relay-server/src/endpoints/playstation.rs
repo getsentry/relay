@@ -13,7 +13,7 @@ use relay_system::Addr;
 use serde::Serialize;
 use tower_http::limit::RequestBodyLimitLayer;
 
-use crate::endpoints::common::{self, BadStoreRequest, StreamWithHeaders, TextResponse};
+use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, Items};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::managed::{Managed, ManagedResult};
@@ -147,13 +147,9 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
         match &self.upload_context {
             Some(upload_context) if self.infer_type(&field) != AttachmentType::Prosperodump => {
                 let content_type = field.content_type().map(ToString::to_string);
-                let stream = StreamWithHeaders {
-                    stream: field,
-                    content_encoding: None,
-                    content_type,
-                };
                 Ok(common::upload_to_objectstore(
-                    stream,
+                    field,
+                    content_type,
                     item,
                     config,
                     upload_context.project.clone(),

@@ -6,7 +6,7 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
-use async_compression::tokio::bufread::ZstdEncoder;
+use async_compression::tokio::bufread::{BrotliEncoder, DeflateEncoder, GzipEncoder, ZstdEncoder};
 use bytes::Bytes;
 use chrono::DateTime;
 use chrono::Utc;
@@ -146,18 +146,6 @@ pub struct Stream {
     pub location: SignedLocation<Provisional>,
     /// The body to be uploaded to objectstore, with length validation.
     pub stream: BoundedStream<MeteredStream<ByteStream>>,
-    /// The content encoding of the stream.
-    ///
-    /// If `Some`, the service treats the stream as already encoded.
-    /// If `None`, the service will apply zstd compression to the stream while uploading.
-    pub content_encoding: Option<ContentEncoding>,
-}
-
-/// Type of compression that both Relay and Objectstore support.
-///
-/// This can be used to pass compressed streams through to Objectstore without decoding.
-pub enum ContentEncoding {
-    Zstd,
 }
 
 impl FromMessage<Create> for Upload {
@@ -305,16 +293,10 @@ impl Service {
             project,
             location,
             stream,
-            content_encoding,
         } = stream;
         match &self.backend {
             Backend::Upstream { addr } => {
-                let (request, rx) = UploadRequest::upload(
-                    project,
-                    location.try_to_uri()?,
-                    stream,
-                    content_encoding,
-                );
+                let (request, rx) = UploadRequest::upload(project, location.try_to_uri()?, stream);
                 addr.send(SendRequest(request));
                 let response = rx.await??;
                 SignedLocation::try_from_response(response)
@@ -694,7 +676,7 @@ enum RequestKind {
     Upload {
         uri: String,
         stream: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
-        content_encoding: Option<ContentEncoding>,
+        encoding: HttpEncoding,
     },
 }
 
@@ -733,7 +715,6 @@ impl UploadRequest {
         project: ProjectContext,
         uri: String,
         stream: BoundedStream<MeteredStream<ByteStream>>,
-        content_encoding: Option<ContentEncoding>,
     ) -> (
         Self,
         oneshot::Receiver<Result<Response, UpstreamRequestError>>,
@@ -745,7 +726,7 @@ impl UploadRequest {
                 kind: RequestKind::Upload {
                     uri,
                     stream: TakeOnce::new(stream),
-                    content_encoding,
+                    encoding: HttpEncoding::Zstd, // just a default, will be overwritten by .configure()
                 },
                 sender,
             },
@@ -827,7 +808,7 @@ impl UpstreamRequest for UploadRequest {
             RequestKind::Upload {
                 uri: _,
                 stream,
-                content_encoding,
+                encoding,
             } => {
                 let Some(body) = RetryableStream::new(stream.clone()) else {
                     relay_log::error!("upload request stream was already consumed");
@@ -835,13 +816,10 @@ impl UpstreamRequest for UploadRequest {
                 };
                 tus::add_upload_headers(builder);
 
-                let zstd_body = match content_encoding {
-                    Some(ContentEncoding::Zstd) => reqwest::Body::wrap_stream(body),
-                    None => reqwest::Body::wrap_stream(encode_body(body)),
-                };
+                let body = encode_body(body, *encoding);
+                builder.content_encoding(*encoding);
 
-                builder.content_encoding(HttpEncoding::Zstd);
-                builder.body(zstd_body);
+                builder.body(reqwest::Body::wrap_stream(body));
             }
         };
 
@@ -851,14 +829,26 @@ impl UpstreamRequest for UploadRequest {
 
         Ok(())
     }
+
+    fn configure(&mut self, config: &Config) {
+        if let RequestKind::Upload { encoding, .. } = &mut self.kind {
+            *encoding = config.http_encoding();
+        }
+    }
 }
 
-fn encode_body<S>(stream: S) -> ByteStream
+fn encode_body<S>(stream: S, encoding: HttpEncoding) -> ByteStream
 where
     S: futures::Stream<Item = std::io::Result<Bytes>> + Send + 'static,
 {
     let reader = BufReader::new(StreamReader::new(stream));
-    ReaderStream::new(ZstdEncoder::new(reader)).boxed()
+    match encoding {
+        HttpEncoding::Identity => ReaderStream::new(reader).boxed(),
+        HttpEncoding::Deflate => ReaderStream::new(DeflateEncoder::new(reader)).boxed(),
+        HttpEncoding::Gzip => ReaderStream::new(GzipEncoder::new(reader)).boxed(),
+        HttpEncoding::Br => ReaderStream::new(BrotliEncoder::new(reader)).boxed(),
+        HttpEncoding::Zstd => ReaderStream::new(ZstdEncoder::new(reader)).boxed(),
+    }
 }
 
 #[cfg(test)]

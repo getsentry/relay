@@ -326,7 +326,6 @@ async fn upload(
             project,
             location,
             stream,
-            content_encoding: None, // NOTE: we could pass through zstd here if we can skip `RequestDecompressionLayer`.
         })
         .await??;
 

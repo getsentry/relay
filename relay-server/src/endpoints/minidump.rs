@@ -24,9 +24,7 @@ use tower_http::limit::RequestBodyLimitLayer;
 use zstd::stream::Decoder as ZstdDecoder;
 
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
-use crate::endpoints::common::{
-    self, BadStoreRequest, StreamWithHeaders, TextResponse, upload_to_objectstore,
-};
+use crate::endpoints::common::{self, BadStoreRequest, TextResponse, upload_to_objectstore};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType, Items};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::managed::{Managed, ManagedResult};
@@ -34,7 +32,7 @@ use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome};
 use crate::services::projects::project::ProjectState;
-use crate::services::upload::{ByteStream, ContentEncoding, ProjectContext, Upload};
+use crate::services::upload::{ByteStream, ProjectContext, Upload};
 use crate::statsd::RelayCounters;
 use crate::utils::{self, AttachmentStrategy, read_bytes_into_item};
 
@@ -81,21 +79,21 @@ macro_rules! wrap_decode {
 ///
 /// Returns raw minidump bytes if the stream is uncompressed, otherwise decompresses
 /// one of the minidump container formats we support for inline uploads.
-async fn decode_stream<S, E>(stream: S) -> std::io::Result<(ByteStream, Option<ContentEncoding>)>
+async fn decode_stream<S, E>(stream: S) -> std::io::Result<ByteStream>
 where
     S: Stream<Item = Result<Bytes, E>> + Send + 'static,
     E: Into<Box<dyn Error + Send + Sync>> + Send + 'static,
 {
-    use async_compression::tokio::bufread::{BzDecoder, GzipDecoder, XzDecoder};
+    use async_compression::tokio::bufread::{BzDecoder, GzipDecoder, XzDecoder, ZstdDecoder};
 
     let stream = stream.map_err(std::io::Error::other);
     let (head, stream) = utils::stream::peek_n(stream, MAGIC_PEEK).await?;
     let decoded = match Compression::from(&head) {
-        Compression::None => (stream.boxed(), None),
-        Compression::Zstd => (stream.boxed(), Some(ContentEncoding::Zstd)),
-        Compression::Gzip => (wrap_decode!(stream, GzipDecoder), None),
-        Compression::Xz => (wrap_decode!(stream, XzDecoder), None),
-        Compression::Bzip2 => (wrap_decode!(stream, BzDecoder), None),
+        Compression::None => stream.boxed(),
+        Compression::Zstd => wrap_decode!(stream, ZstdDecoder),
+        Compression::Gzip => wrap_decode!(stream, GzipDecoder),
+        Compression::Xz => wrap_decode!(stream, XzDecoder),
+        Compression::Bzip2 => wrap_decode!(stream, BzDecoder),
     };
     Ok(decoded)
 }
@@ -352,17 +350,20 @@ where
     E: Into<Box<dyn std::error::Error + Send + Sync>> + Send + 'static,
 {
     if !matches!(item.attachment_type(), Some(AttachmentType::Minidump)) {
-        let stream = StreamWithHeaders {
+        return upload_to_objectstore(
             stream,
-            content_encoding: None,
             content_type,
-        };
-        return upload_to_objectstore(stream, item, config, project, upload, referrer)
-            .await
-            .map_err(|_| BadStoreRequest::ObjectstoreUploadFailed);
+            item,
+            config,
+            project,
+            upload,
+            referrer,
+        )
+        .await
+        .map_err(|_| BadStoreRequest::ObjectstoreUploadFailed);
     }
 
-    let (stream, content_encoding) = match decode_stream(stream).await {
+    let stream = match decode_stream(stream).await {
         Ok(decoded) => decoded,
         Err(_) => {
             let _ = item.reject_err(Outcome::Invalid(DiscardReason::InvalidMinidump));
@@ -370,14 +371,17 @@ where
         }
     };
 
-    let stream = StreamWithHeaders {
+    upload_to_objectstore(
         stream,
-        content_encoding,
         content_type,
-    };
-    upload_to_objectstore(stream, item, config, project, upload, referrer)
-        .await
-        .map_err(|_| BadStoreRequest::ObjectstoreUploadFailed)
+        item,
+        config,
+        project,
+        upload,
+        referrer,
+    )
+    .await
+    .map_err(|_| BadStoreRequest::ObjectstoreUploadFailed)
 }
 
 async fn multipart_to_items(
@@ -527,17 +531,14 @@ async fn raw_minidump_to_item(
     if let Some(upload_context) = upload_context
         && matches!(upload_context.upload_minidumps, UploadDecision::Upload)
     {
-        let (stream, content_encoding) = decode_stream(request.into_body().into_data_stream())
+        let stream = decode_stream(request.into_body().into_data_stream())
             .await
             .map_err(|_| BadStoreRequest::InvalidMinidump)?;
 
-        let stream = StreamWithHeaders {
-            stream,
-            content_encoding,
-            content_type: Some(content_type.to_string()).filter(|s| !s.is_empty()),
-        };
+        let content_type = Some(content_type.to_string()).filter(|s| !s.is_empty());
         item = upload_to_objectstore(
             stream,
+            content_type,
             item,
             state.config(),
             upload_context.project,
