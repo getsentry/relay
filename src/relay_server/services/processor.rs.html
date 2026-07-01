@@ -1506,7 +1506,7 @@
 <a href=#1506 id=1506 data-nosnippet>1506</a>        <span class="kw">while let </span><span class="prelude-val">Some</span>(message) = rx.recv().<span class="kw">await </span>{
 <a href=#1507 id=1507 data-nosnippet>1507</a>            <span class="kw">let </span>service = <span class="self">self</span>.clone();
 <a href=#1508 id=1508 data-nosnippet>1508</a>            <span class="comment">// Create a new hub to prevent sentry scopes from bleeding to other tasks.
-<a href=#1509 id=1509 data-nosnippet>1509</a>            </span><span class="kw">let </span>hub = relay_log::Hub::with(|h| relay_log::Hub::new_from_top(h));
+<a href=#1509 id=1509 data-nosnippet>1509</a>            </span><span class="kw">let </span>hub = relay_log::Hub::new_from_top(relay_log::Hub::current());
 <a href=#1510 id=1510 data-nosnippet>1510</a>
 <a href=#1511 id=1511 data-nosnippet>1511</a>            <span class="self">self</span>.inner
 <a href=#1512 id=1512 data-nosnippet>1512</a>                .pool
