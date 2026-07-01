@@ -10,7 +10,7 @@ use relay_common::time::UnixTimestamp;
 use relay_conventions::attributes::*;
 use relay_conventions::{AttributeInfo, ReplacementName, WriteBehavior};
 use relay_event_schema::protocol::{
-    Attribute, AttributeType, Attributes, BrowserContext, Geo, SpanV2, SpanV2Status,
+    Attribute, AttributeType, AttributeValue, Attributes, BrowserContext, Geo, SpanV2, SpanV2Status,
 };
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Remark, RemarkType, Value};
 use relay_sampling::DynamicSamplingContext;
@@ -22,7 +22,10 @@ use crate::span::tag_extraction::{
     domain_from_scrubbed_http, domain_from_server_address, span_op_to_category,
     sql_action_from_query, sql_tables_from_query,
 };
-use crate::{ClientHints, FromUserAgentInfo as _, RawUserAgentInfo};
+use crate::{
+    ClientHints, FromUserAgentInfo as _, RawUserAgentInfo, TransactionNameRule,
+    normalize_transaction_name,
+};
 
 mod ai;
 mod mobile;
@@ -847,6 +850,66 @@ pub fn normalize_web_vital_span_segment(span: &mut SpanV2) {
         span.parent_span_id = None.into();
         attributes.remove(SENTRY__SEGMENT__ID);
     }
+}
+
+/// Normalize the [`SENTRY__SEGMENT__NAME`] attribute (aka the transaction)
+/// by running [`normalize_transaction_name`] on it.
+///
+/// This exists for parity with the legacy standalone span pipeline.
+pub fn normalize_segment_name(
+    attributes: &mut Annotated<Attributes>,
+    tx_name_rules: &[TransactionNameRule],
+) {
+    let Some(attributes) = attributes.value_mut() else {
+        return;
+    };
+
+    if attributes
+        .get_value(SENTRY__SEGMENT__NAME)
+        .and_then(|v| v.as_str())
+        .is_none()
+    {
+        return;
+    }
+
+    // SENTRY__SEGMENT__NAME must exist and be a string.
+
+    let Some(annotated_attr) = attributes.remove(SENTRY__SEGMENT__NAME) else {
+        return;
+    };
+
+    let Annotated(
+        Some(Attribute {
+            value: AttributeValue { ty, value },
+            other,
+        }),
+        meta,
+    ) = annotated_attr
+    else {
+        return;
+    };
+
+    let mut segment_name = value.map_value(|v| match v {
+        Value::String(s) => s,
+        _ => unreachable!(),
+    });
+
+    normalize_transaction_name(&mut segment_name, tx_name_rules);
+
+    let attribute = Annotated(
+        Some(Attribute {
+            value: AttributeValue {
+                ty,
+                value: segment_name.map_value(Value::String),
+            },
+            other,
+        }),
+        meta,
+    );
+
+    attributes
+        .0
+        .insert(SENTRY__SEGMENT__NAME.to_owned(), attribute);
 }
 
 /// Double writes sentry conventions attributes into legacy attributes.
