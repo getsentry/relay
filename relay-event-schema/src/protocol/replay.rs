@@ -142,6 +142,10 @@ pub struct Replay {
     #[metastructure(max_depth = 5, max_bytes = 2048)]
     pub trace_ids: Annotated<Array<Uuid>>,
 
+    /// A list of segment names discovered during the lifetime of the segment.
+    #[metastructure(pii = "true", max_depth = 5, max_bytes = 2048)]
+    pub segment_names: Annotated<Array<String>>,
+
     /// Contexts describing the environment (e.g. device, os or browser).
     #[metastructure(skip_serialization = "empty")]
     pub contexts: Annotated<Contexts>,
