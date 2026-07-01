@@ -383,7 +383,7 @@ where
 
     upload_to_objectstore(
         stream,
-        content_type,
+        Some(ContentType::Minidump.to_string()),
         item,
         config,
         project,

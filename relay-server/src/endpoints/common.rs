@@ -635,7 +635,7 @@ where
     let location = location.to_str().ok()?;
     let placeholder = serde_json::to_vec(&AttachmentPlaceholder {
         location,
-        content_type,
+        content_type: dbg!(content_type),
     })
     .inspect_err(|e| relay_log::debug!(error = ?e))
     .ok()?;
