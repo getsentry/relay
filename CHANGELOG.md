@@ -15,6 +15,7 @@
 - Infer span names PII-safely. ([#6112](https://github.com/getsentry/relay/pull/6112))
 - Unset segment info for web vital spans. ([#6042](https://github.com/getsentry/relay/pull/6042))
 - Set sentry.trace.status on segment spans. ([#6140](https://github.com/getsentry/relay/pull/6140))
+- Don't modify segment information for V2 web vital spans. ([#6160](https://github.com/getsentry/relay/pull/6160))
 
 **Internal**:
 
