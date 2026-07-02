@@ -275,7 +275,7 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
         match upload_context.upload_decision(item.attachment_type()) {
             UploadDecision::Inline => read_inline(field, item).await,
             UploadDecision::Upload => {
-                let content_type = field.content_type().map(|ct| ct.essence_str().to_owned());
+                let content_type = field.content_type().map(|ct| ct.as_ref().to_owned());
                 let is_minidump = matches!(item.attachment_type(), Some(AttachmentType::Minidump));
 
                 match utils::stream::split_by_size(field, upload_context.inline_limit).await? {
