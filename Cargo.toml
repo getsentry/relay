@@ -90,7 +90,7 @@ android_trace_log = { version = "0.3", features = ["serde"] }
 # Keep it pinned until it's possible to disable backtrace.
 anyhow = "=1.0.69"
 arc-swap = "1"
-async-compression = { version = "0.4", features = ["tokio", "gzip", "brotli", "deflate", "zstd"] }
+async-compression = { version = "0.4", features = ["tokio", "gzip", "brotli", "deflate", "zstd", "bzip2", "xz"] }
 async-trait = "0.1"
 axum = "0.8"
 axum-extra = "0.12"
@@ -223,7 +223,7 @@ synstructure = "0.13"
 sysinfo = "0.35"
 tempfile = "3"
 thiserror = "2"
-tokio = { version = "=1.49.0", default-features = false }
+tokio = { version = "=1.52", default-features = false }
 tokio-util = { version = "0.7", default-features = false }
 tower = { version = "0.5", default-features = false }
 tower-http = { version = "0.6", default-features = false }

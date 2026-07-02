@@ -152,7 +152,7 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
                         item,
                         content_type.map(|ct| ct.parse().unwrap_or(ContentType::OctetStream)),
                     ))),
-                    SizeSplit::Large(stream) => Ok(common::upload_to_objectstore(
+                    SizeSplit::Large(stream) => Ok(common::upload_stream(
                         stream,
                         content_type,
                         item,

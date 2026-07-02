@@ -1291,7 +1291,7 @@ pub struct ObjectstoreServiceConfig {
 
     /// Whether event attachment payloads may be sent through Kafka if objectstore upload fails.
     ///
-    /// When disabled, failed event attachments are dropped with an `objectstore_upload_failed`
+    /// When disabled, failed event attachments are dropped with an `upload_failed`
     /// outcome instead of falling back to Store's Kafka attachment path.
     pub fallback_to_kafka: bool,
 
