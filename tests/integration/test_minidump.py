@@ -1147,6 +1147,7 @@ def test_minidump_objectstore_uploads(
         )
         assert json.loads(minidump.payload.bytes) == {
             "location": DUMMY_UPLOAD_LOCATION,
+            "content_type": "application/x-dmp",
         }
     else:
         assert (
