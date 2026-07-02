@@ -1671,7 +1671,7 @@ def test_minidump_upload_failure_bubbles_up(mini_sentry, relay):
         {
             "category": DataCategory.ERROR,
             "outcome": 3,  # invalid
-            "reason": "objectstore_upload_failed",
+            "reason": "upload_failed",
             "quantity": 1,
         },
         {

@@ -407,7 +407,7 @@ pub enum DiscardReason {
     InvalidDynamicSamplingContext,
 
     /// (Relay) Failed to upload to objectstore.
-    ObjectstoreUploadFailed,
+    UploadFailed,
 }
 
 impl DiscardReason {
@@ -475,7 +475,7 @@ impl DiscardReason {
             DiscardReason::InvalidCheckIn => "invalid_check_in",
             DiscardReason::MissingDynamicSamplingContext => "missing_dsc",
             DiscardReason::InvalidDynamicSamplingContext => "invalid_dsc",
-            DiscardReason::ObjectstoreUploadFailed => "objectstore_upload_failed",
+            DiscardReason::UploadFailed => "upload_failed",
         }
     }
 }
