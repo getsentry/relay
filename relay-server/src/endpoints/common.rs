@@ -120,7 +120,7 @@ pub enum BadStoreRequest {
     #[error("project not available")]
     ProjectUnavailable,
 
-    #[error("failed to upload to objectstore")]
+    #[error("failed to upload file")]
     UploadFailed,
 }
 
