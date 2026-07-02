@@ -120,8 +120,8 @@ pub enum BadStoreRequest {
     #[error("project not available")]
     ProjectUnavailable,
 
-    #[error("failed to upload to objectstore")]
-    ObjectstoreUploadFailed,
+    #[error("failed to upload file")]
+    UploadFailed,
 }
 
 impl BadStoreRequest {
@@ -149,7 +149,7 @@ impl BadStoreRequest {
             Self::RateLimited(_) => DiscardReason::RateLimited,
             Self::EventRejected(discard_reason) => *discard_reason,
             Self::ProjectUnavailable => DiscardReason::ProjectUnavailable,
-            Self::ObjectstoreUploadFailed => DiscardReason::ObjectstoreUploadFailed,
+            Self::UploadFailed => DiscardReason::UploadFailed,
         };
         Some(Outcome::Invalid(discard_reason))
     }
@@ -226,7 +226,7 @@ impl IntoResponse for BadStoreRequest {
             BadStoreRequest::ItemTooLarge(_) | BadStoreRequest::RequestTooLarge => {
                 (StatusCode::PAYLOAD_TOO_LARGE, body).into_response()
             }
-            BadStoreRequest::ObjectstoreUploadFailed => {
+            BadStoreRequest::UploadFailed => {
                 (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
             }
             BadStoreRequest::InvalidMultipart(multer::Error::LockFailure) => {
@@ -545,9 +545,9 @@ fn emit_envelope_metrics(envelope: &Envelope) {
     }
 }
 
-/// Uploads the content of `field` to the objectstore and returns an [Item] with an
+/// Uploads the content of `field` to the upload service and returns an [Item] with an
 /// [AttachmentPlaceholder] as payload.
-pub async fn upload_to_objectstore<S, E>(
+pub async fn upload_stream<S, E>(
     stream: S,
     content_type: Option<String>,
     mut item: Managed<Item>,
@@ -560,7 +560,7 @@ where
     S: futures::Stream<Item = Result<Bytes, E>> + Send + 'static,
     E: Into<Box<dyn std::error::Error + Send + Sync>> + 'static,
 {
-    let res = upload_to_objectstore_inner(
+    let res = upload_stream_inner(
         stream,
         content_type,
         &mut item,
@@ -576,7 +576,7 @@ where
     }
 }
 
-async fn upload_to_objectstore_inner<S, E>(
+async fn upload_stream_inner<S, E>(
     stream: S,
     content_type: Option<String>,
     item: &mut Managed<Item>,
