@@ -5,7 +5,7 @@ use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
 use bzip2::read::BzDecoder;
 use flate2::read::GzDecoder;
-use futures::{self, Stream};
+use futures::{self, Stream, StreamExt, TryStreamExt};
 use liblzma::read::XzDecoder;
 use multer::{Field, Multipart};
 use relay_config::Config;
@@ -18,11 +18,13 @@ use std::convert::Infallible;
 use std::error::Error;
 use std::io::Cursor;
 use std::io::Read;
+use tokio::io::BufReader;
+use tokio_util::io::{ReaderStream, StreamReader};
 use tower_http::limit::RequestBodyLimitLayer;
 use zstd::stream::Decoder as ZstdDecoder;
 
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
-use crate::endpoints::common::{self, BadStoreRequest, TextResponse, upload_to_objectstore};
+use crate::endpoints::common::{self, BadStoreRequest, TextResponse, upload_stream};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType, Items};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::managed::{Managed, ManagedResult};
@@ -30,7 +32,7 @@ use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome};
 use crate::services::projects::project::ProjectState;
-use crate::services::upload::{ProjectContext, Upload};
+use crate::services::upload::{ByteStream, ProjectContext, Upload};
 use crate::statsd::RelayCounters;
 use crate::utils::{self, AttachmentStrategy, read_bytes_into_item};
 
@@ -69,34 +71,31 @@ const MAGIC_PEEK: usize = 6;
 /// Content types by which standalone uploads can be recognized.
 const MINIDUMP_RAW_CONTENT_TYPES: &[&str] = &["application/octet-stream", "application/x-dmp"];
 
-#[derive(Debug, thiserror::Error)]
-enum PeekError<E> {
-    #[error("compressed minidump payloads are not supported for streaming upload")]
-    Compressed,
-    #[error(transparent)]
-    Source(#[from] E),
+macro_rules! wrap_decode {
+    ($stream:expr, $decoder:ident) => {{ ReaderStream::new($decoder::new(BufReader::new(StreamReader::new($stream)))).boxed() }};
 }
 
-/// Peek the first bytes of `stream` and reject if they look compressed (gzip/xz/bzip2/zstd).
-/// Returns the original stream contents if not.
-async fn reject_if_compressed<S, E>(
-    stream: S,
-) -> Result<impl Stream<Item = Result<Bytes, E>> + Send, PeekError<E>>
+/// Peek the first bytes of `stream` and returns a decoding wrapper if necessary.
+///
+/// Returns raw minidump bytes if the stream is uncompressed, otherwise decompresses
+/// one of the minidump container formats we support for inline uploads.
+async fn decode_stream<S, E>(stream: S) -> std::io::Result<ByteStream>
 where
-    S: Stream<Item = Result<Bytes, E>> + Send,
-    E: Send,
+    S: Stream<Item = Result<Bytes, E>> + Send + 'static,
+    E: Into<Box<dyn Error + Send + Sync>> + Send + 'static,
 {
-    let (head, stream) = utils::stream::peek_n(stream, MAGIC_PEEK).await?;
+    use async_compression::tokio::bufread::{BzDecoder, GzipDecoder, XzDecoder, ZstdDecoder};
 
-    if head.starts_with(GZIP_MAGIC_HEADER)
-        || head.starts_with(XZ_MAGIC_HEADER)
-        || head.starts_with(BZIP2_MAGIC_HEADER)
-        || head.starts_with(ZSTD_MAGIC_HEADER)
-    {
-        Err(PeekError::Compressed)
-    } else {
-        Ok(stream)
-    }
+    let stream = stream.map_err(std::io::Error::other);
+    let (head, stream) = utils::stream::peek_n(stream, MAGIC_PEEK).await?;
+    let decoded = match Compression::from(&head) {
+        Compression::None => stream.boxed(),
+        Compression::Zstd => wrap_decode!(stream, ZstdDecoder),
+        Compression::Gzip => wrap_decode!(stream, GzipDecoder),
+        Compression::Xz => wrap_decode!(stream, XzDecoder),
+        Compression::Bzip2 => wrap_decode!(stream, BzDecoder),
+    };
+    Ok(decoded)
 }
 
 fn validate_minidump(data: &[u8]) -> Result<(), BadStoreRequest> {
@@ -118,25 +117,46 @@ fn run_decoder(mut decoder: impl Read) -> std::io::Result<Vec<u8>> {
     Ok(buffer)
 }
 
-/// Creates a decoder based on the magic bytes the minidump payload
+/// Types of compression we support for minidump payloads.
+enum Compression {
+    None,
+    Gzip,
+    Xz,
+    Bzip2,
+    Zstd,
+}
+
+impl Compression {
+    fn from(header: &[u8]) -> Self {
+        if header.starts_with(GZIP_MAGIC_HEADER) {
+            Self::Gzip
+        } else if header.starts_with(XZ_MAGIC_HEADER) {
+            Self::Xz
+        } else if header.starts_with(BZIP2_MAGIC_HEADER) {
+            Self::Bzip2
+        } else if header.starts_with(ZSTD_MAGIC_HEADER) {
+            Self::Zstd
+        } else {
+            Self::None
+        }
+    }
+}
+
+/// Creates a decoder based on the magic bytes in the minidump payload.
 fn decoder_from(minidump_data: Bytes) -> Option<Box<dyn Read>> {
-    if minidump_data.starts_with(GZIP_MAGIC_HEADER) {
-        return Some(Box::new(GzDecoder::new(Cursor::new(minidump_data))));
-    } else if minidump_data.starts_with(XZ_MAGIC_HEADER) {
-        return Some(Box::new(XzDecoder::new(Cursor::new(minidump_data))));
-    } else if minidump_data.starts_with(BZIP2_MAGIC_HEADER) {
-        return Some(Box::new(BzDecoder::new(Cursor::new(minidump_data))));
-    } else if minidump_data.starts_with(ZSTD_MAGIC_HEADER) {
-        return match ZstdDecoder::new(Cursor::new(minidump_data)) {
+    match Compression::from(&minidump_data) {
+        Compression::None => None,
+        Compression::Gzip => Some(Box::new(GzDecoder::new(Cursor::new(minidump_data)))),
+        Compression::Xz => Some(Box::new(XzDecoder::new(Cursor::new(minidump_data)))),
+        Compression::Bzip2 => Some(Box::new(BzDecoder::new(Cursor::new(minidump_data)))),
+        Compression::Zstd => match ZstdDecoder::new(Cursor::new(minidump_data)) {
             Ok(decoder) => Some(Box::new(decoder)),
             Err(ref err) => {
                 relay_log::error!(error = err as &dyn Error, "failed to create ZstdDecoder");
                 None
             }
-        };
+        },
     }
-
-    None
 }
 
 /// Tries to decode a minidump using any of the supported compression formats
@@ -273,7 +293,7 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
             UploadDecision::Upload => {
                 let is_minidump = matches!(item.attachment_type(), Some(AttachmentType::Minidump));
                 let content_type = field.content_type().map(ToString::to_string);
-                match upload_to_objectstore_checked(
+                match upload_stream_checked(
                     field,
                     content_type,
                     item,
@@ -315,11 +335,11 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
     }
 }
 
-/// Wrapper around [`upload_to_objectstore`] that enforces that minidumps are not compressed.
-pub async fn upload_to_objectstore_checked<S, E>(
+/// Wrapper around [`upload_stream`] that decompresses minidumps if necessary.
+pub async fn upload_stream_checked<S, E>(
     stream: S,
     content_type: Option<String>,
-    item: Managed<Item>,
+    mut item: Managed<Item>,
     config: &Config,
     project: ProjectContext,
     upload: &Addr<Upload>,
@@ -330,7 +350,7 @@ where
     E: Into<Box<dyn std::error::Error + Send + Sync>> + Send + 'static,
 {
     if !matches!(item.attachment_type(), Some(AttachmentType::Minidump)) {
-        return upload_to_objectstore(
+        return upload_stream(
             stream,
             content_type,
             item,
@@ -340,20 +360,29 @@ where
             referrer,
         )
         .await
-        .map_err(|_| BadStoreRequest::ObjectstoreUploadFailed);
+        .map_err(|_| BadStoreRequest::UploadFailed);
     }
 
-    let stream = match reject_if_compressed(stream).await {
-        Ok(stream) => stream,
+    let stream = match decode_stream(stream).await {
+        Ok(decoded) => decoded,
         Err(_) => {
             let _ = item.reject_err(Outcome::Invalid(DiscardReason::InvalidMinidump));
             return Err(BadStoreRequest::InvalidMinidump);
         }
     };
 
-    upload_to_objectstore(
+    item.modify(|item, _| {
+        if let Some(filename) = item.filename() {
+            let new_filename = remove_container_extension(filename);
+            if new_filename != filename {
+                let new_filename = new_filename.to_owned();
+                item.set_filename(new_filename);
+            }
+        }
+    });
+    upload_stream(
         stream,
-        content_type,
+        Some(ContentType::Minidump.to_string()),
         item,
         config,
         project,
@@ -361,7 +390,7 @@ where
         referrer,
     )
     .await
-    .map_err(|_| BadStoreRequest::ObjectstoreUploadFailed)
+    .map_err(|_| BadStoreRequest::UploadFailed)
 }
 
 async fn multipart_to_items(
@@ -496,7 +525,6 @@ async fn raw_minidump_to_item(
     request: Request,
     meta: &RequestMeta,
     state: &ServiceState,
-    content_type: RawContentType,
     upload_context: Option<UploadContext<'_>>,
 ) -> Result<Managed<Item>, BadStoreRequest> {
     debug_assert!(!matches!(
@@ -511,13 +539,13 @@ async fn raw_minidump_to_item(
     if let Some(upload_context) = upload_context
         && matches!(upload_context.upload_minidumps, UploadDecision::Upload)
     {
-        let stream = reject_if_compressed(request.into_body().into_data_stream())
+        let stream = decode_stream(request.into_body().into_data_stream())
             .await
             .map_err(|_| BadStoreRequest::InvalidMinidump)?;
 
-        item = upload_to_objectstore(
+        item = upload_stream(
             stream,
-            Some(content_type.to_string()).filter(|s| !s.is_empty()),
+            Some(ContentType::Minidump.to_string()),
             item,
             state.config(),
             upload_context.project,
@@ -525,7 +553,7 @@ async fn raw_minidump_to_item(
             "minidump",
         )
         .await
-        .map_err(|_| BadStoreRequest::ObjectstoreUploadFailed)?;
+        .map_err(|_| BadStoreRequest::UploadFailed)?;
     } else {
         let minidump_data = request.extract().await?;
         item.try_modify(|inner, records| -> Result<(), BadStoreRequest> {
@@ -548,7 +576,7 @@ async fn items(
     request: Request,
 ) -> Result<Managed<Items>, BadStoreRequest> {
     let items = if MINIDUMP_RAW_CONTENT_TYPES.contains(&content_type.as_ref()) {
-        raw_minidump_to_item(request, meta, state, content_type, upload_context)
+        raw_minidump_to_item(request, meta, state, upload_context)
             .await?
             .map(|item, _| smallvec![item])
     } else {

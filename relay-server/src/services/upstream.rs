@@ -148,7 +148,7 @@ impl UpstreamRequestError {
     /// Returns `true` if the error indicates a network downtime.
     fn is_network_error(&self) -> bool {
         match self {
-            Self::SendFailed(_) => true,
+            Self::SendFailed(e) => treat_as_network_error(e),
             Self::ResponseError(code, _) => matches!(code.as_u16(), 502..=504),
             Self::Http(http) => http.is_network_error(),
             _ => false,
@@ -233,6 +233,19 @@ impl IntoResponse for UpstreamRequestError {
             _ => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         }
     }
+}
+
+/// Whether to treat a [`reqwest`] error as a network error.
+///
+/// When the request body is a stream, errors can occur during sending that relate
+/// to the incoming request (client-side), not the outgoing upstream request.
+fn treat_as_network_error(e: &reqwest::Error) -> bool {
+    // NOTE: there's probably more exceptions but this is the one we know about.
+    if find_error_source(e, is_length_limit_error).is_some() {
+        return false;
+    }
+
+    true
 }
 
 /// Checks the authentication state with the upstream.
@@ -370,9 +383,7 @@ pub trait UpstreamRequest: Send + Sync + fmt::Debug {
     ///
     /// Requests may override the default upstream descriptor with a different upstream descriptor
     /// to influence routing.
-    fn upstream(&self) -> Option<&UpstreamDescriptor> {
-        None
-    }
+    fn upstream(&self) -> Option<&UpstreamDescriptor>;
 
     /// The HTTP method of the request.
     fn method(&self) -> Method;
@@ -623,10 +634,6 @@ where
     fn build(&mut self, builder: &mut RequestBuilder) -> Result<(), HttpError> {
         let body = self.body()?;
 
-        relay_statsd::metric!(
-            distribution(RelayDistributions::UpstreamQueryBodySize) = body.len() as u64
-        );
-
         builder
             .header(header::CONTENT_TYPE, b"application/json")
             .body(body.clone());
@@ -746,14 +753,17 @@ fn emit_response_metrics(
     let upstream = entry.request.upstream().map(|up| up.to_string());
 
     // To better understand the intermittent send failures that we see, log more info.
-    // Only log the first 10 since the information value is diminishing afterwards.
-    if let Err(error @ UpstreamRequestError::SendFailed(_)) = send_result
-        && entry.retries <= 10
+    //
+    // Only log errors which persist over multiple retries.
+    if let Err(UpstreamRequestError::SendFailed(error)) = send_result
+        && (entry.retries == 10 || entry.retries == 100 || entry.retries == 1000)
     {
         relay_log::warn!(
             error = error as &dyn std::error::Error,
-            route = entry.request.route(),
-            retries = entry.retries,
+            error_dbg = ?error,
+            tags.error_url = ?error.url(),
+            tags.route = entry.request.route(),
+            tags.retries = entry.retries,
             upstream = upstream.as_deref().unwrap_or("default"),
             "upstream request send failed",
         );
@@ -945,10 +955,19 @@ impl SharedClient {
                 builder.header("x-sentry-relay-signature", &signature.0);
             }
 
-            match builder.finish() {
-                Ok(Request(client_request)) => Ok(client_request),
-                Err(e) => Err(e.into()),
+            let Request(built) = builder.finish()?;
+
+            if let Some(body) = built.body().and_then(|body| body.as_bytes()) {
+                let upstream = request.upstream().map(|up| up.to_string());
+
+                relay_statsd::metric!(
+                    distribution(RelayDistributions::UpstreamBodySize) = body.len() as u64,
+                    upstream = upstream.unwrap_or_else(|| "default".to_owned()),
+                    route = request.route(),
+                );
             }
+
+            Ok(built)
         })
     }
 
@@ -1206,16 +1225,20 @@ impl AuthState {
     }
 }
 
-/// Indicates whether an request was sent to the upstream.
+/// Indicates whether a request was sent to the upstream.
 #[derive(Clone, Copy, Debug)]
 enum RequestOutcome {
     /// The request was dropped due to a network outage.
     Dropped,
+
     /// The request was received by the upstream.
     ///
     /// This does not automatically mean that the request was successfully accepted. It could also
     /// have been rate limited or rejected as invalid.
     Received,
+
+    /// The request failed without indicating the state of the upstream connection.
+    Failed,
 }
 
 /// Internal message of the upstream's [`UpstreamBroker`].
@@ -1589,15 +1612,17 @@ impl UpstreamBroker {
             let result = client.send(entry.request.as_mut()).await;
             emit_response_metrics(send_start, &entry, &result);
 
-            let status = match result {
-                Err(ref err) if err.is_network_error() => RequestOutcome::Dropped,
-                _ => RequestOutcome::Received,
+            let outcome = match &result {
+                Err(err) if err.is_network_error() => RequestOutcome::Dropped,
+                Err(err) if err.is_received() => RequestOutcome::Received,
+                Ok(_) => RequestOutcome::Received,
+                Err(_) => RequestOutcome::Failed,
             };
 
-            match status {
+            match outcome {
                 RequestOutcome::Dropped if entry.request.retry() => {
                     entry.retries += 1;
-                    action_tx.send(Action::Retry(entry)).ok();
+                    let _ = action_tx.send(Action::Retry(entry));
                 }
                 _ => entry.request.respond(result).await,
             }
@@ -1605,7 +1630,7 @@ impl UpstreamBroker {
             // Send an action back to the action channel of the broker, which will invoke
             // `handle_action`. This is to let the broker know in a synchronized fashion that the
             // request has finished and may need to be retried (above).
-            action_tx.send(Action::Complete(status)).ok();
+            let _ = action_tx.send(Action::Complete(outcome));
         });
     }
 
@@ -1619,6 +1644,7 @@ impl UpstreamBroker {
                 self.conn.reset_error();
                 self.queue.trigger_retries();
             }
+            RequestOutcome::Failed => {}
         }
     }
 

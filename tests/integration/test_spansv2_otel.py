@@ -102,6 +102,7 @@ def test_span_ingestion(
                 "value": time_within(ts, expect_resolution="ns"),
             },
             "sentry.op": {"type": "string", "value": "default"},
+            "sentry.trace.status": {"type": "string", "value": "ok"},
             "sentry.origin": {"type": "string", "value": "auto.otlp.spans"},
             "sentry.segment.id": {"type": "string", "value": "f0b809703e783d00"},
             "sentry.segment.name": {"type": "string", "value": "A Proto Span"},

@@ -116,6 +116,9 @@ fn normalize_array_fields(replay: &mut Replay) {
     if let Some(items) = replay.urls.value_mut() {
         items.truncate(100);
     }
+    if let Some(items) = replay.segment_names.value_mut() {
+        items.truncate(100);
+    }
 }
 
 fn normalize_ip_address(replay: &mut Replay, ip_address: Option<StdIpAddr>) {
@@ -386,10 +389,15 @@ mod tests {
             .map(|_| Annotated::new(Uuid::parse_str("52df9022835246eeb317dbd739ccd059").unwrap()))
             .collect();
 
+        let segment_names: Vec<Annotated<String>> = (0..101)
+            .map(|_| Annotated::new("/users/{id}".to_owned()))
+            .collect();
+
         let mut replay = Annotated::new(Replay {
             urls: Annotated::new(urls),
             error_ids: Annotated::new(error_ids),
             trace_ids: Annotated::new(trace_ids),
+            segment_names: Annotated::new(segment_names),
             ..Default::default()
         });
 
@@ -399,6 +407,7 @@ mod tests {
         assert!(replay_value.error_ids.value().unwrap().len() == 100);
         assert!(replay_value.trace_ids.value().unwrap().len() == 100);
         assert!(replay_value.urls.value().unwrap().len() == 100);
+        assert!(replay_value.segment_names.value().unwrap().len() == 100);
     }
 
     #[test]

@@ -1506,7 +1506,7 @@ impl Service for EnvelopeProcessorService {
         while let Some(message) = rx.recv().await {
             let service = self.clone();
             // Create a new hub to prevent sentry scopes from bleeding to other tasks.
-            let hub = relay_log::Hub::with(|h| relay_log::Hub::new_from_top(h));
+            let hub = relay_log::Hub::new_from_top(relay_log::Hub::current());
 
             self.inner
                 .pool
@@ -1576,9 +1576,6 @@ impl UpstreamRequest for SendEnvelope {
 
     fn build(&mut self, builder: &mut http::RequestBuilder) -> Result<(), http::HttpError> {
         let envelope_body = self.body.clone();
-        metric!(
-            distribution(RelayDistributions::UpstreamEnvelopeBodySize) = envelope_body.len() as u64
-        );
 
         let meta = &self.envelope.meta();
         let shard = self.envelope.partition_key().map(|p| p.to_string());
@@ -1799,10 +1796,6 @@ impl UpstreamRequest for SendMetricsRequest {
     }
 
     fn build(&mut self, builder: &mut http::RequestBuilder) -> Result<(), http::HttpError> {
-        metric!(
-            distribution(RelayDistributions::UpstreamMetricsBodySize) = self.encoded.len() as u64
-        );
-
         builder
             .content_encoding(self.http_encoding)
             .header("X-Sentry-Relay-Shard", self.partition_key.as_bytes())

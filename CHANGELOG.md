@@ -6,6 +6,8 @@
 
 - Infer span descriptions via `sentry-conventions`. ([#6093](https://github.com/getsentry/relay/pull/6093))
 - Raises the size limit for the flags context to 64KiB. ([#6137](https://github.com/getsentry/relay/pull/6137))
+- Add segment_names field to Replay events. ([#6134](https://github.com/getsentry/relay/pull/6134))
+- Support PEM file format for signing / verification keys. ([#6155](https://github.com/getsentry/relay/pull/6155))
 
 **Bug Fixes**:
 
@@ -13,6 +15,9 @@
 - Don't reject attributes that don't have values, but do have metadata. ([#6098](https://github.com/getsentry/relay/pull/6098))
 - Infer span names PII-safely. ([#6112](https://github.com/getsentry/relay/pull/6112))
 - Unset segment info for web vital spans. ([#6042](https://github.com/getsentry/relay/pull/6042))
+- Set sentry.trace.status on segment spans. ([#6140](https://github.com/getsentry/relay/pull/6140))
+- Don't modify segment information for V2 web vital spans. ([#6160](https://github.com/getsentry/relay/pull/6160))
+- Support compressed minidumps when the `relay-minidump-uploads` feature is enabled. ([#6151](https://github.com/getsentry/relay/pull/6151))
 
 **Internal**:
 
@@ -22,6 +27,7 @@
 - Internally handle outcomes as metrics. ([#6107](https://github.com/getsentry/relay/pull/6107))
 - Have relay generate metric billing outcomes. ([#6066](https://github.com/getsentry/relay/pull/6066))
 - Update sentry-conventions to 0.12.0.
+- Update sentry-conventions to 0.13.0. ([#6139](https://github.com/getsentry/relay/pull/6139))
 - Upgrade release image to Debian 13. ([#6110](https://github.com/getsentry/relay/pull/6110))
 - Prefix upload location query params for forward compatibility. ([#6076](https://github.com/getsentry/relay/pull/6076))
 - Add config option to bypass the kafka fallback for objectstore uploads. ([#6127](https://github.com/getsentry/relay/pull/6127))

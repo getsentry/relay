@@ -133,6 +133,7 @@ def test_spansv2_basic(
                 "value": time_within(ts, expect_resolution="ns"),
             },
             "sentry.op": {"type": "string", "value": "default"},
+            "sentry.trace.status": {"type": "string", "value": "ok"},
         },
         "_meta": {
             "attributes": {
@@ -310,7 +311,7 @@ def test_spansv2_trimming_basic(
         "attributes": {
             "custom.array.attribute": {
                 "type": "array",
-                "value": ["A string", "Another longer string", "Yet anothe..."],
+                "value": ["A string", "Another lo...", None],
             },
             "custom.string.attribute": {
                 "type": "string",
@@ -340,21 +341,32 @@ def test_spansv2_trimming_basic(
                 "value": time_within(ts, expect_resolution="ns"),
             },
             "sentry.op": {"type": "string", "value": "default"},
+            "sentry.trace.status": {"type": "string", "value": "ok"},
         },
         "_meta": {
             "attributes": {
-                "": {"len": 565},
+                "": {"len": 586},
                 "custom.array.attribute": {
                     "value": {
-                        "2": {
+                        "1": {
                             "": {
-                                "len": 18,
+                                "len": 21,
                                 "rem": [
                                     [
                                         "!limit",
                                         "s",
                                         10,
                                         13,
+                                    ],
+                                ],
+                            },
+                        },
+                        "2": {
+                            "": {
+                                "rem": [
+                                    [
+                                        "trimmed",
+                                        "x",
                                     ],
                                 ],
                             },
@@ -1892,3 +1904,114 @@ def test_spansv2_ingestion_with_performance_scores(
     for span, scores in zip(spans, expected_scores):
         for key, score in scores.items():
             assert span["attributes"][key]["value"] == score
+
+
+def test_spansv2_lcp_segment(mini_sentry, relay_with_processing, spans_consumer):
+    """Tests that segment information is left in place for
+    V2 web vital spans."""
+
+    spans_consumer = spans_consumer()
+    relay = relay_with_processing()
+
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_spans(
+        {
+            "name": "StreamGroup > GroupSummary > GroupHeaderRow > EventMessage > Message",
+            "span_id": "9b2fc21fec8336be",
+            "trace_id": "60af731187e44081a96d22205ab97561",
+            "parent_span_id": "a84cb30362883928",
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "is_segment": False,
+            "status": "ok",
+            "attributes": {
+                "sentry.origin": {"value": "auto.http.browser.lcp", "type": "string"},
+                "sentry.op": {"value": "ui.webvital.lcp", "type": "string"},
+                "sentry.segment.name": {"value": "/issues/", "type": "string"},
+                "sentry.segment.id": {"value": "a84cb30362883928", "type": "string"},
+            },
+        },
+        metadata={
+            "version": 2,
+            "ingest_settings": {
+                "infer_user_agent": "auto",
+            },
+        },
+        trace_info={
+            "trace_id": "60af731187e44081a96d22205ab97561",
+            "environment": "control",
+            "release": "backend@edca71dbf71173e6436087b69a110538b0f02a04",
+            "public_key": "98443d956c9e40989a0139756c121c34",
+            "transaction": "/issues/",
+        },
+    )
+    relay.send_envelope(project_id, envelope)
+
+    span = spans_consumer.get_span()
+
+    assert span == {
+        "name": "StreamGroup > GroupSummary > GroupHeaderRow > EventMessage > Message",
+        "span_id": "9b2fc21fec8336be",
+        "trace_id": "60af731187e44081a96d22205ab97561",
+        "parent_span_id": "a84cb30362883928",
+        "start_timestamp": time_is(ts.timestamp()),
+        "end_timestamp": time_is(ts.timestamp() + 0.5),
+        "is_segment": False,
+        "status": "ok",
+        "received": time_within(ts),
+        "downsampled_retention_days": 90,
+        "retention_days": 90,
+        "key_id": 123,
+        "organization_id": 1,
+        "project_id": 42,
+        "attributes": {
+            "browser.name": {
+                "type": "string",
+                "value": "Firefox",
+            },
+            "browser.version": {
+                "type": "string",
+                "value": "42.0",
+            },
+            "sentry.dsc.project_id": {
+                "type": "string",
+                "value": "42",
+            },
+            "sentry.dsc.trace_id": {
+                "type": "string",
+                "value": "60af731187e44081a96d22205ab97561",
+            },
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within(ts, expect_resolution="ns"),
+            },
+            "sentry.origin": {
+                "type": "string",
+                "value": "auto.http.browser.lcp",
+            },
+            "sentry.op": {
+                "type": "string",
+                "value": "ui.webvital.lcp",
+            },
+            "sentry.segment.name": {
+                "type": "string",
+                "value": "/issues/",
+            },
+            "sentry.segment.id": {
+                "type": "string",
+                "value": "a84cb30362883928",
+            },
+            "sentry.transaction": {
+                "type": "string",
+                "value": "/issues/",
+            },
+            "user_agent.original": {
+                "type": "string",
+                "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
+            },
+        },
+    }

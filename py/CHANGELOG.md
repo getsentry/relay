@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- (auth) Support PEM file format for signing / verification keys by @jjbayer in ([#6155](https://github.com/getsentry/relay/pull/6155))
+
 ## 0.9.27
 
 ### Bug Fixes 🐛

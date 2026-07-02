@@ -28,6 +28,7 @@ use std::str::FromStr;
 
 use chrono::{DateTime, Duration, Utc};
 use data_encoding::BASE64URL_NOPAD;
+use ed25519_dalek::pkcs8::{DecodePrivateKey as _, DecodePublicKey as _};
 use ed25519_dalek::{Digest, DigestSigner, DigestVerifier, Signer, Verifier};
 use hmac::{Hmac, Mac};
 use rand::rngs::OsRng;
@@ -321,6 +322,10 @@ impl FromStr for SecretKey {
     type Err = KeyParseError;
 
     fn from_str(s: &str) -> Result<SecretKey, KeyParseError> {
+        if let Ok(inner) = ed25519_dalek::SigningKey::from_pkcs8_pem(s) {
+            return Ok(Self { inner });
+        }
+
         let bytes = match BASE64URL_NOPAD.decode(s.as_bytes()) {
             Ok(bytes) => bytes,
             _ => return Err(KeyParseError::BadEncoding),
@@ -450,6 +455,10 @@ impl FromStr for PublicKey {
     type Err = KeyParseError;
 
     fn from_str(s: &str) -> Result<PublicKey, KeyParseError> {
+        if let Ok(inner) = ed25519_dalek::VerifyingKey::from_public_key_pem(s) {
+            return Ok(Self { inner });
+        }
+
         let Ok(bytes) = BASE64URL_NOPAD.decode(s.as_bytes()) else {
             return Err(KeyParseError::BadEncoding);
         };
@@ -1216,5 +1225,29 @@ mod tests {
                 Duration::seconds(3),
             )
             .unwrap();
+    }
+
+    #[test]
+    fn test_parse_private_pem() {
+        let s = r#"-----BEGIN PRIVATE KEY-----
+MC4CAQAwBQYDK2VwBCIEIPBFGz4q5QW27KNimPqb3dr9/pO4o6XR7QIKE1rxGAIK
+-----END PRIVATE KEY-----"#;
+        let key: SecretKey = s.parse().unwrap();
+        assert_eq!(
+            key.to_string(),
+            "8EUbPirlBbbso2KY-pvd2v3-k7ijpdHtAgoTWvEYAgo"
+        );
+    }
+
+    #[test]
+    fn test_parse_public_pem() {
+        let s = r#"-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEATQCO/kpf2pyVjQyTuzr2qhi8IBxmBm2apZrUjJALYeA=
+-----END PUBLIC KEY-----"#;
+        let key: PublicKey = s.parse().unwrap();
+        assert_eq!(
+            key.to_string(),
+            "TQCO_kpf2pyVjQyTuzr2qhi8IBxmBm2apZrUjJALYeA"
+        );
     }
 }

@@ -444,8 +444,7 @@ impl LoadShed<Objectstore> for ObjectstoreService {
                 if self.inner.fallback_to_kafka {
                     self.inner.store.send(message);
                 } else {
-                    let _ = message
-                        .reject_err(Outcome::Invalid(DiscardReason::ObjectstoreUploadFailed));
+                    let _ = message.reject_err(Outcome::Invalid(DiscardReason::UploadFailed));
                 }
             }
             Objectstore::TraceAttachment(managed) => {
@@ -625,8 +624,7 @@ impl ObjectstoreServiceInner {
                 if self.fallback_to_kafka {
                     self.store.send(attachment)
                 } else {
-                    let _ = attachment
-                        .reject_err(Outcome::Invalid(DiscardReason::ObjectstoreUploadFailed));
+                    let _ = attachment.reject_err(Outcome::Invalid(DiscardReason::UploadFailed));
                 }
             }
         };
@@ -1030,7 +1028,7 @@ fn should_upload(item: &Item) -> bool {
 fn drop_failed_uploads(envelope: &mut ManagedEnvelope) {
     envelope.retain_items(|item| {
         if should_upload(item) {
-            ItemAction::Drop(Outcome::Invalid(DiscardReason::ObjectstoreUploadFailed))
+            ItemAction::Drop(Outcome::Invalid(DiscardReason::UploadFailed))
         } else {
             ItemAction::Keep
         }
@@ -1132,7 +1130,7 @@ mod tests {
         let outcome = outcome_rx.try_recv().unwrap();
         assert_eq!(
             outcome.outcome,
-            Outcome::Invalid(DiscardReason::ObjectstoreUploadFailed)
+            Outcome::Invalid(DiscardReason::UploadFailed)
         );
         assert_eq!(outcome.category, DataCategory::Attachment);
         assert_eq!(outcome.quantity, 5);
@@ -1140,7 +1138,7 @@ mod tests {
         let outcome = outcome_rx.try_recv().unwrap();
         assert_eq!(
             outcome.outcome,
-            Outcome::Invalid(DiscardReason::ObjectstoreUploadFailed)
+            Outcome::Invalid(DiscardReason::UploadFailed)
         );
         assert_eq!(outcome.category, DataCategory::AttachmentItem);
         assert_eq!(outcome.quantity, 1);
@@ -1179,7 +1177,7 @@ mod tests {
         let outcome = outcome_rx.try_recv().unwrap();
         assert_eq!(
             outcome.outcome,
-            Outcome::Invalid(DiscardReason::ObjectstoreUploadFailed)
+            Outcome::Invalid(DiscardReason::UploadFailed)
         );
         assert_eq!(outcome.category, DataCategory::Attachment);
         assert_eq!(outcome.quantity, 5);
@@ -1187,7 +1185,7 @@ mod tests {
         let outcome = outcome_rx.try_recv().unwrap();
         assert_eq!(
             outcome.outcome,
-            Outcome::Invalid(DiscardReason::ObjectstoreUploadFailed)
+            Outcome::Invalid(DiscardReason::UploadFailed)
         );
         assert_eq!(outcome.category, DataCategory::AttachmentItem);
         assert_eq!(outcome.quantity, 1);
