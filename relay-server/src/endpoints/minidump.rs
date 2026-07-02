@@ -335,7 +335,7 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
     }
 }
 
-/// Wrapper around [`upload_to_objectstore`] that decompresses minidumps if necessary.
+/// Wrapper around [`upload_stream`] that decompresses minidumps if necessary.
 pub async fn upload_stream_checked<S, E>(
     stream: S,
     content_type: Option<String>,
