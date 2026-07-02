@@ -175,7 +175,7 @@ pub struct Options {
         deserialize_with = "default_on_error",
         skip_serializing_if = "is_default"
     )]
-    pub attachment_inline_limit: u32,
+    pub attachment_inline_limit: usize,
 
     /// All other unknown options.
     #[serde(flatten)]

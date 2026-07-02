@@ -114,7 +114,7 @@ async fn upload_context<'a>(
                 scoping,
                 upstream: project_config.upstream.clone(),
             },
-            inline_limit: global_config.options.attachment_inline_limit as usize,
+            inline_limit: global_config.options.attachment_inline_limit,
         })),
         false => Ok(None),
     }

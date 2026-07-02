@@ -498,7 +498,7 @@ async fn upload_context<'a>(
         },
         upload_attachments,
         upload_minidumps,
-        inline_limit: global_config.options.attachment_inline_limit as usize,
+        inline_limit: global_config.options.attachment_inline_limit,
     }))
 }
 
