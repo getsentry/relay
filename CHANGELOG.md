@@ -20,6 +20,9 @@
 - Set sentry.trace.status on segment spans. ([#6140](https://github.com/getsentry/relay/pull/6140))
 - Don't modify segment information for V2 web vital spans. ([#6160](https://github.com/getsentry/relay/pull/6160))
 - Support compressed minidumps when the `relay-minidump-uploads` feature is enabled. ([#6151](https://github.com/getsentry/relay/pull/6151))
+- Fix Android trace and ANR profile parsing. Serialize Android trace chunks with `version: "2.android-trace"`. Custom
+  Android trace `profile_chunk` producers must send `version: "2"` or `version: "2.android-trace"`; versionless Android
+  trace chunks are rejected. ([#6183](https://github.com/getsentry/relay/pull/6183))
 
 **Internal**:
 
