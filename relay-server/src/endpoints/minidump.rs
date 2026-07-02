@@ -526,7 +526,6 @@ async fn raw_minidump_to_item(
     request: Request,
     meta: &RequestMeta,
     state: &ServiceState,
-    content_type: RawContentType,
     upload_context: Option<UploadContext<'_>>,
 ) -> Result<Managed<Item>, BadStoreRequest> {
     debug_assert!(!matches!(
@@ -545,10 +544,9 @@ async fn raw_minidump_to_item(
             .await
             .map_err(|_| BadStoreRequest::InvalidMinidump)?;
 
-        let content_type = Some(content_type.to_string()).filter(|s| !s.is_empty());
         item = upload_to_objectstore(
             stream,
-            content_type,
+            Some(ContentType::Minidump.to_string()),
             item,
             state.config(),
             upload_context.project,
@@ -579,7 +577,7 @@ async fn items(
     request: Request,
 ) -> Result<Managed<Items>, BadStoreRequest> {
     let items = if MINIDUMP_RAW_CONTENT_TYPES.contains(&content_type.as_ref()) {
-        raw_minidump_to_item(request, meta, state, content_type, upload_context)
+        raw_minidump_to_item(request, meta, state, upload_context)
             .await?
             .map(|item, _| smallvec![item])
     } else {
