@@ -33,6 +33,7 @@
 - Add config option to bypass the kafka fallback for objectstore uploads. ([#6127](https://github.com/getsentry/relay/pull/6127))
 - Use upstream descriptor in upload requests. ([#6128](https://github.com/getsentry/relay/pull/6128))
 - Use dedicated secret to sign upload URLs. ([#6132](https://github.com/getsentry/relay/pull/6132))
+- Retry 500 responses from objectstore. ([#6162](https://github.com/getsentry/relay/pull/6162))
 
 ## 26.6.0
 
