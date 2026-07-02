@@ -208,6 +208,19 @@ fn normalize_ai_costs(attributes: &mut Attributes, model_metadata: Option<&Model
     attributes.insert(GEN_AI__COST__INPUT_TOKENS, costs.input);
     attributes.insert(GEN_AI__COST__OUTPUT_TOKENS, costs.output);
     attributes.insert(GEN_AI__COST__TOTAL_TOKENS, costs.total());
+
+    attributes.insert(
+        GEN_AI__COST__CACHE_READ__INPUT_TOKENS,
+        costs.cache_read_input,
+    );
+    attributes.insert(
+        GEN_AI__COST__CACHE_CREATION__INPUT_TOKENS,
+        costs.cache_creation_input,
+    );
+    attributes.insert(
+        GEN_AI__COST__REASONING__OUTPUT_TOKENS,
+        costs.reasoning_output,
+    );
 }
 
 fn extract_string_value<'a>(attributes: &'a Attributes, key: &str) -> Option<&'a str> {
@@ -305,6 +318,14 @@ mod tests {
 
         assert_annotated_snapshot!(attributes, @r#"
         {
+          "gen_ai.cost.cache_creation.input_tokens": {
+            "type": "double",
+            "value": 0.0
+          },
+          "gen_ai.cost.cache_read.input_tokens": {
+            "type": "double",
+            "value": 20.0
+          },
           "gen_ai.cost.input_tokens": {
             "type": "double",
             "value": 25.0
@@ -312,6 +333,10 @@ mod tests {
           "gen_ai.cost.output_tokens": {
             "type": "double",
             "value": 50.0
+          },
+          "gen_ai.cost.reasoning.output_tokens": {
+            "type": "double",
+            "value": 30.0
           },
           "gen_ai.cost.total_tokens": {
             "type": "double",
@@ -374,6 +399,14 @@ mod tests {
 
         assert_annotated_snapshot!(attributes, @r#"
         {
+          "gen_ai.cost.cache_creation.input_tokens": {
+            "type": "double",
+            "value": 0.0
+          },
+          "gen_ai.cost.cache_read.input_tokens": {
+            "type": "double",
+            "value": 0.0
+          },
           "gen_ai.cost.input_tokens": {
             "type": "double",
             "value": 90.0
@@ -381,6 +414,10 @@ mod tests {
           "gen_ai.cost.output_tokens": {
             "type": "double",
             "value": 100.0
+          },
+          "gen_ai.cost.reasoning.output_tokens": {
+            "type": "double",
+            "value": 0.0
           },
           "gen_ai.cost.total_tokens": {
             "type": "double",
@@ -483,6 +520,14 @@ mod tests {
 
         assert_annotated_snapshot!(attributes, @r#"
         {
+          "gen_ai.cost.cache_creation.input_tokens": {
+            "type": "double",
+            "value": 0.0
+          },
+          "gen_ai.cost.cache_read.input_tokens": {
+            "type": "double",
+            "value": 0.0
+          },
           "gen_ai.cost.input_tokens": {
             "type": "double",
             "value": 90.0
@@ -490,6 +535,10 @@ mod tests {
           "gen_ai.cost.output_tokens": {
             "type": "double",
             "value": 100.0
+          },
+          "gen_ai.cost.reasoning.output_tokens": {
+            "type": "double",
+            "value": 0.0
           },
           "gen_ai.cost.total_tokens": {
             "type": "double",
@@ -552,6 +601,14 @@ mod tests {
 
         assert_annotated_snapshot!(attributes, @r#"
         {
+          "gen_ai.cost.cache_creation.input_tokens": {
+            "type": "double",
+            "value": 0.0
+          },
+          "gen_ai.cost.cache_read.input_tokens": {
+            "type": "double",
+            "value": 0.0
+          },
           "gen_ai.cost.input_tokens": {
             "type": "double",
             "value": 90.0
@@ -559,6 +616,10 @@ mod tests {
           "gen_ai.cost.output_tokens": {
             "type": "double",
             "value": 100.0
+          },
+          "gen_ai.cost.reasoning.output_tokens": {
+            "type": "double",
+            "value": 0.0
           },
           "gen_ai.cost.total_tokens": {
             "type": "double",
@@ -683,6 +744,14 @@ mod tests {
             "type": "integer",
             "value": 100000
           },
+          "gen_ai.cost.cache_creation.input_tokens": {
+            "type": "double",
+            "value": 0.0
+          },
+          "gen_ai.cost.cache_read.input_tokens": {
+            "type": "double",
+            "value": 0.0
+          },
           "gen_ai.cost.input_tokens": {
             "type": "double",
             "value": 300.0
@@ -690,6 +759,10 @@ mod tests {
           "gen_ai.cost.output_tokens": {
             "type": "double",
             "value": 240.0
+          },
+          "gen_ai.cost.reasoning.output_tokens": {
+            "type": "double",
+            "value": 0.0
           },
           "gen_ai.cost.total_tokens": {
             "type": "double",
