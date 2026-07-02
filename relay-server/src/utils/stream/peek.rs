@@ -20,8 +20,9 @@ where
             None => break,
         }
     }
-    let head = head.freeze();
+    let mut head = head.freeze();
     let replay = stream::once(future::ready(Ok(head.clone()))).chain(stream);
+    head.truncate(n);
     Ok((head, replay))
 }
 
