@@ -295,7 +295,7 @@ impl Service {
                     project_id: project.scoping.project_id,
                     key,
                     length: Provisional(length),
-                    upload_id,
+                    upload_id: Some(upload_id),
                     other: Default::default(),
                 }
                 .try_sign(config)
@@ -570,6 +570,7 @@ impl<L: UploadLength> SignedLocation<L> {
     pub fn from_parts(
         project_id: ProjectId,
         key: String,
+        upload_id: Option<String>,
         length: L,
         signature: String,
         other: UploadParams,
@@ -578,6 +579,7 @@ impl<L: UploadLength> SignedLocation<L> {
             location: Location {
                 project_id,
                 key,
+                upload_id,
                 length,
                 other,
             },
@@ -895,6 +897,7 @@ mod tests {
                 project_id: ProjectId::new(42),
                 key: "upload-key".to_owned(),
                 length: Provisional(Some(123)),
+                upload_id: Some("my_upload".to_owned()),
                 other: UploadParams::default(),
             }
         }

@@ -9,8 +9,8 @@ use bytes::Bytes;
 use futures::StreamExt;
 use http::StatusCode;
 use objectstore_client::{
-    Client, Compression, ExpirationPolicy, MultipartUpload, SecretKey as SigningKey, Session,
-    TokenGenerator, Usecase,
+    Client, Compression, ExpirationPolicy, SecretKey as SigningKey, Session, TokenGenerator,
+    Usecase,
 };
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
@@ -328,6 +328,7 @@ impl ObjectstoreKey {
 }
 
 /// Identifier needed to resume an existing upload.
+#[derive(Debug, Clone)]
 pub struct UploadRef {
     /// They key of the file (chosen by relay).
     pub key: String,
@@ -782,12 +783,13 @@ impl ObjectstoreServiceInner {
         } = stream;
         let session = self.session(&self.event_attachments, organization_id, project_id)?;
 
-        let UploadRef { key, upload_id } = upload_ref;
-        let multipart_upload = session.resume_multipart_upload(key, upload_id)?;
-
         self.upload(
             MessageKind::Stream,
-            BodyTarget::Stream(TakeOnce::new(stream), &multipart_upload),
+            &session,
+            BodyTarget::Stream {
+                body: TakeOnce::new(stream),
+                upload_ref,
+            },
             None,
             None,
         )
@@ -806,6 +808,7 @@ impl ObjectstoreServiceInner {
         let retention_hours = retention.checked_mul(24);
         self.upload(
             kind,
+            session,
             BodyTarget::Bytes {
                 body: payload,
                 session,
@@ -820,6 +823,7 @@ impl ObjectstoreServiceInner {
     async fn upload(
         &self,
         kind: MessageKind,
+        session: &Session,
         body: BodyTarget<'_>,
         retention_hours: Option<u16>,
         content_type: Option<ContentType>,
@@ -837,7 +841,7 @@ impl ObjectstoreServiceInner {
                 };
                 attempts += 1;
                 result.replace(
-                    self.attempt_upload(kind, body, retention_hours, content_type)
+                    self.attempt_upload(kind, session, body, retention_hours, content_type)
                         .await,
                 );
 
@@ -873,12 +877,13 @@ impl ObjectstoreServiceInner {
     async fn attempt_upload(
         &self,
         kind: MessageKind,
-        body: BodyAttempt<'_>,
+        session: &Session,
+        body: BodyAttempt,
         retention_hours: Option<u16>,
         content_type: Option<ContentType>,
     ) -> Result<ObjectstoreKey, objectstore_client::Error> {
         match body {
-            BodyAttempt::Bytes { body, session, key } => {
+            BodyAttempt::Bytes { body, key } => {
                 let mut request = session.put(body);
                 if let Some(content_type) = content_type {
                     request = request.content_type(content_type.as_str());
@@ -900,8 +905,11 @@ impl ObjectstoreServiceInner {
 
                 Ok(ObjectstoreKey(response.key))
             }
-            BodyAttempt::Stream(stream, multipart_upload) => {
-                let reader = StreamReader::new(stream);
+            BodyAttempt::Stream { body, upload_ref } => {
+                let UploadRef { key, upload_id } = upload_ref;
+                let multipart_upload = session.resume_multipart_upload(key, upload_id)?;
+
+                let reader = StreamReader::new(body);
                 let mut rechunked = ReaderStream::with_capacity(reader, CHUNK_SIZE).enumerate();
 
                 let result = relay_statsd::metric!(
@@ -949,10 +957,10 @@ enum BodyTarget<'a> {
         session: &'a Session,
         key: Option<String>,
     },
-    Stream(
-        TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
-        &'a MultipartUpload,
-    ),
+    Stream {
+        body: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
+        upload_ref: UploadRef,
+    },
 }
 
 impl BodyTarget<'_> {
@@ -964,11 +972,14 @@ impl BodyTarget<'_> {
                 key,
             } => Some(BodyAttempt::Bytes {
                 body: bytes.clone(),
-                session,
                 key: key.clone(),
             }),
-            Self::Stream(stream, multipart_upload) => RetryableStream::new(stream.clone())
-                .map(|stream| BodyAttempt::Stream(stream, multipart_upload)),
+            Self::Stream { body, upload_ref } => {
+                RetryableStream::new(body.clone()).map(|body| BodyAttempt::Stream {
+                    body,
+                    upload_ref: upload_ref.clone(),
+                })
+            }
         }
     }
 }
@@ -976,16 +987,15 @@ impl BodyTarget<'_> {
 /// Common interface for calls to [`ObjectstoreServiceInner::attempt_upload`].
 ///
 /// This type is instantiated for every retry.
-enum BodyAttempt<'a> {
+enum BodyAttempt {
     Bytes {
         body: Bytes,
-        session: &'a Session,
         key: Option<String>,
     },
-    Stream(
-        RetryableStream<BoundedStream<MeteredStream<ByteStream>>>,
-        &'a MultipartUpload,
-    ),
+    Stream {
+        body: RetryableStream<BoundedStream<MeteredStream<ByteStream>>>,
+        upload_ref: UploadRef,
+    },
 }
 
 fn is_retryable(error: &objectstore_client::Error) -> bool {
@@ -1064,7 +1074,10 @@ mod tests {
             .send(Stream {
                 organization_id: OrganizationId::new(0),
                 project_id: ProjectId::new(1),
-                key: "my_file".into(),
+                upload_ref: UploadRef {
+                    key: "my_file".into(),
+                    upload_id: "my_upload".into(),
+                },
                 stream,
             })
             .await
