@@ -1689,6 +1689,28 @@ def test_minidump_upload_failure_bubbles_up(mini_sentry, relay):
     ]
 
 
+def test_faulty_compression_stream(mini_sentry, relay, dummy_upload):
+    project_id = 42
+    minidump_content = b"\x1f\x8b" + b"not a valid gzip stream"
+
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).append(
+        "projects:relay-minidump-uploads"
+    )
+
+    relay = relay(mini_sentry)
+
+    response = relay.send_minidump(
+        project_id=project_id,
+        files=[(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp.gz", minidump_content)],
+        raise_for_status=False,
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "invalid compression"
+    assert mini_sentry.captured_envelopes.empty()
+
+
 def test_minidump_proxy_mode(mini_sentry, relay):
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
