@@ -168,7 +168,7 @@ pub struct Options {
     /// The limit under which relay in-lines attachments into the envelope even if uploading to
     /// objectstore is enabled.
     ///
-    /// Rationale being that if the attachment is smaller than the attachment reference, obtained by
+    /// If the attachment is smaller than the attachment reference obtained by
     /// uploading, there is no point in uploading.
     #[serde(
         rename = "relay.attachment-inline.limit",
