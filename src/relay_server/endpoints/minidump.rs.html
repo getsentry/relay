@@ -22,7 +22,7 @@
 <a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span>zstd::stream::Decoder <span class="kw">as </span>ZstdDecoder;
 <a href=#23 id=23 data-nosnippet>23</a>
 <a href=#24 id=24 data-nosnippet>24</a><span class="kw">use </span><span class="kw">crate</span>::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
-<a href=#25 id=25 data-nosnippet>25</a><span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest, TextResponse, upload_to_objectstore};
+<a href=#25 id=25 data-nosnippet>25</a><span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest, TextResponse, upload_stream};
 <a href=#26 id=26 data-nosnippet>26</a><span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType, Items};
 <a href=#27 id=27 data-nosnippet>27</a><span class="kw">use </span><span class="kw">crate</span>::extractors::{RawContentType, RequestMeta};
 <a href=#28 id=28 data-nosnippet>28</a><span class="kw">use </span><span class="kw">crate</span>::managed::{Managed, ManagedResult};
@@ -273,7 +273,7 @@
 <a href=#273 id=273 data-nosnippet>273</a>            UploadDecision::Upload =&gt; {
 <a href=#274 id=274 data-nosnippet>274</a>                <span class="kw">let </span>is_minidump = <span class="macro">matches!</span>(item.attachment_type(), <span class="prelude-val">Some</span>(AttachmentType::Minidump));
 <a href=#275 id=275 data-nosnippet>275</a>                <span class="kw">let </span>content_type = field.content_type().map(ToString::to_string);
-<a href=#276 id=276 data-nosnippet>276</a>                <span class="kw">match </span>upload_to_objectstore_checked(
+<a href=#276 id=276 data-nosnippet>276</a>                <span class="kw">match </span>upload_stream_checked(
 <a href=#277 id=277 data-nosnippet>277</a>                    field,
 <a href=#278 id=278 data-nosnippet>278</a>                    content_type,
 <a href=#279 id=279 data-nosnippet>279</a>                    item,
@@ -315,8 +315,8 @@
 <a href=#315 id=315 data-nosnippet>315</a>    }
 <a href=#316 id=316 data-nosnippet>316</a>}
 <a href=#317 id=317 data-nosnippet>317</a>
-<a href=#318 id=318 data-nosnippet>318</a><span class="doccomment">/// Wrapper around [`upload_to_objectstore`] that enforces that minidumps are not compressed.
-<a href=#319 id=319 data-nosnippet>319</a></span><span class="kw">pub async fn </span>upload_to_objectstore_checked&lt;S, E&gt;(
+<a href=#318 id=318 data-nosnippet>318</a><span class="doccomment">/// Wrapper around [`upload_stream`] that enforces that minidumps are not compressed.
+<a href=#319 id=319 data-nosnippet>319</a></span><span class="kw">pub async fn </span>upload_stream_checked&lt;S, E&gt;(
 <a href=#320 id=320 data-nosnippet>320</a>    stream: S,
 <a href=#321 id=321 data-nosnippet>321</a>    content_type: <span class="prelude-ty">Option</span>&lt;String&gt;,
 <a href=#322 id=322 data-nosnippet>322</a>    item: Managed&lt;Item&gt;,
@@ -330,7 +330,7 @@
 <a href=#330 id=330 data-nosnippet>330</a>    E: Into&lt;Box&lt;<span class="kw">dyn </span>std::error::Error + Send + Sync&gt;&gt; + Send + <span class="lifetime">'static</span>,
 <a href=#331 id=331 data-nosnippet>331</a>{
 <a href=#332 id=332 data-nosnippet>332</a>    <span class="kw">if </span>!<span class="macro">matches!</span>(item.attachment_type(), <span class="prelude-val">Some</span>(AttachmentType::Minidump)) {
-<a href=#333 id=333 data-nosnippet>333</a>        <span class="kw">return </span>upload_to_objectstore(
+<a href=#333 id=333 data-nosnippet>333</a>        <span class="kw">return </span>upload_stream(
 <a href=#334 id=334 data-nosnippet>334</a>            stream,
 <a href=#335 id=335 data-nosnippet>335</a>            content_type,
 <a href=#336 id=336 data-nosnippet>336</a>            item,
@@ -340,7 +340,7 @@
 <a href=#340 id=340 data-nosnippet>340</a>            referrer,
 <a href=#341 id=341 data-nosnippet>341</a>        )
 <a href=#342 id=342 data-nosnippet>342</a>        .<span class="kw">await
-<a href=#343 id=343 data-nosnippet>343</a>        </span>.map_err(|<span class="kw">_</span>| BadStoreRequest::ObjectstoreUploadFailed);
+<a href=#343 id=343 data-nosnippet>343</a>        </span>.map_err(|<span class="kw">_</span>| BadStoreRequest::UploadFailed);
 <a href=#344 id=344 data-nosnippet>344</a>    }
 <a href=#345 id=345 data-nosnippet>345</a>
 <a href=#346 id=346 data-nosnippet>346</a>    <span class="kw">let </span>stream = <span class="kw">match </span>reject_if_compressed(stream).<span class="kw">await </span>{
@@ -351,7 +351,7 @@
 <a href=#351 id=351 data-nosnippet>351</a>        }
 <a href=#352 id=352 data-nosnippet>352</a>    };
 <a href=#353 id=353 data-nosnippet>353</a>
-<a href=#354 id=354 data-nosnippet>354</a>    upload_to_objectstore(
+<a href=#354 id=354 data-nosnippet>354</a>    upload_stream(
 <a href=#355 id=355 data-nosnippet>355</a>        stream,
 <a href=#356 id=356 data-nosnippet>356</a>        content_type,
 <a href=#357 id=357 data-nosnippet>357</a>        item,
@@ -361,7 +361,7 @@
 <a href=#361 id=361 data-nosnippet>361</a>        referrer,
 <a href=#362 id=362 data-nosnippet>362</a>    )
 <a href=#363 id=363 data-nosnippet>363</a>    .<span class="kw">await
-<a href=#364 id=364 data-nosnippet>364</a>    </span>.map_err(|<span class="kw">_</span>| BadStoreRequest::ObjectstoreUploadFailed)
+<a href=#364 id=364 data-nosnippet>364</a>    </span>.map_err(|<span class="kw">_</span>| BadStoreRequest::UploadFailed)
 <a href=#365 id=365 data-nosnippet>365</a>}
 <a href=#366 id=366 data-nosnippet>366</a>
 <a href=#367 id=367 data-nosnippet>367</a><span class="kw">async fn </span>multipart_to_items(
@@ -515,7 +515,7 @@
 <a href=#515 id=515 data-nosnippet>515</a>            .<span class="kw">await
 <a href=#516 id=516 data-nosnippet>516</a>            </span>.map_err(|<span class="kw">_</span>| BadStoreRequest::InvalidMinidump)<span class="question-mark">?</span>;
 <a href=#517 id=517 data-nosnippet>517</a>
-<a href=#518 id=518 data-nosnippet>518</a>        item = upload_to_objectstore(
+<a href=#518 id=518 data-nosnippet>518</a>        item = upload_stream(
 <a href=#519 id=519 data-nosnippet>519</a>            stream,
 <a href=#520 id=520 data-nosnippet>520</a>            <span class="prelude-val">Some</span>(content_type.to_string()).filter(|s| !s.is_empty()),
 <a href=#521 id=521 data-nosnippet>521</a>            item,
@@ -525,7 +525,7 @@
 <a href=#525 id=525 data-nosnippet>525</a>            <span class="string">"minidump"</span>,
 <a href=#526 id=526 data-nosnippet>526</a>        )
 <a href=#527 id=527 data-nosnippet>527</a>        .<span class="kw">await
-<a href=#528 id=528 data-nosnippet>528</a>        </span>.map_err(|<span class="kw">_</span>| BadStoreRequest::ObjectstoreUploadFailed)<span class="question-mark">?</span>;
+<a href=#528 id=528 data-nosnippet>528</a>        </span>.map_err(|<span class="kw">_</span>| BadStoreRequest::UploadFailed)<span class="question-mark">?</span>;
 <a href=#529 id=529 data-nosnippet>529</a>    } <span class="kw">else </span>{
 <a href=#530 id=530 data-nosnippet>530</a>        <span class="kw">let </span>minidump_data = request.extract().<span class="kw">await</span><span class="question-mark">?</span>;
 <a href=#531 id=531 data-nosnippet>531</a>        item.try_modify(|inner, records| -&gt; <span class="prelude-ty">Result</span>&lt;(), BadStoreRequest&gt; {

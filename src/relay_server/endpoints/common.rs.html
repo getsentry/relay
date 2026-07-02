@@ -120,8 +120,8 @@
 <a href=#120 id=120 data-nosnippet>120</a>    <span class="attr">#[error(<span class="string">"project not available"</span>)]
 <a href=#121 id=121 data-nosnippet>121</a>    </span>ProjectUnavailable,
 <a href=#122 id=122 data-nosnippet>122</a>
-<a href=#123 id=123 data-nosnippet>123</a>    <span class="attr">#[error(<span class="string">"failed to upload to objectstore"</span>)]
-<a href=#124 id=124 data-nosnippet>124</a>    </span>ObjectstoreUploadFailed,
+<a href=#123 id=123 data-nosnippet>123</a>    <span class="attr">#[error(<span class="string">"failed to upload file"</span>)]
+<a href=#124 id=124 data-nosnippet>124</a>    </span>UploadFailed,
 <a href=#125 id=125 data-nosnippet>125</a>}
 <a href=#126 id=126 data-nosnippet>126</a>
 <a href=#127 id=127 data-nosnippet>127</a><span class="kw">impl </span>BadStoreRequest {
@@ -149,7 +149,7 @@
 <a href=#149 id=149 data-nosnippet>149</a>            <span class="self">Self</span>::RateLimited(<span class="kw">_</span>) =&gt; DiscardReason::RateLimited,
 <a href=#150 id=150 data-nosnippet>150</a>            <span class="self">Self</span>::EventRejected(discard_reason) =&gt; <span class="kw-2">*</span>discard_reason,
 <a href=#151 id=151 data-nosnippet>151</a>            <span class="self">Self</span>::ProjectUnavailable =&gt; DiscardReason::ProjectUnavailable,
-<a href=#152 id=152 data-nosnippet>152</a>            <span class="self">Self</span>::ObjectstoreUploadFailed =&gt; DiscardReason::ObjectstoreUploadFailed,
+<a href=#152 id=152 data-nosnippet>152</a>            <span class="self">Self</span>::UploadFailed =&gt; DiscardReason::UploadFailed,
 <a href=#153 id=153 data-nosnippet>153</a>        };
 <a href=#154 id=154 data-nosnippet>154</a>        <span class="prelude-val">Some</span>(Outcome::Invalid(discard_reason))
 <a href=#155 id=155 data-nosnippet>155</a>    }
@@ -226,7 +226,7 @@
 <a href=#226 id=226 data-nosnippet>226</a>            BadStoreRequest::ItemTooLarge(<span class="kw">_</span>) | BadStoreRequest::RequestTooLarge =&gt; {
 <a href=#227 id=227 data-nosnippet>227</a>                (StatusCode::PAYLOAD_TOO_LARGE, body).into_response()
 <a href=#228 id=228 data-nosnippet>228</a>            }
-<a href=#229 id=229 data-nosnippet>229</a>            BadStoreRequest::ObjectstoreUploadFailed =&gt; {
+<a href=#229 id=229 data-nosnippet>229</a>            BadStoreRequest::UploadFailed =&gt; {
 <a href=#230 id=230 data-nosnippet>230</a>                (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
 <a href=#231 id=231 data-nosnippet>231</a>            }
 <a href=#232 id=232 data-nosnippet>232</a>            BadStoreRequest::InvalidMultipart(multer::Error::LockFailure) =&gt; {
@@ -545,9 +545,9 @@
 <a href=#545 id=545 data-nosnippet>545</a>    }
 <a href=#546 id=546 data-nosnippet>546</a>}
 <a href=#547 id=547 data-nosnippet>547</a>
-<a href=#548 id=548 data-nosnippet>548</a><span class="doccomment">/// Uploads the content of `field` to the objectstore and returns an [Item] with an
+<a href=#548 id=548 data-nosnippet>548</a><span class="doccomment">/// Uploads the content of `field` to the upload service and returns an [Item] with an
 <a href=#549 id=549 data-nosnippet>549</a>/// [AttachmentPlaceholder] as payload.
-<a href=#550 id=550 data-nosnippet>550</a></span><span class="kw">pub async fn </span>upload_to_objectstore&lt;S, E&gt;(
+<a href=#550 id=550 data-nosnippet>550</a></span><span class="kw">pub async fn </span>upload_stream&lt;S, E&gt;(
 <a href=#551 id=551 data-nosnippet>551</a>    stream: S,
 <a href=#552 id=552 data-nosnippet>552</a>    content_type: <span class="prelude-ty">Option</span>&lt;String&gt;,
 <a href=#553 id=553 data-nosnippet>553</a>    <span class="kw-2">mut </span>item: Managed&lt;Item&gt;,
@@ -560,7 +560,7 @@
 <a href=#560 id=560 data-nosnippet>560</a>    </span>S: futures::Stream&lt;Item = <span class="prelude-ty">Result</span>&lt;Bytes, E&gt;&gt; + Send + <span class="lifetime">'static</span>,
 <a href=#561 id=561 data-nosnippet>561</a>    E: Into&lt;Box&lt;<span class="kw">dyn </span>std::error::Error + Send + Sync&gt;&gt; + <span class="lifetime">'static</span>,
 <a href=#562 id=562 data-nosnippet>562</a>{
-<a href=#563 id=563 data-nosnippet>563</a>    <span class="kw">let </span>res = upload_to_objectstore_inner(
+<a href=#563 id=563 data-nosnippet>563</a>    <span class="kw">let </span>res = upload_stream_inner(
 <a href=#564 id=564 data-nosnippet>564</a>        stream,
 <a href=#565 id=565 data-nosnippet>565</a>        content_type,
 <a href=#566 id=566 data-nosnippet>566</a>        <span class="kw-2">&amp;mut </span>item,
@@ -576,7 +576,7 @@
 <a href=#576 id=576 data-nosnippet>576</a>    }
 <a href=#577 id=577 data-nosnippet>577</a>}
 <a href=#578 id=578 data-nosnippet>578</a>
-<a href=#579 id=579 data-nosnippet>579</a><span class="kw">async fn </span>upload_to_objectstore_inner&lt;S, E&gt;(
+<a href=#579 id=579 data-nosnippet>579</a><span class="kw">async fn </span>upload_stream_inner&lt;S, E&gt;(
 <a href=#580 id=580 data-nosnippet>580</a>    stream: S,
 <a href=#581 id=581 data-nosnippet>581</a>    content_type: <span class="prelude-ty">Option</span>&lt;String&gt;,
 <a href=#582 id=582 data-nosnippet>582</a>    item: <span class="kw-2">&amp;mut </span>Managed&lt;Item&gt;,
