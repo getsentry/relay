@@ -30,7 +30,6 @@ def playstation_project_config():
             "features": [
                 "organizations:relay-playstation-ingestion",
                 "organizations:relay-new-error-processing",
-                "projects:relay-upload-endpoint",
                 "projects:relay-playstation-uploads",
             ],
         }

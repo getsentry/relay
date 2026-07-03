@@ -97,9 +97,6 @@ pub enum Feature {
     /// Enable the experimental Trace Attachment pipeline in Relay.
     #[serde(rename = "projects:trace-attachment-processing")]
     TraceAttachmentProcessing,
-    /// Enable the upload endpoint for attachments.
-    #[serde(rename = "projects:relay-upload-endpoint")]
-    UploadEndpoint,
     /// Upload non-prosperodmp playstation attachments via the upload endpoint.
     #[serde(rename = "projects:relay-playstation-uploads")]
     PlaystationUploads,
