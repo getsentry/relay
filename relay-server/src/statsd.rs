@@ -491,7 +491,7 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     ///
     /// - `status`: "ok" means successful scrubbed, "error" means there was an error during
-    ///   scrubbing
+    ///   scrubbing. "n/a" means not changed.
     ViewHierarchyScrubbing,
     /// Time spend on attachment scrubbing.
     ///
@@ -504,6 +504,7 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     ///
     ///   - `attachment_type`: The type of attachment, e.g. "minidump".
+    ///   - `status`: "ok" means successful scrubbed. "n/a" means not changed.
     AttachmentScrubbing,
     /// Total time spent to send request to upstream Relay and handle the response.
     ///

@@ -205,12 +205,12 @@ fn scrub_attachment(item: &mut crate::envelope::Item, config: &relay_pii::PiiCon
         Some(t) => t.to_string(),
         None => "".to_owned(),
     };
+    let start = Instant::now();
+    let modified = processor.scrub_attachment(filename, &mut payload);
     metric!(
-        timer(RelayTimers::AttachmentScrubbing),
-        attachment_type = &attachment_type_tag,
-        {
-            processor.scrub_attachment(filename, &mut payload);
-        }
+        timer(RelayTimers::AttachmentScrubbing) = start.elapsed(),
+        attachment_type = attachment_type_tag,
+        status = if modified { "ok" } else { "n/a" },
     );
 
     item.set_payload_without_content_type(payload);
