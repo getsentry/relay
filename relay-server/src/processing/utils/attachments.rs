@@ -140,12 +140,12 @@ fn scrub_minidump(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfi
                 error = &scrub_error as &dyn Error,
                 "failed to scrub minidump",
             );
+            let start = Instant::now();
+            let modified = processor.scrub_attachment(filename, &mut payload);
             metric!(
-                timer(RelayTimers::AttachmentScrubbing),
+                timer(RelayTimers::AttachmentScrubbing) = start.elapsed(),
                 attachment_type = "minidump",
-                {
-                    processor.scrub_attachment(filename, &mut payload);
-                }
+                status = if modified { "ok" } else { "n/a" },
             )
         }
     }
