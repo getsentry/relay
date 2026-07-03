@@ -20,7 +20,33 @@ where
             None => break,
         }
     }
-    let head = head.freeze();
+    let mut head = head.freeze();
     let replay = stream::once(future::ready(Ok(head.clone()))).chain(stream);
+    head.truncate(n);
     Ok((head, replay))
+}
+
+/// The result of [`split_by_size`].
+pub enum SizeSplit<S> {
+    /// The stream is less than limit and hence buffered into memory.
+    Small(Bytes),
+    /// The stream exceeds limit and hence is not buffered.
+    Large(S),
+}
+
+/// Buffers a stream if its size is less than `limit` bytes, else return the stream.
+pub async fn split_by_size<S, E>(
+    stream: S,
+    limit: usize,
+) -> Result<SizeSplit<impl Stream<Item = Result<Bytes, E>> + Send>, E>
+where
+    S: Stream<Item = Result<Bytes, E>> + Send,
+    E: Send,
+{
+    let (head, stream) = peek_n(stream, limit).await?;
+    if head.len() < limit {
+        Ok(SizeSplit::Small(head))
+    } else {
+        Ok(SizeSplit::Large(stream))
+    }
 }
