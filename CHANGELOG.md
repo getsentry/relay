@@ -18,6 +18,7 @@
 - Set sentry.trace.status on segment spans. ([#6140](https://github.com/getsentry/relay/pull/6140))
 - Don't modify segment information for V2 web vital spans. ([#6160](https://github.com/getsentry/relay/pull/6160))
 - Support compressed minidumps when the `relay-minidump-uploads` feature is enabled. ([#6151](https://github.com/getsentry/relay/pull/6151))
+- Limit indexes of event form-data chunks. ([#6173](https://github.com/getsentry/relay/pull/6173))
 
 **Internal**:
 
