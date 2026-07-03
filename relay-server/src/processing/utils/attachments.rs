@@ -163,7 +163,7 @@ fn scrub_view_hierarchy(item: &mut crate::envelope::Item, config: &relay_pii::Pi
         Ok(output) => {
             metric!(
                 timer(RelayTimers::ViewHierarchyScrubbing) = start.elapsed(),
-                status = "ok"
+                status = if output != payload { "ok" } else { "n/a" }
             );
             item.set_default_content_type(ContentType::Json);
             item.set_payload_without_content_type(output);

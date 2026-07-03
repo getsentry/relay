@@ -491,7 +491,7 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     ///
     /// - `status`: "ok" means successful scrubbed, "error" means there was an error during
-    ///   scrubbing.
+    ///   scrubbing. "n/a" means unchanged.
     ViewHierarchyScrubbing,
     /// Time spend on attachment scrubbing.
     ///
