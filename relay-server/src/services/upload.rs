@@ -404,6 +404,11 @@ impl LoadShed<Upload> for Service {
 ///
 /// This allows code sharing between [`Provisional`] and [`Final`] upload locations.
 pub trait LocationData: for<'de> Deserialize<'de> {
+    type LengthType: for<'de> Deserialize<'de>;
+    type IdType: for<'de> Deserialize<'de>;
+
+    fn from_parts(upload_length: Self::LengthType, upload_id: Self::IdType) -> Self;
+
     fn upload_length(&self) -> Option<usize>;
     fn upload_id(&self) -> Option<&str>;
 }
@@ -413,11 +418,21 @@ pub trait LocationData: for<'de> Deserialize<'de> {
 /// See also [`Final`].
 #[derive(Debug, Clone, Deserialize)]
 pub struct Provisional {
-    upload_length: Option<usize>,
-    upload_id: String,
+    pub upload_length: Option<usize>,
+    pub upload_id: String,
 }
 
 impl LocationData for Provisional {
+    type LengthType = Option<usize>;
+    type IdType = String;
+
+    fn from_parts(upload_length: Self::LengthType, upload_id: Self::IdType) -> Self {
+        Self {
+            upload_length,
+            upload_id,
+        }
+    }
+
     fn upload_length(&self) -> Option<usize> {
         self.upload_length
     }
@@ -443,6 +458,13 @@ impl Final {
 }
 
 impl LocationData for Final {
+    type LengthType = usize;
+    type IdType = ();
+
+    fn from_parts(upload_length: usize, _upload_id: ()) -> Self {
+        Self { upload_length }
+    }
+
     fn upload_length(&self) -> Option<usize> {
         Some(self.upload_length)
     }
@@ -528,8 +550,8 @@ pub struct LocationPath {
 #[derive(Debug, Deserialize)]
 #[serde(bound = "L: LocationData")]
 pub struct LocationQueryParams<L: LocationData> {
-    #[serde(flatten)]
-    pub location_data: L,
+    pub upload_length: L::LengthType,
+    pub upload_id: L::IdType,
     pub upload_signature: String,
     #[serde(flatten)]
     pub other: UploadParams,
@@ -588,7 +610,8 @@ impl<L: LocationData> SignedLocation<L> {
     pub fn from_parts(
         project_id: ProjectId,
         key: String,
-        location_data: L,
+        upload_length: L::LengthType,
+        upload_id: L::IdType,
         signature: String,
         other: UploadParams,
     ) -> Self {
@@ -596,7 +619,7 @@ impl<L: LocationData> SignedLocation<L> {
             location: Location {
                 project_id,
                 key,
-                location_data,
+                location_data: LocationData::from_parts(upload_length, upload_id),
                 other,
             },
             signature: Signature(signature),
@@ -697,7 +720,8 @@ where
 
         // Parse query parameters.
         let LocationQueryParams {
-            location_data: upload_length,
+            upload_length,
+            upload_id,
             upload_signature,
             other,
         } = serde_urlencoded::from_str(query).ok()?;
@@ -706,6 +730,7 @@ where
             project_id,
             key,
             upload_length,
+            upload_id,
             upload_signature,
             other,
         ))
@@ -1012,7 +1037,7 @@ mod tests {
         // Can only parse provisional:
         let provisional: LocationQueryParams<Provisional> =
             serde_urlencoded::from_str(url).unwrap();
-        assert!(provisional.location_data.upload_length.is_none());
+        assert!(provisional.upload_length.is_none());
         assert!(serde_urlencoded::from_str::<LocationQueryParams::<Final>>(url).is_err());
     }
 
@@ -1022,10 +1047,12 @@ mod tests {
 
         let provisional: LocationQueryParams<Provisional> =
             serde_urlencoded::from_str(json).unwrap();
-        assert_eq!(provisional.location_data.upload_length, Some(123));
-        assert_eq!(&provisional.location_data.upload_id, "abc");
+        assert_eq!(provisional.upload_length, Some(123));
+        assert_eq!(&provisional.upload_id, "abc");
+
+        let json = r#"upload_signature=foo&upload_length=123"#;
         let full: LocationQueryParams<Final> = serde_urlencoded::from_str(json).unwrap();
-        assert_eq!(full.location_data.upload_length, 123);
+        assert_eq!(full.upload_length, 123);
     }
 
     #[test]

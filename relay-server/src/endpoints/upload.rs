@@ -203,7 +203,8 @@ async fn handle_patch(
     headers: HeaderMap,
     Path(upload::LocationPath { project_id, key }): Path<upload::LocationPath>,
     Query(LocationQueryParams {
-        location_data,
+        upload_length,
+        upload_id,
         upload_signature,
         other,
     }): Query<LocationQueryParams<Provisional>>,
@@ -214,9 +215,14 @@ async fn handle_patch(
     relay_log::trace!("Validating headers");
     tus::validate_patch_headers(&headers).map_err(Error::from)?;
 
-    let upload_length = location_data.upload_length();
-    let location =
-        SignedLocation::from_parts(project_id, key, location_data, upload_signature, other);
+    let location = SignedLocation::from_parts(
+        project_id,
+        key,
+        upload_length,
+        upload_id,
+        upload_signature,
+        other,
+    );
 
     let config = state.config();
 
