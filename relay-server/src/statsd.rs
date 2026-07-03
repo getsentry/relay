@@ -482,7 +482,7 @@ pub enum RelayTimers {
     ///
     /// - `status`: Scrubbing status: "ok" means successful scrubbed, "error" means there
     ///   was an error during scrubbing and finally "n/a" means scrubbing was successful
-    ///   but no scurbbing rules applied.
+    ///   but no scrubbing rules applied.
     MinidumpScrubbing,
     /// Time spent on view hierarchy scrubbing.
     ///
@@ -491,7 +491,7 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     ///
     /// - `status`: "ok" means successful scrubbed, "error" means there was an error during
-    ///   scrubbing. "n/a" means not changed.
+    ///   scrubbing.
     ViewHierarchyScrubbing,
     /// Time spend on attachment scrubbing.
     ///
