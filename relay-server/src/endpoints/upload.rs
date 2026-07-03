@@ -31,8 +31,8 @@ use crate::services::objectstore;
 use crate::services::projects::cache::Project;
 use crate::services::projects::project::ProjectState;
 use crate::services::upload::{
-    self, ByteStream, Final, LocationQueryParams, ProjectContext, Provisional, SignedLocation,
-    UploadLength,
+    self, ByteStream, Final, LocationData, LocationQueryParams, ProjectContext, Provisional,
+    SignedLocation,
 };
 use crate::services::upstream::UpstreamRequestError;
 use crate::statsd::RelayCounters;
@@ -133,7 +133,7 @@ impl IntoResponse for Error {
     }
 }
 
-impl<L: UploadLength> IntoResponse for SignedLocation<L> {
+impl<L: LocationData> IntoResponse for SignedLocation<L> {
     fn into_response(self) -> Response {
         let mut headers = tus::response_headers();
         match self.into_header_value() {
@@ -203,7 +203,7 @@ async fn handle_patch(
     headers: HeaderMap,
     Path(upload::LocationPath { project_id, key }): Path<upload::LocationPath>,
     Query(LocationQueryParams {
-        upload_length,
+        location_data,
         upload_signature,
         other,
     }): Query<LocationQueryParams<Provisional>>,
@@ -214,8 +214,9 @@ async fn handle_patch(
     relay_log::trace!("Validating headers");
     tus::validate_patch_headers(&headers).map_err(Error::from)?;
 
+    let upload_length = location_data.upload_length();
     let location =
-        SignedLocation::from_parts(project_id, key, upload_length, upload_signature, other);
+        SignedLocation::from_parts(project_id, key, location_data, upload_signature, other);
 
     let config = state.config();
 
@@ -240,7 +241,7 @@ async fn handle_patch(
         .boxed();
     let stream = MeteredStream::new(stream, "upload");
 
-    let (lower_bound, upper_bound) = match upload_length.value() {
+    let (lower_bound, upper_bound) = match upload_length {
         None => (1, config.max_upload_size()),
         Some(u) => (u, u),
     };

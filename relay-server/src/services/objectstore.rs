@@ -809,11 +809,7 @@ impl ObjectstoreServiceInner {
         self.upload(
             kind,
             session,
-            BodyTarget::Bytes {
-                body: payload,
-                session,
-                key,
-            },
+            BodyTarget::Bytes { body: payload, key },
             retention_hours,
             content_type,
         )
@@ -824,7 +820,7 @@ impl ObjectstoreServiceInner {
         &self,
         kind: MessageKind,
         session: &Session,
-        body: BodyTarget<'_>,
+        body: BodyTarget,
         retention_hours: Option<u16>,
         content_type: Option<ContentType>,
     ) -> Result<ObjectstoreKey, Error> {
@@ -951,10 +947,9 @@ impl ObjectstoreServiceInner {
 /// Common interface for calls to [`ObjectstoreServiceInner::upload`].
 ///
 /// This type is shared across retries.
-enum BodyTarget<'a> {
+enum BodyTarget {
     Bytes {
         body: Bytes,
-        session: &'a Session,
         key: Option<String>,
     },
     Stream {
@@ -963,14 +958,10 @@ enum BodyTarget<'a> {
     },
 }
 
-impl BodyTarget<'_> {
+impl BodyTarget {
     fn try_clone(&self) -> Option<BodyAttempt> {
         match self {
-            Self::Bytes {
-                body: bytes,
-                session,
-                key,
-            } => Some(BodyAttempt::Bytes {
+            Self::Bytes { body: bytes, key } => Some(BodyAttempt::Bytes {
                 body: bytes.clone(),
                 key: key.clone(),
             }),

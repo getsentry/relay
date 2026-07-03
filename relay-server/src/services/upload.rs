@@ -227,12 +227,12 @@ pub struct Service {
 }
 
 /// A response channel that emits a metric for each response.
-pub struct InstrumentedSender<L: UploadLength> {
+pub struct InstrumentedSender<L: LocationData> {
     metric: RelayCounters,
     inner: Sender<Result<SignedLocation<L>, Error>>,
 }
 
-impl<L: UploadLength> InstrumentedSender<L> {
+impl<L: LocationData> InstrumentedSender<L> {
     fn send(self, result: Result<SignedLocation<L>, Error>) {
         let result_msg = match &result {
             Ok(_) => "success",
@@ -294,8 +294,10 @@ impl Service {
                 Location {
                     project_id: project.scoping.project_id,
                     key,
-                    length: Provisional(length),
-                    upload_id: Some(upload_id),
+                    location_data: Provisional {
+                        upload_length: length,
+                        upload_id,
+                    },
                     other: Default::default(),
                 }
                 .try_sign(config)
@@ -325,33 +327,39 @@ impl Service {
                 let Location {
                     project_id,
                     key,
-                    length,
-                    upload_id,
+                    location_data,
                     other,
                 } = location.verify(received, config)?;
 
                 let scoping = project.scoping;
                 debug_assert_eq!(scoping.project_id, project_id);
-                debug_assert!(stream.length().is_none_or(|l| Some(l) == length.value()));
+                debug_assert!(
+                    stream
+                        .length()
+                        .is_none_or(|l| Some(l) == location_data.upload_length())
+                );
                 let byte_counter = stream.byte_counter();
 
                 let key = addr
                     .send(objectstore::Stream {
                         organization_id: scoping.organization_id,
                         project_id,
-                        upload_ref: UploadRef { key, upload_id },
+                        upload_ref: UploadRef {
+                            key,
+                            upload_id: location_data.upload_id,
+                        },
                         stream,
                     })
                     .await
                     .map_err(Error::ObjectstoreServiceUnavailable)??
                     .into_inner();
-                let length = Final(byte_counter.get());
 
                 Location {
                     project_id,
                     key,
-                    length,
-                    upload_id,
+                    location_data: Final {
+                        upload_length: byte_counter.get(),
+                    },
                     other,
                 }
                 .try_sign(config)
@@ -361,7 +369,7 @@ impl Service {
 
     async fn timeout<L, F>(&self, future: F) -> Result<SignedLocation<L>, Error>
     where
-        L: UploadLength,
+        L: LocationData,
         F: IntoFuture<Output = Result<SignedLocation<L>, Error>>,
     {
         tokio::time::timeout(self.timeout, future).await?
@@ -392,23 +400,30 @@ impl LoadShed<Upload> for Service {
     }
 }
 
-/// An interface for known or unknown upload lengths.
+/// An interface to retrieve query parameters from different location types.
 ///
 /// This allows code sharing between [`Provisional`] and [`Final`] upload locations.
-pub trait UploadLength: for<'de> Deserialize<'de> {
-    fn value(&self) -> Option<usize>;
+pub trait LocationData: for<'de> Deserialize<'de> {
+    fn upload_length(&self) -> Option<usize>;
+    fn upload_id(&self) -> Option<&str>;
 }
 
 /// A provisional upload length which may or may not yet be known.
 ///
 /// See also [`Final`].
-#[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(transparent)]
-pub struct Provisional(Option<usize>);
+#[derive(Debug, Clone, Deserialize)]
+pub struct Provisional {
+    upload_length: Option<usize>,
+    upload_id: String,
+}
 
-impl UploadLength for Provisional {
-    fn value(&self) -> Option<usize> {
-        self.0
+impl LocationData for Provisional {
+    fn upload_length(&self) -> Option<usize> {
+        self.upload_length
+    }
+
+    fn upload_id(&self) -> Option<&str> {
+        Some(&self.upload_id)
     }
 }
 
@@ -416,18 +431,24 @@ impl UploadLength for Provisional {
 ///
 /// See also [`Provisional`].
 #[derive(Debug, Clone, Copy, Deserialize)]
-pub struct Final(usize);
+pub struct Final {
+    upload_length: usize,
+}
 
 impl Final {
     /// Get the value.
-    pub fn into_inner(self) -> usize {
-        self.0
+    pub fn length(&self) -> usize {
+        self.upload_length
     }
 }
 
-impl UploadLength for Final {
-    fn value(&self) -> Option<usize> {
-        Some(self.0)
+impl LocationData for Final {
+    fn upload_length(&self) -> Option<usize> {
+        Some(self.upload_length)
+    }
+
+    fn upload_id(&self) -> Option<&str> {
+        None
     }
 }
 
@@ -444,32 +465,30 @@ pub struct Location<L> {
     pub project_id: ProjectId,
     /// Objectstore identifier.
     pub key: String,
-    /// Value of the `Upload-Length` header. `None` if `Upload-Defer-Length: 1`.
-    pub length: L,
-    /// The ID of the upload session, as provided by objectstore.
-    pub upload_id: Option<String>,
+    /// Upload length and upload ID.
+    pub location_data: L,
+    /// Additional fields, retained for forward compatibility.
     pub other: UploadParams,
 }
 
-impl<L: UploadLength> Location<L> {
+impl<L: LocationData> Location<L> {
     fn try_to_uri(&self) -> Result<String, Error> {
         let Location {
             project_id,
             key,
-            length,
-            upload_id,
+            location_data,
             other,
         } = self;
         #[derive(Debug, Serialize)]
         struct QueryParams<'a> {
             pub upload_length: Option<usize>,
-            pub upload_id: &'a String,
+            pub upload_id: Option<&'a str>,
             #[serde(flatten)]
             pub other: &'a UploadParams,
         }
         let params = QueryParams {
-            upload_length: length.value(),
-            upload_id,
+            upload_length: location_data.upload_length(),
+            upload_id: location_data.upload_id(),
             other,
         };
         let query = serde_urlencoded::to_string(params)?;
@@ -507,11 +526,10 @@ pub struct LocationPath {
 
 /// Query parameters for the upload endpoint.
 #[derive(Debug, Deserialize)]
-#[serde(bound = "L: UploadLength")]
-pub struct LocationQueryParams<L: UploadLength> {
-    #[serde(alias = "length")]
-    pub upload_length: L,
-    #[serde(alias = "signature")]
+#[serde(bound = "L: LocationData")]
+pub struct LocationQueryParams<L: LocationData> {
+    #[serde(flatten)]
+    pub location_data: L,
     pub upload_signature: String,
     #[serde(flatten)]
     pub other: UploadParams,
@@ -558,20 +576,19 @@ impl<'de> Deserialize<'de> for UploadParams {
 
 /// A verifiable [`Location`] signed by this Relay or an upstream Relay.
 #[derive(Debug)]
-pub struct SignedLocation<L: UploadLength> {
+pub struct SignedLocation<L: LocationData> {
     location: Location<L>,
     signature: Signature,
 }
 
-impl<L: UploadLength> SignedLocation<L> {
+impl<L: LocationData> SignedLocation<L> {
     /// Creates an unverified location from path and query params.
     ///
     /// Call `verify` to make sure the signature is correct.
     pub fn from_parts(
         project_id: ProjectId,
         key: String,
-        upload_id: Option<String>,
-        length: L,
+        location_data: L,
         signature: String,
         other: UploadParams,
     ) -> Self {
@@ -579,8 +596,7 @@ impl<L: UploadLength> SignedLocation<L> {
             location: Location {
                 project_id,
                 key,
-                upload_id,
-                length,
+                location_data,
                 other,
             },
             signature: Signature(signature),
@@ -644,7 +660,7 @@ impl<L: UploadLength> SignedLocation<L> {
 
 impl<L> SignedLocation<L>
 where
-    L: UploadLength,
+    L: LocationData,
     LocationQueryParams<L>: for<'de> Deserialize<'de>,
 {
     fn try_from_response(response: Response) -> Result<Self, Error> {
@@ -681,7 +697,7 @@ where
 
         // Parse query parameters.
         let LocationQueryParams {
-            upload_length,
+            location_data: upload_length,
             upload_signature,
             other,
         } = serde_urlencoded::from_str(query).ok()?;
@@ -896,8 +912,10 @@ mod tests {
             Location {
                 project_id: ProjectId::new(42),
                 key: "upload-key".to_owned(),
-                length: Provisional(Some(123)),
-                upload_id: Some("my_upload".to_owned()),
+                location_data: Provisional {
+                    upload_length: Some(123),
+                    upload_id: "my_upload".to_owned(),
+                },
                 other: UploadParams::default(),
             }
         }
@@ -989,24 +1007,25 @@ mod tests {
 
     #[test]
     fn parse_location_incomplete() {
-        let url = "signature=foo";
+        let url = "upload_signature=foo&upload_id=abc";
 
         // Can only parse provisional:
         let provisional: LocationQueryParams<Provisional> =
             serde_urlencoded::from_str(url).unwrap();
-        assert!(provisional.upload_length.0.is_none());
+        assert!(provisional.location_data.upload_length.is_none());
         assert!(serde_urlencoded::from_str::<LocationQueryParams::<Final>>(url).is_err());
     }
 
     #[test]
     fn parse_location_complete() {
-        let json = r#"signature=foo&length=123"#;
+        let json = r#"upload_signature=foo&upload_length=123&upload_id=abc"#;
 
         let provisional: LocationQueryParams<Provisional> =
             serde_urlencoded::from_str(json).unwrap();
-        assert_eq!(provisional.upload_length.0, Some(123));
+        assert_eq!(provisional.location_data.upload_length, Some(123));
+        assert_eq!(&provisional.location_data.upload_id, "abc");
         let full: LocationQueryParams<Final> = serde_urlencoded::from_str(json).unwrap();
-        assert_eq!(full.upload_length.0, 123);
+        assert_eq!(full.location_data.upload_length, 123);
     }
 
     #[test]
