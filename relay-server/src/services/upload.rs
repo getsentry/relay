@@ -459,9 +459,9 @@ impl Final {
 
 impl LocationData for Final {
     type LengthType = usize;
-    type IdType = ();
+    type IdType = Option<()>; // the option is here to be able to parse an URL without &upload_id.
 
-    fn from_parts(upload_length: usize, _upload_id: ()) -> Self {
+    fn from_parts(upload_length: usize, _upload_id: Option<()>) -> Self {
         Self { upload_length }
     }
 
@@ -1057,18 +1057,48 @@ mod tests {
 
     #[test]
     fn parse_location_with_other() {
-        let json =
-            r#"upload_signature=foo&upload_length=123&not_an_upload_param=123&upload_type=bar"#;
+        let json = r#"upload_signature=foo&upload_id=abc&not_an_upload_param=123&upload_type=bar"#;
 
         let provisional: LocationQueryParams<Provisional> =
             serde_urlencoded::from_str(json).unwrap();
         insta::assert_debug_snapshot!(provisional, @r#"
         LocationQueryParams {
-            upload_length: Provisional(
-                Some(
-                    123,
-                ),
+            upload_length: None,
+            upload_id: "abc",
+            upload_signature: "foo",
+            other: UploadParams(
+                {
+                    "upload_type": "bar",
+                },
             ),
+        }
+        "#);
+        let full: LocationQueryParams<Final> = serde_urlencoded::from_str(json).unwrap();
+        insta::assert_debug_snapshot!(full, @r#"
+        LocationQueryParams {
+            upload_length: Final(
+                123,
+            ),
+            upload_signature: "foo",
+            other: UploadParams(
+                {
+                    "upload_type": "bar",
+                },
+            ),
+        }
+        "#);
+    }
+
+    #[test]
+    fn parse_final_location_with_other() {
+        let json =
+            r#"upload_signature=foo&upload_length=123&not_an_upload_param=123&upload_type=bar"#;
+
+        let provisional: LocationQueryParams<Final> = serde_urlencoded::from_str(json).unwrap();
+        insta::assert_debug_snapshot!(provisional, @r#"
+        LocationQueryParams {
+            upload_length: 123,
+            upload_id: None,
             upload_signature: "foo",
             other: UploadParams(
                 {
