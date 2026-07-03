@@ -14,7 +14,7 @@
 <a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
 <a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span><span class="kw">crate</span>::managed::Managed;
 <a href=#16 id=16 data-nosnippet>16</a><span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
-<a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, AttachmentStrategy, read_bytes_into_item};
+<a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, AttachmentStrategy, read_field_into_item};
 <a href=#18 id=18 data-nosnippet>18</a>
 <a href=#19 id=19 data-nosnippet>19</a><span class="attr">#[derive(Debug, Deserialize)]
 <a href=#20 id=20 data-nosnippet>20</a></span><span class="kw">pub struct </span>AttachmentPath {
@@ -34,7 +34,7 @@
 <a href=#34 id=34 data-nosnippet>34</a>        item: Managed&lt;Item&gt;,
 <a href=#35 id=35 data-nosnippet>35</a>        config: <span class="kw-2">&amp;</span>Config,
 <a href=#36 id=36 data-nosnippet>36</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Managed&lt;Item&gt;&gt;, BadStoreRequest&gt; {
-<a href=#37 id=37 data-nosnippet>37</a>        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(read_bytes_into_item(field, item, config).<span class="kw">await</span><span class="question-mark">?</span>))
+<a href=#37 id=37 data-nosnippet>37</a>        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(read_field_into_item(field, item, config).<span class="kw">await</span><span class="question-mark">?</span>))
 <a href=#38 id=38 data-nosnippet>38</a>    }
 <a href=#39 id=39 data-nosnippet>39</a>}
 <a href=#40 id=40 data-nosnippet>40</a>
