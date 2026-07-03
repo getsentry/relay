@@ -186,7 +186,24 @@ pub trait AttachmentStrategy {
     ) -> impl Future<Output = Result<Option<Managed<Item>>, BadStoreRequest>> + Send;
 }
 
-pub async fn read_bytes_into_item(
+pub fn read_bytes_into_item(
+    bytes: Bytes,
+    mut item: Managed<Item>,
+    content_type: Option<ContentType>,
+) -> Managed<Item> {
+    item.modify(|inner, records| {
+        if let Some(content_type) = content_type {
+            inner.set_payload(content_type, bytes);
+        } else {
+            inner.set_payload_without_content_type(bytes);
+        };
+        records.lenient(DataCategory::Attachment);
+    });
+
+    item
+}
+
+pub async fn read_field_into_item(
     field: Field<'static>,
     mut item: Managed<Item>,
     config: &Config,
@@ -419,7 +436,7 @@ mod tests {
                 item: Managed<Item>,
                 config: &Config,
             ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
-                Ok(Some(read_bytes_into_item(field, item, config).await?))
+                Ok(Some(read_field_into_item(field, item, config).await?))
             }
 
             fn infer_type(&self, _: &Field) -> AttachmentType {
@@ -474,7 +491,7 @@ mod tests {
                 item: Managed<Item>,
                 config: &Config,
             ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
-                Ok(Some(read_bytes_into_item(field, item, config).await?))
+                Ok(Some(read_field_into_item(field, item, config).await?))
             }
 
             fn infer_type(&self, _: &Field) -> AttachmentType {

@@ -474,9 +474,7 @@ pub enum RelayTimers {
     RequestsDuration,
     /// Time spent on minidump scrubbing.
     ///
-    /// This is the total time spent on parsing and scrubbing the minidump.  Even if no PII
-    /// scrubbing rules applied the minidump will still be parsed and the rules evaluated on
-    /// the parsed minidump, this duration is reported here with status of "n/a".
+    /// This is the total time spent on parsing and scrubbing the minidump.
     ///
     /// This metric is tagged with:
     ///
