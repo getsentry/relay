@@ -158,6 +158,7 @@ pub fn take_event_from_attachments(
 pub fn take_event_from_formdata(
     items: &mut Vec<Item>,
     metrics: &mut Metrics,
+    ctx: Context<'_>,
 ) -> Result<Annotated<Event>> {
     let Some(form_data) = take_item_of_type(items, ItemType::FormData) else {
         return Ok(Annotated::empty());
@@ -165,7 +166,7 @@ pub fn take_event_from_formdata(
 
     let event = {
         let mut value = serde_json::Value::Object(Default::default());
-        formdata::merge_formdata(&mut value, &form_data);
+        formdata::merge_formdata(&mut value, &form_data, ctx.processing.config);
         Annotated::deserialize_with_meta(value).map_err(ProcessingError::InvalidJson)
     }?;
     metrics.bytes_ingested_event = Annotated::new(form_data.len() as u64);
@@ -199,7 +200,7 @@ pub fn take_event_from_crash_items(
         return Ok(event);
     }
 
-    let event = take_event_from_formdata(items, metrics)?;
+    let event = take_event_from_formdata(items, metrics, ctx)?;
     if event.0.is_some() {
         return Ok(event);
     }

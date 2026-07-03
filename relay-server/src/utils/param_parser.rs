@@ -1,3 +1,4 @@
+use relay_config::Config;
 use serde_json::Value;
 
 enum IndexingState {
@@ -98,8 +99,12 @@ pub fn get_sentry_entry_indexes(param_name: &str) -> Option<Vec<&str>> {
 ///
 /// Electron SDK splits up long payloads into chunks starting at sentry__1 with an
 /// incrementing counter. Assemble these chunks here and then decode them below.
-pub fn get_sentry_chunk_index(key: &str, prefix: &str) -> Option<usize> {
-    key.strip_prefix(prefix).and_then(|rest| rest.parse().ok())
+///
+/// If the index is too large, or unparsable from `key`, `None` is returned.
+pub fn get_sentry_chunk_index(key: &str, prefix: &str, config: &Config) -> Option<usize> {
+    key.strip_prefix(prefix)
+        .and_then(|rest| rest.parse().ok())
+        .filter(|&index| index <= config.max_event_size() / 1024)
 }
 
 /// Aggregates slices of strings in random order.
@@ -239,13 +244,42 @@ mod tests {
 
     #[test]
     fn test_chunk_index() {
-        assert_eq!(get_sentry_chunk_index("sentry__0", "sentry__"), Some(0));
-        assert_eq!(get_sentry_chunk_index("sentry__1", "sentry__"), Some(1));
+        let config = Config::default();
+        assert_eq!(
+            get_sentry_chunk_index("sentry__0", "sentry__", &config),
+            Some(0)
+        );
+        assert_eq!(
+            get_sentry_chunk_index("sentry__1", "sentry__", &config),
+            Some(1)
+        );
 
-        assert_eq!(get_sentry_chunk_index("foo__0", "sentry__"), None);
-        assert_eq!(get_sentry_chunk_index("sentry__", "sentry__"), None);
-        assert_eq!(get_sentry_chunk_index("sentry__-1", "sentry__"), None);
-        assert_eq!(get_sentry_chunk_index("sentry__xx", "sentry__"), None);
+        assert_eq!(get_sentry_chunk_index("foo__0", "sentry__", &config), None);
+        assert_eq!(
+            get_sentry_chunk_index("sentry__", "sentry__", &config),
+            None
+        );
+        assert_eq!(
+            get_sentry_chunk_index("sentry__-1", "sentry__", &config),
+            None
+        );
+        assert_eq!(
+            get_sentry_chunk_index("sentry__xx", "sentry__", &config),
+            None
+        );
+    }
+
+    #[test]
+    fn test_chunk_index_derived_from_max_event_size() {
+        let config = Config::default();
+        assert_eq!(
+            get_sentry_chunk_index("sentry__1024", "sentry__", &config),
+            Some(1024)
+        );
+        assert_eq!(
+            get_sentry_chunk_index("sentry__1025", "sentry__", &config),
+            None
+        );
     }
 
     #[test]

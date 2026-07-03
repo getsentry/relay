@@ -1,9 +1,10 @@
+use relay_config::Config;
 use serde_json::Value as SerdeValue;
 
 use crate::envelope::Item;
 use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 
-pub fn merge_formdata(target: &mut SerdeValue, item: &Item) {
+pub fn merge_formdata(target: &mut SerdeValue, item: &Item, config: &Config) {
     let payload = item.payload();
     let mut aggregator = ChunkedFormDataAggregator::new();
 
@@ -15,7 +16,7 @@ pub fn merge_formdata(target: &mut SerdeValue, item: &Item) {
                 Ok(event) => utils::merge_values(target, event),
                 Err(_) => relay_log::debug!("invalid json event payload in sentry form field"),
             }
-        } else if let Some(index) = utils::get_sentry_chunk_index(entry.key(), "sentry__") {
+        } else if let Some(index) = utils::get_sentry_chunk_index(entry.key(), "sentry__", config) {
             // Electron SDK splits up long payloads into chunks starting at sentry__1 with an
             // incrementing counter. Assemble these chunks here and then decode them below.
             aggregator.insert(index, entry.value());
@@ -37,5 +38,45 @@ pub fn merge_formdata(target: &mut SerdeValue, item: &Item) {
             Ok(event) => utils::merge_values(target, event),
             Err(_) => relay_log::debug!("invalid json event payload in sentry__* form fields"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::envelope::{ContentType, ItemType};
+    use crate::utils::FormDataWriter;
+
+    fn form_data_item(fields: &[(&str, &str)]) -> Item {
+        let mut writer = FormDataWriter::new();
+        for (key, value) in fields {
+            writer.append(key, value);
+        }
+        let mut item = Item::new(ItemType::FormData);
+        item.set_payload(ContentType::Text, writer.into_inner());
+        item
+    }
+
+    #[test]
+    fn test_merge_formdata_assembles_chunks() {
+        let item = form_data_item(&[("sentry__0", r#"{"message":"#), ("sentry__1", r#""hi"}"#)]);
+        let mut target = SerdeValue::Object(Default::default());
+
+        merge_formdata(&mut target, &item, &Config::default());
+
+        assert_eq!(target, serde_json::json!({ "message": "hi" }));
+    }
+
+    #[test]
+    fn test_merge_formdata_ignores_too_large_index() {
+        let item = form_data_item(&[("sentry__2000", "x")]);
+        let mut target = SerdeValue::Object(Default::default());
+
+        merge_formdata(&mut target, &item, &Config::default());
+
+        assert_eq!(
+            target,
+            serde_json::json!({ "extra": { "sentry__2000": "x" } })
+        );
     }
 }
