@@ -225,12 +225,11 @@ fn envelope(
     meta: RequestMeta,
     managed_err: Managed<(DataCategory, usize)>,
 ) -> Result<Managed<Box<Envelope>>, BadStoreRequest> {
-    let event_id = common::event_id_from_items(&items)
-        .reject2(&items, &managed_err)?
+    let merged = Managed::zip(managed_err, items);
+    let event_id = common::event_id_from_items(&merged.as_ref().1)
+        .reject(&merged)?
         .unwrap_or_else(EventId::new);
-    let envelope = items.map(|items, records| {
-        managed_err.accept(|_| ()); // There will be an envelope with (DataCategory::Error, 1) now
-        records.modify_by(DataCategory::Error, 1);
+    let envelope = merged.map(|(_, items), _| {
         let envelope = Envelope::from_request(Some(event_id), meta)
             .with_items(items)
             .with_required_feature(Feature::PlaystationIngestion);
