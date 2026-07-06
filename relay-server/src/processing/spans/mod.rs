@@ -276,6 +276,9 @@ impl Forward for SpanOutput {
             match either.transpose() {
                 Either::Left(span) => {
                     if let Ok(span) = span.try_map(|span, _| store::convert(span, &ctx)) {
+                        if let Some(metrics) = relay_spans::extract_web_vital_metrics(&span.item) {
+                            processing::trace_metrics::produce_webvitals_metrics(s, &span, metrics);
+                        }
                         s.send_to_store(span);
                     }
                 }

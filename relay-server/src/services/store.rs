@@ -25,9 +25,9 @@ use relay_event_schema::protocol::{Event, EventId, SpanV2, datetime_to_timestamp
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message, SerializationOutput};
 use relay_metrics::{
     Bucket, BucketView, BucketViewValue, BucketsView, ByNamespace, GaugeValue, MetricName,
-    MetricNamespace, MetricUnit, SetView,
+    MetricNamespace, SetView,
 };
-use relay_protocol::{Annotated, FiniteF64, SerializableAnnotated, Value};
+use relay_protocol::{Annotated, FiniteF64, SerializableAnnotated};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{FromMessage, Interface, NoResponse, Service};
@@ -36,8 +36,7 @@ use relay_threading::AsyncPool;
 use crate::envelope::{AttachmentPlaceholder, AttachmentType, ContentType, Item};
 use crate::managed::{Counted, Managed, OutcomeError, Quantities, Rejected};
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
-use crate::processing::Retention;
-use crate::processing::trace_metrics::store::{Context, convert};
+
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::objectstore::ObjectstoreKey;
@@ -50,61 +49,6 @@ mod sessions;
 
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
-
-const WEB_VITAL_LOOKUPS: [WebVital; 5] = [
-    WebVital {
-        attribute_value: "browser.web_vital.lcp.value",
-        name: "browser.web_vital.lcp.value",
-        unit: MetricUnit::Duration(relay_metrics::DurationUnit::MilliSecond),
-        attribute_keys: &[
-            "browser.web_vital.lcp.value",
-            "browser.web_vital.lcp.element",
-            "browser.web_vital.lcp.id",
-            "browser.web_vital.lcp.url",
-            "browser.web_vital.lcp.size",
-            "browser.web_vital.lcp.load_time",
-            "browser.web_vital.lcp.render_time",
-        ],
-    },
-    WebVital {
-        attribute_value: "browser.web_vital.cls.value",
-        name: "browser.web_vital.cls.value",
-        unit: MetricUnit::None,
-        attribute_keys: &[
-            "browser.web_vital.cls.value",
-            "browser.web_vital.cls.source.1",
-            "browser.web_vital.cls.source.2",
-        ],
-    },
-    WebVital {
-        attribute_value: "browser.web_vital.inp.value",
-        name: "browser.web_vital.inp.value",
-        unit: MetricUnit::Duration(relay_metrics::DurationUnit::MilliSecond),
-        attribute_keys: &["browser.web_vital.inp.value"],
-    },
-    WebVital {
-        attribute_value: "browser.web_vital.fcp.value",
-        name: "browser.web_vital.fcp.value",
-        unit: MetricUnit::Duration(relay_metrics::DurationUnit::MilliSecond),
-        attribute_keys: &["browser.web_vital.fcp.value"],
-    },
-    WebVital {
-        attribute_value: "browser.web_vital.ttfb.value",
-        name: "browser.web_vital.ttfb.value",
-        unit: MetricUnit::Duration(relay_metrics::DurationUnit::MilliSecond),
-        attribute_keys: &[
-            "browser.web_vital.ttfb.value",
-            "browser.web_vital.ttfb.request_time",
-        ],
-    },
-];
-
-struct WebVital {
-    name: &'static str,
-    attribute_value: &'static str,
-    unit: MetricUnit,
-    attribute_keys: &'static [&'static str],
-}
 
 #[derive(Debug, thiserror::Error)]
 pub enum StoreError {
@@ -748,7 +692,6 @@ impl StoreService {
         };
 
         message.try_accept(|span| {
-            self.produce_web_vital_metrics(scoping, received_at, &span)?;
             let item = Annotated::new(span.item);
             let message = KafkaMessage::SpanV2 {
                 routing_key: span.routing_key,
@@ -770,79 +713,6 @@ impl StoreService {
             counter(RelayCounters::SpanV2Produced) += 1,
             via = "processing"
         );
-
-        Ok(())
-    }
-
-    fn produce_web_vital_metrics(
-        &self,
-        scoping: Scoping,
-        received_at: DateTime<Utc>,
-        span: &Box<StoreSpanV2>,
-    ) -> Result<(), StoreError> {
-        let Some(attrs) = &span.item.attributes.0 else {
-            return Ok(());
-        };
-
-        for web_vital in &WEB_VITAL_LOOKUPS {
-            let Some(value) = attrs.get_value(web_vital.attribute_value) else {
-                continue;
-            };
-
-            let mut attributes = Attributes::new();
-            for attr_key in web_vital.attribute_keys {
-                if let Some(v) = attrs.get_attribute(*attr_key) {
-                    attributes.insert(*attr_key, v.value.clone());
-                }
-            }
-            let trace_metric = TraceMetric {
-                timestamp: span.item.start_timestamp.clone(),
-                trace_id: span.item.trace_id.clone(),
-                span_id: span.item.span_id.clone(),
-                name: web_vital.name.to_owned().into(),
-                ty: relay_event_schema::protocol::MetricType::Distribution.into(),
-                unit: web_vital.unit.into(),
-                value: Value::F64(value.as_f64().unwrap_or(0.0)).into(),
-                attributes: attributes.into(),
-                other: BTreeMap::default(),
-            };
-
-            let trace_metric_headers = TraceMetricHeader {
-                byte_size: Some(crate::processing::trace_metrics::utils::calculate_size(
-                    &trace_metric,
-                )),
-                other: BTreeMap::default(),
-            };
-
-            if let Ok(mut trace_item) = convert(
-                crate::envelope::WithHeader {
-                    header: trace_metric_headers.into(),
-                    value: trace_metric.into(),
-                },
-                &Context {
-                    received_at,
-                    scoping,
-                    retention: Retention {
-                        standard: 30,
-                        downsampled: 30,
-                    },
-                },
-            ) {
-                let kafka_headers =
-                    BTreeMap::from([("namespace".to_owned(), MetricNamespace::Spans.to_string())]);
-
-                // Remove all outcomes, as we don't want to double-bill.
-                trace_item.trace_item.outcomes = None;
-                self.produce(
-                    KafkaTopic::Items,
-                    KafkaMessage::Item {
-                        headers: kafka_headers,
-                        item_type: TraceItemType::Metric,
-                        message: trace_item.trace_item,
-                    },
-                )?;
-            }
-        }
 
         Ok(())
     }
