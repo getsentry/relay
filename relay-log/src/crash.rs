@@ -86,6 +86,13 @@ pub fn init(config: &crate::SentryConfig, client: crate::sentry::Client) {
             // Dropping the handle would detach the crash handler not catching any crashes.
             std::mem::forget(handle);
         }
+        Err(err) if is_crash_reporter_process() => {
+            crate::warn!(
+                error = &err as &dyn std::error::Error,
+                "Failed to initialize crash reporter"
+            );
+            std::process::exit(1);
+        }
         Err(err) => {
             crate::warn!(
                 error = &err as &dyn std::error::Error,
