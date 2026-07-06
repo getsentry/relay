@@ -5,6 +5,7 @@ use std::num::NonZeroU16;
 use std::sync::Arc;
 use std::time::Duration;
 
+use async_compression::tokio::bufread::ZstdEncoder;
 use bytes::Bytes;
 use futures::StreamExt;
 use http::StatusCode;
@@ -905,18 +906,19 @@ impl ObjectstoreServiceInner {
                 let UploadRef { key, upload_id } = upload_ref;
                 let multipart_upload = session.resume_multipart_upload(key, upload_id)?;
 
-                let reader = StreamReader::new(body);
-                let mut rechunked = ReaderStream::with_capacity(reader, CHUNK_SIZE).enumerate();
+                let body = ReaderStream::new(ZstdEncoder::new(StreamReader::new(body)));
+                let mut body = body.enumerate();
 
                 let result = relay_statsd::metric!(
                     timer(RelayTimers::AttachmentUploadDuration),
                     type = kind.as_str(),
                 {
                     let mut parts = vec![];
-                    while let Some((i, chunk)) = rechunked.next().await {
+                    while let Some((i, chunk)) = body.next().await {
                         let chunk = chunk?;
-                        let part_number = u32::try_from(i)
+                        let part_number = u32::try_from(i + 1)
                             .map_err(|_| objectstore_client::Error::InvalidPartNumber(u32::MAX))?;
+                        dbg!(part_number, chunk.len());
                         let part = multipart_upload.put(chunk, part_number, None).await?;
                         parts.push(part);
                     }
