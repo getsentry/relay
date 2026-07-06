@@ -6,7 +6,7 @@ from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from .asserts import matches_any, time_within_delta
 
 
-def v1_transaction_envelope(*payloads: dict) -> Envelope:
+def v1_transaction_envelope(*payloads: dict, data: dict) -> Envelope:
     envelope = Envelope()
 
     spans = [payload for payload in payloads]
@@ -23,13 +23,14 @@ def v1_transaction_envelope(*payloads: dict) -> Envelope:
                         "spans": spans,
                         "contexts": {
                             "trace": {
-                                "op": "hi",
+                                "op": "pageload",
                                 "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
                                 "span_id": "968cff94913ebb07",
                                 "sentry.origin": "manual",
+                                "data": data,
                             }
                         },
-                        "transaction": "my_transaction",
+                        "transaction": "pageload",
                         "environment": "production",
                         "platform": "node",
                     },
@@ -68,6 +69,7 @@ def v2_envelope_with_spans(*payloads: dict, trace_info=None, metadata=None) -> E
     return envelope
 
 
+# Test v1 legacy web vitals, with most sent as data on the transaction, and inp sent as a span.
 def test_v1_transaction(
     mini_sentry,
     relay_with_processing,
@@ -77,56 +79,13 @@ def test_v1_transaction(
     items_consumer = items_consumer()
 
     project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["performanceScore"] = {
-        "profiles": [
-            {
-                "name": "Desktop",
-                "scoreComponents": [
-                    {"measurement": "fcp", "weight": 0.15, "p10": 900, "p50": 1600},
-                    {"measurement": "lcp", "weight": 0.30, "p10": 1200, "p50": 2400},
-                    {"measurement": "cls", "weight": 0.25, "p10": 0.1, "p50": 0.25},
-                    {"measurement": "ttfb", "weight": 0.30, "p10": 0.2, "p50": 0.4},
-                ],
-                "condition": {
-                    "op": "eq",
-                    "name": "event.contexts.browser.name",
-                    "value": "Firefox",
-                },
-            },
-            {
-                "name": "Desktop INP",
-                "scoreComponents": [
-                    {"measurement": "inp", "weight": 1.0, "p10": 200, "p50": 400},
-                ],
-                "condition": {
-                    "op": "eq",
-                    "name": "event.contexts.browser.name",
-                    "value": "Firefox",
-                },
-            },
-        ],
-    }
+    mini_sentry.add_full_project_config(project_id)
+
     duration = timedelta(milliseconds=500)
     end = datetime.now(timezone.utc) - timedelta(seconds=1)
     start = end - duration
 
     envelope = v1_transaction_envelope(
-        {
-            "op": "pageload",
-            "span_id": "bd429c44b67a3eb1",
-            "segment_id": "bd429c44b67a3eb1",
-            "start_timestamp": start.timestamp(),
-            "timestamp": end.timestamp() + 1,
-            "exclusive_time": 345.0,
-            "trace_id": "ff62a8b040f340bda5d830223def1d81",
-            "measurements": {
-                "cls": {"value": 100},
-                "fcp": {"value": 200},
-                "lcp": {"value": 400},
-                "ttfb": {"value": 500},
-            },
-        },
         {
             "description": "<unknown>",
             "op": "ui.interaction.click",
@@ -140,15 +99,21 @@ def test_v1_transaction(
             "measurements": {"inp": {"value": 104}},
             "segment_id": "bd429c44b67a3eb1",
         },
+        data={
+            "browser.web_vital.cls.value": 100,
+            "browser.web_vital.fcp.value": 200,
+            "browser.web_vital.lcp.value": 400,
+            "browser.web_vital.ttfb.value": 500,
+        },
     )
 
     relay.send_envelope(project_id, envelope)
 
-    expected = [
+    expected_metrics = [
         {
             "organizationId": "1",
             "projectId": "42",
-            "traceId": "ff62a8b040f340bda5d830223def1d81",
+            "traceId": "a0fa8803753e40fd8124b21eeb2986b5",
             "itemId": matches_any(),
             "itemType": "TRACE_ITEM_TYPE_METRIC",
             "timestamp": time_within_delta(),
@@ -166,12 +131,12 @@ def test_v1_transaction(
                 "sentry.timestamp_precise": {
                     "intValue": time_within_delta(expect_resolution="ns")
                 },
-                "sentry.span_id": {"stringValue": "bd429c44b67a3eb1"},
-                "sentry.payload_size_bytes": {"intValue": "180"},
+                "sentry.span_id": {"stringValue": "968cff94913ebb07"},
+                "sentry.payload_size_bytes": {"intValue": "174"},
                 "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
                 "sentry.metric_type": {"stringValue": "distribution"},
                 "sentry.platform": {"stringValue": "node"},
-                "sentry.transaction": {"stringValue": "my_transaction"},
+                "sentry.transaction": {"stringValue": "pageload"},
                 "sentry.environment": {"stringValue": "production"},
             },
             "clientSampleRate": 1.0,
@@ -183,7 +148,7 @@ def test_v1_transaction(
         {
             "organizationId": "1",
             "projectId": "42",
-            "traceId": "ff62a8b040f340bda5d830223def1d81",
+            "traceId": "a0fa8803753e40fd8124b21eeb2986b5",
             "itemId": matches_any(),
             "itemType": "TRACE_ITEM_TYPE_METRIC",
             "timestamp": time_within_delta(),
@@ -200,13 +165,13 @@ def test_v1_transaction(
                 "sentry.timestamp_precise": {
                     "intValue": time_within_delta(expect_resolution="ns")
                 },
-                "sentry.span_id": {"stringValue": "bd429c44b67a3eb1"},
-                "sentry.payload_size_bytes": {"intValue": "180"},
+                "sentry.span_id": {"stringValue": "968cff94913ebb07"},
+                "sentry.payload_size_bytes": {"intValue": "174"},
                 "sentry.metric_type": {"stringValue": "distribution"},
                 "sentry.platform": {"stringValue": "node"},
                 "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
                 "sentry._internal.cooccuring.unit.millisecond": {"boolValue": True},
-                "sentry.transaction": {"stringValue": "my_transaction"},
+                "sentry.transaction": {"stringValue": "pageload"},
                 "sentry.environment": {"stringValue": "production"},
             },
             "clientSampleRate": 1.0,
@@ -237,12 +202,12 @@ def test_v1_transaction(
                     "intValue": time_within_delta(expect_resolution="ns")
                 },
                 "sentry.span_id": {"stringValue": "a6f029fbe0e2389a"},
-                "sentry.payload_size_bytes": {"intValue": "214"},
+                "sentry.payload_size_bytes": {"intValue": "208"},
                 "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
                 "sentry.platform": {"stringValue": "node"},
                 "sentry.metric_type": {"stringValue": "distribution"},
                 "sentry._internal.cooccuring.unit.millisecond": {"boolValue": True},
-                "sentry.transaction": {"stringValue": "my_transaction"},
+                "sentry.transaction": {"stringValue": "pageload"},
                 "sentry.environment": {"stringValue": "production"},
             },
             "clientSampleRate": 1.0,
@@ -254,7 +219,7 @@ def test_v1_transaction(
         {
             "organizationId": "1",
             "projectId": "42",
-            "traceId": "ff62a8b040f340bda5d830223def1d81",
+            "traceId": "a0fa8803753e40fd8124b21eeb2986b5",
             "itemId": matches_any(),
             "itemType": "TRACE_ITEM_TYPE_METRIC",
             "timestamp": time_within_delta(),
@@ -269,15 +234,15 @@ def test_v1_transaction(
                 "sentry.value": {"doubleValue": 400.0},
                 "sentry.metric.source": {"stringValue": "span"},
                 "sentry.metric_type": {"stringValue": "distribution"},
-                "sentry.span_id": {"stringValue": "bd429c44b67a3eb1"},
-                "sentry.payload_size_bytes": {"intValue": "180"},
+                "sentry.span_id": {"stringValue": "968cff94913ebb07"},
+                "sentry.payload_size_bytes": {"intValue": "174"},
                 "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
                 "sentry.timestamp_precise": {
                     "intValue": time_within_delta(expect_resolution="ns")
                 },
                 "sentry.platform": {"stringValue": "node"},
                 "sentry._internal.cooccuring.unit.millisecond": {"boolValue": True},
-                "sentry.transaction": {"stringValue": "my_transaction"},
+                "sentry.transaction": {"stringValue": "pageload"},
                 "sentry.environment": {"stringValue": "production"},
             },
             "clientSampleRate": 1.0,
@@ -289,7 +254,7 @@ def test_v1_transaction(
         {
             "organizationId": "1",
             "projectId": "42",
-            "traceId": "ff62a8b040f340bda5d830223def1d81",
+            "traceId": "a0fa8803753e40fd8124b21eeb2986b5",
             "itemId": matches_any(),
             "itemType": "TRACE_ITEM_TYPE_METRIC",
             "timestamp": time_within_delta(),
@@ -304,15 +269,15 @@ def test_v1_transaction(
                 "sentry.value": {"doubleValue": 500.0},
                 "sentry.metric.source": {"stringValue": "span"},
                 "sentry._internal.cooccuring.type.distribution": {"boolValue": True},
-                "sentry.span_id": {"stringValue": "bd429c44b67a3eb1"},
-                "sentry.payload_size_bytes": {"intValue": "181"},
+                "sentry.span_id": {"stringValue": "968cff94913ebb07"},
+                "sentry.payload_size_bytes": {"intValue": "175"},
                 "sentry.platform": {"stringValue": "node"},
                 "sentry.metric_type": {"stringValue": "distribution"},
                 "sentry.timestamp_precise": {
                     "intValue": time_within_delta(expect_resolution="ns")
                 },
                 "sentry._internal.cooccuring.unit.millisecond": {"boolValue": True},
-                "sentry.transaction": {"stringValue": "my_transaction"},
+                "sentry.transaction": {"stringValue": "pageload"},
                 "sentry.environment": {"stringValue": "production"},
             },
             "clientSampleRate": 1.0,
@@ -323,12 +288,16 @@ def test_v1_transaction(
         },
     ]
 
-    items = items_consumer.get_items()
+    expected_metrics = [dict(sorted(item.items())) for item in expected_metrics]
+
+    items = [dict(sorted(item.items())) for item in items_consumer.get_items()]
     items.sort(key=lambda item: item["attributes"]["sentry.metric_name"]["stringValue"])
 
-    assert expected == items
+    assert expected_metrics == items
 
 
+# Test v1 legacy metrics, with all values sent on spans.  Includes performance score
+# generation, as well as legacy metric span generation.
 def test_v1_spans(mini_sentry, relay_with_processing, items_consumer, spans_consumer):
 
     spans_consumer = spans_consumer()
@@ -378,58 +347,42 @@ def test_v1_spans(mini_sentry, relay_with_processing, items_consumer, spans_cons
     end = datetime.now(timezone.utc) - timedelta(seconds=1)
     start = end - duration
 
-    envelope = Envelope()
-    envelope.add_item(
-        Item(
-            type="span",
-            payload=PayloadRef(
-                bytes=json.dumps(
-                    {
-                        "op": "ui.interaction.click",
-                        "span_id": "bd429c44b67a3eb1",
-                        "segment_id": "bd429c44b67a3eb1",
-                        "start_timestamp": start.timestamp(),
-                        "timestamp": end.timestamp() + 1,
-                        "exclusive_time": 345.0,  # The SDK knows that this span has a lower exclusive time
-                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                        "measurements": {
-                            "cls": {"value": 100},
-                            "fcp": {"value": 200},
-                            "lcp": {"value": 400},
-                            "ttfb": {"value": 500},
-                        },
-                    },
-                ).encode()
-            ),
-        )
+    envelope = v1_envelope_with_spans(
+        {
+            "op": "ui.interaction.click",
+            "span_id": "bd429c44b67a3eb1",
+            "segment_id": "bd429c44b67a3eb1",
+            "start_timestamp": start.timestamp(),
+            "timestamp": end.timestamp() + 1,
+            "exclusive_time": 345.0,  # The SDK knows that this span has a lower exclusive time
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            "measurements": {
+                "cls": {"value": 100},
+                "fcp": {"value": 200},
+                "lcp": {"value": 400},
+                "ttfb": {"value": 500},
+            },
+        },
+        {
+            "data": {
+                "transaction": "/page/with/click/interaction/jane/123",
+                "replay_id": "8477286c8e5148b386b71ade38374d58",
+                "user": "[email]",
+            },
+            "profile_id": "3d9428087fda4ba0936788b70a7587d0",
+            "op": "ui.interaction.click",
+            "span_id": "cd429c44b67a3eb1",
+            "segment_id": "cd429c44b67a3eb1",
+            "start_timestamp": start.timestamp(),
+            "timestamp": end.timestamp() + 1,
+            "exclusive_time": 345.0,  # The SDK knows that this span has a lower exclusive time
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            "measurements": {
+                "inp": {"value": 100},
+            },
+        },
     )
-    envelope.add_item(
-        Item(
-            type="span",
-            payload=PayloadRef(
-                bytes=json.dumps(
-                    {
-                        "data": {
-                            "transaction": "/page/with/click/interaction/jane/123",
-                            "replay_id": "8477286c8e5148b386b71ade38374d58",
-                            "user": "[email]",
-                        },
-                        "profile_id": "3d9428087fda4ba0936788b70a7587d0",
-                        "op": "ui.interaction.click",
-                        "span_id": "cd429c44b67a3eb1",
-                        "segment_id": "cd429c44b67a3eb1",
-                        "start_timestamp": start.timestamp(),
-                        "timestamp": end.timestamp() + 1,
-                        "exclusive_time": 345.0,  # The SDK knows that this span has a lower exclusive time
-                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                        "measurements": {
-                            "inp": {"value": 100},
-                        },
-                    },
-                ).encode()
-            ),
-        )
-    )
+
     relay.send_envelope(project_id, envelope)
 
     spans = spans_consumer.get_spans(timeout=10.0, n=2)
@@ -437,7 +390,6 @@ def test_v1_spans(mini_sentry, relay_with_processing, items_consumer, spans_cons
     for span in spans:
         span.pop("received", None)
 
-    # endpoint might overtake envelope
     spans.sort(key=lambda msg: msg["span_id"])
 
     expected_scores = [
@@ -668,6 +620,7 @@ def test_v1_spans(mini_sentry, relay_with_processing, items_consumer, spans_cons
     assert expected_metrics == items
 
 
+# Test standalone spans (just lcp)
 def test_v1_standalone_span(mini_sentry, relay_with_processing, items_consumer):
     items_consumer = items_consumer()
 
@@ -736,55 +689,6 @@ def test_v2(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["performanceScore"] = {
-        "profiles": [
-            {
-                "name": "Desktop",
-                "scoreComponents": [
-                    {"measurement": "fcp", "weight": 0.15, "p10": 900, "p50": 1600},
-                    {"measurement": "lcp", "weight": 0.30, "p10": 1200, "p50": 2400},
-                    {"measurement": "cls", "weight": 0.25, "p10": 0.1, "p50": 0.25},
-                    {"measurement": "ttfb", "weight": 0.30, "p10": 0.2, "p50": 0.4},
-                ],
-                "condition": {
-                    "op": "or",
-                    "inner": [
-                        {
-                            "op": "eq",
-                            "name": "event.contexts.browser.name",
-                            "value": "Firefox",
-                        },
-                        {
-                            "op": "eq",
-                            "name": "span.attributes.browser.name.value",
-                            "value": "Firefox",
-                        },
-                    ],
-                },
-            },
-            {
-                "name": "Desktop INP",
-                "scoreComponents": [
-                    {"measurement": "inp", "weight": 1.0, "p10": 200, "p50": 400},
-                ],
-                "condition": {
-                    "op": "or",
-                    "inner": [
-                        {
-                            "op": "eq",
-                            "name": "event.contexts.browser.name",
-                            "value": "Firefox",
-                        },
-                        {
-                            "op": "eq",
-                            "name": "span.attributes.browser.name.value",
-                            "value": "Firefox",
-                        },
-                    ],
-                },
-            },
-        ],
-    }
 
     ts = datetime.now(timezone.utc)
     envelope = v2_envelope_with_spans(

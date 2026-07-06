@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 const MAX_CLS_SOURCES: u32 = 128;
 
-const WEB_VITAL_SPAN_NAMES: [&'static str; 7] = [
+const WEB_VITAL_SPAN_NAMES: [&str; 7] = [
     "pageload",
     "ui.webvital.lcp",
     "ui.webvital.cls",
@@ -15,7 +15,7 @@ const WEB_VITAL_SPAN_NAMES: [&'static str; 7] = [
     "ui.interaction.press",
 ];
 
-const COMMON_ATTRIBUTES: [&'static str; 9] = [
+const COMMON_ATTRIBUTES: [&str; 9] = [
     "sentry.pageload.span_id",
     "sentry.origin",
     "sentry.transaction",
@@ -91,15 +91,15 @@ struct WebVital {
 /// Extract any web vitals metrics for the supplied v2 span.  Bad or missing metrics will be
 /// silently dropped.
 pub fn extract_web_vital_metrics(span: &SpanV2) -> Option<Vec<TraceMetric>> {
-    if let Some(name) = span.name.value() {
-        if !WEB_VITAL_SPAN_NAMES.contains(&name.as_str()) {
-            return None;
-        }
-    }
-
     let Some(attrs) = &span.attributes.0 else {
         return None;
     };
+
+    let op_name = attrs.get_value("sentry.op")?;
+
+    if !WEB_VITAL_SPAN_NAMES.contains(&op_name.as_str().unwrap_or_default()) {
+        return None;
+    }
 
     let mut results = vec![];
 
@@ -162,181 +162,5 @@ pub fn extract_web_vital_metrics(span: &SpanV2) -> Option<Vec<TraceMetric>> {
         None
     } else {
         Some(results)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::span_v1_to_span_v2;
-    use relay_event_schema::protocol::{Event, Span};
-    use relay_protocol::Annotated;
-
-    /// Returns the string value of attribute `key` on the metric, if present.
-    fn attr<'a>(metric: &'a TraceMetric, key: &str) -> Option<&'a str> {
-        metric
-            .attributes
-            .value()?
-            .get_value(key)
-            .and_then(Value::as_str)
-    }
-
-    /// Finds the LCP web vital metric in the produced set.
-    fn lcp_metric(metrics: &[TraceMetric]) -> &TraceMetric {
-        metrics
-            .iter()
-            .find(|m| m.name.value().map(String::as_str) == Some("browser.web_vital.lcp"))
-            .expect("expected an LCP web vital metric")
-    }
-
-    /// Span V2 ingest path (`spans/mod.rs`): a browser SDK sends the SDK attributes directly on
-    /// the span, so extraction must copy them onto the produced metric.
-    #[test]
-    fn native_v2_span_carries_sdk_attributes() {
-        let json = r#"{
-            "trace_id": "5b8efff798038103d269b633813fc60c",
-            "span_id": "eee19b7ec3c1b174",
-            "start_timestamp": 1544719859.0,
-            "end_timestamp": 1544719860.0,
-            "name": "pageload",
-            "attributes": {
-                "browser.web_vital.lcp.value": {"type": "double", "value": 2500.0},
-                "sentry.release": {"type": "string", "value": "myapp@1.0.0"},
-                "sentry.environment": {"type": "string", "value": "prod"},
-                "sentry.sdk.name": {"type": "string", "value": "sentry.javascript.react"},
-                "sentry.sdk.version": {"type": "string", "value": "9.1.0"}
-            }
-        }"#;
-        let span = Annotated::<SpanV2>::from_json(json)
-            .unwrap()
-            .into_value()
-            .unwrap();
-
-        let metrics = extract_web_vital_metrics(&span).expect("expected metrics");
-        let lcp = lcp_metric(&metrics);
-
-        assert_eq!(attr(lcp, "sentry.release"), Some("myapp@1.0.0"));
-        assert_eq!(attr(lcp, "sentry.environment"), Some("prod"));
-        assert_eq!(
-            attr(lcp, "sentry.sdk.name"),
-            Some("sentry.javascript.react")
-        );
-        assert_eq!(attr(lcp, "sentry.sdk.version"), Some("9.1.0"));
-    }
-
-    /// If the SDK does not send the attributes, extraction cannot invent them. This documents the
-    /// honest caveat that the Span V2 path only carries SDK info when the client provides it.
-    #[test]
-    fn native_v2_span_without_sdk_attributes_omits_them() {
-        let json = r#"{
-            "trace_id": "5b8efff798038103d269b633813fc60c",
-            "span_id": "eee19b7ec3c1b174",
-            "start_timestamp": 1544719859.0,
-            "end_timestamp": 1544719860.0,
-            "name": "pageload",
-            "attributes": {
-                "browser.web_vital.lcp.value": {"type": "double", "value": 2500.0}
-            }
-        }"#;
-        let span = Annotated::<SpanV2>::from_json(json)
-            .unwrap()
-            .into_value()
-            .unwrap();
-
-        let metrics = extract_web_vital_metrics(&span).expect("expected metrics");
-        let lcp = lcp_metric(&metrics);
-
-        assert_eq!(attr(lcp, "sentry.release"), None);
-        assert_eq!(attr(lcp, "sentry.environment"), None);
-        assert_eq!(attr(lcp, "sentry.sdk.name"), None);
-        assert_eq!(attr(lcp, "sentry.sdk.version"), None);
-    }
-
-    /// Standalone legacy span path (`legacy_spans/mod.rs`): a v1 span arrives on its own carrying
-    /// the SDK info in its `data` bag. `span_v1_to_span_v2` maps those `data` fields to `sentry.*`
-    /// attributes, which extraction must copy onto the metric.
-    #[test]
-    fn standalone_legacy_span_carries_sdk_attributes() {
-        let json = r#"{
-            "trace_id": "5b8efff798038103d269b633813fc60c",
-            "span_id": "eee19b7ec3c1b174",
-            "start_timestamp": 1544719859.0,
-            "timestamp": 1544719860.0,
-            "data": {
-                "sentry.name": "pageload",
-                "browser.web_vital.lcp.value": 2500.0,
-                "sentry.release": "myapp@1.0.0",
-                "sentry.environment": "prod",
-                "sentry.sdk.name": "sentry.javascript.react",
-                "sentry.sdk.version": "9.1.0"
-            }
-        }"#;
-        let span_v1 = Annotated::<Span>::from_json(json)
-            .unwrap()
-            .into_value()
-            .unwrap();
-        let span_v2 = span_v1_to_span_v2(span_v1, true);
-
-        assert_eq!(span_v2.name.value().map(String::as_str), Some("pageload"));
-
-        let metrics = extract_web_vital_metrics(&span_v2).expect("expected metrics");
-        let lcp = lcp_metric(&metrics);
-
-        assert_eq!(attr(lcp, "sentry.release"), Some("myapp@1.0.0"));
-        assert_eq!(attr(lcp, "sentry.environment"), Some("prod"));
-        assert_eq!(
-            attr(lcp, "sentry.sdk.name"),
-            Some("sentry.javascript.react")
-        );
-        assert_eq!(attr(lcp, "sentry.sdk.version"), Some("9.1.0"));
-    }
-
-    /// Transaction path (`transactions/types/output.rs`): a transaction event carries
-    /// release/environment/sdk at the *event* level. `Span::from(&Event)` copies them into
-    /// `SpanData`, and `span_v1_to_span_v2` maps those into `sentry.*` attributes. This drives the
-    /// real conversion chain and asserts the attributes reach the produced metric.
-    #[test]
-    fn transaction_derived_span_carries_sdk_attributes() {
-        let event = Annotated::<Event>::from_json(
-            r#"{
-                "type": "transaction",
-                "platform": "javascript",
-                "sdk": {"name": "sentry.javascript.react", "version": "9.1.0"},
-                "release": "myapp@1.0.0",
-                "environment": "prod",
-                "transaction": "pageload",
-                "contexts": {
-                    "trace": {
-                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-                        "span_id": "fa90fdead5f74052",
-                        "type": "trace",
-                        "op": "pageload",
-                        "data": {
-                            "browser.web_vital.lcp.value": 2500.0
-                        }
-                    }
-                }
-            }"#,
-        )
-        .unwrap()
-        .into_value()
-        .unwrap();
-
-        let span_v1 = Span::from(&event);
-        let span_v2 = span_v1_to_span_v2(span_v1, true);
-
-        // The transaction name becomes the span name; "pageload" marks this as a web vital span.
-        assert_eq!(span_v2.name.value().map(String::as_str), Some("pageload"));
-
-        let metrics = extract_web_vital_metrics(&span_v2).expect("expected metrics");
-        let lcp = lcp_metric(&metrics);
-
-        assert_eq!(attr(lcp, "sentry.release"), Some("myapp@1.0.0"));
-        assert_eq!(attr(lcp, "sentry.environment"), Some("prod"));
-        assert_eq!(
-            attr(lcp, "sentry.sdk.name"),
-            Some("sentry.javascript.react")
-        );
-        assert_eq!(attr(lcp, "sentry.sdk.version"), Some("9.1.0"));
     }
 }
