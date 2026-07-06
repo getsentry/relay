@@ -13,10 +13,18 @@ build = "build.rs"
 [lints]
 workspace = true
 
+[features]
+default = []
+test = ["dep:tracing-subscriber"]
+init = ["dep:console", "dep:sentry", "dep:serde", "dep:tracing-subscriber"]
+crash-handler = ["init", "dep:minidumper-child"]
+sentry = ["dep:sentry"]
+
 [dependencies]
-console = { workspace = true, optional = true }
 relay-common = { workspace = true }
-relay-crash = { workspace = true, optional = true }
+
+console = { workspace = true, optional = true }
+minidumper-child = { workspace = true, optional = true }
 sentry = { workspace = true, features = [
     "debug-images",
     "tracing",
@@ -30,10 +38,3 @@ tracing-subscriber = { workspace = true, features = [
     "json",
     "time",
 ], optional = true }
-
-[features]
-default = []
-test = ["dep:tracing-subscriber"]
-init = ["dep:console", "dep:sentry", "dep:serde", "dep:tracing-subscriber"]
-crash-handler = ["init", "dep:relay-crash"]
-sentry = ["dep:sentry"]
