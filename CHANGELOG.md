@@ -8,6 +8,7 @@
 - Raises the size limit for the flags context to 64KiB. ([#6137](https://github.com/getsentry/relay/pull/6137))
 - Add segment_names field to Replay events. ([#6134](https://github.com/getsentry/relay/pull/6134))
 - Support PEM file format for signing / verification keys. ([#6155](https://github.com/getsentry/relay/pull/6155))
+- GA the `upload-endpoint` feature. ([#6171](https://github.com/getsentry/relay/pull/6171))
 
 **Bug Fixes**:
 
