@@ -47,7 +47,11 @@ from .fixtures.processing import (  # noqa
     objectstore,
 )
 
-from .consts import DUMMY_UPLOAD_LOCATION, ZSTD_MAGIC_HEADER
+from .consts import (
+    DUMMY_UPLOAD_FINAL_LOCATION,
+    DUMMY_UPLOAD_PROVISIONAL_LOCATION,
+    ZSTD_MAGIC_HEADER,
+)
 
 
 @pytest.fixture(scope="session")
@@ -309,7 +313,7 @@ def dummy_upload(mini_sentry):  # noqa
         return Response(
             "",
             status=201,
-            headers={"Location": DUMMY_UPLOAD_LOCATION},
+            headers={"Location": DUMMY_UPLOAD_PROVISIONAL_LOCATION},
         )
 
     @mini_sentry.app.route("/api/<project>/upload/<key>/", methods=["PATCH"])
@@ -319,5 +323,5 @@ def dummy_upload(mini_sentry):  # noqa
         return Response(
             "",
             status=204,
-            headers={"Location": DUMMY_UPLOAD_LOCATION},
+            headers={"Location": DUMMY_UPLOAD_FINAL_LOCATION},
         )

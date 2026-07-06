@@ -10,7 +10,11 @@ from flask import Response
 from enum import Enum
 import pytest
 
-from .consts import DUMMY_UPLOAD_PATH, DUMMY_UPLOAD_LOCATION
+from .consts import (
+    DUMMY_UPLOAD_FINAL_LOCATION,
+    DUMMY_UPLOAD_PATH,
+    DUMMY_UPLOAD_PROVISIONAL_LOCATION,
+)
 
 
 class FeatureState(Enum):
@@ -89,7 +93,10 @@ def test_forward_patch(
     data = b"hello world"
     response = relay.patch(
         "%s&sentry_key=%s"
-        % (DUMMY_UPLOAD_LOCATION, mini_sentry.get_dsn_public_key(project_id)),
+        % (
+            DUMMY_UPLOAD_PROVISIONAL_LOCATION,
+            mini_sentry.get_dsn_public_key(project_id),
+        ),
         headers={
             "Tus-Resumable": "1.0.0",
             "Content-Type": "application/offset+octet-stream",
@@ -121,7 +128,9 @@ def test_post_retries(mini_sentry, relay, project_config):
         create_attempts += 1
         if create_attempts == 1:
             return Response("", status=503)
-        return Response("", status=201, headers={"Location": DUMMY_UPLOAD_LOCATION})
+        return Response(
+            "", status=201, headers={"Location": DUMMY_UPLOAD_PROVISIONAL_LOCATION}
+        )
 
     project_id = 42
     project_key = mini_sentry.get_dsn_public_key(project_id)
@@ -273,7 +282,10 @@ def test_upload_body_size(
     data = "x" * size
     response = relay.patch(
         "%s&sentry_key=%s"
-        % (DUMMY_UPLOAD_LOCATION, mini_sentry.get_dsn_public_key(project_id)),
+        % (
+            DUMMY_UPLOAD_PROVISIONAL_LOCATION,
+            mini_sentry.get_dsn_public_key(project_id),
+        ),
         headers={
             "Tus-Resumable": "1.0.0",
             "Content-Type": "application/offset+octet-stream",
@@ -346,7 +358,9 @@ def test_timeout(
     @mini_sentry.app.route(DUMMY_UPLOAD_PATH, methods=["PATCH"])
     def slow_upload(**opts):
         time.sleep(2)
-        return Response("", status=204, headers={"Location": DUMMY_UPLOAD_LOCATION})
+        return Response(
+            "", status=204, headers={"Location": DUMMY_UPLOAD_FINAL_LOCATION}
+        )
 
     project_id = 42
     relay = relay(
@@ -360,7 +374,10 @@ def test_timeout(
     data = b"hello world"
     response = relay.patch(
         "%s&sentry_key=%s"
-        % (DUMMY_UPLOAD_LOCATION, mini_sentry.get_dsn_public_key(project_id)),
+        % (
+            DUMMY_UPLOAD_PROVISIONAL_LOCATION,
+            mini_sentry.get_dsn_public_key(project_id),
+        ),
         headers={
             "Tus-Resumable": "1.0.0",
             "Upload-Offset": "0",
@@ -538,7 +555,7 @@ def test_concurrency_limit(mini_sentry, relay, project_config):
 
     def do_upload():
         return relay.patch(
-            f"{DUMMY_UPLOAD_LOCATION}&sentry_key={project_key}",
+            f"{DUMMY_UPLOAD_PROVISIONAL_LOCATION}&sentry_key={project_key}",
             headers={
                 "Content-Length": str(len(data)),
                 "Content-Type": "application/offset+octet-stream",

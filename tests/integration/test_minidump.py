@@ -13,9 +13,9 @@ from uuid import UUID
 from urllib3.filepost import encode_multipart_formdata
 
 from sentry_relay.consts import DataCategory
+from tests.integration.consts import DUMMY_UPLOAD_FINAL_LOCATION
 from .asserts import matches_any, time_within_delta
 from .test_attachment_ref import upload_and_make_ref
-from .consts import DUMMY_UPLOAD_LOCATION
 
 MINIDUMP_ATTACHMENT_NAME = "upload_file_minidump"
 EVENT_ATTACHMENT_NAME = "__sentry-event"
@@ -1131,7 +1131,7 @@ def test_minidump_objectstore_uploads(
             logs.headers["content_type"] == "application/vnd.sentry.attachment-ref+json"
         )
         assert json.loads(logs.payload.bytes) == {
-            "location": DUMMY_UPLOAD_LOCATION,
+            "location": DUMMY_UPLOAD_FINAL_LOCATION,
         }
     else:
         assert (
@@ -1146,7 +1146,7 @@ def test_minidump_objectstore_uploads(
             == "application/vnd.sentry.attachment-ref+json"
         )
         assert json.loads(minidump.payload.bytes) == {
-            "location": DUMMY_UPLOAD_LOCATION,
+            "location": DUMMY_UPLOAD_FINAL_LOCATION,
             "content_type": "application/x-dmp",
         }
     else:
