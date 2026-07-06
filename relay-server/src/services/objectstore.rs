@@ -40,11 +40,6 @@ use crate::utils::{BoundedStream, MeteredStream, RetryableStream, TakeOnce, find
 
 use super::outcome::Outcome;
 
-/// Maximum size of an individual request to objectstore.
-///
-/// This only applies to streams. In-memory attachments are never chunked.
-const CHUNK_SIZE: usize = 100 * 1024 * 1024; // 100 MiB
-
 /// Messages that the objectstore service can handle.
 pub enum Objectstore {
     Envelope(StoreEnvelope),
@@ -914,11 +909,13 @@ impl ObjectstoreServiceInner {
                     type = kind.as_str(),
                 {
                     let mut parts = vec![];
+                    // FIXME: wait for objectstore to allow omitting the content length.
+                    // Submitting every element of the stream as a separate HTTP request is not
+                    // efficient.
                     while let Some((i, chunk)) = body.next().await {
                         let chunk = chunk?;
                         let part_number = u32::try_from(i + 1)
                             .map_err(|_| objectstore_client::Error::InvalidPartNumber(u32::MAX))?;
-                        dbg!(part_number, chunk.len());
                         let part = multipart_upload.put(chunk, part_number, None).await?;
                         parts.push(part);
                     }
