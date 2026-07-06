@@ -1,4 +1,5 @@
-use relay_config::Config;
+use std::collections::BTreeMap;
+
 use serde_json::Value;
 
 enum IndexingState {
@@ -100,17 +101,15 @@ pub fn get_sentry_entry_indexes(param_name: &str) -> Option<Vec<&str>> {
 /// Electron SDK splits up long payloads into chunks starting at sentry__1 with an
 /// incrementing counter. Assemble these chunks here and then decode them below.
 ///
-/// If the index is too large, or unparsable from `key`, `None` is returned.
-pub fn get_sentry_chunk_index(key: &str, prefix: &str, config: &Config) -> Option<usize> {
-    key.strip_prefix(prefix)
-        .and_then(|rest| rest.parse().ok())
-        .filter(|&index| index <= config.max_event_size() / 1024)
+/// If the index is unparsable from `key`, `None` is returned.
+pub fn get_sentry_chunk_index(key: &str, prefix: &str) -> Option<usize> {
+    key.strip_prefix(prefix).and_then(|rest| rest.parse().ok())
 }
 
 /// Aggregates slices of strings in random order.
 #[derive(Clone, Debug, Default)]
 pub struct ChunkedFormDataAggregator<'a> {
-    parts: Vec<&'a str>,
+    parts: BTreeMap<usize, &'a str>,
 }
 
 impl<'a> ChunkedFormDataAggregator<'a> {
@@ -120,15 +119,8 @@ impl<'a> ChunkedFormDataAggregator<'a> {
     }
 
     /// Adds a part with the given index.
-    ///
-    /// Fills up unpopulated indexes with empty strings, if there are holes between the last index
-    /// and this one. This effectively skips them when calling `join` in the end.
     pub fn insert(&mut self, index: usize, value: &'a str) {
-        if index >= self.parts.len() {
-            self.parts.resize(index + 1, "");
-        }
-
-        self.parts[index] = value;
+        self.parts.insert(index, value);
     }
 
     /// Returns `true` if no parts have been added.
@@ -138,7 +130,7 @@ impl<'a> ChunkedFormDataAggregator<'a> {
 
     /// Returns the string consisting of all parts.
     pub fn join(&self) -> String {
-        self.parts.join("")
+        self.parts.values().copied().collect()
     }
 }
 
@@ -244,42 +236,13 @@ mod tests {
 
     #[test]
     fn test_chunk_index() {
-        let config = Config::default();
-        assert_eq!(
-            get_sentry_chunk_index("sentry__0", "sentry__", &config),
-            Some(0)
-        );
-        assert_eq!(
-            get_sentry_chunk_index("sentry__1", "sentry__", &config),
-            Some(1)
-        );
+        assert_eq!(get_sentry_chunk_index("sentry__0", "sentry__"), Some(0));
+        assert_eq!(get_sentry_chunk_index("sentry__1", "sentry__"), Some(1));
 
-        assert_eq!(get_sentry_chunk_index("foo__0", "sentry__", &config), None);
-        assert_eq!(
-            get_sentry_chunk_index("sentry__", "sentry__", &config),
-            None
-        );
-        assert_eq!(
-            get_sentry_chunk_index("sentry__-1", "sentry__", &config),
-            None
-        );
-        assert_eq!(
-            get_sentry_chunk_index("sentry__xx", "sentry__", &config),
-            None
-        );
-    }
-
-    #[test]
-    fn test_chunk_index_derived_from_max_event_size() {
-        let config = Config::default();
-        assert_eq!(
-            get_sentry_chunk_index("sentry__1024", "sentry__", &config),
-            Some(1024)
-        );
-        assert_eq!(
-            get_sentry_chunk_index("sentry__1025", "sentry__", &config),
-            None
-        );
+        assert_eq!(get_sentry_chunk_index("foo__0", "sentry__"), None);
+        assert_eq!(get_sentry_chunk_index("sentry__", "sentry__"), None);
+        assert_eq!(get_sentry_chunk_index("sentry__-1", "sentry__"), None);
+        assert_eq!(get_sentry_chunk_index("sentry__xx", "sentry__"), None);
     }
 
     #[test]

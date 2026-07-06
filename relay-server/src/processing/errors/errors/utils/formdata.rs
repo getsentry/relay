@@ -1,10 +1,9 @@
-use relay_config::Config;
 use serde_json::Value as SerdeValue;
 
 use crate::envelope::Item;
 use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 
-pub fn merge_formdata(target: &mut SerdeValue, item: &Item, config: &Config) {
+pub fn merge_formdata(target: &mut SerdeValue, item: &Item) {
     let payload = item.payload();
     let mut aggregator = ChunkedFormDataAggregator::new();
 
@@ -16,7 +15,7 @@ pub fn merge_formdata(target: &mut SerdeValue, item: &Item, config: &Config) {
                 Ok(event) => utils::merge_values(target, event),
                 Err(_) => relay_log::debug!("invalid json event payload in sentry form field"),
             }
-        } else if let Some(index) = utils::get_sentry_chunk_index(entry.key(), "sentry__", config) {
+        } else if let Some(index) = utils::get_sentry_chunk_index(entry.key(), "sentry__") {
             // Electron SDK splits up long payloads into chunks starting at sentry__1 with an
             // incrementing counter. Assemble these chunks here and then decode them below.
             aggregator.insert(index, entry.value());
@@ -62,21 +61,21 @@ mod tests {
         let item = form_data_item(&[("sentry__0", r#"{"message":"#), ("sentry__1", r#""hi"}"#)]);
         let mut target = SerdeValue::Object(Default::default());
 
-        merge_formdata(&mut target, &item, &Config::default());
+        merge_formdata(&mut target, &item);
 
         assert_eq!(target, serde_json::json!({ "message": "hi" }));
     }
 
     #[test]
-    fn test_merge_formdata_ignores_too_large_index() {
-        let item = form_data_item(&[("sentry__2000", "x")]);
+    fn test_merge_formdata_assembles_disjoint_chunks() {
+        let item = form_data_item(&[
+            ("sentry__0", r#"{"message":"#),
+            ("sentry__4000000000", r#""hi"}"#),
+        ]);
         let mut target = SerdeValue::Object(Default::default());
 
-        merge_formdata(&mut target, &item, &Config::default());
+        merge_formdata(&mut target, &item);
 
-        assert_eq!(
-            target,
-            serde_json::json!({ "extra": { "sentry__2000": "x" } })
-        );
+        assert_eq!(target, serde_json::json!({ "message": "hi" }));
     }
 }
