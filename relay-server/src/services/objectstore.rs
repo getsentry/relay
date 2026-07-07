@@ -918,9 +918,6 @@ impl ObjectstoreServiceInner {
                     type = kind.as_str(),
                 {
                     let mut parts = vec![];
-                    // FIXME: wait for objectstore to allow omitting the content length.
-                    // Submitting every element of the stream as a separate HTTP request is not
-                    // efficient.
                     while let Some((i, chunk)) = body.next().await {
                         let chunk = chunk?;
                         let part_number = u32::try_from(i + 1)

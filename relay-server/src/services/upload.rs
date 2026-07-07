@@ -1110,9 +1110,8 @@ mod tests {
         let full: LocationQueryParams<Final> = serde_urlencoded::from_str(json).unwrap();
         insta::assert_debug_snapshot!(full, @r#"
         LocationQueryParams {
-            upload_length: Final(
-                123,
-            ),
+            upload_length: 123,
+            upload_id: None,
             upload_signature: "foo",
             other: UploadParams(
                 {

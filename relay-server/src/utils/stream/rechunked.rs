@@ -31,7 +31,6 @@ impl<S, E> Rechunk<S, E>
 where
     S: Stream<Item = Result<Bytes, E>> + Unpin,
 {
-    #[must_use]
     fn flush_remaining(&mut self) -> Poll<Option<Result<Bytes, E>>> {
         if self.buffer.is_empty() {
             Poll::Ready(None)
