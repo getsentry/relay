@@ -910,18 +910,14 @@ impl ObjectstoreServiceInner {
                 // Unfortunately, MinIO has the limitation that the length of a multipart request
                 // has to be known. Therefore, we need to materialize the stream into concrete
                 // chunks of bytes and send each chunk as an individual request.
-                // NOTE: We might be able to call `put_stream` instead if the BoundedStream
-                // has a known size.
-                let body = Rechunk::new(body, CHUNK_SIZE);
-                let mut body = body.enumerate();
+                let chunks = Rechunk::new(body, CHUNK_SIZE);
+                let mut body = chunks.enumerate();
 
                 let result = relay_statsd::metric!(
                     timer(RelayTimers::AttachmentUploadDuration),
                     type = kind.as_str(),
                 {
                     let mut parts = vec![];
-
-
                     // FIXME: wait for objectstore to allow omitting the content length.
                     // Submitting every element of the stream as a separate HTTP request is not
                     // efficient.
