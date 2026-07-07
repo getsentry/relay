@@ -45,7 +45,6 @@ relay-cogs = { path = "relay-cogs" }
 relay-common = { path = "relay-common" }
 relay-config = { path = "relay-config" }
 relay-conventions = { path = "relay-conventions" }
-relay-crash = { path = "relay-crash" }
 relay-dynamic-config = { path = "relay-dynamic-config" }
 relay-event-derive = { path = "relay-event-derive" }
 relay-event-normalization = { path = "relay-event-normalization" }
@@ -104,7 +103,6 @@ axum = "0.8"
 axum-extra = "0.12"
 axum-server = "0.8"
 backon = { version = "1", default-features = false }
-bindgen = "0.72"
 brotli = "7"
 bytecount = "0.6"
 bytes = "1"
@@ -115,7 +113,6 @@ chrono = { version = "0.4", default-features = false, features = [
 ] }
 clap = "4"
 clap_complete = "4"
-cmake = "0.1"
 console = "0.15"
 cookie = "0.18"
 criterion = "0.5"
@@ -156,6 +153,7 @@ memchr = "2"
 mimalloc = { version = "0.1", features = ["v3"] }
 mime = "0.3"
 minidump = "0.26"
+minidumper-child = "0.4.1" 
 multer = "3"
 metrics = "0.24"
 metrics-exporter-dogstatsd = "0.9"

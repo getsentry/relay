@@ -350,7 +350,6 @@ async fn validate_and_limit(
     project: Project<'_>,
 ) -> Result<ProjectContext, BadStoreRequest> {
     let mut envelope = Envelope::from_request(None, meta);
-    envelope.require_feature(Feature::UploadEndpoint);
     let mut item = Item::new(ItemType::Attachment);
     item.set_payload(ContentType::AttachmentRef, vec![]);
     item.set_attachment_length(headers.upload_length.unwrap_or(1));
@@ -393,8 +392,7 @@ async fn validate(
     meta: RequestMeta,
     project: Project<'_>,
 ) -> Result<ProjectContext, BadStoreRequest> {
-    let mut envelope = Envelope::from_request(None, meta);
-    envelope.require_feature(Feature::UploadEndpoint);
+    let envelope = Envelope::from_request(None, meta);
     let mut envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
 
     let _ = project

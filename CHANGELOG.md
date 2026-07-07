@@ -7,11 +7,14 @@
 - Infer span descriptions via `sentry-conventions`. ([#6093](https://github.com/getsentry/relay/pull/6093))
 - Raises the size limit for the flags context to 64KiB. ([#6137](https://github.com/getsentry/relay/pull/6137))
 - Add segment_names field to Replay events. ([#6134](https://github.com/getsentry/relay/pull/6134))
+- Use a out of process solution for catching crashes. ([#6158](https://github.com/getsentry/relay/pull/6158))
 - Support PEM file format for signing / verification keys. ([#6155](https://github.com/getsentry/relay/pull/6155))
+- GA the `upload-endpoint` feature. ([#6171](https://github.com/getsentry/relay/pull/6171))
 
 **Bug Fixes**:
 
 - Wider type support for OTel log bodies. ([#6106](https://github.com/getsentry/relay/pull/6106))
+- Align OTLP endpoint responses with the specification. ([#6182](https://github.com/getsentry/relay/pull/6182))
 - Don't reject attributes that don't have values, but do have metadata. ([#6098](https://github.com/getsentry/relay/pull/6098))
 - Infer span names PII-safely. ([#6112](https://github.com/getsentry/relay/pull/6112))
 - Unset segment info for web vital spans. ([#6042](https://github.com/getsentry/relay/pull/6042))
@@ -33,6 +36,8 @@
 - Add config option to bypass the kafka fallback for objectstore uploads. ([#6127](https://github.com/getsentry/relay/pull/6127))
 - Use upstream descriptor in upload requests. ([#6128](https://github.com/getsentry/relay/pull/6128))
 - Use dedicated secret to sign upload URLs. ([#6132](https://github.com/getsentry/relay/pull/6132))
+- Inline small attachments instead of uploading to objectstore. ([#6165](https://github.com/getsentry/relay/pull/6165))
+- Retry 500 responses from objectstore. ([#6162](https://github.com/getsentry/relay/pull/6162))
 
 ## 26.6.0
 

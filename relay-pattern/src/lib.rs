@@ -1341,6 +1341,7 @@ mod tests {
         assert_invalid!("[a-z");
         assert_invalid!("[b-a]");
         assert_invalid!("[a-A]");
+        assert_invalid!("{a,b,{c,d}}");
     }
 
     #[test]

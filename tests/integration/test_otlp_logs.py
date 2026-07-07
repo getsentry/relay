@@ -1,7 +1,11 @@
 from datetime import datetime, timezone, timedelta
 
+from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import (
+    ExportLogsServiceResponse,
+)
 from sentry_relay.consts import DataCategory
 
+from .test_spansv2_otel import parse_google_rpc_status
 from .asserts import matches_any, time_within_delta, time_within, only_items
 
 TEST_CONFIG = {
@@ -9,6 +13,127 @@ TEST_CONFIG = {
         "emit_outcomes": True,
     },
 }
+
+GRPC_INVALID_ARGUMENT = 3
+GRPC_RESOURCE_EXHAUSTED = 8
+GRPC_UNAUTHENTICATED = 16
+
+
+def test_otlp_logs_protobuf_success_response(mini_sentry, relay):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+    ]
+    relay = relay(mini_sentry)
+
+    response = relay.send_otel_logs(
+        project_id,
+        headers={"Content-Type": "application/x-protobuf"},
+        bytes=b"",
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/x-protobuf"
+    assert ExportLogsServiceResponse.FromString(response.content) == (
+        ExportLogsServiceResponse()
+    )
+
+
+def test_otlp_logs_unsupported_media_type_returns_status(mini_sentry, relay):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+    ]
+    relay = relay(mini_sentry)
+
+    response = relay.send_otel_logs(
+        project_id,
+        headers={"Content-Type": "text/plain"},
+        bytes=b"",
+        raise_for_status=False,
+    )
+
+    assert response.status_code == 415
+    assert response.headers["content-type"] == "application/json"
+    assert response.json()["code"] == GRPC_INVALID_ARGUMENT
+
+
+def test_otlp_logs_missing_auth_returns_status(mini_sentry, relay):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+    ]
+    relay = relay(mini_sentry)
+
+    response = relay.post(
+        f"/api/{project_id}/integration/otlp/v1/logs",
+        headers={"Content-Type": "application/x-protobuf"},
+        json={"resourceLogs": []},
+    )
+
+    assert response.status_code == 401
+    assert response.headers["content-type"] == "application/x-protobuf"
+    status = parse_google_rpc_status(response.content)
+    assert status.code == GRPC_UNAUTHENTICATED
+    assert status.message == "missing authorization information"
+
+
+def test_otlp_logs_rate_limit_returns_status_and_retry_headers(mini_sentry, relay):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+    ]
+    project_config["config"]["quotas"] = [
+        {
+            "id": "test_otlp_logs_rate_limit",
+            "categories": ["log_item"],
+            "limit": 0,
+            "window": 60,
+            "reasonCode": "otlp_rate_limited",
+        }
+    ]
+    relay = relay(mini_sentry)
+
+    # Make sure project config is available.
+    relay.send_event(project_id, {"message": "warm project cache"})
+    _ = mini_sentry.get_captured_envelope().get_event()
+
+    response = relay.send_otel_logs(
+        project_id,
+        headers={"Content-Type": "application/json"},
+        json={"resourceLogs": []},
+        raise_for_status=False,
+    )
+
+    assert response.status_code == 429
+    assert response.headers["retry-after"]
+    assert response.headers["x-sentry-rate-limits"]
+    assert response.headers["content-type"] == "application/json"
+    assert response.json()["code"] == GRPC_RESOURCE_EXHAUSTED
+
+
+def test_otlp_logs_oversized_body_returns_status(mini_sentry, relay):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+    ]
+    relay = relay(mini_sentry, options={"limits": {"max_container_size": 1}})
+
+    response = relay.send_otel_logs(
+        project_id,
+        headers={"Content-Type": "application/json"},
+        bytes=b"{}",
+        raise_for_status=False,
+    )
+
+    assert response.status_code == 413
+    assert response.headers["content-type"] == "application/json"
+    assert response.json()["code"] == GRPC_RESOURCE_EXHAUSTED
 
 
 def test_otlp_logs_conversion(

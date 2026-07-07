@@ -7,7 +7,6 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from flask import Response
-from enum import Enum
 import pytest
 
 from .consts import (
@@ -17,42 +16,30 @@ from .consts import (
 )
 
 
-class FeatureState(Enum):
-    ENABLED = "enabled"
-    DISABLED = "disabled"
-    KILLSWITCHED = "killswitched"
-
-
 @pytest.fixture
 def project_config(mini_sentry):
     project_id = 42
     config = mini_sentry.add_full_project_config(project_id)["config"]
-    config.setdefault("features", []).append("projects:relay-upload-endpoint")
     config.setdefault("features", []).append("projects:relay-minidump-uploads")
     return config
 
 
 @pytest.mark.parametrize(
-    "feature_state,expected_status_code",
+    "killswitched,expected_status_code",
     [
-        pytest.param(FeatureState.ENABLED, 201, id="feature enabled"),
-        pytest.param(FeatureState.DISABLED, 403, id="feature disabled"),
-        pytest.param(FeatureState.KILLSWITCHED, 503, id="killswitch active"),
+        pytest.param(False, 201, id="killswitch off"),
+        pytest.param(True, 503, id="killswitch on"),
     ],
 )
 def test_forward_create(
-    mini_sentry, relay, dummy_upload, feature_state, expected_status_code
+    mini_sentry, relay, dummy_upload, killswitched, expected_status_code
 ):
     project_id = 42
-    config = mini_sentry.add_full_project_config(project_id)
-    if feature_state is FeatureState.KILLSWITCHED:
+    mini_sentry.add_full_project_config(project_id)
+    if killswitched:
         mini_sentry.global_config["options"][
             "relay.endpoint-fetch-config.enabled"
         ] = False
-    if feature_state is FeatureState.ENABLED:
-        config["config"].setdefault("features", []).append(
-            "projects:relay-upload-endpoint"
-        )
     relay = relay(mini_sentry)
 
     response = relay.post(
@@ -68,26 +55,21 @@ def test_forward_create(
 
 
 @pytest.mark.parametrize(
-    "feature_state,expected_status_code",
+    "killswitched,expected_status_code",
     [
-        pytest.param(FeatureState.ENABLED, 204, id="feature enabled"),
-        pytest.param(FeatureState.DISABLED, 403, id="feature disabled"),
-        pytest.param(FeatureState.KILLSWITCHED, 503, id="killswitch active"),
+        pytest.param(False, 204, id="killswitch off"),
+        pytest.param(True, 503, id="killswitch on"),
     ],
 )
 def test_forward_patch(
-    mini_sentry, relay, dummy_upload, feature_state, expected_status_code
+    mini_sentry, relay, dummy_upload, killswitched, expected_status_code
 ):
     project_id = 42
-    config = mini_sentry.add_full_project_config(project_id)
-    if feature_state is FeatureState.KILLSWITCHED:
+    mini_sentry.add_full_project_config(project_id)
+    if killswitched:
         mini_sentry.global_config["options"][
             "relay.endpoint-fetch-config.enabled"
         ] = False
-    if feature_state is FeatureState.ENABLED:
-        config["config"].setdefault("features", []).append(
-            "projects:relay-upload-endpoint"
-        )
     relay = relay(mini_sentry)
 
     data = b"hello world"
@@ -106,11 +88,6 @@ def test_forward_patch(
     )
 
     assert response.status_code == expected_status_code, response.text
-    if feature_state is FeatureState.DISABLED:
-        assert (
-            response.json()["detail"]
-            == "event submission rejected with_reason: FeatureDisabled(UploadEndpoint)"
-        )
 
 
 def test_post_retries(mini_sentry, relay, project_config):
@@ -694,7 +671,6 @@ def test_upload_minidump_opt_in(
     project_id = 42
     config = mini_sentry.add_full_project_config(project_id)["config"]
     features = config.setdefault("features", [])
-    features.append("projects:relay-upload-endpoint")
     if opted_in:
         features.append("projects:relay-minidump-uploads")
 

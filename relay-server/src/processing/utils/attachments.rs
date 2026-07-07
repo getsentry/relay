@@ -140,12 +140,12 @@ fn scrub_minidump(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfi
                 error = &scrub_error as &dyn Error,
                 "failed to scrub minidump",
             );
+            let start = Instant::now();
+            let modified = processor.scrub_attachment(filename, &mut payload);
             metric!(
-                timer(RelayTimers::AttachmentScrubbing),
+                timer(RelayTimers::AttachmentScrubbing) = start.elapsed(),
                 attachment_type = "minidump",
-                {
-                    processor.scrub_attachment(filename, &mut payload);
-                }
+                status = if modified { "ok" } else { "n/a" },
             )
         }
     }
@@ -163,7 +163,7 @@ fn scrub_view_hierarchy(item: &mut crate::envelope::Item, config: &relay_pii::Pi
         Ok(output) => {
             metric!(
                 timer(RelayTimers::ViewHierarchyScrubbing) = start.elapsed(),
-                status = "ok"
+                status = if output != payload { "ok" } else { "n/a" }
             );
             item.set_default_content_type(ContentType::Json);
             item.set_payload_without_content_type(output);
@@ -205,12 +205,12 @@ fn scrub_attachment(item: &mut crate::envelope::Item, config: &relay_pii::PiiCon
         Some(t) => t.to_string(),
         None => "".to_owned(),
     };
+    let start = Instant::now();
+    let modified = processor.scrub_attachment(filename, &mut payload);
     metric!(
-        timer(RelayTimers::AttachmentScrubbing),
-        attachment_type = &attachment_type_tag,
-        {
-            processor.scrub_attachment(filename, &mut payload);
-        }
+        timer(RelayTimers::AttachmentScrubbing) = start.elapsed(),
+        attachment_type = attachment_type_tag,
+        status = if modified { "ok" } else { "n/a" },
     );
 
     item.set_payload_without_content_type(payload);
