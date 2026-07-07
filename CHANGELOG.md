@@ -14,6 +14,7 @@
 **Bug Fixes**:
 
 - Wider type support for OTel log bodies. ([#6106](https://github.com/getsentry/relay/pull/6106))
+- Align OTLP endpoint responses with the specification. ([#6182](https://github.com/getsentry/relay/pull/6182))
 - Don't reject attributes that don't have values, but do have metadata. ([#6098](https://github.com/getsentry/relay/pull/6098))
 - Infer span names PII-safely. ([#6112](https://github.com/getsentry/relay/pull/6112))
 - Unset segment info for web vital spans. ([#6042](https://github.com/getsentry/relay/pull/6042))
