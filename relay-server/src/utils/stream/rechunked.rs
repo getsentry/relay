@@ -1,102 +1,94 @@
+use std::num::NonZeroUsize;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use bytes::{Bytes, BytesMut};
+use bytes::{BufMut, Bytes, BytesMut};
 use futures::{Stream, StreamExt};
 
 /// A stream adapter that emits chunks with a fixed size.
 ///
 /// All emitted [`Bytes`] have `chunk_size` bytes except for the final chunk, which may be smaller.
-pub struct Rechunk<S> {
+pub struct Rechunk<S, E> {
     inner: S,
     chunk_size: usize,
     buffer: BytesMut,
-    current: Option<Bytes>,
-    done: bool,
+    error: Option<E>,
 }
 
-impl<S> Rechunk<S> {
+impl<S, E> Rechunk<S, E> {
     /// Creates a new stream adapter that emits chunks of `chunk_size`.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `chunk_size` is zero.
-    pub fn new(inner: S, chunk_size: usize) -> Self {
-        assert!(chunk_size > 0, "chunk size must be greater than zero");
-
+    pub fn new(inner: S, chunk_size: NonZeroUsize) -> Self {
         Self {
             inner,
-            chunk_size,
-            buffer: BytesMut::with_capacity(chunk_size),
-            current: None,
-            done: false,
+            chunk_size: chunk_size.get(),
+            buffer: BytesMut::new(),
+            error: None,
         }
     }
 }
 
-impl<S, E> Stream for Rechunk<S>
+impl<S, E> Rechunk<S, E>
 where
     S: Stream<Item = Result<Bytes, E>> + Unpin,
+{
+    #[must_use]
+    fn flush_remaining(&mut self) -> Poll<Option<Result<Bytes, E>>> {
+        if self.buffer.is_empty() {
+            Poll::Ready(None)
+        } else {
+            let chunk = std::mem::take(&mut self.buffer);
+            debug_assert!(
+                chunk.len() < self.chunk_size,
+                "buffer must be smaller than chunk size at this point"
+            );
+            Poll::Ready(Some(Ok(chunk.freeze())))
+        }
+    }
+}
+
+impl<S, E> Stream for Rechunk<S, E>
+where
+    S: Stream<Item = Result<Bytes, E>> + Unpin,
+    E: Unpin,
 {
     type Item = Result<Bytes, E>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
 
-        loop {
-            if this.done {
+        // While there is buffered data, flush it.
+        if this.buffer.len() >= this.chunk_size {
+            let chunk = this.buffer.split_to(this.chunk_size);
+            return Poll::Ready(Some(Ok(chunk.freeze())));
+        }
+
+        if let Some(error) = this.error.take() {
+            // The presence of an error indicates that all data was flushed.
+            debug_assert!(this.buffer.is_empty());
+            return Poll::Ready(Some(Err(error)));
+        }
+
+        match this.inner.poll_next_unpin(cx) {
+            Poll::Ready(None) => this.flush_remaining(),
+            Poll::Ready(Some(Err(e))) => {
                 if this.buffer.is_empty() {
-                    return Poll::Ready(None);
-                }
-
-                return Poll::Ready(Some(Ok(this.buffer.split().freeze())));
-            }
-
-            if this.buffer.len() == this.chunk_size {
-                return Poll::Ready(Some(Ok(this.buffer.split_to(this.chunk_size).freeze())));
-            }
-
-            if let Some(mut current) = this.current.take() {
-                if current.is_empty() {
-                    continue;
-                }
-
-                if this.buffer.is_empty() && current.len() >= this.chunk_size {
-                    let chunk = current.split_to(this.chunk_size);
-                    if !current.is_empty() {
-                        this.current = Some(current);
-                    }
-                    return Poll::Ready(Some(Ok(chunk)));
-                }
-
-                let remaining = this.chunk_size - this.buffer.len();
-                let part = current.split_to(remaining.min(current.len()));
-                this.buffer.extend_from_slice(&part);
-
-                if !current.is_empty() {
-                    this.current = Some(current);
-                }
-
-                continue;
-            }
-
-            match this.inner.poll_next_unpin(cx) {
-                Poll::Ready(Some(Ok(bytes))) => {
-                    this.current = Some(bytes);
-                }
-                Poll::Ready(Some(Err(error))) => {
-                    this.buffer.clear();
-                    this.current = None;
-                    this.done = true;
-                    return Poll::Ready(Some(Err(error)));
-                }
-                Poll::Ready(None) => {
-                    this.done = true;
-                }
-                Poll::Pending => {
-                    return Poll::Pending;
+                    Poll::Ready(Some(Err(e)))
+                } else {
+                    this.error = Some(e);
+                    this.flush_remaining()
                 }
             }
+            Poll::Ready(Some(Ok(bytes))) => {
+                this.buffer.put(bytes);
+                if this.buffer.len() >= this.chunk_size {
+                    let chunk = this.buffer.split_to(this.chunk_size);
+                    Poll::Ready(Some(Ok(chunk.freeze())))
+                } else {
+                    cx.waker().wake_by_ref(); // not called by inner stream, it was ready.
+                    Poll::Pending
+                }
+            }
+            Poll::Pending => Poll::Pending,
         }
     }
 }
@@ -116,7 +108,8 @@ mod tests {
         chunks: Vec<Result<Bytes, &'static str>>,
         chunk_size: usize,
     ) -> Vec<Result<Bytes, &'static str>> {
-        Rechunk::new(stream::iter(chunks), chunk_size)
+        Rechunk::new(stream::iter(chunks), NonZeroUsize::new(chunk_size).unwrap())
+            .map(|a| a)
             .collect::<Vec<_>>()
             .await
     }
@@ -187,15 +180,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_drops_incomplete_chunk_on_error() {
+    async fn test_forwards_incomplete_chunk_on_error() {
         let chunks = collect_chunks(vec![Ok(bytes(b"a")), Err("failed")], 2).await;
 
-        assert_eq!(chunks, vec![Err("failed")]);
-    }
-
-    #[test]
-    #[should_panic(expected = "chunk size must be greater than zero")]
-    fn test_rejects_zero_chunk_size() {
-        let _ = Rechunk::new(stream::empty::<Result<Bytes, &'static str>>(), 0);
+        assert_eq!(chunks, vec![Ok(bytes(b"a")), Err("failed")]);
     }
 }

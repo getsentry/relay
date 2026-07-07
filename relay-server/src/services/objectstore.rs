@@ -1,7 +1,7 @@
 //! Objectstore service for uploading attachments.
 use std::array::TryFromSliceError;
 use std::fmt;
-use std::num::NonZeroU16;
+use std::num::{NonZeroU16, NonZeroUsize};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -43,7 +43,7 @@ use crate::utils::{
 use super::outcome::Outcome;
 
 /// Size of an individual request to objectstore.
-const CHUNK_SIZE: usize = 5 * 1024 * 1024;
+const CHUNK_SIZE: NonZeroUsize = NonZeroUsize::new(5 * 1024 * 1024).unwrap();
 
 /// Messages that the objectstore service can handle.
 pub enum Objectstore {
