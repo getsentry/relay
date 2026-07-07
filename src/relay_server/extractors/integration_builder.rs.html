@@ -87,7 +87,7 @@
 <a href=#87 id=87 data-nosnippet>87</a>
 <a href=#88 id=88 data-nosnippet>88</a><span class="attr">#[derive(Debug, thiserror::Error)]
 <a href=#89 id=89 data-nosnippet>89</a></span><span class="kw">pub enum </span>IntegrationBuilderRejection {
-<a href=#90 id=90 data-nosnippet>90</a>    <span class="attr">#[error(<span class="string">"bad event meta: {0}"</span>)]
+<a href=#90 id=90 data-nosnippet>90</a>    <span class="attr">#[error(transparent)]
 <a href=#91 id=91 data-nosnippet>91</a>    </span>BadEventMeta(<span class="attr">#[from] </span>BadEventMeta),
 <a href=#92 id=92 data-nosnippet>92</a>    <span class="attr">#[error(<span class="string">"unable to read body: {0}"</span>)]
 <a href=#93 id=93 data-nosnippet>93</a>    </span>Body(<span class="attr">#[from] </span>BytesRejection),
