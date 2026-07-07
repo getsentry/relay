@@ -18,10 +18,8 @@ pub fn merge_formdata(target: &mut SerdeValue, item: &Item) -> Result<(), Proces
         if entry.key() == "sentry" || entry.key().starts_with("sentry___") {
             // Custom clients can submit longer payloads and should JSON encode event data into
             // the optional `sentry` field or a `sentry___<namespace>` field.
-            match serde_json::from_str(entry.value()) {
-                Ok(event) => utils::merge_values(target, event),
-                Err(e) => return Err(ProcessingError::InvalidJson(e)),
-            }
+            let val = serde_json::from_str(entry.value()).map_err(ProcessingError::InvalidJson)?;
+            utils::merge_values(target, val);
         } else if let Some(index) = utils::get_sentry_chunk_index(entry.key(), "sentry__") {
             // Electron SDK splits up long payloads into chunks starting at sentry__1 with an
             // incrementing counter. Assemble these chunks here and then decode them below.
@@ -43,10 +41,8 @@ pub fn merge_formdata(target: &mut SerdeValue, item: &Item) -> Result<(), Proces
     }
 
     if !aggregator.is_empty() {
-        match serde_json::from_str(&aggregator.join()) {
-            Ok(event) => utils::merge_values(target, event),
-            Err(e) => return Err(ProcessingError::InvalidJson(e)),
-        }
+        let val = serde_json::from_str(&aggregator.join()).map_err(ProcessingError::InvalidJson)?;
+        utils::merge_values(target, val);
     }
 
     Ok(())
@@ -92,10 +88,7 @@ mod tests {
         let mut target = SerdeValue::Object(Default::default());
         let result = merge_formdata(&mut target, &item);
 
-        assert!(matches!(
-            result,
-            Err(ProcessingError::NestingTooDeep)
-        ));
+        assert!(matches!(result, Err(ProcessingError::NestingTooDeep)));
     }
 
     #[test]
