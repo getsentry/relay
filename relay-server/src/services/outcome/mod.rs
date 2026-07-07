@@ -408,6 +408,9 @@ pub enum DiscardReason {
 
     /// (Relay) Failed to upload to objectstore.
     UploadFailed,
+
+    /// (Relay) The payload's data is too deeply nested.
+    NestingTooDeep,
 }
 
 impl DiscardReason {
@@ -476,6 +479,7 @@ impl DiscardReason {
             DiscardReason::MissingDynamicSamplingContext => "missing_dsc",
             DiscardReason::InvalidDynamicSamplingContext => "invalid_dsc",
             DiscardReason::UploadFailed => "upload_failed",
+            DiscardReason::NestingTooDeep => "nesting_too_deep",
         }
     }
 }

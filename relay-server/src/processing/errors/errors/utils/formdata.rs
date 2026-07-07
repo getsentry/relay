@@ -1,9 +1,16 @@
 use serde_json::Value as SerdeValue;
 
 use crate::envelope::Item;
+use crate::services::processor::ProcessingError;
 use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 
-pub fn merge_formdata(target: &mut SerdeValue, item: &Item) {
+/// Maximum number of nested `sentry[a][b][c]…` keys accepted inside a form-data key.
+///
+/// This number needs to be limited due to the recursion taking place when building the JSON object
+/// in [`utils::update_nested_value`], and when serializing, normaliziing, and dropping it.
+const MAX_NESTED_FORMDATA_DEPTH: usize = 15;
+
+pub fn merge_formdata(target: &mut SerdeValue, item: &Item) -> Result<(), ProcessingError> {
     let payload = item.payload();
     let mut aggregator = ChunkedFormDataAggregator::new();
 
@@ -13,7 +20,7 @@ pub fn merge_formdata(target: &mut SerdeValue, item: &Item) {
             // the optional `sentry` field or a `sentry___<namespace>` field.
             match serde_json::from_str(entry.value()) {
                 Ok(event) => utils::merge_values(target, event),
-                Err(_) => relay_log::debug!("invalid json event payload in sentry form field"),
+                Err(e) => return Err(ProcessingError::InvalidJson(e)),
             }
         } else if let Some(index) = utils::get_sentry_chunk_index(entry.key(), "sentry__") {
             // Electron SDK splits up long payloads into chunks starting at sentry__1 with an
@@ -23,14 +30,8 @@ pub fn merge_formdata(target: &mut SerdeValue, item: &Item) {
             // Try to parse the nested form syntax `sentry[key][key]` This is required for the
             // Breakpad client library, which only supports string values of up to 64
             // characters.
-            let limit = 7; // Aligns with most `max_depth`:s found in `Event`.
-            if keys.len() > limit {
-                relay_log::debug!(
-                    "too many nested form-data entry keys: {} > {}",
-                    keys.len(),
-                    limit
-                );
-                continue;
+            if keys.len() > MAX_NESTED_FORMDATA_DEPTH {
+                return Err(ProcessingError::NestingTooDeep);
             }
             utils::update_nested_value(target, &keys, entry.value());
         } else {
@@ -44,9 +45,11 @@ pub fn merge_formdata(target: &mut SerdeValue, item: &Item) {
     if !aggregator.is_empty() {
         match serde_json::from_str(&aggregator.join()) {
             Ok(event) => utils::merge_values(target, event),
-            Err(_) => relay_log::debug!("invalid json event payload in sentry__* form fields"),
+            Err(e) => return Err(ProcessingError::InvalidJson(e)),
         }
     }
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -71,7 +74,7 @@ mod tests {
         let item = form_data_item(&[("sentry[a][b][c][d][e][f][g]", "deep")]);
 
         let mut target = SerdeValue::Object(Default::default());
-        merge_formdata(&mut target, &item);
+        merge_formdata(&mut target, &item).unwrap();
 
         assert_eq!(
             target,
@@ -82,13 +85,36 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_formdata_drops_nested_key_over_limit() {
+    fn test_merge_formdata_rejects_nested_key_over_limit() {
         let deep_key = format!("sentry{}", "[a]".repeat(50_000));
         let item = form_data_item(&[(deep_key.as_str(), "too deep")]);
 
         let mut target = SerdeValue::Object(Default::default());
-        merge_formdata(&mut target, &item);
+        let result = merge_formdata(&mut target, &item);
 
-        assert_eq!(target, serde_json::json!({}));
+        assert!(matches!(
+            result,
+            Err(ProcessingError::NestingTooDeep)
+        ));
+    }
+
+    #[test]
+    fn test_merge_formdata_rejects_invalid_json_in_sentry_field() {
+        let item = form_data_item(&[("sentry", "{not valid json")]);
+
+        let mut target = SerdeValue::Object(Default::default());
+        let result = merge_formdata(&mut target, &item);
+
+        assert!(matches!(result, Err(ProcessingError::InvalidJson(_))));
+    }
+
+    #[test]
+    fn test_merge_formdata_rejects_invalid_json_in_chunked_fields() {
+        let item = form_data_item(&[("sentry__1", "{not valid json")]);
+
+        let mut target = SerdeValue::Object(Default::default());
+        let result = merge_formdata(&mut target, &item);
+
+        assert!(matches!(result, Err(ProcessingError::InvalidJson(_))));
     }
 }
