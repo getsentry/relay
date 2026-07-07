@@ -60,15 +60,6 @@ def parse_google_rpc_status(data):
     return status
 
 
-def warm_project_cache(relay, mini_sentry, project_id):
-    relay.send_event(project_id, {"message": "warm project cache"})
-
-    while True:
-        event = mini_sentry.get_captured_envelope().get_event()
-        if event.get("logentry", {}).get("formatted") == "warm project cache":
-            break
-
-
 def test_otlp_traces_protobuf_success_response(mini_sentry, relay):
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
@@ -85,6 +76,24 @@ def test_otlp_traces_protobuf_success_response(mini_sentry, relay):
     assert ExportTraceServiceResponse.FromString(response.content) == (
         ExportTraceServiceResponse()
     )
+
+
+def test_otlp_traces_json_success_response_with_content_type_parameters(
+    mini_sentry, relay
+):
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(mini_sentry)
+
+    response = relay.send_otel_span(
+        project_id,
+        headers={"Content-Type": "application/json; charset=utf-8"},
+        json={"resourceSpans": []},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/json"
+    assert response.json() == {}
 
 
 def test_otlp_traces_unsupported_media_type_returns_status(mini_sentry, relay):
