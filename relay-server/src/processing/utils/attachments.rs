@@ -14,6 +14,7 @@ use crate::services::processor::ProcessingError;
 use crate::statsd::RelayTimers;
 
 use crate::services::projects::project::ProjectInfo;
+use crate::utils::sample;
 use relay_dynamic_config::Feature;
 
 /// Validates the attachments and drop any invalid ones.
@@ -102,7 +103,7 @@ pub fn scrub<'a>(
                     );
                 }
             } else if item.attachment_type() == Some(AttachmentType::Minidump) {
-                scrub_minidump(item, config)
+                scrub_minidump(project_info, item, config)
             } else if item.ty() == &ItemType::Attachment && has_simple_attachment_selector(config) {
                 // We temporarily only scrub attachments to projects that have at least one simple attachment rule,
                 // such as `$attachments.'foo.txt'`.
@@ -113,7 +114,7 @@ pub fn scrub<'a>(
     }
 }
 
-fn scrub_minidump(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfig) {
+fn scrub_minidump(project_info: &ProjectInfo, item: &mut Item, config: &relay_pii::PiiConfig) {
     debug_assert_eq!(item.attachment_type(), Some(AttachmentType::Minidump));
     let filename = item.filename().unwrap_or_default();
     let mut payload = item.payload().to_vec();
@@ -130,6 +131,11 @@ fn scrub_minidump(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfi
                 timer(RelayTimers::MinidumpScrubbing) = start.elapsed(),
                 status = if modified { "ok" } else { "n/a" },
             );
+            if modified && sample(0.1).is_keep() {
+                relay_log::info!("Minidump changed by scrubbing rules",
+                        sentry_project = item.
+                );
+            }
         }
         Err(scrub_error) => {
             metric!(
@@ -154,7 +160,7 @@ fn scrub_minidump(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfi
     item.set_payload_without_content_type(payload);
 }
 
-fn scrub_view_hierarchy(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfig) {
+fn scrub_view_hierarchy(item: &mut Item, config: &relay_pii::PiiConfig) {
     let processor = PiiAttachmentsProcessor::new(config.compiled());
 
     let payload = item.payload();
@@ -196,7 +202,7 @@ pub fn has_simple_attachment_selector(config: &relay_pii::PiiConfig) -> bool {
     false
 }
 
-fn scrub_attachment(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfig) {
+fn scrub_attachment(item: &mut Item, config: &relay_pii::PiiConfig) {
     let filename = item.filename().unwrap_or_default();
     let mut payload = item.payload().to_vec();
 
