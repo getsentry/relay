@@ -36,7 +36,6 @@
 - Use dedicated secret to sign upload URLs. ([#6132](https://github.com/getsentry/relay/pull/6132))
 - Inline small attachments instead of uploading to objectstore. ([#6165](https://github.com/getsentry/relay/pull/6165))
 - Retry 500 responses from objectstore. ([#6162](https://github.com/getsentry/relay/pull/6162))
-- Store form-data chunks in `BTreeMap` instead of `Vec`. ([#6173](https://github.com/getsentry/relay/pull/6173))
 
 ## 26.6.0
 
