@@ -132,8 +132,9 @@ fn scrub_minidump(project_info: &ProjectInfo, item: &mut Item, config: &relay_pi
                 status = if modified { "ok" } else { "n/a" },
             );
             if modified && sample(0.1).is_keep() {
-                relay_log::info!("Minidump changed by scrubbing rules",
-                        sentry_project = item.
+                relay_log::info!(
+                    sentry_project = ?project_info.project_id,
+                    "Minidump changed by scrubbing rules",
                 );
             }
         }
