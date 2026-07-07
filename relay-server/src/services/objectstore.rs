@@ -36,9 +36,14 @@ use crate::services::store::{
 };
 use crate::services::upload::ByteStream;
 use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::{BoundedStream, MeteredStream, RetryableStream, TakeOnce, find_error_source};
+use crate::utils::{
+    BoundedStream, MeteredStream, Rechunk, RetryableStream, TakeOnce, find_error_source,
+};
 
 use super::outcome::Outcome;
+
+/// Size of an individual request to objectstore.
+const CHUNK_SIZE: usize = 5 * 1024 * 1024;
 
 /// Messages that the objectstore service can handle.
 pub enum Objectstore {
@@ -900,8 +905,14 @@ impl ObjectstoreServiceInner {
             BodyAttempt::Stream { body, upload_ref } => {
                 let UploadRef { key, upload_id } = upload_ref;
                 let multipart_upload = session.resume_multipart_upload(key, upload_id)?;
-
                 let body = ReaderStream::new(ZstdEncoder::new(StreamReader::new(body)));
+
+                // Unfortunately, MinIO has the limitation that the length of a multipart request
+                // has to be known. Therefore, we need to materialize the stream into concrete
+                // chunks of bytes and send each chunk as an individual request.
+                // NOTE: We might be able to call `put_stream` instead if the BoundedStream
+                // has a known size.
+                let body = Rechunk::new(body, CHUNK_SIZE);
                 let mut body = body.enumerate();
 
                 let result = relay_statsd::metric!(
@@ -909,6 +920,8 @@ impl ObjectstoreServiceInner {
                     type = kind.as_str(),
                 {
                     let mut parts = vec![];
+
+
                     // FIXME: wait for objectstore to allow omitting the content length.
                     // Submitting every element of the stream as a separate HTTP request is not
                     // efficient.
