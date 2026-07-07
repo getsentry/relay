@@ -35,6 +35,7 @@
 - Use dedicated secret to sign upload URLs. ([#6132](https://github.com/getsentry/relay/pull/6132))
 - Inline small attachments instead of uploading to objectstore. ([#6165](https://github.com/getsentry/relay/pull/6165))
 - Retry 500 responses from objectstore. ([#6162](https://github.com/getsentry/relay/pull/6162))
+- Implement Managed::zip function. ([#6174](https://github.com/getsentry/relay/pull/6174))
 
 ## 26.6.0
 
