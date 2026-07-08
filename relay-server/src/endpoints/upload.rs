@@ -31,8 +31,8 @@ use crate::services::objectstore;
 use crate::services::projects::cache::Project;
 use crate::services::projects::project::ProjectState;
 use crate::services::upload::{
-    self, ByteStream, Final, LocationData, LocationQueryParams, ProjectContext, Provisional,
-    SignedLocation,
+    self, ByteStream, Final, LocationQueryParams, ProjectContext, Provisional, SignedLocation,
+    UploadLength,
 };
 use crate::services::upstream::UpstreamRequestError;
 use crate::statsd::RelayCounters;
@@ -103,6 +103,7 @@ impl IntoResponse for Error {
                 upload::Error::InvalidLocation(_) | upload::Error::SigningFailed => {
                     StatusCode::INTERNAL_SERVER_ERROR
                 }
+                upload::Error::InvalidUploadId(_) => StatusCode::BAD_REQUEST,
                 upload::Error::SerializeFailed(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 upload::Error::InvalidSignature(_) => StatusCode::BAD_REQUEST,
                 upload::Error::ObjectstoreServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
@@ -133,7 +134,7 @@ impl IntoResponse for Error {
     }
 }
 
-impl<L: LocationData> IntoResponse for SignedLocation<L> {
+impl<L: UploadLength> IntoResponse for SignedLocation<L> {
     fn into_response(self) -> Response {
         let mut headers = tus::response_headers();
         match self.into_header_value() {
@@ -247,7 +248,7 @@ async fn handle_patch(
         .boxed();
     let stream = MeteredStream::new(stream, "upload");
 
-    let (lower_bound, upper_bound) = match upload_length {
+    let (lower_bound, upper_bound) = match upload_length.value() {
         None => (1, config.max_upload_size()),
         Some(u) => (u, u),
     };

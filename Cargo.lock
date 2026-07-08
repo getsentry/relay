@@ -5046,6 +5046,7 @@ dependencies = [
  "minidump",
  "multer",
  "objectstore-client",
+ "objectstore-types",
  "opentelemetry-proto",
  "papaya",
  "pin-project-lite",

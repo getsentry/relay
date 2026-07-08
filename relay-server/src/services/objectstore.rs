@@ -11,8 +11,10 @@ use futures::StreamExt;
 use http::StatusCode;
 use objectstore_client::{
     Client, Compression, ExpirationPolicy, SecretKey as SigningKey, Session, TokenGenerator,
-    Usecase,
+    UploadId, Usecase,
 };
+
+use objectstore_types::multipart::InvalidUploadId;
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_config::ObjectstoreServiceConfig;
@@ -334,7 +336,19 @@ pub struct UploadRef {
     /// They key of the file (chosen by relay).
     pub key: String,
     /// The ID of the multipart upload session (chosen by objectstore).
-    pub upload_id: String,
+    /// `None` if the upload is not multipart.
+    pub upload_id: Option<UploadId>,
+}
+
+impl UploadRef {
+    /// Validates the upload ID and returns a new upload reference.
+    pub fn new(key: String, upload_id: Option<String>) -> Result<Self, InvalidUploadId> {
+        let upload_id = match upload_id {
+            Some(s) => Some(UploadId::new(s)?),
+            None => None,
+        };
+        Ok(Self { key, upload_id })
+    }
 }
 
 impl fmt::Display for ObjectstoreKey {
@@ -770,9 +784,12 @@ impl ObjectstoreServiceInner {
             .send()
             .await?;
         debug_assert_eq!(&key, multipart_upload.key());
-        let upload_id = multipart_upload.upload_id().to_string();
+        let upload_id = multipart_upload.upload_id();
 
-        Ok(UploadRef { key, upload_id })
+        Ok(UploadRef {
+            key,
+            upload_id: Some(upload_id.clone()),
+        })
     }
 
     async fn handle_stream(&self, stream: Stream) -> Result<ObjectstoreKey, Error> {
@@ -904,7 +921,26 @@ impl ObjectstoreServiceInner {
             }
             BodyAttempt::Stream { body, upload_ref } => {
                 let UploadRef { key, upload_id } = upload_ref;
-                let multipart_upload = session.resume_multipart_upload(key, upload_id)?;
+                let Some(upload_id) = upload_id else {
+                    // No upload ID: simple upload in a single request.
+                    let mut request = session.put_stream(body.boxed()).key(key);
+                    if let Some(content_type) = content_type {
+                        request = request.content_type(content_type.as_str());
+                    }
+                    if let Some(retention_hours) = retention_hours {
+                        request = request.expiration_policy(ExpirationPolicy::TimeToLive(
+                            Duration::from_hours(retention_hours.into()),
+                        ));
+                    }
+                    let response = request.send().await?;
+                    return Ok(ObjectstoreKey(response.key));
+                };
+
+                let multipart_upload =
+                    session.resume_multipart_upload(key, upload_id.to_string())?;
+
+                // FIXME: content-type? retention?
+
                 let body = ReaderStream::new(ZstdEncoder::new(StreamReader::new(body)));
 
                 // Unfortunately, MinIO has the limitation that the length of a multipart request
@@ -1072,8 +1108,8 @@ mod tests {
                 organization_id: OrganizationId::new(0),
                 project_id: ProjectId::new(1),
                 upload_ref: UploadRef {
-                    key: "my_file".into(),
-                    upload_id: "my_upload".into(),
+                    key: "my_file".to_owned(),
+                    upload_id: Some(UploadId::new("my_upload".to_owned()).unwrap()),
                 },
                 stream,
             })
