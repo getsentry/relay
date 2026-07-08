@@ -489,9 +489,7 @@ def test_span_extraction_mobile_app_start_backfill(
         assert key not in attrs
 
 
-def envelope_with_spans(
-    start: datetime, end: datetime, metrics_extracted: bool = False
-) -> Envelope:
+def envelope_with_spans(start: datetime, end: datetime) -> Envelope:
     envelope = Envelope()
     envelope.add_item(
         Item(

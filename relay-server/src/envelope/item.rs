@@ -415,19 +415,6 @@ impl Item {
         self.headers.source_quantities = Some(source_quantities);
     }
 
-    /// Returns the metrics extracted flag.
-    pub fn metrics_extracted(&self) -> bool {
-        self.headers
-            .get(ItemHeaderKey::MetricsExtracted)
-            .unwrap_or_default()
-    }
-
-    /// Sets the metrics extracted flag.
-    pub fn set_metrics_extracted(&mut self, metrics_extracted: bool) {
-        self.headers
-            .set(ItemHeaderKey::MetricsExtracted, metrics_extracted);
-    }
-
     /// Returns the spans extracted flag.
     pub fn spans_extracted(&self) -> bool {
         self.headers
@@ -1034,13 +1021,6 @@ pub enum ItemHeaderKey {
     /// This is currently considered optional for profile chunks, but may change
     /// to required in the future.
     Platform,
-    /// Flag indicating if metrics have already been extracted from the item.
-    ///
-    /// In order to only extract metrics once from an item while through a
-    /// chain of Relays, a Relay that extracts metrics from an item (typically
-    /// the first Relay) MUST set this flat to true so that upstream Relays do
-    /// not extract the metric again causing double counting of the metric.
-    MetricsExtracted,
     /// Whether or not spans and span metrics have been extracted from a transaction.
     ///
     /// This header is set to `true` after both span extraction and span metrics extraction,

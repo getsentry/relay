@@ -19,11 +19,10 @@ use crate::statsd::RelayTimers;
 
 /// Flags extracted from transaction item headers.
 ///
-/// Ideally `metrics_extracted` and `spans_extracted` will not be needed in the future. Unsure
+/// Ideally `spans_extracted` will not be needed in the future. Unsure
 /// about `fully_normalized`.
 #[derive(Debug, Default)]
 pub struct Flags {
-    pub metrics_extracted: bool,
     pub spans_extracted: bool,
     pub fully_normalized: bool,
     pub spans_rate_limited: bool,
@@ -231,12 +230,10 @@ impl<T> ExpandedTransaction<T> {
         item.set_payload(ContentType::Json, data);
 
         let Flags {
-            metrics_extracted,
             spans_extracted,
             fully_normalized,
             spans_rate_limited: _,
         } = flags;
-        item.set_metrics_extracted(metrics_extracted);
         item.set_spans_extracted(spans_extracted);
         item.set_fully_normalized(fully_normalized);
 
