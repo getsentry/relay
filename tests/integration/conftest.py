@@ -48,8 +48,7 @@ from .fixtures.processing import (  # noqa
 )
 
 from .consts import (
-    DUMMY_UPLOAD_FINAL_LOCATION,
-    DUMMY_UPLOAD_PROVISIONAL_LOCATION,
+    DUMMY_UPLOAD_LOCATION,
     ZSTD_MAGIC_HEADER,
 )
 
@@ -313,7 +312,7 @@ def dummy_upload(mini_sentry):  # noqa
         return Response(
             "",
             status=201,
-            headers={"Location": DUMMY_UPLOAD_PROVISIONAL_LOCATION},
+            headers={"Location": DUMMY_UPLOAD_LOCATION},
         )
 
     @mini_sentry.app.route("/api/<project>/upload/<key>/", methods=["PATCH"])
@@ -323,5 +322,5 @@ def dummy_upload(mini_sentry):  # noqa
         return Response(
             "",
             status=204,
-            headers={"Location": DUMMY_UPLOAD_FINAL_LOCATION},
+            headers={"Location": DUMMY_UPLOAD_LOCATION},
         )

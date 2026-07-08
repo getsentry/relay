@@ -113,10 +113,13 @@ impl IntoResponse for Error {
                     objectstore::ErrorKind::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
                     objectstore::ErrorKind::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
                     objectstore::ErrorKind::UploadFailed(error) => match error {
+                        objectstore_client::Error::Io(error) if is_upload_length_error(&error) => {
+                            StatusCode::BAD_REQUEST
+                        }
                         objectstore_client::Error::Reqwest(error) => match error.status() {
                             _ if error.is_timeout() => StatusCode::GATEWAY_TIMEOUT,
                             Some(status) => status,
-                            None if find_error_source(&error, is_hyper_user_error).is_some() => {
+                            None if find_error_source(&error, is_request_body_error).is_some() => {
                                 StatusCode::BAD_REQUEST
                             }
                             None => StatusCode::INTERNAL_SERVER_ERROR,
@@ -419,4 +422,17 @@ fn is_hyper_user_error(error: &(dyn std::error::Error + 'static)) -> bool {
     error
         .downcast_ref::<hyper::Error>()
         .is_some_and(hyper::Error::is_user)
+}
+
+fn is_request_body_error(error: &(dyn std::error::Error + 'static)) -> bool {
+    is_hyper_user_error(error) || is_upload_length_error(error)
+}
+
+fn is_upload_length_error(error: &(dyn std::error::Error + 'static)) -> bool {
+    error.downcast_ref::<io::Error>().is_some_and(|error| {
+        matches!(
+            error.kind(),
+            io::ErrorKind::FileTooLarge | io::ErrorKind::UnexpectedEof
+        )
+    })
 }

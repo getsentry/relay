@@ -72,7 +72,7 @@ pub enum Error {
     #[error("objectstore service unavailable: {0}")]
     ObjectstoreServiceUnavailable(#[source] SendError),
     #[cfg(feature = "processing")]
-    #[error("objectstore service: {0}")]
+    #[error(transparent)]
     Objectstore(#[from] objectstore::Error),
     #[error("loadshed")]
     LoadShed,

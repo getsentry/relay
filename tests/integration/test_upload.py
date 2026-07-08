@@ -12,9 +12,8 @@ import pytest
 from sentry_relay.auth import SecretKey
 
 from .consts import (
-    DUMMY_UPLOAD_FINAL_LOCATION,
     DUMMY_UPLOAD_PATH,
-    DUMMY_UPLOAD_PROVISIONAL_LOCATION,
+    DUMMY_UPLOAD_LOCATION,
 )
 
 
@@ -78,7 +77,7 @@ def test_forward_patch(
     response = relay.patch(
         "%s&sentry_key=%s"
         % (
-            DUMMY_UPLOAD_PROVISIONAL_LOCATION,
+            DUMMY_UPLOAD_LOCATION,
             mini_sentry.get_dsn_public_key(project_id),
         ),
         headers={
@@ -107,9 +106,7 @@ def test_post_retries(mini_sentry, relay, project_config):
         create_attempts += 1
         if create_attempts == 1:
             return Response("", status=503)
-        return Response(
-            "", status=201, headers={"Location": DUMMY_UPLOAD_PROVISIONAL_LOCATION}
-        )
+        return Response("", status=201, headers={"Location": DUMMY_UPLOAD_LOCATION})
 
     project_id = 42
     project_key = mini_sentry.get_dsn_public_key(project_id)
@@ -262,7 +259,7 @@ def test_upload_body_size(
     response = relay.patch(
         "%s&sentry_key=%s"
         % (
-            DUMMY_UPLOAD_PROVISIONAL_LOCATION,
+            DUMMY_UPLOAD_LOCATION,
             mini_sentry.get_dsn_public_key(project_id),
         ),
         headers={
@@ -337,9 +334,7 @@ def test_timeout(
     @mini_sentry.app.route(DUMMY_UPLOAD_PATH, methods=["PATCH"])
     def slow_upload(**opts):
         time.sleep(2)
-        return Response(
-            "", status=204, headers={"Location": DUMMY_UPLOAD_FINAL_LOCATION}
-        )
+        return Response("", status=204, headers={"Location": DUMMY_UPLOAD_LOCATION})
 
     project_id = 42
     relay = relay(
@@ -354,7 +349,7 @@ def test_timeout(
     response = relay.patch(
         "%s&sentry_key=%s"
         % (
-            DUMMY_UPLOAD_PROVISIONAL_LOCATION,
+            DUMMY_UPLOAD_LOCATION,
             mini_sentry.get_dsn_public_key(project_id),
         ),
         headers={
@@ -534,7 +529,7 @@ def test_concurrency_limit(mini_sentry, relay, project_config):
 
     def do_upload():
         return relay.patch(
-            f"{DUMMY_UPLOAD_PROVISIONAL_LOCATION}&sentry_key={project_key}",
+            f"{DUMMY_UPLOAD_LOCATION}&sentry_key={project_key}",
             headers={
                 "Content-Length": str(len(data)),
                 "Content-Type": "application/offset+octet-stream",
