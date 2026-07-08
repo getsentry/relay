@@ -81,6 +81,24 @@ def test_otlp_logs_missing_auth_returns_status(mini_sentry, relay):
     assert status.message == "missing authorization information"
 
 
+def test_otlp_logs_json_success_response_with_content_type_parameters(
+    mini_sentry, relay
+):
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(mini_sentry)
+
+    response = relay.send_otel_logs(
+        project_id,
+        headers={"Content-Type": "application/json; charset=utf-8"},
+        json={"resourceLogs": []},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/json"
+    assert response.json() == {}
+
+
 def test_otlp_logs_rate_limit_returns_status_and_retry_headers(mini_sentry, relay):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
