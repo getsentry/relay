@@ -1019,6 +1019,46 @@ mod tests {
     }
 
     #[test]
+    fn parse_location_complete_with_upload_id() {
+        let json = r#"signature=foo&length=123&upload_id=bar"#;
+
+        let provisional: LocationQueryParams<Provisional> =
+            serde_urlencoded::from_str(json).unwrap();
+        insta::assert_debug_snapshot!(provisional, @r#"
+        LocationQueryParams {
+            upload_length: Provisional(
+                Some(
+                    123,
+                ),
+            ),
+            upload_id: Some(
+                "bar",
+            ),
+            upload_signature: "foo",
+            other: UploadParams(
+                {},
+            ),
+        }
+        "#);
+
+        let full: LocationQueryParams<Final> = serde_urlencoded::from_str(json).unwrap();
+        insta::assert_debug_snapshot!(full, @r#"
+        LocationQueryParams {
+            upload_length: Final(
+                123,
+            ),
+            upload_id: Some(
+                "bar",
+            ),
+            upload_signature: "foo",
+            other: UploadParams(
+                {},
+            ),
+        }
+        "#);
+    }
+
+    #[test]
     fn parse_location_with_other() {
         let json =
             r#"upload_signature=foo&upload_length=123&not_an_upload_param=123&upload_type=bar"#;
@@ -1032,6 +1072,7 @@ mod tests {
                     123,
                 ),
             ),
+            upload_id: None,
             upload_signature: "foo",
             other: UploadParams(
                 {
@@ -1046,6 +1087,7 @@ mod tests {
             upload_length: Final(
                 123,
             ),
+            upload_id: None,
             upload_signature: "foo",
             other: UploadParams(
                 {

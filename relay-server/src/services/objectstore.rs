@@ -996,12 +996,12 @@ impl Upload {
     fn try_clone(&self) -> Option<UploadAttempt> {
         match self {
             Self::Bytes {
-                body: bytes,
+                body,
                 key,
                 retention_hours,
                 content_type,
             } => Some(UploadAttempt::Bytes {
-                body: bytes.clone(),
+                body: body.clone(),
                 key: key.clone(),
                 retention_hours: *retention_hours,
                 content_type: *content_type,
