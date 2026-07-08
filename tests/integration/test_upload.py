@@ -9,6 +9,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Response
 import pytest
 
+from sentry_relay.auth import SecretKey
+
 from .consts import (
     DUMMY_UPLOAD_FINAL_LOCATION,
     DUMMY_UPLOAD_PATH,
@@ -566,19 +568,25 @@ def test_concurrency_limit(mini_sentry, relay, project_config):
             }, r.text
 
 
-def test_objectstore_retries(mini_sentry, relay_with_processing, project_config):
-    @mini_sentry.app.route(
-        "/v1/objects:multipart/attachments/<scope>/<key>", methods=["PUT"]
-    )
-    def multipart_create(**params):
-        print(params)
-        return {"key": params["key"], "upload_id": "foo"}, 201
+@pytest.mark.parametrize(
+    "with_multipart",
+    [pytest.param(False, id="no multipart"), pytest.param(True, id="with multipart")],
+)
+def test_objectstore_retries(
+    mini_sentry, relay_with_processing, project_config, with_multipart
+):
+    # @mini_sentry.app.route(
+    #     "/v1/objects:multipart/attachments/<scope>/<key>", methods=["PUT"]
+    # )
+    # def multipart_create(**params):
+    #     print(params)
+    #     return {"key": params["key"], "upload_id": "foo"}, 201
 
-    @mini_sentry.app.route(
-        "/v1/objects:multipart:parts/attachments/<scope>/<key>", methods=["PUT"]
-    )
-    def multipart_upload(**opts):
-        return "whoops", 500
+    # @mini_sentry.app.route(
+    #     "/v1/objects:multipart:parts/attachments/<scope>/<key>", methods=["PUT"]
+    # )
+    # def multipart_upload(**opts):
+    #     return "whoops", 500
 
     project_id = 42
     project_key = mini_sentry.get_dsn_public_key(project_id)
@@ -587,7 +595,7 @@ def test_objectstore_retries(mini_sentry, relay_with_processing, project_config)
         options={
             "processing": {
                 "objectstore": {
-                    "objectstore_url": mini_sentry.url,
+                    "objectstore_url": "http://localhost:1337",  # invalid port
                     "retry_delay": 1.0,
                     "max_attempts": 3,
                 }
@@ -595,7 +603,28 @@ def test_objectstore_retries(mini_sentry, relay_with_processing, project_config)
         }
     )
 
-    response = upload_something(relay, project_id, project_key)
+    location = f"/api/{project_id}/upload/019cdc82ed6c7761ba21fd34b86481c2/"
+    sep = "?"
+    if with_multipart:
+        location += "?upload_id=my_upload_id"
+        sep = "&"
+    signature = SecretKey.parse(relay.secret_key).sign(location.encode())
+    signed_location = (
+        f"{location}{sep}sentry_key={project_key}&upload_signature={signature}"
+    )
+
+    data = b"hello world"
+    response = relay.patch(
+        signed_location,
+        headers={
+            "Content-Length": str(len(data)),
+            "Content-Type": "application/offset+octet-stream",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Offset": "0",
+        },
+        data=data,
+    )
+    print(response.text)
 
     failure = mini_sentry.test_failures.get(timeout=10)
     assert "failed to upload 1 attachment(s) to objectstore in 3 attempt(s)" in str(

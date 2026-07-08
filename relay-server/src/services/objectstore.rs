@@ -804,12 +804,10 @@ impl ObjectstoreServiceInner {
         self.upload(
             MessageKind::Stream,
             &session,
-            BodyTarget::Stream {
+            Upload::Stream {
                 body: TakeOnce::new(stream),
                 upload_ref,
             },
-            None,
-            None,
         )
         .await
     }
@@ -827,9 +825,12 @@ impl ObjectstoreServiceInner {
         self.upload(
             kind,
             session,
-            BodyTarget::Bytes { body: payload, key },
-            retention_hours,
-            content_type,
+            Upload::Bytes {
+                body: payload,
+                key,
+                retention_hours,
+                content_type,
+            },
         )
         .await
     }
@@ -838,14 +839,12 @@ impl ObjectstoreServiceInner {
         &self,
         kind: MessageKind,
         session: &Session,
-        body: BodyTarget,
-        retention_hours: Option<u16>,
-        content_type: Option<ContentType>,
+        body: Upload,
     ) -> Result<ObjectstoreKey, Error> {
         let mut attempts = 0;
         let timeout = match &body {
-            BodyTarget::Bytes { .. } => self.timeout,
-            BodyTarget::Stream { .. } => self.stream_timeout,
+            Upload::Bytes { .. } => self.timeout,
+            Upload::Stream { .. } => self.stream_timeout,
         };
         let result = tokio::time::timeout(timeout, async {
             let mut result = None;
@@ -854,10 +853,7 @@ impl ObjectstoreServiceInner {
                     break;
                 };
                 attempts += 1;
-                result.replace(
-                    self.attempt_upload(kind, session, body, retention_hours, content_type)
-                        .await,
-                );
+                result.replace(self.attempt_upload(kind, session, body).await);
 
                 if attempts < self.max_attempts.get()
                     && matches!(&result, Some(Err(e)) if is_retryable(e))
@@ -892,12 +888,15 @@ impl ObjectstoreServiceInner {
         &self,
         kind: MessageKind,
         session: &Session,
-        body: BodyAttempt,
-        retention_hours: Option<u16>,
-        content_type: Option<ContentType>,
+        body: UploadAttempt,
     ) -> Result<ObjectstoreKey, objectstore_client::Error> {
         match body {
-            BodyAttempt::Bytes { body, key } => {
+            UploadAttempt::Bytes {
+                body,
+                key,
+                retention_hours,
+                content_type,
+            } => {
                 let mut request = session.put(body);
                 if let Some(content_type) = content_type {
                     request = request.content_type(content_type.as_str());
@@ -919,27 +918,17 @@ impl ObjectstoreServiceInner {
 
                 Ok(ObjectstoreKey(response.key))
             }
-            BodyAttempt::Stream { body, upload_ref } => {
+            UploadAttempt::Stream { body, upload_ref } => {
                 let UploadRef { key, upload_id } = upload_ref;
                 let Some(upload_id) = upload_id else {
                     // No upload ID: simple upload in a single request.
-                    let mut request = session.put_stream(body.boxed()).key(key);
-                    if let Some(content_type) = content_type {
-                        request = request.content_type(content_type.as_str());
-                    }
-                    if let Some(retention_hours) = retention_hours {
-                        request = request.expiration_policy(ExpirationPolicy::TimeToLive(
-                            Duration::from_hours(retention_hours.into()),
-                        ));
-                    }
+                    let request = session.put_stream(body.boxed()).key(key);
                     let response = request.send().await?;
                     return Ok(ObjectstoreKey(response.key));
                 };
 
                 let multipart_upload =
                     session.resume_multipart_upload(key, upload_id.to_string())?;
-
-                // FIXME: content-type? retention?
 
                 let body = ReaderStream::new(ZstdEncoder::new(StreamReader::new(body)));
 
@@ -954,6 +943,8 @@ impl ObjectstoreServiceInner {
                     type = kind.as_str(),
                 {
                     let mut parts = vec![];
+                    // NOTE: Once every upload is a multipart upload, we can remove `RetryableStream`
+                    // because streams will never be effectively retried.
                     while let Some((i, chunk)) = body.next().await {
                         let chunk = chunk?;
                         let part_number = u32::try_from(i + 1)
@@ -988,10 +979,12 @@ impl ObjectstoreServiceInner {
 /// Common interface for calls to [`ObjectstoreServiceInner::upload`].
 ///
 /// This type is shared across retries.
-enum BodyTarget {
+enum Upload {
     Bytes {
         body: Bytes,
         key: Option<String>,
+        retention_hours: Option<u16>,
+        content_type: Option<ContentType>,
     },
     Stream {
         body: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
@@ -999,15 +992,22 @@ enum BodyTarget {
     },
 }
 
-impl BodyTarget {
-    fn try_clone(&self) -> Option<BodyAttempt> {
+impl Upload {
+    fn try_clone(&self) -> Option<UploadAttempt> {
         match self {
-            Self::Bytes { body: bytes, key } => Some(BodyAttempt::Bytes {
+            Self::Bytes {
+                body: bytes,
+                key,
+                retention_hours,
+                content_type,
+            } => Some(UploadAttempt::Bytes {
                 body: bytes.clone(),
                 key: key.clone(),
+                retention_hours: *retention_hours,
+                content_type: *content_type,
             }),
             Self::Stream { body, upload_ref } => {
-                RetryableStream::new(body.clone()).map(|body| BodyAttempt::Stream {
+                RetryableStream::new(body.clone()).map(|body| UploadAttempt::Stream {
                     body,
                     upload_ref: upload_ref.clone(),
                 })
@@ -1019,10 +1019,12 @@ impl BodyTarget {
 /// Common interface for calls to [`ObjectstoreServiceInner::attempt_upload`].
 ///
 /// This type is instantiated for every retry.
-enum BodyAttempt {
+enum UploadAttempt {
     Bytes {
         body: Bytes,
         key: Option<String>,
+        retention_hours: Option<u16>,
+        content_type: Option<ContentType>,
     },
     Stream {
         body: RetryableStream<BoundedStream<MeteredStream<ByteStream>>>,
