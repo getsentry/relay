@@ -258,6 +258,23 @@ impl Counted for StoreProfile {
     }
 }
 
+/// A monitor check-in to be stored to Kafka.
+#[derive(Debug)]
+pub struct StoreCheckIn {
+    /// The serialized check-in.
+    pub check_in: Item,
+    /// The SDK client which produced the check-in.
+    pub sdk: Option<String>,
+    /// Check-in retention in days.
+    pub retention_days: u16,
+}
+
+impl Counted for StoreCheckIn {
+    fn quantities(&self) -> Quantities {
+        self.check_in.quantities()
+    }
+}
+
 /// The asynchronous thread pool used for scheduling storing tasks in the envelope store.
 pub type StoreServicePool = AsyncPool<StoreTask>;
 
@@ -288,6 +305,8 @@ pub enum Store {
     UserReport(Managed<StoreUserReport>),
     /// A single profile.
     Profile(Managed<StoreProfile>),
+    /// A singular monitor check-in.
+    CheckIn(Managed<StoreCheckIn>),
 }
 
 impl Store {
@@ -303,6 +322,7 @@ impl Store {
             Store::Attachment(_) => "attachment",
             Store::UserReport(_) => "user_report",
             Store::Profile(_) => "profile",
+            Store::CheckIn(_) => "check_in",
         }
     }
 }
@@ -381,6 +401,14 @@ impl FromMessage<Managed<StoreProfile>> for Store {
     }
 }
 
+impl FromMessage<Managed<StoreCheckIn>> for Store {
+    type Response = NoResponse;
+
+    fn from_message(message: Managed<StoreCheckIn>, _: ()) -> Self {
+        Self::CheckIn(message)
+    }
+}
+
 /// Service implementing the [`Store`] interface.
 pub struct StoreService {
     pool: StoreServicePool,
@@ -423,6 +451,7 @@ impl StoreService {
                 Store::Attachment(message) => self.handle_store_attachment(message),
                 Store::UserReport(message) => self.handle_user_report(message),
                 Store::Profile(message) => self.handle_profile(message),
+                Store::CheckIn(message) => self.handle_check_in(message),
             };
             if let Err(error) = result {
                 relay_log::error!(
@@ -526,18 +555,7 @@ impl StoreService {
                     retention,
                     item,
                 )?,
-                ItemType::CheckIn => {
-                    let client = envelope.meta().client();
-                    self.produce_check_in(
-                        scoping.project_id,
-                        scoping.organization_id,
-                        received_at,
-                        client,
-                        retention,
-                        item,
-                    )?
-                }
-                ty @ (ItemType::Log | ItemType::Span) => {
+                ty @ (ItemType::Log | ItemType::Span | ItemType::CheckIn) => {
                     debug_assert!(
                         false,
                         "received {ty} through an envelope, \
@@ -880,6 +898,26 @@ impl StoreService {
                 profile.retention_days,
                 &profile.profile,
             )
+        })
+    }
+
+    fn handle_check_in(&self, message: Managed<StoreCheckIn>) -> Result<(), Rejected<StoreError>> {
+        let scoping = message.scoping();
+        let received_at = message.received_at();
+
+        message.try_accept(|check_in| {
+            let message = KafkaMessage::CheckIn(CheckInKafkaMessage {
+                message_type: CheckInMessageType::CheckIn,
+                project_id: scoping.project_id,
+                org_id: scoping.organization_id,
+                retention_days: check_in.retention_days,
+                start_time: safe_timestamp(received_at),
+                sdk: check_in.sdk,
+                payload: check_in.check_in.payload(),
+                routing_key_hint: check_in.check_in.routing_hint(),
+            });
+
+            self.produce(KafkaTopic::Monitors, message)
         })
     }
 
@@ -1249,31 +1287,6 @@ impl StoreService {
             payload: item.payload(),
         };
         self.produce(KafkaTopic::Profiles, KafkaMessage::Profile(message))?;
-        Ok(())
-    }
-
-    fn produce_check_in(
-        &self,
-        project_id: ProjectId,
-        org_id: OrganizationId,
-        received_at: DateTime<Utc>,
-        client: Option<&str>,
-        retention_days: u16,
-        item: &Item,
-    ) -> Result<(), StoreError> {
-        let message = KafkaMessage::CheckIn(CheckInKafkaMessage {
-            message_type: CheckInMessageType::CheckIn,
-            project_id,
-            retention_days,
-            start_time: safe_timestamp(received_at),
-            sdk: client.map(str::to_owned),
-            payload: item.payload(),
-            routing_key_hint: item.routing_hint(),
-            org_id,
-        });
-
-        self.produce(KafkaTopic::Monitors, message)?;
-
         Ok(())
     }
 }
