@@ -91,33 +91,28 @@ impl Forward for TransactionOutput {
         let (profile, event) = transaction.split_once(|tx, _| {
             let ExpandedTransaction {
                 headers: _,
-                event,
+                mut event,
                 flags: _,
                 attachments,
                 profile,
                 category: _,
             } = *tx;
 
-            let event = event.into_value().map(|mut event| {
-                if performance_issues_spans {
-                    event.performance_issues_spans = true.into();
-                }
+            if performance_issues_spans && let Some(event) = event.value_mut() {
+                event.performance_issues_spans = true.into();
+            }
 
-                Box::new(StoreEvent {
-                    event_category: relay_quotas::DataCategory::TransactionIndexed,
-                    event,
-                    attachments,
-                    retention_days: ctx.event_retention().standard,
-                })
+            let event = Box::new(StoreEvent {
+                event_category: relay_quotas::DataCategory::TransactionIndexed,
+                event,
+                attachments,
+                retention_days: ctx.event_retention().standard,
             });
 
             (profile, event)
         });
 
-        debug_assert!(event.is_some());
-        if let Some(event) = event.transpose() {
-            s.send_event(event);
-        }
+        s.send_event(event);
 
         if let Some(profile) = profile.transpose() {
             s.send_to_store(profile.map(|p, _| store::convert_profile(p, true, ctx)));

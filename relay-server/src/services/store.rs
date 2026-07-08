@@ -107,7 +107,7 @@ pub struct StoreEvent {
     /// The data category the [`Self::event`] is counted in.
     pub event_category: DataCategory,
     /// The event to be stored.
-    pub event: Event,
+    pub event: Annotated<Event>,
     /// A list of attachments associated with the event.
     pub attachments: Vec<Item>,
     /// Event retention in days.
@@ -507,10 +507,10 @@ impl StoreService {
         received_at: DateTime<Utc>,
         remote_addr: Option<String>,
     ) -> Result<(), StoreError> {
-        let event_id = store.event.id.value().copied();
+        let event_id = store.event.value().and_then(|e| e.id.value()).copied();
         let event_id = event_id.ok_or(StoreError::NoEventId)?;
 
-        let event_type = store.event.ty.value();
+        let event_type = store.event.value().and_then(|e| e.ty.value());
         let send_individual_attachments = matches!(event_type, Some(&EventType::Transaction));
 
         let mut attachments = Vec::new();
@@ -541,7 +541,7 @@ impl StoreService {
             KafkaTopic::Events
         };
 
-        let payload = Annotated::new(store.event).to_json()?.into_bytes().into();
+        let payload = store.event.to_json()?.into_bytes().into();
         self.produce(
             event_topic,
             KafkaMessage::Event(EventKafkaMessage {
