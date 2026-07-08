@@ -29,7 +29,8 @@ use crate::managed::{
 use crate::processing::utils::store::item_id_to_uuid;
 use crate::services::outcome::DiscardReason;
 use crate::services::store::{
-    ProfileAttachment, Store, StoreAttachment, StoreEnvelope, StoreProfileChunk, StoreTraceItem,
+    ProfileAttachment, Store, StoreAttachment, StoreEnvelope, StoreEvent, StoreProfileChunk,
+    StoreTraceItem,
 };
 use crate::services::upload::ByteStream;
 use crate::statsd::{RelayCounters, RelayTimers};
@@ -40,6 +41,7 @@ use super::outcome::Outcome;
 /// Messages that the objectstore service can handle.
 pub enum Objectstore {
     Envelope(StoreEnvelope),
+    Event(Managed<Box<StoreEvent>>),
     TraceAttachment(Managed<StoreTraceAttachment>),
     EventAttachment(Managed<StoreAttachment>),
     RawProfile(Managed<StoreRawProfile>),
@@ -49,7 +51,8 @@ pub enum Objectstore {
 impl Objectstore {
     fn kind(&self) -> MessageKind {
         match self {
-            Self::Envelope(_) => MessageKind::Envelope,
+            Self::Envelope(_) => MessageKind::Event,
+            Self::Event(_) => MessageKind::Event,
             Self::TraceAttachment(_) => MessageKind::TraceAttachment,
             Self::EventAttachment(_) => MessageKind::EventAttachment,
             Self::RawProfile(_) => MessageKind::RawProfile,
@@ -64,6 +67,7 @@ impl Objectstore {
                 .items()
                 .filter(|item| *item.ty() == ItemType::Attachment)
                 .count(),
+            Self::Event(e) => e.attachments.len(),
             Self::TraceAttachment(_) => 1,
             Self::EventAttachment(_) => 1,
             Self::RawProfile(_) => 1,
@@ -79,6 +83,14 @@ impl FromMessage<StoreEnvelope> for Objectstore {
 
     fn from_message(message: StoreEnvelope, _sender: ()) -> Self {
         Self::Envelope(message)
+    }
+}
+
+impl FromMessage<Managed<Box<StoreEvent>>> for Objectstore {
+    type Response = NoResponse;
+
+    fn from_message(message: Managed<Box<StoreEvent>>, _sender: ()) -> Self {
+        Self::Event(message)
     }
 }
 
@@ -110,6 +122,7 @@ impl FromMessage<Managed<StoreRawProfile>> for Objectstore {
 #[derive(Debug, Clone, Copy)]
 enum MessageKind {
     Envelope,
+    Event,
     EventAttachment,
     TraceAttachment,
     RawProfile,
@@ -120,6 +133,7 @@ impl MessageKind {
     fn as_str(&self) -> &'static str {
         match self {
             Self::Envelope => "envelope",
+            Self::Event => "envelope",
             Self::EventAttachment => "attachment",
             Self::TraceAttachment => "attachment_v2",
             Self::RawProfile => "profile_raw",
@@ -405,6 +419,12 @@ impl LoadShed<Objectstore> for ObjectstoreService {
                 }
                 self.inner.store.send(StoreEnvelope { envelope });
             }
+            Objectstore::Event(mut event) => {
+                if !self.inner.fallback_to_kafka {
+                    drop_attachments(&mut event);
+                }
+                self.inner.store.send(event);
+            }
             Objectstore::EventAttachment(message) => {
                 if self.inner.fallback_to_kafka {
                     self.inner.store.send(message);
@@ -446,6 +466,9 @@ impl ObjectstoreServiceInner {
         match message {
             Objectstore::Envelope(StoreEnvelope { envelope }) => {
                 self.handle_envelope(envelope).await;
+            }
+            Objectstore::Event(event) => {
+                self.handle_event(event).await;
             }
             Objectstore::TraceAttachment(attachment) => {
                 let result = self
@@ -531,6 +554,71 @@ impl ObjectstoreServiceInner {
 
         // last but not least, forward the envelope to the store endpoint
         self.store.send(StoreEnvelope { envelope });
+    }
+
+    async fn handle_event(&self, mut event: Managed<Box<StoreEvent>>) {
+        let scoping = event.scoping();
+        let session = self.session(
+            &self.event_attachments,
+            scoping.organization_id,
+            scoping.project_id,
+        );
+
+        let session = match session {
+            Err(error) => {
+                error
+                    .with_amount(event.attachments.len())
+                    .log(MessageKind::Event);
+                if !self.fallback_to_kafka {
+                    drop_attachments(&mut event);
+                }
+                self.store.send(event);
+                return;
+            }
+            Ok(session) => session,
+        };
+
+        let (mut event, attachments) = event.split_once(|mut e, _| {
+            let attachments = e
+                .attachments
+                .extract_if(.., |item| should_upload(item))
+                .collect::<Vec<_>>();
+
+            (e, attachments)
+        });
+
+        for mut attachment in attachments.split(|e| e) {
+            let result = self
+                .upload_bytes(
+                    MessageKind::Event,
+                    &session,
+                    attachment.payload(),
+                    event.retention_days,
+                    None,
+                    None,
+                )
+                .await;
+
+            match result {
+                Ok(stored_key) => {
+                    attachment.modify(|a, _| a.set_stored_key(stored_key.into_inner()));
+                }
+                Err(error) => {
+                    error.log(MessageKind::Event);
+                    if !self.fallback_to_kafka {
+                        let reason = Outcome::Invalid(DiscardReason::UploadFailed);
+                        let _ = attachment.reject_err(reason);
+                        continue;
+                    }
+                }
+            }
+
+            event.merge_with(attachment, |e, attachment, _| {
+                e.attachments.push(attachment)
+            });
+        }
+
+        self.store.send(event);
     }
 
     /// Uploads the attachment.
@@ -925,6 +1013,13 @@ fn should_upload(item: &Item) -> bool {
         && item.stored_key().is_none()
         && !item.is_empty()
         && !item.is_attachment_ref()
+}
+
+fn drop_attachments(event: &mut Managed<Box<StoreEvent>>) {
+    event.modify(|event, records| {
+        let reason = Outcome::Invalid(DiscardReason::UploadFailed);
+        records.reject_err(reason, std::mem::take(&mut event.attachments));
+    });
 }
 
 fn drop_failed_uploads(envelope: &mut ManagedEnvelope) {
