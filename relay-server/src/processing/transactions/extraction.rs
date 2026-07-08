@@ -8,7 +8,6 @@ use relay_sampling::DynamicSamplingContext;
 use relay_sampling::evaluation::SamplingDecision;
 
 use crate::processing::Context;
-use crate::processing::utils::event::EventMetricsExtracted;
 use crate::services::processor::ProcessingExtractedMetrics;
 
 /// Creates a span from the transaction and applies tag extraction on it.
@@ -33,7 +32,6 @@ pub struct ExtractMetricsContext<'a> {
     pub project_id: ProjectId,
     pub ctx: Context<'a>,
     pub sampling_decision: SamplingDecision,
-    pub metrics_extracted: bool,
     pub extract_span_metrics: bool,
 }
 
@@ -42,24 +40,20 @@ pub fn extract_metrics(
     event: &mut Annotated<Event>,
     extracted_metrics: &mut ProcessingExtractedMetrics,
     ctx: ExtractMetricsContext,
-) -> EventMetricsExtracted {
+) -> bool {
     let ExtractMetricsContext {
         dsc,
         project_id,
         ctx,
         sampling_decision,
-        metrics_extracted,
         extract_span_metrics,
     } = ctx;
     // TODO(follow-up): this function should always extract metrics. Dynamic sampling should validate
     // the full metrics extraction config and skip sampling if it is incomplete.
 
-    if metrics_extracted {
-        return EventMetricsExtracted(true);
-    }
     let Some(event) = event.value_mut() else {
         // Nothing to extract, but metrics extraction was called.
-        return EventMetricsExtracted(true);
+        return true;
     };
 
     // NOTE: This function requires a `metric_extraction` in the project config. Legacy configs
@@ -68,7 +62,7 @@ pub fn extract_metrics(
     let combined_config = {
         let config = match &ctx.project_info.config.metric_extraction {
             ErrorBoundary::Ok(config) if config.is_supported() => config,
-            _ => return EventMetricsExtracted(false),
+            _ => return false,
         };
         let global_config = match &ctx.global_config.metric_extraction {
             ErrorBoundary::Ok(global_config) => global_config,
@@ -83,7 +77,7 @@ pub fn extract_metrics(
                     // If there's an error with global metrics extraction, it is safe to assume that this
                     // Relay instance is not up-to-date, and we should skip extraction.
                     relay_log::debug!("Failed to parse global extraction config: {e}");
-                    return EventMetricsExtracted(false);
+                    return false;
                 }
             }
         };
@@ -106,5 +100,5 @@ pub fn extract_metrics(
     );
     extracted_metrics.extend(metrics, Some(sampling_decision));
 
-    EventMetricsExtracted(true)
+    true
 }

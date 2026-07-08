@@ -696,15 +696,7 @@ def test_session_metrics_processing(
     }
 
 
-@pytest.mark.parametrize("send_extracted_header", [False, True])
-def test_transaction_metrics_extraction_external_relays(
-    mini_sentry, relay, send_extracted_header
-):
-    if send_extracted_header:
-        item_headers = {"metrics_extracted": True}
-    else:
-        item_headers = None
-
+def test_transaction_metrics_extraction_external_relays(mini_sentry, relay):
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
@@ -732,44 +724,25 @@ def test_transaction_metrics_extraction_external_relays(
         "public_key": mini_sentry.get_dsn_public_key(project_id),
         "transaction": "root_transaction",
     }
-    external.send_transaction(project_id, tx, item_headers, trace_info)
+    external.send_transaction(project_id, tx, None, trace_info)
 
-    if send_extracted_header:
-        _, error = mini_sentry.test_failures.get()
-        assert (
-            str(error)
-            == "Relay sent us event: Received a transaction which already had its metrics extracted."
-        )
-    else:
-        payload = mini_sentry.get_metrics()
-        assert len(payload) == 4
+    payload = mini_sentry.get_metrics()
+    assert len(payload) == 4
 
-        by_name = {m["name"]: m for m in payload}
-        count_metric = by_name["c:spans/count_per_root_project@none"]
-        assert count_metric["tags"]["transaction"] == "root_transaction"
-        assert count_metric["value"] == 1.0
-        usage_metric = by_name["c:spans/usage@none"]
-        assert usage_metric["value"] == 1.0
+    by_name = {m["name"]: m for m in payload}
+    count_metric = by_name["c:spans/count_per_root_project@none"]
+    assert count_metric["tags"]["transaction"] == "root_transaction"
+    assert count_metric["value"] == 1.0
+    usage_metric = by_name["c:spans/usage@none"]
+    assert usage_metric["value"] == 1.0
 
 
-@pytest.mark.parametrize(
-    "send_extracted_header,expect_metrics_extraction",
-    [(False, True), (True, False)],
-    ids=["must extract metrics", "must not extract metrics"],
-)
 def test_transaction_metrics_extraction_processing_relays(
     transactions_consumer,
     metrics_consumer,
     mini_sentry,
     relay_with_processing,
-    send_extracted_header,
-    expect_metrics_extraction,
 ):
-    if send_extracted_header:
-        item_headers = {"metrics_extracted": True}
-    else:
-        item_headers = None
-
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
     mini_sentry.project_configs[project_id]["config"]
@@ -780,23 +753,17 @@ def test_transaction_metrics_extraction_processing_relays(
     metrics_consumer = metrics_consumer()
     tx_consumer = transactions_consumer()
     processing = relay_with_processing(options=TEST_CONFIG)
-    processing.send_transaction(project_id, tx, item_headers)
+    processing.send_transaction(project_id, tx)
 
     tx, _ = tx_consumer.get_event()
     assert tx["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
     tx_consumer.assert_empty()
 
-    if expect_metrics_extraction:
-        metrics = metrics_by_name(metrics_consumer, 4)
-        metric_usage = metrics["c:spans/usage@none"]
-        assert metric_usage["value"] == 1.0
-        metric_count_per_project = metrics["c:spans/count_per_root_project@none"]
-        assert metric_count_per_project["value"] == 1.0
-    else:
-        assert (
-            str(mini_sentry.test_failures.get(timeout=5)[1])
-            == "Relay sent us event: Received a transaction which already had its metrics extracted."
-        )
+    metrics = metrics_by_name(metrics_consumer, 4)
+    metric_usage = metrics["c:spans/usage@none"]
+    assert metric_usage["value"] == 1.0
+    metric_count_per_project = metrics["c:spans/count_per_root_project@none"]
+    assert metric_count_per_project["value"] == 1.0
 
     metrics_consumer.assert_empty()
 

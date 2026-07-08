@@ -2640,6 +2640,16 @@ impl Config {
             .or(self.credentials().map(|c| &c.secret_key))
     }
 
+    /// Returns the key used to verify upload locations.
+    #[cfg(feature = "processing")]
+    pub fn upload_verification_key(&self) -> Option<&PublicKey> {
+        self.upload()
+            .credentials
+            .as_ref()
+            .map(|c| &c.verification_key)
+            .or(self.credentials().map(|c| &c.public_key))
+    }
+
     /// Redis servers to connect to for project configs, cardinality limits,
     /// rate limiting, and metrics metadata.
     pub fn redis(&self) -> Option<RedisConfigsRef<'_>> {
