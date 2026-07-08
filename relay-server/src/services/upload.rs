@@ -1073,12 +1073,13 @@ mod tests {
             ),
         }
         "#);
+        let json =
+            r#"upload_signature=foo&upload_length=123&not_an_upload_param=456&upload_type=bar"#;
         let full: LocationQueryParams<Final> = serde_urlencoded::from_str(json).unwrap();
         insta::assert_debug_snapshot!(full, @r#"
         LocationQueryParams {
-            upload_length: Final(
-                123,
-            ),
+            upload_length: 123,
+            upload_id: None,
             upload_signature: "foo",
             other: UploadParams(
                 {
