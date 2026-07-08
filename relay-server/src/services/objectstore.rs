@@ -936,13 +936,11 @@ fn drop_attachments(event: &mut Managed<Box<StoreEvent>>) {
 
 #[cfg(test)]
 mod tests {
-    use bytes::Bytes;
     use relay_event_schema::protocol::EventId;
     use relay_quotas::DataCategory;
     use relay_system::Service;
 
-    use crate::Envelope;
-    use crate::managed::{ManagedEnvelope, ManagedTestHandle};
+    use crate::managed::ManagedTestHandle;
 
     use super::*;
 
@@ -1027,59 +1025,37 @@ mod tests {
     #[tokio::test]
     async fn event_attachment_rejects_without_fallback() {
         let (store, mut store_rx) = Addr::custom();
-        let (outcomes, mut outcome_rx) = Addr::custom();
         let mut config = test_config();
         config.fallback_to_kafka = false;
         let service = ObjectstoreService::new(&config, Some(store))
             .unwrap()
             .unwrap();
 
-        let envelope = ManagedEnvelope::untracked(test_envelope(), outcomes.clone());
         let mut item = Item::new(ItemType::Attachment);
         item.set_payload(ContentType::Text, "hello");
         let quantities = item.quantities();
-        let attachment = Managed::with_meta_from_managed_envelope(
-            &envelope,
-            StoreAttachment {
-                event_id: EventId::new(),
-                attachment: item,
-                quantities,
-                retention: 90,
-            },
-        );
+        let (attachment, mut handle) = Managed::for_test(StoreAttachment {
+            event_id: EventId::new(),
+            attachment: item,
+            quantities,
+            retention: 90,
+        })
+        .build();
 
         service.inner.handle_event_attachment(attachment).await;
 
         assert!(store_rx.try_recv().is_err());
 
-        let outcome = outcome_rx.try_recv().unwrap();
-        assert_eq!(
-            outcome.outcome,
-            Outcome::Invalid(DiscardReason::UploadFailed)
+        handle.assert_outcome(
+            &Outcome::Invalid(DiscardReason::UploadFailed),
+            DataCategory::Attachment,
+            5,
         );
-        assert_eq!(outcome.category, DataCategory::Attachment);
-        assert_eq!(outcome.quantity, 5);
-
-        let outcome = outcome_rx.try_recv().unwrap();
-        assert_eq!(
-            outcome.outcome,
-            Outcome::Invalid(DiscardReason::UploadFailed)
+        handle.assert_outcome(
+            &Outcome::Invalid(DiscardReason::UploadFailed),
+            DataCategory::AttachmentItem,
+            1,
         );
-        assert_eq!(outcome.category, DataCategory::AttachmentItem);
-        assert_eq!(outcome.quantity, 1);
-
-        assert!(outcome_rx.try_recv().is_err());
-    }
-
-    fn test_envelope() -> Box<Envelope> {
-        Envelope::parse_bytes(Bytes::from_static(
-            b"{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
-              {\"type\":\"event\",\"length\":2}\n\
-              {}\n\
-              {\"type\":\"attachment\",\"length\":5,\"filename\":\"hello.txt\"}\n\
-              hello\n",
-        ))
-        .unwrap()
     }
 
     fn test_event() -> (Managed<Box<StoreEvent>>, ManagedTestHandle) {
