@@ -627,8 +627,10 @@ def test_objectstore_retries(
     print(response.text)
 
     failure = mini_sentry.test_failures.get(timeout=10)
-    assert "failed to upload 1 attachment(s) to objectstore in 3 attempt(s)" in str(
-        failure
+    expected_attempts = 1 if with_multipart else 3  # multipart cannot be retried
+    assert (
+        f"failed to upload 1 attachment(s) to objectstore in {expected_attempts} attempt(s)"
+        in str(failure)
     )
     assert response.status_code == 500
 
