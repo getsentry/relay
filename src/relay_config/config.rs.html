@@ -2640,207 +2640,217 @@
 <a href=#2640 id=2640 data-nosnippet>2640</a>            .or(<span class="self">self</span>.credentials().map(|c| <span class="kw-2">&amp;</span>c.secret_key))
 <a href=#2641 id=2641 data-nosnippet>2641</a>    }
 <a href=#2642 id=2642 data-nosnippet>2642</a>
-<a href=#2643 id=2643 data-nosnippet>2643</a>    <span class="doccomment">/// Redis servers to connect to for project configs, cardinality limits,
-<a href=#2644 id=2644 data-nosnippet>2644</a>    /// rate limiting, and metrics metadata.
-<a href=#2645 id=2645 data-nosnippet>2645</a>    </span><span class="kw">pub fn </span>redis(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;RedisConfigsRef&lt;<span class="lifetime">'_</span>&gt;&gt; {
-<a href=#2646 id=2646 data-nosnippet>2646</a>        <span class="kw">let </span>redis_configs = <span class="self">self</span>.values.processing.redis.as_ref()<span class="question-mark">?</span>;
-<a href=#2647 id=2647 data-nosnippet>2647</a>
-<a href=#2648 id=2648 data-nosnippet>2648</a>        <span class="prelude-val">Some</span>(build_redis_configs(
-<a href=#2649 id=2649 data-nosnippet>2649</a>            redis_configs,
-<a href=#2650 id=2650 data-nosnippet>2650</a>            <span class="self">self</span>.cpu_concurrency() <span class="kw">as </span>u32,
-<a href=#2651 id=2651 data-nosnippet>2651</a>            <span class="self">self</span>.pool_concurrency() <span class="kw">as </span>u32,
-<a href=#2652 id=2652 data-nosnippet>2652</a>        ))
-<a href=#2653 id=2653 data-nosnippet>2653</a>    }
-<a href=#2654 id=2654 data-nosnippet>2654</a>
-<a href=#2655 id=2655 data-nosnippet>2655</a>    <span class="doccomment">/// Chunk size of attachments in bytes.
-<a href=#2656 id=2656 data-nosnippet>2656</a>    </span><span class="kw">pub fn </span>attachment_chunk_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-<a href=#2657 id=2657 data-nosnippet>2657</a>        <span class="self">self</span>.values.processing.attachment_chunk_size.as_bytes()
-<a href=#2658 id=2658 data-nosnippet>2658</a>    }
-<a href=#2659 id=2659 data-nosnippet>2659</a>
-<a href=#2660 id=2660 data-nosnippet>2660</a>    <span class="doccomment">/// Maximum metrics batch size in bytes.
-<a href=#2661 id=2661 data-nosnippet>2661</a>    </span><span class="kw">pub fn </span>metrics_max_batch_size_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-<a href=#2662 id=2662 data-nosnippet>2662</a>        <span class="self">self</span>.values.aggregator.max_flush_bytes
+<a href=#2643 id=2643 data-nosnippet>2643</a>    <span class="doccomment">/// Returns the key used to verify upload locations.
+<a href=#2644 id=2644 data-nosnippet>2644</a>    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#2645 id=2645 data-nosnippet>2645</a>    </span><span class="kw">pub fn </span>upload_verification_key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>PublicKey&gt; {
+<a href=#2646 id=2646 data-nosnippet>2646</a>        <span class="self">self</span>.upload()
+<a href=#2647 id=2647 data-nosnippet>2647</a>            .credentials
+<a href=#2648 id=2648 data-nosnippet>2648</a>            .as_ref()
+<a href=#2649 id=2649 data-nosnippet>2649</a>            .map(|c| <span class="kw-2">&amp;</span>c.verification_key)
+<a href=#2650 id=2650 data-nosnippet>2650</a>            .or(<span class="self">self</span>.credentials().map(|c| <span class="kw-2">&amp;</span>c.public_key))
+<a href=#2651 id=2651 data-nosnippet>2651</a>    }
+<a href=#2652 id=2652 data-nosnippet>2652</a>
+<a href=#2653 id=2653 data-nosnippet>2653</a>    <span class="doccomment">/// Redis servers to connect to for project configs, cardinality limits,
+<a href=#2654 id=2654 data-nosnippet>2654</a>    /// rate limiting, and metrics metadata.
+<a href=#2655 id=2655 data-nosnippet>2655</a>    </span><span class="kw">pub fn </span>redis(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;RedisConfigsRef&lt;<span class="lifetime">'_</span>&gt;&gt; {
+<a href=#2656 id=2656 data-nosnippet>2656</a>        <span class="kw">let </span>redis_configs = <span class="self">self</span>.values.processing.redis.as_ref()<span class="question-mark">?</span>;
+<a href=#2657 id=2657 data-nosnippet>2657</a>
+<a href=#2658 id=2658 data-nosnippet>2658</a>        <span class="prelude-val">Some</span>(build_redis_configs(
+<a href=#2659 id=2659 data-nosnippet>2659</a>            redis_configs,
+<a href=#2660 id=2660 data-nosnippet>2660</a>            <span class="self">self</span>.cpu_concurrency() <span class="kw">as </span>u32,
+<a href=#2661 id=2661 data-nosnippet>2661</a>            <span class="self">self</span>.pool_concurrency() <span class="kw">as </span>u32,
+<a href=#2662 id=2662 data-nosnippet>2662</a>        ))
 <a href=#2663 id=2663 data-nosnippet>2663</a>    }
 <a href=#2664 id=2664 data-nosnippet>2664</a>
-<a href=#2665 id=2665 data-nosnippet>2665</a>    <span class="doccomment">/// Default prefix to use when looking up project configs in Redis. This is only done when
-<a href=#2666 id=2666 data-nosnippet>2666</a>    /// Relay is in processing mode.
-<a href=#2667 id=2667 data-nosnippet>2667</a>    </span><span class="kw">pub fn </span>projectconfig_cache_prefix(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
-<a href=#2668 id=2668 data-nosnippet>2668</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.values.processing.projectconfig_cache_prefix
-<a href=#2669 id=2669 data-nosnippet>2669</a>    }
-<a href=#2670 id=2670 data-nosnippet>2670</a>
-<a href=#2671 id=2671 data-nosnippet>2671</a>    <span class="doccomment">/// Maximum rate limit to report to clients in seconds.
-<a href=#2672 id=2672 data-nosnippet>2672</a>    </span><span class="kw">pub fn </span>max_rate_limit(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;u64&gt; {
-<a href=#2673 id=2673 data-nosnippet>2673</a>        <span class="self">self</span>.values.processing.max_rate_limit.map(u32::into)
-<a href=#2674 id=2674 data-nosnippet>2674</a>    }
-<a href=#2675 id=2675 data-nosnippet>2675</a>
-<a href=#2676 id=2676 data-nosnippet>2676</a>    <span class="doccomment">/// Amount of remaining quota which is cached in memory.
-<a href=#2677 id=2677 data-nosnippet>2677</a>    </span><span class="kw">pub fn </span>quota_cache_ratio(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;f32&gt; {
-<a href=#2678 id=2678 data-nosnippet>2678</a>        <span class="self">self</span>.values.processing.quota_cache_ratio
+<a href=#2665 id=2665 data-nosnippet>2665</a>    <span class="doccomment">/// Chunk size of attachments in bytes.
+<a href=#2666 id=2666 data-nosnippet>2666</a>    </span><span class="kw">pub fn </span>attachment_chunk_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+<a href=#2667 id=2667 data-nosnippet>2667</a>        <span class="self">self</span>.values.processing.attachment_chunk_size.as_bytes()
+<a href=#2668 id=2668 data-nosnippet>2668</a>    }
+<a href=#2669 id=2669 data-nosnippet>2669</a>
+<a href=#2670 id=2670 data-nosnippet>2670</a>    <span class="doccomment">/// Maximum metrics batch size in bytes.
+<a href=#2671 id=2671 data-nosnippet>2671</a>    </span><span class="kw">pub fn </span>metrics_max_batch_size_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+<a href=#2672 id=2672 data-nosnippet>2672</a>        <span class="self">self</span>.values.aggregator.max_flush_bytes
+<a href=#2673 id=2673 data-nosnippet>2673</a>    }
+<a href=#2674 id=2674 data-nosnippet>2674</a>
+<a href=#2675 id=2675 data-nosnippet>2675</a>    <span class="doccomment">/// Default prefix to use when looking up project configs in Redis. This is only done when
+<a href=#2676 id=2676 data-nosnippet>2676</a>    /// Relay is in processing mode.
+<a href=#2677 id=2677 data-nosnippet>2677</a>    </span><span class="kw">pub fn </span>projectconfig_cache_prefix(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+<a href=#2678 id=2678 data-nosnippet>2678</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.values.processing.projectconfig_cache_prefix
 <a href=#2679 id=2679 data-nosnippet>2679</a>    }
 <a href=#2680 id=2680 data-nosnippet>2680</a>
-<a href=#2681 id=2681 data-nosnippet>2681</a>    <span class="doccomment">/// Maximum limit (ratio) for the in memory quota cache.
-<a href=#2682 id=2682 data-nosnippet>2682</a>    </span><span class="kw">pub fn </span>quota_cache_max(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;f32&gt; {
-<a href=#2683 id=2683 data-nosnippet>2683</a>        <span class="self">self</span>.values.processing.quota_cache_max
+<a href=#2681 id=2681 data-nosnippet>2681</a>    <span class="doccomment">/// Maximum rate limit to report to clients in seconds.
+<a href=#2682 id=2682 data-nosnippet>2682</a>    </span><span class="kw">pub fn </span>max_rate_limit(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;u64&gt; {
+<a href=#2683 id=2683 data-nosnippet>2683</a>        <span class="self">self</span>.values.processing.max_rate_limit.map(u32::into)
 <a href=#2684 id=2684 data-nosnippet>2684</a>    }
 <a href=#2685 id=2685 data-nosnippet>2685</a>
-<a href=#2686 id=2686 data-nosnippet>2686</a>    <span class="doccomment">/// Cache vacuum interval for the cardinality limiter in memory cache.
-<a href=#2687 id=2687 data-nosnippet>2687</a>    ///
-<a href=#2688 id=2688 data-nosnippet>2688</a>    /// The cache will scan for expired values based on this interval.
-<a href=#2689 id=2689 data-nosnippet>2689</a>    </span><span class="kw">pub fn </span>cardinality_limiter_cache_vacuum_interval(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
-<a href=#2690 id=2690 data-nosnippet>2690</a>        Duration::from_secs(<span class="self">self</span>.values.cardinality_limiter.cache_vacuum_interval)
-<a href=#2691 id=2691 data-nosnippet>2691</a>    }
-<a href=#2692 id=2692 data-nosnippet>2692</a>
-<a href=#2693 id=2693 data-nosnippet>2693</a>    <span class="doccomment">/// Interval to refresh internal health checks.
-<a href=#2694 id=2694 data-nosnippet>2694</a>    </span><span class="kw">pub fn </span>health_refresh_interval(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
-<a href=#2695 id=2695 data-nosnippet>2695</a>        Duration::from_millis(<span class="self">self</span>.values.health.refresh_interval_ms)
-<a href=#2696 id=2696 data-nosnippet>2696</a>    }
-<a href=#2697 id=2697 data-nosnippet>2697</a>
-<a href=#2698 id=2698 data-nosnippet>2698</a>    <span class="doccomment">/// Maximum memory watermark in bytes.
-<a href=#2699 id=2699 data-nosnippet>2699</a>    </span><span class="kw">pub fn </span>health_max_memory_watermark_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
-<a href=#2700 id=2700 data-nosnippet>2700</a>        <span class="self">self</span>.values
-<a href=#2701 id=2701 data-nosnippet>2701</a>            .health
-<a href=#2702 id=2702 data-nosnippet>2702</a>            .max_memory_bytes
-<a href=#2703 id=2703 data-nosnippet>2703</a>            .as_ref()
-<a href=#2704 id=2704 data-nosnippet>2704</a>            .map_or(u64::MAX, |b| b.as_bytes() <span class="kw">as </span>u64)
-<a href=#2705 id=2705 data-nosnippet>2705</a>    }
-<a href=#2706 id=2706 data-nosnippet>2706</a>
-<a href=#2707 id=2707 data-nosnippet>2707</a>    <span class="doccomment">/// Maximum memory watermark as a percentage of maximum system memory.
-<a href=#2708 id=2708 data-nosnippet>2708</a>    </span><span class="kw">pub fn </span>health_max_memory_watermark_percent(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; f32 {
-<a href=#2709 id=2709 data-nosnippet>2709</a>        <span class="self">self</span>.values.health.max_memory_percent
-<a href=#2710 id=2710 data-nosnippet>2710</a>    }
-<a href=#2711 id=2711 data-nosnippet>2711</a>
-<a href=#2712 id=2712 data-nosnippet>2712</a>    <span class="doccomment">/// Health check probe timeout.
-<a href=#2713 id=2713 data-nosnippet>2713</a>    </span><span class="kw">pub fn </span>health_probe_timeout(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
-<a href=#2714 id=2714 data-nosnippet>2714</a>        Duration::from_millis(<span class="self">self</span>.values.health.probe_timeout_ms)
+<a href=#2686 id=2686 data-nosnippet>2686</a>    <span class="doccomment">/// Amount of remaining quota which is cached in memory.
+<a href=#2687 id=2687 data-nosnippet>2687</a>    </span><span class="kw">pub fn </span>quota_cache_ratio(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;f32&gt; {
+<a href=#2688 id=2688 data-nosnippet>2688</a>        <span class="self">self</span>.values.processing.quota_cache_ratio
+<a href=#2689 id=2689 data-nosnippet>2689</a>    }
+<a href=#2690 id=2690 data-nosnippet>2690</a>
+<a href=#2691 id=2691 data-nosnippet>2691</a>    <span class="doccomment">/// Maximum limit (ratio) for the in memory quota cache.
+<a href=#2692 id=2692 data-nosnippet>2692</a>    </span><span class="kw">pub fn </span>quota_cache_max(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;f32&gt; {
+<a href=#2693 id=2693 data-nosnippet>2693</a>        <span class="self">self</span>.values.processing.quota_cache_max
+<a href=#2694 id=2694 data-nosnippet>2694</a>    }
+<a href=#2695 id=2695 data-nosnippet>2695</a>
+<a href=#2696 id=2696 data-nosnippet>2696</a>    <span class="doccomment">/// Cache vacuum interval for the cardinality limiter in memory cache.
+<a href=#2697 id=2697 data-nosnippet>2697</a>    ///
+<a href=#2698 id=2698 data-nosnippet>2698</a>    /// The cache will scan for expired values based on this interval.
+<a href=#2699 id=2699 data-nosnippet>2699</a>    </span><span class="kw">pub fn </span>cardinality_limiter_cache_vacuum_interval(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
+<a href=#2700 id=2700 data-nosnippet>2700</a>        Duration::from_secs(<span class="self">self</span>.values.cardinality_limiter.cache_vacuum_interval)
+<a href=#2701 id=2701 data-nosnippet>2701</a>    }
+<a href=#2702 id=2702 data-nosnippet>2702</a>
+<a href=#2703 id=2703 data-nosnippet>2703</a>    <span class="doccomment">/// Interval to refresh internal health checks.
+<a href=#2704 id=2704 data-nosnippet>2704</a>    </span><span class="kw">pub fn </span>health_refresh_interval(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
+<a href=#2705 id=2705 data-nosnippet>2705</a>        Duration::from_millis(<span class="self">self</span>.values.health.refresh_interval_ms)
+<a href=#2706 id=2706 data-nosnippet>2706</a>    }
+<a href=#2707 id=2707 data-nosnippet>2707</a>
+<a href=#2708 id=2708 data-nosnippet>2708</a>    <span class="doccomment">/// Maximum memory watermark in bytes.
+<a href=#2709 id=2709 data-nosnippet>2709</a>    </span><span class="kw">pub fn </span>health_max_memory_watermark_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
+<a href=#2710 id=2710 data-nosnippet>2710</a>        <span class="self">self</span>.values
+<a href=#2711 id=2711 data-nosnippet>2711</a>            .health
+<a href=#2712 id=2712 data-nosnippet>2712</a>            .max_memory_bytes
+<a href=#2713 id=2713 data-nosnippet>2713</a>            .as_ref()
+<a href=#2714 id=2714 data-nosnippet>2714</a>            .map_or(u64::MAX, |b| b.as_bytes() <span class="kw">as </span>u64)
 <a href=#2715 id=2715 data-nosnippet>2715</a>    }
 <a href=#2716 id=2716 data-nosnippet>2716</a>
-<a href=#2717 id=2717 data-nosnippet>2717</a>    <span class="doccomment">/// Refresh frequency for polling new memory stats.
-<a href=#2718 id=2718 data-nosnippet>2718</a>    </span><span class="kw">pub fn </span>memory_stat_refresh_frequency_ms(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
-<a href=#2719 id=2719 data-nosnippet>2719</a>        <span class="self">self</span>.values.health.memory_stat_refresh_frequency_ms
+<a href=#2717 id=2717 data-nosnippet>2717</a>    <span class="doccomment">/// Maximum memory watermark as a percentage of maximum system memory.
+<a href=#2718 id=2718 data-nosnippet>2718</a>    </span><span class="kw">pub fn </span>health_max_memory_watermark_percent(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; f32 {
+<a href=#2719 id=2719 data-nosnippet>2719</a>        <span class="self">self</span>.values.health.max_memory_percent
 <a href=#2720 id=2720 data-nosnippet>2720</a>    }
 <a href=#2721 id=2721 data-nosnippet>2721</a>
-<a href=#2722 id=2722 data-nosnippet>2722</a>    <span class="doccomment">/// Maximum amount of COGS measurements buffered in memory.
-<a href=#2723 id=2723 data-nosnippet>2723</a>    </span><span class="kw">pub fn </span>cogs_max_queue_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
-<a href=#2724 id=2724 data-nosnippet>2724</a>        <span class="self">self</span>.values.cogs.max_queue_size
+<a href=#2722 id=2722 data-nosnippet>2722</a>    <span class="doccomment">/// Health check probe timeout.
+<a href=#2723 id=2723 data-nosnippet>2723</a>    </span><span class="kw">pub fn </span>health_probe_timeout(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
+<a href=#2724 id=2724 data-nosnippet>2724</a>        Duration::from_millis(<span class="self">self</span>.values.health.probe_timeout_ms)
 <a href=#2725 id=2725 data-nosnippet>2725</a>    }
 <a href=#2726 id=2726 data-nosnippet>2726</a>
-<a href=#2727 id=2727 data-nosnippet>2727</a>    <span class="doccomment">/// Resource ID to use for Relay COGS measurements.
-<a href=#2728 id=2728 data-nosnippet>2728</a>    </span><span class="kw">pub fn </span>cogs_relay_resource_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
-<a href=#2729 id=2729 data-nosnippet>2729</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.values.cogs.relay_resource_id
+<a href=#2727 id=2727 data-nosnippet>2727</a>    <span class="doccomment">/// Refresh frequency for polling new memory stats.
+<a href=#2728 id=2728 data-nosnippet>2728</a>    </span><span class="kw">pub fn </span>memory_stat_refresh_frequency_ms(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
+<a href=#2729 id=2729 data-nosnippet>2729</a>        <span class="self">self</span>.values.health.memory_stat_refresh_frequency_ms
 <a href=#2730 id=2730 data-nosnippet>2730</a>    }
 <a href=#2731 id=2731 data-nosnippet>2731</a>
-<a href=#2732 id=2732 data-nosnippet>2732</a>    <span class="doccomment">/// Returns configuration for the default metrics aggregator.
-<a href=#2733 id=2733 data-nosnippet>2733</a>    </span><span class="kw">pub fn </span>default_aggregator_config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>AggregatorServiceConfig {
-<a href=#2734 id=2734 data-nosnippet>2734</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.values.aggregator
+<a href=#2732 id=2732 data-nosnippet>2732</a>    <span class="doccomment">/// Maximum amount of COGS measurements buffered in memory.
+<a href=#2733 id=2733 data-nosnippet>2733</a>    </span><span class="kw">pub fn </span>cogs_max_queue_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
+<a href=#2734 id=2734 data-nosnippet>2734</a>        <span class="self">self</span>.values.cogs.max_queue_size
 <a href=#2735 id=2735 data-nosnippet>2735</a>    }
 <a href=#2736 id=2736 data-nosnippet>2736</a>
-<a href=#2737 id=2737 data-nosnippet>2737</a>    <span class="doccomment">/// Returns configuration for non-default metrics aggregator.
-<a href=#2738 id=2738 data-nosnippet>2738</a>    </span><span class="kw">pub fn </span>secondary_aggregator_configs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Vec&lt;ScopedAggregatorConfig&gt; {
-<a href=#2739 id=2739 data-nosnippet>2739</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.values.secondary_aggregators
+<a href=#2737 id=2737 data-nosnippet>2737</a>    <span class="doccomment">/// Resource ID to use for Relay COGS measurements.
+<a href=#2738 id=2738 data-nosnippet>2738</a>    </span><span class="kw">pub fn </span>cogs_relay_resource_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+<a href=#2739 id=2739 data-nosnippet>2739</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.values.cogs.relay_resource_id
 <a href=#2740 id=2740 data-nosnippet>2740</a>    }
 <a href=#2741 id=2741 data-nosnippet>2741</a>
-<a href=#2742 id=2742 data-nosnippet>2742</a>    <span class="doccomment">/// Returns aggregator config for a given metrics namespace.
-<a href=#2743 id=2743 data-nosnippet>2743</a>    </span><span class="kw">pub fn </span>aggregator_config_for(<span class="kw-2">&amp;</span><span class="self">self</span>, namespace: MetricNamespace) -&gt; <span class="kw-2">&amp;</span>AggregatorServiceConfig {
-<a href=#2744 id=2744 data-nosnippet>2744</a>        <span class="kw">for </span>entry <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.values.secondary_aggregators {
-<a href=#2745 id=2745 data-nosnippet>2745</a>            <span class="kw">if </span>entry.condition.matches(<span class="prelude-val">Some</span>(namespace)) {
-<a href=#2746 id=2746 data-nosnippet>2746</a>                <span class="kw">return </span><span class="kw-2">&amp;</span>entry.config;
-<a href=#2747 id=2747 data-nosnippet>2747</a>            }
-<a href=#2748 id=2748 data-nosnippet>2748</a>        }
-<a href=#2749 id=2749 data-nosnippet>2749</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.values.aggregator
+<a href=#2742 id=2742 data-nosnippet>2742</a>    <span class="doccomment">/// Returns configuration for the default metrics aggregator.
+<a href=#2743 id=2743 data-nosnippet>2743</a>    </span><span class="kw">pub fn </span>default_aggregator_config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>AggregatorServiceConfig {
+<a href=#2744 id=2744 data-nosnippet>2744</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.values.aggregator
+<a href=#2745 id=2745 data-nosnippet>2745</a>    }
+<a href=#2746 id=2746 data-nosnippet>2746</a>
+<a href=#2747 id=2747 data-nosnippet>2747</a>    <span class="doccomment">/// Returns configuration for non-default metrics aggregator.
+<a href=#2748 id=2748 data-nosnippet>2748</a>    </span><span class="kw">pub fn </span>secondary_aggregator_configs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Vec&lt;ScopedAggregatorConfig&gt; {
+<a href=#2749 id=2749 data-nosnippet>2749</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.values.secondary_aggregators
 <a href=#2750 id=2750 data-nosnippet>2750</a>    }
 <a href=#2751 id=2751 data-nosnippet>2751</a>
-<a href=#2752 id=2752 data-nosnippet>2752</a>    <span class="doccomment">/// Return the statically configured Relays.
-<a href=#2753 id=2753 data-nosnippet>2753</a>    </span><span class="kw">pub fn </span>static_relays(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>HashMap&lt;RelayId, RelayInfo&gt; {
-<a href=#2754 id=2754 data-nosnippet>2754</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.values.auth.static_relays
-<a href=#2755 id=2755 data-nosnippet>2755</a>    }
-<a href=#2756 id=2756 data-nosnippet>2756</a>
-<a href=#2757 id=2757 data-nosnippet>2757</a>    <span class="doccomment">/// Returns the max age a signature is considered valid, in seconds.
-<a href=#2758 id=2758 data-nosnippet>2758</a>    </span><span class="kw">pub fn </span>signature_max_age(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
-<a href=#2759 id=2759 data-nosnippet>2759</a>        Duration::from_secs(<span class="self">self</span>.values.auth.signature_max_age)
+<a href=#2752 id=2752 data-nosnippet>2752</a>    <span class="doccomment">/// Returns aggregator config for a given metrics namespace.
+<a href=#2753 id=2753 data-nosnippet>2753</a>    </span><span class="kw">pub fn </span>aggregator_config_for(<span class="kw-2">&amp;</span><span class="self">self</span>, namespace: MetricNamespace) -&gt; <span class="kw-2">&amp;</span>AggregatorServiceConfig {
+<a href=#2754 id=2754 data-nosnippet>2754</a>        <span class="kw">for </span>entry <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.values.secondary_aggregators {
+<a href=#2755 id=2755 data-nosnippet>2755</a>            <span class="kw">if </span>entry.condition.matches(<span class="prelude-val">Some</span>(namespace)) {
+<a href=#2756 id=2756 data-nosnippet>2756</a>                <span class="kw">return </span><span class="kw-2">&amp;</span>entry.config;
+<a href=#2757 id=2757 data-nosnippet>2757</a>            }
+<a href=#2758 id=2758 data-nosnippet>2758</a>        }
+<a href=#2759 id=2759 data-nosnippet>2759</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.values.aggregator
 <a href=#2760 id=2760 data-nosnippet>2760</a>    }
 <a href=#2761 id=2761 data-nosnippet>2761</a>
-<a href=#2762 id=2762 data-nosnippet>2762</a>    <span class="doccomment">/// Returns `true` if unknown items should be accepted and forwarded.
-<a href=#2763 id=2763 data-nosnippet>2763</a>    </span><span class="kw">pub fn </span>accept_unknown_items(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-<a href=#2764 id=2764 data-nosnippet>2764</a>        <span class="kw">let </span>forward = <span class="self">self</span>.values.routing.accept_unknown_items;
-<a href=#2765 id=2765 data-nosnippet>2765</a>        forward.unwrap_or_else(|| !<span class="self">self</span>.processing_enabled())
-<a href=#2766 id=2766 data-nosnippet>2766</a>    }
-<a href=#2767 id=2767 data-nosnippet>2767</a>}
-<a href=#2768 id=2768 data-nosnippet>2768</a>
-<a href=#2769 id=2769 data-nosnippet>2769</a><span class="kw">impl </span>Default <span class="kw">for </span>Config {
-<a href=#2770 id=2770 data-nosnippet>2770</a>    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-<a href=#2771 id=2771 data-nosnippet>2771</a>        <span class="self">Self </span>{
-<a href=#2772 id=2772 data-nosnippet>2772</a>            values: ConfigValues::default(),
-<a href=#2773 id=2773 data-nosnippet>2773</a>            credentials: <span class="prelude-val">None</span>,
-<a href=#2774 id=2774 data-nosnippet>2774</a>            path: PathBuf::new(),
-<a href=#2775 id=2775 data-nosnippet>2775</a>        }
+<a href=#2762 id=2762 data-nosnippet>2762</a>    <span class="doccomment">/// Return the statically configured Relays.
+<a href=#2763 id=2763 data-nosnippet>2763</a>    </span><span class="kw">pub fn </span>static_relays(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>HashMap&lt;RelayId, RelayInfo&gt; {
+<a href=#2764 id=2764 data-nosnippet>2764</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.values.auth.static_relays
+<a href=#2765 id=2765 data-nosnippet>2765</a>    }
+<a href=#2766 id=2766 data-nosnippet>2766</a>
+<a href=#2767 id=2767 data-nosnippet>2767</a>    <span class="doccomment">/// Returns the max age a signature is considered valid, in seconds.
+<a href=#2768 id=2768 data-nosnippet>2768</a>    </span><span class="kw">pub fn </span>signature_max_age(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
+<a href=#2769 id=2769 data-nosnippet>2769</a>        Duration::from_secs(<span class="self">self</span>.values.auth.signature_max_age)
+<a href=#2770 id=2770 data-nosnippet>2770</a>    }
+<a href=#2771 id=2771 data-nosnippet>2771</a>
+<a href=#2772 id=2772 data-nosnippet>2772</a>    <span class="doccomment">/// Returns `true` if unknown items should be accepted and forwarded.
+<a href=#2773 id=2773 data-nosnippet>2773</a>    </span><span class="kw">pub fn </span>accept_unknown_items(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+<a href=#2774 id=2774 data-nosnippet>2774</a>        <span class="kw">let </span>forward = <span class="self">self</span>.values.routing.accept_unknown_items;
+<a href=#2775 id=2775 data-nosnippet>2775</a>        forward.unwrap_or_else(|| !<span class="self">self</span>.processing_enabled())
 <a href=#2776 id=2776 data-nosnippet>2776</a>    }
 <a href=#2777 id=2777 data-nosnippet>2777</a>}
 <a href=#2778 id=2778 data-nosnippet>2778</a>
-<a href=#2779 id=2779 data-nosnippet>2779</a><span class="attr">#[cfg(test)]
-<a href=#2780 id=2780 data-nosnippet>2780</a></span><span class="kw">mod </span>tests {
-<a href=#2781 id=2781 data-nosnippet>2781</a>    <span class="kw">use </span>super::<span class="kw-2">*</span>;
-<a href=#2782 id=2782 data-nosnippet>2782</a>
-<a href=#2783 id=2783 data-nosnippet>2783</a>    <span class="doccomment">/// Regression test for renaming the envelope buffer flags.
-<a href=#2784 id=2784 data-nosnippet>2784</a>    </span><span class="attr">#[test]
-<a href=#2785 id=2785 data-nosnippet>2785</a>    </span><span class="kw">fn </span>test_event_buffer_size() {
-<a href=#2786 id=2786 data-nosnippet>2786</a>        <span class="kw">let </span>yaml = <span class="string">r###"
-<a href=#2787 id=2787 data-nosnippet>2787</a>cache:
-<a href=#2788 id=2788 data-nosnippet>2788</a>    event_buffer_size: 1000000
-<a href=#2789 id=2789 data-nosnippet>2789</a>    event_expiry: 1800
-<a href=#2790 id=2790 data-nosnippet>2790</a>"###</span>;
-<a href=#2791 id=2791 data-nosnippet>2791</a>
-<a href=#2792 id=2792 data-nosnippet>2792</a>        <span class="kw">let </span>values: ConfigValues = serde_yaml::from_str(yaml).unwrap();
-<a href=#2793 id=2793 data-nosnippet>2793</a>        <span class="macro">assert_eq!</span>(values.cache.envelope_buffer_size, <span class="number">1_000_000</span>);
-<a href=#2794 id=2794 data-nosnippet>2794</a>        <span class="macro">assert_eq!</span>(values.cache.envelope_expiry, <span class="number">1800</span>);
-<a href=#2795 id=2795 data-nosnippet>2795</a>    }
-<a href=#2796 id=2796 data-nosnippet>2796</a>
-<a href=#2797 id=2797 data-nosnippet>2797</a>    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#2798 id=2798 data-nosnippet>2798</a>    #[test]
-<a href=#2799 id=2799 data-nosnippet>2799</a>    </span><span class="kw">fn </span>test_upload_secret_key_from_file() {
-<a href=#2800 id=2800 data-nosnippet>2800</a>        <span class="kw">let </span>path = env::temp_dir().join(Uuid::new_v4().to_string());
-<a href=#2801 id=2801 data-nosnippet>2801</a>        fs::create_dir(<span class="kw-2">&amp;</span>path).unwrap();
-<a href=#2802 id=2802 data-nosnippet>2802</a>        fs::write(
-<a href=#2803 id=2803 data-nosnippet>2803</a>            path.join(<span class="string">"my_secret.txt"</span>),
-<a href=#2804 id=2804 data-nosnippet>2804</a>            <span class="string">"U3LSQM5NorvgnoYHW_aZpc_43nuuh3lhs3zjjcBwaks"</span>,
-<a href=#2805 id=2805 data-nosnippet>2805</a>        )
-<a href=#2806 id=2806 data-nosnippet>2806</a>        .unwrap();
-<a href=#2807 id=2807 data-nosnippet>2807</a>        fs::write(
-<a href=#2808 id=2808 data-nosnippet>2808</a>            ConfigValues::path(<span class="kw-2">&amp;</span>path),
-<a href=#2809 id=2809 data-nosnippet>2809</a>            <span class="string">r#"
-<a href=#2810 id=2810 data-nosnippet>2810</a>upload:
-<a href=#2811 id=2811 data-nosnippet>2811</a>    credentials:
-<a href=#2812 id=2812 data-nosnippet>2812</a>        signing_key: ${file:my_secret.txt}
-<a href=#2813 id=2813 data-nosnippet>2813</a>        verification_key: "VNS8haF0VTnuMMDR2t-f7AgnmUcXmcdzV3SVksSk34s""#</span>,
-<a href=#2814 id=2814 data-nosnippet>2814</a>        )
-<a href=#2815 id=2815 data-nosnippet>2815</a>        .unwrap();
-<a href=#2816 id=2816 data-nosnippet>2816</a>
-<a href=#2817 id=2817 data-nosnippet>2817</a>        <span class="kw">let </span>config = Config::from_path(<span class="kw-2">&amp;</span>path).unwrap();
-<a href=#2818 id=2818 data-nosnippet>2818</a>
-<a href=#2819 id=2819 data-nosnippet>2819</a>        fs::remove_dir_all(path).unwrap();
-<a href=#2820 id=2820 data-nosnippet>2820</a>
-<a href=#2821 id=2821 data-nosnippet>2821</a>        <span class="kw">let </span>signing_key = <span class="kw-2">&amp;</span>config.upload().credentials.as_ref().unwrap().signing_key;
-<a href=#2822 id=2822 data-nosnippet>2822</a>        <span class="macro">assert_eq!</span>(
-<a href=#2823 id=2823 data-nosnippet>2823</a>            signing_key.to_string(),
-<a href=#2824 id=2824 data-nosnippet>2824</a>            <span class="string">"U3LSQM5NorvgnoYHW_aZpc_43nuuh3lhs3zjjcBwaks"
-<a href=#2825 id=2825 data-nosnippet>2825</a>        </span>);
-<a href=#2826 id=2826 data-nosnippet>2826</a>    }
-<a href=#2827 id=2827 data-nosnippet>2827</a>
-<a href=#2828 id=2828 data-nosnippet>2828</a>    <span class="attr">#[test]
-<a href=#2829 id=2829 data-nosnippet>2829</a>    </span><span class="kw">fn </span>test_emit_outcomes() {
-<a href=#2830 id=2830 data-nosnippet>2830</a>        <span class="kw">for </span>(serialized, deserialized) <span class="kw">in </span><span class="kw-2">&amp;</span>[
-<a href=#2831 id=2831 data-nosnippet>2831</a>            (<span class="string">"true"</span>, EmitOutcomes::AsOutcomes),
-<a href=#2832 id=2832 data-nosnippet>2832</a>            (<span class="string">"false"</span>, EmitOutcomes::None),
-<a href=#2833 id=2833 data-nosnippet>2833</a>            (<span class="string">"\"as_client_reports\""</span>, EmitOutcomes::AsClientReports),
-<a href=#2834 id=2834 data-nosnippet>2834</a>        ] {
-<a href=#2835 id=2835 data-nosnippet>2835</a>            <span class="kw">let </span>value: EmitOutcomes = serde_json::from_str(serialized).unwrap();
-<a href=#2836 id=2836 data-nosnippet>2836</a>            <span class="macro">assert_eq!</span>(value, <span class="kw-2">*</span>deserialized);
-<a href=#2837 id=2837 data-nosnippet>2837</a>            <span class="macro">assert_eq!</span>(serde_json::to_string(<span class="kw-2">&amp;</span>value).unwrap(), <span class="kw-2">*</span>serialized);
-<a href=#2838 id=2838 data-nosnippet>2838</a>        }
-<a href=#2839 id=2839 data-nosnippet>2839</a>    }
-<a href=#2840 id=2840 data-nosnippet>2840</a>
-<a href=#2841 id=2841 data-nosnippet>2841</a>    <span class="attr">#[test]
-<a href=#2842 id=2842 data-nosnippet>2842</a>    </span><span class="kw">fn </span>test_emit_outcomes_invalid() {
-<a href=#2843 id=2843 data-nosnippet>2843</a>        <span class="macro">assert!</span>(serde_json::from_str::&lt;EmitOutcomes&gt;(<span class="string">"asdf"</span>).is_err());
-<a href=#2844 id=2844 data-nosnippet>2844</a>    }
-<a href=#2845 id=2845 data-nosnippet>2845</a>}
+<a href=#2779 id=2779 data-nosnippet>2779</a><span class="kw">impl </span>Default <span class="kw">for </span>Config {
+<a href=#2780 id=2780 data-nosnippet>2780</a>    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+<a href=#2781 id=2781 data-nosnippet>2781</a>        <span class="self">Self </span>{
+<a href=#2782 id=2782 data-nosnippet>2782</a>            values: ConfigValues::default(),
+<a href=#2783 id=2783 data-nosnippet>2783</a>            credentials: <span class="prelude-val">None</span>,
+<a href=#2784 id=2784 data-nosnippet>2784</a>            path: PathBuf::new(),
+<a href=#2785 id=2785 data-nosnippet>2785</a>        }
+<a href=#2786 id=2786 data-nosnippet>2786</a>    }
+<a href=#2787 id=2787 data-nosnippet>2787</a>}
+<a href=#2788 id=2788 data-nosnippet>2788</a>
+<a href=#2789 id=2789 data-nosnippet>2789</a><span class="attr">#[cfg(test)]
+<a href=#2790 id=2790 data-nosnippet>2790</a></span><span class="kw">mod </span>tests {
+<a href=#2791 id=2791 data-nosnippet>2791</a>    <span class="kw">use </span>super::<span class="kw-2">*</span>;
+<a href=#2792 id=2792 data-nosnippet>2792</a>
+<a href=#2793 id=2793 data-nosnippet>2793</a>    <span class="doccomment">/// Regression test for renaming the envelope buffer flags.
+<a href=#2794 id=2794 data-nosnippet>2794</a>    </span><span class="attr">#[test]
+<a href=#2795 id=2795 data-nosnippet>2795</a>    </span><span class="kw">fn </span>test_event_buffer_size() {
+<a href=#2796 id=2796 data-nosnippet>2796</a>        <span class="kw">let </span>yaml = <span class="string">r###"
+<a href=#2797 id=2797 data-nosnippet>2797</a>cache:
+<a href=#2798 id=2798 data-nosnippet>2798</a>    event_buffer_size: 1000000
+<a href=#2799 id=2799 data-nosnippet>2799</a>    event_expiry: 1800
+<a href=#2800 id=2800 data-nosnippet>2800</a>"###</span>;
+<a href=#2801 id=2801 data-nosnippet>2801</a>
+<a href=#2802 id=2802 data-nosnippet>2802</a>        <span class="kw">let </span>values: ConfigValues = serde_yaml::from_str(yaml).unwrap();
+<a href=#2803 id=2803 data-nosnippet>2803</a>        <span class="macro">assert_eq!</span>(values.cache.envelope_buffer_size, <span class="number">1_000_000</span>);
+<a href=#2804 id=2804 data-nosnippet>2804</a>        <span class="macro">assert_eq!</span>(values.cache.envelope_expiry, <span class="number">1800</span>);
+<a href=#2805 id=2805 data-nosnippet>2805</a>    }
+<a href=#2806 id=2806 data-nosnippet>2806</a>
+<a href=#2807 id=2807 data-nosnippet>2807</a>    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#2808 id=2808 data-nosnippet>2808</a>    #[test]
+<a href=#2809 id=2809 data-nosnippet>2809</a>    </span><span class="kw">fn </span>test_upload_secret_key_from_file() {
+<a href=#2810 id=2810 data-nosnippet>2810</a>        <span class="kw">let </span>path = env::temp_dir().join(Uuid::new_v4().to_string());
+<a href=#2811 id=2811 data-nosnippet>2811</a>        fs::create_dir(<span class="kw-2">&amp;</span>path).unwrap();
+<a href=#2812 id=2812 data-nosnippet>2812</a>        fs::write(
+<a href=#2813 id=2813 data-nosnippet>2813</a>            path.join(<span class="string">"my_secret.txt"</span>),
+<a href=#2814 id=2814 data-nosnippet>2814</a>            <span class="string">"U3LSQM5NorvgnoYHW_aZpc_43nuuh3lhs3zjjcBwaks"</span>,
+<a href=#2815 id=2815 data-nosnippet>2815</a>        )
+<a href=#2816 id=2816 data-nosnippet>2816</a>        .unwrap();
+<a href=#2817 id=2817 data-nosnippet>2817</a>        fs::write(
+<a href=#2818 id=2818 data-nosnippet>2818</a>            ConfigValues::path(<span class="kw-2">&amp;</span>path),
+<a href=#2819 id=2819 data-nosnippet>2819</a>            <span class="string">r#"
+<a href=#2820 id=2820 data-nosnippet>2820</a>upload:
+<a href=#2821 id=2821 data-nosnippet>2821</a>    credentials:
+<a href=#2822 id=2822 data-nosnippet>2822</a>        signing_key: ${file:my_secret.txt}
+<a href=#2823 id=2823 data-nosnippet>2823</a>        verification_key: "VNS8haF0VTnuMMDR2t-f7AgnmUcXmcdzV3SVksSk34s""#</span>,
+<a href=#2824 id=2824 data-nosnippet>2824</a>        )
+<a href=#2825 id=2825 data-nosnippet>2825</a>        .unwrap();
+<a href=#2826 id=2826 data-nosnippet>2826</a>
+<a href=#2827 id=2827 data-nosnippet>2827</a>        <span class="kw">let </span>config = Config::from_path(<span class="kw-2">&amp;</span>path).unwrap();
+<a href=#2828 id=2828 data-nosnippet>2828</a>
+<a href=#2829 id=2829 data-nosnippet>2829</a>        fs::remove_dir_all(path).unwrap();
+<a href=#2830 id=2830 data-nosnippet>2830</a>
+<a href=#2831 id=2831 data-nosnippet>2831</a>        <span class="kw">let </span>signing_key = <span class="kw-2">&amp;</span>config.upload().credentials.as_ref().unwrap().signing_key;
+<a href=#2832 id=2832 data-nosnippet>2832</a>        <span class="macro">assert_eq!</span>(
+<a href=#2833 id=2833 data-nosnippet>2833</a>            signing_key.to_string(),
+<a href=#2834 id=2834 data-nosnippet>2834</a>            <span class="string">"U3LSQM5NorvgnoYHW_aZpc_43nuuh3lhs3zjjcBwaks"
+<a href=#2835 id=2835 data-nosnippet>2835</a>        </span>);
+<a href=#2836 id=2836 data-nosnippet>2836</a>    }
+<a href=#2837 id=2837 data-nosnippet>2837</a>
+<a href=#2838 id=2838 data-nosnippet>2838</a>    <span class="attr">#[test]
+<a href=#2839 id=2839 data-nosnippet>2839</a>    </span><span class="kw">fn </span>test_emit_outcomes() {
+<a href=#2840 id=2840 data-nosnippet>2840</a>        <span class="kw">for </span>(serialized, deserialized) <span class="kw">in </span><span class="kw-2">&amp;</span>[
+<a href=#2841 id=2841 data-nosnippet>2841</a>            (<span class="string">"true"</span>, EmitOutcomes::AsOutcomes),
+<a href=#2842 id=2842 data-nosnippet>2842</a>            (<span class="string">"false"</span>, EmitOutcomes::None),
+<a href=#2843 id=2843 data-nosnippet>2843</a>            (<span class="string">"\"as_client_reports\""</span>, EmitOutcomes::AsClientReports),
+<a href=#2844 id=2844 data-nosnippet>2844</a>        ] {
+<a href=#2845 id=2845 data-nosnippet>2845</a>            <span class="kw">let </span>value: EmitOutcomes = serde_json::from_str(serialized).unwrap();
+<a href=#2846 id=2846 data-nosnippet>2846</a>            <span class="macro">assert_eq!</span>(value, <span class="kw-2">*</span>deserialized);
+<a href=#2847 id=2847 data-nosnippet>2847</a>            <span class="macro">assert_eq!</span>(serde_json::to_string(<span class="kw-2">&amp;</span>value).unwrap(), <span class="kw-2">*</span>serialized);
+<a href=#2848 id=2848 data-nosnippet>2848</a>        }
+<a href=#2849 id=2849 data-nosnippet>2849</a>    }
+<a href=#2850 id=2850 data-nosnippet>2850</a>
+<a href=#2851 id=2851 data-nosnippet>2851</a>    <span class="attr">#[test]
+<a href=#2852 id=2852 data-nosnippet>2852</a>    </span><span class="kw">fn </span>test_emit_outcomes_invalid() {
+<a href=#2853 id=2853 data-nosnippet>2853</a>        <span class="macro">assert!</span>(serde_json::from_str::&lt;EmitOutcomes&gt;(<span class="string">"asdf"</span>).is_err());
+<a href=#2854 id=2854 data-nosnippet>2854</a>    }
+<a href=#2855 id=2855 data-nosnippet>2855</a>}
 </code></pre></div></section></main></body></html>
