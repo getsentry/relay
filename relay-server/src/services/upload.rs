@@ -895,7 +895,7 @@ mod tests {
             assert!(
                 signed_location
                     .verify(Utc::now(), &verification_config)
-                    .is_ok()
+                    .is_err() // If a dedicated verification key is present, don't try the legacy one.
             );
         }
 
