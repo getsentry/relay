@@ -2,10 +2,10 @@ use serde_json::Value;
 
 use crate::services::processor::ProcessingError;
 
-/// Maximum accepted number of nested keys in a path, e.g. the form-data key path `sentry[a][b][c]…`.
+/// Maximum number of nested keys accepted in a path like the form-data key path `sentry[a][b][c]…`.
 ///
 /// This number needs to be limited due to the recursion taking place when building the JSON object
-/// in [`update_nested_value`], and when serializing, normaliziing, and dropping it.
+/// in [`update_nested_value`], and when serializing, normalizing, and dropping it.
 const MAX_PATH_DEPTH: usize = 15;
 
 enum IndexingState {
