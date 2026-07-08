@@ -570,19 +570,6 @@ def test_concurrency_limit(mini_sentry, relay, project_config):
 def test_objectstore_retries(
     mini_sentry, relay_with_processing, project_config, with_multipart
 ):
-    # @mini_sentry.app.route(
-    #     "/v1/objects:multipart/attachments/<scope>/<key>", methods=["PUT"]
-    # )
-    # def multipart_create(**params):
-    #     print(params)
-    #     return {"key": params["key"], "upload_id": "foo"}, 201
-
-    # @mini_sentry.app.route(
-    #     "/v1/objects:multipart:parts/attachments/<scope>/<key>", methods=["PUT"]
-    # )
-    # def multipart_upload(**opts):
-    #     return "whoops", 500
-
     project_id = 42
     project_key = mini_sentry.get_dsn_public_key(project_id)
 

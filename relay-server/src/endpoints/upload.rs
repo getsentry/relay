@@ -103,6 +103,7 @@ impl IntoResponse for Error {
                 upload::Error::InvalidLocation(_) | upload::Error::SigningFailed => {
                     StatusCode::INTERNAL_SERVER_ERROR
                 }
+                #[cfg(feature = "processing")]
                 upload::Error::InvalidUploadId(_) => StatusCode::BAD_REQUEST,
                 upload::Error::SerializeFailed(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 upload::Error::InvalidSignature(_) => StatusCode::BAD_REQUEST,
@@ -424,10 +425,12 @@ fn is_hyper_user_error(error: &(dyn std::error::Error + 'static)) -> bool {
         .is_some_and(hyper::Error::is_user)
 }
 
+#[cfg(feature = "processing")]
 fn is_request_body_error(error: &(dyn std::error::Error + 'static)) -> bool {
     is_hyper_user_error(error) || is_upload_length_error(error)
 }
 
+#[cfg(feature = "processing")]
 fn is_upload_length_error(error: &(dyn std::error::Error + 'static)) -> bool {
     error.downcast_ref::<io::Error>().is_some_and(|error| {
         matches!(

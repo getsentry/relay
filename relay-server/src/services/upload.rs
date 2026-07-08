@@ -88,6 +88,7 @@ impl Error {
             Error::Timeout(_) => "timeout",
             Error::Upstream(_) => "upstream_response",
             Error::InvalidLocation(_) => "invalid_location",
+            #[cfg(feature = "processing")]
             Error::InvalidUploadId(_) => "invalid_upload_id",
             Error::SigningFailed => "signing_failed",
             Error::SerializeFailed(_) => "serialize_failed",
