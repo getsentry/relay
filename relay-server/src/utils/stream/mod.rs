@@ -8,6 +8,6 @@ mod retryable;
 pub use bounded::*;
 pub use metered::*;
 pub use peek::*;
-#[cfg(any(feature = "processing", test))]
+#[cfg(feature = "processing")]
 pub use rechunked::*;
 pub use retryable::*;

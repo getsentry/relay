@@ -10,7 +10,7 @@ from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from urllib3 import encode_multipart_formdata
 from .asserts import matches_any, time_within_delta
-from .consts import DUMMY_UPLOAD_LOCATION
+from .consts import DUMMY_UPLOAD_FINAL_LOCATION
 
 
 @cache
@@ -1113,6 +1113,6 @@ def test_playstation_attachment_inline_limit(
     video = by_name["crash-video.webm"]
     assert video.headers["content_type"] == "application/vnd.sentry.attachment-ref+json"
     assert json.loads(video.payload.bytes) == {
-        "location": DUMMY_UPLOAD_LOCATION,
+        "location": DUMMY_UPLOAD_FINAL_LOCATION,
         "content_type": "video/webm",
     }
