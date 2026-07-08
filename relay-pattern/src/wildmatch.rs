@@ -49,7 +49,7 @@ where
         // The loop:
         //  - Returns `true` if a match was found.
         //  - Breaks with a new frame, when an alternate is found.
-        //  - Breaks with `None` if the current frame does not match.
+        //  - Breaks with `None` if the current alternate does not match.
         let new_frame = loop {
             if !matched {
                 if frame.t_revert == 0 {
@@ -67,13 +67,8 @@ where
                     None => break None,
                 }
 
-                match skip_to_token::<M>(frame.stream, frame.t_next, frame.h_current) {
-                    Some((tokens, revert, remaining)) => {
-                        frame.t_next += tokens;
-                        frame.h_revert = revert;
-                        frame.h_current = remaining;
-                    }
-                    None => break None,
+                if !frame.skip_to_next_token::<M>() {
+                    break None;
                 }
             }
 
@@ -120,15 +115,10 @@ where
 
                     frame.t_revert = frame.t_next;
 
-                    match skip_to_token::<M>(frame.stream, frame.t_next, frame.h_current) {
-                        Some((tokens, revert, remaining)) => {
-                            frame.t_next += tokens;
-                            frame.h_revert = revert;
-                            frame.h_current = remaining;
-                            true
-                        }
-                        None => break None,
+                    if !frame.skip_to_next_token::<M>() {
+                        break None;
                     }
+                    true
                 }
                 Token::Class { negated, ranges } => match frame.h_current.chars().next() {
                     Some(next) if M::ranges_match(next, *negated, ranges) => {
@@ -270,24 +260,16 @@ impl Matcher for CaseInsensitive {
     }
 }
 
-/// Efficiently skips to the next matching possible match after a wildcard.
-///
-/// The stream must be indexable with `t_next`.
+/// Efficiently skips to the next possible match after a wildcard.
 ///
 /// Returns `None` if there is no match and the matching can be aborted.
 /// Otherwise returns the amount of tokens consumed, the new save point to backtrack to
 /// and the remaining haystack.
 #[inline(always)]
-fn skip_to_token<'a, M>(
-    stream: TokenStream<'_>,
-    t_next: usize,
-    haystack: &'a str,
-) -> Option<(usize, &'a str, &'a str)>
+fn skip_to_token<'a, M>(next: &Token, haystack: &'a str) -> Option<(bool, &'a str, &'a str)>
 where
     M: Matcher,
 {
-    let next = stream.get(t_next);
-
     // TODO: optimize other cases like:
     //  - `[Any(n), Literal(_), ..]` (skip + literal find)
     //  - `[Any(n)]` (minimum remaining length)
@@ -296,7 +278,7 @@ where
             match M::find(haystack, literal) {
                 // We cannot use `offset + literal.len()` as the revert position
                 // to not discard overlapping matches.
-                Some((offset, len)) => (1, &haystack[offset..], &haystack[offset + len..]),
+                Some((offset, len)) => (true, &haystack[offset..], &haystack[offset + len..]),
                 // The literal does not exist in the remaining slice.
                 // No backtracking necessary, we won't ever find it.
                 None => return None,
@@ -304,7 +286,11 @@ where
         }
         Token::Class { negated, ranges } => {
             match M::ranges_find(haystack, *negated, ranges) {
-                Some((offset, c)) => (1, &haystack[offset..], &haystack[offset + c.len_utf8()..]),
+                Some((offset, c)) => (
+                    true,
+                    &haystack[offset..],
+                    &haystack[offset + c.len_utf8()..],
+                ),
                 // None of the remaining characters matches this class.
                 // No backtracking necessary, we won't ever find it.
                 None => return None,
@@ -313,7 +299,7 @@ where
         _ => {
             // We didn't consume and match the token, revert to the previous state and
             // let the generic matching with slower backtracking handle the token.
-            (0, haystack, haystack)
+            (false, haystack, haystack)
         }
     })
 }
@@ -372,16 +358,11 @@ fn recover_offset_len(
 }
 
 /// The stream of tokens which is currently being matched against the haystack.
-///
-/// The stream consists of the tokens of the currently active alternation branch
-/// (`alt`, empty if there is none) followed by the not yet fully matched suffix
-/// of the original pattern (`base`).
-///
-/// Alternations cannot be nested, which is why two segments are always sufficient
-/// to represent every state which can occur during matching.
 #[derive(Default, Clone, Copy, Debug)]
 struct TokenStream<'a> {
     /// The tokens of the currently active alternation branch.
+    ///
+    /// Empty, if no alternate is being evaluated.
     alternate: &'a [Token],
     /// The remaining tokens of the original pattern to match against.
     tokens: &'a [Token],
@@ -476,7 +457,7 @@ impl<'a> Frame<'a> {
         }
     }
 
-    /// Creates a child frame starting at the current location with a list of `branches` to evaluate.
+    /// Creates a child frame starting at the current location with a list of `alternates` to evaluate.
     ///
     /// The parent's `t_next` must already point past the alternation token.
     /// The working state is initialized when the first branch is entered.
@@ -496,7 +477,7 @@ impl<'a> Frame<'a> {
 
     /// Enters the next branch of the alternation and resets the working state.
     ///
-    /// Returns `false` if all branches are already exhausted.
+    /// Returns `false` if all alternates are already exhausted.
     fn enter_next_alternate(&mut self) -> bool {
         let Some(branch) = self.alternates.next() else {
             return false;
@@ -512,6 +493,26 @@ impl<'a> Frame<'a> {
         self.t_revert = 0;
 
         true
+    }
+
+    /// Efficiently skips to the next possible match after a wildcard.
+    ///
+    /// Like [`skip_to_token`] but advances the frame state.
+    ///
+    /// Returns `false` if no match is possible and matching can be aborted.
+    #[inline(always)]
+    fn skip_to_next_token<M: Matcher>(&mut self) -> bool {
+        let next = self.stream.get(self.t_next);
+
+        match skip_to_token::<M>(next, self.h_current) {
+            Some((consumed, revert, remaining)) => {
+                self.t_next += consumed as usize;
+                self.h_revert = revert;
+                self.h_current = remaining;
+                true
+            }
+            None => false,
+        }
     }
 }
 
