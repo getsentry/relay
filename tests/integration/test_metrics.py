@@ -723,7 +723,9 @@ def test_transaction_metrics_extraction_external_relays(
     timestamp = datetime.now(tz=timezone.utc)
     tx = generate_transaction_item(timestamp.timestamp())
 
-    external = relay(mini_sentry, options=TEST_CONFIG)
+    # Disable outcomes, to not have to deal with client reports.
+    options = {**TEST_CONFIG, "outcomes": {"emit_outcomes": False}}
+    external = relay(mini_sentry, options=options)
 
     trace_info = {
         "trace_id": tx["contexts"]["trace"]["trace_id"],
@@ -732,10 +734,6 @@ def test_transaction_metrics_extraction_external_relays(
     }
     external.send_transaction(project_id, tx, item_headers, trace_info)
 
-    # Client reports.
-    envelope = mini_sentry.get_captured_envelope()
-    assert len(envelope.items) == 1
-
     if send_extracted_header:
         _, error = mini_sentry.test_failures.get()
         assert (
@@ -743,10 +741,7 @@ def test_transaction_metrics_extraction_external_relays(
             == "Relay sent us event: Received a transaction which already had its metrics extracted."
         )
     else:
-        metrics_envelope = mini_sentry.get_captured_envelope()
-        assert len(metrics_envelope.items) == 1
-
-        payload = json.loads(metrics_envelope.items[0].get_bytes().decode())
+        payload = mini_sentry.get_metrics()
         assert len(payload) == 4
 
         by_name = {m["name"]: m for m in payload}
