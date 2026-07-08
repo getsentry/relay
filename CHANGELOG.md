@@ -38,6 +38,7 @@
 - Upgrade release image to Debian 13. ([#6110](https://github.com/getsentry/relay/pull/6110))
 - No longer serialize transactions into envelopes when storing them. ([#6193](https://github.com/getsentry/relay/pull/6193))
 - No longer serialize check-ins into envelopes when storing them. ([#6196](https://github.com/getsentry/relay/pull/6196))
+- No longer serialize errors into envelopes when storing them. ([#6194](https://github.com/getsentry/relay/pull/6194))
 - Prefix upload location query params for forward compatibility. ([#6076](https://github.com/getsentry/relay/pull/6076))
 - Add config option to bypass the kafka fallback for objectstore uploads. ([#6127](https://github.com/getsentry/relay/pull/6127))
 - Use upstream descriptor in upload requests. ([#6128](https://github.com/getsentry/relay/pull/6128))

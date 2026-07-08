@@ -124,10 +124,13 @@ impl Item {
                 smallvec![(DataCategory::Security, item_count)]
             }
             ItemType::UnrealReport => smallvec![(DataCategory::Error, item_count)],
-            ItemType::Attachment => smallvec![
-                (DataCategory::Attachment, self.attachment_body_size()),
-                (DataCategory::AttachmentItem, item_count),
-            ],
+            ItemType::Attachment => match self.rate_limited() {
+                true => smallvec![],
+                false => smallvec![
+                    (DataCategory::Attachment, self.attachment_body_size()),
+                    (DataCategory::AttachmentItem, item_count),
+                ],
+            },
             ItemType::Session | ItemType::Sessions => {
                 smallvec![(DataCategory::Session, item_count)]
             }

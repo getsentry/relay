@@ -106,6 +106,7 @@ impl Forward for TransactionOutput {
                 event_category: relay_quotas::DataCategory::TransactionIndexed,
                 event,
                 attachments,
+                user_reports: Vec::new(),
                 retention_days: ctx.event_retention().standard,
             });
 
