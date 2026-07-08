@@ -225,18 +225,7 @@ struct CaseInsensitive;
 impl Matcher for CaseInsensitive {
     #[inline(always)]
     fn is_prefix(haystack: &str, needle: &Literal) -> Option<usize> {
-        // We can safely assume `needle` is already full lowercase. This transformation is done on
-        // token creation based on the options.
-        //
-        // The haystack cannot be converted to full lowercase to not break class matches on
-        // uppercase unicode characters which would produce multiple lowercase characters.
-        //
-        // TODO: benchmark if allocation free is better/faster.
-        let needle = needle.as_case_converted_bytes();
-        let lower_haystack = haystack.to_lowercase();
-
-        memchr::arch::all::is_prefix(lower_haystack.as_bytes(), needle)
-            .then(|| recover_offset_len(haystack, 0, needle.len()).1)
+        is_prefix_case_insensitive(haystack, needle)
     }
 
     #[inline(always)]
@@ -329,6 +318,82 @@ fn exactly_one<T>(mut iter: impl Iterator<Item = T>) -> Option<T> {
         Some(_) => None,
         None => Some(item),
     }
+}
+
+/// Case insensitive prefix check of a lowercase `needle` against `haystack`.
+///
+/// This does intentionally **not** support context-sensitive conversions.
+///
+/// Returns the length of the match in the original, not case converted, `haystack` in bytes.
+#[inline(always)]
+pub fn is_prefix_case_insensitive(haystack: &str, needle: &Literal) -> Option<usize> {
+    let needle_bytes = needle.as_case_converted_bytes();
+    let haystack_bytes = haystack.as_bytes();
+
+    // Here would be the potential for a fast path check using `memchr::arch::all::is_prefix`,
+    // though we do expect most patterns to not match. So on average the expectation is that
+    // we will still need to fall back to the slow path in most cases.
+
+    // A fast loop for ascii, which will fallback to unicode only if necessary.
+    //
+    // There might be more optimizations possible here, if we store in the needle whether it
+    // contains non-ascii characters. Possibly whether the pattern contains non-ascii.
+    let mut offset = 0;
+    while offset < needle_bytes.len() {
+        match haystack_bytes.get(offset) {
+            Some(&byte) if byte.is_ascii() && needle_bytes[offset].is_ascii() => {
+                if byte.to_ascii_lowercase() != needle_bytes[offset] {
+                    return None;
+                }
+                offset += 1;
+            }
+            // Either side contains non-ascii data.
+            Some(_) => return is_prefix_unicode(haystack, needle, offset),
+            // Haystack is exhausted.
+            None => return None,
+        }
+    }
+
+    Some(offset)
+}
+
+/// Case insensitive prefix check comparing the `needle` the `haystack`,
+/// continuing [`is_prefix_case_insensitive`] at `offset`.
+///
+/// `offset` must be at a char boundary in both `haystack` and `needle` and all bytes
+/// before `offset` must already be matched.
+///
+/// Returns the length of the match in the original `haystack` in bytes.
+#[inline(always)]
+fn is_prefix_unicode(haystack: &str, needle: &Literal, offset: usize) -> Option<usize> {
+    let mut remaining = needle.as_case_converted_str()[offset..].chars();
+    // Length of the fully matched haystack prefix in original haystack bytes.
+    let mut len = offset;
+
+    for c in haystack[offset..].chars() {
+        if remaining.as_str().is_empty() {
+            break;
+        }
+
+        let mut fully_matched = true;
+        for lc in c.to_lowercase() {
+            match remaining.next() {
+                Some(n) if n != lc => return None,
+                Some(_) => {}
+                // The needle ends in the middle of the lowercase expansion of `c`.
+                None => {
+                    fully_matched = false;
+                    break;
+                }
+            }
+        }
+
+        if fully_matched {
+            len += c.len_utf8();
+        }
+    }
+
+    remaining.as_str().is_empty().then_some(len)
 }
 
 /// Recovers offset and length from a case insensitive search in `haystack` using a lowecase
@@ -837,6 +902,8 @@ mod tests {
             };
         }
 
+        test!("", "f", None);
+        test!("foo", "fooİ", None);
         test!("foobar", "f", Some(1));
         test!("foobar", "F", Some(1));
         test!("fOobar", "foo", Some(3));
@@ -854,6 +921,15 @@ mod tests {
         test!("i̇x", "i\u{307}", Some(3));
         test!("i̇x", "i\u{307}x", Some(4));
         test!("i̇x", "i\u{307}_", None);
+        test!("\u{212A}elvin", "kelvin", Some(8));
+        test!("\u{212A}elvin", "x", None);
+        test!("ẞ", "ß", Some(3));
+        test!("straẞe", "strasse", None);
+        test!("ΑΣ", "ΑΣ", None);
+        test!("ΑΣ", "ας", None);
+        test!("ΑΣ", "ασ", Some(4));
+        test!("Σ_", "σ_", Some(3));
+        test!("Σ_", "ς_", None);
     }
 
     #[test]
