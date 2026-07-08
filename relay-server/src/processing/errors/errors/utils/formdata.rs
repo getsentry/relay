@@ -4,12 +4,6 @@ use crate::envelope::Item;
 use crate::services::processor::ProcessingError;
 use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 
-/// Maximum number of nested `sentry[a][b][c]…` keys accepted inside a form-data key.
-///
-/// This number needs to be limited due to the recursion taking place when building the JSON object
-/// in [`utils::update_nested_value`], and when serializing, normaliziing, and dropping it.
-const MAX_NESTED_FORMDATA_DEPTH: usize = 15;
-
 pub fn merge_formdata(target: &mut SerdeValue, item: &Item) -> Result<(), ProcessingError> {
     let payload = item.payload();
     let mut aggregator = ChunkedFormDataAggregator::new();
@@ -28,15 +22,12 @@ pub fn merge_formdata(target: &mut SerdeValue, item: &Item) -> Result<(), Proces
             // Try to parse the nested form syntax `sentry[key][key]` This is required for the
             // Breakpad client library, which only supports string values of up to 64
             // characters.
-            if keys.len() > MAX_NESTED_FORMDATA_DEPTH {
-                return Err(ProcessingError::NestingTooDeep);
-            }
-            utils::update_nested_value(target, &keys, entry.value());
+            utils::update_nested_value(target, &keys, entry.value())?;
         } else {
             // Merge additional form fields from the request with `extra` data from the event
             // payload and set defaults for processing. This is sent by clients like Breakpad or
             // Crashpad.
-            utils::update_nested_value(target, &["extra", entry.key()], entry.value());
+            utils::update_nested_value(target, &["extra", entry.key()], entry.value())?;
         }
     }
 

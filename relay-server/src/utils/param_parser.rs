@@ -1,5 +1,13 @@
 use serde_json::Value;
 
+use crate::services::processor::ProcessingError;
+
+/// Maximum accepted number of nested keys in a path, e.g. the form-data key path `sentry[a][b][c]…`.
+///
+/// This number needs to be limited due to the recursion taking place when building the JSON object
+/// in [`update_nested_value`], and when serializing, normaliziing, and dropping it.
+const MAX_PATH_DEPTH: usize = 15;
+
 enum IndexingState {
     LookingForLeftParenthesis,
     Accumulating(usize),
@@ -7,18 +15,25 @@ enum IndexingState {
 }
 
 /// Updates a json Value at the specified path.
-pub fn update_nested_value<V>(target: &mut Value, path: &[&str], value: V)
+pub fn update_nested_value<V>(
+    target: &mut Value,
+    path: &[&str],
+    value: V,
+) -> Result<(), ProcessingError>
 where
     V: Into<String>,
 {
+    if path.len() > MAX_PATH_DEPTH {
+        return Err(ProcessingError::NestingTooDeep);
+    }
     let map = match target {
         Value::Object(map) => map,
-        _ => return,
+        _ => return Ok(()),
     };
 
     let (key, rest) = match path.split_first() {
         Some(tuple) => tuple,
-        None => return,
+        None => return Ok(()),
     };
 
     let entry = map.entry(key.to_owned());
@@ -27,8 +42,10 @@ where
         entry.or_insert_with(|| Value::String(value.into()));
     } else {
         let sub_object = entry.or_insert_with(|| Value::Object(Default::default()));
-        update_nested_value(sub_object, rest, value);
+        update_nested_value(sub_object, rest, value)?;
     }
+
+    Ok(())
 }
 
 /// Merge two [`serde_json::Value`] items.
@@ -167,7 +184,7 @@ mod tests {
     fn test_update_value() {
         let mut val = Value::Object(serde_json::Map::new());
 
-        update_nested_value(&mut val, &["x", "y", "z"], "xx");
+        update_nested_value(&mut val, &["x", "y", "z"], "xx").unwrap();
 
         insta::assert_json_snapshot!(val, @r###"
         {
@@ -179,9 +196,9 @@ mod tests {
         }
         "###);
 
-        update_nested_value(&mut val, &["x", "y", "k"], "kk");
-        update_nested_value(&mut val, &["w", ""], "w");
-        update_nested_value(&mut val, &["z1"], "val1");
+        update_nested_value(&mut val, &["x", "y", "k"], "kk").unwrap();
+        update_nested_value(&mut val, &["w", ""], "w").unwrap();
+        update_nested_value(&mut val, &["z1"], "val1").unwrap();
         insta::assert_json_snapshot!(val, @r###"
         {
           "w": {
