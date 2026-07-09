@@ -145,8 +145,11 @@ impl MessageKind {
 
 /// A request to create a new objectstore multipart upload.
 pub struct Create {
+    /// The sentry org.
     pub organization_id: OrganizationId,
+    /// The sentry project.
     pub project_id: ProjectId,
+    /// The desired objectstore key.
     pub key: String,
 }
 

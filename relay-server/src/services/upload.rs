@@ -132,7 +132,7 @@ pub struct Create {
     pub project: ProjectContext,
     /// The size of the intended upload in bytes, as specified in the `Upload-Length` header.
     ///
-    /// Trusted clients (i.e. PoP Relays) are allowed to omit the length (see `Upload-Defer-Length: 1`).
+    /// `None` indicates that the length is not yet known (see `Upload-Defer-Length: 1`).
     pub length: Option<usize>,
     /// The attachment type of the upload.
     pub attachment_type: Option<AttachmentType>,
@@ -280,21 +280,32 @@ impl Service {
             Backend::Objectstore { addr, config } => {
                 use crate::services::objectstore::UploadRef;
 
+                // Create the key:
                 let key = Uuid::now_v7().as_simple().to_string();
+                #[cfg(debug_assertions)]
+                let original_key = key.clone();
+
                 let Scoping {
                     organization_id,
                     project_id,
                     ..
                 } = project.scoping;
 
-                let UploadRef { key, upload_id } = addr
-                    .send(objectstore::Create {
-                        organization_id,
-                        project_id,
-                        key,
-                    })
-                    .await
-                    .map_err(Error::ObjectstoreServiceUnavailable)??;
+                let (key, upload_id) = match length {
+                    Some(0) => (key, None), // multipart does not allow empty uploads
+                    _ => {
+                        let UploadRef { key, upload_id } = addr
+                            .send(objectstore::Create {
+                                organization_id,
+                                project_id,
+                                key,
+                            })
+                            .await
+                            .map_err(Error::ObjectstoreServiceUnavailable)??;
+                        debug_assert_eq!(&key, &original_key);
+                        (key, upload_id)
+                    }
+                };
 
                 Location {
                     project_id: project.scoping.project_id,
