@@ -582,33 +582,15 @@ impl<L: UploadLength> SignedLocation<L> {
     /// Fails if the signature is outdated or incorrect.
     #[cfg(feature = "processing")]
     pub fn verify(self, received: DateTime<Utc>, config: &Config) -> Result<Location<L>, Error> {
-        let mut result = Err(SignatureError::Unverifiable);
         let location = self.location.try_to_uri()?;
         let max_age = chrono::Duration::seconds(config.upload().max_age);
+        let public_key = config
+            .upload_verification_key()
+            .ok_or(SignatureError::Unverifiable)?;
 
-        if let Some(public_key) = &config
-            .upload()
-            .credentials
-            .as_ref()
-            .map(|c| &c.verification_key)
-        {
-            result = self
-                .signature
-                .verify(location.as_bytes(), public_key, received, max_age);
-        }
-
-        // For the transition phase, check the general purpose signature even when there is a
-        // special-purpose upload key, because the URL may have been signed by an old instance.
-        // This can be simplified after the rollout.
-        if matches!(&result, Err(SignatureError::Unverifiable))
-            && let Some(public_key) = config.credentials().map(|c| &c.public_key)
-        {
-            result = self
-                .signature
-                .verify(location.as_bytes(), public_key, received, max_age);
-        }
-
-        result?;
+        let _ = self
+            .signature
+            .verify(location.as_bytes(), public_key, received, max_age)?;
 
         Ok(self.location)
     }
@@ -913,7 +895,7 @@ mod tests {
             assert!(
                 signed_location
                     .verify(Utc::now(), &verification_config)
-                    .is_ok()
+                    .is_err() // If a dedicated verification key is present, don't try the legacy one.
             );
         }
 

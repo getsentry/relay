@@ -1586,6 +1586,18 @@ mod tests {
     }
 
     #[test]
+    fn test_alternates_many() {
+        const N: usize = 100_000;
+
+        let pattern = Pattern::new(&"{ab,ba}".repeat(N)).unwrap();
+        assert!(pattern.is_match(&"ab".repeat(N)));
+        assert!(pattern.is_match(&"ba".repeat(N)));
+        assert!(pattern.is_match(&"abba".repeat(N / 2)));
+        assert!(!pattern.is_match(&"ab".repeat(N - 1)));
+        assert!(!pattern.is_match(&format!("{}aa", "ab".repeat(N - 1))));
+    }
+
+    #[test]
     fn test_alternate_strategy() {
         // Empty alternates can be simplified.
         assert_strategy!("{}foo{}", Literal);
