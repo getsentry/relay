@@ -302,6 +302,7 @@ impl Service {
                             })
                             .await
                             .map_err(Error::ObjectstoreServiceUnavailable)??;
+                        #[cfg(debug_assertions)]
                         debug_assert_eq!(&key, &original_key);
                         (key, upload_id)
                     }
