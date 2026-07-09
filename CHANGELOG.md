@@ -32,6 +32,7 @@
 - Match patterns iteratively instead of recursively. ([#6188](https://github.com/getsentry/relay/pull/6188))
 - Expand size of outcome quantities from `u32` to `u64`. ([#6133](https://github.com/getsentry/relay/pull/6133))
 - Internally handle outcomes as metrics. ([#6107](https://github.com/getsentry/relay/pull/6107))
+- Re-introduce `projects:discard-transaction` feature flag. ([#6199](https://github.com/getsentry/relay/pull/6199))
 - Have relay generate metric billing outcomes. ([#6066](https://github.com/getsentry/relay/pull/6066))
 - Update sentry-conventions to 0.12.0.
 - Update sentry-conventions to 0.13.0. ([#6139](https://github.com/getsentry/relay/pull/6139))
