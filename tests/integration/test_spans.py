@@ -14,8 +14,6 @@ from .test_store import make_transaction
 
 TEST_CONFIG = {
     "aggregator": {
-        "bucket_interval": 1,
-        "initial_delay": 0,
         "shift_key": "none",
     }
 }
@@ -1068,6 +1066,42 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
         }
         # Metrics are always correct:
         assert span_usage_metric() == 2
+
+
+def test_discard_transaction(
+    mini_sentry,
+    relay_with_processing,
+    transactions_consumer,
+    spans_consumer,
+    outcomes_consumer,
+):
+    transactions_consumer = transactions_consumer()
+    spans_consumer = spans_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).append(
+        "projects:discard-transaction"
+    )
+
+    relay = relay_with_processing(options=TEST_CONFIG)
+
+    start = datetime.now(timezone.utc)
+    end = start + timedelta(seconds=1)
+
+    relay.send_envelope(project_id, envelope_with_transaction_and_spans(start, end))
+
+    # We have one nested span and the transaction itself becomes a span
+    spans = spans_consumer.get_spans(n=2)
+    assert len(spans) == 2
+
+    outcomes = outcomes_consumer.get_outcomes()
+    assert [(o["category"], o["outcome"], o["reason"]) for o in outcomes] == [
+        (9, 1, "discarded"),  # TransactionIndexed, Filtered
+    ]
+
+    transactions_consumer.assert_empty()
 
 
 def test_span_filtering_with_generic_inbound_filter(
