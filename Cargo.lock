@@ -4686,6 +4686,7 @@ dependencies = [
  "memchr",
  "serde",
  "serde_json",
+ "smallvec",
 ]
 
 [[package]]
