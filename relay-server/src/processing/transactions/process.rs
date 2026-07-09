@@ -11,15 +11,15 @@ use smallvec::smallvec;
 use crate::envelope::Item;
 use crate::managed::{Counted, Managed, ManagedResult, Quantities, RecordKeeper, Rejected};
 use crate::metrics_extraction::ExtractedMetrics;
-use crate::processing::spans::{Indexed, TotalAndIndexed};
 use crate::processing::transactions::extraction::{self, ExtractMetricsContext};
 use crate::processing::transactions::spans;
 use crate::processing::transactions::types::{
     ExpandedProfile, ExpandedTransaction, ExtractedIndexedSpans, ExtractedSpans, Flags,
-    StandaloneProfile,
+    SpansEmbedded, SpansExtracted, StandaloneProfile,
 };
 use crate::processing::transactions::{Error, SerializedTransaction, profile};
 use crate::processing::utils::event::{EventFullyNormalized, FiltersStatus};
+use crate::processing::utils::types::{Indexed, TotalAndIndexed};
 use crate::processing::{Context, utils};
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
 use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
@@ -47,7 +47,6 @@ pub fn expand(
             event.ty = EventType::Transaction.into();
         }
         let flags = Flags {
-            spans_extracted: transaction_item.spans_extracted(),
             fully_normalized: headers.meta().request_trust().is_trusted()
                 && transaction_item.fully_normalized(),
             spans_rate_limited: false,
@@ -72,6 +71,7 @@ pub fn expand(
             attachments,
             profile,
             category: TotalAndIndexed,
+            span_extraction: SpansEmbedded,
         }))
     })
 }
@@ -170,7 +170,6 @@ pub fn normalize(
         .0;
 
         // Normalization may have trimmed spans:
-        debug_assert!(!work.flags.spans_extracted);
         let new_span_count = work.count_embedded_spans_and_self();
         if let Some(trimmed) = original_span_count.checked_sub(new_span_count)
             && trimmed > 0
@@ -286,7 +285,7 @@ fn do_make_dynamic_sampling_decision(
 }
 
 type IndexedTransactionAndSpanAndMetrics = (
-    Managed<Box<ExpandedTransaction<Indexed>>>,
+    Managed<Box<ExpandedTransaction<Indexed, SpansExtracted>>>,
     Option<Managed<ExtractedIndexedSpans>>,
     Managed<ExtractedMetrics>,
 );
@@ -295,7 +294,7 @@ type IndexedTransactionAndSpanAndMetrics = (
 ///
 /// Like [`split_indexed_and_total`] but works with [`ExtractedSpans`].
 pub fn split_indexed_and_total_with_extracted_spans(
-    transaction: Managed<Box<ExpandedTransaction>>,
+    transaction: Managed<Box<ExpandedTransaction<TotalAndIndexed, SpansExtracted>>>,
     spans: Option<Managed<ExtractedSpans>>,
     ctx: Context<'_>,
 ) -> IndexedTransactionAndSpanAndMetrics {
@@ -465,15 +464,11 @@ pub fn extract_spans(
     transaction: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     server_sample_rate: Option<f64>,
-) -> (Managed<ExtractedSpans>, Managed<Box<ExpandedTransaction>>) {
-    // This could be validated with additional typing, a different type for transactions which have
-    // spans extracted.
-    debug_assert!(
-        !transaction.flags.spans_extracted,
-        "spans can only be extracted once"
-    );
-
-    transaction.split_once(|mut tx, r| {
+) -> (
+    Managed<ExtractedSpans>,
+    Managed<Box<ExpandedTransaction<TotalAndIndexed, SpansExtracted>>>,
+) {
+    transaction.split_once(|tx, r| {
         let spans =
             spans::extract_from_event(tx.headers.dsc(), &tx.event, ctx.config, server_sample_rate)
                 .into_iter()
@@ -490,9 +485,7 @@ pub fn extract_spans(
                 .collect();
 
         // Once spans are extracted, they are no longer counted towards the transaction.
-        tx.flags.spans_extracted = true;
-
-        (ExtractedSpans(spans), tx)
+        (ExtractedSpans(spans), Box::new(tx.into_spans_extracted()))
     })
 }
 

@@ -11,39 +11,64 @@ use crate::Envelope;
 use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType, Items};
 use crate::managed::{Counted, Managed, Quantities, Rejected};
 use crate::metrics_extraction::ExtractedMetrics;
-use crate::processing::spans::{Indexed, TotalAndIndexed};
 use crate::processing::transactions::Error;
 use crate::processing::transactions::process::split_indexed_and_total;
+use crate::processing::utils::types::{Indexed, TotalAndIndexed, TotalCategory};
 use crate::processing::{Context, CountRateLimited, RateLimited, RateLimiter};
 use crate::statsd::RelayTimers;
 
 /// Flags extracted from transaction item headers.
 ///
-/// Ideally `spans_extracted` will not be needed in the future. Unsure
-/// about `fully_normalized`.
+/// Unsure whether `fully_normalized` will be needed in the future.
 #[derive(Debug, Default)]
 pub struct Flags {
-    pub spans_extracted: bool,
     pub fully_normalized: bool,
     pub spans_rate_limited: bool,
 }
 
+/// Whether spans embedded in a transaction have been extracted into standalone spans.
+///
+/// Payloads start out as [`SpansEmbedded`] and transition to [`SpansExtracted`] during
+/// span extraction, transferring ownership of the span categories to the extracted spans.
+pub trait SpanExtraction {
+    /// Whether the embedded spans have been extracted.
+    const EXTRACTED: bool;
+}
+
+/// Spans are still embedded in the transaction and count towards the span categories.
+#[derive(Copy, Clone, Debug)]
+pub struct SpansEmbedded;
+
+impl SpanExtraction for SpansEmbedded {
+    const EXTRACTED: bool = false;
+}
+
+/// Spans have been extracted from the transaction and no longer count towards it.
+#[derive(Copy, Clone, Debug)]
+pub struct SpansExtracted;
+
+impl SpanExtraction for SpansExtracted {
+    const EXTRACTED: bool = true;
+}
+
 /// A transaction after parsing.
 ///
-/// The type parameter indicates whether metrics were already extracted, which changes how
-/// we count the transaction (total vs indexed).
+/// The `C` type parameter indicates whether metrics were already extracted, which changes how
+/// we count the transaction (total vs indexed). The `S` type parameter indicates whether the
+/// embedded spans were already extracted, which changes whether they count towards the
+/// transaction.
 #[derive(Debug)]
-pub struct ExpandedTransaction<C = TotalAndIndexed> {
+pub struct ExpandedTransaction<C = TotalAndIndexed, S = SpansEmbedded> {
     pub headers: EnvelopeHeaders,
     pub event: Annotated<Event>,
     pub flags: Flags,
     pub attachments: Vec<Item>,
     pub profile: Option<ExpandedProfile>,
-    #[expect(unused, reason = "marker field, only set never read")]
     pub category: C,
+    pub span_extraction: S,
 }
 
-impl<T> ExpandedTransaction<T> {
+impl<C, S> ExpandedTransaction<C, S> {
     pub fn count_embedded_spans_and_self(&self) -> usize {
         1 + self
             .event
@@ -53,11 +78,11 @@ impl<T> ExpandedTransaction<T> {
     }
 }
 
-impl ExpandedTransaction<TotalAndIndexed> {
+impl<S> ExpandedTransaction<TotalAndIndexed, S> {
     /// Change the marker type of this transaction.
     ///
-    /// Once converted, the payload will not count toward indexed categories.
-    pub fn into_indexed(self) -> ExpandedTransaction<Indexed> {
+    /// Once converted, the payload will only count toward indexed categories.
+    pub fn into_indexed(self) -> ExpandedTransaction<Indexed, S> {
         let Self {
             headers,
             event,
@@ -65,6 +90,7 @@ impl ExpandedTransaction<TotalAndIndexed> {
             attachments,
             profile,
             category: _,
+            span_extraction,
         } = self;
         ExpandedTransaction {
             headers,
@@ -73,58 +99,63 @@ impl ExpandedTransaction<TotalAndIndexed> {
             attachments,
             profile,
             category: Indexed,
+            span_extraction,
         }
     }
 }
 
-impl Counted for ExpandedTransaction<TotalAndIndexed> {
-    fn quantities(&self) -> Quantities {
+impl<C> ExpandedTransaction<C, SpansEmbedded> {
+    /// Change the marker type of this transaction.
+    ///
+    /// Once converted, the embedded spans no longer count towards the transaction,
+    /// ownership of the span categories was transferred to the extracted spans.
+    pub fn into_spans_extracted(self) -> ExpandedTransaction<C, SpansExtracted> {
         let Self {
-            headers: _,
-            event: _,
+            headers,
+            event,
             flags,
             attachments,
             profile,
-            category: _,
+            category,
+            span_extraction: _,
         } = self;
-        let mut quantities = smallvec![
-            (DataCategory::TransactionIndexed, 1),
-            (DataCategory::Transaction, 1)
-        ];
-
-        quantities.extend(attachments.quantities());
-        quantities.extend(profile.quantities());
-
-        if !flags.spans_extracted {
-            let span_count = self.count_embedded_spans_and_self();
-            quantities.extend([
-                (DataCategory::SpanIndexed, span_count),
-                (DataCategory::Span, span_count),
-            ]);
-        };
-
-        quantities
+        ExpandedTransaction {
+            headers,
+            event,
+            flags,
+            attachments,
+            profile,
+            category,
+            span_extraction: SpansExtracted,
+        }
     }
 }
 
-impl Counted for ExpandedTransaction<Indexed> {
+impl<C: TotalCategory, S: SpanExtraction> Counted for ExpandedTransaction<C, S> {
     fn quantities(&self) -> Quantities {
         let Self {
             headers: _,
             event: _,
-            flags,
+            flags: _,
             attachments,
             profile,
             category: _,
+            span_extraction: _,
         } = self;
-        let mut quantities = smallvec![(DataCategory::TransactionIndexed, 1),];
+        let mut quantities = smallvec![(DataCategory::TransactionIndexed, 1)];
+        if C::HAS_TOTAL {
+            quantities.push((DataCategory::Transaction, 1));
+        }
 
         quantities.extend(attachments.quantities());
         quantities.extend(profile.quantities());
 
-        if !flags.spans_extracted {
+        if !S::EXTRACTED {
             let span_count = self.count_embedded_spans_and_self();
-            quantities.extend([(DataCategory::SpanIndexed, span_count)]);
+            quantities.push((DataCategory::SpanIndexed, span_count));
+            if C::HAS_TOTAL {
+                quantities.push((DataCategory::Span, span_count));
+            }
         };
 
         quantities
@@ -202,8 +233,8 @@ impl RateLimited for Managed<Box<ExpandedTransaction<TotalAndIndexed>>> {
     }
 }
 
-impl<T> ExpandedTransaction<T> {
-    // TODO: should only exist or `TotalAndIndexed`, Indexed should go straight to kafka.
+impl<C> ExpandedTransaction<C, SpansEmbedded> {
+    // TODO: should only exist for `TotalAndIndexed`, Indexed should go straight to kafka.
     pub fn serialize_envelope(self) -> Result<Box<Envelope>, serde_json::Error> {
         let mut items = Items::new();
 
@@ -215,6 +246,7 @@ impl<T> ExpandedTransaction<T> {
             attachments,
             profile,
             category: _,
+            span_extraction: _,
         } = self;
 
         items.extend(attachments);
@@ -230,11 +262,9 @@ impl<T> ExpandedTransaction<T> {
         item.set_payload(ContentType::Json, data);
 
         let Flags {
-            spans_extracted,
             fully_normalized,
             spans_rate_limited: _,
         } = flags;
-        item.set_spans_extracted(spans_extracted);
         item.set_fully_normalized(fully_normalized);
 
         item.set_span_count(Some(span_count));

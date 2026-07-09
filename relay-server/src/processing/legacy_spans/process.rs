@@ -7,8 +7,9 @@ use relay_protocol::Annotated;
 
 use crate::managed::Managed;
 use crate::processing::legacy_spans::{
-    Error, ExpandedLegacySpans, Indexed, SerializedLegacySpans, TotalAndIndexed, normalize,
+    Error, ExpandedLegacySpans, SerializedLegacySpans, normalize,
 };
+use crate::processing::utils::types::{Indexed, TotalAndIndexed};
 use crate::processing::{self, Context};
 use crate::services::outcome::DiscardReason;
 use crate::services::processor::ProcessingError;
