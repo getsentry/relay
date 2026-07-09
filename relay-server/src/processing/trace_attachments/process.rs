@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use bytes::Bytes;
 use relay_event_schema::processor::{ProcessingAction, ValueType};
 use relay_pii::PiiAttachmentsProcessor;
@@ -144,15 +146,16 @@ pub fn scrub_attachment<'a>(
         let processor = PiiAttachmentsProcessor::new(config.compiled());
         let mut payload = body.to_vec();
 
+        let start = Instant::now();
+        let modified = processor.scrub_attachment(filename, &mut payload);
         metric!(
-            timer(RelayTimers::AttachmentScrubbing),
+            timer(RelayTimers::AttachmentScrubbing) = start.elapsed(),
             attachment_type = "trace_attachment",
-            {
-                if processor.scrub_attachment(filename, &mut payload) {
-                    *body = Bytes::from(payload);
-                };
-            }
+            status = if modified { "ok" } else { "n/a" },
         );
+        if modified {
+            *body = Bytes::from(payload);
+        }
     }
 
     Ok(())

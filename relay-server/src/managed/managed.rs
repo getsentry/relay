@@ -245,6 +245,11 @@ impl<T: Counted> Managed<T> {
         self.meta.scoping
     }
 
+    /// Optional remote addr from where the data was received.
+    pub fn remote_addr(&self) -> Option<IpAddr> {
+        self.meta.remote_addr
+    }
+
     /// Updates the scoping stored in this context.
     ///
     /// Special care has to be taken when items contained in the managed instance also store a
@@ -774,7 +779,7 @@ struct Meta {
     scoping: Scoping,
     /// Optional event id associated with the contained data.
     event_id: Option<EventId>,
-    /// Optional remote addr from where the data was received from.
+    /// Optional remote addr from where the data was received.
     remote_addr: Option<IpAddr>,
 }
 

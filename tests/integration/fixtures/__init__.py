@@ -210,6 +210,7 @@ class SentryLike:
         headers=None,
         dsn_key_idx=0,
         dsn_key=None,
+        raise_for_status=True,
     ):
 
         if dsn_key is None:
@@ -227,7 +228,9 @@ class SentryLike:
         else:
             response = self.post(url, headers=headers, data=bytes)
 
-        response.raise_for_status()
+        if raise_for_status:
+            response.raise_for_status()
+        return response
 
     def send_otel_logs(
         self,
@@ -237,6 +240,7 @@ class SentryLike:
         headers=None,
         dsn_key_idx=0,
         dsn_key=None,
+        raise_for_status=True,
     ):
 
         if dsn_key is None:
@@ -254,7 +258,9 @@ class SentryLike:
         else:
             response = self.post(url, headers=headers, data=bytes)
 
-        response.raise_for_status()
+        if raise_for_status:
+            response.raise_for_status()
+        return response
 
     def send_vercel_logs(
         self,
