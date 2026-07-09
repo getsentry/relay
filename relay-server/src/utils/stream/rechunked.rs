@@ -48,7 +48,8 @@ where
             };
             return Poll::Pending;
         }
-        return Poll::Ready(Some(Ok(chunk.freeze())));
+
+        Poll::Ready(Some(Ok(chunk.freeze())))
     }
 }
 
