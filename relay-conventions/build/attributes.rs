@@ -112,7 +112,7 @@ fn format_write_behavior(deprecation: Option<&Deprecation>) -> String {
 
     let name = if replacement.contains("<key>") {
         format!(
-            "ReplacementName::Dynamic(crate::interpolate::{})",
+            "ReplacementName::Dynamic(|s| crate::interpolate::{}(s))",
             name_fn(replacement)
         )
     } else {
@@ -250,7 +250,7 @@ pub fn format_interpolating_fn(attribute: &Attribute) -> Option<String> {
 
     writeln!(
         &mut out,
-        r#"pub fn {fn_name}(value: &str) -> String {{
+        r#"pub fn {fn_name}<T: std::fmt::Display>(value: T) -> String {{
     format!("{before_placeholder}{{value}}{after_placeholder}")
 }}"#
     )

@@ -87,7 +87,7 @@ impl FromRequest<ServiceState> for IntegrationBuilder {
 
 #[derive(Debug, thiserror::Error)]
 pub enum IntegrationBuilderRejection {
-    #[error("bad event meta: {0}")]
+    #[error(transparent)]
     BadEventMeta(#[from] BadEventMeta),
     #[error("unable to read body: {0}")]
     Body(#[from] BytesRejection),

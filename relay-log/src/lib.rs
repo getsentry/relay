@@ -122,6 +122,7 @@ mod test;
 #[cfg(feature = "test")]
 pub use test::*;
 
+mod crash;
 mod utils;
 // Expose the minimal log facade.
 #[doc(inline)]

@@ -474,15 +474,13 @@ pub enum RelayTimers {
     RequestsDuration,
     /// Time spent on minidump scrubbing.
     ///
-    /// This is the total time spent on parsing and scrubbing the minidump.  Even if no PII
-    /// scrubbing rules applied the minidump will still be parsed and the rules evaluated on
-    /// the parsed minidump, this duration is reported here with status of "n/a".
+    /// This is the total time spent on parsing and scrubbing the minidump.
     ///
     /// This metric is tagged with:
     ///
     /// - `status`: Scrubbing status: "ok" means successful scrubbed, "error" means there
     ///   was an error during scrubbing and finally "n/a" means scrubbing was successful
-    ///   but no scurbbing rules applied.
+    ///   but no scrubbing rules applied.
     MinidumpScrubbing,
     /// Time spent on view hierarchy scrubbing.
     ///
@@ -491,7 +489,7 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     ///
     /// - `status`: "ok" means successful scrubbed, "error" means there was an error during
-    ///   scrubbing
+    ///   scrubbing. "n/a" means unchanged.
     ViewHierarchyScrubbing,
     /// Time spend on attachment scrubbing.
     ///
@@ -504,6 +502,7 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     ///
     ///   - `attachment_type`: The type of attachment, e.g. "minidump".
+    ///   - `status`: "ok" means successful scrubbed. "n/a" means not changed.
     AttachmentScrubbing,
     /// Total time spent to send request to upstream Relay and handle the response.
     ///
