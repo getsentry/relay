@@ -33,8 +33,8 @@ use relay_statsd::metric;
 use relay_system::{FromMessage, Interface, NoResponse, Service};
 use relay_threading::AsyncPool;
 
-use crate::envelope::{AttachmentPlaceholder, AttachmentType, ContentType, Item, ItemType};
-use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
+use crate::envelope::{AttachmentPlaceholder, AttachmentType, ContentType, Item};
+use crate::managed::{Counted, Managed, OutcomeError, Quantities, Rejected};
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
@@ -42,7 +42,7 @@ use crate::services::objectstore::ObjectstoreKey;
 use crate::services::outcome::{self, DiscardReason, Outcome, OutcomeId};
 use crate::services::upload::{Final, SignedLocation};
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
-use crate::utils::{self, FormDataIter};
+use crate::utils;
 
 mod sessions;
 
@@ -110,6 +110,8 @@ pub struct StoreEvent {
     pub event: Annotated<Event>,
     /// A list of attachments associated with the event.
     pub attachments: Vec<Item>,
+    /// A list of user reports associated with the event.
+    pub user_reports: Vec<Item>,
     /// Event retention in days.
     pub retention_days: u16,
 }
@@ -118,14 +120,9 @@ impl Counted for StoreEvent {
     fn quantities(&self) -> Quantities {
         let mut quantities = smallvec::smallvec![(self.event_category, 1)];
         quantities.extend(self.attachments.quantities());
+        quantities.extend(self.user_reports.quantities());
         quantities
     }
-}
-
-/// Publishes an [`Envelope`](crate::envelope::Envelope) to the Sentry core application through Kafka topics.
-#[derive(Debug)]
-pub struct StoreEnvelope {
-    pub envelope: ManagedEnvelope,
 }
 
 /// Publishes a list of [`Bucket`]s to the Sentry core application through Kafka topics.
@@ -303,17 +300,9 @@ impl Counted for StoreCheckIn {
 /// The asynchronous thread pool used for scheduling storing tasks in the envelope store.
 pub type StoreServicePool = AsyncPool<StoreTask>;
 
-/// Service interface for the [`StoreEnvelope`] message.
+/// Service interface for storing items in Kafka.
 #[derive(Debug)]
 pub enum Store {
-    /// An envelope containing a mixture of items.
-    ///
-    /// Note: Some envelope items are not supported to be submitted at all or through an envelope,
-    /// for example logs must be submitted via [`Self::TraceItem`] instead.
-    ///
-    /// Long term this variant is going to be replaced with fully typed variants of items which can
-    /// be stored instead.
-    Envelope(StoreEnvelope),
     /// An [`Event`] and its associated items.
     Event(Managed<Box<StoreEvent>>),
     /// Aggregated generic metrics.
@@ -340,7 +329,6 @@ impl Store {
     /// Returns the name of the message variant.
     fn variant(&self) -> &'static str {
         match self {
-            Store::Envelope(_) => "envelope",
             Store::Event(_) => "event",
             Store::Metrics(_) => "metrics",
             Store::TraceItem(_) => "trace_item",
@@ -356,14 +344,6 @@ impl Store {
 }
 
 impl Interface for Store {}
-
-impl FromMessage<StoreEnvelope> for Store {
-    type Response = NoResponse;
-
-    fn from_message(message: StoreEnvelope, _: ()) -> Self {
-        Self::Envelope(message)
-    }
-}
 
 impl FromMessage<Managed<Box<StoreEvent>>> for Store {
     type Response = NoResponse;
@@ -475,7 +455,6 @@ impl StoreService {
         let ty = message.variant();
         relay_statsd::metric!(timer(RelayTimers::StoreServiceDuration), message = ty, {
             let result = match message {
-                Store::Envelope(message) => self.handle_store_envelope(message),
                 Store::Event(message) => self.handle_store_event(message),
                 Store::Metrics(message) => {
                     self.handle_store_metrics(message);
@@ -500,24 +479,6 @@ impl StoreService {
         })
     }
 
-    fn handle_store_envelope(&self, message: StoreEnvelope) -> Result<(), Rejected<StoreError>> {
-        let StoreEnvelope { mut envelope } = message;
-
-        match self.store_envelope(&mut envelope) {
-            Ok(()) => {
-                envelope.accept();
-                Ok(())
-            }
-            Err(error) => {
-                // The envelope is now empty. `ManagedEnvelope` still counts items correctly
-                // through `EnvelopeSummary`, but `Managed<Box<Envelope>>` does not.
-                // -> Reject the old way and return a dummy item.
-                envelope.reject(Outcome::Invalid(DiscardReason::Internal));
-                Err(Managed::with_meta_from_managed_envelope(&envelope, ()).reject_err(error))
-            }
-        }
-    }
-
     fn handle_store_event(
         &self,
         message: Managed<Box<StoreEvent>>,
@@ -540,7 +501,10 @@ impl StoreService {
         let event_id = event_id.ok_or(StoreError::NoEventId)?;
 
         let event_type = store.event.value().and_then(|e| e.ty.value());
-        let send_individual_attachments = matches!(event_type, Some(&EventType::Transaction));
+        let send_individual_attachments = matches!(
+            event_type,
+            Some(&EventType::Transaction) | Some(&EventType::UserReportV2)
+        );
 
         let mut attachments = Vec::new();
         for attachment in store.attachments {
@@ -562,9 +526,21 @@ impl StoreService {
             }
         }
 
+        for user_report in &store.user_reports {
+            self.produce_user_report(
+                event_id,
+                scoping.project_id,
+                scoping.organization_id,
+                received_at,
+                user_report,
+            )?;
+        }
+
         let event_topic = if event_type == Some(&EventType::Transaction) {
             KafkaTopic::Transactions
-        } else if !attachments.is_empty() {
+        } else if event_type == Some(&EventType::UserReportV2) {
+            KafkaTopic::Feedback
+        } else if !attachments.is_empty() || !store.user_reports.is_empty() {
             KafkaTopic::Attachments
         } else {
             KafkaTopic::Events
@@ -583,154 +559,6 @@ impl StoreService {
                 attachments,
             }),
         )
-    }
-
-    fn store_envelope(&self, managed_envelope: &mut ManagedEnvelope) -> Result<(), StoreError> {
-        let mut envelope = managed_envelope.take_envelope();
-        let received_at = managed_envelope.received_at();
-        let scoping = managed_envelope.scoping();
-
-        let retention = envelope.retention();
-
-        let event_id = envelope.event_id();
-        let event_item = envelope.as_mut().take_item_by(|item| {
-            matches!(
-                item.ty(),
-                ItemType::Event | ItemType::Transaction | ItemType::Security
-            )
-        });
-        let event_type = event_item.as_ref().map(|item| item.ty());
-
-        // Some error events like minidumps need all attachment chunks to be processed _before_
-        // the event payload on the consumer side. Transaction attachments do not require this ordering
-        // guarantee, so they do not have to go to the same topic as their event payload.
-        let event_topic = if event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::Transaction) {
-            KafkaTopic::Transactions
-        } else if envelope.get_item_by(is_slow_item).is_some() {
-            KafkaTopic::Attachments
-        } else {
-            KafkaTopic::Events
-        };
-
-        let send_individual_attachments = matches!(event_type, None | Some(&ItemType::Transaction));
-
-        let mut attachments = Vec::new();
-
-        for item in envelope.items() {
-            match item.ty() {
-                ItemType::Attachment => {
-                    if let Some(attachment) = self.produce_attachment(
-                        event_id.ok_or(StoreError::NoEventId)?,
-                        scoping.project_id,
-                        scoping.organization_id,
-                        item,
-                        send_individual_attachments,
-                        retention,
-                    )? {
-                        attachments.push(attachment);
-                    }
-                }
-                ItemType::UserReport => {
-                    debug_assert!(event_topic == KafkaTopic::Attachments);
-                    self.produce_user_report(
-                        event_id.ok_or(StoreError::NoEventId)?,
-                        scoping.project_id,
-                        scoping.organization_id,
-                        received_at,
-                        item,
-                    )?;
-                }
-                ItemType::UserReportV2 => {
-                    let remote_addr = envelope.meta().client_addr().map(|addr| addr.to_string());
-                    self.produce_user_report_v2(
-                        event_id.ok_or(StoreError::NoEventId)?,
-                        scoping.project_id,
-                        scoping.organization_id,
-                        received_at,
-                        item,
-                        remote_addr,
-                    )?;
-                }
-                ItemType::Profile => self.produce_profile(
-                    scoping.organization_id,
-                    scoping.project_id,
-                    scoping.key_id,
-                    received_at,
-                    retention,
-                    item,
-                )?,
-                ty @ (ItemType::Log | ItemType::Span | ItemType::CheckIn) => {
-                    debug_assert!(
-                        false,
-                        "received {ty} through an envelope, \
-                        this item must be submitted via a specific store message instead"
-                    );
-                    relay_log::error!(
-                        tags.project_key = %scoping.project_key,
-                        "StoreService received unsupported item type '{ty}' in envelope"
-                    );
-                }
-                other => {
-                    let event_type = event_item.as_ref().map(|item| item.ty().as_str());
-                    let item_types = envelope
-                        .items()
-                        .map(|item| item.ty().as_str())
-                        .collect::<Vec<_>>();
-                    let attachment_types = envelope
-                        .items()
-                        .map(|item| {
-                            item.attachment_type()
-                                .map(|t| t.to_string())
-                                .unwrap_or_default()
-                        })
-                        .collect::<Vec<_>>();
-
-                    relay_log::with_scope(
-                        |scope| {
-                            scope.set_extra("item_types", item_types.into());
-                            scope.set_extra("attachment_types", attachment_types.into());
-                            if other == &ItemType::FormData {
-                                let payload = item.payload();
-                                let form_data_keys = FormDataIter::new(&payload)
-                                    .map(|entry| entry.key())
-                                    .collect::<Vec<_>>();
-                                scope.set_extra("form_data_keys", form_data_keys.into());
-                            }
-                        },
-                        || {
-                            relay_log::error!(
-                                tags.project_key = %scoping.project_key,
-                                tags.event_type = event_type.unwrap_or("none"),
-                                "StoreService received unexpected item type: {other}"
-                            )
-                        },
-                    )
-                }
-            }
-        }
-
-        if let Some(event_item) = event_item {
-            let event_id = event_id.ok_or(StoreError::NoEventId)?;
-            let project_id = scoping.project_id;
-            let remote_addr = envelope.meta().client_addr().map(|addr| addr.to_string());
-
-            self.produce(
-                event_topic,
-                KafkaMessage::Event(EventKafkaMessage {
-                    payload: event_item.payload(),
-                    start_time: safe_timestamp(received_at),
-                    event_id,
-                    project_id,
-                    remote_addr,
-                    attachments,
-                    org_id: scoping.organization_id,
-                }),
-            )?;
-        } else {
-            debug_assert!(attachments.is_empty());
-        }
-
-        Ok(())
     }
 
     fn handle_store_metrics(&self, message: StoreMetrics) {
@@ -1272,27 +1100,6 @@ impl StoreService {
         });
 
         self.produce(KafkaTopic::Attachments, message)
-    }
-
-    fn produce_user_report_v2(
-        &self,
-        event_id: EventId,
-        project_id: ProjectId,
-        org_id: OrganizationId,
-        received_at: DateTime<Utc>,
-        item: &Item,
-        remote_addr: Option<String>,
-    ) -> Result<(), StoreError> {
-        let message = KafkaMessage::Event(EventKafkaMessage {
-            project_id,
-            event_id,
-            payload: item.payload(),
-            start_time: safe_timestamp(received_at),
-            remote_addr,
-            attachments: vec![],
-            org_id,
-        });
-        self.produce(KafkaTopic::Feedback, message)
     }
 
     fn send_metric_message(
@@ -1966,13 +1773,6 @@ fn serialize_as_json<T: serde::Serialize>(
         Ok(vec) => Ok(SerializationOutput::Json(Cow::Owned(vec))),
         Err(err) => Err(ClientError::InvalidJson(err)),
     }
-}
-
-/// Determines if the given item is considered slow.
-///
-/// Slow items must be routed to the `Attachments` topic.
-fn is_slow_item(item: &Item) -> bool {
-    item.ty() == &ItemType::Attachment || item.ty() == &ItemType::UserReport
 }
 
 fn bool_to_str(value: bool) -> &'static str {
