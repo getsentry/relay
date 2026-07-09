@@ -56,6 +56,9 @@ enum Error {
     #[error("TUS protocol error: {0}")]
     Tus(#[from] tus::Error),
 
+    #[error("Invalid Upload-Offset {0} for Upload-Length {1}")]
+    InvalidOffset(usize, usize),
+
     #[error("request error: {0}")]
     Request(#[from] BadStoreRequest),
 
@@ -80,6 +83,7 @@ impl IntoResponse for Error {
 
         let status = match self {
             Error::Tus(_) => StatusCode::BAD_REQUEST,
+            Error::InvalidOffset(_, _) => StatusCode::BAD_REQUEST,
             Error::Request(error) => return error.into_response(),
             Error::SendError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Error::Upload(error) => match error {
@@ -218,7 +222,7 @@ async fn handle_patch(
     check_kill_switch(&state)?;
 
     relay_log::trace!("Validating headers");
-    tus::validate_patch_headers(&headers).map_err(Error::from)?;
+    let offset = tus::validate_patch_headers(&headers).map_err(Error::from)?;
 
     let location = SignedLocation::from_parts(
         project_id,
@@ -254,18 +258,23 @@ async fn handle_patch(
 
     let (lower_bound, upper_bound) = match upload_length.value() {
         None => (1, config.max_upload_size()),
-        Some(u) => (u, u),
+        Some(u) => {
+            let remaining_bytes = u
+                .checked_sub(offset)
+                .ok_or(Error::InvalidOffset(offset, u))?;
+            (1, remaining_bytes)
+        }
     };
     let stream = BoundedStream::new(stream, lower_bound, upper_bound);
     let byte_counter = stream.byte_counter();
 
     relay_log::trace!("Uploading");
-    let result = upload(&state, project_context, location, stream).await;
+    let result = upload(&state, project_context, location, offset, stream).await;
     let location = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
     })?;
 
-    let upload_offset = byte_counter.get();
+    let upload_offset = offset + byte_counter.get();
 
     let mut response = NoContent.into_response();
 
@@ -329,6 +338,7 @@ async fn upload(
     state: &ServiceState,
     project: ProjectContext,
     location: SignedLocation<Provisional>,
+    offset: usize,
     stream: BoundedStream<MeteredStream<ByteStream>>,
 ) -> Result<SignedLocation<Final>, Error> {
     let location = state
@@ -337,6 +347,7 @@ async fn upload(
             received: Utc::now(),
             project,
             location,
+            offset,
             stream,
         })
         .await??;

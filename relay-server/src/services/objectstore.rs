@@ -334,16 +334,28 @@ pub struct UploadRef {
     /// The ID of the multipart upload session (chosen by objectstore).
     /// `None` if the upload is not multipart.
     pub upload_id: Option<UploadId>,
+    /// The offset from which to resume an upload.
+    ///
+    /// Zero for new uploads.
+    pub offset: usize,
 }
 
 impl UploadRef {
     /// Validates the upload ID and returns a new upload reference.
-    pub fn new(key: String, upload_id: Option<String>) -> Result<Self, InvalidUploadId> {
+    pub fn new(
+        key: String,
+        upload_id: Option<String>,
+        offset: usize,
+    ) -> Result<Self, InvalidUploadId> {
         let upload_id = match upload_id {
             Some(s) => Some(UploadId::new(s)?),
             None => None,
         };
-        Ok(Self { key, upload_id })
+        Ok(Self {
+            key,
+            upload_id,
+            offset,
+        })
     }
 }
 
@@ -788,6 +800,7 @@ impl ObjectstoreServiceInner {
         Ok(UploadRef {
             key,
             upload_id: Some(upload_id.clone()),
+            offset: 0,
         })
     }
 
@@ -918,9 +931,17 @@ impl ObjectstoreServiceInner {
                 Ok(ObjectstoreKey(response.key))
             }
             UploadAttempt::Stream { body, upload_ref } => {
-                let UploadRef { key, upload_id } = upload_ref;
+                let UploadRef {
+                    key,
+                    upload_id,
+                    offset,
+                } = upload_ref;
                 let Some(upload_id) = upload_id else {
                     // No upload ID: simple upload in a single request.
+                    if offset != 0 {
+                        // Offset is only allowed for multipart.
+                        todo!("raise error");
+                    }
                     let request = session.put_stream(body.boxed()).key(key);
                     let response = request.send().await?;
                     return Ok(ObjectstoreKey(response.key));
@@ -928,6 +949,8 @@ impl ObjectstoreServiceInner {
 
                 let multipart_upload =
                     session.resume_multipart_upload(key, upload_id.to_string())?;
+
+                // TODO: map offset to compressed offset and vice versa.
 
                 let body = ReaderStream::new(ZstdEncoder::new(StreamReader::new(body)));
 
@@ -1110,6 +1133,7 @@ mod tests {
                 upload_ref: UploadRef {
                     key: "my_file".to_owned(),
                     upload_id: Some(UploadId::new("my_upload".to_owned()).unwrap()),
+                    offset: 0,
                 },
                 stream,
             })

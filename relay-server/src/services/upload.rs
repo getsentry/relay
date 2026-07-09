@@ -149,6 +149,8 @@ pub struct Stream {
     pub project: ProjectContext,
     /// The location to upload to.
     pub location: SignedLocation<Provisional>,
+    /// The offset from which to resume the upload.
+    pub offset: usize,
     /// The body to be uploaded to objectstore, with length validation.
     pub stream: BoundedStream<MeteredStream<ByteStream>>,
 }
@@ -294,7 +296,11 @@ impl Service {
                 let (key, upload_id) = match length {
                     Some(0) => (key, None), // multipart does not allow empty uploads
                     _ => {
-                        let UploadRef { key, upload_id } = addr
+                        let UploadRef {
+                            key,
+                            upload_id,
+                            offset,
+                        } = addr
                             .send(objectstore::Create {
                                 organization_id,
                                 project_id,
@@ -302,6 +308,7 @@ impl Service {
                             })
                             .await
                             .map_err(Error::ObjectstoreServiceUnavailable)??;
+                        debug_assert_eq!(offset, 0);
                         #[cfg(debug_assertions)]
                         debug_assert_eq!(&key, &original_key);
                         (key, upload_id)
@@ -326,11 +333,13 @@ impl Service {
             received,
             project,
             location,
+            offset,
             stream,
         } = stream;
         match &self.backend {
             Backend::Upstream { addr } => {
-                let (request, rx) = UploadRequest::upload(project, location.try_to_uri()?, stream);
+                let (request, rx) =
+                    UploadRequest::upload(project, location.try_to_uri()?, offset, stream);
                 addr.send(SendRequest(request));
                 let response = rx.await??;
                 SignedLocation::try_from_response(response)
@@ -352,7 +361,7 @@ impl Service {
                 debug_assert!(stream.length().is_none_or(|l| Some(l) == length.value()));
                 let byte_counter = stream.byte_counter();
 
-                let upload_ref = UploadRef::new(key, upload_id)?;
+                let upload_ref = UploadRef::new(key, upload_id, offset)?;
                 let key = addr
                     .send(objectstore::Stream {
                         organization_id: scoping.organization_id,
@@ -706,6 +715,7 @@ enum RequestKind {
     },
     Upload {
         uri: String,
+        offset: usize,
         stream: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
         encoding: HttpEncoding,
     },
@@ -745,6 +755,7 @@ impl UploadRequest {
     fn upload(
         project: ProjectContext,
         uri: String,
+        offset: usize,
         stream: BoundedStream<MeteredStream<ByteStream>>,
     ) -> (
         Self,
@@ -756,6 +767,7 @@ impl UploadRequest {
                 project,
                 kind: RequestKind::Upload {
                     uri,
+                    offset,
                     stream: TakeOnce::new(stream),
                     encoding: HttpEncoding::Zstd, // just a default, will be overwritten by .configure()
                 },
@@ -838,6 +850,7 @@ impl UpstreamRequest for UploadRequest {
             }
             RequestKind::Upload {
                 uri: _,
+                offset,
                 stream,
                 encoding,
             } => {
@@ -845,7 +858,7 @@ impl UpstreamRequest for UploadRequest {
                     relay_log::error!("upload request stream was already consumed");
                     return Err(HttpError::Misconfigured);
                 };
-                tus::add_upload_headers(builder);
+                tus::add_upload_headers(builder, *offset);
 
                 let body = encode_body(body, *encoding);
                 builder.content_encoding(*encoding);

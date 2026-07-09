@@ -612,6 +612,7 @@ where
             received: Utc::now(),
             project,
             location,
+            offset: 0,
             stream,
         })
         .await
