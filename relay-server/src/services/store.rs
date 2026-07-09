@@ -11,6 +11,7 @@ use std::task;
 use bytes::Bytes;
 use chrono::{DateTime, SecondsFormat, Utc};
 use prost::Message as _;
+use relay_base_schema::events::EventType;
 use sentry_protos::snuba::v1::{TraceItem, TraceItemType};
 use serde::Serialize;
 use uuid::Uuid;
@@ -20,7 +21,7 @@ use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_config::Config;
-use relay_event_schema::protocol::{EventId, SpanV2, datetime_to_timestamp};
+use relay_event_schema::protocol::{Event, EventId, SpanV2, datetime_to_timestamp};
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message, SerializationOutput};
 use relay_metrics::{
     Bucket, BucketView, BucketViewValue, BucketsView, ByNamespace, GaugeValue, MetricName,
@@ -54,6 +55,8 @@ pub enum StoreError {
     SendFailed(#[from] ClientError),
     #[error("failed to encode data: {0}")]
     EncodingFailed(std::io::Error),
+    #[error("failed to serialize data: {0}")]
+    Serialize(#[from] serde_json::Error),
     #[error("failed to store event because event id was missing")]
     NoEventId,
     #[error("invalid attachment reference")]
@@ -65,9 +68,10 @@ impl OutcomeError for StoreError {
 
     fn consume(self) -> (Option<Outcome>, Self::Error) {
         let outcome = match self {
-            StoreError::SendFailed(_) | StoreError::EncodingFailed(_) | StoreError::NoEventId => {
-                Some(Outcome::Invalid(DiscardReason::Internal))
-            }
+            StoreError::SendFailed(_)
+            | StoreError::EncodingFailed(_)
+            | StoreError::Serialize(_)
+            | StoreError::NoEventId => Some(Outcome::Invalid(DiscardReason::Internal)),
             StoreError::InvalidAttachmentRef => {
                 Some(Outcome::Invalid(DiscardReason::InvalidAttachmentRef))
             }
@@ -94,6 +98,27 @@ impl Producer {
         Ok(Self {
             client: client_builder.build(),
         })
+    }
+}
+
+/// Publishes an [`Event`] and its attachments to Kafka.
+#[derive(Debug)]
+pub struct StoreEvent {
+    /// The data category the [`Self::event`] is counted in.
+    pub event_category: DataCategory,
+    /// The event to be stored.
+    pub event: Annotated<Event>,
+    /// A list of attachments associated with the event.
+    pub attachments: Vec<Item>,
+    /// Event retention in days.
+    pub retention_days: u16,
+}
+
+impl Counted for StoreEvent {
+    fn quantities(&self) -> Quantities {
+        let mut quantities = smallvec::smallvec![(self.event_category, 1)];
+        quantities.extend(self.attachments.quantities());
+        quantities
     }
 }
 
@@ -289,6 +314,8 @@ pub enum Store {
     /// Long term this variant is going to be replaced with fully typed variants of items which can
     /// be stored instead.
     Envelope(StoreEnvelope),
+    /// An [`Event`] and its associated items.
+    Event(Managed<Box<StoreEvent>>),
     /// Aggregated generic metrics.
     Metrics(StoreMetrics),
     /// A singular [`TraceItem`].
@@ -314,6 +341,7 @@ impl Store {
     fn variant(&self) -> &'static str {
         match self {
             Store::Envelope(_) => "envelope",
+            Store::Event(_) => "event",
             Store::Metrics(_) => "metrics",
             Store::TraceItem(_) => "trace_item",
             Store::Span(_) => "span",
@@ -334,6 +362,14 @@ impl FromMessage<StoreEnvelope> for Store {
 
     fn from_message(message: StoreEnvelope, _: ()) -> Self {
         Self::Envelope(message)
+    }
+}
+
+impl FromMessage<Managed<Box<StoreEvent>>> for Store {
+    type Response = NoResponse;
+
+    fn from_message(message: Managed<Box<StoreEvent>>, _: ()) -> Self {
+        Self::Event(message)
     }
 }
 
@@ -440,6 +476,7 @@ impl StoreService {
         relay_statsd::metric!(timer(RelayTimers::StoreServiceDuration), message = ty, {
             let result = match message {
                 Store::Envelope(message) => self.handle_store_envelope(message),
+                Store::Event(message) => self.handle_store_event(message),
                 Store::Metrics(message) => {
                     self.handle_store_metrics(message);
                     Ok(())
@@ -479,6 +516,73 @@ impl StoreService {
                 Err(Managed::with_meta_from_managed_envelope(&envelope, ()).reject_err(error))
             }
         }
+    }
+
+    fn handle_store_event(
+        &self,
+        message: Managed<Box<StoreEvent>>,
+    ) -> Result<(), Rejected<StoreError>> {
+        let received_at = message.received_at();
+        let scoping = message.scoping();
+        let remote_addr = message.remote_addr().map(|ip| ip.to_string());
+
+        message.try_accept(|m| self.do_store_event(*m, scoping, received_at, remote_addr))
+    }
+
+    fn do_store_event(
+        &self,
+        store: StoreEvent,
+        scoping: Scoping,
+        received_at: DateTime<Utc>,
+        remote_addr: Option<String>,
+    ) -> Result<(), StoreError> {
+        let event_id = store.event.value().and_then(|e| e.id.value()).copied();
+        let event_id = event_id.ok_or(StoreError::NoEventId)?;
+
+        let event_type = store.event.value().and_then(|e| e.ty.value());
+        let send_individual_attachments = matches!(event_type, Some(&EventType::Transaction));
+
+        let mut attachments = Vec::new();
+        for attachment in store.attachments {
+            // Note: Technically when an error occurs we may have already produced some items to Kafka,
+            // but since we don't keep track of that properly and just error out here, outcomes will
+            // also report items which were already produced to Kafka as dropped.
+            //
+            // We specifically accept this here, since this is an extreme edge case with minimal practical
+            // consequences.
+            if let Some(attachment) = self.produce_attachment(
+                event_id,
+                scoping.project_id,
+                scoping.organization_id,
+                &attachment,
+                send_individual_attachments,
+                store.retention_days,
+            )? {
+                attachments.push(attachment);
+            }
+        }
+
+        let event_topic = if event_type == Some(&EventType::Transaction) {
+            KafkaTopic::Transactions
+        } else if !attachments.is_empty() {
+            KafkaTopic::Attachments
+        } else {
+            KafkaTopic::Events
+        };
+
+        let payload = store.event.to_json()?.into_bytes().into();
+        self.produce(
+            event_topic,
+            KafkaMessage::Event(EventKafkaMessage {
+                payload,
+                start_time: safe_timestamp(received_at),
+                event_id,
+                project_id: scoping.project_id,
+                org_id: scoping.organization_id,
+                remote_addr,
+                attachments,
+            }),
+        )
     }
 
     fn store_envelope(&self, managed_envelope: &mut ManagedEnvelope) -> Result<(), StoreError> {

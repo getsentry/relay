@@ -12,7 +12,7 @@ use crate::managed::{Managed, Rejected};
 use crate::services::objectstore::Objectstore;
 use crate::services::projects::project::ProjectInfo;
 #[cfg(feature = "processing")]
-use crate::services::store::Store;
+use crate::services::store::{Store, StoreEvent};
 
 /// A transparent handle that dispatches between store-like services.
 #[cfg(feature = "processing")]
@@ -34,6 +34,31 @@ impl<'a> StoreHandle<'a> {
             store,
             objectstore,
             global_config,
+        }
+    }
+
+    /// Dispatches an event message to either the [`Objectstore`] or [`Store`] service.
+    pub fn send_event(&self, message: Managed<Box<StoreEvent>>) {
+        if message.attachments.is_empty() {
+            self.store.send(message);
+            return;
+        }
+
+        let Some(objectstore) = self.objectstore else {
+            self.store.send(message);
+            return;
+        };
+
+        let use_objectstore = crate::utils::sample(
+            self.global_config
+                .options
+                .objectstore_attachments_sample_rate,
+        )
+        .is_keep();
+
+        match use_objectstore {
+            true => objectstore.send(message),
+            false => self.store.send(message),
         }
     }
 
