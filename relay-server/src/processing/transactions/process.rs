@@ -47,13 +47,11 @@ pub fn expand(
             event.ty = EventType::Transaction.into();
         }
         let flags = Flags {
-            metrics_extracted: transaction_item.metrics_extracted(),
             spans_extracted: transaction_item.spans_extracted(),
             fully_normalized: headers.meta().request_trust().is_trusted()
                 && transaction_item.fully_normalized(),
             spans_rate_limited: false,
         };
-        validate_flags(&flags);
 
         let profile = expand_profile(profiles, record_keeper);
 
@@ -76,15 +74,6 @@ pub fn expand(
             category: TotalAndIndexed,
         }))
     })
-}
-
-/// Validates the following assumption:
-/// 1. Metrics are only extracted in non-processing relays if the sampling decision is "drop".
-/// 2. That means that if we see a new transaction, it cannot yet have metrics extracted.
-fn validate_flags(flags: &Flags) {
-    if flags.metrics_extracted {
-        relay_log::error!("Received a transaction which already had its metrics extracted.");
-    }
 }
 
 fn expand_profile(
@@ -312,13 +301,13 @@ pub fn split_indexed_and_total_with_extracted_spans(
 ) -> IndexedTransactionAndSpanAndMetrics {
     let scoping = transaction.scoping();
 
+    let mut metrics_extracted = false;
     let (transaction, metrics) = transaction.split_once(|mut tx, r| {
         r.lenient(DataCategory::MetricBucket);
 
         let mut metrics = ProcessingExtractedMetrics::new();
 
-        let had_metrics_extracted = tx.flags.metrics_extracted;
-        tx.flags.metrics_extracted = extraction::extract_metrics(
+        metrics_extracted = extraction::extract_metrics(
             &mut tx.event,
             &mut metrics,
             ExtractMetricsContext {
@@ -326,13 +315,11 @@ pub fn split_indexed_and_total_with_extracted_spans(
                 project_id: scoping.project_id,
                 ctx,
                 sampling_decision: SamplingDecision::Keep,
-                metrics_extracted: tx.flags.metrics_extracted,
                 extract_span_metrics: spans.is_some(),
             },
-        )
-        .0;
+        );
 
-        if had_metrics_extracted || !tx.flags.metrics_extracted {
+        if !metrics_extracted {
             // Invalid config or invalid original transaction
             r.lenient(DataCategory::Transaction);
             r.lenient(DataCategory::Span);
@@ -381,8 +368,9 @@ pub fn split_indexed_and_total_with_extracted_spans(
                 // "Insurance" that metrics extracted from the transaction spans match the extracted
                 // spans.
                 r.modify_by(*c, -(*q as isize));
-            } else if transaction.flags.metrics_extracted {
-                // This `metrics_extracted` flag really isn't necessary anymore and should be deleted.
+            } else if metrics_extracted {
+                // Metrics were extracted but do not contain a span quantity,
+                // be lenient about the span counts instead of failing bookkeeping.
                 r.lenient(DataCategory::Span);
             }
 
@@ -406,12 +394,12 @@ pub fn split_indexed_and_total(
 ) -> IndexedAndMetrics {
     let scoping = work.scoping();
 
-    let had_metrics_extracted = work.flags.metrics_extracted;
     let extract_span_metrics = !work.flags.spans_rate_limited;
 
     let mut metrics = ProcessingExtractedMetrics::new();
+    let mut metrics_extracted = false;
     work.modify(|work, _| {
-        work.flags.metrics_extracted = extraction::extract_metrics(
+        metrics_extracted = extraction::extract_metrics(
             &mut work.event,
             &mut metrics,
             ExtractMetricsContext {
@@ -419,16 +407,14 @@ pub fn split_indexed_and_total(
                 project_id: scoping.project_id,
                 ctx,
                 sampling_decision,
-                metrics_extracted: work.flags.metrics_extracted,
                 extract_span_metrics,
             },
-        )
-        .0;
+        );
     });
 
     work.split_once(|work, r| {
         r.lenient(DataCategory::MetricBucket);
-        if had_metrics_extracted || !work.flags.metrics_extracted {
+        if !metrics_extracted {
             // Invalid config or invalid original transaction
             r.lenient(DataCategory::Transaction);
             r.lenient(DataCategory::Span);

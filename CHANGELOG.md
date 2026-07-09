@@ -4,15 +4,19 @@
 
 **Features**:
 
+- Switches the container base image from distroless to docker hardened. ([#6117](https://github.com/getsentry/relay/pull/6117))
 - Infer span descriptions via `sentry-conventions`. ([#6093](https://github.com/getsentry/relay/pull/6093))
 - Raises the size limit for the flags context to 64KiB. ([#6137](https://github.com/getsentry/relay/pull/6137))
 - Add segment_names field to Replay events. ([#6134](https://github.com/getsentry/relay/pull/6134))
 - Use a out of process solution for catching crashes. ([#6158](https://github.com/getsentry/relay/pull/6158))
+- Accept a `charset=utf-8` parameters on JSON and XML content types. ([#6184](https://github.com/getsentry/relay/pull/6184))
 - Support PEM file format for signing / verification keys. ([#6155](https://github.com/getsentry/relay/pull/6155))
+- GA the `upload-endpoint` feature. ([#6171](https://github.com/getsentry/relay/pull/6171))
 
 **Bug Fixes**:
 
 - Wider type support for OTel log bodies. ([#6106](https://github.com/getsentry/relay/pull/6106))
+- Align OTLP endpoint responses with the specification. ([#6182](https://github.com/getsentry/relay/pull/6182))
 - Don't reject attributes that don't have values, but do have metadata. ([#6098](https://github.com/getsentry/relay/pull/6098))
 - Infer span names PII-safely. ([#6112](https://github.com/getsentry/relay/pull/6112))
 - Unset segment info for web vital spans. ([#6042](https://github.com/getsentry/relay/pull/6042))
@@ -20,23 +24,30 @@
 - Don't modify segment information for V2 web vital spans. ([#6160](https://github.com/getsentry/relay/pull/6160))
 - Support compressed minidumps when the `relay-minidump-uploads` feature is enabled. ([#6151](https://github.com/getsentry/relay/pull/6151))
 - Limit nested form-data entry keys. ([#6179](https://github.com/getsentry/relay/pull/6179))
+- Parse two-component versions in iOS and iPadOS `raw_description` into `version` instead of `kernel_version`. ([#6197](https://github.com/getsentry/relay/pull/6197))
 
 **Internal**:
 
 - Rename objectstore use-case from `profiles_raw` to `profile_attachments`. ([#6108](https://github.com/getsentry/relay/pull/6108))
 - Require timestamps and verification in auth signatures. ([#6069](https://github.com/getsentry/relay/pull/6069))
+- Match patterns iteratively instead of recursively. ([#6188](https://github.com/getsentry/relay/pull/6188))
 - Expand size of outcome quantities from `u32` to `u64`. ([#6133](https://github.com/getsentry/relay/pull/6133))
 - Internally handle outcomes as metrics. ([#6107](https://github.com/getsentry/relay/pull/6107))
+- Re-introduce `projects:discard-transaction` feature flag. ([#6199](https://github.com/getsentry/relay/pull/6199))
 - Have relay generate metric billing outcomes. ([#6066](https://github.com/getsentry/relay/pull/6066))
 - Update sentry-conventions to 0.12.0.
 - Update sentry-conventions to 0.13.0. ([#6139](https://github.com/getsentry/relay/pull/6139))
 - Upgrade release image to Debian 13. ([#6110](https://github.com/getsentry/relay/pull/6110))
+- No longer serialize transactions into envelopes when storing them. ([#6193](https://github.com/getsentry/relay/pull/6193))
+- No longer serialize check-ins into envelopes when storing them. ([#6196](https://github.com/getsentry/relay/pull/6196))
+- No longer serialize errors into envelopes when storing them. ([#6194](https://github.com/getsentry/relay/pull/6194))
 - Prefix upload location query params for forward compatibility. ([#6076](https://github.com/getsentry/relay/pull/6076))
 - Add config option to bypass the kafka fallback for objectstore uploads. ([#6127](https://github.com/getsentry/relay/pull/6127))
 - Use upstream descriptor in upload requests. ([#6128](https://github.com/getsentry/relay/pull/6128))
 - Use dedicated secret to sign upload URLs. ([#6132](https://github.com/getsentry/relay/pull/6132))
 - Inline small attachments instead of uploading to objectstore. ([#6165](https://github.com/getsentry/relay/pull/6165))
 - Retry 500 responses from objectstore. ([#6162](https://github.com/getsentry/relay/pull/6162))
+- Remove the `metrics_extracted` flag from the transactions processing pipeline. ([#6190](https://github.com/getsentry/relay/pull/6190))
 
 ## 26.6.0
 
