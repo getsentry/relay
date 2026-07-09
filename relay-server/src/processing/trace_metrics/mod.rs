@@ -20,45 +20,10 @@ mod store;
 mod utils;
 mod validate;
 
-#[cfg(feature = "processing")]
-/// Produce the supplied webvital trace metrics to kafka.
-pub fn produce_webvitals_metrics(
-    s: processing::StoreHandle<'_>,
-    span: &Managed<Box<crate::services::store::StoreSpanV2>>,
-    metrics: Vec<TraceMetric>,
-) {
-    use crate::processing::trace_metrics;
-
-    for metric in metrics {
-        let trace_metric_headers = trace_metric::TraceMetricHeader {
-            byte_size: Some(trace_metrics::utils::calculate_size(&metric)),
-            other: std::collections::BTreeMap::default(),
-        };
-
-        let wheader = crate::envelope::WithHeader {
-            header: trace_metric_headers.into(),
-            value: metric.into(),
-        };
-
-        if let Ok(mut item) = trace_metrics::store::convert(
-            wheader,
-            &trace_metrics::store::Context {
-                received_at: span.received_at(),
-                scoping: span.scoping(),
-                retention: processing::Retention {
-                    standard: span.retention_days,
-                    downsampled: span.downsampled_retention_days,
-                },
-            },
-        ) {
-            // Clear outcomes for these metrics, as we don't want them billed.
-            item.trace_item.outcomes = None;
-            s.send_to_store(span.wrap(item));
-        }
-    }
-}
-
 pub use self::utils::get_calculated_byte_size;
+
+#[cfg(feature = "processing")]
+pub use self::store::produce_webvitals_metrics;
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, thiserror::Error)]
