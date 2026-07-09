@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/managed/managed.rs`."><title>managed.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-17e0aaed.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.96.1 (31fca3adb 2026-06-26)" data-channel="1.96.1" data-search-js="search-b5634cc7.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-5013f961.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">relay_server/managed/</div>managed.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="attr">#[cfg(debug_assertions)]
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/managed/managed.rs`."><title>managed.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-17e0aaed.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.97.0 (2d8144b78 2026-07-07)" data-channel="1.97.0" data-search-js="search-fd9372ac.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-fcd733ba.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">relay_server/managed/</div>managed.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="attr">#[cfg(debug_assertions)]
 <a href=#2 id=2 data-nosnippet>2</a></span><span class="kw">use </span>std::collections::BTreeMap;
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span>std::convert::Infallible;
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>std::fmt;
@@ -492,7 +492,7 @@
 <a href=#492 id=492 data-nosnippet>492</a>        </span>F: FnOnce(T, <span class="kw-2">&amp;mut </span>RecordKeeper) -&gt; S,
 <a href=#493 id=493 data-nosnippet>493</a>        S: Counted,
 <a href=#494 id=494 data-nosnippet>494</a>    {
-<a href=#495 id=495 data-nosnippet>495</a>        <span class="self">self</span>.try_map(<span class="kw">move </span>|inner, records| Ok::&lt;<span class="kw">_</span>, Infallible&gt;(f(inner, records)))
+<a href=#495 id=495 data-nosnippet>495</a>        <span class="self">self</span>.try_map(<span class="kw">move </span>|inner, records| <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, Infallible&gt;(f(inner, records)))
 <a href=#496 id=496 data-nosnippet>496</a>            .unwrap_or_else(|e| <span class="kw">match </span>e.<span class="number">0 </span>{})
 <a href=#497 id=497 data-nosnippet>497</a>    }
 <a href=#498 id=498 data-nosnippet>498</a>
@@ -534,7 +534,7 @@
 <a href=#534 id=534 data-nosnippet>534</a>    {
 <a href=#535 id=535 data-nosnippet>535</a>        <span class="self">self</span>.try_modify(<span class="kw">move </span>|inner, records| {
 <a href=#536 id=536 data-nosnippet>536</a>            f(inner, records);
-<a href=#537 id=537 data-nosnippet>537</a>            Ok::&lt;<span class="kw">_</span>, Infallible&gt;(())
+<a href=#537 id=537 data-nosnippet>537</a>            <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, Infallible&gt;(())
 <a href=#538 id=538 data-nosnippet>538</a>        })
 <a href=#539 id=539 data-nosnippet>539</a>        .unwrap_or_else(|e| <span class="kw">match </span>e {})
 <a href=#540 id=540 data-nosnippet>540</a>    }
@@ -580,7 +580,7 @@
 <a href=#580 id=580 data-nosnippet>580</a>    <span class="kw">where
 <a href=#581 id=581 data-nosnippet>581</a>        </span>F: FnOnce(T) -&gt; S,
 <a href=#582 id=582 data-nosnippet>582</a>    {
-<a href=#583 id=583 data-nosnippet>583</a>        <span class="self">self</span>.try_accept(|item| Ok::&lt;<span class="kw">_</span>, Infallible&gt;(f(item)))
+<a href=#583 id=583 data-nosnippet>583</a>        <span class="self">self</span>.try_accept(|item| <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, Infallible&gt;(f(item)))
 <a href=#584 id=584 data-nosnippet>584</a>            .unwrap_or_else(|err| <span class="kw">match </span>err.<span class="number">0 </span>{})
 <a href=#585 id=585 data-nosnippet>585</a>    }
 <a href=#586 id=586 data-nosnippet>586</a>
@@ -1158,7 +1158,7 @@
 <a href=#1158 id=1158 data-nosnippet>1158</a>
 <a href=#1159 id=1159 data-nosnippet>1159</a><span class="attr">#[cfg(test)]
 <a href=#1160 id=1160 data-nosnippet>1160</a></span><span class="kw">mod </span>tests {
-<a href=#1161 id=1161 data-nosnippet>1161</a>    <span class="kw">use </span>super::<span class="kw-2">*</span>;
+<a href=#1161 id=1161 data-nosnippet>1161</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 <a href=#1162 id=1162 data-nosnippet>1162</a>
 <a href=#1163 id=1163 data-nosnippet>1163</a>    <span class="kw">use </span>relay_base_schema::project::ProjectId;
 <a href=#1164 id=1164 data-nosnippet>1164</a>

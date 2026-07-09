@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["AppFeature","ResourceId","Value"],"macro":["with"],"struct":["CategoryToken","Cogs","CogsMeasurement","FeatureWeights","FeatureWeightsBuilder","NoopRecorder","Token"],"trait":["Category","CogsRecorder"]};
+window.SIDEBAR_ITEMS = {"enum":["AppFeature","ResourceId","Value"],"macro":[["with",1]],"struct":["CategoryToken","Cogs","CogsMeasurement","FeatureWeights","FeatureWeightsBuilder","NoopRecorder","Token"],"trait":["Category","CogsRecorder"]};
