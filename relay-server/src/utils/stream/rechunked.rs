@@ -12,7 +12,11 @@ pub struct Rechunk<S, E> {
     inner: S,
     chunk_size: usize,
     buffer: BytesMut,
-    error: Option<E>,
+    /// State of the stream:
+    /// - `None`: not done.
+    /// - `Some(Some(e))`: need to flush an error.
+    /// - `Some(None)`: completely done.
+    done: Option<Option<E>>,
 }
 
 impl<S, E> Rechunk<S, E> {
@@ -22,7 +26,7 @@ impl<S, E> Rechunk<S, E> {
             inner,
             chunk_size: chunk_size.get(),
             buffer: BytesMut::new(),
-            error: None,
+            done: None,
         }
     }
 }
@@ -31,17 +35,20 @@ impl<S, E> Rechunk<S, E>
 where
     S: Stream<Item = Result<Bytes, E>> + Unpin,
 {
-    fn flush_remaining(&mut self) -> Poll<Option<Result<Bytes, E>>> {
-        if self.buffer.is_empty() {
-            Poll::Ready(None)
-        } else {
-            let chunk = std::mem::take(&mut self.buffer);
-            debug_assert!(
-                chunk.len() < self.chunk_size,
-                "buffer must be smaller than chunk size at this point"
-            );
-            Poll::Ready(Some(Ok(chunk.freeze())))
+    fn flush_one(&mut self) -> Poll<Option<Result<Bytes, E>>> {
+        let chunk = self.buffer.split_to(self.chunk_size.min(self.buffer.len()));
+        if chunk.is_empty() {
+            if let Some(done) = &mut self.done {
+                if let Some(error) = done.take() {
+                    // Flush the error. Will be done on next poll.
+                    return Poll::Ready(Some(Err(error)));
+                } else {
+                    return Poll::Ready(None);
+                }
+            };
+            return Poll::Pending;
         }
+        return Poll::Ready(Some(Ok(chunk.freeze())));
     }
 }
 
@@ -55,40 +62,34 @@ where
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
 
-        // While there is buffered data, flush it.
+        // While there are full chunks, flush them.
         if this.buffer.len() >= this.chunk_size {
-            let chunk = this.buffer.split_to(this.chunk_size);
-            return Poll::Ready(Some(Ok(chunk.freeze())));
+            return this.flush_one();
         }
 
-        if let Some(error) = this.error.take() {
-            // The presence of an error indicates that all data was flushed.
-            debug_assert!(this.buffer.is_empty());
-            return Poll::Ready(Some(Err(error)));
+        // Flush final chunk or error.
+        if this.done.is_some() {
+            return this.flush_one();
         }
 
-        match this.inner.poll_next_unpin(cx) {
-            Poll::Ready(None) => this.flush_remaining(),
-            Poll::Ready(Some(Err(e))) => {
-                if this.buffer.is_empty() {
-                    Poll::Ready(Some(Err(e)))
-                } else {
-                    this.error = Some(e);
-                    this.flush_remaining()
+        while this.buffer.len() < this.chunk_size {
+            match this.inner.poll_next_unpin(cx) {
+                Poll::Ready(None) => {
+                    this.done = Some(None);
+                    break;
                 }
-            }
-            Poll::Ready(Some(Ok(bytes))) => {
-                this.buffer.put(bytes);
-                if this.buffer.len() >= this.chunk_size {
-                    let chunk = this.buffer.split_to(this.chunk_size);
-                    Poll::Ready(Some(Ok(chunk.freeze())))
-                } else {
-                    cx.waker().wake_by_ref(); // not called by inner stream, it was ready.
-                    Poll::Pending
+                Poll::Ready(Some(Err(e))) => {
+                    this.done = Some(Some(e));
+                    break;
                 }
+                Poll::Ready(Some(Ok(bytes))) => {
+                    this.buffer.put(bytes);
+                }
+                Poll::Pending => return Poll::Pending,
             }
-            Poll::Pending => Poll::Pending,
         }
+
+        this.flush_one()
     }
 }
 
