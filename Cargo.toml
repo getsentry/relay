@@ -222,8 +222,8 @@ smallvec = { version = "1", features = ["serde"] }
 socket2 = "0.6"
 sqlparser = "0.62"
 sqlx = { version = "0.8", default-features = false }
-symbolic-common = { version = "12", default-features = false }
-symbolic-unreal = { version = "12", default-features = false }
+symbolic-common = { version = "14.0.0-alpha.1", default-features = false }
+symbolic-unreal = { version = "14.0.0-alpha.1", default-features = false }
 syn = "2"
 sync_wrapper = "1"
 synstructure = "0.13"
