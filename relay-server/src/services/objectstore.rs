@@ -51,7 +51,7 @@ pub enum Objectstore {
 impl Objectstore {
     fn kind(&self) -> MessageKind {
         match self {
-            Self::Envelope(_) => MessageKind::Event,
+            Self::Envelope(_) => MessageKind::Envelope,
             Self::Event(_) => MessageKind::Event,
             Self::TraceAttachment(_) => MessageKind::TraceAttachment,
             Self::EventAttachment(_) => MessageKind::EventAttachment,

@@ -515,7 +515,7 @@ impl StoreService {
 
         let mut attachments = Vec::new();
         for attachment in store.attachments {
-            // Note: Technically when an error occours we may have already produced some items to Kafka,
+            // Note: Technically when an error occurs we may have already produced some items to Kafka,
             // but since we don't keep track of that properly and just error out here, outcomes will
             // also report items which were already produced to Kafka as dropped.
             //
