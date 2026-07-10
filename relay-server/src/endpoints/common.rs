@@ -292,7 +292,7 @@ pub fn event_id_from_json(data: &[u8]) -> Result<Option<EventId>, BadStoreReques
 /// the provided is valid and returns an `Err` on parse errors. If the event id itself is malformed,
 /// an `Err` is returned.
 pub fn event_id_from_msgpack(data: &[u8]) -> Result<Option<EventId>, BadStoreRequest> {
-    rmp_serde::from_slice(data)
+    crate::utils::msgpack_from_slice(data)
         .map(|MinimalEvent { id, .. }| id)
         .map_err(BadStoreRequest::InvalidMsgpack)
 }

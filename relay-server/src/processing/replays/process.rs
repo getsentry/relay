@@ -20,7 +20,8 @@ fn expand_video(item: &Item) -> Result<ReplayPayload, Error> {
         replay_event: event,
         replay_recording: recording,
         replay_video: video,
-    } = rmp_serde::from_slice(&item.payload()).map_err(|_| Error::InvalidReplayVideoEvent)?;
+    } = crate::utils::msgpack_from_slice(&item.payload())
+        .map_err(|_| Error::InvalidReplayVideoEvent)?;
 
     if video.is_empty() {
         return Err(Error::InvalidReplayVideoEvent);

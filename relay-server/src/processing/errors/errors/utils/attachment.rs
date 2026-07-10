@@ -78,6 +78,9 @@ fn extract_attached_event(
 
     let payload = item.payload();
     let deserializer = &mut rmp_serde::Deserializer::from_read_ref(payload.as_ref());
+    // Bound the recursion depth to protect against stack overflows from maliciously nested
+    // payloads. rmp_serde's default limit (1024) is too high for our deeply generic types.
+    deserializer.set_max_depth(crate::utils::MSGPACK_MAX_DEPTH);
     Annotated::deserialize_with_meta(deserializer).map_err(ProcessingError::InvalidMsgpack)
 }
 
@@ -105,6 +108,9 @@ fn parse_msgpack_breadcrumbs(
 
     let payload = item.payload();
     let mut deserializer = rmp_serde::Deserializer::new(payload.as_ref());
+    // Bound the recursion depth to protect against stack overflows from maliciously nested
+    // payloads. rmp_serde's default limit (1024) is too high for our deeply generic types.
+    deserializer.set_max_depth(crate::utils::MSGPACK_MAX_DEPTH);
 
     while !deserializer.get_ref().is_empty() {
         let breadcrumb = Annotated::deserialize_with_meta(&mut deserializer)?;
@@ -257,71 +263,39 @@ mod tests {
         buf.push(0x81); // fixmap with 1 entry
         buf.push(0xa1); // fixstr of length 1
         buf.push(b'a'); //   the key "a"
-        for _ in 0..depth {
-            buf.push(0x91); // fixarray of length 1 -> one more nesting level
-        }
+        buf.resize(buf.len() + depth, 0x91); // `depth` fixarrays of length 1 (one level each)
         buf.push(0x90); // innermost: fixarray of length 0
         buf
     }
 
-    /// Proof of the unbounded-recursion vulnerability in the msgpack attachment path.
+    /// Regression test for unbounded recursion in the msgpack attachment path.
     ///
-    /// [`extract_attached_event`] deserializes an attachment with `rmp_serde`, which (unlike
-    /// `serde_json`, capped at 128 levels) enforces *no* recursion limit. A ~200 KB payload of
-    /// nested arrays therefore drives `Value` deserialization ~200k frames deep and overflows
-    /// the stack. The `config.max_event_size()` check (1 MiB by default) does not help: nesting
-    /// depth is unbounded well below the byte limit.
+    /// [`extract_attached_event`] deserializes an attachment with `rmp_serde`. Its default
+    /// recursion limit (1024) is too high for Relay's deeply generic `Value` type: each frame is
+    /// several KB, so a deeply nested payload used to overflow the stack (which aborts the
+    /// process) long before the limit tripped. The `config.max_event_size()` check (1 MiB) does
+    /// not help, as nesting depth is unbounded well below the byte limit.
     ///
-    /// A stack overflow aborts the process rather than unwinding, so it cannot be caught in this
-    /// thread. Instead we re-exec this test binary in a child process that performs the
-    /// deserialization, and assert the child was killed by a stack overflow.
+    /// We now cap the depth via `set_max_depth`, so a maliciously nested payload is rejected with
+    /// an error instead of crashing. This test builds a ~200 KB payload nested 200k levels deep
+    /// (far beyond the cap, but still under `max_event_size`) and asserts graceful rejection.
     ///
-    /// Once the deserialization path is bounded (e.g. via a depth-limited / `serde_stacker`
-    /// deserializer), the child will instead return an `Err` and exit cleanly — at which point
-    /// this test should be inverted to assert graceful rejection.
+    /// Before the fix this test would abort the whole test process with a stack overflow; if that
+    /// ever regresses, this test will take the runner down with it — which is the intended signal.
     #[test]
-    fn test_msgpack_deep_nesting_overflows_stack() {
-        const REPRO_ENV: &str = "RELAY_REPRO_MSGPACK_OVERFLOW";
+    fn test_msgpack_deep_nesting_is_rejected() {
+        // ~200 KB payload, comfortably under the 1 MiB max_event_size, but 200k levels deep.
+        let payload = deeply_nested_msgpack_event(200_000);
+        assert!(payload.len() < Config::default().max_event_size());
 
-        // Child branch: actually run the vulnerable deserialization. This overflows the stack
-        // and aborts the process on current code.
-        if std::env::var(REPRO_ENV).is_ok() {
-            // ~200 KB payload, comfortably under the 1 MiB max_event_size, but 200k levels deep.
-            let payload = deeply_nested_msgpack_event(200_000);
-            assert!(payload.len() < Config::default().max_event_size());
+        let mut item = Item::new(ItemType::Attachment);
+        item.set_payload(ContentType::MsgPack, payload);
 
-            let mut item = Item::new(ItemType::Attachment);
-            item.set_payload(ContentType::MsgPack, payload);
-
-            // On vulnerable code this never returns: it overflows the stack during recursive
-            // `Value` deserialization (or during the recursive drop of the parsed tree).
-            let _ = extract_attached_event(&Config::default(), Some(item));
-            return;
-        }
-
-        // Parent branch: re-exec this exact test in a subprocess with the repro env set.
-        let module = module_path!(); // relay_server::...::attachment::tests
-        let test_path = module.strip_prefix("relay_server::").unwrap_or(module);
-        let test_name = format!("{test_path}::test_msgpack_deep_nesting_overflows_stack");
-
-        let exe = std::env::current_exe().expect("current test executable");
-        let output = std::process::Command::new(exe)
-            .args(["--exact", "--nocapture", &test_name])
-            .env(REPRO_ENV, "1")
-            .output()
-            .expect("spawn repro subprocess");
-
-        let stderr = String::from_utf8_lossy(&output.stderr);
+        let result = extract_attached_event(&Config::default(), Some(item));
 
         assert!(
-            !output.status.success(),
-            "child exited successfully — the rmp_serde recursion vulnerability appears to be \
-             fixed. Update this test to assert graceful rejection instead.\nstderr:\n{stderr}"
-        );
-        assert!(
-            stderr.contains("stack overflow") || stderr.contains("overflowed its stack"),
-            "child crashed, but not from a stack overflow. status: {:?}\nstderr:\n{stderr}",
-            output.status
+            matches!(result, Err(ProcessingError::InvalidMsgpack(_))),
+            "expected the deeply nested payload to be rejected, got: {result:?}"
         );
     }
 }
