@@ -12,6 +12,7 @@
 - Accept a `charset=utf-8` parameters on JSON and XML content types. ([#6184](https://github.com/getsentry/relay/pull/6184))
 - Support PEM file format for signing / verification keys. ([#6155](https://github.com/getsentry/relay/pull/6155))
 - GA the `upload-endpoint` feature. ([#6171](https://github.com/getsentry/relay/pull/6171))
+- Add Lightpanda to web crawler filter. ([#6143](https://github.com/getsentry/relay/pull/6143))
 
 **Bug Fixes**:
 
