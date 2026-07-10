@@ -31,7 +31,7 @@ use crate::services::objectstore;
 use crate::services::projects::cache::Project;
 use crate::services::projects::project::ProjectState;
 use crate::services::upload::{
-    self, ByteStream, Final, LocationQueryParams, ProjectContext, Provisional, SignedLocation,
+    self, ByteStream, LocationQueryParams, ProjectContext, Provisional, SignedLocation,
     UploadLength,
 };
 use crate::services::upstream::UpstreamRequestError;

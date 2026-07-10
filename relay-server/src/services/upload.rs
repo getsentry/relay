@@ -350,8 +350,6 @@ impl Service {
             }
             #[cfg(feature = "processing")]
             Backend::Objectstore { addr, config } => {
-                use objectstore_client::UploadId;
-
                 use crate::services::objectstore::UploadRef;
 
                 let Location {
@@ -365,8 +363,6 @@ impl Service {
                 let scoping = project.scoping;
                 debug_assert_eq!(scoping.project_id, project_id);
                 debug_assert!(stream.length().is_none_or(|l| Some(l) == length.value()));
-                let byte_counter = stream.byte_counter();
-
                 let upload_ref = UploadRef::new(key, upload_id, offset, length.value())?;
                 let upload_ref = addr
                     .send(objectstore::Stream {
