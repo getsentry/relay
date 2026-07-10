@@ -1,4 +1,6 @@
 #[cfg(all(sentry, feature = "processing"))]
+use bytes::Bytes;
+#[cfg(all(sentry, feature = "processing"))]
 use relay_event_schema::protocol::Event;
 #[cfg(all(sentry, feature = "processing"))]
 use relay_protocol::Annotated;
@@ -9,6 +11,10 @@ use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing::ForwardContext;
 use crate::processing::errors::errors::{Context, Expansion, SentryError};
 use crate::processing::errors::{Error, Result};
+#[cfg(all(sentry, feature = "processing"))]
+use crate::services::outcome::{DiscardAttachmentType, DiscardItemType};
+#[cfg(all(sentry, feature = "processing"))]
+use crate::services::processor::ProcessingError;
 
 #[derive(Debug)]
 pub struct Playstation {
@@ -54,14 +60,14 @@ impl SentryError for Playstation {
             (event, None)
         } else {
             use crate::constants::SENTRY_CRASH_PAYLOAD_KEY;
-            use crate::services::processor::ProcessingError;
             use crate::statsd::RelayCounters;
 
             relay_statsd::metric!(counter(RelayCounters::PlaystationProcessing) += 1);
 
-            let data = relay_prosperoconv::extract_data(&prosperodump.payload()).map_err(|err| {
-                ProcessingError::InvalidPlaystationDump(format!("Failed to extract data: {err}"))
-            })?;
+            let data = uncompress(
+                prosperodump.payload(),
+                ctx.processing.config.max_attachment_size(),
+            ).map_err(ProcessingError::from)?;
             let prospero_dump = relay_prosperoconv::ProsperoDump::parse(&data).map_err(|err| {
                 ProcessingError::InvalidPlaystationDump(format!("Failed to parse dump: {err}"))
             })?;
@@ -213,8 +219,6 @@ fn merge_events(
     from_prospero: &[u8],
     ctx: Context<'_>,
 ) -> Result<Annotated<Event>> {
-    use crate::services::{outcome::DiscardItemType, processor::ProcessingError};
-
     if from_envelope.len().max(from_prospero.len()) > ctx.processing.config.max_event_size() {
         return Err(ProcessingError::PayloadTooLarge(DiscardItemType::Event).into());
     }
@@ -236,4 +240,48 @@ fn merge_events_inner(
     crate::utils::merge_values(&mut from_prospero, from_envelope);
 
     Annotated::<Event>::deserialize_with_meta(from_prospero)
+}
+
+#[cfg(all(sentry, feature = "processing"))]
+#[derive(Debug, thiserror::Error)]
+enum CompressionError {
+    #[error("failed to decompress dump")]
+    Decode(#[from] std::io::Error),
+    #[error("decompressed dump exceeds size limit")]
+    TooLarge,
+}
+
+#[cfg(all(sentry, feature = "processing"))]
+impl From<CompressionError> for ProcessingError {
+    fn from(err: CompressionError) -> Self {
+        match err {
+            CompressionError::Decode(err) => {
+                ProcessingError::InvalidPlaystationDump(format!("Failed to extract data: {err}"))
+            }
+            CompressionError::TooLarge => ProcessingError::PayloadTooLarge(
+                DiscardItemType::Attachment(DiscardAttachmentType::Prosperodump),
+            ),
+        }
+    }
+}
+
+#[cfg(all(sentry, feature = "processing"))]
+fn uncompress(bytes: Bytes, limit: usize) -> Result<Bytes, CompressionError> {
+    use std::io::{Cursor, Read};
+
+    const LZ4_MAGIC_HEADER: &[u8] = b"\x04\x22\x4D\x18";
+    if !bytes.starts_with(LZ4_MAGIC_HEADER) {
+        return Ok(bytes);
+    }
+
+    let decoder = lz4_flex::frame::FrameDecoder::new(Cursor::new(bytes));
+    let mut decoder = decoder.take(limit.saturating_add(1) as u64);
+
+    let mut buffer = Vec::new();
+    decoder.read_to_end(&mut buffer)?;
+
+    if buffer.len() > limit {
+        return Err(CompressionError::TooLarge);
+    }
+    Ok(buffer.into())
 }
