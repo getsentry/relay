@@ -78,8 +78,7 @@ fn extract_attached_event(
 
     let payload = item.payload();
     let deserializer = &mut rmp_serde::Deserializer::from_read_ref(payload.as_ref());
-    // Bound the recursion depth to protect against stack overflows from maliciously nested
-    // payloads. rmp_serde's default limit (1024) is too high for our deeply generic types.
+    // rmp_serde's default limit (1024) is too high for our types.
     deserializer.set_max_depth(crate::utils::MSGPACK_MAX_DEPTH);
     Annotated::deserialize_with_meta(deserializer).map_err(ProcessingError::InvalidMsgpack)
 }
@@ -108,8 +107,7 @@ fn parse_msgpack_breadcrumbs(
 
     let payload = item.payload();
     let mut deserializer = rmp_serde::Deserializer::new(payload.as_ref());
-    // Bound the recursion depth to protect against stack overflows from maliciously nested
-    // payloads. rmp_serde's default limit (1024) is too high for our deeply generic types.
+    // rmp_serde's default limit (1024) is too high for our types.
     deserializer.set_max_depth(crate::utils::MSGPACK_MAX_DEPTH);
 
     while !deserializer.get_ref().is_empty() {
@@ -252,12 +250,6 @@ mod tests {
         result.expect("event_from_attachments");
     }
 
-    /// Builds a msgpack event `{"a": [[[ ... ]]]}` with `depth` levels of nested arrays.
-    ///
-    /// The top level is a map so it deserializes into an [`Event`]; the unknown key `a`
-    /// causes its deeply nested array value to be deserialized into a recursive
-    /// [`relay_protocol::Value`] (stored in `Event::other`). Each `0x91` byte is a msgpack
-    /// "fixarray of length 1", so the payload is roughly `depth` bytes for `depth` levels.
     fn deeply_nested_msgpack_event(depth: usize) -> Vec<u8> {
         let mut buf = Vec::with_capacity(depth + 8);
         buf.push(0x81); // fixmap with 1 entry
@@ -268,20 +260,7 @@ mod tests {
         buf
     }
 
-    /// Regression test for unbounded recursion in the msgpack attachment path.
-    ///
-    /// [`extract_attached_event`] deserializes an attachment with `rmp_serde`. Its default
-    /// recursion limit (1024) is too high for Relay's deeply generic `Value` type: each frame is
-    /// several KB, so a deeply nested payload used to overflow the stack (which aborts the
-    /// process) long before the limit tripped. The `config.max_event_size()` check (1 MiB) does
-    /// not help, as nesting depth is unbounded well below the byte limit.
-    ///
-    /// We now cap the depth via `set_max_depth`, so a maliciously nested payload is rejected with
-    /// an error instead of crashing. This test builds a ~200 KB payload nested 200k levels deep
-    /// (far beyond the cap, but still under `max_event_size`) and asserts graceful rejection.
-    ///
-    /// Before the fix this test would abort the whole test process with a stack overflow; if that
-    /// ever regresses, this test will take the runner down with it — which is the intended signal.
+    /// Reject event encoded as msgpack if it is too deeply nested.
     #[test]
     fn test_msgpack_deep_nesting_is_rejected() {
         // ~200 KB payload, comfortably under the 1 MiB max_event_size, but 200k levels deep.

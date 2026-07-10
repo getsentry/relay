@@ -3,12 +3,11 @@ use serde::{Deserialize, Deserializer, de};
 
 /// Maximum nesting depth allowed when deserializing MessagePack payloads.
 ///
-/// `rmp_serde` does enforce a recursion limit, but its default (1024) is far too permissive for
-/// Relay's deeply generic types (e.g. `Annotated<Value>`): each recursive deserialization frame is
+/// `rmp_serde` default (1024) too permissive for
+/// Relay's types (e.g. `Annotated<Value>`). Each recursive deserialization frame is
 /// several kilobytes, so a payload can exhaust the thread stack well before the built-in counter
-/// trips. We therefore cap nesting at the same depth `serde_json` enforces by default (128), which
-/// bounds the recursion long before it can overflow the stack while still accepting any realistic
-/// payload. See `set_max_depth` on [`rmp_serde::Deserializer`].
+/// trips.
+/// This limit matches the one in `serde_json`.
 pub const MSGPACK_MAX_DEPTH: usize = 128;
 
 /// Deserializes a value from MessagePack bytes with a bounded recursion depth.
