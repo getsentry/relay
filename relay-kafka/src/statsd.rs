@@ -145,33 +145,45 @@ pub enum KafkaGauges {
     /// - `producer_name`: The configured producer name/deployment identifier.
     TxMsgs,
 
+    /// A snapshot of the broker state.
+    ///
+    /// All broker states are emitted as a separate series tagged with `state`.
+    /// The current state is emitted with value `1`, and all other states are emitted
+    /// with value `0`.
+    ///
+    /// This metric is tagged with:
+    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
+    /// - `producer_name`: The configured producer name/deployment identifier.
+    /// - `state`: The current [`rdkafka::statistics::Broker::state`] of the broker.
+    BrokerState,
+
     /// The number of requests awaiting transmission to the broker.
     ///
     /// This metric is tagged with:
     /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
     /// - `producer_name`: The configured producer name/deployment identifier.
-    OutboundBufferRequests,
+    BrokerOutboundBufferRequests,
 
     /// The number of messages awaiting transmission to the broker.
     ///
     /// This metric is tagged with:
     /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
     /// - `producer_name`: The configured producer name/deployment identifier.
-    OutboundBufferMessages,
+    BrokerOutboundBufferMessages,
 
     /// The number of connection attempts, including successful and failed attempts, and name resolution failures.
     ///
     /// This metric is tagged with:
     /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
     /// - `producer_name`: The configured producer name/deployment identifier.
-    Connects,
+    BrokerConnects,
 
     /// The number of disconnections, whether triggered by the broker, the network, the load balancer, or something else.
     ///
     /// This metric is tagged with:
     /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
     /// - `producer_name`: The configured producer name/deployment identifier.
-    Disconnects,
+    BrokerDisconnects,
 
     /// Average internal producer queue latency, in milliseconds.
     ///
@@ -239,10 +251,11 @@ impl GaugeMetric for KafkaGauges {
             KafkaGauges::MessageSize => "kafka.stats.message_size",
             KafkaGauges::MessageSizeMax => "kafka.stats.message_size_max",
             KafkaGauges::TxMsgs => "kafka.stats.txmsgs",
-            KafkaGauges::OutboundBufferRequests => "kafka.stats.broker.outbuf.requests",
-            KafkaGauges::OutboundBufferMessages => "kafka.stats.broker.outbuf.messages",
-            KafkaGauges::Connects => "kafka.stats.broker.connects",
-            KafkaGauges::Disconnects => "kafka.stats.broker.disconnects",
+            KafkaGauges::BrokerState => "kafka.stats.broker.state",
+            KafkaGauges::BrokerOutboundBufferRequests => "kafka.stats.broker.outbuf.requests",
+            KafkaGauges::BrokerOutboundBufferMessages => "kafka.stats.broker.outbuf.messages",
+            KafkaGauges::BrokerConnects => "kafka.stats.broker.connects",
+            KafkaGauges::BrokerDisconnects => "kafka.stats.broker.disconnects",
             KafkaGauges::BrokerIntLatencyAvg => "kafka.stats.broker.int_latency.avg",
             KafkaGauges::BrokerIntLatencyP99 => "kafka.stats.broker.int_latency.p99",
             KafkaGauges::BrokerOutbufLatencyAvg => "kafka.stats.broker.outbuf_latency.avg",

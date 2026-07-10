@@ -10,7 +10,7 @@ use relay_common::time::UnixTimestamp;
 use relay_conventions::attributes::*;
 use relay_conventions::{AttributeInfo, ReplacementName, WriteBehavior};
 use relay_event_schema::protocol::{
-    Attribute, AttributeType, Attributes, BrowserContext, Geo, SpanV2,
+    Attribute, AttributeType, Attributes, BrowserContext, Geo, SpanV2, SpanV2Status,
 };
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Remark, RemarkType, Value};
 use relay_sampling::DynamicSamplingContext;
@@ -22,7 +22,10 @@ use crate::span::tag_extraction::{
     domain_from_scrubbed_http, domain_from_server_address, span_op_to_category,
     sql_action_from_query, sql_tables_from_query,
 };
-use crate::{ClientHints, FromUserAgentInfo as _, RawUserAgentInfo};
+use crate::{
+    ClientHints, FromUserAgentInfo as _, RawUserAgentInfo, TransactionNameRule,
+    normalize_transaction_name,
+};
 
 mod ai;
 mod mobile;
@@ -447,6 +450,35 @@ pub fn normalize_dsc(
     }
 }
 
+/// Sets the `sentry.trace.status` attribute on segment spans.
+///
+/// The value is derived from the `sentry.status` attribute if present, falling back to the span's
+/// top-level `status` field.
+pub fn normalize_trace_status(
+    attributes: &mut Annotated<Attributes>,
+    is_segment: &Annotated<bool>,
+    status: &Annotated<SpanV2Status>,
+) {
+    if is_segment.value().is_none_or(|is_segment| !*is_segment) {
+        return;
+    }
+
+    let attributes = attributes.get_or_insert_with(Default::default);
+    if attributes.contains_key(SENTRY__TRACE__STATUS) {
+        return;
+    }
+
+    let trace_status = attributes
+        .get_value(SENTRY__STATUS)
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_owned())
+        .or_else(|| status.value().map(|s| s.to_string()));
+
+    if let Some(trace_status) = trace_status {
+        attributes.insert(SENTRY__TRACE__STATUS, trace_status);
+    }
+}
+
 /// Normalizes the client sample rate attribute to be in the range `(0, 1]`.
 ///
 /// This is only relevant for spans as other eap types re not sampled.
@@ -820,6 +852,32 @@ pub fn normalize_web_vital_span_segment(span: &mut SpanV2) {
     }
 }
 
+/// Normalize the [`SENTRY__SEGMENT__NAME`] attribute (aka the transaction)
+/// by running [`normalize_transaction_name`] on it.
+///
+/// This exists for parity with the legacy standalone span pipeline.
+pub fn normalize_segment_name(
+    attributes: &mut Annotated<Attributes>,
+    tx_name_rules: &[TransactionNameRule],
+) {
+    let Some(attributes) = attributes.value_mut() else {
+        return;
+    };
+
+    let Some(attr_value) = attributes.get_annotated_value_mut(SENTRY__SEGMENT__NAME) else {
+        return;
+    };
+
+    let mut segment_name = match &attr_value.0 {
+        Some(Value::String(s)) => Annotated(Some(s.to_owned()), attr_value.1.clone()),
+        _ => return,
+    };
+
+    normalize_transaction_name(&mut segment_name, tx_name_rules);
+
+    *attr_value = segment_name.map_value(Value::String);
+}
+
 /// Double writes sentry conventions attributes into legacy attributes.
 ///
 /// This achieves backwards compatibility as it allows products to continue using legacy attributes
@@ -981,6 +1039,90 @@ mod tests {
           }
         }
         "#);
+    }
+
+    #[test]
+    fn test_normalize_trace_status_not_segment() {
+        let mut attributes = Annotated::empty();
+        normalize_trace_status(
+            &mut attributes,
+            &Annotated::new(false),
+            &Annotated::new(SpanV2Status::Ok),
+        );
+        assert!(attributes.value().is_none());
+    }
+
+    #[test]
+    fn test_normalize_trace_status_already_set() {
+        let mut attributes = Annotated::from_json(
+            r#"{"sentry.trace.status": {"type": "string", "value": "internal_error"}}"#,
+        )
+        .unwrap();
+        normalize_trace_status(
+            &mut attributes,
+            &Annotated::new(true),
+            &Annotated::new(SpanV2Status::Error),
+        );
+        assert_eq!(
+            attributes
+                .value()
+                .unwrap()
+                .get_value("sentry.trace.status")
+                .and_then(|v| v.as_str()),
+            Some("internal_error"),
+        );
+    }
+
+    #[test]
+    fn test_normalize_trace_status_from_sentry_status_attribute() {
+        let mut attributes = Annotated::from_json(
+            r#"{"sentry.status": {"type": "string", "value": "internal_error"}}"#,
+        )
+        .unwrap();
+        normalize_trace_status(
+            &mut attributes,
+            &Annotated::new(true),
+            &Annotated::new(SpanV2Status::Error),
+        );
+        assert_eq!(
+            attributes
+                .value()
+                .unwrap()
+                .get_value("sentry.trace.status")
+                .and_then(|v| v.as_str()),
+            Some("internal_error"),
+        );
+    }
+
+    #[test]
+    fn test_normalize_trace_status_from_span_status() {
+        let mut attributes = Annotated::empty();
+        normalize_trace_status(
+            &mut attributes,
+            &Annotated::new(true),
+            &Annotated::new(SpanV2Status::Error),
+        );
+        assert_eq!(
+            attributes
+                .value()
+                .unwrap()
+                .get_value("sentry.trace.status")
+                .and_then(|v| v.as_str()),
+            Some("error"),
+        );
+    }
+
+    #[test]
+    fn test_normalize_trace_status_no_status() {
+        let mut attributes = Annotated::empty();
+        normalize_trace_status(&mut attributes, &Annotated::new(true), &Annotated::empty());
+        assert!(
+            attributes
+                .value()
+                .unwrap()
+                .get_value("sentry.trace.status")
+                .is_none(),
+        );
     }
 
     #[test]

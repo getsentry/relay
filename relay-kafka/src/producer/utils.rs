@@ -87,6 +87,51 @@ impl Context {
     pub fn producer_name(&self) -> &str {
         &self.producer_name
     }
+
+    /// A helper to emit a broker state gauge.
+    ///
+    /// Each state is represented as a distinct gauge with a specific state tag,
+    /// since gauges do not self-clear this helper resets all known states to zero
+    /// on every emission.
+    ///
+    /// Note:
+    ///  - This implementation does relay on the list of brokers being static.
+    ///  - This implementation only considers known broker state values.
+    fn emit_broker_state(&self, broker: &rdkafka::statistics::Broker) {
+        const KAFKA_BROKER_STATES: &[&str] = &[
+            // Documented in the `rdkafka` crate:
+            "INIT",
+            "DOWN",
+            "CONNECT",
+            "AUTH",
+            "APIVERSION_QUERY",
+            "AUTH_HANDSHAKE",
+            "UP",
+            "UPDATE",
+            // In the C `rdkafka` source:
+            "TRY_CONNECT",
+            "SSL_HANDSHAKE",
+            "AUTH_LEGACY",
+            "AUTH_REQ",
+            "REAUTH",
+        ];
+
+        // Not gonna catch all cases, but better than nothing and shows the intention,
+        // all possible states must be defined in `KAFKA_BROKER_STATES`.
+        debug_assert!(
+            KAFKA_BROKER_STATES.contains(&broker.state.as_str()),
+            "Kafka broker state not in known list of states"
+        );
+
+        for state in KAFKA_BROKER_STATES {
+            relay_statsd::metric!(
+                gauge(KafkaGauges::BrokerState) = u64::from(*state == broker.state),
+                broker_name = &broker.name,
+                producer_name = &self.producer_name,
+                state = *state
+            );
+        }
+    }
 }
 
 impl ClientContext for Context {
@@ -118,26 +163,28 @@ impl ClientContext for Context {
         );
 
         for (_, broker) in statistics.brokers {
+            self.emit_broker_state(&broker);
+
             relay_statsd::metric!(
-                gauge(KafkaGauges::OutboundBufferRequests) = broker.outbuf_cnt as u64,
+                gauge(KafkaGauges::BrokerOutboundBufferRequests) = broker.outbuf_cnt as u64,
                 broker_name = &broker.name,
                 producer_name = producer_name
             );
             relay_statsd::metric!(
-                gauge(KafkaGauges::OutboundBufferMessages) = broker.outbuf_msg_cnt as u64,
+                gauge(KafkaGauges::BrokerOutboundBufferMessages) = broker.outbuf_msg_cnt as u64,
                 broker_name = &broker.name,
                 producer_name = producer_name
             );
             if let Some(connects) = broker.connects {
                 relay_statsd::metric!(
-                    gauge(KafkaGauges::Connects) = connects as u64,
+                    gauge(KafkaGauges::BrokerConnects) = connects as u64,
                     broker_name = &broker.name,
                     producer_name = producer_name
                 );
             }
             if let Some(disconnects) = broker.disconnects {
                 relay_statsd::metric!(
-                    gauge(KafkaGauges::Disconnects) = disconnects as u64,
+                    gauge(KafkaGauges::BrokerDisconnects) = disconnects as u64,
                     broker_name = &broker.name,
                     producer_name = producer_name
                 );

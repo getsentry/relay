@@ -165,6 +165,18 @@ pub struct Options {
     )]
     pub endpoint_fetch_config_enabled: bool,
 
+    /// The limit under which relay in-lines attachments into the envelope even if uploading to
+    /// objectstore is enabled.
+    ///
+    /// If the attachment is smaller than the attachment reference obtained by
+    /// uploading, there is no point in uploading.
+    #[serde(
+        rename = "relay.attachment-inline.limit",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub attachment_inline_limit: usize,
+
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,

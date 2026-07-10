@@ -302,24 +302,25 @@ pub enum RelayDistributions {
     /// Counts the number of retries for each upstream http request.
     ///
     /// This metric is tagged with:
-    ///
-    ///   - `result`: What happened to the request, an enumeration with the following values:
-    ///     * `success`: The request was sent and returned a success code `HTTP 2xx`
-    ///     * `response_error`: The request was sent and it returned an HTTP error.
-    ///     * `payload_failed`: The request was sent but there was an error in interpreting the response.
-    ///     * `send_failed`: Failed to send the request due to a network error.
-    ///     * `rate_limited`: The request was rate limited.
-    ///     * `invalid_json`: The response could not be parsed back into JSON.
-    ///   - `route`: The endpoint that was called on the upstream.
-    ///   - `status-code`: The status code of the request when available, otherwise "-".
+    ///  - `result`: What happened to the request, an enumeration with the following values:
+    ///    * `success`: The request was sent and returned a success code `HTTP 2xx`
+    ///    * `response_error`: The request was sent and it returned an HTTP error.
+    ///    * `payload_failed`: The request was sent but there was an error in interpreting the response.
+    ///    * `send_failed`: Failed to send the request due to a network error.
+    ///    * `rate_limited`: The request was rate limited.
+    ///    * `invalid_json`: The response could not be parsed back into JSON.
+    ///  - `upstream`: The upstream the request is sent to.
+    ///  - `route`: The endpoint that was called on the upstream.
+    ///  - `status-code`: The status code of the request when available, otherwise "-".
     UpstreamRetries,
-    /// Size of envelopes sent over HTTP in bytes.
-    UpstreamQueryBodySize,
-    /// Size of queries (projectconfig queries, i.e. the request payload, not the response) sent by
-    /// Relay over HTTP in bytes.
-    UpstreamEnvelopeBodySize,
-    /// Size of batched global metrics requests sent by Relay over HTTP in bytes.
-    UpstreamMetricsBodySize,
+    /// Size of request bodies sent over HTTP in bytes.
+    ///
+    /// This does not include requests with streaming bodies.
+    ///
+    /// This metric is tagged with:
+    ///  - `upstream`: The upstream the request is sent to.
+    ///  - `route`: The endpoint that was called on the upstream.
+    UpstreamBodySize,
     /// Distribution of flush buckets over partition keys.
     ///
     /// The distribution of buckets should be even.
@@ -366,9 +367,7 @@ impl DistributionMetric for RelayDistributions {
             Self::ProjectStateSizeBytesDecompressed => "project_state.size_bytes.decompressed",
             Self::UpstreamMessageQueueSize => "http_queue.size",
             Self::UpstreamRetries => "upstream.retries",
-            Self::UpstreamQueryBodySize => "upstream.query.body_size",
-            Self::UpstreamEnvelopeBodySize => "upstream.envelope.body_size",
-            Self::UpstreamMetricsBodySize => "upstream.metrics.body_size",
+            Self::UpstreamBodySize => "upstream.body_size",
             Self::PartitionKeys => "metrics.buckets.partition_keys",
             Self::PartitionSplits => "partition_splits",
             Self::TraceItemCanonicalSize => "trace_item.canonical_size",
@@ -475,15 +474,13 @@ pub enum RelayTimers {
     RequestsDuration,
     /// Time spent on minidump scrubbing.
     ///
-    /// This is the total time spent on parsing and scrubbing the minidump.  Even if no PII
-    /// scrubbing rules applied the minidump will still be parsed and the rules evaluated on
-    /// the parsed minidump, this duration is reported here with status of "n/a".
+    /// This is the total time spent on parsing and scrubbing the minidump.
     ///
     /// This metric is tagged with:
     ///
     /// - `status`: Scrubbing status: "ok" means successful scrubbed, "error" means there
     ///   was an error during scrubbing and finally "n/a" means scrubbing was successful
-    ///   but no scurbbing rules applied.
+    ///   but no scrubbing rules applied.
     MinidumpScrubbing,
     /// Time spent on view hierarchy scrubbing.
     ///
@@ -492,7 +489,7 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     ///
     /// - `status`: "ok" means successful scrubbed, "error" means there was an error during
-    ///   scrubbing
+    ///   scrubbing. "n/a" means unchanged.
     ViewHierarchyScrubbing,
     /// Time spend on attachment scrubbing.
     ///
@@ -505,6 +502,7 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     ///
     ///   - `attachment_type`: The type of attachment, e.g. "minidump".
+    ///   - `status`: "ok" means successful scrubbed. "n/a" means not changed.
     AttachmentScrubbing,
     /// Total time spent to send request to upstream Relay and handle the response.
     ///

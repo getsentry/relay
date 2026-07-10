@@ -1,6 +1,7 @@
 from collections import defaultdict
 from time import sleep
 import pytest
+import json
 import os
 import requests
 from functools import cache
@@ -9,6 +10,7 @@ from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from urllib3 import encode_multipart_formdata
 from .asserts import matches_any, time_within_delta
+from .consts import DUMMY_UPLOAD_LOCATION
 
 
 @cache
@@ -30,7 +32,6 @@ def playstation_project_config():
             "features": [
                 "organizations:relay-playstation-ingestion",
                 "organizations:relay-new-error-processing",
-                "projects:relay-upload-endpoint",
                 "projects:relay-playstation-uploads",
             ],
         }
@@ -1066,3 +1067,52 @@ def test_playstation_project_unavailable(
 
     assert response.status_code == 503
     assert outcomes_consumer.get_aggregated_outcomes(timeout=0.5) == []
+
+
+def test_playstation_attachment_inline_limit(
+    mini_sentry,
+    dummy_upload,
+    relay_with_playstation,
+):
+    project_id = 42
+    prosperodump = load_dump_file("playstation.prosperodmp")
+
+    mini_sentry.add_full_project_config(project_id, extra=playstation_project_config())
+    mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = True
+    mini_sentry.global_config["options"]["relay.attachment-inline.limit"] = 16
+
+    relay = relay_with_playstation(mini_sentry)
+
+    # Video smaller than the limit should be inlined.
+    small_video = b"small video"
+    response = relay.send_playstation_request(project_id, prosperodump, small_video)
+    assert response.ok
+
+    envelope = mini_sentry.get_captured_envelope()
+    by_name = {i.headers.get("filename"): i for i in envelope.items}
+    video = by_name["crash-video.webm"]
+    assert (
+        video.headers.get("content_type")
+        != "application/vnd.sentry.attachment-ref+json"
+    )
+    assert video.payload.bytes == small_video
+
+    # Prosperodump inlined regardless of the size.
+    dump = by_name["playstation.prosperodmp"]
+    assert (
+        dump.headers.get("content_type") != "application/vnd.sentry.attachment-ref+json"
+    )
+
+    # Large video uploaded to objectstore.
+    large_video = b"X" * 100
+    response = relay.send_playstation_request(project_id, prosperodump, large_video)
+    assert response.ok
+
+    envelope = mini_sentry.get_captured_envelope()
+    by_name = {i.headers.get("filename"): i for i in envelope.items}
+    video = by_name["crash-video.webm"]
+    assert video.headers["content_type"] == "application/vnd.sentry.attachment-ref+json"
+    assert json.loads(video.payload.bytes) == {
+        "location": DUMMY_UPLOAD_LOCATION,
+        "content_type": "video/webm",
+    }

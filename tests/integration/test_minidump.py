@@ -13,9 +13,9 @@ from uuid import UUID
 from urllib3.filepost import encode_multipart_formdata
 
 from sentry_relay.consts import DataCategory
+from .consts import DUMMY_UPLOAD_LOCATION
 from .asserts import matches_any, time_within_delta
 from .test_attachment_ref import upload_and_make_ref
-from .consts import DUMMY_UPLOAD_LOCATION
 
 MINIDUMP_ATTACHMENT_NAME = "upload_file_minidump"
 EVENT_ATTACHMENT_NAME = "__sentry-event"
@@ -491,17 +491,20 @@ def test_minidump_invalid_nested_formdata(mini_sentry, relay):
 
 
 @pytest.mark.parametrize(
-    "rate_limit,minidump_filename,use_objectstore",
+    "rate_limit,minidump_filename,use_objectstore,stream_upload",
     [
-        (None, "minidump.dmp", True),
-        (None, "minidump.dmp", False),
-        ("attachment", "minidump.dmp", True),
-        ("attachment", "minidump.dmp", False),
-        ("transaction", "minidump.dmp", False),
-        (None, "minidump.dmp.gz", False),
-        (None, "minidump.dmp.xz", False),
-        (None, "minidump.dmp.bz2", False),
-        (None, "minidump.dmp.zst", False),
+        (None, "minidump.dmp", True, False),
+        (None, "minidump.dmp", False, False),
+        ("attachment", "minidump.dmp", True, False),
+        ("attachment", "minidump.dmp", False, False),
+        ("transaction", "minidump.dmp", False, False),
+        (None, "minidump.dmp.gz", False, False),
+        (None, "minidump.dmp.xz", False, False),
+        (None, "minidump.dmp.bz2", False, False),
+        (None, "minidump.dmp.bz2", True, False),
+        (None, "minidump.dmp.zst", False, False),
+        (None, "minidump.dmp.zst", True, False),
+        (None, "minidump.dmp.zst", True, True),
     ],
 )
 def test_minidump_with_processing(
@@ -513,6 +516,7 @@ def test_minidump_with_processing(
     minidump_filename,
     use_objectstore,
     objectstore,
+    stream_upload,
 ):
     dmp_path = os.path.join(os.path.dirname(__file__), "fixtures/native/minidump.dmp")
     with open(dmp_path, "rb") as f:
@@ -533,6 +537,10 @@ def test_minidump_with_processing(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["eventRetention"] = 50000
+    if stream_upload:
+        project_config["config"].setdefault("features", []).append(
+            "projects:relay-minidump-uploads"
+        )
 
     options = {
         "processing": {
@@ -595,10 +603,15 @@ def test_minidump_with_processing(
     assert event["exception"]["values"][0]["mechanism"]["type"] == "minidump"
 
     # Check information extracted from the minidump
-    assert event["timestamp"] == 1574692481.0  # 11/25/2019 @ 2:34pm (UTC)
+    if not stream_upload:
+        assert event["timestamp"] == 1574692481.0  # 11/25/2019 @ 2:34pm (UTC)
 
     # Check that the SDK name is correctly detected
-    assert event["sdk"]["name"] == "minidump.unknown"
+    assert (
+        event["sdk"]["name"] == "minidump.upload"
+        if stream_upload
+        else "minidump.unknown"
+    )
 
     if not use_objectstore:
         assert list(message["attachments"]) == [
@@ -916,10 +929,7 @@ def test_minidump_placeholder(
     """
     event_id = "515539018c9b4260a6f999572f1661ee"
     project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"].setdefault("features", []).append(
-        "projects:relay-upload-endpoint"
-    )
+    mini_sentry.add_full_project_config(project_id)
     mini_sentry.global_config["options"][
         "relay.objectstore-attachments.sample-rate"
     ] = 1.0
@@ -1134,6 +1144,7 @@ def test_minidump_objectstore_uploads(
         )
         assert json.loads(minidump.payload.bytes) == {
             "location": DUMMY_UPLOAD_LOCATION,
+            "content_type": "application/x-dmp",
         }
     else:
         assert (
@@ -1170,7 +1181,6 @@ def test_minidump_objectstore_uploads_external_chain(
     project_config["config"].setdefault("features", []).extend(
         [
             "projects:relay-minidump-attachment-uploads",
-            "projects:relay-upload-endpoint",
         ]
     )
 
@@ -1210,7 +1220,6 @@ def test_minidump_objectstore_uploads_external_chain_attachment_limited(
     project_config["config"].setdefault("features", []).extend(
         [
             "projects:relay-minidump-attachment-uploads",
-            "projects:relay-upload-endpoint",
             "projects:relay-minidump-uploads",
         ]
     )
@@ -1620,72 +1629,6 @@ def test_minidump_large_attachment_skipped_when_no_project_fetching(mini_sentry,
     assert envelope.items[0].payload.bytes == minidump_content
 
 
-@pytest.mark.parametrize(
-    "magic,filename",
-    [
-        pytest.param(b"\x1f\x8b", "minidump.dmp.gz", id="gzip"),
-        pytest.param(b"\xfd7zXZ\x00", "minidump.dmp.xz", id="xz"),
-        pytest.param(b"BZh", "minidump.dmp.bz2", id="bzip2"),
-        pytest.param(b"\x28\xb5\x2f\xfd", "minidump.dmp.zst", id="zstd"),
-    ],
-)
-def test_minidump_objectstore_uploads_rejects_compressed(
-    mini_sentry,
-    relay,
-    magic,
-    filename,
-):
-    """
-    When streaming a minidump to objectstore, a compressed payload should be reject
-    (untill objectstore or minidump can handle them).
-    """
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"].setdefault("features", []).append(
-        "projects:relay-minidump-uploads"
-    )
-
-    relay = relay(
-        mini_sentry,
-        options={
-            "outcomes": {
-                "emit_outcomes": True,
-                "batch_size": 1,
-                "batch_interval": 1,
-            },
-        },
-    )
-
-    with pytest.raises(HTTPError) as exc_info:
-        relay.send_minidump(
-            project_id=project_id,
-            files=[(MINIDUMP_ATTACHMENT_NAME, filename, magic + b"\x00" * 32)],
-        )
-
-    assert exc_info.value.response.status_code == 400
-
-    assert mini_sentry.get_aggregated_outcomes() == [
-        {
-            "category": 1,
-            "outcome": 3,
-            "quantity": 1,
-            "reason": "invalid_minidump",
-        },
-        {
-            "category": 4,
-            "outcome": 3,
-            "reason": "invalid_minidump",
-            "quantity": 1,
-        },
-        {
-            "category": 22,
-            "outcome": 3,
-            "reason": "invalid_minidump",
-            "quantity": 1,
-        },
-    ]
-
-
 def test_minidump_upload_failure_bubbles_up(mini_sentry, relay):
     project_id = 42
     minidump_content = b"MDMP content"
@@ -1723,7 +1666,7 @@ def test_minidump_upload_failure_bubbles_up(mini_sentry, relay):
         {
             "category": DataCategory.ERROR,
             "outcome": 3,  # invalid
-            "reason": "objectstore_upload_failed",
+            "reason": "upload_failed",
             "quantity": 1,
         },
         {
@@ -1758,3 +1701,89 @@ def test_minidump_proxy_mode(mini_sentry, relay):
     item = envelope.items[0]
     assert item.headers.get("type") == "attachment"
     assert item.headers.get("attachment_type") == "event.minidump"
+
+
+def test_minidump_attachment_inline_limit(mini_sentry, relay, dummy_upload):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).append(
+        "projects:relay-minidump-attachment-uploads"
+    )
+    mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = True
+    mini_sentry.global_config["options"]["relay.attachment-inline.limit"] = 16
+    relay = relay(mini_sentry)
+
+    minidump_content = b"MDMP content"
+    small_content = b"small log"
+    large_content = b"X" * 100
+    response = relay.send_minidump(
+        project_id=project_id,
+        files=[
+            (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", minidump_content),
+            ("small", "small.txt", small_content),
+            ("large", "large.txt", large_content),
+        ],
+    )
+    assert response.ok
+
+    envelope = mini_sentry.get_captured_envelope()
+    by_name = {
+        i.headers.get("filename"): i
+        for i in envelope.items
+        if i.headers.get("type") == "attachment"
+    }
+
+    # Small attachment should be inlined
+    small = by_name["small.txt"]
+    assert (
+        small.headers.get("content_type")
+        != "application/vnd.sentry.attachment-ref+json"
+    )
+    assert small.payload.bytes == small_content
+
+    # Large attachment is uploaded to objectstore
+    large = by_name["large.txt"]
+    assert large.headers["content_type"] == "application/vnd.sentry.attachment-ref+json"
+    assert json.loads(large.payload.bytes) == {"location": DUMMY_UPLOAD_LOCATION}
+
+
+def test_minidump_raw_inline_limit(mini_sentry, relay, dummy_upload):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).append(
+        "projects:relay-minidump-uploads"
+    )
+    mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = True
+    mini_sentry.global_config["options"]["relay.attachment-inline.limit"] = 20
+    relay = relay(mini_sentry)
+
+    url = "/api/{}/minidump?sentry_key={}".format(
+        project_id, mini_sentry.get_dsn_public_key(project_id)
+    )
+
+    # Small minidump should be inlined
+    small = b"MDMP small"
+    relay.request(
+        "post", url, headers={"Content-Type": "application/x-dmp"}, data=small
+    )
+    envelope = mini_sentry.get_captured_envelope()
+    (item,) = envelope.items
+    assert item.headers.get("attachment_type") == "event.minidump"
+    assert (
+        item.headers.get("content_type") != "application/vnd.sentry.attachment-ref+json"
+    )
+    assert item.payload.bytes == small
+
+    # Large minidump is not inlined
+    large = b"MDMP" + b"X" * 100
+    relay.request(
+        "post", url, headers={"Content-Type": "application/x-dmp"}, data=large
+    )
+    envelope = mini_sentry.get_captured_envelope()
+    (item,) = envelope.items
+    assert item.headers.get("attachment_type") == "event.minidump"
+    assert item.headers["content_type"] == "application/vnd.sentry.attachment-ref+json"
+    assert json.loads(item.payload.bytes) == {
+        "location": DUMMY_UPLOAD_LOCATION,
+        "content_type": "application/x-dmp",
+    }

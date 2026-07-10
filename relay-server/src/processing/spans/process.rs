@@ -113,9 +113,7 @@ fn expand_span_container(item: &Item) -> Result<(Settings, ContainerItems<SpanV2
                     infer_user_agent: is
                         .and_then(|is| is.infer_user_agent)
                         .is_some_and(|infer| infer.is_auto()),
-                    // We don't want to infer names for V2 spans. If an SDK sent a
-                    // V2 span without a name it's just invalid.
-                    infer_name: false,
+                    ..Default::default()
                 },
                 // Unsupported, fall back to the safe default.
                 Some(_) => Default::default(),
@@ -151,6 +149,12 @@ fn expand_legacy_spans(
         // The inference can't happen during the conversion
         // because PII scrubbing needs to run first.
         infer_name: true,
+        // We want to do this for V1 standalone spans for parity
+        // with the legacy pipeline.
+        clear_web_vital_segment_info: true,
+        // We want to do this for V1 standalone spans for parity
+        // with the legacy pipeline.
+        normalize_segment_name: true,
     };
 
     (settings, spans)
@@ -225,6 +229,7 @@ fn normalize_span(
             hints: meta.client_hints(),
         });
         let performance_score = ctx.project_info.config().performance_score.as_ref();
+        let tx_name_rules = &ctx.project_info.config.tx_name_rules;
 
         validate_timestamps(span)?;
 
@@ -234,7 +239,12 @@ fn normalize_span(
         // because category derivation depends on having the sentry.op attribute
         // available.
         eap::normalize_sentry_op(&mut span.attributes);
-        eap::normalize_web_vital_span_segment(span);
+        if settings.clear_web_vital_segment_info {
+            eap::normalize_web_vital_span_segment(span);
+        }
+        if settings.normalize_segment_name {
+            eap::normalize_segment_name(&mut span.attributes, tx_name_rules);
+        }
         eap::normalize_span_category(&mut span.attributes);
         eap::normalize_received(&mut span.attributes, meta.received_at());
         eap::normalize_client_address(&mut span.attributes, meta.client_addr());
@@ -244,6 +254,7 @@ fn normalize_span(
         eap::normalize_user_agent(&mut span.attributes, client_ua_info);
         eap::normalize_user_geo(&mut span.attributes, |ip| geo_lookup.lookup(ip));
         eap::normalize_dsc(&mut span.attributes, &span.is_segment, headers.dsc());
+        eap::normalize_trace_status(&mut span.attributes, &span.is_segment, &span.status);
         if ctx.is_processing() {
             eap::normalize_ai(&mut span.attributes, duration, model_metdata);
         }
@@ -1035,6 +1046,16 @@ mod tests {
                 "attribute mismatch for {key}"
             )
         });
+    }
+
+    #[test]
+    fn test_normalize_trace_status_on_segment_span() {
+        let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(&[], &[]);
+        span.value_mut().as_mut().unwrap().is_segment = Annotated::new(true);
+
+        normalize_span(&mut span, Default::default(), &headers, &geo_lookup, ctx).unwrap();
+
+        assert_attributes_contains(&span, &[("sentry.trace.status", "ok")], &[]);
     }
 
     #[test]

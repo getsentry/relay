@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use serde_json::Value;
 
 enum IndexingState {
@@ -98,6 +100,8 @@ pub fn get_sentry_entry_indexes(param_name: &str) -> Option<Vec<&str>> {
 ///
 /// Electron SDK splits up long payloads into chunks starting at sentry__1 with an
 /// incrementing counter. Assemble these chunks here and then decode them below.
+///
+/// If the index is unparsable from `key`, `None` is returned.
 pub fn get_sentry_chunk_index(key: &str, prefix: &str) -> Option<usize> {
     key.strip_prefix(prefix).and_then(|rest| rest.parse().ok())
 }
@@ -105,7 +109,7 @@ pub fn get_sentry_chunk_index(key: &str, prefix: &str) -> Option<usize> {
 /// Aggregates slices of strings in random order.
 #[derive(Clone, Debug, Default)]
 pub struct ChunkedFormDataAggregator<'a> {
-    parts: Vec<&'a str>,
+    parts: BTreeMap<usize, &'a str>,
 }
 
 impl<'a> ChunkedFormDataAggregator<'a> {
@@ -115,15 +119,8 @@ impl<'a> ChunkedFormDataAggregator<'a> {
     }
 
     /// Adds a part with the given index.
-    ///
-    /// Fills up unpopulated indexes with empty strings, if there are holes between the last index
-    /// and this one. This effectively skips them when calling `join` in the end.
     pub fn insert(&mut self, index: usize, value: &'a str) {
-        if index >= self.parts.len() {
-            self.parts.resize(index + 1, "");
-        }
-
-        self.parts[index] = value;
+        self.parts.insert(index, value);
     }
 
     /// Returns `true` if no parts have been added.
@@ -133,7 +130,7 @@ impl<'a> ChunkedFormDataAggregator<'a> {
 
     /// Returns the string consisting of all parts.
     pub fn join(&self) -> String {
-        self.parts.join("")
+        self.parts.values().copied().collect()
     }
 }
 

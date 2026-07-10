@@ -1291,7 +1291,7 @@ pub struct ObjectstoreServiceConfig {
 
     /// Whether event attachment payloads may be sent through Kafka if objectstore upload fails.
     ///
-    /// When disabled, failed event attachments are dropped with an `objectstore_upload_failed`
+    /// When disabled, failed event attachments are dropped with an `upload_failed`
     /// outcome instead of falling back to Store's Kafka attachment path.
     pub fallback_to_kafka: bool,
 
@@ -2638,6 +2638,16 @@ impl Config {
             .as_ref()
             .map(|c| &c.signing_key)
             .or(self.credentials().map(|c| &c.secret_key))
+    }
+
+    /// Returns the key used to verify upload locations.
+    #[cfg(feature = "processing")]
+    pub fn upload_verification_key(&self) -> Option<&PublicKey> {
+        self.upload()
+            .credentials
+            .as_ref()
+            .map(|c| &c.verification_key)
+            .or(self.credentials().map(|c| &c.public_key))
     }
 
     /// Redis servers to connect to for project configs, cardinality limits,
