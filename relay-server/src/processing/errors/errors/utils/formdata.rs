@@ -101,30 +101,13 @@ mod tests {
 
         assert!(matches!(result, Err(ProcessingError::InvalidJson(_))));
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::envelope::{ContentType, ItemType};
-    use crate::utils::FormDataWriter;
-
-    fn form_data_item(fields: &[(&str, &str)]) -> Item {
-        let mut writer = FormDataWriter::new();
-        for (key, value) in fields {
-            writer.append(key, value);
-        }
-        let mut item = Item::new(ItemType::FormData);
-        item.set_payload(ContentType::Text, writer.into_inner());
-        item
-    }
 
     #[test]
     fn test_merge_formdata_assembles_chunks() {
         let item = form_data_item(&[("sentry__0", r#"{"message":"#), ("sentry__1", r#""hi"}"#)]);
         let mut target = SerdeValue::Object(Default::default());
 
-        merge_formdata(&mut target, &item);
+        merge_formdata(&mut target, &item).unwrap();
 
         assert_eq!(target, serde_json::json!({ "message": "hi" }));
     }
@@ -137,7 +120,7 @@ mod tests {
         ]);
         let mut target = SerdeValue::Object(Default::default());
 
-        merge_formdata(&mut target, &item);
+        merge_formdata(&mut target, &item).unwrap();
 
         assert_eq!(target, serde_json::json!({ "message": "hi" }));
     }
