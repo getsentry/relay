@@ -65,7 +65,7 @@ def test_send_directly(mini_sentry, relay, relay_credentials):
     with pytest.raises(HTTPError, match="403 Client Error"):
         managed_relay.send_event(project_id, {"message": "trusted event"})
 
-    outcome = mini_sentry.get_client_report(timeout=1)
+    outcome = mini_sentry.get_client_report()
     assert outcome["discarded_events"] == [
         {"reason": "missing_signature", "category": "error", "quantity": 1}
     ]
@@ -90,7 +90,7 @@ def test_expired_signature(mini_sentry, relay):
 
     relay.send_event(project_id, {"message": "expired signature"}, headers=headers)
 
-    outcome = mini_sentry.get_client_report(timeout=1)
+    outcome = mini_sentry.get_client_report()
     assert outcome["discarded_events"] == [
         {"reason": "invalid_signature", "category": "error", "quantity": 1}
     ]
@@ -206,7 +206,7 @@ def test_invalid_signature(mini_sentry, relay, relay_credentials):
     )
 
     # Wait a bit for the project config fetch
-    outcome = mini_sentry.get_client_report(timeout=1)
+    outcome = mini_sentry.get_client_report()
     assert outcome["discarded_events"] == [
         {"reason": "invalid_signature", "category": "error", "quantity": 1}
     ]
@@ -234,7 +234,7 @@ def test_not_trusted_relay(mini_sentry, relay, relay_credentials):
     relay.send_event(project_id)
 
     # once the project config is fetched we can check the outcome
-    outcome = mini_sentry.get_client_report(timeout=1)
+    outcome = mini_sentry.get_client_report()
     assert outcome["discarded_events"] == [
         {"reason": "missing_signature", "category": "error", "quantity": 1}
     ]
