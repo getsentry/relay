@@ -845,29 +845,31 @@ impl ObjectstoreServiceInner {
             Upload::Bytes { .. } => self.timeout,
             Upload::Stream { .. } => self.stream_timeout,
         };
-        let result = tokio::time::timeout(timeout, async {
-            let mut result = None;
-            loop {
-                let Some(body) = body.try_clone() else {
-                    break;
-                };
-                attempts += 1;
-                result.replace(self.attempt_upload(kind, session, body).await);
+        let result = dbg!(
+            tokio::time::timeout(timeout, async {
+                let mut result = None;
+                loop {
+                    let Some(body) = body.try_clone() else {
+                        break;
+                    };
+                    attempts += 1;
+                    result.replace(self.attempt_upload(kind, session, body).await);
 
-                if attempts < self.max_attempts.get()
-                    && matches!(&result, Some(Err(e)) if is_retryable(e))
-                {
-                    tokio::time::sleep(self.retry_interval).await;
-                } else {
-                    break;
+                    if attempts < self.max_attempts.get()
+                        && matches!(&result, Some(Err(e)) if is_retryable(e))
+                    {
+                        tokio::time::sleep(self.retry_interval).await;
+                    } else {
+                        break;
+                    }
                 }
-            }
 
-            result
-                .expect("try_clone() should succeed at least once")
-                .map_err(Error::from)
-        })
-        .await
+                result
+                    .expect("try_clone() should succeed at least once")
+                    .map_err(Error::from)
+            })
+            .await
+        )
         .map_err(Error::from)
         .flatten();
 
@@ -947,7 +949,8 @@ impl ObjectstoreServiceInner {
                     while let Some((i, chunk)) = body.next().await {
                         let chunk = chunk?;
                         let part_number = u32::try_from(i + 1)
-                            .map_err(|_| objectstore_client::Error::InvalidPartNumber(u32::MAX))?;
+                        .map_err(|_| objectstore_client::Error::InvalidPartNumber(u32::MAX))?;
+                        relay_log::trace!("Part number {part_number}");
 
                         // NOTE: This is a retry loop within a retry loop (see caller of this function).
                         // if we keep the Rechunked approach we might as well remove the outer loop for streaming uploads.
@@ -958,8 +961,10 @@ impl ObjectstoreServiceInner {
                             if attempts < self.max_attempts.get()
                                 && matches!(&result, Err(e) if is_retryable(e))
                             {
+                                relay_log::trace!("Attempt {attempts}: Failed with {result:?}, retrying");
                                 tokio::time::sleep(self.retry_interval).await;
                             } else {
+                                relay_log::trace!("Final attempt");
                                 break result;
                             }
                         };
