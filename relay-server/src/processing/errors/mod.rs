@@ -353,8 +353,42 @@ impl Forward for ErrorOutput {
         s: processing::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        let envelope = self.serialize_envelope(ctx)?;
-        s.send_envelope(ManagedEnvelope::from(envelope));
+        use crate::services::store::StoreEvent;
+
+        let ErrorOutput(event) = self;
+
+        let event = event
+            .try_map(|errors, _| -> Result<_> {
+                let ExpandedError {
+                    headers: _,
+                    fully_normalized: _,
+                    metrics: _,
+                    event,
+                    mut attachments,
+                    user_reports,
+                    data,
+                    other,
+                } = errors;
+
+                // A processing Relay must know about all item types in use, unknown items are
+                // already discarded during expansion.
+                debug_assert!(other.is_empty());
+
+                let event_category = data.event_category();
+                data.serialize_into(&mut attachments, ctx)?;
+
+                Ok(Box::new(StoreEvent {
+                    event_category,
+                    event: *event,
+                    attachments,
+                    user_reports,
+                    retention_days: ctx.event_retention().standard,
+                }))
+            })
+            .map_err(|err| err.map(|_| ()))?;
+
+        s.send_event(event);
+
         Ok(())
     }
 }

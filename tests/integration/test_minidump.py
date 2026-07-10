@@ -13,9 +13,9 @@ from uuid import UUID
 from urllib3.filepost import encode_multipart_formdata
 
 from sentry_relay.consts import DataCategory
+from .consts import DUMMY_UPLOAD_LOCATION
 from .asserts import matches_any, time_within_delta
 from .test_attachment_ref import upload_and_make_ref
-from .consts import DUMMY_UPLOAD_LOCATION
 
 MINIDUMP_ATTACHMENT_NAME = "upload_file_minidump"
 EVENT_ATTACHMENT_NAME = "__sentry-event"
@@ -929,10 +929,7 @@ def test_minidump_placeholder(
     """
     event_id = "515539018c9b4260a6f999572f1661ee"
     project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"].setdefault("features", []).append(
-        "projects:relay-upload-endpoint"
-    )
+    mini_sentry.add_full_project_config(project_id)
     mini_sentry.global_config["options"][
         "relay.objectstore-attachments.sample-rate"
     ] = 1.0
@@ -1184,7 +1181,6 @@ def test_minidump_objectstore_uploads_external_chain(
     project_config["config"].setdefault("features", []).extend(
         [
             "projects:relay-minidump-attachment-uploads",
-            "projects:relay-upload-endpoint",
         ]
     )
 
@@ -1224,7 +1220,6 @@ def test_minidump_objectstore_uploads_external_chain_attachment_limited(
     project_config["config"].setdefault("features", []).extend(
         [
             "projects:relay-minidump-attachment-uploads",
-            "projects:relay-upload-endpoint",
             "projects:relay-minidump-uploads",
         ]
     )

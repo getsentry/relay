@@ -387,10 +387,6 @@ pub fn filter(
 #[derive(Debug, Copy, Clone)]
 pub struct EventFullyNormalized(pub bool);
 
-/// New type representing whether metrics were extracted from transactions/spans.
-#[derive(Debug, Copy, Clone)]
-pub struct EventMetricsExtracted(pub bool);
-
 /// Checks if the Event includes unprintable fields.
 fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
     fn is_unprintable(value: &&str) -> bool {
