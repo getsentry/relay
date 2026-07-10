@@ -845,31 +845,29 @@ impl ObjectstoreServiceInner {
             Upload::Bytes { .. } => self.timeout,
             Upload::Stream { .. } => self.stream_timeout,
         };
-        let result = dbg!(
-            tokio::time::timeout(timeout, async {
-                let mut result = None;
-                loop {
-                    let Some(body) = body.try_clone() else {
-                        break;
-                    };
-                    attempts += 1;
-                    result.replace(self.attempt_upload(kind, session, body).await);
+        let result = tokio::time::timeout(timeout, async {
+            let mut result = None;
+            loop {
+                let Some(body) = body.try_clone() else {
+                    break;
+                };
+                attempts += 1;
+                result.replace(self.attempt_upload(kind, session, body).await);
 
-                    if attempts < self.max_attempts.get()
-                        && matches!(&result, Some(Err(e)) if is_retryable(e))
-                    {
-                        tokio::time::sleep(self.retry_interval).await;
-                    } else {
-                        break;
-                    }
+                if attempts < self.max_attempts.get()
+                    && matches!(&result, Some(Err(e)) if is_retryable(e))
+                {
+                    tokio::time::sleep(self.retry_interval).await;
+                } else {
+                    break;
                 }
+            }
 
-                result
-                    .expect("try_clone() should succeed at least once")
-                    .map_err(Error::from)
-            })
-            .await
-        )
+            result
+                .expect("try_clone() should succeed at least once")
+                .map_err(Error::from)
+        })
+        .await
         .map_err(Error::from)
         .flatten();
 
