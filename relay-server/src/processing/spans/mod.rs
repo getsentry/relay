@@ -385,6 +385,18 @@ struct Settings {
     /// for the benefit of standalone spans which need to have a name inferred
     /// after conversion to V2.
     infer_name: bool,
+    /// Whether to delete segment information (`is_segment`, `parent_span_id`,
+    /// [`SENTRY__SEGMENT__ID`](relay_conventions::attributes::SENTRY__SEGMENT__ID))
+    /// for web vital spans.
+    /// See [`normalize_web_vital_span_segment`](relay_event_normalization::eap::normalize_web_vital_span_segment).
+    ///
+    /// We want to do this for V1 standalone spans for the sake of parity
+    /// with the legacy pipeline. For V2 spans, we assume the SDK is already
+    /// sending the correct values.
+    clear_web_vital_segment_info: bool,
+    /// Normalize the segment name by scrubbing identifiers and applying rules
+    /// from the project config.
+    normalize_segment_name: bool,
 }
 
 /// Spans which have been parsed and expanded from their serialized state.

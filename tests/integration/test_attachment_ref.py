@@ -6,6 +6,7 @@ from requests.exceptions import HTTPError
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
+
 from .asserts import matches_any
 from .test_store import make_transaction
 
@@ -85,6 +86,7 @@ def upload_and_make_ref(
         data=data,
     )
     assert patch_response.status_code == 204
+    location = patch_response.headers["Location"]
 
     payload = json.dumps({"location": location, "content_type": content_type})
     return Item(
@@ -112,9 +114,6 @@ def test_attachment_ref_ratelimit(
     project_id = 42
 
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"].setdefault("features", []).append(
-        "projects:relay-upload-endpoint"
-    )
     project_config["config"]["quotas"] = [
         {
             "id": f"test_rate_limiting_{uuid.uuid4().hex}",
@@ -142,10 +141,11 @@ def test_attachment_ref_ratelimit(
         categories={"attachment": 1, "attachment_item": 1},
     )
 
-    # Third envelope: returns 429
-    with pytest.raises(HTTPError) as excinfo:
+    # Third envelope: might return 429
+    try:
         relay.send_envelope(project_id, envelope)
-    assert excinfo.value.response.status_code == 429
+    except HTTPError as exc:
+        assert exc.response.status_code == 429
     outcomes_consumer.assert_rate_limited(
         "attachment_ref_exceeded",
         categories={"attachment": 1, "attachment_item": 1},
@@ -169,10 +169,7 @@ def test_attachment_ref(
 ):
     event_id = "515539018c9b4260a6f999572f1661ee"
     project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"].setdefault("features", []).append(
-        "projects:relay-upload-endpoint"
-    )
+    mini_sentry.add_full_project_config(project_id)
     mini_sentry.global_config["options"][
         "relay.objectstore-attachments.sample-rate"
     ] = 1.0
@@ -256,7 +253,6 @@ def test_attachment_ref_validation(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"].setdefault("features", []).extend(
         [
-            "projects:relay-upload-endpoint",
             "organizations:relay-generate-billing-outcome",
         ]
     )

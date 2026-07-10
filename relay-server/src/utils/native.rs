@@ -77,8 +77,10 @@ fn write_native_placeholder(
             additional_exceptions = exceptions.len(),
             native_exception_mechanism = placeholder.exception_type,
             additional_exception_mechanism = ?get_value!(exc.mechanism.ty),
-            project = ?event.project,
+            sentry_project = ?event.project,
+            event_id = ?event.id,
             has_feature = allow_multiple_exceptions,
+            platform = ?event.platform,
             "Native event has additional exceptions",
         )
     }

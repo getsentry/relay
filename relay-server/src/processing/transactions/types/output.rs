@@ -1,12 +1,5 @@
-#[cfg(feature = "processing")]
-use relay_dynamic_config::Feature;
-#[cfg(feature = "processing")]
-use relay_protocol::Annotated;
-
 use crate::Envelope;
 use crate::managed::{Managed, ManagedResult, Rejected};
-#[cfg(feature = "processing")]
-use crate::processing::StoreHandle;
 use crate::processing::spans::Indexed;
 use crate::processing::transactions::types::{
     ExpandedTransaction, ExtractedIndexedSpans, StandaloneProfile,
@@ -56,9 +49,13 @@ impl Forward for TransactionOutput {
     #[cfg(feature = "processing")]
     fn forward_store(
         self,
-        s: StoreHandle<'_>,
+        s: crate::processing::StoreHandle<'_>,
         ctx: ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
+        use crate::services::store::StoreEvent;
+        use relay_dynamic_config::Feature;
+        use relay_filter::FilterStatKey;
+
         let (spans, transaction) = match self {
             TransactionOutput::Full(managed) => {
                 return Err(managed.internal_error("only indexed transactions can be stored"));
@@ -93,28 +90,40 @@ impl Forward for TransactionOutput {
             }
         }
 
-        let (profile, transaction) = transaction.split_once(|mut tx, _| (tx.profile.take(), tx));
+        let (profile, event) = transaction.split_once(|tx, _| {
+            let ExpandedTransaction {
+                headers: _,
+                mut event,
+                flags: _,
+                attachments,
+                profile,
+                category: _,
+            } = *tx;
+
+            if performance_issues_spans && let Some(event) = event.value_mut() {
+                event.performance_issues_spans = true.into();
+            }
+
+            let event = Box::new(StoreEvent {
+                event_category: relay_quotas::DataCategory::TransactionIndexed,
+                event,
+                attachments,
+                user_reports: Vec::new(),
+                retention_days: ctx.event_retention().standard,
+            });
+
+            (profile, event)
+        });
+
+        let discard_transactions = ctx.project_info.has_feature(Feature::DiscardTransaction);
+        match discard_transactions {
+            false => s.send_event(event),
+            true => drop(event.reject_err(Outcome::Filtered(FilterStatKey::Discarded))),
+        }
+
         if let Some(profile) = profile.transpose() {
             s.send_to_store(profile.map(|p, _| store::convert_profile(p, true, ctx)));
         }
-
-        let envelope = transaction.try_map(|mut work, record_keeper| {
-            // TODO: This should raise an error, Indexed output should go straight to Kafka
-            // instead of an envelope. As long as we have this hack, ignore bookkeeping
-            record_keeper.lenient(relay_quotas::DataCategory::Transaction);
-
-            if let Some(event) = work.event.value_mut()
-                && performance_issues_spans
-            {
-                event.performance_issues_spans = Annotated::new(true);
-            }
-
-            work.serialize_envelope()
-                .map_err(drop)
-                .with_outcome(Outcome::Invalid(DiscardReason::Internal))
-        })?;
-
-        s.send_envelope(envelope.into());
 
         Ok(())
     }

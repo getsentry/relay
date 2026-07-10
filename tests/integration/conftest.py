@@ -47,7 +47,10 @@ from .fixtures.processing import (  # noqa
     objectstore,
 )
 
-from .consts import DUMMY_UPLOAD_LOCATION, ZSTD_MAGIC_HEADER
+from .consts import (
+    DUMMY_UPLOAD_LOCATION,
+    ZSTD_MAGIC_HEADER,
+)
 
 
 @pytest.fixture(scope="session")

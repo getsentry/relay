@@ -272,6 +272,15 @@ impl Attributes {
         Some(&self.0.get(key)?.value()?.value.value)
     }
 
+    /// Returns the mutable attribute value as annotated.
+    pub fn get_annotated_value_mut<Q>(&mut self, key: &Q) -> Option<&mut Annotated<Value>>
+    where
+        String: Borrow<Q>,
+        Q: Ord + ?Sized,
+    {
+        Some(&mut self.0.get_mut(key)?.value_mut().as_mut()?.value.value)
+    }
+
     /// Inserts an attribute with the given value into this collection.
     pub fn insert<K: Into<String>, V: Into<AttributeValue>>(&mut self, key: K, value: V) {
         fn inner(slf: &mut Attributes, key: String, value: AttributeValue) {

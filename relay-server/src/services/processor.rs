@@ -1506,7 +1506,7 @@ impl Service for EnvelopeProcessorService {
         while let Some(message) = rx.recv().await {
             let service = self.clone();
             // Create a new hub to prevent sentry scopes from bleeding to other tasks.
-            let hub = relay_log::Hub::with(|h| relay_log::Hub::new_from_top(h));
+            let hub = relay_log::Hub::new_from_top(relay_log::Hub::current());
 
             self.inner
                 .pool
