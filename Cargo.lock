@@ -1753,7 +1753,7 @@ checksum = "daa0a64d21a7eb230583b4c5f4e23b7e4e57974f96620f42a7e75e08ae66d745"
 dependencies = [
  "log",
  "plain",
- "scroll",
+ "scroll 0.12.0",
 ]
 
 [[package]]
@@ -2812,7 +2812,7 @@ dependencies = [
  "procfs-core 0.17.0",
  "prost 0.13.5",
  "range-map",
- "scroll",
+ "scroll 0.12.0",
  "thiserror 2.0.18",
  "time",
  "tracing",
@@ -2830,7 +2830,7 @@ dependencies = [
  "num-derive",
  "num-traits",
  "range-map",
- "scroll",
+ "scroll 0.12.0",
  "smart-default",
 ]
 
@@ -2854,7 +2854,7 @@ dependencies = [
  "minidump-common",
  "nix 0.30.1",
  "procfs-core 0.18.0",
- "scroll",
+ "scroll 0.12.0",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -2873,7 +2873,7 @@ dependencies = [
  "minidump-writer",
  "parking_lot",
  "polling",
- "scroll",
+ "scroll 0.12.0",
  "thiserror 2.0.18",
  "uds",
 ]
@@ -5429,7 +5429,16 @@ version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ab8598aa408498679922eff7fa985c25d58a90771bd6be794434c5277eab1a6"
 dependencies = [
- "scroll_derive",
+ "scroll_derive 0.12.1",
+]
+
+[[package]]
+name = "scroll"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c1257cd4248b4132760d6524d6dda4e053bc648c9070b960929bf50cfb1e7add"
+dependencies = [
+ "scroll_derive 0.13.1",
 ]
 
 [[package]]
@@ -5437,6 +5446,17 @@ name = "scroll_derive"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1783eabc414609e28a5ba76aee5ddd52199f7107a0b24c2e9746a1ecc34a683d"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "scroll_derive"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed76efe62313ab6610570951494bdaa81568026e0318eaa55f167de70eeea67d"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6280,9 +6300,9 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "symbolic-common"
-version = "12.18.3"
+version = "14.0.0-alpha.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "332615d90111d8eeaf86a84dc9bbe9f65d0d8c5cf11b4caccedc37754eb0dcfd"
+checksum = "64711d344fcdaaf500ca6a81b465ccb2b8a6bf5395d7f575cded1213fcfb617d"
 dependencies = [
  "debugid",
  "memmap2",
@@ -6292,9 +6312,9 @@ dependencies = [
 
 [[package]]
 name = "symbolic-unreal"
-version = "12.18.3"
+version = "14.0.0-alpha.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83130cd7bfee4e02d06ab8d9727f6beef7bcbdc01297fd243881a51e6777b260"
+checksum = "0af928918e8581d8b2e1a61e4f1f83598119b1bdc3daa2d129b5a863efd55f92"
 dependencies = [
  "anylog",
  "bytes",
@@ -6302,7 +6322,7 @@ dependencies = [
  "elementtree",
  "flate2",
  "regex",
- "scroll",
+ "scroll 0.13.0",
  "serde",
  "thiserror 2.0.18",
  "time",
