@@ -233,8 +233,7 @@ impl RateLimited for Managed<Box<ExpandedTransaction<TotalAndIndexed>>> {
     }
 }
 
-impl<C> ExpandedTransaction<C, SpansEmbedded> {
-    // TODO: should only exist for `TotalAndIndexed`, Indexed should go straight to kafka.
+impl ExpandedTransaction<TotalAndIndexed, SpansEmbedded> {
     pub fn serialize_envelope(self) -> Result<Box<Envelope>, serde_json::Error> {
         let mut items = Items::new();
 

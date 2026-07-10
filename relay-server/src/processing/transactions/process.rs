@@ -457,6 +457,12 @@ pub fn process_profile(work: &mut Managed<Box<ExpandedTransaction>>, ctx: Contex
     });
 }
 
+/// A tuple of spans extracted from a [`TotalAndIndexed`] transaction.
+type SpansAndTransaction = (
+    Managed<ExtractedSpans>,
+    Managed<Box<ExpandedTransaction<TotalAndIndexed, SpansExtracted>>>,
+);
+
 /// Converts the spans embedded in the transaction into top-level span items.
 ///
 /// Only extracts spans in processing.
@@ -464,10 +470,7 @@ pub fn extract_spans(
     transaction: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     server_sample_rate: Option<f64>,
-) -> (
-    Managed<ExtractedSpans>,
-    Managed<Box<ExpandedTransaction<TotalAndIndexed, SpansExtracted>>>,
-) {
+) -> SpansAndTransaction {
     transaction.split_once(|tx, r| {
         let spans =
             spans::extract_from_event(tx.headers.dsc(), &tx.event, ctx.config, server_sample_rate)
