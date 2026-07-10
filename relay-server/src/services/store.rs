@@ -1661,7 +1661,6 @@ impl Message for KafkaMessage<'_> {
                 MetricNamespace::Sessions => "metric_sessions",
                 MetricNamespace::Spans => "metric_spans",
                 MetricNamespace::Transactions => "metric_transactions",
-                MetricNamespace::Custom => "metric_custom",
                 MetricNamespace::Outcomes => "metric_outcomes",
                 MetricNamespace::Unsupported => "metric_unsupported",
             },

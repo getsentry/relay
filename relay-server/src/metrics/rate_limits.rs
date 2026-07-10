@@ -276,7 +276,7 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "d:custom/something@millisecond".into(),
+                name: "d:transactions/something@millisecond".into(),
                 tags: Default::default(),
                 value: BucketValue::distribution(78.into()),
                 metadata: BucketMetadata::default(),
@@ -289,7 +289,7 @@ mod tests {
         let (metrics, outcomes) = run_limiter(mixed_bag(), deny(DataCategory::Span));
 
         assert_eq!(metrics.len(), 1);
-        assert_eq!(&*metrics[0].name, "d:custom/something@millisecond");
+        assert_eq!(&*metrics[0].name, "d:transactions/something@millisecond");
 
         assert_eq!(
             outcomes,

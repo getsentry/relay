@@ -189,7 +189,6 @@ pub struct BucketEncodings {
     spans: BucketEncoding,
     transactions: BucketEncoding,
     profiles: BucketEncoding,
-    custom: BucketEncoding,
 }
 
 impl BucketEncodings {
@@ -198,7 +197,6 @@ impl BucketEncodings {
         match namespace {
             MetricNamespace::Spans => self.spans,
             MetricNamespace::Transactions => self.transactions,
-            MetricNamespace::Custom => self.custom,
             // Always force the legacy encoding for sessions,
             // sessions are not part of the generic metrics platform with different
             // consumer which are not (yet) updated to support the new data.
@@ -233,7 +231,6 @@ where
                 spans: encoding,
                 transactions: encoding,
                 profiles: encoding,
-                custom: encoding,
             })
         }
 
@@ -404,7 +401,6 @@ mod tests {
                 spans: BucketEncoding::Legacy,
                 transactions: BucketEncoding::Legacy,
                 profiles: BucketEncoding::Legacy,
-                custom: BucketEncoding::Legacy,
             }
         );
         assert_eq!(
@@ -413,7 +409,6 @@ mod tests {
                 spans: BucketEncoding::Zstd,
                 transactions: BucketEncoding::Zstd,
                 profiles: BucketEncoding::Zstd,
-                custom: BucketEncoding::Zstd,
             }
         );
     }
@@ -424,7 +419,6 @@ mod tests {
             spans: BucketEncoding::Zstd,
             transactions: BucketEncoding::Zstd,
             profiles: BucketEncoding::Base64,
-            custom: BucketEncoding::Zstd,
         };
         let s = serde_json::to_string(&original).unwrap();
         let s = format!(

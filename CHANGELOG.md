@@ -30,6 +30,7 @@
 
 **Internal**:
 
+- Remove all remainders of custom metrics, including the `custom` metric namespace. ([#6210](https://github.com/getsentry/relay/pull/6210))
 - Rename objectstore use-case from `profiles_raw` to `profile_attachments`. ([#6108](https://github.com/getsentry/relay/pull/6108))
 - Require timestamps and verification in auth signatures. ([#6069](https://github.com/getsentry/relay/pull/6069))
 - Match patterns iteratively instead of recursively. ([#6188](https://github.com/getsentry/relay/pull/6188))

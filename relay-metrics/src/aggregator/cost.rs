@@ -132,7 +132,7 @@ mod tests {
 
     #[test]
     fn test_cost_tracker() {
-        let namespace = MetricNamespace::Custom;
+        let namespace = MetricNamespace::Spans;
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let project_key3 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
@@ -144,7 +144,7 @@ mod tests {
             cost_per_namespace: {},
         }
         "#);
-        cost_tracker.add_cost(MetricNamespace::Custom, project_key1, 50);
+        cost_tracker.add_cost(MetricNamespace::Spans, project_key1, 50);
         insta::assert_debug_snapshot!(cost_tracker, @r#"
         CostTracker {
             total_cost: 50,
@@ -152,7 +152,7 @@ mod tests {
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 50,
             },
             cost_per_namespace: {
-                Custom: 50,
+                Spans: 50,
             },
         }
         "#);
@@ -165,7 +165,7 @@ mod tests {
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
             },
             cost_per_namespace: {
-                Custom: 250,
+                Spans: 250,
             },
         }
         "#);
@@ -179,7 +179,7 @@ mod tests {
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
             },
             cost_per_namespace: {
-                Custom: 250,
+                Spans: 250,
             },
         }
         "#);
@@ -193,7 +193,7 @@ mod tests {
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
             },
             cost_per_namespace: {
-                Custom: 250,
+                Spans: 250,
             },
         }
         "#);
@@ -206,14 +206,14 @@ mod tests {
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 180,
             },
             cost_per_namespace: {
-                Custom: 230,
+                Spans: 230,
             },
         }
         "#);
 
         // Subtract all
-        cost_tracker.subtract_cost(MetricNamespace::Custom, project_key1, 50);
-        cost_tracker.subtract_cost(MetricNamespace::Custom, project_key2, 180);
+        cost_tracker.subtract_cost(MetricNamespace::Spans, project_key1, 50);
+        cost_tracker.subtract_cost(MetricNamespace::Spans, project_key2, 180);
         insta::assert_debug_snapshot!(cost_tracker, @r#"
         CostTracker {
             total_cost: 0,
