@@ -112,7 +112,7 @@ pub enum Upload {
     ///
     /// The service also returns the signed location. This is redundant, but creates a simpler
     /// flow for the caller side.
-    Upload(Stream, InstrumentedSender<Provisional>),
+    Upload(Box<Stream>, InstrumentedSender<Provisional>),
 }
 
 impl Interface for Upload {}
@@ -180,7 +180,7 @@ impl FromMessage<Stream> for Upload {
         sender: Sender<Result<SignedLocation<Provisional>, Error>>,
     ) -> Self {
         Self::Upload(
-            message,
+            Box::new(message),
             InstrumentedSender {
                 metric: RelayCounters::UploadUpload,
                 inner: sender,
@@ -411,7 +411,7 @@ impl SimpleService for Service {
                 sender.send(self.timeout(self.create(create)).await);
             }
             Upload::Upload(stream, sender) => {
-                sender.send(self.timeout(self.upload(stream)).await);
+                sender.send(self.timeout(self.upload(*stream)).await);
             }
         }
     }
@@ -506,7 +506,7 @@ impl<L: UploadLength> Location<L> {
             upload_id: upload_id.as_deref(),
             other,
         };
-        let query = dbg!(serde_urlencoded::to_string(params))?;
+        let query = serde_urlencoded::to_string(params)?;
         match query.as_str() {
             "" => Ok(format!("/api/{project_id}/upload/{key}/")),
             _ => Ok(format!("/api/{project_id}/upload/{key}/?{query}")),

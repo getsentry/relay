@@ -5,13 +5,11 @@ use std::num::{NonZeroU16, NonZeroUsize};
 use std::sync::Arc;
 use std::time::Duration;
 
-use async_compression::tokio::bufread::ZstdEncoder;
 use bytes::Bytes;
 use futures::StreamExt;
 use http::StatusCode;
 use objectstore_client::{
-    Client, Compression, ExpirationPolicy, SecretKey as SigningKey, Session, TokenGenerator,
-    UploadId, Usecase,
+    Client, ExpirationPolicy, SecretKey as SigningKey, Session, TokenGenerator, UploadId, Usecase,
 };
 
 use objectstore_types::multipart::InvalidUploadId;
@@ -23,7 +21,6 @@ use relay_system::{
     Addr, AsyncResponse, FromMessage, Interface, LoadShed, NoResponse, Sender, SimpleService,
 };
 use sentry_protos::snuba::v1::TraceItem;
-use tokio_util::io::{ReaderStream, StreamReader};
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
 use crate::envelope::{ContentType, Item, ItemType};
