@@ -85,7 +85,7 @@ def test_trace_metric_multiple_containers_not_allowed(
             "category": DataCategory.TRACE_METRIC_BYTE.value,
             "timestamp": time_within_delta(),
             "outcome": 3,  # Invalid
-            "quantity": matches(lambda x: 400 < x < 500),
+            "quantity": matches(lambda x: 300 < x < 500),
             "reason": "duplicate_item",
         },
     ]

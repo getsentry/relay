@@ -1,16 +1,20 @@
 //! Objectstore service for uploading attachments.
 use std::array::TryFromSliceError;
 use std::fmt;
-use std::num::NonZeroU16;
+use std::num::{NonZeroU16, NonZeroUsize};
 use std::sync::Arc;
 use std::time::Duration;
 
+use async_compression::tokio::bufread::ZstdEncoder;
 use bytes::Bytes;
 use futures::StreamExt;
 use http::StatusCode;
 use objectstore_client::{
-    Client, ExpirationPolicy, SecretKey as SigningKey, Session, TokenGenerator, Usecase,
+    Client, Compression, ExpirationPolicy, SecretKey as SigningKey, Session, TokenGenerator,
+    UploadId, Usecase,
 };
+
+use objectstore_types::multipart::InvalidUploadId;
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_config::ObjectstoreServiceConfig;
@@ -19,6 +23,7 @@ use relay_system::{
     Addr, AsyncResponse, FromMessage, Interface, LoadShed, NoResponse, Sender, SimpleService,
 };
 use sentry_protos::snuba::v1::TraceItem;
+use tokio_util::io::{ReaderStream, StreamReader};
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
 use crate::envelope::{ContentType, Item, ItemType};
@@ -30,9 +35,14 @@ use crate::services::store::{
 };
 use crate::services::upload::ByteStream;
 use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::{BoundedStream, MeteredStream, RetryableStream, TakeOnce, find_error_source};
+use crate::utils::{
+    BoundedStream, MeteredStream, Rechunk, RetryableStream, TakeOnce, find_error_source,
+};
 
 use super::outcome::Outcome;
+
+/// Size of an individual request to objectstore.
+const CHUNK_SIZE: NonZeroUsize = NonZeroUsize::new(5 * 1024 * 1024).unwrap();
 
 /// Messages that the objectstore service can handle.
 pub enum Objectstore {
@@ -40,6 +50,7 @@ pub enum Objectstore {
     TraceAttachment(Managed<StoreTraceAttachment>),
     EventAttachment(Managed<StoreAttachment>),
     RawProfile(Managed<StoreRawProfile>),
+    Create(Create, Sender<Result<UploadRef, Error>>),
     Stream(Stream, Sender<Result<ObjectstoreKey, Error>>),
 }
 
@@ -51,6 +62,7 @@ impl Objectstore {
             Self::EventAttachment(_) => MessageKind::EventAttachment,
             Self::RawProfile(_) => MessageKind::RawProfile,
             Self::Stream { .. } => MessageKind::Stream,
+            Self::Create { .. } => MessageKind::Create,
         }
     }
 
@@ -61,6 +73,7 @@ impl Objectstore {
             Self::EventAttachment(_) => 1,
             Self::RawProfile(_) => 1,
             Self::Stream { .. } => 1,
+            Self::Create { .. } => 0,
         }
     }
 }
@@ -107,6 +120,7 @@ enum MessageKind {
     TraceAttachment,
     RawProfile,
     Stream,
+    Create,
 }
 
 impl MessageKind {
@@ -117,7 +131,26 @@ impl MessageKind {
             Self::TraceAttachment => "attachment_v2",
             Self::RawProfile => "profile_raw",
             Self::Stream => "stream",
+            Self::Create => "create",
         }
+    }
+}
+
+/// A request to create a new objectstore multipart upload.
+pub struct Create {
+    /// The sentry org.
+    pub organization_id: OrganizationId,
+    /// The sentry project.
+    pub project_id: ProjectId,
+    /// The desired objectstore key.
+    pub key: String,
+}
+
+impl FromMessage<Create> for Objectstore {
+    type Response = AsyncResponse<Result<UploadRef, Error>>;
+
+    fn from_message(message: Create, sender: Sender<Result<UploadRef, Error>>) -> Self {
+        Self::Create(message, sender)
     }
 }
 
@@ -125,7 +158,7 @@ impl MessageKind {
 pub struct Stream {
     pub organization_id: OrganizationId,
     pub project_id: ProjectId,
-    pub key: String,
+    pub upload_ref: UploadRef,
     pub stream: BoundedStream<MeteredStream<ByteStream>>,
 }
 
@@ -293,6 +326,27 @@ impl ObjectstoreKey {
     }
 }
 
+/// Identifier needed to resume an existing upload.
+#[derive(Debug, Clone)]
+pub struct UploadRef {
+    /// They key of the file (chosen by relay).
+    pub key: String,
+    /// The ID of the multipart upload session (chosen by objectstore).
+    /// `None` if the upload is not multipart.
+    pub upload_id: Option<UploadId>,
+}
+
+impl UploadRef {
+    /// Validates the upload ID and returns a new upload reference.
+    pub fn new(key: String, upload_id: Option<String>) -> Result<Self, InvalidUploadId> {
+        let upload_id = match upload_id {
+            Some(s) => Some(UploadId::new(s)?),
+            None => None,
+        };
+        Ok(Self { key, upload_id })
+    }
+}
+
 impl fmt::Display for ObjectstoreKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
@@ -415,6 +469,9 @@ impl LoadShed<Objectstore> for ObjectstoreService {
             Objectstore::Stream(_, sender) => {
                 sender.send(Err(error));
             }
+            Objectstore::Create(_, sender) => {
+                sender.send(Err(error));
+            }
         }
     }
 }
@@ -453,6 +510,13 @@ impl ObjectstoreServiceInner {
             }
             Objectstore::RawProfile(profile) => {
                 self.handle_raw_profile(profile).await;
+            }
+            Objectstore::Create(create, sender) => {
+                let result = self.handle_create(create).await;
+                if let Err(error) = &result {
+                    error.log(MessageKind::Create);
+                }
+                sender.send(result);
             }
             Objectstore::Stream(stream, sender) => {
                 let result = self.handle_stream(stream).await;
@@ -704,11 +768,34 @@ impl ObjectstoreServiceInner {
         Ok(Some(stored_key))
     }
 
+    async fn handle_create(&self, create: Create) -> Result<UploadRef, Error> {
+        let Create {
+            organization_id,
+            project_id,
+            key,
+        } = create;
+        let session = self.session(&self.event_attachments, organization_id, project_id)?;
+
+        let multipart_upload = session
+            .initiate_multipart_upload()
+            .key(&key)
+            .compression(Compression::Zstd) // make explicit because parts need to be manually compressed.
+            .send()
+            .await?;
+        debug_assert_eq!(&key, multipart_upload.key());
+        let upload_id = multipart_upload.upload_id();
+
+        Ok(UploadRef {
+            key,
+            upload_id: Some(upload_id.clone()),
+        })
+    }
+
     async fn handle_stream(&self, stream: Stream) -> Result<ObjectstoreKey, Error> {
         let Stream {
             organization_id,
             project_id,
-            key,
+            upload_ref,
             stream,
         } = stream;
         let session = self.session(&self.event_attachments, organization_id, project_id)?;
@@ -716,10 +803,10 @@ impl ObjectstoreServiceInner {
         self.upload(
             MessageKind::Stream,
             &session,
-            Some(key),
-            Body::Stream(TakeOnce::new(stream)),
-            None,
-            None,
+            Upload::Stream {
+                body: TakeOnce::new(stream),
+                upload_ref,
+            },
         )
         .await
     }
@@ -737,10 +824,12 @@ impl ObjectstoreServiceInner {
         self.upload(
             kind,
             session,
-            key,
-            Body::Bytes(payload),
-            retention_hours,
-            content_type,
+            Upload::Bytes {
+                body: payload,
+                key,
+                retention_hours,
+                content_type,
+            },
         )
         .await
     }
@@ -749,15 +838,12 @@ impl ObjectstoreServiceInner {
         &self,
         kind: MessageKind,
         session: &Session,
-        key: Option<String>,
-        body: Body,
-        retention_hours: Option<u16>,
-        content_type: Option<ContentType>,
+        body: Upload,
     ) -> Result<ObjectstoreKey, Error> {
         let mut attempts = 0;
         let timeout = match &body {
-            Body::Bytes(_) => self.timeout,
-            Body::Stream(_) => self.stream_timeout,
+            Upload::Bytes { .. } => self.timeout,
+            Upload::Stream { .. } => self.stream_timeout,
         };
         let result = tokio::time::timeout(timeout, async {
             let mut result = None;
@@ -766,17 +852,7 @@ impl ObjectstoreServiceInner {
                     break;
                 };
                 attempts += 1;
-                result.replace(
-                    self.attempt_upload(
-                        kind,
-                        session,
-                        key.clone(),
-                        body,
-                        retention_hours,
-                        content_type,
-                    )
-                    .await,
-                );
+                result.replace(self.attempt_upload(kind, session, body).await);
 
                 if attempts < self.max_attempts.get()
                     && matches!(&result, Some(Err(e)) if is_retryable(e))
@@ -811,37 +887,76 @@ impl ObjectstoreServiceInner {
         &self,
         kind: MessageKind,
         session: &Session,
-        key: Option<String>,
-        body: BodyAttempt,
-        retention_hours: Option<u16>,
-        content_type: Option<ContentType>,
+        body: UploadAttempt,
     ) -> Result<ObjectstoreKey, objectstore_client::Error> {
-        let mut request = match body {
-            BodyAttempt::Bytes(bytes) => session.put(bytes),
-            BodyAttempt::Stream(stream) => session.put_stream(stream.boxed()),
-        };
+        match body {
+            UploadAttempt::Bytes {
+                body,
+                key,
+                retention_hours,
+                content_type,
+            } => {
+                let mut request = session.put(body);
+                if let Some(content_type) = content_type {
+                    request = request.content_type(content_type.as_str());
+                }
+                if let Some(retention_hours) = retention_hours {
+                    request = request.expiration_policy(ExpirationPolicy::TimeToLive(
+                        Duration::from_hours(retention_hours.into()),
+                    ));
+                }
+                if let Some(key) = key {
+                    request = request.key(key);
+                }
+                let response = relay_statsd::metric!(
+                    timer(RelayTimers::AttachmentUploadDuration),
+                    type = kind.as_str(),
+                {
+                    request.send().await?
+                });
 
-        if let Some(content_type) = content_type {
-            request = request.content_type(content_type.as_str());
-        }
-        if let Some(retention_hours) = retention_hours {
-            request = request.expiration_policy(ExpirationPolicy::TimeToLive(
-                Duration::from_hours(retention_hours.into()),
-            ));
-        }
-        if let Some(key) = key {
-            request = request.key(key);
-        }
-
-        let response = relay_statsd::metric!(
-            timer(RelayTimers::AttachmentUploadDuration),
-            type = kind.as_str(),
-            {
-                request.send().await
+                Ok(ObjectstoreKey(response.key))
             }
-        )?;
+            UploadAttempt::Stream { body, upload_ref } => {
+                let UploadRef { key, upload_id } = upload_ref;
+                let Some(upload_id) = upload_id else {
+                    // No upload ID: simple upload in a single request.
+                    let request = session.put_stream(body.boxed()).key(key);
+                    let response = request.send().await?;
+                    return Ok(ObjectstoreKey(response.key));
+                };
 
-        Ok(ObjectstoreKey(response.key))
+                let multipart_upload =
+                    session.resume_multipart_upload(key, upload_id.to_string())?;
+
+                let body = ReaderStream::new(ZstdEncoder::new(StreamReader::new(body)));
+
+                // Unfortunately, MinIO has the limitation that the length of a multipart request
+                // has to be known. Therefore, we need to materialize the stream into concrete
+                // chunks of bytes and send each chunk as an individual request.
+                let chunks = Rechunk::new(body, CHUNK_SIZE);
+                let mut body = chunks.enumerate();
+
+                let result = relay_statsd::metric!(
+                    timer(RelayTimers::AttachmentUploadDuration),
+                    type = kind.as_str(),
+                {
+                    let mut parts = vec![];
+                    // NOTE: Once every upload is a multipart upload, we can remove `RetryableStream`
+                    // because streams will never be effectively retried.
+                    while let Some((i, chunk)) = body.next().await {
+                        let chunk = chunk?;
+                        let part_number = u32::try_from(i + 1)
+                            .map_err(|_| objectstore_client::Error::InvalidPartNumber(u32::MAX))?;
+                        let part = multipart_upload.put(chunk, part_number, None).await?;
+                        parts.push(part);
+                    }
+                    multipart_upload.complete(parts).await?
+                });
+
+                Ok(ObjectstoreKey(result))
+            }
+        }
     }
 
     fn session(
@@ -863,16 +978,39 @@ impl ObjectstoreServiceInner {
 /// Common interface for calls to [`ObjectstoreServiceInner::upload`].
 ///
 /// This type is shared across retries.
-enum Body {
-    Bytes(Bytes),
-    Stream(TakeOnce<BoundedStream<MeteredStream<ByteStream>>>),
+enum Upload {
+    Bytes {
+        body: Bytes,
+        key: Option<String>,
+        retention_hours: Option<u16>,
+        content_type: Option<ContentType>,
+    },
+    Stream {
+        body: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
+        upload_ref: UploadRef,
+    },
 }
 
-impl Body {
-    fn try_clone(&self) -> Option<BodyAttempt> {
+impl Upload {
+    fn try_clone(&self) -> Option<UploadAttempt> {
         match self {
-            Self::Bytes(bytes) => Some(BodyAttempt::Bytes(bytes.clone())),
-            Self::Stream(stream) => RetryableStream::new(stream.clone()).map(BodyAttempt::Stream),
+            Self::Bytes {
+                body,
+                key,
+                retention_hours,
+                content_type,
+            } => Some(UploadAttempt::Bytes {
+                body: body.clone(),
+                key: key.clone(),
+                retention_hours: *retention_hours,
+                content_type: *content_type,
+            }),
+            Self::Stream { body, upload_ref } => {
+                RetryableStream::new(body.clone()).map(|body| UploadAttempt::Stream {
+                    body,
+                    upload_ref: upload_ref.clone(),
+                })
+            }
         }
     }
 }
@@ -880,9 +1018,17 @@ impl Body {
 /// Common interface for calls to [`ObjectstoreServiceInner::attempt_upload`].
 ///
 /// This type is instantiated for every retry.
-enum BodyAttempt {
-    Bytes(Bytes),
-    Stream(RetryableStream<BoundedStream<MeteredStream<ByteStream>>>),
+enum UploadAttempt {
+    Bytes {
+        body: Bytes,
+        key: Option<String>,
+        retention_hours: Option<u16>,
+        content_type: Option<ContentType>,
+    },
+    Stream {
+        body: RetryableStream<BoundedStream<MeteredStream<ByteStream>>>,
+        upload_ref: UploadRef,
+    },
 }
 
 fn is_retryable(error: &objectstore_client::Error) -> bool {
@@ -961,7 +1107,10 @@ mod tests {
             .send(Stream {
                 organization_id: OrganizationId::new(0),
                 project_id: ProjectId::new(1),
-                key: "my_file".into(),
+                upload_ref: UploadRef {
+                    key: "my_file".to_owned(),
+                    upload_id: Some(UploadId::new("my_upload".to_owned()).unwrap()),
+                },
                 stream,
             })
             .await
