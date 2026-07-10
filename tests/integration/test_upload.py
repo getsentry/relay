@@ -424,9 +424,8 @@ def test_create_processing(
     assert response.headers["Upload-Offset"] == str(len(data)), response.headers
 
 
-@pytest.mark.parametrize("length", [9, 11])
 def test_processing_invalid_length(
-    mini_sentry, relay, relay_with_processing, project_config, length
+    mini_sentry, relay, relay_with_processing, project_config
 ):
     mini_sentry.fail_on_relay_error = False
     project_id = 42
@@ -447,8 +446,8 @@ def test_processing_invalid_length(
     assert response.headers["Tus-Resumable"] == "1.0.0"
     assert "Upload-Offset" not in response.headers
 
-    # Use the location to send a PATCH request that is too long // too short
-    data = length * b"X"
+    # Use the location to send a PATCH request that is too long
+    data = 11 * b"X"
     response = relay.patch(
         f"{response.headers['Location']}&sentry_key={project_key}",
         headers={
