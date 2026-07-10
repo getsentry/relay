@@ -2,19 +2,24 @@
 Tests for the TUS upload endpoint (/api/{project_id}/upload/).
 """
 
+import re
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from flask import Response
+from objectstore_client.multipart import MultipartUpload
 import pytest
 
 from sentry_relay.auth import SecretKey
 
+from .asserts import matches_any
 from .consts import (
     DUMMY_UPLOAD_PATH,
     DUMMY_UPLOAD_LOCATION,
 )
+
+LOCATION_REGEX = re.compile(r"/api/\d+/upload/(\w+)/?.*upload_id=([\w-]+)")
 
 
 @pytest.fixture
@@ -654,8 +659,14 @@ def test_objectstore_timeout(
     assert response.status_code == 500  # not 504
 
 
-def upload_something(relay, project_id, project_key):
-    data = b"hello world"
+def test_objectstore_compression(
+    mini_sentry, relay_with_processing, project_config, objectstore
+):
+    project_id = 42
+    project_key = mini_sentry.get_dsn_public_key(project_id)
+    relay = relay_with_processing()
+
+    data = 1_000_000 * b"X"
     response = relay.post(
         f"/api/{project_id}/upload/?sentry_key={project_key}",
         headers={
@@ -666,7 +677,9 @@ def upload_something(relay, project_id, project_key):
     )
     assert response.status_code == 201, response.json()
 
-    return relay.patch(
+    # Upload only half the bytes
+    data = data[: len(data) // 2]
+    response = relay.patch(
         f"{response.headers['Location']}&sentry_key={project_key}",
         headers={
             "Content-Length": str(len(data)),
@@ -676,6 +689,19 @@ def upload_something(relay, project_id, project_key):
         },
         data=data,
     )
+    assert response.status_code == 204
+
+    objectstore = objectstore("attachments", project_id)
+
+    key, upload_id = LOCATION_REGEX.match(response.headers["Location"]).groups()
+    (part,) = MultipartUpload(objectstore, key, upload_id).list_parts()
+
+    assert vars(part) == {
+        "part_number": 1,
+        "etag": matches_any(),
+        "last_modified": matches_any(),
+        "size": len(data),
+    }
 
 
 @pytest.mark.parametrize(
@@ -740,3 +766,27 @@ def test_upload_minidump_opt_in(
         )
     else:
         assert mini_sentry.captured_outcomes.empty()
+
+
+def upload_something(relay, project_id, project_key):
+    data = b"hello world"
+    response = relay.post(
+        f"/api/{project_id}/upload/?sentry_key={project_key}",
+        headers={
+            "Content-Length": "0",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": str(len(data)),
+        },
+    )
+    assert response.status_code == 201, response.json()
+
+    return relay.patch(
+        f"{response.headers['Location']}&sentry_key={project_key}",
+        headers={
+            "Content-Length": str(len(data)),
+            "Content-Type": "application/offset+octet-stream",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Offset": "0",
+        },
+        data=data,
+    )

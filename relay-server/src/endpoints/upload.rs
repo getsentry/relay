@@ -340,7 +340,7 @@ async fn upload(
     location: SignedLocation<Provisional>,
     offset: usize,
     stream: BoundedStream<MeteredStream<ByteStream>>,
-) -> Result<SignedLocation<Final>, Error> {
+) -> Result<SignedLocation<Provisional>, Error> {
     let location = state
         .upload()
         .send(upload::Stream {

@@ -36,7 +36,8 @@ use crate::services::store::{
 use crate::services::upload::ByteStream;
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{
-    BoundedStream, MeteredStream, Rechunk, RetryableStream, TakeOnce, find_error_source,
+    BoundedStream, ByteCounter, MeteredStream, Rechunk, RetryableStream, TakeOnce,
+    find_error_source,
 };
 
 use super::outcome::Outcome;
@@ -51,7 +52,7 @@ pub enum Objectstore {
     EventAttachment(Managed<StoreAttachment>),
     RawProfile(Managed<StoreRawProfile>),
     Create(Create, Sender<Result<UploadRef, Error>>),
-    Stream(Stream, Sender<Result<ObjectstoreKey, Error>>),
+    Stream(Stream, Sender<Result<UploadRef, Error>>),
 }
 
 impl Objectstore {
@@ -163,9 +164,9 @@ pub struct Stream {
 }
 
 impl FromMessage<Stream> for Objectstore {
-    type Response = AsyncResponse<Result<ObjectstoreKey, Error>>;
+    type Response = AsyncResponse<Result<UploadRef, Error>>;
 
-    fn from_message(message: Stream, sender: Sender<Result<ObjectstoreKey, Error>>) -> Self {
+    fn from_message(message: Stream, sender: Sender<Result<UploadRef, Error>>) -> Self {
         Self::Stream(message, sender)
     }
 }
@@ -334,10 +335,15 @@ pub struct UploadRef {
     /// The ID of the multipart upload session (chosen by objectstore).
     /// `None` if the upload is not multipart.
     pub upload_id: Option<UploadId>,
-    /// The offset from which to resume an upload.
+    /// The offset in bytes from which to resume an upload.
     ///
     /// Zero for new uploads.
     pub offset: usize,
+
+    /// The total length of the upload in bytes.
+    ///
+    /// Must be `Some` in order to finalize an upload.
+    pub length: Option<usize>,
 }
 
 impl UploadRef {
@@ -346,6 +352,7 @@ impl UploadRef {
         key: String,
         upload_id: Option<String>,
         offset: usize,
+        length: Option<usize>,
     ) -> Result<Self, InvalidUploadId> {
         let upload_id = match upload_id {
             Some(s) => Some(UploadId::new(s)?),
@@ -355,6 +362,7 @@ impl UploadRef {
             key,
             upload_id,
             offset,
+            length,
         })
     }
 }
@@ -584,8 +592,8 @@ impl ObjectstoreServiceInner {
                 .await;
 
             match result {
-                Ok(stored_key) => {
-                    attachment.modify(|a, _| a.set_stored_key(stored_key.into_inner()));
+                Ok(UploadRef { key, .. }) => {
+                    attachment.modify(|a, _| a.set_stored_key(key));
                 }
                 Err(error) => {
                     error.log(MessageKind::Event);
@@ -638,11 +646,9 @@ impl ObjectstoreServiceInner {
         };
 
         match upload_result {
-            Ok(stored_key) => {
+            Ok(UploadRef { key, .. }) => {
                 attachment.modify(|attachment, _| {
-                    attachment
-                        .attachment
-                        .set_stored_key(stored_key.into_inner());
+                    attachment.attachment.set_stored_key(key);
                 });
                 self.store.send(attachment);
             }
@@ -695,7 +701,7 @@ impl ObjectstoreServiceInner {
             #[cfg(debug_assertions)]
             let original_key = key.clone();
 
-            let _stored_key = self
+            let _upload_ref = self
                 .upload_bytes(
                     MessageKind::TraceAttachment,
                     &session,
@@ -708,7 +714,7 @@ impl ObjectstoreServiceInner {
                 .reject(&trace_item)?;
 
             #[cfg(debug_assertions)]
-            debug_assert_eq!(_stored_key.into_inner(), original_key);
+            debug_assert_eq!(_upload_ref.key, original_key);
         }
 
         // Only after successful upload forward the attachment to the store.
@@ -730,12 +736,12 @@ impl ObjectstoreServiceInner {
             .try_upload_raw_profile(payload, content_type, store_message.retention_days, scoping)
             .await
         {
-            Ok(Some(stored_id)) => {
+            Ok(Some(UploadRef { key, .. })) => {
                 store_message.modify(|message, _| {
                     message.attachments.push(ProfileAttachment {
                         name,
                         content_type,
-                        stored_id,
+                        stored_id: ObjectstoreKey(key),
                     })
                 });
             }
@@ -756,7 +762,7 @@ impl ObjectstoreServiceInner {
         content_type: ContentType,
         retention: u16,
         scoping: Scoping,
-    ) -> Result<Option<ObjectstoreKey>, Error> {
+    ) -> Result<Option<UploadRef>, Error> {
         if payload.is_empty() {
             return Ok(None);
         }
@@ -766,7 +772,7 @@ impl ObjectstoreServiceInner {
             .for_project(scoping.organization_id.value(), scoping.project_id.value())
             .session(&self.objectstore_client)?;
 
-        let stored_key = self
+        let upload_ref = self
             .upload_bytes(
                 MessageKind::RawProfile,
                 &session,
@@ -777,7 +783,7 @@ impl ObjectstoreServiceInner {
             )
             .await?;
 
-        Ok(Some(stored_key))
+        Ok(Some(upload_ref))
     }
 
     async fn handle_create(&self, create: Create) -> Result<UploadRef, Error> {
@@ -801,10 +807,11 @@ impl ObjectstoreServiceInner {
             key,
             upload_id: Some(upload_id.clone()),
             offset: 0,
+            length: None,
         })
     }
 
-    async fn handle_stream(&self, stream: Stream) -> Result<ObjectstoreKey, Error> {
+    async fn handle_stream(&self, stream: Stream) -> Result<UploadRef, Error> {
         let Stream {
             organization_id,
             project_id,
@@ -813,11 +820,13 @@ impl ObjectstoreServiceInner {
         } = stream;
         let session = self.session(&self.event_attachments, organization_id, project_id)?;
 
+        let byte_counter = stream.byte_counter();
         self.upload(
             MessageKind::Stream,
             &session,
             Upload::Stream {
                 body: TakeOnce::new(stream),
+                byte_counter,
                 upload_ref,
             },
         )
@@ -832,7 +841,7 @@ impl ObjectstoreServiceInner {
         retention: u16,
         key: Option<String>,
         content_type: Option<ContentType>,
-    ) -> Result<ObjectstoreKey, Error> {
+    ) -> Result<UploadRef, Error> {
         let retention_hours = retention.checked_mul(24);
         self.upload(
             kind,
@@ -852,7 +861,7 @@ impl ObjectstoreServiceInner {
         kind: MessageKind,
         session: &Session,
         body: Upload,
-    ) -> Result<ObjectstoreKey, Error> {
+    ) -> Result<UploadRef, Error> {
         let mut attempts = 0;
         let timeout = match &body {
             Upload::Bytes { .. } => self.timeout,
@@ -901,7 +910,7 @@ impl ObjectstoreServiceInner {
         kind: MessageKind,
         session: &Session,
         body: UploadAttempt,
-    ) -> Result<ObjectstoreKey, objectstore_client::Error> {
+    ) -> Result<UploadRef, objectstore_client::Error> {
         match body {
             UploadAttempt::Bytes {
                 body,
@@ -909,6 +918,7 @@ impl ObjectstoreServiceInner {
                 retention_hours,
                 content_type,
             } => {
+                let len = body.len();
                 let mut request = session.put(body);
                 if let Some(content_type) = content_type {
                     request = request.content_type(content_type.as_str());
@@ -928,14 +938,26 @@ impl ObjectstoreServiceInner {
                     request.send().await?
                 });
 
-                Ok(ObjectstoreKey(response.key))
+                Ok(UploadRef {
+                    key: response.key,
+                    upload_id: None,
+                    offset: len,
+                    length: Some(len),
+                })
             }
-            UploadAttempt::Stream { body, upload_ref } => {
+            UploadAttempt::Stream {
+                body,
+                byte_counter,
+                upload_ref,
+            } => {
                 let UploadRef {
                     key,
                     upload_id,
                     offset,
+                    length,
                 } = upload_ref;
+                let original_key = key.clone();
+
                 let Some(upload_id) = upload_id else {
                     // No upload ID: simple upload in a single request.
                     if offset != 0 {
@@ -944,11 +966,17 @@ impl ObjectstoreServiceInner {
                     }
                     let request = session.put_stream(body.boxed()).key(key);
                     let response = request.send().await?;
-                    return Ok(ObjectstoreKey(response.key));
+                    return Ok(UploadRef {
+                        key: response.key,
+                        upload_id,
+                        offset,
+                        length,
+                    });
                 };
 
                 let multipart_upload =
                     session.resume_multipart_upload(key, upload_id.to_string())?;
+                let upload_id = multipart_upload.upload_id().clone();
 
                 // TODO: map offset to compressed offset and vice versa.
 
@@ -960,7 +988,7 @@ impl ObjectstoreServiceInner {
                 let chunks = Rechunk::new(body, CHUNK_SIZE);
                 let mut body = chunks.enumerate();
 
-                let result = relay_statsd::metric!(
+                relay_statsd::metric!(
                     timer(RelayTimers::AttachmentUploadDuration),
                     type = kind.as_str(),
                 {
@@ -974,10 +1002,19 @@ impl ObjectstoreServiceInner {
                         let part = multipart_upload.put(chunk, part_number, None).await?;
                         parts.push(part);
                     }
-                    multipart_upload.complete(parts).await?
+
+                    if length.is_some_and(|length| length == byte_counter.get()) {
+                        let final_key = multipart_upload.complete(parts).await?;
+                        debug_assert_eq!(&original_key, &final_key);
+                    }
                 });
 
-                Ok(ObjectstoreKey(result))
+                Ok(UploadRef {
+                    key: original_key,
+                    upload_id: Some(upload_id),
+                    offset: byte_counter.get(),
+                    length,
+                })
             }
         }
     }
@@ -1010,6 +1047,7 @@ enum Upload {
     },
     Stream {
         body: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
+        byte_counter: ByteCounter,
         upload_ref: UploadRef,
     },
 }
@@ -1028,12 +1066,15 @@ impl Upload {
                 retention_hours: *retention_hours,
                 content_type: *content_type,
             }),
-            Self::Stream { body, upload_ref } => {
-                RetryableStream::new(body.clone()).map(|body| UploadAttempt::Stream {
-                    body,
-                    upload_ref: upload_ref.clone(),
-                })
-            }
+            Self::Stream {
+                body,
+                byte_counter,
+                upload_ref,
+            } => RetryableStream::new(body.clone()).map(|body| UploadAttempt::Stream {
+                body,
+                byte_counter: byte_counter.clone(),
+                upload_ref: upload_ref.clone(),
+            }),
         }
     }
 }
@@ -1050,6 +1091,7 @@ enum UploadAttempt {
     },
     Stream {
         body: RetryableStream<BoundedStream<MeteredStream<ByteStream>>>,
+        byte_counter: ByteCounter,
         upload_ref: UploadRef,
     },
 }
@@ -1134,6 +1176,7 @@ mod tests {
                     key: "my_file".to_owned(),
                     upload_id: Some(UploadId::new("my_upload".to_owned()).unwrap()),
                     offset: 0,
+                    length: None,
                 },
                 stream,
             })

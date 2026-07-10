@@ -112,7 +112,7 @@ pub enum Upload {
     ///
     /// The service also returns the signed location. This is redundant, but creates a simpler
     /// flow for the caller side.
-    Upload(Stream, InstrumentedSender<Final>),
+    Upload(Stream, InstrumentedSender<Provisional>),
 }
 
 impl Interface for Upload {}
@@ -173,9 +173,12 @@ impl FromMessage<Create> for Upload {
 }
 
 impl FromMessage<Stream> for Upload {
-    type Response = AsyncResponse<Result<SignedLocation<Final>, Error>>;
+    type Response = AsyncResponse<Result<SignedLocation<Provisional>, Error>>;
 
-    fn from_message(message: Stream, sender: Sender<Result<SignedLocation<Final>, Error>>) -> Self {
+    fn from_message(
+        message: Stream,
+        sender: Sender<Result<SignedLocation<Provisional>, Error>>,
+    ) -> Self {
         Self::Upload(
             message,
             InstrumentedSender {
@@ -300,6 +303,7 @@ impl Service {
                             key,
                             upload_id,
                             offset,
+                            length: _,
                         } = addr
                             .send(objectstore::Create {
                                 organization_id,
@@ -327,7 +331,7 @@ impl Service {
         }
     }
 
-    async fn upload(&self, stream: Stream) -> Result<SignedLocation<Final>, Error> {
+    async fn upload(&self, stream: Stream) -> Result<SignedLocation<Provisional>, Error> {
         let Stream {
             #[cfg_attr(not(feature = "processing"), expect(unused))]
             received,
@@ -346,6 +350,8 @@ impl Service {
             }
             #[cfg(feature = "processing")]
             Backend::Objectstore { addr, config } => {
+                use objectstore_client::UploadId;
+
                 use crate::services::objectstore::UploadRef;
 
                 let Location {
@@ -361,8 +367,8 @@ impl Service {
                 debug_assert!(stream.length().is_none_or(|l| Some(l) == length.value()));
                 let byte_counter = stream.byte_counter();
 
-                let upload_ref = UploadRef::new(key, upload_id, offset)?;
-                let key = addr
+                let upload_ref = UploadRef::new(key, upload_id, offset, length.value())?;
+                let upload_ref = addr
                     .send(objectstore::Stream {
                         organization_id: scoping.organization_id,
                         project_id,
@@ -370,15 +376,20 @@ impl Service {
                         stream,
                     })
                     .await
-                    .map_err(Error::ObjectstoreServiceUnavailable)??
-                    .into_inner();
-                let length = Final(byte_counter.get());
+                    .map_err(Error::ObjectstoreServiceUnavailable)??;
+
+                let UploadRef {
+                    key,
+                    upload_id,
+                    offset: _,
+                    length,
+                } = upload_ref;
 
                 Location {
                     project_id,
                     key,
-                    length,
-                    upload_id: None,
+                    length: Provisional(length),
+                    upload_id: upload_id.map(|id| id.to_string()),
                     other,
                 }
                 .try_sign(config)
@@ -499,7 +510,7 @@ impl<L: UploadLength> Location<L> {
             upload_id: upload_id.as_deref(),
             other,
         };
-        let query = serde_urlencoded::to_string(params)?;
+        let query = dbg!(serde_urlencoded::to_string(params))?;
         match query.as_str() {
             "" => Ok(format!("/api/{project_id}/upload/{key}/")),
             _ => Ok(format!("/api/{project_id}/upload/{key}/?{query}")),
