@@ -22,7 +22,10 @@ use crate::span::tag_extraction::{
     domain_from_scrubbed_http, domain_from_server_address, span_op_to_category,
     sql_action_from_query, sql_tables_from_query,
 };
-use crate::{ClientHints, FromUserAgentInfo as _, RawUserAgentInfo};
+use crate::{
+    ClientHints, FromUserAgentInfo as _, RawUserAgentInfo, TransactionNameRule,
+    normalize_transaction_name,
+};
 
 mod ai;
 mod mobile;
@@ -847,6 +850,32 @@ pub fn normalize_web_vital_span_segment(span: &mut SpanV2) {
         span.parent_span_id = None.into();
         attributes.remove(SENTRY__SEGMENT__ID);
     }
+}
+
+/// Normalize the [`SENTRY__SEGMENT__NAME`] attribute (aka the transaction)
+/// by running [`normalize_transaction_name`] on it.
+///
+/// This exists for parity with the legacy standalone span pipeline.
+pub fn normalize_segment_name(
+    attributes: &mut Annotated<Attributes>,
+    tx_name_rules: &[TransactionNameRule],
+) {
+    let Some(attributes) = attributes.value_mut() else {
+        return;
+    };
+
+    let Some(attr_value) = attributes.get_annotated_value_mut(SENTRY__SEGMENT__NAME) else {
+        return;
+    };
+
+    let mut segment_name = match &attr_value.0 {
+        Some(Value::String(s)) => Annotated(Some(s.to_owned()), attr_value.1.clone()),
+        _ => return,
+    };
+
+    normalize_transaction_name(&mut segment_name, tx_name_rules);
+
+    *attr_value = segment_name.map_value(Value::String);
 }
 
 /// Double writes sentry conventions attributes into legacy attributes.

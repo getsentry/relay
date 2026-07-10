@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from unittest import mock
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
@@ -165,7 +166,7 @@ def test_lcp_span(
                 "release": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
                 "environment": "prod",
                 "replay_id": "3d76a6311de149b9b3f560827ea0ecf9",
-                "transaction": "/insights/projects/",
+                "transaction": "/insights/projects/b8686628-95f0-4be9-af6b-a98164504d8f",
                 "user_agent.original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
                 "client.address": "{{auto}}",
                 "sentry.exclusive_time": 0,
@@ -212,6 +213,7 @@ def test_lcp_span(
         }
 
     assert spans_consumer.get_span() == {
+        "_meta": mock.ANY,
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
             "browser.web_vital.lcp.value": {"type": "double", "value": 548.0},
@@ -247,8 +249,8 @@ def test_lcp_span(
                 "value": "3d76a6311de149b9b3f560827ea0ecf9",
             },
             "sentry.report_event": {"type": "string", "value": "navigation"},
-            "sentry.segment.name": {"type": "string", "value": "/insights/projects/"},
-            "sentry.transaction": {"type": "string", "value": "/insights/projects/"},
+            "sentry.segment.name": {"type": "string", "value": "/insights/projects/*"},
+            "sentry.transaction": {"type": "string", "value": "/insights/projects/*"},
             "user_agent.original": {
                 "type": "string",
                 "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -375,7 +377,7 @@ def test_cls_span(
                 "release": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
                 "environment": "prod",
                 "replay_id": "3d76a6311de149b9b3f560827ea0ecf9",
-                "transaction": "/insights/projects/",
+                "transaction": "/insights/projects/b8686628-95f0-4be9-af6b-a98164504d8f",
                 "user_agent.original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
                 "client.address": "{{auto}}",
                 "sentry.exclusive_time": 0,
@@ -423,6 +425,7 @@ def test_cls_span(
         }
 
     assert spans_consumer.get_span() == {
+        "_meta": mock.ANY,
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
             "browser.web_vital.cls.value": {"type": "double", "value": 0.1},
@@ -463,8 +466,8 @@ def test_cls_span(
                 "value": "3d76a6311de149b9b3f560827ea0ecf9",
             },
             "sentry.report_event": {"type": "string", "value": "navigation"},
-            "sentry.segment.name": {"type": "string", "value": "/insights/projects/"},
-            "sentry.transaction": {"type": "string", "value": "/insights/projects/"},
+            "sentry.segment.name": {"type": "string", "value": "/insights/projects/*"},
+            "sentry.transaction": {"type": "string", "value": "/insights/projects/*"},
             "user_agent.original": {
                 "type": "string",
                 "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -590,7 +593,7 @@ def test_inp_span(
                 "release": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
                 "environment": "prod",
                 "replay_id": "3d76a6311de149b9b3f560827ea0ecf9",
-                "transaction": "/insights/projects/",
+                "transaction": "/insights/projects/b8686628-95f0-4be9-af6b-a98164504d8f",
                 "user_agent.original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
                 "client.address": "{{auto}}",
                 "sentry.exclusive_time": 104,
@@ -624,6 +627,7 @@ def test_inp_span(
         }
 
     assert spans_consumer.get_span() == {
+        "_meta": mock.ANY,
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
             "browser.web_vital.inp.value": {"type": "double", "value": 104.0},
@@ -653,8 +657,8 @@ def test_inp_span(
                 "type": "string",
                 "value": "3d76a6311de149b9b3f560827ea0ecf9",
             },
-            "sentry.segment.name": {"type": "string", "value": "/insights/projects/"},
-            "sentry.transaction": {"type": "string", "value": "/insights/projects/"},
+            "sentry.segment.name": {"type": "string", "value": "/insights/projects/*"},
+            "sentry.transaction": {"type": "string", "value": "/insights/projects/*"},
             "user_agent.original": {
                 "type": "string",
                 "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "

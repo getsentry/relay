@@ -395,6 +395,9 @@ struct Settings {
     /// with the legacy pipeline. For V2 spans, we assume the SDK is already
     /// sending the correct values.
     clear_web_vital_segment_info: bool,
+    /// Normalize the segment name by scrubbing identifiers and applying rules
+    /// from the project config.
+    normalize_segment_name: bool,
 }
 
 /// Spans which have been parsed and expanded from their serialized state.

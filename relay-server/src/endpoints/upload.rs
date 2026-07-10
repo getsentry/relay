@@ -103,6 +103,8 @@ impl IntoResponse for Error {
                 upload::Error::InvalidLocation(_) | upload::Error::SigningFailed => {
                     StatusCode::INTERNAL_SERVER_ERROR
                 }
+                #[cfg(feature = "processing")]
+                upload::Error::InvalidUploadId(_) => StatusCode::BAD_REQUEST,
                 upload::Error::SerializeFailed(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 upload::Error::InvalidSignature(_) => StatusCode::BAD_REQUEST,
                 upload::Error::ObjectstoreServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
@@ -112,10 +114,13 @@ impl IntoResponse for Error {
                     objectstore::ErrorKind::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
                     objectstore::ErrorKind::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
                     objectstore::ErrorKind::UploadFailed(error) => match error {
+                        objectstore_client::Error::Io(error) if is_upload_length_error(&error) => {
+                            StatusCode::BAD_REQUEST
+                        }
                         objectstore_client::Error::Reqwest(error) => match error.status() {
                             _ if error.is_timeout() => StatusCode::GATEWAY_TIMEOUT,
                             Some(status) => status,
-                            None if find_error_source(&error, is_hyper_user_error).is_some() => {
+                            None if find_error_source(&error, is_request_body_error).is_some() => {
                                 StatusCode::BAD_REQUEST
                             }
                             None => StatusCode::INTERNAL_SERVER_ERROR,
@@ -204,6 +209,7 @@ async fn handle_patch(
     Path(upload::LocationPath { project_id, key }): Path<upload::LocationPath>,
     Query(LocationQueryParams {
         upload_length,
+        upload_id,
         upload_signature,
         other,
     }): Query<LocationQueryParams<Provisional>>,
@@ -214,8 +220,14 @@ async fn handle_patch(
     relay_log::trace!("Validating headers");
     tus::validate_patch_headers(&headers).map_err(Error::from)?;
 
-    let location =
-        SignedLocation::from_parts(project_id, key, upload_length, upload_signature, other);
+    let location = SignedLocation::from_parts(
+        project_id,
+        key,
+        upload_length,
+        upload_id,
+        upload_signature,
+        other,
+    );
 
     let config = state.config();
 
@@ -411,4 +423,19 @@ fn is_hyper_user_error(error: &(dyn std::error::Error + 'static)) -> bool {
     error
         .downcast_ref::<hyper::Error>()
         .is_some_and(hyper::Error::is_user)
+}
+
+#[cfg(feature = "processing")]
+fn is_request_body_error(error: &(dyn std::error::Error + 'static)) -> bool {
+    is_hyper_user_error(error) || is_upload_length_error(error)
+}
+
+#[cfg(feature = "processing")]
+fn is_upload_length_error(error: &(dyn std::error::Error + 'static)) -> bool {
+    error.downcast_ref::<io::Error>().is_some_and(|error| {
+        matches!(
+            error.kind(),
+            io::ErrorKind::FileTooLarge | io::ErrorKind::UnexpectedEof
+        )
+    })
 }

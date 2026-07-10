@@ -53,6 +53,8 @@ impl Forward for TransactionOutput {
         ctx: ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         use crate::services::store::StoreEvent;
+        use relay_dynamic_config::Feature;
+        use relay_filter::FilterStatKey;
 
         let (spans, transaction) = match self {
             TransactionOutput::Full(managed) => {
@@ -67,7 +69,7 @@ impl Forward for TransactionOutput {
 
         let performance_issues_spans = ctx
             .project_info
-            .has_feature(relay_dynamic_config::Feature::PerformanceIssuesSpans);
+            .has_feature(Feature::PerformanceIssuesSpans);
 
         if let Some(spans) = spans {
             let event_id = transaction.headers.event_id();
@@ -107,13 +109,18 @@ impl Forward for TransactionOutput {
                 event_category: relay_quotas::DataCategory::TransactionIndexed,
                 event,
                 attachments,
+                user_reports: Vec::new(),
                 retention_days: ctx.event_retention().standard,
             });
 
             (profile, event)
         });
 
-        s.send_event(event);
+        let discard_transactions = ctx.project_info.has_feature(Feature::DiscardTransaction);
+        match discard_transactions {
+            false => s.send_event(event),
+            true => drop(event.reject_err(Outcome::Filtered(FilterStatKey::Discarded))),
+        }
 
         if let Some(profile) = profile.transpose() {
             s.send_to_store(profile.map(|p, _| store::convert_profile(p, true, ctx)));

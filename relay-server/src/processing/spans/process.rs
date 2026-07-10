@@ -114,10 +114,7 @@ fn expand_span_container(item: &Item) -> Result<(Settings, ContainerItems<SpanV2
                     infer_user_agent: is
                         .and_then(|is| is.infer_user_agent)
                         .is_some_and(|infer| infer.is_auto()),
-                    // We don't want to infer names for V2 spans. If an SDK sent a
-                    // V2 span without a name it's just invalid.
-                    infer_name: false,
-                    clear_web_vital_segment_info: false,
+                    ..Default::default()
                 },
                 // Unsupported, fall back to the safe default.
                 Some(_) => Default::default(),
@@ -156,6 +153,9 @@ fn expand_legacy_spans(
         // We want to do this for V1 standalone spans for parity
         // with the legacy pipeline.
         clear_web_vital_segment_info: true,
+        // We want to do this for V1 standalone spans for parity
+        // with the legacy pipeline.
+        normalize_segment_name: true,
     };
 
     (settings, spans)
@@ -230,6 +230,7 @@ fn normalize_span(
             hints: meta.client_hints(),
         });
         let performance_score = ctx.project_info.config().performance_score.as_ref();
+        let tx_name_rules = &ctx.project_info.config.tx_name_rules;
 
         validate_timestamps(span)?;
 
@@ -241,6 +242,9 @@ fn normalize_span(
         eap::normalize_sentry_op(&mut span.attributes);
         if settings.clear_web_vital_segment_info {
             eap::normalize_web_vital_span_segment(span);
+        }
+        if settings.normalize_segment_name {
+            eap::normalize_segment_name(&mut span.attributes, tx_name_rules);
         }
         eap::normalize_span_category(&mut span.attributes);
         eap::normalize_received(&mut span.attributes, meta.received_at());

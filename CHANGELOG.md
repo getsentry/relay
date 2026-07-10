@@ -22,8 +22,11 @@
 - Unset segment info for web vital spans. ([#6042](https://github.com/getsentry/relay/pull/6042))
 - Set sentry.trace.status on segment spans. ([#6140](https://github.com/getsentry/relay/pull/6140))
 - Don't modify segment information for V2 web vital spans. ([#6160](https://github.com/getsentry/relay/pull/6160))
+
 - Support compressed minidumps when the `relay-minidump-uploads` feature is enabled. ([#6151](https://github.com/getsentry/relay/pull/6151))
+- Make `--log-level` and `--log-format` take effect again and accept them on all subcommands. ([#6198](https://github.com/getsentry/relay/pull/6198))
 - Parse two-component versions in iOS and iPadOS `raw_description` into `version` instead of `kernel_version`. ([#6197](https://github.com/getsentry/relay/pull/6197))
+- Normalize segment names for standalone spans in the experimental pipeline. ([#6163](https://github.com/getsentry/relay/pull/6163))
 
 **Internal**:
 
@@ -32,12 +35,14 @@
 - Match patterns iteratively instead of recursively. ([#6188](https://github.com/getsentry/relay/pull/6188))
 - Expand size of outcome quantities from `u32` to `u64`. ([#6133](https://github.com/getsentry/relay/pull/6133))
 - Internally handle outcomes as metrics. ([#6107](https://github.com/getsentry/relay/pull/6107))
+- Re-introduce `projects:discard-transaction` feature flag. ([#6199](https://github.com/getsentry/relay/pull/6199))
 - Have relay generate metric billing outcomes. ([#6066](https://github.com/getsentry/relay/pull/6066))
 - Update sentry-conventions to 0.12.0.
 - Update sentry-conventions to 0.13.0. ([#6139](https://github.com/getsentry/relay/pull/6139))
 - Upgrade release image to Debian 13. ([#6110](https://github.com/getsentry/relay/pull/6110))
 - No longer serialize transactions into envelopes when storing them. ([#6193](https://github.com/getsentry/relay/pull/6193))
 - No longer serialize check-ins into envelopes when storing them. ([#6196](https://github.com/getsentry/relay/pull/6196))
+- No longer serialize errors into envelopes when storing them. ([#6194](https://github.com/getsentry/relay/pull/6194))
 - Prefix upload location query params for forward compatibility. ([#6076](https://github.com/getsentry/relay/pull/6076))
 - Add config option to bypass the kafka fallback for objectstore uploads. ([#6127](https://github.com/getsentry/relay/pull/6127))
 - Use upstream descriptor in upload requests. ([#6128](https://github.com/getsentry/relay/pull/6128))
@@ -45,6 +50,7 @@
 - Inline small attachments instead of uploading to objectstore. ([#6165](https://github.com/getsentry/relay/pull/6165))
 - Retry 500 responses from objectstore. ([#6162](https://github.com/getsentry/relay/pull/6162))
 - Remove the `metrics_extracted` and `spans_extracted` flags from the transactions processing pipeline. ([#6190](https://github.com/getsentry/relay/pull/6190), [#6200](https://github.com/getsentry/relay/pull/6200))
+- Convert TUS uploads to Objectstore multipart uploads. ([#6172](https://github.com/getsentry/relay/pull/6172))
 
 ## 26.6.0
 
