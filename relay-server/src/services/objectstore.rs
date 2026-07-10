@@ -797,7 +797,7 @@ impl ObjectstoreServiceInner {
         let multipart_upload = session
             .initiate_multipart_upload()
             .key(&key)
-            .compression(Compression::Zstd) // make explicit because parts need to be manually compressed.
+            .compression(None) // needed to map offsets to parts
             .send()
             .await?;
         debug_assert_eq!(&key, multipart_upload.key());
@@ -978,9 +978,7 @@ impl ObjectstoreServiceInner {
                     session.resume_multipart_upload(key, upload_id.to_string())?;
                 let upload_id = multipart_upload.upload_id().clone();
 
-                // TODO: map offset to compressed offset and vice versa.
-
-                let body = ReaderStream::new(ZstdEncoder::new(StreamReader::new(body)));
+                // FIXME: how do we handle compression?
 
                 // Unfortunately, MinIO has the limitation that the length of a multipart request
                 // has to be known. Therefore, we need to materialize the stream into concrete
