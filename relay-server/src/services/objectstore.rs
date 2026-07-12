@@ -1,15 +1,19 @@
 //! Objectstore service for uploading attachments.
 use std::array::TryFromSliceError;
 use std::fmt;
+use std::io::Write;
 use std::num::{NonZeroU16, NonZeroUsize};
 use std::sync::Arc;
 use std::time::Duration;
 
-use bytes::Bytes;
+use async_compression::codecs::ZstdDecoder;
+use async_compression::tokio::bufread::ZstdEncoder;
+use bytes::{BufMut, Bytes, BytesMut};
 use futures::StreamExt;
 use http::StatusCode;
 use objectstore_client::{
-    Client, ExpirationPolicy, SecretKey as SigningKey, Session, TokenGenerator, UploadId, Usecase,
+    Client, Compression, ExpirationPolicy, SecretKey as SigningKey, Session, TokenGenerator,
+    UploadId, Usecase,
 };
 
 use objectstore_types::multipart::InvalidUploadId;
@@ -21,6 +25,7 @@ use relay_system::{
     Addr, AsyncResponse, FromMessage, Interface, LoadShed, NoResponse, Sender, SimpleService,
 };
 use sentry_protos::snuba::v1::TraceItem;
+use tokio_util::io::{ReaderStream, StreamReader};
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
 use crate::envelope::{ContentType, Item, ItemType};
@@ -39,8 +44,15 @@ use crate::utils::{
 
 use super::outcome::Outcome;
 
-/// Size of an individual request to objectstore.
-const CHUNK_SIZE: NonZeroUsize = NonZeroUsize::new(5 * 1024 * 1024).unwrap();
+/// The minimum distance between two `Upload-Offset`s in bytes.
+///
+/// Every `Upload-Offset` must be 0 modulo `UPLOAD_GRANULARITY`.
+const UPLOAD_GRANULARITY: NonZeroUsize = NonZeroUsize::new(1024 * 1024).unwrap(); // 1 MiB
+
+/// Every part except the last needs to be at least this size.
+const MULTIPART_MIN_PART_SIZE: usize = 5 * 1024 * 1024; // 5 MiB
+
+// const CHUNK_SIZE: NonZeroUsize = NonZeroUsize::new(5 * 1024 * 1024).unwrap();
 
 /// Messages that the objectstore service can handle.
 pub enum Objectstore {
@@ -794,7 +806,7 @@ impl ObjectstoreServiceInner {
         let multipart_upload = session
             .initiate_multipart_upload()
             .key(&key)
-            .compression(None) // needed to map offsets to parts
+            .compression(Compression::Zstd) // make explicit because parts need to be manually compressed.
             .send()
             .await?;
         debug_assert_eq!(&key, multipart_upload.key());
@@ -975,27 +987,60 @@ impl ObjectstoreServiceInner {
                     session.resume_multipart_upload(key, upload_id.to_string())?;
                 let upload_id = multipart_upload.upload_id().clone();
 
-                // FIXME: how do we handle compression?
-
-                // Unfortunately, MinIO has the limitation that the length of a multipart request
-                // has to be known. Therefore, we need to materialize the stream into concrete
-                // chunks of bytes and send each chunk as an individual request.
-                let chunks = Rechunk::new(body, CHUNK_SIZE);
-                let mut body = chunks.enumerate();
-
                 relay_statsd::metric!(
                     timer(RelayTimers::AttachmentUploadDuration),
                     type = kind.as_str(),
                 {
-                    let mut parts = vec![];
+                    // Ensure that the stream ends at the granularity boundary.
                     // NOTE: Once every upload is a multipart upload, we can remove `RetryableStream`
                     // because streams will never be effectively retried.
-                    while let Some((i, chunk)) = body.next().await {
-                        let chunk = chunk?;
-                        let part_number = u32::try_from(i + 1)
+                    let mut body = Rechunk::new(body, UPLOAD_GRANULARITY).enumerate();
+                    // let body = ReaderStream::new(ZstdEncoder::new(StreamReader::new(body)));
+
+                    // Unfortunately, MinIO has the limitation that the length of a multipart request
+                    // has to be known. Therefore, we need to materialize the stream into concrete
+                    // chunks of bytes and send each chunk as an individual request.
+                    //
+                    // Every chunk needs to be > 5 MB because that's what multipart requires.
+                    let mut parts = vec![];
+                    let mut compressed_buffer = zstd::stream::write::Encoder::new(vec![], 0).unwrap(); // FIXME;
+                    let mut error = None;
+
+                    let mut last_grain_index = 0;
+                    while let Some((grain_index, bytes)) = body.next().await {
+                        last_grain_index = grain_index;
+                        match bytes {
+                            Ok(bytes) => {
+                                compressed_buffer.write_all(&bytes).unwrap(); // FIXME
+
+                                let done = length.is_some_and(|length| length == byte_counter.get());
+                                if done || compressed_buffer.get_ref().len() >= MULTIPART_MIN_PART_SIZE {
+                                    let part_number = u32::try_from(grain_index + 1)
+                                        .map_err(|_| objectstore_client::Error::InvalidPartNumber(u32::MAX))?;
+
+                                    let mut new_buffer = zstd::stream::write::Encoder::new(vec![], 0).unwrap(); // FIXME;
+                                    std::mem::swap(&mut compressed_buffer, &mut new_buffer);
+                                    let part = multipart_upload.put(new_buffer.finish().expect("FIXME"),part_number, None).await?;
+                                    parts.push(part);
+                                }
+                            }
+                            Err(e) => {error = Some(e); break}
+                        }
+                    }
+
+                    let done = length.is_some_and(|length| length == byte_counter.get());
+                    if done || compressed_buffer.get_ref().len() >= MULTIPART_MIN_PART_SIZE {
+                        let part_number = u32::try_from(last_grain_index + 1)
                             .map_err(|_| objectstore_client::Error::InvalidPartNumber(u32::MAX))?;
-                        let part = multipart_upload.put(chunk, part_number, None).await?;
+
+                        let mut new_buffer = zstd::stream::write::Encoder::new(vec![], 0).unwrap(); // FIXME;
+                        std::mem::swap(&mut compressed_buffer, &mut new_buffer);
+                        let part = multipart_upload.put(new_buffer.finish().expect("FIXME"),part_number, None).await?;
                         parts.push(part);
+                    }
+
+                    if let Some(e) = error {
+                        Err(e).map_err(objectstore_client::Error::from)?;
                     }
 
                     if length.is_some_and(|length| length == byte_counter.get()) {
@@ -1028,6 +1073,14 @@ impl ObjectstoreServiceInner {
             .session(&self.objectstore_client)?;
         Ok(session)
     }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum AttemptUploadError {
+    #[error(transparent)]
+    Objectstore(#[from] objectstore_client::Error),
+    #[error("zstd error: {0}")]
+    Zstd(#[source] std::io::Error),
 }
 
 /// Common interface for calls to [`ObjectstoreServiceInner::upload`].
