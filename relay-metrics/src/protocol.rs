@@ -271,7 +271,7 @@ mod tests {
         let mut bucket = Bucket {
             timestamp: UnixTimestamp::from_secs(5000),
             width: 0,
-            name: "c:hergus\0\0bergus".into(),
+            name: "c:spans/hergus\0\0bergus".into(),
             value: BucketValue::Counter(0.into()),
             tags: Default::default(),
             metadata: Default::default(),
@@ -279,7 +279,7 @@ mod tests {
 
         normalize_bucket(&mut bucket).unwrap();
 
-        assert_eq!(&bucket.name, "c:custom/hergus_bergus@none");
+        assert_eq!(&bucket.name, "c:spans/hergus_bergus@none");
     }
 
     #[test]

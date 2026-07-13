@@ -1,4 +1,3 @@
-use relay_dynamic_config::Feature;
 use relay_filter::FilterStatKey;
 use relay_metrics::{Bucket, MetricNamespace};
 use relay_quotas::Scoping;
@@ -6,7 +5,6 @@ use relay_quotas::Scoping;
 use crate::metrics::MetricOutcomes;
 use crate::services::outcome::Outcome;
 use crate::services::processor::BucketSource;
-use crate::services::projects::project::ProjectInfo;
 
 /// Checks if the namespace of the passed bucket is valid.
 ///
@@ -18,16 +16,17 @@ pub fn is_valid_namespace(bucket: &Bucket, source: BucketSource) -> bool {
         MetricNamespace::Sessions => true,
         MetricNamespace::Spans => true,
         MetricNamespace::Transactions => true,
-        MetricNamespace::Custom => true,
         MetricNamespace::Outcomes => source == BucketSource::Internal,
         MetricNamespace::Unsupported => false,
     }
 }
 
-pub fn apply_project_info(
+/// Removes all buckets in disabled or unsupported namespaces.
+///
+/// Removed buckets are tracked with a [`FilterStatKey::DisabledNamespace`] outcome.
+pub fn remove_invalid_namespaces(
     mut buckets: Vec<Bucket>,
     metric_outcomes: &MetricOutcomes,
-    project_info: &ProjectInfo,
     scoping: Scoping,
 ) -> Vec<Bucket> {
     let mut disabled_namespace_buckets = Vec::new();
@@ -36,7 +35,7 @@ pub fn apply_project_info(
         .into_iter()
         .filter_map(|bucket| {
             let namespace = bucket.name.namespace();
-            if !is_metric_namespace_valid(project_info, namespace) {
+            if !is_metric_namespace_valid(namespace) {
                 relay_log::trace!(
                     mri = &*bucket.name,
                     namespace = %namespace,
@@ -61,12 +60,11 @@ pub fn apply_project_info(
     buckets
 }
 
-fn is_metric_namespace_valid(state: &ProjectInfo, namespace: MetricNamespace) -> bool {
+fn is_metric_namespace_valid(namespace: MetricNamespace) -> bool {
     match namespace {
         MetricNamespace::Sessions => true,
         MetricNamespace::Spans => true,
         MetricNamespace::Transactions => true,
-        MetricNamespace::Custom => state.has_feature(Feature::CustomMetrics),
         MetricNamespace::Outcomes => true,
         MetricNamespace::Unsupported => false,
     }
@@ -81,9 +79,9 @@ mod tests {
 
     use super::*;
 
-    fn create_custom_bucket_with_name(name: String) -> Bucket {
+    fn create_unsupported_bucket_with_name(name: String) -> Bucket {
         Bucket {
-            name: format!("d:custom/{name}@byte").into(),
+            name: format!("d:unknown/{name}@byte").into(),
             value: BucketValue::Counter(1.into()),
             timestamp: UnixTimestamp::now(),
             tags: Default::default(),
@@ -93,18 +91,17 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_project_info_with_disabled_custom_namespace() {
+    fn test_remove_invalid_namespaces() {
         let (outcome_aggregator, _) = Addr::custom();
         let metric_outcomes = MetricOutcomes::new(outcome_aggregator);
 
-        let b1 = create_custom_bucket_with_name("cpu_time".into());
-        let b2 = create_custom_bucket_with_name("memory_usage".into());
+        let b1 = create_unsupported_bucket_with_name("cpu_time".into());
+        let b2 = create_unsupported_bucket_with_name("memory_usage".into());
         let buckets = vec![b1.clone(), b2.clone()];
 
-        let buckets = apply_project_info(
+        let buckets = remove_invalid_namespaces(
             buckets,
             &metric_outcomes,
-            &ProjectInfo::default(),
             Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(43),

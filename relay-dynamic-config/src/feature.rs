@@ -31,11 +31,6 @@ pub enum Feature {
     /// Serialized as `organizations:session-replay-video-disabled`.
     #[serde(rename = "organizations:session-replay-video-disabled")]
     SessionReplayVideoDisabled,
-    /// Allow ingestion of metrics in the "custom" namespace.
-    ///
-    /// Serialized as `organizations:custom-metrics`.
-    #[serde(rename = "organizations:custom-metrics")]
-    CustomMetrics,
     /// Enable processing profiles.
     ///
     /// Serialized as `organizations:profiling`.

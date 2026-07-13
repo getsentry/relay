@@ -9,7 +9,7 @@ use crate::metrics::{BucketSummary, TrackableBucket};
 /// Bucket which parses only the minimally required information to implement [`TrackableBucket`].
 ///
 /// Note: this can not be used to parse untrusted buckets, there is no normalization of data
-/// happening, e.g. a missing namespace will not turn the bucket into a custom metric bucket.
+/// happening.
 #[derive(Deserialize)]
 pub struct MinimalTrackableBucket {
     name: MetricName,
@@ -132,7 +132,7 @@ mod tests {
   {
     "timestamp": 1615889440,
     "width": 10,
-    "name": "g:custom/unrelated@none",
+    "name": "g:unknown/unrelated@none",
     "type": "g",
     "value": {
       "last": 25.0,
@@ -145,7 +145,7 @@ mod tests {
   {
     "timestamp": 1615889440,
     "width": 10,
-    "name": "s:custom/endpoint.users@none",
+    "name": "s:unknown/endpoint.users@none",
     "type": "s",
     "value": [
       3182887624,
