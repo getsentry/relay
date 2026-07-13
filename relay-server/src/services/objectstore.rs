@@ -6,14 +6,12 @@ use std::num::{NonZeroU16, NonZeroUsize};
 use std::sync::Arc;
 use std::time::Duration;
 
-use async_compression::codecs::ZstdDecoder;
-use async_compression::tokio::bufread::ZstdEncoder;
-use bytes::{BufMut, Bytes, BytesMut};
+use bytes::Bytes;
 use futures::StreamExt;
 use http::StatusCode;
 use objectstore_client::{
-    Client, Compression, ExpirationPolicy, SecretKey as SigningKey, Session, TokenGenerator,
-    UploadId, Usecase,
+    Client, CompletePart, Compression, ExpirationPolicy, MultipartUpload, SecretKey as SigningKey,
+    Session, TokenGenerator, UploadId, Usecase,
 };
 
 use objectstore_types::multipart::InvalidUploadId;
@@ -25,7 +23,6 @@ use relay_system::{
     Addr, AsyncResponse, FromMessage, Interface, LoadShed, NoResponse, Sender, SimpleService,
 };
 use sentry_protos::snuba::v1::TraceItem;
-use tokio_util::io::{ReaderStream, StreamReader};
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
 use crate::envelope::{ContentType, Item, ItemType};
@@ -290,6 +287,8 @@ pub enum ErrorKind {
     Timeout(#[from] tokio::time::error::Elapsed),
     #[error("load shed")]
     LoadShed,
+    #[error("compression failed: {0}")]
+    CompressionFailed(#[source] std::io::Error),
     #[error("upload failed: {0}")]
     UploadFailed(#[from] objectstore_client::Error),
     #[error("UUID conversion failed: {0}")]
@@ -302,6 +301,7 @@ impl ErrorKind {
             Self::InvalidScoping => "invalid_scoping",
             Self::Timeout(_) => "timeout",
             Self::LoadShed => "load_shed",
+            Self::CompressionFailed(_) => "compression_failed",
             Self::UploadFailed(_) => "upload_failed",
             Self::Uuid(_) => "uuid",
         }
@@ -919,7 +919,7 @@ impl ObjectstoreServiceInner {
         kind: MessageKind,
         session: &Session,
         body: UploadAttempt,
-    ) -> Result<UploadRef, objectstore_client::Error> {
+    ) -> Result<UploadRef, AttemptUploadError> {
         match body {
             UploadAttempt::Bytes {
                 body,
@@ -983,7 +983,7 @@ impl ObjectstoreServiceInner {
                     });
                 };
 
-                let multipart_upload =
+                let mut multipart_upload =
                     session.resume_multipart_upload(key, upload_id.to_string())?;
                 let upload_id = multipart_upload.upload_id().clone();
 
@@ -1004,49 +1004,29 @@ impl ObjectstoreServiceInner {
                     // Every chunk needs to be > 5 MB because that's what multipart requires.
                     let mut parts = vec![];
                     let mut compressed_buffer = zstd::stream::write::Encoder::new(vec![], 0).unwrap(); // FIXME;
-                    let mut error = None;
-
                     let mut last_grain_index = 0;
                     while let Some((grain_index, bytes)) = body.next().await {
-                        last_grain_index = grain_index;
                         match bytes {
-                            Ok(bytes) => {
-                                compressed_buffer.write_all(&bytes).unwrap(); // FIXME
-
-                                let done = length.is_some_and(|length| length == byte_counter.get());
-                                if done || compressed_buffer.get_ref().len() >= MULTIPART_MIN_PART_SIZE {
-                                    let part_number = u32::try_from(grain_index + 1)
-                                        .map_err(|_| objectstore_client::Error::InvalidPartNumber(u32::MAX))?;
-
-                                    let mut new_buffer = zstd::stream::write::Encoder::new(vec![], 0).unwrap(); // FIXME;
-                                    std::mem::swap(&mut compressed_buffer, &mut new_buffer);
-                                    let part = multipart_upload.put(new_buffer.finish().expect("FIXME"),part_number, None).await?;
-                                    parts.push(part);
+                            Err(error) =>  {
+                                try_flush(&mut compressed_buffer, grain_index, &mut multipart_upload, &mut parts).await?;
+                                return Err(objectstore_client::Error::Io(error).into());
+                            } Ok(bytes) => {
+                                compressed_buffer.write_all(&bytes).map_err(AttemptUploadError::Zstd)?;
+                                if compressed_buffer.get_ref().len() > MULTIPART_MIN_PART_SIZE {
+                                    try_flush(&mut compressed_buffer, grain_index, &mut multipart_upload, &mut parts).await?;
                                 }
                             }
-                            Err(e) => {error = Some(e); break}
                         }
+                        last_grain_index = grain_index;
                     }
 
-                    let done = length.is_some_and(|length| length == byte_counter.get());
-                    if done || compressed_buffer.get_ref().len() >= MULTIPART_MIN_PART_SIZE {
-                        let part_number = u32::try_from(last_grain_index + 1)
-                            .map_err(|_| objectstore_client::Error::InvalidPartNumber(u32::MAX))?;
-
-                        let mut new_buffer = zstd::stream::write::Encoder::new(vec![], 0).unwrap(); // FIXME;
-                        std::mem::swap(&mut compressed_buffer, &mut new_buffer);
-                        let part = multipart_upload.put(new_buffer.finish().expect("FIXME"),part_number, None).await?;
-                        parts.push(part);
-                    }
-
-                    if let Some(e) = error {
-                        Err(e).map_err(objectstore_client::Error::from)?;
-                    }
+                    try_flush(&mut compressed_buffer, last_grain_index, &mut multipart_upload, &mut parts).await?;
 
                     if length.is_some_and(|length| length == byte_counter.get()) {
                         let final_key = multipart_upload.complete(parts).await?;
                         debug_assert_eq!(&original_key, &final_key);
                     }
+
                 });
 
                 Ok(UploadRef {
@@ -1075,12 +1055,47 @@ impl ObjectstoreServiceInner {
     }
 }
 
+async fn try_flush(
+    buffer: &mut zstd::stream::write::Encoder<'_, Vec<u8>>,
+    grain_index: usize,
+    multipart: &mut MultipartUpload,
+    parts: &mut Vec<CompletePart>,
+) -> Result<(), AttemptUploadError> {
+    let mut new_buffer =
+        zstd::stream::write::Encoder::new(vec![], 0).map_err(AttemptUploadError::Zstd)?;
+    std::mem::swap(buffer, &mut new_buffer);
+
+    let part_number = u32::try_from(grain_index + 1)
+        .map_err(|_| objectstore_client::Error::InvalidPartNumber(u32::MAX))?;
+
+    let part = multipart
+        .put(
+            new_buffer.finish().map_err(AttemptUploadError::Zstd)?,
+            part_number,
+            None,
+        )
+        .await?;
+
+    parts.push(part);
+
+    Ok(())
+}
+
 #[derive(Debug, thiserror::Error)]
 enum AttemptUploadError {
     #[error(transparent)]
     Objectstore(#[from] objectstore_client::Error),
     #[error("zstd error: {0}")]
     Zstd(#[source] std::io::Error),
+}
+
+impl From<AttemptUploadError> for ErrorKind {
+    fn from(value: AttemptUploadError) -> Self {
+        match value {
+            AttemptUploadError::Objectstore(error) => ErrorKind::UploadFailed(error),
+            AttemptUploadError::Zstd(error) => ErrorKind::CompressionFailed(error),
+        }
+    }
 }
 
 /// Common interface for calls to [`ObjectstoreServiceInner::upload`].
@@ -1144,9 +1159,9 @@ enum UploadAttempt {
     },
 }
 
-fn is_retryable(error: &objectstore_client::Error) -> bool {
+fn is_retryable(error: &AttemptUploadError) -> bool {
     match error {
-        objectstore_client::Error::Reqwest(error) => {
+        AttemptUploadError::Objectstore(objectstore_client::Error::Reqwest(error)) => {
             error.is_connect()
                 || error.is_timeout()
                 || matches!(
