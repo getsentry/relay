@@ -276,7 +276,7 @@
 <a href=#276 id=276 data-nosnippet>276</a>            Bucket {
 <a href=#277 id=277 data-nosnippet>277</a>                timestamp: UnixTimestamp::now(),
 <a href=#278 id=278 data-nosnippet>278</a>                width: <span class="number">0</span>,
-<a href=#279 id=279 data-nosnippet>279</a>                name: <span class="string">"d:custom/something@millisecond"</span>.into(),
+<a href=#279 id=279 data-nosnippet>279</a>                name: <span class="string">"d:transactions/something@millisecond"</span>.into(),
 <a href=#280 id=280 data-nosnippet>280</a>                tags: Default::default(),
 <a href=#281 id=281 data-nosnippet>281</a>                value: BucketValue::distribution(<span class="number">78</span>.into()),
 <a href=#282 id=282 data-nosnippet>282</a>                metadata: BucketMetadata::default(),
@@ -289,7 +289,7 @@
 <a href=#289 id=289 data-nosnippet>289</a>        <span class="kw">let </span>(metrics, outcomes) = run_limiter(mixed_bag(), deny(DataCategory::Span));
 <a href=#290 id=290 data-nosnippet>290</a>
 <a href=#291 id=291 data-nosnippet>291</a>        <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">1</span>);
-<a href=#292 id=292 data-nosnippet>292</a>        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>metrics[<span class="number">0</span>].name, <span class="string">"d:custom/something@millisecond"</span>);
+<a href=#292 id=292 data-nosnippet>292</a>        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>metrics[<span class="number">0</span>].name, <span class="string">"d:transactions/something@millisecond"</span>);
 <a href=#293 id=293 data-nosnippet>293</a>
 <a href=#294 id=294 data-nosnippet>294</a>        <span class="macro">assert_eq!</span>(
 <a href=#295 id=295 data-nosnippet>295</a>            outcomes,

@@ -8,13 +8,13 @@
 
 <span class="kw">let </span>name = MetricName::from(<span class="string">"cfoo"</span>);
 <span class="macro">assert!</span>(name.try_type().is_none());
-<span class="kw">let </span>name = MetricName::from(<span class="string">"c:custom/foo@none"</span>);
+<span class="kw">let </span>name = MetricName::from(<span class="string">"c:spans/foo@none"</span>);
 <span class="macro">assert_eq!</span>(name.try_type(), <span class="prelude-val">Some</span>(MetricType::Counter));
-<span class="kw">let </span>name = MetricName::from(<span class="string">"d:custom/foo@none"</span>);
+<span class="kw">let </span>name = MetricName::from(<span class="string">"d:spans/foo@none"</span>);
 <span class="macro">assert_eq!</span>(name.try_type(), <span class="prelude-val">Some</span>(MetricType::Distribution));
-<span class="kw">let </span>name = MetricName::from(<span class="string">"s:custom/foo@none"</span>);
+<span class="kw">let </span>name = MetricName::from(<span class="string">"s:spans/foo@none"</span>);
 <span class="macro">assert_eq!</span>(name.try_type(), <span class="prelude-val">Some</span>(MetricType::Set));
-<span class="kw">let </span>name = MetricName::from(<span class="string">"g:custom/foo@none"</span>);
+<span class="kw">let </span>name = MetricName::from(<span class="string">"g:spans/foo@none"</span>);
 <span class="macro">assert_eq!</span>(name.try_type(), <span class="prelude-val">Some</span>(MetricType::Gauge));</code></pre></div></div></details><details class="toggle method-toggle" open><summary><section id="method.namespace" class="method"><a class="src rightside" href="../src/relay_base_schema/metrics/name.rs.html#65">Source</a><h4 class="code-header">pub fn <a href="#method.namespace" class="fn">namespace</a>(&amp;self) -&gt; <a class="enum" href="enum.MetricNamespace.html" title="enum relay_metrics::MetricNamespace">MetricNamespace</a></h4></section></summary><div class="docblock"><p>Extracts the namespace from a well formed MRI.</p>
 <p>Returns <a href="enum.MetricNamespace.html#variant.Unsupported" title="variant relay_metrics::MetricNamespace::Unsupported"><code>MetricNamespace::Unsupported</code></a> if the metric name is not a well formed MRI.</p>
 <h5 id="examples-1"><a class="doc-anchor" href="#examples-1">§</a>Examples</h5>
@@ -22,22 +22,22 @@
 
 <span class="kw">let </span>name = MetricName::from(<span class="string">"foo"</span>);
 <span class="macro">assert_eq!</span>(name.namespace(), MetricNamespace::Unsupported);
-<span class="kw">let </span>name = MetricName::from(<span class="string">"c:custom_oops/foo@none"</span>);
+<span class="kw">let </span>name = MetricName::from(<span class="string">"c:spans_oops/foo@none"</span>);
 <span class="macro">assert_eq!</span>(name.namespace(), MetricNamespace::Unsupported);
 
-<span class="kw">let </span>name = MetricName::from(<span class="string">"c:custom/foo@none"</span>);
-<span class="macro">assert_eq!</span>(name.namespace(), MetricNamespace::Custom);</code></pre></div></div></details><details class="toggle method-toggle" open><summary><section id="method.try_namespace" class="method"><a class="src rightside" href="../src/relay_base_schema/metrics/name.rs.html#86">Source</a><h4 class="code-header">pub fn <a href="#method.try_namespace" class="fn">try_namespace</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.97.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="enum.MetricNamespace.html" title="enum relay_metrics::MetricNamespace">MetricNamespace</a>&gt;</h4></section></summary><div class="docblock"><p>Extracts the namespace from a well formed MRI.</p>
+<span class="kw">let </span>name = MetricName::from(<span class="string">"c:spans/foo@none"</span>);
+<span class="macro">assert_eq!</span>(name.namespace(), MetricNamespace::Spans);</code></pre></div></div></details><details class="toggle method-toggle" open><summary><section id="method.try_namespace" class="method"><a class="src rightside" href="../src/relay_base_schema/metrics/name.rs.html#86">Source</a><h4 class="code-header">pub fn <a href="#method.try_namespace" class="fn">try_namespace</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.97.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="enum.MetricNamespace.html" title="enum relay_metrics::MetricNamespace">MetricNamespace</a>&gt;</h4></section></summary><div class="docblock"><p>Extracts the namespace from a well formed MRI.</p>
 <p>If the contained metric name is not a well formed MRI this function returns <code>None</code>.</p>
 <h5 id="examples-2"><a class="doc-anchor" href="#examples-2">§</a>Examples</h5>
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>relay_base_schema::metrics::{MetricName, MetricNamespace};
 
 <span class="kw">let </span>name = MetricName::from(<span class="string">"foo"</span>);
 <span class="macro">assert!</span>(name.try_namespace().is_none());
-<span class="kw">let </span>name = MetricName::from(<span class="string">"c:custom_oops/foo@none"</span>);
+<span class="kw">let </span>name = MetricName::from(<span class="string">"c:spans_oops/foo@none"</span>);
 <span class="macro">assert!</span>(name.try_namespace().is_none());
 
-<span class="kw">let </span>name = MetricName::from(<span class="string">"c:custom/foo@none"</span>);
-<span class="macro">assert_eq!</span>(name.try_namespace(), <span class="prelude-val">Some</span>(MetricNamespace::Custom));</code></pre></div></div></details><details class="toggle method-toggle" open><summary><section id="method.try_name" class="method"><a class="src rightside" href="../src/relay_base_schema/metrics/name.rs.html#115">Source</a><h4 class="code-header">pub fn <a href="#method.try_name" class="fn">try_name</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.97.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;&amp;<a class="primitive" href="https://doc.rust-lang.org/1.97.0/std/primitive.str.html">str</a>&gt;</h4></section></summary><div class="docblock"><p>Extracts the metric name from a well formed MRI.</p>
+<span class="kw">let </span>name = MetricName::from(<span class="string">"c:spans/foo@none"</span>);
+<span class="macro">assert_eq!</span>(name.try_namespace(), <span class="prelude-val">Some</span>(MetricNamespace::Spans));</code></pre></div></div></details><details class="toggle method-toggle" open><summary><section id="method.try_name" class="method"><a class="src rightside" href="../src/relay_base_schema/metrics/name.rs.html#115">Source</a><h4 class="code-header">pub fn <a href="#method.try_name" class="fn">try_name</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.97.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;&amp;<a class="primitive" href="https://doc.rust-lang.org/1.97.0/std/primitive.str.html">str</a>&gt;</h4></section></summary><div class="docblock"><p>Extracts the metric name from a well formed MRI.</p>
 <p>If the contained metric name is not a well formed MRI this function returns <code>None</code>.</p>
 <h5 id="examples-3"><a class="doc-anchor" href="#examples-3">§</a>Examples</h5>
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>relay_base_schema::metrics::{MetricName, MetricNamespace};
@@ -45,9 +45,9 @@
 <span class="kw">let </span>name = MetricName::from(<span class="string">"foo"</span>);
 <span class="macro">assert!</span>(name.try_name().is_none());
 
-<span class="kw">let </span>name = MetricName::from(<span class="string">"c:custom/foo@none"</span>);
+<span class="kw">let </span>name = MetricName::from(<span class="string">"c:spans/foo@none"</span>);
 <span class="macro">assert_eq!</span>(name.try_name(), <span class="prelude-val">Some</span>(<span class="string">"foo"</span>));
-<span class="kw">let </span>name = MetricName::from(<span class="string">"c:custom/foo"</span>);
+<span class="kw">let </span>name = MetricName::from(<span class="string">"c:spans/foo"</span>);
 <span class="macro">assert_eq!</span>(name.try_name(), <span class="prelude-val">Some</span>(<span class="string">"foo"</span>));</code></pre></div></div></details></div></details></div><details class="toggle big-toggle" open><summary><h2 id="deref-methods-str" class="section-header"><span>Methods from <a class="trait" href="https://doc.rust-lang.org/1.97.0/core/ops/deref/trait.Deref.html" title="trait core::ops::deref::Deref">Deref</a>&lt;Target = <a class="primitive" href="https://doc.rust-lang.org/1.97.0/std/primitive.str.html">str</a>&gt;</span><a href="#deref-methods-str" class="anchor">§</a></h2></summary><div id="deref-methods-str-1" class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.len" class="method"><span class="rightside"><span class="since" title="Stable since Rust version 1.0.0">1.0.0</span> · <a class="src" href="https://doc.rust-lang.org/1.97.0/src/core/str/mod.rs.html#153">Source</a></span><h4 class="code-header">pub fn <a href="#method.len" class="fn">len</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.97.0/std/primitive.usize.html">usize</a></h4></section></summary><div class="docblock"><p>Returns the length of <code>self</code>.</p>
 <p>This length is in bytes, not <a href="https://doc.rust-lang.org/1.97.0/std/primitive.char.html" title="primitive char"><code>char</code></a>s or graphemes. In other words,
 it might not be what a human considers the length of the string.</p>

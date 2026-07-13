@@ -158,13 +158,13 @@
 <a href=#158 id=158 data-nosnippet>158</a>            <span class="string">"op"</span>: <span class="string">"or"</span>,
 <a href=#159 id=159 data-nosnippet>159</a>            <span class="string">"inner"</span>: [
 <a href=#160 id=160 data-nosnippet>160</a>                {<span class="string">"op"</span>: <span class="string">"eq"</span>, <span class="string">"field"</span>: <span class="string">"namespace"</span>, <span class="string">"value"</span>: <span class="string">"spans"</span>},
-<a href=#161 id=161 data-nosnippet>161</a>                {<span class="string">"op"</span>: <span class="string">"eq"</span>, <span class="string">"field"</span>: <span class="string">"namespace"</span>, <span class="string">"value"</span>: <span class="string">"custom"</span>}
+<a href=#161 id=161 data-nosnippet>161</a>                {<span class="string">"op"</span>: <span class="string">"eq"</span>, <span class="string">"field"</span>: <span class="string">"namespace"</span>, <span class="string">"value"</span>: <span class="string">"transactions"</span>}
 <a href=#162 id=162 data-nosnippet>162</a>            ]
 <a href=#163 id=163 data-nosnippet>163</a>        });
 <a href=#164 id=164 data-nosnippet>164</a>
 <a href=#165 id=165 data-nosnippet>165</a>        <span class="kw">let </span>condition = serde_json::from_value::&lt;Condition&gt;(json).unwrap();
 <a href=#166 id=166 data-nosnippet>166</a>        <span class="macro">assert!</span>(condition.matches(<span class="prelude-val">Some</span>(MetricNamespace::Spans)));
-<a href=#167 id=167 data-nosnippet>167</a>        <span class="macro">assert!</span>(condition.matches(<span class="prelude-val">Some</span>(MetricNamespace::Custom)));
+<a href=#167 id=167 data-nosnippet>167</a>        <span class="macro">assert!</span>(condition.matches(<span class="prelude-val">Some</span>(MetricNamespace::Transactions)));
 <a href=#168 id=168 data-nosnippet>168</a>        <span class="macro">assert!</span>(!condition.matches(<span class="prelude-val">Some</span>(MetricNamespace::Sessions)));
 <a href=#169 id=169 data-nosnippet>169</a>    }
 <a href=#170 id=170 data-nosnippet>170</a>}

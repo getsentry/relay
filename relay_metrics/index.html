@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Metric protocol, aggregation and processing for Sentry."><title>relay_metrics - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-17e0aaed.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="relay_metrics" data-themes="" data-resource-suffix="" data-rustdoc-version="1.97.0 (2d8144b78 2026-07-07)" data-channel="1.97.0" data-search-js="search-fd9372ac.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../static.files/storage-41dd4d93.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-fcd733ba.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-f7c3ffd8.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc mod crate"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate relay_metrics</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../relay_metrics/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><h2><a href="../relay_metrics/index.html">relay_<wbr>metrics</a><span class="version">26.6.0</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#protocol" title="Protocol">Protocol</a></li><li><a href="#metric-envelopes" title="Metric Envelopes">Metric Envelopes</a></li><li><a href="#aggregation" title="Aggregation">Aggregation</a></li><li><a href="#ingestion" title="Ingestion">Ingestion</a></li></ul><h3><a href="#modules">Crate Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#macros" title="Macros">Macros</a></li><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li><li><a href="#functions" title="Functions">Functions</a></li><li><a href="#types" title="Type Aliases">Type Aliases</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1>Crate <span>relay_<wbr>metrics</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/relay_metrics/lib.rs.html#1-83">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Metric protocol, aggregation and processing for Sentry.</p>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Metric protocol, aggregation and processing for Sentry."><title>relay_metrics - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-17e0aaed.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="relay_metrics" data-themes="" data-resource-suffix="" data-rustdoc-version="1.97.0 (2d8144b78 2026-07-07)" data-channel="1.97.0" data-search-js="search-fd9372ac.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../static.files/storage-41dd4d93.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-fcd733ba.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-f7c3ffd8.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc mod crate"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate relay_metrics</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../relay_metrics/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><h2><a href="../relay_metrics/index.html">relay_<wbr>metrics</a><span class="version">26.6.0</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#protocol" title="Protocol">Protocol</a></li><li><a href="#metric-envelopes" title="Metric Envelopes">Metric Envelopes</a></li><li><a href="#aggregation" title="Aggregation">Aggregation</a></li><li><a href="#ingestion" title="Ingestion">Ingestion</a></li></ul><h3><a href="#modules">Crate Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#macros" title="Macros">Macros</a></li><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li><li><a href="#functions" title="Functions">Functions</a></li><li><a href="#types" title="Type Aliases">Type Aliases</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1>Crate <span>relay_<wbr>metrics</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/relay_metrics/lib.rs.html#1-82">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Metric protocol, aggregation and processing for Sentry.</p>
 <p>Metrics are high-volume values sent from Sentry clients, integrations, or extracted from errors
 and transactions, that can be aggregated and queried over large time windows. As opposed to rich
 errors and transactions, metrics carry relatively little context information in tags with low
@@ -7,10 +7,10 @@ cardinality.</p>
 <p>Clients submit metrics in a <a href="struct.Bucket.html" title="struct relay_metrics::Bucket">text-based protocol</a> based on StatsD. See the <a href="struct.Bucket.html#fields" title="struct relay_metrics::Bucket">field
 documentation</a> on <code>Bucket</code> for more information on the components. A sample
 submission looks like this:</p>
-<div class="example-wrap"><pre class="language-text"><code>endpoint.response_time@millisecond:36:49:57:68|d|#route:user_index|T1615889440
-endpoint.hits:4|c|#route:user_index|T1615889440
-endpoint.parallel_requests:25:17:42:220:85|g|#route:user_index|T1615889440
-endpoint.users:3182887624:4267882815|s|#route:user_index|T1615889440</code></pre></div>
+<div class="example-wrap"><pre class="language-text"><code>transactions/endpoint.response_time@millisecond:36:49:57:68|d|#route:user_index|T1615889440
+transactions/endpoint.hits:4|c|#route:user_index|T1615889440
+transactions/endpoint.parallel_requests:25:17:42:220:85|g|#route:user_index|T1615889440
+transactions/endpoint.users:3182887624:4267882815|s|#route:user_index|T1615889440</code></pre></div>
 <p>The metric type is part of its signature just like the unit. Therefore, it is allowed to reuse a
 metric name for multiple metric types, which will result in multiple metrics being recorded.</p>
 <h2 id="metric-envelopes"><a class="doc-anchor" href="#metric-envelopes">§</a>Metric Envelopes</h2>
@@ -18,14 +18,13 @@ metric name for multiple metric types, which will result in multiple metrics bei
 <code>metrics</code>:</p>
 <div class="example-wrap"><pre class="language-text"><code>{}
 {&quot;type&quot;: &quot;statsd&quot;, ...}
-endpoint.response_time@millisecond:36:49:57:68|d|#route:user_index|T1615889440
-endpoint.hits:4|c|#route:user_index|T1615889440
-endpoint.parallel_requests:25:17:42:220:85|g|#route:user_index|T1615889440
-endpoint.users:3182887624:4267882815|s|#route:user_index|T1615889440
+transactions/endpoint.response_time@millisecond:36:49:57:68|d|#route:user_index|T1615889440
+transactions/endpoint.hits:4|c|#route:user_index|T1615889440
+transactions/endpoint.parallel_requests:25:17:42:220:85|g|#route:user_index|T1615889440
+transactions/endpoint.users:3182887624:4267882815|s|#route:user_index|T1615889440
 ...</code></pre></div>
 <p>Note that the name format used in the statsd protocol is different from the MRI: Metric names
-are not prefixed with <code>&lt;ty&gt;:</code> as the type is somewhere else in the protocol. If no metric
-namespace is specified, the <code>"custom"</code> namespace is assumed.</p>
+are not prefixed with <code>&lt;ty&gt;:</code> as the type is somewhere else in the protocol.</p>
 <p>Optionally, a timestamp can be added to every line of the submitted envelope. The timestamp has
 to be a valid Unix timestamp (UTC) and must be prefixed with <code>T</code>. If it is omitted, the
 <code>received</code> time of the envelope is assumed.</p>
@@ -40,7 +39,7 @@ with a debounce delay for backdated submissions.</p>
   {
     &quot;timestamp&quot;: 1615889440,
     &quot;width&quot;: 0,
-    &quot;name&quot;: &quot;d:custom/endpoint.response_time@millisecond&quot;,
+    &quot;name&quot;: &quot;d:transactions/endpoint.response_time@millisecond&quot;,
     &quot;type&quot;: &quot;d&quot;,
     &quot;value&quot;: [
       36.0,
@@ -55,7 +54,7 @@ with a debounce delay for backdated submissions.</p>
   {
     &quot;timestamp&quot;: 1615889440,
     &quot;width&quot;: 0,
-    &quot;name&quot;: &quot;c:custom/endpoint.hits@none&quot;,
+    &quot;name&quot;: &quot;c:transactions/endpoint.hits@none&quot;,
     &quot;type&quot;: &quot;c&quot;,
     &quot;value&quot;: 4.0,
     &quot;tags&quot;: {
@@ -65,7 +64,7 @@ with a debounce delay for backdated submissions.</p>
   {
     &quot;timestamp&quot;: 1615889440,
     &quot;width&quot;: 0,
-    &quot;name&quot;: &quot;g:custom/endpoint.parallel_requests@none&quot;,
+    &quot;name&quot;: &quot;g:transactions/endpoint.parallel_requests@none&quot;,
     &quot;type&quot;: &quot;g&quot;,
     &quot;value&quot;: {
       &quot;last&quot;: 25.0,
@@ -81,7 +80,7 @@ with a debounce delay for backdated submissions.</p>
   {
     &quot;timestamp&quot;: 1615889440,
     &quot;width&quot;: 0,
-    &quot;name&quot;: &quot;s:custom/endpoint.users@none&quot;,
+    &quot;name&quot;: &quot;s:transactions/endpoint.users@none&quot;,
     &quot;type&quot;: &quot;s&quot;,
     &quot;value&quot;: [
       3182887624,

@@ -726,7 +726,7 @@
 <a href=#726 id=726 data-nosnippet>726</a>            scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
 <a href=#727 id=727 data-nosnippet>727</a>            reason_code: <span class="prelude-val">None</span>,
 <a href=#728 id=728 data-nosnippet>728</a>            retry_after: RetryAfter::from_secs(<span class="number">1</span>),
-<a href=#729 id=729 data-nosnippet>729</a>            namespaces: <span class="macro">smallvec!</span>[MetricNamespace::Custom],
+<a href=#729 id=729 data-nosnippet>729</a>            namespaces: <span class="macro">smallvec!</span>[MetricNamespace::Transactions],
 <a href=#730 id=730 data-nosnippet>730</a>        };
 <a href=#731 id=731 data-nosnippet>731</a>
 <a href=#732 id=732 data-nosnippet>732</a>        <span class="kw">let </span>scoping = Scoping {
@@ -739,7 +739,7 @@
 <a href=#739 id=739 data-nosnippet>739</a>        <span class="macro">assert!</span>(rate_limit.matches(ItemScoping {
 <a href=#740 id=740 data-nosnippet>740</a>            category: DataCategory::MetricBucket,
 <a href=#741 id=741 data-nosnippet>741</a>            scoping,
-<a href=#742 id=742 data-nosnippet>742</a>            namespace: MetricNamespaceScoping::Some(MetricNamespace::Custom),
+<a href=#742 id=742 data-nosnippet>742</a>            namespace: MetricNamespaceScoping::Some(MetricNamespace::Transactions),
 <a href=#743 id=743 data-nosnippet>743</a>        }));
 <a href=#744 id=744 data-nosnippet>744</a>
 <a href=#745 id=745 data-nosnippet>745</a>        <span class="macro">assert!</span>(!rate_limit.matches(ItemScoping {
@@ -957,7 +957,7 @@
 <a href=#957 id=957 data-nosnippet>957</a>            scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
 <a href=#958 id=958 data-nosnippet>958</a>            reason_code: <span class="prelude-val">None</span>,
 <a href=#959 id=959 data-nosnippet>959</a>            retry_after: RetryAfter::from_secs(<span class="number">1</span>),
-<a href=#960 id=960 data-nosnippet>960</a>            namespaces: <span class="macro">smallvec!</span>[MetricNamespace::Custom],
+<a href=#960 id=960 data-nosnippet>960</a>            namespaces: <span class="macro">smallvec!</span>[MetricNamespace::Transactions],
 <a href=#961 id=961 data-nosnippet>961</a>        });
 <a href=#962 id=962 data-nosnippet>962</a>
 <a href=#963 id=963 data-nosnippet>963</a>        <span class="comment">// Same category but different namespaces
@@ -980,7 +980,7 @@
 <a href=#980 id=980 data-nosnippet>980</a>              reason_code: None,
 <a href=#981 id=981 data-nosnippet>981</a>              retry_after: RetryAfter(1),
 <a href=#982 id=982 data-nosnippet>982</a>              namespaces: [
-<a href=#983 id=983 data-nosnippet>983</a>                "custom",
+<a href=#983 id=983 data-nosnippet>983</a>                "transactions",
 <a href=#984 id=984 data-nosnippet>984</a>              ],
 <a href=#985 id=985 data-nosnippet>985</a>            ),
 <a href=#986 id=986 data-nosnippet>986</a>            RateLimit(
