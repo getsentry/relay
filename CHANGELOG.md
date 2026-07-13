@@ -50,7 +50,7 @@
 - Use dedicated secret to sign upload URLs. ([#6132](https://github.com/getsentry/relay/pull/6132))
 - Inline small attachments instead of uploading to objectstore. ([#6165](https://github.com/getsentry/relay/pull/6165))
 - Retry 500 responses from objectstore. ([#6162](https://github.com/getsentry/relay/pull/6162))
-- Remove the `metrics_extracted` flag from the transactions processing pipeline. ([#6190](https://github.com/getsentry/relay/pull/6190))
+- Remove the `metrics_extracted` and `spans_extracted` flags from the transactions processing pipeline. ([#6190](https://github.com/getsentry/relay/pull/6190), [#6200](https://github.com/getsentry/relay/pull/6200))
 - Convert TUS uploads to Objectstore multipart uploads. ([#6172](https://github.com/getsentry/relay/pull/6172))
 
 ## 26.6.0

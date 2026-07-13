@@ -1,9 +1,9 @@
 use crate::Envelope;
 use crate::managed::{Managed, ManagedResult, Rejected};
-use crate::processing::spans::Indexed;
 use crate::processing::transactions::types::{
-    ExpandedTransaction, ExtractedIndexedSpans, StandaloneProfile,
+    ExpandedTransaction, ExtractedIndexedSpans, SpansExtracted, StandaloneProfile,
 };
+use crate::processing::utils::types::Indexed;
 use crate::processing::{Forward, ForwardContext};
 use crate::services::outcome::{DiscardReason, Outcome};
 
@@ -19,7 +19,7 @@ pub enum TransactionOutput {
     /// This is used in processing relays.
     Indexed {
         spans: Option<Managed<ExtractedIndexedSpans>>,
-        transaction: Managed<Box<ExpandedTransaction<Indexed>>>,
+        transaction: Managed<Box<ExpandedTransaction<Indexed, SpansExtracted>>>,
     },
 }
 
@@ -98,6 +98,7 @@ impl Forward for TransactionOutput {
                 attachments,
                 profile,
                 category: _,
+                span_extraction: _,
             } = *tx;
 
             if performance_issues_spans && let Some(event) = event.value_mut() {

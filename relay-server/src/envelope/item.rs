@@ -105,20 +105,15 @@ impl Item {
         match self.ty() {
             ItemType::Event => smallvec![(DataCategory::Error, item_count)],
             ItemType::Transaction => {
-                let mut quantities = smallvec![
+                smallvec![
                     (DataCategory::Transaction, item_count),
                     (DataCategory::TransactionIndexed, item_count),
-                ];
-                if !self.spans_extracted() {
-                    quantities.extend([
-                        (DataCategory::Span, item_count + self.span_count() as usize),
-                        (
-                            DataCategory::SpanIndexed,
-                            item_count + self.span_count() as usize,
-                        ),
-                    ]);
-                }
-                quantities
+                    (DataCategory::Span, item_count + self.span_count() as usize),
+                    (
+                        DataCategory::SpanIndexed,
+                        item_count + self.span_count() as usize,
+                    ),
+                ]
             }
             ItemType::Security | ItemType::RawSecurity => {
                 smallvec![(DataCategory::Security, item_count)]
@@ -416,19 +411,6 @@ impl Item {
     /// Sets new source quantities.
     pub fn set_source_quantities(&mut self, source_quantities: SourceQuantities) {
         self.headers.source_quantities = Some(source_quantities);
-    }
-
-    /// Returns the spans extracted flag.
-    pub fn spans_extracted(&self) -> bool {
-        self.headers
-            .get(ItemHeaderKey::SpansExtracted)
-            .unwrap_or_default()
-    }
-
-    /// Sets the spans extracted flag.
-    pub fn set_spans_extracted(&mut self, spans_extracted: bool) {
-        self.headers
-            .set(ItemHeaderKey::SpansExtracted, spans_extracted);
     }
 
     /// Returns the fully normalized flag.
@@ -751,7 +733,7 @@ impl Item {
             spans: crate::utils::SeqCount,
         }
 
-        if self.headers.ty != ItemType::Transaction || self.spans_extracted() {
+        if self.headers.ty != ItemType::Transaction {
             return None;
         }
 
@@ -1024,14 +1006,6 @@ pub enum ItemHeaderKey {
     /// This is currently considered optional for profile chunks, but may change
     /// to required in the future.
     Platform,
-    /// Whether or not spans and span metrics have been extracted from a transaction.
-    ///
-    /// This header is set to `true` after both span extraction and span metrics extraction,
-    /// and can be used to skip extraction.
-    ///
-    /// NOTE: This header is also set to `true` for transactions that are themselves extracted
-    /// from spans (the opposite direction), to prevent going in circles.
-    SpansExtracted,
     /// The number of spans in the `event.spans` array.
     ///
     /// Should never be set except for transaction items.

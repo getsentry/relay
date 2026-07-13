@@ -13,6 +13,7 @@ use crate::processing::spans::{
     self, Error, ExpandedAttachment, ExpandedSpan, ExpandedSpans, Result, SerializedSpans,
     Settings, SpanItems,
 };
+use crate::processing::utils::types::TotalAndIndexed;
 use crate::processing::{Context, trace_attachments, utils};
 use crate::services::outcome::DiscardReason;
 
@@ -84,7 +85,7 @@ pub fn expand(spans: Managed<SerializedSpans>) -> Result<Managed<ExpandedSpans>,
             spans: span_id_mapping.into_values().collect(),
             server_sample_rate: None,
             stand_alone_attachments,
-            category: spans::TotalAndIndexed,
+            category: TotalAndIndexed,
         })
     })
 }
