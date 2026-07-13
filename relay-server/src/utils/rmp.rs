@@ -1,3 +1,5 @@
+#![allow(clippy::disallowed_types)]
+
 use rmp_serde::Deserializer;
 use rmp_serde::decode::{ReadReader, ReadRefReader};
 
@@ -14,7 +16,6 @@ pub const MAX_DEPTH: usize = 128;
 ///
 /// Caps nesting at
 /// [`MAX_DEPTH`] to protect against stack overflows from maliciously nested payloads.
-#[allow(clippy::disallowed_types)]
 pub fn slice_deserializer<'a>(data: &'a [u8]) -> Deserializer<ReadRefReader<'a, [u8]>> {
     let mut deserializer = Deserializer::from_read_ref(data);
     deserializer.set_max_depth(MAX_DEPTH);
@@ -27,8 +28,7 @@ pub fn slice_deserializer<'a>(data: &'a [u8]) -> Deserializer<ReadRefReader<'a, 
 /// [`MAX_DEPTH`] to protect against stack overflows from maliciously nested payloads.
 ///
 /// Like `slice_deserializer`, but allows consuming multiple items from the slice.
-#[allow(clippy::disallowed_types)]
-pub fn stream_deserializer<'a>(data: &'a [u8]) -> Deserializer<ReadReader<&'a [u8]>> {
+pub fn stream_deserializer(data: &[u8]) -> Deserializer<ReadReader<&[u8]>> {
     let mut deserializer = Deserializer::new(data);
     deserializer.set_max_depth(MAX_DEPTH);
     deserializer
