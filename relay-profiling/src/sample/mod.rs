@@ -15,6 +15,9 @@ pub enum Version {
     V1,
     #[serde(rename = "2")]
     V2,
+    /// Special-cased chunk format for Android trace profiles, distinct from sample-format v2.
+    #[serde(rename = "2.android-trace")]
+    V2AndroidTrace,
 }
 
 /// Holds information about a single stacktrace frame.

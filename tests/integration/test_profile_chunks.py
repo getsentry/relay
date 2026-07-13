@@ -1,3 +1,4 @@
+import json
 import uuid
 from copy import deepcopy
 from pathlib import Path
@@ -319,6 +320,41 @@ def test_profile_chunk_outcomes_rate_limited_fast(
             {"category": category, "quantity": 1, "reason": "profile_chunks_exceeded"}
         ]
         assert mini_sentry.captured_envelopes.empty()
+
+
+@pytest.mark.parametrize(
+    ["envelope_factory", "expected_version"],
+    [
+        pytest.param(sample_profile_v2_envelope, "2", id="profile v2"),
+        pytest.param(
+            android_profile_chunk_envelope,
+            "2.android-trace",
+            id="android chunk",
+        ),
+    ],
+)
+def test_profile_chunk_version_is_forwarded(
+    mini_sentry,
+    relay_with_processing,
+    profiles_consumer,
+    envelope_factory,
+    expected_version,
+):
+    profiles_consumer = profiles_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)["config"]
+
+    project_config.setdefault("features", []).append(
+        "organizations:continuous-profiling"
+    )
+
+    upstream = relay_with_processing(TEST_CONFIG)
+    upstream.send_envelope(project_id, envelope_factory())
+
+    profile, headers = profiles_consumer.get_profile()
+    assert headers == [("project_id", b"42")]
+    assert json.loads(profile["payload"])["version"] == expected_version
 
 
 @pytest.mark.parametrize(

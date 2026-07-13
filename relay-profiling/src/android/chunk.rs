@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::debug_image::get_proguard_image;
 use crate::measurements::ChunkMeasurement;
+use crate::sample::Version;
 use crate::sample::v2::ProfileData;
 use crate::types::{ClientSdk, DebugMeta};
 use crate::{MAX_PROFILE_CHUNK_DURATION, ProfileError};
@@ -34,6 +35,9 @@ pub struct Metadata {
     environment: String,
     platform: String,
     release: String,
+
+    #[serde(default)]
+    version: Version,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     debug_meta: Option<DebugMeta>,
@@ -114,6 +118,11 @@ impl Chunk {
         // Use duration given by the profiler and not reported by the SDK.
         profile.metadata.duration_ns = profile.profile.elapsed_time.as_nanos() as u64;
 
+        // Convert the accepted legacy Android trace version ("2") to the new wire version
+        // ("2.android-trace"). We do so during parsing rather than when serializing because raw
+        // serde doesn't validate the trace payload.
+        profile.metadata.version = Version::V2AndroidTrace;
+
         // If build_id is not empty but we don't have any DebugImage set,
         // we create the proper Proguard image and set the uuid.
         if !profile.metadata.build_id.is_empty() && profile.metadata.debug_meta.is_none() {
@@ -175,8 +184,26 @@ mod tests {
     fn test_roundtrip_react_native() {
         let payload = include_bytes!("../../tests/fixtures/android/chunk/valid-rn.json");
         let profile = Chunk::parse(payload).unwrap();
-        let data = serde_json::to_vec(&profile);
-        assert!(Chunk::parse(&(data.unwrap())[..]).is_ok());
+        let data = serde_json::to_vec(&profile).unwrap();
+        let output: serde_json::Value = serde_json::from_slice(&data).unwrap();
+
+        assert_eq!(output["version"], "2.android-trace");
+        assert!(Chunk::parse(&data).is_ok());
+    }
+
+    #[test]
+    fn test_parse_canonicalizes_android_trace_profile_version() {
+        let payload = include_bytes!("../../tests/fixtures/android/chunk/valid.json");
+        let input: serde_json::Value = serde_json::from_slice(payload).unwrap();
+        assert_eq!(input["version"], "2");
+
+        let profile = Chunk::parse(payload).unwrap();
+        assert_eq!(profile.metadata.version, Version::V2AndroidTrace);
+
+        let output = serde_json::to_value(&profile).unwrap();
+
+        assert_eq!(output["version"], "2.android-trace");
+        assert!(output.get("sampled_profile").is_none());
     }
 
     #[test]
