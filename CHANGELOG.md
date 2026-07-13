@@ -28,6 +28,7 @@
 - Make `--log-level` and `--log-format` take effect again and accept them on all subcommands. ([#6198](https://github.com/getsentry/relay/pull/6198))
 - Parse two-component versions in iOS and iPadOS `raw_description` into `version` instead of `kernel_version`. ([#6197](https://github.com/getsentry/relay/pull/6197))
 - Normalize segment names for standalone spans in the experimental pipeline. ([#6163](https://github.com/getsentry/relay/pull/6163))
+- Limit nested form-data entry keys. ([#6179](https://github.com/getsentry/relay/pull/6179))
 
 **Internal**:
 

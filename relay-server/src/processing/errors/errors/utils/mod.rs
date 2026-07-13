@@ -165,7 +165,7 @@ pub fn take_event_from_formdata(
 
     let event = {
         let mut value = serde_json::Value::Object(Default::default());
-        formdata::merge_formdata(&mut value, &form_data);
+        formdata::merge_formdata(&mut value, &form_data)?;
         Annotated::deserialize_with_meta(value).map_err(ProcessingError::InvalidJson)
     }?;
     metrics.bytes_ingested_event = Annotated::new(form_data.len() as u64);

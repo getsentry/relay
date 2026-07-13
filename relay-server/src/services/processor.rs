@@ -79,6 +79,9 @@ pub enum ProcessingError {
     #[error("invalid message pack event payload")]
     InvalidMsgpack(#[from] rmp_serde::decode::Error),
 
+    #[error("event data too deeply nested")]
+    NestingTooDeep,
+
     #[error("invalid unreal crash report")]
     InvalidUnrealReport(#[source] Unreal4Error),
 
@@ -139,6 +142,7 @@ impl ProcessingError {
             }
             Self::InvalidJson(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
             Self::InvalidMsgpack(_) => Some(Outcome::Invalid(DiscardReason::InvalidMsgpack)),
+            Self::NestingTooDeep => Some(Outcome::Invalid(DiscardReason::NestingTooDeep)),
             Self::InvalidSecurityType(_) => {
                 Some(Outcome::Invalid(DiscardReason::SecurityReportType))
             }
