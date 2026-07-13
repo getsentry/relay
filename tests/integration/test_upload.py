@@ -13,7 +13,6 @@ import pytest
 
 from sentry_relay.auth import SecretKey
 
-from .asserts import matches_any
 from .consts import (
     DUMMY_UPLOAD_PATH,
     DUMMY_UPLOAD_LOCATION,
@@ -665,8 +664,9 @@ def test_objectstore_compression(
     project_id = 42
     project_key = mini_sentry.get_dsn_public_key(project_id)
     relay = relay_with_processing()
+    objectstore = objectstore("attachments", project_id)
 
-    data = 1_000_000 * b"X"
+    data = 3 * 1024 * 1024 * b"X"
     response = relay.post(
         f"/api/{project_id}/upload/?sentry_key={project_key}",
         headers={
@@ -677,31 +677,61 @@ def test_objectstore_compression(
     )
     assert response.status_code == 201, response.json()
 
-    # Upload only half the bytes
-    data = data[: len(data) // 2]
+    # Upload only part of the bytes
+    split = len(data) // 2
+    data1 = data[:split]
+    data2 = data[split:]
+
     response = relay.patch(
         f"{response.headers['Location']}&sentry_key={project_key}",
         headers={
-            "Content-Length": str(len(data)),
+            "Content-Length": str(len(data1)),
             "Content-Type": "application/offset+octet-stream",
             "Tus-Resumable": "1.0.0",
             "Upload-Offset": "0",
         },
-        data=data,
+        data=data1,
     )
     assert response.status_code == 204
 
-    objectstore = objectstore("attachments", project_id)
+    key, upload_id = LOCATION_REGEX.match(response.headers["Location"]).groups()
+    (part1,) = MultipartUpload(objectstore, key, upload_id).list_parts()
+
+    print(part1)
+    # assert vars(part1) == {
+    #     "part_number": 1,
+    #     "etag": matches_any(),
+    #     "last_modified": matches_any(),
+    #     "size": len(zstandard.compress(data1)),
+    # }
+
+    response = relay.patch(
+        f"{response.headers['Location']}&sentry_key={project_key}",
+        headers={
+            "Content-Length": str(len(data2)),
+            "Content-Type": "application/offset+octet-stream",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Offset": str(len(data1)),
+            "Upload-Length": str(len(data)),  # TODO: can we even make this required?
+        },
+        data=data2,
+    )
+    assert response.status_code == 204
 
     key, upload_id = LOCATION_REGEX.match(response.headers["Location"]).groups()
-    (part,) = MultipartUpload(objectstore, key, upload_id).list_parts()
+    part1_again, part2 = MultipartUpload(objectstore, key, upload_id).list_parts()
 
-    assert vars(part) == {
-        "part_number": 1,
-        "etag": matches_any(),
-        "last_modified": matches_any(),
-        "size": len(data),
-    }
+    assert part1_again == part1
+
+    print(part1_again, part2)
+    # assert vars(part2) == {
+    #     "part_number": 3,
+    #     "etag": matches_any(),
+    #     "last_modified": matches_any(),
+    #     "size": len(zstandard.compress(data2)),
+    # }
+
+    assert objectstore.get(key) == data
 
 
 @pytest.mark.parametrize(

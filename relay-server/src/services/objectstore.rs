@@ -994,7 +994,7 @@ impl ObjectstoreServiceInner {
                     // Ensure that the stream ends at the granularity boundary.
                     // NOTE: Once every upload is a multipart upload, we can remove `RetryableStream`
                     // because streams will never be effectively retried.
-                    let mut body = Rechunk::new(body, UPLOAD_GRANULARITY).enumerate();
+                    let mut body = Rechunk::new(body, UPLOAD_GRANULARITY);
                     // let body = ReaderStream::new(ZstdEncoder::new(StreamReader::new(body)));
 
                     // Unfortunately, MinIO has the limitation that the length of a multipart request
@@ -1004,23 +1004,23 @@ impl ObjectstoreServiceInner {
                     // Every chunk needs to be > 5 MB because that's what multipart requires.
                     let mut parts = vec![];
                     let mut compressed_buffer = zstd::stream::write::Encoder::new(vec![], 0).unwrap(); // FIXME;
-                    let mut last_grain_index = 0;
-                    while let Some((grain_index, bytes)) = body.next().await {
+                    let mut part_number = offset / UPLOAD_GRANULARITY; // FIXME: validate offset
+                    while let Some(bytes) = body.next().await {
+                        part_number += 1;
                         match bytes {
                             Err(error) =>  {
-                                try_flush(&mut compressed_buffer, grain_index, &mut multipart_upload, &mut parts).await?;
+                                try_flush(&mut compressed_buffer, part_number, &mut multipart_upload, &mut parts).await?;
                                 return Err(objectstore_client::Error::Io(error).into());
                             } Ok(bytes) => {
                                 compressed_buffer.write_all(&bytes).map_err(AttemptUploadError::Zstd)?;
                                 if compressed_buffer.get_ref().len() > MULTIPART_MIN_PART_SIZE {
-                                    try_flush(&mut compressed_buffer, grain_index, &mut multipart_upload, &mut parts).await?;
+                                    try_flush(&mut compressed_buffer, part_number, &mut multipart_upload, &mut parts).await?;
                                 }
                             }
                         }
-                        last_grain_index = grain_index;
                     }
 
-                    try_flush(&mut compressed_buffer, last_grain_index, &mut multipart_upload, &mut parts).await?;
+                    try_flush(&mut compressed_buffer, part_number, &mut multipart_upload, &mut parts).await?;
 
                     if length.is_some_and(|length| length == byte_counter.get()) {
                         let final_key = multipart_upload.complete(parts).await?;
@@ -1057,7 +1057,7 @@ impl ObjectstoreServiceInner {
 
 async fn try_flush(
     buffer: &mut zstd::stream::write::Encoder<'_, Vec<u8>>,
-    grain_index: usize,
+    part_number: usize,
     multipart: &mut MultipartUpload,
     parts: &mut Vec<CompletePart>,
 ) -> Result<(), AttemptUploadError> {
@@ -1065,7 +1065,7 @@ async fn try_flush(
         zstd::stream::write::Encoder::new(vec![], 0).map_err(AttemptUploadError::Zstd)?;
     std::mem::swap(buffer, &mut new_buffer);
 
-    let part_number = u32::try_from(grain_index + 1)
+    let part_number = u32::try_from(part_number)
         .map_err(|_| objectstore_client::Error::InvalidPartNumber(u32::MAX))?;
 
     let part = multipart
