@@ -1,5 +1,8 @@
 disallowed-methods = [
     { path = "tokio::spawn", reason = "use `relay_system::spawn!` instead" },
+    { path = "rmp_serde::from_slice", reason = "use relay_server::utils::msgpack_deserializer instead" },
+    { path = "rmp_serde::from_read", reason = "use relay_server::utils::msgpack_deserializer instead" },
+    { path = "rmp_serde::from_read_ref", reason = "use relay_server::utils::msgpack_deserializer instead" },
 ]
 disallowed-types = [
     { path = "rmp_serde::Deserializer", reason = "use `relay_server::utils::msgpack_deserializer` instead" },

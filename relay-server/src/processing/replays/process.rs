@@ -15,10 +15,11 @@ use crate::processing::replays::{
 };
 use crate::processing::{Context, utils};
 use crate::statsd::RelayTimers;
+use crate::utils::rmp;
 
 fn expand_video(item: &Item) -> Result<ReplayPayload, Error> {
     let payload = item.payload();
-    let mut deserializer = crate::utils::msgpack_deserializer(&payload);
+    let mut deserializer = rmp::slice_deserializer(&payload);
     let ReplayVideoEvent {
         replay_event: event,
         replay_recording: recording,

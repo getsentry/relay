@@ -4,7 +4,7 @@ use relay_protocol::{Annotated, Array, Object};
 
 use crate::envelope::Item;
 use crate::services::processor::ProcessingError;
-use crate::utils::msgpack_deserializer;
+use crate::utils::rmp;
 
 pub fn event_from_attachments(
     config: &Config,
@@ -78,7 +78,7 @@ fn extract_attached_event(
     }
 
     let payload = item.payload();
-    let deserializer = &mut msgpack_deserializer(payload.as_ref());
+    let deserializer = &mut rmp::slice_deserializer(payload.as_ref());
     Annotated::deserialize_with_meta(deserializer).map_err(ProcessingError::InvalidMsgpack)
 }
 
@@ -105,7 +105,7 @@ fn parse_msgpack_breadcrumbs(
     }
 
     let payload = item.payload();
-    let mut deserializer = msgpack_deserializer(&payload);
+    let mut deserializer = rmp::stream_deserializer(&payload);
 
     while !deserializer.get_ref().is_empty() {
         let breadcrumb = Annotated::deserialize_with_meta(&mut deserializer)?;
