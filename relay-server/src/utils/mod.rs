@@ -4,7 +4,6 @@ mod dynamic_sampling;
 mod error;
 mod multipart;
 mod param_parser;
-#[cfg(feature = "processing")]
 mod pick;
 #[cfg(all(sentry, feature = "processing"))]
 pub mod playstation;
@@ -36,7 +35,6 @@ pub use self::multipart::*;
 #[cfg(feature = "processing")]
 pub use self::native::*;
 pub use self::param_parser::*;
-#[cfg(feature = "processing")]
 pub use self::pick::*;
 pub use self::rate_limits::*;
 pub use self::retry::*;

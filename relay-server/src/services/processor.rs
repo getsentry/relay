@@ -1001,12 +1001,8 @@ impl EnvelopeProcessorService {
             return Vec::new();
         };
 
-        let mut buckets = self::metrics::apply_project_info(
-            buckets,
-            &self.inner.metric_outcomes,
-            project_info,
-            scoping,
-        );
+        let mut buckets =
+            self::metrics::remove_invalid_namespaces(buckets, &self.inner.metric_outcomes, scoping);
 
         let mut namespaces: BTreeSet<MetricNamespace> = buckets
             .iter()
@@ -2380,7 +2376,7 @@ mod tests {
             {
                 "timestamp": 1615889440,
                 "width": 0,
-                "name": "d:custom/endpoint.response_time@millisecond",
+                "name": "d:transactions/endpoint.response_time@millisecond",
                 "type": "d",
                 "value": [
                   68.0
@@ -2394,7 +2390,7 @@ mod tests {
             {
                 "timestamp": 1615889440,
                 "width": 0,
-                "name": "d:custom/endpoint.cache_rate@none",
+                "name": "d:transactions/endpoint.cache_rate@none",
                 "type": "d",
                 "value": [
                   36.0
@@ -2432,7 +2428,7 @@ mod tests {
                         timestamp: UnixTimestamp(1615889440),
                         width: 0,
                         name: MetricName(
-                            "d:custom/endpoint.response_time@millisecond",
+                            "d:transactions/endpoint.response_time@millisecond",
                         ),
                         value: Distribution(
                             [
@@ -2457,7 +2453,7 @@ mod tests {
                         timestamp: UnixTimestamp(1615889440),
                         width: 0,
                         name: MetricName(
-                            "d:custom/endpoint.cache_rate@none",
+                            "d:transactions/endpoint.cache_rate@none",
                         ),
                         value: Distribution(
                             [

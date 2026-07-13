@@ -11,6 +11,7 @@ use crate::Envelope;
 use crate::envelope::{EnvelopeHeaders, Item, ItemContainer, ItemType, Items};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
 use crate::metrics_extraction::ExtractedMetrics;
+use crate::processing::utils::types::{Indexed, TotalAndIndexed, TotalCategory};
 use crate::processing::{
     self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter, RateLimited,
 };
@@ -233,22 +234,6 @@ impl CountRateLimited for Managed<SerializedLegacySpans> {
     type Error = Error;
 }
 
-/// The total and indexed category.
-///
-/// This category tracks spans in the total and indexed data categories.
-/// Until a span has metrics extracted it owns both categories.
-#[derive(Copy, Clone, Debug)]
-pub struct TotalAndIndexed;
-
-/// The indexed category.
-///
-/// Once metric extraction happened, spans no longer track/represent the total category, this was
-/// transferred over to the metrics.
-///
-/// Every stored span, must have metrics extracted and transferred this ownership.
-#[derive(Copy, Clone, Debug)]
-pub struct Indexed;
-
 /// Spans in their de-serialized/parsed state.
 #[derive(Debug)]
 pub struct ExpandedLegacySpans<C = TotalAndIndexed> {
@@ -283,18 +268,14 @@ impl ExpandedLegacySpans<TotalAndIndexed> {
     }
 }
 
-impl Counted for ExpandedLegacySpans<TotalAndIndexed> {
+impl<C: TotalCategory> Counted for ExpandedLegacySpans<C> {
     fn quantities(&self) -> Quantities {
-        smallvec::smallvec![
-            (DataCategory::Span, self.spans.len()),
-            (DataCategory::SpanIndexed, self.spans.len()),
-        ]
-    }
-}
-
-impl Counted for ExpandedLegacySpans<Indexed> {
-    fn quantities(&self) -> Quantities {
-        smallvec::smallvec![(DataCategory::SpanIndexed, self.spans.len())]
+        let mut quantities = smallvec::smallvec![];
+        if C::HAS_TOTAL {
+            quantities.push((DataCategory::Span, self.spans.len()));
+        }
+        quantities.push((DataCategory::SpanIndexed, self.spans.len()));
+        quantities
     }
 }
 

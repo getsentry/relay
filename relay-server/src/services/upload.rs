@@ -60,6 +60,9 @@ pub enum Error {
     Upstream(#[source] reqwest::Error),
     #[error("upstream provided invalid location: {0:?}")]
     InvalidLocation(Option<HeaderValue>),
+    #[cfg(feature = "processing")]
+    #[error(transparent)]
+    InvalidUploadId(#[from] objectstore_types::multipart::InvalidUploadId),
     #[error("serializing location failed: {0}")]
     SerializeFailed(#[from] serde_urlencoded::ser::Error),
     #[error("failed to sign location")]
@@ -69,7 +72,7 @@ pub enum Error {
     #[error("objectstore service unavailable: {0}")]
     ObjectstoreServiceUnavailable(#[source] SendError),
     #[cfg(feature = "processing")]
-    #[error("objectstore service: {0}")]
+    #[error(transparent)]
     Objectstore(#[from] objectstore::Error),
     #[error("loadshed")]
     LoadShed,
@@ -85,6 +88,8 @@ impl Error {
             Error::Timeout(_) => "timeout",
             Error::Upstream(_) => "upstream_response",
             Error::InvalidLocation(_) => "invalid_location",
+            #[cfg(feature = "processing")]
+            Error::InvalidUploadId(_) => "invalid_upload_id",
             Error::SigningFailed => "signing_failed",
             Error::SerializeFailed(_) => "serialize_failed",
             Error::InvalidSignature(_) => "invalid_signature",
@@ -127,7 +132,7 @@ pub struct Create {
     pub project: ProjectContext,
     /// The size of the intended upload in bytes, as specified in the `Upload-Length` header.
     ///
-    /// Trusted clients (i.e. PoP Relays) are allowed to omit the length (see `Upload-Defer-Length: 1`).
+    /// `None` indicates that the length is not yet known (see `Upload-Defer-Length: 1`).
     pub length: Option<usize>,
     /// The attachment type of the upload.
     pub attachment_type: Option<AttachmentType>,
@@ -272,13 +277,42 @@ impl Service {
                 SignedLocation::try_from_response(response)
             }
             #[cfg(feature = "processing")]
-            Backend::Objectstore { addr: _, config } => {
-                // We can create & sign a location right here, no need to query the objectstore service.
+            Backend::Objectstore { addr, config } => {
+                use crate::services::objectstore::UploadRef;
+
+                // Create the key:
                 let key = Uuid::now_v7().as_simple().to_string();
+                #[cfg(debug_assertions)]
+                let original_key = key.clone();
+
+                let Scoping {
+                    organization_id,
+                    project_id,
+                    ..
+                } = project.scoping;
+
+                let (key, upload_id) = match length {
+                    Some(0) => (key, None), // multipart does not allow empty uploads
+                    _ => {
+                        let UploadRef { key, upload_id } = addr
+                            .send(objectstore::Create {
+                                organization_id,
+                                project_id,
+                                key,
+                            })
+                            .await
+                            .map_err(Error::ObjectstoreServiceUnavailable)??;
+                        #[cfg(debug_assertions)]
+                        debug_assert_eq!(&key, &original_key);
+                        (key, upload_id)
+                    }
+                };
+
                 Location {
                     project_id: project.scoping.project_id,
                     key,
                     length: Provisional(length),
+                    upload_id: upload_id.map(|s| s.to_string()),
                     other: Default::default(),
                 }
                 .try_sign(config)
@@ -303,10 +337,13 @@ impl Service {
             }
             #[cfg(feature = "processing")]
             Backend::Objectstore { addr, config } => {
+                use crate::services::objectstore::UploadRef;
+
                 let Location {
                     project_id,
                     key,
                     length,
+                    upload_id,
                     other,
                 } = location.verify(received, config)?;
 
@@ -315,11 +352,12 @@ impl Service {
                 debug_assert!(stream.length().is_none_or(|l| Some(l) == length.value()));
                 let byte_counter = stream.byte_counter();
 
+                let upload_ref = UploadRef::new(key, upload_id)?;
                 let key = addr
                     .send(objectstore::Stream {
                         organization_id: scoping.organization_id,
                         project_id,
-                        key,
+                        upload_ref,
                         stream,
                     })
                     .await
@@ -331,6 +369,7 @@ impl Service {
                     project_id,
                     key,
                     length,
+                    upload_id: None,
                     other,
                 }
                 .try_sign(config)
@@ -425,6 +464,8 @@ pub struct Location<L> {
     pub key: String,
     /// Value of the `Upload-Length` header. `None` if `Upload-Defer-Length: 1`.
     pub length: L,
+    /// Identifies the upload in case the created location has a multipart upload assigned to it.
+    pub upload_id: Option<String>,
     pub other: UploadParams,
 }
 
@@ -434,16 +475,19 @@ impl<L: UploadLength> Location<L> {
             project_id,
             key,
             length,
+            upload_id,
             other,
         } = self;
         #[derive(Debug, Serialize)]
         struct QueryParams<'a> {
             pub upload_length: Option<usize>,
+            pub upload_id: Option<&'a str>,
             #[serde(flatten)]
             pub other: &'a UploadParams,
         }
         let params = QueryParams {
             upload_length: length.value(),
+            upload_id: upload_id.as_deref(),
             other,
         };
         let query = serde_urlencoded::to_string(params)?;
@@ -485,6 +529,7 @@ pub struct LocationPath {
 pub struct LocationQueryParams<L: UploadLength> {
     #[serde(alias = "length")]
     pub upload_length: L,
+    pub upload_id: Option<String>,
     #[serde(alias = "signature")]
     pub upload_signature: String,
     #[serde(flatten)]
@@ -545,6 +590,7 @@ impl<L: UploadLength> SignedLocation<L> {
         project_id: ProjectId,
         key: String,
         length: L,
+        upload_id: Option<String>,
         signature: String,
         other: UploadParams,
     ) -> Self {
@@ -553,6 +599,7 @@ impl<L: UploadLength> SignedLocation<L> {
                 project_id,
                 key,
                 length,
+                upload_id,
                 other,
             },
             signature: Signature(signature),
@@ -582,33 +629,15 @@ impl<L: UploadLength> SignedLocation<L> {
     /// Fails if the signature is outdated or incorrect.
     #[cfg(feature = "processing")]
     pub fn verify(self, received: DateTime<Utc>, config: &Config) -> Result<Location<L>, Error> {
-        let mut result = Err(SignatureError::Unverifiable);
         let location = self.location.try_to_uri()?;
         let max_age = chrono::Duration::seconds(config.upload().max_age);
+        let public_key = config
+            .upload_verification_key()
+            .ok_or(SignatureError::Unverifiable)?;
 
-        if let Some(public_key) = &config
-            .upload()
-            .credentials
-            .as_ref()
-            .map(|c| &c.verification_key)
-        {
-            result = self
-                .signature
-                .verify(location.as_bytes(), public_key, received, max_age);
-        }
-
-        // For the transition phase, check the general purpose signature even when there is a
-        // special-purpose upload key, because the URL may have been signed by an old instance.
-        // This can be simplified after the rollout.
-        if matches!(&result, Err(SignatureError::Unverifiable))
-            && let Some(public_key) = config.credentials().map(|c| &c.public_key)
-        {
-            result = self
-                .signature
-                .verify(location.as_bytes(), public_key, received, max_age);
-        }
-
-        result?;
+        let _ = self
+            .signature
+            .verify(location.as_bytes(), public_key, received, max_age)?;
 
         Ok(self.location)
     }
@@ -654,6 +683,7 @@ where
         // Parse query parameters.
         let LocationQueryParams {
             upload_length,
+            upload_id,
             upload_signature,
             other,
         } = serde_urlencoded::from_str(query).ok()?;
@@ -662,6 +692,7 @@ where
             project_id,
             key,
             upload_length,
+            upload_id,
             upload_signature,
             other,
         ))
@@ -869,6 +900,7 @@ mod tests {
                 project_id: ProjectId::new(42),
                 key: "upload-key".to_owned(),
                 length: Provisional(Some(123)),
+                upload_id: None,
                 other: UploadParams::default(),
             }
         }
@@ -913,7 +945,7 @@ mod tests {
             assert!(
                 signed_location
                     .verify(Utc::now(), &verification_config)
-                    .is_ok()
+                    .is_err() // If a dedicated verification key is present, don't try the legacy one.
             );
         }
 
@@ -981,6 +1013,46 @@ mod tests {
     }
 
     #[test]
+    fn parse_location_complete_with_upload_id() {
+        let json = r#"signature=foo&length=123&upload_id=bar"#;
+
+        let provisional: LocationQueryParams<Provisional> =
+            serde_urlencoded::from_str(json).unwrap();
+        insta::assert_debug_snapshot!(provisional, @r#"
+        LocationQueryParams {
+            upload_length: Provisional(
+                Some(
+                    123,
+                ),
+            ),
+            upload_id: Some(
+                "bar",
+            ),
+            upload_signature: "foo",
+            other: UploadParams(
+                {},
+            ),
+        }
+        "#);
+
+        let full: LocationQueryParams<Final> = serde_urlencoded::from_str(json).unwrap();
+        insta::assert_debug_snapshot!(full, @r#"
+        LocationQueryParams {
+            upload_length: Final(
+                123,
+            ),
+            upload_id: Some(
+                "bar",
+            ),
+            upload_signature: "foo",
+            other: UploadParams(
+                {},
+            ),
+        }
+        "#);
+    }
+
+    #[test]
     fn parse_location_with_other() {
         let json =
             r#"upload_signature=foo&upload_length=123&not_an_upload_param=123&upload_type=bar"#;
@@ -994,6 +1066,7 @@ mod tests {
                     123,
                 ),
             ),
+            upload_id: None,
             upload_signature: "foo",
             other: UploadParams(
                 {
@@ -1008,6 +1081,7 @@ mod tests {
             upload_length: Final(
                 123,
             ),
+            upload_id: None,
             upload_signature: "foo",
             other: UploadParams(
                 {

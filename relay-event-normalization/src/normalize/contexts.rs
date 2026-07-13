@@ -30,11 +30,11 @@ static OS_MACOS_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 
 /// Format sent by Unity on iOS
 static OS_IOS_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^iOS (?P<version>\d+\.\d+\.\d+)").unwrap());
+    LazyLock::new(|| Regex::new(r"^iOS (?P<version>\d+\.\d+(\.\d+)?)").unwrap());
 
 /// Format sent by Unity on iPadOS
 static OS_IPADOS_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^iPadOS (?P<version>\d+\.\d+\.\d+)").unwrap());
+    LazyLock::new(|| Regex::new(r"^iPadOS (?P<version>\d+\.\d+(\.\d+)?)").unwrap());
 
 /// Specific regex to parse Linux distros
 static OS_LINUX_DISTRO_UNAME_REGEX: LazyLock<Regex> = LazyLock::new(|| {
@@ -859,6 +859,24 @@ mod tests {
     }
 
     #[test]
+    fn test_ios_two_component_version() {
+        let mut os = OsContext {
+            raw_description: "iOS 15.1".to_owned().into(),
+            ..OsContext::default()
+        };
+
+        normalize_os_context(&mut os);
+        assert_json_context!(os, @r###"
+        {
+          "os": "iOS 15.1",
+          "name": "iOS",
+          "version": "15.1",
+          "raw_description": "iOS 15.1"
+        }
+        "###);
+    }
+
+    #[test]
     fn test_unity_ipados() {
         let mut os = OsContext {
             raw_description: "iPadOS 17.5.1".to_owned().into(),
@@ -872,6 +890,24 @@ mod tests {
           "name": "iPadOS",
           "version": "17.5.1",
           "raw_description": "iPadOS 17.5.1"
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_ipados_two_component_version() {
+        let mut os = OsContext {
+            raw_description: "iPadOS 15.1".to_owned().into(),
+            ..OsContext::default()
+        };
+
+        normalize_os_context(&mut os);
+        assert_json_context!(os, @r###"
+        {
+          "os": "iPadOS 15.1",
+          "name": "iPadOS",
+          "version": "15.1",
+          "raw_description": "iPadOS 15.1"
         }
         "###);
     }

@@ -279,7 +279,7 @@ def test_proxy_rate_limit_passthrough(relay, mini_sentry, behavior: RateLimitBeh
 
         rate_limited_events = []
         for _ in range(len(behavior.expected_outcomes)):
-            client_report = mini_sentry.get_client_report(timeout=1)
+            client_report = mini_sentry.get_client_report()
             rate_limited_events.extend(client_report["rate_limited_events"])
         rate_limited_events.sort(key=lambda x: x["category"])
         assert rate_limited_events == behavior.expected_outcomes
