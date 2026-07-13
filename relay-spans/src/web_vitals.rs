@@ -127,7 +127,7 @@ pub fn extract_web_vital_metrics(span: &SpanV2) -> Option<Vec<TraceMetric>> {
         // exhaustively look for them here.
         if web_vital.attribute_value == BROWSER__WEB_VITAL__CLS__VALUE {
             for i in 1..MAX_CLS_SOURCES {
-                let attr_key = browser__web_vital__cls__source__key(&i.to_string());
+                let attr_key = browser__web_vital__cls__source__key(i.to_string());
                 match attrs.get_attribute(&attr_key) {
                     Some(v) => attributes.insert(attr_key, v.value.clone()),
                     None => break,
