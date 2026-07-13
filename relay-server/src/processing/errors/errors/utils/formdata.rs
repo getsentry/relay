@@ -12,8 +12,10 @@ pub fn merge_formdata(target: &mut SerdeValue, item: &Item) -> Result<(), Proces
         if entry.key() == "sentry" || entry.key().starts_with("sentry___") {
             // Custom clients can submit longer payloads and should JSON encode event data into
             // the optional `sentry` field or a `sentry___<namespace>` field.
-            let val = serde_json::from_str(entry.value()).map_err(ProcessingError::InvalidJson)?;
-            utils::merge_values(target, val);
+            match serde_json::from_str(entry.value()) {
+                Ok(event) => utils::merge_values(target, event),
+                Err(_) => relay_log::debug!("invalid json event payload in sentry form field"),
+            }
         } else if let Some(index) = utils::get_sentry_chunk_index(entry.key(), "sentry__") {
             // Electron SDK splits up long payloads into chunks starting at sentry__1 with an
             // incrementing counter. Assemble these chunks here and then decode them below.
@@ -32,8 +34,10 @@ pub fn merge_formdata(target: &mut SerdeValue, item: &Item) -> Result<(), Proces
     }
 
     if !aggregator.is_empty() {
-        let val = serde_json::from_str(&aggregator.join()).map_err(ProcessingError::InvalidJson)?;
-        utils::merge_values(target, val);
+        match serde_json::from_str(&aggregator.join()) {
+            Ok(event) => utils::merge_values(target, event),
+            Err(_) => relay_log::debug!("invalid json event payload in sentry__* form fields"),
+        }
     }
 
     Ok(())
@@ -83,23 +87,23 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_formdata_rejects_invalid_json_in_sentry_field() {
+    fn test_merge_formdata_ignores_invalid_json_in_sentry_field() {
         let item = form_data_item(&[("sentry", "{not valid json")]);
 
         let mut target = SerdeValue::Object(Default::default());
-        let result = merge_formdata(&mut target, &item);
+        merge_formdata(&mut target, &item).unwrap();
 
-        assert!(matches!(result, Err(ProcessingError::InvalidJson(_))));
+        assert_eq!(target, serde_json::json!({}));
     }
 
     #[test]
-    fn test_merge_formdata_rejects_invalid_json_in_chunked_fields() {
+    fn test_merge_formdata_ignores_invalid_json_in_chunked_fields() {
         let item = form_data_item(&[("sentry__1", "{not valid json")]);
 
         let mut target = SerdeValue::Object(Default::default());
-        let result = merge_formdata(&mut target, &item);
+        merge_formdata(&mut target, &item).unwrap();
 
-        assert!(matches!(result, Err(ProcessingError::InvalidJson(_))));
+        assert_eq!(target, serde_json::json!({}));
     }
 
     #[test]
