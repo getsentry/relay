@@ -111,7 +111,7 @@
 <a href=#111 id=111 data-nosnippet>111</a>    envelope.modify(|envelope, records| {
 <a href=#112 id=112 data-nosnippet>112</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_item) = envelope
 <a href=#113 id=113 data-nosnippet>113</a>            .items_mut()
-<a href=#114 id=114 data-nosnippet>114</a>            .find(|item| <span class="kw-2">*</span>item.ty() == ItemType::Transaction &amp;&amp; !item.spans_extracted())
+<a href=#114 id=114 data-nosnippet>114</a>            .find(|item| <span class="kw-2">*</span>item.ty() == ItemType::Transaction)
 <a href=#115 id=115 data-nosnippet>115</a>        {
 <a href=#116 id=116 data-nosnippet>116</a>            <span class="comment">// We're actively 'correcting' span counts -&gt; there will be differences.
 <a href=#117 id=117 data-nosnippet>117</a>            </span>records.lenient(DataCategory::Span);
