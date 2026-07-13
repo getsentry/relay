@@ -1,3 +1,4 @@
+use rmp_serde::decode::ReadRefReader;
 use serde::de::IgnoredAny;
 use serde::{Deserialize, Deserializer, de};
 
@@ -10,17 +11,17 @@ use serde::{Deserialize, Deserializer, de};
 /// This limit matches the one in `serde_json`.
 pub const MSGPACK_MAX_DEPTH: usize = 128;
 
-/// Deserializes a value from MessagePack bytes with a bounded recursion depth.
+/// Returns a Deserializer with a bounded recursion depth.
 ///
-/// This is a drop-in replacement for [`rmp_serde::from_slice`] that caps nesting at
+/// Caps nesting at
 /// [`MSGPACK_MAX_DEPTH`] to protect against stack overflows from maliciously nested payloads.
-pub fn msgpack_from_slice<'a, T>(data: &'a [u8]) -> Result<T, rmp_serde::decode::Error>
-where
-    T: Deserialize<'a>,
-{
+#[allow(clippy::disallowed_types)]
+pub fn msgpack_deserializer<'a>(
+    data: &'a [u8],
+) -> rmp_serde::Deserializer<ReadRefReader<'a, [u8]>> {
     let mut deserializer = rmp_serde::Deserializer::from_read_ref(data);
     deserializer.set_max_depth(MSGPACK_MAX_DEPTH);
-    T::deserialize(&mut deserializer)
+    deserializer
 }
 
 /// Deserializes only the count of a sequence ignoring all individual items.

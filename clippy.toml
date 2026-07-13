@@ -1,3 +1,6 @@
 disallowed-methods = [
     { path = "tokio::spawn", reason = "use `relay_system::spawn!` instead" },
 ]
+disallowed-types = [
+    { path = "rmp_serde::Deserializer", reason = "use `relay_server::utils::msgpack_deserializer` instead" },
+]
