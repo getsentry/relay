@@ -408,346 +408,350 @@
 <a href=#408 id=408 data-nosnippet>408</a>
 <a href=#409 id=409 data-nosnippet>409</a>    <span class="doccomment">/// (Relay) Failed to upload to objectstore.
 <a href=#410 id=410 data-nosnippet>410</a>    </span>UploadFailed,
-<a href=#411 id=411 data-nosnippet>411</a>}
-<a href=#412 id=412 data-nosnippet>412</a>
-<a href=#413 id=413 data-nosnippet>413</a><span class="kw">impl </span>DiscardReason {
-<a href=#414 id=414 data-nosnippet>414</a>    <span class="kw">pub fn </span>name(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
-<a href=#415 id=415 data-nosnippet>415</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#416 id=416 data-nosnippet>416</a>            DiscardReason::Duplicate =&gt; <span class="string">"duplicate"</span>,
-<a href=#417 id=417 data-nosnippet>417</a>            DiscardReason::ProjectId =&gt; <span class="string">"project_id"</span>,
-<a href=#418 id=418 data-nosnippet>418</a>            DiscardReason::AuthVersion =&gt; <span class="string">"auth_version"</span>,
-<a href=#419 id=419 data-nosnippet>419</a>            DiscardReason::AuthClient =&gt; <span class="string">"auth_client"</span>,
-<a href=#420 id=420 data-nosnippet>420</a>            DiscardReason::NoData =&gt; <span class="string">"no_data"</span>,
-<a href=#421 id=421 data-nosnippet>421</a>            DiscardReason::ItemTooLarge(discard) =&gt; discard.as_str(),
-<a href=#422 id=422 data-nosnippet>422</a>            DiscardReason::RequestTooLarge =&gt; <span class="string">"request_too_large"</span>,
-<a href=#423 id=423 data-nosnippet>423</a>            DiscardReason::RateLimited =&gt; <span class="string">"rate_limited"</span>,
-<a href=#424 id=424 data-nosnippet>424</a>            DiscardReason::DisallowedMethod =&gt; <span class="string">"disallowed_method"</span>,
-<a href=#425 id=425 data-nosnippet>425</a>            DiscardReason::ContentType =&gt; <span class="string">"content_type"</span>,
-<a href=#426 id=426 data-nosnippet>426</a>            DiscardReason::MultiProjectId =&gt; <span class="string">"multi_project_id"</span>,
-<a href=#427 id=427 data-nosnippet>427</a>            DiscardReason::MissingProsperodump =&gt; <span class="string">"missing_prosperodump_upload"</span>,
-<a href=#428 id=428 data-nosnippet>428</a>            DiscardReason::InvalidProsperodump =&gt; <span class="string">"invalid_prosperodump"</span>,
-<a href=#429 id=429 data-nosnippet>429</a>            DiscardReason::MissingMinidump =&gt; <span class="string">"missing_minidump_upload"</span>,
-<a href=#430 id=430 data-nosnippet>430</a>            DiscardReason::InvalidMinidump =&gt; <span class="string">"invalid_minidump"</span>,
-<a href=#431 id=431 data-nosnippet>431</a>            DiscardReason::SecurityReportType =&gt; <span class="string">"security_report_type"</span>,
-<a href=#432 id=432 data-nosnippet>432</a>            DiscardReason::SecurityReport =&gt; <span class="string">"security_report"</span>,
-<a href=#433 id=433 data-nosnippet>433</a>            DiscardReason::Cors =&gt; <span class="string">"cors"</span>,
-<a href=#434 id=434 data-nosnippet>434</a>            DiscardReason::InvalidUnrealReport =&gt; <span class="string">"invalid_unreal_report"</span>,
-<a href=#435 id=435 data-nosnippet>435</a>            DiscardReason::ProcessUnreal =&gt; <span class="string">"process_unreal"</span>,
-<a href=#436 id=436 data-nosnippet>436</a>            DiscardReason::InvalidSignature =&gt; <span class="string">"invalid_signature"</span>,
-<a href=#437 id=437 data-nosnippet>437</a>            DiscardReason::MissingSignature =&gt; <span class="string">"missing_signature"</span>,
-<a href=#438 id=438 data-nosnippet>438</a>            DiscardReason::Payload =&gt; <span class="string">"payload"</span>,
-<a href=#439 id=439 data-nosnippet>439</a>            DiscardReason::EmptyBody =&gt; <span class="string">"empty_body"</span>,
-<a href=#440 id=440 data-nosnippet>440</a>            DiscardReason::InvalidBody =&gt; <span class="string">"invalid_body"</span>,
-<a href=#441 id=441 data-nosnippet>441</a>            DiscardReason::InvalidJson =&gt; <span class="string">"invalid_json"</span>,
-<a href=#442 id=442 data-nosnippet>442</a>            DiscardReason::InvalidMultipart =&gt; <span class="string">"invalid_multipart"</span>,
-<a href=#443 id=443 data-nosnippet>443</a>            DiscardReason::InvalidMsgpack =&gt; <span class="string">"invalid_msgpack"</span>,
-<a href=#444 id=444 data-nosnippet>444</a>            DiscardReason::InvalidProtobuf =&gt; <span class="string">"invalid_proto"</span>,
-<a href=#445 id=445 data-nosnippet>445</a>            DiscardReason::InvalidTransaction =&gt; <span class="string">"invalid_transaction"</span>,
-<a href=#446 id=446 data-nosnippet>446</a>            DiscardReason::InvalidEnvelope =&gt; <span class="string">"invalid_envelope"</span>,
-<a href=#447 id=447 data-nosnippet>447</a>            DiscardReason::InvalidCompression =&gt; <span class="string">"invalid_compression"</span>,
-<a href=#448 id=448 data-nosnippet>448</a>            DiscardReason::InvalidEventId =&gt; <span class="string">"invalid_event_id"</span>,
-<a href=#449 id=449 data-nosnippet>449</a>            DiscardReason::InternalEnvelope =&gt; <span class="string">"internal_envelope"</span>,
-<a href=#450 id=450 data-nosnippet>450</a>            DiscardReason::QueueFailed =&gt; <span class="string">"queue_failed"</span>,
-<a href=#451 id=451 data-nosnippet>451</a>            DiscardReason::Timestamp =&gt; <span class="string">"timestamp"</span>,
-<a href=#452 id=452 data-nosnippet>452</a>            DiscardReason::ProjectState =&gt; <span class="string">"project_state"</span>,
-<a href=#453 id=453 data-nosnippet>453</a>            DiscardReason::ProjectStatePii =&gt; <span class="string">"project_state_pii"</span>,
-<a href=#454 id=454 data-nosnippet>454</a>            DiscardReason::ProjectUnavailable =&gt; <span class="string">"project_unavailable"</span>,
-<a href=#455 id=455 data-nosnippet>455</a>            DiscardReason::DuplicateItem =&gt; <span class="string">"duplicate_item"</span>,
-<a href=#456 id=456 data-nosnippet>456</a>            DiscardReason::NoEventPayload =&gt; <span class="string">"no_event_payload"</span>,
-<a href=#457 id=457 data-nosnippet>457</a>            DiscardReason::Internal =&gt; <span class="string">"internal"</span>,
-<a href=#458 id=458 data-nosnippet>458</a>            DiscardReason::TransactionSampled =&gt; <span class="string">"transaction_sampled"</span>,
-<a href=#459 id=459 data-nosnippet>459</a>            DiscardReason::InvalidReplayEvent =&gt; <span class="string">"invalid_replay"</span>,
-<a href=#460 id=460 data-nosnippet>460</a>            DiscardReason::InvalidReplayEventNoPayload =&gt; <span class="string">"invalid_replay_no_payload"</span>,
-<a href=#461 id=461 data-nosnippet>461</a>            DiscardReason::InvalidReplayEventPii =&gt; <span class="string">"invalid_replay_pii_scrubber_failed"</span>,
-<a href=#462 id=462 data-nosnippet>462</a>            DiscardReason::InvalidReplayRecordingEvent =&gt; <span class="string">"invalid_replay_recording"</span>,
-<a href=#463 id=463 data-nosnippet>463</a>            DiscardReason::InvalidReplayVideoEvent =&gt; <span class="string">"invalid_replay_video"</span>,
-<a href=#464 id=464 data-nosnippet>464</a>            DiscardReason::InvalidReplayMissingRecording =&gt; <span class="string">"invalid_replay_missing_recording"</span>,
-<a href=#465 id=465 data-nosnippet>465</a>            DiscardReason::Profiling(reason) =&gt; reason,
-<a href=#466 id=466 data-nosnippet>466</a>            DiscardReason::InvalidLog =&gt; <span class="string">"invalid_log"</span>,
-<a href=#467 id=467 data-nosnippet>467</a>            DiscardReason::InvalidTraceMetric =&gt; <span class="string">"invalid_trace_metric"</span>,
-<a href=#468 id=468 data-nosnippet>468</a>            DiscardReason::InvalidSpan =&gt; <span class="string">"invalid_span"</span>,
-<a href=#469 id=469 data-nosnippet>469</a>            DiscardReason::InvalidSpanAttachment =&gt; <span class="string">"invalid_span_attachment"</span>,
-<a href=#470 id=470 data-nosnippet>470</a>            DiscardReason::InvalidTraceAttachment =&gt; <span class="string">"invalid_trace_attachment"</span>,
-<a href=#471 id=471 data-nosnippet>471</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#472 id=472 data-nosnippet>472</a>            </span>DiscardReason::InvalidAttachmentRef =&gt; <span class="string">"invalid_placeholder_attachment"</span>,
-<a href=#473 id=473 data-nosnippet>473</a>            DiscardReason::FeatureDisabled(<span class="kw">_</span>) =&gt; <span class="string">"feature_disabled"</span>,
-<a href=#474 id=474 data-nosnippet>474</a>            DiscardReason::TransactionAttachment =&gt; <span class="string">"transaction_attachment"</span>,
-<a href=#475 id=475 data-nosnippet>475</a>            DiscardReason::InvalidCheckIn =&gt; <span class="string">"invalid_check_in"</span>,
-<a href=#476 id=476 data-nosnippet>476</a>            DiscardReason::MissingDynamicSamplingContext =&gt; <span class="string">"missing_dsc"</span>,
-<a href=#477 id=477 data-nosnippet>477</a>            DiscardReason::InvalidDynamicSamplingContext =&gt; <span class="string">"invalid_dsc"</span>,
-<a href=#478 id=478 data-nosnippet>478</a>            DiscardReason::UploadFailed =&gt; <span class="string">"upload_failed"</span>,
-<a href=#479 id=479 data-nosnippet>479</a>        }
-<a href=#480 id=480 data-nosnippet>480</a>    }
-<a href=#481 id=481 data-nosnippet>481</a>}
-<a href=#482 id=482 data-nosnippet>482</a>
-<a href=#483 id=483 data-nosnippet>483</a><span class="kw">impl </span>fmt::Display <span class="kw">for </span>DiscardReason {
-<a href=#484 id=484 data-nosnippet>484</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#485 id=485 data-nosnippet>485</a>        <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="self">self</span>.name())
-<a href=#486 id=486 data-nosnippet>486</a>    }
-<a href=#487 id=487 data-nosnippet>487</a>}
-<a href=#488 id=488 data-nosnippet>488</a>
-<a href=#489 id=489 data-nosnippet>489</a><span class="doccomment">/// Similar to [`ItemType`] but it does not have any additional information in the
-<a href=#490 id=490 data-nosnippet>490</a>/// Unknown variant so that it can derive [`Copy`] and be used from [`DiscardReason`].
-<a href=#491 id=491 data-nosnippet>491</a>/// The variants should be the same as [`ItemType`] except for `Attachment` which has a
-<a href=#492 id=492 data-nosnippet>492</a>/// [`DiscardAttachmentType`] parameter.
-<a href=#493 id=493 data-nosnippet>493</a></span><span class="attr">#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-<a href=#494 id=494 data-nosnippet>494</a></span><span class="kw">pub enum </span>DiscardItemType {
-<a href=#495 id=495 data-nosnippet>495</a>    <span class="doccomment">/// Event payload encoded in JSON.
-<a href=#496 id=496 data-nosnippet>496</a>    </span>Event,
-<a href=#497 id=497 data-nosnippet>497</a>    <span class="doccomment">/// Transaction event payload encoded in JSON.
-<a href=#498 id=498 data-nosnippet>498</a>    </span>Transaction,
-<a href=#499 id=499 data-nosnippet>499</a>    <span class="doccomment">/// Security report event payload encoded in JSON.
-<a href=#500 id=500 data-nosnippet>500</a>    </span>Security,
-<a href=#501 id=501 data-nosnippet>501</a>    <span class="doccomment">/// Raw payload of an arbitrary attachment.
-<a href=#502 id=502 data-nosnippet>502</a>    </span>Attachment(DiscardAttachmentType),
-<a href=#503 id=503 data-nosnippet>503</a>    <span class="doccomment">/// Multipart form data collected into a stream of JSON tuples.
-<a href=#504 id=504 data-nosnippet>504</a>    </span>FormData,
-<a href=#505 id=505 data-nosnippet>505</a>    <span class="doccomment">/// Security report as sent by the browser in JSON.
-<a href=#506 id=506 data-nosnippet>506</a>    </span>RawSecurity,
-<a href=#507 id=507 data-nosnippet>507</a>    <span class="doccomment">/// Raw compressed UE4 crash report.
-<a href=#508 id=508 data-nosnippet>508</a>    </span>UnrealReport,
-<a href=#509 id=509 data-nosnippet>509</a>    <span class="doccomment">/// User feedback encoded as JSON.
-<a href=#510 id=510 data-nosnippet>510</a>    </span>UserReport,
-<a href=#511 id=511 data-nosnippet>511</a>    <span class="doccomment">/// Session update data.
-<a href=#512 id=512 data-nosnippet>512</a>    </span>Session,
-<a href=#513 id=513 data-nosnippet>513</a>    <span class="doccomment">/// Aggregated session data.
-<a href=#514 id=514 data-nosnippet>514</a>    </span>Sessions,
-<a href=#515 id=515 data-nosnippet>515</a>    <span class="doccomment">/// Individual metrics in text encoding.
-<a href=#516 id=516 data-nosnippet>516</a>    </span>Statsd,
-<a href=#517 id=517 data-nosnippet>517</a>    <span class="doccomment">/// Buckets of preaggregated metrics encoded as JSON.
-<a href=#518 id=518 data-nosnippet>518</a>    </span>MetricBuckets,
-<a href=#519 id=519 data-nosnippet>519</a>    <span class="doccomment">/// Client internal report (eg: outcomes).
-<a href=#520 id=520 data-nosnippet>520</a>    </span>ClientReport,
-<a href=#521 id=521 data-nosnippet>521</a>    <span class="doccomment">/// Profile event payload encoded as JSON.
-<a href=#522 id=522 data-nosnippet>522</a>    </span>Profile,
-<a href=#523 id=523 data-nosnippet>523</a>    <span class="doccomment">/// Replay metadata and breadcrumb payload.
-<a href=#524 id=524 data-nosnippet>524</a>    </span>ReplayEvent,
-<a href=#525 id=525 data-nosnippet>525</a>    <span class="doccomment">/// Replay Recording data.
-<a href=#526 id=526 data-nosnippet>526</a>    </span>ReplayRecording,
-<a href=#527 id=527 data-nosnippet>527</a>    <span class="doccomment">/// Replay Video data.
-<a href=#528 id=528 data-nosnippet>528</a>    </span>ReplayVideo,
-<a href=#529 id=529 data-nosnippet>529</a>    <span class="doccomment">/// Monitor check-in encoded as JSON.
-<a href=#530 id=530 data-nosnippet>530</a>    </span>CheckIn,
-<a href=#531 id=531 data-nosnippet>531</a>    <span class="doccomment">/// A log for the log product, not internal logs.
-<a href=#532 id=532 data-nosnippet>532</a>    </span>Log,
-<a href=#533 id=533 data-nosnippet>533</a>    <span class="doccomment">/// A trace metric item.
-<a href=#534 id=534 data-nosnippet>534</a>    </span>TraceMetric,
-<a href=#535 id=535 data-nosnippet>535</a>    <span class="doccomment">/// A standalone span.
-<a href=#536 id=536 data-nosnippet>536</a>    </span>Span,
-<a href=#537 id=537 data-nosnippet>537</a>    <span class="doccomment">/// UserReport as an Event
-<a href=#538 id=538 data-nosnippet>538</a>    </span>UserReportV2,
-<a href=#539 id=539 data-nosnippet>539</a>    <span class="doccomment">/// ProfileChunk is a chunk of a profiling session.
-<a href=#540 id=540 data-nosnippet>540</a>    </span>ProfileChunk,
-<a href=#541 id=541 data-nosnippet>541</a>    <span class="doccomment">/// An integration item.
-<a href=#542 id=542 data-nosnippet>542</a>    </span>Integration,
-<a href=#543 id=543 data-nosnippet>543</a>    <span class="doccomment">/// A new item type that is yet unknown by this version of Relay.
-<a href=#544 id=544 data-nosnippet>544</a>    ///
-<a href=#545 id=545 data-nosnippet>545</a>    /// By default, items of this type are forwarded without modification. Processing Relays and
-<a href=#546 id=546 data-nosnippet>546</a>    /// Relays explicitly configured to do so will instead drop those items. This allows
-<a href=#547 id=547 data-nosnippet>547</a>    /// forward-compatibility with new item types where we expect outdated Relays.
-<a href=#548 id=548 data-nosnippet>548</a>    </span>Unknown,
-<a href=#549 id=549 data-nosnippet>549</a>    <span class="comment">// Keep `Unknown` last in the list. Add new items above `Unknown`.
-<a href=#550 id=550 data-nosnippet>550</a></span>}
-<a href=#551 id=551 data-nosnippet>551</a>
-<a href=#552 id=552 data-nosnippet>552</a><span class="kw">impl </span>DiscardItemType {
-<a href=#553 id=553 data-nosnippet>553</a>    <span class="doccomment">/// Returns the enum variant as string representation in snake case.
-<a href=#554 id=554 data-nosnippet>554</a>    ///
-<a href=#555 id=555 data-nosnippet>555</a>    /// For example, `DiscardItemType::UserReportV2` gets converted into `user_report_v2`.
-<a href=#556 id=556 data-nosnippet>556</a>    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
-<a href=#557 id=557 data-nosnippet>557</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#558 id=558 data-nosnippet>558</a>            <span class="self">Self</span>::Unknown =&gt; <span class="string">"unknown"</span>,
-<a href=#559 id=559 data-nosnippet>559</a>            <span class="self">Self</span>::Event =&gt; <span class="string">"event"</span>,
-<a href=#560 id=560 data-nosnippet>560</a>            <span class="self">Self</span>::Transaction =&gt; <span class="string">"transaction"</span>,
-<a href=#561 id=561 data-nosnippet>561</a>            <span class="self">Self</span>::Security =&gt; <span class="string">"security"</span>,
-<a href=#562 id=562 data-nosnippet>562</a>            <span class="self">Self</span>::Attachment(DiscardAttachmentType::Attachment) =&gt; <span class="string">"attachment:attachment"</span>,
-<a href=#563 id=563 data-nosnippet>563</a>            <span class="self">Self</span>::Attachment(DiscardAttachmentType::Minidump) =&gt; <span class="string">"attachment:minidump"</span>,
-<a href=#564 id=564 data-nosnippet>564</a>            <span class="self">Self</span>::Attachment(DiscardAttachmentType::AppleCrashReport) =&gt; {
-<a href=#565 id=565 data-nosnippet>565</a>                <span class="string">"attachment:apple_crash_report"
-<a href=#566 id=566 data-nosnippet>566</a>            </span>}
-<a href=#567 id=567 data-nosnippet>567</a>            <span class="self">Self</span>::Attachment(DiscardAttachmentType::EventPayload) =&gt; <span class="string">"attachment:event_payload"</span>,
-<a href=#568 id=568 data-nosnippet>568</a>            <span class="self">Self</span>::Attachment(DiscardAttachmentType::Breadcrumbs) =&gt; <span class="string">"attachment:breadcrumbs"</span>,
-<a href=#569 id=569 data-nosnippet>569</a>            <span class="self">Self</span>::Attachment(DiscardAttachmentType::Prosperodump) =&gt; <span class="string">"attachment:prosperodump"</span>,
-<a href=#570 id=570 data-nosnippet>570</a>            <span class="self">Self</span>::Attachment(DiscardAttachmentType::NnswitchDyingMessage) =&gt; {
-<a href=#571 id=571 data-nosnippet>571</a>                <span class="string">"attachment:nnswitch_dying_message"
-<a href=#572 id=572 data-nosnippet>572</a>            </span>}
-<a href=#573 id=573 data-nosnippet>573</a>            <span class="self">Self</span>::Attachment(DiscardAttachmentType::UnrealContext) =&gt; <span class="string">"attachment:unreal_context"</span>,
-<a href=#574 id=574 data-nosnippet>574</a>            <span class="self">Self</span>::Attachment(DiscardAttachmentType::UnrealLogs) =&gt; <span class="string">"attachment:unreal_logs"</span>,
-<a href=#575 id=575 data-nosnippet>575</a>            <span class="self">Self</span>::Attachment(DiscardAttachmentType::ViewHierarchy) =&gt; <span class="string">"attachment:view_hierarchy"</span>,
-<a href=#576 id=576 data-nosnippet>576</a>            <span class="self">Self</span>::FormData =&gt; <span class="string">"form_data"</span>,
-<a href=#577 id=577 data-nosnippet>577</a>            <span class="self">Self</span>::RawSecurity =&gt; <span class="string">"raw_security"</span>,
-<a href=#578 id=578 data-nosnippet>578</a>            <span class="self">Self</span>::UnrealReport =&gt; <span class="string">"unreal_report"</span>,
-<a href=#579 id=579 data-nosnippet>579</a>            <span class="self">Self</span>::UserReport =&gt; <span class="string">"user_report"</span>,
-<a href=#580 id=580 data-nosnippet>580</a>            <span class="self">Self</span>::Session =&gt; <span class="string">"session"</span>,
-<a href=#581 id=581 data-nosnippet>581</a>            <span class="self">Self</span>::Sessions =&gt; <span class="string">"sessions"</span>,
-<a href=#582 id=582 data-nosnippet>582</a>            <span class="self">Self</span>::Statsd =&gt; <span class="string">"statsd"</span>,
-<a href=#583 id=583 data-nosnippet>583</a>            <span class="self">Self</span>::MetricBuckets =&gt; <span class="string">"metric_buckets"</span>,
-<a href=#584 id=584 data-nosnippet>584</a>            <span class="self">Self</span>::ClientReport =&gt; <span class="string">"client_report"</span>,
-<a href=#585 id=585 data-nosnippet>585</a>            <span class="self">Self</span>::Profile =&gt; <span class="string">"profile"</span>,
-<a href=#586 id=586 data-nosnippet>586</a>            <span class="self">Self</span>::ReplayEvent =&gt; <span class="string">"replay_event"</span>,
-<a href=#587 id=587 data-nosnippet>587</a>            <span class="self">Self</span>::ReplayRecording =&gt; <span class="string">"replay_recording"</span>,
-<a href=#588 id=588 data-nosnippet>588</a>            <span class="self">Self</span>::ReplayVideo =&gt; <span class="string">"replay_video"</span>,
-<a href=#589 id=589 data-nosnippet>589</a>            <span class="self">Self</span>::CheckIn =&gt; <span class="string">"check_in"</span>,
-<a href=#590 id=590 data-nosnippet>590</a>            <span class="self">Self</span>::Log =&gt; <span class="string">"log"</span>,
-<a href=#591 id=591 data-nosnippet>591</a>            <span class="self">Self</span>::TraceMetric =&gt; <span class="string">"trace_metric"</span>,
-<a href=#592 id=592 data-nosnippet>592</a>            <span class="self">Self</span>::Span =&gt; <span class="string">"span"</span>,
-<a href=#593 id=593 data-nosnippet>593</a>            <span class="self">Self</span>::UserReportV2 =&gt; <span class="string">"user_report_v2"</span>,
-<a href=#594 id=594 data-nosnippet>594</a>            <span class="self">Self</span>::ProfileChunk =&gt; <span class="string">"profile_chunk"</span>,
-<a href=#595 id=595 data-nosnippet>595</a>            <span class="self">Self</span>::Integration =&gt; <span class="string">"integration"</span>,
-<a href=#596 id=596 data-nosnippet>596</a>        }
-<a href=#597 id=597 data-nosnippet>597</a>    }
-<a href=#598 id=598 data-nosnippet>598</a>}
-<a href=#599 id=599 data-nosnippet>599</a>
-<a href=#600 id=600 data-nosnippet>600</a><span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span>ItemType&gt; <span class="kw">for </span>DiscardItemType {
-<a href=#601 id=601 data-nosnippet>601</a>    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span>ItemType) -&gt; <span class="self">Self </span>{
-<a href=#602 id=602 data-nosnippet>602</a>        <span class="kw">match </span>value {
-<a href=#603 id=603 data-nosnippet>603</a>            ItemType::Event =&gt; <span class="self">Self</span>::Event,
-<a href=#604 id=604 data-nosnippet>604</a>            ItemType::Transaction =&gt; <span class="self">Self</span>::Transaction,
-<a href=#605 id=605 data-nosnippet>605</a>            ItemType::Security =&gt; <span class="self">Self</span>::Security,
-<a href=#606 id=606 data-nosnippet>606</a>            ItemType::Attachment =&gt; <span class="self">Self</span>::Attachment(DiscardAttachmentType::Attachment),
-<a href=#607 id=607 data-nosnippet>607</a>            ItemType::FormData =&gt; <span class="self">Self</span>::FormData,
-<a href=#608 id=608 data-nosnippet>608</a>            ItemType::RawSecurity =&gt; <span class="self">Self</span>::RawSecurity,
-<a href=#609 id=609 data-nosnippet>609</a>            ItemType::UnrealReport =&gt; <span class="self">Self</span>::UnrealReport,
-<a href=#610 id=610 data-nosnippet>610</a>            ItemType::UserReport =&gt; <span class="self">Self</span>::UserReport,
-<a href=#611 id=611 data-nosnippet>611</a>            ItemType::Session =&gt; <span class="self">Self</span>::Session,
-<a href=#612 id=612 data-nosnippet>612</a>            ItemType::Sessions =&gt; <span class="self">Self</span>::Sessions,
-<a href=#613 id=613 data-nosnippet>613</a>            ItemType::Statsd =&gt; <span class="self">Self</span>::Statsd,
-<a href=#614 id=614 data-nosnippet>614</a>            ItemType::MetricBuckets =&gt; <span class="self">Self</span>::MetricBuckets,
-<a href=#615 id=615 data-nosnippet>615</a>            ItemType::ClientReport =&gt; <span class="self">Self</span>::ClientReport,
-<a href=#616 id=616 data-nosnippet>616</a>            ItemType::Profile =&gt; <span class="self">Self</span>::Profile,
-<a href=#617 id=617 data-nosnippet>617</a>            ItemType::ReplayEvent =&gt; <span class="self">Self</span>::ReplayEvent,
-<a href=#618 id=618 data-nosnippet>618</a>            ItemType::ReplayRecording =&gt; <span class="self">Self</span>::ReplayRecording,
-<a href=#619 id=619 data-nosnippet>619</a>            ItemType::ReplayVideo =&gt; <span class="self">Self</span>::ReplayVideo,
-<a href=#620 id=620 data-nosnippet>620</a>            ItemType::CheckIn =&gt; <span class="self">Self</span>::CheckIn,
-<a href=#621 id=621 data-nosnippet>621</a>            ItemType::Log =&gt; <span class="self">Self</span>::Log,
-<a href=#622 id=622 data-nosnippet>622</a>            ItemType::TraceMetric =&gt; <span class="self">Self</span>::TraceMetric,
-<a href=#623 id=623 data-nosnippet>623</a>            ItemType::Span =&gt; <span class="self">Self</span>::Span,
-<a href=#624 id=624 data-nosnippet>624</a>            ItemType::UserReportV2 =&gt; <span class="self">Self</span>::UserReportV2,
-<a href=#625 id=625 data-nosnippet>625</a>            ItemType::ProfileChunk =&gt; <span class="self">Self</span>::ProfileChunk,
-<a href=#626 id=626 data-nosnippet>626</a>            ItemType::Integration =&gt; <span class="self">Self</span>::Integration,
-<a href=#627 id=627 data-nosnippet>627</a>            ItemType::Unknown(<span class="kw">_</span>) =&gt; <span class="self">Self</span>::Unknown,
-<a href=#628 id=628 data-nosnippet>628</a>        }
-<a href=#629 id=629 data-nosnippet>629</a>    }
-<a href=#630 id=630 data-nosnippet>630</a>}
-<a href=#631 id=631 data-nosnippet>631</a>
-<a href=#632 id=632 data-nosnippet>632</a><span class="kw">impl </span>From&lt;ItemType&gt; <span class="kw">for </span>DiscardItemType {
-<a href=#633 id=633 data-nosnippet>633</a>    <span class="kw">fn </span>from(value: ItemType) -&gt; <span class="self">Self </span>{
-<a href=#634 id=634 data-nosnippet>634</a>        From::from(<span class="kw-2">&amp;</span>value)
-<a href=#635 id=635 data-nosnippet>635</a>    }
-<a href=#636 id=636 data-nosnippet>636</a>}
-<a href=#637 id=637 data-nosnippet>637</a>
-<a href=#638 id=638 data-nosnippet>638</a><span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span>AttachmentType&gt; <span class="kw">for </span>DiscardItemType {
-<a href=#639 id=639 data-nosnippet>639</a>    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span>AttachmentType) -&gt; <span class="self">Self </span>{
-<a href=#640 id=640 data-nosnippet>640</a>        <span class="self">Self</span>::Attachment(value.into())
-<a href=#641 id=641 data-nosnippet>641</a>    }
-<a href=#642 id=642 data-nosnippet>642</a>}
-<a href=#643 id=643 data-nosnippet>643</a>
-<a href=#644 id=644 data-nosnippet>644</a><span class="kw">impl </span>From&lt;AttachmentType&gt; <span class="kw">for </span>DiscardItemType {
-<a href=#645 id=645 data-nosnippet>645</a>    <span class="kw">fn </span>from(value: AttachmentType) -&gt; <span class="self">Self </span>{
-<a href=#646 id=646 data-nosnippet>646</a>        From::from(<span class="kw-2">&amp;</span>value)
-<a href=#647 id=647 data-nosnippet>647</a>    }
-<a href=#648 id=648 data-nosnippet>648</a>}
-<a href=#649 id=649 data-nosnippet>649</a>
-<a href=#650 id=650 data-nosnippet>650</a><span class="doccomment">/// Similar to [`AttachmentType`] but it does not have any additional information in the
-<a href=#651 id=651 data-nosnippet>651</a>/// Unknown variant so that it can derive [`Copy`] and be used from [`DiscardReason`].
-<a href=#652 id=652 data-nosnippet>652</a>/// The variants should be the same as [`AttachmentType`].
-<a href=#653 id=653 data-nosnippet>653</a></span><span class="attr">#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-<a href=#654 id=654 data-nosnippet>654</a></span><span class="kw">pub enum </span>DiscardAttachmentType {
-<a href=#655 id=655 data-nosnippet>655</a>    <span class="doccomment">/// A regular attachment without special meaning.
-<a href=#656 id=656 data-nosnippet>656</a>    </span>Attachment,
-<a href=#657 id=657 data-nosnippet>657</a>    <span class="doccomment">/// A minidump crash report (binary data).
-<a href=#658 id=658 data-nosnippet>658</a>    </span>Minidump,
-<a href=#659 id=659 data-nosnippet>659</a>    <span class="doccomment">/// An apple crash report (text data).
-<a href=#660 id=660 data-nosnippet>660</a>    </span>AppleCrashReport,
-<a href=#661 id=661 data-nosnippet>661</a>    <span class="doccomment">/// A msgpack-encoded event payload submitted as part of multipart uploads.
-<a href=#662 id=662 data-nosnippet>662</a>    </span>EventPayload,
-<a href=#663 id=663 data-nosnippet>663</a>    <span class="doccomment">/// A msgpack-encoded list of payloads.
-<a href=#664 id=664 data-nosnippet>664</a>    </span>Breadcrumbs,
-<a href=#665 id=665 data-nosnippet>665</a>    <span class="doccomment">/// A Nintendo switch dying message.
-<a href=#666 id=666 data-nosnippet>666</a>    </span>NnswitchDyingMessage,
-<a href=#667 id=667 data-nosnippet>667</a>    <span class="comment">// A prosperodump crash report (binary data)
-<a href=#668 id=668 data-nosnippet>668</a>    </span>Prosperodump,
-<a href=#669 id=669 data-nosnippet>669</a>    <span class="doccomment">/// Binary attachment present in Unreal 4 events containing event context information.
-<a href=#670 id=670 data-nosnippet>670</a>    </span>UnrealContext,
-<a href=#671 id=671 data-nosnippet>671</a>    <span class="doccomment">/// Binary attachment present in Unreal 4 events containing event Logs.
-<a href=#672 id=672 data-nosnippet>672</a>    </span>UnrealLogs,
-<a href=#673 id=673 data-nosnippet>673</a>    <span class="doccomment">/// An application UI view hierarchy (json payload).
-<a href=#674 id=674 data-nosnippet>674</a>    </span>ViewHierarchy,
-<a href=#675 id=675 data-nosnippet>675</a>}
-<a href=#676 id=676 data-nosnippet>676</a>
-<a href=#677 id=677 data-nosnippet>677</a><span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span>AttachmentType&gt; <span class="kw">for </span>DiscardAttachmentType {
-<a href=#678 id=678 data-nosnippet>678</a>    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span>AttachmentType) -&gt; <span class="self">Self </span>{
-<a href=#679 id=679 data-nosnippet>679</a>        <span class="kw">match </span>value {
-<a href=#680 id=680 data-nosnippet>680</a>            AttachmentType::Attachment =&gt; <span class="self">Self</span>::Attachment,
-<a href=#681 id=681 data-nosnippet>681</a>            AttachmentType::Minidump =&gt; <span class="self">Self</span>::Minidump,
-<a href=#682 id=682 data-nosnippet>682</a>            AttachmentType::AppleCrashReport =&gt; <span class="self">Self</span>::AppleCrashReport,
-<a href=#683 id=683 data-nosnippet>683</a>            AttachmentType::EventPayload =&gt; <span class="self">Self</span>::EventPayload,
-<a href=#684 id=684 data-nosnippet>684</a>            AttachmentType::Breadcrumbs =&gt; <span class="self">Self</span>::Breadcrumbs,
-<a href=#685 id=685 data-nosnippet>685</a>            AttachmentType::Prosperodump =&gt; <span class="self">Self</span>::Prosperodump,
-<a href=#686 id=686 data-nosnippet>686</a>            AttachmentType::NintendoSwitchDyingMessage =&gt; <span class="self">Self</span>::NnswitchDyingMessage,
-<a href=#687 id=687 data-nosnippet>687</a>            AttachmentType::UnrealContext =&gt; <span class="self">Self</span>::UnrealContext,
-<a href=#688 id=688 data-nosnippet>688</a>            AttachmentType::UnrealLogs =&gt; <span class="self">Self</span>::UnrealLogs,
-<a href=#689 id=689 data-nosnippet>689</a>            AttachmentType::ViewHierarchy =&gt; <span class="self">Self</span>::ViewHierarchy,
-<a href=#690 id=690 data-nosnippet>690</a>        }
-<a href=#691 id=691 data-nosnippet>691</a>    }
-<a href=#692 id=692 data-nosnippet>692</a>}
-<a href=#693 id=693 data-nosnippet>693</a>
-<a href=#694 id=694 data-nosnippet>694</a><span class="kw">impl </span>From&lt;AttachmentType&gt; <span class="kw">for </span>DiscardAttachmentType {
-<a href=#695 id=695 data-nosnippet>695</a>    <span class="kw">fn </span>from(value: AttachmentType) -&gt; <span class="self">Self </span>{
-<a href=#696 id=696 data-nosnippet>696</a>        From::from(<span class="kw-2">&amp;</span>value)
-<a href=#697 id=697 data-nosnippet>697</a>    }
-<a href=#698 id=698 data-nosnippet>698</a>}
-<a href=#699 id=699 data-nosnippet>699</a>
-<a href=#700 id=700 data-nosnippet>700</a><span class="kw">impl </span>fmt::Display <span class="kw">for </span>DiscardItemType {
-<a href=#701 id=701 data-nosnippet>701</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#702 id=702 data-nosnippet>702</a>        <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="self">self</span>.as_str())
-<a href=#703 id=703 data-nosnippet>703</a>    }
-<a href=#704 id=704 data-nosnippet>704</a>}
-<a href=#705 id=705 data-nosnippet>705</a>
-<a href=#706 id=706 data-nosnippet>706</a><span class="attr">#[cfg(test)]
-<a href=#707 id=707 data-nosnippet>707</a></span><span class="kw">mod </span>tests {
-<a href=#708 id=708 data-nosnippet>708</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#411 id=411 data-nosnippet>411</a>
+<a href=#412 id=412 data-nosnippet>412</a>    <span class="doccomment">/// (Relay) The payload's data is too deeply nested.
+<a href=#413 id=413 data-nosnippet>413</a>    </span>NestingTooDeep,
+<a href=#414 id=414 data-nosnippet>414</a>}
+<a href=#415 id=415 data-nosnippet>415</a>
+<a href=#416 id=416 data-nosnippet>416</a><span class="kw">impl </span>DiscardReason {
+<a href=#417 id=417 data-nosnippet>417</a>    <span class="kw">pub fn </span>name(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+<a href=#418 id=418 data-nosnippet>418</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#419 id=419 data-nosnippet>419</a>            DiscardReason::Duplicate =&gt; <span class="string">"duplicate"</span>,
+<a href=#420 id=420 data-nosnippet>420</a>            DiscardReason::ProjectId =&gt; <span class="string">"project_id"</span>,
+<a href=#421 id=421 data-nosnippet>421</a>            DiscardReason::AuthVersion =&gt; <span class="string">"auth_version"</span>,
+<a href=#422 id=422 data-nosnippet>422</a>            DiscardReason::AuthClient =&gt; <span class="string">"auth_client"</span>,
+<a href=#423 id=423 data-nosnippet>423</a>            DiscardReason::NoData =&gt; <span class="string">"no_data"</span>,
+<a href=#424 id=424 data-nosnippet>424</a>            DiscardReason::ItemTooLarge(discard) =&gt; discard.as_str(),
+<a href=#425 id=425 data-nosnippet>425</a>            DiscardReason::RequestTooLarge =&gt; <span class="string">"request_too_large"</span>,
+<a href=#426 id=426 data-nosnippet>426</a>            DiscardReason::RateLimited =&gt; <span class="string">"rate_limited"</span>,
+<a href=#427 id=427 data-nosnippet>427</a>            DiscardReason::DisallowedMethod =&gt; <span class="string">"disallowed_method"</span>,
+<a href=#428 id=428 data-nosnippet>428</a>            DiscardReason::ContentType =&gt; <span class="string">"content_type"</span>,
+<a href=#429 id=429 data-nosnippet>429</a>            DiscardReason::MultiProjectId =&gt; <span class="string">"multi_project_id"</span>,
+<a href=#430 id=430 data-nosnippet>430</a>            DiscardReason::MissingProsperodump =&gt; <span class="string">"missing_prosperodump_upload"</span>,
+<a href=#431 id=431 data-nosnippet>431</a>            DiscardReason::InvalidProsperodump =&gt; <span class="string">"invalid_prosperodump"</span>,
+<a href=#432 id=432 data-nosnippet>432</a>            DiscardReason::MissingMinidump =&gt; <span class="string">"missing_minidump_upload"</span>,
+<a href=#433 id=433 data-nosnippet>433</a>            DiscardReason::InvalidMinidump =&gt; <span class="string">"invalid_minidump"</span>,
+<a href=#434 id=434 data-nosnippet>434</a>            DiscardReason::SecurityReportType =&gt; <span class="string">"security_report_type"</span>,
+<a href=#435 id=435 data-nosnippet>435</a>            DiscardReason::SecurityReport =&gt; <span class="string">"security_report"</span>,
+<a href=#436 id=436 data-nosnippet>436</a>            DiscardReason::Cors =&gt; <span class="string">"cors"</span>,
+<a href=#437 id=437 data-nosnippet>437</a>            DiscardReason::InvalidUnrealReport =&gt; <span class="string">"invalid_unreal_report"</span>,
+<a href=#438 id=438 data-nosnippet>438</a>            DiscardReason::ProcessUnreal =&gt; <span class="string">"process_unreal"</span>,
+<a href=#439 id=439 data-nosnippet>439</a>            DiscardReason::InvalidSignature =&gt; <span class="string">"invalid_signature"</span>,
+<a href=#440 id=440 data-nosnippet>440</a>            DiscardReason::MissingSignature =&gt; <span class="string">"missing_signature"</span>,
+<a href=#441 id=441 data-nosnippet>441</a>            DiscardReason::Payload =&gt; <span class="string">"payload"</span>,
+<a href=#442 id=442 data-nosnippet>442</a>            DiscardReason::EmptyBody =&gt; <span class="string">"empty_body"</span>,
+<a href=#443 id=443 data-nosnippet>443</a>            DiscardReason::InvalidBody =&gt; <span class="string">"invalid_body"</span>,
+<a href=#444 id=444 data-nosnippet>444</a>            DiscardReason::InvalidJson =&gt; <span class="string">"invalid_json"</span>,
+<a href=#445 id=445 data-nosnippet>445</a>            DiscardReason::InvalidMultipart =&gt; <span class="string">"invalid_multipart"</span>,
+<a href=#446 id=446 data-nosnippet>446</a>            DiscardReason::InvalidMsgpack =&gt; <span class="string">"invalid_msgpack"</span>,
+<a href=#447 id=447 data-nosnippet>447</a>            DiscardReason::InvalidProtobuf =&gt; <span class="string">"invalid_proto"</span>,
+<a href=#448 id=448 data-nosnippet>448</a>            DiscardReason::InvalidTransaction =&gt; <span class="string">"invalid_transaction"</span>,
+<a href=#449 id=449 data-nosnippet>449</a>            DiscardReason::InvalidEnvelope =&gt; <span class="string">"invalid_envelope"</span>,
+<a href=#450 id=450 data-nosnippet>450</a>            DiscardReason::InvalidCompression =&gt; <span class="string">"invalid_compression"</span>,
+<a href=#451 id=451 data-nosnippet>451</a>            DiscardReason::InvalidEventId =&gt; <span class="string">"invalid_event_id"</span>,
+<a href=#452 id=452 data-nosnippet>452</a>            DiscardReason::InternalEnvelope =&gt; <span class="string">"internal_envelope"</span>,
+<a href=#453 id=453 data-nosnippet>453</a>            DiscardReason::QueueFailed =&gt; <span class="string">"queue_failed"</span>,
+<a href=#454 id=454 data-nosnippet>454</a>            DiscardReason::Timestamp =&gt; <span class="string">"timestamp"</span>,
+<a href=#455 id=455 data-nosnippet>455</a>            DiscardReason::ProjectState =&gt; <span class="string">"project_state"</span>,
+<a href=#456 id=456 data-nosnippet>456</a>            DiscardReason::ProjectStatePii =&gt; <span class="string">"project_state_pii"</span>,
+<a href=#457 id=457 data-nosnippet>457</a>            DiscardReason::ProjectUnavailable =&gt; <span class="string">"project_unavailable"</span>,
+<a href=#458 id=458 data-nosnippet>458</a>            DiscardReason::DuplicateItem =&gt; <span class="string">"duplicate_item"</span>,
+<a href=#459 id=459 data-nosnippet>459</a>            DiscardReason::NoEventPayload =&gt; <span class="string">"no_event_payload"</span>,
+<a href=#460 id=460 data-nosnippet>460</a>            DiscardReason::Internal =&gt; <span class="string">"internal"</span>,
+<a href=#461 id=461 data-nosnippet>461</a>            DiscardReason::TransactionSampled =&gt; <span class="string">"transaction_sampled"</span>,
+<a href=#462 id=462 data-nosnippet>462</a>            DiscardReason::InvalidReplayEvent =&gt; <span class="string">"invalid_replay"</span>,
+<a href=#463 id=463 data-nosnippet>463</a>            DiscardReason::InvalidReplayEventNoPayload =&gt; <span class="string">"invalid_replay_no_payload"</span>,
+<a href=#464 id=464 data-nosnippet>464</a>            DiscardReason::InvalidReplayEventPii =&gt; <span class="string">"invalid_replay_pii_scrubber_failed"</span>,
+<a href=#465 id=465 data-nosnippet>465</a>            DiscardReason::InvalidReplayRecordingEvent =&gt; <span class="string">"invalid_replay_recording"</span>,
+<a href=#466 id=466 data-nosnippet>466</a>            DiscardReason::InvalidReplayVideoEvent =&gt; <span class="string">"invalid_replay_video"</span>,
+<a href=#467 id=467 data-nosnippet>467</a>            DiscardReason::InvalidReplayMissingRecording =&gt; <span class="string">"invalid_replay_missing_recording"</span>,
+<a href=#468 id=468 data-nosnippet>468</a>            DiscardReason::Profiling(reason) =&gt; reason,
+<a href=#469 id=469 data-nosnippet>469</a>            DiscardReason::InvalidLog =&gt; <span class="string">"invalid_log"</span>,
+<a href=#470 id=470 data-nosnippet>470</a>            DiscardReason::InvalidTraceMetric =&gt; <span class="string">"invalid_trace_metric"</span>,
+<a href=#471 id=471 data-nosnippet>471</a>            DiscardReason::InvalidSpan =&gt; <span class="string">"invalid_span"</span>,
+<a href=#472 id=472 data-nosnippet>472</a>            DiscardReason::InvalidSpanAttachment =&gt; <span class="string">"invalid_span_attachment"</span>,
+<a href=#473 id=473 data-nosnippet>473</a>            DiscardReason::InvalidTraceAttachment =&gt; <span class="string">"invalid_trace_attachment"</span>,
+<a href=#474 id=474 data-nosnippet>474</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#475 id=475 data-nosnippet>475</a>            </span>DiscardReason::InvalidAttachmentRef =&gt; <span class="string">"invalid_placeholder_attachment"</span>,
+<a href=#476 id=476 data-nosnippet>476</a>            DiscardReason::FeatureDisabled(<span class="kw">_</span>) =&gt; <span class="string">"feature_disabled"</span>,
+<a href=#477 id=477 data-nosnippet>477</a>            DiscardReason::TransactionAttachment =&gt; <span class="string">"transaction_attachment"</span>,
+<a href=#478 id=478 data-nosnippet>478</a>            DiscardReason::InvalidCheckIn =&gt; <span class="string">"invalid_check_in"</span>,
+<a href=#479 id=479 data-nosnippet>479</a>            DiscardReason::MissingDynamicSamplingContext =&gt; <span class="string">"missing_dsc"</span>,
+<a href=#480 id=480 data-nosnippet>480</a>            DiscardReason::InvalidDynamicSamplingContext =&gt; <span class="string">"invalid_dsc"</span>,
+<a href=#481 id=481 data-nosnippet>481</a>            DiscardReason::UploadFailed =&gt; <span class="string">"upload_failed"</span>,
+<a href=#482 id=482 data-nosnippet>482</a>            DiscardReason::NestingTooDeep =&gt; <span class="string">"nesting_too_deep"</span>,
+<a href=#483 id=483 data-nosnippet>483</a>        }
+<a href=#484 id=484 data-nosnippet>484</a>    }
+<a href=#485 id=485 data-nosnippet>485</a>}
+<a href=#486 id=486 data-nosnippet>486</a>
+<a href=#487 id=487 data-nosnippet>487</a><span class="kw">impl </span>fmt::Display <span class="kw">for </span>DiscardReason {
+<a href=#488 id=488 data-nosnippet>488</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#489 id=489 data-nosnippet>489</a>        <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="self">self</span>.name())
+<a href=#490 id=490 data-nosnippet>490</a>    }
+<a href=#491 id=491 data-nosnippet>491</a>}
+<a href=#492 id=492 data-nosnippet>492</a>
+<a href=#493 id=493 data-nosnippet>493</a><span class="doccomment">/// Similar to [`ItemType`] but it does not have any additional information in the
+<a href=#494 id=494 data-nosnippet>494</a>/// Unknown variant so that it can derive [`Copy`] and be used from [`DiscardReason`].
+<a href=#495 id=495 data-nosnippet>495</a>/// The variants should be the same as [`ItemType`] except for `Attachment` which has a
+<a href=#496 id=496 data-nosnippet>496</a>/// [`DiscardAttachmentType`] parameter.
+<a href=#497 id=497 data-nosnippet>497</a></span><span class="attr">#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+<a href=#498 id=498 data-nosnippet>498</a></span><span class="kw">pub enum </span>DiscardItemType {
+<a href=#499 id=499 data-nosnippet>499</a>    <span class="doccomment">/// Event payload encoded in JSON.
+<a href=#500 id=500 data-nosnippet>500</a>    </span>Event,
+<a href=#501 id=501 data-nosnippet>501</a>    <span class="doccomment">/// Transaction event payload encoded in JSON.
+<a href=#502 id=502 data-nosnippet>502</a>    </span>Transaction,
+<a href=#503 id=503 data-nosnippet>503</a>    <span class="doccomment">/// Security report event payload encoded in JSON.
+<a href=#504 id=504 data-nosnippet>504</a>    </span>Security,
+<a href=#505 id=505 data-nosnippet>505</a>    <span class="doccomment">/// Raw payload of an arbitrary attachment.
+<a href=#506 id=506 data-nosnippet>506</a>    </span>Attachment(DiscardAttachmentType),
+<a href=#507 id=507 data-nosnippet>507</a>    <span class="doccomment">/// Multipart form data collected into a stream of JSON tuples.
+<a href=#508 id=508 data-nosnippet>508</a>    </span>FormData,
+<a href=#509 id=509 data-nosnippet>509</a>    <span class="doccomment">/// Security report as sent by the browser in JSON.
+<a href=#510 id=510 data-nosnippet>510</a>    </span>RawSecurity,
+<a href=#511 id=511 data-nosnippet>511</a>    <span class="doccomment">/// Raw compressed UE4 crash report.
+<a href=#512 id=512 data-nosnippet>512</a>    </span>UnrealReport,
+<a href=#513 id=513 data-nosnippet>513</a>    <span class="doccomment">/// User feedback encoded as JSON.
+<a href=#514 id=514 data-nosnippet>514</a>    </span>UserReport,
+<a href=#515 id=515 data-nosnippet>515</a>    <span class="doccomment">/// Session update data.
+<a href=#516 id=516 data-nosnippet>516</a>    </span>Session,
+<a href=#517 id=517 data-nosnippet>517</a>    <span class="doccomment">/// Aggregated session data.
+<a href=#518 id=518 data-nosnippet>518</a>    </span>Sessions,
+<a href=#519 id=519 data-nosnippet>519</a>    <span class="doccomment">/// Individual metrics in text encoding.
+<a href=#520 id=520 data-nosnippet>520</a>    </span>Statsd,
+<a href=#521 id=521 data-nosnippet>521</a>    <span class="doccomment">/// Buckets of preaggregated metrics encoded as JSON.
+<a href=#522 id=522 data-nosnippet>522</a>    </span>MetricBuckets,
+<a href=#523 id=523 data-nosnippet>523</a>    <span class="doccomment">/// Client internal report (eg: outcomes).
+<a href=#524 id=524 data-nosnippet>524</a>    </span>ClientReport,
+<a href=#525 id=525 data-nosnippet>525</a>    <span class="doccomment">/// Profile event payload encoded as JSON.
+<a href=#526 id=526 data-nosnippet>526</a>    </span>Profile,
+<a href=#527 id=527 data-nosnippet>527</a>    <span class="doccomment">/// Replay metadata and breadcrumb payload.
+<a href=#528 id=528 data-nosnippet>528</a>    </span>ReplayEvent,
+<a href=#529 id=529 data-nosnippet>529</a>    <span class="doccomment">/// Replay Recording data.
+<a href=#530 id=530 data-nosnippet>530</a>    </span>ReplayRecording,
+<a href=#531 id=531 data-nosnippet>531</a>    <span class="doccomment">/// Replay Video data.
+<a href=#532 id=532 data-nosnippet>532</a>    </span>ReplayVideo,
+<a href=#533 id=533 data-nosnippet>533</a>    <span class="doccomment">/// Monitor check-in encoded as JSON.
+<a href=#534 id=534 data-nosnippet>534</a>    </span>CheckIn,
+<a href=#535 id=535 data-nosnippet>535</a>    <span class="doccomment">/// A log for the log product, not internal logs.
+<a href=#536 id=536 data-nosnippet>536</a>    </span>Log,
+<a href=#537 id=537 data-nosnippet>537</a>    <span class="doccomment">/// A trace metric item.
+<a href=#538 id=538 data-nosnippet>538</a>    </span>TraceMetric,
+<a href=#539 id=539 data-nosnippet>539</a>    <span class="doccomment">/// A standalone span.
+<a href=#540 id=540 data-nosnippet>540</a>    </span>Span,
+<a href=#541 id=541 data-nosnippet>541</a>    <span class="doccomment">/// UserReport as an Event
+<a href=#542 id=542 data-nosnippet>542</a>    </span>UserReportV2,
+<a href=#543 id=543 data-nosnippet>543</a>    <span class="doccomment">/// ProfileChunk is a chunk of a profiling session.
+<a href=#544 id=544 data-nosnippet>544</a>    </span>ProfileChunk,
+<a href=#545 id=545 data-nosnippet>545</a>    <span class="doccomment">/// An integration item.
+<a href=#546 id=546 data-nosnippet>546</a>    </span>Integration,
+<a href=#547 id=547 data-nosnippet>547</a>    <span class="doccomment">/// A new item type that is yet unknown by this version of Relay.
+<a href=#548 id=548 data-nosnippet>548</a>    ///
+<a href=#549 id=549 data-nosnippet>549</a>    /// By default, items of this type are forwarded without modification. Processing Relays and
+<a href=#550 id=550 data-nosnippet>550</a>    /// Relays explicitly configured to do so will instead drop those items. This allows
+<a href=#551 id=551 data-nosnippet>551</a>    /// forward-compatibility with new item types where we expect outdated Relays.
+<a href=#552 id=552 data-nosnippet>552</a>    </span>Unknown,
+<a href=#553 id=553 data-nosnippet>553</a>    <span class="comment">// Keep `Unknown` last in the list. Add new items above `Unknown`.
+<a href=#554 id=554 data-nosnippet>554</a></span>}
+<a href=#555 id=555 data-nosnippet>555</a>
+<a href=#556 id=556 data-nosnippet>556</a><span class="kw">impl </span>DiscardItemType {
+<a href=#557 id=557 data-nosnippet>557</a>    <span class="doccomment">/// Returns the enum variant as string representation in snake case.
+<a href=#558 id=558 data-nosnippet>558</a>    ///
+<a href=#559 id=559 data-nosnippet>559</a>    /// For example, `DiscardItemType::UserReportV2` gets converted into `user_report_v2`.
+<a href=#560 id=560 data-nosnippet>560</a>    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+<a href=#561 id=561 data-nosnippet>561</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#562 id=562 data-nosnippet>562</a>            <span class="self">Self</span>::Unknown =&gt; <span class="string">"unknown"</span>,
+<a href=#563 id=563 data-nosnippet>563</a>            <span class="self">Self</span>::Event =&gt; <span class="string">"event"</span>,
+<a href=#564 id=564 data-nosnippet>564</a>            <span class="self">Self</span>::Transaction =&gt; <span class="string">"transaction"</span>,
+<a href=#565 id=565 data-nosnippet>565</a>            <span class="self">Self</span>::Security =&gt; <span class="string">"security"</span>,
+<a href=#566 id=566 data-nosnippet>566</a>            <span class="self">Self</span>::Attachment(DiscardAttachmentType::Attachment) =&gt; <span class="string">"attachment:attachment"</span>,
+<a href=#567 id=567 data-nosnippet>567</a>            <span class="self">Self</span>::Attachment(DiscardAttachmentType::Minidump) =&gt; <span class="string">"attachment:minidump"</span>,
+<a href=#568 id=568 data-nosnippet>568</a>            <span class="self">Self</span>::Attachment(DiscardAttachmentType::AppleCrashReport) =&gt; {
+<a href=#569 id=569 data-nosnippet>569</a>                <span class="string">"attachment:apple_crash_report"
+<a href=#570 id=570 data-nosnippet>570</a>            </span>}
+<a href=#571 id=571 data-nosnippet>571</a>            <span class="self">Self</span>::Attachment(DiscardAttachmentType::EventPayload) =&gt; <span class="string">"attachment:event_payload"</span>,
+<a href=#572 id=572 data-nosnippet>572</a>            <span class="self">Self</span>::Attachment(DiscardAttachmentType::Breadcrumbs) =&gt; <span class="string">"attachment:breadcrumbs"</span>,
+<a href=#573 id=573 data-nosnippet>573</a>            <span class="self">Self</span>::Attachment(DiscardAttachmentType::Prosperodump) =&gt; <span class="string">"attachment:prosperodump"</span>,
+<a href=#574 id=574 data-nosnippet>574</a>            <span class="self">Self</span>::Attachment(DiscardAttachmentType::NnswitchDyingMessage) =&gt; {
+<a href=#575 id=575 data-nosnippet>575</a>                <span class="string">"attachment:nnswitch_dying_message"
+<a href=#576 id=576 data-nosnippet>576</a>            </span>}
+<a href=#577 id=577 data-nosnippet>577</a>            <span class="self">Self</span>::Attachment(DiscardAttachmentType::UnrealContext) =&gt; <span class="string">"attachment:unreal_context"</span>,
+<a href=#578 id=578 data-nosnippet>578</a>            <span class="self">Self</span>::Attachment(DiscardAttachmentType::UnrealLogs) =&gt; <span class="string">"attachment:unreal_logs"</span>,
+<a href=#579 id=579 data-nosnippet>579</a>            <span class="self">Self</span>::Attachment(DiscardAttachmentType::ViewHierarchy) =&gt; <span class="string">"attachment:view_hierarchy"</span>,
+<a href=#580 id=580 data-nosnippet>580</a>            <span class="self">Self</span>::FormData =&gt; <span class="string">"form_data"</span>,
+<a href=#581 id=581 data-nosnippet>581</a>            <span class="self">Self</span>::RawSecurity =&gt; <span class="string">"raw_security"</span>,
+<a href=#582 id=582 data-nosnippet>582</a>            <span class="self">Self</span>::UnrealReport =&gt; <span class="string">"unreal_report"</span>,
+<a href=#583 id=583 data-nosnippet>583</a>            <span class="self">Self</span>::UserReport =&gt; <span class="string">"user_report"</span>,
+<a href=#584 id=584 data-nosnippet>584</a>            <span class="self">Self</span>::Session =&gt; <span class="string">"session"</span>,
+<a href=#585 id=585 data-nosnippet>585</a>            <span class="self">Self</span>::Sessions =&gt; <span class="string">"sessions"</span>,
+<a href=#586 id=586 data-nosnippet>586</a>            <span class="self">Self</span>::Statsd =&gt; <span class="string">"statsd"</span>,
+<a href=#587 id=587 data-nosnippet>587</a>            <span class="self">Self</span>::MetricBuckets =&gt; <span class="string">"metric_buckets"</span>,
+<a href=#588 id=588 data-nosnippet>588</a>            <span class="self">Self</span>::ClientReport =&gt; <span class="string">"client_report"</span>,
+<a href=#589 id=589 data-nosnippet>589</a>            <span class="self">Self</span>::Profile =&gt; <span class="string">"profile"</span>,
+<a href=#590 id=590 data-nosnippet>590</a>            <span class="self">Self</span>::ReplayEvent =&gt; <span class="string">"replay_event"</span>,
+<a href=#591 id=591 data-nosnippet>591</a>            <span class="self">Self</span>::ReplayRecording =&gt; <span class="string">"replay_recording"</span>,
+<a href=#592 id=592 data-nosnippet>592</a>            <span class="self">Self</span>::ReplayVideo =&gt; <span class="string">"replay_video"</span>,
+<a href=#593 id=593 data-nosnippet>593</a>            <span class="self">Self</span>::CheckIn =&gt; <span class="string">"check_in"</span>,
+<a href=#594 id=594 data-nosnippet>594</a>            <span class="self">Self</span>::Log =&gt; <span class="string">"log"</span>,
+<a href=#595 id=595 data-nosnippet>595</a>            <span class="self">Self</span>::TraceMetric =&gt; <span class="string">"trace_metric"</span>,
+<a href=#596 id=596 data-nosnippet>596</a>            <span class="self">Self</span>::Span =&gt; <span class="string">"span"</span>,
+<a href=#597 id=597 data-nosnippet>597</a>            <span class="self">Self</span>::UserReportV2 =&gt; <span class="string">"user_report_v2"</span>,
+<a href=#598 id=598 data-nosnippet>598</a>            <span class="self">Self</span>::ProfileChunk =&gt; <span class="string">"profile_chunk"</span>,
+<a href=#599 id=599 data-nosnippet>599</a>            <span class="self">Self</span>::Integration =&gt; <span class="string">"integration"</span>,
+<a href=#600 id=600 data-nosnippet>600</a>        }
+<a href=#601 id=601 data-nosnippet>601</a>    }
+<a href=#602 id=602 data-nosnippet>602</a>}
+<a href=#603 id=603 data-nosnippet>603</a>
+<a href=#604 id=604 data-nosnippet>604</a><span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span>ItemType&gt; <span class="kw">for </span>DiscardItemType {
+<a href=#605 id=605 data-nosnippet>605</a>    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span>ItemType) -&gt; <span class="self">Self </span>{
+<a href=#606 id=606 data-nosnippet>606</a>        <span class="kw">match </span>value {
+<a href=#607 id=607 data-nosnippet>607</a>            ItemType::Event =&gt; <span class="self">Self</span>::Event,
+<a href=#608 id=608 data-nosnippet>608</a>            ItemType::Transaction =&gt; <span class="self">Self</span>::Transaction,
+<a href=#609 id=609 data-nosnippet>609</a>            ItemType::Security =&gt; <span class="self">Self</span>::Security,
+<a href=#610 id=610 data-nosnippet>610</a>            ItemType::Attachment =&gt; <span class="self">Self</span>::Attachment(DiscardAttachmentType::Attachment),
+<a href=#611 id=611 data-nosnippet>611</a>            ItemType::FormData =&gt; <span class="self">Self</span>::FormData,
+<a href=#612 id=612 data-nosnippet>612</a>            ItemType::RawSecurity =&gt; <span class="self">Self</span>::RawSecurity,
+<a href=#613 id=613 data-nosnippet>613</a>            ItemType::UnrealReport =&gt; <span class="self">Self</span>::UnrealReport,
+<a href=#614 id=614 data-nosnippet>614</a>            ItemType::UserReport =&gt; <span class="self">Self</span>::UserReport,
+<a href=#615 id=615 data-nosnippet>615</a>            ItemType::Session =&gt; <span class="self">Self</span>::Session,
+<a href=#616 id=616 data-nosnippet>616</a>            ItemType::Sessions =&gt; <span class="self">Self</span>::Sessions,
+<a href=#617 id=617 data-nosnippet>617</a>            ItemType::Statsd =&gt; <span class="self">Self</span>::Statsd,
+<a href=#618 id=618 data-nosnippet>618</a>            ItemType::MetricBuckets =&gt; <span class="self">Self</span>::MetricBuckets,
+<a href=#619 id=619 data-nosnippet>619</a>            ItemType::ClientReport =&gt; <span class="self">Self</span>::ClientReport,
+<a href=#620 id=620 data-nosnippet>620</a>            ItemType::Profile =&gt; <span class="self">Self</span>::Profile,
+<a href=#621 id=621 data-nosnippet>621</a>            ItemType::ReplayEvent =&gt; <span class="self">Self</span>::ReplayEvent,
+<a href=#622 id=622 data-nosnippet>622</a>            ItemType::ReplayRecording =&gt; <span class="self">Self</span>::ReplayRecording,
+<a href=#623 id=623 data-nosnippet>623</a>            ItemType::ReplayVideo =&gt; <span class="self">Self</span>::ReplayVideo,
+<a href=#624 id=624 data-nosnippet>624</a>            ItemType::CheckIn =&gt; <span class="self">Self</span>::CheckIn,
+<a href=#625 id=625 data-nosnippet>625</a>            ItemType::Log =&gt; <span class="self">Self</span>::Log,
+<a href=#626 id=626 data-nosnippet>626</a>            ItemType::TraceMetric =&gt; <span class="self">Self</span>::TraceMetric,
+<a href=#627 id=627 data-nosnippet>627</a>            ItemType::Span =&gt; <span class="self">Self</span>::Span,
+<a href=#628 id=628 data-nosnippet>628</a>            ItemType::UserReportV2 =&gt; <span class="self">Self</span>::UserReportV2,
+<a href=#629 id=629 data-nosnippet>629</a>            ItemType::ProfileChunk =&gt; <span class="self">Self</span>::ProfileChunk,
+<a href=#630 id=630 data-nosnippet>630</a>            ItemType::Integration =&gt; <span class="self">Self</span>::Integration,
+<a href=#631 id=631 data-nosnippet>631</a>            ItemType::Unknown(<span class="kw">_</span>) =&gt; <span class="self">Self</span>::Unknown,
+<a href=#632 id=632 data-nosnippet>632</a>        }
+<a href=#633 id=633 data-nosnippet>633</a>    }
+<a href=#634 id=634 data-nosnippet>634</a>}
+<a href=#635 id=635 data-nosnippet>635</a>
+<a href=#636 id=636 data-nosnippet>636</a><span class="kw">impl </span>From&lt;ItemType&gt; <span class="kw">for </span>DiscardItemType {
+<a href=#637 id=637 data-nosnippet>637</a>    <span class="kw">fn </span>from(value: ItemType) -&gt; <span class="self">Self </span>{
+<a href=#638 id=638 data-nosnippet>638</a>        From::from(<span class="kw-2">&amp;</span>value)
+<a href=#639 id=639 data-nosnippet>639</a>    }
+<a href=#640 id=640 data-nosnippet>640</a>}
+<a href=#641 id=641 data-nosnippet>641</a>
+<a href=#642 id=642 data-nosnippet>642</a><span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span>AttachmentType&gt; <span class="kw">for </span>DiscardItemType {
+<a href=#643 id=643 data-nosnippet>643</a>    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span>AttachmentType) -&gt; <span class="self">Self </span>{
+<a href=#644 id=644 data-nosnippet>644</a>        <span class="self">Self</span>::Attachment(value.into())
+<a href=#645 id=645 data-nosnippet>645</a>    }
+<a href=#646 id=646 data-nosnippet>646</a>}
+<a href=#647 id=647 data-nosnippet>647</a>
+<a href=#648 id=648 data-nosnippet>648</a><span class="kw">impl </span>From&lt;AttachmentType&gt; <span class="kw">for </span>DiscardItemType {
+<a href=#649 id=649 data-nosnippet>649</a>    <span class="kw">fn </span>from(value: AttachmentType) -&gt; <span class="self">Self </span>{
+<a href=#650 id=650 data-nosnippet>650</a>        From::from(<span class="kw-2">&amp;</span>value)
+<a href=#651 id=651 data-nosnippet>651</a>    }
+<a href=#652 id=652 data-nosnippet>652</a>}
+<a href=#653 id=653 data-nosnippet>653</a>
+<a href=#654 id=654 data-nosnippet>654</a><span class="doccomment">/// Similar to [`AttachmentType`] but it does not have any additional information in the
+<a href=#655 id=655 data-nosnippet>655</a>/// Unknown variant so that it can derive [`Copy`] and be used from [`DiscardReason`].
+<a href=#656 id=656 data-nosnippet>656</a>/// The variants should be the same as [`AttachmentType`].
+<a href=#657 id=657 data-nosnippet>657</a></span><span class="attr">#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+<a href=#658 id=658 data-nosnippet>658</a></span><span class="kw">pub enum </span>DiscardAttachmentType {
+<a href=#659 id=659 data-nosnippet>659</a>    <span class="doccomment">/// A regular attachment without special meaning.
+<a href=#660 id=660 data-nosnippet>660</a>    </span>Attachment,
+<a href=#661 id=661 data-nosnippet>661</a>    <span class="doccomment">/// A minidump crash report (binary data).
+<a href=#662 id=662 data-nosnippet>662</a>    </span>Minidump,
+<a href=#663 id=663 data-nosnippet>663</a>    <span class="doccomment">/// An apple crash report (text data).
+<a href=#664 id=664 data-nosnippet>664</a>    </span>AppleCrashReport,
+<a href=#665 id=665 data-nosnippet>665</a>    <span class="doccomment">/// A msgpack-encoded event payload submitted as part of multipart uploads.
+<a href=#666 id=666 data-nosnippet>666</a>    </span>EventPayload,
+<a href=#667 id=667 data-nosnippet>667</a>    <span class="doccomment">/// A msgpack-encoded list of payloads.
+<a href=#668 id=668 data-nosnippet>668</a>    </span>Breadcrumbs,
+<a href=#669 id=669 data-nosnippet>669</a>    <span class="doccomment">/// A Nintendo switch dying message.
+<a href=#670 id=670 data-nosnippet>670</a>    </span>NnswitchDyingMessage,
+<a href=#671 id=671 data-nosnippet>671</a>    <span class="comment">// A prosperodump crash report (binary data)
+<a href=#672 id=672 data-nosnippet>672</a>    </span>Prosperodump,
+<a href=#673 id=673 data-nosnippet>673</a>    <span class="doccomment">/// Binary attachment present in Unreal 4 events containing event context information.
+<a href=#674 id=674 data-nosnippet>674</a>    </span>UnrealContext,
+<a href=#675 id=675 data-nosnippet>675</a>    <span class="doccomment">/// Binary attachment present in Unreal 4 events containing event Logs.
+<a href=#676 id=676 data-nosnippet>676</a>    </span>UnrealLogs,
+<a href=#677 id=677 data-nosnippet>677</a>    <span class="doccomment">/// An application UI view hierarchy (json payload).
+<a href=#678 id=678 data-nosnippet>678</a>    </span>ViewHierarchy,
+<a href=#679 id=679 data-nosnippet>679</a>}
+<a href=#680 id=680 data-nosnippet>680</a>
+<a href=#681 id=681 data-nosnippet>681</a><span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span>AttachmentType&gt; <span class="kw">for </span>DiscardAttachmentType {
+<a href=#682 id=682 data-nosnippet>682</a>    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span>AttachmentType) -&gt; <span class="self">Self </span>{
+<a href=#683 id=683 data-nosnippet>683</a>        <span class="kw">match </span>value {
+<a href=#684 id=684 data-nosnippet>684</a>            AttachmentType::Attachment =&gt; <span class="self">Self</span>::Attachment,
+<a href=#685 id=685 data-nosnippet>685</a>            AttachmentType::Minidump =&gt; <span class="self">Self</span>::Minidump,
+<a href=#686 id=686 data-nosnippet>686</a>            AttachmentType::AppleCrashReport =&gt; <span class="self">Self</span>::AppleCrashReport,
+<a href=#687 id=687 data-nosnippet>687</a>            AttachmentType::EventPayload =&gt; <span class="self">Self</span>::EventPayload,
+<a href=#688 id=688 data-nosnippet>688</a>            AttachmentType::Breadcrumbs =&gt; <span class="self">Self</span>::Breadcrumbs,
+<a href=#689 id=689 data-nosnippet>689</a>            AttachmentType::Prosperodump =&gt; <span class="self">Self</span>::Prosperodump,
+<a href=#690 id=690 data-nosnippet>690</a>            AttachmentType::NintendoSwitchDyingMessage =&gt; <span class="self">Self</span>::NnswitchDyingMessage,
+<a href=#691 id=691 data-nosnippet>691</a>            AttachmentType::UnrealContext =&gt; <span class="self">Self</span>::UnrealContext,
+<a href=#692 id=692 data-nosnippet>692</a>            AttachmentType::UnrealLogs =&gt; <span class="self">Self</span>::UnrealLogs,
+<a href=#693 id=693 data-nosnippet>693</a>            AttachmentType::ViewHierarchy =&gt; <span class="self">Self</span>::ViewHierarchy,
+<a href=#694 id=694 data-nosnippet>694</a>        }
+<a href=#695 id=695 data-nosnippet>695</a>    }
+<a href=#696 id=696 data-nosnippet>696</a>}
+<a href=#697 id=697 data-nosnippet>697</a>
+<a href=#698 id=698 data-nosnippet>698</a><span class="kw">impl </span>From&lt;AttachmentType&gt; <span class="kw">for </span>DiscardAttachmentType {
+<a href=#699 id=699 data-nosnippet>699</a>    <span class="kw">fn </span>from(value: AttachmentType) -&gt; <span class="self">Self </span>{
+<a href=#700 id=700 data-nosnippet>700</a>        From::from(<span class="kw-2">&amp;</span>value)
+<a href=#701 id=701 data-nosnippet>701</a>    }
+<a href=#702 id=702 data-nosnippet>702</a>}
+<a href=#703 id=703 data-nosnippet>703</a>
+<a href=#704 id=704 data-nosnippet>704</a><span class="kw">impl </span>fmt::Display <span class="kw">for </span>DiscardItemType {
+<a href=#705 id=705 data-nosnippet>705</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#706 id=706 data-nosnippet>706</a>        <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="self">self</span>.as_str())
+<a href=#707 id=707 data-nosnippet>707</a>    }
+<a href=#708 id=708 data-nosnippet>708</a>}
 <a href=#709 id=709 data-nosnippet>709</a>
-<a href=#710 id=710 data-nosnippet>710</a>    <span class="attr">#[test]
-<a href=#711 id=711 data-nosnippet>711</a>    </span><span class="kw">fn </span>rule_category_roundtrip() {
-<a href=#712 id=712 data-nosnippet>712</a>        <span class="kw">let </span>input = <span class="string">"123,1004,1500,1403,1403,1404,1000"</span>;
-<a href=#713 id=713 data-nosnippet>713</a>        <span class="kw">let </span>rule_ids = MatchedRuleIds::parse(input).unwrap();
-<a href=#714 id=714 data-nosnippet>714</a>        <span class="kw">let </span>rule_categories = RuleCategories::from(rule_ids);
-<a href=#715 id=715 data-nosnippet>715</a>
-<a href=#716 id=716 data-nosnippet>716</a>        <span class="kw">let </span>serialized = rule_categories.to_string();
-<a href=#717 id=717 data-nosnippet>717</a>        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>serialized, <span class="string">"1000,1004,1400,1500,0"</span>);
-<a href=#718 id=718 data-nosnippet>718</a>
-<a href=#719 id=719 data-nosnippet>719</a>        <span class="macro">assert_eq!</span>(
-<a href=#720 id=720 data-nosnippet>720</a>            MatchedRuleIds::parse(<span class="kw-2">&amp;</span>serialized).unwrap(),
-<a href=#721 id=721 data-nosnippet>721</a>            MatchedRuleIds([<span class="number">1000</span>, <span class="number">1004</span>, <span class="number">1400</span>, <span class="number">1500</span>, <span class="number">0</span>].map(RuleId).into())
-<a href=#722 id=722 data-nosnippet>722</a>        );
-<a href=#723 id=723 data-nosnippet>723</a>    }
-<a href=#724 id=724 data-nosnippet>724</a>
-<a href=#725 id=725 data-nosnippet>725</a>    <span class="attr">#[test]
-<a href=#726 id=726 data-nosnippet>726</a>    </span><span class="kw">fn </span>test_outcome_discard_reason() {
-<a href=#727 id=727 data-nosnippet>727</a>        <span class="macro">assert_eq!</span>(
-<a href=#728 id=728 data-nosnippet>728</a>            <span class="prelude-val">Some</span>(Cow::from(<span class="string">"too_large:attachment:attachment"</span>)),
-<a href=#729 id=729 data-nosnippet>729</a>            Outcome::Invalid(DiscardReason::ItemTooLarge(DiscardItemType::Attachment(
-<a href=#730 id=730 data-nosnippet>730</a>                DiscardAttachmentType::Attachment
-<a href=#731 id=731 data-nosnippet>731</a>            )))
-<a href=#732 id=732 data-nosnippet>732</a>            .to_reason()
-<a href=#733 id=733 data-nosnippet>733</a>        );
-<a href=#734 id=734 data-nosnippet>734</a>        <span class="macro">assert_eq!</span>(
-<a href=#735 id=735 data-nosnippet>735</a>            <span class="prelude-val">Some</span>(Cow::from(<span class="string">"too_large:unknown"</span>)),
-<a href=#736 id=736 data-nosnippet>736</a>            Outcome::Invalid(DiscardReason::ItemTooLarge(DiscardItemType::Unknown)).to_reason()
+<a href=#710 id=710 data-nosnippet>710</a><span class="attr">#[cfg(test)]
+<a href=#711 id=711 data-nosnippet>711</a></span><span class="kw">mod </span>tests {
+<a href=#712 id=712 data-nosnippet>712</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#713 id=713 data-nosnippet>713</a>
+<a href=#714 id=714 data-nosnippet>714</a>    <span class="attr">#[test]
+<a href=#715 id=715 data-nosnippet>715</a>    </span><span class="kw">fn </span>rule_category_roundtrip() {
+<a href=#716 id=716 data-nosnippet>716</a>        <span class="kw">let </span>input = <span class="string">"123,1004,1500,1403,1403,1404,1000"</span>;
+<a href=#717 id=717 data-nosnippet>717</a>        <span class="kw">let </span>rule_ids = MatchedRuleIds::parse(input).unwrap();
+<a href=#718 id=718 data-nosnippet>718</a>        <span class="kw">let </span>rule_categories = RuleCategories::from(rule_ids);
+<a href=#719 id=719 data-nosnippet>719</a>
+<a href=#720 id=720 data-nosnippet>720</a>        <span class="kw">let </span>serialized = rule_categories.to_string();
+<a href=#721 id=721 data-nosnippet>721</a>        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>serialized, <span class="string">"1000,1004,1400,1500,0"</span>);
+<a href=#722 id=722 data-nosnippet>722</a>
+<a href=#723 id=723 data-nosnippet>723</a>        <span class="macro">assert_eq!</span>(
+<a href=#724 id=724 data-nosnippet>724</a>            MatchedRuleIds::parse(<span class="kw-2">&amp;</span>serialized).unwrap(),
+<a href=#725 id=725 data-nosnippet>725</a>            MatchedRuleIds([<span class="number">1000</span>, <span class="number">1004</span>, <span class="number">1400</span>, <span class="number">1500</span>, <span class="number">0</span>].map(RuleId).into())
+<a href=#726 id=726 data-nosnippet>726</a>        );
+<a href=#727 id=727 data-nosnippet>727</a>    }
+<a href=#728 id=728 data-nosnippet>728</a>
+<a href=#729 id=729 data-nosnippet>729</a>    <span class="attr">#[test]
+<a href=#730 id=730 data-nosnippet>730</a>    </span><span class="kw">fn </span>test_outcome_discard_reason() {
+<a href=#731 id=731 data-nosnippet>731</a>        <span class="macro">assert_eq!</span>(
+<a href=#732 id=732 data-nosnippet>732</a>            <span class="prelude-val">Some</span>(Cow::from(<span class="string">"too_large:attachment:attachment"</span>)),
+<a href=#733 id=733 data-nosnippet>733</a>            Outcome::Invalid(DiscardReason::ItemTooLarge(DiscardItemType::Attachment(
+<a href=#734 id=734 data-nosnippet>734</a>                DiscardAttachmentType::Attachment
+<a href=#735 id=735 data-nosnippet>735</a>            )))
+<a href=#736 id=736 data-nosnippet>736</a>            .to_reason()
 <a href=#737 id=737 data-nosnippet>737</a>        );
 <a href=#738 id=738 data-nosnippet>738</a>        <span class="macro">assert_eq!</span>(
-<a href=#739 id=739 data-nosnippet>739</a>            <span class="prelude-val">Some</span>(Cow::from(<span class="string">"too_large:unreal_report"</span>)),
-<a href=#740 id=740 data-nosnippet>740</a>            Outcome::Invalid(DiscardReason::ItemTooLarge(DiscardItemType::UnrealReport))
-<a href=#741 id=741 data-nosnippet>741</a>                .to_reason()
-<a href=#742 id=742 data-nosnippet>742</a>        );
-<a href=#743 id=743 data-nosnippet>743</a>
-<a href=#744 id=744 data-nosnippet>744</a>        <span class="macro">assert_eq!</span>(
-<a href=#745 id=745 data-nosnippet>745</a>            <span class="prelude-val">Some</span>(Cow::from(<span class="string">"too_large:attachment:breadcrumbs"</span>)),
-<a href=#746 id=746 data-nosnippet>746</a>            Outcome::Invalid(DiscardReason::ItemTooLarge(DiscardItemType::Attachment(
-<a href=#747 id=747 data-nosnippet>747</a>                DiscardAttachmentType::Breadcrumbs
-<a href=#748 id=748 data-nosnippet>748</a>            )))
-<a href=#749 id=749 data-nosnippet>749</a>            .to_reason()
-<a href=#750 id=750 data-nosnippet>750</a>        );
-<a href=#751 id=751 data-nosnippet>751</a>    }
-<a href=#752 id=752 data-nosnippet>752</a>}
+<a href=#739 id=739 data-nosnippet>739</a>            <span class="prelude-val">Some</span>(Cow::from(<span class="string">"too_large:unknown"</span>)),
+<a href=#740 id=740 data-nosnippet>740</a>            Outcome::Invalid(DiscardReason::ItemTooLarge(DiscardItemType::Unknown)).to_reason()
+<a href=#741 id=741 data-nosnippet>741</a>        );
+<a href=#742 id=742 data-nosnippet>742</a>        <span class="macro">assert_eq!</span>(
+<a href=#743 id=743 data-nosnippet>743</a>            <span class="prelude-val">Some</span>(Cow::from(<span class="string">"too_large:unreal_report"</span>)),
+<a href=#744 id=744 data-nosnippet>744</a>            Outcome::Invalid(DiscardReason::ItemTooLarge(DiscardItemType::UnrealReport))
+<a href=#745 id=745 data-nosnippet>745</a>                .to_reason()
+<a href=#746 id=746 data-nosnippet>746</a>        );
+<a href=#747 id=747 data-nosnippet>747</a>
+<a href=#748 id=748 data-nosnippet>748</a>        <span class="macro">assert_eq!</span>(
+<a href=#749 id=749 data-nosnippet>749</a>            <span class="prelude-val">Some</span>(Cow::from(<span class="string">"too_large:attachment:breadcrumbs"</span>)),
+<a href=#750 id=750 data-nosnippet>750</a>            Outcome::Invalid(DiscardReason::ItemTooLarge(DiscardItemType::Attachment(
+<a href=#751 id=751 data-nosnippet>751</a>                DiscardAttachmentType::Breadcrumbs
+<a href=#752 id=752 data-nosnippet>752</a>            )))
+<a href=#753 id=753 data-nosnippet>753</a>            .to_reason()
+<a href=#754 id=754 data-nosnippet>754</a>        );
+<a href=#755 id=755 data-nosnippet>755</a>    }
+<a href=#756 id=756 data-nosnippet>756</a>}
 </code></pre></div></section></main></body></html>
