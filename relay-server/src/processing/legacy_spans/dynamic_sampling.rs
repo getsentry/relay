@@ -4,7 +4,8 @@ use relay_sampling::evaluation::SamplingDecision;
 
 use crate::managed::Managed;
 use crate::metrics_extraction::{ExtractedMetrics, event, generic};
-use crate::processing::legacy_spans::{Error, ExpandedLegacySpans, Indexed};
+use crate::processing::legacy_spans::{Error, ExpandedLegacySpans};
+use crate::processing::utils::types::Indexed;
 use crate::processing::{self, Context};
 use crate::services::processor::ProcessingExtractedMetrics;
 use crate::statsd::RelayCounters;

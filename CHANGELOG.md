@@ -12,6 +12,7 @@
 - Accept a `charset=utf-8` parameters on JSON and XML content types. ([#6184](https://github.com/getsentry/relay/pull/6184))
 - Support PEM file format for signing / verification keys. ([#6155](https://github.com/getsentry/relay/pull/6155))
 - GA the `upload-endpoint` feature. ([#6171](https://github.com/getsentry/relay/pull/6171))
+- Add Lightpanda to web crawler filter. ([#6143](https://github.com/getsentry/relay/pull/6143))
 
 **Bug Fixes**:
 
@@ -31,6 +32,7 @@
 
 **Internal**:
 
+- Remove all remainders of custom metrics, including the `custom` metric namespace. ([#6210](https://github.com/getsentry/relay/pull/6210))
 - Rename objectstore use-case from `profiles_raw` to `profile_attachments`. ([#6108](https://github.com/getsentry/relay/pull/6108))
 - Require timestamps and verification in auth signatures. ([#6069](https://github.com/getsentry/relay/pull/6069))
 - Match patterns iteratively instead of recursively. ([#6188](https://github.com/getsentry/relay/pull/6188))
@@ -50,7 +52,7 @@
 - Use dedicated secret to sign upload URLs. ([#6132](https://github.com/getsentry/relay/pull/6132))
 - Inline small attachments instead of uploading to objectstore. ([#6165](https://github.com/getsentry/relay/pull/6165))
 - Retry 500 responses from objectstore. ([#6162](https://github.com/getsentry/relay/pull/6162))
-- Remove the `metrics_extracted` flag from the transactions processing pipeline. ([#6190](https://github.com/getsentry/relay/pull/6190))
+- Remove the `metrics_extracted` and `spans_extracted` flags from the transactions processing pipeline. ([#6190](https://github.com/getsentry/relay/pull/6190), [#6200](https://github.com/getsentry/relay/pull/6200))
 - Convert TUS uploads to Objectstore multipart uploads. ([#6172](https://github.com/getsentry/relay/pull/6172))
 
 ## 26.6.0

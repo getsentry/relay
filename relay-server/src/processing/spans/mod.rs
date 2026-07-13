@@ -19,6 +19,7 @@ use crate::metrics_extraction::ExtractedMetrics;
 use crate::processing::trace_attachments::forward::attachment_to_item;
 use crate::processing::trace_attachments::process::ScrubAttachmentError;
 use crate::processing::trace_attachments::types::ExpandedAttachment;
+use crate::processing::utils::types::{Indexed, TotalAndIndexed, TotalCategory};
 use crate::processing::{self, Context, Forward, Output, QuotaRateLimiter, RateLimited};
 use crate::services::outcome::{DiscardReason, Outcome};
 
@@ -532,23 +533,7 @@ impl ExpandedSpans<Indexed> {
     }
 }
 
-/// The total and indexed category.
-///
-/// This category tracks spans in the total and indexed data categories.
-/// Until a span has metrics extracted it owns both categories.
-#[derive(Copy, Clone, Debug)]
-pub struct TotalAndIndexed;
-
-/// The indexed category.
-///
-/// Once metric extraction happened, spans no longer track/represent the total category, this was
-/// transferred over to the metrics.
-///
-/// Every stored span, must have metrics extracted and transferred this ownership.
-#[derive(Copy, Clone, Debug)]
-pub struct Indexed;
-
-impl Counted for ExpandedSpans<TotalAndIndexed> {
+impl<C: TotalCategory> Counted for ExpandedSpans<C> {
     fn quantities(&self) -> Quantities {
         let ExpandedSpansQuantities {
             span,
@@ -558,30 +543,9 @@ impl Counted for ExpandedSpans<TotalAndIndexed> {
 
         let mut quantities = smallvec::smallvec![];
         if span > 0 {
-            quantities.push((DataCategory::Span, span));
-            quantities.push((DataCategory::SpanIndexed, span));
-        }
-        if attachment > 0 {
-            quantities.push((DataCategory::Attachment, attachment));
-        }
-        if attachment_item > 0 {
-            quantities.push((DataCategory::AttachmentItem, attachment_item));
-        }
-
-        quantities
-    }
-}
-
-impl Counted for ExpandedSpans<Indexed> {
-    fn quantities(&self) -> Quantities {
-        let ExpandedSpansQuantities {
-            span,
-            attachment,
-            attachment_item,
-        } = self.span_quantities();
-
-        let mut quantities = smallvec::smallvec![];
-        if span > 0 {
+            if C::HAS_TOTAL {
+                quantities.push((DataCategory::Span, span));
+            }
             quantities.push((DataCategory::SpanIndexed, span));
         }
         if attachment > 0 {
