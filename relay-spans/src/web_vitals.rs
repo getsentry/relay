@@ -4,8 +4,8 @@ use relay_conventions::attributes::{
     BROWSER__WEB_VITAL__LCP__LOAD_TIME, BROWSER__WEB_VITAL__LCP__RENDER_TIME,
     BROWSER__WEB_VITAL__LCP__SIZE, BROWSER__WEB_VITAL__LCP__URL, BROWSER__WEB_VITAL__LCP__VALUE,
     BROWSER__WEB_VITAL__TTFB__REQUEST_TIME, BROWSER__WEB_VITAL__TTFB__VALUE, SENTRY__ENVIRONMENT,
-    SENTRY__ORIGIN, SENTRY__PLATFORM, SENTRY__RELEASE, SENTRY__SDK__NAME, SENTRY__SDK__VERSION,
-    SENTRY__SEGMENT__NAME, USER_AGENT__ORIGINAL,
+    SENTRY__METRIC__SOURCE, SENTRY__ORIGIN, SENTRY__PLATFORM, SENTRY__RELEASE, SENTRY__SDK__NAME,
+    SENTRY__SDK__VERSION, SENTRY__SEGMENT__NAME, USER_AGENT__ORIGINAL,
 };
 use relay_conventions::interpolate::browser__web_vital__cls__source__key;
 use relay_event_schema::protocol::{Attributes, SpanV2, TraceMetric};
@@ -148,7 +148,7 @@ pub fn extract_web_vital_metrics(span: &SpanV2) -> Option<Vec<TraceMetric>> {
         }
 
         // This is for attribution: we'll be able to tell on a metric if it came from relay.
-        attributes.insert("sentry.metric.source", "span");
+        attributes.insert(SENTRY__METRIC__SOURCE, "span");
 
         let trace_metric = TraceMetric {
             timestamp: span.start_timestamp.clone(),
