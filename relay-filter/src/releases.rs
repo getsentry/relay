@@ -22,8 +22,9 @@ where
 
 #[cfg(test)]
 mod tests {
+    use relay_conventions::attributes::SENTRY__RELEASE;
     use relay_event_schema::protocol::{Event, LenientString, Span, SpanData};
-    use relay_protocol::Annotated;
+    use relay_protocol::{Annotated, Object, Value};
 
     use super::*;
 
@@ -37,8 +38,10 @@ mod tests {
     fn get_span_for_release(release: &str) -> Span {
         Span {
             data: Annotated::new(SpanData {
-                release: Annotated::from(LenientString::from(release.to_owned())),
-                ..Default::default()
+                other: Object::from([(
+                    SENTRY__RELEASE.to_owned(),
+                    Annotated::new(Value::String(release.to_owned())),
+                )]),
             }),
             ..Default::default()
         }

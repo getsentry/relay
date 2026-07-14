@@ -1,8 +1,13 @@
 //! Span description scrubbing logic.
+
+#![allow(deprecated)]
 mod redis;
 mod resource;
 mod sql;
 use psl;
+use relay_conventions::attributes::{
+    DB__COLLECTION__NAME, DB__OPERATION, DB__SYSTEM, UI__COMPONENT_NAME,
+};
 use relay_filter::matches_any_origin;
 use serde_json::Value;
 #[cfg(test)]
@@ -51,9 +56,7 @@ pub(crate) fn scrub_span_description(
 
     let data = span.data.value();
 
-    let db_system = data
-        .and_then(|data| data.db_system.value())
-        .and_then(|system| system.as_str());
+    let db_system = data.and_then(|data| data.get_str(DB__SYSTEM));
     let span_origin = span.origin.as_str();
 
     let mut parsed_sql = None;
@@ -68,13 +71,9 @@ pub(crate) fn scrub_span_description(
             }
             ("cache", _) => scrub_redis_keys(description),
             ("db", sub) => {
-                let db_operation = data
-                    .and_then(|data| data.db_operation.value())
-                    .and_then(|op| op.as_str());
+                let db_operation = data.and_then(|data| data.get_str(DB__OPERATION));
 
-                let collection_name = data
-                    .and_then(|data| data.db_collection_name.value())
-                    .and_then(|collection| collection.as_str());
+                let collection_name = data.and_then(|data| data.get_str(DB__COLLECTION__NAME));
 
                 let (scrubbed, parsed_sql_statement) = scrub_db_query(
                     description,
@@ -104,8 +103,7 @@ pub(crate) fn scrub_span_description(
                 Some(description.to_owned())
             }
             ("ui", sub) if sub.starts_with("interaction.") || sub.starts_with("react.") => data
-                .and_then(|data| data.ui_component_name.value())
-                .and_then(|value| value.as_str())
+                .and_then(|data| data.get_str(UI__COMPONENT_NAME))
                 .map(String::from),
             ("app", _) => {
                 // `app.*` has static descriptions, like `Cold Start`
@@ -1384,14 +1382,14 @@ mod tests {
     }
 
     #[test]
-    fn mongodb_with_legacy_collection_property() {
+    fn mongodb_with_collection_property() {
         let json = r#"{
             "description": "{\"find\": \"documents\", \"foo\": \"bar\"}",
             "op": "db",
             "data": {
                 "db.system": "mongodb",
                 "db.operation": "find",
-                "db.mongodb.collection": "documents"
+                "db.collection.name": "documents"
             }
         }"#;
 

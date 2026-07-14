@@ -417,9 +417,11 @@ impl super::DefaultContext for TraceContext {
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use super::*;
     use crate::protocol::{Context, Route};
+    use relay_conventions::attributes::ROUTE;
 
     #[test]
     fn test_trace_id_as_u128() {
@@ -455,14 +457,14 @@ mod tests {
   "client_sample_rate": 0.5,
   "origin": "auto.http",
   "data": {
+    "custom_field_empty": "",
     "route": {
+      "custom_field": "something",
       "name": "/users",
       "params": {
         "tok": "test"
-      },
-      "custom_field": "something"
-    },
-    "custom_field_empty": ""
+      }
+    }
   },
   "links": [
     {
@@ -487,26 +489,33 @@ mod tests {
             client_sample_rate: Annotated::new(0.5),
             origin: Annotated::new("auto.http".to_owned()),
             data: Annotated::new(SpanData {
-                route: Annotated::new(Route {
-                    name: Annotated::new("/users".into()),
-                    params: Annotated::new({
-                        let mut map = Object::new();
-                        map.insert(
-                            "tok".to_owned(),
-                            Annotated::new(Value::String("test".into())),
-                        );
-                        map
-                    }),
-                    other: Object::from([(
-                        "custom_field".into(),
-                        Annotated::new(Value::String("something".into())),
-                    )]),
-                }),
-                other: Object::from([(
-                    "custom_field_empty".into(),
-                    Annotated::new(Value::String("".into())),
-                )]),
-                ..Default::default()
+                other: Object::from([
+                    (
+                        ROUTE.to_owned(),
+                        Annotated::new(
+                            Route {
+                                name: Annotated::new("/users".into()),
+                                params: Annotated::new({
+                                    let mut map = Object::new();
+                                    map.insert(
+                                        "tok".to_owned(),
+                                        Annotated::new(Value::String("test".into())),
+                                    );
+                                    map
+                                }),
+                                other: Object::from([(
+                                    "custom_field".into(),
+                                    Annotated::new(Value::String("something".into())),
+                                )]),
+                            }
+                            .into_value(),
+                        ),
+                    ),
+                    (
+                        "custom_field_empty".into(),
+                        Annotated::new(Value::String("".into())),
+                    ),
+                ]),
             }),
             links: Annotated::new(Array::from(vec![Annotated::new(SpanLink {
                 trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
@@ -623,11 +632,10 @@ mod tests {
             trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
             span_id: Annotated::new("fa90fdead5f74052".parse().unwrap()),
             data: Annotated::new(SpanData {
-                route: Annotated::new(Route {
-                    name: Annotated::new("HomeRoute".into()),
-                    ..Default::default()
-                }),
-                ..Default::default()
+                other: Object::from([(
+                    ROUTE.to_owned(),
+                    Annotated::new(Value::String("HomeRoute".into())),
+                )]),
             }),
             ..Default::default()
         })));
