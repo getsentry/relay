@@ -23,7 +23,6 @@ use crate::statsd::RelayTimers;
 #[derive(Debug, Default)]
 pub struct Flags {
     pub fully_normalized: bool,
-    pub spans_rate_limited: bool,
 }
 
 /// Whether spans embedded in a transaction have been extracted into standalone spans.
@@ -260,10 +259,7 @@ impl ExpandedTransaction<TotalAndIndexed, SpansEmbedded> {
         let mut item = Item::new(ItemType::Transaction);
         item.set_payload(ContentType::Json, data);
 
-        let Flags {
-            fully_normalized,
-            spans_rate_limited: _,
-        } = flags;
+        let Flags { fully_normalized } = flags;
         item.set_fully_normalized(fully_normalized);
 
         item.set_span_count(Some(span_count));
