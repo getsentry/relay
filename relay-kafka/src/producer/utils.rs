@@ -191,36 +191,36 @@ impl ClientContext for Context {
             }
             if let Some(int_latency) = broker.int_latency {
                 relay_statsd::metric!(
-                    gauge(KafkaGauges::BrokerIntLatencyAvg) = (int_latency.avg / 1000) as u64,
+                    gauge(KafkaGauges::BrokerIntLatencyAvg) = (int_latency.avg / 1000),
                     broker_name = &broker.name,
                     producer_name = producer_name
                 );
                 relay_statsd::metric!(
-                    gauge(KafkaGauges::BrokerIntLatencyP99) = (int_latency.p99 / 1000) as u64,
+                    gauge(KafkaGauges::BrokerIntLatencyP99) = (int_latency.p99 / 1000),
                     broker_name = &broker.name,
                     producer_name = producer_name
                 );
             }
             if let Some(outbuf_latency) = broker.outbuf_latency {
                 relay_statsd::metric!(
-                    gauge(KafkaGauges::BrokerOutbufLatencyAvg) = (outbuf_latency.avg / 1000) as u64,
+                    gauge(KafkaGauges::BrokerOutbufLatencyAvg) = (outbuf_latency.avg / 1000),
                     broker_name = &broker.name,
                     producer_name = producer_name
                 );
                 relay_statsd::metric!(
-                    gauge(KafkaGauges::BrokerOutbufLatencyP99) = (outbuf_latency.p99 / 1000) as u64,
+                    gauge(KafkaGauges::BrokerOutbufLatencyP99) = (outbuf_latency.p99 / 1000),
                     broker_name = &broker.name,
                     producer_name = producer_name
                 );
             }
             if let Some(rtt) = broker.rtt {
                 relay_statsd::metric!(
-                    gauge(KafkaGauges::BrokerRttAvg) = (rtt.avg / 1000) as u64,
+                    gauge(KafkaGauges::BrokerRttAvg) = (rtt.avg / 1000),
                     broker_name = &broker.name,
                     producer_name = producer_name
                 );
                 relay_statsd::metric!(
-                    gauge(KafkaGauges::BrokerRttP99) = (rtt.p99 / 1000) as u64,
+                    gauge(KafkaGauges::BrokerRttP99) = (rtt.p99 / 1000),
                     broker_name = &broker.name,
                     producer_name = producer_name
                 );
