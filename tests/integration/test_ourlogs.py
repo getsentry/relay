@@ -471,6 +471,7 @@ def test_ourlog_extraction_with_string_pii_scrubbing(
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
             },
+            "sentry.relay.ingress": {"type": "string", "value": "container"},
             "user_agent.original": {
                 "type": "string",
                 "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
@@ -661,6 +662,7 @@ def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attribut
             "browser.version": {"stringValue": "42.0"},
             "custom_field": {"stringValue": "[REDACTED]"},
             "sentry.body": {"stringValue": "Test log"},
+            "sentry.relay.ingress": {"stringValue": "container"},
             "sentry.severity_text": {"stringValue": "info"},
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
             "sentry.payload_size_bytes": matches_any(),
@@ -890,6 +892,7 @@ def test_browser_name_version_extraction(
             "browser.name": {"stringValue": expected_browser_name},
             "browser.version": {"stringValue": expected_browser_version},
             "user_agent.original": {"stringValue": user_agent},
+            "sentry.relay.ingress": {"stringValue": "container"},
             "sentry.severity_text": {"stringValue": "error"},
             "sentry.payload_size_bytes": {"intValue": matches_any()},
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
@@ -1159,6 +1162,9 @@ def test_time_sequence_shift(mini_sentry, relay_with_processing, items_consumer)
             "sentry.payload_size_bytes": {
                 "intValue": "36",
             },
+            "sentry.relay.ingress": {
+                "stringValue": "container",
+            },
             "sentry.severity_text": {
                 "stringValue": "error",
             },
@@ -1299,6 +1305,7 @@ def test_ourlog_container_metadata(
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
             },
+            "sentry.relay.ingress": {"type": "string", "value": "container"},
         },
         "__header": matches_any(),
         "body": "Test log",
