@@ -74,8 +74,9 @@ def test_minidump(mini_sentry, relay):
 
 def test_minidump_attachments(mini_sentry, relay):
     project_id = 42
-    relay = relay(mini_sentry)
     mini_sentry.add_full_project_config(project_id)
+    mini_sentry.global_config["options"]["relay.attachment-inline.limit"] = 1024 * 1024
+    relay = relay(mini_sentry)
 
     event = {"event_id": "2dd132e467174db48dbaddabd3cbed57", "user": {"id": "123"}}
     breadcrumbs1 = {
