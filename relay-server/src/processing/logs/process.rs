@@ -36,12 +36,16 @@ pub fn expand(logs: Managed<SerializedLogs>) -> Result<Managed<ExpandedLogs>, Re
         // accurately counted bytes.
         records.lenient(DataCategory::LogByte);
 
-        let (ingress, (settings, logs)) = match items {
-            LogItems::Container(item) => (Ingress::Container, expand_log_container(&item, trust)?),
-            LogItems::Integration(item) => (
-                Ingress::Integration,
-                logs::integrations::expand(item, records, &headers).unwrap_or_default(),
-            ),
+        let ingress = match &items {
+            LogItems::Container(_) => Ingress::Container,
+            LogItems::Integration(_) => Ingress::Integration,
+        };
+
+        let (settings, logs) = match items {
+            LogItems::Container(item) => expand_log_container(&item, trust)?,
+            LogItems::Integration(item) => {
+                logs::integrations::expand(item, records, &headers).unwrap_or_default()
+            }
         };
 
         Ok::<_, Error>(ExpandedLogs {

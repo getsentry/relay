@@ -34,16 +34,18 @@ pub fn expand(spans: Managed<SerializedSpans>) -> Result<Managed<ExpandedSpans>,
             "invalid items should already be rejected"
         );
 
-        let (ingress, (settings, spans)) = match items {
-            SpanItems::Container(item) => (Some(Ingress::Container), expand_span_container(&item)?),
-            SpanItems::Legacy(items) => {
-                (Some(Ingress::Legacy), expand_legacy_spans(items, records))
-            }
-            SpanItems::Integration(item) => (
-                Some(Ingress::Integration),
-                spans::integrations::expand(records, &[item]),
-            ),
-            SpanItems::None => (None, (Default::default(), Vec::new())),
+        let ingress = match &items {
+            SpanItems::Container(_) => Some(Ingress::Container),
+            SpanItems::Legacy(_) => Some(Ingress::Legacy),
+            SpanItems::Integration(_) => Some(Ingress::Integration),
+            SpanItems::None => None,
+        };
+
+        let (settings, spans) = match items {
+            SpanItems::Container(item) => expand_span_container(&item)?,
+            SpanItems::Legacy(items) => expand_legacy_spans(items, records),
+            SpanItems::Integration(item) => spans::integrations::expand(records, &[item]),
+            SpanItems::None => (Default::default(), Vec::new()),
         };
 
         let mut span_id_mapping: BTreeMap<_, _> = BTreeMap::new();
