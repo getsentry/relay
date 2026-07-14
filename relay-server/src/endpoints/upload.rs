@@ -115,6 +115,7 @@ impl IntoResponse for Error {
                 #[cfg(feature = "processing")]
                 upload::Error::Objectstore(service_error) => match service_error.kind {
                     objectstore::ErrorKind::InvalidScoping => StatusCode::INTERNAL_SERVER_ERROR,
+                    objectstore::ErrorKind::InvalidOffset { .. } => StatusCode::BAD_REQUEST,
                     objectstore::ErrorKind::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
                     objectstore::ErrorKind::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
                     objectstore::ErrorKind::CompressionFailed(_) => {

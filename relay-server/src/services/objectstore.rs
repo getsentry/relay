@@ -283,6 +283,10 @@ impl<E: Into<ErrorKind>> From<E> for Error {
 pub enum ErrorKind {
     #[error("invalid scoping")]
     InvalidScoping,
+    #[error(
+        "invalid upload offset {offset}: must be aligned to the upload granularity {granularity}"
+    )]
+    InvalidOffset { offset: usize, granularity: usize },
     #[error("timeout: {0}")]
     Timeout(#[from] tokio::time::error::Elapsed),
     #[error("load shed")]
@@ -299,6 +303,7 @@ impl ErrorKind {
     fn as_str(&self) -> &'static str {
         match self {
             Self::InvalidScoping => "invalid_scoping",
+            Self::InvalidOffset { .. } => "invalid_offset",
             Self::Timeout(_) => "timeout",
             Self::LoadShed => "load_shed",
             Self::CompressionFailed(_) => "compression_failed",
@@ -309,6 +314,7 @@ impl ErrorKind {
 
     fn is_client_error(&self) -> bool {
         match self {
+            ErrorKind::InvalidOffset { .. } => true,
             ErrorKind::UploadFailed(objectstore_client::Error::Reqwest(error)) => {
                 find_error_source(error, is_user_error).is_some()
             }
@@ -827,6 +833,15 @@ impl ObjectstoreServiceInner {
             upload_ref,
             stream,
         } = stream;
+
+        if upload_ref.offset % UPLOAD_GRANULARITY != 0 {
+            return Err(ErrorKind::InvalidOffset {
+                offset: upload_ref.offset,
+                granularity: UPLOAD_GRANULARITY.get(),
+            }
+            .into());
+        }
+
         let session = self.session(&self.event_attachments, organization_id, project_id)?;
 
         let byte_counter = stream.byte_counter();
@@ -1004,7 +1019,7 @@ impl ObjectstoreServiceInner {
                     // Every chunk needs to be > 5 MB because that's what multipart requires.
                     let mut parts = vec![];
                     let mut compressed_buffer = zstd::stream::write::Encoder::new(vec![], 0).unwrap(); // FIXME;
-                    let mut part_number = offset / UPLOAD_GRANULARITY; // FIXME: validate offset
+                    let mut part_number = offset / UPLOAD_GRANULARITY;
                     while let Some(bytes) = body.next().await {
                         part_number += 1;
                         match bytes {
