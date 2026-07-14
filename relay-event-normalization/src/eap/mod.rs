@@ -40,10 +40,14 @@ pub use self::mobile::{normalize_mobile_attributes, normalize_mobile_measurement
 pub use self::size::*;
 pub use self::trimming::TrimmingProcessor;
 
+/// How an EAP item entered Relay.
 #[derive(Debug, Clone)]
 pub enum Ingress {
+    /// The item comes from an integration (e.g. OTEL, Vercel).
     Integration,
+    /// The item comes from an item container.
     Container,
+    /// The item was converted from a legacy item type.
     Legacy,
 }
 
@@ -57,10 +61,14 @@ impl fmt::Display for Ingress {
     }
 }
 
+/// The pipeline through which an item went in Relay.
 #[derive(Debug, Clone)]
 pub enum Pipeline {
+    /// The legacy standalone span pipeline.
     SpanLegacy,
+    /// The legacy transaction pipeline.
     Transaction,
+    /// The V2 span pipeline.
     SpanV2,
 }
 
@@ -74,6 +82,8 @@ impl fmt::Display for Pipeline {
     }
 }
 
+/// Writes `ingress` and `pipeline` into [`SENTRY__RELAY__INGRESS`] and
+/// [`SENTRY__RELAY__PIPELINE`], respectively.
 pub fn normalize_pipeline_attributes(
     attributes: &mut Annotated<Attributes>,
     ingress: Option<&Ingress>,
@@ -81,12 +91,12 @@ pub fn normalize_pipeline_attributes(
 ) {
     let attributes = attributes.get_or_insert_with(Default::default);
 
-    if let Some(pipeline) = pipeline {
-        attributes.insert_if_missing(SENTRY__RELAY__PIPELINE, || pipeline.to_string());
+    if let Some(ingress) = ingress {
+        attributes.insert(SENTRY__RELAY__INGRESS, ingress.to_string());
     }
 
-    if let Some(ingress) = ingress {
-        attributes.insert_if_missing(SENTRY__RELAY__INGRESS, || ingress.to_string());
+    if let Some(pipeline) = pipeline {
+        attributes.insert(SENTRY__RELAY__PIPELINE, pipeline.to_string());
     }
 }
 
