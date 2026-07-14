@@ -193,8 +193,8 @@
 <a href=#193 id=193 data-nosnippet>193</a>        <span class="kw">unsafe </span>{
 <a href=#194 id=194 data-nosnippet>194</a>            <span class="kw">let </span>chunks = <span class="self">self
 <a href=#195 id=195 data-nosnippet>195</a>                </span>.as_bytes_mut()
-<a href=#196 id=196 data-nosnippet>196</a>                .chunks_exact_mut(std::mem::size_of::&lt;u16&gt;());
-<a href=#197 id=197 data-nosnippet>197</a>            <span class="kw">for </span>chunk <span class="kw">in </span>chunks {
+<a href=#196 id=196 data-nosnippet>196</a>                .as_chunks_mut::&lt;{ std::mem::size_of::&lt;u16&gt;() }&gt;();
+<a href=#197 id=197 data-nosnippet>197</a>            <span class="kw">for </span>chunk <span class="kw">in </span>chunks.<span class="number">0 </span>{
 <a href=#198 id=198 data-nosnippet>198</a>                chunk.copy_from_slice(<span class="kw-2">&amp;</span>fill_buf);
 <a href=#199 id=199 data-nosnippet>199</a>            }
 <a href=#200 id=200 data-nosnippet>200</a>        }
@@ -228,8 +228,8 @@
 <a href=#228 id=228 data-nosnippet>228</a>
 <a href=#229 id=229 data-nosnippet>229</a>        <span class="kw">unsafe </span>{
 <a href=#230 id=230 data-nosnippet>230</a>            <span class="kw">let </span>remainder_bytes = <span class="kw-2">&amp;mut </span><span class="self">self</span>.as_bytes_mut()[offset..];
-<a href=#231 id=231 data-nosnippet>231</a>            <span class="kw">let </span>chunks = remainder_bytes.chunks_exact_mut(std::mem::size_of::&lt;u16&gt;());
-<a href=#232 id=232 data-nosnippet>232</a>            <span class="kw">for </span>chunk <span class="kw">in </span>chunks {
+<a href=#231 id=231 data-nosnippet>231</a>            <span class="kw">let </span>chunks = remainder_bytes.as_chunks_mut::&lt;{ std::mem::size_of::&lt;u16&gt;() }&gt;();
+<a href=#232 id=232 data-nosnippet>232</a>            <span class="kw">for </span>chunk <span class="kw">in </span>chunks.<span class="number">0 </span>{
 <a href=#233 id=233 data-nosnippet>233</a>                chunk.copy_from_slice(<span class="kw-2">&amp;</span>fill_buf);
 <a href=#234 id=234 data-nosnippet>234</a>            }
 <a href=#235 id=235 data-nosnippet>235</a>        }
