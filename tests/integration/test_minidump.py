@@ -1059,7 +1059,7 @@ def test_size_limits(mini_sentry, relay, limit, expected_status_code):
         (True, False),
         (True, True),
     ],
-    ids=["no-option", "stream-attachments", "stream-minidumps", "stream-all"],
+    ids=["no-option", "no-minidumps", "stream-minidumps"],
 )
 def test_minidump_objectstore_uploads(
     mini_sentry,
