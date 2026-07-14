@@ -11,7 +11,7 @@
 - Use a out of process solution for catching crashes. ([#6158](https://github.com/getsentry/relay/pull/6158))
 - Accept a `charset=utf-8` parameters on JSON and XML content types. ([#6184](https://github.com/getsentry/relay/pull/6184))
 - Support PEM file format for signing / verification keys. ([#6155](https://github.com/getsentry/relay/pull/6155))
-- GA the `upload-endpoint` feature. ([#6171](https://github.com/getsentry/relay/pull/6171))
+- Graduate the upload endpoint and streaming attachments on the minidump endpoint. ([#6171](https://github.com/getsentry/relay/pull/6171), [#6222](https://github.com/getsentry/relay/pull/6222))
 - Add Lightpanda to web crawler filter. ([#6143](https://github.com/getsentry/relay/pull/6143))
 
 **Bug Fixes**:
