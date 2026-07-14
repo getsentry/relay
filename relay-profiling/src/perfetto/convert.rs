@@ -4,10 +4,11 @@
 //! interned data) into the Sample v2 profile format.
 
 use std::collections::BTreeMap;
+use std::hash::BuildHasher;
 
 use bytes::Buf;
-use hashbrown::hash_map::Entry;
-use hashbrown::{HashMap, HashSet};
+use hashbrown::hash_table::Entry;
+use hashbrown::{DefaultHashBuilder, HashMap, HashSet, HashTable};
 use prost::Message;
 use prost::encoding::{self, WireType};
 
@@ -210,19 +211,24 @@ impl InternTables {
         self.mappings
             .extend(mappings.into_iter().filter_map(|m| Some((m.iid?, m))));
     }
+}
 
-    fn mapping_path(&mut self, mapping_id: u64) -> Option<String> {
-        if let Some(path) = self.mapping_path_cache.get(&mapping_id) {
-            return path.clone();
-        }
-
-        let path = self
-            .mappings
-            .get(&mapping_id)
-            .and_then(|mapping| resolve_mapping_path(mapping, &self.mapping_paths));
-        self.mapping_path_cache.insert(mapping_id, path.clone());
-        path
-    }
+/// Resolves and caches the joined path of a mapping, returning a reference
+/// into the cache.
+fn mapping_path<'a>(
+    mapping_id: u64,
+    mappings: &HashMap<u64, proto::Mapping>,
+    mapping_paths: &HashMap<u64, String>,
+    mapping_path_cache: &'a mut HashMap<u64, Option<String>>,
+) -> Option<&'a str> {
+    mapping_path_cache
+        .entry(mapping_id)
+        .or_insert_with(|| {
+            mappings
+                .get(&mapping_id)
+                .and_then(|mapping| resolve_mapping_path(mapping, mapping_paths))
+        })
+        .as_deref()
 }
 
 fn intern_strings(strings: Vec<proto::InternedString>) -> impl Iterator<Item = (u64, String)> {
@@ -237,22 +243,34 @@ fn intern_strings(strings: Vec<proto::InternedString>) -> impl Iterator<Item = (
 /// and instruction address are considered identical and share a single index
 /// in the output frame list.
 #[derive(Debug, PartialEq, Eq, Hash)]
-struct FrameKey {
-    function: Option<String>,
-    module: Option<String>,
-    package: Option<String>,
+struct FrameCandidate<'a> {
+    function: Option<&'a str>,
+    module: Option<&'a str>,
+    package: Option<&'a str>,
     instruction_addr: Option<u64>,
+}
+
+impl<'a> FrameCandidate<'a> {
+    fn new(frame: &'a Frame) -> Self {
+        Self {
+            function: frame.function.as_deref(),
+            module: frame.module.as_deref(),
+            package: frame.package.as_deref(),
+            instruction_addr: frame.instruction_addr.map(|addr| addr.0),
+        }
+    }
 }
 
 /// Mutable context for callstack resolution, collecting frames, stacks,
 /// and debug images during a single conversion pass.
 #[derive(Default)]
 struct ResolveContext {
-    // HashMap/HashSet over BTreeMap/BTreeSet: these dedup indexes can grow large.
-    frame_index: HashMap<FrameKey, usize>,
+    /// Indexes into `frames`, keyed by the [`FrameCandidate`].
+    frame_index: HashTable<usize>,
+    /// Hasher used to access [`Self::frame_index`].
+    hasher: DefaultHashBuilder,
     frames: Vec<Frame>,
     stack_index: HashMap<Vec<usize>, usize>,
-    stacks: Vec<Vec<usize>>,
     debug_images: Vec<DebugImage>,
     seen_images: HashSet<(String, u64)>,
 }
@@ -367,10 +385,17 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
         .map(|(tid, meta)| (tid.to_string(), meta))
         .collect();
 
+    // Stacks are stored only as `stack_index` keys during conversion;
+    // materialize them into the id-ordered output vector.
+    let mut stacks = vec![Vec::new(); ctx.stack_index.len()];
+    for (stack, id) in ctx.stack_index {
+        stacks[id] = stack;
+    }
+
     Ok((
         ProfileData {
             samples,
-            stacks: ctx.stacks,
+            stacks,
             frames: ctx.frames,
             thread_metadata,
         },
@@ -394,11 +419,23 @@ fn resolve_callstack(
     tables: &mut InternTables,
     ctx: &mut ResolveContext,
 ) -> Result<Option<usize>, ProfileError> {
-    if let Some(&stack_id) = tables.callstack_cache.get(&cs_iid) {
+    let InternTables {
+        function_names,
+        mapping_paths,
+        build_ids,
+        frames,
+        callstacks,
+        mappings,
+        mapping_path_cache,
+        frame_cache,
+        callstack_cache,
+    } = tables;
+
+    if let Some(&stack_id) = callstack_cache.get(&cs_iid) {
         return Ok(Some(stack_id));
     }
 
-    let Some(callstack) = tables.callstacks.get(&cs_iid) else {
+    let Some(callstack) = callstacks.get(&cs_iid) else {
         return Ok(None);
     };
 
@@ -406,62 +443,67 @@ fn resolve_callstack(
         return Err(ProfileError::ExceedSizeLimit);
     }
 
-    let frame_ids = callstack.frame_ids.clone();
-    let mut resolved_frame_indices: Vec<usize> = Vec::with_capacity(frame_ids.len());
+    let mut resolved_frame_indices: Vec<usize> = Vec::with_capacity(callstack.frame_ids.len());
 
-    for frame_iid in frame_ids {
-        if let Some(&idx) = tables.frame_cache.get(&frame_iid) {
+    for &frame_iid in &callstack.frame_ids {
+        if let Some(&idx) = frame_cache.get(&frame_iid) {
             resolved_frame_indices.push(idx);
             continue;
         }
 
-        let Some(&pf) = tables.frames.get(&frame_iid) else {
+        let Some(&pf) = frames.get(&frame_iid) else {
             continue;
         };
 
         let function_name = pf
             .function_name_id
-            .and_then(|id| tables.function_names.get(&id))
-            .cloned();
+            .and_then(|id| function_names.get(&id))
+            .map(String::as_str);
 
-        if let Some(mid) = pf.mapping_id
-            && let Some(image) = collect_debug_image(mid, tables, &mut ctx.seen_images)
+        let mapping = pf.mapping_id.and_then(|mid| mappings.get(&mid));
+        let path = pf
+            .mapping_id
+            .and_then(|mid| mapping_path(mid, mappings, mapping_paths, mapping_path_cache));
+
+        if let Some(mapping) = mapping
+            && let Some(image) = collect_debug_image(mapping, path, build_ids, &mut ctx.seen_images)
         {
             ctx.debug_images.push(image);
         }
 
-        let (key, frame) = build_frame(function_name, &pf, tables);
+        let candidate = frame_candidate(function_name, path, &pf, mapping);
 
-        let idx = match ctx.frame_index.entry(key) {
+        let idx = match ctx.frame_index.entry(
+            ctx.hasher.hash_one(&candidate),
+            |&i| candidate == FrameCandidate::new(&ctx.frames[i]),
+            |&i| ctx.hasher.hash_one(FrameCandidate::new(&ctx.frames[i])),
+        ) {
             Entry::Occupied(entry) => *entry.get(),
             Entry::Vacant(entry) => {
                 let next_idx = ctx.frames.len();
                 if next_idx >= MAX_UNIQUE_FRAMES {
                     return Err(ProfileError::ExceedSizeLimit);
                 }
-                ctx.frames.push(frame);
+                ctx.frames.push(build_frame(&candidate));
                 entry.insert(next_idx);
                 next_idx
             }
         };
 
-        tables.frame_cache.insert(frame_iid, idx);
+        frame_cache.insert(frame_iid, idx);
         resolved_frame_indices.push(idx);
     }
 
     // Perfetto stacks are root-first, Sample v2 is leaf-first.
     resolved_frame_indices.reverse();
 
-    let stack_id = if let Some(&existing) = ctx.stack_index.get(&resolved_frame_indices) {
-        existing
-    } else {
-        let id = ctx.stacks.len();
-        ctx.stack_index.insert(resolved_frame_indices.clone(), id);
-        ctx.stacks.push(resolved_frame_indices);
-        id
-    };
+    let next_id = ctx.stack_index.len();
+    let stack_id = *ctx
+        .stack_index
+        .entry(resolved_frame_indices)
+        .or_insert(next_id);
 
-    tables.callstack_cache.insert(cs_iid, stack_id);
+    callstack_cache.insert(cs_iid, stack_id);
 
     Ok(Some(stack_id))
 }
@@ -469,31 +511,31 @@ fn resolve_callstack(
 /// Builds a debug image from a native mapping if not already seen.
 ///
 /// Returns `Some(DebugImage)` for new native mappings with a valid build ID,
-/// or `None` if the mapping is missing, Java-only, already seen, or lacks
+/// or `None` if the mapping has no path, is Java-only, already seen, or lacks
 /// a valid debug ID.
 fn collect_debug_image(
-    mapping_id: u64,
-    tables: &mut InternTables,
+    mapping: &proto::Mapping,
+    code_file: Option<&str>,
+    build_ids: &HashMap<u64, Vec<u8>>,
     seen_images: &mut HashSet<(String, u64)>,
 ) -> Option<DebugImage> {
-    let code_file = tables.mapping_path(mapping_id)?;
+    let code_file = code_file?;
 
-    if is_java_mapping(&code_file) {
+    if is_java_mapping(code_file) {
         return None;
     }
 
-    let mapping = tables.mappings.get(&mapping_id)?;
     let image_addr = mapping.start;
 
     let debug_id = mapping
         .build_id
-        .and_then(|bid| tables.build_ids.get(&bid))
+        .and_then(|bid| build_ids.get(&bid))
         .and_then(|bytes| build_id_to_debug_id(bytes))?;
 
     // Insert into dedup set only after validating we have a valid debug_id,
     // so that a mapping first seen without a build_id doesn't block a later
     // valid encounter from a different packet sequence.
-    if !seen_images.insert((code_file.clone(), image_addr.unwrap_or(0))) {
+    if !seen_images.insert((code_file.to_owned(), image_addr.unwrap_or(0))) {
         return None;
     }
 
@@ -504,7 +546,7 @@ fn collect_debug_image(
     let image_vmaddr = mapping.load_bias;
 
     Some(DebugImage {
-        code_file: Some(code_file.into()),
+        code_file: Some(code_file.to_owned().into()),
         debug_id: Some(debug_id),
         image_type: ImageType::Symbolic,
         image_addr: image_addr.map(Addr),
@@ -514,67 +556,60 @@ fn collect_debug_image(
     })
 }
 
-/// Resolves a Perfetto frame into a [`FrameKey`] and a Sample v2 [`Frame`].
+/// Resolves a Perfetto frame into a borrowed [`FrameCandidate`] dedup view.
 ///
 /// Java frames (identified by mapping path) have their fully-qualified name
 /// split into module and function. Native frames compute an absolute
 /// instruction address from `rel_pc` and the mapping start address.
-fn build_frame(
-    function_name: Option<String>,
+fn frame_candidate<'a>(
+    function_name: Option<&'a str>,
+    mapping_path: Option<&'a str>,
     pf: &proto::Frame,
-    tables: &mut InternTables,
-) -> (FrameKey, Frame) {
-    let mapping_path = pf.mapping_id.and_then(|mid| tables.mapping_path(mid));
-
-    let is_java = mapping_path.as_deref().is_some_and(is_java_mapping);
+    mapping: Option<&proto::Mapping>,
+) -> FrameCandidate<'a> {
+    let is_java = mapping_path.is_some_and(is_java_mapping);
 
     if is_java {
         // For Java frames, split "com.example.MyClass.myMethod" into
         // module="com.example.MyClass" and function="myMethod".
         let (module, function) = match function_name {
             Some(name) => match name.rsplit_once('.') {
-                Some((class, method)) => (Some(class.to_owned()), Some(method.to_owned())),
+                Some((class, method)) => (Some(class), Some(method)),
                 None => (None, Some(name)),
             },
             None => (None, None),
         };
 
-        let key = FrameKey {
-            function: function.clone(),
-            module: module.clone(),
-            package: mapping_path.clone(),
-            instruction_addr: None,
-        };
-
-        let frame = Frame {
+        FrameCandidate {
             function,
             module,
             package: mapping_path,
-            platform: Some("java".to_owned()),
-            ..Default::default()
-        };
-
-        (key, frame)
+            instruction_addr: None,
+        }
     } else {
-        let mapping = pf.mapping_id.and_then(|mid| tables.mappings.get(&mid));
-        let instruction_addr = frame_instruction_addr(pf, mapping);
-
-        let key = FrameKey {
-            function: function_name.clone(),
-            module: None,
-            package: mapping_path.clone(),
-            instruction_addr,
-        };
-
-        let frame = Frame {
+        FrameCandidate {
             function: function_name,
+            module: None,
             package: mapping_path,
-            instruction_addr: instruction_addr.map(Addr),
-            platform: Some("native".to_owned()),
-            ..Default::default()
-        };
+            instruction_addr: frame_instruction_addr(pf, mapping),
+        }
+    }
+}
 
-        (key, frame)
+/// Materializes an owned Sample v2 [`Frame`] from a borrowed [`FrameCandidate`].
+///
+/// The platform is derived from the package: a Java mapping path implies a
+/// Java frame (Java candidates never carry an instruction address).
+fn build_frame(candidate: &FrameCandidate<'_>) -> Frame {
+    let is_java = candidate.package.is_some_and(is_java_mapping);
+
+    Frame {
+        function: candidate.function.map(str::to_owned),
+        module: candidate.module.map(str::to_owned),
+        package: candidate.package.map(str::to_owned),
+        instruction_addr: candidate.instruction_addr.map(Addr),
+        platform: Some(if is_java { "java" } else { "native" }.to_owned()),
+        ..Default::default()
     }
 }
 
