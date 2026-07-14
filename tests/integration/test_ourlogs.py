@@ -209,7 +209,7 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
         # If an external Relay/Client makes modifications, sizes can change,
         # this is fuzzy due to slight changes in sizes due to added timestamps
         # and may need to be adjusted when changing normalization.
-        ("managed", 165, 496),
+        ("managed", 194, 525),
     ],
 )
 def test_ourlog_extraction_with_sentry_logs(
@@ -299,6 +299,7 @@ def test_ourlog_extraction_with_sentry_logs(
                 "sentry.body": {"stringValue": "This is really bad"},
                 "browser.name": {"stringValue": "Firefox"},
                 "browser.version": {"stringValue": "42.0"},
+                "sentry.relay.ingress": {"stringValue": "container"},
                 "sentry.severity_text": {"stringValue": "error"},
                 "sentry.payload_size_bytes": {"intValue": matches_any()},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
@@ -387,6 +388,7 @@ def test_ourlog_extraction_with_sentry_logs(
                     }
                 },
                 "valid_string_with_other": {"stringValue": "test"},
+                "sentry.relay.ingress": {"stringValue": "container"},
                 **timestamps(ts),
             },
             "clientSampleRate": 1.0,
@@ -728,6 +730,7 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
             "sentry.body": {"stringValue": "Example log record 2"},
             "browser.name": {"stringValue": "Firefox"},
             "browser.version": {"stringValue": "42.0"},
+            "sentry.relay.ingress": {"stringValue": "container"},
             "sentry.severity_text": {"stringValue": "warn"},
             "sentry.payload_size_bytes": {"intValue": matches_any()},
             "user_agent.original": {
