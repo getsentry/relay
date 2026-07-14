@@ -13,6 +13,7 @@
 - Support PEM file format for signing / verification keys. ([#6155](https://github.com/getsentry/relay/pull/6155))
 - GA the `upload-endpoint` feature. ([#6171](https://github.com/getsentry/relay/pull/6171))
 - Add Lightpanda to web crawler filter. ([#6143](https://github.com/getsentry/relay/pull/6143))
+- Add `sentry.relay.ingress` and `sentry.relay.pipeline` attributes to some EAP items. ([#6224](https://github.com/getsentry/relay/pull/6224))
 
 **Bug Fixes**:
 
