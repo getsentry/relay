@@ -727,7 +727,7 @@ jobs:
 
       - name: Upload gocd deployment assets
         env:
-          # the upload SA has no delete perms; disable parallel composite uploads 
+          # the upload SA has no delete perms; disable parallel composite uploads
           # since their chunk cleanup would fail on delete
           CLOUDSDK_STORAGE_PARALLEL_COMPOSITE_UPLOAD_ENABLED: false
         run: |
@@ -748,6 +748,7 @@ jobs:
     env:
       RUSTFLAGS:  ${{ needs.build-setup.outputs.rustflags }}
       SSH_PRIVATE_KEY:  ${{ secrets.SSH_PRIVATE_KEY }}
+      SENTRY_DSN: ${{ secrets.SENTRY_TESTS_DSN }}
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
