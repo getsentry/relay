@@ -92,11 +92,11 @@ pub fn normalize_pipeline_attributes(
     let attributes = attributes.get_or_insert_with(Default::default);
 
     if let Some(ingress) = ingress {
-        attributes.insert(SENTRY__RELAY__INGRESS, ingress.to_string());
+        attributes.insert_if_missing(SENTRY__RELAY__INGRESS, || ingress.to_string());
     }
 
     if let Some(pipeline) = pipeline {
-        attributes.insert(SENTRY__RELAY__PIPELINE, pipeline.to_string());
+        attributes.insert_if_missing(SENTRY__RELAY__PIPELINE, || pipeline.to_string());
     }
 }
 
