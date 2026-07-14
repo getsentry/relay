@@ -99,9 +99,6 @@ pub enum Feature {
     /// processor. Only enable for organizations with sufficient attachment quota.
     #[serde(rename = "organizations:relay-unreal-endpoint-expansion")]
     UnrealEndpointExpansion,
-    /// Stream minidump attachments to objectstore.
-    #[serde(rename = "projects:relay-minidump-attachment-uploads")]
-    MinidumpAttachmentUploads,
     /// Stream minidumps to objectstore.
     #[serde(rename = "projects:relay-minidump-uploads")]
     MinidumpUploads,
