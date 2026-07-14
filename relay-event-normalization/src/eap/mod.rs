@@ -3,6 +3,7 @@
 //! A central place for all modifications/normalizations for attributes.
 
 use std::borrow::Cow;
+use std::fmt;
 use std::net::IpAddr;
 
 use chrono::{DateTime, Utc};
@@ -38,6 +39,34 @@ pub use self::ai::normalize_ai;
 pub use self::mobile::{normalize_mobile_attributes, normalize_mobile_measurements};
 pub use self::size::*;
 pub use self::trimming::TrimmingProcessor;
+
+#[derive(Debug, Clone)]
+pub enum Ingress {
+    Integration,
+    Container,
+    Legacy,
+}
+
+impl fmt::Display for Ingress {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Ingress::Integration => f.write_str("integration"),
+            Ingress::Container => f.write_str("container"),
+            Ingress::Legacy => f.write_str("legacy"),
+        }
+    }
+}
+
+pub fn normalize_pipeline_attributes(
+    attributes: &mut Annotated<Attributes>,
+    ingress: Option<&Ingress>,
+) {
+    let Some(ingress) = ingress else { return };
+
+    attributes
+        .get_or_insert_with(Default::default)
+        .insert_if_missing(SENTRY__RELAY__INGRESS, || ingress.to_string());
+}
 
 /// Infers the sentry.op attribute and inserts it into [`Attributes`] if not already set.
 pub fn normalize_sentry_op(attributes: &mut Annotated<Attributes>) {

@@ -266,6 +266,7 @@ def test_span_ingestion(
             "sentry.op": {"type": "string", "value": "default"},
             "sentry.trace.status": {"type": "string", "value": "ok"},
             "sentry.origin": {"type": "string", "value": "auto.otlp.spans"},
+            "sentry.relay.ingress": {"type": "string", "value": "integration"},
             "sentry.segment.id": {"type": "string", "value": "f0b809703e783d00"},
             "sentry.segment.name": {"type": "string", "value": "A Proto Span"},
             "sentry.transaction": {"type": "string", "value": "A Proto Span"},

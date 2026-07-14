@@ -141,6 +141,7 @@ def test_span_extraction(
                 "sentry.op": {"type": "string", "value": "http"},
                 "sentry.origin": {"type": "string", "value": "manual"},
                 "sentry.platform": {"type": "string", "value": "other"},
+                "sentry.relay.ingress": {"type": "string", "value": "legacy"},
                 "sentry.replay_id": {
                     "type": "string",
                     "value": "4c79f60c11214eb38604f4ae0781bfb2",
@@ -231,6 +232,7 @@ def test_span_extraction(
                 "sentry.op": {"type": "string", "value": "http.client"},
                 "sentry.origin": {"type": "string", "value": "auto"},
                 "sentry.platform": {"type": "string", "value": "other"},
+                "sentry.relay.ingress": {"type": "string", "value": "legacy"},
                 "sentry.replay_id": {
                     "type": "string",
                     "value": "4c79f60c11214eb38604f4ae0781bfb2",
@@ -318,6 +320,7 @@ def test_span_extraction(
             "sentry.op": {"type": "string", "value": "hi"},
             "sentry.origin": {"type": "string", "value": "manual"},
             "sentry.platform": {"type": "string", "value": "other"},
+            "sentry.relay.ingress": {"type": "string", "value": "legacy"},
             "sentry.replay_id": {
                 "type": "string",
                 "value": "4c79f60c11214eb38604f4ae0781bfb2",

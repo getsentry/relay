@@ -4,6 +4,7 @@ use crate::processing;
 use crate::processing::utils::event::event_type;
 use relay_base_schema::events::EventType;
 use relay_config::Config;
+use relay_event_normalization::eap::Ingress;
 use relay_event_schema::protocol::{Event, Measurement, Measurements, Span, SpanV2, TraceContext};
 use relay_metrics::MetricNamespace;
 use relay_metrics::{FractionUnit, MetricUnit};
@@ -115,7 +116,14 @@ fn make_span_item(
 
     // It's ok to enable `infer_name` here—the span has gone through the transaction pipeline,
     // so PII has been scrubbed.
-    Ok(span.map_value(|span| relay_spans::span_v1_to_span_v2(span, true)))
+    Ok(span.map_value(|span| {
+        let mut span = relay_spans::span_v1_to_span_v2(span, true);
+        span.attributes.get_or_insert_with(Default::default).insert(
+            relay_conventions::attributes::SENTRY__RELAY__INGRESS,
+            Ingress::Legacy.to_string(),
+        );
+        span
+    }))
 }
 
 /// Any violation of the span schema.

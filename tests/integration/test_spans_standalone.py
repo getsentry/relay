@@ -240,6 +240,7 @@ def test_lcp_span(
             "sentry.op": {"type": "string", "value": "ui.webvital.lcp"},
             "sentry.origin": {"type": "string", "value": "auto.http.browser.lcp"},
             "sentry.pageload.span_id": {"type": "string", "value": "8a6626cc9bdd5d9b"},
+            "sentry.relay.ingress": {"type": "string", "value": "legacy"},
             "sentry.release": {
                 "type": "string",
                 "value": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
@@ -457,6 +458,7 @@ def test_cls_span(
             "sentry.op": {"type": "string", "value": "ui.webvital.cls"},
             "sentry.origin": {"type": "string", "value": "auto.http.browser.cls"},
             "sentry.pageload.span_id": {"type": "string", "value": "8a6626cc9bdd5d9b"},
+            "sentry.relay.ingress": {"type": "string", "value": "legacy"},
             "sentry.release": {
                 "type": "string",
                 "value": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
@@ -649,6 +651,7 @@ def test_inp_span(
             "sentry.exclusive_time": {"type": "double", "value": 104.0},
             "sentry.op": {"type": "string", "value": "ui.interaction.click"},
             "sentry.origin": {"type": "string", "value": "auto.http.browser.inp"},
+            "sentry.relay.ingress": {"type": "string", "value": "legacy"},
             "sentry.release": {
                 "type": "string",
                 "value": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
@@ -885,6 +888,7 @@ def test_mobile_measurements(
             "sentry.exclusive_time": {"type": "double", "value": 104.0},
             "sentry.op": {"type": "string", "value": "ui.interaction.click"},
             "sentry.origin": {"type": "string", "value": "mobile"},
+            "sentry.relay.ingress": {"type": "string", "value": "legacy"},
             "sentry.release": {
                 "type": "string",
                 "value": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
@@ -1006,6 +1010,7 @@ def test_ua_ip_inference(
             "sentry.op": {"type": "string", "value": "ui.webvital.lcp"},
             "sentry.origin": {"type": "string", "value": "auto.http.browser.lcp"},
             "sentry.pageload.span_id": {"type": "string", "value": "8a6626cc9bdd5d9b"},
+            "sentry.relay.ingress": {"type": "string", "value": "legacy"},
             "sentry.release": {
                 "type": "string",
                 "value": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
@@ -1164,6 +1169,7 @@ def test_name_inference(
             "sentry.exclusive_time": {"type": "double", "value": 0.0},
             "sentry.op": {"type": "string", "value": "http.client"},
             "sentry.origin": {"type": "string", "value": origin},
+            "sentry.relay.ingress": {"type": "string", "value": "legacy"},
             "sentry.segment.id": {"type": "string", "value": "8a6626cc9bdd5d9b"},
             "user_agent.original": {
                 "type": "string",

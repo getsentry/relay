@@ -1,3 +1,4 @@
+use relay_event_normalization::eap::Ingress;
 use relay_event_schema::protocol::Span;
 use relay_protocol::Annotated;
 
@@ -26,7 +27,12 @@ pub fn convert(span: Annotated<Span>, retentions: Retention) -> Result<Box<Store
     // It's ok to enable `infer_name` here—the span has gone through the legacy standalone
     // pipeline, so it has been PII scrubbed.
     let span = span.map_value(|span| relay_spans::span_v1_to_span_v2(span, true));
-    let span = required!(span);
+    let mut span = required!(span);
+
+    span.attributes.get_or_insert_with(Default::default).insert(
+        relay_conventions::attributes::SENTRY__RELAY__INGRESS,
+        Ingress::Legacy.to_string(),
+    );
 
     Ok(Box::new(StoreSpanV2 {
         routing_key: span.trace_id.value().copied().map(Into::into),

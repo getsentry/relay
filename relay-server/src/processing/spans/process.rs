@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::time::Duration;
 
-use relay_event_normalization::eap::ClientUserAgentInfo;
+use relay_event_normalization::eap::{ClientUserAgentInfo, Ingress};
 use relay_event_normalization::{GeoIpLookup, RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{Span, SpanId, SpanV2};
@@ -34,11 +34,16 @@ pub fn expand(spans: Managed<SerializedSpans>) -> Result<Managed<ExpandedSpans>,
             "invalid items should already be rejected"
         );
 
-        let (settings, spans) = match items {
-            SpanItems::Container(item) => expand_span_container(&item)?,
-            SpanItems::Legacy(items) => expand_legacy_spans(items, records),
-            SpanItems::Integration(item) => spans::integrations::expand(records, &[item]),
-            SpanItems::None => (Default::default(), Vec::new()),
+        let (ingress, (settings, spans)) = match items {
+            SpanItems::Container(item) => (Some(Ingress::Container), expand_span_container(&item)?),
+            SpanItems::Legacy(items) => {
+                (Some(Ingress::Legacy), expand_legacy_spans(items, records))
+            }
+            SpanItems::Integration(item) => (
+                Some(Ingress::Integration),
+                spans::integrations::expand(records, &[item]),
+            ),
+            SpanItems::None => (None, (Default::default(), Vec::new())),
         };
 
         let mut span_id_mapping: BTreeMap<_, _> = BTreeMap::new();
@@ -81,6 +86,7 @@ pub fn expand(spans: Managed<SerializedSpans>) -> Result<Managed<ExpandedSpans>,
 
         Ok::<_, Error>(ExpandedSpans {
             headers,
+            ingress,
             settings,
             spans: span_id_mapping.into_values().collect(),
             server_sample_rate: None,
@@ -196,11 +202,20 @@ fn parse_and_validate_span_attachment(item: &Item) -> Result<(Option<SpanId>, Ex
 /// Normalizes individual spans.
 pub fn normalize(spans: &mut Managed<ExpandedSpans>, geo_lookup: &GeoIpLookup, ctx: Context<'_>) {
     let settings = spans.settings;
+    let ingress = spans.ingress.clone();
 
     spans.retain_with_context(
         |spans| (&mut spans.spans, &spans.headers),
         |span, headers, _| {
-            normalize_span(&mut span.span, settings, headers, geo_lookup, ctx).inspect_err(|err| {
+            normalize_span(
+                &mut span.span,
+                ingress.as_ref(),
+                settings,
+                headers,
+                geo_lookup,
+                ctx,
+            )
+            .inspect_err(|err| {
                 relay_log::debug!("failed to normalize span: {err}");
             })
         },
@@ -209,6 +224,7 @@ pub fn normalize(spans: &mut Managed<ExpandedSpans>, geo_lookup: &GeoIpLookup, c
 
 fn normalize_span(
     span: &mut Annotated<SpanV2>,
+    ingress: Option<&Ingress>,
     settings: Settings,
     headers: &EnvelopeHeaders,
     geo_lookup: &GeoIpLookup,
@@ -266,6 +282,7 @@ fn normalize_span(
         eap::normalize_attribute_values(&mut span.attributes, allowed_hosts);
         eap::write_legacy_attributes(&mut span.attributes);
         eap::normalize_client_sample_rate(&mut span.attributes);
+        eap::normalize_pipeline_attributes(&mut span.attributes, ingress);
     };
 
     if let Annotated(None, meta) = span {
@@ -1054,7 +1071,15 @@ mod tests {
         let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(&[], &[]);
         span.value_mut().as_mut().unwrap().is_segment = Annotated::new(true);
 
-        normalize_span(&mut span, Default::default(), &headers, &geo_lookup, ctx).unwrap();
+        normalize_span(
+            &mut span,
+            None,
+            Default::default(),
+            &headers,
+            &geo_lookup,
+            ctx,
+        )
+        .unwrap();
 
         assert_attributes_contains(&span, &[("sentry.trace.status", "ok")], &[]);
     }
@@ -1070,7 +1095,15 @@ mod tests {
             &[],
         );
 
-        normalize_span(&mut span, Default::default(), &headers, &geo_lookup, ctx).unwrap();
+        normalize_span(
+            &mut span,
+            None,
+            Default::default(),
+            &headers,
+            &geo_lookup,
+            ctx,
+        )
+        .unwrap();
 
         assert_attributes_contains(
             &span,
@@ -1099,7 +1132,15 @@ mod tests {
             &[],
         );
 
-        normalize_span(&mut span, Default::default(), &headers, &geo_lookup, ctx).unwrap();
+        normalize_span(
+            &mut span,
+            None,
+            Default::default(),
+            &headers,
+            &geo_lookup,
+            ctx,
+        )
+        .unwrap();
 
         assert_attributes_contains(
             &span,
@@ -1129,7 +1170,15 @@ mod tests {
             &[("http.response.status_code", 502.)],
         );
 
-        normalize_span(&mut span, Default::default(), &headers, &geo_lookup, ctx).unwrap();
+        normalize_span(
+            &mut span,
+            None,
+            Default::default(),
+            &headers,
+            &geo_lookup,
+            ctx,
+        )
+        .unwrap();
 
         assert_attributes_contains(
             &span,
@@ -1156,7 +1205,15 @@ mod tests {
             &[("http.response.status_code", 502.)],
         );
 
-        normalize_span(&mut span, Default::default(), &headers, &geo_lookup, ctx).unwrap();
+        normalize_span(
+            &mut span,
+            None,
+            Default::default(),
+            &headers,
+            &geo_lookup,
+            ctx,
+        )
+        .unwrap();
 
         assert_attributes_contains(
             &span,
@@ -1189,7 +1246,15 @@ mod tests {
             ],
         );
 
-        normalize_span(&mut span, Default::default(), &headers, &geo_lookup, ctx).unwrap();
+        normalize_span(
+            &mut span,
+            None,
+            Default::default(),
+            &headers,
+            &geo_lookup,
+            ctx,
+        )
+        .unwrap();
 
         assert_attributes_contains(
             &span,
@@ -1221,7 +1286,15 @@ mod tests {
             &[("http.response.status_code", 502.)],
         );
 
-        normalize_span(&mut span, Default::default(), &headers, &geo_lookup, ctx).unwrap();
+        normalize_span(
+            &mut span,
+            None,
+            Default::default(),
+            &headers,
+            &geo_lookup,
+            ctx,
+        )
+        .unwrap();
 
         assert_attributes_contains(
             &span,
@@ -1249,7 +1322,15 @@ mod tests {
             &[],
         );
 
-        normalize_span(&mut span, Default::default(), &headers, &geo_lookup, ctx).unwrap();
+        normalize_span(
+            &mut span,
+            None,
+            Default::default(),
+            &headers,
+            &geo_lookup,
+            ctx,
+        )
+        .unwrap();
 
         assert_attributes_contains(
             &span,
@@ -1277,7 +1358,15 @@ mod tests {
         let (mut span, headers, geo_lookup, ctx) =
             prepare_normalize_span_params(&[(HTTP__METHOD, "GET"), (SENTRY__KIND, "server")], &[]);
 
-        normalize_span(&mut span, Default::default(), &headers, &geo_lookup, ctx).unwrap();
+        normalize_span(
+            &mut span,
+            None,
+            Default::default(),
+            &headers,
+            &geo_lookup,
+            ctx,
+        )
+        .unwrap();
 
         assert_attributes_contains(
             &span,
@@ -1300,7 +1389,15 @@ mod tests {
         let (mut span, headers, geo_lookup, ctx) =
             prepare_normalize_span_params(&[(GEN_AI__SYSTEM, "some system")], &[]);
 
-        normalize_span(&mut span, Default::default(), &headers, &geo_lookup, ctx).unwrap();
+        normalize_span(
+            &mut span,
+            None,
+            Default::default(),
+            &headers,
+            &geo_lookup,
+            ctx,
+        )
+        .unwrap();
 
         assert_attributes_contains(
             &span,
