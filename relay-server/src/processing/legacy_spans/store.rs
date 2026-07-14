@@ -29,14 +29,10 @@ pub fn convert(span: Annotated<Span>, retentions: Retention) -> Result<Box<Store
     let span = span.map_value(|span| relay_spans::span_v1_to_span_v2(span, true));
     let mut span = required!(span);
 
-    let attributes = span.attributes.get_or_insert_with(Default::default);
-    attributes.insert(
-        relay_conventions::attributes::SENTRY__RELAY__INGRESS,
-        Ingress::Legacy.to_string(),
-    );
-    attributes.insert(
-        relay_conventions::attributes::SENTRY__RELAY__PIPELINE,
-        Pipeline::SpanLegacy.to_string(),
+    relay_event_normalization::eap::normalize_pipeline_attributes(
+        &mut span.attributes,
+        Some(&Ingress::Legacy),
+        Some(&Pipeline::SpanLegacy),
     );
 
     Ok(Box::new(StoreSpanV2 {

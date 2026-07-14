@@ -114,19 +114,17 @@ fn make_span_item(
         })
         .map_err(|_| ())?;
 
-    // It's ok to enable `infer_name` here—the span has gone through the transaction pipeline,
-    // so PII has been scrubbed.
     Ok(span.map_value(|span| {
+        // It's ok to enable `infer_name` here—the span has gone through the transaction pipeline,
+        // so PII has been scrubbed.
         let mut span = relay_spans::span_v1_to_span_v2(span, true);
-        let attributes = span.attributes.get_or_insert_with(Default::default);
-        attributes.insert(
-            relay_conventions::attributes::SENTRY__RELAY__INGRESS,
-            Ingress::Legacy.to_string(),
+
+        relay_event_normalization::eap::normalize_pipeline_attributes(
+            &mut span.attributes,
+            Some(&Ingress::Legacy),
+            Some(&Pipeline::Transaction),
         );
-        attributes.insert(
-            relay_conventions::attributes::SENTRY__RELAY__PIPELINE,
-            Pipeline::Transaction.to_string(),
-        );
+
         span
     }))
 }
