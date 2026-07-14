@@ -225,6 +225,9 @@ fn attributes(
 
 #[cfg(feature = "processing")]
 /// Produce the supplied webvital trace metrics to kafka.
+/// This is required right now to double-write these webvitals as trace metrics, while we
+/// still write the vitals as spans.  Eventually, the sdks will natively emit metrics and we
+/// can remove this code.
 pub fn produce_webvitals_metrics(
     s: processing::StoreHandle<'_>,
     span: &Managed<Box<crate::services::store::StoreSpanV2>>,
