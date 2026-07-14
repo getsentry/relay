@@ -10,8 +10,8 @@ use bytes::Bytes;
 use futures::StreamExt;
 use http::StatusCode;
 use objectstore_client::{
-    Client, CompletePart, Compression, ExpirationPolicy, MultipartUpload, SecretKey as SigningKey,
-    Session, TokenGenerator, UploadId, Usecase,
+    Client, CompletePart, Compression, ExpirationPolicy, MultipartUpload, PartInfo,
+    SecretKey as SigningKey, Session, TokenGenerator, UploadId, Usecase,
 };
 
 use objectstore_types::multipart::InvalidUploadId;
@@ -1037,18 +1037,26 @@ impl ObjectstoreServiceInner {
 
                     try_flush(&mut compressed_buffer, part_number, &mut multipart_upload, &mut parts).await?;
 
-                    if length.is_some_and(|length| length == byte_counter.get()) {
+                    let new_offset = offset + byte_counter.get();
+                    if length.is_some_and(|length| length == new_offset) {
+                        relay_log::trace!("Completing multipart upload");
+                        let parts = multipart_upload.list_parts().await?;
+
+                        let parts = parts.into_iter().map(|item| {
+                            let PartInfo{ part_number, etag, .. } = item;
+                            CompletePart { part_number, etag }
+                        });
+
                         let final_key = multipart_upload.complete(parts).await?;
                         debug_assert_eq!(&original_key, &final_key);
                     }
 
-                });
-
-                Ok(UploadRef {
-                    key: original_key,
-                    upload_id: Some(upload_id),
-                    offset: byte_counter.get(),
-                    length,
+                    Ok(UploadRef {
+                        key: original_key,
+                        upload_id: Some(upload_id),
+                        offset: offset + byte_counter.get(),
+                        length,
+                    })
                 })
             }
         }

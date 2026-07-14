@@ -10,9 +10,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Response
 from objectstore_client.multipart import MultipartUpload
 import pytest
+import zstandard
 
 from sentry_relay.auth import SecretKey
 
+from .asserts import matches_any
 from .consts import (
     DUMMY_UPLOAD_PATH,
     DUMMY_UPLOAD_LOCATION,
@@ -658,9 +660,7 @@ def test_objectstore_timeout(
     assert response.status_code == 500  # not 504
 
 
-def test_objectstore_compression(
-    mini_sentry, relay_with_processing, project_config, objectstore
-):
+def test_upload_offset(mini_sentry, relay_with_processing, project_config, objectstore):
     project_id = 42
     project_key = mini_sentry.get_dsn_public_key(project_id)
     relay = relay_with_processing()
@@ -678,7 +678,7 @@ def test_objectstore_compression(
     assert response.status_code == 201, response.json()
 
     # Upload only part of the bytes
-    split = len(data) // 2
+    split = len(data) // 3
     data1 = data[:split]
     data2 = data[split:]
 
@@ -697,13 +697,12 @@ def test_objectstore_compression(
     key, upload_id = LOCATION_REGEX.match(response.headers["Location"]).groups()
     (part1,) = MultipartUpload(objectstore, key, upload_id).list_parts()
 
-    print(part1)
-    # assert vars(part1) == {
-    #     "part_number": 1,
-    #     "etag": matches_any(),
-    #     "last_modified": matches_any(),
-    #     "size": len(zstandard.compress(data1)),
-    # }
+    assert vars(part1) == {
+        "part_number": 1,
+        "etag": matches_any(),
+        "last_modified": matches_any(),
+        "size": len(zstandard.compress(data1)),
+    }
 
     response = relay.patch(
         f"{response.headers['Location']}&sentry_key={project_key}",
@@ -712,26 +711,17 @@ def test_objectstore_compression(
             "Content-Type": "application/offset+octet-stream",
             "Tus-Resumable": "1.0.0",
             "Upload-Offset": str(len(data1)),
-            "Upload-Length": str(len(data)),  # TODO: can we even make this required?
+            # "Upload-Length": str(len(data)),  # TODO: can we even make this required?
         },
         data=data2,
     )
     assert response.status_code == 204
 
     key, upload_id = LOCATION_REGEX.match(response.headers["Location"]).groups()
-    part1_again, part2 = MultipartUpload(objectstore, key, upload_id).list_parts()
 
-    assert part1_again == part1
+    # TODO: remove upload_id
 
-    print(part1_again, part2)
-    # assert vars(part2) == {
-    #     "part_number": 3,
-    #     "etag": matches_any(),
-    #     "last_modified": matches_any(),
-    #     "size": len(zstandard.compress(data2)),
-    # }
-
-    assert objectstore.get(key) == data
+    assert objectstore.get(key).payload.read() == data
 
 
 @pytest.mark.parametrize(
