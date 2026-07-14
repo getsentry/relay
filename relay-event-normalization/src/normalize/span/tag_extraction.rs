@@ -3400,7 +3400,6 @@ LIMIT 1
                     "sentry.category".into(),
                     Value::String("db".into()).into(),
                 )]),
-                ..Default::default()
             }
             .into(),
             ..Default::default()
@@ -3492,7 +3491,6 @@ LIMIT 1
                     "sentry.origin".into(),
                     Value::String("auto.ui.browser.metrics".into()).into(),
                 )]),
-                ..Default::default()
             }
             .into(),
             ..Default::default()

@@ -736,8 +736,6 @@ mod tests {
                     Annotated::new(50.0.into()),
                 ),
             ]),
-            // Note: gen_ai_usage_input_tokens_cache_write is NOT set (simulating old data)
-            ..Default::default()
         };
 
         let tokens = UsedTokens::from_span_data(&span_data);
