@@ -1,12 +1,11 @@
 //! Span description scrubbing logic.
 
-#![allow(deprecated)]
 mod redis;
 mod resource;
 mod sql;
 use psl;
 use relay_conventions::attributes::{
-    DB__COLLECTION__NAME, DB__OPERATION, DB__SYSTEM, UI__COMPONENT_NAME,
+    DB__COLLECTION__NAME, DB__OPERATION__NAME, DB__SYSTEM__NAME, UI__COMPONENT_NAME,
 };
 use relay_filter::matches_any_origin;
 use serde_json::Value;
@@ -56,7 +55,7 @@ pub(crate) fn scrub_span_description(
 
     let data = span.data.value();
 
-    let db_system = data.and_then(|data| data.get_str(DB__SYSTEM));
+    let db_system = data.and_then(|data| data.get_str(DB__SYSTEM__NAME));
     let span_origin = span.origin.as_str();
 
     let mut parsed_sql = None;
@@ -71,7 +70,7 @@ pub(crate) fn scrub_span_description(
             }
             ("cache", _) => scrub_redis_keys(description),
             ("db", sub) => {
-                let db_operation = data.and_then(|data| data.get_str(DB__OPERATION));
+                let db_operation = data.and_then(|data| data.get_str(DB__OPERATION__NAME));
 
                 let collection_name = data.and_then(|data| data.get_str(DB__COLLECTION__NAME));
 
@@ -1266,7 +1265,7 @@ mod tests {
                 "timestamp": 1597976393.4718769,
                 "trace_id": "ff62a8b040f340bda5d830223def1d81",
                 "op": "db",
-                "data": {"db.system": "mysql"}
+                "data": {"db.system.name": "mysql"}
             }
         "#;
 
@@ -1297,7 +1296,7 @@ mod tests {
             "description": "/*some comment `my_function'*/ SELECT `a` FROM `b`",
             "op": "db.sql.activerecord",
             "data": {
-                "db.system": "mysql"
+                "db.system.name": "mysql"
             }
         }"#;
 
@@ -1315,7 +1314,7 @@ mod tests {
             "description": "del myveryrandomkey:123Xalsdkxfhn",
             "op": "db",
             "data": {
-                "db.system": "redis"
+                "db.system.name": "redis"
             }
         }"#;
 
@@ -1365,8 +1364,8 @@ mod tests {
             "description": "{\"find\": \"documents\", \"foo\": \"bar\"}",
             "op": "db",
             "data": {
-                "db.system": "mongodb",
-                "db.operation": "find",
+                "db.system.name": "mongodb",
+                "db.operation.name": "find",
                 "db.collection.name": "documents"
             }
         }"#;
@@ -1387,8 +1386,8 @@ mod tests {
             "description": "{\"find\": \"documents\", \"foo\": \"bar\"}",
             "op": "db",
             "data": {
-                "db.system": "mongodb",
-                "db.operation": "find",
+                "db.system.name": "mongodb",
+                "db.operation.name": "find",
                 "db.collection.name": "documents"
             }
         }"#;
@@ -1485,8 +1484,8 @@ mod tests {
                         "trace_id": "ff62a8b040f340bda5d830223def1d81",
                         "op": "db",
                         "data": {{
-                            "db.system": "mongodb",
-                            "db.operation": {},
+                            "db.system.name": "mongodb",
+                            "db.operation.name": {},
                             "db.collection.name": {}
                         }}
                     }}

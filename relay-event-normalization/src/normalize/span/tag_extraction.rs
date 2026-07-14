@@ -1,7 +1,6 @@
 //! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
 
-#![allow(deprecated)]
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
@@ -831,7 +830,10 @@ pub fn extract_tags(
 ) -> SentryTags {
     let mut span_tags = SentryTags::default();
 
-    let system = span.data.value().and_then(|data| data.get_str(DB__SYSTEM));
+    let system = span
+        .data
+        .value()
+        .and_then(|data| data.get_str(DB__SYSTEM__NAME));
     if let Some(sys) = system {
         span_tags.system = sys.to_lowercase().into();
     }
@@ -852,7 +854,7 @@ pub fn extract_tags(
             (Some("http"), _, _) => span
                 .data
                 .value()
-                .and_then(|data| data.get_str(HTTP__REQUEST_METHOD))
+                .and_then(|data| data.get_str(HTTP__REQUEST__METHOD))
                 .map(|s| s.to_uppercase()),
             (_, "db.redis", Some(desc)) => {
                 // This only works as long as redis span descriptions contain the command + " *"
@@ -867,7 +869,7 @@ pub fn extract_tags(
                 let action_from_data = span
                     .data
                     .value()
-                    .and_then(|data| data.get_str(DB__OPERATION))
+                    .and_then(|data| data.get_str(DB__OPERATION__NAME))
                     .map(|s| s.to_uppercase());
                 action_from_data.or_else(|| {
                     span.description
@@ -917,7 +919,10 @@ pub fn extract_tags(
                 .and_then(|s| s.strip_suffix(')'))
                 .map(String::from)
         } else if span_op.starts_with("db") {
-            let system = span.data.value().and_then(|data| data.get_str(DB__SYSTEM));
+            let system = span
+                .data
+                .value()
+                .and_then(|data| data.get_str(DB__SYSTEM__NAME));
             if system == Some("mongodb") {
                 span.data
                     .value()
@@ -1025,7 +1030,7 @@ pub fn extract_tags(
             if let Some(data) = span.data.value() {
                 if let Some(value) = data
                     .other
-                    .get(HTTP__RESPONSE_CONTENT_LENGTH)
+                    .get(HTTP__RESPONSE__BODY__SIZE)
                     .and_then(Annotated::value)
                     .and_then(|v| String::try_from(v).ok())
                 {
@@ -1043,7 +1048,7 @@ pub fn extract_tags(
 
                 if let Some(value) = data
                     .other
-                    .get(HTTP__RESPONSE_TRANSFER_SIZE)
+                    .get(HTTP__RESPONSE__SIZE)
                     .and_then(Annotated::value)
                     .and_then(|v| String::try_from(v).ok())
                 {
@@ -1136,7 +1141,7 @@ pub fn extract_tags(
         if let Some(span_data_start_type) = span
             .data
             .value()
-            .and_then(|data| data.get_str(APP_START_TYPE))
+            .and_then(|data| data.get_str(APP__VITALS__START__TYPE))
         {
             span_tags.app_start_type = span_data_start_type.to_owned().into();
         } else if let Some(start_type) = start_type {
@@ -1233,11 +1238,8 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
                 HTTP__DECODED_RESPONSE_CONTENT_LENGTH,
                 "http.decoded_response_content_length",
             ),
-            (
-                HTTP__RESPONSE_CONTENT_LENGTH,
-                "http.response_content_length",
-            ),
-            (HTTP__RESPONSE_TRANSFER_SIZE, "http.response_transfer_size"),
+            (HTTP__RESPONSE__BODY__SIZE, "http.response_content_length"),
+            (HTTP__RESPONSE__SIZE, "http.response_transfer_size"),
         ] {
             if let Some(value) =
                 value_to_finite_f64(data.other.get(attribute).and_then(Annotated::value))
@@ -1297,7 +1299,7 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
             ("sentry.frames.slow", "frames.slow", MetricUnit::None),
             ("sentry.frames.total", "frames.total", MetricUnit::None),
             (
-                FRAMES__DELAY,
+                APP__VITALS__FRAMES__DELAY__VALUE,
                 "frames.delay",
                 MetricUnit::Duration(DurationUnit::Second),
             ),
@@ -1541,11 +1543,15 @@ fn category_for_span(span: &Span) -> Option<Cow<'static, str>> {
         value.value().is_some_and(|v| !v.is_empty())
     }
 
-    if span_data.other.get(DB__SYSTEM).is_some_and(value_is_set) {
+    if span_data
+        .other
+        .get(DB__SYSTEM__NAME)
+        .is_some_and(value_is_set)
+    {
         Some("db".into())
     } else if span_data
         .other
-        .get(HTTP__REQUEST_METHOD)
+        .get(HTTP__REQUEST__METHOD)
         .is_some_and(value_is_set)
     {
         Some("http".into())
@@ -1969,9 +1975,9 @@ LIMIT 1
                         "timestamp": 1597976302.0000000,
                         "trace_id": "ff62a8b040f340bda5d830223def1d81",
                         "data": {
-                            "http.response_content_length": 1,
+                            "http.response.body.size": 1,
                             "http.decoded_response_content_length": 2.0,
-                            "http.response_transfer_size": 3.3
+                            "http.response.size": 3.3
                         }
                     }
                 ]
@@ -2050,8 +2056,8 @@ LIMIT 1
                     "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
                     "data": {
                         "http.decoded_response_content_length": 128950,
-                        "http.response_content_length": 36170,
-                        "http.response_transfer_size": 36470,
+                        "http.response.body.size": 36170,
+                        "http.response.size": 36470,
                         "resource.render_blocking_status": "blocking",
                         "server.address": "subdomain.example.com:5688",
                         "url.same_origin": true,
@@ -2070,8 +2076,8 @@ LIMIT 1
                     "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
                     "data": {
                         "http.decoded_response_content_length": 128950,
-                        "http.response_content_length": 36170,
-                        "http.response_transfer_size": 36470,
+                        "http.response.body.size": 36170,
+                        "http.response.size": 36470,
                         "resource.render_blocking_status": "blocking",
                         "server.address": "example.com",
                         "url.same_origin": true,
@@ -2090,8 +2096,8 @@ LIMIT 1
                     "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
                     "data": {
                         "http.decoded_response_content_length": 128950,
-                        "http.response_content_length": 36170,
-                        "http.response_transfer_size": 36470,
+                        "http.response.body.size": 36170,
+                        "http.response.size": 36470,
                         "resource.render_blocking_status": "blocking"
                     },
                     "hash": "e2fae740cccd3788"
@@ -2375,7 +2381,7 @@ LIMIT 1
                         "parent_span_id": "a1bdf3c7d2afe10e",
                         "trace_id": "2920522dedff493ebe5d84da7be4319f",
                         "data": {
-                            "http.request_method": "POST",
+                            "http.request.method": "POST",
                             "http.response.status_code": 200,
                             "http.fragment": "",
                             "http.query": "",
@@ -2395,7 +2401,7 @@ LIMIT 1
                         "parent_span_id": "a1bdf3c7d2afe10e",
                         "trace_id": "2920522dedff493ebe5d84da7be4319f",
                         "data": {
-                            "http.request_method": "GET",
+                            "http.request.method": "GET",
                             "http.response.status_code": 200,
                             "http.fragment": "",
                             "http.query": "",
@@ -2415,7 +2421,7 @@ LIMIT 1
                         "parent_span_id": "a1bdf3c7d2afe10e",
                         "trace_id": "2920522dedff493ebe5d84da7be4319f",
                         "data": {
-                            "http.request_method": "GET",
+                            "http.request.method": "GET",
                             "http.response.status_code": 200,
                             "http.fragment": "",
                             "http.query": "",
@@ -2503,7 +2509,7 @@ LIMIT 1
                         "data": {
                             "thread.id": 1,
                             "thread.name": "main",
-                            "app_start_type": "cold"
+                            "app.vitals.start.type": "cold"
                         }
                     },
                     {
@@ -3072,9 +3078,9 @@ LIMIT 1
                 "timestamp": 1597976302.0000000,
                 "trace_id": "ff62a8b040f340bda5d830223def1d81",
                 "data": {
-                    "db.operation": "find",
+                    "db.operation.name": "find",
                     "db.collection.name": "documents",
-                    "db.system": "mongodb"
+                    "db.system.name": "mongodb"
                 }
             }
         "#;
@@ -3108,9 +3114,9 @@ LIMIT 1
                 "timestamp": 1597976302.0000000,
                 "trace_id": "ff62a8b040f340bda5d830223def1d81",
                 "data": {
-                    "db.operation": "find",
+                    "db.operation.name": "find",
                     "db.collection.name": "documents_a1b2c3d4",
-                    "db.system": "mongodb"
+                    "db.system.name": "mongodb"
                 }
             }
         "#;
@@ -3408,7 +3414,7 @@ LIMIT 1
             op: "app.start".to_owned().into(),
             data: SpanData {
                 other: Object::from([(
-                    DB__SYSTEM.to_owned(),
+                    DB__SYSTEM__NAME.to_owned(),
                     Value::String("postgresql".into()).into(),
                 )]),
             }
@@ -3423,7 +3429,7 @@ LIMIT 1
         let span = Span {
             data: SpanData {
                 other: Object::from([(
-                    DB__SYSTEM.to_owned(),
+                    DB__SYSTEM__NAME.to_owned(),
                     Value::String("postgresql".into()).into(),
                 )]),
             }
@@ -3438,7 +3444,7 @@ LIMIT 1
         let span = Span {
             data: SpanData {
                 other: Object::from([(
-                    HTTP__REQUEST_METHOD.to_owned(),
+                    HTTP__REQUEST__METHOD.to_owned(),
                     Value::String("POST".into()).into(),
                 )]),
             }

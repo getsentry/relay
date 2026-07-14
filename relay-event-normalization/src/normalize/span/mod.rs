@@ -27,6 +27,29 @@ pub static TABLE_NAME_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     .unwrap()
 });
 
+/// Applies [`relay_conventions`] configured normalizations to transaction spans.
+pub fn normalize_conventions(event: &mut Event) {
+    if let Some(data) = event
+        .contexts
+        .value_mut()
+        .as_mut()
+        .and_then(|c| c.get_mut::<TraceContext>())
+        .and_then(|c| c.data.value_mut().as_mut())
+    {
+        crate::eap::normalize_attribute_names_obj(&mut data.other);
+    }
+
+    if let Some(spans) = event.spans.value_mut() {
+        for data in spans
+            .iter_mut()
+            .filter_map(|span| span.value_mut().as_mut())
+            .filter_map(|span| span.data.value_mut().as_mut())
+        {
+            crate::eap::normalize_attribute_names_obj(&mut data.other);
+        }
+    }
+}
+
 /// Replaces snake_case app start spans op with dot.case op.
 ///
 /// This is done for the affected React Native SDK versions (from 3 to 4.4).

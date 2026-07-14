@@ -1,17 +1,15 @@
 //! AI cost calculation.
 
-#![allow(deprecated)]
-
 use crate::statsd::{Counters, map_origin_to_integration, platform_tag};
 use crate::{ModelCostV2, ModelMetadata};
 use relay_conventions::attributes::{
     GEN_AI__AGENT__NAME, GEN_AI__CONTEXT__UTILIZATION, GEN_AI__CONTEXT__WINDOW_SIZE,
     GEN_AI__COST__INPUT_TOKENS, GEN_AI__COST__OUTPUT_TOKENS, GEN_AI__COST__TOTAL_TOKENS,
     GEN_AI__FUNCTION_ID, GEN_AI__OPERATION__NAME, GEN_AI__OPERATION__TYPE, GEN_AI__REQUEST__MODEL,
-    GEN_AI__RESPONSE__MODEL, GEN_AI__RESPONSE__TOKENS_PER_SECOND, GEN_AI__USAGE__INPUT_TOKENS,
-    GEN_AI__USAGE__INPUT_TOKENS__CACHE_WRITE, GEN_AI__USAGE__INPUT_TOKENS__CACHED,
-    GEN_AI__USAGE__OUTPUT_TOKENS, GEN_AI__USAGE__OUTPUT_TOKENS__REASONING,
-    GEN_AI__USAGE__TOTAL_TOKENS,
+    GEN_AI__RESPONSE__MODEL, GEN_AI__RESPONSE__TOKENS_PER_SECOND,
+    GEN_AI__USAGE__CACHE_CREATION__INPUT_TOKENS, GEN_AI__USAGE__CACHE_READ__INPUT_TOKENS,
+    GEN_AI__USAGE__INPUT_TOKENS, GEN_AI__USAGE__OUTPUT_TOKENS,
+    GEN_AI__USAGE__REASONING__OUTPUT_TOKENS, GEN_AI__USAGE__TOTAL_TOKENS,
 };
 use relay_event_schema::protocol::{
     Event, Measurements, OperationType, Span, SpanData, TraceContext,
@@ -61,17 +59,17 @@ impl UsedTokens {
                 .unwrap_or(0.0),
             output_reasoning_tokens: data
                 .other
-                .get(GEN_AI__USAGE__OUTPUT_TOKENS__REASONING)
+                .get(GEN_AI__USAGE__REASONING__OUTPUT_TOKENS)
                 .map(|value| get_value!(value))
                 .unwrap_or(0.0),
             input_cached_tokens: data
                 .other
-                .get(GEN_AI__USAGE__INPUT_TOKENS__CACHED)
+                .get(GEN_AI__USAGE__CACHE_READ__INPUT_TOKENS)
                 .map(|value| get_value!(value))
                 .unwrap_or(0.0),
             input_cache_write_tokens: data
                 .other
-                .get(GEN_AI__USAGE__INPUT_TOKENS__CACHE_WRITE)
+                .get(GEN_AI__USAGE__CACHE_CREATION__INPUT_TOKENS)
                 .map(|value| get_value!(value))
                 .unwrap_or(0.0),
         }
@@ -730,7 +728,7 @@ mod tests {
                     Annotated::new(100.0.into()),
                 ),
                 (
-                    GEN_AI__USAGE__INPUT_TOKENS__CACHED.to_owned(),
+                    GEN_AI__USAGE__CACHE_READ__INPUT_TOKENS.to_owned(),
                     Annotated::new(20.0.into()),
                 ),
                 (

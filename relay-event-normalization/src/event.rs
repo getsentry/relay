@@ -2,8 +2,6 @@
 //!
 //! This module provides a function to normalize events.
 
-#![allow(deprecated)]
-
 use std::collections::hash_map::DefaultHasher;
 
 use std::hash::{Hash, Hasher};
@@ -17,8 +15,9 @@ use relay_base_schema::metrics::{
 };
 use relay_conventions::attributes::{
     APP__VITALS__START__COLD__VALUE, APP__VITALS__START__SCREEN, APP__VITALS__START__TYPE,
-    APP__VITALS__START__VALUE, APP__VITALS__START__WARM__VALUE, LCP__ELEMENT, LCP__ID, LCP__SIZE,
-    LCP__URL, SCORE__TOTAL,
+    APP__VITALS__START__VALUE, APP__VITALS__START__WARM__VALUE, BROWSER__WEB_VITAL__LCP__ELEMENT,
+    BROWSER__WEB_VITAL__LCP__ID, BROWSER__WEB_VITAL__LCP__SIZE, BROWSER__WEB_VITAL__LCP__URL,
+    SCORE__TOTAL,
 };
 use relay_conventions::interpolate;
 use relay_conventions::measurements::{
@@ -269,6 +268,12 @@ pub fn normalize_event(event: &mut Annotated<Event>, config: &NormalizationConfi
 
 /// Normalizes the given event based on the given config.
 fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
+    // This must run first, as the following normalizations rely on the latest version of
+    // conventions.
+    if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
+        span::normalize_conventions(event);
+    }
+
     // Normalize the transaction.
     // (internally noops for non-transaction events).
     // TODO: Parts of this processor should probably be a filter so we
@@ -1078,7 +1083,7 @@ fn normalize_trace_context_tags(event: &mut Event) {
         && let Some(trace_context) = contexts.get::<TraceContext>()
         && let Some(data) = trace_context.data.value()
     {
-        if let Some(lcp_element) = data.get_str(LCP__ELEMENT)
+        if let Some(lcp_element) = data.get_str(BROWSER__WEB_VITAL__LCP__ELEMENT)
             && !tags.contains("lcp.element")
         {
             let tag_name = "lcp.element".to_owned();
@@ -1086,7 +1091,7 @@ fn normalize_trace_context_tags(event: &mut Event) {
         }
         if let Some(lcp_size) = data
             .other
-            .get(LCP__SIZE)
+            .get(BROWSER__WEB_VITAL__LCP__SIZE)
             .and_then(Annotated::value)
             .and_then(|value| match value {
                 Value::U64(value) => Some(*value),
@@ -1098,13 +1103,13 @@ fn normalize_trace_context_tags(event: &mut Event) {
             let tag_name = "lcp.size".to_owned();
             tags.insert(tag_name, Annotated::new(lcp_size.to_string()));
         }
-        if let Some(lcp_id) = data.get_str(LCP__ID) {
+        if let Some(lcp_id) = data.get_str(BROWSER__WEB_VITAL__LCP__ID) {
             let tag_name = "lcp.id".to_owned();
             if !tags.contains("lcp.id") {
                 tags.insert(tag_name, Annotated::new(lcp_id.to_owned()));
             }
         }
-        if let Some(lcp_url) = data.get_str(LCP__URL) {
+        if let Some(lcp_url) = data.get_str(BROWSER__WEB_VITAL__LCP__URL) {
             let tag_name = "lcp.url".to_owned();
             if !tags.contains("lcp.url") {
                 tags.insert(tag_name, Annotated::new(lcp_url.to_owned()));
@@ -2615,8 +2620,8 @@ mod tests {
                         "data": {
                             "gen_ai.usage.input_tokens": 1000,
                             "gen_ai.usage.output_tokens": 2000,
-                            "gen_ai.usage.output_tokens.reasoning": 1000,
-                            "gen_ai.usage.input_tokens.cached": 500,
+                            "gen_ai.usage.reasoning.output_tokens": 1000,
+                            "gen_ai.usage.cache_read.input_tokens": 500,
                             "gen_ai.request.model": "claude-2.1"
                         }
                     },
@@ -2703,10 +2708,10 @@ mod tests {
           "gen_ai.request.model": "claude-2.1",
           "gen_ai.response.model": "claude-2.1",
           "gen_ai.response.tokens_per_second": 2000.0,
+          "gen_ai.usage.cache_read.input_tokens": 500,
           "gen_ai.usage.input_tokens": 1000,
-          "gen_ai.usage.input_tokens.cached": 500,
           "gen_ai.usage.output_tokens": 2000,
-          "gen_ai.usage.output_tokens.reasoning": 1000,
+          "gen_ai.usage.reasoning.output_tokens": 1000,
           "gen_ai.usage.total_tokens": 3000.0
         }
         "#);
@@ -2812,8 +2817,8 @@ mod tests {
                         "data": {
                             "gen_ai.usage.input_tokens": 1000,
                             "gen_ai.usage.output_tokens": 2000,
-                            "gen_ai.usage.output_tokens.reasoning": 1000,
-                            "gen_ai.usage.input_tokens.cached": 500,
+                            "gen_ai.usage.reasoning.output_tokens": 1000,
+                            "gen_ai.usage.cache_read.input_tokens": 500,
                             "gen_ai.request.model": "claude-2.1"
                         }
                     },
@@ -2886,10 +2891,10 @@ mod tests {
           "gen_ai.request.model": "claude-2.1",
           "gen_ai.response.model": "claude-2.1",
           "gen_ai.response.tokens_per_second": 62500.0,
+          "gen_ai.usage.cache_read.input_tokens": 500,
           "gen_ai.usage.input_tokens": 1000,
-          "gen_ai.usage.input_tokens.cached": 500,
           "gen_ai.usage.output_tokens": 2000,
-          "gen_ai.usage.output_tokens.reasoning": 1000,
+          "gen_ai.usage.reasoning.output_tokens": 1000,
           "gen_ai.usage.total_tokens": 3000.0
         }
         "#);
@@ -5847,10 +5852,10 @@ mod tests {
             "contexts": {
                 "trace": {
                     "data": {
-                        "lcp.element": "body > div#app > div > h1#header",
-                        "lcp.size": 24827,
-                        "lcp.id": "header",
-                        "lcp.url": "http://example.com/image.jpg"
+                        "browser.web_vital.lcp.element": "body > div#app > div > h1#header",
+                        "browser.web_vital.lcp.size": 24827,
+                        "browser.web_vital.lcp.id": "header",
+                        "browser.web_vital.lcp.url": "http://example.com/image.jpg"
                     }
                 }
             },
@@ -5868,10 +5873,10 @@ mod tests {
           "contexts": {
             "trace": {
               "data": {
-                "lcp.element": "body > div#app > div > h1#header",
-                "lcp.id": "header",
-                "lcp.size": 24827,
-                "lcp.url": "http://example.com/image.jpg",
+                "browser.web_vital.lcp.element": "body > div#app > div > h1#header",
+                "browser.web_vital.lcp.id": "header",
+                "browser.web_vital.lcp.size": 24827,
+                "browser.web_vital.lcp.url": "http://example.com/image.jpg",
               },
               "type": "trace",
             },
@@ -5913,10 +5918,10 @@ mod tests {
           "contexts": {
               "trace": {
                   "data": {
-                      "lcp.element": "body > div#app > div > h1#id",
-                      "lcp.size": 33333,
-                      "lcp.id": "id",
-                      "lcp.url": "http://example.com/another-image.jpg"
+                      "browser.web_vital.lcp.element": "body > div#app > div > h1#id",
+                      "browser.web_vital.lcp.size": 33333,
+                      "browser.web_vital.lcp.id": "id",
+                      "browser.web_vital.lcp.url": "http://example.com/another-image.jpg"
                   }
               }
           },
@@ -5940,10 +5945,10 @@ mod tests {
           "contexts": {
             "trace": {
               "data": {
-                "lcp.element": "body > div#app > div > h1#id",
-                "lcp.id": "id",
-                "lcp.size": 33333,
-                "lcp.url": "http://example.com/another-image.jpg",
+                "browser.web_vital.lcp.element": "body > div#app > div > h1#id",
+                "browser.web_vital.lcp.id": "id",
+                "browser.web_vital.lcp.size": 33333,
+                "browser.web_vital.lcp.url": "http://example.com/another-image.jpg",
               },
               "type": "trace",
             },

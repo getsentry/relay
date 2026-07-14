@@ -417,11 +417,9 @@ impl super::DefaultContext for TraceContext {
 }
 
 #[cfg(test)]
-#[allow(deprecated)]
 mod tests {
     use super::*;
     use crate::protocol::{Context, Route};
-    use relay_conventions::attributes::ROUTE;
 
     #[test]
     fn test_trace_id_as_u128() {
@@ -491,7 +489,7 @@ mod tests {
             data: Annotated::new(SpanData {
                 other: Object::from([
                     (
-                        ROUTE.to_owned(),
+                        "route".to_owned(),
                         Annotated::new(
                             Route {
                                 name: Annotated::new("/users".into()),
@@ -633,7 +631,7 @@ mod tests {
             span_id: Annotated::new("fa90fdead5f74052".parse().unwrap()),
             data: Annotated::new(SpanData {
                 other: Object::from([(
-                    ROUTE.to_owned(),
+                    "route".to_owned(),
                     Annotated::new(Value::String("HomeRoute".into())),
                 )]),
             }),
