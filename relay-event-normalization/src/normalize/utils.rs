@@ -7,7 +7,7 @@ use std::f64::consts::SQRT_2;
 
 use relay_conventions::attributes::HTTP__RESPONSE__STATUS_CODE;
 use relay_event_schema::protocol::{Event, ResponseContext, Span, TraceContext, User};
-use relay_protocol::{Annotated, Value};
+use relay_protocol::Value;
 
 /// Used to decide when to extract mobile-specific tags.
 pub const MOBILE_SDKS: [&str; 4] = [
@@ -32,8 +32,7 @@ pub fn http_status_code_from_span(span: &Span) -> Option<String> {
     if let Some(status_code) = span
         .data
         .value()
-        .and_then(|data| data.other.get(HTTP__RESPONSE__STATUS_CODE))
-        .and_then(Annotated::value)
+        .and_then(|data| data.get_value(HTTP__RESPONSE__STATUS_CODE))
         .map(|v| match v {
             Value::String(s) => Some(s.as_str().to_owned()),
             Value::I64(i) => Some(i.to_string()),

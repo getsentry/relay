@@ -13,12 +13,7 @@ use regex::Regex;
 use relay_base_schema::metrics::{
     DurationUnit, FractionUnit, MetricUnit, can_be_valid_metric_name,
 };
-use relay_conventions::attributes::{
-    APP__VITALS__START__COLD__VALUE, APP__VITALS__START__SCREEN, APP__VITALS__START__TYPE,
-    APP__VITALS__START__VALUE, APP__VITALS__START__WARM__VALUE, BROWSER__WEB_VITAL__LCP__ELEMENT,
-    BROWSER__WEB_VITAL__LCP__ID, BROWSER__WEB_VITAL__LCP__SIZE, BROWSER__WEB_VITAL__LCP__URL,
-    SCORE__TOTAL,
-};
+use relay_conventions::attributes::*;
 use relay_conventions::interpolate;
 use relay_conventions::measurements::{
     APP_START_COLD, APP_START_WARM, FRAMES_FROZEN, FRAMES_FROZEN_RATE, FRAMES_SLOW,
@@ -1090,9 +1085,7 @@ fn normalize_trace_context_tags(event: &mut Event) {
             tags.insert(tag_name, Annotated::new(lcp_element.to_owned()));
         }
         if let Some(lcp_size) = data
-            .other
-            .get(BROWSER__WEB_VITAL__LCP__SIZE)
-            .and_then(Annotated::value)
+            .get_value(BROWSER__WEB_VITAL__LCP__SIZE)
             .and_then(|value| match value {
                 Value::U64(value) => Some(*value),
                 Value::I64(value) => u64::try_from(*value).ok(),
@@ -1545,16 +1538,13 @@ fn backfill_app_vitals_start_screen(event: &mut Event) {
         || trace_context
             .data
             .value()
-            .is_some_and(|data| data.other.contains_key(APP__VITALS__START__SCREEN))
+            .is_some_and(|data| data.contains(APP__VITALS__START__SCREEN))
     {
         return;
     }
 
     let data = trace_context.data.get_or_insert_with(Default::default);
-    data.other.insert(
-        APP__VITALS__START__SCREEN.to_owned(),
-        Annotated::new(Value::String(screen)),
-    );
+    data.insert_value(APP__VITALS__START__SCREEN, screen);
 }
 
 fn normalize_units(measurements: &mut Measurements) {

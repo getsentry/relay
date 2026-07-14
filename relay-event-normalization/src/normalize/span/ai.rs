@@ -2,15 +2,7 @@
 
 use crate::statsd::{Counters, map_origin_to_integration, platform_tag};
 use crate::{ModelCostV2, ModelMetadata};
-use relay_conventions::attributes::{
-    GEN_AI__AGENT__NAME, GEN_AI__CONTEXT__UTILIZATION, GEN_AI__CONTEXT__WINDOW_SIZE,
-    GEN_AI__COST__INPUT_TOKENS, GEN_AI__COST__OUTPUT_TOKENS, GEN_AI__COST__TOTAL_TOKENS,
-    GEN_AI__FUNCTION_ID, GEN_AI__OPERATION__NAME, GEN_AI__OPERATION__TYPE, GEN_AI__REQUEST__MODEL,
-    GEN_AI__RESPONSE__MODEL, GEN_AI__RESPONSE__TOKENS_PER_SECOND,
-    GEN_AI__USAGE__CACHE_CREATION__INPUT_TOKENS, GEN_AI__USAGE__CACHE_READ__INPUT_TOKENS,
-    GEN_AI__USAGE__INPUT_TOKENS, GEN_AI__USAGE__OUTPUT_TOKENS,
-    GEN_AI__USAGE__REASONING__OUTPUT_TOKENS, GEN_AI__USAGE__TOTAL_TOKENS,
-};
+use relay_conventions::attributes::*;
 use relay_event_schema::protocol::{
     Event, Measurements, OperationType, Span, SpanData, TraceContext,
 };
@@ -42,36 +34,16 @@ impl UsedTokens {
     pub fn from_span_data(data: &SpanData) -> Self {
         macro_rules! get_value {
             ($e:expr) => {
-                $e.value().and_then(Value::as_f64).unwrap_or(0.0)
+                data.get_value($e).and_then(|v| v.as_f64()).unwrap_or(0.0)
             };
         }
 
         Self {
-            input_tokens: data
-                .other
-                .get(GEN_AI__USAGE__INPUT_TOKENS)
-                .map(|value| get_value!(value))
-                .unwrap_or(0.0),
-            output_tokens: data
-                .other
-                .get(GEN_AI__USAGE__OUTPUT_TOKENS)
-                .map(|value| get_value!(value))
-                .unwrap_or(0.0),
-            output_reasoning_tokens: data
-                .other
-                .get(GEN_AI__USAGE__REASONING__OUTPUT_TOKENS)
-                .map(|value| get_value!(value))
-                .unwrap_or(0.0),
-            input_cached_tokens: data
-                .other
-                .get(GEN_AI__USAGE__CACHE_READ__INPUT_TOKENS)
-                .map(|value| get_value!(value))
-                .unwrap_or(0.0),
-            input_cache_write_tokens: data
-                .other
-                .get(GEN_AI__USAGE__CACHE_CREATION__INPUT_TOKENS)
-                .map(|value| get_value!(value))
-                .unwrap_or(0.0),
+            input_tokens: get_value!(GEN_AI__USAGE__INPUT_TOKENS),
+            output_tokens: get_value!(GEN_AI__USAGE__OUTPUT_TOKENS),
+            output_reasoning_tokens: get_value!(GEN_AI__USAGE__REASONING__OUTPUT_TOKENS),
+            input_cached_tokens: get_value!(GEN_AI__USAGE__CACHE_READ__INPUT_TOKENS),
+            input_cache_write_tokens: get_value!(GEN_AI__USAGE__CACHE_CREATION__INPUT_TOKENS),
         }
     }
 
@@ -163,7 +135,7 @@ pub fn calculate_costs(
     Some(CalculatedCost { input, output })
 }
 
-/// Default AI operation stored in [`GEN_AI__OPERATION__TYPE`](relay_conventions::attributes::GEN_AI__OPERATION__TYPE)
+/// Default AI operation stored in [`GEN_AI__OPERATION__TYPE`]
 /// for AI spans without a well known AI span op.
 ///
 /// See also: [`infer_ai_operation_type`].
@@ -172,11 +144,10 @@ pub const DEFAULT_AI_OPERATION: &str = "ai_client";
 /// Infers the AI operation from an AI operation name.
 ///
 /// The operation name is usually inferred from the
-/// [`GEN_AI__OPERATION__NAME`](relay_conventions::attributes::GEN_AI__OPERATION__NAME) span attribute and the span
+/// [`GEN_AI__OPERATION__NAME`] span attribute and the span
 /// operation.
 ///
-/// Sentry expects the operation type in the
-/// [`GEN_AI__OPERATION__TYPE`](relay_conventions::attributes::GEN_AI__OPERATION__TYPE) attribute.
+/// Sentry expects the operation type in the [`GEN_AI__OPERATION__TYPE`] attribute.
 ///
 /// The function returns `None` when the op is not a well known AI operation, callers likely want to default
 /// the value to [`DEFAULT_AI_OPERATION`] for AI spans.
@@ -290,21 +261,12 @@ fn map_ai_measurements_to_data(data: &mut SpanData, measurements: Option<&Measur
 
 fn set_total_tokens(data: &mut SpanData) {
     // It might be that 'total_tokens' is not set in which case we need to calculate it
-    if data
-        .other
-        .get(GEN_AI__USAGE__TOTAL_TOKENS)
-        .and_then(Annotated::value)
-        .is_none()
-    {
+    if data.get_value(GEN_AI__USAGE__TOTAL_TOKENS).is_none() {
         let input_tokens = data
-            .other
-            .get(GEN_AI__USAGE__INPUT_TOKENS)
-            .and_then(Annotated::value)
+            .get_value(GEN_AI__USAGE__INPUT_TOKENS)
             .and_then(Value::as_f64);
         let output_tokens = data
-            .other
-            .get(GEN_AI__USAGE__OUTPUT_TOKENS)
-            .and_then(Annotated::value)
+            .get_value(GEN_AI__USAGE__OUTPUT_TOKENS)
             .and_then(Value::as_f64);
 
         if input_tokens.is_none() && output_tokens.is_none() {
@@ -337,9 +299,7 @@ fn extract_context_utilization(data: &mut SpanData, model_metadata: &ModelMetada
         .set_value(Value::U64(context_size).into());
 
     let total_tokens = data
-        .other
-        .get(GEN_AI__USAGE__TOTAL_TOKENS)
-        .and_then(Annotated::value)
+        .get_value(GEN_AI__USAGE__TOTAL_TOKENS)
         .and_then(Value::as_f64);
 
     if let Some(total_tokens) = total_tokens {
@@ -360,15 +320,11 @@ fn extract_ai_data(
 ) {
     // Extracts the response tokens per second
     if data
-        .other
-        .get(GEN_AI__RESPONSE__TOKENS_PER_SECOND)
-        .and_then(Annotated::value)
+        .get_value(GEN_AI__RESPONSE__TOKENS_PER_SECOND)
         .is_none()
         && duration > 0.0
         && let Some(output_tokens) = data
-            .other
-            .get(GEN_AI__USAGE__OUTPUT_TOKENS)
-            .and_then(Annotated::value)
+            .get_value(GEN_AI__USAGE__OUTPUT_TOKENS)
             .and_then(Value::as_f64)
     {
         data.other
@@ -418,16 +374,8 @@ fn enrich_ai_span_data(
     set_total_tokens(data);
 
     // Default response model to request model if not set.
-    if data
-        .other
-        .get(GEN_AI__RESPONSE__MODEL)
-        .and_then(Annotated::value)
-        .is_none()
-        && let Some(request_model) = data
-            .other
-            .get(GEN_AI__REQUEST__MODEL)
-            .and_then(Annotated::value)
-            .cloned()
+    if data.get_value(GEN_AI__RESPONSE__MODEL).is_none()
+        && let Some(request_model) = data.get_value(GEN_AI__REQUEST__MODEL).cloned()
     {
         data.other
             .entry(GEN_AI__RESPONSE__MODEL.to_owned())
@@ -436,16 +384,8 @@ fn enrich_ai_span_data(
     }
 
     // Default agent name to function_id if not set.
-    if data
-        .other
-        .get(GEN_AI__AGENT__NAME)
-        .and_then(Annotated::value)
-        .is_none()
-        && let Some(function_id) = data
-            .other
-            .get(GEN_AI__FUNCTION_ID)
-            .and_then(Annotated::value)
-            .cloned()
+    if data.get_value(GEN_AI__AGENT__NAME).is_none()
+        && let Some(function_id) = data.get_value(GEN_AI__FUNCTION_ID).cloned()
     {
         data.other
             .entry(GEN_AI__AGENT__NAME.to_owned())
@@ -545,8 +485,7 @@ pub fn enrich_ai_event_data(event: &mut Event, model_metadata: Option<&ModelMeta
 fn is_ai_span(span_data: &Annotated<SpanData>, span_op: Option<&OperationType>) -> bool {
     let has_ai_op = span_data
         .value()
-        .and_then(|data| data.other.get(GEN_AI__OPERATION__NAME))
-        .and_then(Annotated::value)
+        .and_then(|data| data.get_value(GEN_AI__OPERATION__NAME))
         .is_some();
 
     let is_ai_span_op =
@@ -721,22 +660,20 @@ mod tests {
     #[test]
     fn test_calculate_cost_backward_compatibility_no_cache_write() {
         // Test that cost calculation works when cache_write field is missing (backward compatibility)
-        let span_data = SpanData {
-            other: relay_protocol::Object::from([
-                (
-                    GEN_AI__USAGE__INPUT_TOKENS.to_owned(),
-                    Annotated::new(100.0.into()),
-                ),
-                (
-                    GEN_AI__USAGE__CACHE_READ__INPUT_TOKENS.to_owned(),
-                    Annotated::new(20.0.into()),
-                ),
-                (
-                    GEN_AI__USAGE__OUTPUT_TOKENS.to_owned(),
-                    Annotated::new(50.0.into()),
-                ),
-            ]),
-        };
+        let span_data = SpanData::from([
+            (
+                GEN_AI__USAGE__INPUT_TOKENS.to_owned(),
+                Annotated::new(100.0.into()),
+            ),
+            (
+                GEN_AI__USAGE__CACHE_READ__INPUT_TOKENS.to_owned(),
+                Annotated::new(20.0.into()),
+            ),
+            (
+                GEN_AI__USAGE__OUTPUT_TOKENS.to_owned(),
+                Annotated::new(50.0.into()),
+            ),
+        ]);
 
         let tokens = UsedTokens::from_span_data(&span_data);
 
@@ -1244,16 +1181,12 @@ mod tests {
 
         let data = span.data.value().unwrap();
         assert_eq!(
-            data.other
-                .get(GEN_AI__CONTEXT__WINDOW_SIZE)
-                .and_then(Annotated::value)
+            data.get_value(GEN_AI__CONTEXT__WINDOW_SIZE)
                 .and_then(Value::as_f64),
             Some(100_000.0)
         );
         assert_eq!(
-            data.other
-                .get(GEN_AI__CONTEXT__UTILIZATION)
-                .and_then(Annotated::value)
+            data.get_value(GEN_AI__CONTEXT__UTILIZATION)
                 .and_then(Value::as_f64),
             Some(0.42)
         );
@@ -1287,18 +1220,8 @@ mod tests {
         enrich_ai_span(&mut span, Some(&metadata));
 
         let data = span.data.value().unwrap();
-        assert!(
-            data.other
-                .get(GEN_AI__CONTEXT__WINDOW_SIZE)
-                .and_then(Annotated::value)
-                .is_none()
-        );
-        assert!(
-            data.other
-                .get(GEN_AI__CONTEXT__UTILIZATION)
-                .and_then(Annotated::value)
-                .is_none()
-        );
+        assert!(data.get_value(GEN_AI__CONTEXT__WINDOW_SIZE).is_none());
+        assert!(data.get_value(GEN_AI__CONTEXT__UTILIZATION).is_none());
     }
 
     #[test]
@@ -1319,19 +1242,12 @@ mod tests {
         let data = span.data.value().unwrap();
         // window_size should still be set even without tokens.
         assert_eq!(
-            data.other
-                .get(GEN_AI__CONTEXT__WINDOW_SIZE)
-                .and_then(Annotated::value)
+            data.get_value(GEN_AI__CONTEXT__WINDOW_SIZE)
                 .and_then(Value::as_f64),
             Some(100_000.0)
         );
         // But utilization cannot be computed without total_tokens.
-        assert!(
-            data.other
-                .get(GEN_AI__CONTEXT__UTILIZATION)
-                .and_then(Annotated::value)
-                .is_none()
-        );
+        assert!(data.get_value(GEN_AI__CONTEXT__UTILIZATION).is_none());
     }
 
     #[test]
@@ -1351,17 +1267,7 @@ mod tests {
         enrich_ai_span(&mut span, Some(&metadata_with_context_size()));
 
         let data = span.data.value().unwrap();
-        assert!(
-            data.other
-                .get(GEN_AI__CONTEXT__WINDOW_SIZE)
-                .and_then(Annotated::value)
-                .is_none()
-        );
-        assert!(
-            data.other
-                .get(GEN_AI__CONTEXT__UTILIZATION)
-                .and_then(Annotated::value)
-                .is_none()
-        );
+        assert!(data.get_value(GEN_AI__CONTEXT__WINDOW_SIZE).is_none());
+        assert!(data.get_value(GEN_AI__CONTEXT__UTILIZATION).is_none());
     }
 }

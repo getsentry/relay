@@ -486,35 +486,33 @@ mod tests {
             exclusive_time: Annotated::new(0.0),
             client_sample_rate: Annotated::new(0.5),
             origin: Annotated::new("auto.http".to_owned()),
-            data: Annotated::new(SpanData {
-                other: Object::from([
-                    (
-                        "route".to_owned(),
-                        Annotated::new(
-                            Route {
-                                name: Annotated::new("/users".into()),
-                                params: Annotated::new({
-                                    let mut map = Object::new();
-                                    map.insert(
-                                        "tok".to_owned(),
-                                        Annotated::new(Value::String("test".into())),
-                                    );
-                                    map
-                                }),
-                                other: Object::from([(
-                                    "custom_field".into(),
-                                    Annotated::new(Value::String("something".into())),
-                                )]),
-                            }
-                            .into_value(),
-                        ),
+            data: Annotated::new(SpanData::from([
+                (
+                    "route".to_owned(),
+                    Annotated::new(
+                        Route {
+                            name: Annotated::new("/users".into()),
+                            params: Annotated::new({
+                                let mut map = Object::new();
+                                map.insert(
+                                    "tok".to_owned(),
+                                    Annotated::new(Value::String("test".into())),
+                                );
+                                map
+                            }),
+                            other: Object::from([(
+                                "custom_field".into(),
+                                Annotated::new(Value::String("something".into())),
+                            )]),
+                        }
+                        .into_value(),
                     ),
-                    (
-                        "custom_field_empty".into(),
-                        Annotated::new(Value::String("".into())),
-                    ),
-                ]),
-            }),
+                ),
+                (
+                    "custom_field_empty".into(),
+                    Annotated::new(Value::String("".into())),
+                ),
+            ])),
             links: Annotated::new(Array::from(vec![Annotated::new(SpanLink {
                 trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                 span_id: Annotated::new("ea90fdead5f74052".parse().unwrap()),
@@ -629,12 +627,10 @@ mod tests {
         let context = Annotated::new(Context::Trace(Box::new(TraceContext {
             trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
             span_id: Annotated::new("fa90fdead5f74052".parse().unwrap()),
-            data: Annotated::new(SpanData {
-                other: Object::from([(
-                    "route".to_owned(),
-                    Annotated::new(Value::String("HomeRoute".into())),
-                )]),
-            }),
+            data: Annotated::new(SpanData::from([(
+                "route".to_owned(),
+                Annotated::new(Value::String("HomeRoute".into())),
+            )])),
             ..Default::default()
         })));
 

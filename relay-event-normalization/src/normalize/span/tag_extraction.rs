@@ -84,10 +84,7 @@ pub(crate) fn extract_segment_name_from_event(event: &mut Event) {
             .get(SENTRY__SEGMENT__NAME)
             .is_none_or(Empty::is_empty)
         {
-            data.other.insert(
-                SENTRY__SEGMENT__NAME.to_owned(),
-                Annotated::new(Value::String(transaction.clone())),
-            );
+            data.insert_value(SENTRY__SEGMENT__NAME, transaction.clone());
         }
     }
 }
@@ -461,9 +458,7 @@ fn extract_shared_tags(event: &Event) -> SharedTags {
         .and_then(|trace_context| trace_context.data.value())
     {
         if let Some(thread_id) = data
-            .other
-            .get(THREAD__ID)
-            .and_then(Annotated::value)
+            .get_value(THREAD__ID)
             .and_then(|value| String::try_from(value).ok())
         {
             tags.thread_id = thread_id.into();
@@ -532,9 +527,7 @@ fn extract_segment_measurements(event: &Event) -> BTreeMap<String, Measurement> 
                 MetricUnit::Information(InformationUnit::Byte),
             ),
         ] {
-            if let Some(value) =
-                value_to_finite_f64(data.other.get(attribute).and_then(Annotated::value))
-            {
+            if let Some(value) = value_to_finite_f64(data.get_value(attribute)) {
                 measurements.insert(
                     key.into(),
                     Measurement {
@@ -953,8 +946,7 @@ pub fn extract_tags(
             if let Some(Value::Bool(cache_hit)) = span
                 .data
                 .value()
-                .and_then(|data| data.other.get(CACHE__HIT))
-                .and_then(Annotated::value)
+                .and_then(|data| data.get_value(CACHE__HIT))
             {
                 let tag_value = if *cache_hit { "true" } else { "false" };
                 span_tags.cache_hit = tag_value.to_owned().into();
@@ -962,8 +954,7 @@ pub fn extract_tags(
             if let Some(cache_keys) = span
                 .data
                 .value()
-                .and_then(|data| data.other.get(CACHE__KEY))
-                .and_then(Annotated::value)
+                .and_then(|data| data.get_value(CACHE__KEY))
                 && let Ok(cache_keys) = serde_json::to_string(cache_keys)
             {
                 span_tags.cache_key = cache_keys.into();
@@ -1029,27 +1020,21 @@ pub fn extract_tags(
             // TODO: Remove response size tags once product uses measurements instead.
             if let Some(data) = span.data.value() {
                 if let Some(value) = data
-                    .other
-                    .get(HTTP__RESPONSE__BODY__SIZE)
-                    .and_then(Annotated::value)
+                    .get_value(HTTP__RESPONSE__BODY__SIZE)
                     .and_then(|v| String::try_from(v).ok())
                 {
                     span_tags.http_response_content_length = value.into();
                 }
 
                 if let Some(value) = data
-                    .other
-                    .get(HTTP__DECODED_RESPONSE_CONTENT_LENGTH)
-                    .and_then(Annotated::value)
+                    .get_value(HTTP__DECODED_RESPONSE_CONTENT_LENGTH)
                     .and_then(|v| String::try_from(v).ok())
                 {
                     span_tags.http_decoded_response_content_length = value.into();
                 }
 
                 if let Some(value) = data
-                    .other
-                    .get(HTTP__RESPONSE__SIZE)
-                    .and_then(Annotated::value)
+                    .get_value(HTTP__RESPONSE__SIZE)
                     .and_then(|v| String::try_from(v).ok())
                 {
                     span_tags.http_response_transfer_size = value.into();
@@ -1172,9 +1157,7 @@ pub fn extract_tags(
 
     if let Some(data) = span.data.value() {
         if let Some(thread_id) = data
-            .other
-            .get(THREAD__ID)
-            .and_then(Annotated::value)
+            .get_value(THREAD__ID)
             .and_then(|value| String::try_from(value).ok())
         {
             span_tags.thread_id = thread_id.into();
@@ -1216,8 +1199,7 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
 
     if span_op.starts_with("cache.")
         && let Some(data) = span.data.value()
-        && let Some(value) =
-            value_to_finite_f64(data.other.get(CACHE__ITEM_SIZE).and_then(Annotated::value))
+        && let Some(value) = value_to_finite_f64(data.get_value(CACHE__ITEM_SIZE))
     {
         let measurements = span.measurements.get_or_insert_with(Default::default);
         measurements.insert(
@@ -1241,9 +1223,7 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
             (HTTP__RESPONSE__BODY__SIZE, "http.response_content_length"),
             (HTTP__RESPONSE__SIZE, "http.response_transfer_size"),
         ] {
-            if let Some(value) =
-                value_to_finite_f64(data.other.get(attribute).and_then(Annotated::value))
-            {
+            if let Some(value) = value_to_finite_f64(data.get_value(attribute)) {
                 let measurements = span.measurements.get_or_insert_with(Default::default);
                 measurements.insert(
                     key.into(),
@@ -1277,9 +1257,7 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
                 MetricUnit::Information(InformationUnit::Byte),
             ),
         ] {
-            if let Some(value) =
-                value_to_finite_f64(data.other.get(attribute).and_then(Annotated::value))
-            {
+            if let Some(value) = value_to_finite_f64(data.get_value(attribute)) {
                 let measurements = span.measurements.get_or_insert_with(Default::default);
                 measurements.insert(
                     key.into(),
@@ -1304,9 +1282,7 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
                 MetricUnit::Duration(DurationUnit::Second),
             ),
         ] {
-            if let Some(value) =
-                value_to_finite_f64(data.other.get(attribute).and_then(Annotated::value))
-            {
+            if let Some(value) = value_to_finite_f64(data.get_value(attribute)) {
                 let measurements = span.measurements.get_or_insert_with(Default::default);
                 measurements.insert(
                     key.into(),
@@ -1625,7 +1601,7 @@ fn get_event_start_type(event: &Event) -> Option<&'static str> {
 mod tests {
     use insta::{assert_debug_snapshot, assert_json_snapshot};
     use relay_event_schema::protocol::{Request, SpanData};
-    use relay_protocol::{Getter, Object, SerializableAnnotated, get_value};
+    use relay_protocol::{Getter, SerializableAnnotated, get_value};
 
     use super::*;
     use crate::span::description::{Mode, scrub_queries};
@@ -3395,13 +3371,8 @@ LIMIT 1
     fn span_category_from_explicit_attribute_overrides_op() {
         let span = Span {
             op: "app.start".to_owned().into(),
-            data: SpanData {
-                other: Object::from([(
-                    "sentry.category".into(),
-                    Value::String("db".into()).into(),
-                )]),
-            }
-            .into(),
+            data: SpanData::from([("sentry.category".into(), Value::String("db".into()).into())])
+                .into(),
             ..Default::default()
         };
         assert_eq!(category_for_span(&span), Some("db".into()));
@@ -3411,12 +3382,10 @@ LIMIT 1
     fn span_category_from_op_overrides_inference() {
         let span = Span {
             op: "app.start".to_owned().into(),
-            data: SpanData {
-                other: Object::from([(
-                    DB__SYSTEM__NAME.to_owned(),
-                    Value::String("postgresql".into()).into(),
-                )]),
-            }
+            data: SpanData::from([(
+                DB__SYSTEM__NAME.to_owned(),
+                Value::String("postgresql".into()).into(),
+            )])
             .into(),
             ..Default::default()
         };
@@ -3426,12 +3395,10 @@ LIMIT 1
     #[test]
     fn infers_db_category_from_attributes() {
         let span = Span {
-            data: SpanData {
-                other: Object::from([(
-                    DB__SYSTEM__NAME.to_owned(),
-                    Value::String("postgresql".into()).into(),
-                )]),
-            }
+            data: SpanData::from([(
+                DB__SYSTEM__NAME.to_owned(),
+                Value::String("postgresql".into()).into(),
+            )])
             .into(),
             ..Default::default()
         };
@@ -3441,12 +3408,10 @@ LIMIT 1
     #[test]
     fn infers_http_category_from_attributes() {
         let span = Span {
-            data: SpanData {
-                other: Object::from([(
-                    HTTP__REQUEST__METHOD.to_owned(),
-                    Value::String("POST".into()).into(),
-                )]),
-            }
+            data: SpanData::from([(
+                HTTP__REQUEST__METHOD.to_owned(),
+                Value::String("POST".into()).into(),
+            )])
             .into(),
             ..Default::default()
         };
@@ -3456,12 +3421,10 @@ LIMIT 1
     #[test]
     fn infers_ui_category_from_attributes() {
         let span = Span {
-            data: SpanData {
-                other: Object::from([(
-                    UI__COMPONENT_NAME.to_owned(),
-                    Value::String("MainComponent".into()).into(),
-                )]),
-            }
+            data: SpanData::from([(
+                UI__COMPONENT_NAME.to_owned(),
+                Value::String("MainComponent".into()).into(),
+            )])
             .into(),
             ..Default::default()
         };
@@ -3471,12 +3434,10 @@ LIMIT 1
     #[test]
     fn infers_resource_category_from_attributes() {
         let span = Span {
-            data: SpanData {
-                other: Object::from([(
-                    RESOURCE__RENDER_BLOCKING_STATUS.to_owned(),
-                    Value::String("true".into()).into(),
-                )]),
-            }
+            data: SpanData::from([(
+                RESOURCE__RENDER_BLOCKING_STATUS.to_owned(),
+                Value::String("true".into()).into(),
+            )])
             .into(),
             ..Default::default()
         };
@@ -3486,12 +3447,10 @@ LIMIT 1
     #[test]
     fn infers_browser_category_from_attributes() {
         let span = Span {
-            data: SpanData {
-                other: Object::from([(
-                    "sentry.origin".into(),
-                    Value::String("auto.ui.browser.metrics".into()).into(),
-                )]),
-            }
+            data: SpanData::from([(
+                "sentry.origin".into(),
+                Value::String("auto.ui.browser.metrics".into()).into(),
+            )])
             .into(),
             ..Default::default()
         };

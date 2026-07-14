@@ -135,7 +135,7 @@ impl Span {
     /// This primarily looks up the attribute in the `data` object, but falls back to the `tags`
     /// object if the attribute is not found.
     fn attribute(&self, key: &str) -> Option<Val<'_>> {
-        Some(match self.data.value()?.get_value(key) {
+        Some(match Getter::get_value(self.data.value()?, key) {
             Some(value) => value,
             None => self.tags.value()?.get(key)?.as_str()?.into(),
         })
@@ -480,9 +480,42 @@ pub struct SpanData {
 }
 
 impl SpanData {
+    /// Returns an annotated attribute from span data.
+    pub fn get(&self, key: &str) -> Option<&Annotated<Value>> {
+        self.other.get(key)
+    }
+
+    /// Returns an attribute value from span data.
+    pub fn get_value(&self, key: &str) -> Option<&Value> {
+        self.get(key).and_then(Annotated::value)
+    }
+
     /// Returns a string attribute from span data.
     pub fn get_str(&self, key: &str) -> Option<&str> {
-        self.other.get(key)?.value()?.as_str()
+        self.get_value(key)?.as_str()
+    }
+
+    /// Returns whether span data contains an attribute.
+    pub fn contains(&self, key: &str) -> bool {
+        self.other.contains_key(key)
+    }
+
+    /// Inserts an annotated attribute into span data.
+    pub fn insert(&mut self, key: impl Into<String>, value: Annotated<Value>) {
+        self.other.insert(key.into(), value);
+    }
+
+    /// Inserts an attribute into span data.
+    pub fn insert_value<T>(&mut self, key: impl Into<String>, value: T)
+    where
+        T: IntoValue,
+    {
+        self.insert(key, Annotated::new(value.into_value()));
+    }
+
+    /// Removes an attribute from span data.
+    pub fn remove(&mut self, key: &str) -> Option<Annotated<Value>> {
+        self.other.remove(key)
     }
 }
 
@@ -492,7 +525,7 @@ impl Getter for SpanData {
         let mut path = escaped.split('.').map(|s| s.replace('\0', "."));
         let root = path.next()?;
 
-        let mut val = self.other.get(&root)?.value()?;
+        let mut val = self.get(&root)?.value()?;
         for part in path {
             // While there is path segments left, `val` has to be an Object.
             let relay_protocol::Value::Object(map) = val else {
@@ -501,6 +534,18 @@ impl Getter for SpanData {
             val = map.get(&part)?.value()?;
         }
         Some(val.into())
+    }
+}
+
+impl From<Object<Value>> for SpanData {
+    fn from(other: Object<Value>) -> Self {
+        Self { other }
+    }
+}
+
+impl<const N: usize> From<[(String, Annotated<Value>); N]> for SpanData {
+    fn from(value: [(String, Annotated<Value>); N]) -> Self {
+        Self::from(Object::from(value))
     }
 }
 
@@ -935,7 +980,7 @@ mod tests {
         "url.full": "my_url.com",
         "client.address": "192.168.0.1"
     }"#;
-        let data = Annotated::<SpanData>::from_json(data)
+        let mut data = Annotated::<SpanData>::from_json(data)
             .unwrap()
             .into_value()
             .unwrap();
@@ -1009,14 +1054,39 @@ mod tests {
         }
         "###);
 
-        assert_eq!(data.get_value("foo"), Some(Val::U64(2)));
-        assert_eq!(data.get_value("bar"), Some(Val::String("3")));
+        assert_eq!(
+            data.get("foo").and_then(Annotated::value),
+            Some(&Value::I64(2))
+        );
+        assert_eq!(data.get_value("foo"), Some(&Value::I64(2)));
         assert_eq!(data.get_str("bar"), Some("3"));
         assert_eq!(data.get_str("foo"), None);
-        assert_eq!(data.get_value("db\\.system"), Some(Val::String("mysql")));
-        assert_eq!(data.get_value("code\\.lineno"), Some(Val::U64(123)));
-        assert_eq!(data.get_value("code\\.function"), Some(Val::String("fn()")));
-        assert_eq!(data.get_value("code\\.namespace"), Some(Val::String("ns")));
+        data.insert("bool", Annotated::new(Value::Bool(true)));
+        assert_eq!(data.get_value("bool"), Some(&Value::Bool(true)));
+        data.insert_value("string", "value".to_owned());
+        assert_eq!(data.get_str("string"), Some("value"));
+        assert!(data.contains("string"));
+        assert_eq!(
+            data.remove("string").and_then(Annotated::into_value),
+            Some(Value::String("value".to_owned()))
+        );
+        assert!(!data.contains("string"));
+        assert_eq!(
+            Getter::get_value(&data, "db\\.system"),
+            Some(Val::String("mysql"))
+        );
+        assert_eq!(
+            Getter::get_value(&data, "code\\.lineno"),
+            Some(Val::U64(123))
+        );
+        assert_eq!(
+            Getter::get_value(&data, "code\\.function"),
+            Some(Val::String("fn()"))
+        );
+        assert_eq!(
+            Getter::get_value(&data, "code\\.namespace"),
+            Some(Val::String("ns"))
+        );
         assert_eq!(data.get_value("unknown"), None);
     }
 

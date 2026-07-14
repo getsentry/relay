@@ -4,7 +4,7 @@ use relay_conventions::attributes::{
     BROWSER__NAME, HTTP__QUERY, SENTRY__ENVIRONMENT, SENTRY__RELEASE, SENTRY__SDK__NAME,
     SENTRY__SDK__VERSION, SENTRY__SEGMENT__NAME, URL__QUERY,
 };
-use relay_protocol::{Annotated, IntoValue, Value};
+use relay_protocol::IntoValue;
 
 use crate::protocol::{BrowserContext, Event, ProfileContext, Span, SpanData, TraceContext};
 
@@ -35,36 +35,36 @@ impl From<&Event> for Span {
 
         // Overwrite specific fields:
         let span_data = data.get_or_insert_with(Default::default);
-        span_data.other.insert(
-            SENTRY__SEGMENT__NAME.to_owned(),
+        span_data.insert(
+            SENTRY__SEGMENT__NAME,
             transaction.clone().map_value(IntoValue::into_value),
         );
         // For root spans, the name should just be the transaction name.
-        span_data.other.insert(
-            "sentry.name".to_owned(),
+        span_data.insert(
+            "sentry.name",
             transaction.clone().map_value(IntoValue::into_value),
         );
-        span_data.other.insert(
-            SENTRY__RELEASE.to_owned(),
+        span_data.insert(
+            SENTRY__RELEASE,
             release.clone().map_value(IntoValue::into_value),
         );
-        span_data.other.insert(
-            SENTRY__ENVIRONMENT.to_owned(),
+        span_data.insert(
+            SENTRY__ENVIRONMENT,
             environment.clone().map_value(IntoValue::into_value),
         );
         if let Some(browser) = event.context::<BrowserContext>() {
-            span_data.other.insert(
-                BROWSER__NAME.to_owned(),
+            span_data.insert(
+                BROWSER__NAME,
                 browser.name.clone().map_value(IntoValue::into_value),
             );
         }
         if let Some(client_sdk) = event.client_sdk.value() {
-            span_data.other.insert(
-                SENTRY__SDK__NAME.to_owned(),
+            span_data.insert(
+                SENTRY__SDK__NAME,
                 client_sdk.name.clone().map_value(IntoValue::into_value),
             );
-            span_data.other.insert(
-                SENTRY__SDK__VERSION.to_owned(),
+            span_data.insert(
+                SENTRY__SDK__VERSION,
                 client_sdk.version.clone().map_value(IntoValue::into_value),
             );
         }
@@ -72,13 +72,8 @@ impl From<&Event> for Span {
             && let Some(query) = request.query_string.value()
             && let Some(qs) = query.to_query_string()
         {
-            span_data.other.insert(
-                HTTP__QUERY.to_owned(),
-                Annotated::new(Value::String(format!("?{qs}"))),
-            );
-            span_data
-                .other
-                .insert(URL__QUERY.to_owned(), Annotated::new(Value::String(qs)));
+            span_data.insert_value(HTTP__QUERY, format!("?{qs}"));
+            span_data.insert_value(URL__QUERY, qs);
         }
 
         Self {
