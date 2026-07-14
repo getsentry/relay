@@ -191,36 +191,36 @@
 <a href=#191 id=191 data-nosnippet>191</a>            }
 <a href=#192 id=192 data-nosnippet>192</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(int_latency) = broker.int_latency {
 <a href=#193 id=193 data-nosnippet>193</a>                <span class="macro">relay_statsd::metric!</span>(
-<a href=#194 id=194 data-nosnippet>194</a>                    gauge(KafkaGauges::BrokerIntLatencyAvg) = (int_latency.avg / <span class="number">1000</span>) <span class="kw">as </span>u64,
+<a href=#194 id=194 data-nosnippet>194</a>                    gauge(KafkaGauges::BrokerIntLatencyAvg) = (int_latency.avg / <span class="number">1000</span>),
 <a href=#195 id=195 data-nosnippet>195</a>                    broker_name = <span class="kw-2">&amp;</span>broker.name,
 <a href=#196 id=196 data-nosnippet>196</a>                    producer_name = producer_name
 <a href=#197 id=197 data-nosnippet>197</a>                );
 <a href=#198 id=198 data-nosnippet>198</a>                <span class="macro">relay_statsd::metric!</span>(
-<a href=#199 id=199 data-nosnippet>199</a>                    gauge(KafkaGauges::BrokerIntLatencyP99) = (int_latency.p99 / <span class="number">1000</span>) <span class="kw">as </span>u64,
+<a href=#199 id=199 data-nosnippet>199</a>                    gauge(KafkaGauges::BrokerIntLatencyP99) = (int_latency.p99 / <span class="number">1000</span>),
 <a href=#200 id=200 data-nosnippet>200</a>                    broker_name = <span class="kw-2">&amp;</span>broker.name,
 <a href=#201 id=201 data-nosnippet>201</a>                    producer_name = producer_name
 <a href=#202 id=202 data-nosnippet>202</a>                );
 <a href=#203 id=203 data-nosnippet>203</a>            }
 <a href=#204 id=204 data-nosnippet>204</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(outbuf_latency) = broker.outbuf_latency {
 <a href=#205 id=205 data-nosnippet>205</a>                <span class="macro">relay_statsd::metric!</span>(
-<a href=#206 id=206 data-nosnippet>206</a>                    gauge(KafkaGauges::BrokerOutbufLatencyAvg) = (outbuf_latency.avg / <span class="number">1000</span>) <span class="kw">as </span>u64,
+<a href=#206 id=206 data-nosnippet>206</a>                    gauge(KafkaGauges::BrokerOutbufLatencyAvg) = (outbuf_latency.avg / <span class="number">1000</span>),
 <a href=#207 id=207 data-nosnippet>207</a>                    broker_name = <span class="kw-2">&amp;</span>broker.name,
 <a href=#208 id=208 data-nosnippet>208</a>                    producer_name = producer_name
 <a href=#209 id=209 data-nosnippet>209</a>                );
 <a href=#210 id=210 data-nosnippet>210</a>                <span class="macro">relay_statsd::metric!</span>(
-<a href=#211 id=211 data-nosnippet>211</a>                    gauge(KafkaGauges::BrokerOutbufLatencyP99) = (outbuf_latency.p99 / <span class="number">1000</span>) <span class="kw">as </span>u64,
+<a href=#211 id=211 data-nosnippet>211</a>                    gauge(KafkaGauges::BrokerOutbufLatencyP99) = (outbuf_latency.p99 / <span class="number">1000</span>),
 <a href=#212 id=212 data-nosnippet>212</a>                    broker_name = <span class="kw-2">&amp;</span>broker.name,
 <a href=#213 id=213 data-nosnippet>213</a>                    producer_name = producer_name
 <a href=#214 id=214 data-nosnippet>214</a>                );
 <a href=#215 id=215 data-nosnippet>215</a>            }
 <a href=#216 id=216 data-nosnippet>216</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(rtt) = broker.rtt {
 <a href=#217 id=217 data-nosnippet>217</a>                <span class="macro">relay_statsd::metric!</span>(
-<a href=#218 id=218 data-nosnippet>218</a>                    gauge(KafkaGauges::BrokerRttAvg) = (rtt.avg / <span class="number">1000</span>) <span class="kw">as </span>u64,
+<a href=#218 id=218 data-nosnippet>218</a>                    gauge(KafkaGauges::BrokerRttAvg) = (rtt.avg / <span class="number">1000</span>),
 <a href=#219 id=219 data-nosnippet>219</a>                    broker_name = <span class="kw-2">&amp;</span>broker.name,
 <a href=#220 id=220 data-nosnippet>220</a>                    producer_name = producer_name
 <a href=#221 id=221 data-nosnippet>221</a>                );
 <a href=#222 id=222 data-nosnippet>222</a>                <span class="macro">relay_statsd::metric!</span>(
-<a href=#223 id=223 data-nosnippet>223</a>                    gauge(KafkaGauges::BrokerRttP99) = (rtt.p99 / <span class="number">1000</span>) <span class="kw">as </span>u64,
+<a href=#223 id=223 data-nosnippet>223</a>                    gauge(KafkaGauges::BrokerRttP99) = (rtt.p99 / <span class="number">1000</span>),
 <a href=#224 id=224 data-nosnippet>224</a>                    broker_name = <span class="kw-2">&amp;</span>broker.name,
 <a href=#225 id=225 data-nosnippet>225</a>                    producer_name = producer_name
 <a href=#226 id=226 data-nosnippet>226</a>                );
