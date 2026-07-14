@@ -110,11 +110,13 @@ def lcp_cls_inp_differences(mode):
         return {
             # The legacy pipeline extracts this attribute from `sentry_tags`.
             "sentry.browser.name": {"type": "string", "value": "Firefox"},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_legacy"},
         }
     else:
         return {
             # We additionally extract the browser version for EAP items
             "browser.version": {"type": "string", "value": "42.0"},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             # New for EAP items
             "sentry.observed_timestamp_nanos": {
                 "type": "string",

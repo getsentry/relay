@@ -1,4 +1,4 @@
-use relay_event_normalization::eap::Ingress;
+use relay_event_normalization::eap::{Ingress, Pipeline};
 use relay_event_schema::protocol::Span;
 use relay_protocol::Annotated;
 
@@ -29,9 +29,14 @@ pub fn convert(span: Annotated<Span>, retentions: Retention) -> Result<Box<Store
     let span = span.map_value(|span| relay_spans::span_v1_to_span_v2(span, true));
     let mut span = required!(span);
 
-    span.attributes.get_or_insert_with(Default::default).insert(
+    let attributes = span.attributes.get_or_insert_with(Default::default);
+    attributes.insert(
         relay_conventions::attributes::SENTRY__RELAY__INGRESS,
         Ingress::Legacy.to_string(),
+    );
+    attributes.insert(
+        relay_conventions::attributes::SENTRY__RELAY__PIPELINE,
+        Pipeline::SpanLegacy.to_string(),
     );
 
     Ok(Box::new(StoreSpanV2 {

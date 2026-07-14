@@ -180,7 +180,7 @@ fn normalize_log(
             eap::normalize_inject_client_address(&mut log.attributes, meta.client_addr());
         }
         eap::normalize_user_agent(&mut log.attributes, client_ua_info);
-        eap::normalize_pipeline_attributes(&mut log.attributes, Some(ingress));
+        eap::normalize_pipeline_attributes(&mut log.attributes, Some(ingress), None);
     }
 
     if let Annotated(None, meta) = log {

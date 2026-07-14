@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::time::Duration;
 
-use relay_event_normalization::eap::{ClientUserAgentInfo, Ingress};
+use relay_event_normalization::eap::{ClientUserAgentInfo, Ingress, Pipeline};
 use relay_event_normalization::{GeoIpLookup, RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{Span, SpanId, SpanV2};
@@ -282,7 +282,7 @@ fn normalize_span(
         eap::normalize_attribute_values(&mut span.attributes, allowed_hosts);
         eap::write_legacy_attributes(&mut span.attributes);
         eap::normalize_client_sample_rate(&mut span.attributes);
-        eap::normalize_pipeline_attributes(&mut span.attributes, ingress);
+        eap::normalize_pipeline_attributes(&mut span.attributes, ingress, Some(&Pipeline::SpanV2));
     };
 
     if let Annotated(None, meta) = span {

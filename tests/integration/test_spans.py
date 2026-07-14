@@ -142,6 +142,7 @@ def test_span_extraction(
                 "sentry.origin": {"type": "string", "value": "manual"},
                 "sentry.platform": {"type": "string", "value": "other"},
                 "sentry.relay.ingress": {"type": "string", "value": "legacy"},
+                "sentry.relay.pipeline": {"type": "string", "value": "transaction"},
                 "sentry.replay_id": {
                     "type": "string",
                     "value": "4c79f60c11214eb38604f4ae0781bfb2",
@@ -233,6 +234,7 @@ def test_span_extraction(
                 "sentry.origin": {"type": "string", "value": "auto"},
                 "sentry.platform": {"type": "string", "value": "other"},
                 "sentry.relay.ingress": {"type": "string", "value": "legacy"},
+                "sentry.relay.pipeline": {"type": "string", "value": "transaction"},
                 "sentry.replay_id": {
                     "type": "string",
                     "value": "4c79f60c11214eb38604f4ae0781bfb2",
@@ -321,6 +323,7 @@ def test_span_extraction(
             "sentry.origin": {"type": "string", "value": "manual"},
             "sentry.platform": {"type": "string", "value": "other"},
             "sentry.relay.ingress": {"type": "string", "value": "legacy"},
+            "sentry.relay.pipeline": {"type": "string", "value": "transaction"},
             "sentry.replay_id": {
                 "type": "string",
                 "value": "4c79f60c11214eb38604f4ae0781bfb2",

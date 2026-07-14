@@ -57,15 +57,37 @@ impl fmt::Display for Ingress {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum Pipeline {
+    SpanLegacy,
+    Transaction,
+    SpanV2,
+}
+
+impl fmt::Display for Pipeline {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Pipeline::SpanLegacy => f.write_str("span_legacy"),
+            Pipeline::Transaction => f.write_str("transaction"),
+            Pipeline::SpanV2 => f.write_str("span_v2"),
+        }
+    }
+}
+
 pub fn normalize_pipeline_attributes(
     attributes: &mut Annotated<Attributes>,
     ingress: Option<&Ingress>,
+    pipeline: Option<&Pipeline>,
 ) {
-    let Some(ingress) = ingress else { return };
+    let attributes = attributes.get_or_insert_with(Default::default);
 
-    attributes
-        .get_or_insert_with(Default::default)
-        .insert_if_missing(SENTRY__RELAY__INGRESS, || ingress.to_string());
+    if let Some(pipeline) = pipeline {
+        attributes.insert_if_missing(SENTRY__RELAY__PIPELINE, || pipeline.to_string());
+    }
+
+    if let Some(ingress) = ingress {
+        attributes.insert_if_missing(SENTRY__RELAY__INGRESS, || ingress.to_string());
+    }
 }
 
 /// Infers the sentry.op attribute and inserts it into [`Attributes`] if not already set.
