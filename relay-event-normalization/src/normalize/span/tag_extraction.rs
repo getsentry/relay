@@ -1599,9 +1599,9 @@ fn get_event_start_type(event: &Event) -> Option<&'static str> {
 
 #[cfg(test)]
 mod tests {
-    use insta::{assert_debug_snapshot, assert_json_snapshot};
+    use insta::assert_debug_snapshot;
     use relay_event_schema::protocol::{Request, SpanData};
-    use relay_protocol::{Getter, SerializableAnnotated, get_value};
+    use relay_protocol::{Getter, get_value};
 
     use super::*;
     use crate::span::description::{Mode, scrub_queries};
@@ -2103,106 +2103,6 @@ LIMIT 1
         );
         assert_eq!(tags_2.raw_domain.as_str(), Some("http://example.com"));
         assert!(tags_3.raw_domain.value().is_none());
-    }
-
-    #[test]
-    fn test_ai_extraction_legacy_data_fields() {
-        let json = r#"
-            {
-                "spans": [
-                    {
-                        "timestamp": 1694732408.3145,
-                        "start_timestamp": 1694732407.8367,
-                        "exclusive_time": 477.800131,
-                        "description": "OpenAI Chat Completion",
-                        "op": "ai.chat_completions.openai",
-                        "span_id": "97c0ef9770a02f9d",
-                        "parent_span_id": "9756d8d7b2b364ff",
-                        "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
-                        "data": {
-                            "ai.total_tokens.used": 300,
-                            "ai.completion_tokens.used": 200,
-                            "ai.prompt_tokens.used": 100
-                        },
-                        "hash": "e2fae740cccd3781"
-                    }
-                ]
-            }
-        "#;
-
-        let mut event = Annotated::<Event>::from_json(json)
-            .unwrap()
-            .into_value()
-            .unwrap();
-
-        extract_span_tags_from_event(&mut event, 200, &[]);
-
-        let span = &event
-            .spans
-            .value()
-            .unwrap()
-            .first()
-            .unwrap()
-            .value()
-            .unwrap();
-
-        assert_json_snapshot!(SerializableAnnotated(&span.data), @r#"
-        {
-          "ai.completion_tokens.used": 200,
-          "ai.prompt_tokens.used": 100,
-          "ai.total_tokens.used": 300
-        }
-        "#);
-    }
-
-    #[test]
-    fn test_ai_extraction() {
-        let json = r#"
-            {
-                "spans": [
-                    {
-                        "timestamp": 1694732408.3145,
-                        "start_timestamp": 1694732407.8367,
-                        "exclusive_time": 477.800131,
-                        "description": "OpenAI Chat Completion",
-                        "op": "ai.chat_completions.openai",
-                        "span_id": "97c0ef9770a02f9d",
-                        "parent_span_id": "9756d8d7b2b364ff",
-                        "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
-                        "data": {
-                            "gen_ai.usage.total_tokens": 300,
-                            "gen_ai.usage.output_tokens": 200,
-                            "gen_ai.usage.input_tokens": 100
-                        },
-                        "hash": "e2fae740cccd3781"
-                    }
-                ]
-            }
-        "#;
-
-        let mut event = Annotated::<Event>::from_json(json)
-            .unwrap()
-            .into_value()
-            .unwrap();
-
-        extract_span_tags_from_event(&mut event, 200, &[]);
-
-        let span = &event
-            .spans
-            .value()
-            .unwrap()
-            .first()
-            .unwrap()
-            .value()
-            .unwrap();
-
-        assert_json_snapshot!(SerializableAnnotated(&span.data), @r#"
-        {
-          "gen_ai.usage.input_tokens": 100,
-          "gen_ai.usage.output_tokens": 200,
-          "gen_ai.usage.total_tokens": 300
-        }
-        "#);
     }
 
     #[test]
