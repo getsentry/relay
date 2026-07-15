@@ -72,6 +72,7 @@ EXPECTED_ITEMS = [
             "vercel.log_type": {"stringValue": "stdout"},
             "sentry.body": {"stringValue": "Build completed successfully"},
             "vercel.project_name": {"stringValue": "my-app"},
+            "sentry.relay.ingress": {"stringValue": "integration"},
             "sentry.severity_text": {"stringValue": "info"},
             "sentry.observed_timestamp_nanos": {"stringValue": matches_any()},
             "sentry.timestamp_precise": {
@@ -97,7 +98,7 @@ EXPECTED_ITEMS = [
                 },
                 {
                     "dataCategory": DataCategory.LOG_BYTE.value,
-                    "quantity": "376",
+                    "quantity": "407",
                 },
             ],
             "keyId": "123",
@@ -122,6 +123,7 @@ EXPECTED_ITEMS = [
             "vercel.deployment_id": {"stringValue": "dpl_233NRGRjVZX1caZrXWtz5g1TAksD"},
             "vercel.proxy.method": {"stringValue": "GET"},
             "vercel.execution_region": {"stringValue": "sfo1"},
+            "sentry.relay.ingress": {"stringValue": "integration"},
             "sentry.severity_text": {"stringValue": "info"},
             "sentry.span_id": {"stringValue": "f24e8631bd11faa7"},
             "vercel.project_id": {"stringValue": "gdufoJxB6b9b1fEqr1jUtFkyavUU"},
@@ -158,7 +160,7 @@ EXPECTED_ITEMS = [
                 },
                 {
                     "dataCategory": DataCategory.LOG_BYTE.value,
-                    "quantity": "829",
+                    "quantity": "860",
                 },
             ],
             "keyId": "123",

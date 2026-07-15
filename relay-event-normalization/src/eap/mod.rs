@@ -3,6 +3,8 @@
 //! A central place for all modifications/normalizations for attributes.
 
 use std::borrow::Cow;
+use std::collections::BTreeMap;
+use std::fmt;
 use std::net::IpAddr;
 
 use chrono::{DateTime, Utc};
@@ -12,7 +14,7 @@ use relay_conventions::{AttributeInfo, ReplacementName, WriteBehavior};
 use relay_event_schema::protocol::{
     Attribute, AttributeType, Attributes, BrowserContext, Geo, SpanV2, SpanV2Status,
 };
-use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Remark, RemarkType, Value};
+use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Remark, RemarkType, Value};
 use relay_sampling::DynamicSamplingContext;
 use relay_spans::{derive_description_for_v2_span, derive_op_for_v2_span};
 
@@ -38,6 +40,66 @@ pub use self::ai::normalize_ai;
 pub use self::mobile::{normalize_mobile_attributes, normalize_mobile_measurements};
 pub use self::size::*;
 pub use self::trimming::TrimmingProcessor;
+
+/// How an EAP item entered Relay.
+#[derive(Debug, Clone)]
+pub enum Ingress {
+    /// The item comes from an integration (e.g. OTEL, Vercel).
+    Integration,
+    /// The item comes from an item container.
+    Container,
+    /// The item was converted from a legacy item type.
+    Legacy,
+}
+
+impl fmt::Display for Ingress {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Ingress::Integration => f.write_str("integration"),
+            Ingress::Container => f.write_str("container"),
+            Ingress::Legacy => f.write_str("legacy"),
+        }
+    }
+}
+
+/// The pipeline through which an item went in Relay.
+#[derive(Debug, Clone)]
+pub enum Pipeline {
+    /// The legacy standalone span pipeline.
+    SpanLegacy,
+    /// The legacy transaction pipeline.
+    Transaction,
+    /// The V2 span pipeline.
+    SpanV2,
+}
+
+impl fmt::Display for Pipeline {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Pipeline::SpanLegacy => f.write_str("span_legacy"),
+            Pipeline::Transaction => f.write_str("transaction"),
+            Pipeline::SpanV2 => f.write_str("span_v2"),
+        }
+    }
+}
+
+/// Writes `ingress` and `pipeline` into [`SENTRY__RELAY__INGRESS`] and
+/// [`SENTRY__RELAY__PIPELINE`], respectively.
+pub fn normalize_pipeline_attributes(
+    attributes: &mut Annotated<Attributes>,
+    ingress: Option<&Ingress>,
+    pipeline: Option<&Pipeline>,
+) {
+    let attributes = attributes.get_or_insert_with(Default::default);
+
+    if let Some(ingress) = ingress {
+        attributes.insert_if_missing(SENTRY__RELAY__INGRESS, || ingress.to_string());
+    }
+
+    if let Some(pipeline) = pipeline {
+        attributes.insert_if_missing(SENTRY__RELAY__PIPELINE, || pipeline.to_string());
+    }
+}
 
 /// Infers the sentry.op attribute and inserts it into [`Attributes`] if not already set.
 pub fn normalize_sentry_op(attributes: &mut Annotated<Attributes>) {
@@ -517,20 +579,25 @@ pub fn normalize_client_sample_rate(attributes: &mut Annotated<Attributes>) {
 /// Attributes with a status of `"backfill"` will be copied to their replacement name if the
 /// replacement name is not present. In any case, the original name is left alone.
 pub fn normalize_attribute_names(attributes: &mut Annotated<Attributes>) {
-    normalize_attribute_names_inner(attributes, relay_conventions::attribute_info_with_fragment)
-}
-
-type AttributeInfoFn = fn(&str) -> Option<(&'static AttributeInfo, Option<&str>)>;
-
-fn normalize_attribute_names_inner(
-    attributes: &mut Annotated<Attributes>,
-    attribute_info: AttributeInfoFn,
-) {
     let Some(attributes) = attributes.value_mut() else {
         return;
     };
 
-    let attribute_names: Vec<_> = attributes.0.keys().cloned().collect();
+    normalize_attribute_names_inner(
+        &mut attributes.0,
+        relay_conventions::attribute_info_with_fragment,
+    )
+}
+
+type AttributeInfoFn = fn(&str) -> Option<(&'static AttributeInfo, Option<&str>)>;
+
+fn normalize_attribute_names_inner<T>(
+    attributes: &mut BTreeMap<String, Annotated<T>>,
+    attribute_info: AttributeInfoFn,
+) where
+    T: Clone,
+{
+    let attribute_names: Vec<_> = attributes.keys().cloned().collect();
 
     for name in attribute_names {
         let Some((attribute_info, fragment)) = attribute_info(&name) else {
@@ -540,7 +607,7 @@ fn normalize_attribute_names_inner(
         match attribute_info.write_behavior {
             WriteBehavior::CurrentName => continue,
             WriteBehavior::NewName(new_name) => {
-                let Some(old_attribute) = attributes.0.get_mut(&name) else {
+                let Some(old_attribute) = attributes.get_mut(&name) else {
                     continue;
                 };
 
@@ -559,7 +626,7 @@ fn normalize_attribute_names_inner(
                 let new_attribute = std::mem::replace(old_attribute, Annotated(None, meta));
 
                 if !attributes.contains_key(&*new_name) {
-                    attributes.0.insert(new_name.into_owned(), new_attribute);
+                    attributes.insert(new_name.into_owned(), new_attribute);
                 }
             }
             WriteBehavior::BothNames(new_name) => {
@@ -573,15 +640,18 @@ fn normalize_attribute_names_inner(
                 };
 
                 if !attributes.contains_key(&*new_name)
-                    && let Some(current_attribute) = attributes.0.get(&name).cloned()
+                    && let Some(current_attribute) = attributes.get(&name).cloned()
                 {
-                    attributes
-                        .0
-                        .insert(new_name.into_owned(), current_attribute);
+                    attributes.insert(new_name.into_owned(), current_attribute);
                 }
             }
         }
     }
+}
+
+/// Like [`normalize_attribute_names`] but works on [`Object`] instead of [`Attributes`].
+pub fn normalize_attribute_names_obj(attributes: &mut Object<Value>) {
+    normalize_attribute_names_inner(attributes, relay_conventions::attribute_info_with_fragment)
 }
 
 /// Resolves the name of a replacement attribute for rewriting.
@@ -1643,7 +1713,7 @@ mod tests {
             }
         }
 
-        let mut attributes = Annotated::new(Attributes::from([
+        let mut attributes = Attributes::from([
             (
                 "replace.empty".to_owned(),
                 Annotated::new("Should be moved".to_owned().into()),
@@ -1676,11 +1746,11 @@ mod tests {
                 "not.backfilled".to_owned(),
                 Annotated::new("Should be left alone".to_owned().into()),
             ),
-        ]));
+        ]);
 
-        normalize_attribute_names_inner(&mut attributes, mock_attribute_info);
+        normalize_attribute_names_inner(&mut attributes.0, mock_attribute_info);
 
-        assert_annotated_snapshot!(attributes, @r###"
+        assert_annotated_snapshot!(Annotated::new(attributes), @r###"
         {
           "backfill.empty": {
             "type": "string",

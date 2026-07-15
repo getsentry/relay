@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use relay_cogs::{AppFeature, FeatureWeights};
+use relay_event_normalization::eap::Ingress;
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{OurLog, ourlog};
 use relay_filter::FilterStatKey;
@@ -281,6 +282,11 @@ struct Settings {
 pub struct ExpandedLogs {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
+    /// How the contained logs entered Relay.
+    ///
+    /// This is only for reporting purposes. If you want the pipeline
+    /// to behave differently based on where spans came from, use `settings`.
+    ingress: Ingress,
     /// Client/protocol supplied settings controlling how logs should be normalized.
     settings: Settings,
     /// Expanded and parsed logs.
