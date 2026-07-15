@@ -37,7 +37,7 @@ def test_event_with_flags(relay, mini_sentry):
         "abc": "def",
         "type": "flags",
     }
-    assert not mini_sentry.captured_envelopes.empty()
+    assert mini_sentry.captured_envelopes.empty()
 
 
 def test_event_with_flags_malformed(relay, mini_sentry):

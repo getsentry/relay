@@ -51,15 +51,6 @@ from .consts import (
     ZSTD_MAGIC_HEADER,
 )
 
-# @pytest.fixture(scope="session", autouse=True)
-# def init_sentry():
-#     print("SENTRY DSN HERE", os.environ.get("PYTEST_SENTRY_DSN"))
-#     sentry_sdk.init(
-#         dsn=os.environ.get("PYTEST_SENTRY_DSN"),
-#         traces_sample_rate=1.0,
-#         # debug=True,
-#     )
-
 
 @pytest.fixture(scope="session")
 def random_port():
