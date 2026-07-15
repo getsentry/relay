@@ -1,6 +1,5 @@
 # FFI
 sentry_relay/_lowlevel*
-!sentry_relay/_lowlevel.pyi
 
 # Wheels
 dist
