@@ -1492,7 +1492,6 @@ def test_spansv2_attribute_normalization(
         "attributes": {
             "sentry.category": {"type": "string", "value": "db"},
             "sentry.op": {"type": "string", "value": "db"},
-            "db.system": {"type": "string", "value": "mysql"},
             "db.system.name": {"type": "string", "value": "mysql"},
             "db.operation.name": {"type": "string", "value": "SELECT"},
             "sentry.action": {"type": "string", "value": "SELECT"},
