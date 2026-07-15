@@ -31,6 +31,7 @@
 - Parse two-component versions in iOS and iPadOS `raw_description` into `version` instead of `kernel_version`. ([#6197](https://github.com/getsentry/relay/pull/6197))
 - Normalize segment names for standalone spans in the experimental pipeline. ([#6163](https://github.com/getsentry/relay/pull/6163))
 - Limit nested form-data entry keys. ([#6179](https://github.com/getsentry/relay/pull/6179))
+- Retain client-supplied debug images when parsing Perfetto profile chunks, instead of overwriting them with images extracted from the trace. ([#6232](https://github.com/getsentry/relay/pull/6232))
 
 **Internal**:
 
