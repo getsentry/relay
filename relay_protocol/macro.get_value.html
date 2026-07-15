@@ -2,7 +2,7 @@
     (@access $root:ident,) =&gt; { ... };
     (@access $root:ident, !) =&gt; { ... };
     (@access $root:ident, . $field:ident $( $tail:tt )*) =&gt; { ... };
-    (@access $root:ident, [ $index:literal ] $( $tail:tt )*) =&gt; { ... };
+    (@access $root:ident, [ $index:expr ] $( $tail:tt )*) =&gt; { ... };
     ($root:ident $( $tail:tt )*) =&gt; { ... };
 }</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Returns a reference to the typed value at a given path in an <a href="struct.Annotated.html" title="struct relay_protocol::Annotated"><code>Annotated</code></a>.</p>
 <p>The return type depends on the path expression used. By default, this macro will resolve to an

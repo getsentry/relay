@@ -857,18 +857,18 @@
 <a href=#857 id=857 data-nosnippet>857</a>        <span class="kw">let </span>span_v1 = SpanV1::from(<span class="kw-2">&amp;</span>txn);
 <a href=#858 id=858 data-nosnippet>858</a>
 <a href=#859 id=859 data-nosnippet>859</a>        <span class="comment">// Both the name and the segment name are the same as the transaction.
-<a href=#860 id=860 data-nosnippet>860</a>        </span><span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(span_v1.clone())), @<span class="string">r###"
+<a href=#860 id=860 data-nosnippet>860</a>        </span><span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(span_v1.clone())), @<span class="string">r#"
 <a href=#861 id=861 data-nosnippet>861</a>        {
 <a href=#862 id=862 data-nosnippet>862</a>          "is_segment": true,
 <a href=#863 id=863 data-nosnippet>863</a>          "is_remote": true,
 <a href=#864 id=864 data-nosnippet>864</a>          "description": "hi",
 <a href=#865 id=865 data-nosnippet>865</a>          "data": {
-<a href=#866 id=866 data-nosnippet>866</a>            "sentry.segment.name": "hi",
-<a href=#867 id=867 data-nosnippet>867</a>            "sentry.name": "hi"
+<a href=#866 id=866 data-nosnippet>866</a>            "sentry.name": "hi",
+<a href=#867 id=867 data-nosnippet>867</a>            "sentry.segment.name": "hi"
 <a href=#868 id=868 data-nosnippet>868</a>          },
 <a href=#869 id=869 data-nosnippet>869</a>          "was_transaction": true
 <a href=#870 id=870 data-nosnippet>870</a>        }
-<a href=#871 id=871 data-nosnippet>871</a>        "###</span>);
+<a href=#871 id=871 data-nosnippet>871</a>        "#</span>);
 <a href=#872 id=872 data-nosnippet>872</a>
 <a href=#873 id=873 data-nosnippet>873</a>        <span class="kw">let </span>span_v2 = span_v1_to_span_v2(span_v1, <span class="bool-val">false</span>);
 <a href=#874 id=874 data-nosnippet>874</a>

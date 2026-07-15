@@ -135,7 +135,7 @@
 <a href=#135 id=135 data-nosnippet>135</a>        <span class="kw">let </span><span class="macro-nonterminal">$root </span>= <span class="macro-nonterminal">$root</span>.and_then(|v| v.<span class="macro-nonterminal">$field</span>.value());
 <a href=#136 id=136 data-nosnippet>136</a>        <span class="macro">get_value!</span>(@access <span class="macro-nonterminal">$root</span>, $(<span class="macro-nonterminal">$tail</span>)<span class="kw-2">*</span>);
 <a href=#137 id=137 data-nosnippet>137</a>    };
-<a href=#138 id=138 data-nosnippet>138</a>    (@access <span class="macro-nonterminal">$root</span>:ident, [ <span class="macro-nonterminal">$index</span>:literal ] $( <span class="macro-nonterminal">$tail</span>:tt )<span class="kw-2">*</span>) =&gt; {
+<a href=#138 id=138 data-nosnippet>138</a>    (@access <span class="macro-nonterminal">$root</span>:ident, [ <span class="macro-nonterminal">$index</span>:expr ] $( <span class="macro-nonterminal">$tail</span>:tt )<span class="kw-2">*</span>) =&gt; {
 <a href=#139 id=139 data-nosnippet>139</a>        <span class="kw">let </span><span class="macro-nonterminal">$root </span>= <span class="macro-nonterminal">$root</span>.and_then(|v| v.get(<span class="macro-nonterminal">$index</span>)).and_then(|a| a.value());
 <a href=#140 id=140 data-nosnippet>140</a>        <span class="macro">get_value!</span>(@access <span class="macro-nonterminal">$root</span>, $(<span class="macro-nonterminal">$tail</span>)<span class="kw-2">*</span>);
 <a href=#141 id=141 data-nosnippet>141</a>    };
