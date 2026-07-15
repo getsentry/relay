@@ -228,6 +228,7 @@ def test_span_extraction(
             "attributes": {  # Backfilled from `sentry_tags`
                 "http.request.method": {"type": "string", "value": "GET"},
                 "http.route": {"type": "string", "value": "*******************"},
+                "sentry.action": {"type": "string", "value": "GET"},
                 "sentry.category": {"type": "string", "value": "http"},
                 "sentry.exclusive_time": {"type": "double", "value": 500.0},
                 "sentry.op": {"type": "string", "value": "http.client"},
@@ -1121,7 +1122,7 @@ def test_span_filtering_with_generic_inbound_filter(
                 "isEnabled": True,
                 "condition": {
                     "op": "eq",
-                    "name": "span.data.release",
+                    "name": "span.data.sentry\\.release",
                     "value": "1.0",
                 },
             }

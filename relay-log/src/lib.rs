@@ -113,6 +113,8 @@
 #![allow(clippy::derive_partial_eq_without_eq)]
 
 #[cfg(feature = "init")]
+mod crash;
+#[cfg(feature = "init")]
 mod setup;
 #[cfg(feature = "init")]
 pub use setup::*;
@@ -122,7 +124,6 @@ mod test;
 #[cfg(feature = "test")]
 pub use test::*;
 
-mod crash;
 mod utils;
 // Expose the minimal log facade.
 #[doc(inline)]

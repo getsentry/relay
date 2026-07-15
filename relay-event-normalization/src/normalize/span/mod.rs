@@ -1,6 +1,9 @@
 //! Span normalization logic.
 
 use regex::Regex;
+use relay_conventions::attributes::{
+    SENTRY__DSC__PROJECT_ID, SENTRY__DSC__TRACE_ID, SENTRY__DSC__TRANSACTION,
+};
 use relay_event_schema::protocol::{Event, SpanData, TraceContext};
 use relay_protocol::Annotated;
 use relay_sampling::DynamicSamplingContext;
@@ -23,6 +26,29 @@ pub static TABLE_NAME_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     )
     .unwrap()
 });
+
+/// Applies [`relay_conventions`] configured normalizations to transaction spans.
+pub fn normalize_conventions(event: &mut Event) {
+    if let Some(data) = event
+        .contexts
+        .value_mut()
+        .as_mut()
+        .and_then(|c| c.get_mut::<TraceContext>())
+        .and_then(|c| c.data.value_mut().as_mut())
+    {
+        crate::eap::normalize_attribute_names_obj(&mut data.other);
+    }
+
+    if let Some(spans) = event.spans.value_mut() {
+        for data in spans
+            .iter_mut()
+            .filter_map(|span| span.value_mut().as_mut())
+            .filter_map(|span| span.data.value_mut().as_mut())
+        {
+            crate::eap::normalize_attribute_names_obj(&mut data.other);
+        }
+    }
+}
 
 /// Replaces snake_case app start spans op with dot.case op.
 ///
@@ -85,14 +111,14 @@ pub fn normalize_dsc_for_span_data(
     };
 
     let data = span_data.get_or_insert_with(SpanData::default);
-    if data.sentry_dsc_trace_id.value().is_some() {
+    if data.get_value(SENTRY__DSC__TRACE_ID).is_some() {
         return;
     }
-    data.sentry_dsc_trace_id = Annotated::new(dsc.trace_id.to_string());
+    data.insert_value(SENTRY__DSC__TRACE_ID, dsc.trace_id.to_string());
     if let Some(project_id) = &dsc.project_id {
-        data.sentry_dsc_project_id = Annotated::new(project_id.to_string());
+        data.insert_value(SENTRY__DSC__PROJECT_ID, project_id.to_string());
     }
     if let Some(transaction) = &dsc.transaction {
-        data.sentry_dsc_transaction = Annotated::new(transaction.to_string());
+        data.insert_value(SENTRY__DSC__TRANSACTION, transaction.to_string());
     }
 }
