@@ -1,4 +1,4 @@
-use relay_event_normalization::eap::ClientUserAgentInfo;
+use relay_event_normalization::eap::{ClientUserAgentInfo, Ingress};
 use relay_event_normalization::{RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{OurLog, OurLogHeader};
@@ -36,6 +36,11 @@ pub fn expand(logs: Managed<SerializedLogs>) -> Result<Managed<ExpandedLogs>, Re
         // accurately counted bytes.
         records.lenient(DataCategory::LogByte);
 
+        let ingress = match &items {
+            LogItems::Container(_) => Ingress::Container,
+            LogItems::Integration(_) => Ingress::Integration,
+        };
+
         let (settings, logs) = match items {
             LogItems::Container(item) => expand_log_container(&item, trust)?,
             LogItems::Integration(item) => {
@@ -45,6 +50,7 @@ pub fn expand(logs: Managed<SerializedLogs>) -> Result<Managed<ExpandedLogs>, Re
 
         Ok::<_, Error>(ExpandedLogs {
             headers,
+            ingress,
             settings,
             logs,
         })
@@ -57,11 +63,12 @@ pub fn expand(logs: Managed<SerializedLogs>) -> Result<Managed<ExpandedLogs>, Re
 /// presence and well-formedness of attributes and fields.
 pub fn normalize(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
     let settings = logs.settings;
+    let ingress = logs.ingress.clone();
 
     logs.retain_with_context(
         |logs| (&mut logs.logs, &logs.headers),
         |log, headers, _| {
-            normalize_log(log, headers, settings, ctx).inspect_err(|err| {
+            normalize_log(log, &ingress, headers, settings, ctx).inspect_err(|err| {
                 relay_log::debug!("failed to normalize log: {err}");
             })
         },
@@ -151,6 +158,7 @@ fn scrub_log(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
 
 fn normalize_log(
     log: &mut Annotated<OurLog>,
+    ingress: &Ingress,
     headers: &EnvelopeHeaders,
     settings: Settings,
     ctx: Context<'_>,
@@ -176,6 +184,7 @@ fn normalize_log(
             eap::normalize_inject_client_address(&mut log.attributes, meta.client_addr());
         }
         eap::normalize_user_agent(&mut log.attributes, client_ua_info);
+        eap::normalize_pipeline_attributes(&mut log.attributes, Some(ingress), None);
     }
 
     if let Annotated(None, meta) = log {

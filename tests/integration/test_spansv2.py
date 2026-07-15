@@ -133,6 +133,8 @@ def test_spansv2_basic(
                 "value": time_within(ts, expect_resolution="ns"),
             },
             "sentry.op": {"type": "string", "value": "default"},
+            "sentry.relay.ingress": {"type": "string", "value": "container"},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "sentry.trace.status": {"type": "string", "value": "ok"},
         },
         "_meta": {
@@ -243,7 +245,7 @@ def test_spansv2_trimming_basic(
             # This is sufficient for all builtin attributes not
             # to be trimmed. The span fields that aren't trimmed
             # also still count for the size limit.
-            "trimming": {"span": {"maxSize": 513}},
+            "trimming": {"span": {"maxSize": 570}},
         }
     )
 
@@ -341,11 +343,13 @@ def test_spansv2_trimming_basic(
                 "value": time_within(ts, expect_resolution="ns"),
             },
             "sentry.op": {"type": "string", "value": "default"},
+            "sentry.relay.ingress": {"type": "string", "value": "container"},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "sentry.trace.status": {"type": "string", "value": "ok"},
         },
         "_meta": {
             "attributes": {
-                "": {"len": 586},
+                "": {"len": 643},
                 "custom.array.attribute": {
                     "value": {
                         "1": {
@@ -1210,6 +1214,8 @@ def test_spanv2_with_string_pii_scrubbing(
                 "value": "5b8efff798038103d269b633813fc60c",
             },
             "test_pii": {"type": "string", "value": expected_scrubbed},
+            "sentry.relay.ingress": {"type": "string", "value": "container"},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
@@ -1349,6 +1355,8 @@ def test_spanv2_meta_pii_scrubbing_complex_attribute(mini_sentry, relay):
                 "type": "string",
                 "value": "5b8efff798038103d269b633813fc60c",
             },
+            "sentry.relay.ingress": {"type": "string", "value": "container"},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
@@ -1520,6 +1528,8 @@ def test_spansv2_attribute_normalization(
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
             },
+            "sentry.relay.ingress": {"type": "string", "value": "container"},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
         },
     }
 
@@ -1546,6 +1556,8 @@ def test_spansv2_attribute_normalization(
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
             },
+            "sentry.relay.ingress": {"type": "string", "value": "container"},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "http.request.method": {"type": "string", "value": "GET"},
             "sentry.action": {"type": "string", "value": "GET"},
             "server.address": {"type": "string", "value": "*.service.io"},
@@ -1997,6 +2009,8 @@ def test_spansv2_lcp_segment(mini_sentry, relay_with_processing, spans_consumer)
                 "type": "string",
                 "value": "ui.webvital.lcp",
             },
+            "sentry.relay.ingress": {"type": "string", "value": "container"},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "sentry.segment.name": {
                 "type": "string",
                 "value": "/issues/",

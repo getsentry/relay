@@ -3,6 +3,7 @@
 //! A central place for all modifications/normalizations for attributes.
 
 use std::borrow::Cow;
+use std::fmt;
 use std::net::IpAddr;
 
 use chrono::{DateTime, Utc};
@@ -38,6 +39,66 @@ pub use self::ai::normalize_ai;
 pub use self::mobile::{normalize_mobile_attributes, normalize_mobile_measurements};
 pub use self::size::*;
 pub use self::trimming::TrimmingProcessor;
+
+/// How an EAP item entered Relay.
+#[derive(Debug, Clone)]
+pub enum Ingress {
+    /// The item comes from an integration (e.g. OTEL, Vercel).
+    Integration,
+    /// The item comes from an item container.
+    Container,
+    /// The item was converted from a legacy item type.
+    Legacy,
+}
+
+impl fmt::Display for Ingress {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Ingress::Integration => f.write_str("integration"),
+            Ingress::Container => f.write_str("container"),
+            Ingress::Legacy => f.write_str("legacy"),
+        }
+    }
+}
+
+/// The pipeline through which an item went in Relay.
+#[derive(Debug, Clone)]
+pub enum Pipeline {
+    /// The legacy standalone span pipeline.
+    SpanLegacy,
+    /// The legacy transaction pipeline.
+    Transaction,
+    /// The V2 span pipeline.
+    SpanV2,
+}
+
+impl fmt::Display for Pipeline {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Pipeline::SpanLegacy => f.write_str("span_legacy"),
+            Pipeline::Transaction => f.write_str("transaction"),
+            Pipeline::SpanV2 => f.write_str("span_v2"),
+        }
+    }
+}
+
+/// Writes `ingress` and `pipeline` into [`SENTRY__RELAY__INGRESS`] and
+/// [`SENTRY__RELAY__PIPELINE`], respectively.
+pub fn normalize_pipeline_attributes(
+    attributes: &mut Annotated<Attributes>,
+    ingress: Option<&Ingress>,
+    pipeline: Option<&Pipeline>,
+) {
+    let attributes = attributes.get_or_insert_with(Default::default);
+
+    if let Some(ingress) = ingress {
+        attributes.insert_if_missing(SENTRY__RELAY__INGRESS, || ingress.to_string());
+    }
+
+    if let Some(pipeline) = pipeline {
+        attributes.insert_if_missing(SENTRY__RELAY__PIPELINE, || pipeline.to_string());
+    }
+}
 
 /// Infers the sentry.op attribute and inserts it into [`Attributes`] if not already set.
 pub fn normalize_sentry_op(attributes: &mut Annotated<Attributes>) {
