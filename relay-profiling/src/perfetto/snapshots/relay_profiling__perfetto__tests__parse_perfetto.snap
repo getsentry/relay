@@ -8,6 +8,10 @@ expression: chunk.inner
   "debug_meta": {
     "images": [
       {
+        "type": "proguard",
+        "uuid": "32420279-25e2-34e6-8bc7-8a006a8f2425"
+      },
+      {
         "code_file": "apex/com.android.runtime/lib64/bionic/libc.so",
         "debug_id": "f8ec9f1b-d634-f710-7e64-1f026ca7269b",
         "type": "symbolic",
