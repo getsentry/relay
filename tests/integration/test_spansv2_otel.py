@@ -270,7 +270,6 @@ def test_span_ingestion(
             "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "sentry.segment.id": {"type": "string", "value": "f0b809703e783d00"},
             "sentry.segment.name": {"type": "string", "value": "A Proto Span"},
-            "sentry.transaction": {"type": "string", "value": "A Proto Span"},
             "sentry.kind": {"type": "string", "value": "server"},
             "ui.component_name": {"type": "string", "value": "MyComponent"},
         },

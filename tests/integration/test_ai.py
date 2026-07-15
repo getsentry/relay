@@ -432,7 +432,6 @@ def test_ai_spans_example_transaction(
                 "sentry.segment.name": {"type": "string", "value": "main"},
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
-                "sentry.transaction": {"type": "string", "value": "main"},
                 "sentry.transaction.op": {
                     "type": "string",
                     "value": "gen_ai.invoke_agent",
@@ -557,7 +556,6 @@ def test_ai_spans_example_transaction(
                 "sentry.segment.name": {"type": "string", "value": "main"},
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
-                "sentry.transaction": {"type": "string", "value": "main"},
                 "sentry.transaction.op": {
                     "type": "string",
                     "value": "gen_ai.invoke_agent",
@@ -670,7 +668,6 @@ def test_ai_spans_example_transaction(
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.status_code": {"type": "string", "value": "200"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
-                "sentry.transaction": {"type": "string", "value": "main"},
                 "sentry.transaction.op": {
                     "type": "string",
                     "value": "gen_ai.invoke_agent",
@@ -762,7 +759,6 @@ def test_ai_spans_example_transaction(
                 "sentry.segment.name": {"type": "string", "value": "main"},
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
-                "sentry.transaction": {"type": "string", "value": "main"},
                 "sentry.transaction.op": {
                     "type": "string",
                     "value": "gen_ai.invoke_agent",
@@ -838,7 +834,6 @@ def test_ai_spans_example_transaction(
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.status_code": {"type": "string", "value": "200"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
-                "sentry.transaction": {"type": "string", "value": "main"},
                 "sentry.transaction.op": {
                     "type": "string",
                     "value": "gen_ai.invoke_agent",
@@ -923,7 +918,6 @@ def test_ai_spans_example_transaction(
                 "sentry.segment.name": {"type": "string", "value": "main"},
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
-                "sentry.transaction": {"type": "string", "value": "main"},
                 "sentry.transaction.op": {
                     "type": "string",
                     "value": "gen_ai.invoke_agent",
@@ -999,7 +993,6 @@ def test_ai_spans_example_transaction(
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.status_code": {"type": "string", "value": "200"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
-                "sentry.transaction": {"type": "string", "value": "main"},
                 "sentry.transaction.op": {
                     "type": "string",
                     "value": "gen_ai.invoke_agent",
@@ -1115,7 +1108,6 @@ def test_ai_spans_example_transaction(
                 "sentry.segment.name": {"type": "string", "value": "main"},
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
-                "sentry.transaction": {"type": "string", "value": "main"},
                 "sentry.transaction.op": {
                     "type": "string",
                     "value": "gen_ai.invoke_agent",
@@ -1225,7 +1217,6 @@ def test_ai_spans_example_transaction(
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.status_code": {"type": "string", "value": "200"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
-                "sentry.transaction": {"type": "string", "value": "main"},
                 "sentry.transaction.op": {
                     "type": "string",
                     "value": "gen_ai.invoke_agent",
@@ -1299,7 +1290,6 @@ def test_ai_spans_example_transaction(
                 "sentry.span.source": {"type": "string", "value": "custom"},
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
-                "sentry.transaction": {"type": "string", "value": "main"},
                 "sentry.transaction.op": {
                     "type": "string",
                     "value": "gen_ai.invoke_agent",

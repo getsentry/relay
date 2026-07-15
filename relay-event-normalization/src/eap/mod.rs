@@ -974,8 +974,6 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
         (SERVER__ADDRESS, SENTRY__DOMAIN),
         (HTTP__REQUEST__METHOD, SENTRY__ACTION),
         (HTTP__RESPONSE__STATUS_CODE, SENTRY__STATUS_CODE),
-        // Transaction
-        (SENTRY__SEGMENT__NAME, SENTRY__TRANSACTION),
     ];
 
     for (current_attribute, legacy_attribute) in current_to_legacy_attributes {
