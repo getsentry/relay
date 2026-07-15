@@ -206,9 +206,6 @@ fn normalize_ai_costs(attributes: &mut Attributes, model_metadata: Option<&Model
 
     // Overwrite all values, the attributes should reflect the values we used to calculate the total.
     attributes.insert(GEN_AI__COST__INPUT_TOKENS, costs.input);
-    attributes.insert(GEN_AI__COST__OUTPUT_TOKENS, costs.output);
-    attributes.insert(GEN_AI__COST__TOTAL_TOKENS, costs.total());
-
     attributes.insert(
         GEN_AI__COST__CACHE_READ__INPUT_TOKENS,
         costs.cache_read_input,
@@ -217,10 +214,14 @@ fn normalize_ai_costs(attributes: &mut Attributes, model_metadata: Option<&Model
         GEN_AI__COST__CACHE_CREATION__INPUT_TOKENS,
         costs.cache_creation_input,
     );
+
+    attributes.insert(GEN_AI__COST__OUTPUT_TOKENS, costs.output);
     attributes.insert(
         GEN_AI__COST__REASONING__OUTPUT_TOKENS,
         costs.reasoning_output,
     );
+
+    attributes.insert(GEN_AI__COST__TOTAL_TOKENS, costs.total());
 }
 
 fn extract_string_value<'a>(attributes: &'a Attributes, key: &str) -> Option<&'a str> {

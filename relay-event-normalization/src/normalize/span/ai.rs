@@ -236,11 +236,6 @@ fn extract_ai_model_cost_data(
         .or_default()
         .set_value(Value::F64(costs.input).into());
     data.other
-        .entry(GEN_AI__COST__OUTPUT_TOKENS.to_owned())
-        .or_default()
-        .set_value(Value::F64(costs.output).into());
-
-    data.other
         .entry(GEN_AI__COST__CACHE_READ__INPUT_TOKENS.to_owned())
         .or_default()
         .set_value(Value::F64(costs.cache_read_input).into());
@@ -248,6 +243,12 @@ fn extract_ai_model_cost_data(
         .entry(GEN_AI__COST__CACHE_CREATION__INPUT_TOKENS.to_owned())
         .or_default()
         .set_value(Value::F64(costs.cache_creation_input).into());
+
+    data.other
+        .entry(GEN_AI__COST__OUTPUT_TOKENS.to_owned())
+        .or_default()
+        .set_value(Value::F64(costs.output).into());
+
     data.other
         .entry(GEN_AI__COST__REASONING__OUTPUT_TOKENS.to_owned())
         .or_default()
