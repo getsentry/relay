@@ -9,6 +9,7 @@ use serde::Deserialize;
 
 use crate::constants::UNREAL_USER_HEADER;
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
+use crate::endpoints::minidump::is_gpu_crash_item;
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::middlewares;
@@ -35,10 +36,11 @@ struct UnrealParams {
 }
 
 impl UnrealParams {
+    /// Returns the envelope and whether the org may split off a GPU crash event.
     async fn extract_envelope(
         self,
         state: &ServiceState,
-    ) -> Result<Box<Envelope>, BadStoreRequest> {
+    ) -> Result<(Box<Envelope>, bool), BadStoreRequest> {
         let Self { meta, query, data } = self;
 
         if data.is_empty() {
@@ -88,7 +90,8 @@ impl UnrealParams {
                     item.set_unreal_expanded(true);
                     envelope.add_item(item);
                 }
-                return Ok(envelope);
+                let gpu_crash_split = project_config.has_feature(Feature::NvGpuCrashSplit);
+                return Ok((envelope, gpu_crash_split));
             }
         }
 
@@ -96,7 +99,7 @@ impl UnrealParams {
         item.set_payload(ContentType::OctetStream, data);
         envelope.add_item(item);
 
-        Ok(envelope)
+        Ok((envelope, false))
     }
 }
 
@@ -104,8 +107,32 @@ async fn handle(
     state: ServiceState,
     params: UnrealParams,
 ) -> axum::response::Result<impl IntoResponse> {
-    let envelope = params.extract_envelope(&state).await?;
+    let (mut envelope, gpu_crash_split) = params.extract_envelope(&state).await?;
     let id = envelope.event_id();
+
+    // Gated on the org feature: only opted-in orgs split the GPU crash off the
+    // expanded report into a second (billed) event.
+    if gpu_crash_split {
+        let scope_event = envelope
+            .get_item_by(|item| item.ty() == &ItemType::Event)
+            .cloned();
+        let gpu_items = envelope.take_items_by(is_gpu_crash_item);
+        if !gpu_items.is_empty() {
+            let gpu_event_id = EventId::new();
+            let mut gpu_envelope =
+                Envelope::from_request(Some(gpu_event_id), envelope.meta().clone());
+            if let Some(scope_event) = scope_event {
+                gpu_envelope.add_item(scope_event);
+            }
+            for item in gpu_items {
+                gpu_envelope.add_item(item);
+            }
+
+            if let Ok(handled) = common::handle_envelope(&state, gpu_envelope).await {
+                handled.ignore_rate_limits();
+            }
+        }
+    }
 
     // Never respond with a 429 since clients often retry these
     common::handle_envelope(&state, envelope)

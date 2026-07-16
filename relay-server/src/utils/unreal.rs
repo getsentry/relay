@@ -41,6 +41,12 @@ pub fn extract_items(payload: Bytes, config: &Config) -> Result<Items, Processin
                 self::ITEM_NAME_EVENT => (ContentType::MsgPack, AttachmentType::EventPayload),
                 self::ITEM_NAME_BREADCRUMBS1 => (ContentType::MsgPack, AttachmentType::Breadcrumbs),
                 self::ITEM_NAME_BREADCRUMBS2 => (ContentType::MsgPack, AttachmentType::Breadcrumbs),
+                name if name.ends_with(".nv-gpudmp") => {
+                    (ContentType::OctetStream, AttachmentType::NvGpuDump)
+                }
+                name if name.ends_with(".nvdbg") => {
+                    (ContentType::OctetStream, AttachmentType::NvShaderDebug)
+                }
                 _ => (ContentType::OctetStream, AttachmentType::Attachment),
             },
         };

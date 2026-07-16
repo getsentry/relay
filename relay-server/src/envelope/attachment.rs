@@ -52,6 +52,14 @@ pub enum AttachmentType {
 
     /// An application UI view hierarchy (json payload).
     ViewHierarchy,
+
+    /// An NVIDIA Aftermath GPU crash dump (`.nv-gpudmp`), decoded by teapot.
+    ///
+    /// Carried on its own GPU crash event, split off a minidump/unreal upload.
+    NvGpuDump,
+
+    /// NVIDIA Aftermath shader debug info (`.nvdbg`) accompanying an `NvGpuDump`.
+    NvShaderDebug,
 }
 
 impl fmt::Display for AttachmentType {
@@ -67,6 +75,8 @@ impl fmt::Display for AttachmentType {
             AttachmentType::UnrealContext => write!(f, "unreal.context"),
             AttachmentType::UnrealLogs => write!(f, "unreal.logs"),
             AttachmentType::ViewHierarchy => write!(f, "event.view_hierarchy"),
+            AttachmentType::NvGpuDump => write!(f, "event.nv_gpudmp"),
+            AttachmentType::NvShaderDebug => write!(f, "event.nv_shader_debug"),
         }
     }
 }
@@ -99,6 +109,8 @@ impl std::str::FromStr for AttachmentType {
             "event.view_hierarchy" => AttachmentType::ViewHierarchy,
             "unreal.context" => AttachmentType::UnrealContext,
             "unreal.logs" => AttachmentType::UnrealLogs,
+            "event.nv_gpudmp" => AttachmentType::NvGpuDump,
+            "event.nv_shader_debug" => AttachmentType::NvShaderDebug,
             _ => return Err(UnknownAttachmentType),
         })
     }
