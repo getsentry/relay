@@ -102,14 +102,13 @@ impl SentryError for Unreal {
             if let Some(minidump) = &minidump {
                 crate::utils::process_minidump(
                     event.get_or_insert_with(Default::default),
-                    minidump,
-                    ctx.processing.project_info
+                    minidump
                 );
                 metrics.bytes_ingested_event_minidump = (minidump.attachment_body_size() as u64).into();
             }
             if let Some(acr) = &apple_crash_report {
                 crate::utils::process_apple_crash_report(
-                    event.get_or_insert_with(Default::default), ctx.processing.project_info
+                    event.get_or_insert_with(Default::default)
                 );
                 metrics.bytes_ingested_event_applecrashreport = (acr.len() as u64).into();
             }

@@ -10,7 +10,6 @@ use chrono::{TimeZone, Utc};
 use minidump::{
     MinidumpAnnotation, MinidumpCrashpadInfo, MinidumpModuleList, Module, StabilityReport,
 };
-use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::{
     ClientSdkInfo, Context, Contexts, Event, Exception, JsonLenientString, Level, Mechanism,
     StabilityReportContext, Values,
@@ -18,7 +17,6 @@ use relay_event_schema::protocol::{
 use relay_protocol::{Annotated, Value, get_value};
 
 use crate::envelope::{Item, ItemType};
-use crate::services::projects::project::ProjectInfo;
 
 type Minidump<'a> = minidump::Minidump<'a, &'a [u8]>;
 
@@ -45,11 +43,7 @@ struct NativePlaceholder {
 ///
 /// This will indicate to the ingestion pipeline that this event will need to be processed. The
 /// payload can be checked via `is_minidump_event`.
-fn write_native_placeholder(
-    event: &mut Event,
-    placeholder: NativePlaceholder,
-    project_info: &ProjectInfo,
-) {
+fn write_native_placeholder(event: &mut Event, placeholder: NativePlaceholder) {
     // Events must be native platform.
     let platform = event.platform.value_mut();
     *platform = Some("native".to_owned());
@@ -71,7 +65,6 @@ fn write_native_placeholder(
         .value_mut()
         .get_or_insert_with(Vec::new);
 
-    let allow_multiple_exceptions = project_info.has_feature(Feature::MinidumpMultiException);
     if let Some(exc) = exceptions.first() {
         relay_log::info!(
             additional_exceptions = exceptions.len(),
@@ -79,14 +72,9 @@ fn write_native_placeholder(
             additional_exception_mechanism = ?get_value!(exc.mechanism.ty),
             sentry_project = ?event.project,
             event_id = ?event.id,
-            has_feature = allow_multiple_exceptions,
             platform = ?event.platform,
             "Native event has additional exceptions",
         )
-    }
-
-    if !allow_multiple_exceptions {
-        exceptions.clear(); // clear previous errors if any
     }
 
     // The placeholder for the minidump exception has to be the first in the list. This is what
@@ -223,14 +211,14 @@ fn write_crashpad_annotations(
 ///
 /// This function operates at best-effort. It always attaches the placeholder and returns
 /// successfully, even if the minidump or part of its data cannot be parsed.
-pub fn process_minidump(event: &mut Event, item: &Item, project_info: &ProjectInfo) {
+pub fn process_minidump(event: &mut Event, item: &Item) {
     debug_assert_eq!(item.ty(), &ItemType::Attachment);
     let placeholder = NativePlaceholder {
         exception_type: "Minidump",
         exception_value: "Invalid Minidump",
         mechanism_type: "minidump",
     };
-    write_native_placeholder(event, placeholder, project_info);
+    write_native_placeholder(event, placeholder);
 
     if item.is_attachment_ref() {
         // We don't have a full minidump, just a placeholder for something that was uploaded
@@ -293,11 +281,11 @@ pub fn process_minidump(event: &mut Event, item: &Item, project_info: &ProjectIn
 
 /// Writes minimal information into the event to indicate it is associated with an Apple Crash
 /// Report.
-pub fn process_apple_crash_report(event: &mut Event, project_info: &ProjectInfo) {
+pub fn process_apple_crash_report(event: &mut Event) {
     let placeholder = NativePlaceholder {
         exception_type: "AppleCrashReport",
         exception_value: "Invalid Apple Crash Report",
         mechanism_type: "applecrashreport",
     };
-    write_native_placeholder(event, placeholder, project_info);
+    write_native_placeholder(event, placeholder);
 }

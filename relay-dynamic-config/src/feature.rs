@@ -102,9 +102,6 @@ pub enum Feature {
     /// Stream minidumps to objectstore.
     #[serde(rename = "projects:relay-minidump-uploads")]
     MinidumpUploads,
-    /// Allow additional exceptions to accompany minidumps.
-    #[serde(rename = "projects:minidump-multi-exception")]
-    MinidumpMultiException,
     /// Enable relay billing outcome generation.
     #[serde(rename = "organizations:relay-generate-billing-outcome")]
     GenerateBillingOutcome,
