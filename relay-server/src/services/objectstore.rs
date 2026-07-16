@@ -50,7 +50,7 @@ pub enum Objectstore {
     TraceAttachment(Managed<StoreTraceAttachment>),
     EventAttachment(Managed<StoreAttachment>),
     RawProfile(Managed<StoreRawProfile>),
-    Create(Create, Sender<Result<UploadRef, Error>>),
+    Create(CreateMultipart, Sender<Result<UploadRef, Error>>),
     Stream(Stream, Sender<Result<ObjectstoreKey, Error>>),
 }
 
@@ -137,7 +137,7 @@ impl MessageKind {
 }
 
 /// A request to create a new objectstore multipart upload.
-pub struct Create {
+pub struct CreateMultipart {
     /// The sentry org.
     pub organization_id: OrganizationId,
     /// The sentry project.
@@ -146,10 +146,10 @@ pub struct Create {
     pub key: String,
 }
 
-impl FromMessage<Create> for Objectstore {
+impl FromMessage<CreateMultipart> for Objectstore {
     type Response = AsyncResponse<Result<UploadRef, Error>>;
 
-    fn from_message(message: Create, sender: Sender<Result<UploadRef, Error>>) -> Self {
+    fn from_message(message: CreateMultipart, sender: Sender<Result<UploadRef, Error>>) -> Self {
         Self::Create(message, sender)
     }
 }
@@ -768,8 +768,8 @@ impl ObjectstoreServiceInner {
         Ok(Some(stored_key))
     }
 
-    async fn handle_create(&self, create: Create) -> Result<UploadRef, Error> {
-        let Create {
+    async fn handle_create(&self, create: CreateMultipart) -> Result<UploadRef, Error> {
+        let CreateMultipart {
             organization_id,
             project_id,
             key,
@@ -783,6 +783,7 @@ impl ObjectstoreServiceInner {
             .send()
             .await?;
         debug_assert_eq!(&key, multipart_upload.key());
+
         let upload_id = multipart_upload.upload_id();
 
         Ok(UploadRef {
