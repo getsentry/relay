@@ -59,6 +59,7 @@ pub enum Objectstore {
     RawProfile(Managed<StoreRawProfile>),
     Create(CreateMultipart, Sender<Result<UploadRef, Error>>),
     Stream(Stream, Sender<Result<UploadRef, Error>>),
+    Finish(Finish, Sender<Result<UploadRef, Error>>),
 }
 
 impl Objectstore {
@@ -70,6 +71,7 @@ impl Objectstore {
             Self::RawProfile(_) => MessageKind::RawProfile,
             Self::Stream { .. } => MessageKind::Stream,
             Self::Create { .. } => MessageKind::Create,
+            Self::Finish { .. } => MessageKind::Finish,
         }
     }
 
@@ -81,6 +83,7 @@ impl Objectstore {
             Self::RawProfile(_) => 1,
             Self::Stream { .. } => 1,
             Self::Create { .. } => 0,
+            Self::Finish { .. } => 1,
         }
     }
 }
@@ -128,6 +131,7 @@ enum MessageKind {
     RawProfile,
     Stream,
     Create,
+    Finish,
 }
 
 impl MessageKind {
@@ -139,6 +143,7 @@ impl MessageKind {
             Self::RawProfile => "profile_raw",
             Self::Stream => "stream",
             Self::Create => "create",
+            Self::Finish => "finish",
         }
     }
 }
@@ -174,6 +179,21 @@ impl FromMessage<Stream> for Objectstore {
 
     fn from_message(message: Stream, sender: Sender<Result<UploadRef, Error>>) -> Self {
         Self::Stream(message, sender)
+    }
+}
+
+/// A request to finish an objectstore multipart upload.
+pub struct Finish {
+    pub organization_id: OrganizationId,
+    pub project_id: ProjectId,
+    pub upload_ref: UploadRef,
+}
+
+impl FromMessage<Finish> for Objectstore {
+    type Response = AsyncResponse<Result<UploadRef, Error>>;
+
+    fn from_message(message: Finish, sender: Sender<Result<UploadRef, Error>>) -> Self {
+        Self::Finish(message, sender)
     }
 }
 
@@ -287,6 +307,10 @@ pub enum ErrorKind {
         "invalid upload offset {offset}: must be aligned to the upload granularity {granularity}"
     )]
     InvalidOffset { offset: usize, granularity: usize },
+    #[error("cannot finish an upload without a multipart upload ID or final length")]
+    InvalidUploadRef,
+    #[error("invalid upload length {expected}: uploaded parts have a total length of {actual}")]
+    InvalidLength { expected: usize, actual: u64 },
     #[error("timeout: {0}")]
     Timeout(#[from] tokio::time::error::Elapsed),
     #[error("load shed")]
@@ -304,6 +328,8 @@ impl ErrorKind {
         match self {
             Self::InvalidScoping => "invalid_scoping",
             Self::InvalidOffset { .. } => "invalid_offset",
+            Self::InvalidUploadRef => "invalid_upload_ref",
+            Self::InvalidLength { .. } => "invalid_length",
             Self::Timeout(_) => "timeout",
             Self::LoadShed => "load_shed",
             Self::CompressionFailed(_) => "compression_failed",
@@ -314,7 +340,9 @@ impl ErrorKind {
 
     fn is_client_error(&self) -> bool {
         match self {
-            ErrorKind::InvalidOffset { .. } => true,
+            ErrorKind::InvalidOffset { .. }
+            | ErrorKind::InvalidUploadRef
+            | ErrorKind::InvalidLength { .. } => true,
             ErrorKind::UploadFailed(objectstore_client::Error::Reqwest(error)) => {
                 find_error_source(error, is_user_error).is_some()
             }
@@ -507,6 +535,9 @@ impl LoadShed<Objectstore> for ObjectstoreService {
             Objectstore::Create(_, sender) => {
                 sender.send(Err(error));
             }
+            Objectstore::Finish(_, sender) => {
+                sender.send(Err(error));
+            }
         }
     }
 }
@@ -557,6 +588,13 @@ impl ObjectstoreServiceInner {
                 let result = self.handle_stream(stream).await;
                 if let Err(error) = &result {
                     error.log(MessageKind::Stream);
+                }
+                sender.send(result);
+            }
+            Objectstore::Finish(finish, sender) => {
+                let result = self.handle_finish(finish).await;
+                if let Err(error) = &result {
+                    error.log(MessageKind::Finish);
                 }
                 sender.send(result);
             }
@@ -858,6 +896,40 @@ impl ObjectstoreServiceInner {
         .await
     }
 
+    async fn handle_finish(&self, finish: Finish) -> Result<UploadRef, Error> {
+        let Finish {
+            organization_id,
+            project_id,
+            upload_ref,
+        } = finish;
+        let UploadRef {
+            key,
+            upload_id,
+            offset: _,
+            length,
+        } = upload_ref;
+        let (Some(upload_id), Some(length)) = (upload_id, length) else {
+            return Err(ErrorKind::InvalidUploadRef.into());
+        };
+
+        let session = self.session(&self.event_attachments, organization_id, project_id)?;
+        let multipart = session.resume_multipart_upload(key.clone(), upload_id.to_string())?;
+        let parts = multipart.list_parts().await?;
+        validate_multipart_length(&parts, length)?;
+
+        let final_key = multipart
+            .complete(parts.into_iter().map(Into::into))
+            .await?;
+        debug_assert_eq!(&key, &final_key);
+
+        Ok(UploadRef {
+            key: final_key,
+            upload_id: None,
+            offset: length,
+            length: Some(length),
+        })
+    }
+
     async fn upload_bytes(
         &self,
         kind: MessageKind,
@@ -1119,6 +1191,18 @@ impl ObjectstoreServiceInner {
     }
 }
 
+fn validate_multipart_length(parts: &[PartInfo], expected: usize) -> Result<(), ErrorKind> {
+    let actual = parts
+        .iter()
+        .fold(0u64, |sum, part| sum.saturating_add(part.size));
+
+    if actual != expected as u64 {
+        return Err(ErrorKind::InvalidLength { expected, actual });
+    }
+
+    Ok(())
+}
+
 #[derive(Debug, thiserror::Error)]
 enum AttemptUploadError {
     #[error(transparent)]
@@ -1248,6 +1332,9 @@ fn drop_attachments(event: &mut Managed<Box<StoreEvent>>) {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU32;
+    use std::time::SystemTime;
+
     use relay_event_schema::protocol::EventId;
     use relay_quotas::DataCategory;
     use relay_system::Service;
@@ -1255,6 +1342,33 @@ mod tests {
     use crate::managed::ManagedTestHandle;
 
     use super::*;
+
+    #[test]
+    fn validates_multipart_length() {
+        let parts = [
+            PartInfo {
+                part_number: NonZeroU32::new(1).unwrap(),
+                etag: "first".to_owned(),
+                last_modified: SystemTime::UNIX_EPOCH,
+                size: 3,
+            },
+            PartInfo {
+                part_number: NonZeroU32::new(2).unwrap(),
+                etag: "second".to_owned(),
+                last_modified: SystemTime::UNIX_EPOCH,
+                size: 5,
+            },
+        ];
+
+        assert!(validate_multipart_length(&parts, 8).is_ok());
+        assert!(matches!(
+            validate_multipart_length(&parts, 9),
+            Err(ErrorKind::InvalidLength {
+                expected: 9,
+                actual: 8
+            })
+        ));
+    }
 
     #[tokio::test]
     async fn org_zero_rejected() {
