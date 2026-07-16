@@ -34,18 +34,18 @@ pub fn normalize_conventions(event: &mut Event) {
         .value_mut()
         .as_mut()
         .and_then(|c| c.get_mut::<TraceContext>())
-        .and_then(|c| c.data.value_mut().as_mut())
+        .map(|c| &mut c.data)
     {
-        crate::eap::normalize_attribute_names_obj(&mut data.other);
+        crate::eap::normalize_attribute_names(data);
     }
 
     if let Some(spans) = event.spans.value_mut() {
         for data in spans
             .iter_mut()
             .filter_map(|span| span.value_mut().as_mut())
-            .filter_map(|span| span.data.value_mut().as_mut())
+            .map(|span| &mut span.data)
         {
-            crate::eap::normalize_attribute_names_obj(&mut data.other);
+            crate::eap::normalize_attribute_names(data);
         }
     }
 }

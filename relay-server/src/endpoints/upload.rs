@@ -184,12 +184,18 @@ async fn handle_post(
             StatusCode::SERVICE_UNAVAILABLE
         })?;
 
+    let multipart = match project.state() {
+        ProjectState::Enabled(p) => p.has_feature(Feature::UploadMultipart),
+        _ => false,
+    };
+
     relay_log::trace!("Checking request");
     let project_context = validate_and_limit(&state, meta, &headers, project).await?;
 
     // Unconditionally create the upload location:
     relay_log::trace!("Creating upload location");
-    let result = create(&state, project_context, &headers).await;
+
+    let result = create(&state, project_context, &headers, multipart).await;
     let location = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "create failed");
     })?;
@@ -312,6 +318,7 @@ async fn create(
     state: &ServiceState,
     project: ProjectContext,
     headers: &tus::Headers,
+    multipart: bool,
 ) -> Result<SignedLocation<Provisional>, Error> {
     let location = state
         .upload()
@@ -319,6 +326,7 @@ async fn create(
             project,
             length: headers.upload_length,
             attachment_type: headers.metadata.map(|m| m.attachment_type),
+            multipart,
         })
         .await??;
 

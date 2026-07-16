@@ -3,7 +3,6 @@
 //! A central place for all modifications/normalizations for attributes.
 
 use std::borrow::Cow;
-use std::collections::BTreeMap;
 use std::fmt;
 use std::net::IpAddr;
 
@@ -30,6 +29,7 @@ use crate::{
 };
 
 mod ai;
+mod attribute_like;
 mod mobile;
 mod size;
 pub mod time;
@@ -37,6 +37,7 @@ pub mod trace_metric;
 mod trimming;
 
 pub use self::ai::normalize_ai;
+pub use self::attribute_like::AttributesLike;
 pub use self::mobile::{normalize_mobile_attributes, normalize_mobile_measurements};
 pub use self::size::*;
 pub use self::trimming::TrimmingProcessor;
@@ -578,23 +579,21 @@ pub fn normalize_client_sample_rate(attributes: &mut Annotated<Attributes>) {
 ///
 /// Attributes with a status of `"backfill"` will be copied to their replacement name if the
 /// replacement name is not present. In any case, the original name is left alone.
-pub fn normalize_attribute_names(attributes: &mut Annotated<Attributes>) {
+pub fn normalize_attribute_names(attributes: &mut Annotated<impl AttributesLike>) {
     let Some(attributes) = attributes.value_mut() else {
         return;
     };
 
     normalize_attribute_names_inner(
-        &mut attributes.0,
+        attributes.as_object_mut(),
         relay_conventions::attribute_info_with_fragment,
     )
 }
 
 type AttributeInfoFn = fn(&str) -> Option<(&'static AttributeInfo, Option<&str>)>;
 
-fn normalize_attribute_names_inner<T>(
-    attributes: &mut BTreeMap<String, Annotated<T>>,
-    attribute_info: AttributeInfoFn,
-) where
+fn normalize_attribute_names_inner<T>(attributes: &mut Object<T>, attribute_info: AttributeInfoFn)
+where
     T: Clone,
 {
     let attribute_names: Vec<_> = attributes.keys().cloned().collect();
@@ -647,11 +646,6 @@ fn normalize_attribute_names_inner<T>(
             }
         }
     }
-}
-
-/// Like [`normalize_attribute_names`] but works on [`Object`] instead of [`Attributes`].
-pub fn normalize_attribute_names_obj(attributes: &mut Object<Value>) {
-    normalize_attribute_names_inner(attributes, relay_conventions::attribute_info_with_fragment)
 }
 
 /// Resolves the name of a replacement attribute for rewriting.
