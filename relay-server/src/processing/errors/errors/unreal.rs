@@ -5,6 +5,8 @@ use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing::ForwardContext;
 use crate::processing::errors::Result;
 use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
+#[cfg(feature = "processing")]
+use crate::utils::AdditionalExceptions;
 
 #[derive(Debug)]
 pub enum UnrealReport {
@@ -102,7 +104,7 @@ impl SentryError for Unreal {
             if let Some(minidump) = &minidump {
                 crate::utils::process_minidump(
                     event.get_or_insert_with(Default::default),
-                    minidump
+                    minidump, AdditionalExceptions::Delete
                 );
                 metrics.bytes_ingested_event_minidump = (minidump.attachment_body_size() as u64).into();
             }

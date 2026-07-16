@@ -38,12 +38,23 @@ struct NativePlaceholder {
     mechanism_type: &'static str,
 }
 
+#[derive(Clone, Copy)]
+/// What to do with additional exceptions in a minidump / apple crash report event.
+pub enum AdditionalExceptions {
+    Retain,
+    Delete,
+}
+
 /// Writes a placeholder to indicate that this event has an associated minidump or an apple
 /// crash report.
 ///
 /// This will indicate to the ingestion pipeline that this event will need to be processed. The
 /// payload can be checked via `is_minidump_event`.
-fn write_native_placeholder(event: &mut Event, placeholder: NativePlaceholder) {
+fn write_native_placeholder(
+    event: &mut Event,
+    placeholder: NativePlaceholder,
+    additional_exceptions: AdditionalExceptions,
+) {
     // Events must be native platform.
     let platform = event.platform.value_mut();
     *platform = Some("native".to_owned());
@@ -75,6 +86,10 @@ fn write_native_placeholder(event: &mut Event, placeholder: NativePlaceholder) {
             platform = ?event.platform,
             "Native event has additional exceptions",
         )
+    }
+
+    if matches!(additional_exceptions, AdditionalExceptions::Delete) {
+        exceptions.clear(); // clear previous errors if any
     }
 
     // The placeholder for the minidump exception has to be the first in the list. This is what
@@ -211,14 +226,18 @@ fn write_crashpad_annotations(
 ///
 /// This function operates at best-effort. It always attaches the placeholder and returns
 /// successfully, even if the minidump or part of its data cannot be parsed.
-pub fn process_minidump(event: &mut Event, item: &Item) {
+pub fn process_minidump(
+    event: &mut Event,
+    item: &Item,
+    additional_exceptions: AdditionalExceptions,
+) {
     debug_assert_eq!(item.ty(), &ItemType::Attachment);
     let placeholder = NativePlaceholder {
         exception_type: "Minidump",
         exception_value: "Invalid Minidump",
         mechanism_type: "minidump",
     };
-    write_native_placeholder(event, placeholder);
+    write_native_placeholder(event, placeholder, additional_exceptions);
 
     if item.is_attachment_ref() {
         // We don't have a full minidump, just a placeholder for something that was uploaded
@@ -287,5 +306,5 @@ pub fn process_apple_crash_report(event: &mut Event) {
         exception_value: "Invalid Apple Crash Report",
         mechanism_type: "applecrashreport",
     };
-    write_native_placeholder(event, placeholder);
+    write_native_placeholder(event, placeholder, AdditionalExceptions::Retain);
 }

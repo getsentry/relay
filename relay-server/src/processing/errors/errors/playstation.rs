@@ -30,6 +30,7 @@ impl SentryError for Playstation {
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
         use crate::envelope::{AttachmentType, ItemType};
         use crate::processing::errors::errors::utils;
+        use crate::utils::AdditionalExceptions;
         use relay_dynamic_config::Feature;
         use relay_event_schema::protocol::Metrics;
 
@@ -107,7 +108,7 @@ impl SentryError for Playstation {
                 // If the original prosperodump is already rate limited, so will be the minidump.
                 item.set_rate_limited(prosperodump.rate_limited());
 
-                crate::utils::process_minidump(event.get_or_insert_with(Event::default), &item);
+                crate::utils::process_minidump(event.get_or_insert_with(Event::default), &item, AdditionalExceptions::Delete);
 
                 item
             };
