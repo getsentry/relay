@@ -43,7 +43,6 @@
 - Internally handle outcomes as metrics. ([#6107](https://github.com/getsentry/relay/pull/6107))
 - Re-introduce `projects:discard-transaction` feature flag. ([#6199](https://github.com/getsentry/relay/pull/6199))
 - Have relay generate metric billing outcomes. ([#6066](https://github.com/getsentry/relay/pull/6066))
-- Update sentry-conventions to 0.17.0. ([#6236](https://github.com/getsentry/relay/pull/6236))
 - Upgrade release image to Debian 13. ([#6110](https://github.com/getsentry/relay/pull/6110))
 - No longer serialize transactions into envelopes when storing them. ([#6193](https://github.com/getsentry/relay/pull/6193))
 - No longer serialize check-ins into envelopes when storing them. ([#6196](https://github.com/getsentry/relay/pull/6196))
