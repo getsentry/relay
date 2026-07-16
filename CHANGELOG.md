@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- No longer write the deprecated `sentry.transaction` attribute. ([#6237](https://github.com/getsentry/relay/pull/6237))
+
 ## 26.7.0
 
 **Features**:
@@ -13,7 +19,6 @@
 - Graduate the upload endpoint and streaming attachments on the minidump endpoint. ([#6171](https://github.com/getsentry/relay/pull/6171), [#6222](https://github.com/getsentry/relay/pull/6222))
 - Add Lightpanda to web crawler filter. ([#6143](https://github.com/getsentry/relay/pull/6143))
 - Add `sentry.relay.ingress` and `sentry.relay.pipeline` attributes to some EAP items. ([#6224](https://github.com/getsentry/relay/pull/6224))
-- No longer write the deprecated `sentry.transaction` attribute. ([#6237](https://github.com/getsentry/relay/pull/6237))
 
 **Bug Fixes**:
 
