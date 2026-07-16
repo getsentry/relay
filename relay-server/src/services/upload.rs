@@ -274,6 +274,7 @@ impl Service {
     ) -> Result<SignedLocation<Provisional>, Error> {
         match &self.backend {
             Backend::Upstream { addr } => {
+                let _ = multipart; // upstream will check feature flag again, no need to propagate.
                 let (request, rx) = UploadRequest::create(project, length, attachment_type);
                 addr.send(SendRequest(request));
                 let response = rx.await??;
