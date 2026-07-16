@@ -958,7 +958,7 @@
 <a href=#958 id=958 data-nosnippet>958</a>        <span class="kw">let </span>data = <span class="string">r#"{
 <a href=#959 id=959 data-nosnippet>959</a>        "foo": 2,
 <a href=#960 id=960 data-nosnippet>960</a>        "bar": "3",
-<a href=#961 id=961 data-nosnippet>961</a>        "db.system": "mysql",
+<a href=#961 id=961 data-nosnippet>961</a>        "db.system.name": "mysql",
 <a href=#962 id=962 data-nosnippet>962</a>        "code.filepath": "task.py",
 <a href=#963 id=963 data-nosnippet>963</a>        "code.lineno": 123,
 <a href=#964 id=964 data-nosnippet>964</a>        "code.function": "fn()",
@@ -1003,7 +1003,7 @@
 <a href=#1003 id=1003 data-nosnippet>1003</a>                "code.namespace": String(
 <a href=#1004 id=1004 data-nosnippet>1004</a>                    "ns",
 <a href=#1005 id=1005 data-nosnippet>1005</a>                ),
-<a href=#1006 id=1006 data-nosnippet>1006</a>                "db.system": String(
+<a href=#1006 id=1006 data-nosnippet>1006</a>                "db.system.name": String(
 <a href=#1007 id=1007 data-nosnippet>1007</a>                    "mysql",
 <a href=#1008 id=1008 data-nosnippet>1008</a>                ),
 <a href=#1009 id=1009 data-nosnippet>1009</a>                "foo": I64(
@@ -1070,7 +1070,7 @@
 <a href=#1070 id=1070 data-nosnippet>1070</a>        );
 <a href=#1071 id=1071 data-nosnippet>1071</a>        <span class="macro">assert!</span>(!data.contains(<span class="string">"string"</span>));
 <a href=#1072 id=1072 data-nosnippet>1072</a>        <span class="macro">assert_eq!</span>(
-<a href=#1073 id=1073 data-nosnippet>1073</a>            Getter::get_value(<span class="kw-2">&amp;</span>data, <span class="string">"db\\.system"</span>),
+<a href=#1073 id=1073 data-nosnippet>1073</a>            Getter::get_value(<span class="kw-2">&amp;</span>data, <span class="string">"db\\.system\\.name"</span>),
 <a href=#1074 id=1074 data-nosnippet>1074</a>            <span class="prelude-val">Some</span>(Val::String(<span class="string">"mysql"</span>))
 <a href=#1075 id=1075 data-nosnippet>1075</a>        );
 <a href=#1076 id=1076 data-nosnippet>1076</a>        <span class="macro">assert_eq!</span>(
