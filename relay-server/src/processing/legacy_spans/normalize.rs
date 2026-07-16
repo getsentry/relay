@@ -119,12 +119,8 @@ pub fn normalize(
         dsc,
     } = config;
 
-    if let Some(data) = annotated_span
-        .value_mut()
-        .as_mut()
-        .and_then(|s| s.data.value_mut().as_mut())
-    {
-        relay_event_normalization::eap::normalize_attribute_names_obj(&mut data.other);
+    if let Some(data) = annotated_span.value_mut().as_mut().map(|s| &mut s.data) {
+        relay_event_normalization::eap::normalize_attribute_names(data);
     }
 
     set_segment_attributes(annotated_span);
