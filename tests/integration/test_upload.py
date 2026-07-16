@@ -567,9 +567,7 @@ def test_concurrency_limit(mini_sentry, relay, project_config):
     "with_multipart",
     [pytest.param(False, id="no multipart"), pytest.param(True, id="with multipart")],
 )
-def test_objectstore_retries(
-    mini_sentry, relay_with_processing, project_config, with_multipart
-):
+def test_objectstore_retries(mini_sentry, relay_with_processing, with_multipart):
     project_id = 42
     project_key = mini_sentry.get_dsn_public_key(project_id)
 
@@ -606,7 +604,6 @@ def test_objectstore_retries(
         },
         data=data,
     )
-    print(response.text)
 
     failure = mini_sentry.test_failures.get(timeout=10)
     expected_attempts = 1 if with_multipart else 3  # multipart cannot be retried
@@ -617,10 +614,12 @@ def test_objectstore_retries(
     assert response.status_code == 500
 
 
-def test_objectstore_timeout(mini_sentry, relay_with_processing, project_config):
+def test_objectstore_timeout(mini_sentry, relay_with_processing):
     mini_sentry.allow_chunked = True
     mini_sentry.fail_on_relay_error = False
     project_id = 42
+    config = mini_sentry.add_full_project_config(project_id)["config"]
+    config.setdefault("features", []).append("projects:relay-upload-multipart")
     project_key = mini_sentry.get_dsn_public_key(project_id)
 
     @mini_sentry.app.route(
