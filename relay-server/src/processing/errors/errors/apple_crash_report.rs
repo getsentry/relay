@@ -5,7 +5,6 @@ use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing::ForwardContext;
 use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
 use crate::processing::errors::{Error, Result};
-use crate::utils::AdditionalExceptions;
 
 #[derive(Debug)]
 pub struct AppleCrashReport(pub Item);
@@ -29,7 +28,7 @@ impl SentryError for AppleCrashReport {
         utils::if_processing!(ctx, {
             crate::utils::process_apple_crash_report(
                 event.get_or_insert_with(Default::default),
-                AdditionalExceptions::Retain,
+                crate::utils::AdditionalExceptions::Retain,
             );
             metrics.bytes_ingested_event_applecrashreport =
                 (apple_crash_report.len() as u64).into();
