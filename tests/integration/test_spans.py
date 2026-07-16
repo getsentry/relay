@@ -141,6 +141,8 @@ def test_span_extraction(
                 "sentry.op": {"type": "string", "value": "http"},
                 "sentry.origin": {"type": "string", "value": "manual"},
                 "sentry.platform": {"type": "string", "value": "other"},
+                "sentry.relay.ingress": {"type": "string", "value": "legacy"},
+                "sentry.relay.pipeline": {"type": "string", "value": "transaction"},
                 "sentry.replay_id": {
                     "type": "string",
                     "value": "4c79f60c11214eb38604f4ae0781bfb2",
@@ -226,11 +228,14 @@ def test_span_extraction(
             "attributes": {  # Backfilled from `sentry_tags`
                 "http.request.method": {"type": "string", "value": "GET"},
                 "http.route": {"type": "string", "value": "*******************"},
+                "sentry.action": {"type": "string", "value": "GET"},
                 "sentry.category": {"type": "string", "value": "http"},
                 "sentry.exclusive_time": {"type": "double", "value": 500.0},
                 "sentry.op": {"type": "string", "value": "http.client"},
                 "sentry.origin": {"type": "string", "value": "auto"},
                 "sentry.platform": {"type": "string", "value": "other"},
+                "sentry.relay.ingress": {"type": "string", "value": "legacy"},
+                "sentry.relay.pipeline": {"type": "string", "value": "transaction"},
                 "sentry.replay_id": {
                     "type": "string",
                     "value": "4c79f60c11214eb38604f4ae0781bfb2",
@@ -318,6 +323,8 @@ def test_span_extraction(
             "sentry.op": {"type": "string", "value": "hi"},
             "sentry.origin": {"type": "string", "value": "manual"},
             "sentry.platform": {"type": "string", "value": "other"},
+            "sentry.relay.ingress": {"type": "string", "value": "legacy"},
+            "sentry.relay.pipeline": {"type": "string", "value": "transaction"},
             "sentry.replay_id": {
                 "type": "string",
                 "value": "4c79f60c11214eb38604f4ae0781bfb2",
@@ -1115,7 +1122,7 @@ def test_span_filtering_with_generic_inbound_filter(
                 "isEnabled": True,
                 "condition": {
                     "op": "eq",
-                    "name": "span.data.release",
+                    "name": "span.data.sentry\\.release",
                     "value": "1.0",
                 },
             }

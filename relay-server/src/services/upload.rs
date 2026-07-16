@@ -136,6 +136,8 @@ pub struct Create {
     pub length: Option<usize>,
     /// The attachment type of the upload.
     pub attachment_type: Option<AttachmentType>,
+    /// Whether multipart uploads should be used for this upload.
+    pub multipart: bool,
 }
 
 /// The type used to stream a request body.
@@ -272,10 +274,12 @@ impl Service {
             project,
             length,
             attachment_type,
+            multipart,
         }: Create,
     ) -> Result<SignedLocation<Provisional>, Error> {
         match &self.backend {
             Backend::Upstream { addr } => {
+                let _ = multipart; // upstream will check feature flag again, no need to propagate.
                 let (request, rx) = UploadRequest::create(project, length, attachment_type);
                 addr.send(SendRequest(request));
                 let response = rx.await??;
@@ -296,8 +300,10 @@ impl Service {
                     ..
                 } = project.scoping;
 
-                let (key, upload_id) = match length {
-                    Some(0) => (key, None), // multipart does not allow empty uploads
+                let (key, upload_id) = match (multipart, length) {
+                    // We should only create a multipart upload in objectstore if it was requested,
+                    // and if the upload actually has data (multipart does not allow empty parts).
+                    (false, _) | (_, Some(0)) => (key, None),
                     _ => {
                         let UploadRef {
                             key,
@@ -305,7 +311,7 @@ impl Service {
                             offset,
                             length: _,
                         } = addr
-                            .send(objectstore::Create {
+                            .send(objectstore::CreateMultipart {
                                 organization_id,
                                 project_id,
                                 key,

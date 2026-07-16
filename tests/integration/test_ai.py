@@ -372,6 +372,7 @@ def test_ai_spans_example_transaction(
 
     assert spans_consumer.get_spans(n=10) == [
         {
+            "_meta": matches_any(),
             "attributes": {
                 "gen_ai.conversation.id": {
                     "type": "string",
@@ -387,13 +388,18 @@ def test_ai_spans_example_transaction(
                 "gen_ai.cost.total_tokens": {"type": "double", "value": 3.75},
                 "gen_ai.agent.name": {"type": "string", "value": "weather-chat"},
                 "gen_ai.function_id": {"type": "string", "value": "weather-chat"},
+                "gen_ai.input.messages": {
+                    "type": "string",
+                    "value": "Weather Prompt",
+                },
                 "gen_ai.operation.type": {"type": "string", "value": "agent"},
-                "gen_ai.input.messages": {"type": "string", "value": "Weather Prompt"},
+                "gen_ai.prompt": {"type": "string", "value": "Weather Prompt"},
                 "gen_ai.response.model": {"type": "string", "value": "gpt-4o"},
                 "gen_ai.output.messages": {
                     "type": "string",
                     "value": "True. \n\n- London: 61°F \n- San Francisco: 13°C",
                 },
+                "gen_ai.response.text": None,
                 "gen_ai.response.tokens_per_second": {"type": "double", "value": 130.0},
                 "gen_ai.usage.input_tokens": {"type": "integer", "value": 245},
                 "gen_ai.usage.output_tokens": {"type": "integer", "value": 65},
@@ -418,6 +424,8 @@ def test_ai_spans_example_transaction(
                 "sentry.op": {"type": "string", "value": "gen_ai.invoke_agent"},
                 "sentry.origin": {"type": "string", "value": "auto.vercelai.otel"},
                 "sentry.platform": {"type": "string", "value": "node"},
+                "sentry.relay.ingress": {"type": "string", "value": "legacy"},
+                "sentry.relay.pipeline": {"type": "string", "value": "transaction"},
                 "sentry.sdk.name": {"type": "string", "value": "raven-node"},
                 "sentry.sdk.version": {"type": "string", "value": "2.6.3"},
                 "sentry.segment.id": {"type": "string", "value": "657cf984a6a4e59b"},
@@ -495,6 +503,8 @@ def test_ai_spans_example_transaction(
                     "type": "string",
                     "value": "Another weather prompt",
                 },
+                "gen_ai.request.available_tools": None,
+                "gen_ai.request.messages": None,
                 "gen_ai.request.model": {"type": "string", "value": "gpt-4o"},
                 "gen_ai.response.finish_reasons": {
                     "type": "string",
@@ -509,6 +519,8 @@ def test_ai_spans_example_transaction(
                     "value": "gpt-4o-2024-08-06",
                 },
                 "gen_ai.response.tokens_per_second": {"type": "double", "value": 92.0},
+                "gen_ai.response.tool_calls": None,
+                "gen_ai.system": None,
                 "gen_ai.output.messages": {
                     "type": "string",
                     "value": "some_tool_calls",
@@ -537,6 +549,8 @@ def test_ai_spans_example_transaction(
                 "sentry.op": {"type": "string", "value": "gen_ai.generate_text"},
                 "sentry.origin": {"type": "string", "value": "auto.vercelai.otel"},
                 "sentry.platform": {"type": "string", "value": "node"},
+                "sentry.relay.ingress": {"type": "string", "value": "legacy"},
+                "sentry.relay.pipeline": {"type": "string", "value": "transaction"},
                 "sentry.sdk.name": {"type": "string", "value": "raven-node"},
                 "sentry.sdk.version": {"type": "string", "value": "2.6.3"},
                 "sentry.segment.id": {"type": "string", "value": "657cf984a6a4e59b"},
@@ -620,6 +634,8 @@ def test_ai_spans_example_transaction(
                 "network.peer.address": {"type": "string", "value": "162.159.140.245"},
                 "network.peer.port": {"type": "integer", "value": 443},
                 "otel.kind": {"type": "string", "value": "CLIENT"},
+                "sentry.action": {"type": "string", "value": "POST"},
+                "sentry.kind": {"type": "string", "value": "CLIENT"},
                 "sentry.category": {"type": "string", "value": "http"},
                 "sentry.description": {
                     "type": "string",
@@ -645,6 +661,8 @@ def test_ai_spans_example_transaction(
                     "value": "auto.http.otel.node_fetch",
                 },
                 "sentry.platform": {"type": "string", "value": "node"},
+                "sentry.relay.ingress": {"type": "string", "value": "legacy"},
+                "sentry.relay.pipeline": {"type": "string", "value": "transaction"},
                 "sentry.sdk.name": {"type": "string", "value": "raven-node"},
                 "sentry.sdk.version": {"type": "string", "value": "2.6.3"},
                 "sentry.segment.id": {"type": "string", "value": "657cf984a6a4e59b"},
@@ -693,6 +711,7 @@ def test_ai_spans_example_transaction(
             "trace_id": "a9351cd574f092f6acad48e250981f11",
         },
         {
+            "_meta": matches_any(),
             "attributes": {
                 "gen_ai.operation.type": {"type": "string", "value": "tool"},
                 "gen_ai.tool.call.id": {
@@ -712,6 +731,8 @@ def test_ai_spans_example_transaction(
                     '(56°F)","temperatureC":13,"temperatureF":56,"condition":"Haze","humidity":"88%","windSpeed":"4 '
                     'km/h"}',
                 },
+                "gen_ai.tool.input": None,
+                "gen_ai.tool.output": None,
                 "gen_ai.tool.type": {"type": "string", "value": "function"},
                 "operation.name": {
                     "type": "string",
@@ -733,6 +754,8 @@ def test_ai_spans_example_transaction(
                 "sentry.op": {"type": "string", "value": "gen_ai.execute_tool"},
                 "sentry.origin": {"type": "string", "value": "auto.vercelai.otel"},
                 "sentry.platform": {"type": "string", "value": "node"},
+                "sentry.relay.ingress": {"type": "string", "value": "legacy"},
+                "sentry.relay.pipeline": {"type": "string", "value": "transaction"},
                 "sentry.sdk.name": {"type": "string", "value": "raven-node"},
                 "sentry.sdk.version": {"type": "string", "value": "2.6.3"},
                 "sentry.segment.id": {"type": "string", "value": "657cf984a6a4e59b"},
@@ -779,6 +802,8 @@ def test_ai_spans_example_transaction(
                 "network.peer.address": {"type": "string", "value": "5.9.243.187"},
                 "network.peer.port": {"type": "integer", "value": 443},
                 "otel.kind": {"type": "string", "value": "CLIENT"},
+                "sentry.action": {"type": "string", "value": "GET"},
+                "sentry.kind": {"type": "string", "value": "CLIENT"},
                 "sentry.category": {"type": "string", "value": "http"},
                 "sentry.description": {
                     "type": "string",
@@ -804,6 +829,8 @@ def test_ai_spans_example_transaction(
                     "value": "auto.http.otel.node_fetch",
                 },
                 "sentry.platform": {"type": "string", "value": "node"},
+                "sentry.relay.ingress": {"type": "string", "value": "legacy"},
+                "sentry.relay.pipeline": {"type": "string", "value": "transaction"},
                 "sentry.sdk.name": {"type": "string", "value": "raven-node"},
                 "sentry.sdk.version": {"type": "string", "value": "2.6.3"},
                 "sentry.segment.id": {"type": "string", "value": "657cf984a6a4e59b"},
@@ -845,6 +872,7 @@ def test_ai_spans_example_transaction(
             "trace_id": "a9351cd574f092f6acad48e250981f11",
         },
         {
+            "_meta": matches_any(),
             "attributes": {
                 "gen_ai.operation.type": {"type": "string", "value": "tool"},
                 "gen_ai.tool.call.id": {
@@ -864,6 +892,8 @@ def test_ai_spans_example_transaction(
                     'cloudy","humidity":"72%","windSpeed":"21 '
                     'km/h"}',
                 },
+                "gen_ai.tool.input": None,
+                "gen_ai.tool.output": None,
                 "gen_ai.tool.type": {"type": "string", "value": "function"},
                 "operation.name": {
                     "type": "string",
@@ -885,6 +915,8 @@ def test_ai_spans_example_transaction(
                 "sentry.op": {"type": "string", "value": "gen_ai.execute_tool"},
                 "sentry.origin": {"type": "string", "value": "auto.vercelai.otel"},
                 "sentry.platform": {"type": "string", "value": "node"},
+                "sentry.relay.ingress": {"type": "string", "value": "legacy"},
+                "sentry.relay.pipeline": {"type": "string", "value": "transaction"},
                 "sentry.sdk.name": {"type": "string", "value": "raven-node"},
                 "sentry.sdk.version": {"type": "string", "value": "2.6.3"},
                 "sentry.segment.id": {"type": "string", "value": "657cf984a6a4e59b"},
@@ -931,6 +963,8 @@ def test_ai_spans_example_transaction(
                 "network.peer.address": {"type": "string", "value": "5.9.243.187"},
                 "network.peer.port": {"type": "integer", "value": 443},
                 "otel.kind": {"type": "string", "value": "CLIENT"},
+                "sentry.action": {"type": "string", "value": "GET"},
+                "sentry.kind": {"type": "string", "value": "CLIENT"},
                 "sentry.category": {"type": "string", "value": "http"},
                 "sentry.description": {
                     "type": "string",
@@ -956,6 +990,8 @@ def test_ai_spans_example_transaction(
                     "value": "auto.http.otel.node_fetch",
                 },
                 "sentry.platform": {"type": "string", "value": "node"},
+                "sentry.relay.ingress": {"type": "string", "value": "legacy"},
+                "sentry.relay.pipeline": {"type": "string", "value": "transaction"},
                 "sentry.sdk.name": {"type": "string", "value": "raven-node"},
                 "sentry.sdk.version": {"type": "string", "value": "2.6.3"},
                 "sentry.segment.id": {"type": "string", "value": "657cf984a6a4e59b"},
@@ -1022,6 +1058,8 @@ def test_ai_spans_example_transaction(
                     "type": "string",
                     "value": "Some AI Prompt about " "the Wheather",
                 },
+                "gen_ai.request.available_tools": None,
+                "gen_ai.request.messages": None,
                 "gen_ai.request.model": {"type": "string", "value": "gpt-4o"},
                 "gen_ai.response.finish_reasons": {
                     "type": "string",
@@ -1042,7 +1080,9 @@ def test_ai_spans_example_transaction(
                     "- London: 61°F \n"
                     "- San Francisco: 13°C",
                 },
+                "gen_ai.response.text": None,
                 "gen_ai.response.tokens_per_second": {"type": "double", "value": 38.0},
+                "gen_ai.system": None,
                 "gen_ai.provider.name": {"type": "string", "value": "openai.responses"},
                 "gen_ai.usage.input_tokens": {"type": "integer", "value": 208},
                 "gen_ai.usage.output_tokens": {"type": "integer", "value": 19},
@@ -1067,6 +1107,8 @@ def test_ai_spans_example_transaction(
                 "sentry.op": {"type": "string", "value": "gen_ai.generate_text"},
                 "sentry.origin": {"type": "string", "value": "auto.vercelai.otel"},
                 "sentry.platform": {"type": "string", "value": "node"},
+                "sentry.relay.ingress": {"type": "string", "value": "legacy"},
+                "sentry.relay.pipeline": {"type": "string", "value": "transaction"},
                 "sentry.sdk.name": {"type": "string", "value": "raven-node"},
                 "sentry.sdk.version": {"type": "string", "value": "2.6.3"},
                 "sentry.segment.id": {"type": "string", "value": "657cf984a6a4e59b"},
@@ -1147,6 +1189,8 @@ def test_ai_spans_example_transaction(
                 "network.peer.address": {"type": "string", "value": "162.159.140.245"},
                 "network.peer.port": {"type": "integer", "value": 443},
                 "otel.kind": {"type": "string", "value": "CLIENT"},
+                "sentry.action": {"type": "string", "value": "POST"},
+                "sentry.kind": {"type": "string", "value": "CLIENT"},
                 "sentry.category": {"type": "string", "value": "http"},
                 "sentry.description": {
                     "type": "string",
@@ -1172,6 +1216,8 @@ def test_ai_spans_example_transaction(
                     "value": "auto.http.otel.node_fetch",
                 },
                 "sentry.platform": {"type": "string", "value": "node"},
+                "sentry.relay.ingress": {"type": "string", "value": "legacy"},
+                "sentry.relay.pipeline": {"type": "string", "value": "transaction"},
                 "sentry.sdk.name": {"type": "string", "value": "raven-node"},
                 "sentry.sdk.version": {"type": "string", "value": "2.6.3"},
                 "sentry.segment.id": {"type": "string", "value": "657cf984a6a4e59b"},
@@ -1242,12 +1288,15 @@ def test_ai_spans_example_transaction(
                 "sentry.op": {"type": "string", "value": "gen_ai.invoke_agent"},
                 "sentry.origin": {"type": "string", "value": "manual"},
                 "sentry.platform": {"type": "string", "value": "node"},
+                "sentry.relay.ingress": {"type": "string", "value": "legacy"},
+                "sentry.relay.pipeline": {"type": "string", "value": "transaction"},
                 "sentry.sample_rate": {"type": "integer", "value": 1},
                 "sentry.sdk.name": {"type": "string", "value": "raven-node"},
                 "sentry.sdk.version": {"type": "string", "value": "2.6.3"},
                 "sentry.segment.id": {"type": "string", "value": "657cf984a6a4e59b"},
                 "sentry.segment.name": {"type": "string", "value": "main"},
                 "sentry.source": {"type": "string", "value": "custom"},
+                "sentry.span.source": {"type": "string", "value": "custom"},
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
                 "sentry.transaction": {"type": "string", "value": "main"},

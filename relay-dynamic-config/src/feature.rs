@@ -99,12 +99,14 @@ pub enum Feature {
     /// processor. Only enable for organizations with sufficient attachment quota.
     #[serde(rename = "organizations:relay-unreal-endpoint-expansion")]
     UnrealEndpointExpansion,
-    /// Stream minidump attachments to objectstore.
-    #[serde(rename = "projects:relay-minidump-attachment-uploads")]
-    MinidumpAttachmentUploads,
     /// Stream minidumps to objectstore.
     #[serde(rename = "projects:relay-minidump-uploads")]
     MinidumpUploads,
+    /// Use objectstore multipart for upload requests.
+    ///
+    /// See <https://getsentry.github.io/objectstore/rust/objectstore_service/multipart/>.
+    #[serde(rename = "projects:relay-upload-multipart")]
+    UploadMultipart,
     /// Allow additional exceptions to accompany minidumps.
     #[serde(rename = "projects:minidump-multi-exception")]
     MinidumpMultiException,

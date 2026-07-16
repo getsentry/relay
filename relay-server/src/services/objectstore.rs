@@ -57,7 +57,7 @@ pub enum Objectstore {
     TraceAttachment(Managed<StoreTraceAttachment>),
     EventAttachment(Managed<StoreAttachment>),
     RawProfile(Managed<StoreRawProfile>),
-    Create(Create, Sender<Result<UploadRef, Error>>),
+    Create(CreateMultipart, Sender<Result<UploadRef, Error>>),
     Stream(Stream, Sender<Result<UploadRef, Error>>),
 }
 
@@ -144,7 +144,7 @@ impl MessageKind {
 }
 
 /// A request to create a new objectstore multipart upload.
-pub struct Create {
+pub struct CreateMultipart {
     /// The sentry org.
     pub organization_id: OrganizationId,
     /// The sentry project.
@@ -153,10 +153,10 @@ pub struct Create {
     pub key: String,
 }
 
-impl FromMessage<Create> for Objectstore {
+impl FromMessage<CreateMultipart> for Objectstore {
     type Response = AsyncResponse<Result<UploadRef, Error>>;
 
-    fn from_message(message: Create, sender: Sender<Result<UploadRef, Error>>) -> Self {
+    fn from_message(message: CreateMultipart, sender: Sender<Result<UploadRef, Error>>) -> Self {
         Self::Create(message, sender)
     }
 }
@@ -801,8 +801,8 @@ impl ObjectstoreServiceInner {
         Ok(Some(upload_ref))
     }
 
-    async fn handle_create(&self, create: Create) -> Result<UploadRef, Error> {
-        let Create {
+    async fn handle_create(&self, create: CreateMultipart) -> Result<UploadRef, Error> {
+        let CreateMultipart {
             organization_id,
             project_id,
             key,
@@ -816,6 +816,7 @@ impl ObjectstoreServiceInner {
             .send()
             .await?;
         debug_assert_eq!(&key, multipart_upload.key());
+
         let upload_id = multipart_upload.upload_id();
 
         Ok(UploadRef {
@@ -1010,7 +1011,6 @@ impl ObjectstoreServiceInner {
                     // NOTE: Once every upload is a multipart upload, we can remove `RetryableStream`
                     // because streams will never be effectively retried.
                     let mut body = Rechunk::new(body, UPLOAD_GRANULARITY);
-                    // let body = ReaderStream::new(ZstdEncoder::new(StreamReader::new(body)));
 
                     // Unfortunately, MinIO has the limitation that the length of a multipart request
                     // has to be known. Therefore, we need to materialize the stream into concrete
@@ -1024,18 +1024,18 @@ impl ObjectstoreServiceInner {
                         part_number += 1;
                         match bytes {
                             Err(error) =>  {
-                                try_flush(&mut compressed_buffer, part_number, &mut multipart_upload, &mut parts).await?;
+                                self.try_flush(&mut compressed_buffer, part_number, &mut multipart_upload, &mut parts).await?;
                                 return Err(objectstore_client::Error::Io(error).into());
                             } Ok(bytes) => {
                                 compressed_buffer.write_all(&bytes).map_err(AttemptUploadError::Zstd)?;
                                 if compressed_buffer.get_ref().len() > MULTIPART_MIN_PART_SIZE {
-                                    try_flush(&mut compressed_buffer, part_number, &mut multipart_upload, &mut parts).await?;
+                                    self.try_flush(&mut compressed_buffer, part_number, &mut multipart_upload, &mut parts).await?;
                                 }
                             }
                         }
                     }
 
-                    try_flush(&mut compressed_buffer, part_number, &mut multipart_upload, &mut parts).await?;
+                    self.try_flush(&mut compressed_buffer, part_number, &mut multipart_upload, &mut parts).await?;
 
                     let new_offset = offset + byte_counter.get();
                     if length.is_some_and(|length| length == new_offset) {
@@ -1062,6 +1062,47 @@ impl ObjectstoreServiceInner {
         }
     }
 
+    async fn try_flush(
+        &self,
+        buffer: &mut zstd::stream::write::Encoder<'_, Vec<u8>>,
+        part_number: usize,
+        multipart: &mut MultipartUpload,
+        parts: &mut Vec<CompletePart>,
+    ) -> Result<(), AttemptUploadError> {
+        let mut new_buffer =
+            zstd::stream::write::Encoder::new(vec![], 0).map_err(AttemptUploadError::Zstd)?;
+        std::mem::swap(buffer, &mut new_buffer);
+        let chunk: Bytes = new_buffer
+            .finish()
+            .map_err(AttemptUploadError::Zstd)?
+            .into();
+
+        let part_number = u32::try_from(part_number)
+            .map_err(|_| objectstore_client::Error::InvalidPartNumber(u32::MAX))?;
+
+        // NOTE: This is a retry loop within a retry loop (see caller of this function).
+        // if we keep the Rechunked approach we might as well remove the outer loop for streaming uploads.
+        let mut attempts = 0;
+        let part = loop {
+            let result = multipart
+                .put(chunk.clone(), part_number, None)
+                .await
+                .map_err(AttemptUploadError::Objectstore);
+            attempts += 1;
+            if attempts < self.max_attempts.get() && matches!(&result, Err(e) if is_retryable(e)) {
+                relay_log::trace!("Multipart attempt {attempts}: Failed with {result:?}, retrying");
+                tokio::time::sleep(self.retry_interval).await;
+            } else {
+                relay_log::trace!("Final attempt");
+                break result;
+            }
+        }?;
+
+        parts.push(part);
+
+        Ok(())
+    }
+
     fn session(
         &self,
         usecase: &Usecase,
@@ -1076,32 +1117,6 @@ impl ObjectstoreServiceInner {
             .session(&self.objectstore_client)?;
         Ok(session)
     }
-}
-
-async fn try_flush(
-    buffer: &mut zstd::stream::write::Encoder<'_, Vec<u8>>,
-    part_number: usize,
-    multipart: &mut MultipartUpload,
-    parts: &mut Vec<CompletePart>,
-) -> Result<(), AttemptUploadError> {
-    let mut new_buffer =
-        zstd::stream::write::Encoder::new(vec![], 0).map_err(AttemptUploadError::Zstd)?;
-    std::mem::swap(buffer, &mut new_buffer);
-
-    let part_number = u32::try_from(part_number)
-        .map_err(|_| objectstore_client::Error::InvalidPartNumber(u32::MAX))?;
-
-    let part = multipart
-        .put(
-            new_buffer.finish().map_err(AttemptUploadError::Zstd)?,
-            part_number,
-            None,
-        )
-        .await?;
-
-    parts.push(part);
-
-    Ok(())
 }
 
 #[derive(Debug, thiserror::Error)]

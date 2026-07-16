@@ -1,18 +1,18 @@
 # Changelog
 
-## Unreleased
+## 26.7.0
 
 **Features**:
 
-- Switches the container base image from distroless to docker hardened. ([#6117](https://github.com/getsentry/relay/pull/6117))
 - Infer span descriptions via `sentry-conventions`. ([#6093](https://github.com/getsentry/relay/pull/6093))
 - Raises the size limit for the flags context to 64KiB. ([#6137](https://github.com/getsentry/relay/pull/6137))
 - Add segment_names field to Replay events. ([#6134](https://github.com/getsentry/relay/pull/6134))
 - Use a out of process solution for catching crashes. ([#6158](https://github.com/getsentry/relay/pull/6158))
 - Accept a `charset=utf-8` parameters on JSON and XML content types. ([#6184](https://github.com/getsentry/relay/pull/6184))
 - Support PEM file format for signing / verification keys. ([#6155](https://github.com/getsentry/relay/pull/6155))
-- GA the `upload-endpoint` feature. ([#6171](https://github.com/getsentry/relay/pull/6171))
+- Graduate the upload endpoint and streaming attachments on the minidump endpoint. ([#6171](https://github.com/getsentry/relay/pull/6171), [#6222](https://github.com/getsentry/relay/pull/6222))
 - Add Lightpanda to web crawler filter. ([#6143](https://github.com/getsentry/relay/pull/6143))
+- Add `sentry.relay.ingress` and `sentry.relay.pipeline` attributes to some EAP items. ([#6224](https://github.com/getsentry/relay/pull/6224))
 
 **Bug Fixes**:
 
@@ -30,9 +30,11 @@
 - Parse two-component versions in iOS and iPadOS `raw_description` into `version` instead of `kernel_version`. ([#6197](https://github.com/getsentry/relay/pull/6197))
 - Normalize segment names for standalone spans in the experimental pipeline. ([#6163](https://github.com/getsentry/relay/pull/6163))
 - Limit nested form-data entry keys. ([#6179](https://github.com/getsentry/relay/pull/6179))
+- Retain client-supplied debug images when parsing Perfetto profile chunks, instead of overwriting them with images extracted from the trace. ([#6232](https://github.com/getsentry/relay/pull/6232))
 
 **Internal**:
 
+- Apply convention normalizations to transaction spans. ([#6223](https://github.com/getsentry/relay/pull/6223))
 - Remove all remainders of custom metrics, including the `custom` metric namespace. ([#6210](https://github.com/getsentry/relay/pull/6210))
 - Rename objectstore use-case from `profiles_raw` to `profile_attachments`. ([#6108](https://github.com/getsentry/relay/pull/6108))
 - Require timestamps and verification in auth signatures. ([#6069](https://github.com/getsentry/relay/pull/6069))

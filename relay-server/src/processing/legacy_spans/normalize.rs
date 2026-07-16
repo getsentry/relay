@@ -2,6 +2,11 @@
 
 use crate::services::processor::ProcessingError;
 use chrono::{DateTime, Utc};
+use relay_conventions::attributes::{
+    BROWSER__NAME, CLIENT__ADDRESS, SENTRY__EXCLUSIVE_TIME, SENTRY__PROFILE_ID,
+    SENTRY__SEGMENT__NAME, USER__GEO__CITY, USER__GEO__COUNTRY_CODE, USER__GEO__REGION,
+    USER__GEO__SUBDIVISION, USER_AGENT__ORIGINAL,
+};
 use relay_event_normalization::span::{self, ai};
 use relay_event_normalization::{
     BorrowedSpanOpDefaults, ClientHints, CombinedMeasurementsConfig, FromUserAgentInfo,
@@ -13,7 +18,7 @@ use relay_event_normalization::{
 use relay_event_schema::processor::{ProcessingState, process_value};
 use relay_event_schema::protocol::{BrowserContext, EventId, IpAddr, Span, SpanData};
 use relay_metrics::UnixTimestamp;
-use relay_protocol::{Annotated, Empty, Value};
+use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Value};
 use relay_sampling::DynamicSamplingContext;
 
 /// Config needed to normalize a standalone span.
@@ -114,6 +119,10 @@ pub fn normalize(
         dsc,
     } = config;
 
+    if let Some(data) = annotated_span.value_mut().as_mut().map(|s| &mut s.data) {
+        relay_event_normalization::eap::normalize_attribute_names(data);
+    }
+
     set_segment_attributes(annotated_span);
 
     // This follows the steps of `event::normalize`.
@@ -147,26 +156,36 @@ pub fn normalize(
     // Transaction and error events require an explicit `{{auto}}` to derive the IP, but
     // for spans we derive it by default:
     if let Some(client_ip) = client_ip.as_ref() {
-        let ip = span.data.value().and_then(|d| d.client_address.value());
+        let ip = span
+            .data
+            .value()
+            .and_then(|data| data.get_str(CLIENT__ADDRESS))
+            .and_then(|ip| ip.parse::<IpAddr>().ok());
         if ip.is_none_or(|ip| ip.is_auto()) {
             span.data
                 .get_or_insert_with(Default::default)
-                .client_address = Annotated::new(client_ip.clone());
+                .insert_value(CLIENT__ADDRESS, client_ip.to_string());
         }
     }
 
     // Derive geo ip:
     let data = span.data.get_or_insert_with(Default::default);
-    if let Some(ip) = data
-        .client_address
-        .value()
-        .and_then(|ip| ip.as_str().parse().ok())
+    if let Some(ip) = data.get_str(CLIENT__ADDRESS).and_then(|ip| ip.parse().ok())
         && let Some(geo) = geo_lookup.lookup(ip)
     {
-        data.user_geo_city = geo.city;
-        data.user_geo_country_code = geo.country_code;
-        data.user_geo_region = geo.region;
-        data.user_geo_subdivision = geo.subdivision;
+        data.insert(USER__GEO__CITY, geo.city.map_value(IntoValue::into_value));
+        data.insert(
+            USER__GEO__COUNTRY_CODE,
+            geo.country_code.map_value(IntoValue::into_value),
+        );
+        data.insert(
+            USER__GEO__REGION,
+            geo.region.map_value(IntoValue::into_value),
+        );
+        data.insert(
+            USER__GEO__SUBDIVISION,
+            geo.subdivision.map_value(IntoValue::into_value),
+        );
     }
 
     populate_ua_fields(span, user_agent.as_deref(), client_hints.as_deref());
@@ -186,13 +205,15 @@ pub fn normalize(
 
     span.received = Annotated::new((*received_at).into());
 
-    if let Some(transaction) = span
-        .data
-        .value_mut()
-        .as_mut()
-        .map(|data| &mut data.segment_name)
+    if let Some(data) = span.data.value_mut()
+        && let Some(segment_name) = data.remove(SENTRY__SEGMENT__NAME)
     {
-        normalize_transaction_name(transaction, tx_name_rules);
+        let mut segment_name = String::from_value(segment_name);
+        normalize_transaction_name(&mut segment_name, tx_name_rules);
+        data.insert(
+            SENTRY__SEGMENT__NAME,
+            segment_name.map_value(IntoValue::into_value),
+        );
     }
 
     // Tag extraction:
@@ -233,22 +254,27 @@ fn populate_ua_fields(
 ) {
     let data = span.data.value_mut().get_or_insert_with(SpanData::default);
 
-    let user_agent = data.user_agent_original.value_mut();
+    let mut user_agent = data.get_str(USER_AGENT__ORIGINAL);
     if user_agent.is_none() {
-        *user_agent = request_user_agent.map(String::from);
+        // Fallback to the request user agent.
+        user_agent = request_user_agent;
+        // But only materialize the request user agent if the original one is `None`.
+        if let Some(user_agent) = user_agent {
+            data.insert_value(USER_AGENT__ORIGINAL, user_agent.to_owned());
+        }
     } else {
         // User agent in span payload should take precendence over request
         // client hints.
         client_hints = ClientHints::default();
     }
 
-    if data.browser_name.value().is_none()
+    if !data.contains(BROWSER__NAME)
         && let Some(context) = BrowserContext::from_hints_or_ua(&RawUserAgentInfo {
-            user_agent: user_agent.as_deref(),
+            user_agent,
             client_hints,
         })
     {
-        data.browser_name = context.name;
+        data.insert(BROWSER__NAME, context.name.map_value(IntoValue::into_value));
     }
 }
 
@@ -257,23 +283,24 @@ fn promote_span_data_fields(span: &mut Span) {
     // INP spans sets some top level span attributes inside span.data so make sure to pull
     // them out to the top level before further processing.
     if let Some(data) = span.data.value_mut() {
-        if let Some(exclusive_time) = match data.exclusive_time.value() {
+        if let Some(exclusive_time) = match data.get_value(SENTRY__EXCLUSIVE_TIME) {
             Some(Value::I64(exclusive_time)) => Some(*exclusive_time as f64),
             Some(Value::U64(exclusive_time)) => Some(*exclusive_time as f64),
             Some(Value::F64(exclusive_time)) => Some(*exclusive_time),
             _ => None,
         } {
             span.exclusive_time = exclusive_time.into();
-            data.exclusive_time.set_value(None);
+            data.remove(SENTRY__EXCLUSIVE_TIME);
         }
 
-        if let Some(profile_id) = match data.profile_id.value() {
+        if let Some(profile_id) = match data.get_value(SENTRY__PROFILE_ID) {
             Some(Value::String(profile_id)) => profile_id.parse().map(EventId).ok(),
             _ => None,
         } {
             span.profile_id = profile_id.into();
-            data.profile_id.set_value(None);
+            data.remove(SENTRY__PROFILE_ID);
         }
+        data.remove("profile_id");
     }
 }
 
@@ -404,7 +431,8 @@ mod tests {
             None,
             ClientHints::default(),
         );
-        assert_eq!(get_value!(span.data.browser_name!), "foo");
+
+        assert_eq!(get_value!(span.data[BROWSER__NAME]!).as_str(), Some("foo"));
     }
 
     #[test]
@@ -423,7 +451,7 @@ mod tests {
             None,
             ClientHints::default(),
         );
-        assert_eq!(get_value!(span.data.browser_name!), "foo");
+        assert_eq!(get_value!(span.data[BROWSER__NAME]!).as_str(), Some("foo"));
     }
 
     #[test]
@@ -442,10 +470,13 @@ mod tests {
             ClientHints::default(),
         );
         assert_eq!(
-            get_value!(span.data.user_agent_original!),
-            "Mozilla/5.0 (-; -; -) - Chrome/18.0.1025.133 Mobile Safari/535.19"
+            get_value!(span.data[USER_AGENT__ORIGINAL]!).as_str(),
+            Some("Mozilla/5.0 (-; -; -) - Chrome/18.0.1025.133 Mobile Safari/535.19")
         );
-        assert_eq!(get_value!(span.data.browser_name!), "Chrome Mobile");
+        assert_eq!(
+            get_value!(span.data[BROWSER__NAME]!).as_str(),
+            Some("Chrome Mobile")
+        );
     }
 
     #[test]
@@ -466,10 +497,13 @@ mod tests {
             ClientHints::default(),
         );
         assert_eq!(
-            get_value!(span.data.user_agent_original!),
-            "Mozilla/5.0 (-; -; -) - Chrome/18.0.1025.133 Mobile Safari/535.19"
+            get_value!(span.data[USER_AGENT__ORIGINAL]!).as_str(),
+            Some("Mozilla/5.0 (-; -; -) - Chrome/18.0.1025.133 Mobile Safari/535.19")
         );
-        assert_eq!(get_value!(span.data.browser_name!), "Chrome Mobile");
+        assert_eq!(
+            get_value!(span.data[BROWSER__NAME]!).as_str(),
+            Some("Chrome Mobile")
+        );
     }
 
     #[test]
@@ -483,10 +517,12 @@ mod tests {
             ClientHints::default(),
         );
         assert_eq!(
-            get_value!(span.data.user_agent_original!),
-            "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; ONS Internet Explorer 6.1; .NET CLR 1.1.4322)"
+            get_value!(span.data[USER_AGENT__ORIGINAL]!).as_str(),
+            Some(
+                "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; ONS Internet Explorer 6.1; .NET CLR 1.1.4322)"
+            )
         );
-        assert_eq!(get_value!(span.data.browser_name!), "IE");
+        assert_eq!(get_value!(span.data[BROWSER__NAME]!).as_str(), Some("IE"));
     }
 
     #[test]
@@ -508,10 +544,13 @@ mod tests {
             },
         );
         assert_eq!(
-            get_value!(span.data.user_agent_original!),
-            "Mozilla/5.0 (-; -; -) - Chrome/18.0.1025.133 Mobile Safari/535.19"
+            get_value!(span.data[USER_AGENT__ORIGINAL]!).as_str(),
+            Some("Mozilla/5.0 (-; -; -) - Chrome/18.0.1025.133 Mobile Safari/535.19")
         );
-        assert_eq!(get_value!(span.data.browser_name!), "Chrome Mobile");
+        assert_eq!(
+            get_value!(span.data[BROWSER__NAME]!).as_str(),
+            Some("Chrome Mobile")
+        );
     }
 
     #[test]
@@ -525,8 +564,11 @@ mod tests {
                 ..Default::default()
             },
         );
-        assert_eq!(get_value!(span.data.user_agent_original), None);
-        assert_eq!(get_value!(span.data.browser_name!), "Opera");
+        assert_eq!(get_value!(span.data[USER_AGENT__ORIGINAL]), None);
+        assert_eq!(
+            get_value!(span.data[BROWSER__NAME]!).as_str(),
+            Some("Opera")
+        );
     }
 
     static GEO_LOOKUP: LazyLock<GeoIpLookup> = LazyLock::new(|| {
@@ -576,10 +618,13 @@ mod tests {
         normalize(&mut span, &normalize_config()).unwrap();
 
         assert_eq!(
-            get_value!(span.data.client_address!).as_str(),
-            "2.125.160.216"
+            get_value!(span.data[CLIENT__ADDRESS]!).as_str(),
+            Some("2.125.160.216")
         );
-        assert_eq!(get_value!(span.data.user_geo_city!), "Boxford");
+        assert_eq!(
+            get_value!(span.data[USER__GEO__CITY]!).as_str(),
+            Some("Boxford")
+        );
     }
 
     #[test]
@@ -600,10 +645,13 @@ mod tests {
         normalize(&mut span, &normalize_config()).unwrap();
 
         assert_eq!(
-            get_value!(span.data.client_address!).as_str(),
-            "2.125.160.216"
+            get_value!(span.data[CLIENT__ADDRESS]!).as_str(),
+            Some("2.125.160.216")
         );
-        assert_eq!(get_value!(span.data.user_geo_city!), "Boxford");
+        assert_eq!(
+            get_value!(span.data[USER__GEO__CITY]!).as_str(),
+            Some("Boxford")
+        );
     }
 
     #[test]
@@ -621,10 +669,13 @@ mod tests {
         normalize(&mut span, &normalize_config()).unwrap();
 
         assert_eq!(
-            get_value!(span.data.client_address!).as_str(),
-            "2.125.160.216"
+            get_value!(span.data[CLIENT__ADDRESS]!).as_str(),
+            Some("2.125.160.216")
         );
-        assert_eq!(get_value!(span.data.user_geo_city!), "Boxford");
+        assert_eq!(
+            get_value!(span.data[USER__GEO__CITY]!).as_str(),
+            Some("Boxford")
+        );
     }
 
     #[test]
@@ -645,7 +696,7 @@ mod tests {
         normalize(&mut span, &normalize_config()).unwrap();
 
         let data = get_value!(span.data!);
-        assert_eq!(data.exclusive_time, Annotated::empty());
+        assert!(!data.contains(SENTRY__EXCLUSIVE_TIME));
         assert_eq!(*get_value!(span.exclusive_time!), 123.0);
     }
 
@@ -667,7 +718,7 @@ mod tests {
         normalize(&mut span, &normalize_config()).unwrap();
 
         let data = get_value!(span.data!);
-        assert_eq!(data.exclusive_time, Annotated::empty());
+        assert!(!data.contains(SENTRY__EXCLUSIVE_TIME));
         assert_eq!(*get_value!(span.exclusive_time!), 123.0);
     }
 
@@ -710,10 +761,11 @@ mod tests {
 
         let data = get_value!(span.data!);
 
-        assert_eq!(data.exclusive_time, Annotated::empty());
+        assert!(!data.contains(SENTRY__EXCLUSIVE_TIME));
         assert_eq!(*get_value!(span.exclusive_time!), 128.0);
 
-        assert_eq!(data.profile_id, Annotated::empty());
+        assert!(!data.contains("profile_id"));
+        assert!(!data.contains(SENTRY__PROFILE_ID));
         assert_eq!(
             get_value!(span.profile_id!),
             &EventId("480ffcc911174ade9106b40ffbd822f5".parse().unwrap())

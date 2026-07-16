@@ -1,5 +1,6 @@
 //! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
+
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
@@ -9,6 +10,7 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 use relay_base_schema::metrics::{DurationUnit, InformationUnit, MetricUnit};
+use relay_conventions::attributes::*;
 use relay_conventions::measurements::{APP_START_COLD, APP_START_WARM};
 use relay_event_schema::protocol::{
     AppContext, BrowserContext, DeviceContext, Event, GpuContext, Measurement, MonitorContext,
@@ -77,8 +79,12 @@ pub(crate) fn extract_segment_name_from_event(event: &mut Event) {
 
         let data = span.data.get_or_insert_with(Default::default);
 
-        if data.segment_name.is_empty() {
-            data.segment_name = Annotated::new(transaction.clone());
+        if data
+            .other
+            .get(SENTRY__SEGMENT__NAME)
+            .is_none_or(Empty::is_empty)
+        {
+            data.insert_value(SENTRY__SEGMENT__NAME, transaction.clone());
         }
     }
 }
@@ -451,12 +457,15 @@ fn extract_shared_tags(event: &Event) -> SharedTags {
         .context::<TraceContext>()
         .and_then(|trace_context| trace_context.data.value())
     {
-        if let Some(thread_id) = data.thread_id.value() {
-            tags.thread_id = thread_id.to_string().into();
+        if let Some(thread_id) = data
+            .get_value(THREAD__ID)
+            .and_then(|value| String::try_from(value).ok())
+        {
+            tags.thread_id = thread_id.into();
         }
 
-        if let Some(thread_name) = data.thread_name.value() {
-            tags.thread_name = thread_name.to_string().into();
+        if let Some(thread_name) = data.get_str(THREAD__NAME) {
+            tags.thread_name = thread_name.to_owned().into();
         }
     }
 
@@ -501,24 +510,24 @@ fn extract_segment_measurements(event: &Event) -> BTreeMap<String, Measurement> 
         && (op == "queue.publish" || op == "queue.process")
         && let Some(data) = trace_context.data.value()
     {
-        for (field, key, unit) in [
+        for (attribute, key, unit) in [
             (
-                &data.messaging_message_retry_count,
+                MESSAGING__MESSAGE__RETRY__COUNT,
                 "messaging.message.retry.count",
                 MetricUnit::None,
             ),
             (
-                &data.messaging_message_receive_latency,
+                MESSAGING__MESSAGE__RECEIVE__LATENCY,
                 "messaging.message.receive.latency",
                 MetricUnit::Duration(DurationUnit::MilliSecond),
             ),
             (
-                &data.messaging_message_body_size,
+                MESSAGING__MESSAGE__BODY__SIZE,
                 "messaging.message.body.size",
                 MetricUnit::Information(InformationUnit::Byte),
             ),
         ] {
-            if let Some(value) = value_to_finite_f64(field.value()) {
+            if let Some(value) = value_to_finite_f64(data.get_value(attribute)) {
                 measurements.insert(
                     key.into(),
                     Measurement {
@@ -652,10 +661,22 @@ fn extract_segment_tags(event: &Event) -> SegmentTags {
         && (op == "queue.publish" || op == "queue.process")
         && let Some(data) = trace_context.data.value()
     {
-        tags.messaging_destination_name = data.messaging_destination_name.clone();
-        tags.messaging_message_id = data.messaging_message_id.clone();
-        tags.messaging_operation_name = data.messaging_operation_name.clone();
-        tags.messaging_operation_type = data.messaging_operation_type.clone();
+        tags.messaging_destination_name = data
+            .get_str(MESSAGING__DESTINATION__NAME)
+            .map(str::to_owned)
+            .into();
+        tags.messaging_message_id = data
+            .get_str(MESSAGING__MESSAGE__ID)
+            .map(str::to_owned)
+            .into();
+        tags.messaging_operation_name = data
+            .get_str(MESSAGING__OPERATION__NAME)
+            .map(str::to_owned)
+            .into();
+        tags.messaging_operation_type = data
+            .get_str(MESSAGING__OPERATION__TYPE)
+            .map(str::to_owned)
+            .into();
     }
 
     if let Some(browser_context) = event.context::<BrowserContext>()
@@ -805,8 +826,7 @@ pub fn extract_tags(
     let system = span
         .data
         .value()
-        .and_then(|data| data.db_system.value())
-        .and_then(|system| system.as_str());
+        .and_then(|data| data.get_str(DB__SYSTEM__NAME));
     if let Some(sys) = system {
         span_tags.system = sys.to_lowercase().into();
     }
@@ -827,8 +847,7 @@ pub fn extract_tags(
             (Some("http"), _, _) => span
                 .data
                 .value()
-                .and_then(|data| data.http_request_method.value())
-                .and_then(|method| method.as_str())
+                .and_then(|data| data.get_str(HTTP__REQUEST__METHOD))
                 .map(|s| s.to_uppercase()),
             (_, "db.redis", Some(desc)) => {
                 // This only works as long as redis span descriptions contain the command + " *"
@@ -843,8 +862,7 @@ pub fn extract_tags(
                 let action_from_data = span
                     .data
                     .value()
-                    .and_then(|data| data.db_operation.value())
-                    .and_then(|db_op| db_op.as_str())
+                    .and_then(|data| data.get_str(DB__OPERATION__NAME))
                     .map(|s| s.to_uppercase());
                 action_from_data.or_else(|| {
                     span.description
@@ -872,14 +890,9 @@ pub fn extract_tags(
                 } else if let Some(server_address) = span
                     .data
                     .value()
-                    .and_then(|data| data.server_address.value())
-                    .and_then(|value| value.as_str())
+                    .and_then(|data| data.get_str(SERVER__ADDRESS))
                 {
-                    let url_scheme = span
-                        .data
-                        .value()
-                        .and_then(|data| data.url_scheme.value())
-                        .and_then(|value| value.as_str());
+                    let url_scheme = span.data.value().and_then(|data| data.get_str(URL__SCHEME));
 
                     let (normalized_domain, raw_domain) =
                         domain_from_server_address(Some(server_address), url_scheme);
@@ -902,13 +915,11 @@ pub fn extract_tags(
             let system = span
                 .data
                 .value()
-                .and_then(|data| data.db_system.value())
-                .and_then(|db_op| db_op.as_str());
+                .and_then(|data| data.get_str(DB__SYSTEM__NAME));
             if system == Some("mongodb") {
                 span.data
                     .value()
-                    .and_then(|data| data.db_collection_name.value())
-                    .and_then(|db_collection| db_collection.as_str())
+                    .and_then(|data| data.get_str(DB__COLLECTION__NAME))
                     .map(|db_collection| {
                         if let Cow::Owned(s) = TABLE_NAME_REGEX.replace_all(db_collection, "{%s}") {
                             s
@@ -932,13 +943,18 @@ pub fn extract_tags(
         }
 
         if span_op.starts_with("cache.") {
-            if let Some(Value::Bool(cache_hit)) =
-                span.data.value().and_then(|data| data.cache_hit.value())
+            if let Some(Value::Bool(cache_hit)) = span
+                .data
+                .value()
+                .and_then(|data| data.get_value(CACHE__HIT))
             {
                 let tag_value = if *cache_hit { "true" } else { "false" };
                 span_tags.cache_hit = tag_value.to_owned().into();
             }
-            if let Some(cache_keys) = span.data.value().and_then(|data| data.cache_key.value())
+            if let Some(cache_keys) = span
+                .data
+                .value()
+                .and_then(|data| data.get_value(CACHE__KEY))
                 && let Ok(cache_keys) = serde_json::to_string(cache_keys)
             {
                 span_tags.cache_key = cache_keys.into();
@@ -949,28 +965,28 @@ pub fn extract_tags(
             if let Some(destination) = span
                 .data
                 .value()
-                .and_then(|data| data.messaging_destination_name.as_str())
+                .and_then(|data| data.get_str(MESSAGING__DESTINATION__NAME))
             {
                 span_tags.messaging_destination_name = destination.to_owned().into();
             }
             if let Some(message_id) = span
                 .data
                 .value()
-                .and_then(|data| data.messaging_message_id.as_str())
+                .and_then(|data| data.get_str(MESSAGING__MESSAGE__ID))
             {
                 span_tags.messaging_message_id = message_id.to_owned().into();
             }
             if let Some(operation_name) = span
                 .data
                 .value()
-                .and_then(|data| data.messaging_operation_name.as_str())
+                .and_then(|data| data.get_str(MESSAGING__OPERATION__NAME))
             {
                 span_tags.messaging_operation_name = operation_name.to_owned().into();
             }
             if let Some(operation_type) = span
                 .data
                 .value()
-                .and_then(|data| data.messaging_operation_type.as_str())
+                .and_then(|data| data.get_str(MESSAGING__OPERATION__TYPE))
             {
                 span_tags.messaging_operation_type = operation_type.to_owned().into();
             }
@@ -1004,24 +1020,21 @@ pub fn extract_tags(
             // TODO: Remove response size tags once product uses measurements instead.
             if let Some(data) = span.data.value() {
                 if let Some(value) = data
-                    .http_response_content_length
-                    .value()
+                    .get_value(HTTP__RESPONSE__BODY__SIZE)
                     .and_then(|v| String::try_from(v).ok())
                 {
                     span_tags.http_response_content_length = value.into();
                 }
 
                 if let Some(value) = data
-                    .http_decoded_response_content_length
-                    .value()
+                    .get_value(HTTP__DECODED_RESPONSE_CONTENT_LENGTH)
                     .and_then(|v| String::try_from(v).ok())
                 {
                     span_tags.http_decoded_response_content_length = value.into();
                 }
 
                 if let Some(value) = data
-                    .http_response_transfer_size
-                    .value()
+                    .get_value(HTTP__RESPONSE__SIZE)
                     .and_then(|v| String::try_from(v).ok())
                 {
                     span_tags.http_response_transfer_size = value.into();
@@ -1031,8 +1044,7 @@ pub fn extract_tags(
             if let Some(resource_render_blocking_status) = span
                 .data
                 .value()
-                .and_then(|data| data.resource_render_blocking_status.value())
-                .and_then(|value| value.as_str())
+                .and_then(|data| data.get_str(RESOURCE__RENDER_BLOCKING_STATUS))
             {
                 // Validate that it's a valid status:
                 if let Ok(status) = RenderBlockingStatus::try_from(resource_render_blocking_status)
@@ -1048,21 +1060,32 @@ pub fn extract_tags(
             if let Some(transaction) = span
                 .data
                 .value()
-                .and_then(|data| data.segment_name.as_str())
+                .and_then(|data| data.get_str(SENTRY__SEGMENT__NAME))
             {
                 span_tags.transaction = transaction.to_owned().into();
             }
-            if let Some(user) = span.data.value().and_then(|data| data.user.as_str()) {
+            if let Some(user) = span.data.value().and_then(|data| data.get_str("user")) {
                 span_tags.user = user.to_owned().into();
             }
-            if let Some(replay_id) = span.data.value().and_then(|data| data.replay_id.as_str()) {
+            if let Some(replay_id) = span
+                .data
+                .value()
+                .and_then(|data| data.get_str(SENTRY__REPLAY_ID))
+            {
                 span_tags.replay_id = replay_id.to_owned().into();
             }
-            if let Some(environment) = span.data.value().and_then(|data| data.environment.as_str())
+            if let Some(environment) = span
+                .data
+                .value()
+                .and_then(|data| data.get_str(SENTRY__ENVIRONMENT))
             {
                 span_tags.environment = environment.to_owned().into();
             }
-            if let Some(release) = span.data.value().and_then(|data| data.release.as_str()) {
+            if let Some(release) = span
+                .data
+                .value()
+                .and_then(|data| data.get_str(SENTRY__RELEASE))
+            {
                 span_tags.release = release.to_owned().into();
             }
             // Standalone vital spans don't come from an event with geo data.
@@ -1070,8 +1093,8 @@ pub fn extract_tags(
             if let Some(client_address) = span
                 .data
                 .value()
-                .and_then(|data| data.client_address.value())
-                .and_then(|ip| ip.as_str().parse().ok())
+                .and_then(|data| data.get_str(CLIENT__ADDRESS))
+                .and_then(|ip| ip.parse().ok())
                 && let Some(geo) = geoip_lookup.lookup(client_address)
                 && let Some(country_code) = geo.country_code.value()
             {
@@ -1089,7 +1112,10 @@ pub fn extract_tags(
     }
 
     if is_mobile {
-        if let Some(thread_name) = span.data.value().and_then(|data| data.thread_name.as_str())
+        if let Some(thread_name) = span
+            .data
+            .value()
+            .and_then(|data| data.get_str(THREAD__NAME))
             && thread_name == MAIN_THREAD_NAME
         {
             span_tags.main_thread = "true".to_owned().into();
@@ -1100,8 +1126,7 @@ pub fn extract_tags(
         if let Some(span_data_start_type) = span
             .data
             .value()
-            .and_then(|data| data.app_start_type.value())
-            .and_then(|value| value.as_str())
+            .and_then(|data| data.get_str(APP__VITALS__START__TYPE))
         {
             span_tags.app_start_type = span_data_start_type.to_owned().into();
         } else if let Some(start_type) = start_type {
@@ -1122,21 +1147,31 @@ pub fn extract_tags(
         }
     }
 
-    if let Some(browser_name) = span.data.value().and_then(|data| data.browser_name.value()) {
-        span_tags.browser_name = browser_name.clone().into();
+    if let Some(browser_name) = span
+        .data
+        .value()
+        .and_then(|data| data.get_str(BROWSER__NAME))
+    {
+        span_tags.browser_name = browser_name.to_owned().into();
     }
 
     if let Some(data) = span.data.value() {
-        if let Some(thread_id) = data.thread_id.value() {
-            span_tags.thread_id = thread_id.to_string().into();
+        if let Some(thread_id) = data
+            .get_value(THREAD__ID)
+            .and_then(|value| String::try_from(value).ok())
+        {
+            span_tags.thread_id = thread_id.into();
         }
 
-        if let Some(thread_name) = data.thread_name.as_str() {
+        if let Some(thread_name) = data.get_str(THREAD__NAME) {
             span_tags.thread_name = thread_name.to_owned().into();
         }
     }
 
-    if let Some(name) = span.data.value().and_then(|data| data.span_name.value())
+    if let Some(name) = span
+        .data
+        .value()
+        .and_then(|data| data.get_str("sentry.name"))
         && !name.is_empty()
     {
         span_tags.name = name.to_owned().into();
@@ -1164,7 +1199,7 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
 
     if span_op.starts_with("cache.")
         && let Some(data) = span.data.value()
-        && let Some(value) = value_to_finite_f64(data.cache_item_size.value())
+        && let Some(value) = value_to_finite_f64(data.get_value(CACHE__ITEM_SIZE))
     {
         let measurements = span.measurements.get_or_insert_with(Default::default);
         measurements.insert(
@@ -1180,21 +1215,15 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
     if span_op.starts_with("resource.")
         && let Some(data) = span.data.value()
     {
-        for (field, key) in [
+        for (attribute, key) in [
             (
-                &data.http_decoded_response_content_length,
+                HTTP__DECODED_RESPONSE_CONTENT_LENGTH,
                 "http.decoded_response_content_length",
             ),
-            (
-                &data.http_response_content_length,
-                "http.response_content_length",
-            ),
-            (
-                &data.http_response_transfer_size,
-                "http.response_transfer_size",
-            ),
+            (HTTP__RESPONSE__BODY__SIZE, "http.response_content_length"),
+            (HTTP__RESPONSE__SIZE, "http.response_transfer_size"),
         ] {
-            if let Some(value) = value_to_finite_f64(field.value()) {
+            if let Some(value) = value_to_finite_f64(data.get_value(attribute)) {
                 let measurements = span.measurements.get_or_insert_with(Default::default);
                 measurements.insert(
                     key.into(),
@@ -1211,24 +1240,24 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
     if span_op.starts_with("queue.")
         && let Some(data) = span.data.value()
     {
-        for (field, key, unit) in [
+        for (attribute, key, unit) in [
             (
-                &data.messaging_message_retry_count,
+                MESSAGING__MESSAGE__RETRY__COUNT,
                 "messaging.message.retry.count",
                 MetricUnit::None,
             ),
             (
-                &data.messaging_message_receive_latency,
+                MESSAGING__MESSAGE__RECEIVE__LATENCY,
                 "messaging.message.receive.latency",
                 MetricUnit::Duration(DurationUnit::MilliSecond),
             ),
             (
-                &data.messaging_message_body_size,
+                MESSAGING__MESSAGE__BODY__SIZE,
                 "messaging.message.body.size",
                 MetricUnit::Information(InformationUnit::Byte),
             ),
         ] {
-            if let Some(value) = value_to_finite_f64(field.value()) {
+            if let Some(value) = value_to_finite_f64(data.get_value(attribute)) {
                 let measurements = span.measurements.get_or_insert_with(Default::default);
                 measurements.insert(
                     key.into(),
@@ -1243,17 +1272,17 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
     }
 
     if is_mobile && let Some(data) = span.data.value() {
-        for (field, key, unit) in [
-            (&data.frames_frozen, "frames.frozen", MetricUnit::None),
-            (&data.frames_slow, "frames.slow", MetricUnit::None),
-            (&data.frames_total, "frames.total", MetricUnit::None),
+        for (attribute, key, unit) in [
+            ("sentry.frames.frozen", "frames.frozen", MetricUnit::None),
+            ("sentry.frames.slow", "frames.slow", MetricUnit::None),
+            ("sentry.frames.total", "frames.total", MetricUnit::None),
             (
-                &data.frames_delay,
+                APP__VITALS__FRAMES__DELAY__VALUE,
                 "frames.delay",
                 MetricUnit::Duration(DurationUnit::Second),
             ),
         ] {
-            if let Some(value) = value_to_finite_f64(field.value()) {
+            if let Some(value) = value_to_finite_f64(data.get_value(attribute)) {
                 let measurements = span.measurements.get_or_insert_with(Default::default);
                 measurements.insert(
                     key.into(),
@@ -1490,13 +1519,29 @@ fn category_for_span(span: &Span) -> Option<Cow<'static, str>> {
         value.value().is_some_and(|v| !v.is_empty())
     }
 
-    if value_is_set(&span_data.db_system) {
+    if span_data
+        .other
+        .get(DB__SYSTEM__NAME)
+        .is_some_and(value_is_set)
+    {
         Some("db".into())
-    } else if value_is_set(&span_data.http_request_method) {
+    } else if span_data
+        .other
+        .get(HTTP__REQUEST__METHOD)
+        .is_some_and(value_is_set)
+    {
         Some("http".into())
-    } else if value_is_set(&span_data.ui_component_name) {
+    } else if span_data
+        .other
+        .get(UI__COMPONENT_NAME)
+        .is_some_and(value_is_set)
+    {
         Some("ui".into())
-    } else if value_is_set(&span_data.resource_render_blocking_status) {
+    } else if span_data
+        .other
+        .get(RESOURCE__RENDER_BLOCKING_STATUS)
+        .is_some_and(value_is_set)
+    {
         Some("resource".into())
     } else if span_data
         .other
@@ -1554,9 +1599,9 @@ fn get_event_start_type(event: &Event) -> Option<&'static str> {
 
 #[cfg(test)]
 mod tests {
-    use insta::{assert_debug_snapshot, assert_json_snapshot};
+    use insta::assert_debug_snapshot;
     use relay_event_schema::protocol::{Request, SpanData};
-    use relay_protocol::{Getter, Object, SerializableAnnotated, get_value};
+    use relay_protocol::{Getter, get_value};
 
     use super::*;
     use crate::span::description::{Mode, scrub_queries};
@@ -1906,9 +1951,9 @@ LIMIT 1
                         "timestamp": 1597976302.0000000,
                         "trace_id": "ff62a8b040f340bda5d830223def1d81",
                         "data": {
-                            "http.response_content_length": 1,
+                            "http.response.body.size": 1,
                             "http.decoded_response_content_length": 2.0,
-                            "http.response_transfer_size": 3.3
+                            "http.response.size": 3.3
                         }
                     }
                 ]
@@ -1987,8 +2032,8 @@ LIMIT 1
                     "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
                     "data": {
                         "http.decoded_response_content_length": 128950,
-                        "http.response_content_length": 36170,
-                        "http.response_transfer_size": 36470,
+                        "http.response.body.size": 36170,
+                        "http.response.size": 36470,
                         "resource.render_blocking_status": "blocking",
                         "server.address": "subdomain.example.com:5688",
                         "url.same_origin": true,
@@ -2007,8 +2052,8 @@ LIMIT 1
                     "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
                     "data": {
                         "http.decoded_response_content_length": 128950,
-                        "http.response_content_length": 36170,
-                        "http.response_transfer_size": 36470,
+                        "http.response.body.size": 36170,
+                        "http.response.size": 36470,
                         "resource.render_blocking_status": "blocking",
                         "server.address": "example.com",
                         "url.same_origin": true,
@@ -2027,8 +2072,8 @@ LIMIT 1
                     "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
                     "data": {
                         "http.decoded_response_content_length": 128950,
-                        "http.response_content_length": 36170,
-                        "http.response_transfer_size": 36470,
+                        "http.response.body.size": 36170,
+                        "http.response.size": 36470,
                         "resource.render_blocking_status": "blocking"
                     },
                     "hash": "e2fae740cccd3788"
@@ -2058,106 +2103,6 @@ LIMIT 1
         );
         assert_eq!(tags_2.raw_domain.as_str(), Some("http://example.com"));
         assert!(tags_3.raw_domain.value().is_none());
-    }
-
-    #[test]
-    fn test_ai_extraction_legacy_data_fields() {
-        let json = r#"
-            {
-                "spans": [
-                    {
-                        "timestamp": 1694732408.3145,
-                        "start_timestamp": 1694732407.8367,
-                        "exclusive_time": 477.800131,
-                        "description": "OpenAI Chat Completion",
-                        "op": "ai.chat_completions.openai",
-                        "span_id": "97c0ef9770a02f9d",
-                        "parent_span_id": "9756d8d7b2b364ff",
-                        "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
-                        "data": {
-                            "ai.total_tokens.used": 300,
-                            "ai.completion_tokens.used": 200,
-                            "ai.prompt_tokens.used": 100
-                        },
-                        "hash": "e2fae740cccd3781"
-                    }
-                ]
-            }
-        "#;
-
-        let mut event = Annotated::<Event>::from_json(json)
-            .unwrap()
-            .into_value()
-            .unwrap();
-
-        extract_span_tags_from_event(&mut event, 200, &[]);
-
-        let span = &event
-            .spans
-            .value()
-            .unwrap()
-            .first()
-            .unwrap()
-            .value()
-            .unwrap();
-
-        assert_json_snapshot!(SerializableAnnotated(&span.data), @r#"
-        {
-          "gen_ai.usage.total_tokens": 300,
-          "gen_ai.usage.input_tokens": 100,
-          "gen_ai.usage.output_tokens": 200
-        }
-        "#);
-    }
-
-    #[test]
-    fn test_ai_extraction() {
-        let json = r#"
-            {
-                "spans": [
-                    {
-                        "timestamp": 1694732408.3145,
-                        "start_timestamp": 1694732407.8367,
-                        "exclusive_time": 477.800131,
-                        "description": "OpenAI Chat Completion",
-                        "op": "ai.chat_completions.openai",
-                        "span_id": "97c0ef9770a02f9d",
-                        "parent_span_id": "9756d8d7b2b364ff",
-                        "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
-                        "data": {
-                            "gen_ai.usage.total_tokens": 300,
-                            "gen_ai.usage.output_tokens": 200,
-                            "gen_ai.usage.input_tokens": 100
-                        },
-                        "hash": "e2fae740cccd3781"
-                    }
-                ]
-            }
-        "#;
-
-        let mut event = Annotated::<Event>::from_json(json)
-            .unwrap()
-            .into_value()
-            .unwrap();
-
-        extract_span_tags_from_event(&mut event, 200, &[]);
-
-        let span = &event
-            .spans
-            .value()
-            .unwrap()
-            .first()
-            .unwrap()
-            .value()
-            .unwrap();
-
-        assert_json_snapshot!(SerializableAnnotated(&span.data), @r#"
-        {
-          "gen_ai.usage.total_tokens": 300,
-          "gen_ai.usage.input_tokens": 100,
-          "gen_ai.usage.output_tokens": 200
-        }
-        "#);
     }
 
     #[test]
@@ -2312,7 +2257,7 @@ LIMIT 1
                         "parent_span_id": "a1bdf3c7d2afe10e",
                         "trace_id": "2920522dedff493ebe5d84da7be4319f",
                         "data": {
-                            "http.request_method": "POST",
+                            "http.request.method": "POST",
                             "http.response.status_code": 200,
                             "http.fragment": "",
                             "http.query": "",
@@ -2332,7 +2277,7 @@ LIMIT 1
                         "parent_span_id": "a1bdf3c7d2afe10e",
                         "trace_id": "2920522dedff493ebe5d84da7be4319f",
                         "data": {
-                            "http.request_method": "GET",
+                            "http.request.method": "GET",
                             "http.response.status_code": 200,
                             "http.fragment": "",
                             "http.query": "",
@@ -2352,7 +2297,7 @@ LIMIT 1
                         "parent_span_id": "a1bdf3c7d2afe10e",
                         "trace_id": "2920522dedff493ebe5d84da7be4319f",
                         "data": {
-                            "http.request_method": "GET",
+                            "http.request.method": "GET",
                             "http.response.status_code": 200,
                             "http.fragment": "",
                             "http.query": "",
@@ -2440,7 +2385,7 @@ LIMIT 1
                         "data": {
                             "thread.id": 1,
                             "thread.name": "main",
-                            "app_start_type": "cold"
+                            "app.vitals.start.type": "cold"
                         }
                     },
                     {
@@ -3009,9 +2954,9 @@ LIMIT 1
                 "timestamp": 1597976302.0000000,
                 "trace_id": "ff62a8b040f340bda5d830223def1d81",
                 "data": {
-                    "db.operation": "find",
+                    "db.operation.name": "find",
                     "db.collection.name": "documents",
-                    "db.system": "mongodb"
+                    "db.system.name": "mongodb"
                 }
             }
         "#;
@@ -3045,9 +2990,9 @@ LIMIT 1
                 "timestamp": 1597976302.0000000,
                 "trace_id": "ff62a8b040f340bda5d830223def1d81",
                 "data": {
-                    "db.operation": "find",
+                    "db.operation.name": "find",
                     "db.collection.name": "documents_a1b2c3d4",
-                    "db.system": "mongodb"
+                    "db.system.name": "mongodb"
                 }
             }
         "#;
@@ -3326,14 +3271,8 @@ LIMIT 1
     fn span_category_from_explicit_attribute_overrides_op() {
         let span = Span {
             op: "app.start".to_owned().into(),
-            data: SpanData {
-                other: Object::from([(
-                    "sentry.category".into(),
-                    Value::String("db".into()).into(),
-                )]),
-                ..Default::default()
-            }
-            .into(),
+            data: SpanData::from([("sentry.category".into(), Value::String("db".into()).into())])
+                .into(),
             ..Default::default()
         };
         assert_eq!(category_for_span(&span), Some("db".into()));
@@ -3343,10 +3282,10 @@ LIMIT 1
     fn span_category_from_op_overrides_inference() {
         let span = Span {
             op: "app.start".to_owned().into(),
-            data: SpanData {
-                db_system: Value::String("postgresql".into()).into(),
-                ..Default::default()
-            }
+            data: SpanData::from([(
+                DB__SYSTEM__NAME.to_owned(),
+                Value::String("postgresql".into()).into(),
+            )])
             .into(),
             ..Default::default()
         };
@@ -3356,10 +3295,10 @@ LIMIT 1
     #[test]
     fn infers_db_category_from_attributes() {
         let span = Span {
-            data: SpanData {
-                db_system: Value::String("postgresql".into()).into(),
-                ..Default::default()
-            }
+            data: SpanData::from([(
+                DB__SYSTEM__NAME.to_owned(),
+                Value::String("postgresql".into()).into(),
+            )])
             .into(),
             ..Default::default()
         };
@@ -3369,10 +3308,10 @@ LIMIT 1
     #[test]
     fn infers_http_category_from_attributes() {
         let span = Span {
-            data: SpanData {
-                http_request_method: Value::String("POST".into()).into(),
-                ..Default::default()
-            }
+            data: SpanData::from([(
+                HTTP__REQUEST__METHOD.to_owned(),
+                Value::String("POST".into()).into(),
+            )])
             .into(),
             ..Default::default()
         };
@@ -3382,10 +3321,10 @@ LIMIT 1
     #[test]
     fn infers_ui_category_from_attributes() {
         let span = Span {
-            data: SpanData {
-                ui_component_name: Value::String("MainComponent".into()).into(),
-                ..Default::default()
-            }
+            data: SpanData::from([(
+                UI__COMPONENT_NAME.to_owned(),
+                Value::String("MainComponent".into()).into(),
+            )])
             .into(),
             ..Default::default()
         };
@@ -3395,10 +3334,10 @@ LIMIT 1
     #[test]
     fn infers_resource_category_from_attributes() {
         let span = Span {
-            data: SpanData {
-                resource_render_blocking_status: Value::String("true".into()).into(),
-                ..Default::default()
-            }
+            data: SpanData::from([(
+                RESOURCE__RENDER_BLOCKING_STATUS.to_owned(),
+                Value::String("true".into()).into(),
+            )])
             .into(),
             ..Default::default()
         };
@@ -3408,13 +3347,10 @@ LIMIT 1
     #[test]
     fn infers_browser_category_from_attributes() {
         let span = Span {
-            data: SpanData {
-                other: Object::from([(
-                    "sentry.origin".into(),
-                    Value::String("auto.ui.browser.metrics".into()).into(),
-                )]),
-                ..Default::default()
-            }
+            data: SpanData::from([(
+                "sentry.origin".into(),
+                Value::String("auto.ui.browser.metrics".into()).into(),
+            )])
             .into(),
             ..Default::default()
         };
