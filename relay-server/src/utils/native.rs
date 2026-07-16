@@ -300,11 +300,11 @@ pub fn process_minidump(
 
 /// Writes minimal information into the event to indicate it is associated with an Apple Crash
 /// Report.
-pub fn process_apple_crash_report(event: &mut Event) {
+pub fn process_apple_crash_report(event: &mut Event, additional_exceptions: AdditionalExceptions) {
     let placeholder = NativePlaceholder {
         exception_type: "AppleCrashReport",
         exception_value: "Invalid Apple Crash Report",
         mechanism_type: "applecrashreport",
     };
-    write_native_placeholder(event, placeholder, AdditionalExceptions::Retain);
+    write_native_placeholder(event, placeholder, additional_exceptions);
 }
