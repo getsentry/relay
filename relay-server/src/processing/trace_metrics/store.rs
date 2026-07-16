@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use chrono::{DateTime, Utc};
 use prost_types::Timestamp;
 use relay_base_schema::metrics::MetricUnit;
-#[cfg(feature = "processing")]
 use relay_event_schema::protocol::trace_metric;
 use relay_event_schema::protocol::{Attributes, MetricType, SpanId, TraceMetric};
 use relay_protocol::{Annotated, Value};
@@ -12,10 +11,8 @@ use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType, any_value};
 use uuid::Uuid;
 
 use crate::envelope::WithHeader;
-#[cfg(feature = "processing")]
 use crate::managed::Managed;
 use crate::processing::trace_metrics::{Error, Result};
-#[cfg(feature = "processing")]
 use crate::processing::trace_metrics::{store, utils};
 use crate::processing::utils::store::{
     extract_client_sample_rate, extract_meta_attributes, quantities_to_trace_item_outcomes,
@@ -223,7 +220,6 @@ fn attributes(
     result
 }
 
-#[cfg(feature = "processing")]
 /// Produce the supplied webvital trace metrics to kafka.
 /// This is required right now to double-write these webvitals as trace metrics, while we
 /// still write the vitals as spans.  Eventually, the sdks will natively emit metrics and we
