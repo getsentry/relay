@@ -958,7 +958,7 @@ mod tests {
         let data = r#"{
         "foo": 2,
         "bar": "3",
-        "db.system": "mysql",
+        "db.system.name": "mysql",
         "code.filepath": "task.py",
         "code.lineno": 123,
         "code.function": "fn()",
@@ -1003,7 +1003,7 @@ mod tests {
                 "code.namespace": String(
                     "ns",
                 ),
-                "db.system": String(
+                "db.system.name": String(
                     "mysql",
                 ),
                 "foo": I64(
@@ -1070,7 +1070,7 @@ mod tests {
         );
         assert!(!data.contains("string"));
         assert_eq!(
-            Getter::get_value(&data, "db\\.system"),
+            Getter::get_value(&data, "db\\.system\\.name"),
             Some(Val::String("mysql"))
         );
         assert_eq!(
