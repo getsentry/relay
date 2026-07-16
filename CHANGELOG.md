@@ -4,7 +4,7 @@
 
 **Features**:
 
-- No longer write the deprecated `sentry.transaction` attribute. ([#6237](https://github.com/getsentry/relay/pull/6237))
+- No longer write the deprecated `sentry.transaction` and `db.system` attributes. ([#6237](https://github.com/getsentry/relay/pull/6237), [#6238](https://github.com/getsentry/relay/pull/6238))
 
 ## 26.7.0
 
