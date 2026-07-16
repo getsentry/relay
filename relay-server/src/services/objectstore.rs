@@ -1018,7 +1018,7 @@ impl ObjectstoreServiceInner {
                     //
                     // Every chunk needs to be > 5 MB because that's what multipart requires.
                     let mut parts = vec![];
-                    let mut compressed_buffer = zstd::stream::write::Encoder::new(vec![], 0).unwrap(); // FIXME;
+                    let mut compressed_buffer = zstd::stream::write::Encoder::new(vec![], 0).map_err(AttemptUploadError::Zstd)?;
                     let mut part_number = offset / UPLOAD_GRANULARITY;
                     while let Some(bytes) = body.next().await {
                         part_number += 1;
