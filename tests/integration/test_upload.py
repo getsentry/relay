@@ -567,7 +567,9 @@ def test_concurrency_limit(mini_sentry, relay, project_config):
     "with_multipart",
     [pytest.param(False, id="no multipart"), pytest.param(True, id="with multipart")],
 )
-def test_objectstore_retries(mini_sentry, relay_with_processing, with_multipart):
+def test_objectstore_retries(
+    mini_sentry, relay_with_processing, with_multipart, project_config
+):
     project_id = 42
     project_key = mini_sentry.get_dsn_public_key(project_id)
 
