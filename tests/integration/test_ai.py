@@ -383,8 +383,20 @@ def test_ai_spans_example_transaction(
                     "value": matches_any(),
                 },
                 "gen_ai.context.window_size": {"type": "integer", "value": 128000},
+                "gen_ai.cost.cache_creation.input_tokens": {
+                    "type": "double",
+                    "value": 0.0,
+                },
+                "gen_ai.cost.cache_read.input_tokens": {
+                    "type": "double",
+                    "value": 0.0,
+                },
                 "gen_ai.cost.input_tokens": {"type": "double", "value": 2.45},
                 "gen_ai.cost.output_tokens": {"type": "double", "value": 1.3},
+                "gen_ai.cost.reasoning.output_tokens": {
+                    "type": "double",
+                    "value": 0.0,
+                },
                 "gen_ai.cost.total_tokens": {"type": "double", "value": 3.75},
                 "gen_ai.agent.name": {"type": "string", "value": "weather-chat"},
                 "gen_ai.function_id": {"type": "string", "value": "weather-chat"},
@@ -489,8 +501,20 @@ def test_ai_spans_example_transaction(
                     "value": matches_any(),
                 },
                 "gen_ai.context.window_size": {"type": "integer", "value": 128000},
+                "gen_ai.cost.cache_creation.input_tokens": {
+                    "type": "double",
+                    "value": 0.0,
+                },
+                "gen_ai.cost.cache_read.input_tokens": {
+                    "type": "double",
+                    "value": 0.0,
+                },
                 "gen_ai.cost.input_tokens": {"type": "double", "value": 0.37},
                 "gen_ai.cost.output_tokens": {"type": "double", "value": 0.92},
+                "gen_ai.cost.reasoning.output_tokens": {
+                    "type": "double",
+                    "value": 0.0,
+                },
                 "gen_ai.cost.total_tokens": {"type": "double", "value": 1.29},
                 "gen_ai.agent.name": {"type": "string", "value": "weather-chat"},
                 "gen_ai.function_id": {"type": "string", "value": "weather-chat"},
@@ -1044,8 +1068,20 @@ def test_ai_spans_example_transaction(
                     "value": matches_any(),
                 },
                 "gen_ai.context.window_size": {"type": "integer", "value": 128000},
+                "gen_ai.cost.cache_creation.input_tokens": {
+                    "type": "double",
+                    "value": 0.0,
+                },
+                "gen_ai.cost.cache_read.input_tokens": {
+                    "type": "double",
+                    "value": 0.0,
+                },
                 "gen_ai.cost.input_tokens": {"type": "double", "value": 2.08},
                 "gen_ai.cost.output_tokens": {"type": "double", "value": 0.38},
+                "gen_ai.cost.reasoning.output_tokens": {
+                    "type": "double",
+                    "value": 0.0,
+                },
                 "gen_ai.cost.total_tokens": {"type": "double", "value": 2.46},
                 "gen_ai.agent.name": {"type": "string", "value": "weather-chat"},
                 "gen_ai.function_id": {"type": "string", "value": "weather-chat"},
