@@ -30,6 +30,7 @@ use crate::{
 
 mod ai;
 mod attribute_like;
+pub(crate) mod gen_ai_transform;
 mod mobile;
 mod size;
 pub mod time;
