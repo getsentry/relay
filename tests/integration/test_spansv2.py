@@ -2019,10 +2019,6 @@ def test_spansv2_lcp_segment(mini_sentry, relay_with_processing, spans_consumer)
                 "type": "string",
                 "value": "a84cb30362883928",
             },
-            "sentry.transaction": {
-                "type": "string",
-                "value": "/issues/",
-            },
             "user_agent.original": {
                 "type": "string",
                 "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",

@@ -249,7 +249,6 @@ def test_lcp_span(
             "replay_id": None,
             "sentry.report_event": {"type": "string", "value": "navigation"},
             "sentry.segment.name": {"type": "string", "value": "/insights/projects/*"},
-            "sentry.transaction": {"type": "string", "value": "/insights/projects/*"},
             "transaction": None,
             "user_agent.original": {
                 "type": "string",
@@ -464,7 +463,6 @@ def test_cls_span(
             "replay_id": None,
             "sentry.report_event": {"type": "string", "value": "navigation"},
             "sentry.segment.name": {"type": "string", "value": "/insights/projects/*"},
-            "sentry.transaction": {"type": "string", "value": "/insights/projects/*"},
             "transaction": None,
             "user_agent.original": {
                 "type": "string",
@@ -653,7 +651,6 @@ def test_inp_span(
             },
             "replay_id": None,
             "sentry.segment.name": {"type": "string", "value": "/insights/projects/*"},
-            "sentry.transaction": {"type": "string", "value": "/insights/projects/*"},
             "transaction": None,
             "user_agent.original": {
                 "type": "string",
@@ -1019,7 +1016,6 @@ def test_ua_ip_inference(
             "replay_id": None,
             "sentry.report_event": {"type": "string", "value": "navigation"},
             "sentry.segment.name": {"type": "string", "value": "/insights/projects/"},
-            "sentry.transaction": {"type": "string", "value": "/insights/projects/"},
             "transaction": None,
             "user_agent.original": {
                 "type": "string",

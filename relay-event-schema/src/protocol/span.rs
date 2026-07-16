@@ -215,7 +215,6 @@ pub struct SentryTags {
     #[metastructure(pii = "true", field = "user.email")]
     pub user_email: Annotated<String>,
     pub environment: Annotated<String>,
-    pub transaction: Annotated<String>,
     #[metastructure(field = "transaction.method")]
     pub transaction_method: Annotated<String>,
     #[metastructure(field = "transaction.op")]
@@ -424,7 +423,6 @@ impl Getter for SentryTags {
             "trace.status" => &self.trace_status,
             "transaction.method" => &self.transaction_method,
             "transaction.op" => &self.transaction_op,
-            "transaction" => &self.transaction,
             "ttfd" => &self.ttfd,
             "ttid" => &self.ttid,
             "user.email" => &self.user_email,

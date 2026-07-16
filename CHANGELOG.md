@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- No longer write the deprecated `sentry.transaction` attribute. ([#6237](https://github.com/getsentry/relay/pull/6237))
+
 ## 26.7.0
 
 **Features**:

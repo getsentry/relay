@@ -197,7 +197,6 @@ struct SharedTags {
     trace_status: Annotated<String>,
     transaction_method: Annotated<String>,
     transaction_op: Annotated<String>,
-    transaction: Annotated<String>,
     user_city: Annotated<String>,
     user_country_code: Annotated<String>,
     user_email: Annotated<String>,
@@ -229,7 +228,6 @@ impl SharedTags {
             trace_status,
             transaction_method,
             transaction_op,
-            transaction,
             user_city,
             user_country_code,
             user_email,
@@ -288,9 +286,6 @@ impl SharedTags {
         };
         if tags.transaction_op.value().is_none() {
             tags.transaction_op = transaction_op.clone();
-        };
-        if tags.transaction.value().is_none() {
-            tags.transaction = transaction.clone();
         };
         if tags.user_city.value().is_none() {
             tags.user_city = user_city.clone();
@@ -378,8 +373,6 @@ fn extract_shared_tags(event: &Event) -> SharedTags {
     }
 
     if let Some(transaction_name) = event.transaction.value() {
-        tags.transaction = transaction_name.clone().into();
-
         let transaction_method_from_request = event
             .request
             .value()
@@ -1057,13 +1050,6 @@ pub fn extract_tags(
             && ((span_op.starts_with("ui.interaction.") && measurements.contains_key("inp"))
                 || span_op.starts_with("ui.webvital."))
         {
-            if let Some(transaction) = span
-                .data
-                .value()
-                .and_then(|data| data.get_str(SENTRY__SEGMENT__NAME))
-            {
-                span_tags.transaction = transaction.to_owned().into();
-            }
             if let Some(user) = span.data.value().and_then(|data| data.get_str("user")) {
                 span_tags.user = user.to_owned().into();
             }
