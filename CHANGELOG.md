@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Transform deprecated `gen_ai.request.messages`, `gen_ai.response.text`, and `gen_ai.response.tool_calls` attributes into their normalized replacements (`gen_ai.input.messages` and `gen_ai.output.messages`). ([#6201](https://github.com/getsentry/relay/pull/6201))
+
 ## 26.7.0
 
 **Features**:

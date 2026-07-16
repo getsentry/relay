@@ -369,6 +369,7 @@ fn enrich_ai_span_data(
 
     let data = span_data.get_or_insert_with(SpanData::default);
 
+    crate::eap::gen_ai_transform::transform_gen_ai(data);
     map_ai_measurements_to_data(data, measurements.value());
 
     set_total_tokens(data);

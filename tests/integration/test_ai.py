@@ -1,6 +1,8 @@
+import json
 from datetime import datetime, timezone
 
 from sentry_relay.consts import DataCategory
+from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 from .asserts import matches_any, time_within_delta
 
@@ -397,9 +399,10 @@ def test_ai_spans_example_transaction(
                 "gen_ai.response.model": {"type": "string", "value": "gpt-4o"},
                 "gen_ai.output.messages": {
                     "type": "string",
-                    "value": "True. \n\n- London: 61°F \n- San Francisco: 13°C",
+                    # Transformed from gen_ai.response.text into parts format.
+                    # Exact JSON verified in test_gen_ai_transform_response_to_output_v1.
+                    "value": matches_any(),
                 },
-                "gen_ai.response.text": None,
                 "gen_ai.response.tokens_per_second": {"type": "double", "value": 130.0},
                 "gen_ai.usage.input_tokens": {"type": "integer", "value": 245},
                 "gen_ai.usage.output_tokens": {"type": "integer", "value": 65},
@@ -504,7 +507,6 @@ def test_ai_spans_example_transaction(
                     "value": "Another weather prompt",
                 },
                 "gen_ai.request.available_tools": None,
-                "gen_ai.request.messages": None,
                 "gen_ai.request.model": {"type": "string", "value": "gpt-4o"},
                 "gen_ai.response.finish_reasons": {
                     "type": "string",
@@ -519,9 +521,8 @@ def test_ai_spans_example_transaction(
                     "value": "gpt-4o-2024-08-06",
                 },
                 "gen_ai.response.tokens_per_second": {"type": "double", "value": 92.0},
-                "gen_ai.response.tool_calls": None,
                 "gen_ai.system": None,
-                "gen_ai.output.messages": {
+                "gen_ai.response.tool_calls": {
                     "type": "string",
                     "value": "some_tool_calls",
                 },
@@ -1059,7 +1060,6 @@ def test_ai_spans_example_transaction(
                     "value": "Some AI Prompt about " "the Wheather",
                 },
                 "gen_ai.request.available_tools": None,
-                "gen_ai.request.messages": None,
                 "gen_ai.request.model": {"type": "string", "value": "gpt-4o"},
                 "gen_ai.response.finish_reasons": {
                     "type": "string",
@@ -1075,12 +1075,9 @@ def test_ai_spans_example_transaction(
                 },
                 "gen_ai.output.messages": {
                     "type": "string",
-                    "value": "True. \n"
-                    "\n"
-                    "- London: 61°F \n"
-                    "- San Francisco: 13°C",
+                    # Transformed from gen_ai.response.text into parts format.
+                    "value": matches_any(),
                 },
-                "gen_ai.response.text": None,
                 "gen_ai.response.tokens_per_second": {"type": "double", "value": 38.0},
                 "gen_ai.system": None,
                 "gen_ai.provider.name": {"type": "string", "value": "openai.responses"},
@@ -1341,3 +1338,276 @@ def test_ai_spans_example_transaction(
             "quantity": 10,
         },
     ]
+
+
+TEST_CONFIG = {
+    "outcomes": {
+        "emit_outcomes": True,
+    }
+}
+
+
+def envelope_with_spans(*payloads: dict, trace_info=None, metadata=None) -> Envelope:
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="span",
+            payload=PayloadRef(json={"items": payloads, **(metadata or {})}),
+            content_type="application/vnd.sentry.items.span.v2+json",
+            headers={"item_count": len(payloads)},
+        )
+    )
+    envelope.headers["trace"] = trace_info
+    return envelope
+
+
+def test_gen_ai_transform_request_messages_v1(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+):
+    """
+    SpanV1 (transaction) path: gen_ai.request.messages with JSON content
+    gets transformed to gen_ai.input.messages with parts format.
+    """
+    spans_consumer = spans_consumer()
+
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(relay_with_processing())
+
+    ts = datetime.now(timezone.utc)
+    messages = json.dumps([{"role": "user", "content": "What is the weather?"}])
+
+    relay.send_transaction(
+        project_id,
+        {
+            "contexts": {
+                "trace": {
+                    "span_id": "aaaa000000000001",
+                    "trace_id": "a9351cd574f092f6acad48e250981f11",
+                    "op": "gen_ai.generate_text",
+                    "origin": "manual",
+                    "status": "ok",
+                },
+            },
+            "spans": [
+                {
+                    "span_id": "bbbb000000000001",
+                    "trace_id": "a9351cd574f092f6acad48e250981f11",
+                    "parent_span_id": "aaaa000000000001",
+                    "start_timestamp": ts.timestamp() - 0.5,
+                    "timestamp": ts.timestamp(),
+                    "status": "ok",
+                    "op": "gen_ai.generate_text",
+                    "data": {
+                        "gen_ai.request.messages": messages,
+                        "gen_ai.request.model": "gpt-4o",
+                    },
+                },
+            ],
+            "start_timestamp": ts.timestamp() - 0.5,
+            "timestamp": ts.timestamp(),
+            "transaction": "test-transform",
+            "type": "transaction",
+            "transaction_info": {"source": "custom"},
+            "platform": "python",
+        },
+    )
+
+    spans = spans_consumer.get_spans(n=2)
+    ai_span = next(s for s in spans if s["span_id"] == "bbbb000000000001")
+    attrs = ai_span["attributes"]
+
+    result = json.loads(attrs["gen_ai.input.messages"]["value"])
+    assert result == [
+        {"role": "user", "parts": [{"type": "text", "content": "What is the weather?"}]}
+    ]
+    assert "gen_ai.request.messages" not in attrs
+
+
+def test_gen_ai_transform_response_to_output_v1(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+):
+    """
+    SpanV1 (transaction) path: gen_ai.response.text gets transformed into
+    gen_ai.output.messages with assistant parts format.
+    """
+    spans_consumer = spans_consumer()
+
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(relay_with_processing())
+
+    ts = datetime.now(timezone.utc)
+    relay.send_transaction(
+        project_id,
+        {
+            "contexts": {
+                "trace": {
+                    "span_id": "aaaa000000000002",
+                    "trace_id": "b9351cd574f092f6acad48e250981f11",
+                    "op": "gen_ai.generate_text",
+                    "origin": "manual",
+                    "status": "ok",
+                },
+            },
+            "spans": [
+                {
+                    "span_id": "bbbb000000000002",
+                    "trace_id": "b9351cd574f092f6acad48e250981f11",
+                    "parent_span_id": "aaaa000000000002",
+                    "start_timestamp": ts.timestamp() - 0.5,
+                    "timestamp": ts.timestamp(),
+                    "status": "ok",
+                    "op": "gen_ai.generate_text",
+                    "data": {
+                        "gen_ai.response.text": "The weather is sunny.",
+                        "gen_ai.request.model": "gpt-4o",
+                    },
+                },
+            ],
+            "start_timestamp": ts.timestamp() - 0.5,
+            "timestamp": ts.timestamp(),
+            "transaction": "test-transform",
+            "type": "transaction",
+            "transaction_info": {"source": "custom"},
+            "platform": "python",
+        },
+    )
+
+    spans = spans_consumer.get_spans(n=2)
+    ai_span = next(s for s in spans if s["span_id"] == "bbbb000000000002")
+    attrs = ai_span["attributes"]
+
+    result = json.loads(attrs["gen_ai.output.messages"]["value"])
+    assert result == [
+        {
+            "role": "assistant",
+            "parts": [{"type": "text", "content": "The weather is sunny."}],
+        }
+    ]
+    assert "gen_ai.response.text" not in attrs
+
+
+def test_gen_ai_transform_request_messages_v2(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+):
+    """
+    SpanV2 (direct span ingestion) path: gen_ai.request.messages with JSON content
+    gets transformed to gen_ai.input.messages with parts format.
+    """
+    spans_consumer = spans_consumer()
+
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+
+    ts = datetime.now(timezone.utc)
+    messages = json.dumps([{"role": "user", "content": "What is the weather?"}])
+
+    envelope = envelope_with_spans(
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": "c9351cd574f092f6acad48e250981f11",
+            "span_id": "cccc000000000001",
+            "is_segment": True,
+            "name": "gen_ai.generate_text",
+            "status": "ok",
+            "attributes": {
+                "sentry.op": {"value": "gen_ai.generate_text", "type": "string"},
+                "gen_ai.request.messages": {"value": messages, "type": "string"},
+                "gen_ai.request.model": {"value": "gpt-4o", "type": "string"},
+            },
+        },
+        trace_info={
+            "trace_id": "c9351cd574f092f6acad48e250981f11",
+            "public_key": mini_sentry.get_dsn_public_key(project_id),
+        },
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    spans = spans_consumer.get_spans(n=1)
+    attrs = spans[0]["attributes"]
+
+    result = json.loads(attrs["gen_ai.input.messages"]["value"])
+    assert result == [
+        {"role": "user", "parts": [{"type": "text", "content": "What is the weather?"}]}
+    ]
+    assert "gen_ai.request.messages" not in attrs
+
+
+def test_gen_ai_transform_response_text_and_tool_calls_v2(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+):
+    """
+    SpanV2 (direct span ingestion) path: both gen_ai.response.text and
+    gen_ai.response.tool_calls get combined into gen_ai.output.messages.
+    """
+    spans_consumer = spans_consumer()
+
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+
+    ts = datetime.now(timezone.utc)
+    tool_calls = json.dumps(
+        [{"id": "call_1", "name": "get_weather", "arguments": {"city": "London"}}]
+    )
+
+    envelope = envelope_with_spans(
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": "d9351cd574f092f6acad48e250981f11",
+            "span_id": "dddd000000000001",
+            "is_segment": True,
+            "name": "gen_ai.generate_text",
+            "status": "ok",
+            "attributes": {
+                "sentry.op": {"value": "gen_ai.generate_text", "type": "string"},
+                "gen_ai.response.text": {"value": "Let me check.", "type": "string"},
+                "gen_ai.response.tool_calls": {"value": tool_calls, "type": "string"},
+                "gen_ai.request.model": {"value": "gpt-4o", "type": "string"},
+            },
+        },
+        trace_info={
+            "trace_id": "d9351cd574f092f6acad48e250981f11",
+            "public_key": mini_sentry.get_dsn_public_key(project_id),
+        },
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    spans = spans_consumer.get_spans(n=1)
+    attrs = spans[0]["attributes"]
+
+    result = json.loads(attrs["gen_ai.output.messages"]["value"])
+    assert result == [
+        {
+            "role": "assistant",
+            "parts": [
+                {"type": "text", "content": "Let me check."},
+                {
+                    "id": "call_1",
+                    "name": "get_weather",
+                    "arguments": {"city": "London"},
+                    "type": "tool_call",
+                },
+            ],
+        }
+    ]
+    assert "gen_ai.response.text" not in attrs
+    assert "gen_ai.response.tool_calls" not in attrs
