@@ -4,6 +4,7 @@
 
 **Features**:
 
+- No longer write the deprecated `sentry.transaction` attribute. ([#6237](https://github.com/getsentry/relay/pull/6237))
 - Allow additional exceptions in minidump and apple crash report events. ([#6241](https://github.com/getsentry/relay/pull/6241))
 
 ## 26.7.0
