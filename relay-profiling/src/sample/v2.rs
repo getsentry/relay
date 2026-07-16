@@ -58,13 +58,18 @@ impl relay_protocol::Getter for ProfileMetadata {
     }
 }
 
+/// Index of the stack in the `stacks` field of the profile.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct StackId(pub usize);
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Sample {
     /// Unix timestamp in seconds with millisecond precision when the sample
     /// was captured.
     pub timestamp: FiniteF64,
     /// Index of the stack in the `stacks` field of the profile.
-    pub stack_id: usize,
+    pub stack_id: StackId,
     /// Thread or queue identifier
     pub thread_id: String,
 }
@@ -126,6 +131,10 @@ impl relay_protocol::Getter for ProfileChunk {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct FrameId(pub usize);
+
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct ProfileData {
     /// `samples` contains the list of samples referencing a stack and thread identifier.
@@ -134,7 +143,7 @@ pub struct ProfileData {
     pub samples: Vec<Sample>,
     /// `stacks` contains a list of stacks indicating the index of the frame in the `frames` field.
     /// We do this to not have to repeat frames in different stacks.
-    pub stacks: Vec<Vec<usize>>,
+    pub stacks: Vec<Vec<FrameId>>,
     /// `frames` contains a list of unique frames found in the profile.
     pub frames: Vec<Frame>,
 
@@ -224,7 +233,7 @@ impl ProfileData {
     fn all_stacks_referenced_by_samples_exist(&self) -> bool {
         self.samples
             .iter()
-            .all(|sample| self.stacks.get(sample.stack_id).is_some())
+            .all(|sample| self.stacks.get(sample.stack_id.0).is_some())
     }
 
     /// Checks that all frames referenced by the stacks exist in the frames.
@@ -232,7 +241,7 @@ impl ProfileData {
         self.stacks.iter().all(|stack| {
             stack
                 .iter()
-                .all(|frame_id| self.frames.get(*frame_id).is_some())
+                .all(|frame_id| self.frames.get(frame_id.0).is_some())
         })
     }
 
@@ -251,7 +260,7 @@ impl ProfileData {
         let mut sample_count_by_thread_id: hashbrown::HashMap<String, u32> = HashMap::new();
 
         for s in &self.samples {
-            if let Some(stack) = self.stacks.get(s.stack_id) {
+            if let Some(stack) = self.stacks.get(s.stack_id.0) {
                 // We only count non-idle samples
                 if stack.is_empty() {
                     continue;
@@ -291,17 +300,17 @@ mod tests {
         let mut chunk = ProfileData {
             samples: vec![
                 Sample {
-                    stack_id: 0,
+                    stack_id: StackId(0),
                     thread_id: "1".into(),
                     timestamp: FiniteF64::new(60.0).unwrap(),
                 },
                 Sample {
-                    stack_id: 0,
+                    stack_id: StackId(0),
                     thread_id: "1".to_owned(),
                     timestamp: FiniteF64::new(30.0).unwrap(),
                 },
             ],
-            stacks: vec![vec![0]],
+            stacks: vec![vec![FrameId(0)]],
             frames: vec![Default::default()],
             ..Default::default()
         };
@@ -330,17 +339,17 @@ mod tests {
                 profile: ProfileData {
                     samples: vec![
                         Sample {
-                            stack_id: 0,
+                            stack_id: StackId(0),
                             thread_id: "1".into(),
                             timestamp: FiniteF64::new(30.0).unwrap(),
                         },
                         Sample {
-                            stack_id: 0,
+                            stack_id: StackId(0),
                             thread_id: "1".to_owned(),
                             timestamp: FiniteF64::new(60.0).unwrap(),
                         },
                     ],
-                    stacks: vec![vec![0]],
+                    stacks: vec![vec![FrameId(0)]],
                     frames: vec![Default::default()],
                     ..Default::default()
                 },
@@ -351,17 +360,17 @@ mod tests {
                 profile: ProfileData {
                     samples: vec![
                         Sample {
-                            stack_id: 0,
+                            stack_id: StackId(0),
                             thread_id: "1".into(),
                             timestamp: FiniteF64::new(10.0).unwrap(),
                         },
                         Sample {
-                            stack_id: 0,
+                            stack_id: StackId(0),
                             thread_id: "1".to_owned(),
                             timestamp: FiniteF64::new(80.0).unwrap(),
                         },
                     ],
-                    stacks: vec![vec![0]],
+                    stacks: vec![vec![FrameId(0)]],
                     frames: vec![Default::default()],
                     ..Default::default()
                 },
@@ -372,17 +381,17 @@ mod tests {
                 profile: ProfileData {
                     samples: vec![
                         Sample {
-                            stack_id: 0,
+                            stack_id: StackId(0),
                             thread_id: "1".into(),
                             timestamp: FiniteF64::new(50.0).unwrap(),
                         },
                         Sample {
-                            stack_id: 0,
+                            stack_id: StackId(0),
                             thread_id: "1".to_owned(),
                             timestamp: FiniteF64::new(20.0).unwrap(),
                         },
                     ],
-                    stacks: vec![vec![0]],
+                    stacks: vec![vec![FrameId(0)]],
                     frames: vec![Default::default()],
                     ..Default::default()
                 },
@@ -404,62 +413,62 @@ mod tests {
         let mut chunk = ProfileData {
             samples: vec![
                 Sample {
-                    stack_id: 1,
+                    stack_id: StackId(1),
                     thread_id: "1".into(),
                     timestamp: FiniteF64::new(60.0).unwrap(),
                 },
                 Sample {
-                    stack_id: 1,
+                    stack_id: StackId(1),
                     thread_id: "1".into(),
                     timestamp: FiniteF64::new(60.0).unwrap(),
                 },
                 Sample {
-                    stack_id: 0,
+                    stack_id: StackId(0),
                     thread_id: "1".into(),
                     timestamp: FiniteF64::new(60.0).unwrap(),
                 },
                 Sample {
-                    stack_id: 1,
+                    stack_id: StackId(1),
                     thread_id: "1".into(),
                     timestamp: FiniteF64::new(60.0).unwrap(),
                 },
                 Sample {
-                    stack_id: 0,
+                    stack_id: StackId(0),
                     thread_id: "2".to_owned(),
                     timestamp: FiniteF64::new(30.0).unwrap(),
                 },
                 Sample {
-                    stack_id: 1,
+                    stack_id: StackId(1),
                     thread_id: "2".into(),
                     timestamp: FiniteF64::new(60.0).unwrap(),
                 },
                 Sample {
-                    stack_id: 1,
+                    stack_id: StackId(1),
                     thread_id: "2".into(),
                     timestamp: FiniteF64::new(60.0).unwrap(),
                 },
                 Sample {
-                    stack_id: 0,
+                    stack_id: StackId(0),
                     thread_id: "3".to_owned(),
                     timestamp: FiniteF64::new(30.0).unwrap(),
                 },
                 Sample {
-                    stack_id: 0,
+                    stack_id: StackId(0),
                     thread_id: "3".to_owned(),
                     timestamp: FiniteF64::new(30.0).unwrap(),
                 },
                 Sample {
-                    stack_id: 1,
+                    stack_id: StackId(1),
                     thread_id: "3".into(),
                     timestamp: FiniteF64::new(60.0).unwrap(),
                 },
                 Sample {
-                    stack_id: 1,
+                    stack_id: StackId(1),
                     thread_id: "3".into(),
                     timestamp: FiniteF64::new(60.0).unwrap(),
                 },
             ],
-            stacks: vec![vec![0], vec![]],
+            stacks: vec![vec![FrameId(0)], vec![]],
             frames: vec![Default::default()],
             ..Default::default()
         };
