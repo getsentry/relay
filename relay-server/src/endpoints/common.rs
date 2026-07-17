@@ -632,13 +632,13 @@ where
         })
         .ok()?;
 
-    let location = if location.upload_id().is_some() {
+    let location = {
         upload
             .send(Finish {
                 received: Utc::now(),
                 project,
                 location,
-                length: byte_counter.get(),
+                trusted_length: byte_counter.get(),
             })
             .await
             .ok()?
@@ -653,11 +653,8 @@ where
                 );
             })
             .ok()?
-            .into_header_value()
-            .ok()?
-    } else {
-        location.into_header_value().ok()?
     };
+    let location = location.into_header_value().ok()?;
     let location = location.to_str().ok()?;
     let placeholder = serde_json::to_vec(&AttachmentPlaceholder {
         location,

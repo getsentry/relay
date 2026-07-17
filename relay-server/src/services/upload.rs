@@ -170,7 +170,9 @@ pub struct Finish {
     /// The location to finish.
     pub location: SignedLocation<Provisional>,
     /// The final length of the upload in bytes.
-    pub length: usize,
+    ///
+    /// This value must never come from user input.
+    pub trusted_length: usize,
 }
 
 impl FromMessage<Create> for Upload {
@@ -435,12 +437,13 @@ impl Service {
             received,
             project,
             location,
-            length,
+            trusted_length,
         } = finish;
 
         match &self.backend {
             Backend::Upstream { addr } => {
-                let (request, rx) = UploadRequest::finish(project, location.try_to_uri()?, length);
+                let (request, rx) =
+                    UploadRequest::finish(project, location.try_to_uri()?, trusted_length);
                 addr.send(SendRequest(request));
                 let response = rx.await??;
                 SignedLocation::try_from_response(response)
@@ -449,7 +452,7 @@ impl Service {
             Backend::Objectstore { addr, config } => {
                 let Location {
                     project_id,
-                    key,
+                    mut key,
                     length: _,
                     upload_id,
                     other,
@@ -457,25 +460,27 @@ impl Service {
 
                 let scoping = project.scoping;
                 debug_assert_eq!(scoping.project_id, project_id);
-                let upload_id = UploadId::new(
-                    upload_id.expect("Finish is only sent for multipart upload locations"),
-                )?;
-                let key = addr
-                    .send(objectstore::Finish {
-                        organization_id: scoping.organization_id,
-                        project_id,
-                        key,
-                        upload_id,
-                        length,
-                    })
-                    .await
-                    .map_err(Error::ObjectstoreServiceUnavailable)??
-                    .into_inner();
 
+                if let Some(upload_id) = upload_id {
+                    key = addr
+                        .send(objectstore::Finish {
+                            organization_id: scoping.organization_id,
+                            project_id,
+                            key,
+                            upload_id: UploadId::new(upload_id)?,
+                            length: trusted_length,
+                        })
+                        .await
+                        .map_err(Error::ObjectstoreServiceUnavailable)??
+                        .into_inner();
+                }
+
+                // NOTE: `Finish` is never triggered by a client but always by the server, so
+                // we can trust the `length` here.
                 Location {
                     project_id,
                     key,
-                    length: Final(length),
+                    length: Final(trusted_length),
                     upload_id: None,
                     other,
                 }
