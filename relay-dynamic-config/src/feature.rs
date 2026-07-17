@@ -107,10 +107,6 @@ pub enum Feature {
     /// See <https://getsentry.github.io/objectstore/rust/objectstore_service/multipart/>.
     #[serde(rename = "projects:relay-upload-multipart")]
     UploadMultipart,
-    /// Enable relay billing outcome generation.
-    #[serde(rename = "organizations:relay-generate-billing-outcome")]
-    GenerateBillingOutcome,
-
     /// Enables OTLP spans to use the Span V2 processing pipeline in Relay.
     ///
     /// This is now the default behaviour of Relay.

@@ -1196,7 +1196,6 @@ impl EnvelopeProcessorService {
     ) {
         use crate::constants::DEFAULT_EVENT_RETENTION;
         use crate::services::store::StoreMetrics;
-        use relay_dynamic_config::Feature;
 
         for ProjectBuckets {
             buckets,
@@ -1213,16 +1212,10 @@ impl EnvelopeProcessorService {
                 continue;
             }
 
-            if project_info
-                .config
-                .features
-                .has(Feature::GenerateBillingOutcome)
-            {
-                // Emit metric billing outcomes.
-                self.inner
-                    .metric_outcomes
-                    .track_accepted_outcome(scoping, &mut buckets);
-            }
+            // Emit metric billing outcomes.
+            self.inner
+                .metric_outcomes
+                .track_accepted_outcome(scoping, &mut buckets);
 
             let retention = project_info
                 .config
