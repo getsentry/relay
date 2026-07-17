@@ -146,7 +146,7 @@ pub fn validate_post_headers(headers: &HeaderMap) -> Result<Headers, Error> {
 /// Validates TUS protocol headers and returns the expected upload length.
 ///
 /// Returns the offset from which the upload is resumed.
-pub fn validate_patch_headers(headers: &HeaderMap) -> Result<usize, Error> {
+pub fn validate_patch_headers(headers: &HeaderMap) -> Result<(usize, Option<usize>), Error> {
     let tus_version = headers.get(TUS_RESUMABLE);
     if tus_version != Some(&TUS_VERSION) {
         return Err(Error::Version(
@@ -166,8 +166,9 @@ pub fn validate_patch_headers(headers: &HeaderMap) -> Result<usize, Error> {
     }
 
     let upload_offset: usize = parse_header(headers, UPLOAD_OFFSET).ok_or(Error::UploadOffset)?;
+    let upload_length: Option<usize> = parse_header(headers, UPLOAD_LENGTH);
 
-    Ok(upload_offset)
+    Ok((upload_offset, upload_length))
 }
 
 /// Prepares the required TUS request headers for upstream requests.
@@ -480,11 +481,11 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_patch_headers_nonzero_upload_offset() {
+    fn test_validate_patch_headers_noninteger_upload_offset() {
         let mut headers = HeaderMap::new();
         headers.insert(TUS_RESUMABLE, HeaderValue::from_static("1.0.0"));
         headers.insert(http::header::CONTENT_TYPE, EXPECTED_CONTENT_TYPE);
-        headers.insert(UPLOAD_OFFSET, HeaderValue::from_static("512"));
+        headers.insert(UPLOAD_OFFSET, HeaderValue::from_static("adsf"));
         let result = validate_patch_headers(&headers);
         assert!(matches!(result, Err(Error::UploadOffset)));
     }

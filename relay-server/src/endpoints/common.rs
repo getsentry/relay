@@ -648,7 +648,6 @@ where
                     referrer = referrer,
                     organization_id = scoping.organization_id.value(),
                     project_id = scoping.project_id.value(),
-                    bytes_uploaded = byte_counter.get(),
                     "multipart item upload finalization failed",
                 );
             })

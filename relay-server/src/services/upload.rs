@@ -432,6 +432,7 @@ impl Service {
     }
 
     async fn finish(&self, finish: Finish) -> Result<SignedLocation<Final>, Error> {
+        relay_log::trace!("Finishing request");
         let Finish {
             #[cfg_attr(not(feature = "processing"), expect(unused))]
             received,
@@ -442,10 +443,13 @@ impl Service {
 
         match &self.backend {
             Backend::Upstream { addr } => {
+                relay_log::trace!("Assembling request");
                 let (request, rx) =
                     UploadRequest::finish(project, location.try_to_uri()?, trusted_length);
                 addr.send(SendRequest(request));
+                relay_log::trace!("Awaiting response");
                 let response = rx.await??;
+                relay_log::trace!("Returning signed location");
                 SignedLocation::try_from_response(response)
             }
             #[cfg(feature = "processing")]
