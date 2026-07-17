@@ -114,7 +114,7 @@ pub enum Upload {
     ///
     /// The service also returns the signed location. This is redundant, but creates a simpler
     /// flow for the caller side.
-    Upload(Box<Stream>, InstrumentedSender<Provisional>),
+    Stream(Box<Stream>, InstrumentedSender<Provisional>),
     /// Finishes an upload and declares its final length.
     Finish(Finish, InstrumentedSender<Final>),
 }
@@ -199,7 +199,7 @@ impl FromMessage<Stream> for Upload {
         message: Stream,
         sender: Sender<Result<SignedLocation<Provisional>, Error>>,
     ) -> Self {
-        Self::Upload(
+        Self::Stream(
             Box::new(message),
             InstrumentedSender {
                 metric: RelayCounters::UploadUpload,
@@ -506,7 +506,7 @@ impl SimpleService for Service {
             Upload::Create(create, sender) => {
                 sender.send(self.timeout(self.create(create)).await);
             }
-            Upload::Upload(stream, sender) => {
+            Upload::Stream(stream, sender) => {
                 sender.send(self.timeout(self.upload(*stream)).await);
             }
             Upload::Finish(finish, sender) => {
@@ -520,7 +520,7 @@ impl LoadShed<Upload> for Service {
     fn handle_loadshed(&self, message: Upload) {
         match message {
             Upload::Create(_, tx) => tx.send(Err(Error::LoadShed)),
-            Upload::Upload(_, tx) => tx.send(Err(Error::LoadShed)),
+            Upload::Stream(_, tx) => tx.send(Err(Error::LoadShed)),
             Upload::Finish(_, tx) => tx.send(Err(Error::LoadShed)),
         }
     }
