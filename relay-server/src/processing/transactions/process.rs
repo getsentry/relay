@@ -1,4 +1,5 @@
 use relay_base_schema::events::EventType;
+use relay_dynamic_config::{CombinedMetricExtractionConfig, ErrorBoundary, MetricExtractionGroups};
 use relay_event_normalization::GeoIpLookup;
 use relay_event_schema::protocol::{Event, Metrics};
 use relay_profiling::{ProfileError, ProfileType};
@@ -204,7 +205,7 @@ pub enum SamplingOutput {
         payload: Managed<Box<ExpandedTransaction>>,
         sample_rate: Option<f64>,
     },
-    /// The decision was discard keep only extracted metrics and an optional profile.
+    /// The decision was discard, keep only extracted metrics and an optional profile.
     Drop {
         metrics: Managed<ExtractedMetrics>,
         profile: Option<Managed<Box<StandaloneProfile>>>,
@@ -212,25 +213,44 @@ pub enum SamplingOutput {
 }
 
 /// Computes the sampling decision for a transaction and associated items.
+///
+/// Returns the sampling output as well as the validated metrics config, if possible / needed.
 pub fn run_dynamic_sampling(
     payload: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     filters_status: FiltersStatus,
-) -> SamplingOutput {
+) -> (SamplingOutput, Option<CombinedMetricExtractionConfig>) {
+    let metrics_config = get_metrics_config(ctx).ok();
+
+    if metrics_config.is_err() && !ctx.is_processing() {
+        // Defer dynamic sampling until the next relay.
+        return (
+            SamplingOutput::Keep {
+                payload,
+                sample_rate: None,
+            },
+            None,
+        );
+    }
+
     let sampling_result = make_dynamic_sampling_decision(&payload, ctx, filters_status);
 
     let sampling_match = match sampling_result {
         SamplingResult::Match(m) if m.decision().is_drop() => m,
         keep => {
-            return SamplingOutput::Keep {
-                payload,
-                sample_rate: keep.sample_rate(),
-            };
+            return (
+                SamplingOutput::Keep {
+                    payload,
+                    sample_rate: keep.sample_rate(),
+                },
+                metrics_config.,
+            );
         }
     };
 
     // At this point the decision is to drop the payload.
-    let (payload, metrics) = split_indexed_and_total(payload, ctx, SamplingDecision::Drop);
+    let (payload, metrics) =
+        split_indexed_and_total(payload, ctx, SamplingDecision::Drop, metrics_config);
 
     let (payload, profile) = payload.split_once(|mut payload, _| {
         let profile = payload.profile.take().map(|profile| StandaloneProfile {
@@ -246,10 +266,38 @@ pub fn run_dynamic_sampling(
     let outcome = Outcome::FilteredSampling(sampling_match.into_matched_rules().into());
     let _ = payload.reject_err(outcome);
 
-    SamplingOutput::Drop {
-        metrics,
-        profile: profile.transpose().map(Managed::boxed),
-    }
+    (
+        SamplingOutput::Drop {
+            metrics,
+            profile: profile.transpose().map(Managed::boxed),
+        },
+        None, // metrics were already extracted
+    )
+}
+
+fn get_metrics_config<'a>(ctx: Context<'a>) -> Result<CombinedMetricExtractionConfig<'a>, ()> {
+    let config = match &ctx.project_info.config.metric_extraction {
+        ErrorBoundary::Ok(config) if config.is_supported() => config,
+        _ => return Err(()),
+    };
+    let global_config = match &ctx.global_config.metric_extraction {
+        ErrorBoundary::Ok(global_config) => global_config,
+        #[allow(unused_variables)]
+        ErrorBoundary::Err(e) => {
+            if cfg!(feature = "processing") && ctx.config.processing_enabled() {
+                // Config is invalid, but we will try to extract what we can with just the
+                // project config.
+                relay_log::error!("Failed to parse global extraction config {e}");
+                MetricExtractionGroups::EMPTY
+            } else {
+                // If there's an error with global metrics extraction, it is safe to assume that this
+                // Relay instance is not up-to-date, and we should skip extraction.
+                relay_log::debug!("Failed to parse global extraction config: {e}");
+                return Err(());
+            }
+        }
+    };
+    Ok(CombinedMetricExtractionConfig::new(global_config, config))
 }
 
 /// Computes the dynamic sampling decision for the unit of work, but does not perform action on data.
@@ -292,10 +340,11 @@ type IndexedTransactionAndSpanAndMetrics = (
 /// Splits transaction into indexed payload and metrics representing the total counts.
 ///
 /// Like [`split_indexed_and_total`] but works with [`ExtractedSpans`].
-pub fn split_indexed_and_total_with_extracted_spans(
+pub fn split_indexed_and_total_with_extracted_spans<'a>(
     transaction: Managed<Box<ExpandedTransaction<TotalAndIndexed, SpansExtracted>>>,
     spans: Option<Managed<ExtractedSpans>>,
-    ctx: Context<'_>,
+    ctx: Context<'a>,
+    metrics_config: Option<CombinedMetricExtractionConfig<'a>>,
 ) -> IndexedTransactionAndSpanAndMetrics {
     let scoping = transaction.scoping();
 
@@ -304,24 +353,27 @@ pub fn split_indexed_and_total_with_extracted_spans(
         r.lenient(DataCategory::MetricBucket);
 
         let mut metrics = ProcessingExtractedMetrics::new();
-
-        metrics_extracted = extraction::extract_metrics(
-            &mut tx.event,
-            &mut metrics,
-            ExtractMetricsContext {
-                dsc: tx.headers.dsc(),
-                project_id: scoping.project_id,
-                ctx,
-                sampling_decision: SamplingDecision::Keep,
-                extract_span_metrics: spans.is_some(),
-            },
-        );
-
-        if !metrics_extracted {
-            // Invalid config or invalid original transaction
-            r.lenient(DataCategory::Transaction);
-            r.lenient(DataCategory::Span);
-        }
+        match metrics_config {
+            Some(config) => {
+                extraction::extract_metrics(
+                    &mut tx.event,
+                    &mut metrics,
+                    ExtractMetricsContext {
+                        config,
+                        dsc: tx.headers.dsc(),
+                        project_id: scoping.project_id,
+                        ctx,
+                        sampling_decision: SamplingDecision::Keep,
+                        extract_span_metrics: spans.is_some(),
+                    },
+                );
+                metrics_extracted = true;
+            }
+            None => {
+                r.lenient(DataCategory::Transaction);
+                r.lenient(DataCategory::Span);
+            }
+        };
 
         // This really is a bug, we ignore here.
         //
@@ -389,24 +441,29 @@ pub fn split_indexed_and_total(
     mut work: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     sampling_decision: SamplingDecision,
+    metrics_config: Option<CombinedMetricExtractionConfig<'_>>,
 ) -> IndexedAndMetrics {
     let scoping = work.scoping();
 
     let mut metrics = ProcessingExtractedMetrics::new();
     let mut metrics_extracted = false;
-    work.modify(|work, _| {
-        metrics_extracted = extraction::extract_metrics(
-            &mut work.event,
-            &mut metrics,
-            ExtractMetricsContext {
-                dsc: work.headers.dsc(),
-                project_id: scoping.project_id,
-                ctx,
-                sampling_decision,
-                extract_span_metrics: true,
-            },
-        );
-    });
+    if let Some(config) = metrics_config {
+        work.modify(|work, _| {
+            extraction::extract_metrics(
+                &mut work.event,
+                &mut metrics,
+                ExtractMetricsContext {
+                    config,
+                    dsc: work.headers.dsc(),
+                    project_id: scoping.project_id,
+                    ctx,
+                    sampling_decision,
+                    extract_span_metrics: true,
+                },
+            );
+        });
+        metrics_extracted = true;
+    }
 
     work.split_once(|work, r| {
         r.lenient(DataCategory::MetricBucket);

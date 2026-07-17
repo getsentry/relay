@@ -191,7 +191,9 @@ impl RateLimited for Managed<Box<ExpandedTransaction<TotalAndIndexed>>> {
             .await;
         if !limits.is_empty() {
             let error = Error::from(limits);
-            let (indexed, metrics) = split_indexed_and_total(self, ctx, SamplingDecision::Keep);
+            let (ctx, metrics_config) = ctx;
+            let (indexed, metrics) =
+                split_indexed_and_total(self, ctx, SamplingDecision::Keep, metrics_config);
             let _ = indexed.reject_err(error);
 
             return Ok(metrics.map(|metrics, _| Either::Right(metrics)));

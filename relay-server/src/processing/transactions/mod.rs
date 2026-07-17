@@ -150,8 +150,9 @@ impl Processor for TransactionProcessor {
         process::process_profile(&mut tx, ctx);
 
         relay_log::trace!("Sample transaction");
-        let (tx, server_sample_rate) = match process::run_dynamic_sampling(tx, ctx, filters_status)
-        {
+        let (sampling_output, metrics_config) =
+            process::run_dynamic_sampling(tx, ctx, filters_status);
+        let (tx, server_sample_rate) = match sampling_output {
             SamplingOutput::Keep {
                 payload,
                 sample_rate,
@@ -196,7 +197,12 @@ impl Processor for TransactionProcessor {
             let spans = self.limiter.enforce_quotas(spans, ctx).await.ok();
 
             let (transaction, spans, metrics) =
-                process::split_indexed_and_total_with_extracted_spans(tx, spans, ctx);
+                process::split_indexed_and_total_with_extracted_spans(
+                    tx,
+                    spans,
+                    ctx,
+                    metrics_config,
+                );
 
             return Ok(Output {
                 main: Some(TransactionOutput::Indexed { spans, transaction }),
