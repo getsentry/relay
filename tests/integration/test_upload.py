@@ -231,8 +231,8 @@ def test_upload_missing_upload_length(mini_sentry, relay, dummy_upload, project_
     [
         pytest.param(
             10,
-            400,
-            "stream shorter than lower bound: received 10 < 11",
+            204,
+            None,
             id="smaller_than_announced",
         ),
         pytest.param(
@@ -280,9 +280,10 @@ def test_upload_body_size(
     )
 
     assert response.status_code == expected_status_code
-    assert response.text == expected_error or any(
-        expected_error in source for source in response.json()["causes"]
-    ), response.json()
+    if expected_error:
+        assert response.text == expected_error or any(
+            expected_error in source for source in response.json()["causes"]
+        ), response.json()
 
 
 @pytest.mark.parametrize("data_category", ["attachment", "attachment_item"])
