@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Defer dynamic sampling until metrics config is valid. ([#6246](https://github.com/getsentry/relay/pull/6246))
+
 **Features**:
 
 - No longer write the deprecated `sentry.transaction` and `db.system` attributes. ([#6237](https://github.com/getsentry/relay/pull/6237), [#6238](https://github.com/getsentry/relay/pull/6238))
@@ -31,6 +35,7 @@
 - Unset segment info for web vital spans. ([#6042](https://github.com/getsentry/relay/pull/6042))
 - Set sentry.trace.status on segment spans. ([#6140](https://github.com/getsentry/relay/pull/6140))
 - Don't modify segment information for V2 web vital spans. ([#6160](https://github.com/getsentry/relay/pull/6160))
+
 
 - Support compressed minidumps when the `relay-minidump-uploads` feature is enabled. ([#6151](https://github.com/getsentry/relay/pull/6151))
 - Make `--log-level` and `--log-format` take effect again and accept them on all subcommands. ([#6198](https://github.com/getsentry/relay/pull/6198))
