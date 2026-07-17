@@ -201,11 +201,10 @@ fn visit_trace_packets(
                     return Err(ProfileError::ExceedSizeLimit);
                 }
 
-                if len > perfetto_bytes.remaining() {
-                    return Err(ProfileError::InvalidSampledProfile);
-                }
-
-                let packet = proto::TracePacket::decode(&perfetto_bytes[..len])
+                let data = perfetto_bytes
+                    .get(..len)
+                    .ok_or(ProfileError::InvalidSampledProfile)?;
+                let packet = proto::TracePacket::decode(data)
                     .map_err(|_| ProfileError::InvalidSampledProfile)?;
                 perfetto_bytes.advance(len);
 

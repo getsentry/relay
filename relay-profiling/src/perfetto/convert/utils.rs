@@ -23,7 +23,7 @@ impl SequenceId {
     }
 }
 
-/// Returns `true` if the [`proto::TracePacket`] has its internal state cleared flag set.
+/// Returns `true` if the [`proto::TracePacket`] has its "internal state cleared" flag set.
 pub fn has_incremental_state_cleared(packet: &proto::TracePacket) -> bool {
     packet
         .sequence_flags
@@ -57,11 +57,7 @@ pub fn extract_clock_offset(cs: &proto::ClockSnapshot) -> Option<i128> {
 /// Returns `true` if the mapping path indicates a JVM/ART runtime mapping.
 pub fn is_java_mapping(path: &str) -> bool {
     const JVM_EXTENSIONS: &[&str] = &[".oat", ".odex", ".vdex", ".jar", ".dex"];
-
-    if path.contains("dalvik-jit-code-cache") {
-        return true;
-    }
-    JVM_EXTENSIONS.iter().any(|ext| path.ends_with(ext))
+    path.contains("dalvik-jit-code-cache") || JVM_EXTENSIONS.iter().any(|ext| path.ends_with(ext))
 }
 
 /// Converts a raw ELF build ID into a Sentry [`DebugId`].

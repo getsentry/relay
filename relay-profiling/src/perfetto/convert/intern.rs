@@ -71,8 +71,8 @@ impl Tables {
             mappings,
         } = data;
 
-        self.function_names.extend(intern_strings(function_names));
-        self.mapping_paths.extend(intern_strings(mapping_paths));
+        self.function_names.extend(interned_strings(function_names));
+        self.mapping_paths.extend(interned_strings(mapping_paths));
         self.build_ids.extend(
             build_ids
                 .into_iter()
@@ -87,7 +87,7 @@ impl Tables {
     }
 }
 
-fn intern_strings(strings: Vec<proto::InternedString>) -> impl Iterator<Item = (u64, String)> {
+fn interned_strings(strings: Vec<proto::InternedString>) -> impl Iterator<Item = (u64, String)> {
     strings
         .into_iter()
         .filter_map(|is| Some((is.iid?, String::from_utf8(is.r#str?).ok()?)))
