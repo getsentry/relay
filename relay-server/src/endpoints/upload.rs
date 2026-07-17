@@ -118,6 +118,7 @@ impl IntoResponse for Error {
                     objectstore::ErrorKind::InvalidOffset { .. } => StatusCode::BAD_REQUEST,
                     objectstore::ErrorKind::OffsetWithoutUploadId => StatusCode::BAD_REQUEST,
                     objectstore::ErrorKind::InvalidLength { .. } => StatusCode::BAD_REQUEST,
+                    objectstore::ErrorKind::UnknownKey { .. } => StatusCode::NOT_FOUND,
                     objectstore::ErrorKind::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
                     objectstore::ErrorKind::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
                     objectstore::ErrorKind::CompressionFailed(_) => {
@@ -262,8 +263,8 @@ async fn handle_patch(
     relay_log::trace!("Checking request");
     let project_context = validate(&state, meta, project).await?;
 
-    let (location_header, upload_offset) = if let Some(untrusted_length) = dbg!(new_upload_length)
-        && untrusted_length == dbg!(offset)
+    let (location_header, upload_offset) = if let Some(length) = new_upload_length
+        && length == offset
     {
         // Sentinel request.
         let result = finish(&state, project_context, location, offset).await;
@@ -391,7 +392,7 @@ async fn finish(
             received: Utc::now(),
             project,
             location,
-            trusted_length: offset, // FIXME: truest
+            length: offset,
         })
         .await??;
     Ok(location)

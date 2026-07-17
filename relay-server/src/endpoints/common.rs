@@ -638,7 +638,7 @@ where
                 received: Utc::now(),
                 project,
                 location,
-                trusted_length: byte_counter.get(),
+                length: byte_counter.get(),
             })
             .await
             .ok()?
