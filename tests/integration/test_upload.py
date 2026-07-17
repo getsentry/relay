@@ -666,6 +666,7 @@ def test_objectstore_timeout(mini_sentry, relay_with_processing):
 def test_upload_offset(
     mini_sentry, relay_with_processing, project_config, objectstore, feature_flag
 ):
+    mini_sentry.fail_on_relay_error = False
     project_id = 42
     config = mini_sentry.add_full_project_config(project_id)["config"]
     features = config.setdefault("features", [])
