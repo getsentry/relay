@@ -13,7 +13,6 @@ use chrono::Utc;
 use futures::StreamExt;
 use futures::stream::BoxStream;
 use http::{HeaderValue, Method};
-#[cfg(feature = "processing")]
 use relay_auth::Signature;
 use relay_auth::SignatureError;
 #[cfg(feature = "processing")]
