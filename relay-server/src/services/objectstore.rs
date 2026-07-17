@@ -309,6 +309,8 @@ pub enum ErrorKind {
         "invalid upload offset {offset}: must be aligned to the upload granularity {granularity}"
     )]
     InvalidOffset { offset: usize, granularity: usize },
+    #[error("offset without upload ID")]
+    OffsetWithoutUploadId,
     #[error("invalid upload length {expected}: uploaded parts have a total length of {actual}")]
     InvalidLength { expected: usize, actual: u64 },
     #[error("timeout: {0}")]
@@ -328,6 +330,7 @@ impl ErrorKind {
         match self {
             Self::InvalidScoping => "invalid_scoping",
             Self::InvalidOffset { .. } => "invalid_offset",
+            Self::OffsetWithoutUploadId { .. } => "offset_without_upload_id",
             Self::InvalidLength { .. } => "invalid_length",
             Self::Timeout(_) => "timeout",
             Self::LoadShed => "load_shed",
@@ -1043,8 +1046,7 @@ impl ObjectstoreServiceInner {
                 let Some(upload_id) = upload_id else {
                     // No upload ID: simple upload in a single request.
                     if offset != 0 {
-                        // Offset is only allowed for multipart.
-                        todo!("raise error");
+                        return Err(AttemptUploadError::OffsetWithoutUploadId);
                     }
                     let request = session.put_stream(body.boxed()).key(key);
                     let response = request.send().await?;
@@ -1194,6 +1196,8 @@ enum AttemptUploadError {
     Objectstore(#[from] objectstore_client::Error),
     #[error("zstd error: {0}")]
     Zstd(#[source] std::io::Error),
+    #[error("offset without upload ID")]
+    OffsetWithoutUploadId,
 }
 
 impl From<AttemptUploadError> for ErrorKind {
@@ -1201,6 +1205,7 @@ impl From<AttemptUploadError> for ErrorKind {
         match value {
             AttemptUploadError::Objectstore(error) => ErrorKind::UploadFailed(error),
             AttemptUploadError::Zstd(error) => ErrorKind::CompressionFailed(error),
+            AttemptUploadError::OffsetWithoutUploadId => ErrorKind::OffsetWithoutUploadId,
         }
     }
 }
