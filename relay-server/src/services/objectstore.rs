@@ -188,7 +188,6 @@ pub struct FinishMultipart {
     pub project_id: ProjectId,
     pub key: String,
     pub upload_id: String,
-    pub length: usize,
 }
 
 impl FromMessage<FinishMultipart> for Objectstore {
@@ -908,13 +907,11 @@ impl ObjectstoreServiceInner {
             project_id,
             key,
             upload_id,
-            length,
         } = finish;
 
         let session = self.session(&self.event_attachments, organization_id, project_id)?;
         let multipart = session.resume_multipart_upload(key.clone(), upload_id.to_string())?;
         let parts = multipart.list_parts().await?;
-        validate_multipart_length(&parts, length)?;
         let _final_key = multipart
             .complete(parts.into_iter().map(Into::into))
             .await?;
@@ -1186,18 +1183,6 @@ impl ObjectstoreServiceInner {
     }
 }
 
-fn validate_multipart_length(parts: &[PartInfo], expected: usize) -> Result<(), ErrorKind> {
-    let actual = parts
-        .iter()
-        .fold(0u64, |sum, part| sum.saturating_add(part.size));
-
-    if actual != expected as u64 {
-        return Err(ErrorKind::InvalidLength { expected, actual });
-    }
-
-    Ok(())
-}
-
 #[derive(Debug, thiserror::Error)]
 enum AttemptUploadError {
     #[error(transparent)]
@@ -1330,9 +1315,6 @@ fn drop_attachments(event: &mut Managed<Box<StoreEvent>>) {
 
 #[cfg(test)]
 mod tests {
-    use std::num::NonZeroU32;
-    use std::time::SystemTime;
-
     use relay_event_schema::protocol::EventId;
     use relay_quotas::DataCategory;
     use relay_system::Service;
@@ -1340,33 +1322,6 @@ mod tests {
     use crate::managed::ManagedTestHandle;
 
     use super::*;
-
-    #[test]
-    fn validates_multipart_length() {
-        let parts = [
-            PartInfo {
-                part_number: NonZeroU32::new(1).unwrap(),
-                etag: "first".to_owned(),
-                last_modified: SystemTime::UNIX_EPOCH,
-                size: 3,
-            },
-            PartInfo {
-                part_number: NonZeroU32::new(2).unwrap(),
-                etag: "second".to_owned(),
-                last_modified: SystemTime::UNIX_EPOCH,
-                size: 5,
-            },
-        ];
-
-        assert!(validate_multipart_length(&parts, 8).is_ok());
-        assert!(matches!(
-            validate_multipart_length(&parts, 9),
-            Err(ErrorKind::InvalidLength {
-                expected: 9,
-                actual: 8
-            })
-        ));
-    }
 
     #[tokio::test]
     async fn org_zero_rejected() {

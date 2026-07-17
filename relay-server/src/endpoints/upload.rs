@@ -263,11 +263,17 @@ async fn handle_patch(
     relay_log::trace!("Checking request");
     let project_context = validate(&state, meta, project).await?;
 
+    // When a PATCH request comes in that has `Upload-Offset == Upload-Length == upload_length from location`,
+    // Treat it as a sentinel request that finalizes the upload.
+    //
+    // At this point the `upload_length` is still untrusted, but the upload service will verify
+    // it with the given signature.
     let (location_header, upload_offset) = if let Some(length) = new_upload_length
         && length == offset
+        && Some(length) == upload_length.value()
     {
         // Sentinel request.
-        let result = finish(&state, project_context, location, offset).await;
+        let result = finish(&state, project_context, location.into_final(length)).await;
         let location = result.inspect_err(|e| {
             relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
         })?;
@@ -365,7 +371,7 @@ async fn upload(
     location: SignedLocation<Provisional>,
     offset: usize,
     stream: BoundedStream<MeteredStream<ByteStream>>,
-) -> Result<SignedLocation<Provisional>, Error> {
+) -> Result<SignedLocation<Final>, Error> {
     let location = state
         .upload()
         .send(upload::Stream {
@@ -383,8 +389,7 @@ async fn upload(
 async fn finish(
     state: &ServiceState,
     project: ProjectContext,
-    location: SignedLocation<Provisional>,
-    offset: usize,
+    location: SignedLocation<Final>,
 ) -> Result<SignedLocation<Final>, Error> {
     let location = state
         .upload()
@@ -392,7 +397,6 @@ async fn finish(
             received: Utc::now(),
             project,
             location,
-            length: offset,
         })
         .await??;
     Ok(location)
