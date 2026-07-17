@@ -110,8 +110,9 @@ pub enum Upload {
     Create(Create, InstrumentedSender<Provisional>),
     /// Upload a stream of bytes for a given location.
     ///
-    /// The service returns the signed location with an updated `upload_length` parameter.
-    Stream(Box<Stream>, InstrumentedSender<Final>),
+    /// The service also returns the signed location. This is redundant, but creates a simpler
+    /// flow for the caller side.
+    Stream(Box<Stream>, InstrumentedSender<Provisional>),
     /// Finishes an upload and declares its final length.
     Finish(Finish, InstrumentedSender<Final>),
 }
@@ -165,7 +166,9 @@ pub struct Finish {
     /// The project the upload belongs to.
     pub project: ProjectContext,
     /// The location to finish.
-    pub location: SignedLocation<Final>,
+    pub location: SignedLocation<Provisional>,
+    /// The final length of the upload in bytes.
+    pub length: usize,
 }
 
 impl FromMessage<Create> for Upload {
@@ -186,9 +189,12 @@ impl FromMessage<Create> for Upload {
 }
 
 impl FromMessage<Stream> for Upload {
-    type Response = AsyncResponse<Result<SignedLocation<Final>, Error>>;
+    type Response = AsyncResponse<Result<SignedLocation<Provisional>, Error>>;
 
-    fn from_message(message: Stream, sender: Sender<Result<SignedLocation<Final>, Error>>) -> Self {
+    fn from_message(
+        message: Stream,
+        sender: Sender<Result<SignedLocation<Provisional>, Error>>,
+    ) -> Self {
         Self::Stream(
             Box::new(message),
             InstrumentedSender {
@@ -359,7 +365,7 @@ impl Service {
         }
     }
 
-    async fn upload(&self, stream: Stream) -> Result<SignedLocation<Final>, Error> {
+    async fn upload(&self, stream: Stream) -> Result<SignedLocation<Provisional>, Error> {
         let Stream {
             #[cfg_attr(not(feature = "processing"), expect(unused))]
             received,
@@ -392,7 +398,6 @@ impl Service {
                 debug_assert_eq!(scoping.project_id, project_id);
                 debug_assert!(stream.length().is_none_or(|l| Some(l) == length.value()));
                 let upload_ref = UploadRef::new(key, upload_id, offset, length.value())?;
-                let byte_counter = stream.byte_counter();
                 let upload_ref = addr
                     .send(objectstore::Stream {
                         organization_id: scoping.organization_id,
@@ -406,14 +411,14 @@ impl Service {
                 let UploadRef {
                     key,
                     upload_id,
-                    offset,
-                    length: _,
+                    offset: _,
+                    length,
                 } = upload_ref;
 
                 Location {
                     project_id,
                     key,
-                    length: Final(offset + byte_counter.get()),
+                    length: Provisional(length),
                     upload_id: upload_id.map(|id| id.to_string()),
                     other,
                 }
@@ -429,16 +434,13 @@ impl Service {
             received,
             project,
             location,
+            length,
         } = finish;
 
         match &self.backend {
             Backend::Upstream { addr } => {
                 relay_log::trace!("Assembling request");
-                let (request, rx) = UploadRequest::finish(
-                    project,
-                    location.try_to_uri()?,
-                    location.location.length.into_inner(),
-                );
+                let (request, rx) = UploadRequest::finish(project, location.try_to_uri()?, length);
                 addr.send(SendRequest(request));
                 relay_log::trace!("Awaiting response");
                 let response = rx.await??;
@@ -450,7 +452,7 @@ impl Service {
                 let Location {
                     project_id,
                     mut key,
-                    length,
+                    length: _,
                     upload_id,
                     other,
                 } = location.verify(received, config)?;
@@ -465,6 +467,7 @@ impl Service {
                             project_id,
                             key,
                             upload_id,
+                            length,
                         })
                         .await
                         .map_err(Error::ObjectstoreServiceUnavailable)??
@@ -473,7 +476,7 @@ impl Service {
                 Location {
                     project_id,
                     key,
-                    length,
+                    length: Final(length),
                     upload_id: None,
                     other,
                 }
@@ -546,10 +549,6 @@ impl UploadLength for Provisional {
 pub struct Final(usize);
 
 impl Final {
-    pub fn new(value: usize) -> Self {
-        Self(value)
-    }
-
     /// Get the value.
     pub fn into_inner(self) -> usize {
         self.0
@@ -817,33 +816,6 @@ where
     }
 }
 
-impl SignedLocation<Provisional> {
-    /// Transforms a provisional into a final length by overriding its `upload_length`.
-    pub fn into_final(self, length: usize) -> SignedLocation<Final> {
-        let Self {
-            location:
-                Location {
-                    project_id,
-                    key,
-                    length: provisional_length,
-                    upload_id,
-                    other,
-                },
-            signature,
-        } = self;
-        debug_assert!(provisional_length.value().is_none_or(|l| l == length));
-        SignedLocation {
-            location: Location {
-                project_id,
-                key,
-                length: Final(length),
-                upload_id,
-                other,
-            },
-            signature,
-        }
-    }
-}
 enum RequestKind {
     Create {
         length: Option<usize>,
