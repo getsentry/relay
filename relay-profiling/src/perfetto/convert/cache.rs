@@ -1,40 +1,70 @@
 use hashbrown::HashMap;
+use hashbrown::hash_map::Entry;
 
+use crate::perfetto::convert::budget::{
+    BudgetExceeded, BudgetMap, BudgetSize, LocalBudget, MemoryBudget,
+};
 use crate::perfetto::convert::utils::{self, SequenceId};
 use crate::perfetto::convert::{consts, intern};
 use crate::perfetto::proto;
 use crate::sample::v2::{FrameId, StackId};
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Database {
-    cache: HashMap<SequenceId, Caches>,
+    inner: HashMap<SequenceId, Caches>,
+    budget: MemoryBudget,
 }
 
 impl Database {
-    pub fn for_packet(&mut self, packet: &proto::TracePacket) -> &mut Caches {
+    pub fn new(budget: &MemoryBudget) -> Self {
+        Self {
+            inner: Default::default(),
+            budget: budget.clone(),
+        }
+    }
+
+    pub fn for_packet(
+        &mut self,
+        packet: &proto::TracePacket,
+    ) -> Result<&mut Caches, BudgetExceeded> {
         let seq_id = SequenceId::new(packet);
 
-        let cache = self.cache.entry(seq_id).or_default();
-        if utils::has_incremental_state_cleared(packet) {
-            *cache = Default::default();
+        // Technically this is off by-one, but significantly easier to handle.
+        if self.inner.len() >= consts::MAX_SEQUENCE_IDS {
+            return Err(BudgetExceeded);
         }
-        cache
+
+        if utils::has_incremental_state_cleared(packet) {
+            self.inner.remove(&seq_id);
+        }
+
+        Ok(self.inner.entry(seq_id).or_insert_with(|| Caches {
+            mapping_paths: MappingPathCache {
+                inner: Default::default(),
+                budget: self.budget.local(),
+            },
+            frames: self.budget.map(),
+            callstacks: self.budget.map(),
+        }))
     }
 }
 
 /// List of caches used to cache intermediate artifacts for a single sequence id.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Caches {
     /// Computed mapping paths.
     pub mapping_paths: MappingPathCache,
     /// Computed frames.
-    pub frames: HashMap<u64, FrameId>,
+    pub frames: BudgetMap<u64, FrameId>,
     /// Computed call-stacks.
-    pub callstacks: HashMap<u64, StackId>,
+    pub callstacks: BudgetMap<u64, StackId>,
 }
 
-#[derive(Debug, Default)]
-pub struct MappingPathCache(HashMap<u64, Option<String>>);
+#[derive(Debug)]
+pub struct MappingPathCache {
+    inner: HashMap<u64, Option<String>>,
+    budget: LocalBudget,
+}
 
 impl MappingPathCache {
     /// Resolves a mapping path from the cache or computes it if necessary.
@@ -43,26 +73,34 @@ impl MappingPathCache {
         id: Option<u64>,
         mapping: Option<&proto::Mapping>,
         tables: &intern::Tables,
-    ) -> Option<&str> {
-        let id = id?;
+    ) -> Result<Option<&str>, BudgetExceeded> {
+        let Some(id) = id else { return Ok(None) };
 
-        self.0
-            .entry(id)
-            .or_insert_with(|| {
-                let mapping =
-                    mapping.filter(|m| m.path_string_ids.len() <= consts::MAX_PATH_SEGMENTS)?;
+        Ok(match self.inner.entry(id) {
+            Entry::Occupied(e) => e.into_mut().as_deref(),
+            Entry::Vacant(e) => {
+                let mut path = String::new();
+                self.budget.try_add(path.size())?;
 
-                let path = mapping
-                    .path_string_ids
-                    .iter()
+                let parts = mapping
+                    .map(|m| &m.path_string_ids)
+                    .filter(|p| p.len() <= consts::MAX_PATH_SEGMENTS)
+                    .into_iter()
+                    .flatten()
                     .filter_map(|id| tables.resolve_mapping_path(*id));
-                let path: String = itertools::Itertools::intersperse(path, "/").collect();
+                for part in itertools::Itertools::intersperse(parts, "/") {
+                    self.budget.try_add(part.len())?;
+                    path.push_str(part);
+                }
 
-                match path.is_empty() {
+                let path = match path.is_empty() {
                     true => None,
                     false => Some(path),
-                }
-            })
-            .as_deref()
+                };
+
+                self.budget.try_add(id.size())?;
+                e.insert(path).as_deref()
+            }
+        })
     }
 }

@@ -1,26 +1,41 @@
 use std::hash::BuildHasher as _;
 
+use hashbrown::hash_table::Entry;
 use hashbrown::{DefaultHashBuilder, HashTable};
 use relay_event_schema::protocol::Addr;
 
 use crate::ProfileError;
 use crate::debug_image::{DebugImage, ImageType};
+use crate::perfetto::convert::budget::{BudgetExceeded, BudgetVec, MemoryBudget};
 use crate::perfetto::convert::{consts, intern, utils};
 use crate::perfetto::proto;
 use crate::sample::Frame;
 use crate::sample::v2::{FrameId, StackId};
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Images {
-    images: Vec<DebugImage>,
+    images: BudgetVec<DebugImage>,
     image_index: HashTable<usize>,
     hasher: DefaultHashBuilder,
 }
 
 impl Images {
-    pub fn add(&mut self, mapping: &proto::Mapping, code_file: &str, tables: &intern::Tables) {
+    pub fn new(budget: &MemoryBudget) -> Self {
+        Self {
+            images: budget.vec(),
+            image_index: Default::default(),
+            hasher: Default::default(),
+        }
+    }
+
+    pub fn add(
+        &mut self,
+        mapping: &proto::Mapping,
+        code_file: &str,
+        tables: &intern::Tables,
+    ) -> Result<(), BudgetExceeded> {
         if utils::is_java_mapping(code_file) {
-            return;
+            return Ok(());
         }
 
         let image_addr = mapping.start.map(Addr);
@@ -42,14 +57,14 @@ impl Images {
             })
             .is_some();
         if already_exists {
-            return;
+            return Ok(());
         }
 
         let Some(debug_id) = tables
             .resolve_build_id(mapping.build_id)
             .and_then(utils::build_id_to_debug_id)
         else {
-            return;
+            return Ok(());
         };
 
         let image_size = mapping
@@ -67,7 +82,7 @@ impl Images {
             image_vmaddr,
             image_size,
             uuid: None,
-        });
+        })?;
         self.image_index.insert_unique(hash, idx, |x| {
             let image = self.images.get(*x);
             let code_file = image
@@ -76,21 +91,30 @@ impl Images {
             let image_addr = image.and_then(|d| d.image_addr);
             do_hash(code_file, image_addr)
         });
+        Ok(())
     }
 
     pub fn into_images(self) -> Vec<DebugImage> {
-        self.images
+        self.images.into_inner()
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Frames {
-    frames: Vec<Frame>,
+    frames: BudgetVec<Frame>,
     frame_index: HashTable<usize>,
     hasher: DefaultHashBuilder,
 }
 
 impl Frames {
+    pub fn new(budget: &MemoryBudget) -> Self {
+        Self {
+            frames: budget.vec(),
+            frame_index: Default::default(),
+            hasher: Default::default(),
+        }
+    }
+
     pub fn add(
         &mut self,
         function_name: Option<&str>,
@@ -110,19 +134,20 @@ impl Frames {
             self.hasher.hash_one(fr)
         };
 
-        let index = *self
-            .frame_index
-            .entry(
-                do_hash(Some(fr)),
-                |&i| Some(fr) == self.frames.get(i).map(FrameRef::from_frame),
-                |&i| do_hash(self.frames.get(i).map(FrameRef::from_frame)),
-            )
-            .or_insert_with(|| {
+        let entry = self.frame_index.entry(
+            do_hash(Some(fr)),
+            |&i| Some(fr) == self.frames.get(i).map(FrameRef::from_frame),
+            |&i| do_hash(self.frames.get(i).map(FrameRef::from_frame)),
+        );
+
+        let index = match entry {
+            Entry::Occupied(e) => *e.get(),
+            Entry::Vacant(e) => {
                 let next_idx = self.frames.len();
-                self.frames.push(fr.to_owned());
-                next_idx
-            })
-            .get();
+                self.frames.push(fr.to_owned())?;
+                *e.insert(next_idx).get()
+            }
+        };
 
         if index >= consts::MAX_UNIQUE_FRAMES {
             return Err(ProfileError::ExceedSizeLimit);
@@ -132,40 +157,49 @@ impl Frames {
     }
 
     pub fn into_frames(self) -> Vec<Frame> {
-        self.frames
+        self.frames.into_inner()
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Stacks {
-    stacks: Vec<Vec<FrameId>>,
+    stacks: BudgetVec<Vec<FrameId>>,
     stack_index: HashTable<usize>,
     hasher: DefaultHashBuilder,
 }
 
 impl Stacks {
-    pub fn add(&mut self, frames: Vec<FrameId>) -> StackId {
+    pub fn new(budget: &MemoryBudget) -> Self {
+        Self {
+            stacks: budget.vec(),
+            stack_index: Default::default(),
+            hasher: Default::default(),
+        }
+    }
+
+    pub fn add(&mut self, frames: Vec<FrameId>) -> Result<StackId, BudgetExceeded> {
         let do_hash = |frames: &[FrameId]| self.hasher.hash_one(frames);
 
-        let index = *self
-            .stack_index
-            .entry(
-                do_hash(&frames),
-                |&i| Some(&frames) == self.stacks.get(i),
-                |&i| do_hash(self.stacks.get(i).map(Vec::as_slice).unwrap_or(&[])),
-            )
-            .or_insert_with(|| {
-                let next_idx = self.stacks.len();
-                self.stacks.push(frames);
-                next_idx
-            })
-            .get();
+        let entry = self.stack_index.entry(
+            do_hash(&frames),
+            |&i| Some(&frames) == self.stacks.get(i),
+            |&i| do_hash(self.stacks.get(i).map(Vec::as_slice).unwrap_or(&[])),
+        );
 
-        StackId(index)
+        let index = match entry {
+            Entry::Occupied(e) => *e.get(),
+            Entry::Vacant(e) => {
+                let next_idx = self.stacks.len();
+                self.stacks.push(frames)?;
+                *e.insert(next_idx).get()
+            }
+        };
+
+        Ok(StackId(index))
     }
 
     pub fn into_stacks(self) -> Vec<Vec<FrameId>> {
-        self.stacks
+        self.stacks.into_inner()
     }
 }
 

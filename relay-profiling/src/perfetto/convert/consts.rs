@@ -10,6 +10,15 @@ pub const CLOCK_REALTIME: u32 = 1;
 /// See <https://perfetto.dev/docs/concepts/clock-sync>.
 pub const CLOCK_BOOTTIME: u32 = 6;
 
+/// Estimated maximum amount of memory which can be used for storing interning tables and caches.
+pub const MAX_MEMORY_WORK: usize = 15 * 1024 * 1024;
+
+/// Estimated maximum amount of memory which can be used for the converted profile.
+pub const MAX_MEMORY_RESULT: usize = 40 * 1024 * 1024;
+
+/// Maximum amount of unique sequence ids allowed in a single profile.
+pub const MAX_SEQUENCE_IDS: usize = 64;
+
 /// Maximum number of raw samples we collect from a Perfetto trace before
 /// bailing out. At 100 Hz across multiple threads, a 66-second chunk
 /// produces at most ~6 600 samples per thread; 100 000 provides generous

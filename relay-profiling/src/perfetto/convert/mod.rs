@@ -18,6 +18,7 @@ use crate::perfetto::proto;
 use crate::sample::ThreadMetadata;
 use crate::sample::v2::{ProfileData, Sample, StackId};
 
+mod budget;
 mod build;
 mod cache;
 mod consts;
@@ -29,17 +30,21 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
     let mut clock_offset: Option<FiniteF64> = None;
     let mut observed_pid: Option<u32> = None;
 
-    let mut samples = Vec::new();
+    // A budget for temporary data.
+    let budget = budget::MemoryBudget::new(consts::MAX_MEMORY_WORK);
+    let mut intern_db = intern::Database::new(&budget);
+    let mut cache_db = cache::Database::new(&budget);
 
-    let mut intern_db = intern::Database::default();
-    let mut cache_db = cache::Database::default();
-    let mut images = build::Images::default();
-    let mut frames = build::Frames::default();
-    let mut stacks = build::Stacks::default();
+    // A separate budget for the final profile.
+    let budget = budget::MemoryBudget::new(consts::MAX_MEMORY_RESULT);
+    let mut images = build::Images::new(&budget);
+    let mut frames = build::Frames::new(&budget);
+    let mut stacks = build::Stacks::new(&budget);
+    let mut samples = budget.vec();
 
     visit_trace_packets(perfetto_bytes, |mut packet| {
-        let tables = intern_db.intern(&mut packet);
-        let caches = cache_db.for_packet(&packet);
+        let tables = intern_db.intern(&mut packet)?;
+        let caches = cache_db.for_packet(&packet)?;
 
         match packet.data {
             Some(Data::ClockSnapshot(cs)) if clock_offset.is_none() => {
@@ -64,7 +69,7 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
                         timestamp: utils::ns_to_secs(timestamp_ns as i128),
                         stack_id,
                         thread_id: thread_id.to_string(),
-                    });
+                    })?;
                 }
             }
             _ => {}
@@ -73,6 +78,7 @@ pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), 
         Ok(())
     })?;
 
+    let mut samples = samples.into_inner();
     if samples.is_empty() {
         return Err(ProfileError::NotEnoughSamples);
     }
@@ -153,22 +159,22 @@ impl SequenceState<'_> {
             let path = self
                 .caches
                 .mapping_paths
-                .resolve(pf.mapping_id, mapping, self.tables);
+                .resolve(pf.mapping_id, mapping, self.tables)?;
 
             if let (Some(mapping), Some(path)) = (mapping, path) {
-                self.images.add(mapping, path, self.tables);
+                self.images.add(mapping, path, self.tables)?;
             }
 
             let frame_id = self.frames.add(function_name, path, pf, mapping)?;
-            self.caches.frames.insert(frame_iid, frame_id);
+            self.caches.frames.insert(frame_iid, frame_id)?;
             resolved_frames.push(frame_id);
         }
 
         // Perfetto stacks are root-first, Sample v2 is leaf-first.
         resolved_frames.reverse();
 
-        let stack_id = self.stacks.add(resolved_frames);
-        self.caches.callstacks.insert(cs_iid, stack_id);
+        let stack_id = self.stacks.add(resolved_frames)?;
+        self.caches.callstacks.insert(cs_iid, stack_id)?;
 
         Ok(Some(stack_id))
     }
@@ -1248,5 +1254,44 @@ mod tests {
         // The valid callstack should produce one frame.
         assert_eq!(data.frames.len(), 1);
         assert_eq!(data.frames[0].function.as_deref(), Some("func"));
+    }
+
+    /// Many unique frames sharing a single large interned function name.
+    #[test]
+    fn test_exceeds_memory_budget_unique_frames() {
+        let large_name = vec![b'a'; 512 * 1024];
+        let frame_count = (consts::MAX_MEMORY_RESULT / large_name.len() + 2) as u64;
+        assert!(frame_count < MAX_CALLSTACK_DEPTH as u64);
+
+        let trace = proto::Trace {
+            packet: vec![
+                make_clock_snapshot_packet(),
+                make_interned_data_packet(
+                    1,
+                    true,
+                    proto::InternedData {
+                        function_names: vec![make_interned_string(1, &large_name)],
+                        frames: (1..=frame_count)
+                            .map(|iid| proto::Frame {
+                                iid: Some(iid),
+                                function_name_id: Some(1),
+                                mapping_id: None,
+                                // Distinct address makes each frame unique.
+                                rel_pc: Some(iid),
+                            })
+                            .collect(),
+                        callstacks: vec![proto::Callstack {
+                            iid: Some(1),
+                            frame_ids: (1..=frame_count).collect(),
+                        }],
+                        ..Default::default()
+                    },
+                ),
+                make_perf_sample_packet(1_000_000_000, 1, 1, 1),
+            ],
+        };
+        let bytes = trace.encode_to_vec();
+        let result = convert(&bytes);
+        std::assert_matches!(result, Err(ProfileError::ExceedSizeLimit));
     }
 }
