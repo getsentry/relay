@@ -73,10 +73,16 @@ impl UsedTokens {
 /// Calculated model call costs.
 #[derive(Debug, Copy, Clone)]
 pub struct CalculatedCost {
-    /// The cost of input tokens used.
+    /// The total cost of all input tokens (raw + cached + cache_write).
     pub input: f64,
-    /// The cost of output tokens used.
+    /// The total cost of all output tokens (raw + reasoning).
     pub output: f64,
+    /// The cost of cached input tokens only (subset of `input`).
+    pub cache_read_input: f64,
+    /// The cost of cache-write input tokens only (subset of `input`).
+    pub cache_creation_input: f64,
+    /// The cost of reasoning output tokens only (subset of `output`).
+    pub reasoning_output: f64,
 }
 
 impl CalculatedCost {
@@ -105,19 +111,21 @@ pub fn calculate_costs(
         return None;
     }
 
+    let cache_read_input = tokens.input_cached_tokens * model_cost.input_cached_per_token;
+    let cache_creation_input =
+        tokens.input_cache_write_tokens * model_cost.input_cache_write_per_token;
     let input = (tokens.raw_input_tokens() * model_cost.input_per_token)
-        + (tokens.input_cached_tokens * model_cost.input_cached_per_token)
-        + (tokens.input_cache_write_tokens * model_cost.input_cache_write_per_token);
+        + cache_read_input
+        + cache_creation_input;
 
     // For now most of the models do not differentiate between reasoning and output token cost,
     // it costs the same.
-    let reasoning_cost = match model_cost.output_reasoning_per_token {
-        reasoning_cost if reasoning_cost > 0.0 => reasoning_cost,
+    let reasoning_per_token = match model_cost.output_reasoning_per_token {
+        r if r > 0.0 => r,
         _ => model_cost.output_per_token,
     };
-
-    let output = (tokens.raw_output_tokens() * model_cost.output_per_token)
-        + (tokens.output_reasoning_tokens * reasoning_cost);
+    let reasoning_output = tokens.output_reasoning_tokens * reasoning_per_token;
+    let output = (tokens.raw_output_tokens() * model_cost.output_per_token) + reasoning_output;
 
     let metric_label = match (input, output) {
         (x, y) if x < 0.0 || y < 0.0 => "calculation_negative",
@@ -132,7 +140,13 @@ pub fn calculate_costs(
         platform = platform,
     );
 
-    Some(CalculatedCost { input, output })
+    Some(CalculatedCost {
+        input,
+        output,
+        cache_read_input,
+        cache_creation_input,
+        reasoning_output,
+    })
 }
 
 /// Default AI operation stored in [`GEN_AI__OPERATION__TYPE`]
@@ -222,9 +236,23 @@ fn extract_ai_model_cost_data(
         .or_default()
         .set_value(Value::F64(costs.input).into());
     data.other
+        .entry(GEN_AI__COST__CACHE_READ__INPUT_TOKENS.to_owned())
+        .or_default()
+        .set_value(Value::F64(costs.cache_read_input).into());
+    data.other
+        .entry(GEN_AI__COST__CACHE_CREATION__INPUT_TOKENS.to_owned())
+        .or_default()
+        .set_value(Value::F64(costs.cache_creation_input).into());
+
+    data.other
         .entry(GEN_AI__COST__OUTPUT_TOKENS.to_owned())
         .or_default()
         .set_value(Value::F64(costs.output).into());
+
+    data.other
+        .entry(GEN_AI__COST__REASONING__OUTPUT_TOKENS.to_owned())
+        .or_default()
+        .set_value(Value::F64(costs.reasoning_output).into());
 }
 
 /// Maps AI-related measurements (legacy) to span data.
@@ -556,6 +584,9 @@ mod tests {
         CalculatedCost {
             input: 5.5,
             output: 39.0,
+            cache_read_input: 2.5,
+            cache_creation_input: 0.0,
+            reasoning_output: 27.0,
         }
         ");
     }
@@ -587,6 +618,9 @@ mod tests {
         CalculatedCost {
             input: 5.5,
             output: 30.0,
+            cache_read_input: 2.5,
+            cache_creation_input: 0.0,
+            reasoning_output: 18.0,
         }
         ");
     }
@@ -620,6 +654,9 @@ mod tests {
         CalculatedCost {
             input: -9.0,
             output: -7.0,
+            cache_read_input: 11.0,
+            cache_creation_input: 0.0,
+            reasoning_output: 9.0,
         }
         ");
     }
@@ -653,6 +690,9 @@ mod tests {
         CalculatedCost {
             input: 82.5,
             output: 110.0,
+            cache_read_input: 10.0,
+            cache_creation_input: 22.5,
+            reasoning_output: 30.0,
         }
         ");
     }
@@ -701,6 +741,9 @@ mod tests {
         CalculatedCost {
             input: 90.0,
             output: 100.0,
+            cache_read_input: 10.0,
+            cache_creation_input: 0.0,
+            reasoning_output: 0.0,
         }
         ");
     }

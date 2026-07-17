@@ -1087,7 +1087,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated, reason = "This test is meant to access legacy attributes.")]
     fn test_insights_backend_queries_support_modern() {
         let (mut span, headers, geo_lookup, ctx) = prepare_normalize_span_params(
             &[
@@ -1115,7 +1114,6 @@ mod tests {
                     "SELECT * FROM users WHERE id = %s",
                 ),
                 (SENTRY__CATEGORY, "db"),
-                (DB__SYSTEM, "postgresql"),
                 (SENTRY__ACTION, "SELECT"),
                 (SENTRY__DOMAIN, ",users,"),
             ],

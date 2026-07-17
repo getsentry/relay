@@ -955,15 +955,10 @@ pub fn write_legacy_attributes(attributes: &mut Annotated<Attributes>) {
     };
 
     // Map of new sentry conventions attributes to legacy SpanV1 attributes
-    #[allow(
-        deprecated,
-        reason = "Writing possibly deprecated legacy attributes is the point of this function."
-    )]
     let current_to_legacy_attributes = [
         // DB attributes
         (SENTRY__NORMALIZED_DB_QUERY, SENTRY__NORMALIZED_DESCRIPTION),
         (DB__OPERATION__NAME, SENTRY__ACTION),
-        (DB__SYSTEM__NAME, DB__SYSTEM),
         // HTTP attributes
         (SERVER__ADDRESS, SENTRY__DOMAIN),
         (HTTP__REQUEST__METHOD, SENTRY__ACTION),
@@ -2487,10 +2482,6 @@ mod tests {
           "db.query.text": {
             "type": "string",
             "value": "{\"find\": \"documents\", \"foo\": \"bar\"}"
-          },
-          "db.system": {
-            "type": "string",
-            "value": "mongodb"
           },
           "db.system.name": {
             "type": "string",
