@@ -219,8 +219,8 @@ pub fn run_dynamic_sampling(
     payload: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     filters_status: FiltersStatus,
-) -> (SamplingOutput, Option<CombinedMetricExtractionConfig>) {
-    let metrics_config = get_metrics_config(ctx).ok();
+) -> (SamplingOutput, Option<CombinedMetricExtractionConfig<'_>>) {
+    let metrics_config = get_metrics_config(ctx);
 
     if metrics_config.is_err() && !ctx.is_processing() {
         // Defer dynamic sampling until the next relay.
@@ -243,7 +243,7 @@ pub fn run_dynamic_sampling(
                     payload,
                     sample_rate: keep.sample_rate(),
                 },
-                metrics_config.,
+                metrics_config.ok(),
             );
         }
     };
@@ -275,7 +275,8 @@ pub fn run_dynamic_sampling(
     )
 }
 
-fn get_metrics_config<'a>(ctx: Context<'a>) -> Result<CombinedMetricExtractionConfig<'a>, ()> {
+/// Compiles a valid metrics config from a [`Context`].
+pub fn get_metrics_config<'a>(ctx: Context<'a>) -> Result<CombinedMetricExtractionConfig<'a>, ()> {
     let config = match &ctx.project_info.config.metric_extraction {
         ErrorBoundary::Ok(config) if config.is_supported() => config,
         _ => return Err(()),
@@ -441,13 +442,13 @@ pub fn split_indexed_and_total(
     mut work: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     sampling_decision: SamplingDecision,
-    metrics_config: Option<CombinedMetricExtractionConfig<'_>>,
+    metrics_config: Result<CombinedMetricExtractionConfig<'_>, ()>,
 ) -> IndexedAndMetrics {
     let scoping = work.scoping();
 
     let mut metrics = ProcessingExtractedMetrics::new();
     let mut metrics_extracted = false;
-    if let Some(config) = metrics_config {
+    if let Ok(config) = metrics_config {
         work.modify(|work, _| {
             extraction::extract_metrics(
                 &mut work.event,

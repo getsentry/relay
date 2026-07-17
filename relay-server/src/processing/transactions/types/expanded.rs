@@ -12,7 +12,7 @@ use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType, Items};
 use crate::managed::{Counted, Managed, Quantities, Rejected};
 use crate::metrics_extraction::ExtractedMetrics;
 use crate::processing::transactions::Error;
-use crate::processing::transactions::process::split_indexed_and_total;
+use crate::processing::transactions::process::{get_metrics_config, split_indexed_and_total};
 use crate::processing::utils::types::{Indexed, TotalAndIndexed, TotalCategory};
 use crate::processing::{Context, CountRateLimited, RateLimited, RateLimiter};
 use crate::statsd::RelayTimers;
@@ -191,9 +191,8 @@ impl RateLimited for Managed<Box<ExpandedTransaction<TotalAndIndexed>>> {
             .await;
         if !limits.is_empty() {
             let error = Error::from(limits);
-            let (ctx, metrics_config) = ctx;
             let (indexed, metrics) =
-                split_indexed_and_total(self, ctx, SamplingDecision::Keep, metrics_config);
+                split_indexed_and_total(self, ctx, SamplingDecision::Keep, get_metrics_config(ctx));
             let _ = indexed.reject_err(error);
 
             return Ok(metrics.map(|metrics, _| Either::Right(metrics)));
