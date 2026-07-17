@@ -13,6 +13,8 @@ use chrono::Utc;
 use futures::StreamExt;
 use futures::stream::BoxStream;
 use http::{HeaderValue, Method};
+#[cfg(feature = "processing")]
+use objectstore_types::multipart::UploadId;
 use relay_auth::Signature;
 use relay_auth::SignatureError;
 #[cfg(feature = "processing")]
@@ -445,8 +447,6 @@ impl Service {
             }
             #[cfg(feature = "processing")]
             Backend::Objectstore { addr, config } => {
-                use crate::services::objectstore::UploadRef;
-
                 let Location {
                     project_id,
                     key,
@@ -457,25 +457,20 @@ impl Service {
 
                 let scoping = project.scoping;
                 debug_assert_eq!(scoping.project_id, project_id);
-                let upload_ref = UploadRef::new(key, upload_id, length, Some(length))?;
-                let upload_ref = addr
+                let upload_id = UploadId::new(
+                    upload_id.expect("Finish is only sent for multipart upload locations"),
+                )?;
+                let key = addr
                     .send(objectstore::Finish {
                         organization_id: scoping.organization_id,
                         project_id,
-                        upload_ref,
+                        key,
+                        upload_id,
+                        length,
                     })
                     .await
-                    .map_err(Error::ObjectstoreServiceUnavailable)??;
-
-                let UploadRef {
-                    key,
-                    upload_id,
-                    offset,
-                    length: final_length,
-                } = upload_ref;
-                debug_assert!(upload_id.is_none());
-                debug_assert_eq!(offset, length);
-                debug_assert_eq!(final_length, Some(length));
+                    .map_err(Error::ObjectstoreServiceUnavailable)??
+                    .into_inner();
 
                 Location {
                     project_id,
@@ -725,6 +720,11 @@ impl<L: UploadLength> SignedLocation<L> {
     /// Converts the location into an URI for future reference.
     pub fn into_header_value(self) -> Result<HeaderValue, Error> {
         HeaderValue::from_str(&self.try_to_uri()?).map_err(Error::Internal)
+    }
+
+    /// Returns the multipart upload ID, if this location refers to a multipart upload.
+    pub fn upload_id(&self) -> Option<&str> {
+        self.location.upload_id.as_deref()
     }
 
     fn try_to_uri(&self) -> Result<String, Error> {

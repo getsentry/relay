@@ -116,8 +116,7 @@ impl IntoResponse for Error {
                 upload::Error::Objectstore(service_error) => match service_error.kind {
                     objectstore::ErrorKind::InvalidScoping => StatusCode::INTERNAL_SERVER_ERROR,
                     objectstore::ErrorKind::InvalidOffset { .. } => StatusCode::BAD_REQUEST,
-                    objectstore::ErrorKind::InvalidUploadRef
-                    | objectstore::ErrorKind::InvalidLength { .. } => StatusCode::BAD_REQUEST,
+                    objectstore::ErrorKind::InvalidLength { .. } => StatusCode::BAD_REQUEST,
                     objectstore::ErrorKind::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
                     objectstore::ErrorKind::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
                     objectstore::ErrorKind::CompressionFailed(_) => {

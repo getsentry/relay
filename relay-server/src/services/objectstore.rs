@@ -59,7 +59,7 @@ pub enum Objectstore {
     RawProfile(Managed<StoreRawProfile>),
     Create(CreateMultipart, Sender<Result<UploadRef, Error>>),
     Stream(Stream, Sender<Result<UploadRef, Error>>),
-    Finish(Finish, Sender<Result<UploadRef, Error>>),
+    Finish(Finish, Sender<Result<ObjectstoreKey, Error>>),
 }
 
 impl Objectstore {
@@ -186,13 +186,15 @@ impl FromMessage<Stream> for Objectstore {
 pub struct Finish {
     pub organization_id: OrganizationId,
     pub project_id: ProjectId,
-    pub upload_ref: UploadRef,
+    pub key: String,
+    pub upload_id: UploadId,
+    pub length: usize,
 }
 
 impl FromMessage<Finish> for Objectstore {
-    type Response = AsyncResponse<Result<UploadRef, Error>>;
+    type Response = AsyncResponse<Result<ObjectstoreKey, Error>>;
 
-    fn from_message(message: Finish, sender: Sender<Result<UploadRef, Error>>) -> Self {
+    fn from_message(message: Finish, sender: Sender<Result<ObjectstoreKey, Error>>) -> Self {
         Self::Finish(message, sender)
     }
 }
@@ -307,8 +309,6 @@ pub enum ErrorKind {
         "invalid upload offset {offset}: must be aligned to the upload granularity {granularity}"
     )]
     InvalidOffset { offset: usize, granularity: usize },
-    #[error("cannot finish an upload without a multipart upload ID or final length")]
-    InvalidUploadRef,
     #[error("invalid upload length {expected}: uploaded parts have a total length of {actual}")]
     InvalidLength { expected: usize, actual: u64 },
     #[error("timeout: {0}")]
@@ -328,7 +328,6 @@ impl ErrorKind {
         match self {
             Self::InvalidScoping => "invalid_scoping",
             Self::InvalidOffset { .. } => "invalid_offset",
-            Self::InvalidUploadRef => "invalid_upload_ref",
             Self::InvalidLength { .. } => "invalid_length",
             Self::Timeout(_) => "timeout",
             Self::LoadShed => "load_shed",
@@ -340,9 +339,7 @@ impl ErrorKind {
 
     fn is_client_error(&self) -> bool {
         match self {
-            ErrorKind::InvalidOffset { .. }
-            | ErrorKind::InvalidUploadRef
-            | ErrorKind::InvalidLength { .. } => true,
+            ErrorKind::InvalidOffset { .. } | ErrorKind::InvalidLength { .. } => true,
             ErrorKind::UploadFailed(objectstore_client::Error::Reqwest(error)) => {
                 find_error_source(error, is_user_error).is_some()
             }
@@ -896,21 +893,14 @@ impl ObjectstoreServiceInner {
         .await
     }
 
-    async fn handle_finish(&self, finish: Finish) -> Result<UploadRef, Error> {
+    async fn handle_finish(&self, finish: Finish) -> Result<ObjectstoreKey, Error> {
         let Finish {
             organization_id,
             project_id,
-            upload_ref,
-        } = finish;
-        let UploadRef {
             key,
             upload_id,
-            offset: _,
             length,
-        } = upload_ref;
-        let (Some(upload_id), Some(length)) = (upload_id, length) else {
-            return Err(ErrorKind::InvalidUploadRef.into());
-        };
+        } = finish;
 
         let session = self.session(&self.event_attachments, organization_id, project_id)?;
         let multipart = session.resume_multipart_upload(key.clone(), upload_id.to_string())?;
@@ -922,12 +912,7 @@ impl ObjectstoreServiceInner {
             .await?;
         debug_assert_eq!(&key, &final_key);
 
-        Ok(UploadRef {
-            key: final_key,
-            upload_id: None,
-            offset: length,
-            length: Some(length),
-        })
+        Ok(ObjectstoreKey(final_key))
     }
 
     async fn upload_bytes(
