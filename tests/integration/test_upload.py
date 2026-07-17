@@ -20,7 +20,10 @@ from .consts import (
     DUMMY_UPLOAD_LOCATION,
 )
 
-LOCATION_REGEX = re.compile(r"/api/\d+/upload/(\w+)/?.*upload_id=([\w-]+)")
+LOCATION_REGEX = re.compile(r"/api/\d+/upload/(\w+)/")
+LOCATION_REGEX_WITH_UPLOAD_ID = re.compile(
+    r"/api/\d+/upload/(\w+)/?.*upload_id=([\w-]+)"
+)
 
 
 @pytest.fixture
@@ -658,9 +661,17 @@ def test_objectstore_timeout(mini_sentry, relay_with_processing):
     assert response.status_code == 504
 
 
-def test_upload_offset(mini_sentry, relay_with_processing, project_config, objectstore):
+@pytest.mark.parametrize("feature_flag", [False, True])
+def test_upload_offset(
+    mini_sentry, relay_with_processing, project_config, objectstore, feature_flag
+):
     project_id = 42
+    config = mini_sentry.add_full_project_config(project_id)["config"]
+    features = config.setdefault("features", [])
+    if feature_flag:
+        features.append("projects:relay-upload-multipart")
     project_key = mini_sentry.get_dsn_public_key(project_id)
+
     relay = relay_with_processing()
     objectstore = objectstore("attachments", project_id)
 
@@ -673,7 +684,7 @@ def test_upload_offset(mini_sentry, relay_with_processing, project_config, objec
             "Upload-Length": str(len(data)),
         },
     )
-    assert response.status_code == 201, response.json()
+    assert response.status_code == 201
 
     # Upload only part of the bytes
     split = len(data) // 3
@@ -690,18 +701,25 @@ def test_upload_offset(mini_sentry, relay_with_processing, project_config, objec
         },
         data=data1,
     )
-    assert response.status_code == 204
+    assert response.status_code == 204, response.text
 
-    key, upload_id = LOCATION_REGEX.match(response.headers["Location"]).groups()
-    (part1,) = MultipartUpload(objectstore, key, upload_id).list_parts()
+    if feature_flag:
+        key, upload_id = LOCATION_REGEX_WITH_UPLOAD_ID.match(
+            response.headers["Location"]
+        ).groups()
+        (part1,) = MultipartUpload(objectstore, key, upload_id).list_parts()
+        assert vars(part1) == {
+            "part_number": 1,
+            "etag": matches_any(),
+            "last_modified": matches_any(),
+            "size": len(zstandard.compress(data1)),
+        }
+    else:
+        (key,) = LOCATION_REGEX.match(response.headers["Location"]).groups()
+        # The file is already there
+        assert objectstore.get(key).payload.read() == data1
 
-    assert vars(part1) == {
-        "part_number": 1,
-        "etag": matches_any(),
-        "last_modified": matches_any(),
-        "size": len(zstandard.compress(data1)),
-    }
-
+    # Try to upload more:
     response = relay.patch(
         f"{response.headers['Location']}&sentry_key={project_key}",
         headers={
@@ -713,13 +731,19 @@ def test_upload_offset(mini_sentry, relay_with_processing, project_config, objec
         },
         data=data2,
     )
-    assert response.status_code == 204
-
-    key, upload_id = LOCATION_REGEX.match(response.headers["Location"]).groups()
-
-    # TODO: remove upload_id
-
-    assert objectstore.get(key).payload.read() == data
+    if feature_flag:
+        assert response.status_code == 204
+        (key,) = LOCATION_REGEX.match(response.headers["Location"]).groups()
+        assert objectstore.get(key).payload.read() == data
+    else:
+        assert response.status_code == 400
+        assert response.json() == {
+            "causes": [
+                "objectstore upload failed",
+                "offset without upload ID",
+            ],
+            "detail": "upload error: objectstore upload failed",
+        }
 
 
 @pytest.mark.parametrize(
