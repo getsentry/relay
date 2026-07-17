@@ -1,6 +1,6 @@
 use relay_base_schema::events::EventType;
 use relay_event_normalization::GeoIpLookup;
-use relay_event_schema::protocol::{Event, Metrics};
+use relay_event_schema::protocol::Event;
 use relay_profiling::{ProfileError, ProfileType};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
@@ -126,7 +126,6 @@ fn expand_profile(
 pub fn prepare_data(
     work: &mut Managed<Box<ExpandedTransaction>>,
     ctx: &mut Context<'_>,
-    metrics: &mut Metrics,
 ) -> Result<(), Rejected<Error>> {
     let scoping = work.scoping();
     work.try_modify(|work, record_keeper| {
@@ -140,7 +139,7 @@ pub fn prepare_data(
             &work.headers,
             &mut work.event,
             work.attachments.iter(),
-            metrics,
+            &mut Default::default(),
             ctx.config,
         )
         .map_err(Error::from)
