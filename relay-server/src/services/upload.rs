@@ -451,7 +451,7 @@ impl Service {
             Backend::Objectstore { addr, config } => {
                 let Location {
                     project_id,
-                    key,
+                    mut key,
                     length: _,
                     upload_id,
                     other,
@@ -460,17 +460,19 @@ impl Service {
                 let scoping = project.scoping;
                 debug_assert_eq!(scoping.project_id, project_id);
 
-                let key = addr
-                    .send(objectstore::Finish {
-                        organization_id: scoping.organization_id,
-                        project_id,
-                        key,
-                        upload_id,
-                        length,
-                    })
-                    .await
-                    .map_err(Error::ObjectstoreServiceUnavailable)??
-                    .into_inner();
+                if let Some(upload_id) = upload_id {
+                    key = addr
+                        .send(objectstore::FinishMultipart {
+                            organization_id: scoping.organization_id,
+                            project_id,
+                            key,
+                            upload_id,
+                            length,
+                        })
+                        .await
+                        .map_err(Error::ObjectstoreServiceUnavailable)??
+                        .into_inner();
+                }
                 Location {
                     project_id,
                     key,

@@ -59,7 +59,7 @@ pub enum Objectstore {
     RawProfile(Managed<StoreRawProfile>),
     Create(CreateMultipart, Sender<Result<UploadRef, Error>>),
     Stream(Stream, Sender<Result<UploadRef, Error>>),
-    Finish(Finish, Sender<Result<ObjectstoreKey, Error>>),
+    Finish(FinishMultipart, Sender<Result<ObjectstoreKey, Error>>),
 }
 
 impl Objectstore {
@@ -183,18 +183,21 @@ impl FromMessage<Stream> for Objectstore {
 }
 
 /// A request to finish an objectstore multipart upload.
-pub struct Finish {
+pub struct FinishMultipart {
     pub organization_id: OrganizationId,
     pub project_id: ProjectId,
     pub key: String,
-    pub upload_id: Option<String>,
+    pub upload_id: String,
     pub length: usize,
 }
 
-impl FromMessage<Finish> for Objectstore {
+impl FromMessage<FinishMultipart> for Objectstore {
     type Response = AsyncResponse<Result<ObjectstoreKey, Error>>;
 
-    fn from_message(message: Finish, sender: Sender<Result<ObjectstoreKey, Error>>) -> Self {
+    fn from_message(
+        message: FinishMultipart,
+        sender: Sender<Result<ObjectstoreKey, Error>>,
+    ) -> Self {
         Self::Finish(message, sender)
     }
 }
@@ -899,8 +902,8 @@ impl ObjectstoreServiceInner {
         .await
     }
 
-    async fn handle_finish(&self, finish: Finish) -> Result<ObjectstoreKey, Error> {
-        let Finish {
+    async fn handle_finish(&self, finish: FinishMultipart) -> Result<ObjectstoreKey, Error> {
+        let FinishMultipart {
             organization_id,
             project_id,
             key,
@@ -909,29 +912,13 @@ impl ObjectstoreServiceInner {
         } = finish;
 
         let session = self.session(&self.event_attachments, organization_id, project_id)?;
-        if let Some(upload_id) = upload_id {
-            let multipart = session.resume_multipart_upload(key.clone(), upload_id.to_string())?;
-            let parts = multipart.list_parts().await?;
-            validate_multipart_length(&parts, length)?;
-            let _final_key = multipart
-                .complete(parts.into_iter().map(Into::into))
-                .await?;
-            debug_assert_eq!(&key, &_final_key);
-        } else {
-            let Some(metadata) = session.head(&key).send().await? else {
-                return Err(ErrorKind::UnknownKey(key).into());
-            };
-            if let Some(actual) = metadata.size {
-                return Err(ErrorKind::InvalidLength {
-                    expected: length,
-                    actual: actual as u64,
-                }
-                .into());
-            } else {
-                // NOTE: no good way to validate here, but this branch should disappear once
-                // we remove the `relay-upload-multipart` feature flag.
-            }
-        }
+        let multipart = session.resume_multipart_upload(key.clone(), upload_id.to_string())?;
+        let parts = multipart.list_parts().await?;
+        validate_multipart_length(&parts, length)?;
+        let _final_key = multipart
+            .complete(parts.into_iter().map(Into::into))
+            .await?;
+        debug_assert_eq!(&key, &_final_key);
 
         Ok(ObjectstoreKey(key))
     }
