@@ -1083,9 +1083,8 @@ impl ObjectstoreServiceInner {
                     // Every chunk needs to be > 5 MB because that's what multipart requires.
                     let mut parts = vec![];
                     let mut compressed_buffer = zstd::stream::write::Encoder::new(vec![], 0).map_err(AttemptUploadError::Zstd)?;
-                    let mut part_number = offset / UPLOAD_GRANULARITY;
+                    let mut part_number = offset / UPLOAD_GRANULARITY + 1;
                     while let Some(bytes) = body.next().await {
-                        part_number += 1;
                         match bytes {
                             Err(error) =>  {
                                 self.try_flush(&mut compressed_buffer, part_number, &mut multipart_upload, &mut parts).await?;
@@ -1097,6 +1096,7 @@ impl ObjectstoreServiceInner {
                                 }
                             }
                         }
+                        part_number += 1;
                     }
 
                     self.try_flush(&mut compressed_buffer, part_number, &mut multipart_upload, &mut parts).await?;
@@ -1133,6 +1133,9 @@ impl ObjectstoreServiceInner {
         multipart: &mut MultipartUpload,
         parts: &mut Vec<CompletePart>,
     ) -> Result<(), AttemptUploadError> {
+        if buffer.get_ref().is_empty() {
+            return Ok(());
+        }
         let mut new_buffer =
             zstd::stream::write::Encoder::new(vec![], 0).map_err(AttemptUploadError::Zstd)?;
         std::mem::swap(buffer, &mut new_buffer);
