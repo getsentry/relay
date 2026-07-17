@@ -28,7 +28,7 @@
 <a href=#28 id=28 data-nosnippet>28</a>        <span class="macro">utils::if_processing!</span>(ctx, {
 <a href=#29 id=29 data-nosnippet>29</a>            <span class="kw">crate</span>::utils::process_apple_crash_report(
 <a href=#30 id=30 data-nosnippet>30</a>                event.get_or_insert_with(Default::default),
-<a href=#31 id=31 data-nosnippet>31</a>                ctx.processing.project_info,
+<a href=#31 id=31 data-nosnippet>31</a>                <span class="kw">crate</span>::utils::AdditionalExceptions::Retain,
 <a href=#32 id=32 data-nosnippet>32</a>            );
 <a href=#33 id=33 data-nosnippet>33</a>            metrics.bytes_ingested_event_applecrashreport =
 <a href=#34 id=34 data-nosnippet>34</a>                (apple_crash_report.len() <span class="kw">as </span>u64).into();
