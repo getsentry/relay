@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use relay_cogs::{AppFeature, FeatureWeights};
 use relay_event_normalization::GeoIpLookup;
-use relay_event_schema::protocol::Metrics;
 use relay_quotas::RateLimits;
 
 use crate::envelope::ItemType;
@@ -10,7 +9,6 @@ use crate::managed::{Managed, ManagedEnvelope, OutcomeError, Rejected};
 use crate::processing::transactions::process::SamplingOutput;
 use crate::processing::transactions::types::{SerializedTransaction, TransactionOutput};
 use crate::processing::utils::attachments;
-use crate::processing::utils::event::event_type;
 use crate::processing::{Context, Output, Processor, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::ProcessingError;
@@ -128,9 +126,6 @@ impl Processor for TransactionProcessor {
         tx: Managed<Self::Input>,
         mut ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
-        let project_id = tx.scoping().project_id;
-        let mut metrics = Metrics::default();
-
         relay_log::trace!("Expand transaction");
         let mut tx = process::expand(tx)?;
 
@@ -138,7 +133,7 @@ impl Processor for TransactionProcessor {
         attachments::validate_attachments(&mut tx, |t| &mut t.attachments, ctx);
 
         relay_log::trace!("Prepare transaction data");
-        process::prepare_data(&mut tx, &mut ctx, &mut metrics)?;
+        process::prepare_data(&mut tx, &mut ctx)?;
 
         relay_log::trace!("Normalize transaction");
         let mut tx = process::normalize(tx, ctx, &self.geoip_lookup)?;
@@ -184,35 +179,24 @@ impl Processor for TransactionProcessor {
             either::Either::Right(metrics) => return Ok(Output::metrics(metrics)),
         };
 
-        if ctx.is_processing() {
-            if !tx.flags.fully_normalized {
-                relay_log::error!(
-                    tags.project = %project_id,
-                    tags.ty = event_type(&tx.event).map(|e| e.to_string()).unwrap_or("none".to_owned()),
-                    "ingested event without normalizing"
-                );
-            };
-
-            let (spans, tx) = process::extract_spans(tx, ctx, server_sample_rate);
-            let spans = self.limiter.enforce_quotas(spans, ctx).await.ok();
-
-            let (transaction, spans, metrics) =
-                process::split_indexed_and_total_with_extracted_spans(
-                    tx,
-                    spans,
-                    ctx,
-                    metrics_config,
-                );
-
+        if !ctx.is_processing() {
             return Ok(Output {
-                main: Some(TransactionOutput::Indexed { spans, transaction }),
-                metrics: Some(metrics),
+                main: Some(TransactionOutput::Full(tx)),
+                metrics: None,
             });
         }
 
+        debug_assert!(tx.flags.fully_normalized);
+
+        let (spans, tx) = process::extract_spans(tx, ctx, server_sample_rate);
+        let spans = self.limiter.enforce_quotas(spans, ctx).await.ok();
+
+        let (transaction, spans, metrics) =
+            process::split_indexed_and_total_with_extracted_spans(tx, spans, ctx, metrics_config);
+
         Ok(Output {
-            main: Some(TransactionOutput::Full(tx)),
-            metrics: None,
+            main: Some(TransactionOutput::Indexed { spans, transaction }),
+            metrics: Some(metrics),
         })
     }
 }

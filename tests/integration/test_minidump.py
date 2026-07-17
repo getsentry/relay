@@ -714,9 +714,8 @@ def test_minidump_with_processing_invalid(
     ]
 
 
-@pytest.mark.parametrize("feature_flag", [False, True])
 def test_minidump_with_event_exception(
-    mini_sentry, relay_with_processing, attachments_consumer, feature_flag
+    mini_sentry, relay_with_processing, attachments_consumer
 ):
     """
     An envelope can carry both a minidump attachment and an event item that already
@@ -732,8 +731,6 @@ def test_minidump_with_event_exception(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     config = project_config["config"]
-    if feature_flag:
-        config.setdefault("features", []).append("projects:minidump-multi-exception")
 
     # Disable scrubbing, the basic and full project configs from the mini_sentry fixture
     # will modify the minidump since it contains user paths in the module list.
@@ -791,12 +788,9 @@ def test_minidump_with_event_exception(
     assert minidump_exception["mechanism"]["type"] == "minidump"
 
     # The user-provided exception with its stack trace must be preserved.
-    if feature_flag:
-        (user_exception,) = additional_exceptions
-        assert user_exception["value"] == "division by zero"
-        assert user_exception["stacktrace"]["frames"][0]["function"] == "divide"
-    else:
-        assert not additional_exceptions
+    (user_exception,) = additional_exceptions
+    assert user_exception["value"] == "division by zero"
+    assert user_exception["stacktrace"]["frames"][0]["function"] == "divide"
 
     # The minidump must still be forwarded as an attachment.
     assert any(att["name"] == "minidump.dmp" for att in message["attachments"])
