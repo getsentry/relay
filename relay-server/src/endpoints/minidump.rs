@@ -635,13 +635,6 @@ fn envelope(
     Ok(envelope)
 }
 
-pub(crate) fn is_gpu_crash_item(item: &Item) -> bool {
-    matches!(
-        item.attachment_type(),
-        Some(AttachmentType::NvGpuDump) | Some(AttachmentType::NvShaderDebug)
-    )
-}
-
 async fn handle(
     state: ServiceState,
     meta: RequestMeta,
@@ -676,66 +669,21 @@ async fn handle(
     let gpu_crash_split = upload_context
         .as_ref()
         .is_some_and(|ctx| ctx.gpu_crash_split);
+
     let items = items(upload_context, &state, &meta, content_type, request)
         .await
         .reject(&managed_err)?;
 
-    if gpu_crash_split && items.iter().any(is_gpu_crash_item) {
-        let cpu_event_id = common::event_id_from_items(&items)
-            .reject2(&items, &managed_err)?
-            .unwrap_or_else(EventId::new);
-        let gpu_event_id = EventId::new();
-
-        let scope_event = items
-            .iter()
-            .find(|item| {
-                item.ty() == &ItemType::Event
-                    || item.attachment_type() == Some(AttachmentType::EventPayload)
-            })
-            .cloned();
-
-        let (cpu_items, gpu_items) = items.split_once(|items, _records| {
-            let mut cpu = Items::new();
-            let mut gpu = Items::new();
-            for item in items {
-                if is_gpu_crash_item(&item) {
-                    gpu.push(item);
-                } else {
-                    cpu.push(item);
-                }
-            }
-            (cpu, gpu)
-        });
-
-        let gpu_meta = meta.clone();
-        let gpu_envelope = gpu_items.map(move |items, records| {
-            records.modify_by(DataCategory::Error, 1);
-            let mut envelope = Envelope::from_request(Some(gpu_event_id), gpu_meta);
-            if let Some(scope_event) = scope_event {
-                envelope.add_item(scope_event);
-            }
-            for item in items {
-                envelope.add_item(item);
-            }
-            envelope
-        });
-
-        let cpu_envelope = cpu_items.map(move |items, records| {
-            managed_err.accept(|_| ());
-            records.modify_by(DataCategory::Error, 1);
-            Box::new(Envelope::from_request(Some(cpu_event_id), meta).with_items(items))
-        });
-
-        common::handle_managed_envelope(&state, cpu_envelope)
-            .await?
-            .ignore_rate_limits();
-        if let Ok(gpu) = common::handle_managed_envelope(&state, gpu_envelope).await {
-            gpu.ignore_rate_limits();
+    let mut envelope = envelope(items, meta, managed_err)?;
+    if gpu_crash_split {
+        let (cpu, gpu) = utils::gpu::split_crash(envelope);
+        if let Some(gpu) = gpu {
+            common::handle_managed_envelope(&state, gpu)
+                .await?
+                .ignore_rate_limits();
         }
-        return Ok(TextResponse(Some(cpu_event_id)));
+        envelope = cpu;
     }
-
-    let envelope = envelope(items, meta, managed_err)?;
 
     let id = envelope.event_id();
 
