@@ -152,7 +152,6 @@ def test_span_extraction(
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.segment.name": {"type": "string", "value": "hi"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
-                "sentry.transaction": {"type": "string", "value": "hi"},
                 "sentry.transaction.op": {"type": "string", "value": "hi"},
                 "sentry.user": {"type": "string", "value": f"id:{user_id}"},
                 "sentry.user.geo.city": {"type": "string", "value": "Vienna"},
@@ -245,7 +244,6 @@ def test_span_extraction(
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.segment.name": {"type": "string", "value": "hi"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
-                "sentry.transaction": {"type": "string", "value": "hi"},
                 "sentry.transaction.op": {"type": "string", "value": "hi"},
                 "sentry.user": {"type": "string", "value": f"id:{user_id}"},
                 "sentry.user.geo.city": {"type": "string", "value": "Vienna"},
@@ -336,7 +334,6 @@ def test_span_extraction(
             "sentry.status": {"type": "string", "value": "ok"},
             "sentry.trace.status": {"type": "string", "value": "ok"},
             "sentry.transaction.op": {"type": "string", "value": "hi"},
-            "sentry.transaction": {"type": "string", "value": "hi"},
             "sentry.user": {"type": "string", "value": f"id:{user_id}"},
             "sentry.user.geo.city": {"type": "string", "value": "Vienna"},
             "sentry.user.geo.country_code": {"type": "string", "value": "AT"},
@@ -1103,8 +1100,16 @@ def test_discard_transaction(
     spans = spans_consumer.get_spans(n=2)
     assert len(spans) == 2
 
-    outcomes = outcomes_consumer.get_outcomes()
-    assert [(o["category"], o["outcome"], o["reason"]) for o in outcomes] == [
+    outcomes = outcomes_consumer.get_outcomes(n=3)
+
+    outcomes.sort(key=lambda o: o["outcome"])
+
+    # skip billing outcomes
+    assert outcomes[0]["outcome"] == 0
+    assert outcomes[1]["outcome"] == 0
+
+    o = outcomes[2]
+    assert [(o["category"], o["outcome"], o["reason"])] == [
         (9, 1, "discarded"),  # TransactionIndexed, Filtered
     ]
 

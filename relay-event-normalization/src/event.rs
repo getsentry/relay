@@ -2566,8 +2566,11 @@ mod tests {
 
         assert_annotated_snapshot!(span1, @r#"
         {
+          "gen_ai.cost.cache_creation.input_tokens": 0.0,
+          "gen_ai.cost.cache_read.input_tokens": 0.0,
           "gen_ai.cost.input_tokens": 10.0,
           "gen_ai.cost.output_tokens": 40.0,
+          "gen_ai.cost.reasoning.output_tokens": 0.0,
           "gen_ai.cost.total_tokens": 50.0,
           "gen_ai.operation.type": "ai_client",
           "gen_ai.request.model": "claude-2.1",
@@ -2580,8 +2583,11 @@ mod tests {
         "#);
         assert_annotated_snapshot!(span2, @r#"
         {
+          "gen_ai.cost.cache_creation.input_tokens": 0.0,
+          "gen_ai.cost.cache_read.input_tokens": 0.0,
           "gen_ai.cost.input_tokens": 20.0,
           "gen_ai.cost.output_tokens": 60.0,
+          "gen_ai.cost.reasoning.output_tokens": 0.0,
           "gen_ai.cost.total_tokens": 80.0,
           "gen_ai.operation.type": "ai_client",
           "gen_ai.request.model": "gpt4-21-04",
@@ -2691,8 +2697,11 @@ mod tests {
 
         assert_annotated_snapshot!(span1, @r#"
         {
+          "gen_ai.cost.cache_creation.input_tokens": 0.0,
+          "gen_ai.cost.cache_read.input_tokens": 20.0,
           "gen_ai.cost.input_tokens": 25.0,
           "gen_ai.cost.output_tokens": 50.0,
+          "gen_ai.cost.reasoning.output_tokens": 30.0,
           "gen_ai.cost.total_tokens": 75.0,
           "gen_ai.operation.type": "ai_client",
           "gen_ai.request.model": "claude-2.1",
@@ -2707,8 +2716,11 @@ mod tests {
         "#);
         assert_annotated_snapshot!(span2, @r#"
         {
+          "gen_ai.cost.cache_creation.input_tokens": 0.0,
+          "gen_ai.cost.cache_read.input_tokens": 0.0,
           "gen_ai.cost.input_tokens": 90.0,
           "gen_ai.cost.output_tokens": 100.0,
+          "gen_ai.cost.reasoning.output_tokens": 0.0,
           "gen_ai.cost.total_tokens": 190.0,
           "gen_ai.operation.type": "ai_client",
           "gen_ai.request.model": "gpt4-21-04",
@@ -2721,8 +2733,11 @@ mod tests {
         "#);
         assert_annotated_snapshot!(span3, @r#"
         {
+          "gen_ai.cost.cache_creation.input_tokens": 0.0,
+          "gen_ai.cost.cache_read.input_tokens": 0.0,
           "gen_ai.cost.input_tokens": 90.0,
           "gen_ai.cost.output_tokens": 100.0,
+          "gen_ai.cost.reasoning.output_tokens": 0.0,
           "gen_ai.cost.total_tokens": 190.0,
           "gen_ai.operation.type": "ai_client",
           "gen_ai.response.model": "gpt4-21-04",
@@ -2874,8 +2889,11 @@ mod tests {
 
         assert_annotated_snapshot!(span1, @r#"
         {
+          "gen_ai.cost.cache_creation.input_tokens": 0.0,
+          "gen_ai.cost.cache_read.input_tokens": 20.0,
           "gen_ai.cost.input_tokens": 25.0,
           "gen_ai.cost.output_tokens": 40.0,
+          "gen_ai.cost.reasoning.output_tokens": 20.0,
           "gen_ai.cost.total_tokens": 65.0,
           "gen_ai.operation.type": "ai_client",
           "gen_ai.request.model": "claude-2.1",
@@ -2890,8 +2908,11 @@ mod tests {
         "#);
         assert_annotated_snapshot!(span2, @r#"
         {
+          "gen_ai.cost.cache_creation.input_tokens": 0.0,
+          "gen_ai.cost.cache_read.input_tokens": 0.0,
           "gen_ai.cost.input_tokens": 90.0,
           "gen_ai.cost.output_tokens": 100.0,
+          "gen_ai.cost.reasoning.output_tokens": 0.0,
           "gen_ai.cost.total_tokens": 190.0,
           "gen_ai.operation.type": "ai_client",
           "gen_ai.request.model": "gpt4-21-04",
