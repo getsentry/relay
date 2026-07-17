@@ -1100,8 +1100,16 @@ def test_discard_transaction(
     spans = spans_consumer.get_spans(n=2)
     assert len(spans) == 2
 
-    outcomes = outcomes_consumer.get_outcomes()
-    assert [(o["category"], o["outcome"], o["reason"]) for o in outcomes] == [
+    outcomes = outcomes_consumer.get_outcomes(n=3)
+
+    outcomes.sort(key=lambda o: o["outcome"])
+
+    # skip billing outcomes
+    assert outcomes[0]["outcome"] == 0
+    assert outcomes[1]["outcome"] == 0
+
+    o = outcomes[2]
+    assert [(o["category"], o["outcome"], o["reason"])] == [
         (9, 1, "discarded"),  # TransactionIndexed, Filtered
     ]
 
