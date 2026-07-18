@@ -110,12 +110,12 @@ pub enum Upload {
     /// Creates an upload resource.
     ///
     /// Returns the trusted identifier of the upload.
-    Create(Create, InstrumentedSender<Provisional>),
+    Create(Create, InstrumentedSender<SignedLocation<Provisional>>),
     /// Upload a stream of bytes for a given location.
     ///
-    /// The service also returns the signed location. This is redundant, but creates a simpler
-    /// flow for the caller side.
-    Stream(Box<Stream>, InstrumentedSender<Provisional>),
+    /// The service also returns the signed location and the current Upload-Offset stored on the
+    /// server.
+    Stream(Box<Stream>, InstrumentedSender<StreamResult>),
 }
 
 impl Interface for Upload {}
@@ -160,6 +160,33 @@ pub struct Stream {
     pub stream: BoundedStream<MeteredStream<ByteStream>>,
 }
 
+/// The result of a [`Stream`] operation.
+pub struct StreamResult {
+    /// The signed location of the upload.
+    ///
+    /// This is "final" because we have either a pre-commited `Upload-Length` or
+    /// a oneshot upload.
+    pub location: SignedLocation<Final>,
+    /// The byte offset stored on the server after the operation.
+    pub offset: usize,
+}
+
+impl StreamResult {
+    fn try_from_response(response: Response) -> Result<Self, Error> {
+        let offset = response
+            .headers()
+            .get(tus::UPLOAD_OFFSET)
+            .ok_or(Error::InvalidLocation(None))? // FIXME: different error
+            .to_str()
+            .map_err(|_| Error::InvalidLocation(None))?
+            .parse()
+            .map_err(|_| Error::InvalidLocation(None))?;
+        let location = SignedLocation::try_from_response(response)?;
+
+        Ok(Self { location, offset })
+    }
+}
+
 impl FromMessage<Create> for Upload {
     type Response = AsyncResponse<Result<SignedLocation<Provisional>, Error>>;
 
@@ -178,12 +205,9 @@ impl FromMessage<Create> for Upload {
 }
 
 impl FromMessage<Stream> for Upload {
-    type Response = AsyncResponse<Result<SignedLocation<Provisional>, Error>>;
+    type Response = AsyncResponse<Result<StreamResult, Error>>;
 
-    fn from_message(
-        message: Stream,
-        sender: Sender<Result<SignedLocation<Provisional>, Error>>,
-    ) -> Self {
+    fn from_message(message: Stream, sender: Sender<Result<StreamResult, Error>>) -> Self {
         Self::Stream(
             Box::new(message),
             InstrumentedSender {
@@ -242,13 +266,13 @@ pub struct Service {
 }
 
 /// A response channel that emits a metric for each response.
-pub struct InstrumentedSender<L: UploadLength> {
+pub struct InstrumentedSender<T> {
     metric: RelayCounters,
-    inner: Sender<Result<SignedLocation<L>, Error>>,
+    inner: Sender<Result<T, Error>>,
 }
 
-impl<L: UploadLength> InstrumentedSender<L> {
-    fn send(self, result: Result<SignedLocation<L>, Error>) {
+impl<T> InstrumentedSender<T> {
+    fn send(self, result: Result<T, Error>) {
         let result_msg = match &result {
             Ok(_) => "success",
             Err(e) => e.variant(),
@@ -338,7 +362,7 @@ impl Service {
         }
     }
 
-    async fn upload(&self, stream: Stream) -> Result<SignedLocation<Provisional>, Error> {
+    async fn upload(&self, stream: Stream) -> Result<StreamResult, Error> {
         let Stream {
             #[cfg_attr(not(feature = "processing"), expect(unused))]
             received,
@@ -353,11 +377,11 @@ impl Service {
                     UploadRequest::upload(project, location.try_to_uri()?, offset, stream);
                 addr.send(SendRequest(request));
                 let response = rx.await??;
-                SignedLocation::try_from_response(response)
+                StreamResult::try_from_response(response)
             }
             #[cfg(feature = "processing")]
             Backend::Objectstore { addr, config } => {
-                use crate::services::objectstore::{StreamingMode, UploadRef};
+                use crate::services::objectstore::{StreamMode, UploadRef};
 
                 let Location {
                     project_id,
@@ -371,7 +395,7 @@ impl Service {
                 debug_assert_eq!(scoping.project_id, project_id);
 
                 let mode = match dbg!((length.value(), upload_id)) {
-                    (Some(length), Some(upload_id)) => StreamingMode::Multipart {
+                    (Some(length), Some(upload_id)) => StreamMode::Multipart {
                         upload_id,
                         offset,
                         length,
@@ -380,7 +404,7 @@ impl Service {
                         if offset != 0 {
                             return Err(Error::OffsetWithoutLength);
                         }
-                        StreamingMode::Oneshot(stream.byte_counter())
+                        StreamMode::Oneshot(stream.byte_counter())
                     }
                     (None, Some(_)) => {
                         // NOTE: this restriction could be encoded into the Location type.
@@ -405,22 +429,30 @@ impl Service {
                     offset,
                 } = upload_ref;
 
-                Location {
-                    project_id,
-                    key,
-                    length: Provisional(Some(offset)), // FIXME: could be Final
-                    upload_id: upload_id.map(|id| id.to_string()),
-                    other,
-                }
-                .try_sign(config)
+                // For oneshot requests, update the length:
+                let length = match mode {
+                    StreamMode::Oneshot(byte_counter) => byte_counter.get(),
+                    StreamMode::Multipart { length, .. } => length,
+                };
+
+                Ok(StreamResult {
+                    location: Location {
+                        project_id,
+                        key,
+                        length: Final(length),
+                        upload_id: upload_id.map(|id| id.to_string()),
+                        other,
+                    }
+                    .try_sign(config)?,
+                    offset,
+                })
             }
         }
     }
 
-    async fn timeout<L, F>(&self, future: F) -> Result<SignedLocation<L>, Error>
+    async fn timeout<T, F>(&self, future: F) -> Result<T, Error>
     where
-        L: UploadLength,
-        F: IntoFuture<Output = Result<SignedLocation<L>, Error>>,
+        F: IntoFuture<Output = Result<T, Error>>,
     {
         tokio::time::timeout(self.timeout, future).await?
     }

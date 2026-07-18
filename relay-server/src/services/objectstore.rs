@@ -161,7 +161,7 @@ impl FromMessage<CreateMultipart> for Objectstore {
 }
 
 #[derive(Clone)]
-pub enum StreamingMode {
+pub enum StreamMode {
     Oneshot(ByteCounter),
     Multipart {
         upload_id: String,
@@ -175,7 +175,7 @@ pub struct Stream {
     pub organization_id: OrganizationId,
     pub project_id: ProjectId,
     pub key: String,
-    pub mode: StreamingMode,
+    pub mode: StreamMode,
     pub stream: BoundedStream<MeteredStream<ByteStream>>,
 }
 
@@ -965,7 +965,7 @@ impl ObjectstoreServiceInner {
             UploadAttempt::Stream { body, key, mode } => {
                 let original_key = key.clone();
                 match mode {
-                    StreamingMode::Oneshot(byte_counter) => {
+                    StreamMode::Oneshot(byte_counter) => {
                         let request = session.put_stream(body.boxed()).key(key);
                         let response = request.send().await?;
                         return Ok(UploadRef {
@@ -974,7 +974,7 @@ impl ObjectstoreServiceInner {
                             offset: byte_counter.get(),
                         });
                     }
-                    StreamingMode::Multipart {
+                    StreamMode::Multipart {
                         upload_id,
                         offset,
                         length,
@@ -1035,10 +1035,11 @@ impl ObjectstoreServiceInner {
                                 }
                             }
 
-                            if !compressed_buffer.get_ref().is_empty() {
+                            let remaining_compressed_bytes = compressed_buffer.get_ref().len();
+                            if remaining_compressed_bytes > 0 {
                                 // This can happen when the body compresses so well that it never
                                 // passes the minimum mark.
-                                relay_log::warn!("Stream ended before reaching minimum part size");
+                                relay_log::warn!("Stream ended before reaching minimum part size ({remaining_compressed_bytes} < {MULTIPART_MIN_PART_SIZE})");
                             }
 
                             if is_final {
@@ -1185,7 +1186,7 @@ enum Upload {
     Stream {
         body: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
         key: String,
-        mode: StreamingMode,
+        mode: StreamMode,
     },
 }
 
@@ -1227,7 +1228,7 @@ enum UploadAttempt {
     Stream {
         body: RetryableStream<BoundedStream<MeteredStream<ByteStream>>>,
         key: String,
-        mode: StreamingMode,
+        mode: StreamMode,
     },
 }
 
@@ -1304,13 +1305,14 @@ mod tests {
             usize::MAX,
         );
 
+        let byte_counter = stream.byte_counter();
         let result = addr
             .send(Stream {
                 organization_id: OrganizationId::new(0),
                 project_id: ProjectId::new(1),
                 stream,
                 key: "my_key".to_owned(),
-                mode: StreamingMode::Oneshot(stream.byte_counter()),
+                mode: StreamMode::Oneshot(byte_counter),
             })
             .await
             .unwrap();

@@ -10,11 +10,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Response
 from objectstore_client.multipart import MultipartUpload
 import pytest
-import zstandard
+import random
 
 from sentry_relay.auth import SecretKey
 
-from .asserts import matches_any
+from .asserts import matches, matches_any
 from .consts import (
     DUMMY_UPLOAD_PATH,
     DUMMY_UPLOAD_LOCATION,
@@ -677,7 +677,12 @@ def test_upload_offset(
     relay = relay_with_processing()
     objectstore = objectstore("attachments", project_id)
 
-    data = 3 * 1024 * 1024 * b"X"
+    import time
+
+    t = time.monotonic()
+    part = random.randbytes(7 * 1024 * 1024)
+    print(f"generated rand bytes in {time.monotonic() - t}")
+    data = 3 * part
     response = relay.post(
         f"/api/{project_id}/upload/?sentry_key={project_key}",
         headers={
@@ -711,10 +716,10 @@ def test_upload_offset(
         ).groups()
         (part1,) = MultipartUpload(objectstore, key, upload_id).list_parts()
         assert vars(part1) == {
-            "part_number": 1,
+            "part_number": 6,
             "etag": matches_any(),
             "last_modified": matches_any(),
-            "size": len(zstandard.compress(data1)),
+            "size": matches(lambda x: 6e6 <= x <= 6e7),
         }
     else:
         (key,) = LOCATION_REGEX.match(response.headers["Location"]).groups()
@@ -729,7 +734,6 @@ def test_upload_offset(
             "Content-Type": "application/offset+octet-stream",
             "Tus-Resumable": "1.0.0",
             "Upload-Offset": str(len(data1)),
-            # "Upload-Length": str(len(data)),  # TODO: can we even make this required?
         },
         data=data2,
     )
@@ -741,10 +745,9 @@ def test_upload_offset(
         assert response.status_code == 400
         assert response.json() == {
             "causes": [
-                "objectstore upload failed",
-                "offset without upload ID",
+                "Upload-Offset > 0 is currently unsupported with Defer-Length: 1",
             ],
-            "detail": "upload error: objectstore upload failed",
+            "detail": "upload error: Upload-Offset > 0 is currently unsupported with Defer-Length: 1",
         }
 
 

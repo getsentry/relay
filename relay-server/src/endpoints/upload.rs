@@ -32,7 +32,7 @@ use crate::services::projects::cache::Project;
 use crate::services::projects::project::ProjectState;
 use crate::services::upload::{
     self, ByteStream, LocationQueryParams, ProjectContext, Provisional, SignedLocation,
-    UploadLength,
+    StreamResult, UploadLength,
 };
 use crate::services::upstream::UpstreamRequestError;
 use crate::statsd::RelayCounters;
@@ -282,15 +282,12 @@ async fn handle_patch(
         }
     };
     let stream = BoundedStream::new(stream, lower_bound, upper_bound);
-    let byte_counter = stream.byte_counter();
 
     relay_log::trace!("Uploading");
     let result = upload(&state, project_context, location, offset, stream).await;
-    let location = result.inspect_err(|e| {
+    let StreamResult { location, offset } = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
     })?;
-
-    let new_offset = offset + byte_counter.get();
 
     let mut response = NoContent.into_response();
 
@@ -304,7 +301,7 @@ async fn handle_patch(
         .insert(tus::TUS_RESUMABLE, tus::TUS_VERSION);
     response
         .headers_mut()
-        .insert(tus::UPLOAD_OFFSET, new_offset.into());
+        .insert(tus::UPLOAD_OFFSET, offset.into());
 
     Ok(response)
 }
@@ -356,8 +353,8 @@ async fn upload(
     location: SignedLocation<Provisional>,
     offset: usize,
     stream: BoundedStream<MeteredStream<ByteStream>>,
-) -> Result<SignedLocation<Provisional>, Error> {
-    let location = state
+) -> Result<StreamResult, Error> {
+    let res = state
         .upload()
         .send(upload::Stream {
             received: Utc::now(),
@@ -368,7 +365,7 @@ async fn upload(
         })
         .await??;
 
-    Ok(location)
+    Ok(res)
 }
 
 /// Check request by converting it into a pseudo-envelope.
