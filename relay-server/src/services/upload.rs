@@ -63,6 +63,8 @@ pub enum Error {
     #[cfg(feature = "processing")]
     #[error(transparent)]
     InvalidUploadId(#[from] objectstore_types::multipart::InvalidUploadId),
+    #[error("Upload-Offset is not currently supported with Defer-Length: 1")]
+    OffsetWithoutLength,
     #[error("serializing location failed: {0}")]
     SerializeFailed(#[from] serde_urlencoded::ser::Error),
     #[error("failed to sign location")]
@@ -90,6 +92,7 @@ impl Error {
             Error::InvalidLocation(_) => "invalid_location",
             #[cfg(feature = "processing")]
             Error::InvalidUploadId(_) => "invalid_upload_id",
+            Error::OffsetWithoutLength => "offset_with_defer_length",
             Error::SigningFailed => "signing_failed",
             Error::SerializeFailed(_) => "serialize_failed",
             Error::InvalidSignature(_) => "invalid_signature",
@@ -369,7 +372,12 @@ impl Service {
                         offset,
                         length,
                     },
-                    (_, None) => StreamingMode::Oneshot,
+                    (_, None) => {
+                        if offset != 0 {
+                            return Err(Error::OffsetWithoutLength);
+                        }
+                        StreamingMode::Oneshot
+                    }
                     (None, Some(_)) => {
                         // NOTE: this restriction could be encoded into the Location type.
                         return Err(Error::InvalidLocation(None));

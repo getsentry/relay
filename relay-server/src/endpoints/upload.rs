@@ -109,6 +109,7 @@ impl IntoResponse for Error {
                 }
                 #[cfg(feature = "processing")]
                 upload::Error::InvalidUploadId(_) => StatusCode::BAD_REQUEST,
+                upload::Error::OffsetWithoutLength => StatusCode::BAD_REQUEST,
                 upload::Error::SerializeFailed(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 upload::Error::InvalidSignature(_) => StatusCode::BAD_REQUEST,
                 upload::Error::ObjectstoreServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
@@ -196,8 +197,8 @@ async fn handle_post(
         })?;
 
     // We don't enable multipart for `Upload-Defer-Length: 1`, or if the feature flag is disabled.
-    let multipart = headers.upload_length.is_none()
-        || match project.state() {
+    let multipart = headers.upload_length.is_some()
+        && match project.state() {
             ProjectState::Enabled(p) => p.has_feature(Feature::UploadMultipart),
             _ => false,
         };
