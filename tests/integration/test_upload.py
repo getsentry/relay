@@ -341,10 +341,16 @@ def test_timeout(
     """Ensure that the general HTTP timeout does not affect the upload endpoint"""
     mini_sentry.allow_chunked = True
 
+    data = b"hello world"
+
     @mini_sentry.app.route(DUMMY_UPLOAD_PATH, methods=["PATCH"])
     def slow_upload(**opts):
         time.sleep(2)
-        return Response("", status=204, headers={"Location": DUMMY_UPLOAD_LOCATION})
+        return Response(
+            "",
+            status=204,
+            headers={"Location": DUMMY_UPLOAD_LOCATION, "Upload-Offset": len(data)},
+        )
 
     project_id = 42
     relay = relay(
@@ -355,7 +361,6 @@ def test_timeout(
         },
     )
 
-    data = b"hello world"
     response = relay.patch(
         "%s&sentry_key=%s"
         % (
@@ -594,14 +599,14 @@ def test_objectstore_retries(
         }
     )
 
-    location = f"/api/{project_id}/upload/019cdc82ed6c7761ba21fd34b86481c2/"
-    sep = "?"
+    location = (
+        f"/api/{project_id}/upload/019cdc82ed6c7761ba21fd34b86481c2/?upload_length=11"
+    )
     if with_multipart:
-        location += "?upload_id=my_upload_id"
-        sep = "&"
+        location += "&upload_id=my_upload_id"
     signature = SecretKey.parse(relay.secret_key).sign(location.encode())
     signed_location = (
-        f"{location}{sep}sentry_key={project_key}&upload_signature={signature}"
+        f"{location}&sentry_key={project_key}&upload_signature={signature}"
     )
 
     data = b"hello world"

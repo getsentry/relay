@@ -179,11 +179,11 @@ impl StreamResult {
         let offset = response
             .headers()
             .get(tus::UPLOAD_OFFSET)
-            .ok_or(Error::InvalidFromUpstream("Upload-Offset", None))?
+            .ok_or(Error::InvalidFromUpstream(tus::UPLOAD_OFFSET, None))?
             .to_str()
-            .map_err(|_| Error::InvalidFromUpstream("Upload-Offset", None))?
+            .map_err(|_| Error::InvalidFromUpstream(tus::UPLOAD_OFFSET, None))?
             .parse()
-            .map_err(|_| Error::InvalidFromUpstream("Upload-Offset", None))?;
+            .map_err(|_| Error::InvalidFromUpstream(tus::UPLOAD_OFFSET, None))?;
         let location = SignedLocation::try_from_response(response)?;
 
         Ok(Self { location, offset })

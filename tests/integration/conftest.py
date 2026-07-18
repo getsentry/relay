@@ -321,5 +321,8 @@ def dummy_upload(mini_sentry):  # noqa
         return Response(
             "",
             status=204,
-            headers={"Location": DUMMY_UPLOAD_LOCATION},
+            headers={
+                "Location": DUMMY_UPLOAD_LOCATION,
+                "Upload-Offset": len(request.data),
+            },
         )
