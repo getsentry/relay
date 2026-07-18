@@ -195,10 +195,12 @@ async fn handle_post(
             StatusCode::SERVICE_UNAVAILABLE
         })?;
 
-    let multipart = match project.state() {
-        ProjectState::Enabled(p) => p.has_feature(Feature::UploadMultipart),
-        _ => false,
-    };
+    // We don't enable multipart for `Upload-Defer-Length: 1`, or if the feature flag is disabled.
+    let multipart = headers.upload_length.is_none()
+        || match project.state() {
+            ProjectState::Enabled(p) => p.has_feature(Feature::UploadMultipart),
+            _ => false,
+        };
 
     relay_log::trace!("Checking request");
     let project_context = validate_and_limit(&state, meta, &headers, project).await?;

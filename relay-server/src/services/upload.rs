@@ -375,6 +375,7 @@ impl Service {
                         return Err(Error::InvalidLocation(None));
                     }
                 };
+                let byte_counter = stream.byte_counter();
                 let upload_ref = addr
                     .send(objectstore::Stream {
                         organization_id: scoping.organization_id,
@@ -382,17 +383,23 @@ impl Service {
 
                         stream,
                         key,
-                        mode,
+                        mode: mode.clone(),
                     })
                     .await
                     .map_err(Error::ObjectstoreServiceUnavailable)??;
 
                 let UploadRef { key, upload_id } = upload_ref;
 
+                // If it was a oneshot request, update the length:
+                let final_length = match mode {
+                    StreamingMode::Oneshot => offset + byte_counter.get(),
+                    StreamingMode::Multipart { length, .. } => length,
+                };
+
                 Location {
                     project_id,
                     key,
-                    length,
+                    length: Provisional(Some(final_length)), // FIXME: could be Final
                     upload_id: upload_id.map(|id| id.to_string()),
                     other,
                 }
