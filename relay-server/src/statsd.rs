@@ -981,7 +981,7 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     /// - `result`: `success` or the failure reason.
     UploadCreate,
-    /// The number of times an upload location is created through the upload service.
+    /// The number of times bytes are streamed through the upload service.
     ///
     /// This metric is tagged with:
     /// - `result`: `success` or the failure reason.

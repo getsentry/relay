@@ -492,20 +492,21 @@ def test_minidump_invalid_nested_formdata(mini_sentry, relay):
 
 
 @pytest.mark.parametrize(
-    "rate_limit,minidump_filename,use_objectstore,stream_upload",
+    "rate_limit,minidump_filename,use_objectstore,stream_upload,multipart",
     [
-        (None, "minidump.dmp", True, False),
-        (None, "minidump.dmp", False, False),
-        ("attachment", "minidump.dmp", True, False),
-        ("attachment", "minidump.dmp", False, False),
-        ("transaction", "minidump.dmp", False, False),
-        (None, "minidump.dmp.gz", False, False),
-        (None, "minidump.dmp.xz", False, False),
-        (None, "minidump.dmp.bz2", False, False),
-        (None, "minidump.dmp.bz2", True, False),
-        (None, "minidump.dmp.zst", False, False),
-        (None, "minidump.dmp.zst", True, False),
-        (None, "minidump.dmp.zst", True, True),
+        (None, "minidump.dmp", True, False, False),
+        (None, "minidump.dmp", False, False, False),
+        ("attachment", "minidump.dmp", True, False, False),
+        ("attachment", "minidump.dmp", False, False, False),
+        ("transaction", "minidump.dmp", False, False, False),
+        (None, "minidump.dmp.gz", False, False, False),
+        (None, "minidump.dmp.xz", False, False, False),
+        (None, "minidump.dmp.bz2", False, False, False),
+        (None, "minidump.dmp.bz2", True, False, False),
+        (None, "minidump.dmp.zst", False, False, False),
+        (None, "minidump.dmp.zst", True, False, False),
+        (None, "minidump.dmp.zst", True, True, False),
+        (None, "minidump.dmp.zst", True, True, True),
     ],
 )
 def test_minidump_with_processing(
@@ -518,6 +519,7 @@ def test_minidump_with_processing(
     use_objectstore,
     objectstore,
     stream_upload,
+    multipart,
 ):
     dmp_path = os.path.join(os.path.dirname(__file__), "fixtures/native/minidump.dmp")
     with open(dmp_path, "rb") as f:
@@ -541,6 +543,10 @@ def test_minidump_with_processing(
     if stream_upload:
         project_config["config"].setdefault("features", []).append(
             "projects:relay-minidump-uploads"
+        )
+    if multipart:
+        project_config["config"].setdefault("features", []).append(
+            "projects:relay-upload-multipart"
         )
 
     options = {
@@ -1056,7 +1062,7 @@ def test_size_limits(mini_sentry, relay, limit, expected_status_code):
     ],
     ids=["no-option", "no-minidumps", "stream-minidumps"],
 )
-def test_minidump_objectstore_uploads(
+def test_minidump_streaming_uploads(
     mini_sentry,
     relay,
     dummy_upload,

@@ -307,7 +307,6 @@ def dummy_upload(mini_sentry):  # noqa
 
     @mini_sentry.app.route("/api/<project>/upload/", methods=["POST"])
     def create(**opts):
-
         return Response(
             "",
             status=201,
@@ -316,10 +315,14 @@ def dummy_upload(mini_sentry):  # noqa
 
     @mini_sentry.app.route("/api/<project>/upload/<key>/", methods=["PATCH"])
     def upload(**opts):
-        assert request.headers["Content-Encoding"] == "zstd"
-        assert request.data.startswith(ZSTD_MAGIC_HEADER)
+        if request.data:
+            assert request.headers["Content-Encoding"] == "zstd"
+            assert request.data.startswith(ZSTD_MAGIC_HEADER)
         return Response(
             "",
             status=204,
-            headers={"Location": DUMMY_UPLOAD_LOCATION},
+            headers={
+                "Location": DUMMY_UPLOAD_LOCATION,
+                "Upload-Offset": len(request.data),
+            },
         )

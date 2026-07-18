@@ -58,11 +58,15 @@ pub enum Error {
     Timeout(#[from] tokio::time::error::Elapsed),
     #[error("error response from upstream: {0}")]
     Upstream(#[source] reqwest::Error),
-    #[error("upstream provided invalid location: {0:?}")]
-    InvalidLocation(Option<HeaderValue>),
+    #[error("upstream provided invalid data for {0}: {1:?}")]
+    InvalidFromUpstream(&'static str, Option<HeaderValue>),
+    #[error("invalid input: {0}")]
+    InvalidFromClient(&'static str),
     #[cfg(feature = "processing")]
     #[error(transparent)]
     InvalidUploadId(#[from] objectstore_types::multipart::InvalidUploadId),
+    #[error("Upload-Offset > 0 is currently unsupported with Defer-Length: 1")]
+    OffsetWithoutLength,
     #[error("serializing location failed: {0}")]
     SerializeFailed(#[from] serde_urlencoded::ser::Error),
     #[error("failed to sign location")]
@@ -87,9 +91,11 @@ impl Error {
             Error::UpstreamRequest(_) => "upstream_request",
             Error::Timeout(_) => "timeout",
             Error::Upstream(_) => "upstream_response",
-            Error::InvalidLocation(_) => "invalid_location",
+            Error::InvalidFromClient { .. } => "invalid_from_client",
+            Error::InvalidFromUpstream { .. } => "invalid_from_upstream",
             #[cfg(feature = "processing")]
             Error::InvalidUploadId(_) => "invalid_upload_id",
+            Error::OffsetWithoutLength => "offset_with_defer_length",
             Error::SigningFailed => "signing_failed",
             Error::SerializeFailed(_) => "serialize_failed",
             Error::InvalidSignature(_) => "invalid_signature",
@@ -107,12 +113,12 @@ pub enum Upload {
     /// Creates an upload resource.
     ///
     /// Returns the trusted identifier of the upload.
-    Create(Create, InstrumentedSender<Provisional>),
+    Create(Create, InstrumentedSender<SignedLocation<Provisional>>),
     /// Upload a stream of bytes for a given location.
     ///
-    /// The service also returns the signed location. This is redundant, but creates a simpler
-    /// flow for the caller side.
-    Upload(Stream, InstrumentedSender<Final>),
+    /// The service also returns the signed location and the current Upload-Offset stored on the
+    /// server.
+    Stream(Box<Stream>, InstrumentedSender<StreamResult>),
 }
 
 impl Interface for Upload {}
@@ -151,8 +157,37 @@ pub struct Stream {
     pub project: ProjectContext,
     /// The location to upload to.
     pub location: SignedLocation<Provisional>,
+    /// The offset from which to resume the upload.
+    pub offset: usize,
     /// The body to be uploaded to objectstore, with length validation.
     pub stream: BoundedStream<MeteredStream<ByteStream>>,
+}
+
+/// The result of a [`Stream`] operation.
+pub struct StreamResult {
+    /// The signed location of the upload.
+    ///
+    /// This is "final" because we have either a pre-commited `Upload-Length` or
+    /// a oneshot upload.
+    pub location: SignedLocation<Final>,
+    /// The byte offset stored on the server after the operation.
+    pub offset: usize,
+}
+
+impl StreamResult {
+    fn try_from_response(response: Response) -> Result<Self, Error> {
+        let offset = response
+            .headers()
+            .get(tus::UPLOAD_OFFSET)
+            .ok_or(Error::InvalidFromUpstream(tus::UPLOAD_OFFSET, None))?
+            .to_str()
+            .map_err(|_| Error::InvalidFromUpstream(tus::UPLOAD_OFFSET, None))?
+            .parse()
+            .map_err(|_| Error::InvalidFromUpstream(tus::UPLOAD_OFFSET, None))?;
+        let location = SignedLocation::try_from_response(response)?;
+
+        Ok(Self { location, offset })
+    }
 }
 
 impl FromMessage<Create> for Upload {
@@ -173,11 +208,11 @@ impl FromMessage<Create> for Upload {
 }
 
 impl FromMessage<Stream> for Upload {
-    type Response = AsyncResponse<Result<SignedLocation<Final>, Error>>;
+    type Response = AsyncResponse<Result<StreamResult, Error>>;
 
-    fn from_message(message: Stream, sender: Sender<Result<SignedLocation<Final>, Error>>) -> Self {
-        Self::Upload(
-            message,
+    fn from_message(message: Stream, sender: Sender<Result<StreamResult, Error>>) -> Self {
+        Self::Stream(
+            Box::new(message),
             InstrumentedSender {
                 metric: RelayCounters::UploadUpload,
                 inner: sender,
@@ -234,13 +269,13 @@ pub struct Service {
 }
 
 /// A response channel that emits a metric for each response.
-pub struct InstrumentedSender<L: UploadLength> {
+pub struct InstrumentedSender<T> {
     metric: RelayCounters,
-    inner: Sender<Result<SignedLocation<L>, Error>>,
+    inner: Sender<Result<T, Error>>,
 }
 
-impl<L: UploadLength> InstrumentedSender<L> {
-    fn send(self, result: Result<SignedLocation<L>, Error>) {
+impl<T> InstrumentedSender<T> {
+    fn send(self, result: Result<T, Error>) {
         let result_msg = match &result {
             Ok(_) => "success",
             Err(e) => e.variant(),
@@ -300,7 +335,11 @@ impl Service {
                     // and if the upload actually has data (multipart does not allow empty parts).
                     (false, _) | (_, Some(0)) => (key, None),
                     _ => {
-                        let UploadRef { key, upload_id } = addr
+                        let UploadRef {
+                            key,
+                            upload_id,
+                            offset: _,
+                        } = addr
                             .send(objectstore::CreateMultipart {
                                 organization_id,
                                 project_id,
@@ -326,24 +365,26 @@ impl Service {
         }
     }
 
-    async fn upload(&self, stream: Stream) -> Result<SignedLocation<Final>, Error> {
+    async fn upload(&self, stream: Stream) -> Result<StreamResult, Error> {
         let Stream {
             #[cfg_attr(not(feature = "processing"), expect(unused))]
             received,
             project,
             location,
+            offset,
             stream,
         } = stream;
         match &self.backend {
             Backend::Upstream { addr } => {
-                let (request, rx) = UploadRequest::upload(project, location.try_to_uri()?, stream);
+                let (request, rx) =
+                    UploadRequest::upload(project, location.try_to_uri()?, offset, stream);
                 addr.send(SendRequest(request));
                 let response = rx.await??;
-                SignedLocation::try_from_response(response)
+                StreamResult::try_from_response(response)
             }
             #[cfg(feature = "processing")]
             Backend::Objectstore { addr, config } => {
-                use crate::services::objectstore::UploadRef;
+                use crate::services::objectstore::{StreamMode, UploadRef};
 
                 let Location {
                     project_id,
@@ -355,38 +396,68 @@ impl Service {
 
                 let scoping = project.scoping;
                 debug_assert_eq!(scoping.project_id, project_id);
-                debug_assert!(stream.length().is_none_or(|l| Some(l) == length.value()));
-                let byte_counter = stream.byte_counter();
 
-                let upload_ref = UploadRef::new(key, upload_id)?;
-                let key = addr
+                let mode = match (length.value(), upload_id) {
+                    (Some(length), Some(upload_id)) => StreamMode::Multipart {
+                        upload_id,
+                        offset,
+                        length,
+                    },
+                    (_, None) => {
+                        if offset != 0 {
+                            return Err(Error::OffsetWithoutLength);
+                        }
+                        StreamMode::Oneshot(stream.byte_counter())
+                    }
+                    (None, Some(_)) => {
+                        // NOTE: this restriction could be encoded into the Location type.
+                        return Err(Error::InvalidFromClient(
+                            "upload_id without `Upload-Length`",
+                        ));
+                    }
+                };
+                let upload_ref = addr
                     .send(objectstore::Stream {
                         organization_id: scoping.organization_id,
                         project_id,
-                        upload_ref,
+
                         stream,
+                        key,
+                        mode: mode.clone(),
                     })
                     .await
-                    .map_err(Error::ObjectstoreServiceUnavailable)??
-                    .into_inner();
-                let length = Final(byte_counter.get());
+                    .map_err(Error::ObjectstoreServiceUnavailable)??;
 
-                Location {
-                    project_id,
+                let UploadRef {
                     key,
-                    length,
-                    upload_id: None,
-                    other,
-                }
-                .try_sign(config)
+                    upload_id,
+                    offset,
+                } = upload_ref;
+
+                // For oneshot requests, update the length:
+                let length = match mode {
+                    StreamMode::Oneshot(byte_counter) => byte_counter.get(),
+                    StreamMode::Multipart { length, .. } => length,
+                };
+
+                Ok(StreamResult {
+                    location: Location {
+                        project_id,
+                        key,
+                        length: Final(length),
+                        upload_id: upload_id.map(|id| id.to_string()),
+                        other,
+                    }
+                    .try_sign(config)?,
+                    offset,
+                })
             }
         }
     }
 
-    async fn timeout<L, F>(&self, future: F) -> Result<SignedLocation<L>, Error>
+    async fn timeout<T, F>(&self, future: F) -> Result<T, Error>
     where
-        L: UploadLength,
-        F: IntoFuture<Output = Result<SignedLocation<L>, Error>>,
+        F: IntoFuture<Output = Result<T, Error>>,
     {
         tokio::time::timeout(self.timeout, future).await?
     }
@@ -400,8 +471,8 @@ impl SimpleService for Service {
             Upload::Create(create, sender) => {
                 sender.send(self.timeout(self.create(create)).await);
             }
-            Upload::Upload(stream, sender) => {
-                sender.send(self.timeout(self.upload(stream)).await);
+            Upload::Stream(stream, sender) => {
+                sender.send(self.timeout(self.upload(*stream)).await);
             }
         }
     }
@@ -411,7 +482,7 @@ impl LoadShed<Upload> for Service {
     fn handle_loadshed(&self, message: Upload) {
         match message {
             Upload::Create(_, tx) => tx.send(Err(Error::LoadShed)),
-            Upload::Upload(_, tx) => tx.send(Err(Error::LoadShed)),
+            Upload::Stream(_, tx) => tx.send(Err(Error::LoadShed)),
         }
     }
 }
@@ -617,6 +688,11 @@ impl<L: UploadLength> SignedLocation<L> {
         HeaderValue::from_str(&self.try_to_uri()?).map_err(Error::Internal)
     }
 
+    /// Returns the multipart upload ID, if this location refers to a multipart upload.
+    pub fn upload_id(&self) -> Option<&str> {
+        self.location.upload_id.as_deref()
+    }
+
     fn try_to_uri(&self) -> Result<String, Error> {
         let Self {
             location,
@@ -660,11 +736,12 @@ where
                 let header = response
                     .headers()
                     .get(hyper::header::LOCATION)
-                    .ok_or(Error::InvalidLocation(None))?;
+                    .ok_or(Error::InvalidFromUpstream("location", None))?;
                 let uri = header
                     .to_str()
-                    .map_err(|_| Error::InvalidLocation(Some(header.clone())))?;
-                Self::try_from_str(uri).ok_or(Error::InvalidLocation(Some(header.clone())))
+                    .map_err(|_| Error::InvalidFromUpstream("location", Some(header.clone())))?;
+                Self::try_from_str(uri)
+                    .ok_or(Error::InvalidFromUpstream("location", Some(header.clone())))
             }
             Err(e) => Err(Error::Upstream(e)),
         }
@@ -712,6 +789,7 @@ enum RequestKind {
     },
     Upload {
         uri: String,
+        offset: usize,
         stream: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
         encoding: HttpEncoding,
     },
@@ -751,6 +829,7 @@ impl UploadRequest {
     fn upload(
         project: ProjectContext,
         uri: String,
+        offset: usize,
         stream: BoundedStream<MeteredStream<ByteStream>>,
     ) -> (
         Self,
@@ -762,6 +841,7 @@ impl UploadRequest {
                 project,
                 kind: RequestKind::Upload {
                     uri,
+                    offset,
                     stream: TakeOnce::new(stream),
                     encoding: HttpEncoding::Zstd, // just a default, will be overwritten by .configure()
                 },
@@ -844,6 +924,7 @@ impl UpstreamRequest for UploadRequest {
             }
             RequestKind::Upload {
                 uri: _,
+                offset,
                 stream,
                 encoding,
             } => {
@@ -851,7 +932,7 @@ impl UpstreamRequest for UploadRequest {
                     relay_log::error!("upload request stream was already consumed");
                     return Err(HttpError::Misconfigured);
                 };
-                tus::add_upload_headers(builder);
+                tus::add_upload_headers(builder, *offset);
 
                 let body = encode_body(body, *encoding);
                 builder.content_encoding(*encoding);
