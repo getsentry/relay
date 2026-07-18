@@ -677,11 +677,7 @@ def test_upload_offset(
     relay = relay_with_processing()
     objectstore = objectstore("attachments", project_id)
 
-    import time
-
-    t = time.monotonic()
-    part = random.randbytes(5 * 1024 * 1024)
-    print(f"generated rand bytes in {time.monotonic() - t}")
+    part = random.randbytes(13 * 1024 * 1024)
     data = 3 * part
     response = relay.post(
         f"/api/{project_id}/upload/?sentry_key={project_key}",
@@ -714,12 +710,18 @@ def test_upload_offset(
         key, upload_id = LOCATION_REGEX_WITH_UPLOAD_ID.match(
             response.headers["Location"]
         ).groups()
-        (part1,) = MultipartUpload(objectstore, key, upload_id).list_parts()
+        part1, part2 = MultipartUpload(objectstore, key, upload_id).list_parts()
         assert vars(part1) == {
-            "part_number": 5,
+            "part_number": 6,
             "etag": matches_any(),
             "last_modified": matches_any(),
-            "size": matches(lambda x: 5e6 < x < 6e6),
+            "size": matches(lambda x: 6e6 < x < 7e6),
+        }
+        assert vars(part2) == {
+            "part_number": 13,
+            "etag": matches_any(),
+            "last_modified": matches_any(),
+            "size": matches(lambda x: 7e6 < x < 8e6),
         }
     else:
         (key,) = LOCATION_REGEX.match(response.headers["Location"]).groups()

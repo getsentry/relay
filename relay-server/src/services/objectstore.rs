@@ -301,6 +301,8 @@ pub enum ErrorKind {
     OffsetWithoutUploadId,
     #[error("invalid Upload-Length {length}: server has {server_offset} bytes")]
     InvalidUploadLength { length: usize, server_offset: usize },
+    #[error("request too small: compressed body is {size}, need at least {min_size}")]
+    RequestTooSmall { size: usize, min_size: usize },
     #[error("unknown key {0}")]
     UnknownKey(String),
     #[error("timeout: {0}")]
@@ -322,6 +324,7 @@ impl ErrorKind {
             Self::InvalidOffset { .. } => "invalid_offset",
             Self::OffsetWithoutUploadId => "offset_without_upload_id",
             Self::InvalidUploadLength { .. } => "invalid_upload_length",
+            Self::RequestTooSmall { .. } => "request_too_small",
             Self::UnknownKey { .. } => "invalid_length",
             Self::Timeout(_) => "timeout",
             Self::LoadShed => "load_shed",
@@ -968,11 +971,11 @@ impl ObjectstoreServiceInner {
                     StreamMode::Oneshot(byte_counter) => {
                         let request = session.put_stream(body.boxed()).key(key);
                         let response = request.send().await?;
-                        return Ok(UploadRef {
+                        Ok(UploadRef {
                             key: response.key,
                             upload_id: None,
                             offset: byte_counter.get(),
-                        });
+                        })
                     }
                     StreamMode::Multipart {
                         upload_id,
@@ -1021,14 +1024,15 @@ impl ObjectstoreServiceInner {
                                 is_closing = buffered_offset == length;
                                 if is_closing || bytes.len() == granularity {
                                     compressor.write_all(&bytes).map_err(AttemptUploadError::Zstd)?;
+                                    relay_log::trace!("compressor now holds {} bytes", compressor.get_ref().len());
                                     if is_closing || compressor.get_ref().len() > MULTIPART_MIN_PART_SIZE {
+                                        relay_log::trace!("swap and flush");
                                         let mut new_compressor = zstd::stream::write::Encoder::new(vec![], 0).map_err(AttemptUploadError::Zstd)?;
                                         std::mem::swap(&mut compressor, &mut new_compressor);
                                         let compressed = new_compressor.finish().map_err(AttemptUploadError::Zstd)?;
                                         let mut current_buffer = (buffered_offset, compressed);
                                         std::mem::swap(&mut current_buffer, &mut previous_buffer);
-                                        self.try_flush(current_buffer, &mut multipart, &mut flushed_parts).await?;
-                                        flushed_offset = buffered_offset;
+                                        flushed_offset += self.try_flush(current_buffer, &mut multipart, &mut flushed_parts).await?;
                                     }
                                 }
 
@@ -1042,11 +1046,20 @@ impl ObjectstoreServiceInner {
 
                             // The remaining `current_buffer` might not be large enough to flush on its own,
                             // which is why we kept the `previous_buffer` around to save it:
-                            let (_, mut head) = previous_buffer;
-                            let tail = compressor.finish().map_err(AttemptUploadError::Zstd)?;
-                            relay_log::trace!("Combining {} previous bytes with {} remaining", head.len(), tail.len());
-                            head.extend(tail);
-                            self.try_flush((buffered_offset, head), &mut multipart, &mut flushed_parts).await?;
+                            let (_, mut remaining) = previous_buffer;
+                            if !compressor.get_ref().is_empty() {
+                                let remaining2 = compressor.finish().map_err(AttemptUploadError::Zstd)?;
+                                relay_log::trace!("Combining {} previous bytes with {} remaining", remaining.len(), remaining2.len());
+                                remaining.extend(remaining2);
+                            }
+                            if is_closing || remaining.len() >= MULTIPART_MIN_PART_SIZE {
+                                flushed_offset += self.try_flush((buffered_offset, remaining), &mut multipart, &mut flushed_parts).await?;
+                            } else if !remaining.is_empty() {
+                                // This can happen when a non-closing request body compresses so well that it
+                                // fits under the S3 limit. In this case the client is forced
+                                // to query the `Upload-Offset` again (see INGEST-1025) and retry with a larger chunk.
+                                return Err(AttemptUploadError::RequestTooSmall {size: remaining.len(), min_size: MULTIPART_MIN_PART_SIZE});
+                            }
 
                             if is_closing {
                                 relay_log::trace!("Completing multipart upload");
@@ -1088,10 +1101,11 @@ impl ObjectstoreServiceInner {
         buffer: (usize, Vec<u8>),
         multipart: &mut MultipartUpload,
         parts: &mut Vec<CompletePart>,
-    ) -> Result<(), AttemptUploadError> {
+    ) -> Result<usize, AttemptUploadError> {
         let (end_offset, bytes) = buffer;
+        relay_log::trace!("Trying to flush {} bytes", bytes.len());
         if bytes.is_empty() {
-            return Ok(());
+            return Ok(end_offset);
         }
         let bytes = Bytes::from(bytes);
         let part_number = end_offset.div_ceil(UPLOAD_GRANULARITY.get());
@@ -1118,7 +1132,7 @@ impl ObjectstoreServiceInner {
 
         parts.push(part);
 
-        Ok(())
+        Ok(end_offset)
     }
 
     fn session(
@@ -1147,6 +1161,8 @@ enum AttemptUploadError {
     InvalidOffset { offset: usize, granularity: usize },
     #[error("invalid Upload-Length {length}: server has {server_offset} bytes")]
     InvalidUploadLength { length: usize, server_offset: usize },
+    #[error("Request too small: compressed body is {size}, need at least {min_size}")]
+    RequestTooSmall { size: usize, min_size: usize },
 }
 
 impl From<AttemptUploadError> for ErrorKind {
@@ -1168,6 +1184,9 @@ impl From<AttemptUploadError> for ErrorKind {
                 length,
                 server_offset,
             },
+            AttemptUploadError::RequestTooSmall { size, min_size } => {
+                ErrorKind::RequestTooSmall { size, min_size }
+            }
         }
     }
 }

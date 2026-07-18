@@ -60,7 +60,7 @@ pub enum Error {
     Upstream(#[source] reqwest::Error),
     #[error("upstream provided invalid data for {0}: {1:?}")]
     InvalidFromUpstream(&'static str, Option<HeaderValue>),
-    #[error("invalid data for {0}")]
+    #[error("invalid input: {0}")]
     InvalidFromClient(&'static str),
     #[cfg(feature = "processing")]
     #[error(transparent)]
@@ -397,7 +397,7 @@ impl Service {
                 let scoping = project.scoping;
                 debug_assert_eq!(scoping.project_id, project_id);
 
-                let mode = match dbg!((length.value(), upload_id)) {
+                let mode = match (length.value(), upload_id) {
                     (Some(length), Some(upload_id)) => StreamMode::Multipart {
                         upload_id,
                         offset,

@@ -307,7 +307,6 @@ def dummy_upload(mini_sentry):  # noqa
 
     @mini_sentry.app.route("/api/<project>/upload/", methods=["POST"])
     def create(**opts):
-
         return Response(
             "",
             status=201,

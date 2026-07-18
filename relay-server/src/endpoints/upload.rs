@@ -120,6 +120,7 @@ impl IntoResponse for Error {
                     objectstore::ErrorKind::InvalidOffset { .. } => StatusCode::BAD_REQUEST,
                     objectstore::ErrorKind::OffsetWithoutUploadId => StatusCode::BAD_REQUEST,
                     objectstore::ErrorKind::InvalidUploadLength { .. } => StatusCode::BAD_REQUEST,
+                    objectstore::ErrorKind::RequestTooSmall { .. } => StatusCode::BAD_REQUEST,
                     objectstore::ErrorKind::UnknownKey { .. } => StatusCode::NOT_FOUND,
                     objectstore::ErrorKind::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
                     objectstore::ErrorKind::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
