@@ -376,17 +376,6 @@ pub struct UploadRef {
     pub offset: usize,
 }
 
-// impl UploadRef {
-//     /// Validates the upload ID and returns a new upload reference.
-//     // pub fn new(key: String, upload_id: Option<String>) -> Result<Self, InvalidUploadId> {
-//     //     let upload_id = match upload_id {
-//     //         Some(s) => Some(UploadId::new(s)?),
-//     //         None => None,
-//     //     };
-//     //     Ok(Self { key, upload_id })
-//     // }
-// }
-
 impl fmt::Display for ObjectstoreKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
@@ -1011,28 +1000,27 @@ impl ObjectstoreServiceInner {
                             let mut flushed_parts = vec![];
                             let mut previous_buffer = (offset, vec![]);
                             let mut compressor = zstd::stream::write::Encoder::new(vec![], 0).map_err(AttemptUploadError::Zstd)?;
-                            let mut buffered_offset = offset;
-                            let mut flushed_offset = offset;
+                            let mut new_offset = offset;
                             let mut is_closing = false;
                             while let Some(bytes) = body.next().await {
                                 let bytes = bytes.map_err(objectstore_client::Error::Io)?;
 
                                 debug_assert!(bytes.len() <= granularity);
-                                buffered_offset += bytes.len();
 
-                                // Only accept full grains, unless the upload is done:
-                                is_closing = buffered_offset == length;
+                                // Only accept full grains, unless the upload is done.
+                                is_closing = new_offset + bytes.len() == length;
                                 if is_closing || bytes.len() == granularity {
                                     compressor.write_all(&bytes).map_err(AttemptUploadError::Zstd)?;
+                                    new_offset += bytes.len();
                                     relay_log::trace!("compressor now holds {} bytes", compressor.get_ref().len());
                                     if is_closing || compressor.get_ref().len() > MULTIPART_MIN_PART_SIZE {
                                         relay_log::trace!("swap and flush");
                                         let mut new_compressor = zstd::stream::write::Encoder::new(vec![], 0).map_err(AttemptUploadError::Zstd)?;
                                         std::mem::swap(&mut compressor, &mut new_compressor);
                                         let compressed = new_compressor.finish().map_err(AttemptUploadError::Zstd)?;
-                                        let mut current_buffer = (buffered_offset, compressed);
+                                        let mut current_buffer = (new_offset, compressed);
                                         std::mem::swap(&mut current_buffer, &mut previous_buffer);
-                                        flushed_offset += self.try_flush(current_buffer, &mut multipart, &mut flushed_parts).await?;
+                                        self.try_flush(current_buffer, &mut multipart, &mut flushed_parts).await?;
                                     }
                                 }
 
@@ -1053,7 +1041,7 @@ impl ObjectstoreServiceInner {
                                 remaining.extend(remaining2);
                             }
                             if is_closing || remaining.len() >= MULTIPART_MIN_PART_SIZE {
-                                flushed_offset += self.try_flush((buffered_offset, remaining), &mut multipart, &mut flushed_parts).await?;
+                                self.try_flush((new_offset, remaining), &mut multipart, &mut flushed_parts).await?;
                             } else if !remaining.is_empty() {
                                 // This can happen when a non-closing request body compresses so well that it
                                 // fits under the S3 limit. In this case the client is forced
@@ -1068,7 +1056,7 @@ impl ObjectstoreServiceInner {
                                 // Verify that the last written part number is the highest part number in the list.
                                 // Otherwise clients could fake a small `Upload-Length` for a large upload.
                                 let max_part_number = parts.iter().map(|p|p.part_number.get()).max().unwrap_or(0) as usize;
-                                if max_part_number * granularity != flushed_offset {
+                                if max_part_number != new_offset.div_ceil(granularity) {
                                     return Err(AttemptUploadError::InvalidUploadLength {
                                         length, server_offset: max_part_number * granularity
                                     })
@@ -1087,7 +1075,7 @@ impl ObjectstoreServiceInner {
                             Ok(UploadRef {
                                 key: original_key,
                                 upload_id: final_upload_id,
-                                offset: flushed_offset,
+                                offset: new_offset,
                             })
                         })
                     }
@@ -1101,11 +1089,11 @@ impl ObjectstoreServiceInner {
         buffer: (usize, Vec<u8>),
         multipart: &mut MultipartUpload,
         parts: &mut Vec<CompletePart>,
-    ) -> Result<usize, AttemptUploadError> {
+    ) -> Result<(), AttemptUploadError> {
         let (end_offset, bytes) = buffer;
         relay_log::trace!("Trying to flush {} bytes", bytes.len());
         if bytes.is_empty() {
-            return Ok(end_offset);
+            return Ok(());
         }
         let bytes = Bytes::from(bytes);
         let part_number = end_offset.div_ceil(UPLOAD_GRANULARITY.get());
@@ -1132,7 +1120,7 @@ impl ObjectstoreServiceInner {
 
         parts.push(part);
 
-        Ok(end_offset)
+        Ok(())
     }
 
     fn session(

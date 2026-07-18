@@ -705,6 +705,8 @@ def test_upload_offset(
         data=data1,
     )
     assert response.status_code == 204, response.text
+    # Relay acknowledges exactly the bytes it durably stored:
+    assert response.headers["Upload-Offset"] == str(len(data1))
 
     if feature_flag:
         key, upload_id = LOCATION_REGEX_WITH_UPLOAD_ID.match(
@@ -741,6 +743,7 @@ def test_upload_offset(
     )
     if feature_flag:
         assert response.status_code == 204
+        assert response.headers["Upload-Offset"] == str(len(data))
         (key,) = LOCATION_REGEX.match(response.headers["Location"]).groups()
         assert objectstore.get(key).payload.read() == data
     else:
