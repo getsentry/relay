@@ -104,9 +104,10 @@ impl IntoResponse for Error {
                     Some(status) => status,
                     None => StatusCode::INTERNAL_SERVER_ERROR,
                 },
-                upload::Error::InvalidLocation(_) | upload::Error::SigningFailed => {
+                upload::Error::InvalidFromUpstream { .. } | upload::Error::SigningFailed => {
                     StatusCode::INTERNAL_SERVER_ERROR
                 }
+                upload::Error::InvalidFromClient { .. } => StatusCode::BAD_REQUEST,
                 #[cfg(feature = "processing")]
                 upload::Error::InvalidUploadId(_) => StatusCode::BAD_REQUEST,
                 upload::Error::OffsetWithoutLength => StatusCode::BAD_REQUEST,

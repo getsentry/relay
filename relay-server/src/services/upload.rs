@@ -58,8 +58,10 @@ pub enum Error {
     Timeout(#[from] tokio::time::error::Elapsed),
     #[error("error response from upstream: {0}")]
     Upstream(#[source] reqwest::Error),
-    #[error("upstream provided invalid location: {0:?}")]
-    InvalidLocation(Option<HeaderValue>),
+    #[error("upstream provided invalid data for {0}: {1:?}")]
+    InvalidFromUpstream(&'static str, Option<HeaderValue>),
+    #[error("invalid data for {0}")]
+    InvalidFromClient(&'static str),
     #[cfg(feature = "processing")]
     #[error(transparent)]
     InvalidUploadId(#[from] objectstore_types::multipart::InvalidUploadId),
@@ -89,7 +91,8 @@ impl Error {
             Error::UpstreamRequest(_) => "upstream_request",
             Error::Timeout(_) => "timeout",
             Error::Upstream(_) => "upstream_response",
-            Error::InvalidLocation(_) => "invalid_location",
+            Error::InvalidFromClient { .. } => "invalid_from_client",
+            Error::InvalidFromUpstream { .. } => "invalid_from_upstream",
             #[cfg(feature = "processing")]
             Error::InvalidUploadId(_) => "invalid_upload_id",
             Error::OffsetWithoutLength => "offset_with_defer_length",
@@ -176,11 +179,11 @@ impl StreamResult {
         let offset = response
             .headers()
             .get(tus::UPLOAD_OFFSET)
-            .ok_or(Error::InvalidLocation(None))? // FIXME: different error
+            .ok_or(Error::InvalidFromUpstream("Upload-Offset", None))?
             .to_str()
-            .map_err(|_| Error::InvalidLocation(None))?
+            .map_err(|_| Error::InvalidFromUpstream("Upload-Offset", None))?
             .parse()
-            .map_err(|_| Error::InvalidLocation(None))?;
+            .map_err(|_| Error::InvalidFromUpstream("Upload-Offset", None))?;
         let location = SignedLocation::try_from_response(response)?;
 
         Ok(Self { location, offset })
@@ -408,7 +411,9 @@ impl Service {
                     }
                     (None, Some(_)) => {
                         // NOTE: this restriction could be encoded into the Location type.
-                        return Err(Error::InvalidLocation(None));
+                        return Err(Error::InvalidFromClient(
+                            "upload_id without `Upload-Length`",
+                        ));
                     }
                 };
                 let upload_ref = addr
@@ -731,11 +736,12 @@ where
                 let header = response
                     .headers()
                     .get(hyper::header::LOCATION)
-                    .ok_or(Error::InvalidLocation(None))?;
+                    .ok_or(Error::InvalidFromUpstream("location", None))?;
                 let uri = header
                     .to_str()
-                    .map_err(|_| Error::InvalidLocation(Some(header.clone())))?;
-                Self::try_from_str(uri).ok_or(Error::InvalidLocation(Some(header.clone())))
+                    .map_err(|_| Error::InvalidFromUpstream("location", Some(header.clone())))?;
+                Self::try_from_str(uri)
+                    .ok_or(Error::InvalidFromUpstream("location", Some(header.clone())))
             }
             Err(e) => Err(Error::Upstream(e)),
         }
