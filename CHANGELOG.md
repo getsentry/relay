@@ -9,7 +9,7 @@
 
 **Internal**:
 
-- Allow resumable uploads (feature-flagged). ([#6203](https://github.com/getsentry/relay/pull/6203))
+- Support resumable uploads (feature-flagged). ([#6203](https://github.com/getsentry/relay/pull/6203))
 
 ## 26.7.0
 

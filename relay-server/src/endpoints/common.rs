@@ -611,7 +611,7 @@ where
     let result = upload
         .send(Stream {
             received: Utc::now(),
-            project: project.clone(),
+            project,
             location,
             offset: 0,
             stream,
@@ -634,7 +634,6 @@ where
             );
         })
         .ok()?;
-
     let location = location.into_header_value().ok()?;
     let location = location.to_str().ok()?;
     let placeholder = serde_json::to_vec(&AttachmentPlaceholder {

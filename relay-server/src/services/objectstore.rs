@@ -48,8 +48,6 @@ const UPLOAD_GRANULARITY: NonZeroUsize = NonZeroUsize::new(1024 * 1024).unwrap()
 /// Every part except the last needs to be at least this size.
 const MULTIPART_MIN_PART_SIZE: usize = 5 * 1024 * 1024; // 5 MiB
 
-// const CHUNK_SIZE: NonZeroUsize = NonZeroUsize::new(5 * 1024 * 1024).unwrap();
-
 /// Messages that the objectstore service can handle.
 pub enum Objectstore {
     Event(Managed<Box<StoreEvent>>),
@@ -160,9 +158,12 @@ impl FromMessage<CreateMultipart> for Objectstore {
     }
 }
 
+/// Whether the current request contains the full upload.
 #[derive(Clone)]
 pub enum StreamMode {
+    /// The current request contains the full upload.
     Oneshot(ByteCounter),
+    /// The current request might be partial and requires multipart upload under the hood.
     Multipart {
         upload_id: String,
         offset: usize,
@@ -372,7 +373,7 @@ pub struct UploadRef {
     /// The ID of the multipart upload session (chosen by objectstore).
     /// `None` if the upload is not multipart.
     pub upload_id: Option<UploadId>,
-    /// The byte offset from which to resume the upload,
+    /// The byte offset from which to resume the upload.
     pub offset: usize,
 }
 
@@ -1004,7 +1005,6 @@ impl ObjectstoreServiceInner {
                             let mut is_closing = false;
                             while let Some(bytes) = body.next().await {
                                 let bytes = bytes.map_err(objectstore_client::Error::Io)?;
-
                                 debug_assert!(bytes.len() <= granularity);
 
                                 // Only accept full grains, unless the upload is done.
@@ -1012,14 +1012,20 @@ impl ObjectstoreServiceInner {
                                 if is_closing || bytes.len() == granularity {
                                     compressor.write_all(&bytes).map_err(AttemptUploadError::Zstd)?;
                                     new_offset += bytes.len();
-                                    relay_log::trace!("compressor now holds {} bytes", compressor.get_ref().len());
+
+                                    // If the current compressed part is large enough, flush the previous one.
+                                    // We keep the current one around just in case we need to join it with the last part.
+                                    // (see concatenation after while loop).
                                     if is_closing || compressor.get_ref().len() > MULTIPART_MIN_PART_SIZE {
-                                        relay_log::trace!("swap and flush");
                                         let mut new_compressor = zstd::stream::write::Encoder::new(vec![], 0).map_err(AttemptUploadError::Zstd)?;
+
+                                        // Replace previous buffer with current compressor content.
                                         std::mem::swap(&mut compressor, &mut new_compressor);
                                         let compressed = new_compressor.finish().map_err(AttemptUploadError::Zstd)?;
                                         let mut current_buffer = (new_offset, compressed);
                                         std::mem::swap(&mut current_buffer, &mut previous_buffer);
+
+                                        // Flush previous buffer.
                                         self.try_flush(current_buffer, &mut multipart, &mut flushed_parts).await?;
                                     }
                                 }
@@ -1032,8 +1038,8 @@ impl ObjectstoreServiceInner {
                                 }
                             }
 
-                            // The remaining `current_buffer` might not be large enough to flush on its own,
-                            // which is why we kept the `previous_buffer` around to save it:
+                            // Remaining bytes are now < 5 MiB. Concatenate it with the previous part
+                            // so we reach the limit.
                             let (_, mut remaining) = previous_buffer;
                             if !compressor.get_ref().is_empty() {
                                 let remaining2 = compressor.finish().map_err(AttemptUploadError::Zstd)?;
