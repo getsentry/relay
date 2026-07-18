@@ -146,7 +146,7 @@ pub fn validate_post_headers(headers: &HeaderMap) -> Result<Headers, Error> {
 /// Validates TUS protocol headers and returns the expected upload length.
 ///
 /// Returns the offset from which the upload is resumed.
-pub fn validate_patch_headers(headers: &HeaderMap) -> Result<(usize, Option<usize>), Error> {
+pub fn validate_patch_headers(headers: &HeaderMap) -> Result<usize, Error> {
     let tus_version = headers.get(TUS_RESUMABLE);
     if tus_version != Some(&TUS_VERSION) {
         return Err(Error::Version(
@@ -166,9 +166,8 @@ pub fn validate_patch_headers(headers: &HeaderMap) -> Result<(usize, Option<usiz
     }
 
     let upload_offset: usize = parse_header(headers, UPLOAD_OFFSET).ok_or(Error::UploadOffset)?;
-    let upload_length: Option<usize> = parse_header(headers, UPLOAD_LENGTH);
 
-    Ok((upload_offset, upload_length))
+    Ok(upload_offset)
 }
 
 /// Prepares the required TUS request headers for upstream requests.

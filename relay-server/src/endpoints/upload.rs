@@ -31,7 +31,7 @@ use crate::services::objectstore;
 use crate::services::projects::cache::Project;
 use crate::services::projects::project::ProjectState;
 use crate::services::upload::{
-    self, ByteStream, Final, LocationQueryParams, ProjectContext, Provisional, SignedLocation,
+    self, ByteStream, LocationQueryParams, ProjectContext, Provisional, SignedLocation,
     UploadLength,
 };
 use crate::services::upstream::UpstreamRequestError;
@@ -117,7 +117,7 @@ impl IntoResponse for Error {
                     objectstore::ErrorKind::InvalidScoping => StatusCode::INTERNAL_SERVER_ERROR,
                     objectstore::ErrorKind::InvalidOffset { .. } => StatusCode::BAD_REQUEST,
                     objectstore::ErrorKind::OffsetWithoutUploadId => StatusCode::BAD_REQUEST,
-                    objectstore::ErrorKind::InvalidLength { .. } => StatusCode::BAD_REQUEST,
+                    objectstore::ErrorKind::InvalidUploadLength { .. } => StatusCode::BAD_REQUEST,
                     objectstore::ErrorKind::UnknownKey { .. } => StatusCode::NOT_FOUND,
                     objectstore::ErrorKind::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
                     objectstore::ErrorKind::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
@@ -235,7 +235,7 @@ async fn handle_patch(
     check_kill_switch(&state)?;
 
     relay_log::trace!("Validating headers");
-    let (offset, new_upload_length) = tus::validate_patch_headers(&headers).map_err(Error::from)?;
+    let offset = tus::validate_patch_headers(&headers).map_err(Error::from)?;
 
     let location = SignedLocation::from_parts(
         project_id,
@@ -263,57 +263,45 @@ async fn handle_patch(
     relay_log::trace!("Checking request");
     let project_context = validate(&state, meta, project).await?;
 
-    let (location_header, upload_offset) = if let Some(length) = new_upload_length
-        && length == offset
-    {
-        // Sentinel request.
-        let result = finish(&state, project_context, location, offset).await;
-        let location = result.inspect_err(|e| {
-            relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
-        })?;
-        (location.into_header_value(), offset)
-    } else {
-        let stream = body
-            .into_data_stream()
-            .map(|result| result.map_err(io::Error::other))
-            .boxed();
-        let stream = MeteredStream::new(stream, "upload");
+    let stream = body
+        .into_data_stream()
+        .map(|result| result.map_err(io::Error::other))
+        .boxed();
+    let stream = MeteredStream::new(stream, "upload");
 
-        let (lower_bound, upper_bound) = match upload_length.value() {
-            None => (0, config.max_upload_size()),
-            Some(u) => {
-                let remaining_bytes = u
-                    .checked_sub(offset)
-                    .ok_or(Error::InvalidOffset(offset, u))?;
-                (0, remaining_bytes)
-            }
-        };
-        let stream = BoundedStream::new(stream, lower_bound, upper_bound);
-        let byte_counter = stream.byte_counter();
-
-        relay_log::trace!("Uploading");
-        let result = upload(&state, project_context, location, offset, stream).await;
-        let location = result.inspect_err(|e| {
-            relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
-        })?;
-
-        let new_offset = offset + byte_counter.get();
-        (location.into_header_value(), new_offset)
+    let (lower_bound, upper_bound) = match upload_length.value() {
+        None => (0, config.max_upload_size()),
+        Some(u) => {
+            let remaining_bytes = u
+                .checked_sub(offset)
+                .ok_or(Error::InvalidOffset(offset, u))?;
+            (0, remaining_bytes)
+        }
     };
+    let stream = BoundedStream::new(stream, lower_bound, upper_bound);
+    let byte_counter = stream.byte_counter();
+
+    relay_log::trace!("Uploading");
+    let result = upload(&state, project_context, location, offset, stream).await;
+    let location = result.inspect_err(|e| {
+        relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
+    })?;
+
+    let new_offset = offset + byte_counter.get();
 
     let mut response = NoContent.into_response();
 
     // Not required by TUS, but we respond with the location header:
-    response.headers_mut().insert(
-        header::LOCATION,
-        location_header.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
-    );
+    let location = location
+        .into_header_value()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    response.headers_mut().insert(header::LOCATION, location);
     response
         .headers_mut()
         .insert(tus::TUS_RESUMABLE, tus::TUS_VERSION);
     response
         .headers_mut()
-        .insert(tus::UPLOAD_OFFSET, upload_offset.into());
+        .insert(tus::UPLOAD_OFFSET, new_offset.into());
 
     Ok(response)
 }
@@ -377,24 +365,6 @@ async fn upload(
         })
         .await??;
 
-    Ok(location)
-}
-
-async fn finish(
-    state: &ServiceState,
-    project: ProjectContext,
-    location: SignedLocation<Provisional>,
-    offset: usize,
-) -> Result<SignedLocation<Final>, Error> {
-    let location = state
-        .upload()
-        .send(upload::Finish {
-            received: Utc::now(),
-            project,
-            location,
-            length: offset,
-        })
-        .await??;
     Ok(location)
 }
 

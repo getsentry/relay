@@ -113,8 +113,6 @@ pub enum Upload {
     /// The service also returns the signed location. This is redundant, but creates a simpler
     /// flow for the caller side.
     Stream(Box<Stream>, InstrumentedSender<Provisional>),
-    /// Finishes an upload and declares its final length.
-    Finish(Finish, InstrumentedSender<Final>),
 }
 
 impl Interface for Upload {}
@@ -159,18 +157,6 @@ pub struct Stream {
     pub stream: BoundedStream<MeteredStream<ByteStream>>,
 }
 
-/// A request to finish an upload and declare its final length.
-pub struct Finish {
-    /// Time of arrival of the request.
-    pub received: DateTime<Utc>,
-    /// The project the upload belongs to.
-    pub project: ProjectContext,
-    /// The location to finish.
-    pub location: SignedLocation<Provisional>,
-    /// The final length of the upload in bytes.
-    pub length: usize,
-}
-
 impl FromMessage<Create> for Upload {
     type Response = AsyncResponse<Result<SignedLocation<Provisional>, Error>>;
 
@@ -199,20 +185,6 @@ impl FromMessage<Stream> for Upload {
             Box::new(message),
             InstrumentedSender {
                 metric: RelayCounters::UploadUpload,
-                inner: sender,
-            },
-        )
-    }
-}
-
-impl FromMessage<Finish> for Upload {
-    type Response = AsyncResponse<Result<SignedLocation<Final>, Error>>;
-
-    fn from_message(message: Finish, sender: Sender<Result<SignedLocation<Final>, Error>>) -> Self {
-        Self::Finish(
-            message,
-            InstrumentedSender {
-                metric: RelayCounters::UploadFinish,
                 inner: sender,
             },
         )
@@ -333,12 +305,7 @@ impl Service {
                     // and if the upload actually has data (multipart does not allow empty parts).
                     (false, _) | (_, Some(0)) => (key, None),
                     _ => {
-                        let UploadRef {
-                            key,
-                            upload_id,
-                            offset,
-                            length: _,
-                        } = addr
+                        let UploadRef { key, upload_id } = addr
                             .send(objectstore::CreateMultipart {
                                 organization_id,
                                 project_id,
@@ -346,7 +313,6 @@ impl Service {
                             })
                             .await
                             .map_err(Error::ObjectstoreServiceUnavailable)??;
-                        debug_assert_eq!(offset, 0);
                         #[cfg(debug_assertions)]
                         debug_assert_eq!(&key, &original_key);
                         (key, upload_id)
@@ -384,7 +350,7 @@ impl Service {
             }
             #[cfg(feature = "processing")]
             Backend::Objectstore { addr, config } => {
-                use crate::services::objectstore::UploadRef;
+                use crate::services::objectstore::{StreamingMode, UploadRef};
 
                 let Location {
                     project_id,
@@ -396,88 +362,38 @@ impl Service {
 
                 let scoping = project.scoping;
                 debug_assert_eq!(scoping.project_id, project_id);
-                debug_assert!(stream.length().is_none_or(|l| Some(l) == length.value()));
-                let upload_ref = UploadRef::new(key, upload_id, offset, length.value())?;
+
+                let mode = match (length.value(), upload_id) {
+                    (Some(length), Some(upload_id)) => StreamingMode::Multipart {
+                        upload_id,
+                        offset,
+                        length,
+                    },
+                    (_, None) => StreamingMode::Oneshot,
+                    (None, Some(_)) => {
+                        // NOTE: this restriction could be encoded into the Location type.
+                        return Err(Error::InvalidLocation(None));
+                    }
+                };
                 let upload_ref = addr
                     .send(objectstore::Stream {
                         organization_id: scoping.organization_id,
                         project_id,
-                        upload_ref,
+
                         stream,
+                        key,
+                        mode,
                     })
                     .await
                     .map_err(Error::ObjectstoreServiceUnavailable)??;
 
-                let UploadRef {
+                let UploadRef { key, upload_id } = upload_ref;
+
+                Location {
+                    project_id,
                     key,
-                    upload_id,
-                    offset: _,
                     length,
-                } = upload_ref;
-
-                Location {
-                    project_id,
-                    key,
-                    length: Provisional(length),
                     upload_id: upload_id.map(|id| id.to_string()),
-                    other,
-                }
-                .try_sign(config)
-            }
-        }
-    }
-
-    async fn finish(&self, finish: Finish) -> Result<SignedLocation<Final>, Error> {
-        relay_log::trace!("Finishing request");
-        let Finish {
-            #[cfg_attr(not(feature = "processing"), expect(unused))]
-            received,
-            project,
-            location,
-            length,
-        } = finish;
-
-        match &self.backend {
-            Backend::Upstream { addr } => {
-                relay_log::trace!("Assembling request");
-                let (request, rx) = UploadRequest::finish(project, location.try_to_uri()?, length);
-                addr.send(SendRequest(request));
-                relay_log::trace!("Awaiting response");
-                let response = rx.await??;
-                relay_log::trace!("Returning signed location");
-                SignedLocation::try_from_response(response)
-            }
-            #[cfg(feature = "processing")]
-            Backend::Objectstore { addr, config } => {
-                let Location {
-                    project_id,
-                    mut key,
-                    length: _,
-                    upload_id,
-                    other,
-                } = location.verify(received, config)?;
-
-                let scoping = project.scoping;
-                debug_assert_eq!(scoping.project_id, project_id);
-
-                if let Some(upload_id) = upload_id {
-                    key = addr
-                        .send(objectstore::FinishMultipart {
-                            organization_id: scoping.organization_id,
-                            project_id,
-                            key,
-                            upload_id,
-                            length,
-                        })
-                        .await
-                        .map_err(Error::ObjectstoreServiceUnavailable)??
-                        .into_inner();
-                }
-                Location {
-                    project_id,
-                    key,
-                    length: Final(length),
-                    upload_id: None,
                     other,
                 }
                 .try_sign(config)
@@ -505,9 +421,6 @@ impl SimpleService for Service {
             Upload::Stream(stream, sender) => {
                 sender.send(self.timeout(self.upload(*stream)).await);
             }
-            Upload::Finish(finish, sender) => {
-                sender.send(self.timeout(self.finish(finish)).await);
-            }
         }
     }
 }
@@ -517,7 +430,6 @@ impl LoadShed<Upload> for Service {
         match message {
             Upload::Create(_, tx) => tx.send(Err(Error::LoadShed)),
             Upload::Stream(_, tx) => tx.send(Err(Error::LoadShed)),
-            Upload::Finish(_, tx) => tx.send(Err(Error::LoadShed)),
         }
     }
 }
@@ -827,10 +739,6 @@ enum RequestKind {
         stream: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
         encoding: HttpEncoding,
     },
-    Finish {
-        uri: String,
-        length: usize,
-    },
 }
 
 /// An upstream request made to the `/upload` endpoint.
@@ -888,25 +796,6 @@ impl UploadRequest {
             rx,
         )
     }
-
-    fn finish(
-        project: ProjectContext,
-        uri: String,
-        length: usize,
-    ) -> (
-        Self,
-        oneshot::Receiver<Result<Response, UpstreamRequestError>>,
-    ) {
-        let (sender, rx) = oneshot::channel();
-        (
-            Self {
-                project,
-                kind: RequestKind::Finish { uri, length },
-                sender,
-            },
-            rx,
-        )
-    }
 }
 
 impl fmt::Debug for UploadRequest {
@@ -930,7 +819,7 @@ impl UpstreamRequest for UploadRequest {
     fn method(&self) -> Method {
         match self.kind {
             RequestKind::Create { .. } => Method::POST,
-            RequestKind::Upload { .. } | RequestKind::Finish { .. } => Method::PATCH,
+            RequestKind::Upload { .. } => Method::PATCH,
         }
     }
 
@@ -938,7 +827,7 @@ impl UpstreamRequest for UploadRequest {
         let project_id = self.project.scoping.project_id;
         match &self.kind {
             RequestKind::Create { .. } => Cow::Owned(format!("/api/{project_id}/upload/")),
-            RequestKind::Upload { uri, .. } | RequestKind::Finish { uri, .. } => Cow::Borrowed(uri),
+            RequestKind::Upload { uri, .. } => Cow::Borrowed(uri),
         }
     }
 
@@ -958,7 +847,6 @@ impl UpstreamRequest for UploadRequest {
     fn retry(&self) -> bool {
         match &self.kind {
             RequestKind::Create { .. } => true,
-            RequestKind::Finish { .. } => true,
             // Once the body has been polled, it cannot be replayed — give up instead.
             RequestKind::Upload { stream, .. } => !stream.is_taken(),
         }
@@ -997,12 +885,6 @@ impl UpstreamRequest for UploadRequest {
 
                 builder.body(reqwest::Body::wrap_stream(body));
             }
-            RequestKind::Finish { uri: _, length } => {
-                tus::add_upload_headers(builder, *length);
-                builder.header(tus::UPLOAD_LENGTH, HeaderValue::from(*length));
-                builder.header(http::header::CONTENT_LENGTH.as_str(), "0");
-                builder.body(Bytes::new());
-            }
         };
 
         let project_key = self.project.scoping.project_key;
@@ -1036,42 +918,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn finish_request_is_empty_and_declares_length() {
-        let project = ProjectContext {
-            scoping: Scoping {
-                organization_id: relay_base_schema::organization::OrganizationId::new(1),
-                project_id: ProjectId::new(42),
-                project_key: "a94ae32be2584e0bbd7a4cbb95971fee".parse().unwrap(),
-                key_id: None,
-            },
-            upstream: None,
-        };
-        let (mut upload, _receiver) = UploadRequest::finish(
-            project,
-            "/api/42/upload/key/?upload_signature=signature".to_owned(),
-            123,
-        );
-        let client = reqwest::Client::new();
-        let mut builder = RequestBuilder::reqwest(client.request(
-            upload.method(),
-            format!("http://localhost{}", upload.path()),
-        ));
-
-        upload.build(&mut builder).unwrap();
-        let request = builder.finish().unwrap().0;
-
-        assert_eq!(request.method(), Method::PATCH);
-        assert_eq!(request.headers()[tus::TUS_RESUMABLE], tus::TUS_VERSION);
-        assert_eq!(request.headers()[tus::UPLOAD_OFFSET], "123");
-        assert_eq!(request.headers()[tus::UPLOAD_LENGTH], "123");
-        assert_eq!(request.headers()[http::header::CONTENT_LENGTH], "0");
-        assert_eq!(
-            request.body().and_then(reqwest::Body::as_bytes),
-            Some(&[][..])
-        );
-    }
 
     #[cfg(feature = "processing")]
     mod with_processing {

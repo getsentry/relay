@@ -35,8 +35,7 @@ use crate::services::store::{
 use crate::services::upload::ByteStream;
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{
-    BoundedStream, ByteCounter, MeteredStream, Rechunk, RetryableStream, TakeOnce,
-    find_error_source,
+    BoundedStream, MeteredStream, Rechunk, RetryableStream, TakeOnce, find_error_source,
 };
 
 use super::outcome::Outcome;
@@ -59,7 +58,6 @@ pub enum Objectstore {
     RawProfile(Managed<StoreRawProfile>),
     Create(CreateMultipart, Sender<Result<UploadRef, Error>>),
     Stream(Stream, Sender<Result<UploadRef, Error>>),
-    Finish(FinishMultipart, Sender<Result<ObjectstoreKey, Error>>),
 }
 
 impl Objectstore {
@@ -71,7 +69,6 @@ impl Objectstore {
             Self::RawProfile(_) => MessageKind::RawProfile,
             Self::Stream { .. } => MessageKind::Stream,
             Self::Create { .. } => MessageKind::Create,
-            Self::Finish { .. } => MessageKind::Finish,
         }
     }
 
@@ -83,7 +80,6 @@ impl Objectstore {
             Self::RawProfile(_) => 1,
             Self::Stream { .. } => 1,
             Self::Create { .. } => 0,
-            Self::Finish { .. } => 1,
         }
     }
 }
@@ -131,7 +127,6 @@ enum MessageKind {
     RawProfile,
     Stream,
     Create,
-    Finish,
 }
 
 impl MessageKind {
@@ -143,7 +138,6 @@ impl MessageKind {
             Self::RawProfile => "profile_raw",
             Self::Stream => "stream",
             Self::Create => "create",
-            Self::Finish => "finish",
         }
     }
 }
@@ -166,11 +160,22 @@ impl FromMessage<CreateMultipart> for Objectstore {
     }
 }
 
+#[derive(Clone)]
+pub enum StreamingMode {
+    Oneshot,
+    Multipart {
+        upload_id: String,
+        offset: usize,
+        length: usize,
+    },
+}
+
 /// A stream that can be uploaded to objectstore.
 pub struct Stream {
     pub organization_id: OrganizationId,
     pub project_id: ProjectId,
-    pub upload_ref: UploadRef,
+    pub key: String,
+    pub mode: StreamingMode,
     pub stream: BoundedStream<MeteredStream<ByteStream>>,
 }
 
@@ -179,26 +184,6 @@ impl FromMessage<Stream> for Objectstore {
 
     fn from_message(message: Stream, sender: Sender<Result<UploadRef, Error>>) -> Self {
         Self::Stream(message, sender)
-    }
-}
-
-/// A request to finish an objectstore multipart upload.
-pub struct FinishMultipart {
-    pub organization_id: OrganizationId,
-    pub project_id: ProjectId,
-    pub key: String,
-    pub upload_id: String,
-    pub length: usize,
-}
-
-impl FromMessage<FinishMultipart> for Objectstore {
-    type Response = AsyncResponse<Result<ObjectstoreKey, Error>>;
-
-    fn from_message(
-        message: FinishMultipart,
-        sender: Sender<Result<ObjectstoreKey, Error>>,
-    ) -> Self {
-        Self::Finish(message, sender)
     }
 }
 
@@ -314,8 +299,8 @@ pub enum ErrorKind {
     InvalidOffset { offset: usize, granularity: usize },
     #[error("offset without upload ID")]
     OffsetWithoutUploadId,
-    #[error("invalid upload length {expected}: upload has a total length of {actual}")]
-    InvalidLength { expected: usize, actual: u64 },
+    #[error("invalid Upload-Length {length}: server has {server_offset} bytes")]
+    InvalidUploadLength { length: usize, server_offset: usize },
     #[error("unknown key {0}")]
     UnknownKey(String),
     #[error("timeout: {0}")]
@@ -336,7 +321,7 @@ impl ErrorKind {
             Self::InvalidScoping => "invalid_scoping",
             Self::InvalidOffset { .. } => "invalid_offset",
             Self::OffsetWithoutUploadId => "offset_without_upload_id",
-            Self::InvalidLength { .. } => "invalid_length",
+            Self::InvalidUploadLength { .. } => "invalid_upload_length",
             Self::UnknownKey { .. } => "invalid_length",
             Self::Timeout(_) => "timeout",
             Self::LoadShed => "load_shed",
@@ -348,7 +333,7 @@ impl ErrorKind {
 
     fn is_client_error(&self) -> bool {
         match self {
-            ErrorKind::InvalidOffset { .. } | ErrorKind::InvalidLength { .. } => true,
+            ErrorKind::InvalidOffset { .. } | ErrorKind::InvalidUploadLength { .. } => true,
             ErrorKind::UploadFailed(objectstore_client::Error::Reqwest(error)) => {
                 find_error_source(error, is_user_error).is_some()
             }
@@ -384,35 +369,16 @@ pub struct UploadRef {
     /// The ID of the multipart upload session (chosen by objectstore).
     /// `None` if the upload is not multipart.
     pub upload_id: Option<UploadId>,
-    /// The offset in bytes from which to resume an upload.
-    ///
-    /// Zero for new uploads.
-    pub offset: usize,
-
-    /// The total length of the upload in bytes.
-    ///
-    /// Must be `Some` in order to finalize an upload.
-    pub length: Option<usize>,
 }
 
 impl UploadRef {
     /// Validates the upload ID and returns a new upload reference.
-    pub fn new(
-        key: String,
-        upload_id: Option<String>,
-        offset: usize,
-        length: Option<usize>,
-    ) -> Result<Self, InvalidUploadId> {
+    pub fn new(key: String, upload_id: Option<String>) -> Result<Self, InvalidUploadId> {
         let upload_id = match upload_id {
             Some(s) => Some(UploadId::new(s)?),
             None => None,
         };
-        Ok(Self {
-            key,
-            upload_id,
-            offset,
-            length,
-        })
+        Ok(Self { key, upload_id })
     }
 }
 
@@ -541,9 +507,6 @@ impl LoadShed<Objectstore> for ObjectstoreService {
             Objectstore::Create(_, sender) => {
                 sender.send(Err(error));
             }
-            Objectstore::Finish(_, sender) => {
-                sender.send(Err(error));
-            }
         }
     }
 }
@@ -594,13 +557,6 @@ impl ObjectstoreServiceInner {
                 let result = self.handle_stream(stream).await;
                 if let Err(error) = &result {
                     error.log(MessageKind::Stream);
-                }
-                sender.send(result);
-            }
-            Objectstore::Finish(finish, sender) => {
-                let result = self.handle_finish(finish).await;
-                if let Err(error) = &result {
-                    error.log(MessageKind::Finish);
                 }
                 sender.send(result);
             }
@@ -866,8 +822,6 @@ impl ObjectstoreServiceInner {
         Ok(UploadRef {
             key,
             upload_id: Some(upload_id.clone()),
-            offset: 0,
-            length: None,
         })
     }
 
@@ -875,52 +829,23 @@ impl ObjectstoreServiceInner {
         let Stream {
             organization_id,
             project_id,
-            upload_ref,
+            key,
+            mode,
             stream,
         } = stream;
 
-        if upload_ref.offset % UPLOAD_GRANULARITY != 0 {
-            return Err(ErrorKind::InvalidOffset {
-                offset: upload_ref.offset,
-                granularity: UPLOAD_GRANULARITY.get(),
-            }
-            .into());
-        }
-
         let session = self.session(&self.event_attachments, organization_id, project_id)?;
 
-        let byte_counter = stream.byte_counter();
         self.upload(
             MessageKind::Stream,
             &session,
             Upload::Stream {
                 body: TakeOnce::new(stream),
-                byte_counter,
-                upload_ref,
+                key,
+                mode,
             },
         )
         .await
-    }
-
-    async fn handle_finish(&self, finish: FinishMultipart) -> Result<ObjectstoreKey, Error> {
-        let FinishMultipart {
-            organization_id,
-            project_id,
-            key,
-            upload_id,
-            length,
-        } = finish;
-
-        let session = self.session(&self.event_attachments, organization_id, project_id)?;
-        let multipart = session.resume_multipart_upload(key.clone(), upload_id.to_string())?;
-        let parts = multipart.list_parts().await?;
-        validate_multipart_length(&parts, length)?;
-        let _final_key = multipart
-            .complete(parts.into_iter().map(Into::into))
-            .await?;
-        debug_assert_eq!(&key, &_final_key);
-
-        Ok(ObjectstoreKey(key))
     }
 
     async fn upload_bytes(
@@ -1008,7 +933,6 @@ impl ObjectstoreServiceInner {
                 retention_hours,
                 content_type,
             } => {
-                let len = body.len();
                 let mut request = session.put(body);
                 if let Some(content_type) = content_type {
                     request = request.content_type(content_type.as_str());
@@ -1031,97 +955,114 @@ impl ObjectstoreServiceInner {
                 Ok(UploadRef {
                     key: response.key,
                     upload_id: None,
-                    offset: len,
-                    length: Some(len),
                 })
             }
-            UploadAttempt::Stream {
-                body,
-                byte_counter,
-                upload_ref,
-            } => {
-                let UploadRef {
-                    key,
-                    upload_id,
-                    offset,
-                    length,
-                } = upload_ref;
+            UploadAttempt::Stream { body, key, mode } => {
                 let original_key = key.clone();
-
-                let Some(upload_id) = upload_id else {
-                    // No upload ID: simple upload in a single request.
-                    if offset != 0 {
-                        return Err(AttemptUploadError::OffsetWithoutUploadId);
+                match mode {
+                    StreamingMode::Oneshot => {
+                        let request = session.put_stream(body.boxed()).key(key);
+                        let response = request.send().await?;
+                        return Ok(UploadRef {
+                            key: response.key,
+                            upload_id: None,
+                        });
                     }
-                    let request = session.put_stream(body.boxed()).key(key);
-                    let response = request.send().await?;
-                    return Ok(UploadRef {
-                        key: response.key,
+                    StreamingMode::Multipart {
                         upload_id,
                         offset,
                         length,
-                    });
-                };
+                    } => {
+                        let granularity = UPLOAD_GRANULARITY.get();
 
-                let mut multipart_upload =
-                    session.resume_multipart_upload(key, upload_id.to_string())?;
-                let upload_id = multipart_upload.upload_id().clone();
-
-                relay_statsd::metric!(
-                    timer(RelayTimers::AttachmentUploadDuration),
-                    type = kind.as_str(),
-                {
-                    // Ensure that the stream ends at the granularity boundary.
-                    // NOTE: Once every upload is a multipart upload, we can remove `RetryableStream`
-                    // because streams will never be effectively retried.
-                    let mut body = Rechunk::new(body, UPLOAD_GRANULARITY);
-
-                    // Unfortunately, MinIO has the limitation that the length of a multipart request
-                    // has to be known. Therefore, we need to materialize the stream into concrete
-                    // chunks of bytes and send each chunk as an individual request.
-                    //
-                    // Every chunk needs to be > 5 MB because that's what multipart requires.
-                    let mut parts = vec![];
-                    let mut compressed_buffer = zstd::stream::write::Encoder::new(vec![], 0).map_err(AttemptUploadError::Zstd)?;
-                    let mut part_number = offset / UPLOAD_GRANULARITY + 1;
-                    while let Some(bytes) = body.next().await {
-                        match bytes {
-                            Err(error) =>  {
-                                self.try_flush(&mut compressed_buffer, part_number, &mut multipart_upload, &mut parts).await?;
-                                return Err(objectstore_client::Error::Io(error).into());
-                            } Ok(bytes) => {
-                                compressed_buffer.write_all(&bytes).map_err(AttemptUploadError::Zstd)?;
-                                if compressed_buffer.get_ref().len() > MULTIPART_MIN_PART_SIZE {
-                                    self.try_flush(&mut compressed_buffer, part_number, &mut multipart_upload, &mut parts).await?;
-                                }
-                            }
+                        if (offset % granularity) != 0 {
+                            return Err(AttemptUploadError::InvalidOffset {
+                                offset,
+                                granularity,
+                            });
                         }
-                        part_number += 1;
+
+                        let mut multipart_upload =
+                            session.resume_multipart_upload(key, upload_id)?;
+                        let mut final_upload_id = Some(multipart_upload.upload_id().clone());
+
+                        relay_statsd::metric!(
+                            timer(RelayTimers::AttachmentUploadDuration),
+                            type = kind.as_str(),
+                        {
+                            // Ensure that the stream ends at the granularity boundary.
+                            // NOTE: Once every upload is a multipart upload, we can remove `RetryableStream`
+                            // because streams will never be effectively retried.
+                            let mut body = Rechunk::new(body, UPLOAD_GRANULARITY);
+
+                            // Unfortunately, MinIO has the limitation that the length of a multipart request
+                            // has to be known. Therefore, we need to materialize the stream into concrete
+                            // chunks of bytes and send each chunk as an individual request.
+                            //
+                            // Every chunk needs to be > 5 MB because that's what multipart requires.
+                            let mut parts = vec![];
+                            let mut compressed_buffer = zstd::stream::write::Encoder::new(vec![], 0).map_err(AttemptUploadError::Zstd)?;
+                            let mut part_number = offset / granularity + 1;
+                            let mut is_final = false;
+                            while let Some(bytes) = body.next().await {
+                                match bytes {
+                                    Err(error) =>  {
+                                        self.try_flush(&mut compressed_buffer, part_number, &mut multipart_upload, &mut parts).await?;
+                                        return Err(objectstore_client::Error::Io(error).into());
+                                    } Ok(bytes) => {
+                                        debug_assert!(bytes.len() <= granularity);
+                                        let new_file_size = part_number * granularity + bytes.len();
+
+                                        // Only accept full grains, unless the upload is done:
+                                        is_final = new_file_size == length;
+                                        if bytes.len() == granularity || is_final {
+                                            compressed_buffer.write_all(&bytes).map_err(AttemptUploadError::Zstd)?;
+                                            if is_final || compressed_buffer.get_ref().len() > MULTIPART_MIN_PART_SIZE {
+                                                self.try_flush(&mut compressed_buffer, part_number, &mut multipart_upload, &mut parts).await?;
+                                            }
+                                        }
+
+                                        if is_final {
+                                            // This should already be guaranteed by the BoundedStream.
+                                            #[cfg(debug_assertions)]
+                                            debug_assert!(body.next().await.is_none());
+                                            break;
+                                        }
+                                    }
+                                }
+                                part_number += 1;
+                            }
+
+                            if is_final {
+                                relay_log::trace!("Completing multipart upload");
+                                let parts = multipart_upload.list_parts().await?;
+
+                                // Verify that the last written part number is the highest part number in the list.
+                                // Otherwise clients could fake a small `Upload-Length` for a large upload.
+                                let max_part_number = parts.iter().map(|p|p.part_number.get()).max().unwrap_or(0) as usize;
+                                if max_part_number != part_number {
+                                    return Err(AttemptUploadError::InvalidUploadLength {
+                                        length, server_offset: max_part_number * granularity
+                                    })
+                                }
+
+                                let parts = parts.into_iter().map(|item| {
+                                    let PartInfo{ part_number, etag, .. } = item;
+                                    CompletePart { part_number, etag }
+                                });
+
+                                let final_key = multipart_upload.complete(parts).await?;
+                                final_upload_id = None;
+                                debug_assert_eq!(&original_key, &final_key);
+                            }
+
+                            Ok(UploadRef {
+                                key: original_key,
+                                upload_id: final_upload_id
+                            })
+                        })
                     }
-
-                    self.try_flush(&mut compressed_buffer, part_number, &mut multipart_upload, &mut parts).await?;
-
-                    let new_offset = offset + byte_counter.get();
-                    if length.is_some_and(|length| length == new_offset) {
-                        relay_log::trace!("Completing multipart upload");
-                        let parts = multipart_upload.list_parts().await?;
-
-                        let parts = parts.into_iter().map(|item| {
-                            let PartInfo{ part_number, etag, .. } = item;
-                            CompletePart { part_number, etag }
-                        });
-
-                        let final_key = multipart_upload.complete(parts).await?;
-                        debug_assert_eq!(&original_key, &final_key);
-                    }
-
-                    Ok(UploadRef {
-                        key: original_key,
-                        upload_id: Some(upload_id),
-                        offset: offset + byte_counter.get(),
-                        length,
-                    })
-                })
+                }
             }
         }
     }
@@ -1186,26 +1127,16 @@ impl ObjectstoreServiceInner {
     }
 }
 
-fn validate_multipart_length(parts: &[PartInfo], expected: usize) -> Result<(), ErrorKind> {
-    let actual = parts
-        .iter()
-        .fold(0u64, |sum, part| sum.saturating_add(part.size));
-
-    if actual != expected as u64 {
-        return Err(ErrorKind::InvalidLength { expected, actual });
-    }
-
-    Ok(())
-}
-
 #[derive(Debug, thiserror::Error)]
 enum AttemptUploadError {
     #[error(transparent)]
     Objectstore(#[from] objectstore_client::Error),
     #[error("zstd error: {0}")]
     Zstd(#[source] std::io::Error),
-    #[error("offset without upload ID")]
-    OffsetWithoutUploadId,
+    #[error("invalid Upload-Offset {offset}: must be a multiple of {granularity}")]
+    InvalidOffset { offset: usize, granularity: usize },
+    #[error("invalid Upload-Length {length}: server has {server_offset} bytes")]
+    InvalidUploadLength { length: usize, server_offset: usize },
 }
 
 impl From<AttemptUploadError> for ErrorKind {
@@ -1213,7 +1144,20 @@ impl From<AttemptUploadError> for ErrorKind {
         match value {
             AttemptUploadError::Objectstore(error) => ErrorKind::UploadFailed(error),
             AttemptUploadError::Zstd(error) => ErrorKind::CompressionFailed(error),
-            AttemptUploadError::OffsetWithoutUploadId => ErrorKind::OffsetWithoutUploadId,
+            AttemptUploadError::InvalidOffset {
+                offset,
+                granularity,
+            } => ErrorKind::InvalidOffset {
+                offset,
+                granularity,
+            },
+            AttemptUploadError::InvalidUploadLength {
+                length,
+                server_offset,
+            } => ErrorKind::InvalidUploadLength {
+                length,
+                server_offset,
+            },
         }
     }
 }
@@ -1230,8 +1174,8 @@ enum Upload {
     },
     Stream {
         body: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
-        byte_counter: ByteCounter,
-        upload_ref: UploadRef,
+        key: String,
+        mode: StreamingMode,
     },
 }
 
@@ -1249,15 +1193,13 @@ impl Upload {
                 retention_hours: *retention_hours,
                 content_type: *content_type,
             }),
-            Self::Stream {
-                body,
-                byte_counter,
-                upload_ref,
-            } => RetryableStream::new(body.clone()).map(|body| UploadAttempt::Stream {
-                body,
-                byte_counter: byte_counter.clone(),
-                upload_ref: upload_ref.clone(),
-            }),
+            Self::Stream { body, key, mode } => {
+                RetryableStream::new(body.clone()).map(|body| UploadAttempt::Stream {
+                    body,
+                    key: key.clone(),
+                    mode: mode.clone(),
+                })
+            }
         }
     }
 }
@@ -1274,8 +1216,8 @@ enum UploadAttempt {
     },
     Stream {
         body: RetryableStream<BoundedStream<MeteredStream<ByteStream>>>,
-        byte_counter: ByteCounter,
-        upload_ref: UploadRef,
+        key: String,
+        mode: StreamingMode,
     },
 }
 
@@ -1330,8 +1272,6 @@ fn drop_attachments(event: &mut Managed<Box<StoreEvent>>) {
 
 #[cfg(test)]
 mod tests {
-    use std::num::NonZeroU32;
-    use std::time::SystemTime;
 
     use relay_event_schema::protocol::EventId;
     use relay_quotas::DataCategory;
@@ -1340,33 +1280,6 @@ mod tests {
     use crate::managed::ManagedTestHandle;
 
     use super::*;
-
-    #[test]
-    fn validates_multipart_length() {
-        let parts = [
-            PartInfo {
-                part_number: NonZeroU32::new(1).unwrap(),
-                etag: "first".to_owned(),
-                last_modified: SystemTime::UNIX_EPOCH,
-                size: 3,
-            },
-            PartInfo {
-                part_number: NonZeroU32::new(2).unwrap(),
-                etag: "second".to_owned(),
-                last_modified: SystemTime::UNIX_EPOCH,
-                size: 5,
-            },
-        ];
-
-        assert!(validate_multipart_length(&parts, 8).is_ok());
-        assert!(matches!(
-            validate_multipart_length(&parts, 9),
-            Err(ErrorKind::InvalidLength {
-                expected: 9,
-                actual: 8
-            })
-        ));
-    }
 
     #[tokio::test]
     async fn org_zero_rejected() {
@@ -1385,13 +1298,9 @@ mod tests {
             .send(Stream {
                 organization_id: OrganizationId::new(0),
                 project_id: ProjectId::new(1),
-                upload_ref: UploadRef {
-                    key: "my_file".to_owned(),
-                    upload_id: Some(UploadId::new("my_upload".to_owned()).unwrap()),
-                    offset: 0,
-                    length: None,
-                },
                 stream,
+                key: "my_key".to_owned(),
+                mode: StreamingMode::Oneshot,
             })
             .await
             .unwrap();

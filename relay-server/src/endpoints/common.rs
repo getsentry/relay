@@ -24,7 +24,7 @@ use crate::service::ServiceState;
 use crate::services::buffer::{ProjectKeyPair, PushError};
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
 use crate::services::processor::{BucketSource, MetricData, ProcessMetrics};
-use crate::services::upload::{Create, Finish, ProjectContext, Stream, Upload};
+use crate::services::upload::{Create, ProjectContext, Stream, Upload};
 use crate::statsd::{RelayCounters, RelayDistributions};
 use crate::utils::{
     self, ApiErrorResponse, BoundedStream, FormDataIter, MeteredStream, find_error_source,
@@ -632,27 +632,6 @@ where
         })
         .ok()?;
 
-    let location = {
-        upload
-            .send(Finish {
-                received: Utc::now(),
-                project,
-                location,
-                length: byte_counter.get(),
-            })
-            .await
-            .ok()?
-            .inspect_err(|e| {
-                relay_log::warn!(
-                    error = e as &dyn std::error::Error,
-                    referrer = referrer,
-                    organization_id = scoping.organization_id.value(),
-                    project_id = scoping.project_id.value(),
-                    "multipart item upload finalization failed",
-                );
-            })
-            .ok()?
-    };
     let location = location.into_header_value().ok()?;
     let location = location.to_str().ok()?;
     let placeholder = serde_json::to_vec(&AttachmentPlaceholder {
