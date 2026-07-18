@@ -14,7 +14,6 @@ use objectstore_client::{
     SecretKey as SigningKey, Session, TokenGenerator, UploadId, Usecase,
 };
 
-use objectstore_types::multipart::InvalidUploadId;
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_config::ObjectstoreServiceConfig;
@@ -35,7 +34,8 @@ use crate::services::store::{
 use crate::services::upload::ByteStream;
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{
-    BoundedStream, MeteredStream, Rechunk, RetryableStream, TakeOnce, find_error_source,
+    BoundedStream, ByteCounter, MeteredStream, Rechunk, RetryableStream, TakeOnce,
+    find_error_source,
 };
 
 use super::outcome::Outcome;
@@ -162,7 +162,7 @@ impl FromMessage<CreateMultipart> for Objectstore {
 
 #[derive(Clone)]
 pub enum StreamingMode {
-    Oneshot,
+    Oneshot(ByteCounter),
     Multipart {
         upload_id: String,
         offset: usize,
@@ -369,18 +369,20 @@ pub struct UploadRef {
     /// The ID of the multipart upload session (chosen by objectstore).
     /// `None` if the upload is not multipart.
     pub upload_id: Option<UploadId>,
+    /// The byte offset from which to resume the upload,
+    pub offset: usize,
 }
 
-impl UploadRef {
-    /// Validates the upload ID and returns a new upload reference.
-    pub fn new(key: String, upload_id: Option<String>) -> Result<Self, InvalidUploadId> {
-        let upload_id = match upload_id {
-            Some(s) => Some(UploadId::new(s)?),
-            None => None,
-        };
-        Ok(Self { key, upload_id })
-    }
-}
+// impl UploadRef {
+//     /// Validates the upload ID and returns a new upload reference.
+//     // pub fn new(key: String, upload_id: Option<String>) -> Result<Self, InvalidUploadId> {
+//     //     let upload_id = match upload_id {
+//     //         Some(s) => Some(UploadId::new(s)?),
+//     //         None => None,
+//     //     };
+//     //     Ok(Self { key, upload_id })
+//     // }
+// }
 
 impl fmt::Display for ObjectstoreKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -822,6 +824,7 @@ impl ObjectstoreServiceInner {
         Ok(UploadRef {
             key,
             upload_id: Some(upload_id.clone()),
+            offset: 0,
         })
     }
 
@@ -933,6 +936,7 @@ impl ObjectstoreServiceInner {
                 retention_hours,
                 content_type,
             } => {
+                let offset = body.len();
                 let mut request = session.put(body);
                 if let Some(content_type) = content_type {
                     request = request.content_type(content_type.as_str());
@@ -955,17 +959,19 @@ impl ObjectstoreServiceInner {
                 Ok(UploadRef {
                     key: response.key,
                     upload_id: None,
+                    offset,
                 })
             }
             UploadAttempt::Stream { body, key, mode } => {
                 let original_key = key.clone();
                 match mode {
-                    StreamingMode::Oneshot => {
+                    StreamingMode::Oneshot(byte_counter) => {
                         let request = session.put_stream(body.boxed()).key(key);
                         let response = request.send().await?;
                         return Ok(UploadRef {
                             key: response.key,
                             upload_id: None,
+                            offset: byte_counter.get(),
                         });
                     }
                     StreamingMode::Multipart {
@@ -1002,35 +1008,37 @@ impl ObjectstoreServiceInner {
                             // Every chunk needs to be > 5 MB because that's what multipart requires.
                             let mut parts = vec![];
                             let mut compressed_buffer = zstd::stream::write::Encoder::new(vec![], 0).map_err(AttemptUploadError::Zstd)?;
-                            let mut part_number = offset / granularity + 1;
+                            let mut buffered_offset = offset;
+                            let mut flushed_offset = offset;
                             let mut is_final = false;
                             while let Some(bytes) = body.next().await {
-                                match bytes {
-                                    Err(error) =>  {
-                                        self.try_flush(&mut compressed_buffer, part_number, &mut multipart_upload, &mut parts).await?;
-                                        return Err(objectstore_client::Error::Io(error).into());
-                                    } Ok(bytes) => {
-                                        debug_assert!(bytes.len() <= granularity);
-                                        let new_file_size = part_number * granularity + bytes.len();
+                                let bytes = bytes.map_err(objectstore_client::Error::Io)?;
 
-                                        // Only accept full grains, unless the upload is done:
-                                        is_final = new_file_size == length;
-                                        if bytes.len() == granularity || is_final {
-                                            compressed_buffer.write_all(&bytes).map_err(AttemptUploadError::Zstd)?;
-                                            if is_final || compressed_buffer.get_ref().len() > MULTIPART_MIN_PART_SIZE {
-                                                self.try_flush(&mut compressed_buffer, part_number, &mut multipart_upload, &mut parts).await?;
-                                            }
-                                        }
+                                debug_assert!(bytes.len() <= granularity);
+                                buffered_offset += bytes.len();
 
-                                        if is_final {
-                                            // This should already be guaranteed by the BoundedStream.
-                                            #[cfg(debug_assertions)]
-                                            debug_assert!(body.next().await.is_none());
-                                            break;
-                                        }
+                                // Only accept full grains, unless the upload is done:
+                                is_final = buffered_offset == length;
+                                if is_final || bytes.len() == granularity {
+                                    compressed_buffer.write_all(&bytes).map_err(AttemptUploadError::Zstd)?;
+                                    if is_final || compressed_buffer.get_ref().len() > MULTIPART_MIN_PART_SIZE {
+                                        self.try_flush(&mut compressed_buffer, buffered_offset, &mut multipart_upload, &mut parts).await?;
+                                        flushed_offset = buffered_offset;
                                     }
                                 }
-                                part_number += 1;
+
+                                if is_final {
+                                    // This should already be guaranteed by the BoundedStream.
+                                    #[cfg(debug_assertions)]
+                                    debug_assert!(body.next().await.is_none());
+                                    break;
+                                }
+                            }
+
+                            if !compressed_buffer.get_ref().is_empty() {
+                                // This can happen when the body compresses so well that it never
+                                // passes the minimum mark.
+                                relay_log::warn!("Stream ended before reaching minimum part size");
                             }
 
                             if is_final {
@@ -1040,7 +1048,7 @@ impl ObjectstoreServiceInner {
                                 // Verify that the last written part number is the highest part number in the list.
                                 // Otherwise clients could fake a small `Upload-Length` for a large upload.
                                 let max_part_number = parts.iter().map(|p|p.part_number.get()).max().unwrap_or(0) as usize;
-                                if max_part_number != part_number {
+                                if max_part_number * granularity != flushed_offset {
                                     return Err(AttemptUploadError::InvalidUploadLength {
                                         length, server_offset: max_part_number * granularity
                                     })
@@ -1058,7 +1066,8 @@ impl ObjectstoreServiceInner {
 
                             Ok(UploadRef {
                                 key: original_key,
-                                upload_id: final_upload_id
+                                upload_id: final_upload_id,
+                                offset: flushed_offset,
                             })
                         })
                     }
@@ -1070,7 +1079,7 @@ impl ObjectstoreServiceInner {
     async fn try_flush(
         &self,
         buffer: &mut zstd::stream::write::Encoder<'_, Vec<u8>>,
-        part_number: usize,
+        byte_offset: usize,
         multipart: &mut MultipartUpload,
         parts: &mut Vec<CompletePart>,
     ) -> Result<(), AttemptUploadError> {
@@ -1085,6 +1094,7 @@ impl ObjectstoreServiceInner {
             .map_err(AttemptUploadError::Zstd)?
             .into();
 
+        let part_number = byte_offset.div_ceil(UPLOAD_GRANULARITY.get());
         let part_number = u32::try_from(part_number)
             .map_err(|_| objectstore_client::Error::InvalidPartNumber(u32::MAX))?;
 
@@ -1300,7 +1310,7 @@ mod tests {
                 project_id: ProjectId::new(1),
                 stream,
                 key: "my_key".to_owned(),
-                mode: StreamingMode::Oneshot,
+                mode: StreamingMode::Oneshot(stream.byte_counter()),
             })
             .await
             .unwrap();

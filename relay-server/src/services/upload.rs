@@ -63,7 +63,7 @@ pub enum Error {
     #[cfg(feature = "processing")]
     #[error(transparent)]
     InvalidUploadId(#[from] objectstore_types::multipart::InvalidUploadId),
-    #[error("Upload-Offset is not currently supported with Defer-Length: 1")]
+    #[error("Upload-Offset > 0 is currently unsupported with Defer-Length: 1")]
     OffsetWithoutLength,
     #[error("serializing location failed: {0}")]
     SerializeFailed(#[from] serde_urlencoded::ser::Error),
@@ -308,7 +308,11 @@ impl Service {
                     // and if the upload actually has data (multipart does not allow empty parts).
                     (false, _) | (_, Some(0)) => (key, None),
                     _ => {
-                        let UploadRef { key, upload_id } = addr
+                        let UploadRef {
+                            key,
+                            upload_id,
+                            offset: _,
+                        } = addr
                             .send(objectstore::CreateMultipart {
                                 organization_id,
                                 project_id,
@@ -366,7 +370,7 @@ impl Service {
                 let scoping = project.scoping;
                 debug_assert_eq!(scoping.project_id, project_id);
 
-                let mode = match (length.value(), upload_id) {
+                let mode = match dbg!((length.value(), upload_id)) {
                     (Some(length), Some(upload_id)) => StreamingMode::Multipart {
                         upload_id,
                         offset,
@@ -376,14 +380,13 @@ impl Service {
                         if offset != 0 {
                             return Err(Error::OffsetWithoutLength);
                         }
-                        StreamingMode::Oneshot
+                        StreamingMode::Oneshot(stream.byte_counter())
                     }
                     (None, Some(_)) => {
                         // NOTE: this restriction could be encoded into the Location type.
                         return Err(Error::InvalidLocation(None));
                     }
                 };
-                let byte_counter = stream.byte_counter();
                 let upload_ref = addr
                     .send(objectstore::Stream {
                         organization_id: scoping.organization_id,
@@ -396,18 +399,16 @@ impl Service {
                     .await
                     .map_err(Error::ObjectstoreServiceUnavailable)??;
 
-                let UploadRef { key, upload_id } = upload_ref;
-
-                // If it was a oneshot request, update the length:
-                let final_length = match mode {
-                    StreamingMode::Oneshot => offset + byte_counter.get(),
-                    StreamingMode::Multipart { length, .. } => length,
-                };
+                let UploadRef {
+                    key,
+                    upload_id,
+                    offset,
+                } = upload_ref;
 
                 Location {
                     project_id,
                     key,
-                    length: Provisional(Some(final_length)), // FIXME: could be Final
+                    length: Provisional(Some(offset)), // FIXME: could be Final
                     upload_id: upload_id.map(|id| id.to_string()),
                     other,
                 }
