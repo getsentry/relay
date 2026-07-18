@@ -761,6 +761,85 @@ def test_upload_offset(
         }
 
 
+def test_upload_unaligned_body_rejected(
+    mini_sentry, relay_with_processing, objectstore
+):
+    """A non-final PATCH body that is not a multiple of the upload granularity is rejected.
+
+    Silently dropping the sub-grain tail would return a 204 whose ``Upload-Offset``
+    excludes it; for bodies smaller than one grain that means acknowledging zero
+    progress, which sends offset-driven clients into an endless retry loop.
+
+    Full grains received before the unaligned tail are still persisted where they
+    form a valid part, so the client can resume from the last durable offset.
+    """
+    project_id = 42
+    config = mini_sentry.add_full_project_config(project_id)["config"]
+    config.setdefault("features", []).append("projects:relay-upload-multipart")
+    project_key = mini_sentry.get_dsn_public_key(project_id)
+
+    relay = relay_with_processing()
+    objectstore = objectstore("attachments", project_id)
+
+    data = random.randbytes(10 * 1024 * 1024)
+    response = relay.post(
+        f"/api/{project_id}/upload/?sentry_key={project_key}",
+        headers={
+            "Content-Length": "0",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": str(len(data)),
+        },
+    )
+    assert response.status_code == 201
+    location = f"{response.headers['Location']}&sentry_key={project_key}"
+
+    # Sub-grain body (512 KiB) that does not complete the upload:
+    response = relay.patch(
+        location,
+        headers={
+            "Content-Length": str(512 * 1024),
+            "Content-Type": "application/offset+octet-stream",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Offset": "0",
+        },
+        data=data[: 512 * 1024],
+    )
+    assert response.status_code == 400, response.text
+    assert "upload granularity" in response.text
+
+    # Grain-aligned body with a sub-grain tail (6.5 MiB) is rejected as well:
+    response = relay.patch(
+        location,
+        headers={
+            "Content-Length": str(13 * 512 * 1024),
+            "Content-Type": "application/offset+octet-stream",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Offset": "0",
+        },
+        data=data[: 13 * 512 * 1024],
+    )
+    assert response.status_code == 400, response.text
+    assert "upload granularity" in response.text
+
+    # The first 6 MiB of the rejected request were still persisted (they formed a
+    # valid part), so the upload can be resumed and completed from that offset:
+    resume_offset = 6 * 1024 * 1024
+    response = relay.patch(
+        location,
+        headers={
+            "Content-Length": str(len(data) - resume_offset),
+            "Content-Type": "application/offset+octet-stream",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Offset": str(resume_offset),
+        },
+        data=data[resume_offset:],
+    )
+    assert response.status_code == 204, response.text
+    assert response.headers["Upload-Offset"] == str(len(data))
+    (key,) = LOCATION_REGEX.match(response.headers["Location"]).groups()
+    assert objectstore.get(key).payload.read() == data
+
+
 @pytest.mark.parametrize(
     "opted_in,metadata,expected_status_code",
     [

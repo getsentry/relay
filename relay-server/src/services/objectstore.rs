@@ -304,6 +304,10 @@ pub enum ErrorKind {
     InvalidUploadLength { length: usize, server_offset: usize },
     #[error("request too small: compressed body is {size}, need at least {min_size}")]
     RequestTooSmall { size: usize, min_size: usize },
+    #[error(
+        "the body of a non-final request must be a multiple of the upload granularity {granularity}, found {trailing} trailing bytes"
+    )]
+    UnalignedBody { trailing: usize, granularity: usize },
     #[error("unknown key {0}")]
     UnknownKey(String),
     #[error("timeout: {0}")]
@@ -326,6 +330,7 @@ impl ErrorKind {
             Self::OffsetWithoutUploadId => "offset_without_upload_id",
             Self::InvalidUploadLength { .. } => "invalid_upload_length",
             Self::RequestTooSmall { .. } => "request_too_small",
+            Self::UnalignedBody { .. } => "unaligned_body",
             Self::UnknownKey { .. } => "invalid_length",
             Self::Timeout(_) => "timeout",
             Self::LoadShed => "load_shed",
@@ -337,7 +342,9 @@ impl ErrorKind {
 
     fn is_client_error(&self) -> bool {
         match self {
-            ErrorKind::InvalidOffset { .. } | ErrorKind::InvalidUploadLength { .. } => true,
+            ErrorKind::InvalidOffset { .. }
+            | ErrorKind::InvalidUploadLength { .. }
+            | ErrorKind::UnalignedBody { .. } => true,
             ErrorKind::UploadFailed(objectstore_client::Error::Reqwest(error)) => {
                 find_error_source(error, is_user_error).is_some()
             }
@@ -1003,6 +1010,7 @@ impl ObjectstoreServiceInner {
                             let mut compressor = zstd::stream::write::Encoder::new(vec![], 0).map_err(AttemptUploadError::Zstd)?;
                             let mut new_offset = offset;
                             let mut is_closing = false;
+                            let mut misalignment = 0;
                             while let Some(bytes) = body.next().await {
                                 let bytes = bytes.map_err(objectstore_client::Error::Io)?;
                                 debug_assert!(bytes.len() <= granularity);
@@ -1028,6 +1036,10 @@ impl ObjectstoreServiceInner {
                                         // Flush previous buffer.
                                         self.try_flush(current_buffer, &mut multipart, &mut flushed_parts).await?;
                                     }
+                                } else {
+                                    // We're at the end of a non-final request, but it is not
+                                    // aligned with granularity: return an error.
+                                    misalignment = bytes.len();
                                 }
 
                                 if is_closing {
@@ -1048,11 +1060,17 @@ impl ObjectstoreServiceInner {
                             }
                             if is_closing || remaining.len() >= MULTIPART_MIN_PART_SIZE {
                                 self.try_flush((new_offset, remaining), &mut multipart, &mut flushed_parts).await?;
-                            } else if !remaining.is_empty() {
+                            } else if !remaining.is_empty() && misalignment == 0 {
                                 // This can happen when a non-closing request body compresses so well that it
                                 // fits under the S3 limit. In this case the client is forced
                                 // to query the `Upload-Offset` again (see INGEST-1025) and retry with a larger chunk.
                                 return Err(AttemptUploadError::RequestTooSmall {size: remaining.len(), min_size: MULTIPART_MIN_PART_SIZE});
+                            }
+
+                            // A non-final request did not end at the granularity boundary.
+                            // All full grains were stored, but signal an error to the client.
+                            if misalignment > 0 {
+                                return Err(AttemptUploadError::UnalignedBody { trailing: misalignment, granularity });
                             }
 
                             if is_closing {
@@ -1157,6 +1175,10 @@ enum AttemptUploadError {
     InvalidUploadLength { length: usize, server_offset: usize },
     #[error("Request too small: compressed body is {size}, need at least {min_size}")]
     RequestTooSmall { size: usize, min_size: usize },
+    #[error(
+        "the body of a non-final request must be a multiple of the upload granularity {granularity}, found {trailing} trailing bytes"
+    )]
+    UnalignedBody { trailing: usize, granularity: usize },
 }
 
 impl From<AttemptUploadError> for ErrorKind {
@@ -1181,6 +1203,13 @@ impl From<AttemptUploadError> for ErrorKind {
             AttemptUploadError::RequestTooSmall { size, min_size } => {
                 ErrorKind::RequestTooSmall { size, min_size }
             }
+            AttemptUploadError::UnalignedBody {
+                trailing,
+                granularity,
+            } => ErrorKind::UnalignedBody {
+                trailing,
+                granularity,
+            },
         }
     }
 }
