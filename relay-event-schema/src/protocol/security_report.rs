@@ -1155,9 +1155,6 @@ impl ExpectStaple {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SecurityReportType {
     Csp,
-    ExpectCt,
-    ExpectStaple,
-    Hpkp,
     Unsupported,
 }
 
@@ -1173,9 +1170,6 @@ impl SecurityReportType {
             #[serde(rename = "type")]
             ty: Option<CspViolationType>,
             csp_report: Option<IgnoredAny>,
-            known_pins: Option<IgnoredAny>,
-            expect_staple_report: Option<IgnoredAny>,
-            expect_ct_report: Option<IgnoredAny>,
         }
 
         let helper: SecurityReport = serde_json::from_slice(data)?;
@@ -1186,12 +1180,6 @@ impl SecurityReportType {
             Some(SecurityReportType::Csp)
         } else if let Some(CspViolationType::Other) = helper.ty {
             Some(SecurityReportType::Unsupported)
-        } else if helper.known_pins.is_some() {
-            Some(SecurityReportType::Hpkp)
-        } else if helper.expect_staple_report.is_some() {
-            Some(SecurityReportType::ExpectStaple)
-        } else if helper.expect_ct_report.is_some() {
-            Some(SecurityReportType::ExpectCt)
         } else {
             None
         })
@@ -2030,7 +2018,8 @@ mod tests {
     }
 
     #[test]
-    fn test_security_report_type_deserializer_recognizes_expect_ct_reports() {
+    fn test_security_report_type_deserializer_rejects_expect_ct_reports() {
+        // Expect-CT is no longer a supported report type: the classifier must not recognize it.
         let expect_ct_report_text = r#"{
             "expect-ct-report": {
                 "date-time": "2014-04-06T13:00:50Z",
@@ -2055,11 +2044,12 @@ mod tests {
         }"#;
 
         let report_type = SecurityReportType::from_json(expect_ct_report_text.as_bytes()).unwrap();
-        assert_eq!(report_type, Some(SecurityReportType::ExpectCt));
+        assert_eq!(report_type, None);
     }
 
     #[test]
-    fn test_security_report_type_deserializer_recognizes_expect_staple_reports() {
+    fn test_security_report_type_deserializer_rejects_expect_staple_reports() {
+        // Expect-Staple is no longer a supported report type: the classifier must not recognize it.
         let expect_staple_report_text = r#"{
              "expect-staple-report": {
                 "date-time": "2014-04-06T13:00:50Z",
@@ -2074,11 +2064,12 @@ mod tests {
         }"#;
         let report_type =
             SecurityReportType::from_json(expect_staple_report_text.as_bytes()).unwrap();
-        assert_eq!(report_type, Some(SecurityReportType::ExpectStaple));
+        assert_eq!(report_type, None);
     }
 
     #[test]
-    fn test_security_report_type_deserializer_recognizes_hpkp_reports() {
+    fn test_security_report_type_deserializer_rejects_hpkp_reports() {
+        // HPKP is no longer a supported report type: the classifier must not recognize it.
         let hpkp_report_text = r#"{
             "date-time": "2014-04-06T13:00:50Z",
             "hostname": "www.example.com",
@@ -2098,7 +2089,7 @@ mod tests {
           }"#;
 
         let report_type = SecurityReportType::from_json(hpkp_report_text.as_bytes()).unwrap();
-        assert_eq!(report_type, Some(SecurityReportType::Hpkp));
+        assert_eq!(report_type, None);
     }
 
     #[test]
