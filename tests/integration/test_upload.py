@@ -680,7 +680,7 @@ def test_upload_offset(
     import time
 
     t = time.monotonic()
-    part = random.randbytes(7 * 1024 * 1024)
+    part = random.randbytes(5 * 1024 * 1024)
     print(f"generated rand bytes in {time.monotonic() - t}")
     data = 3 * part
     response = relay.post(
@@ -716,10 +716,10 @@ def test_upload_offset(
         ).groups()
         (part1,) = MultipartUpload(objectstore, key, upload_id).list_parts()
         assert vars(part1) == {
-            "part_number": 6,
+            "part_number": 5,
             "etag": matches_any(),
             "last_modified": matches_any(),
-            "size": matches(lambda x: 6e6 <= x <= 6e7),
+            "size": matches(lambda x: 5e6 < x < 6e6),
         }
     else:
         (key,) = LOCATION_REGEX.match(response.headers["Location"]).groups()
