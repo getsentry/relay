@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["derive_description_for_v2_span","derive_op_for_v2_span","name_for_attributes","otel_to_sentry_span_v2","span_v1_to_span_v2"],"mod":["otel_trace"]};
+window.SIDEBAR_ITEMS = {"fn":["derive_description_for_v2_span","derive_op_for_v2_span","extract_web_vital_metrics","name_for_attributes","otel_to_sentry_span_v2","span_v1_to_span_v2"],"mod":["otel_trace"]};

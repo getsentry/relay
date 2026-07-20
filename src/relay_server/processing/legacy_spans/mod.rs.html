@@ -203,112 +203,115 @@
 <a href=#203 id=203 data-nosnippet>203</a>
 <a href=#204 id=204 data-nosnippet>204</a>        <span class="kw">for </span>span <span class="kw">in </span>spans.split(|spans| spans.spans.into_iter().map(IndexedOnly)) {
 <a href=#205 id=205 data-nosnippet>205</a>            <span class="kw">if let </span><span class="prelude-val">Ok</span>(span) = span.try_map(|span, <span class="kw">_</span>| store::convert(span.<span class="number">0</span>, retention)) {
-<a href=#206 id=206 data-nosnippet>206</a>                s.send_to_store(span)
-<a href=#207 id=207 data-nosnippet>207</a>            };
-<a href=#208 id=208 data-nosnippet>208</a>        }
-<a href=#209 id=209 data-nosnippet>209</a>
-<a href=#210 id=210 data-nosnippet>210</a>        <span class="prelude-val">Ok</span>(())
-<a href=#211 id=211 data-nosnippet>211</a>    }
-<a href=#212 id=212 data-nosnippet>212</a>}
-<a href=#213 id=213 data-nosnippet>213</a>
-<a href=#214 id=214 data-nosnippet>214</a><span class="doccomment">/// Spans in their serialized state, as transported in an envelope.
-<a href=#215 id=215 data-nosnippet>215</a></span><span class="attr">#[derive(Debug)]
-<a href=#216 id=216 data-nosnippet>216</a></span><span class="kw">pub struct </span>SerializedLegacySpans {
-<a href=#217 id=217 data-nosnippet>217</a>    <span class="doccomment">/// Original envelope headers.
-<a href=#218 id=218 data-nosnippet>218</a>    </span>headers: EnvelopeHeaders,
-<a href=#219 id=219 data-nosnippet>219</a>
-<a href=#220 id=220 data-nosnippet>220</a>    <span class="doccomment">/// A list of legacy, standalone "span v1" spans.
-<a href=#221 id=221 data-nosnippet>221</a>    </span>spans: Vec&lt;Item&gt;,
-<a href=#222 id=222 data-nosnippet>222</a>}
-<a href=#223 id=223 data-nosnippet>223</a>
-<a href=#224 id=224 data-nosnippet>224</a><span class="kw">impl </span>Counted <span class="kw">for </span>SerializedLegacySpans {
-<a href=#225 id=225 data-nosnippet>225</a>    <span class="kw">fn </span>quantities(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Quantities {
-<a href=#226 id=226 data-nosnippet>226</a>        <span class="macro">smallvec::smallvec!</span>[
-<a href=#227 id=227 data-nosnippet>227</a>            (DataCategory::Span, <span class="self">self</span>.spans.len()),
-<a href=#228 id=228 data-nosnippet>228</a>            (DataCategory::SpanIndexed, <span class="self">self</span>.spans.len()),
-<a href=#229 id=229 data-nosnippet>229</a>        ]
-<a href=#230 id=230 data-nosnippet>230</a>    }
-<a href=#231 id=231 data-nosnippet>231</a>}
-<a href=#232 id=232 data-nosnippet>232</a>
-<a href=#233 id=233 data-nosnippet>233</a><span class="kw">impl </span>CountRateLimited <span class="kw">for </span>Managed&lt;SerializedLegacySpans&gt; {
-<a href=#234 id=234 data-nosnippet>234</a>    <span class="kw">type </span>Error = Error;
-<a href=#235 id=235 data-nosnippet>235</a>}
-<a href=#236 id=236 data-nosnippet>236</a>
-<a href=#237 id=237 data-nosnippet>237</a><span class="doccomment">/// Spans in their de-serialized/parsed state.
-<a href=#238 id=238 data-nosnippet>238</a></span><span class="attr">#[derive(Debug)]
-<a href=#239 id=239 data-nosnippet>239</a></span><span class="kw">pub struct </span>ExpandedLegacySpans&lt;C = TotalAndIndexed&gt; {
-<a href=#240 id=240 data-nosnippet>240</a>    <span class="doccomment">/// Original envelope headers.
-<a href=#241 id=241 data-nosnippet>241</a>    </span>headers: EnvelopeHeaders,
-<a href=#242 id=242 data-nosnippet>242</a>    <span class="doccomment">/// Expanded list of standalone spans.
-<a href=#243 id=243 data-nosnippet>243</a>    </span>spans: Vec&lt;Annotated&lt;Span&gt;&gt;,
-<a href=#244 id=244 data-nosnippet>244</a>
-<a href=#245 id=245 data-nosnippet>245</a>    <span class="doccomment">/// Category of the contained spans.
-<a href=#246 id=246 data-nosnippet>246</a>    ///
-<a href=#247 id=247 data-nosnippet>247</a>    /// Either [`TotalAndIndexed`] or [`Indexed`].
-<a href=#248 id=248 data-nosnippet>248</a>    </span><span class="attr">#[expect(unused, reason = <span class="string">"marker field, only set never read"</span>)]
-<a href=#249 id=249 data-nosnippet>249</a>    </span>category: C,
-<a href=#250 id=250 data-nosnippet>250</a>}
-<a href=#251 id=251 data-nosnippet>251</a>
-<a href=#252 id=252 data-nosnippet>252</a><span class="kw">impl </span>ExpandedLegacySpans&lt;TotalAndIndexed&gt; {
-<a href=#253 id=253 data-nosnippet>253</a>    <span class="doccomment">/// Logically transforms contained spans into [`Indexed`].
-<a href=#254 id=254 data-nosnippet>254</a>    ///
-<a href=#255 id=255 data-nosnippet>255</a>    /// This must only be called during metric extraction.
-<a href=#256 id=256 data-nosnippet>256</a>    </span><span class="kw">fn </span>into_indexed(<span class="self">self</span>) -&gt; ExpandedLegacySpans&lt;Indexed&gt; {
-<a href=#257 id=257 data-nosnippet>257</a>        <span class="kw">let </span><span class="self">Self </span>{
-<a href=#258 id=258 data-nosnippet>258</a>            headers,
-<a href=#259 id=259 data-nosnippet>259</a>            spans,
-<a href=#260 id=260 data-nosnippet>260</a>            category: <span class="kw">_</span>,
-<a href=#261 id=261 data-nosnippet>261</a>        } = <span class="self">self</span>;
-<a href=#262 id=262 data-nosnippet>262</a>
-<a href=#263 id=263 data-nosnippet>263</a>        ExpandedLegacySpans {
-<a href=#264 id=264 data-nosnippet>264</a>            headers,
-<a href=#265 id=265 data-nosnippet>265</a>            spans,
-<a href=#266 id=266 data-nosnippet>266</a>            category: Indexed,
-<a href=#267 id=267 data-nosnippet>267</a>        }
-<a href=#268 id=268 data-nosnippet>268</a>    }
-<a href=#269 id=269 data-nosnippet>269</a>}
-<a href=#270 id=270 data-nosnippet>270</a>
-<a href=#271 id=271 data-nosnippet>271</a><span class="kw">impl</span>&lt;C: TotalCategory&gt; Counted <span class="kw">for </span>ExpandedLegacySpans&lt;C&gt; {
-<a href=#272 id=272 data-nosnippet>272</a>    <span class="kw">fn </span>quantities(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Quantities {
-<a href=#273 id=273 data-nosnippet>273</a>        <span class="kw">let </span><span class="kw-2">mut </span>quantities = <span class="macro">smallvec::smallvec!</span>[];
-<a href=#274 id=274 data-nosnippet>274</a>        <span class="kw">if </span>C::HAS_TOTAL {
-<a href=#275 id=275 data-nosnippet>275</a>            quantities.push((DataCategory::Span, <span class="self">self</span>.spans.len()));
-<a href=#276 id=276 data-nosnippet>276</a>        }
-<a href=#277 id=277 data-nosnippet>277</a>        quantities.push((DataCategory::SpanIndexed, <span class="self">self</span>.spans.len()));
-<a href=#278 id=278 data-nosnippet>278</a>        quantities
-<a href=#279 id=279 data-nosnippet>279</a>    }
-<a href=#280 id=280 data-nosnippet>280</a>}
-<a href=#281 id=281 data-nosnippet>281</a>
-<a href=#282 id=282 data-nosnippet>282</a><span class="kw">impl </span>RateLimited <span class="kw">for </span>Managed&lt;ExpandedLegacySpans&lt;TotalAndIndexed&gt;&gt; {
-<a href=#283 id=283 data-nosnippet>283</a>    <span class="kw">type </span>Output = Managed&lt;Either&lt;ExpandedLegacySpans&lt;TotalAndIndexed&gt;, ExtractedMetrics&gt;&gt;;
-<a href=#284 id=284 data-nosnippet>284</a>    <span class="kw">type </span>Error = Error;
-<a href=#285 id=285 data-nosnippet>285</a>
-<a href=#286 id=286 data-nosnippet>286</a>    <span class="kw">async fn </span>enforce&lt;R&gt;(
-<a href=#287 id=287 data-nosnippet>287</a>        <span class="self">self</span>,
-<a href=#288 id=288 data-nosnippet>288</a>        <span class="kw-2">mut </span>rate_limiter: R,
-<a href=#289 id=289 data-nosnippet>289</a>        ctx: Context&lt;<span class="lifetime">'_</span>&gt;,
-<a href=#290 id=290 data-nosnippet>290</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Output, Rejected&lt;<span class="self">Self</span>::Error&gt;&gt;
-<a href=#291 id=291 data-nosnippet>291</a>    <span class="kw">where
-<a href=#292 id=292 data-nosnippet>292</a>        </span>R: processing::RateLimiter,
-<a href=#293 id=293 data-nosnippet>293</a>    {
-<a href=#294 id=294 data-nosnippet>294</a>        <span class="kw">let </span>scoping = <span class="self">self</span>.scoping();
-<a href=#295 id=295 data-nosnippet>295</a>
-<a href=#296 id=296 data-nosnippet>296</a>        <span class="kw">let </span>limits = rate_limiter
-<a href=#297 id=297 data-nosnippet>297</a>            .try_consume(scoping.item(DataCategory::Span), <span class="self">self</span>.spans.len())
-<a href=#298 id=298 data-nosnippet>298</a>            .<span class="kw">await</span>;
-<a href=#299 id=299 data-nosnippet>299</a>        <span class="kw">if </span>!limits.is_empty() {
-<a href=#300 id=300 data-nosnippet>300</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.reject_err(Error::from(limits)));
-<a href=#301 id=301 data-nosnippet>301</a>        }
-<a href=#302 id=302 data-nosnippet>302</a>
-<a href=#303 id=303 data-nosnippet>303</a>        <span class="kw">let </span>limits = rate_limiter
-<a href=#304 id=304 data-nosnippet>304</a>            .try_consume(scoping.item(DataCategory::SpanIndexed), <span class="self">self</span>.spans.len())
-<a href=#305 id=305 data-nosnippet>305</a>            .<span class="kw">await</span>;
-<a href=#306 id=306 data-nosnippet>306</a>        <span class="kw">if </span>!limits.is_empty() {
-<a href=#307 id=307 data-nosnippet>307</a>            <span class="kw">let </span>total = dynamic_sampling::reject_indexed_spans(<span class="self">self</span>, ctx, limits.into());
-<a href=#308 id=308 data-nosnippet>308</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(total.map(|total, <span class="kw">_</span>| Either::Right(total)));
-<a href=#309 id=309 data-nosnippet>309</a>        }
-<a href=#310 id=310 data-nosnippet>310</a>
-<a href=#311 id=311 data-nosnippet>311</a>        <span class="prelude-val">Ok</span>(<span class="self">self</span>.map(|s, <span class="kw">_</span>| Either::Left(s)))
-<a href=#312 id=312 data-nosnippet>312</a>    }
-<a href=#313 id=313 data-nosnippet>313</a>}
+<a href=#206 id=206 data-nosnippet>206</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(metrics) = relay_spans::extract_web_vital_metrics(<span class="kw-2">&amp;</span>span.item) {
+<a href=#207 id=207 data-nosnippet>207</a>                    processing::trace_metrics::produce_webvitals_metrics(s, <span class="kw-2">&amp;</span>span, metrics);
+<a href=#208 id=208 data-nosnippet>208</a>                }
+<a href=#209 id=209 data-nosnippet>209</a>                s.send_to_store(span)
+<a href=#210 id=210 data-nosnippet>210</a>            };
+<a href=#211 id=211 data-nosnippet>211</a>        }
+<a href=#212 id=212 data-nosnippet>212</a>
+<a href=#213 id=213 data-nosnippet>213</a>        <span class="prelude-val">Ok</span>(())
+<a href=#214 id=214 data-nosnippet>214</a>    }
+<a href=#215 id=215 data-nosnippet>215</a>}
+<a href=#216 id=216 data-nosnippet>216</a>
+<a href=#217 id=217 data-nosnippet>217</a><span class="doccomment">/// Spans in their serialized state, as transported in an envelope.
+<a href=#218 id=218 data-nosnippet>218</a></span><span class="attr">#[derive(Debug)]
+<a href=#219 id=219 data-nosnippet>219</a></span><span class="kw">pub struct </span>SerializedLegacySpans {
+<a href=#220 id=220 data-nosnippet>220</a>    <span class="doccomment">/// Original envelope headers.
+<a href=#221 id=221 data-nosnippet>221</a>    </span>headers: EnvelopeHeaders,
+<a href=#222 id=222 data-nosnippet>222</a>
+<a href=#223 id=223 data-nosnippet>223</a>    <span class="doccomment">/// A list of legacy, standalone "span v1" spans.
+<a href=#224 id=224 data-nosnippet>224</a>    </span>spans: Vec&lt;Item&gt;,
+<a href=#225 id=225 data-nosnippet>225</a>}
+<a href=#226 id=226 data-nosnippet>226</a>
+<a href=#227 id=227 data-nosnippet>227</a><span class="kw">impl </span>Counted <span class="kw">for </span>SerializedLegacySpans {
+<a href=#228 id=228 data-nosnippet>228</a>    <span class="kw">fn </span>quantities(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Quantities {
+<a href=#229 id=229 data-nosnippet>229</a>        <span class="macro">smallvec::smallvec!</span>[
+<a href=#230 id=230 data-nosnippet>230</a>            (DataCategory::Span, <span class="self">self</span>.spans.len()),
+<a href=#231 id=231 data-nosnippet>231</a>            (DataCategory::SpanIndexed, <span class="self">self</span>.spans.len()),
+<a href=#232 id=232 data-nosnippet>232</a>        ]
+<a href=#233 id=233 data-nosnippet>233</a>    }
+<a href=#234 id=234 data-nosnippet>234</a>}
+<a href=#235 id=235 data-nosnippet>235</a>
+<a href=#236 id=236 data-nosnippet>236</a><span class="kw">impl </span>CountRateLimited <span class="kw">for </span>Managed&lt;SerializedLegacySpans&gt; {
+<a href=#237 id=237 data-nosnippet>237</a>    <span class="kw">type </span>Error = Error;
+<a href=#238 id=238 data-nosnippet>238</a>}
+<a href=#239 id=239 data-nosnippet>239</a>
+<a href=#240 id=240 data-nosnippet>240</a><span class="doccomment">/// Spans in their de-serialized/parsed state.
+<a href=#241 id=241 data-nosnippet>241</a></span><span class="attr">#[derive(Debug)]
+<a href=#242 id=242 data-nosnippet>242</a></span><span class="kw">pub struct </span>ExpandedLegacySpans&lt;C = TotalAndIndexed&gt; {
+<a href=#243 id=243 data-nosnippet>243</a>    <span class="doccomment">/// Original envelope headers.
+<a href=#244 id=244 data-nosnippet>244</a>    </span>headers: EnvelopeHeaders,
+<a href=#245 id=245 data-nosnippet>245</a>    <span class="doccomment">/// Expanded list of standalone spans.
+<a href=#246 id=246 data-nosnippet>246</a>    </span>spans: Vec&lt;Annotated&lt;Span&gt;&gt;,
+<a href=#247 id=247 data-nosnippet>247</a>
+<a href=#248 id=248 data-nosnippet>248</a>    <span class="doccomment">/// Category of the contained spans.
+<a href=#249 id=249 data-nosnippet>249</a>    ///
+<a href=#250 id=250 data-nosnippet>250</a>    /// Either [`TotalAndIndexed`] or [`Indexed`].
+<a href=#251 id=251 data-nosnippet>251</a>    </span><span class="attr">#[expect(unused, reason = <span class="string">"marker field, only set never read"</span>)]
+<a href=#252 id=252 data-nosnippet>252</a>    </span>category: C,
+<a href=#253 id=253 data-nosnippet>253</a>}
+<a href=#254 id=254 data-nosnippet>254</a>
+<a href=#255 id=255 data-nosnippet>255</a><span class="kw">impl </span>ExpandedLegacySpans&lt;TotalAndIndexed&gt; {
+<a href=#256 id=256 data-nosnippet>256</a>    <span class="doccomment">/// Logically transforms contained spans into [`Indexed`].
+<a href=#257 id=257 data-nosnippet>257</a>    ///
+<a href=#258 id=258 data-nosnippet>258</a>    /// This must only be called during metric extraction.
+<a href=#259 id=259 data-nosnippet>259</a>    </span><span class="kw">fn </span>into_indexed(<span class="self">self</span>) -&gt; ExpandedLegacySpans&lt;Indexed&gt; {
+<a href=#260 id=260 data-nosnippet>260</a>        <span class="kw">let </span><span class="self">Self </span>{
+<a href=#261 id=261 data-nosnippet>261</a>            headers,
+<a href=#262 id=262 data-nosnippet>262</a>            spans,
+<a href=#263 id=263 data-nosnippet>263</a>            category: <span class="kw">_</span>,
+<a href=#264 id=264 data-nosnippet>264</a>        } = <span class="self">self</span>;
+<a href=#265 id=265 data-nosnippet>265</a>
+<a href=#266 id=266 data-nosnippet>266</a>        ExpandedLegacySpans {
+<a href=#267 id=267 data-nosnippet>267</a>            headers,
+<a href=#268 id=268 data-nosnippet>268</a>            spans,
+<a href=#269 id=269 data-nosnippet>269</a>            category: Indexed,
+<a href=#270 id=270 data-nosnippet>270</a>        }
+<a href=#271 id=271 data-nosnippet>271</a>    }
+<a href=#272 id=272 data-nosnippet>272</a>}
+<a href=#273 id=273 data-nosnippet>273</a>
+<a href=#274 id=274 data-nosnippet>274</a><span class="kw">impl</span>&lt;C: TotalCategory&gt; Counted <span class="kw">for </span>ExpandedLegacySpans&lt;C&gt; {
+<a href=#275 id=275 data-nosnippet>275</a>    <span class="kw">fn </span>quantities(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Quantities {
+<a href=#276 id=276 data-nosnippet>276</a>        <span class="kw">let </span><span class="kw-2">mut </span>quantities = <span class="macro">smallvec::smallvec!</span>[];
+<a href=#277 id=277 data-nosnippet>277</a>        <span class="kw">if </span>C::HAS_TOTAL {
+<a href=#278 id=278 data-nosnippet>278</a>            quantities.push((DataCategory::Span, <span class="self">self</span>.spans.len()));
+<a href=#279 id=279 data-nosnippet>279</a>        }
+<a href=#280 id=280 data-nosnippet>280</a>        quantities.push((DataCategory::SpanIndexed, <span class="self">self</span>.spans.len()));
+<a href=#281 id=281 data-nosnippet>281</a>        quantities
+<a href=#282 id=282 data-nosnippet>282</a>    }
+<a href=#283 id=283 data-nosnippet>283</a>}
+<a href=#284 id=284 data-nosnippet>284</a>
+<a href=#285 id=285 data-nosnippet>285</a><span class="kw">impl </span>RateLimited <span class="kw">for </span>Managed&lt;ExpandedLegacySpans&lt;TotalAndIndexed&gt;&gt; {
+<a href=#286 id=286 data-nosnippet>286</a>    <span class="kw">type </span>Output = Managed&lt;Either&lt;ExpandedLegacySpans&lt;TotalAndIndexed&gt;, ExtractedMetrics&gt;&gt;;
+<a href=#287 id=287 data-nosnippet>287</a>    <span class="kw">type </span>Error = Error;
+<a href=#288 id=288 data-nosnippet>288</a>
+<a href=#289 id=289 data-nosnippet>289</a>    <span class="kw">async fn </span>enforce&lt;R&gt;(
+<a href=#290 id=290 data-nosnippet>290</a>        <span class="self">self</span>,
+<a href=#291 id=291 data-nosnippet>291</a>        <span class="kw-2">mut </span>rate_limiter: R,
+<a href=#292 id=292 data-nosnippet>292</a>        ctx: Context&lt;<span class="lifetime">'_</span>&gt;,
+<a href=#293 id=293 data-nosnippet>293</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Output, Rejected&lt;<span class="self">Self</span>::Error&gt;&gt;
+<a href=#294 id=294 data-nosnippet>294</a>    <span class="kw">where
+<a href=#295 id=295 data-nosnippet>295</a>        </span>R: processing::RateLimiter,
+<a href=#296 id=296 data-nosnippet>296</a>    {
+<a href=#297 id=297 data-nosnippet>297</a>        <span class="kw">let </span>scoping = <span class="self">self</span>.scoping();
+<a href=#298 id=298 data-nosnippet>298</a>
+<a href=#299 id=299 data-nosnippet>299</a>        <span class="kw">let </span>limits = rate_limiter
+<a href=#300 id=300 data-nosnippet>300</a>            .try_consume(scoping.item(DataCategory::Span), <span class="self">self</span>.spans.len())
+<a href=#301 id=301 data-nosnippet>301</a>            .<span class="kw">await</span>;
+<a href=#302 id=302 data-nosnippet>302</a>        <span class="kw">if </span>!limits.is_empty() {
+<a href=#303 id=303 data-nosnippet>303</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.reject_err(Error::from(limits)));
+<a href=#304 id=304 data-nosnippet>304</a>        }
+<a href=#305 id=305 data-nosnippet>305</a>
+<a href=#306 id=306 data-nosnippet>306</a>        <span class="kw">let </span>limits = rate_limiter
+<a href=#307 id=307 data-nosnippet>307</a>            .try_consume(scoping.item(DataCategory::SpanIndexed), <span class="self">self</span>.spans.len())
+<a href=#308 id=308 data-nosnippet>308</a>            .<span class="kw">await</span>;
+<a href=#309 id=309 data-nosnippet>309</a>        <span class="kw">if </span>!limits.is_empty() {
+<a href=#310 id=310 data-nosnippet>310</a>            <span class="kw">let </span>total = dynamic_sampling::reject_indexed_spans(<span class="self">self</span>, ctx, limits.into());
+<a href=#311 id=311 data-nosnippet>311</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(total.map(|total, <span class="kw">_</span>| Either::Right(total)));
+<a href=#312 id=312 data-nosnippet>312</a>        }
+<a href=#313 id=313 data-nosnippet>313</a>
+<a href=#314 id=314 data-nosnippet>314</a>        <span class="prelude-val">Ok</span>(<span class="self">self</span>.map(|s, <span class="kw">_</span>| Either::Left(s)))
+<a href=#315 id=315 data-nosnippet>315</a>    }
+<a href=#316 id=316 data-nosnippet>316</a>}
 </code></pre></div></section></main></body></html>
