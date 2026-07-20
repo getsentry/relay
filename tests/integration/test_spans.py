@@ -790,7 +790,9 @@ def test_rate_limit_indexed_consistent(
     start = datetime.now(timezone.utc)
     end = start + timedelta(seconds=1)
 
-    envelope = envelope_with_spans(start, end)
+    envelope = envelope_with_spans(
+        start, end, project_config["publicKeys"][0]["publicKey"]
+    )
 
     def summarize_outcomes():
         counter = Counter()
@@ -930,7 +932,9 @@ def test_rate_limit_spans_in_envelope(
     start = datetime.now(UTC)
     end = start + timedelta(seconds=1)
 
-    envelope = envelope_with_spans(start, end)
+    envelope = envelope_with_spans(
+        start, end, project_config["publicKeys"][0]["publicKey"]
+    )
 
     def summarize_outcomes():
         counter = Counter()
@@ -1249,7 +1253,7 @@ def test_dynamic_sampling(
     start = end - duration
 
     # 1 - Send OTel span and sentry span via envelope
-    envelope = envelope_with_spans(start, end)
+    envelope = envelope_with_spans(start, end, config["publicKeys"][0]["publicKey"])
     envelope.headers["trace"] = {
         "public_key": sampling_public_key,
         "trace_id": "89143b0763095bd9c9955e8175d1fb23",

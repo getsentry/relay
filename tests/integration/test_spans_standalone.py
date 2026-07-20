@@ -99,47 +99,15 @@ def envelope_with_spans(*payloads: dict, trace_info=None) -> Envelope:
     return envelope
 
 
-def lcp_cls_inp_differences(mode):
-    """
-    Differences in processing between 'legacy' and 'v2' for LCP, CLS, INP standalone spans.
-
-    All these differences should be resolved.
-    """
-    if mode == "legacy":
-        return {
-            # The legacy pipeline extracts this attribute from `sentry_tags`.
-            "sentry.browser.name": {"type": "string", "value": "Firefox"},
-            "sentry.relay.pipeline": {"type": "string", "value": "span_legacy"},
-        }
-    else:
-        return {
-            # We additionally extract the browser version for EAP items
-            "browser.version": {"type": "string", "value": "42.0"},
-            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
-            # New for EAP items
-            "sentry.observed_timestamp_nanos": {
-                "type": "string",
-                "value": time_within_delta(expect_resolution="ns"),
-            },
-        }
-
-
 @pytest.mark.parametrize("is_segment", [False, True])
-@pytest.mark.parametrize("mode", ["legacy", "v2"])
 def test_lcp_span(
     mini_sentry,
     relay,
     relay_with_processing,
     spans_consumer,
     metrics_consumer,
-    mode,
     is_segment,
 ):
-    """
-    Test verifies LCP spans processed via the SpanV2 and legacy standalone processing pipeline are equally processed.
-
-    Some differences between the pipelines exist and are noted in the test.
-    """
     spans_consumer = spans_consumer()
     metrics_consumer = metrics_consumer()
 
@@ -151,10 +119,6 @@ def test_lcp_span(
     project_config["config"].setdefault(
         "features", ["organizations:relay-generate-billing-outcome"]
     )
-    if mode == "v2":
-        project_config["config"]["features"].append(
-            "projects:span-v2-experimental-processing"
-        )
 
     relay = relay(relay_with_processing())
 
@@ -255,6 +219,12 @@ def test_lcp_span(
                 "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
             },
+            "browser.version": {"type": "string", "value": "42.0"},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within_delta(expect_resolution="ns"),
+            },
             # Attributes computed by performace score normalization
             "score.lcp": {
                 "type": "double",
@@ -284,7 +254,6 @@ def test_lcp_span(
                 "type": "double",
                 "value": 0.0,
             },
-            **lcp_cls_inp_differences(mode),
         },
         "downsampled_retention_days": 90,
         "end_timestamp": time_within(ts),
@@ -332,21 +301,14 @@ def test_lcp_span(
 
 
 @pytest.mark.parametrize("is_segment", [False, True])
-@pytest.mark.parametrize("mode", ["legacy", "v2"])
 def test_cls_span(
     mini_sentry,
     relay,
     relay_with_processing,
     spans_consumer,
     metrics_consumer,
-    mode,
     is_segment,
 ):
-    """
-    Test verifies CLS spans processed via the SpanV2 and legacy standalone processing pipeline are equally processed.
-
-    Some differences between the pipelines exist and are noted in the test.
-    """
     spans_consumer = spans_consumer()
     metrics_consumer = metrics_consumer()
 
@@ -358,11 +320,6 @@ def test_cls_span(
     project_config["config"].setdefault("features", []).append(
         "organizations:relay-generate-billing-outcome"
     )
-
-    if mode == "v2":
-        project_config["config"]["features"].append(
-            "projects:span-v2-experimental-processing"
-        )
 
     relay = relay(relay_with_processing())
 
@@ -469,6 +426,12 @@ def test_cls_span(
                 "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
             },
+            "browser.version": {"type": "string", "value": "42.0"},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within_delta(expect_resolution="ns"),
+            },
             # Attributes computed by performace score normalization
             "score.cls": {
                 "type": "double",
@@ -498,7 +461,6 @@ def test_cls_span(
                 "type": "double",
                 "value": 0.0,
             },
-            **lcp_cls_inp_differences(mode),
         },
         "downsampled_retention_days": 90,
         "end_timestamp": time_within(ts),
@@ -546,21 +508,14 @@ def test_cls_span(
 
 
 @pytest.mark.parametrize("is_segment", [False, True])
-@pytest.mark.parametrize("mode", ["legacy", "v2"])
 def test_inp_span(
     mini_sentry,
     relay,
     relay_with_processing,
     spans_consumer,
     metrics_consumer,
-    mode,
     is_segment,
 ):
-    """
-    Test verifies INP spans processed via the SpanV2 and legacy standalone processing pipeline are equally processed.
-
-    Some differences between the pipelines exist and are noted in the test.
-    """
     spans_consumer = spans_consumer()
     metrics_consumer = metrics_consumer()
 
@@ -572,10 +527,6 @@ def test_inp_span(
     project_config["config"].setdefault("features", []).append(
         "organizations:relay-generate-billing-outcome"
     )
-    if mode == "v2":
-        project_config["config"].setdefault("features", []).append(
-            "projects:span-v2-experimental-processing"
-        )
 
     relay = relay(relay_with_processing())
 
@@ -657,6 +608,12 @@ def test_inp_span(
                 "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
             },
+            "browser.version": {"type": "string", "value": "42.0"},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within_delta(expect_resolution="ns"),
+            },
             # Attributes computed by performace score normalization
             "score.inp": {
                 "type": "double",
@@ -674,7 +631,6 @@ def test_inp_span(
                 "type": "double",
                 "value": 1.0,
             },
-            **lcp_cls_inp_differences(mode),
         },
         "downsampled_retention_days": 90,
         "end_timestamp": time_within(ts),
@@ -794,13 +750,11 @@ def test_spans_standalone_dsc_normalization(
     assert get_trace_id("cccccccccccccccc") == "5b8efff798038103d269b633813fc60c"
 
 
-@pytest.mark.parametrize("mode", ["legacy", "v2"])
 def test_mobile_measurements(
     mini_sentry,
     relay,
     relay_with_processing,
     spans_consumer,
-    mode,
 ):
     """
     Verify mobile measurements calculations (slow/frozen frames, stalls).
@@ -809,10 +763,6 @@ def test_mobile_measurements(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    if mode == "v2":
-        project_config["config"].setdefault("features", []).append(
-            "projects:span-v2-experimental-processing"
-        )
 
     relay = relay(relay_with_processing())
 
@@ -895,6 +845,12 @@ def test_mobile_measurements(
                 "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
             },
+            "browser.version": {"type": "string", "value": "42.0"},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within_delta(expect_resolution="ns"),
+            },
             "stall_total_time": {"value": 4000.0, "type": "double"},
             "stall_percentage": {"value": 0.8, "type": "double"},
             "app.vitals.frames.slow.count": {"value": 1.0, "type": "double"},
@@ -903,14 +859,8 @@ def test_mobile_measurements(
             "frames_frozen_rate": {"value": 0.5, "type": "double"},
             "frames_slow_rate": {"value": 0.25, "type": "double"},
             "app.vitals.start.cold.value": {"value": 0.123, "type": "double"},
-            **_if_dict(
-                mode == "v2",
-                {
-                    "app.vitals.start.value": {"value": 0.123, "type": "double"},
-                    "app.vitals.start.type": {"value": "cold", "type": "string"},
-                },
-            ),
-            **lcp_cls_inp_differences(mode),
+            "app.vitals.start.value": {"value": 0.123, "type": "double"},
+            "app.vitals.start.type": {"value": "cold", "type": "string"},
         },
         "downsampled_retention_days": 90,
         "end_timestamp": time_within(ts),
@@ -927,10 +877,9 @@ def test_mobile_measurements(
     }
 
 
-@pytest.mark.parametrize("mode", ["legacy", "v2"])
 @pytest.mark.parametrize("client_address_auto", [True, False])
 def test_ua_ip_inference(
-    mini_sentry, relay, relay_with_processing, spans_consumer, client_address_auto, mode
+    mini_sentry, relay, relay_with_processing, spans_consumer, client_address_auto
 ):
     """
     Tests that IP addresses and user agent attributes are inferred.
@@ -939,10 +888,6 @@ def test_ua_ip_inference(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    if mode == "v2":
-        project_config["config"].setdefault("features", []).append(
-            "projects:span-v2-experimental-processing"
-        )
 
     relay = relay(relay_with_processing())
 
@@ -1021,7 +966,12 @@ def test_ua_ip_inference(
                 "type": "string",
                 "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
             },
-            **lcp_cls_inp_differences(mode),
+            "browser.version": {"type": "string", "value": "42.0"},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within_delta(expect_resolution="ns"),
+            },
         },
         "downsampled_retention_days": 90,
         "end_timestamp": time_within(ts),
@@ -1038,10 +988,9 @@ def test_ua_ip_inference(
     }
 
 
-@pytest.mark.parametrize("mode", ["legacy", "v2"])
 @pytest.mark.parametrize("origin", ["manual", "auto.http.browser.lcp"])
 def test_name_inference(
-    mini_sentry, relay, relay_with_processing, spans_consumer, mode, origin
+    mini_sentry, relay, relay_with_processing, spans_consumer, origin
 ):
     """
     Tests that span names are inferred.
@@ -1050,10 +999,6 @@ def test_name_inference(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    if mode == "v2":
-        project_config["config"].setdefault("features", []).append(
-            "projects:span-v2-experimental-processing"
-        )
     project_config["config"]["piiConfig"]["applications"]["data.'http.route'"] = [
         "@anything:mask"
     ]
@@ -1104,46 +1049,6 @@ def test_name_inference(
     else:
         expected_name = "GET *******************"
 
-    # _meta unfortunately differs slightly between the pipelines
-    if mode == "v2":
-        meta = {
-            "attributes": {
-                "http.route": {
-                    "value": {
-                        "": {
-                            "len": 19,
-                            "rem": [
-                                [
-                                    "@anything:mask",
-                                    "m",
-                                    0,
-                                    19,
-                                ],
-                            ],
-                        },
-                    },
-                },
-            },
-        }
-    else:
-        meta = {
-            "attributes": {
-                "http.route": {
-                    "": {
-                        "len": 19,
-                        "rem": [
-                            [
-                                "@anything:mask",
-                                "m",
-                                0,
-                                19,
-                            ],
-                        ],
-                    },
-                },
-            }
-        }
-
     assert spans_consumer.get_span() == {
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
@@ -1171,7 +1076,12 @@ def test_name_inference(
                 "type": "string",
                 "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
             },
-            **lcp_cls_inp_differences(mode),
+            "browser.version": {"type": "string", "value": "42.0"},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
+            "sentry.observed_timestamp_nanos": {
+                "type": "string",
+                "value": time_within_delta(expect_resolution="ns"),
+            },
         },
         "downsampled_retention_days": 90,
         "end_timestamp": time_within(ts),
@@ -1187,7 +1097,25 @@ def test_name_inference(
         "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
         "is_segment": False,
         "parent_span_id": "8a6626cc9bdd5d9b",
-        "_meta": meta,
+        "_meta": {
+            "attributes": {
+                "http.route": {
+                    "value": {
+                        "": {
+                            "len": 19,
+                            "rem": [
+                                [
+                                    "@anything:mask",
+                                    "m",
+                                    0,
+                                    19,
+                                ],
+                            ],
+                        },
+                    },
+                },
+            },
+        },
     }
 
 
