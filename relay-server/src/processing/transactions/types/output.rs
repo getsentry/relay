@@ -66,7 +66,6 @@ impl Forward for TransactionOutput {
             }
             TransactionOutput::Indexed { spans, transaction } => (spans, transaction),
         };
-
         let performance_issues_spans = ctx
             .project_info
             .has_feature(Feature::PerformanceIssuesSpans);
@@ -85,6 +84,13 @@ impl Forward for TransactionOutput {
                             span.performance_issues_spans = true;
                         });
                     }
+
+                    if let Some(metrics) = relay_spans::extract_web_vital_metrics(&span.item) {
+                        crate::processing::trace_metrics::produce_webvitals_metrics(
+                            s, &span, metrics,
+                        );
+                    }
+
                     s.send_to_store(span)
                 };
             }
