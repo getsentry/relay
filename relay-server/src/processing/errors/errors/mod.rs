@@ -10,6 +10,7 @@ use crate::statsd::RelayCounters;
 
 mod apple_crash_report;
 mod generic;
+mod gpu;
 mod minidump;
 mod nswitch;
 mod playstation;
@@ -21,6 +22,7 @@ mod utils;
 
 pub use self::apple_crash_report::*;
 pub use self::generic::*;
+pub use self::gpu::*;
 pub use self::minidump::*;
 pub use self::nswitch::*;
 pub use self::playstation::*;
@@ -182,6 +184,7 @@ gen_error_kind![
     Nswitch,
     Unreal,
     Minidump,
+    GpuCrash,
     AppleCrashReport,
     Playstation,
     Security,
