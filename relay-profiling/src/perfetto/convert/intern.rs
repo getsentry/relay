@@ -1,38 +1,62 @@
 use hashbrown::HashMap;
 
+use crate::perfetto::convert::budget::{BudgetExceeded, BudgetMap, MemoryBudget};
+use crate::perfetto::convert::consts;
 use crate::perfetto::convert::utils::{self, SequenceId};
 use crate::perfetto::proto;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Database {
     inner: HashMap<SequenceId, Tables>,
+    budget: MemoryBudget,
 }
 
 impl Database {
+    pub fn new(budget: &MemoryBudget) -> Self {
+        Self {
+            inner: Default::default(),
+            budget: budget.clone(),
+        }
+    }
+
     /// Removes and merges intern information contained in the `packet` into the database.
-    pub fn intern(&mut self, packet: &mut proto::TracePacket) -> &Tables {
+    pub fn intern(&mut self, packet: &mut proto::TracePacket) -> Result<&Tables, BudgetExceeded> {
         let data = packet.interned_data.take();
         let seq_id = SequenceId::new(packet);
 
-        let tables = self.inner.entry(seq_id).or_default();
-        if utils::has_incremental_state_cleared(packet) {
-            *tables = Default::default();
+        // Technically this is off by-one, but significantly easier to handle.
+        if self.inner.len() >= consts::MAX_SEQUENCE_IDS {
+            return Err(BudgetExceeded);
         }
+
+        if utils::has_incremental_state_cleared(packet) {
+            self.inner.remove(&seq_id);
+        }
+
+        let tables = self.inner.entry(seq_id).or_insert_with(|| Tables {
+            function_names: self.budget.map(),
+            mapping_paths: self.budget.map(),
+            build_ids: self.budget.map(),
+            frames: self.budget.map(),
+            callstacks: self.budget.map(),
+            mappings: self.budget.map(),
+        });
+
         if let Some(data) = data {
-            tables.merge(data);
+            tables.merge(data)?;
         };
-        tables
+        Ok(tables)
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Tables {
-    function_names: HashMap<u64, String>,
-    mapping_paths: HashMap<u64, String>,
-    build_ids: HashMap<u64, Vec<u8>>,
-    frames: HashMap<u64, proto::Frame>,
-    callstacks: HashMap<u64, proto::Callstack>,
-    mappings: HashMap<u64, proto::Mapping>,
+    function_names: BudgetMap<u64, String>,
+    mapping_paths: BudgetMap<u64, String>,
+    build_ids: BudgetMap<u64, Vec<u8>>,
+    frames: BudgetMap<u64, proto::Frame>,
+    callstacks: BudgetMap<u64, proto::Callstack>,
+    mappings: BudgetMap<u64, proto::Mapping>,
 }
 
 impl Tables {
@@ -61,7 +85,7 @@ impl Tables {
         id.and_then(|id| self.build_ids.get(&id)).map(Vec::as_slice)
     }
 
-    fn merge(&mut self, data: proto::InternedData) {
+    fn merge(&mut self, data: proto::InternedData) -> Result<(), BudgetExceeded> {
         let proto::InternedData {
             function_names,
             mapping_paths,
@@ -71,19 +95,22 @@ impl Tables {
             mappings,
         } = data;
 
-        self.function_names.extend(interned_strings(function_names));
-        self.mapping_paths.extend(interned_strings(mapping_paths));
+        self.function_names
+            .extend(interned_strings(function_names))?;
+        self.mapping_paths.extend(interned_strings(mapping_paths))?;
         self.build_ids.extend(
             build_ids
                 .into_iter()
                 .filter_map(|is| Some((is.iid?, is.r#str?))),
-        );
+        )?;
         self.frames
-            .extend(frames.into_iter().filter_map(|f| Some((f.iid?, f))));
+            .extend(frames.into_iter().filter_map(|f| Some((f.iid?, f))))?;
         self.callstacks
-            .extend(callstacks.into_iter().filter_map(|c| Some((c.iid?, c))));
+            .extend(callstacks.into_iter().filter_map(|c| Some((c.iid?, c))))?;
         self.mappings
-            .extend(mappings.into_iter().filter_map(|m| Some((m.iid?, m))));
+            .extend(mappings.into_iter().filter_map(|m| Some((m.iid?, m))))?;
+
+        Ok(())
     }
 }
 
