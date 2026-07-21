@@ -535,6 +535,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "cap"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6f125eb85b84a24c36b02ed1d22c9dd8632f53b3cde6e4d23512f94021030003"
+
+[[package]]
 name = "cast"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4844,6 +4850,7 @@ version = "26.7.0"
 dependencies = [
  "android_trace_log",
  "bytes",
+ "cap",
  "chrono",
  "data-encoding",
  "hashbrown 0.15.5",

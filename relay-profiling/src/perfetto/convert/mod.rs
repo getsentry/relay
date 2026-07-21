@@ -24,6 +24,9 @@ mod consts;
 mod intern;
 mod utils;
 
+#[cfg(test)]
+mod attacks;
+
 /// Converts a Perfetto binary trace into Sample v2 [`ProfileData`] and debug images.
 pub fn convert(perfetto_bytes: &[u8]) -> Result<(ProfileData, Vec<DebugImage>), ProfileError> {
     let mut clock_offset: Option<FiniteF64> = None;

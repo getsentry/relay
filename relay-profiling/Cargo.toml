@@ -35,4 +35,5 @@ url = { workspace = true }
 uuid = { workspace = true }
 
 [dev-dependencies]
+cap = "0.1.2"
 insta = { workspace = true }
