@@ -3,9 +3,12 @@ local gocdtasks = import 'github.com/getsentry/gocd-jsonnet/libs/gocd-tasks.libs
 
 // List of datadog monitors to check during the canary and soak stages in the different regions
 local datadog_monitors = {
-  // (The Number of Pending Projects is High), (Service Queues are Backlogging), (CrashLoopBackoff Count is High)
-  us: '14146876 154096671 237862997',
-  // (The Number of Pending Projects is High)
+  // (The Number of Pending Projects is High), (Service Queues are Backlogging), (CrashLoopBackoff Count is High), (Canary Traffic is Low or Missing)
+  us: '14146876 154096671 237862997 307281718',
+  // (The Number of Pending Projects is High), (Canary Traffic is Low or Missing)
+  de: '14146876 307281733',
+  us2: '14146876 307281731',
+  s4s2: '14146876 307281734',
   default: '14146876',
 };
 
