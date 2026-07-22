@@ -17,7 +17,7 @@ pub fn check_envelope_size_limits(
     config: &Config,
     envelope: &Envelope,
 ) -> Result<(), DiscardItemType> {
-    // TODO(#6249 / RELAY-272): These limits are built from from the old `limits` config,
+    // TODO(#6249 / RELAY-272): These limits are built from the old `limits` config,
     // we can think about reworking how limits are configured and exposing a similar structure
     // for these size limits also in the config.
     let mut empty = Limit {
@@ -174,9 +174,9 @@ enum Rejected {
 struct Limit {
     /// The maximum size of a single item.
     item_size: usize,
-    /// The total (or remaining) amount of this item type allowed in an envelope.
+    /// The remaining total count of this item type allowed in an envelope.
     total_count: usize,
-    /// The total (or remaining) total size of this item type in an envelope.
+    /// The remaining total count of this item type in an envelope.
     total_size: usize,
 }
 

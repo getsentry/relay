@@ -629,7 +629,7 @@ pub struct Limits {
     pub max_check_in_size: ByteSize,
     /// The maximum payload size for an entire envelopes. Individual limits still apply.
     pub max_envelope_size: ByteSize,
-    /// Returns the maximum combined size all sessions per envelope in bytes.
+    /// The maximum combined size for all sessions in an envelope in bytes.
     pub max_sessions_size: ByteSize,
     /// The maximum number of session items per envelope.
     pub max_session_count: usize,
@@ -2461,7 +2461,7 @@ impl Config {
         self.values.limits.max_session_count
     }
 
-    /// Returns the maximum combined size all sessions per envelope in bytes.
+    /// Returns the maximum combined size for all sessions in an envelope in bytes.
     pub fn max_sessions_size(&self) -> usize {
         self.values.limits.max_sessions_size.as_bytes()
     }
