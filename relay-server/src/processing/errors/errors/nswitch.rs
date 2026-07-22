@@ -65,7 +65,8 @@ impl SentryError for Nswitch {
         let mut attachments = attachments;
         attachments.extend(dying_message.attachments);
 
-        let event = match (event, dying_message.event) {
+        #[cfg_attr(not(feature = "processing"), expect(unused_mut))]
+        let mut event = match (event, dying_message.event) {
             (Some(event), Some(dying_message)) => {
                 metrics.bytes_ingested_event =
                     Annotated::new((event.len() + dying_message.len()) as u64);
@@ -75,6 +76,16 @@ impl SentryError for Nswitch {
             (None, Some(event)) => utils::event_from_json_payload(event, None, &mut metrics, ctx)?,
             (None, None) => return Err(ProcessingError::NoEventPayload.into()),
         };
+
+        // Nintendo forwards the crash with the abort result code as the exception `type`, which
+        // Sentry would otherwise render as the issue title. Reshape it to look like a native
+        // crash on other platforms: fall the title back to the crashing function and render the
+        // event as a fatal, unhandled crash. Normalization runs after this and preserves it.
+        utils::if_processing!(ctx, {
+            if let Some(event) = event.value_mut() {
+                crate::utils::reshape_switch_crash(event);
+            }
+        });
 
         Ok(Some(Expansion {
             event: Box::new(event),
@@ -304,6 +315,7 @@ mod tests {
     use super::*;
 
     use relay_config::{Config, OverridableConfig};
+    use relay_event_schema::protocol::Level;
     use relay_protocol::assert_annotated_snapshot;
     use std::io::Write;
     use zstd::bulk::Compressor as ZstdCompressor;
@@ -469,5 +481,57 @@ mod tests {
         let mut items = create_envelope_items(Bytes::from("sntr\0\0\0\0"));
 
         let _ = Nswitch::try_expand(&mut items, ctx()).unwrap().unwrap();
+    }
+
+    #[test]
+    fn test_switch_crash_is_reshaped() {
+        // Minimal, empty dying message (magic + version 0 + encoding 0 + length 0): no scope
+        // patch, so we exercise only the reshaping of the event Nintendo forwards.
+        let dying_message = Bytes::from("sntr\0\0\0\0");
+
+        // The parent envelope event is what Nintendo forwards: the abort result code as the
+        // exception `type`, a readable `value`, the crashing function, and level `error`.
+        let envelope = r#"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"}
+{"type":"event"}
+{"level":"error","exception":{"values":[{"type":"2168-0002 ResultAccessViolationData","value":"Data access to an invalid memory region was performed. (2: Access Violation Data)","stacktrace":{"frames":[{"function":"ASentryTowerTurret::Shoot"}]}}]}}
+{"type":"attachment","filename":"dying_message.dat","length":<len>}
+"#
+        .replace("<len>", &dying_message.len().to_string());
+
+        let mut envelope =
+            Envelope::parse_bytes([Bytes::from(envelope), dying_message].concat().into()).unwrap();
+        let mut items = envelope.take_items_by(|_| true).into_vec();
+
+        let parsed = Nswitch::try_expand(&mut items, ctx()).unwrap().unwrap();
+
+        let event = parsed.event.value().unwrap();
+
+        // The crash is rendered as fatal (Nintendo forwarded it as `error`).
+        assert_eq!(event.level.value(), Some(&Level::Fatal));
+
+        let exception = event
+            .exceptions
+            .value()
+            .unwrap()
+            .values
+            .value()
+            .unwrap()
+            .last()
+            .unwrap()
+            .value()
+            .unwrap();
+
+        // Marked synthetic and unhandled, so Sentry drops the result-code `type` from the
+        // title (falling back to the crashing function) and renders it as unhandled.
+        let mechanism = exception.mechanism.value().unwrap();
+        assert_eq!(mechanism.synthetic.value(), Some(&true));
+        assert_eq!(mechanism.handled.value(), Some(&false));
+
+        // The result code and its description are preserved; only the `type`'s influence on the
+        // title is removed. `value` remains as the issue subtitle.
+        assert_eq!(
+            exception.ty.value().map(String::as_str),
+            Some("2168-0002 ResultAccessViolationData")
+        );
     }
 }
