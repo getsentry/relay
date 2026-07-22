@@ -208,7 +208,7 @@ macro_rules! impl_traits {
     };
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DebugId(pub debugid::DebugId);
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

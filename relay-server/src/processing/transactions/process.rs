@@ -1,6 +1,6 @@
 use relay_base_schema::events::EventType;
 use relay_event_normalization::GeoIpLookup;
-use relay_event_schema::protocol::{Event, Metrics};
+use relay_event_schema::protocol::Event;
 use relay_profiling::{ProfileError, ProfileType};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
@@ -49,7 +49,6 @@ pub fn expand(
         let flags = Flags {
             fully_normalized: headers.meta().request_trust().is_trusted()
                 && transaction_item.fully_normalized(),
-            spans_rate_limited: false,
         };
 
         let profile = expand_profile(profiles, record_keeper);
@@ -127,7 +126,6 @@ fn expand_profile(
 pub fn prepare_data(
     work: &mut Managed<Box<ExpandedTransaction>>,
     ctx: &mut Context<'_>,
-    metrics: &mut Metrics,
 ) -> Result<(), Rejected<Error>> {
     let scoping = work.scoping();
     work.try_modify(|work, record_keeper| {
@@ -141,7 +139,7 @@ pub fn prepare_data(
             &work.headers,
             &mut work.event,
             work.attachments.iter(),
-            metrics,
+            &mut Default::default(),
             ctx.config,
         )
         .map_err(Error::from)
@@ -393,8 +391,6 @@ pub fn split_indexed_and_total(
 ) -> IndexedAndMetrics {
     let scoping = work.scoping();
 
-    let extract_span_metrics = !work.flags.spans_rate_limited;
-
     let mut metrics = ProcessingExtractedMetrics::new();
     let mut metrics_extracted = false;
     work.modify(|work, _| {
@@ -406,7 +402,7 @@ pub fn split_indexed_and_total(
                 project_id: scoping.project_id,
                 ctx,
                 sampling_decision,
-                extract_span_metrics,
+                extract_span_metrics: true,
             },
         );
     });
@@ -417,20 +413,6 @@ pub fn split_indexed_and_total(
             // Invalid config or invalid original transaction
             r.lenient(DataCategory::Transaction);
             r.lenient(DataCategory::Span);
-        }
-        if work.flags.spans_rate_limited {
-            // This really is a bug, we ignore here.
-            //
-            // Transactions are counted using a span metric, as transaction payloads should
-            // eventually be fully transformed into spans. But this is for now only the case for
-            // metrics, the payloads are lagging behind.
-            //
-            // If spans are rate limited, there is no metric to attach the transaction to ->
-            // we're losing a transaction here.
-            //
-            //  If and once we apply span rate limits to transactions this case will also be fixed,
-            //  as it can no longer happen.
-            r.lenient(DataCategory::Transaction);
         }
 
         (Box::new(work.into_indexed()), metrics.into_inner())

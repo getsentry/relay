@@ -193,8 +193,8 @@ impl StringMods for WStr<LittleEndian> {
         unsafe {
             let chunks = self
                 .as_bytes_mut()
-                .chunks_exact_mut(std::mem::size_of::<u16>());
-            for chunk in chunks {
+                .as_chunks_mut::<{ std::mem::size_of::<u16>() }>();
+            for chunk in chunks.0 {
                 chunk.copy_from_slice(&fill_buf);
             }
         }
@@ -228,8 +228,8 @@ impl StringMods for WStr<LittleEndian> {
 
         unsafe {
             let remainder_bytes = &mut self.as_bytes_mut()[offset..];
-            let chunks = remainder_bytes.chunks_exact_mut(std::mem::size_of::<u16>());
-            for chunk in chunks {
+            let chunks = remainder_bytes.as_chunks_mut::<{ std::mem::size_of::<u16>() }>();
+            for chunk in chunks.0 {
                 chunk.copy_from_slice(&fill_buf);
             }
         }

@@ -4,18 +4,31 @@
 
 **Features**:
 
-- Switches the container base image from distroless to docker hardened. ([#6117](https://github.com/getsentry/relay/pull/6117))
+- Emit web-vitals as metrics. ([#6118](https://github.com/getsentry/relay/pull/6118))
+- No longer write the deprecated `sentry.transaction` and `db.system` attributes. ([#6237](https://github.com/getsentry/relay/pull/6237), [#6238](https://github.com/getsentry/relay/pull/6238))
+- Allow additional exceptions in minidump and apple crash report events. ([#6241](https://github.com/getsentry/relay/pull/6241))
+
+**Internal**:
+
+- Limit the maximum amount of items in an envelope to 500. ([#6251](https://github.com/getsentry/relay/pull/6251))
+
+## 26.7.0
+
+**Features**:
+
 - Infer span descriptions via `sentry-conventions`. ([#6093](https://github.com/getsentry/relay/pull/6093))
 - Raises the size limit for the flags context to 64KiB. ([#6137](https://github.com/getsentry/relay/pull/6137))
 - Add segment_names field to Replay events. ([#6134](https://github.com/getsentry/relay/pull/6134))
 - Use a out of process solution for catching crashes. ([#6158](https://github.com/getsentry/relay/pull/6158))
 - Accept a `charset=utf-8` parameters on JSON and XML content types. ([#6184](https://github.com/getsentry/relay/pull/6184))
 - Support PEM file format for signing / verification keys. ([#6155](https://github.com/getsentry/relay/pull/6155))
-- GA the `upload-endpoint` feature. ([#6171](https://github.com/getsentry/relay/pull/6171))
+- Graduate the upload endpoint and streaming attachments on the minidump endpoint. ([#6171](https://github.com/getsentry/relay/pull/6171), [#6222](https://github.com/getsentry/relay/pull/6222))
 - Add Lightpanda to web crawler filter. ([#6143](https://github.com/getsentry/relay/pull/6143))
+- Add `sentry.relay.ingress` and `sentry.relay.pipeline` attributes to some EAP items. ([#6224](https://github.com/getsentry/relay/pull/6224))
 
 **Bug Fixes**:
 
+- Bound the recursion depth when deserializing MessagePack payloads to prevent stack overflows. ([#6212](https://github.com/getsentry/relay/pull/6212))
 - Wider type support for OTel log bodies. ([#6106](https://github.com/getsentry/relay/pull/6106))
 - Align OTLP endpoint responses with the specification. ([#6182](https://github.com/getsentry/relay/pull/6182))
 - Don't reject attributes that don't have values, but do have metadata. ([#6098](https://github.com/getsentry/relay/pull/6098))
@@ -28,9 +41,12 @@
 - Make `--log-level` and `--log-format` take effect again and accept them on all subcommands. ([#6198](https://github.com/getsentry/relay/pull/6198))
 - Parse two-component versions in iOS and iPadOS `raw_description` into `version` instead of `kernel_version`. ([#6197](https://github.com/getsentry/relay/pull/6197))
 - Normalize segment names for standalone spans in the experimental pipeline. ([#6163](https://github.com/getsentry/relay/pull/6163))
+- Limit nested form-data entry keys. ([#6179](https://github.com/getsentry/relay/pull/6179))
+- Retain client-supplied debug images when parsing Perfetto profile chunks, instead of overwriting them with images extracted from the trace. ([#6232](https://github.com/getsentry/relay/pull/6232))
 
 **Internal**:
 
+- Apply convention normalizations to transaction spans. ([#6223](https://github.com/getsentry/relay/pull/6223))
 - Remove all remainders of custom metrics, including the `custom` metric namespace. ([#6210](https://github.com/getsentry/relay/pull/6210))
 - Rename objectstore use-case from `profiles_raw` to `profile_attachments`. ([#6108](https://github.com/getsentry/relay/pull/6108))
 - Require timestamps and verification in auth signatures. ([#6069](https://github.com/getsentry/relay/pull/6069))
@@ -39,8 +55,7 @@
 - Internally handle outcomes as metrics. ([#6107](https://github.com/getsentry/relay/pull/6107))
 - Re-introduce `projects:discard-transaction` feature flag. ([#6199](https://github.com/getsentry/relay/pull/6199))
 - Have relay generate metric billing outcomes. ([#6066](https://github.com/getsentry/relay/pull/6066))
-- Update sentry-conventions to 0.12.0.
-- Update sentry-conventions to 0.13.0. ([#6139](https://github.com/getsentry/relay/pull/6139))
+- Update sentry-conventions to 0.16.0. ([#6215](https://github.com/getsentry/relay/pull/6215))
 - Upgrade release image to Debian 13. ([#6110](https://github.com/getsentry/relay/pull/6110))
 - No longer serialize transactions into envelopes when storing them. ([#6193](https://github.com/getsentry/relay/pull/6193))
 - No longer serialize check-ins into envelopes when storing them. ([#6196](https://github.com/getsentry/relay/pull/6196))

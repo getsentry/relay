@@ -74,8 +74,9 @@ def test_minidump(mini_sentry, relay):
 
 def test_minidump_attachments(mini_sentry, relay):
     project_id = 42
-    relay = relay(mini_sentry)
     mini_sentry.add_full_project_config(project_id)
+    mini_sentry.global_config["options"]["relay.attachment-inline.limit"] = 1024 * 1024
+    relay = relay(mini_sentry)
 
     event = {"event_id": "2dd132e467174db48dbaddabd3cbed57", "user": {"id": "123"}}
     breadcrumbs1 = {
@@ -99,9 +100,15 @@ def test_minidump_attachments(mini_sentry, relay):
         ("attachment1", "attach1.txt", "attachment content"),
     ]
 
-    relay.send_minidump(project_id=project_id, files=attachments)
+    relay.send_minidump(
+        project_id=project_id,
+        files=attachments,
+        params=[("guid", "dd46bb04-bb27-448c-aad0-0deb0c134bdb")],
+    )
     envelope = mini_sentry.get_captured_envelope()
     assert envelope
+
+    assert all(item.headers.get("type") != "form_data" for item in envelope.items)
 
     # Check that the envelope assumes the given event id
     assert envelope.headers.get("event_id") == "2dd132e467174db48dbaddabd3cbed57"
@@ -713,9 +720,8 @@ def test_minidump_with_processing_invalid(
     ]
 
 
-@pytest.mark.parametrize("feature_flag", [False, True])
 def test_minidump_with_event_exception(
-    mini_sentry, relay_with_processing, attachments_consumer, feature_flag
+    mini_sentry, relay_with_processing, attachments_consumer
 ):
     """
     An envelope can carry both a minidump attachment and an event item that already
@@ -731,8 +737,6 @@ def test_minidump_with_event_exception(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     config = project_config["config"]
-    if feature_flag:
-        config.setdefault("features", []).append("projects:minidump-multi-exception")
 
     # Disable scrubbing, the basic and full project configs from the mini_sentry fixture
     # will modify the minidump since it contains user paths in the module list.
@@ -790,12 +794,9 @@ def test_minidump_with_event_exception(
     assert minidump_exception["mechanism"]["type"] == "minidump"
 
     # The user-provided exception with its stack trace must be preserved.
-    if feature_flag:
-        (user_exception,) = additional_exceptions
-        assert user_exception["value"] == "division by zero"
-        assert user_exception["stacktrace"]["frames"][0]["function"] == "divide"
-    else:
-        assert not additional_exceptions
+    (user_exception,) = additional_exceptions
+    assert user_exception["value"] == "division by zero"
+    assert user_exception["stacktrace"]["frames"][0]["function"] == "divide"
 
     # The minidump must still be forwarded as an attachment.
     assert any(att["name"] == "minidump.dmp" for att in message["attachments"])
@@ -1053,21 +1054,19 @@ def test_size_limits(mini_sentry, relay, limit, expected_status_code):
 
 
 @pytest.mark.parametrize(
-    "config_fetch,upload_attachments,upload_minidump",
+    "config_fetch,upload_minidump",
     [
-        (False, True, True),  # if the option is not set we don't check the features
-        (True, True, False),
-        (True, False, True),
-        (True, True, True),
+        (False, True),  # if the option is not set we don't check the features
+        (True, False),
+        (True, True),
     ],
-    ids=["no-option", "stream-attachments", "stream-minidumps", "stream-all"],
+    ids=["no-option", "no-minidumps", "stream-minidumps"],
 )
 def test_minidump_objectstore_uploads(
     mini_sentry,
     relay,
     dummy_upload,
     config_fetch,
-    upload_attachments,
     upload_minidump,
 ):
     project_id = 42
@@ -1075,10 +1074,6 @@ def test_minidump_objectstore_uploads(
     log_content = b"\x1f\x8b Some log file content"
 
     project_config = mini_sentry.add_full_project_config(project_id)
-    if upload_attachments:
-        project_config["config"].setdefault("features", []).append(
-            "projects:relay-minidump-attachment-uploads"
-        )
     if upload_minidump:
         project_config["config"].setdefault("features", []).append(
             "projects:relay-minidump-uploads"
@@ -1123,7 +1118,7 @@ def test_minidump_objectstore_uploads(
     minidump = by_name["minidump.dmp"]
     logs = by_name["log.txt"]
 
-    if config_fetch and upload_attachments:
+    if config_fetch:
         assert (
             logs.headers["content_type"] == "application/vnd.sentry.attachment-ref+json"
         )
@@ -1178,11 +1173,6 @@ def test_minidump_objectstore_uploads_external_chain(
     log_content = b"Some log file content"
 
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"].setdefault("features", []).extend(
-        [
-            "projects:relay-minidump-attachment-uploads",
-        ]
-    )
 
     relay = relay(relay_with_processing(), external=True)
     project_config["config"]["trustedRelays"] = list(relay.iter_public_keys())
@@ -1219,7 +1209,6 @@ def test_minidump_objectstore_uploads_external_chain_attachment_limited(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"].setdefault("features", []).extend(
         [
-            "projects:relay-minidump-attachment-uploads",
             "projects:relay-minidump-uploads",
         ]
     )
@@ -1270,10 +1259,7 @@ def test_minidump_objectstore_errors(
     minidump_content = b"MDMP content"
     log_content = b"Some log file content"
 
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"].setdefault("features", []).append(
-        "projects:relay-minidump-attachment-uploads"
-    )
+    mini_sentry.add_full_project_config(project_id)
 
     @mini_sentry.app.route("/api/<project>/upload/", methods=["POST"])
     def create(**opts):
@@ -1371,7 +1357,6 @@ def test_minidump_objectstore_uploads_rate_limits(
     project_config["config"].setdefault("features", []).extend(
         [
             "projects:relay-minidump-uploads",
-            "projects:relay-minidump-attachment-uploads",
         ]
     )
     if rate_limited:
@@ -1705,10 +1690,7 @@ def test_minidump_proxy_mode(mini_sentry, relay):
 
 def test_minidump_attachment_inline_limit(mini_sentry, relay, dummy_upload):
     project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"].setdefault("features", []).append(
-        "projects:relay-minidump-attachment-uploads"
-    )
+    mini_sentry.add_full_project_config(project_id)
     mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = True
     mini_sentry.global_config["options"]["relay.attachment-inline.limit"] = 16
     relay = relay(mini_sentry)

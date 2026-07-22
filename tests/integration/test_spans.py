@@ -141,6 +141,8 @@ def test_span_extraction(
                 "sentry.op": {"type": "string", "value": "http"},
                 "sentry.origin": {"type": "string", "value": "manual"},
                 "sentry.platform": {"type": "string", "value": "other"},
+                "sentry.relay.ingress": {"type": "string", "value": "legacy"},
+                "sentry.relay.pipeline": {"type": "string", "value": "transaction"},
                 "sentry.replay_id": {
                     "type": "string",
                     "value": "4c79f60c11214eb38604f4ae0781bfb2",
@@ -150,7 +152,6 @@ def test_span_extraction(
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.segment.name": {"type": "string", "value": "hi"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
-                "sentry.transaction": {"type": "string", "value": "hi"},
                 "sentry.transaction.op": {"type": "string", "value": "hi"},
                 "sentry.user": {"type": "string", "value": f"id:{user_id}"},
                 "sentry.user.geo.city": {"type": "string", "value": "Vienna"},
@@ -226,11 +227,14 @@ def test_span_extraction(
             "attributes": {  # Backfilled from `sentry_tags`
                 "http.request.method": {"type": "string", "value": "GET"},
                 "http.route": {"type": "string", "value": "*******************"},
+                "sentry.action": {"type": "string", "value": "GET"},
                 "sentry.category": {"type": "string", "value": "http"},
                 "sentry.exclusive_time": {"type": "double", "value": 500.0},
                 "sentry.op": {"type": "string", "value": "http.client"},
                 "sentry.origin": {"type": "string", "value": "auto"},
                 "sentry.platform": {"type": "string", "value": "other"},
+                "sentry.relay.ingress": {"type": "string", "value": "legacy"},
+                "sentry.relay.pipeline": {"type": "string", "value": "transaction"},
                 "sentry.replay_id": {
                     "type": "string",
                     "value": "4c79f60c11214eb38604f4ae0781bfb2",
@@ -240,7 +244,6 @@ def test_span_extraction(
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.segment.name": {"type": "string", "value": "hi"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
-                "sentry.transaction": {"type": "string", "value": "hi"},
                 "sentry.transaction.op": {"type": "string", "value": "hi"},
                 "sentry.user": {"type": "string", "value": f"id:{user_id}"},
                 "sentry.user.geo.city": {"type": "string", "value": "Vienna"},
@@ -318,6 +321,8 @@ def test_span_extraction(
             "sentry.op": {"type": "string", "value": "hi"},
             "sentry.origin": {"type": "string", "value": "manual"},
             "sentry.platform": {"type": "string", "value": "other"},
+            "sentry.relay.ingress": {"type": "string", "value": "legacy"},
+            "sentry.relay.pipeline": {"type": "string", "value": "transaction"},
             "sentry.replay_id": {
                 "type": "string",
                 "value": "4c79f60c11214eb38604f4ae0781bfb2",
@@ -329,7 +334,6 @@ def test_span_extraction(
             "sentry.status": {"type": "string", "value": "ok"},
             "sentry.trace.status": {"type": "string", "value": "ok"},
             "sentry.transaction.op": {"type": "string", "value": "hi"},
-            "sentry.transaction": {"type": "string", "value": "hi"},
             "sentry.user": {"type": "string", "value": f"id:{user_id}"},
             "sentry.user.geo.city": {"type": "string", "value": "Vienna"},
             "sentry.user.geo.country_code": {"type": "string", "value": "AT"},
@@ -1096,8 +1100,16 @@ def test_discard_transaction(
     spans = spans_consumer.get_spans(n=2)
     assert len(spans) == 2
 
-    outcomes = outcomes_consumer.get_outcomes()
-    assert [(o["category"], o["outcome"], o["reason"]) for o in outcomes] == [
+    outcomes = outcomes_consumer.get_outcomes(n=3)
+
+    outcomes.sort(key=lambda o: o["outcome"])
+
+    # skip billing outcomes
+    assert outcomes[0]["outcome"] == 0
+    assert outcomes[1]["outcome"] == 0
+
+    o = outcomes[2]
+    assert [(o["category"], o["outcome"], o["reason"])] == [
         (9, 1, "discarded"),  # TransactionIndexed, Filtered
     ]
 
@@ -1115,7 +1127,7 @@ def test_span_filtering_with_generic_inbound_filter(
                 "isEnabled": True,
                 "condition": {
                     "op": "eq",
-                    "name": "span.data.release",
+                    "name": "span.data.sentry\\.release",
                     "value": "1.0",
                 },
             }

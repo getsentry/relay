@@ -915,12 +915,7 @@ def test_profile_outcomes(
         },
     ]
 
-    num_messages = 6
-    if num_intermediate_relays > 0:
-        num_messages = 8
-
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=num_messages)
-
+    outcomes = outcomes_consumer.get_aggregated_outcomes()
     assert outcomes == expected_outcomes, outcomes
 
     metrics = [
@@ -1414,12 +1409,7 @@ def test_span_outcomes(
         2: "pop-relay",
     }[num_intermediate_relays]
 
-    num_messages = 4
-    if num_intermediate_relays > 0:
-        num_messages = 6
-
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=num_messages)
-
+    outcomes = outcomes_consumer.get_aggregated_outcomes()
     assert outcomes == [
         {
             "category": DataCategory.TRANSACTION.value,

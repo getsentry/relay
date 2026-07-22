@@ -8,6 +8,10 @@ expression: chunk.inner
   "debug_meta": {
     "images": [
       {
+        "type": "proguard",
+        "uuid": "32420279-25e2-34e6-8bc7-8a006a8f2425"
+      },
+      {
         "code_file": "apex/com.android.runtime/lib64/bionic/libc.so",
         "debug_id": "f8ec9f1b-d634-f710-7e64-1f026ca7269b",
         "type": "symbolic",
@@ -140,422 +144,422 @@ expression: chunk.inner
   "profile": {
     "samples": [
       {
-        "timestamp": 1771278043.846,
+        "timestamp": 1771278043.846089,
         "stack_id": 1,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278043.856,
+        "timestamp": 1771278043.8560715,
         "stack_id": 0,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278043.947,
+        "timestamp": 1771278043.9471922,
         "stack_id": 2,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278043.998,
+        "timestamp": 1771278043.9976053,
         "stack_id": 3,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278044.048,
+        "timestamp": 1771278044.048167,
         "stack_id": 4,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278044.129,
+        "timestamp": 1771278044.1290238,
         "stack_id": 5,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278044.23,
+        "timestamp": 1771278044.2298582,
         "stack_id": 6,
         "thread_id": "24803"
       },
       {
-        "timestamp": 1771278044.23,
+        "timestamp": 1771278044.230061,
         "stack_id": 7,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278044.281,
+        "timestamp": 1771278044.280579,
         "stack_id": 8,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278044.331,
+        "timestamp": 1771278044.3310332,
         "stack_id": 0,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278044.462,
+        "timestamp": 1771278044.4623744,
         "stack_id": 9,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278044.513,
+        "timestamp": 1771278044.5128255,
         "stack_id": 10,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278044.563,
+        "timestamp": 1771278044.5632527,
         "stack_id": 7,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278044.614,
+        "timestamp": 1771278044.6137655,
         "stack_id": 11,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278044.664,
+        "timestamp": 1771278044.6643343,
         "stack_id": 0,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278044.715,
+        "timestamp": 1771278044.7147775,
         "stack_id": 4,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278044.745,
+        "timestamp": 1771278044.7451155,
         "stack_id": 12,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278044.745,
+        "timestamp": 1771278044.7451718,
         "stack_id": 14,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278044.796,
+        "timestamp": 1771278044.795645,
         "stack_id": 13,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278044.846,
+        "timestamp": 1771278044.8461037,
         "stack_id": 15,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278044.846,
+        "timestamp": 1771278044.8463876,
         "stack_id": 16,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278044.897,
+        "timestamp": 1771278044.8965912,
         "stack_id": 17,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278044.947,
+        "timestamp": 1771278044.947238,
         "stack_id": 7,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278044.998,
+        "timestamp": 1771278044.9977036,
         "stack_id": 18,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278045.048,
+        "timestamp": 1771278045.048318,
         "stack_id": 4,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278045.099,
+        "timestamp": 1771278045.0986078,
         "stack_id": 4,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278045.18,
+        "timestamp": 1771278045.1795697,
         "stack_id": 19,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278045.23,
+        "timestamp": 1771278045.2300177,
         "stack_id": 20,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278045.28,
+        "timestamp": 1771278045.2804577,
         "stack_id": 0,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278045.301,
+        "timestamp": 1771278045.3007536,
         "stack_id": 21,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278045.331,
+        "timestamp": 1771278045.3308196,
         "stack_id": 7,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278045.432,
+        "timestamp": 1771278045.4319417,
         "stack_id": 4,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278045.462,
+        "timestamp": 1771278045.4624014,
         "stack_id": 19,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278045.513,
+        "timestamp": 1771278045.5126648,
         "stack_id": 22,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278045.563,
+        "timestamp": 1771278045.5631418,
         "stack_id": 7,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278045.614,
+        "timestamp": 1771278045.6136446,
         "stack_id": 7,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278045.664,
+        "timestamp": 1771278045.664433,
         "stack_id": 0,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278045.715,
+        "timestamp": 1771278045.7147737,
         "stack_id": 24,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278045.765,
+        "timestamp": 1771278045.7653713,
         "stack_id": 4,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278045.795,
+        "timestamp": 1771278045.7954855,
         "stack_id": 23,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278045.816,
+        "timestamp": 1771278045.8156703,
         "stack_id": 25,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278045.846,
+        "timestamp": 1771278045.8459847,
         "stack_id": 26,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278045.897,
+        "timestamp": 1771278045.8966463,
         "stack_id": 10,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278045.947,
+        "timestamp": 1771278045.947191,
         "stack_id": 27,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278045.998,
+        "timestamp": 1771278045.9976945,
         "stack_id": 28,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278046.099,
+        "timestamp": 1771278046.0987484,
         "stack_id": 4,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278046.129,
+        "timestamp": 1771278046.1290393,
         "stack_id": 29,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278046.18,
+        "timestamp": 1771278046.1796257,
         "stack_id": 30,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278046.23,
+        "timestamp": 1771278046.229877,
         "stack_id": 0,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278046.23,
+        "timestamp": 1771278046.2299218,
         "stack_id": 31,
         "thread_id": "24803"
       },
       {
-        "timestamp": 1771278046.28,
+        "timestamp": 1771278046.2803156,
         "stack_id": 7,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278046.331,
+        "timestamp": 1771278046.3308222,
         "stack_id": 0,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278046.462,
+        "timestamp": 1771278046.4621394,
         "stack_id": 32,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278046.483,
+        "timestamp": 1771278046.4825423,
         "stack_id": 33,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278046.513,
+        "timestamp": 1771278046.5128262,
         "stack_id": 34,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278046.614,
+        "timestamp": 1771278046.6137938,
         "stack_id": 7,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278046.614,
+        "timestamp": 1771278046.6139276,
         "stack_id": 31,
         "thread_id": "24804"
       },
       {
-        "timestamp": 1771278046.664,
+        "timestamp": 1771278046.6643958,
         "stack_id": 0,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278046.846,
+        "timestamp": 1771278046.8460248,
         "stack_id": 10,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278046.897,
+        "timestamp": 1771278046.8965824,
         "stack_id": 36,
         "thread_id": "24803"
       },
       {
-        "timestamp": 1771278046.917,
+        "timestamp": 1771278046.9166775,
         "stack_id": 35,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278047.048,
+        "timestamp": 1771278047.0483384,
         "stack_id": 37,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278047.149,
+        "timestamp": 1771278047.1492703,
         "stack_id": 38,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278047.2,
+        "timestamp": 1771278047.199614,
         "stack_id": 39,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278047.23,
+        "timestamp": 1771278047.2299235,
         "stack_id": 40,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278047.381,
+        "timestamp": 1771278047.381436,
         "stack_id": 41,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278047.432,
+        "timestamp": 1771278047.4319444,
         "stack_id": 4,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278047.462,
+        "timestamp": 1771278047.4622607,
         "stack_id": 42,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278047.513,
+        "timestamp": 1771278047.5126357,
         "stack_id": 43,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278047.563,
+        "timestamp": 1771278047.5633042,
         "stack_id": 0,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278047.664,
+        "timestamp": 1771278047.6644158,
         "stack_id": 44,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278047.715,
+        "timestamp": 1771278047.7148435,
         "stack_id": 46,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278047.765,
+        "timestamp": 1771278047.7651818,
         "stack_id": 4,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278047.795,
+        "timestamp": 1771278047.7954636,
         "stack_id": 45,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278047.816,
+        "timestamp": 1771278047.8156853,
         "stack_id": 47,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278047.846,
+        "timestamp": 1771278047.8460736,
         "stack_id": 8,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278047.866,
+        "timestamp": 1771278047.8661695,
         "stack_id": 48,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278047.947,
+        "timestamp": 1771278047.9472022,
         "stack_id": 0,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278048.129,
+        "timestamp": 1771278048.12904,
         "stack_id": 49,
         "thread_id": "24791"
       },
       {
-        "timestamp": 1771278048.2,
+        "timestamp": 1771278048.1996746,
         "stack_id": 50,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278048.25,
+        "timestamp": 1771278048.250255,
         "stack_id": 51,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278048.331,
+        "timestamp": 1771278048.331032,
         "stack_id": 52,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278048.483,
+        "timestamp": 1771278048.482544,
         "stack_id": 53,
         "thread_id": "24820"
       },
       {
-        "timestamp": 1771278048.513,
+        "timestamp": 1771278048.512983,
         "stack_id": 10,
         "thread_id": "24820"
       }

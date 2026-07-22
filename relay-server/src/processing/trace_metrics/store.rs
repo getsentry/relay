@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use chrono::{DateTime, Utc};
 use prost_types::Timestamp;
 use relay_base_schema::metrics::MetricUnit;
+use relay_event_schema::protocol::trace_metric;
 use relay_event_schema::protocol::{Attributes, MetricType, SpanId, TraceMetric};
 use relay_protocol::{Annotated, Value};
 use relay_quotas::Scoping;
@@ -10,7 +11,9 @@ use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType, any_value};
 use uuid::Uuid;
 
 use crate::envelope::WithHeader;
+use crate::managed::Managed;
 use crate::processing::trace_metrics::{Error, Result};
+use crate::processing::trace_metrics::{store, utils};
 use crate::processing::utils::store::{
     extract_client_sample_rate, extract_meta_attributes, quantities_to_trace_item_outcomes,
     uuid_to_item_id,
@@ -215,6 +218,44 @@ fn attributes(
     );
 
     result
+}
+
+/// Produce the supplied webvital trace metrics to kafka.
+/// This is required right now to double-write these webvitals as trace metrics, while we
+/// still write the vitals as spans.  Eventually, the sdks will natively emit metrics and we
+/// can remove this code.
+pub fn produce_webvitals_metrics(
+    s: processing::StoreHandle<'_>,
+    span: &Managed<Box<crate::services::store::StoreSpanV2>>,
+    metrics: Vec<TraceMetric>,
+) {
+    for metric in metrics {
+        let trace_metric_headers = trace_metric::TraceMetricHeader {
+            byte_size: Some(utils::calculate_size(&metric)),
+            other: std::collections::BTreeMap::default(),
+        };
+
+        let wheader = crate::envelope::WithHeader {
+            header: trace_metric_headers.into(),
+            value: metric.into(),
+        };
+
+        if let Ok(mut item) = store::convert(
+            wheader,
+            &store::Context {
+                received_at: span.received_at(),
+                scoping: span.scoping(),
+                retention: processing::Retention {
+                    standard: span.retention_days,
+                    downsampled: span.downsampled_retention_days,
+                },
+            },
+        ) {
+            // Clear outcomes for these metrics, as we don't want them billed.
+            item.trace_item.outcomes = None;
+            s.send_to_store(span.wrap(item));
+        }
+    }
 }
 
 #[cfg(test)]
