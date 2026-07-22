@@ -48,7 +48,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use crate::constants::{self, DEFAULT_EVENT_RETENTION};
+use crate::constants;
 use crate::extractors::{PartialMeta, RequestMeta};
 
 mod attachment;
@@ -97,13 +97,6 @@ pub struct EnvelopeHeaders<M = RequestMeta> {
     /// Further event information derived from a store request.
     #[serde(flatten)]
     meta: M,
-
-    /// Data retention in days for the items of this envelope.
-    ///
-    /// This value is always overwritten in processing mode by the value specified in the project
-    /// configuration.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    retention: Option<u16>,
 
     /// Timestamp when the event has been sent, according to the SDK.
     ///
@@ -159,7 +152,6 @@ impl EnvelopeHeaders<PartialMeta> {
         Ok(EnvelopeHeaders {
             event_id: self.event_id,
             meta: meta.copy_to(request_meta),
-            retention: self.retention,
             sent_at: self.sent_at,
             trace: self.trace,
             required_features: self.required_features,
@@ -236,7 +228,6 @@ where
         let Self {
             event_id,
             meta,
-            retention,
             sent_at,
             trace,
             required_features,
@@ -249,9 +240,6 @@ where
             map.entry(&"event_id", &event_id.0);
         }
         map.entry(&"meta", &meta);
-        if let Some(retention) = retention {
-            map.entry(&"retention", retention);
-        }
         if let Some(sent_at) = sent_at {
             map.entry(&"sent_at", sent_at);
         }
@@ -303,7 +291,6 @@ impl Envelope {
             headers: EnvelopeHeaders {
                 event_id,
                 meta,
-                retention: None,
                 sent_at: None,
                 other: BTreeMap::new(),
                 trace: None,
@@ -401,12 +388,6 @@ impl Envelope {
         &mut self.headers.meta
     }
 
-    /// Returns the data retention in days for items in this envelope.
-    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
-    pub fn retention(&self) -> u16 {
-        self.headers.retention.unwrap_or(DEFAULT_EVENT_RETENTION)
-    }
-
     /// When the event has been sent, according to the SDK.
     pub fn sent_at(&self) -> Option<DateTime<Utc>> {
         self.headers.sent_at
@@ -457,11 +438,6 @@ impl Envelope {
     /// Sets the received at to the provided `DateTime`.
     pub fn set_received_at(&mut self, start_time: DateTime<Utc>) {
         self.headers.meta.set_received_at(start_time)
-    }
-
-    /// Sets the data retention in days for items in this envelope.
-    pub fn set_retention(&mut self, retention: u16) {
-        self.headers.retention = Some(retention);
     }
 
     /// Runs transaction parametrization on the DSC trace transaction.
