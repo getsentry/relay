@@ -65,6 +65,7 @@ impl SentryError for Nswitch {
         let mut attachments = attachments;
         attachments.extend(dying_message.attachments);
 
+        #[cfg_attr(not(feature = "processing"), expect(unused_mut))]
         let mut event = match (event, dying_message.event) {
             (Some(event), Some(dying_message)) => {
                 metrics.bytes_ingested_event =
@@ -80,9 +81,11 @@ impl SentryError for Nswitch {
         // Sentry would otherwise render as the issue title. Reshape it to look like a native
         // crash on other platforms: fall the title back to the crashing function and render the
         // event as a fatal, unhandled crash. Normalization runs after this and preserves it.
-        if let Some(event) = event.value_mut() {
-            crate::utils::reshape_switch_crash(event);
-        }
+        utils::if_processing!(ctx, {
+            if let Some(event) = event.value_mut() {
+                crate::utils::reshape_switch_crash(event);
+            }
+        });
 
         Ok(Some(Expansion {
             event: Box::new(event),
