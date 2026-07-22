@@ -10,7 +10,7 @@
 
 **Bug Fixes**:
 
-- Reshape Nintendo Switch crashes so the issue title falls back to the crashing function instead of the raw abort result code, and render them as fatal and unhandled. ([#6252](https://github.com/getsentry/relay/pull/6252))
+- Reshape Nintendo Switch crashes so the issue title falls back to the crashing function instead of the raw abort result code, and render them as fatal and unhandled. ([#6253](https://github.com/getsentry/relay/pull/6253))
 
 ## 26.7.0
 
