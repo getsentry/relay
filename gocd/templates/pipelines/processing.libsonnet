@@ -16,7 +16,7 @@ local canary_regions = ['us', 'de', 'us2', 's4s2'];
 
 local sentry_deploy_vars(region) = {
   SENTRY_REGION: region,
-  SENTRY_SINGLE_TENANT: 'false',
+  SENTRY_SINGLE_TENANT: if region == 's4s2' then 'true' else 'false',
   SENTRY_BASE: 'https://sentry.io/api/0',
   SENTRY_AUTH_TOKEN: if region == 's4s2' then '{{SECRET:[devinfra-sentryst][token]}}' else '{{SECRET:[devinfra-temp][relay_sentry_s4s2_auth_token]}}',
   // Sentry projects to check for errors <project_id>:<project_slug>:<service>
