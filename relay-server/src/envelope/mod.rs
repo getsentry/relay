@@ -48,7 +48,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use crate::constants::DEFAULT_EVENT_RETENTION;
+use crate::constants::{self, DEFAULT_EVENT_RETENTION};
 use crate::extractors::{PartialMeta, RequestMeta};
 
 mod attachment;
@@ -67,6 +67,8 @@ pub use self::meta::*;
 pub enum EnvelopeError {
     #[error("unexpected end of file")]
     UnexpectedEof,
+    #[error("too many individual items")]
+    TooManyItems,
     #[error("missing envelope header")]
     MissingHeader,
     #[error("missing newline after header or payload")]
@@ -707,6 +709,9 @@ impl Envelope {
             let (item, item_size) = Item::parse(bytes.slice(offset..))?;
             offset += item_size;
             items.push(item);
+            if items.len() > constants::MAX_ENVELOPE_ITEMS {
+                return Err(EnvelopeError::TooManyItems);
+            }
         }
 
         Ok(items)
@@ -1066,6 +1071,21 @@ mod tests {
         assert_eq!(items[0].ty(), &ItemType::Attachment);
         assert_eq!(items[1].len(), 10);
         assert_eq!(items[1].ty(), &ItemType::ReplayRecording);
+    }
+
+    #[test]
+    fn test_parse_too_many_items() {
+        let mut envelope = "{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n".to_owned();
+        for _ in 0..constants::MAX_ENVELOPE_ITEMS + 1 {
+            envelope.push_str("{\"type\":\"attachment\"}\n");
+            envelope.push_str("hello world\n");
+        }
+        let envelope = Bytes::from(envelope.into_bytes());
+
+        std::assert_matches!(
+            Envelope::parse_bytes(envelope),
+            Err(EnvelopeError::TooManyItems)
+        );
     }
 
     #[test]

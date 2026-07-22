@@ -8,6 +8,10 @@
 - No longer write the deprecated `sentry.transaction` and `db.system` attributes. ([#6237](https://github.com/getsentry/relay/pull/6237), [#6238](https://github.com/getsentry/relay/pull/6238))
 - Allow additional exceptions in minidump and apple crash report events. ([#6241](https://github.com/getsentry/relay/pull/6241))
 
+**Internal**:
+
+- Limit the maximum amount of items in an envelope to 500. ([#6251](https://github.com/getsentry/relay/pull/6251))
+
 ## 26.7.0
 
 **Features**:
