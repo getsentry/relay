@@ -80,6 +80,10 @@ def test_graceful_shutdown_with_sqlite_buffer(mini_sentry, relay):
             },
         )
 
+        # Await a health check, so that we basically know that the envelope service is up
+        # and running.
+        relay.wait_health_check()
+
         n = 10
         relay.send_event(project_id)
         assert project_config_requested.wait(
