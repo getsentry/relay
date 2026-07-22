@@ -12,6 +12,10 @@
 
 - Consistently enforces envelope size limits for all items. ([#6250](https://github.com/getsentry/relay/pull/6250))
 
+**Internal**:
+
+- Limit the maximum amount of items in an envelope to 500. ([#6251](https://github.com/getsentry/relay/pull/6251))
+
 ## 26.7.0
 
 **Features**:
