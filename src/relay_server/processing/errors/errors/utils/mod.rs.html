@@ -189,21 +189,39 @@
 <a href=#189 id=189 data-nosnippet>189</a>    metrics: <span class="kw-2">&amp;mut </span>Metrics,
 <a href=#190 id=190 data-nosnippet>190</a>    ctx: Context&lt;<span class="lifetime">'_</span>&gt;,
 <a href=#191 id=191 data-nosnippet>191</a>) -&gt; <span class="prelude-ty">Result</span>&lt;Annotated&lt;Event&gt;&gt; {
-<a href=#192 id=192 data-nosnippet>192</a>    <span class="kw">let </span>event = take_parsed_event(items, metrics, ctx)<span class="question-mark">?</span>;
-<a href=#193 id=193 data-nosnippet>193</a>    <span class="kw">if </span>event.<span class="number">0</span>.is_some() {
-<a href=#194 id=194 data-nosnippet>194</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(event);
-<a href=#195 id=195 data-nosnippet>195</a>    }
-<a href=#196 id=196 data-nosnippet>196</a>
-<a href=#197 id=197 data-nosnippet>197</a>    <span class="kw">let </span>event = take_event_from_attachments(items, metrics, ctx)<span class="question-mark">?</span>;
-<a href=#198 id=198 data-nosnippet>198</a>    <span class="kw">if </span>event.<span class="number">0</span>.is_some() {
-<a href=#199 id=199 data-nosnippet>199</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(event);
-<a href=#200 id=200 data-nosnippet>200</a>    }
+<a href=#192 id=192 data-nosnippet>192</a>    <span class="comment">// Remove other event creating items to make sure there are no leftovers.
+<a href=#193 id=193 data-nosnippet>193</a>    </span><span class="kw">let </span>remove_other_event_items = |items: <span class="kw-2">&amp;mut </span>Vec&lt;Item&gt;| {
+<a href=#194 id=194 data-nosnippet>194</a>        items
+<a href=#195 id=195 data-nosnippet>195</a>            .extract_if(.., |item| {
+<a href=#196 id=196 data-nosnippet>196</a>                <span class="kw">let </span>is_ev_item = <span class="macro">matches!</span>(item.ty(), ItemType::FormData);
+<a href=#197 id=197 data-nosnippet>197</a>                <span class="kw">let </span>is_ev_attachment = <span class="macro">matches!</span>(
+<a href=#198 id=198 data-nosnippet>198</a>                    item.attachment_type(),
+<a href=#199 id=199 data-nosnippet>199</a>                    <span class="prelude-val">Some</span>(AttachmentType::EventPayload | AttachmentType::Breadcrumbs)
+<a href=#200 id=200 data-nosnippet>200</a>                );
 <a href=#201 id=201 data-nosnippet>201</a>
-<a href=#202 id=202 data-nosnippet>202</a>    <span class="kw">let </span>event = take_event_from_formdata(items, metrics)<span class="question-mark">?</span>;
-<a href=#203 id=203 data-nosnippet>203</a>    <span class="kw">if </span>event.<span class="number">0</span>.is_some() {
-<a href=#204 id=204 data-nosnippet>204</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(event);
-<a href=#205 id=205 data-nosnippet>205</a>    }
+<a href=#202 id=202 data-nosnippet>202</a>                is_ev_item || is_ev_attachment
+<a href=#203 id=203 data-nosnippet>203</a>            })
+<a href=#204 id=204 data-nosnippet>204</a>            .for_each(drop);
+<a href=#205 id=205 data-nosnippet>205</a>    };
 <a href=#206 id=206 data-nosnippet>206</a>
-<a href=#207 id=207 data-nosnippet>207</a>    <span class="prelude-val">Ok</span>(Annotated::empty())
-<a href=#208 id=208 data-nosnippet>208</a>}
+<a href=#207 id=207 data-nosnippet>207</a>    <span class="kw">let </span>event = take_parsed_event(items, metrics, ctx)<span class="question-mark">?</span>;
+<a href=#208 id=208 data-nosnippet>208</a>    <span class="kw">if </span>event.<span class="number">0</span>.is_some() {
+<a href=#209 id=209 data-nosnippet>209</a>        remove_other_event_items(items);
+<a href=#210 id=210 data-nosnippet>210</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(event);
+<a href=#211 id=211 data-nosnippet>211</a>    }
+<a href=#212 id=212 data-nosnippet>212</a>
+<a href=#213 id=213 data-nosnippet>213</a>    <span class="kw">let </span>event = take_event_from_attachments(items, metrics, ctx)<span class="question-mark">?</span>;
+<a href=#214 id=214 data-nosnippet>214</a>    <span class="kw">if </span>event.<span class="number">0</span>.is_some() {
+<a href=#215 id=215 data-nosnippet>215</a>        remove_other_event_items(items);
+<a href=#216 id=216 data-nosnippet>216</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(event);
+<a href=#217 id=217 data-nosnippet>217</a>    }
+<a href=#218 id=218 data-nosnippet>218</a>
+<a href=#219 id=219 data-nosnippet>219</a>    <span class="kw">let </span>event = take_event_from_formdata(items, metrics)<span class="question-mark">?</span>;
+<a href=#220 id=220 data-nosnippet>220</a>    <span class="kw">if </span>event.<span class="number">0</span>.is_some() {
+<a href=#221 id=221 data-nosnippet>221</a>        remove_other_event_items(items);
+<a href=#222 id=222 data-nosnippet>222</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(event);
+<a href=#223 id=223 data-nosnippet>223</a>    }
+<a href=#224 id=224 data-nosnippet>224</a>
+<a href=#225 id=225 data-nosnippet>225</a>    <span class="prelude-val">Ok</span>(Annotated::empty())
+<a href=#226 id=226 data-nosnippet>226</a>}
 </code></pre></div></section></main></body></html>
