@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 import requests
+from requests import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 from .asserts import time_within_delta
@@ -1079,20 +1080,19 @@ def test_profile_outcomes_too_many(
         return envelope
 
     envelope = make_envelope()
-    upstream.send_envelope(project_id, envelope)
+    with pytest.raises(HTTPError, match="413 Client Error"):
+        upstream.send_envelope(project_id, envelope)
 
-    outcomes = outcomes_consumer.get_outcomes(n=4)
-    outcomes.sort(key=lambda o: sorted(o.items()))
-
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=6)
     assert outcomes == [
         {
             "category": DataCategory.TRANSACTION.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": 3,
             "project_id": 42,
             "quantity": 1,
-            "timestamp": time_within_delta(),
+            "reason": "too_large:profile",
         },
         {
             "category": DataCategory.PROFILE.value,
@@ -1100,9 +1100,17 @@ def test_profile_outcomes_too_many(
             "org_id": 1,
             "outcome": 3,  # Invalid
             "project_id": 42,
+            "quantity": 2,
+            "reason": "too_large:profile",
+        },
+        {
+            "category": DataCategory.TRANSACTION_INDEXED.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,
+            "project_id": 42,
             "quantity": 1,
-            "reason": "profiling_too_many_profiles",
-            "timestamp": time_within_delta(),
+            "reason": "too_large:profile",
         },
         {
             "category": DataCategory.PROFILE_INDEXED.value,
@@ -1110,23 +1118,30 @@ def test_profile_outcomes_too_many(
             "org_id": 1,
             "outcome": 3,  # Invalid
             "project_id": 42,
-            "quantity": 1,
-            "reason": "profiling_too_many_profiles",
-            "timestamp": time_within_delta(),
+            "quantity": 2,
+            "reason": "too_large:profile",
         },
         {
             "category": DataCategory.SPAN.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": 3,
             "project_id": 42,
-            "quantity": 2,
-            "timestamp": time_within_delta(),
+            "quantity": 1,
+            "reason": "too_large:profile",
+        },
+        {
+            "category": DataCategory.SPAN_INDEXED.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "too_large:profile",
         },
     ]
 
-    # One profile was accepted
-    assert profiles_consumer.get_profile()
+    profiles_consumer.assert_empty()
 
 
 @pytest.mark.parametrize(

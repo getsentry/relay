@@ -68,7 +68,8 @@ def test_trace_metric_multiple_containers_not_allowed(
         )
     )
 
-    relay.send_envelope(project_id, envelope)
+    with pytest.raises(HTTPError, match="413 Client Error"):
+        relay.send_envelope(project_id, envelope)
 
     outcomes = mini_sentry.get_outcomes(n=2)
     outcomes.sort(key=lambda o: sorted(o.items()))
@@ -79,14 +80,14 @@ def test_trace_metric_multiple_containers_not_allowed(
             "timestamp": time_within_delta(),
             "outcome": 3,  # Invalid
             "quantity": 3,
-            "reason": "duplicate_item",
+            "reason": "too_large:trace_metric",
         },
         {
             "category": DataCategory.TRACE_METRIC_BYTE.value,
             "timestamp": time_within_delta(),
             "outcome": 3,  # Invalid
             "quantity": matches(lambda x: 300 < x < 500),
-            "reason": "duplicate_item",
+            "reason": "too_large:trace_metric",
         },
     ]
 
