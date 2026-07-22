@@ -79,6 +79,9 @@ pub enum ProcessingError {
     #[error("invalid message pack event payload")]
     InvalidMsgpack(#[from] rmp_serde::decode::Error),
 
+    #[error("event data too deeply nested")]
+    NestingTooDeep,
+
     #[error("invalid unreal crash report")]
     InvalidUnrealReport(#[source] Unreal4Error),
 
@@ -139,6 +142,7 @@ impl ProcessingError {
             }
             Self::InvalidJson(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
             Self::InvalidMsgpack(_) => Some(Outcome::Invalid(DiscardReason::InvalidMsgpack)),
+            Self::NestingTooDeep => Some(Outcome::Invalid(DiscardReason::NestingTooDeep)),
             Self::InvalidSecurityType(_) => {
                 Some(Outcome::Invalid(DiscardReason::SecurityReportType))
             }
@@ -1192,7 +1196,6 @@ impl EnvelopeProcessorService {
     ) {
         use crate::constants::DEFAULT_EVENT_RETENTION;
         use crate::services::store::StoreMetrics;
-        use relay_dynamic_config::Feature;
 
         for ProjectBuckets {
             buckets,
@@ -1209,16 +1212,10 @@ impl EnvelopeProcessorService {
                 continue;
             }
 
-            if project_info
-                .config
-                .features
-                .has(Feature::GenerateBillingOutcome)
-            {
-                // Emit metric billing outcomes.
-                self.inner
-                    .metric_outcomes
-                    .track_accepted_outcome(scoping, &mut buckets);
-            }
+            // Emit metric billing outcomes.
+            self.inner
+                .metric_outcomes
+                .track_accepted_outcome(scoping, &mut buckets);
 
             let retention = project_info
                 .config

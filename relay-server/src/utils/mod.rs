@@ -9,6 +9,7 @@ mod pick;
 pub mod playstation;
 mod rate_limits;
 mod retry;
+pub mod rmp;
 mod scheduled;
 mod sizes;
 mod sleep_handle;

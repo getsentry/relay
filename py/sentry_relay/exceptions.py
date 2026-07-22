@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 from sentry_relay._lowlevel import lib
 
 __all__ = ["RelayError"]
-exceptions_by_code = {}
+exceptions_by_code: dict[int, Exception] = {}
 
 
 class RelayError(Exception):

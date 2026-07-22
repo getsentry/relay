@@ -13,10 +13,7 @@ use regex::Regex;
 use relay_base_schema::metrics::{
     DurationUnit, FractionUnit, MetricUnit, can_be_valid_metric_name,
 };
-use relay_conventions::attributes::{
-    APP__VITALS__START__COLD__VALUE, APP__VITALS__START__SCREEN, APP__VITALS__START__TYPE,
-    APP__VITALS__START__VALUE, APP__VITALS__START__WARM__VALUE, SCORE__TOTAL,
-};
+use relay_conventions::attributes::*;
 use relay_conventions::interpolate;
 use relay_conventions::measurements::{
     APP_START_COLD, APP_START_WARM, FRAMES_FROZEN, FRAMES_FROZEN_RATE, FRAMES_SLOW,
@@ -266,6 +263,12 @@ pub fn normalize_event(event: &mut Annotated<Event>, config: &NormalizationConfi
 
 /// Normalizes the given event based on the given config.
 fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
+    // This must run first, as the following normalizations rely on the latest version of
+    // conventions.
+    if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
+        span::normalize_conventions(event);
+    }
+
     // Normalize the transaction.
     // (internally noops for non-transaction events).
     // TODO: Parts of this processor should probably be a filter so we
@@ -1075,28 +1078,34 @@ fn normalize_trace_context_tags(event: &mut Event) {
         && let Some(trace_context) = contexts.get::<TraceContext>()
         && let Some(data) = trace_context.data.value()
     {
-        if let Some(lcp_element) = data.lcp_element.value()
+        if let Some(lcp_element) = data.get_str(BROWSER__WEB_VITAL__LCP__ELEMENT)
             && !tags.contains("lcp.element")
         {
             let tag_name = "lcp.element".to_owned();
-            tags.insert(tag_name, Annotated::new(lcp_element.clone()));
+            tags.insert(tag_name, Annotated::new(lcp_element.to_owned()));
         }
-        if let Some(lcp_size) = data.lcp_size.value()
+        if let Some(lcp_size) = data
+            .get_value(BROWSER__WEB_VITAL__LCP__SIZE)
+            .and_then(|value| match value {
+                Value::U64(value) => Some(*value),
+                Value::I64(value) => u64::try_from(*value).ok(),
+                _ => None,
+            })
             && !tags.contains("lcp.size")
         {
             let tag_name = "lcp.size".to_owned();
             tags.insert(tag_name, Annotated::new(lcp_size.to_string()));
         }
-        if let Some(lcp_id) = data.lcp_id.value() {
+        if let Some(lcp_id) = data.get_str(BROWSER__WEB_VITAL__LCP__ID) {
             let tag_name = "lcp.id".to_owned();
             if !tags.contains("lcp.id") {
-                tags.insert(tag_name, Annotated::new(lcp_id.clone()));
+                tags.insert(tag_name, Annotated::new(lcp_id.to_owned()));
             }
         }
-        if let Some(lcp_url) = data.lcp_url.value() {
+        if let Some(lcp_url) = data.get_str(BROWSER__WEB_VITAL__LCP__URL) {
             let tag_name = "lcp.url".to_owned();
             if !tags.contains("lcp.url") {
-                tags.insert(tag_name, Annotated::new(lcp_url.clone()));
+                tags.insert(tag_name, Annotated::new(lcp_url.to_owned()));
             }
         }
     }
@@ -1529,16 +1538,13 @@ fn backfill_app_vitals_start_screen(event: &mut Event) {
         || trace_context
             .data
             .value()
-            .is_some_and(|data| data.other.contains_key(APP__VITALS__START__SCREEN))
+            .is_some_and(|data| data.contains(APP__VITALS__START__SCREEN))
     {
         return;
     }
 
     let data = trace_context.data.get_or_insert_with(Default::default);
-    data.other.insert(
-        APP__VITALS__START__SCREEN.to_owned(),
-        Annotated::new(Value::String(screen)),
-    );
+    data.insert_value(APP__VITALS__START__SCREEN, screen);
 }
 
 fn normalize_units(measurements: &mut Measurements) {
@@ -2489,7 +2495,7 @@ mod tests {
                             }
                         },
                         "data": {
-                            "ai.model_id": "claude-2.1"
+                            "gen_ai.request.model": "claude-2.1"
                         }
                     },
                     {
@@ -2509,7 +2515,7 @@ mod tests {
                             }
                         },
                         "data": {
-                            "ai.model_id": "gpt4-21-04"
+                            "gen_ai.request.model": "gpt4-21-04"
                         }
                     }
                 ]
@@ -2560,30 +2566,36 @@ mod tests {
 
         assert_annotated_snapshot!(span1, @r#"
         {
-          "gen_ai.usage.total_tokens": 3000.0,
-          "gen_ai.usage.input_tokens": 1000.0,
-          "gen_ai.usage.output_tokens": 2000.0,
-          "gen_ai.response.model": "claude-2.1",
-          "gen_ai.request.model": "claude-2.1",
-          "gen_ai.cost.total_tokens": 50.0,
+          "gen_ai.cost.cache_creation.input_tokens": 0.0,
+          "gen_ai.cost.cache_read.input_tokens": 0.0,
           "gen_ai.cost.input_tokens": 10.0,
           "gen_ai.cost.output_tokens": 40.0,
+          "gen_ai.cost.reasoning.output_tokens": 0.0,
+          "gen_ai.cost.total_tokens": 50.0,
+          "gen_ai.operation.type": "ai_client",
+          "gen_ai.request.model": "claude-2.1",
+          "gen_ai.response.model": "claude-2.1",
           "gen_ai.response.tokens_per_second": 62500.0,
-          "gen_ai.operation.type": "ai_client"
+          "gen_ai.usage.input_tokens": 1000.0,
+          "gen_ai.usage.output_tokens": 2000.0,
+          "gen_ai.usage.total_tokens": 3000.0
         }
         "#);
         assert_annotated_snapshot!(span2, @r#"
         {
-          "gen_ai.usage.total_tokens": 3000.0,
-          "gen_ai.usage.input_tokens": 1000.0,
-          "gen_ai.usage.output_tokens": 2000.0,
-          "gen_ai.response.model": "gpt4-21-04",
-          "gen_ai.request.model": "gpt4-21-04",
-          "gen_ai.cost.total_tokens": 80.0,
+          "gen_ai.cost.cache_creation.input_tokens": 0.0,
+          "gen_ai.cost.cache_read.input_tokens": 0.0,
           "gen_ai.cost.input_tokens": 20.0,
           "gen_ai.cost.output_tokens": 60.0,
+          "gen_ai.cost.reasoning.output_tokens": 0.0,
+          "gen_ai.cost.total_tokens": 80.0,
+          "gen_ai.operation.type": "ai_client",
+          "gen_ai.request.model": "gpt4-21-04",
+          "gen_ai.response.model": "gpt4-21-04",
           "gen_ai.response.tokens_per_second": 62500.0,
-          "gen_ai.operation.type": "ai_client"
+          "gen_ai.usage.input_tokens": 1000.0,
+          "gen_ai.usage.output_tokens": 2000.0,
+          "gen_ai.usage.total_tokens": 3000.0
         }
         "#);
     }
@@ -2604,8 +2616,8 @@ mod tests {
                         "data": {
                             "gen_ai.usage.input_tokens": 1000,
                             "gen_ai.usage.output_tokens": 2000,
-                            "gen_ai.usage.output_tokens.reasoning": 1000,
-                            "gen_ai.usage.input_tokens.cached": 500,
+                            "gen_ai.usage.reasoning.output_tokens": 1000,
+                            "gen_ai.usage.cache_read.input_tokens": 500,
                             "gen_ai.request.model": "claude-2.1"
                         }
                     },
@@ -2685,45 +2697,54 @@ mod tests {
 
         assert_annotated_snapshot!(span1, @r#"
         {
-          "gen_ai.usage.total_tokens": 3000.0,
-          "gen_ai.usage.input_tokens": 1000,
-          "gen_ai.usage.input_tokens.cached": 500,
-          "gen_ai.usage.output_tokens": 2000,
-          "gen_ai.usage.output_tokens.reasoning": 1000,
-          "gen_ai.response.model": "claude-2.1",
-          "gen_ai.request.model": "claude-2.1",
-          "gen_ai.cost.total_tokens": 75.0,
+          "gen_ai.cost.cache_creation.input_tokens": 0.0,
+          "gen_ai.cost.cache_read.input_tokens": 20.0,
           "gen_ai.cost.input_tokens": 25.0,
           "gen_ai.cost.output_tokens": 50.0,
+          "gen_ai.cost.reasoning.output_tokens": 30.0,
+          "gen_ai.cost.total_tokens": 75.0,
+          "gen_ai.operation.type": "ai_client",
+          "gen_ai.request.model": "claude-2.1",
+          "gen_ai.response.model": "claude-2.1",
           "gen_ai.response.tokens_per_second": 2000.0,
-          "gen_ai.operation.type": "ai_client"
+          "gen_ai.usage.cache_read.input_tokens": 500,
+          "gen_ai.usage.input_tokens": 1000,
+          "gen_ai.usage.output_tokens": 2000,
+          "gen_ai.usage.reasoning.output_tokens": 1000,
+          "gen_ai.usage.total_tokens": 3000.0
         }
         "#);
         assert_annotated_snapshot!(span2, @r#"
         {
-          "gen_ai.usage.total_tokens": 3000.0,
-          "gen_ai.usage.input_tokens": 1000,
-          "gen_ai.usage.output_tokens": 2000,
-          "gen_ai.response.model": "gpt4-21-04",
-          "gen_ai.request.model": "gpt4-21-04",
-          "gen_ai.cost.total_tokens": 190.0,
+          "gen_ai.cost.cache_creation.input_tokens": 0.0,
+          "gen_ai.cost.cache_read.input_tokens": 0.0,
           "gen_ai.cost.input_tokens": 90.0,
           "gen_ai.cost.output_tokens": 100.0,
+          "gen_ai.cost.reasoning.output_tokens": 0.0,
+          "gen_ai.cost.total_tokens": 190.0,
+          "gen_ai.operation.type": "ai_client",
+          "gen_ai.request.model": "gpt4-21-04",
+          "gen_ai.response.model": "gpt4-21-04",
           "gen_ai.response.tokens_per_second": 2000.0,
-          "gen_ai.operation.type": "ai_client"
+          "gen_ai.usage.input_tokens": 1000,
+          "gen_ai.usage.output_tokens": 2000,
+          "gen_ai.usage.total_tokens": 3000.0
         }
         "#);
         assert_annotated_snapshot!(span3, @r#"
         {
-          "gen_ai.usage.total_tokens": 3000.0,
-          "gen_ai.usage.input_tokens": 1000,
-          "gen_ai.usage.output_tokens": 2000,
-          "gen_ai.response.model": "gpt4-21-04",
-          "gen_ai.cost.total_tokens": 190.0,
+          "gen_ai.cost.cache_creation.input_tokens": 0.0,
+          "gen_ai.cost.cache_read.input_tokens": 0.0,
           "gen_ai.cost.input_tokens": 90.0,
           "gen_ai.cost.output_tokens": 100.0,
+          "gen_ai.cost.reasoning.output_tokens": 0.0,
+          "gen_ai.cost.total_tokens": 190.0,
+          "gen_ai.operation.type": "ai_client",
+          "gen_ai.response.model": "gpt4-21-04",
           "gen_ai.response.tokens_per_second": 2000.0,
-          "gen_ai.operation.type": "ai_client"
+          "gen_ai.usage.input_tokens": 1000,
+          "gen_ai.usage.output_tokens": 2000,
+          "gen_ai.usage.total_tokens": 3000.0
         }
         "#);
     }
@@ -2778,9 +2799,9 @@ mod tests {
 
         assert_annotated_snapshot!(span, @r#"
         {
-          "gen_ai.response.model": "claude-2.1",
+          "gen_ai.operation.type": "agent",
           "gen_ai.request.model": "claude-2.1",
-          "gen_ai.operation.type": "agent"
+          "gen_ai.response.model": "claude-2.1"
         }
         "#);
     }
@@ -2801,8 +2822,8 @@ mod tests {
                         "data": {
                             "gen_ai.usage.input_tokens": 1000,
                             "gen_ai.usage.output_tokens": 2000,
-                            "gen_ai.usage.output_tokens.reasoning": 1000,
-                            "gen_ai.usage.input_tokens.cached": 500,
+                            "gen_ai.usage.reasoning.output_tokens": 1000,
+                            "gen_ai.usage.cache_read.input_tokens": 500,
                             "gen_ai.request.model": "claude-2.1"
                         }
                     },
@@ -2868,32 +2889,38 @@ mod tests {
 
         assert_annotated_snapshot!(span1, @r#"
         {
-          "gen_ai.usage.total_tokens": 3000.0,
-          "gen_ai.usage.input_tokens": 1000,
-          "gen_ai.usage.input_tokens.cached": 500,
-          "gen_ai.usage.output_tokens": 2000,
-          "gen_ai.usage.output_tokens.reasoning": 1000,
-          "gen_ai.response.model": "claude-2.1",
-          "gen_ai.request.model": "claude-2.1",
-          "gen_ai.cost.total_tokens": 65.0,
+          "gen_ai.cost.cache_creation.input_tokens": 0.0,
+          "gen_ai.cost.cache_read.input_tokens": 20.0,
           "gen_ai.cost.input_tokens": 25.0,
           "gen_ai.cost.output_tokens": 40.0,
+          "gen_ai.cost.reasoning.output_tokens": 20.0,
+          "gen_ai.cost.total_tokens": 65.0,
+          "gen_ai.operation.type": "ai_client",
+          "gen_ai.request.model": "claude-2.1",
+          "gen_ai.response.model": "claude-2.1",
           "gen_ai.response.tokens_per_second": 62500.0,
-          "gen_ai.operation.type": "ai_client"
+          "gen_ai.usage.cache_read.input_tokens": 500,
+          "gen_ai.usage.input_tokens": 1000,
+          "gen_ai.usage.output_tokens": 2000,
+          "gen_ai.usage.reasoning.output_tokens": 1000,
+          "gen_ai.usage.total_tokens": 3000.0
         }
         "#);
         assert_annotated_snapshot!(span2, @r#"
         {
-          "gen_ai.usage.total_tokens": 3000.0,
-          "gen_ai.usage.input_tokens": 1000,
-          "gen_ai.usage.output_tokens": 2000,
-          "gen_ai.response.model": "gpt4-21-04",
-          "gen_ai.request.model": "gpt4-21-04",
-          "gen_ai.cost.total_tokens": 190.0,
+          "gen_ai.cost.cache_creation.input_tokens": 0.0,
+          "gen_ai.cost.cache_read.input_tokens": 0.0,
           "gen_ai.cost.input_tokens": 90.0,
           "gen_ai.cost.output_tokens": 100.0,
+          "gen_ai.cost.reasoning.output_tokens": 0.0,
+          "gen_ai.cost.total_tokens": 190.0,
+          "gen_ai.operation.type": "ai_client",
+          "gen_ai.request.model": "gpt4-21-04",
+          "gen_ai.response.model": "gpt4-21-04",
           "gen_ai.response.tokens_per_second": 62500.0,
-          "gen_ai.operation.type": "ai_client"
+          "gen_ai.usage.input_tokens": 1000,
+          "gen_ai.usage.output_tokens": 2000,
+          "gen_ai.usage.total_tokens": 3000.0
         }
         "#);
     }
@@ -2935,9 +2962,9 @@ mod tests {
         // Should not set response_tokens_per_second when there are no output tokens
         assert_annotated_snapshot!(span, @r#"
         {
-          "gen_ai.usage.total_tokens": 500.0,
+          "gen_ai.operation.type": "ai_client",
           "gen_ai.usage.input_tokens": 500,
-          "gen_ai.operation.type": "ai_client"
+          "gen_ai.usage.total_tokens": 500.0
         }
         "#);
     }
@@ -2979,9 +3006,9 @@ mod tests {
         // Should not set response_tokens_per_second when duration is zero
         assert_annotated_snapshot!(span, @r#"
         {
-          "gen_ai.usage.total_tokens": 1000.0,
+          "gen_ai.operation.type": "ai_client",
           "gen_ai.usage.output_tokens": 1000,
-          "gen_ai.operation.type": "ai_client"
+          "gen_ai.usage.total_tokens": 1000.0
         }
         "#);
     }
@@ -5836,10 +5863,10 @@ mod tests {
             "contexts": {
                 "trace": {
                     "data": {
-                        "lcp.element": "body > div#app > div > h1#header",
-                        "lcp.size": 24827,
-                        "lcp.id": "header",
-                        "lcp.url": "http://example.com/image.jpg"
+                        "browser.web_vital.lcp.element": "body > div#app > div > h1#header",
+                        "browser.web_vital.lcp.size": 24827,
+                        "browser.web_vital.lcp.id": "header",
+                        "browser.web_vital.lcp.url": "http://example.com/image.jpg"
                     }
                 }
             },
@@ -5857,10 +5884,10 @@ mod tests {
           "contexts": {
             "trace": {
               "data": {
-                "lcp.element": "body > div#app > div > h1#header",
-                "lcp.size": 24827,
-                "lcp.id": "header",
-                "lcp.url": "http://example.com/image.jpg",
+                "browser.web_vital.lcp.element": "body > div#app > div > h1#header",
+                "browser.web_vital.lcp.id": "header",
+                "browser.web_vital.lcp.size": 24827,
+                "browser.web_vital.lcp.url": "http://example.com/image.jpg",
               },
               "type": "trace",
             },
@@ -5902,10 +5929,10 @@ mod tests {
           "contexts": {
               "trace": {
                   "data": {
-                      "lcp.element": "body > div#app > div > h1#id",
-                      "lcp.size": 33333,
-                      "lcp.id": "id",
-                      "lcp.url": "http://example.com/another-image.jpg"
+                      "browser.web_vital.lcp.element": "body > div#app > div > h1#id",
+                      "browser.web_vital.lcp.size": 33333,
+                      "browser.web_vital.lcp.id": "id",
+                      "browser.web_vital.lcp.url": "http://example.com/another-image.jpg"
                   }
               }
           },
@@ -5929,10 +5956,10 @@ mod tests {
           "contexts": {
             "trace": {
               "data": {
-                "lcp.element": "body > div#app > div > h1#id",
-                "lcp.size": 33333,
-                "lcp.id": "id",
-                "lcp.url": "http://example.com/another-image.jpg",
+                "browser.web_vital.lcp.element": "body > div#app > div > h1#id",
+                "browser.web_vital.lcp.id": "id",
+                "browser.web_vital.lcp.size": 33333,
+                "browser.web_vital.lcp.url": "http://example.com/another-image.jpg",
               },
               "type": "trace",
             },

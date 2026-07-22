@@ -99,19 +99,14 @@ pub enum Feature {
     /// processor. Only enable for organizations with sufficient attachment quota.
     #[serde(rename = "organizations:relay-unreal-endpoint-expansion")]
     UnrealEndpointExpansion,
-    /// Stream minidump attachments to objectstore.
-    #[serde(rename = "projects:relay-minidump-attachment-uploads")]
-    MinidumpAttachmentUploads,
     /// Stream minidumps to objectstore.
     #[serde(rename = "projects:relay-minidump-uploads")]
     MinidumpUploads,
-    /// Allow additional exceptions to accompany minidumps.
-    #[serde(rename = "projects:minidump-multi-exception")]
-    MinidumpMultiException,
-    /// Enable relay billing outcome generation.
-    #[serde(rename = "organizations:relay-generate-billing-outcome")]
-    GenerateBillingOutcome,
-
+    /// Use objectstore multipart for upload requests.
+    ///
+    /// See <https://getsentry.github.io/objectstore/rust/objectstore_service/multipart/>.
+    #[serde(rename = "projects:relay-upload-multipart")]
+    UploadMultipart,
     /// Enables OTLP spans to use the Span V2 processing pipeline in Relay.
     ///
     /// This is now the default behaviour of Relay.

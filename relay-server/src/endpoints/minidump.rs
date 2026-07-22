@@ -511,8 +511,6 @@ async fn upload_context<'a>(
 
     let upload_attachments = if matches!(upload_minidumps, UploadDecision::Drop(_)) {
         UploadDecision::Drop(rate_limits)
-    } else if !project_config.has_feature(Feature::MinidumpAttachmentUploads) {
-        UploadDecision::Inline
     } else if attachment_rate_limits.is_limited() {
         UploadDecision::Drop(attachment_rate_limits)
     } else {

@@ -6,6 +6,7 @@ use relay_pii::PiiProcessor;
 use relay_protocol::Annotated;
 use relay_replays::recording::RecordingScrubber;
 use relay_statsd::metric;
+use serde::Deserialize;
 
 use crate::envelope::Item;
 use crate::managed::{Managed, Rejected};
@@ -14,13 +15,17 @@ use crate::processing::replays::{
 };
 use crate::processing::{Context, utils};
 use crate::statsd::RelayTimers;
+use crate::utils::rmp;
 
 fn expand_video(item: &Item) -> Result<ReplayPayload, Error> {
+    let payload = item.payload();
+    let mut deserializer = rmp::slice_deserializer(&payload);
     let ReplayVideoEvent {
         replay_event: event,
         replay_recording: recording,
         replay_video: video,
-    } = rmp_serde::from_slice(&item.payload()).map_err(|_| Error::InvalidReplayVideoEvent)?;
+    } = ReplayVideoEvent::deserialize(&mut deserializer)
+        .map_err(|_| Error::InvalidReplayVideoEvent)?;
 
     if video.is_empty() {
         return Err(Error::InvalidReplayVideoEvent);

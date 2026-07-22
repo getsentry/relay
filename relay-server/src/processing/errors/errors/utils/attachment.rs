@@ -4,6 +4,7 @@ use relay_protocol::{Annotated, Array, Object};
 
 use crate::envelope::Item;
 use crate::services::processor::ProcessingError;
+use crate::utils::rmp;
 
 pub fn event_from_attachments(
     config: &Config,
@@ -77,7 +78,7 @@ fn extract_attached_event(
     }
 
     let payload = item.payload();
-    let deserializer = &mut rmp_serde::Deserializer::from_read_ref(payload.as_ref());
+    let deserializer = &mut rmp::slice_deserializer(payload.as_ref());
     Annotated::deserialize_with_meta(deserializer).map_err(ProcessingError::InvalidMsgpack)
 }
 
@@ -104,7 +105,7 @@ fn parse_msgpack_breadcrumbs(
     }
 
     let payload = item.payload();
-    let mut deserializer = rmp_serde::Deserializer::new(payload.as_ref());
+    let mut deserializer = rmp::stream_deserializer(&payload);
 
     while !deserializer.get_ref().is_empty() {
         let breadcrumb = Annotated::deserialize_with_meta(&mut deserializer)?;
@@ -244,5 +245,33 @@ mod tests {
 
         // regression test to ensure we don't fail parsing an empty file
         result.expect("event_from_attachments");
+    }
+
+    fn deeply_nested_msgpack_event(depth: usize) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(depth + 8);
+        buf.push(0x81); // fixmap with 1 entry
+        buf.push(0xa1); // fixstr of length 1
+        buf.push(b'a'); //   the key "a"
+        buf.resize(buf.len() + depth, 0x91); // `depth` fixarrays of length 1 (one level each)
+        buf.push(0x90); // innermost: fixarray of length 0
+        buf
+    }
+
+    /// Reject event encoded as msgpack if it is too deeply nested.
+    #[test]
+    fn test_msgpack_deep_nesting_is_rejected() {
+        // ~200 KB payload, comfortably under the 1 MiB max_event_size, but 200k levels deep.
+        let payload = deeply_nested_msgpack_event(200_000);
+        assert!(payload.len() < Config::default().max_event_size());
+
+        let mut item = Item::new(ItemType::Attachment);
+        item.set_payload(ContentType::MsgPack, payload);
+
+        let result = extract_attached_event(&Config::default(), Some(item));
+
+        assert!(
+            matches!(result, Err(ProcessingError::InvalidMsgpack(_))),
+            "expected the deeply nested payload to be rejected, got: {result:?}"
+        );
     }
 }

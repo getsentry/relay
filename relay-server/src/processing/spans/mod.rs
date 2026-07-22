@@ -3,6 +3,7 @@ use std::sync::Arc;
 use either::Either;
 use relay_cogs::{AppFeature, FeatureWeights};
 use relay_event_normalization::GeoIpLookup;
+use relay_event_normalization::eap::Ingress;
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{SpanV2, span_v2};
 use relay_quotas::{DataCategory, RateLimits};
@@ -275,6 +276,9 @@ impl Forward for SpanOutput {
             match either.transpose() {
                 Either::Left(span) => {
                     if let Ok(span) = span.try_map(|span, _| store::convert(span, &ctx)) {
+                        if let Some(metrics) = relay_spans::extract_web_vital_metrics(&span.item) {
+                            processing::trace_metrics::produce_webvitals_metrics(s, &span, metrics);
+                        }
                         s.send_to_store(span);
                     }
                 }
@@ -409,6 +413,12 @@ pub struct ExpandedSpans<C = TotalAndIndexed> {
     /// Server side applied (dynamic) sample rate.
     server_sample_rate: Option<f64>,
 
+    /// How the contained spans entered Relay.
+    ///
+    /// This is only for reporting purposes. If you want the pipeline
+    /// to behave differently based on where spans came from, use `settings`.
+    ingress: Option<Ingress>,
+
     /// Client/protocol supplied settings controlling how spans should be normalized.
     settings: Settings,
 
@@ -494,6 +504,7 @@ impl ExpandedSpans<TotalAndIndexed> {
         let Self {
             headers,
             server_sample_rate,
+            ingress,
             settings,
             spans,
             stand_alone_attachments,
@@ -503,6 +514,7 @@ impl ExpandedSpans<TotalAndIndexed> {
         ExpandedSpans {
             headers,
             server_sample_rate,
+            ingress,
             settings,
             spans,
             stand_alone_attachments,
@@ -517,6 +529,7 @@ impl ExpandedSpans<Indexed> {
         let Self {
             headers: _,
             server_sample_rate: _,
+            ingress: _,
             settings: _,
             spans,
             stand_alone_attachments,

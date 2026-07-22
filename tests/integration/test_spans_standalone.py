@@ -1,9 +1,8 @@
 from datetime import datetime, timezone
-from unittest import mock
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
-from .asserts import time_within_delta, time_within
+from .asserts import matches_any, time_within_delta, time_within
 
 import pytest
 
@@ -110,11 +109,13 @@ def lcp_cls_inp_differences(mode):
         return {
             # The legacy pipeline extracts this attribute from `sentry_tags`.
             "sentry.browser.name": {"type": "string", "value": "Firefox"},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_legacy"},
         }
     else:
         return {
             # We additionally extract the browser version for EAP items
             "browser.version": {"type": "string", "value": "42.0"},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             # New for EAP items
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
@@ -199,9 +200,10 @@ def test_lcp_span(
 
     relay.send_envelope(project_id, envelope)
 
-    lcp_backfill = {}
-    if mode == "v2":
-        lcp_backfill = {
+    assert spans_consumer.get_span() == {
+        "_meta": matches_any(),
+        "attributes": {
+            "client.address": {"type": "string", "value": "127.0.0.1"},
             "browser.web_vital.lcp.value": {"type": "double", "value": 548.0},
             "browser.web_vital.lcp.load_time": {"type": "double", "value": 527.5},
             "browser.web_vital.lcp.render_time": {"type": "integer", "value": 548},
@@ -210,13 +212,6 @@ def test_lcp_span(
                 "type": "string",
                 "value": "https://s1.sentry-cdn.com/../sentry-loader.svg",
             },
-        }
-
-    assert spans_consumer.get_span() == {
-        "_meta": mock.ANY,
-        "attributes": {
-            "client.address": {"type": "string", "value": "127.0.0.1"},
-            "browser.web_vital.lcp.value": {"type": "double", "value": 548.0},
             "lcp.loadTime": {"type": "double", "value": 527.5},
             "lcp.renderTime": {"type": "integer", "value": 548},
             "lcp.size": {"type": "integer", "value": 8100},
@@ -236,21 +231,25 @@ def test_lcp_span(
                 "value": "d3d20f000885466b8c8f947c9b92b8d3",
             },
             "sentry.environment": {"type": "string", "value": "prod"},
+            "environment": None,
             "sentry.exclusive_time": {"type": "double", "value": 0.0},
             "sentry.op": {"type": "string", "value": "ui.webvital.lcp"},
             "sentry.origin": {"type": "string", "value": "auto.http.browser.lcp"},
             "sentry.pageload.span_id": {"type": "string", "value": "8a6626cc9bdd5d9b"},
+            "sentry.relay.ingress": {"type": "string", "value": "legacy"},
             "sentry.release": {
                 "type": "string",
                 "value": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
             },
+            "release": None,
             "sentry.replay_id": {
                 "type": "string",
                 "value": "3d76a6311de149b9b3f560827ea0ecf9",
             },
+            "replay_id": None,
             "sentry.report_event": {"type": "string", "value": "navigation"},
             "sentry.segment.name": {"type": "string", "value": "/insights/projects/*"},
-            "sentry.transaction": {"type": "string", "value": "/insights/projects/*"},
+            "transaction": None,
             "user_agent.original": {
                 "type": "string",
                 "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -285,7 +284,6 @@ def test_lcp_span(
                 "type": "double",
                 "value": 0.0,
             },
-            **lcp_backfill,
             **lcp_cls_inp_differences(mode),
         },
         "downsampled_retention_days": 90,
@@ -409,9 +407,10 @@ def test_cls_span(
 
     relay.send_envelope(project_id, envelope)
 
-    cls_backfill = {}
-    if mode == "v2":
-        cls_backfill = {
+    assert spans_consumer.get_span() == {
+        "_meta": matches_any(),
+        "attributes": {
+            "client.address": {"type": "string", "value": "127.0.0.1"},
             "browser.web_vital.cls.value": {"type": "double", "value": 0.1},
             "browser.web_vital.cls.source.1": {
                 "type": "string",
@@ -422,13 +421,6 @@ def test_cls_span(
                 "value": "div.app-1azrk9k.etjky0h0 > AppContainer > BodyContainer > BaseFooter",
             },
             "browser.web_vital.cls.source.3": {"type": "string", "value": "<unknown>"},
-        }
-
-    assert spans_consumer.get_span() == {
-        "_meta": mock.ANY,
-        "attributes": {
-            "client.address": {"type": "string", "value": "127.0.0.1"},
-            "browser.web_vital.cls.value": {"type": "double", "value": 0.1},
             "cls.source.1": {
                 "type": "string",
                 "value": "AppContainer > NavContent > MobileTopbar > StyledButton",
@@ -453,21 +445,25 @@ def test_cls_span(
                 "value": "d3d20f000885466b8c8f947c9b92b8d3",
             },
             "sentry.environment": {"type": "string", "value": "prod"},
+            "environment": None,
             "sentry.exclusive_time": {"type": "double", "value": 0.0},
             "sentry.op": {"type": "string", "value": "ui.webvital.cls"},
             "sentry.origin": {"type": "string", "value": "auto.http.browser.cls"},
             "sentry.pageload.span_id": {"type": "string", "value": "8a6626cc9bdd5d9b"},
+            "sentry.relay.ingress": {"type": "string", "value": "legacy"},
             "sentry.release": {
                 "type": "string",
                 "value": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
             },
+            "release": None,
             "sentry.replay_id": {
                 "type": "string",
                 "value": "3d76a6311de149b9b3f560827ea0ecf9",
             },
+            "replay_id": None,
             "sentry.report_event": {"type": "string", "value": "navigation"},
             "sentry.segment.name": {"type": "string", "value": "/insights/projects/*"},
-            "sentry.transaction": {"type": "string", "value": "/insights/projects/*"},
+            "transaction": None,
             "user_agent.original": {
                 "type": "string",
                 "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -502,7 +498,6 @@ def test_cls_span(
                 "type": "double",
                 "value": 0.0,
             },
-            **cls_backfill,
             **lcp_cls_inp_differences(mode),
         },
         "downsampled_retention_days": 90,
@@ -620,14 +615,8 @@ def test_inp_span(
 
     relay.send_envelope(project_id, envelope)
 
-    inp_backfill = {}
-    if mode == "v2":
-        inp_backfill = {
-            "browser.web_vital.inp.value": {"type": "double", "value": 104.0},
-        }
-
     assert spans_consumer.get_span() == {
-        "_meta": mock.ANY,
+        "_meta": matches_any(),
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
             "browser.web_vital.inp.value": {"type": "double", "value": 104.0},
@@ -646,19 +635,23 @@ def test_inp_span(
                 "value": "d3d20f000885466b8c8f947c9b92b8d3",
             },
             "sentry.environment": {"type": "string", "value": "prod"},
+            "environment": None,
             "sentry.exclusive_time": {"type": "double", "value": 104.0},
             "sentry.op": {"type": "string", "value": "ui.interaction.click"},
             "sentry.origin": {"type": "string", "value": "auto.http.browser.inp"},
+            "sentry.relay.ingress": {"type": "string", "value": "legacy"},
             "sentry.release": {
                 "type": "string",
                 "value": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
             },
+            "release": None,
             "sentry.replay_id": {
                 "type": "string",
                 "value": "3d76a6311de149b9b3f560827ea0ecf9",
             },
+            "replay_id": None,
             "sentry.segment.name": {"type": "string", "value": "/insights/projects/*"},
-            "sentry.transaction": {"type": "string", "value": "/insights/projects/*"},
+            "transaction": None,
             "user_agent.original": {
                 "type": "string",
                 "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -681,7 +674,6 @@ def test_inp_span(
                 "type": "double",
                 "value": 1.0,
             },
-            **inp_backfill,
             **lcp_cls_inp_differences(mode),
         },
         "downsampled_retention_days": 90,
@@ -865,6 +857,7 @@ def test_mobile_measurements(
     relay.send_envelope(project_id, envelope)
 
     assert spans_consumer.get_span() == {
+        "_meta": matches_any(),
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
             "browser.name": {"type": "string", "value": "Firefox"},
@@ -882,17 +875,21 @@ def test_mobile_measurements(
                 "value": "d3d20f000885466b8c8f947c9b92b8d3",
             },
             "sentry.environment": {"type": "string", "value": "prod"},
+            "environment": None,
             "sentry.exclusive_time": {"type": "double", "value": 104.0},
             "sentry.op": {"type": "string", "value": "ui.interaction.click"},
             "sentry.origin": {"type": "string", "value": "mobile"},
+            "sentry.relay.ingress": {"type": "string", "value": "legacy"},
             "sentry.release": {
                 "type": "string",
                 "value": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
             },
+            "release": None,
             "sentry.replay_id": {
                 "type": "string",
                 "value": "3d76a6311de149b9b3f560827ea0ecf9",
             },
+            "replay_id": None,
             "user_agent.original": {
                 "type": "string",
                 "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -906,8 +903,6 @@ def test_mobile_measurements(
             "frames_frozen_rate": {"value": 0.5, "type": "double"},
             "frames_slow_rate": {"value": 0.25, "type": "double"},
             "app.vitals.start.cold.value": {"value": 0.123, "type": "double"},
-            # These attributes are backfilled only in the V2 pipeline. In the legacy
-            # pipeline this logic doesn't exist.
             **_if_dict(
                 mode == "v2",
                 {
@@ -988,6 +983,7 @@ def test_ua_ip_inference(
     relay.send_envelope(project_id, envelope)
 
     assert spans_consumer.get_span() == {
+        "_meta": matches_any(),
         "attributes": {
             "client.address": {"type": "string", "value": "127.0.0.1"},
             "browser.name": {"type": "string", "value": "Firefox"},
@@ -1002,21 +998,25 @@ def test_ua_ip_inference(
                 "value": "d3d20f000885466b8c8f947c9b92b8d3",
             },
             "sentry.environment": {"type": "string", "value": "prod"},
+            "environment": None,
             "sentry.exclusive_time": {"type": "double", "value": 0.0},
             "sentry.op": {"type": "string", "value": "ui.webvital.lcp"},
             "sentry.origin": {"type": "string", "value": "auto.http.browser.lcp"},
             "sentry.pageload.span_id": {"type": "string", "value": "8a6626cc9bdd5d9b"},
+            "sentry.relay.ingress": {"type": "string", "value": "legacy"},
             "sentry.release": {
                 "type": "string",
                 "value": "frontend@488531b11e6401fa530ac25554d44426e6ef0f0b",
             },
+            "release": None,
             "sentry.replay_id": {
                 "type": "string",
                 "value": "3d76a6311de149b9b3f560827ea0ecf9",
             },
+            "replay_id": None,
             "sentry.report_event": {"type": "string", "value": "navigation"},
             "sentry.segment.name": {"type": "string", "value": "/insights/projects/"},
-            "sentry.transaction": {"type": "string", "value": "/insights/projects/"},
+            "transaction": None,
             "user_agent.original": {
                 "type": "string",
                 "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
@@ -1150,6 +1150,7 @@ def test_name_inference(
             "browser.name": {"type": "string", "value": "Firefox"},
             "http.request.method": {"type": "string", "value": "GET"},
             "http.route": {"type": "string", "value": "*******************"},
+            "sentry.action": {"type": "string", "value": "GET"},
             "sentry.category": {"type": "string", "value": "http"},
             "sentry.description": {"type": "string", "value": "Test span"},
             "sentry.dsc.transaction": {
@@ -1164,18 +1165,12 @@ def test_name_inference(
             "sentry.exclusive_time": {"type": "double", "value": 0.0},
             "sentry.op": {"type": "string", "value": "http.client"},
             "sentry.origin": {"type": "string", "value": origin},
+            "sentry.relay.ingress": {"type": "string", "value": "legacy"},
             "sentry.segment.id": {"type": "string", "value": "8a6626cc9bdd5d9b"},
             "user_agent.original": {
                 "type": "string",
                 "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
             },
-            **_if_dict(
-                mode == "v2",
-                {
-                    # The V2 pipeline backfills `sentry.action` from `http.method`.
-                    "sentry.action": {"type": "string", "value": "GET"}
-                },
-            ),
             **lcp_cls_inp_differences(mode),
         },
         "downsampled_retention_days": 90,
