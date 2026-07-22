@@ -135,6 +135,8 @@ pub enum SwitchProcessingError {
     EnvelopeParsing(#[from] EnvelopeError),
     #[error("unexpected EOF, expected {expected:?}")]
     UnexpectedEof { expected: &'static str },
+    #[error("invalid magic number")]
+    InvalidMagic,
     #[error("invalid {0:?} ({1:?})")]
     InvalidValue(&'static str, usize),
     #[error("Zstandard error")]
@@ -177,6 +179,14 @@ struct ExpandedDyingMessage {
 /// Parses DyingMessage contents and updates the envelope.
 /// See dying_message.md for the documentation.
 fn expand_dying_message(mut payload: Bytes) -> Result<ExpandedDyingMessage, SwitchProcessingError> {
+    // `Item::attachment_type` may report `NintendoSwitchDyingMessage` from an explicitly set item
+    // header, which bypasses the `starts_with(magic)` guard it applies when inferring the type.
+    // Validate the magic here so a crafted short payload can't panic the `advance` below:
+    // `Bytes::advance` panics when the count exceeds the remaining length, and `starts_with` is
+    // already false for any payload shorter than the magic.
+    if !payload.starts_with(NNSWITCH_SENTRY_MAGIC) {
+        return Err(SwitchProcessingError::InvalidMagic);
+    }
     payload.advance(NNSWITCH_SENTRY_MAGIC.len());
     let version = payload
         .try_get_u8()
@@ -481,6 +491,24 @@ mod tests {
         let mut items = create_envelope_items(Bytes::from("sntr\0\0\0\0"));
 
         let _ = Nswitch::try_expand(&mut items, ctx()).unwrap().unwrap();
+    }
+
+    #[test]
+    fn test_expand_dying_message_rejects_short_or_invalid_magic() {
+        // A payload shorter than the 4-byte magic must return an error rather than panic in
+        // `advance` (reachable when the attachment type is set explicitly in the item header).
+        for payload in ["", "s", "sn", "snt"] {
+            assert!(matches!(
+                expand_dying_message(Bytes::from(payload)),
+                Err(SwitchProcessingError::InvalidMagic)
+            ));
+        }
+
+        // A long-enough payload whose magic doesn't match is rejected too.
+        assert!(matches!(
+            expand_dying_message(Bytes::from("xxxx")),
+            Err(SwitchProcessingError::InvalidMagic)
+        ));
     }
 
     #[test]
