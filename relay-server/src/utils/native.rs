@@ -308,3 +308,45 @@ pub fn process_apple_crash_report(event: &mut Event, additional_exceptions: Addi
     };
     write_native_placeholder(event, placeholder, additional_exceptions);
 }
+
+/// Reshapes a Nintendo Switch crash so it renders like the same crash captured on other
+/// native platforms (for example a Windows minidump).
+///
+/// Unlike a minidump, a Switch crash reaches Relay as a fully-formed event assembled by
+/// Nintendo's crash pipeline: its exception `type` is the raw abort result code (for example
+/// `2168-0002 ResultAccessViolationData`) at severity `error`. Left untouched, Sentry renders
+/// that result code as the issue title and hides the crashing function.
+///
+/// Native crashes that Relay assembles itself (see [`write_native_placeholder`]) mark their
+/// exception `synthetic`, which tells Sentry to drop the exception `type` from the title and
+/// fall back to the crashing function. We apply the same treatment here, and raise the level
+/// to fatal and mark the crash unhandled, so the issue matches its Windows/macOS counterpart.
+///
+/// The exception `value` is deliberately preserved: as with minidumps, it remains the issue
+/// subtitle. Only the `type`'s influence on the title is removed via the synthetic flag.
+pub fn reshape_switch_crash(event: &mut Event) {
+    // Sentry derives the issue title from the last exception in the list (see `_get_exception`
+    // in `sentry/eventtypes/error.py`), so that is the one whose `type` we must neutralize.
+    let Some(exception) = event
+        .exceptions
+        .value_mut()
+        .as_mut()
+        .and_then(|values| values.values.value_mut().as_mut())
+        .and_then(|exceptions| exceptions.last_mut())
+        .and_then(|exception| exception.value_mut().as_mut())
+    else {
+        // No exception means there is no crash title to fix; leave the event untouched.
+        return;
+    };
+
+    let mechanism = exception
+        .mechanism
+        .value_mut()
+        .get_or_insert_with(Mechanism::default);
+    mechanism.synthetic.set_value(Some(true));
+    mechanism.handled.set_value(Some(false));
+
+    // A captured crash is fatal and unhandled. Nintendo forwards it as `error`, so upgrade the
+    // level explicitly rather than only defaulting it.
+    event.level.set_value(Some(Level::Fatal));
+}

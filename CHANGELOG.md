@@ -8,6 +8,10 @@
 - No longer write the deprecated `sentry.transaction` and `db.system` attributes. ([#6237](https://github.com/getsentry/relay/pull/6237), [#6238](https://github.com/getsentry/relay/pull/6238))
 - Allow additional exceptions in minidump and apple crash report events. ([#6241](https://github.com/getsentry/relay/pull/6241))
 
+**Bug Fixes**:
+
+- Reshape Nintendo Switch crashes so the issue title falls back to the crashing function instead of the raw abort result code, and render them as fatal and unhandled. ([#6252](https://github.com/getsentry/relay/pull/6252))
+
 ## 26.7.0
 
 **Features**:
