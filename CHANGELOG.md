@@ -11,6 +11,7 @@
 **Bug Fixes**:
 
 - Consistently enforces envelope size limits for all items. ([#6250](https://github.com/getsentry/relay/pull/6250))
+- Prevent partially trimmed transaction spans. ([#6256](https://github.com/getsentry/relay/pull/6256))
 
 **Internal**:
 
