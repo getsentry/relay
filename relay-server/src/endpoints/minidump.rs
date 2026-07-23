@@ -252,6 +252,7 @@ struct UploadContext<'a> {
     upload_attachments: UploadDecision,
     upload_minidumps: UploadDecision,
     inline_limit: usize,
+    gpu_crash_split: bool,
 }
 
 impl UploadContext<'_> {
@@ -337,6 +338,11 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
     }
 
     fn infer_type(&self, field: &Field) -> AttachmentType {
+        match field.file_name() {
+            Some(name) if name.ends_with(".nv-gpudmp") => return AttachmentType::NvGpuDump,
+            Some(name) if name.ends_with(".nvdbg") => return AttachmentType::NvShaderDebug,
+            _ => {}
+        }
         match field.name().unwrap_or("") {
             MINIDUMP_FIELD_NAME => AttachmentType::Minidump,
             ITEM_NAME_BREADCRUMBS1 => AttachmentType::Breadcrumbs,
@@ -526,6 +532,7 @@ async fn upload_context<'a>(
         upload_attachments,
         upload_minidumps,
         inline_limit: global_config.options.attachment_inline_limit,
+        gpu_crash_split: project_config.has_feature(Feature::NvGpuCrashSplit),
     }))
 }
 
@@ -657,10 +664,26 @@ async fn handle(
         ));
         return Ok(TextResponse(Some(EventId::new())));
     }
+    // Gated on the org feature: only opted-in orgs split GPU crashes into a
+    // second (billed) event. Captured before `upload_context` is consumed below.
+    let gpu_crash_split = upload_context
+        .as_ref()
+        .is_some_and(|ctx| ctx.gpu_crash_split);
+
     let items = items(upload_context, &state, &meta, content_type, request)
         .await
         .reject(&managed_err)?;
-    let envelope = envelope(items, meta, managed_err)?;
+
+    let mut envelope = envelope(items, meta, managed_err)?;
+    if gpu_crash_split {
+        let (cpu, gpu) = utils::gpu::split_crash(envelope);
+        if let Some(gpu) = gpu {
+            common::handle_managed_envelope(&state, gpu)
+                .await?
+                .ignore_rate_limits();
+        }
+        envelope = cpu;
+    }
 
     let id = envelope.event_id();
 

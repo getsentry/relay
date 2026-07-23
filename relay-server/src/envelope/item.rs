@@ -631,13 +631,15 @@ impl Item {
                         | AttachmentType::EventPayload
                         | AttachmentType::Prosperodump
                         | AttachmentType::Breadcrumbs
-                        | AttachmentType::NintendoSwitchDyingMessage,
+                        | AttachmentType::NintendoSwitchDyingMessage
+                        | AttachmentType::NvGpuDump,
                     ) => true,
                     Some(
                         AttachmentType::Attachment
                         | AttachmentType::UnrealContext
                         | AttachmentType::UnrealLogs
-                        | AttachmentType::ViewHierarchy,
+                        | AttachmentType::ViewHierarchy
+                        | AttachmentType::NvShaderDebug,
                     ) => false,
                     // When an outdated Relay instance forwards an unknown attachment type for compatibility,
                     // we assume that the attachment does not create a new event. This will make it hard
