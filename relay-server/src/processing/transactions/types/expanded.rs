@@ -1,4 +1,5 @@
 use either::Either;
+use relay_dynamic_config::CombinedMetricExtractionConfig;
 use relay_event_schema::protocol::{Event, SpanV2};
 use relay_profiling::{ProfileMetadata, ProfileType};
 use relay_protocol::Annotated;
@@ -192,16 +193,13 @@ impl RateLimited for Managed<Box<ExpandedTransaction<TotalAndIndexed>>> {
         if !limits.is_empty() {
             let error = Error::from(limits);
 
-            if let Ok(config) = get_metrics_config(ctx) {
-                let (indexed, metrics) =
-                    split_indexed_and_total(self, ctx, SamplingDecision::Keep, config);
-                let _ = indexed.reject_err(error);
+            // Everything will be dropped, might as well fallback to an empty config.
+            let config = get_metrics_config(ctx).unwrap_or(CombinedMetricExtractionConfig::EMPTY);
+            let (indexed, metrics) =
+                split_indexed_and_total(self, ctx, SamplingDecision::Keep, config);
+            let _ = indexed.reject_err(error);
 
-                return Ok(metrics.map(|metrics, _| Either::Right(metrics)));
-            } else {
-                // If there is no config, we can't really do more except drop everything.
-                return Err(self.reject_err(error));
-            }
+            return Ok(metrics.map(|metrics, _| Either::Right(metrics)));
         }
 
         let attachment_quantities = self.attachments.quantities();
