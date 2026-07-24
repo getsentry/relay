@@ -1,10 +1,12 @@
 # Changelog
 
-## 26.7.1
+## Unreleased
 
 **Bug Fixes**:
 
 - Defer dynamic sampling until metrics config is valid. ([#6246](https://github.com/getsentry/relay/pull/6246))
+
+## 26.7.1
 
 **Features**:
 
