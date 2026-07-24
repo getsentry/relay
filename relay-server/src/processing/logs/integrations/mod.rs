@@ -4,7 +4,8 @@ use relay_quotas::DataCategory;
 use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, WithHeader};
 use crate::integrations::{Integration, LogsIntegration};
 use crate::managed::RecordKeeper;
-use crate::processing::logs::Settings;
+use crate::processing::logs::Error::TooManyExpandedLogs;
+use crate::processing::logs::{Result, Settings};
 
 mod nel;
 mod otel;
@@ -17,6 +18,7 @@ pub fn expand(
     item: Item,
     records: &mut RecordKeeper<'_>,
     headers: &EnvelopeHeaders,
+    max_expanded_log_count: usize,
 ) -> Option<(Settings, ContainerItems<OurLog>)> {
     let integration = match item.integration() {
         Some(Integration::Logs(integration)) => integration,
@@ -27,7 +29,7 @@ pub fn expand(
     };
 
     let mut logs = Vec::new();
-    let produce = |log: OurLog| {
+    let produce = |log: OurLog| -> Result<()> {
         let byte_size = relay_ourlogs::calculate_size(&log);
 
         records.modify_by(DataCategory::LogItem, 1);
@@ -40,6 +42,12 @@ pub fn expand(
             }),
             value: log.into(),
         });
+
+        if logs.len() > max_expanded_log_count {
+            return Err(TooManyExpandedLogs);
+        }
+
+        Ok(())
     };
 
     let payload = item.payload();
