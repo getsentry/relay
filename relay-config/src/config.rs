@@ -615,16 +615,22 @@ pub struct Limits {
     pub max_event_size: ByteSize,
     /// The maximum size for each attachment.
     pub max_attachment_size: ByteSize,
-    /// The maximum size for a TUS upload request body.
-    pub max_upload_size: ByteSize,
+    /// The maximum amount of attachments in a single envelope.
+    pub max_attachment_count: usize,
     /// The maximum combined size for all attachments in an envelope or request.
     pub max_attachments_size: ByteSize,
+    /// The maximum size for a TUS upload request body.
+    pub max_upload_size: ByteSize,
     /// The maximum combined size for all client reports in an envelope or request.
     pub max_client_reports_size: ByteSize,
+    /// The maximum number of client report items per envelope.
+    pub max_client_reports_count: usize,
     /// The maximum payload size for a monitor check-in.
     pub max_check_in_size: ByteSize,
     /// The maximum payload size for an entire envelopes. Individual limits still apply.
     pub max_envelope_size: ByteSize,
+    /// The maximum combined size for all sessions in an envelope in bytes.
+    pub max_sessions_size: ByteSize,
     /// The maximum number of session items per envelope.
     pub max_session_count: usize,
     /// The maximum payload size for general API requests.
@@ -641,6 +647,8 @@ pub struct Limits {
     pub max_log_size: ByteSize,
     /// The maximum payload size for a span.
     pub max_span_size: ByteSize,
+    /// The maximum amount of standalone transaction spans per envelope.
+    pub max_standalone_span_count: usize,
     /// The maximum payload size for an item container.
     pub max_container_size: ByteSize,
     /// The maximum payload size for a statsd metric.
@@ -716,11 +724,14 @@ impl Default for Limits {
             max_concurrent_queries: 5,
             max_event_size: ByteSize::mebibytes(1),
             max_attachment_size: ByteSize::mebibytes(200),
-            max_upload_size: ByteSize::mebibytes(1024),
+            max_attachment_count: 30,
             max_attachments_size: ByteSize::mebibytes(200),
-            max_client_reports_size: ByteSize::kibibytes(4),
+            max_upload_size: ByteSize::mebibytes(1024),
+            max_client_reports_size: ByteSize::kibibytes(100),
+            max_client_reports_count: 100,
             max_check_in_size: ByteSize::kibibytes(100),
             max_envelope_size: ByteSize::mebibytes(200),
+            max_sessions_size: ByteSize::mebibytes(10),
             max_session_count: 100,
             max_api_payload_size: ByteSize::mebibytes(20),
             max_api_file_upload_size: ByteSize::mebibytes(40),
@@ -729,6 +740,7 @@ impl Default for Limits {
             max_trace_metric_size: ByteSize::mebibytes(1),
             max_log_size: ByteSize::mebibytes(1),
             max_span_size: ByteSize::mebibytes(10),
+            max_standalone_span_count: 25,
             max_container_size: ByteSize::mebibytes(12),
             max_statsd_size: ByteSize::mebibytes(1),
             max_metric_buckets_size: ByteSize::mebibytes(1),
@@ -2386,15 +2398,25 @@ impl Config {
         self.values.limits.max_attachment_size.as_bytes()
     }
 
-    /// Returns the maximum size of a TUS upload request body.
-    pub fn max_upload_size(&self) -> usize {
-        self.values.limits.max_upload_size.as_bytes()
+    /// The maximum amount of attachments in a single envelope.
+    pub fn max_attachment_count(&self) -> usize {
+        self.values.limits.max_attachment_count
     }
 
     /// Returns the maximum combined size of attachments or payloads containing attachments
     /// (minidump, unreal, standalone attachments) in bytes.
     pub fn max_attachments_size(&self) -> usize {
         self.values.limits.max_attachments_size.as_bytes()
+    }
+
+    /// Returns the maximum size of a TUS upload request body.
+    pub fn max_upload_size(&self) -> usize {
+        self.values.limits.max_upload_size.as_bytes()
+    }
+
+    /// Returns the maximum number of client reports per envelope.
+    pub fn max_client_reports_count(&self) -> usize {
+        self.values.limits.max_client_reports_count
     }
 
     /// Returns the maximum combined size of client reports in bytes.
@@ -2417,21 +2439,14 @@ impl Config {
         self.values.limits.max_span_size.as_bytes()
     }
 
+    /// Returns the maximum amount of standalone transaction spans per envelope.
+    pub fn max_standalone_span_count(&self) -> usize {
+        self.values.limits.max_standalone_span_count
+    }
+
     /// Returns the maximum payload size of an item container in bytes.
     pub fn max_container_size(&self) -> usize {
         self.values.limits.max_container_size.as_bytes()
-    }
-
-    /// Returns the maximum payload size for logs integration items in bytes.
-    pub fn max_logs_integration_size(&self) -> usize {
-        // Not explicitly configured, inherited from the maximum size of a log container.
-        self.max_container_size()
-    }
-
-    /// Returns the maximum payload size for spans integration items in bytes.
-    pub fn max_spans_integration_size(&self) -> usize {
-        // Not explicitly configured, inherited from the maximum size of a span container.
-        self.max_container_size()
     }
 
     /// Returns the maximum size of an envelope payload in bytes.
@@ -2444,6 +2459,11 @@ impl Config {
     /// Returns the maximum number of sessions per envelope.
     pub fn max_session_count(&self) -> usize {
         self.values.limits.max_session_count
+    }
+
+    /// Returns the maximum combined size for all sessions in an envelope in bytes.
+    pub fn max_sessions_size(&self) -> usize {
+        self.values.limits.max_sessions_size.as_bytes()
     }
 
     /// Returns the maximum payload size of a statsd metric in bytes.
