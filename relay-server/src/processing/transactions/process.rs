@@ -218,38 +218,33 @@ pub fn run_dynamic_sampling(
     payload: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     filters_status: FiltersStatus,
-) -> (SamplingOutput, Option<CombinedMetricExtractionConfig<'_>>) {
-    let metrics_config = get_metrics_config(ctx);
-
-    if metrics_config.is_err() && !ctx.is_processing() {
-        // Defer dynamic sampling until the next relay.
-        return (
-            SamplingOutput::Keep {
+) -> SamplingOutput {
+    let conf = match get_metrics_config(ctx) {
+        Ok(conf) => conf,
+        Err(_) if ctx.is_processing() => CombinedMetricExtractionConfig::EMPTY,
+        Err(_) => {
+            // Defer dynamic sampling until the next relay.
+            return SamplingOutput::Keep {
                 payload,
                 sample_rate: None,
-            },
-            None,
-        );
-    }
+            };
+        }
+    };
 
     let sampling_result = make_dynamic_sampling_decision(&payload, ctx, filters_status);
 
     let sampling_match = match sampling_result {
         SamplingResult::Match(m) if m.decision().is_drop() => m,
         keep => {
-            return (
-                SamplingOutput::Keep {
-                    payload,
-                    sample_rate: keep.sample_rate(),
-                },
-                metrics_config.ok(),
-            );
+            return SamplingOutput::Keep {
+                payload,
+                sample_rate: keep.sample_rate(),
+            };
         }
     };
 
     // At this point the decision is to drop the payload.
-    let (payload, metrics) =
-        split_indexed_and_total(payload, ctx, SamplingDecision::Drop, metrics_config);
+    let (payload, metrics) = split_indexed_and_total(payload, ctx, SamplingDecision::Drop, conf);
 
     let (payload, profile) = payload.split_once(|mut payload, _| {
         let profile = payload.profile.take().map(|profile| StandaloneProfile {
@@ -265,13 +260,10 @@ pub fn run_dynamic_sampling(
     let outcome = Outcome::FilteredSampling(sampling_match.into_matched_rules().into());
     let _ = payload.reject_err(outcome);
 
-    (
-        SamplingOutput::Drop {
-            metrics,
-            profile: profile.transpose().map(Managed::boxed),
-        },
-        None, // metrics were already extracted
-    )
+    SamplingOutput::Drop {
+        metrics,
+        profile: profile.transpose().map(Managed::boxed),
+    }
 }
 
 /// Compiles a valid metrics config from a [`Context`].
@@ -282,9 +274,8 @@ pub fn get_metrics_config<'a>(ctx: Context<'a>) -> Result<CombinedMetricExtracti
     };
     let global_config = match &ctx.global_config.metric_extraction {
         ErrorBoundary::Ok(global_config) => global_config,
-        #[allow(unused_variables)]
         ErrorBoundary::Err(e) => {
-            if cfg!(feature = "processing") && ctx.config.processing_enabled() {
+            if ctx.is_processing() {
                 // Config is invalid, but we will try to extract what we can with just the
                 // project config.
                 relay_log::error!("Failed to parse global extraction config {e}");
@@ -297,6 +288,7 @@ pub fn get_metrics_config<'a>(ctx: Context<'a>) -> Result<CombinedMetricExtracti
             }
         }
     };
+
     Ok(CombinedMetricExtractionConfig::new(global_config, config))
 }
 
@@ -340,40 +332,34 @@ type IndexedTransactionAndSpanAndMetrics = (
 /// Splits transaction into indexed payload and metrics representing the total counts.
 ///
 /// Like [`split_indexed_and_total`] but works with [`ExtractedSpans`].
-pub fn split_indexed_and_total_with_extracted_spans<'a>(
+pub fn split_indexed_and_total_with_extracted_spans(
     transaction: Managed<Box<ExpandedTransaction<TotalAndIndexed, SpansExtracted>>>,
     spans: Option<Managed<ExtractedSpans>>,
-    ctx: Context<'a>,
-    metrics_config: Option<CombinedMetricExtractionConfig<'a>>,
+    ctx: Context<'_>,
 ) -> IndexedTransactionAndSpanAndMetrics {
     let scoping = transaction.scoping();
 
-    let mut metrics_extracted = false;
+    debug_assert!(ctx.is_processing());
+
     let (transaction, metrics) = transaction.split_once(|mut tx, r| {
         r.lenient(DataCategory::MetricBucket);
 
         let mut metrics = ProcessingExtractedMetrics::new();
-        match metrics_config {
-            Some(config) => {
-                extraction::extract_metrics(
-                    &mut tx.event,
-                    &mut metrics,
-                    ExtractMetricsContext {
-                        config,
-                        dsc: tx.headers.dsc(),
-                        project_id: scoping.project_id,
-                        ctx,
-                        sampling_decision: SamplingDecision::Keep,
-                        extract_span_metrics: spans.is_some(),
-                    },
-                );
-                metrics_extracted = true;
-            }
-            None => {
-                r.lenient(DataCategory::Transaction);
-                r.lenient(DataCategory::Span);
-            }
-        };
+        extraction::extract_metrics(
+            &mut tx.event,
+            &mut metrics,
+            ExtractMetricsContext {
+                dsc: tx.headers.dsc(),
+                project_id: scoping.project_id,
+                // We can fall back to the default, we're in a processing Relay in which the config
+                // must always be valid, worst case we fall back to a default empty config, because
+                // we can't really do anything else.
+                config: get_metrics_config(ctx).unwrap_or(CombinedMetricExtractionConfig::EMPTY),
+                ctx,
+                sampling_decision: SamplingDecision::Keep,
+                extract_span_metrics: spans.is_some(),
+            },
+        );
 
         // This really is a bug, we ignore here.
         //
@@ -418,7 +404,7 @@ pub fn split_indexed_and_total_with_extracted_spans<'a>(
                 // "Insurance" that metrics extracted from the transaction spans match the extracted
                 // spans.
                 r.modify_by(*c, -(*q as isize));
-            } else if metrics_extracted {
+            } else {
                 // Metrics were extracted but do not contain a span quantity,
                 // be lenient about the span counts instead of failing bookkeeping.
                 r.lenient(DataCategory::Span);
@@ -438,40 +424,33 @@ type IndexedAndMetrics = (
 
 /// Splits transaction into indexed payload and metrics representing the total counts.
 pub fn split_indexed_and_total(
-    mut work: Managed<Box<ExpandedTransaction>>,
+    work: Managed<Box<ExpandedTransaction>>,
     ctx: Context<'_>,
     sampling_decision: SamplingDecision,
-    metrics_config: Result<CombinedMetricExtractionConfig<'_>, ()>,
+    config: CombinedMetricExtractionConfig<'_>,
 ) -> IndexedAndMetrics {
     let scoping = work.scoping();
 
-    let mut metrics = ProcessingExtractedMetrics::new();
-    let mut metrics_extracted = false;
-    if let Ok(config) = metrics_config {
-        work.modify(|work, _| {
-            extraction::extract_metrics(
-                &mut work.event,
-                &mut metrics,
-                ExtractMetricsContext {
-                    config,
-                    dsc: work.headers.dsc(),
-                    project_id: scoping.project_id,
-                    ctx,
-                    sampling_decision,
-                    extract_span_metrics: true,
-                },
-            );
-        });
-        metrics_extracted = true;
-    }
-
-    work.split_once(|work, r| {
+    work.split_once(|mut work, r| {
         r.lenient(DataCategory::MetricBucket);
-        if !metrics_extracted {
-            // Invalid config or invalid original transaction
-            r.lenient(DataCategory::Transaction);
-            r.lenient(DataCategory::Span);
-        }
+
+        let mut metrics = ProcessingExtractedMetrics::new();
+
+        extraction::extract_metrics(
+            &mut work.event,
+            &mut metrics,
+            ExtractMetricsContext {
+                config,
+                dsc: work.headers.dsc(),
+                project_id: scoping.project_id,
+                ctx,
+                sampling_decision,
+                extract_span_metrics: true,
+            },
+        );
+
+        r.lenient(DataCategory::Transaction);
+        r.lenient(DataCategory::Span);
 
         (Box::new(work.into_indexed()), metrics.into_inner())
     })

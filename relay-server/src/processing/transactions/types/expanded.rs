@@ -191,11 +191,17 @@ impl RateLimited for Managed<Box<ExpandedTransaction<TotalAndIndexed>>> {
             .await;
         if !limits.is_empty() {
             let error = Error::from(limits);
-            let (indexed, metrics) =
-                split_indexed_and_total(self, ctx, SamplingDecision::Keep, get_metrics_config(ctx));
-            let _ = indexed.reject_err(error);
 
-            return Ok(metrics.map(|metrics, _| Either::Right(metrics)));
+            if let Ok(config) = get_metrics_config(ctx) {
+                let (indexed, metrics) =
+                    split_indexed_and_total(self, ctx, SamplingDecision::Keep, config);
+                let _ = indexed.reject_err(error);
+
+                return Ok(metrics.map(|metrics, _| Either::Right(metrics)));
+            } else {
+                // If there is no config, we can't really do more except drop everything.
+                return Err(self.reject_err(error));
+            }
         }
 
         let attachment_quantities = self.attachments.quantities();
