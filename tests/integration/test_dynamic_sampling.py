@@ -936,6 +936,28 @@ def test_invalid_global_generic_filters_skip_dynamic_sampling(mini_sentry, relay
     assert mini_sentry.get_captured_envelope()
 
 
+def test_invalid_metric_extraction_config_skips_dynamic_sampling(mini_sentry, relay):
+    relay = relay(mini_sentry, _outcomes_enabled_config())
+
+    project_id = 42
+    config = mini_sentry.add_basic_project_config(project_id)
+    public_key = config["publicKeys"][0]["publicKey"]
+
+    # Unsupported metric extraction config, so no metrics can be extracted
+    config["config"]["metricExtraction"] = {
+        "version": 666,  # this version is too new for this relay
+        "metrics": [],
+    }
+
+    # Reject all transactions with dynamic sampling
+    add_sampling_config(config, sample_rate=0, rule_type="transaction")
+
+    envelope, _, _ = _create_transaction_envelope(public_key)
+
+    relay.send_envelope(project_id, envelope)
+    assert mini_sentry.get_captured_envelope()
+
+
 def get_transaction_envelope(
     trace_id: str,
     segment_id: str,
