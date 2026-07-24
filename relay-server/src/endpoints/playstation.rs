@@ -225,11 +225,11 @@ fn envelope(
     meta: RequestMeta,
     managed_err: Managed<(DataCategory, usize)>,
 ) -> Result<Managed<Box<Envelope>>, BadStoreRequest> {
-    Managed::zip(managed_err, items).try_map(|(_, items), _| {
+    Ok(Managed::zip(managed_err, items).try_map(|(_, items), _| {
         let event_id = common::event_id_from_items(&items)?.unwrap_or_default();
         let envelope = Envelope::from_request(Some(event_id), meta).with_items(items);
         Ok::<_, BadStoreRequest>(Box::new(envelope))
-    })
+    })?)
 }
 
 async fn handle(
