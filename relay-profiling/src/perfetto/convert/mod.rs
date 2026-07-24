@@ -1294,4 +1294,200 @@ mod tests {
         let result = convert(&bytes);
         std::assert_matches!(result, Err(ProfileError::ExceedSizeLimit));
     }
+
+    /// Many unique mappings sharing a single large interned mapping path.
+    #[test]
+    fn test_exceeds_memory_budget_unique_mappings() {
+        let large_path = vec![b'a'; 512 * 1024];
+        let mapping_count = (consts::MAX_MEMORY_WORK / large_path.len() + 2) as u64;
+        assert!(mapping_count < MAX_CALLSTACK_DEPTH as u64);
+
+        let trace = proto::Trace {
+            packet: vec![
+                make_clock_snapshot_packet(),
+                make_interned_data_packet(
+                    1,
+                    true,
+                    proto::InternedData {
+                        mapping_paths: vec![make_interned_string(10, &large_path)],
+                        build_ids: vec![make_interned_string(20, &[0xab; 20])],
+                        mappings: (1..=mapping_count)
+                            .map(|iid| proto::Mapping {
+                                iid: Some(iid),
+                                build_id: Some(20),
+                                // Distinct start address makes each mapping unique.
+                                start: Some(iid),
+                                path_string_ids: vec![10],
+                                ..Default::default()
+                            })
+                            .collect(),
+                        frames: (1..=mapping_count)
+                            .map(|iid| proto::Frame {
+                                iid: Some(iid),
+                                function_name_id: None,
+                                mapping_id: Some(iid),
+                                rel_pc: Some(0),
+                            })
+                            .collect(),
+                        callstacks: vec![proto::Callstack {
+                            iid: Some(1),
+                            frame_ids: (1..=mapping_count).collect(),
+                        }],
+                        ..Default::default()
+                    },
+                ),
+                make_perf_sample_packet(1_000_000_000, 1, 1, 1),
+            ],
+        };
+        let bytes = trace.encode_to_vec();
+        let result = convert(&bytes);
+        std::assert_matches!(result, Err(ProfileError::ExceedSizeLimit));
+    }
+
+    /// A single mapping joining one large path segment the maximum allowed number of times.
+    #[test]
+    fn test_exceeds_memory_budget_mapping_path_segments() {
+        let large_path = vec![b'a'; 512 * 1024];
+
+        let trace = proto::Trace {
+            packet: vec![
+                make_clock_snapshot_packet(),
+                make_interned_data_packet(
+                    1,
+                    true,
+                    proto::InternedData {
+                        function_names: vec![make_interned_string(1, b"func")],
+                        mapping_paths: vec![make_interned_string(10, &large_path)],
+                        mappings: vec![proto::Mapping {
+                            iid: Some(1),
+                            start: Some(0x7000),
+                            path_string_ids: vec![10; MAX_PATH_SEGMENTS],
+                            ..Default::default()
+                        }],
+                        frames: vec![proto::Frame {
+                            iid: Some(1),
+                            function_name_id: Some(1),
+                            mapping_id: Some(1),
+                            rel_pc: Some(0x100),
+                        }],
+                        callstacks: vec![proto::Callstack {
+                            iid: Some(1),
+                            frame_ids: vec![1],
+                        }],
+                        ..Default::default()
+                    },
+                ),
+                make_perf_sample_packet(1_000_000_000, 1, 1, 1),
+            ],
+        };
+        let bytes = trace.encode_to_vec();
+        let result = convert(&bytes);
+        std::assert_matches!(result, Err(ProfileError::ExceedSizeLimit));
+    }
+
+    /// Many small interned strings which exceed the budget through per-entry overhead alone.
+    #[test]
+    fn test_exceeds_memory_budget_interned_entry_count() {
+        // Each entry accounts for at least the size of the key and an empty string.
+        let per_entry = size_of::<u64>() + size_of::<String>();
+        let entry_count = (consts::MAX_MEMORY_WORK / per_entry + 2) as u64;
+        // Split the entries across multiple packets to stay below `MAX_TRACE_PACKET_BYTES`.
+        let per_packet = 200_000;
+
+        let mut packets = vec![
+            make_clock_snapshot_packet(),
+            make_interned_data_packet(
+                1,
+                true,
+                proto::InternedData {
+                    function_names: vec![make_interned_string(1, b"func")],
+                    frames: vec![make_frame(1, 1)],
+                    callstacks: vec![proto::Callstack {
+                        iid: Some(1),
+                        frame_ids: vec![1],
+                    }],
+                    ..Default::default()
+                },
+            ),
+        ];
+        let mut emitted = 1;
+        while emitted < entry_count {
+            let end = (emitted + per_packet).min(entry_count);
+            packets.push(make_interned_data_packet(
+                1,
+                false,
+                proto::InternedData {
+                    function_names: (emitted + 1..=end)
+                        .map(|iid| make_interned_string(iid, b""))
+                        .collect(),
+                    ..Default::default()
+                },
+            ));
+            emitted = end;
+        }
+        packets.push(make_perf_sample_packet(1_000_000_000, 1, 1, 1));
+
+        let trace = proto::Trace { packet: packets };
+        let bytes = trace.encode_to_vec();
+        let result = convert(&bytes);
+        std::assert_matches!(result, Err(ProfileError::ExceedSizeLimit));
+    }
+
+    /// Interned data accumulated across packets which never clear the incremental state.
+    #[test]
+    fn test_exceeds_memory_budget_accumulated_interned_data() {
+        let large_name = vec![b'a'; 512 * 1024];
+        let packet_count = (consts::MAX_MEMORY_WORK / large_name.len() + 2) as u64;
+
+        let mut packets = vec![
+            make_clock_snapshot_packet(),
+            make_interned_data_packet(
+                1,
+                true,
+                proto::InternedData {
+                    function_names: vec![make_interned_string(1, b"func")],
+                    frames: vec![make_frame(1, 1)],
+                    callstacks: vec![proto::Callstack {
+                        iid: Some(1),
+                        frame_ids: vec![1],
+                    }],
+                    ..Default::default()
+                },
+            ),
+        ];
+        // Subsequent packets never clear the state, so interned data keeps accumulating.
+        for i in 0..packet_count {
+            packets.push(make_interned_data_packet(
+                1,
+                false,
+                proto::InternedData {
+                    function_names: vec![make_interned_string(i + 2, &large_name)],
+                    ..Default::default()
+                },
+            ));
+        }
+        packets.push(make_perf_sample_packet(1_000_000_000, 1, 1, 1));
+
+        let trace = proto::Trace { packet: packets };
+        let bytes = trace.encode_to_vec();
+        let result = convert(&bytes);
+        std::assert_matches!(result, Err(ProfileError::ExceedSizeLimit));
+    }
+
+    #[test]
+    fn test_exceeds_max_sequence_ids() {
+        let mut packets = vec![make_clock_snapshot_packet()];
+        for seq_id in 1..=(MAX_SEQUENCE_IDS as u32 + 1) {
+            packets.push(make_interned_data_packet(
+                seq_id,
+                true,
+                proto::InternedData::default(),
+            ));
+        }
+
+        let trace = proto::Trace { packet: packets };
+        let bytes = trace.encode_to_vec();
+        let result = convert(&bytes);
+        std::assert_matches!(result, Err(ProfileError::ExceedSizeLimit));
+    }
 }
