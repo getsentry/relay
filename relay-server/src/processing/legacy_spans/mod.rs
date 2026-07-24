@@ -203,6 +203,9 @@ impl Forward for LegacySpanOutput {
 
         for span in spans.split(|spans| spans.spans.into_iter().map(IndexedOnly)) {
             if let Ok(span) = span.try_map(|span, _| store::convert(span.0, retention)) {
+                if let Some(metrics) = relay_spans::extract_web_vital_metrics(&span.item) {
+                    processing::trace_metrics::produce_webvitals_metrics(s, &span, metrics);
+                }
                 s.send_to_store(span)
             };
         }
