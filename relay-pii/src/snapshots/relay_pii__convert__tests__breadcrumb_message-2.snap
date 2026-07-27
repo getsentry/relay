@@ -6,29 +6,8 @@ expression: data
   "breadcrumbs": {
     "values": [
       {
-        "message": "[Filtered]"
+        "message": "SELECT session_key FROM django_session WHERE session_key = 'abcdefg'"
       }
     ]
-  },
-  "_meta": {
-    "breadcrumbs": {
-      "values": {
-        "0": {
-          "message": {
-            "": {
-              "rem": [
-                [
-                  "strip-fields",
-                  "s",
-                  0,
-                  10
-                ]
-              ],
-              "len": 68
-            }
-          }
-        }
-      }
-    }
   }
 }

@@ -58,7 +58,7 @@ pub fn get_regex_for_rule_type(
     match ty {
         RuleType::RedactPair(redact_pair) => {
             if let Ok(pattern) = redact_pair.key_pattern.compiled() {
-                smallvec![(kv, pattern, ReplaceBehavior::replace_value())]
+                smallvec![(k, pattern, ReplaceBehavior::replace_value())]
             } else {
                 smallvec![]
             }
