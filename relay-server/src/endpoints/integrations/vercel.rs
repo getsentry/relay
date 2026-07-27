@@ -46,6 +46,6 @@ mod logs {
     }
 
     pub fn route(config: &Config) -> MethodRouter<ServiceState> {
-        post(handle).route_layer(DefaultBodyLimit::max(config.max_logs_integration_size()))
+        post(handle).route_layer(DefaultBodyLimit::max(config.max_container_size()))
     }
 }

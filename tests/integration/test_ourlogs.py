@@ -95,7 +95,8 @@ def test_ourlog_multiple_containers_not_allowed(
             )
         )
 
-    relay.send_envelope(project_id, envelope)
+    with pytest.raises(HTTPError, match="413 Client Error"):
+        relay.send_envelope(project_id, envelope)
 
     outcomes = outcomes_consumer.get_outcomes()
     outcomes.sort(key=lambda o: sorted(o.items()))
@@ -109,7 +110,7 @@ def test_ourlog_multiple_containers_not_allowed(
             "outcome": 3,  # Invalid
             "project_id": 42,
             "quantity": 2,
-            "reason": "duplicate_item",
+            "reason": "too_large:log",
         },
         {
             "category": DataCategory.LOG_BYTE.value,
@@ -119,7 +120,7 @@ def test_ourlog_multiple_containers_not_allowed(
             "outcome": 3,  # Invalid
             "project_id": 42,
             "quantity": matches(lambda x: 300 < x < 400),
-            "reason": "duplicate_item",
+            "reason": "too_large:log",
         },
     ]
 
