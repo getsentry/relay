@@ -140,6 +140,13 @@ pub enum Feature {
     #[serde(rename = "organizations:standalone-span-ingestion")]
     DeprecatedStandaloneSpanIngestion,
 
+    /// Enables the experimental Span V2 processing pipeline in Relay.
+    ///
+    /// This feature has graduated.
+    #[doc(hidden)]
+    #[serde(rename = "projects:span-v2-experimental-processing")]
+    DeprecatedSpanV2ExperimentalProcessing,
+
     /// Forward compatibility.
     #[doc(hidden)]
     #[serde(other)]
