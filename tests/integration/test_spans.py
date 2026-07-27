@@ -768,7 +768,6 @@ def test_span_ingestion_with_performance_scores(
 
     assert len(spans) == len(expected_scores)
     for span, scores in zip(spans, expected_scores):
-        print(span["attributes"])
         for key, score in scores.items():
             assert span["attributes"][key]["value"] == score
 
