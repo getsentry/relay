@@ -3,27 +3,20 @@ use relay_event_schema::protocol::OurLog;
 use relay_protocol::DeserializableAnnotated;
 
 use crate::envelope::EnvelopeHeaders;
-use crate::processing::logs::{Error, Result, Settings};
+use crate::processing::logs::{Error, Result};
 use crate::services::outcome::DiscardReason;
 
 /// Expands OTeL logs into the [`OurLog`] format.
-pub fn expand<F>(payload: &[u8], headers: &EnvelopeHeaders, mut produce: F) -> Result<Settings>
-where
-    F: FnMut(OurLog) -> Result<()>,
-{
+pub fn expand2(
+    payload: &[u8],
+    headers: &EnvelopeHeaders,
+) -> Result<Box<dyn Iterator<Item = OurLog>>> {
     let received_at = headers.meta().received_at();
 
-    let filtered = serde_json::from_slice::<Vec<_>>(payload)
-        .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?
-        .into_iter()
-        .filter_map(|DeserializableAnnotated(nel)| nel::create_log(nel, received_at));
-
-    for log in filtered {
-        produce(log)?;
-    }
-
-    Ok(Settings {
-        infer_user_agent: true,
-        infer_ip: false,
-    })
+    Ok(Box::new(
+        serde_json::from_slice::<Vec<_>>(payload)
+            .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?
+            .into_iter()
+            .filter_map(move |DeserializableAnnotated(nel)| nel::create_log(nel, received_at)),
+    ))
 }

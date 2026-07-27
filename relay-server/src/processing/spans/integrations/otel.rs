@@ -14,11 +14,11 @@ where
     let traces = parse_traces_data(format, payload)?;
 
     for resource_spans in traces.resource_spans {
-        let resource = resource_spans.resource.as_ref();
+        let resource = resource_spans.resource;
         for scope_spans in resource_spans.scope_spans {
-            let scope = scope_spans.scope.as_ref();
+            let scope = scope_spans.scope;
             for span in scope_spans.spans {
-                let span = relay_spans::otel_to_sentry_span_v2(span, resource, scope);
+                let span = relay_spans::otel_to_sentry_span_v2(span, &resource, &scope);
                 produce(span);
             }
         }

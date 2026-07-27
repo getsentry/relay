@@ -55,9 +55,9 @@ pub enum Error {
     /// The log is invalid.
     #[error("invalid: {0}")]
     Invalid(DiscardReason),
-    /// The expanded logs exceed the maximum number allowed.
-    #[error("expanded logs exeeds limit")]
-    TooManyExpandedLogs,
+    // The expanded logs exceed the maximum number allowed.
+    // #[error("expanded logs exeeds limit")]
+    // TooManyExpandedLogs,
 }
 
 impl OutcomeError for Error {
@@ -78,7 +78,7 @@ impl OutcomeError for Error {
             Self::ProcessingFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
             Self::Invalid(reason) => Some(Outcome::Invalid(*reason)),
             // TODO: Or should this be abuse?  Or should this be filtered, or rate-limited?
-            Self::TooManyExpandedLogs => Some(Outcome::Invalid(DiscardReason::InvalidLog)),
+            // Self::TooManyExpandedLogs => Some(Outcome::Invalid(DiscardReason::InvalidLog)),
         };
 
         (outcome, self)

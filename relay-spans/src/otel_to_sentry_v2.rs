@@ -31,8 +31,8 @@ use relay_protocol::{Annotated, Error, Value};
 /// All other attributes are carried over from the OTEL span to the Sentry span.
 pub fn otel_to_sentry_span(
     otel_span: OtelSpan,
-    resource: Option<&Resource>,
-    scope: Option<&InstrumentationScope>,
+    resource: &Option<Resource>,
+    scope: &Option<InstrumentationScope>,
 ) -> SentrySpanV2 {
     let OtelSpan {
         trace_id,
@@ -66,11 +66,11 @@ pub fn otel_to_sentry_span(
 
     let mut sentry_attributes = Attributes::new();
 
-    relay_otel::otel_scope_into_attributes(&mut sentry_attributes, resource, scope);
+    relay_otel::otel_scope_into_attributes(&mut sentry_attributes, &resource, &scope);
 
     sentry_attributes.insert(SENTRY__ORIGIN, "auto.otlp.spans".to_owned());
-    if let Some(resource) = resource
-        && let Some(platform) = otel_resource_to_platform(resource)
+    if let Some(resource) = &resource
+        && let Some(platform) = otel_resource_to_platform(&resource)
     {
         sentry_attributes.insert(SENTRY__PLATFORM, platform.to_owned());
     }
