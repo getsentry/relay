@@ -4,6 +4,10 @@
 
 **Bug Fixes**:
 
+- Fix Android trace and ANR profile parsing. Serialize Android trace chunks with `version: "2.android-trace"`. Custom
+  Android trace `profile_chunk` producers should send `version: "2.android-trace"`; legacy `version: "2"` is accepted
+  only for Android `sampled_profile` payloads. `version: "1"` and versionless Android trace chunks are rejected.
+  ([#6183](https://github.com/getsentry/relay/pull/6183))
 - Defer dynamic sampling until metrics config is valid. ([#6246](https://github.com/getsentry/relay/pull/6246))
 
 ## 26.7.1
