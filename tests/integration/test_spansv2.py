@@ -1,5 +1,6 @@
 from datetime import datetime, timezone, timedelta
 
+from requests import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 
@@ -1075,7 +1076,8 @@ def test_spans_v2_multiple_containers_not_allowed(
         )
     )
 
-    relay.send_envelope(project_id, envelope)
+    with pytest.raises(HTTPError, match="413 Client Error"):
+        relay.send_envelope(project_id, envelope)
 
     assert mini_sentry.get_outcomes(n=2) == [
         {
@@ -1083,14 +1085,14 @@ def test_spans_v2_multiple_containers_not_allowed(
             "timestamp": time_within_delta(),
             "outcome": 3,  # Invalid
             "quantity": 3,
-            "reason": "duplicate_item",
+            "reason": "too_large:span",
         },
         {
             "category": DataCategory.SPAN_INDEXED.value,
             "timestamp": time_within_delta(),
             "outcome": 3,  # Invalid
             "quantity": 3,
-            "reason": "duplicate_item",
+            "reason": "too_large:span",
         },
     ]
 
