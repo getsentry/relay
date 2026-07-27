@@ -11,6 +11,7 @@ pub const GRADUATED_FEATURE_FLAGS: &[Feature] = &[
     Feature::DeprecatedOtelLogsEndpoint,
     Feature::DeprecatedExtractSpansFromEvent,
     Feature::DeprecatedStandaloneSpanIngestion,
+    Feature::DeprecatedSpanV2ExperimentalProcessing,
 ];
 
 /// Features exposed by project config.
