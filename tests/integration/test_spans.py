@@ -491,7 +491,7 @@ def test_span_extraction_mobile_app_start_backfill(
         assert key not in attrs
 
 
-def envelope_with_spans(start: datetime, end: datetime) -> Envelope:
+def envelope_with_spans(start: datetime, end: datetime, public_key: str) -> Envelope:
     envelope = Envelope()
     envelope.add_item(
         Item(
@@ -504,6 +504,7 @@ def envelope_with_spans(start: datetime, end: datetime) -> Envelope:
                         # Span with the same `span_id` and `segment_id`, to make sure it is classified as `is_segment`.
                         "span_id": "b0429c44b67a3eb1",
                         "segment_id": "b0429c44b67a3eb1",
+                        "is_segment": True,
                         "start_timestamp": start.timestamp(),
                         "timestamp": end.timestamp() + 1,
                         "exclusive_time": 345.0,  # The SDK knows that this span has a lower exclusive time
@@ -566,6 +567,11 @@ def envelope_with_spans(start: datetime, end: datetime) -> Envelope:
             ),
         )
     )
+    envelope.headers["trace"] = {
+        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        "public_key": public_key,
+        "segment_name": "/auth/login/my_user_name",
+    }
 
     return envelope
 
@@ -630,7 +636,7 @@ def test_span_ingestion_with_performance_scores(
                 ],
                 "condition": {
                     "op": "eq",
-                    "name": "event.contexts.browser.name",
+                    "name": "span.attributes.browser.name.value",
                     "value": "Firefox",
                 },
             },
@@ -641,7 +647,7 @@ def test_span_ingestion_with_performance_scores(
                 ],
                 "condition": {
                     "op": "eq",
-                    "name": "event.contexts.browser.name",
+                    "name": "span.attributes.browser.name.value",
                     "value": "Firefox",
                 },
             },
@@ -712,6 +718,11 @@ def test_span_ingestion_with_performance_scores(
             ),
         )
     )
+    envelope.headers["trace"] = {
+        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        "public_key": project_config["publicKeys"][0]["publicKey"],
+        "segment_name": "/page/with/click/interaction/jane/123",
+    }
     relay.send_envelope(project_id, envelope)
 
     spans = spans_consumer.get_spans(timeout=10.0, n=2)
@@ -757,6 +768,7 @@ def test_span_ingestion_with_performance_scores(
 
     assert len(spans) == len(expected_scores)
     for span, scores in zip(spans, expected_scores):
+        print(span["attributes"])
         for key, score in scores.items():
             assert span["attributes"][key]["value"] == score
 
@@ -1131,7 +1143,7 @@ def test_span_filtering_with_generic_inbound_filter(
                 "isEnabled": True,
                 "condition": {
                     "op": "eq",
-                    "name": "span.data.sentry\\.release",
+                    "name": "span.attributes.sentry.release.value",
                     "value": "1.0",
                 },
             }
@@ -1140,7 +1152,7 @@ def test_span_filtering_with_generic_inbound_filter(
 
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
-    mini_sentry.add_full_project_config(project_id)
+    config = mini_sentry.add_full_project_config(project_id)
 
     spans_consumer = spans_consumer()
     outcomes_consumer = outcomes_consumer()
@@ -1169,6 +1181,11 @@ def test_span_filtering_with_generic_inbound_filter(
             ),
         )
     )
+    envelope.headers["trace"] = {
+        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        "public_key": config["publicKeys"][0]["publicKey"],
+        "segment_name": "/auth/login/my_user_name",
+    }
 
     relay.send_envelope(project_id, envelope)
 
@@ -1253,13 +1270,7 @@ def test_dynamic_sampling(
     start = end - duration
 
     # 1 - Send OTel span and sentry span via envelope
-    envelope = envelope_with_spans(start, end, config["publicKeys"][0]["publicKey"])
-    envelope.headers["trace"] = {
-        "public_key": sampling_public_key,
-        "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-        "segment_name": "/auth/login/my_user_name",
-    }
-
+    envelope = envelope_with_spans(start, end, sampling_public_key)
     relay.send_envelope(project_id, envelope)
 
     def summarize_outcomes(outcomes):
