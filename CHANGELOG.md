@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Features**:
+- Make the V2 standalone span pipeline the default. ([#6262](https://github.com/getsentry/relay/pull/6262))
+
 **Bug Fixes**:
 
 - Defer dynamic sampling until metrics config is valid. ([#6246](https://github.com/getsentry/relay/pull/6246))
