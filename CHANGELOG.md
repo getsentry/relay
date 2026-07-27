@@ -5,6 +5,7 @@
 **Bug Fixes**:
 
 - Defer dynamic sampling until metrics config is valid. ([#6246](https://github.com/getsentry/relay/pull/6246))
+- Make "sensitive fields" in PII rules only match field names. ([#6264](https://github.com/getsentry/relay/pull/6264))
 
 ## 26.7.1
 
