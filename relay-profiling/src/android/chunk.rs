@@ -118,7 +118,7 @@ impl Chunk {
         // Use duration given by the profiler and not reported by the SDK.
         profile.metadata.duration_ns = profile.profile.elapsed_time.as_nanos() as u64;
 
-        // Convert legacy Android trace version ("2") to the new wire version
+        // Convert legacy Android trace version ("2") to the corrected version
         // ("2.android-trace"). We do so during parsing rather than
         // serialization because raw serde doesn't validate the trace payload.
         profile.metadata.version = Version::V2AndroidTrace;
@@ -189,7 +189,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_canonicalizes_android_trace_profile_version() {
+    fn test_parse_corrects_android_trace_profile_version() {
         let payload = include_bytes!("../../tests/fixtures/android/chunk/valid.json");
         let input: serde_json::Value = serde_json::from_slice(payload).unwrap();
         assert_eq!(input["version"], "2");

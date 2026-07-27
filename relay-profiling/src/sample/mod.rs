@@ -6,7 +6,7 @@ use relay_event_schema::protocol::Addr;
 pub mod v1;
 pub mod v2;
 
-/// Possible values for the version field of the Sample Format.
+/// Possible values for profile payload versions.
 #[derive(Debug, Serialize, Deserialize, Copy, Clone, Default, PartialEq, Eq)]
 pub enum Version {
     #[default]
@@ -15,7 +15,7 @@ pub enum Version {
     V1,
     #[serde(rename = "2")]
     V2,
-    /// Special-cased chunk format for Android trace profiles, distinct from sample v2 format.
+    /// Special-cased chunk format for Android trace profiles, distinct from Sample Format V2.
     #[serde(rename = "2.android-trace")]
     V2AndroidTrace,
 }
