@@ -3,6 +3,7 @@
 ## Unreleased
 
 **Features**:
+
 - Make the V2 standalone span pipeline the default. ([#6262](https://github.com/getsentry/relay/pull/6262))
 
 **Bug Fixes**:
