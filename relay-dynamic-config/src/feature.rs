@@ -11,6 +11,7 @@ pub const GRADUATED_FEATURE_FLAGS: &[Feature] = &[
     Feature::DeprecatedOtelLogsEndpoint,
     Feature::DeprecatedExtractSpansFromEvent,
     Feature::DeprecatedStandaloneSpanIngestion,
+    Feature::DeprecatedSpanV2ExperimentalProcessing,
 ];
 
 /// Features exposed by project config.
@@ -83,9 +84,6 @@ pub enum Feature {
     /// Detect performance issues in the new standalone spans pipeline instead of on transactions.
     #[serde(rename = "organizations:performance-issues-spans")]
     PerformanceIssuesSpans,
-    /// Enables the experimental Span V2 processing pipeline in Relay.
-    #[serde(rename = "projects:span-v2-experimental-processing")]
-    SpanV2ExperimentalProcessing,
     /// Enable the experimental Span Attachment subset of the Span V2 processing pipeline in Relay.
     #[serde(rename = "projects:span-v2-attachment-processing")]
     SpanV2AttachmentProcessing,
@@ -142,6 +140,13 @@ pub enum Feature {
     #[doc(hidden)]
     #[serde(rename = "organizations:standalone-span-ingestion")]
     DeprecatedStandaloneSpanIngestion,
+
+    /// Enables the experimental Span V2 processing pipeline in Relay.
+    ///
+    /// This feature has graduated.
+    #[doc(hidden)]
+    #[serde(rename = "projects:span-v2-experimental-processing")]
+    DeprecatedSpanV2ExperimentalProcessing,
 
     /// Forward compatibility.
     #[doc(hidden)]
