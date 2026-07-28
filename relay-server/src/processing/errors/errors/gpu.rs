@@ -13,6 +13,10 @@ use crate::processing::errors::{Error, Result};
 /// debug info (`.nvdbg`). Here we turn the copied scope into the event and keep
 /// the dump and shader debug info as attachments; Sentry decodes the dump
 /// out-of-band (via teapot), analogous to how a minidump is symbolicated.
+///
+/// The scope is either the crashpad `__sentry-event` payload / breadcrumbs (native
+/// crashes) or an Unreal context whose `__sentry` game data holds the event JSON;
+/// the latter is promoted to an event before the shared crash-event assembly runs.
 #[derive(Debug)]
 pub struct GpuCrash(pub Item);
 
@@ -29,6 +33,18 @@ impl SentryError for GpuCrash {
         };
 
         let mut metrics = Default::default();
+
+        // Unreal crashes carry the Sentry event payload in the `__sentry` game-data
+        // key of the copied Unreal context, not a standalone event item. Promote it
+        // to an event so the shared crash-event assembly below builds the GPU event
+        // from it, just like the crashpad `__sentry-event` payload.
+        if let Some(context) = utils::take_item_by(items, |item| {
+            item.attachment_type() == Some(AttachmentType::UnrealContext)
+        }) && let Some(event) = crate::utils::event_item_from_unreal_context(&context.payload())?
+        {
+            items.push(event);
+        }
+
         let event = utils::take_event_from_crash_items(items, &mut metrics, ctx)?;
 
         Ok(Some(Expansion {
