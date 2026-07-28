@@ -41,12 +41,6 @@ pub fn extract_items(payload: Bytes, config: &Config) -> Result<Items, Processin
                 self::ITEM_NAME_EVENT => (ContentType::MsgPack, AttachmentType::EventPayload),
                 self::ITEM_NAME_BREADCRUMBS1 => (ContentType::MsgPack, AttachmentType::Breadcrumbs),
                 self::ITEM_NAME_BREADCRUMBS2 => (ContentType::MsgPack, AttachmentType::Breadcrumbs),
-                name if name.ends_with(".nv-gpudmp") => {
-                    (ContentType::OctetStream, AttachmentType::NvGpuDump)
-                }
-                name if name.ends_with(".nvdbg") => {
-                    (ContentType::OctetStream, AttachmentType::NvShaderDebug)
-                }
                 _ => (ContentType::OctetStream, AttachmentType::Attachment),
             },
         };
@@ -113,17 +107,6 @@ fn take_event_item(context: &mut Unreal4Context) -> Option<Item> {
     let mut item = Item::new(ItemType::Event);
     item.set_payload(ContentType::Json, json);
     Some(item)
-}
-
-/// Extracts the Sentry event payload from a raw Unreal context attachment.
-///
-/// Unreal crashes carry the event JSON in the `__sentry` game-data key of the
-/// context ([`AttachmentType::UnrealContext`]) rather than a standalone
-/// `__sentry-event` item. Returns it as an [`ItemType::Event`], or `None` when the
-/// context carries no Sentry payload.
-pub fn event_item_from_unreal_context(payload: &[u8]) -> Result<Option<Item>, ProcessingError> {
-    let mut context = Unreal4Context::parse(payload)?;
-    Ok(take_event_item(&mut context))
 }
 
 fn merge_unreal_user_info(event: &mut Event, user_info: &str) {
@@ -694,45 +677,5 @@ mod tests {
           }
         }
         "###);
-    }
-
-    #[test]
-    fn test_event_item_from_unreal_context() {
-        // The Sentry event payload lives in the `__sentry` game-data key.
-        let raw_context = br#"<?xml version="1.0" encoding="UTF-8"?>
-<FGenericCrashContext>
-    <RuntimeProperties>
-    </RuntimeProperties>
-    <GameData>
-        <__sentry>{&quot;release&quot;:&quot;game@1.0.0&quot;}</__sentry>
-    </GameData>
-</FGenericCrashContext>
-"#;
-
-        let item = event_item_from_unreal_context(raw_context)
-            .unwrap()
-            .expect("event item from `__sentry` game data");
-        assert_eq!(item.ty(), &ItemType::Event);
-        assert_eq!(
-            item.payload().as_ref(),
-            br#"{"release":"game@1.0.0"}"#.as_slice()
-        );
-    }
-
-    #[test]
-    fn test_event_item_from_unreal_context_without_sentry_payload() {
-        // A context without the `__sentry` game-data key yields no event.
-        let raw_context = br#"<?xml version="1.0" encoding="UTF-8"?>
-<FGenericCrashContext>
-    <RuntimeProperties>
-    </RuntimeProperties>
-</FGenericCrashContext>
-"#;
-
-        assert!(
-            event_item_from_unreal_context(raw_context)
-                .unwrap()
-                .is_none()
-        );
     }
 }

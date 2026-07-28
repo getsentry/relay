@@ -11,14 +11,13 @@ use crate::constants::UNREAL_USER_HEADER;
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
-use crate::managed::Managed;
+use crate::middlewares;
 use crate::service::ServiceState;
 use crate::services::outcome::{DiscardItemType, DiscardReason};
 use crate::services::processor::ProcessingError;
 use crate::services::projects::project::ProjectState;
 use crate::statsd::RelayCounters;
 use crate::utils::extract_items;
-use crate::{middlewares, utils};
 
 #[derive(Debug, Deserialize)]
 struct UnrealQuery {
@@ -36,11 +35,10 @@ struct UnrealParams {
 }
 
 impl UnrealParams {
-    /// Returns the envelope and whether the org may split off a GPU crash event.
     async fn extract_envelope(
         self,
         state: &ServiceState,
-    ) -> Result<(Box<Envelope>, bool), BadStoreRequest> {
+    ) -> Result<Box<Envelope>, BadStoreRequest> {
         let Self { meta, query, data } = self;
 
         if data.is_empty() {
@@ -90,8 +88,7 @@ impl UnrealParams {
                     item.set_unreal_expanded(true);
                     envelope.add_item(item);
                 }
-                let gpu_crash_split = project_config.has_feature(Feature::NvGpuCrashSplit);
-                return Ok((envelope, gpu_crash_split));
+                return Ok(envelope);
             }
         }
 
@@ -99,7 +96,7 @@ impl UnrealParams {
         item.set_payload(ContentType::OctetStream, data);
         envelope.add_item(item);
 
-        Ok((envelope, false))
+        Ok(envelope)
     }
 }
 
@@ -107,37 +104,11 @@ async fn handle(
     state: ServiceState,
     params: UnrealParams,
 ) -> axum::response::Result<impl IntoResponse> {
-    let (envelope, gpu_crash_split) = params.extract_envelope(&state).await?;
-    let mut envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
-
-    if gpu_crash_split {
-        let (cpu, gpu) = utils::gpu::split_crash(envelope);
-        if let Some(gpu) = gpu {
-            // Manage the GPU envelope as its own event so its outcomes are attributed
-            // to the GPU event id, not the CPU event's.
-            let gpu = Managed::from_envelope(gpu, state.outcome_aggregator().clone());
-            // The GPU crash is a best-effort duplicate. Submit it, but never let a
-            // failure here propagate: a `?` would drop the still-unhandled CPU crash
-            // (rejecting it as internal), and clients like the UE4 reporter do not
-            // retry, so the original crash would be lost for good. The rejection has
-            // already emitted its own outcome.
-            match common::handle_managed_envelope(&state, gpu).await {
-                Ok(handled) => {
-                    handled.ignore_rate_limits();
-                }
-                Err(rejected) => relay_log::debug!(
-                    error = &rejected.into_inner() as &dyn std::error::Error,
-                    "failed to submit split-off GPU crash envelope",
-                ),
-            }
-        }
-        envelope = cpu;
-    }
-
+    let envelope = params.extract_envelope(&state).await?;
     let id = envelope.event_id();
 
     // Never respond with a 429 since clients often retry these
-    common::handle_managed_envelope(&state, envelope)
+    common::handle_envelope(&state, envelope)
         .await?
         .ignore_rate_limits();
 

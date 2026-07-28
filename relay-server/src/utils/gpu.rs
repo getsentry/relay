@@ -31,25 +31,10 @@ pub fn split_crash(
         return (envelope, None);
     }
 
-    // The GPU dump is itself event-creating. If it is the *only* such item, moving it
-    // to the GPU envelope would leave the CPU envelope with nothing to turn into an
-    // event — the error processor skips envelopes without an event-creating item
-    // (see [`crate::processing::errors`]), so the original crash would be dropped as
-    // orphaned attachments. This happens for Unreal crashes whose event lives in the
-    // (non-event-creating) `UnrealContext` with no minidump alongside it. Keep the
-    // crash whole in that case rather than splitting.
-    if !envelope
-        .items()
-        .any(|item| item.creates_event() && !is_gpu_crash_item(item))
-    {
-        return (envelope, None);
-    }
-
     // The GPU event is a copy of the CPU event's scope, so it inherits the trace,
-    // release and tags. Clone the scope items — an `Event`, the crashpad
-    // `__sentry-event` / breadcrumb attachments, or the Unreal context the event is
-    // assembled from. With no scope there is nothing to copy, so leave the crash on
-    // the CPU event.
+    // release and tags. Clone the scope items — an `Event`, or the crashpad
+    // `__sentry-event` / breadcrumb attachments the event is assembled from. With no
+    // scope there is nothing to copy, so leave the crash on the CPU event.
     let scope: Vec<Item> = envelope
         .items()
         .filter(|item| is_scope_item(item))
@@ -74,15 +59,10 @@ pub fn split_crash(
         // A fresh id keeps the GPU event distinct from the CPU event it copies; the
         // envelope header id is authoritative and overwrites the cloned one.
         let mut gpu = Envelope::from_request(Some(EventId::new()), envelope.meta().clone());
-        // The GPU envelope is its own crash, expanded by the GPU crash processor.
-        // The Unreal endpoint marks every extracted item `unreal_expanded`; clear it
-        // on the copied scope and moved dumps so the Unreal expander (ordered before
-        // the GPU one) does not claim this envelope as an Unreal report.
-        let dumps = envelope.take_items_by(is_gpu_crash_item);
-        for mut item in scope.into_iter().chain(dumps) {
-            if item.is_unreal_expanded() {
-                item.set_unreal_expanded(false);
-            }
+        for item in scope {
+            gpu.add_item(item);
+        }
+        for item in envelope.take_items_by(is_gpu_crash_item) {
             gpu.add_item(item);
         }
 
@@ -99,21 +79,15 @@ pub fn split_crash(
     (cpu, Some(gpu.accept(|envelope| envelope)))
 }
 
-/// Scope items that carry the event: an [`ItemType::Event`], the crashpad
+/// Scope items that carry the event: an [`ItemType::Event`], or the crashpad
 /// `__sentry-event` ([`AttachmentType::EventPayload`]) and breadcrumb attachments
-/// the event is assembled from, or the Unreal context
-/// ([`AttachmentType::UnrealContext`]) whose `__sentry` game data holds the event
-/// payload. Deliberately narrower than [`Item::creates_event`] (which also matches
-/// minidumps, which must stay on the CPU event).
+/// the event is assembled from. Deliberately narrower than [`Item::creates_event`]
+/// (which also matches minidumps, which must stay on the CPU event).
 fn is_scope_item(item: &Item) -> bool {
     item.ty() == &ItemType::Event
         || matches!(
             item.attachment_type(),
-            Some(
-                AttachmentType::EventPayload
-                    | AttachmentType::Breadcrumbs
-                    | AttachmentType::UnrealContext
-            )
+            Some(AttachmentType::EventPayload | AttachmentType::Breadcrumbs)
         )
 }
 
@@ -139,10 +113,9 @@ mod tests {
     use super::*;
     use crate::extractors::RequestMeta;
 
-    fn attachment(ty: AttachmentType, unreal_expanded: bool) -> Item {
+    fn attachment(ty: AttachmentType) -> Item {
         let mut item = Item::new(ItemType::Attachment);
         item.set_attachment_type(ty);
-        item.set_unreal_expanded(unreal_expanded);
         item
     }
 
@@ -168,82 +141,48 @@ mod tests {
 
     #[test]
     fn test_is_scope_item() {
-        // The Unreal context is scope: its `__sentry` game data holds the event.
-        assert!(is_scope_item(&attachment(
-            AttachmentType::UnrealContext,
-            false
-        )));
-        assert!(is_scope_item(&attachment(
-            AttachmentType::EventPayload,
-            false
-        )));
-        assert!(is_scope_item(&attachment(
-            AttachmentType::Breadcrumbs,
-            false
-        )));
+        // The event and the crashpad `__sentry-event` / breadcrumb attachments are
+        // scope.
         assert!(is_scope_item(&Item::new(ItemType::Event)));
+        assert!(is_scope_item(&attachment(AttachmentType::EventPayload)));
+        assert!(is_scope_item(&attachment(AttachmentType::Breadcrumbs)));
 
-        // The dumps ride on the GPU event but are not scope; the minidump and logs
-        // stay on the CPU event.
-        assert!(!is_scope_item(&attachment(
-            AttachmentType::NvGpuDump,
-            false
-        )));
-        assert!(!is_scope_item(&attachment(AttachmentType::Minidump, false)));
-        assert!(!is_scope_item(&attachment(
-            AttachmentType::UnrealLogs,
-            false
-        )));
+        // The dumps ride on the GPU event but are not scope; the minidump stays on
+        // the CPU event.
+        assert!(!is_scope_item(&attachment(AttachmentType::NvGpuDump)));
+        assert!(!is_scope_item(&attachment(AttachmentType::Minidump)));
     }
 
     #[test]
     fn test_is_gpu_crash_item() {
+        assert!(is_gpu_crash_item(&attachment(AttachmentType::NvGpuDump)));
         assert!(is_gpu_crash_item(&attachment(
-            AttachmentType::NvGpuDump,
-            false
+            AttachmentType::NvShaderDebug
         )));
-        assert!(is_gpu_crash_item(&attachment(
-            AttachmentType::NvShaderDebug,
-            false
-        )));
-        assert!(!is_gpu_crash_item(&attachment(
-            AttachmentType::Minidump,
-            false
-        )));
-        assert!(!is_gpu_crash_item(&attachment(
-            AttachmentType::UnrealContext,
-            false
-        )));
+        assert!(!is_gpu_crash_item(&attachment(AttachmentType::Minidump)));
     }
 
     #[test]
-    fn test_split_unreal_gpu_crash_clears_unreal_expanded() {
-        // An Unreal endpoint expansion marks every extracted item `unreal_expanded`.
-        // The GPU dump splits off onto its own envelope with a copy of the Unreal
-        // context as scope; those items must not stay `unreal_expanded`, or the
-        // Unreal expander (ordered before the GPU one) would claim the GPU envelope
-        // instead of letting the GPU crash processor expand it.
+    fn test_split_moves_dump_and_copies_scope() {
+        // The dump and shader debug move onto the GPU envelope, which also carries a
+        // copy of the scope. The CPU envelope keeps the minidump and scope.
         let (cpu, gpu) = split_crash(envelope([
-            attachment(AttachmentType::Minidump, true),
-            attachment(AttachmentType::UnrealContext, true),
-            attachment(AttachmentType::NvGpuDump, true),
-            attachment(AttachmentType::NvShaderDebug, true),
+            attachment(AttachmentType::Minidump),
+            attachment(AttachmentType::EventPayload),
+            attachment(AttachmentType::NvGpuDump),
+            attachment(AttachmentType::NvShaderDebug),
         ]));
-        let gpu = gpu.expect("GPU envelope split off using the Unreal context scope");
+        let gpu = gpu.expect("GPU envelope split off");
 
-        // The GPU envelope carries the dumps plus a copy of the context, none of
-        // which are still flagged as extracted from an Unreal report.
         let gpu_types = attachment_types(&gpu);
         assert!(gpu_types.contains(&Some(AttachmentType::NvGpuDump)));
         assert!(gpu_types.contains(&Some(AttachmentType::NvShaderDebug)));
-        assert!(gpu_types.contains(&Some(AttachmentType::UnrealContext)));
+        assert!(gpu_types.contains(&Some(AttachmentType::EventPayload)));
         assert!(!gpu_types.contains(&Some(AttachmentType::Minidump)));
-        assert!(gpu.items().all(|item| !item.is_unreal_expanded()));
 
-        // The CPU envelope keeps the minidump and context; the dumps moved off it.
         let cpu_types = attachment_types(&cpu);
         assert!(cpu_types.contains(&Some(AttachmentType::Minidump)));
-        assert!(cpu_types.contains(&Some(AttachmentType::UnrealContext)));
+        assert!(cpu_types.contains(&Some(AttachmentType::EventPayload)));
         assert!(!cpu_types.contains(&Some(AttachmentType::NvGpuDump)));
         assert!(!cpu_types.contains(&Some(AttachmentType::NvShaderDebug)));
     }
@@ -253,8 +192,8 @@ mod tests {
         // Without a scope item there is nothing to copy the GPU event from, so the
         // crash stays on the CPU event rather than being dropped.
         let (_cpu, gpu) = split_crash(envelope([
-            attachment(AttachmentType::Minidump, true),
-            attachment(AttachmentType::NvGpuDump, true),
+            attachment(AttachmentType::Minidump),
+            attachment(AttachmentType::NvGpuDump),
         ]));
         assert!(gpu.is_none());
     }
@@ -265,27 +204,12 @@ mod tests {
         // expands a dump, so without one there is nothing to claim the split-off
         // envelope. Leave the `.nvdbg` on the CPU event instead of dropping it.
         let (cpu, gpu) = split_crash(envelope([
-            attachment(AttachmentType::Minidump, true),
-            attachment(AttachmentType::UnrealContext, true),
-            attachment(AttachmentType::NvShaderDebug, true),
+            attachment(AttachmentType::Minidump),
+            attachment(AttachmentType::EventPayload),
+            attachment(AttachmentType::NvShaderDebug),
         ]));
         assert!(gpu.is_none());
         assert!(attachment_types(&cpu).contains(&Some(AttachmentType::NvShaderDebug)));
-    }
-
-    #[test]
-    fn test_no_split_when_dump_is_the_only_event() {
-        // An Unreal crash whose event lives in the (non-event-creating) `UnrealContext`
-        // with a dump but no minidump: moving the dump would strand the CPU envelope
-        // (no event-creating item left), so it never becomes an event. Keep it whole.
-        let (cpu, gpu) = split_crash(envelope([
-            attachment(AttachmentType::UnrealContext, true),
-            attachment(AttachmentType::UnrealLogs, true),
-            attachment(AttachmentType::NvGpuDump, true),
-        ]));
-        assert!(gpu.is_none());
-        // The dump stays on the CPU event rather than being dropped.
-        assert!(attachment_types(&cpu).contains(&Some(AttachmentType::NvGpuDump)));
     }
 
     #[test]
@@ -301,15 +225,14 @@ mod tests {
                 .unwrap(),
         );
         let mut inner = Envelope::from_request(Some(EventId::new()), meta);
-        // The minidump keeps the CPU envelope an event, mirroring the real flow.
-        inner.add_item(attachment(AttachmentType::Minidump, true));
-        inner.add_item(attachment(AttachmentType::UnrealContext, true));
-        inner.add_item(attachment(AttachmentType::NvGpuDump, true));
+        inner.add_item(attachment(AttachmentType::Minidump));
+        inner.add_item(attachment(AttachmentType::EventPayload));
+        inner.add_item(attachment(AttachmentType::NvGpuDump));
         let cpu_event_id = inner.event_id();
 
         let managed = Managed::from_envelope(inner, outcome_aggregator.clone());
         let (_cpu, gpu) = split_crash(managed);
-        let gpu = gpu.expect("GPU envelope split off using the Unreal context scope");
+        let gpu = gpu.expect("GPU envelope split off");
         let gpu_event_id = gpu.event_id();
         assert!(gpu_event_id.is_some());
         assert_ne!(gpu_event_id, cpu_event_id);
