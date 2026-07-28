@@ -14,11 +14,15 @@ use crate::managed::Managed;
 /// scope into the event.
 ///
 /// Returns the `(cpu, gpu)` envelopes. The GPU envelope is `None` when there is no
-/// GPU crash item, or no scope to copy the GPU event from.
+/// GPU crash dump, or no scope to copy the GPU event from.
 pub fn split_crash(
     envelope: Managed<Box<Envelope>>,
 ) -> (Managed<Box<Envelope>>, Option<Managed<Box<Envelope>>>) {
-    if !envelope.items().any(is_gpu_crash_item) {
+    // Only a dump makes a GPU crash: the GPU crash processor expands the dump into
+    // the event, and the shader debug info (`.nvdbg`) merely rides along. Shader
+    // debug on its own would move onto an envelope no expander can claim, so leave
+    // it on the CPU event.
+    if !envelope.items().any(is_gpu_dump_item) {
         return (envelope, None);
     }
 
@@ -91,6 +95,14 @@ fn is_scope_item(item: &Item) -> bool {
         )
 }
 
+/// The GPU crash dump (`.nv-gpudmp`) the GPU crash processor turns into the event.
+/// Its presence is what triggers the split.
+fn is_gpu_dump_item(item: &Item) -> bool {
+    item.attachment_type() == Some(AttachmentType::NvGpuDump)
+}
+
+/// Items moved onto the GPU envelope: the dump plus any shader debug info
+/// (`.nvdbg`) that rides along with it.
 fn is_gpu_crash_item(item: &Item) -> bool {
     matches!(
         item.attachment_type(),
@@ -223,5 +235,19 @@ mod tests {
             attachment(AttachmentType::NvGpuDump, true),
         ]));
         assert!(gpu.is_none());
+    }
+
+    #[test]
+    fn test_no_split_with_only_shader_debug() {
+        // Shader debug info alone is not a GPU crash: the GPU crash processor only
+        // expands a dump, so without one there is nothing to claim the split-off
+        // envelope. Leave the `.nvdbg` on the CPU event instead of dropping it.
+        let (cpu, gpu) = split_crash(envelope([
+            attachment(AttachmentType::Minidump, true),
+            attachment(AttachmentType::UnrealContext, true),
+            attachment(AttachmentType::NvShaderDebug, true),
+        ]));
+        assert!(gpu.is_none());
+        assert!(attachment_types(&cpu).contains(&Some(AttachmentType::NvShaderDebug)));
     }
 }
