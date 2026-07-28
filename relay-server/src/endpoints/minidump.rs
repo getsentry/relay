@@ -678,9 +678,20 @@ async fn handle(
     if gpu_crash_split {
         let (cpu, gpu) = utils::gpu::split_crash(envelope);
         if let Some(gpu) = gpu {
-            common::handle_managed_envelope(&state, gpu)
-                .await?
-                .ignore_rate_limits();
+            // The GPU crash is a best-effort duplicate. Submit it, but never let a
+            // failure here propagate: a `?` would drop the still-unhandled CPU crash
+            // (rejecting it as internal), and clients like the UE4 reporter do not
+            // retry, so the original crash would be lost for good. The rejection has
+            // already emitted its own outcome.
+            match common::handle_managed_envelope(&state, gpu).await {
+                Ok(handled) => {
+                    handled.ignore_rate_limits();
+                }
+                Err(rejected) => relay_log::debug!(
+                    error = &rejected.into_inner() as &dyn std::error::Error,
+                    "failed to submit split-off GPU crash envelope",
+                ),
+            }
         }
         envelope = cpu;
     }
