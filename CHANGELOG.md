@@ -13,6 +13,7 @@
   only for Android `sampled_profile` payloads. `version: "1"` and versionless Android trace chunks are rejected.
   ([#6183](https://github.com/getsentry/relay/pull/6183))
 - Defer dynamic sampling until metrics config is valid. ([#6246](https://github.com/getsentry/relay/pull/6246))
+- Fix streamed attachments having wrong retention. ([#6268](https://github.com/getsentry/relay/pull/6268))
 
 ## 26.7.1
 
