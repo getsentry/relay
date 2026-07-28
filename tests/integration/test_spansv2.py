@@ -449,7 +449,6 @@ def test_spansv2_ds_drop(mini_sentry, relay, span, rule_type):
     """
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = ["projects:span-v2-experimental-processing"]
     # A transaction rule should never apply.
     add_sampling_config(project_config, sample_rate=1, rule_type="transaction")
     # Setup the actual rule we want to test against.
