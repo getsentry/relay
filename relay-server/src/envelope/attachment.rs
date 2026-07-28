@@ -55,7 +55,7 @@ pub enum AttachmentType {
 
     /// An NVIDIA Aftermath GPU crash dump (`.nv-gpudmp`), decoded by teapot.
     ///
-    /// Carried on its own GPU crash event, split off a minidump/unreal upload.
+    /// Carried on its own GPU crash event, split off a minidump upload.
     NvGpuDump,
 
     /// NVIDIA Aftermath shader debug info (`.nvdbg`) accompanying an `NvGpuDump`.
