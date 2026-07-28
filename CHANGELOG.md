@@ -5,6 +5,7 @@
 **Features**:
 
 - Make the V2 standalone span pipeline the default. ([#6262](https://github.com/getsentry/relay/pull/6262))
+- Split NVIDIA Aftermath GPU crash dumps (`.nv-gpudmp`) into their own trace-connected events for symbolication. ([#6242](https://github.com/getsentry/relay/pull/6242))
 
 **Bug Fixes**:
 
