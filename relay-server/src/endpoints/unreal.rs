@@ -113,6 +113,9 @@ async fn handle(
     if gpu_crash_split {
         let (cpu, gpu) = utils::gpu::split_crash(envelope);
         if let Some(gpu) = gpu {
+            // Manage the GPU envelope as its own event so its outcomes are attributed
+            // to the GPU event id, not the CPU event's.
+            let gpu = Managed::from_envelope(gpu, state.outcome_aggregator().clone());
             // The GPU crash is a best-effort duplicate. Submit it, but never let a
             // failure here propagate: a `?` would drop the still-unhandled CPU crash
             // (rejecting it as internal), and clients like the UE4 reporter do not
