@@ -2,6 +2,7 @@ mod api;
 mod debug;
 mod dynamic_sampling;
 mod error;
+pub mod gpu;
 mod multipart;
 mod param_parser;
 mod pick;
