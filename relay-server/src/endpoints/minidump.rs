@@ -259,10 +259,8 @@ impl UploadContext<'_> {
     fn upload_decision(&self, attachment_type: Option<AttachmentType>) -> &UploadDecision {
         match attachment_type {
             Some(AttachmentType::Attachment) => &self.upload_attachments,
-            // GPU crash dumps and shader debug info are crash artifacts that can be as
-            // large as minidumps, so stream them to objectstore under the same
-            // decision rather than inlining them — inlining reads the whole dump into
-            // memory and bloats the envelope past its size limit.
+            // GPU dumps are smaller than minidumps. We still stream them under the same
+            // decision instead of inlining them into the envelope.
             Some(
                 AttachmentType::Minidump
                 | AttachmentType::NvGpuDump
@@ -672,8 +670,7 @@ async fn handle(
         ));
         return Ok(TextResponse(Some(EventId::new())));
     }
-    // Gated on the org feature: only opted-in orgs split GPU crashes into a
-    // second (billed) event. Captured before `upload_context` is consumed below.
+
     let gpu_crash_split = upload_context
         .as_ref()
         .is_some_and(|ctx| ctx.gpu_crash_split);
@@ -686,14 +683,8 @@ async fn handle(
     if gpu_crash_split {
         let (cpu, gpu) = utils::gpu::split_crash(envelope);
         if let Some(gpu) = gpu {
-            // Manage the GPU envelope as its own event so its outcomes are attributed
-            // to the GPU event id, not the CPU event's.
-            let gpu = Managed::from_envelope(gpu, state.outcome_aggregator().clone());
-            // The GPU crash is a best-effort duplicate. Submit it, but never let a
-            // failure here propagate: a `?` would drop the still-unhandled CPU crash
-            // (rejecting it as internal), and clients like the UE4 reporter do not
-            // retry, so the original crash would be lost for good. The rejection has
-            // already emitted its own outcome.
+            // The GPU crash is a best-effort duplicate: a failure submitting it must
+            // not drop the CPU crash, which clients do not retry.
             match common::handle_managed_envelope(&state, gpu).await {
                 Ok(handled) => {
                     handled.ignore_rate_limits();

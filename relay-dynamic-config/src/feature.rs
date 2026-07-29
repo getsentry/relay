@@ -106,7 +106,7 @@ pub enum Feature {
     #[serde(rename = "projects:relay-upload-multipart")]
     UploadMultipart,
     /// Split an NVIDIA GPU crash dump (`.nv-gpudmp`) off a minidump upload into its
-    /// own event, symbolicated by teapot. Shares the Sentry-side flag.
+    /// own event.
     #[serde(rename = "organizations:gpu-crash-symbolication")]
     NvGpuCrashSplit,
     /// Enables OTLP spans to use the Span V2 processing pipeline in Relay.

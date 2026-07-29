@@ -1,25 +1,22 @@
 """Integration tests for the GPU crash split.
 
 Relay splits a minidump upload that carries an NVIDIA Aftermath GPU crash dump
-(`.nv-gpudmp`) into two events: the CPU crash (minidump) keeps the original
-event, and the GPU crash becomes a second, trace-connected event that carries a
-copy of the scope plus the `.nv-gpudmp` / `.nvdbg` attachments. Gated on the
+(`.nv-gpudmp`) into two events: the CPU crash (minidump) keeps the original event,
+and the GPU crash becomes a second, trace-connected event that carries a copy of the
+scope plus the `.nv-gpudmp` / `.nvdbg` attachments. Gated on the
 `organizations:gpu-crash-symbolication` feature.
 """
 
-import queue
 from uuid import UUID
 
 import msgpack
-import pytest
 
 MINIDUMP_ATTACHMENT_NAME = "upload_file_minidump"
 EVENT_ATTACHMENT_NAME = "__sentry-event"
 GPU_FEATURE = "organizations:gpu-crash-symbolication"
 
-# Relay infers attachment types from the file name: `.nv-gpudmp` -> the GPU dump,
-# `.nvdbg` -> shader debug info. Their bytes are opaque to Relay (teapot decodes
-# them), so dummy content is enough here.
+# Relay infers attachment types from the file name; the bytes are opaque to Relay, so
+# dummy content is enough.
 MINIDUMP = (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", "MDMP content")
 GPU_DUMP = ("gpudump", "crash.nv-gpudmp", b"NVGPU dummy dump")
 SHADER_DBG = ("shaderdbg", "shader-abc.nvdbg", b"nvdbg dummy")
@@ -50,29 +47,10 @@ def attachment_types(envelope):
     }
 
 
-def event_tags(event):
-    """Normalize the event's tags to a dict (Relay may emit dict or list-of-pairs)."""
-    tags = event.get("tags") or []
-    if isinstance(tags, dict):
-        return tags
-    return {pair[0]: pair[1] for pair in tags if pair}
-
-
-def project_with_gpu_feature(mini_sentry, project_id, *, enabled=True):
-    config = mini_sentry.add_full_project_config(project_id)
-    if enabled:
-        config["config"].setdefault("features", []).append(GPU_FEATURE)
-    return config
-
-
-def assert_no_more_envelopes(mini_sentry):
-    with pytest.raises(queue.Empty):
-        mini_sentry.get_captured_envelope(timeout=2)
-
-
 def test_gpu_crash_splits_into_two_events(mini_sentry, relay):
     project_id = 42
-    project_with_gpu_feature(mini_sentry, project_id)
+    config = mini_sentry.add_full_project_config(project_id)
+    config["config"]["features"] = [GPU_FEATURE]
     relay = relay(mini_sentry)
 
     response = relay.send_minidump(
@@ -81,10 +59,9 @@ def test_gpu_crash_splits_into_two_events(mini_sentry, relay):
     )
     cpu_event_id = UUID(response.text.strip())
 
-    # Both envelopes are forwarded; classify them by their attachments (order is
-    # not guaranteed).
+    # Both envelopes are forwarded; classify them by their attachments.
     envelopes = [mini_sentry.get_captured_envelope() for _ in range(2)]
-    assert_no_more_envelopes(mini_sentry)
+    assert mini_sentry.captured_envelopes.empty()
     cpu, gpu = None, None
     for envelope in envelopes:
         if "event.nv_gpudmp" in attachment_types(envelope):
@@ -109,19 +86,20 @@ def test_gpu_crash_splits_into_two_events(mini_sentry, relay):
     assert cpu.headers["event_id"] == SCOPE_EVENT_ID
     assert cpu.headers["event_id"] != gpu.headers["event_id"]
 
-    # It is a copy of the scope: it inherits the trace, release and tags, so both
-    # events are trace-connected.
+    # The GPU event is a copy of the scope, so it shares the CPU event's trace,
+    # release and tags.
+    cpu_event = cpu.get_event()
     gpu_event = gpu.get_event()
     assert gpu_event["release"] == "game@1.0.0"
     assert gpu_event["environment"] == "prod"
     assert gpu_event["contexts"]["trace"]["trace_id"] == SCOPE_TRACE_ID
-    assert event_tags(gpu_event).get("custom_tag") == "custom_value"
-    assert cpu.get_event()["contexts"]["trace"]["trace_id"] == SCOPE_TRACE_ID
+    assert gpu_event["tags"] == cpu_event["tags"]
+    assert cpu_event["contexts"]["trace"]["trace_id"] == SCOPE_TRACE_ID
 
 
 def test_gpu_crash_not_split_without_feature(mini_sentry, relay):
     project_id = 42
-    project_with_gpu_feature(mini_sentry, project_id, enabled=False)
+    mini_sentry.add_full_project_config(project_id)
     relay = relay(mini_sentry)
 
     relay.send_minidump(
@@ -132,47 +110,44 @@ def test_gpu_crash_not_split_without_feature(mini_sentry, relay):
     # No split: the GPU dump rides along on the single CPU event.
     envelope = mini_sentry.get_captured_envelope()
     assert {"event.minidump", "event.nv_gpudmp"} <= attachment_types(envelope)
-    assert_no_more_envelopes(mini_sentry)
+    assert mini_sentry.captured_envelopes.empty()
 
 
 def test_gpu_crash_not_split_without_scope(mini_sentry, relay):
-    # Without a scope (`__sentry-event`) there is nothing to copy the GPU event
-    # from, so we leave the crash on the CPU event rather than dropping it.
+    # Without a scope (`__sentry-event`) there is nothing to copy the GPU event from,
+    # so the crash stays on the CPU event rather than being dropped.
     project_id = 42
-    project_with_gpu_feature(mini_sentry, project_id)
+    config = mini_sentry.add_full_project_config(project_id)
+    config["config"]["features"] = [GPU_FEATURE]
     relay = relay(mini_sentry)
 
     relay.send_minidump(project_id=project_id, files=[MINIDUMP, GPU_DUMP, SHADER_DBG])
 
     envelope = mini_sentry.get_captured_envelope()
     assert {"event.minidump", "event.nv_gpudmp"} <= attachment_types(envelope)
-    assert_no_more_envelopes(mini_sentry)
+    assert mini_sentry.captured_envelopes.empty()
 
 
 def test_gpu_crash_not_split_without_gpu_dump(mini_sentry, relay):
     project_id = 42
-    project_with_gpu_feature(mini_sentry, project_id)
+    config = mini_sentry.add_full_project_config(project_id)
+    config["config"]["features"] = [GPU_FEATURE]
     relay = relay(mini_sentry)
 
     relay.send_minidump(project_id=project_id, files=[MINIDUMP, scope_attachment()])
 
     envelope = mini_sentry.get_captured_envelope()
     assert "event.nv_gpudmp" not in attachment_types(envelope)
-    assert_no_more_envelopes(mini_sentry)
+    assert mini_sentry.captured_envelopes.empty()
 
 
 def test_gpu_crash_split_with_processing(
     mini_sentry, relay_with_processing, attachments_consumer
 ):
-    """The split survives full processing: both events reach the store.
-
-    This exercises the processor's outcome accounting for the copied scope — a
-    naive attachment clone unbalances it and the GPU event gets dropped.
-    """
+    """The split survives full processing: both events reach the store."""
     project_id = 42
-    config = project_with_gpu_feature(mini_sentry, project_id)
-    # The full project config scrubs module paths in the (dummy) minidump; drop it.
-    del config["config"]["piiConfig"]
+    config = mini_sentry.add_full_project_config(project_id)
+    config["config"]["features"] = [GPU_FEATURE]
 
     relay = relay_with_processing()
     attachments_consumer = attachments_consumer()
@@ -183,7 +158,6 @@ def test_gpu_crash_split_with_processing(
     )
 
     # Both events reach processing; `get_event_only` skips the attachment chunks.
-    # Classify by their attachments (envelope order is not guaranteed).
     events = {}
     for _ in range(2):
         message, event = attachments_consumer.get_event_only()

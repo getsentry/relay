@@ -6,14 +6,10 @@ use crate::processing::ForwardContext;
 use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
 use crate::processing::errors::{Error, Result};
 
-/// An NVIDIA Aftermath GPU crash dump (`.nv-gpudmp`).
+/// An NVIDIA Aftermath GPU crash dump
 ///
-/// Relay splits the GPU crash onto its own event (see [`crate::utils::gpu`]),
-/// which carries a copy of the CPU event's scope (the crashpad `__sentry-event`
-/// payload / breadcrumbs) plus the dump and any shader debug info (`.nvdbg`). Here
-/// we turn the copied scope into the event and keep the dump and shader debug info
-/// as attachments; Sentry decodes the dump out-of-band (via teapot), analogous to
-/// how a minidump is symbolicated.
+/// Builds the event from the envelope's scope and keeps the dump and any shader debug
+/// info as attachments, to be symbolicated later like a minidump.
 #[derive(Debug)]
 pub struct GpuCrash(pub Item);
 
@@ -34,8 +30,6 @@ impl SentryError for GpuCrash {
 
         Ok(Some(Expansion {
             event: Box::new(event),
-            // The remaining attachments include the shader debug info (`.nvdbg`);
-            // the dump itself is kept via `serialize_into` below.
             attachments: utils::take_items_of_type(items, ItemType::Attachment),
             user_reports: utils::take_items_of_type(items, ItemType::UserReport),
             error: Self(dump),
@@ -70,8 +64,6 @@ impl SentryError for GpuCrash {
 
 impl Counted for GpuCrash {
     fn quantities(&self) -> Quantities {
-        // A rate limited dump no longer counts as an attachment, but it is still
-        // passed along so Sentry can decode it into the event later.
         match self.0.rate_limited() {
             true => Default::default(),
             false => self.0.quantities(),

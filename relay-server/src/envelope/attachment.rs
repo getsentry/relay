@@ -53,12 +53,10 @@ pub enum AttachmentType {
     /// An application UI view hierarchy (json payload).
     ViewHierarchy,
 
-    /// An NVIDIA Aftermath GPU crash dump (`.nv-gpudmp`), decoded by teapot.
-    ///
-    /// Carried on its own GPU crash event, split off a minidump upload.
+    /// An NVIDIA Aftermath GPU crash dump (`.nv-gpudmp`).
     NvGpuDump,
 
-    /// NVIDIA Aftermath shader debug info (`.nvdbg`) accompanying an `NvGpuDump`.
+    /// NVIDIA Aftermath shader debug info (`.nvdbg`) accompanying an [`Self::NvGpuDump`].
     NvShaderDebug,
 }
 
