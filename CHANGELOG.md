@@ -1,11 +1,16 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Extract nvgpu dumps and create GPU events. ([#6242](https://github.com/getsentry/relay/pull/6242))
+
 ## 26.7.2
 
 **Features**:
 
 - Make the V2 standalone span pipeline the default. ([#6262](https://github.com/getsentry/relay/pull/6262))
-- Extract nvgpu dumps and create GPU events. ([#6242](https://github.com/getsentry/relay/pull/6242))
 
 **Bug Fixes**:
 
