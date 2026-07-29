@@ -258,16 +258,16 @@ struct UploadContext<'a> {
 impl UploadContext<'_> {
     fn upload_decision(&self, attachment_type: Option<AttachmentType>) -> &UploadDecision {
         match attachment_type {
-            // GPU crash dumps and shader debug info are billed as attachments and can
-            // be as large as minidumps. Stream them to objectstore like other
-            // attachments rather than inlining them, which would read the whole dump
-            // into memory and bloat the envelope past its size limit.
+            Some(AttachmentType::Attachment) => &self.upload_attachments,
+            // GPU crash dumps and shader debug info are crash artifacts that can be as
+            // large as minidumps, so stream them to objectstore under the same
+            // decision rather than inlining them — inlining reads the whole dump into
+            // memory and bloats the envelope past its size limit.
             Some(
-                AttachmentType::Attachment
+                AttachmentType::Minidump
                 | AttachmentType::NvGpuDump
                 | AttachmentType::NvShaderDebug,
-            ) => &self.upload_attachments,
-            Some(AttachmentType::Minidump) => &self.upload_minidumps,
+            ) => &self.upload_minidumps,
             _ => &UploadDecision::Inline,
         }
     }
