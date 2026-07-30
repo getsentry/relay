@@ -11,6 +11,7 @@ pub const GRADUATED_FEATURE_FLAGS: &[Feature] = &[
     Feature::DeprecatedOtelLogsEndpoint,
     Feature::DeprecatedExtractSpansFromEvent,
     Feature::DeprecatedStandaloneSpanIngestion,
+    Feature::DeprecatedSpanV2ExperimentalProcessing,
 ];
 
 /// Features exposed by project config.
@@ -83,9 +84,6 @@ pub enum Feature {
     /// Detect performance issues in the new standalone spans pipeline instead of on transactions.
     #[serde(rename = "organizations:performance-issues-spans")]
     PerformanceIssuesSpans,
-    /// Enables the experimental Span V2 processing pipeline in Relay.
-    #[serde(rename = "projects:span-v2-experimental-processing")]
-    SpanV2ExperimentalProcessing,
     /// Enable the experimental Span Attachment subset of the Span V2 processing pipeline in Relay.
     #[serde(rename = "projects:span-v2-attachment-processing")]
     SpanV2AttachmentProcessing,
@@ -107,6 +105,10 @@ pub enum Feature {
     /// See <https://getsentry.github.io/objectstore/rust/objectstore_service/multipart/>.
     #[serde(rename = "projects:relay-upload-multipart")]
     UploadMultipart,
+    /// Split an NVIDIA GPU crash dump (`.nv-gpudmp`) off a minidump upload into its
+    /// own event.
+    #[serde(rename = "organizations:gpu-crash-symbolication")]
+    NvGpuCrashSplit,
     /// Enables OTLP spans to use the Span V2 processing pipeline in Relay.
     ///
     /// This is now the default behaviour of Relay.
@@ -142,6 +144,13 @@ pub enum Feature {
     #[doc(hidden)]
     #[serde(rename = "organizations:standalone-span-ingestion")]
     DeprecatedStandaloneSpanIngestion,
+
+    /// Enables the experimental Span V2 processing pipeline in Relay.
+    ///
+    /// This feature has graduated.
+    #[doc(hidden)]
+    #[serde(rename = "projects:span-v2-experimental-processing")]
+    DeprecatedSpanV2ExperimentalProcessing,
 
     /// Forward compatibility.
     #[doc(hidden)]

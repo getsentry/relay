@@ -28,7 +28,7 @@ jobs:
       }')[matrix.build-arch] }}
 
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: recursive
 
@@ -37,7 +37,7 @@ jobs:
         env:
           TARGET: ${{ matrix.build-arch }}
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
 
       - name: Verify Wheel
         run: |
@@ -70,7 +70,7 @@ jobs:
     runs-on: macos-14
 
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: recursive
 
@@ -117,7 +117,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: recursive
 

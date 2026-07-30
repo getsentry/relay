@@ -100,9 +100,15 @@ def test_minidump_attachments(mini_sentry, relay):
         ("attachment1", "attach1.txt", "attachment content"),
     ]
 
-    relay.send_minidump(project_id=project_id, files=attachments)
+    relay.send_minidump(
+        project_id=project_id,
+        files=attachments,
+        params=[("guid", "dd46bb04-bb27-448c-aad0-0deb0c134bdb")],
+    )
     envelope = mini_sentry.get_captured_envelope()
     assert envelope
+
+    assert all(item.headers.get("type") != "form_data" for item in envelope.items)
 
     # Check that the envelope assumes the given event id
     assert envelope.headers.get("event_id") == "2dd132e467174db48dbaddabd3cbed57"

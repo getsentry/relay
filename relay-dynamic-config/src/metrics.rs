@@ -80,6 +80,12 @@ pub struct CombinedMetricExtractionConfig<'a> {
 }
 
 impl<'a> CombinedMetricExtractionConfig<'a> {
+    /// Empty config, used in tests and as a fallback.
+    pub const EMPTY: Self = Self {
+        global: MetricExtractionGroups::EMPTY,
+        project: &MetricExtractionConfig::empty(),
+    };
+
     /// Creates a new combined view from two references.
     pub fn new(global: &'a MetricExtractionGroups, project: &'a MetricExtractionConfig) -> Self {
         for key in project.global_groups.keys() {
@@ -230,12 +236,12 @@ impl MetricExtractionConfig {
     /// Returns an empty `MetricExtractionConfig` with the latest version.
     ///
     /// As opposed to `default()`, this will be enabled once populated with specs.
-    pub fn empty() -> Self {
+    pub const fn empty() -> Self {
         Self {
             version: Self::MAX_SUPPORTED_VERSION,
             global_groups: BTreeMap::new(),
-            metrics: Default::default(),
-            tags: Default::default(),
+            metrics: Vec::new(),
+            tags: Vec::new(),
             _conditional_tags_extended: false,
             _span_metrics_extended: false,
         }

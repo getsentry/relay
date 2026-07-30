@@ -249,6 +249,12 @@ impl FieldAttrs {
         self
     }
 
+    /// Sets whether this field should be trimmed.
+    pub const fn trim(mut self, trim: bool) -> Self {
+        self.trim = trim;
+        self
+    }
+
     /// Sets the maximum number of characters allowed in the field.
     pub const fn max_chars(mut self, max_chars: Option<usize>) -> Self {
         self.max_chars = SizeMode::Static(max_chars);
@@ -287,8 +293,6 @@ impl FieldAttrs {
 }
 
 static DEFAULT_FIELD_ATTRS: FieldAttrs = FieldAttrs::new();
-static PII_TRUE_FIELD_ATTRS: FieldAttrs = FieldAttrs::new().pii(Pii::True);
-static PII_MAYBE_FIELD_ATTRS: FieldAttrs = FieldAttrs::new().pii(Pii::Maybe);
 
 impl Default for FieldAttrs {
     fn default() -> Self {
@@ -605,11 +609,33 @@ impl<'a> ProcessingState<'a> {
 
     /// Derives the attrs for recursion.
     pub fn inner_attrs(&self) -> Option<Cow<'_, FieldAttrs>> {
-        match self.attrs().pii {
-            PiiMode::Static(Pii::True) => Some(Cow::Borrowed(&PII_TRUE_FIELD_ATTRS)),
-            PiiMode::Static(Pii::False) => None,
-            PiiMode::Static(Pii::Maybe) => Some(Cow::Borrowed(&PII_MAYBE_FIELD_ATTRS)),
-            PiiMode::Dynamic(f) => Some(Cow::Owned(DEFAULT_FIELD_ATTRS.pii_dynamic(f))),
+        let current_attrs = self.attrs();
+        match (current_attrs.pii, current_attrs.trim) {
+            // Both are default -> None.
+            (PiiMode::Static(Pii::False), true) => None,
+            (PiiMode::Static(Pii::True), true) => {
+                static ATTRS: FieldAttrs = FieldAttrs::new().pii(Pii::True).trim(true);
+                Some(Cow::Borrowed(&ATTRS))
+            }
+            (PiiMode::Static(Pii::Maybe), true) => {
+                static ATTRS: FieldAttrs = FieldAttrs::new().pii(Pii::Maybe).trim(true);
+                Some(Cow::Borrowed(&ATTRS))
+            }
+            (PiiMode::Static(Pii::True), false) => {
+                static ATTRS: FieldAttrs = FieldAttrs::new().pii(Pii::True).trim(false);
+                Some(Cow::Borrowed(&ATTRS))
+            }
+            (PiiMode::Static(Pii::False), false) => {
+                static ATTRS: FieldAttrs = FieldAttrs::new().pii(Pii::False).trim(false);
+                Some(Cow::Borrowed(&ATTRS))
+            }
+            (PiiMode::Static(Pii::Maybe), false) => {
+                static ATTRS: FieldAttrs = FieldAttrs::new().pii(Pii::Maybe).trim(false);
+                Some(Cow::Borrowed(&ATTRS))
+            }
+            (PiiMode::Dynamic(f), trim) => {
+                Some(Cow::Owned(FieldAttrs::new().pii_dynamic(f).trim(trim)))
+            }
         }
     }
 

@@ -4,12 +4,42 @@
 
 **Features**:
 
-- No longer write the deprecated `sentry.transaction` and `db.system` attributes. ([#6237](https://github.com/getsentry/relay/pull/6237), [#6238](https://github.com/getsentry/relay/pull/6238))
-- Allow additional exceptions in minidump and apple crash report events. ([#6241](https://github.com/getsentry/relay/pull/6241))
+- Extract nvgpu dumps and create GPU events. ([#6242](https://github.com/getsentry/relay/pull/6242))
 
 **Internal**:
 
 - Support resumable uploads (feature-flagged). ([#6203](https://github.com/getsentry/relay/pull/6203))
+
+## 26.7.2
+
+**Features**:
+
+- Make the V2 standalone span pipeline the default. ([#6262](https://github.com/getsentry/relay/pull/6262))
+
+**Bug Fixes**:
+
+- Fix Android trace and ANR profile parsing. Serialize Android trace chunks with `version: "2.android-trace"`. Custom
+  Android trace `profile_chunk` producers should send `version: "2.android-trace"`; legacy `version: "2"` is accepted
+  only for Android `sampled_profile` payloads. `version: "1"` and versionless Android trace chunks are rejected.
+  ([#6183](https://github.com/getsentry/relay/pull/6183))
+- Defer dynamic sampling until metrics config is valid. ([#6246](https://github.com/getsentry/relay/pull/6246))
+
+## 26.7.1
+
+**Features**:
+
+- Emit web-vitals as metrics. ([#6118](https://github.com/getsentry/relay/pull/6118))
+- No longer write the deprecated `sentry.transaction` and `db.system` attributes. ([#6237](https://github.com/getsentry/relay/pull/6237), [#6238](https://github.com/getsentry/relay/pull/6238))
+- Allow additional exceptions in minidump and apple crash report events. ([#6241](https://github.com/getsentry/relay/pull/6241))
+
+**Bug Fixes**:
+
+- Consistently enforces envelope size limits for all items. ([#6250](https://github.com/getsentry/relay/pull/6250))
+- Prevent partially trimmed transaction spans. ([#6256](https://github.com/getsentry/relay/pull/6256))
+
+**Internal**:
+
+- Limit the maximum amount of items in an envelope to 500. ([#6251](https://github.com/getsentry/relay/pull/6251))
 
 ## 26.7.0
 
@@ -35,7 +65,6 @@
 - Unset segment info for web vital spans. ([#6042](https://github.com/getsentry/relay/pull/6042))
 - Set sentry.trace.status on segment spans. ([#6140](https://github.com/getsentry/relay/pull/6140))
 - Don't modify segment information for V2 web vital spans. ([#6160](https://github.com/getsentry/relay/pull/6160))
-
 - Support compressed minidumps when the `relay-minidump-uploads` feature is enabled. ([#6151](https://github.com/getsentry/relay/pull/6151))
 - Make `--log-level` and `--log-format` take effect again and accept them on all subcommands. ([#6198](https://github.com/getsentry/relay/pull/6198))
 - Parse two-component versions in iOS and iPadOS `raw_description` into `version` instead of `kernel_version`. ([#6197](https://github.com/getsentry/relay/pull/6197))
@@ -91,7 +120,7 @@
 **Internal**:
 
 - Handle outcomes as metrics. ([#6082](https://github.com/getsentry/relay/pull/6082))
-- Restore top-level _performance_issues_spans. ([#6045](https://github.com/getsentry/relay/pull/6045))
+- Restore top-level \_performance_issues_spans. ([#6045](https://github.com/getsentry/relay/pull/6045))
 - Update sentry-conventions to 0.11.0, migrating deprecated `gen_ai` attribute constants. ([#6068](https://github.com/getsentry/relay/pull/6068))
 
 ## 26.5.2
