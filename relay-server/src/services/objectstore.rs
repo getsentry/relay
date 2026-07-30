@@ -331,7 +331,7 @@ impl ErrorKind {
             Self::InvalidUploadLength { .. } => "invalid_upload_length",
             Self::RequestTooSmall { .. } => "request_too_small",
             Self::UnalignedBody { .. } => "unaligned_body",
-            Self::UnknownKey { .. } => "invalid_length",
+            Self::UnknownKey { .. } => "unknown_key",
             Self::Timeout(_) => "timeout",
             Self::LoadShed => "load_shed",
             Self::CompressionFailed(_) => "compression_failed",
