@@ -356,7 +356,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     normalize_contexts(&mut event.contexts);
 
     if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
-        span::normalize_dsc_for_event_spans(event, config.dsc);
+        span::normalize_dsc_for_event_spans(event, config);
         span::normalize_app_start_spans(event);
         span::exclusive_time::compute_span_exclusive_time(event);
     }

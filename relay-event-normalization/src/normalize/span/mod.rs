@@ -6,8 +6,9 @@ use relay_conventions::attributes::{
 };
 use relay_event_schema::protocol::{Event, SpanData, TraceContext};
 use relay_protocol::Annotated;
-use relay_sampling::DynamicSamplingContext;
 use std::sync::LazyLock;
+
+use crate::NormalizationConfig;
 
 pub mod ai;
 pub mod country_subregion;
@@ -86,14 +87,14 @@ pub fn normalize_app_start_spans(event: &mut Event) {
 ///
 /// If `sentry.dsc.trace_id` is already present in a span's `data`, the function does nothing for
 /// that span.
-pub fn normalize_dsc_for_event_spans(event: &mut Event, dsc: Option<&DynamicSamplingContext>) {
+pub fn normalize_dsc_for_event_spans(event: &mut Event, config: &NormalizationConfig) {
     if let Some(ctx) = event.context_mut::<TraceContext>() {
-        normalize_dsc_for_span_data(&mut ctx.data, dsc);
+        normalize_dsc_for_span_data(&mut ctx.data, config);
     }
     if let Some(spans) = event.spans.value_mut() {
         for span in spans {
             if let Some(span) = span.value_mut() {
-                normalize_dsc_for_span_data(&mut span.data, dsc);
+                normalize_dsc_for_span_data(&mut span.data, config);
             }
         }
     }
@@ -104,9 +105,9 @@ pub fn normalize_dsc_for_event_spans(event: &mut Event, dsc: Option<&DynamicSamp
 /// If `sentry.dsc.trace_id` is already present in `span_data`, the function does nothing.
 pub fn normalize_dsc_for_span_data(
     span_data: &mut Annotated<SpanData>,
-    dsc: Option<&DynamicSamplingContext>,
+    config: &NormalizationConfig,
 ) {
-    let Some(dsc) = dsc else {
+    let Some(dsc) = config.dsc else {
         return;
     };
 
@@ -119,6 +120,10 @@ pub fn normalize_dsc_for_span_data(
         data.insert_value(SENTRY__DSC__PROJECT_ID, project_id.to_string());
     }
     if let Some(transaction) = &dsc.transaction {
-        data.insert_value(SENTRY__DSC__TRANSACTION, transaction.to_string());
+        // To match the behaviour of the `count_per_root` metric, which had its tags
+        // removed if they were over the limit.
+        if transaction.len() <= config.max_tag_value_length {
+            data.insert_value(SENTRY__DSC__TRANSACTION, transaction.to_string());
+        }
     }
 }

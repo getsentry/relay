@@ -965,6 +965,7 @@ def get_transaction_envelope(
     child_id_2: str,
     dsc: Literal["dsc_with_tx", "dsc_no_tx", "no_dsc"],
     sampling_project_config: dict,
+    dsc_transaction: str = "/dsc/",
 ):
     ts = datetime.now(timezone.utc)
 
@@ -1021,7 +1022,7 @@ def get_transaction_envelope(
             "sampled": "true",
             "release": "some_release",
             "environment": "some_environment",
-            **({"transaction": "/dsc/"} if dsc == "dsc_with_tx" else {}),
+            **({"transaction": dsc_transaction} if dsc == "dsc_with_tx" else {}),
             "org_id": sampling_project_config["organizationId"],
         }
 
@@ -1254,3 +1255,48 @@ def test_dsc_normalization(
             "value": 1.0,
         },
     ]
+
+
+@pytest.mark.parametrize(
+    ("dsc_transaction", "expected_transaction"),
+    [
+        pytest.param("t" * 10, "t" * 10, id="at-limit"),
+        pytest.param("t" * 11, None, id="over-limit"),
+    ],
+)
+def test_dsc_transaction_tag_length(
+    mini_sentry,
+    relay,
+    dsc_transaction,
+    expected_transaction,
+):
+    project_id = 42
+
+    project_config = mini_sentry.add_full_project_config(project_id)
+    relay = relay(
+        mini_sentry,
+        options={
+            "aggregator": {"max_tag_value_length": 10},
+            "normalization": {"level": "full"},
+        },
+    )
+
+    envelope = get_transaction_envelope(
+        trace_id="a0fa8803753e40fd8124b21eeb2986b5",
+        segment_id="a" * 16,
+        child_id_1="b" * 16,
+        child_id_2="c" * 16,
+        dsc="dsc_with_tx",
+        sampling_project_config=project_config,
+        dsc_transaction=dsc_transaction,
+    )
+
+    relay.send_envelope(project_id, envelope)
+    event = mini_sentry.get_captured_envelope().get_transaction_event()
+
+    for data in (
+        event["contexts"]["trace"]["data"],
+        event["spans"][0]["data"],
+        # The second span has an intentionally different dsc
+    ):
+        assert data.get("sentry.dsc.transaction") == expected_transaction
