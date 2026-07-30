@@ -356,7 +356,7 @@
 <a href=#356 id=356 data-nosnippet>356</a>    </span>normalize_contexts(<span class="kw-2">&amp;mut </span>event.contexts);
 <a href=#357 id=357 data-nosnippet>357</a>
 <a href=#358 id=358 data-nosnippet>358</a>    <span class="kw">if </span>config.normalize_spans &amp;&amp; event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
-<a href=#359 id=359 data-nosnippet>359</a>        span::normalize_dsc_for_event_spans(event, config.dsc);
+<a href=#359 id=359 data-nosnippet>359</a>        span::normalize_dsc_for_event_spans(event, config);
 <a href=#360 id=360 data-nosnippet>360</a>        span::normalize_app_start_spans(event);
 <a href=#361 id=361 data-nosnippet>361</a>        span::exclusive_time::compute_span_exclusive_time(event);
 <a href=#362 id=362 data-nosnippet>362</a>    }
