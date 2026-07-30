@@ -2,18 +2,27 @@
 Tests for the TUS upload endpoint (/api/{project_id}/upload/).
 """
 
+import re
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from flask import Response
+from objectstore_client.multipart import MultipartUpload
 import pytest
+import random
 
 from sentry_relay.auth import SecretKey
 
+from .asserts import matches, matches_any
 from .consts import (
     DUMMY_UPLOAD_PATH,
     DUMMY_UPLOAD_LOCATION,
+)
+
+LOCATION_REGEX = re.compile(r"/api/\d+/upload/(\w+)/")
+LOCATION_REGEX_WITH_UPLOAD_ID = re.compile(
+    r"/api/\d+/upload/(\w+)/?.*upload_id=([\w-]+)"
 )
 
 
@@ -222,8 +231,8 @@ def test_upload_missing_upload_length(mini_sentry, relay, dummy_upload, project_
     [
         pytest.param(
             10,
-            400,
-            "stream shorter than lower bound: received 10 < 11",
+            204,
+            None,
             id="smaller_than_announced",
         ),
         pytest.param(
@@ -271,9 +280,10 @@ def test_upload_body_size(
     )
 
     assert response.status_code == expected_status_code
-    assert response.text == expected_error or any(
-        expected_error in source for source in response.json()["causes"]
-    ), response.json()
+    if expected_error:
+        assert response.text == expected_error or any(
+            expected_error in source for source in response.json()["causes"]
+        ), response.json()
 
 
 @pytest.mark.parametrize("data_category", ["attachment", "attachment_item"])
@@ -331,10 +341,16 @@ def test_timeout(
     """Ensure that the general HTTP timeout does not affect the upload endpoint"""
     mini_sentry.allow_chunked = True
 
+    data = b"hello world"
+
     @mini_sentry.app.route(DUMMY_UPLOAD_PATH, methods=["PATCH"])
     def slow_upload(**opts):
         time.sleep(2)
-        return Response("", status=204, headers={"Location": DUMMY_UPLOAD_LOCATION})
+        return Response(
+            "",
+            status=204,
+            headers={"Location": DUMMY_UPLOAD_LOCATION, "Upload-Offset": len(data)},
+        )
 
     project_id = 42
     relay = relay(
@@ -345,7 +361,6 @@ def test_timeout(
         },
     )
 
-    data = b"hello world"
     response = relay.patch(
         "%s&sentry_key=%s"
         % (
@@ -424,9 +439,8 @@ def test_create_processing(
     assert response.headers["Upload-Offset"] == str(len(data)), response.headers
 
 
-@pytest.mark.parametrize("length", [9, 11])
 def test_processing_invalid_length(
-    mini_sentry, relay, relay_with_processing, project_config, length
+    mini_sentry, relay, relay_with_processing, project_config
 ):
     mini_sentry.fail_on_relay_error = False
     project_id = 42
@@ -447,8 +461,8 @@ def test_processing_invalid_length(
     assert response.headers["Tus-Resumable"] == "1.0.0"
     assert "Upload-Offset" not in response.headers
 
-    # Use the location to send a PATCH request that is too long // too short
-    data = length * b"X"
+    # Use the location to send a PATCH request that is too long
+    data = 11 * b"X"
     response = relay.patch(
         f"{response.headers['Location']}&sentry_key={project_key}",
         headers={
@@ -585,14 +599,14 @@ def test_objectstore_retries(
         }
     )
 
-    location = f"/api/{project_id}/upload/019cdc82ed6c7761ba21fd34b86481c2/"
-    sep = "?"
+    location = (
+        f"/api/{project_id}/upload/019cdc82ed6c7761ba21fd34b86481c2/?upload_length=11"
+    )
     if with_multipart:
-        location += "?upload_id=my_upload_id"
-        sep = "&"
+        location += "&upload_id=my_upload_id"
     signature = SecretKey.parse(relay.secret_key).sign(location.encode())
     signed_location = (
-        f"{location}{sep}sentry_key={project_key}&upload_signature={signature}"
+        f"{location}&sentry_key={project_key}&upload_signature={signature}"
     )
 
     data = b"hello world"
@@ -653,8 +667,23 @@ def test_objectstore_timeout(mini_sentry, relay_with_processing):
     assert response.status_code == 504
 
 
-def upload_something(relay, project_id, project_key):
-    data = b"hello world"
+@pytest.mark.parametrize("feature_flag", [False, True])
+def test_upload_offset(
+    mini_sentry, relay_with_processing, project_config, objectstore, feature_flag
+):
+    mini_sentry.fail_on_relay_error = False
+    project_id = 42
+    config = mini_sentry.add_full_project_config(project_id)["config"]
+    features = config.setdefault("features", [])
+    if feature_flag:
+        features.append("projects:relay-upload-multipart")
+    project_key = mini_sentry.get_dsn_public_key(project_id)
+
+    relay = relay_with_processing()
+    objectstore = objectstore("attachments", project_id)
+
+    part = random.randbytes(13 * 1024 * 1024)
+    data = 3 * part
     response = relay.post(
         f"/api/{project_id}/upload/?sentry_key={project_key}",
         headers={
@@ -663,18 +692,152 @@ def upload_something(relay, project_id, project_key):
             "Upload-Length": str(len(data)),
         },
     )
-    assert response.status_code == 201, response.json()
+    assert response.status_code == 201
 
-    return relay.patch(
+    # Upload only part of the bytes
+    split = len(data) // 3
+    data1 = data[:split]
+    data2 = data[split:]
+
+    response = relay.patch(
         f"{response.headers['Location']}&sentry_key={project_key}",
         headers={
-            "Content-Length": str(len(data)),
+            "Content-Length": str(len(data1)),
             "Content-Type": "application/offset+octet-stream",
             "Tus-Resumable": "1.0.0",
             "Upload-Offset": "0",
         },
-        data=data,
+        data=data1,
     )
+    assert response.status_code == 204, response.text
+    # Relay acknowledges exactly the bytes it durably stored:
+    assert response.headers["Upload-Offset"] == str(len(data1))
+
+    if feature_flag:
+        key, upload_id = LOCATION_REGEX_WITH_UPLOAD_ID.match(
+            response.headers["Location"]
+        ).groups()
+        part1, part2 = MultipartUpload(objectstore, key, upload_id).list_parts()
+        assert vars(part1) == {
+            "part_number": 6,
+            "etag": matches_any(),
+            "last_modified": matches_any(),
+            "size": matches(lambda x: 6e6 < x < 7e6),
+        }
+        assert vars(part2) == {
+            "part_number": 13,
+            "etag": matches_any(),
+            "last_modified": matches_any(),
+            "size": matches(lambda x: 7e6 < x < 8e6),
+        }
+    else:
+        (key,) = LOCATION_REGEX.match(response.headers["Location"]).groups()
+        # The file is already there
+        assert objectstore.get(key).payload.read() == data1
+
+    # Try to upload more:
+    response = relay.patch(
+        f"{response.headers['Location']}&sentry_key={project_key}",
+        headers={
+            "Content-Length": str(len(data2)),
+            "Content-Type": "application/offset+octet-stream",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Offset": str(len(data1)),
+        },
+        data=data2,
+    )
+    if feature_flag:
+        assert response.status_code == 204
+        assert response.headers["Upload-Offset"] == str(len(data))
+        (key,) = LOCATION_REGEX.match(response.headers["Location"]).groups()
+        assert objectstore.get(key).payload.read() == data
+    else:
+        assert response.status_code == 400
+        assert response.json() == {
+            "causes": [
+                "Upload-Offset > 0 is currently unsupported with Defer-Length: 1",
+            ],
+            "detail": "upload error: Upload-Offset > 0 is currently unsupported with Defer-Length: 1",
+        }
+
+
+def test_upload_unaligned_body_rejected(
+    mini_sentry, relay_with_processing, objectstore
+):
+    """A non-final PATCH body that is not a multiple of the upload granularity is rejected.
+
+    Silently dropping the sub-grain tail would return a 204 whose ``Upload-Offset``
+    excludes it; for bodies smaller than one grain that means acknowledging zero
+    progress, which sends offset-driven clients into an endless retry loop.
+
+    Full grains received before the unaligned tail are still persisted where they
+    form a valid part, so the client can resume from the last durable offset.
+    """
+    project_id = 42
+    config = mini_sentry.add_full_project_config(project_id)["config"]
+    config.setdefault("features", []).append("projects:relay-upload-multipart")
+    project_key = mini_sentry.get_dsn_public_key(project_id)
+
+    relay = relay_with_processing()
+    objectstore = objectstore("attachments", project_id)
+
+    data = random.randbytes(10 * 1024 * 1024)
+    response = relay.post(
+        f"/api/{project_id}/upload/?sentry_key={project_key}",
+        headers={
+            "Content-Length": "0",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": str(len(data)),
+        },
+    )
+    assert response.status_code == 201
+    location = f"{response.headers['Location']}&sentry_key={project_key}"
+
+    # Sub-grain body (512 KiB) that does not complete the upload:
+    response = relay.patch(
+        location,
+        headers={
+            "Content-Length": str(512 * 1024),
+            "Content-Type": "application/offset+octet-stream",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Offset": "0",
+        },
+        data=data[: 512 * 1024],
+    )
+    assert response.status_code == 400, response.text
+    assert "upload granularity" in response.text
+
+    # Grain-aligned body with a sub-grain tail (6.5 MiB) is rejected as well:
+    response = relay.patch(
+        location,
+        headers={
+            "Content-Length": str(13 * 512 * 1024),
+            "Content-Type": "application/offset+octet-stream",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Offset": "0",
+        },
+        data=data[: 13 * 512 * 1024],
+    )
+    assert response.status_code == 400, response.text
+    assert "upload granularity" in response.text
+
+    # The first 6 MiB of the rejected request were still persisted (they formed a
+    # valid part), so the upload can be resumed and completed from that offset:
+    resume_offset = 6 * 1024 * 1024
+    response = relay.patch(
+        location,
+        headers={
+            "Content-Length": str(len(data) - resume_offset),
+            "Content-Type": "application/offset+octet-stream",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Offset": str(resume_offset),
+        },
+        data=data[resume_offset:],
+    )
+    assert response.status_code == 204, response.text
+    assert response.headers["Upload-Offset"] == str(len(data))
+    (key,) = LOCATION_REGEX.match(response.headers["Location"]).groups()
+    assert objectstore.get(key).payload.read() == data
 
 
 @pytest.mark.parametrize(
@@ -739,3 +902,27 @@ def test_upload_minidump_opt_in(
         )
     else:
         assert mini_sentry.captured_outcomes.empty()
+
+
+def upload_something(relay, project_id, project_key):
+    data = b"hello world"
+    response = relay.post(
+        f"/api/{project_id}/upload/?sentry_key={project_key}",
+        headers={
+            "Content-Length": "0",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": str(len(data)),
+        },
+    )
+    assert response.status_code == 201, response.json()
+
+    return relay.patch(
+        f"{response.headers['Location']}&sentry_key={project_key}",
+        headers={
+            "Content-Length": str(len(data)),
+            "Content-Type": "application/offset+octet-stream",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Offset": "0",
+        },
+        data=data,
+    )

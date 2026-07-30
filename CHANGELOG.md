@@ -6,6 +6,10 @@
 
 - Extract nvgpu dumps and create GPU events. ([#6242](https://github.com/getsentry/relay/pull/6242))
 
+**Internal**:
+
+- Support resumable uploads (feature-flagged). ([#6203](https://github.com/getsentry/relay/pull/6203))
+
 ## 26.7.2
 
 **Features**:

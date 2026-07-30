@@ -31,8 +31,8 @@ use crate::services::objectstore;
 use crate::services::projects::cache::Project;
 use crate::services::projects::project::ProjectState;
 use crate::services::upload::{
-    self, ByteStream, Final, LocationQueryParams, ProjectContext, Provisional, SignedLocation,
-    UploadLength,
+    self, ByteStream, LocationQueryParams, ProjectContext, Provisional, SignedLocation,
+    StreamResult, UploadLength,
 };
 use crate::services::upstream::UpstreamRequestError;
 use crate::statsd::RelayCounters;
@@ -55,6 +55,9 @@ pub fn route_patch(config: &Config) -> MethodRouter<ServiceState> {
 enum Error {
     #[error("TUS protocol error: {0}")]
     Tus(#[from] tus::Error),
+
+    #[error("Invalid Upload-Offset {0} for Upload-Length {1}")]
+    InvalidOffset(usize, usize),
 
     #[error("request error: {0}")]
     Request(#[from] BadStoreRequest),
@@ -80,6 +83,7 @@ impl IntoResponse for Error {
 
         let status = match self {
             Error::Tus(_) => StatusCode::BAD_REQUEST,
+            Error::InvalidOffset(_, _) => StatusCode::BAD_REQUEST,
             Error::Request(error) => return error.into_response(),
             Error::SendError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Error::Upload(error) => match error {
@@ -100,19 +104,30 @@ impl IntoResponse for Error {
                     Some(status) => status,
                     None => StatusCode::INTERNAL_SERVER_ERROR,
                 },
-                upload::Error::InvalidLocation(_) | upload::Error::SigningFailed => {
+                upload::Error::InvalidFromUpstream { .. } | upload::Error::SigningFailed => {
                     StatusCode::INTERNAL_SERVER_ERROR
                 }
+                upload::Error::InvalidFromClient { .. } => StatusCode::BAD_REQUEST,
                 #[cfg(feature = "processing")]
                 upload::Error::InvalidUploadId(_) => StatusCode::BAD_REQUEST,
+                upload::Error::OffsetWithoutLength => StatusCode::BAD_REQUEST,
                 upload::Error::SerializeFailed(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 upload::Error::InvalidSignature(_) => StatusCode::BAD_REQUEST,
                 upload::Error::ObjectstoreServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
                 #[cfg(feature = "processing")]
                 upload::Error::Objectstore(service_error) => match service_error.kind {
                     objectstore::ErrorKind::InvalidScoping => StatusCode::INTERNAL_SERVER_ERROR,
+                    objectstore::ErrorKind::InvalidOffset { .. } => StatusCode::BAD_REQUEST,
+                    objectstore::ErrorKind::OffsetWithoutUploadId => StatusCode::BAD_REQUEST,
+                    objectstore::ErrorKind::InvalidUploadLength { .. } => StatusCode::BAD_REQUEST,
+                    objectstore::ErrorKind::RequestTooSmall { .. } => StatusCode::BAD_REQUEST,
+                    objectstore::ErrorKind::UnalignedBody { .. } => StatusCode::BAD_REQUEST,
+                    objectstore::ErrorKind::UnknownKey { .. } => StatusCode::NOT_FOUND,
                     objectstore::ErrorKind::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
                     objectstore::ErrorKind::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
+                    objectstore::ErrorKind::CompressionFailed(_) => {
+                        StatusCode::INTERNAL_SERVER_ERROR
+                    }
                     objectstore::ErrorKind::UploadFailed(error) => match error {
                         objectstore_client::Error::Io(error) if is_upload_length_error(&error) => {
                             StatusCode::BAD_REQUEST
@@ -184,10 +199,12 @@ async fn handle_post(
             StatusCode::SERVICE_UNAVAILABLE
         })?;
 
-    let multipart = match project.state() {
-        ProjectState::Enabled(p) => p.has_feature(Feature::UploadMultipart),
-        _ => false,
-    };
+    // We don't enable multipart for `Upload-Defer-Length: 1`, or if the feature flag is disabled.
+    let multipart = headers.upload_length.is_some()
+        && match project.state() {
+            ProjectState::Enabled(p) => p.has_feature(Feature::UploadMultipart),
+            _ => false,
+        };
 
     relay_log::trace!("Checking request");
     let project_context = validate_and_limit(&state, meta, &headers, project).await?;
@@ -224,7 +241,7 @@ async fn handle_patch(
     check_kill_switch(&state)?;
 
     relay_log::trace!("Validating headers");
-    tus::validate_patch_headers(&headers).map_err(Error::from)?;
+    let offset = tus::validate_patch_headers(&headers).map_err(Error::from)?;
 
     let location = SignedLocation::from_parts(
         project_id,
@@ -259,35 +276,35 @@ async fn handle_patch(
     let stream = MeteredStream::new(stream, "upload");
 
     let (lower_bound, upper_bound) = match upload_length.value() {
-        None => (1, config.max_upload_size()),
-        Some(u) => (u, u),
+        None => (0, config.max_upload_size()),
+        Some(u) => {
+            let remaining_bytes = u
+                .checked_sub(offset)
+                .ok_or(Error::InvalidOffset(offset, u))?;
+            (0, remaining_bytes)
+        }
     };
     let stream = BoundedStream::new(stream, lower_bound, upper_bound);
-    let byte_counter = stream.byte_counter();
 
     relay_log::trace!("Uploading");
-    let result = upload(&state, project_context, location, stream).await;
-    let location = result.inspect_err(|e| {
+    let result = upload(&state, project_context, location, offset, stream).await;
+    let StreamResult { location, offset } = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
     })?;
-
-    let upload_offset = byte_counter.get();
 
     let mut response = NoContent.into_response();
 
     // Not required by TUS, but we respond with the location header:
-    response.headers_mut().insert(
-        header::LOCATION,
-        location
-            .into_header_value()
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
-    );
+    let location = location
+        .into_header_value()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    response.headers_mut().insert(header::LOCATION, location);
     response
         .headers_mut()
         .insert(tus::TUS_RESUMABLE, tus::TUS_VERSION);
     response
         .headers_mut()
-        .insert(tus::UPLOAD_OFFSET, upload_offset.into());
+        .insert(tus::UPLOAD_OFFSET, offset.into());
 
     Ok(response)
 }
@@ -337,19 +354,21 @@ async fn upload(
     state: &ServiceState,
     project: ProjectContext,
     location: SignedLocation<Provisional>,
+    offset: usize,
     stream: BoundedStream<MeteredStream<ByteStream>>,
-) -> Result<SignedLocation<Final>, Error> {
-    let location = state
+) -> Result<StreamResult, Error> {
+    let res = state
         .upload()
         .send(upload::Stream {
             received: Utc::now(),
             project,
             location,
+            offset,
             stream,
         })
         .await??;
 
-    Ok(location)
+    Ok(res)
 }
 
 /// Check request by converting it into a pseudo-envelope.

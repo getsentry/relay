@@ -52,6 +52,13 @@ fn validate(item: &Item, config: &Config) -> Result<(), ProcessingError> {
             serde_json::from_slice(&payload).map_err(|_| ProcessingError::InvalidAttachmentRef)?;
         let signed_location: SignedLocation<Final> = SignedLocation::try_from_str(payload.location)
             .ok_or(ProcessingError::InvalidAttachmentRef)?;
+
+        if signed_location.upload_id().is_some() {
+            // `SignedLocation<Final>` should never have an upload ID.
+            // NOTE: we could encode this into the `Final` type.
+            return Err(ProcessingError::InvalidAttachmentRef);
+        }
+
         // NOTE: Using the received timestamp here breaks tests without a pop-relay.
         let location = signed_location
             .verify(chrono::Utc::now(), config)
