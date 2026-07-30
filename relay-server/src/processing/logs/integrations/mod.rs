@@ -9,6 +9,7 @@ use crate::processing::logs::Settings;
 mod nel;
 mod otel;
 mod otel_json_deserializer;
+mod otel_proto_deserializer;
 mod vercel;
 
 /// Expands a log [`Integration`] into a list of logs.
