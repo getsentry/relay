@@ -1261,7 +1261,7 @@ def test_dsc_normalization(
     ("dsc_transaction", "expected_transaction"),
     [
         pytest.param("t" * 10, "t" * 10, id="at-limit"),
-        pytest.param("t" * 11, None, id="over-limit"),
+        pytest.param("t" * 11, "", id="over-limit"),
     ],
 )
 def test_dsc_transaction_tag_length(
