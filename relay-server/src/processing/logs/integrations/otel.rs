@@ -1,11 +1,11 @@
-use opentelemetry_proto::tonic::logs::v1::LogsData;
-use prost::Message as _;
-use relay_event_schema::protocol::OurLog;
-
 use crate::integrations::OtelFormat;
-use crate::processing::logs::integrations::otel_json_deserializer;
-use crate::processing::logs::{Error, Result, Settings};
+use crate::processing::logs::{
+    Error, Result, Settings,
+    integrations::{otel_json_deserializer, otel_proto_deserializer},
+};
 use crate::services::outcome::DiscardReason;
+use opentelemetry_proto::tonic::logs::v1::LogsData;
+use relay_event_schema::protocol::OurLog;
 
 /// Expands OTeL logs into the [`OurLog`] format.
 pub fn expand<F>(
@@ -42,13 +42,15 @@ fn parse_logs_data(format: OtelFormat, payload: &[u8], max_logs: usize) -> Resul
             );
             Error::Invalid(DiscardReason::InvalidJson)
         }),
-        OtelFormat::Protobuf => LogsData::decode(payload).map_err(|e| {
-            relay_log::debug!(
-                error = &e as &dyn std::error::Error,
-                "Failed to parse logs data as protobuf"
-            );
-            Error::Invalid(DiscardReason::InvalidProtobuf)
-        }),
+        OtelFormat::Protobuf => {
+            otel_proto_deserializer::deserialize(payload, max_logs).map_err(|e| {
+                relay_log::debug!(
+                    error = &e as &dyn std::error::Error,
+                    "Failed to parse logs data as protobuf"
+                );
+                Error::Invalid(DiscardReason::InvalidProtobuf)
+            })
+        }
     }
 }
 #[cfg(test)]
