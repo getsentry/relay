@@ -639,6 +639,8 @@ pub struct Limits {
     pub max_trace_metric_size: ByteSize,
     /// The maximum payload size for a log.
     pub max_log_size: ByteSize,
+    /// The maximum number of logs that can result from a log expansion.
+    pub max_expanded_log_count: usize,
     /// The maximum payload size for a span.
     pub max_span_size: ByteSize,
     /// The maximum payload size for an item container.
@@ -728,6 +730,7 @@ impl Default for Limits {
             max_profile_size: ByteSize::mebibytes(50),
             max_trace_metric_size: ByteSize::mebibytes(1),
             max_log_size: ByteSize::mebibytes(1),
+            max_expanded_log_count: 1000,
             max_span_size: ByteSize::mebibytes(10),
             max_container_size: ByteSize::mebibytes(12),
             max_statsd_size: ByteSize::mebibytes(1),
@@ -2410,6 +2413,11 @@ impl Config {
     /// Returns the maximum payload size of a log in bytes.
     pub fn max_log_size(&self) -> usize {
         self.values.limits.max_log_size.as_bytes()
+    }
+
+    /// Returns the maximum number of logs that can result from a log expansion.
+    pub fn max_expanded_log_count(&self) -> usize {
+        self.values.limits.max_expanded_log_count
     }
 
     /// Returns the maximum payload size of a span in bytes.

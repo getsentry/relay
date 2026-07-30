@@ -8,6 +8,7 @@ use crate::processing::logs::Settings;
 
 mod nel;
 mod otel;
+mod otel_json_deserializer;
 mod vercel;
 
 /// Expands a log [`Integration`] into a list of logs.
@@ -17,6 +18,7 @@ pub fn expand(
     item: Item,
     records: &mut RecordKeeper<'_>,
     headers: &EnvelopeHeaders,
+    max_expanded_log_count: usize,
 ) -> Option<(Settings, ContainerItems<OurLog>)> {
     let integration = match item.integration() {
         Some(Integration::Logs(integration)) => integration,
@@ -46,7 +48,9 @@ pub fn expand(
 
     let settings = match integration {
         LogsIntegration::Nel => nel::expand(&payload, headers, produce),
-        LogsIntegration::OtelV1 { format } => otel::expand(format, &payload, produce),
+        LogsIntegration::OtelV1 { format } => {
+            otel::expand(format, &payload, max_expanded_log_count, produce)
+        }
         LogsIntegration::VercelDrainLog { format } => vercel::expand(format, &payload, produce),
     };
     let settings = match settings {
