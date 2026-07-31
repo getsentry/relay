@@ -1116,7 +1116,7 @@ def get_v2_envelope(
     return envelope
 
 
-def test_dsc_transaction_parametrization_not_applied_to_attributes(
+def test_dsc_transaction_parametrization_applied_with_reconstructed_dsc(
     mini_sentry,
     relay,
     relay_with_processing,
