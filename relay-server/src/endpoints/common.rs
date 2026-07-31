@@ -81,9 +81,6 @@ pub enum BadStoreRequest {
     #[error("missing minidump")]
     MissingMinidump,
 
-    #[error("invalid unreal crash report")]
-    InvalidUnrealReport,
-
     #[cfg(sentry)]
     #[error("invalid prosperodump")]
     InvalidProsperodump,
@@ -136,7 +133,6 @@ impl BadStoreRequest {
             Self::InvalidMultipart(_) => DiscardReason::InvalidMultipart,
             Self::InvalidMinidump => DiscardReason::InvalidMinidump,
             Self::MissingMinidump => DiscardReason::MissingMinidump,
-            Self::InvalidUnrealReport => DiscardReason::InvalidUnrealReport,
             #[cfg(sentry)]
             Self::InvalidProsperodump => DiscardReason::InvalidProsperodump,
             #[cfg(sentry)]
