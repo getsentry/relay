@@ -129,7 +129,7 @@ where
     deserialize_seed(PhantomData::<T>, deserializer, max_ops)
 }
 
-/// Like [`deserialize_metered`], but deserializes through a [`DeserializeSeed`].
+/// Like [`deserialize`], but deserializes through a [`DeserializeSeed`].
 ///
 /// Use this for types which need to carry state into their deserialization, for example to
 /// enforce a domain specific limit on top of the budget.
@@ -547,7 +547,6 @@ mod tests {
         );
 
         let error = deserialize::<Nested, _>(&mut json_deserializer(&payload), 256).unwrap_err();
-        eprintln!("{}", error);
         assert!(error.is_limit_exceeded());
     }
 
