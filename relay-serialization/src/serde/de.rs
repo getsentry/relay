@@ -102,7 +102,7 @@ impl<E: fmt::Display> fmt::Display for Error<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::LimitExceeded(limit) => {
-                write!(f, "value exceeds the {limit} byte deserialization limit")
+                write!(f, "value exceeds the {limit} operation limit")
             }
             Self::Serde(error) => error.fmt(f),
         }
