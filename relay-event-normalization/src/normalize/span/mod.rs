@@ -118,6 +118,6 @@ pub fn normalize_dsc_for_span_data(
             data.insert_value(SENTRY__DSC__TRANSACTION, tx.clone())
         }
         Some(_) => data.insert_value(SENTRY__DSC__TRANSACTION, "".to_owned()),
-        None => drop(data.remove(SENTRY__DSC__TRACE_ID)),
+        None => drop(data.remove(SENTRY__DSC__TRANSACTION)),
     }
 }
