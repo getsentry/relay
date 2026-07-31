@@ -8,7 +8,7 @@
 
 **Bug Fixes**:
 
-- Store the attachment file name in objectstore so that downloads are named after the attachment. ([#6272](https://github.com/getsentry/relay/pull/6272))
+- Store the attachment file name in objectstore so that downloads are named after the attachment. ([#6276](https://github.com/getsentry/relay/pull/6276))
 
 ## 26.7.2
 
