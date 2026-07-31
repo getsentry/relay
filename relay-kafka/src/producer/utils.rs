@@ -142,6 +142,10 @@ impl ClientContext for Context {
         let producer_name = self.producer_name.as_str();
 
         relay_statsd::metric!(
+            gauge(KafkaGauges::ReplyQueue) = statistics.replyq,
+            producer_name = producer_name
+        );
+        relay_statsd::metric!(
             gauge(KafkaGauges::MessageCount) = statistics.msg_cnt,
             producer_name = producer_name
         );
@@ -166,12 +170,27 @@ impl ClientContext for Context {
             self.emit_broker_state(&broker);
 
             relay_statsd::metric!(
+                gauge(KafkaGauges::BrokerStateAge) = broker.stateage,
+                broker_name = &broker.name,
+                producer_name = producer_name
+            );
+            relay_statsd::metric!(
                 gauge(KafkaGauges::BrokerOutboundBufferRequests) = broker.outbuf_cnt as u64,
                 broker_name = &broker.name,
                 producer_name = producer_name
             );
             relay_statsd::metric!(
                 gauge(KafkaGauges::BrokerOutboundBufferMessages) = broker.outbuf_msg_cnt as u64,
+                broker_name = &broker.name,
+                producer_name = producer_name
+            );
+            relay_statsd::metric!(
+                gauge(KafkaGauges::BrokerWaitResponseRequests) = broker.waitresp_cnt,
+                broker_name = &broker.name,
+                producer_name = producer_name
+            );
+            relay_statsd::metric!(
+                gauge(KafkaGauges::BrokerWaitResponseMessages) = broker.waitresp_msg_cnt,
                 broker_name = &broker.name,
                 producer_name = producer_name
             );
@@ -187,6 +206,39 @@ impl ClientContext for Context {
                     gauge(KafkaGauges::BrokerDisconnects) = disconnects as u64,
                     broker_name = &broker.name,
                     producer_name = producer_name
+                );
+            }
+            relay_statsd::metric!(
+                gauge(KafkaGauges::BrokerTxIdle) = broker.txidle,
+                broker_name = &broker.name,
+                producer_name = producer_name
+            );
+            relay_statsd::metric!(
+                gauge(KafkaGauges::BrokerRxIdle) = broker.rxidle,
+                broker_name = &broker.name,
+                producer_name = producer_name
+            );
+            relay_statsd::metric!(
+                gauge(KafkaGauges::BrokerRequestTimeouts) = broker.req_timeouts,
+                broker_name = &broker.name,
+                producer_name = producer_name
+            );
+            relay_statsd::metric!(
+                gauge(KafkaGauges::BrokerTxErrors) = broker.txerrs,
+                broker_name = &broker.name,
+                producer_name = producer_name
+            );
+            relay_statsd::metric!(
+                gauge(KafkaGauges::BrokerRxErrors) = broker.rxerrs,
+                broker_name = &broker.name,
+                producer_name = producer_name
+            );
+            for (request_type, request_count) in &broker.req {
+                relay_statsd::metric!(
+                    gauge(KafkaGauges::BrokerRequests) = *request_count,
+                    broker_name = &broker.name,
+                    producer_name = producer_name,
+                    request_type = request_type
                 );
             }
             if let Some(int_latency) = broker.int_latency {
