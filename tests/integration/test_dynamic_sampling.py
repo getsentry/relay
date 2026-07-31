@@ -1116,6 +1116,67 @@ def get_v2_envelope(
     return envelope
 
 
+def test_dsc_transaction_parametrization_is_consistent_across_relay_chain(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    transactions_consumer,
+):
+    project_id = 42
+    sampling_project_id = 43
+    trace_id = "a0fa8803753e40fd8124b21eeb2986b5"
+    transaction = "/users/1234/"
+    parametrized_transaction = "/users/*/"
+
+    mini_sentry.add_full_project_config(project_id, extra={"organizationId": 1})
+    sampling_project_config = mini_sentry.add_full_project_config(
+        sampling_project_id, extra={"organizationId": 2}
+    )
+    relay = relay(relay_with_processing())
+    transactions_consumer = transactions_consumer()
+
+    timestamp = datetime.now(timezone.utc).timestamp()
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="transaction",
+            payload=PayloadRef(
+                json={
+                    "type": "transaction",
+                    "transaction": transaction,
+                    "transaction_info": {"source": "url"},
+                    "start_timestamp": timestamp,
+                    "timestamp": timestamp + 1,
+                    "contexts": {
+                        "trace": {
+                            "trace_id": trace_id,
+                            "span_id": "a" * 16,
+                            "op": "navigation",
+                        }
+                    },
+                    "spans": [],
+                }
+            ),
+        )
+    )
+    envelope.headers["trace"] = {
+        "trace_id": trace_id,
+        "public_key": sampling_project_config["publicKeys"][0]["publicKey"],
+        "transaction": transaction,
+        "org_id": sampling_project_config["organizationId"],
+    }
+
+    relay.send_envelope(project_id, envelope)
+    event, _ = transactions_consumer.get_event()
+
+    assert event["transaction"] == parametrized_transaction
+    assert event["_dsc"]["transaction"] == parametrized_transaction
+    assert (
+        event["contexts"]["trace"]["data"]["sentry.dsc.transaction"]
+        == parametrized_transaction
+    )
+
+
 @pytest.mark.parametrize("span_type", ["tx", "v2"])
 @pytest.mark.parametrize("org", ["same_org", "diff_org"])
 @pytest.mark.parametrize("dsc", ["dsc_with_tx", "dsc_no_tx", "no_dsc"])
