@@ -117,6 +117,7 @@ pub fn normalize_dsc_for_span_data(
         Some(tx) if tx.len() <= config.max_tag_value_length => {
             data.insert_value(SENTRY__DSC__TRANSACTION, tx.clone())
         }
+        // Keep an empty value around for the DS job
         Some(_) => data.insert_value(SENTRY__DSC__TRANSACTION, "".to_owned()),
         None => drop(data.remove(SENTRY__DSC__TRANSACTION)),
     }
