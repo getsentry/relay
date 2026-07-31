@@ -198,16 +198,20 @@ impl ClientContext for Context {
                     producer_name = producer_name
                 );
             }
-            relay_statsd::metric!(
-                gauge(KafkaGauges::BrokerTxIdle) = broker.txidle,
-                broker_name = &broker.name,
-                producer_name = producer_name
-            );
-            relay_statsd::metric!(
-                gauge(KafkaGauges::BrokerRxIdle) = broker.rxidle,
-                broker_name = &broker.name,
-                producer_name = producer_name
-            );
+            if broker.txidle >= 0 {
+                relay_statsd::metric!(
+                    gauge(KafkaGauges::BrokerTxIdle) = (broker.txidle / 1000),
+                    broker_name = &broker.name,
+                    producer_name = producer_name
+                );
+            }
+            if broker.rxidle >= 0 {
+                relay_statsd::metric!(
+                    gauge(KafkaGauges::BrokerRxIdle) = (broker.rxidle / 1000),
+                    broker_name = &broker.name,
+                    producer_name = producer_name
+                );
+            }
             relay_statsd::metric!(
                 gauge(KafkaGauges::BrokerRequestTimeouts) = broker.req_timeouts,
                 broker_name = &broker.name,

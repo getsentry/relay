@@ -185,13 +185,13 @@ pub enum KafkaGauges {
     /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
     /// - `producer_name`: The configured producer name/deployment identifier.
     BrokerDisconnects,
-    /// Microseconds since the last socket send, or `-1` before the first send on the connection.
+    /// Milliseconds since the last socket send.
     ///
     /// This metric is tagged with:
     /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
     /// - `producer_name`: The configured producer name/deployment identifier.
     BrokerTxIdle,
-    /// Microseconds since the last socket receive, or `-1` before the first receive on the connection.
+    /// Milliseconds since the last socket receive.
     ///
     /// This metric is tagged with:
     /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
