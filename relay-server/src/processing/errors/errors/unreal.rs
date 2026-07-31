@@ -45,7 +45,6 @@ impl SentryError for Unreal {
             use crate::envelope::AttachmentType;
             use crate::services::processor::ProcessingError;
 
-            // FIXME: Change this back to item.
             let expansion = crate::utils::expand_unreal(report.payload(), ctx.processing.config)?;
 
             let event = expansion.event;
