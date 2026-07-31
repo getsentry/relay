@@ -6,6 +6,10 @@
 
 - Extract nvgpu dumps and create GPU events. ([#6242](https://github.com/getsentry/relay/pull/6242))
 
+**Bug Fixes**:
+
+- Store the attachment file name in objectstore so that downloads are named after the attachment. ([#6272](https://github.com/getsentry/relay/pull/6272))
+
 ## 26.7.2
 
 **Features**:

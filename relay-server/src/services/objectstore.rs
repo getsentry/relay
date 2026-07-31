@@ -560,14 +560,18 @@ impl ObjectstoreServiceInner {
         });
 
         for mut attachment in attachments.split(|e| e) {
+            let attributes = ObjectAttributes {
+                filename: attachment.filename().map(String::from),
+                ..Default::default()
+            };
+
             let result = self
                 .upload_bytes(
                     MessageKind::Event,
                     &session,
                     attachment.payload(),
                     event.retention_days,
-                    None,
-                    None,
+                    attributes,
                 )
                 .await;
 
@@ -613,13 +617,17 @@ impl ObjectstoreServiceInner {
         let upload_result = match session {
             Err(error) => Err(error),
             Ok(session) => {
+                let attributes = ObjectAttributes {
+                    filename: attachment.attachment.filename().map(String::from),
+                    ..Default::default()
+                };
+
                 self.upload_bytes(
                     MessageKind::EventAttachment,
                     &session,
                     attachment.attachment.payload(),
                     attachment.retention,
-                    None,
-                    None,
+                    attributes,
                 )
                 .await
             }
@@ -683,14 +691,18 @@ impl ObjectstoreServiceInner {
             #[cfg(debug_assertions)]
             let original_key = key.clone();
 
+            let attributes = ObjectAttributes {
+                key: Some(key),
+                ..Default::default()
+            };
+
             let _stored_key = self
                 .upload_bytes(
                     MessageKind::TraceAttachment,
                     &session,
                     body,
                     retention,
-                    Some(key),
-                    None,
+                    attributes,
                 )
                 .await
                 .reject(&trace_item)?;
@@ -754,14 +766,18 @@ impl ObjectstoreServiceInner {
             .for_project(scoping.organization_id.value(), scoping.project_id.value())
             .session(&self.objectstore_client)?;
 
+        let attributes = ObjectAttributes {
+            content_type: Some(content_type),
+            ..Default::default()
+        };
+
         let stored_key = self
             .upload_bytes(
                 MessageKind::RawProfile,
                 &session,
                 payload,
                 retention,
-                None,
-                Some(content_type),
+                attributes,
             )
             .await?;
 
@@ -818,9 +834,13 @@ impl ObjectstoreServiceInner {
         session: &Session,
         payload: Bytes,
         retention: u16,
-        key: Option<String>,
-        content_type: Option<ContentType>,
+        attributes: ObjectAttributes,
     ) -> Result<ObjectstoreKey, Error> {
+        let ObjectAttributes {
+            key,
+            content_type,
+            filename,
+        } = attributes;
         let retention_hours = retention.checked_mul(24);
         self.upload(
             kind,
@@ -830,6 +850,7 @@ impl ObjectstoreServiceInner {
                 key,
                 retention_hours,
                 content_type,
+                filename,
             },
         )
         .await
@@ -896,10 +917,14 @@ impl ObjectstoreServiceInner {
                 key,
                 retention_hours,
                 content_type,
+                filename,
             } => {
                 let mut request = session.put(body);
                 if let Some(content_type) = content_type {
                     request = request.content_type(content_type.as_str());
+                }
+                if let Some(filename) = filename {
+                    request = request.filename(filename);
                 }
                 if let Some(retention_hours) = retention_hours {
                     request = request.expiration_policy(ExpirationPolicy::TimeToLive(
@@ -994,6 +1019,22 @@ impl ObjectstoreServiceInner {
     }
 }
 
+/// Optional attributes of an object stored in objectstore.
+#[derive(Debug, Default)]
+struct ObjectAttributes {
+    /// The key to store the object under.
+    ///
+    /// If this is `None`, objectstore assigns a random key.
+    key: Option<String>,
+    /// The content type of the payload.
+    content_type: Option<ContentType>,
+    /// The file name that downloads of this object are named after.
+    ///
+    /// Objectstore only sends a `Content-Disposition` header for objects that were stored with a
+    /// file name.
+    filename: Option<String>,
+}
+
 /// Common interface for calls to [`ObjectstoreServiceInner::upload`].
 ///
 /// This type is shared across retries.
@@ -1003,6 +1044,7 @@ enum Upload {
         key: Option<String>,
         retention_hours: Option<u16>,
         content_type: Option<ContentType>,
+        filename: Option<String>,
     },
     Stream {
         body: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
@@ -1018,11 +1060,13 @@ impl Upload {
                 key,
                 retention_hours,
                 content_type,
+                filename,
             } => Some(UploadAttempt::Bytes {
                 body: body.clone(),
                 key: key.clone(),
                 retention_hours: *retention_hours,
                 content_type: *content_type,
+                filename: filename.clone(),
             }),
             Self::Stream { body, upload_ref } => {
                 RetryableStream::new(body.clone()).map(|body| UploadAttempt::Stream {
@@ -1043,6 +1087,7 @@ enum UploadAttempt {
         key: Option<String>,
         retention_hours: Option<u16>,
         content_type: Option<ContentType>,
+        filename: Option<String>,
     },
     Stream {
         body: RetryableStream<BoundedStream<MeteredStream<ByteStream>>>,

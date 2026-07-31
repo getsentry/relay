@@ -3360,9 +3360,9 @@ dependencies = [
 
 [[package]]
 name = "objectstore-client"
-version = "0.1.12"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2713028097b2f0f00696d7d389a877f7370c02813548124c4422941f669732f3"
+checksum = "ae3b20b3a34e77e1ca87bdd4b1020fab90d7563f8acac3645e70fb7bb845c4cf"
 dependencies = [
  "async-compression",
  "base64",
@@ -3385,10 +3385,12 @@ dependencies = [
 
 [[package]]
 name = "objectstore-types"
-version = "0.1.12"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c83aedfcc050322caefbfdba0372518f316624995f04f97a1f00cafb08ce1d0c"
+checksum = "452bd363377008a82744aaafa5416caafc34fd7c2f40c2ba3635bfa7af6b2e58"
 dependencies = [
+ "base64",
+ "ed25519-dalek",
  "http",
  "humantime",
  "humantime-serde",
@@ -6562,7 +6564,6 @@ dependencies = [
  "bytes",
  "futures-core",
  "futures-sink",
- "futures-util",
  "pin-project-lite",
  "tokio",
 ]
