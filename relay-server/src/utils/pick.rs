@@ -25,7 +25,6 @@ pub fn is_rolled_out(id: u64, rate: f32) -> PickResult {
 
 impl PickResult {
     /// Returns `true` if the sampling result is [`PickResult::Keep`].
-    #[cfg(feature = "processing")]
     pub fn is_keep(self) -> bool {
         matches!(self, PickResult::Keep)
     }
