@@ -344,7 +344,6 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
 /// Processes an unreal crash report.
 ///
 /// The `user_header` should be extracted from the [`crate::constants::UNREAL_USER_HEADER`] envelope header.
-#[cfg_attr(not(feature = "processing"), expect(unused))]
 pub fn process_unreal<'a>(
     context: Option<Unreal4Context>,
     event_id: EventId,
@@ -386,7 +385,6 @@ pub fn process_unreal<'a>(
 }
 
 /// Result when processing an unreal report.
-#[cfg_attr(not(feature = "processing"), expect(unused))]
 pub struct ProcessedUnrealReport {
     /// User reports contained in the report.
     pub user_reports: Items,
