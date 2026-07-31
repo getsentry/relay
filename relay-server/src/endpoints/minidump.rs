@@ -252,13 +252,20 @@ struct UploadContext<'a> {
     upload_attachments: UploadDecision,
     upload_minidumps: UploadDecision,
     inline_limit: usize,
+    gpu_crash_split: bool,
 }
 
 impl UploadContext<'_> {
     fn upload_decision(&self, attachment_type: Option<AttachmentType>) -> &UploadDecision {
         match attachment_type {
             Some(AttachmentType::Attachment) => &self.upload_attachments,
-            Some(AttachmentType::Minidump) => &self.upload_minidumps,
+            // GPU dumps are smaller than minidumps. We still stream them under the same
+            // decision instead of inlining them into the envelope.
+            Some(
+                AttachmentType::Minidump
+                | AttachmentType::NvGpuDump
+                | AttachmentType::NvShaderDebug,
+            ) => &self.upload_minidumps,
             _ => &UploadDecision::Inline,
         }
     }
@@ -337,6 +344,11 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
     }
 
     fn infer_type(&self, field: &Field) -> AttachmentType {
+        match field.file_name() {
+            Some(name) if name.ends_with(".nv-gpudmp") => return AttachmentType::NvGpuDump,
+            Some(name) if name.ends_with(".nvdbg") => return AttachmentType::NvShaderDebug,
+            _ => {}
+        }
         match field.name().unwrap_or("") {
             MINIDUMP_FIELD_NAME => AttachmentType::Minidump,
             ITEM_NAME_BREADCRUMBS1 => AttachmentType::Breadcrumbs,
@@ -511,8 +523,6 @@ async fn upload_context<'a>(
 
     let upload_attachments = if matches!(upload_minidumps, UploadDecision::Drop(_)) {
         UploadDecision::Drop(rate_limits)
-    } else if !project_config.has_feature(Feature::MinidumpAttachmentUploads) {
-        UploadDecision::Inline
     } else if attachment_rate_limits.is_limited() {
         UploadDecision::Drop(attachment_rate_limits)
     } else {
@@ -528,6 +538,7 @@ async fn upload_context<'a>(
         upload_attachments,
         upload_minidumps,
         inline_limit: global_config.options.attachment_inline_limit,
+        gpu_crash_split: project_config.has_feature(Feature::NvGpuCrashSplit),
     }))
 }
 
@@ -659,10 +670,33 @@ async fn handle(
         ));
         return Ok(TextResponse(Some(EventId::new())));
     }
+
+    let gpu_crash_split = upload_context
+        .as_ref()
+        .is_some_and(|ctx| ctx.gpu_crash_split);
+
     let items = items(upload_context, &state, &meta, content_type, request)
         .await
         .reject(&managed_err)?;
-    let envelope = envelope(items, meta, managed_err)?;
+
+    let mut envelope = envelope(items, meta, managed_err)?;
+    if gpu_crash_split {
+        let (cpu, gpu) = utils::gpu::split_crash(envelope);
+        if let Some(gpu) = gpu {
+            // The GPU crash is a best-effort duplicate: a failure submitting it must
+            // not drop the CPU crash, which clients do not retry.
+            match common::handle_managed_envelope(&state, gpu).await {
+                Ok(handled) => {
+                    handled.ignore_rate_limits();
+                }
+                Err(rejected) => relay_log::debug!(
+                    error = &rejected.into_inner() as &dyn std::error::Error,
+                    "failed to submit split-off GPU crash envelope",
+                ),
+            }
+        }
+        envelope = cpu;
+    }
 
     let id = envelope.event_id();
 

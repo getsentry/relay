@@ -634,12 +634,6 @@ impl EnvelopeProcessorService {
                 .parametrize_dsc_transaction(&sampling_state.config.tx_name_rules);
         }
 
-        // Set the event retention. Effectively, this value will only be available in processing
-        // mode when the full project config is queried from the upstream.
-        if let Some(retention) = ctx.project_info.config.event_retention {
-            envelope.envelope_mut().set_retention(retention);
-        }
-
         // Ensure the project ID is updated to the stored instance for this project cache. This can
         // differ in two cases:
         //  1. The envelope was sent to the legacy `/store/` endpoint without a project ID.
@@ -1196,7 +1190,6 @@ impl EnvelopeProcessorService {
     ) {
         use crate::constants::DEFAULT_EVENT_RETENTION;
         use crate::services::store::StoreMetrics;
-        use relay_dynamic_config::Feature;
 
         for ProjectBuckets {
             buckets,
@@ -1213,16 +1206,10 @@ impl EnvelopeProcessorService {
                 continue;
             }
 
-            if project_info
-                .config
-                .features
-                .has(Feature::GenerateBillingOutcome)
-            {
-                // Emit metric billing outcomes.
-                self.inner
-                    .metric_outcomes
-                    .track_accepted_outcome(scoping, &mut buckets);
-            }
+            // Emit metric billing outcomes.
+            self.inner
+                .metric_outcomes
+                .track_accepted_outcome(scoping, &mut buckets);
 
             let retention = project_info
                 .config

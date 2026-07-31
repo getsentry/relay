@@ -273,6 +273,7 @@ def test_otlp_logs_conversion(
                 },
                 "sentry.origin": {"stringValue": "auto.otlp.logs"},
                 "sentry.payload_size_bytes": {"intValue": matches_any()},
+                "sentry.relay.ingress": {"stringValue": "integration"},
                 "sentry.severity_text": {"stringValue": "info"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
                 "sentry.timestamp_precise": {
@@ -304,7 +305,7 @@ def test_otlp_logs_conversion(
                     },
                     {
                         "dataCategory": DataCategory.LOG_BYTE.value,
-                        "quantity": "318",
+                        "quantity": "349",
                     },
                 ],
                 "keyId": "123",
@@ -376,6 +377,7 @@ def test_otlp_logs_multiple_records(
                 },
                 "sentry.origin": {"stringValue": "auto.otlp.logs"},
                 "sentry.payload_size_bytes": {"intValue": matches_any()},
+                "sentry.relay.ingress": {"stringValue": "integration"},
                 "sentry.severity_text": {"stringValue": "error"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
                 "sentry.timestamp_precise": {
@@ -406,7 +408,7 @@ def test_otlp_logs_multiple_records(
                     },
                     {
                         "dataCategory": DataCategory.LOG_BYTE.value,
-                        "quantity": "92",
+                        "quantity": "123",
                     },
                 ],
                 "keyId": "123",
@@ -420,6 +422,7 @@ def test_otlp_logs_multiple_records(
                 },
                 "sentry.origin": {"stringValue": "auto.otlp.logs"},
                 "sentry.payload_size_bytes": {"intValue": matches_any()},
+                "sentry.relay.ingress": {"stringValue": "integration"},
                 "sentry.severity_text": {"stringValue": "debug"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
                 "sentry.timestamp_precise": {
@@ -450,7 +453,7 @@ def test_otlp_logs_multiple_records(
                     },
                     {
                         "dataCategory": DataCategory.LOG_BYTE.value,
-                        "quantity": "93",
+                        "quantity": "124",
                     },
                 ],
                 "keyId": "123",

@@ -19,9 +19,6 @@ def test_spansv2_mobile_attributes(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"].update(
         {
-            "features": [
-                "projects:span-v2-experimental-processing",
-            ],
             "retentions": {"span": {"standard": 42, "downsampled": 1337}},
         }
     )
@@ -79,9 +76,6 @@ def test_spansv2_mobile_outlier_filtering(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"].update(
         {
-            "features": [
-                "projects:span-v2-experimental-processing",
-            ],
             "retentions": {"span": {"standard": 42, "downsampled": 1337}},
         }
     )

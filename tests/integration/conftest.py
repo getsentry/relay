@@ -6,7 +6,6 @@ from typing import Optional
 import json
 import redis
 from flask import Response, request
-
 import pytest
 
 # all tests fixtures must be imported so that pytest finds them

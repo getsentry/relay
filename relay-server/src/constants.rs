@@ -32,6 +32,11 @@ pub const UNREAL_USER_HEADER: &str = "unreal_user_id";
 /// configurations.
 pub const DEFAULT_EVENT_RETENTION: u16 = 90;
 
+/// Maximum amount of items in an envelope will be parsed.
+///
+/// No valid envelope should ever contain more items than specified here.
+pub const MAX_ENVELOPE_ITEMS: usize = 500;
+
 /// Maximum size of JSON request bodies.
 pub const MAX_JSON_SIZE: usize = 262_144;
 
