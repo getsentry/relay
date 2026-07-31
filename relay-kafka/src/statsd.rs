@@ -155,12 +155,6 @@ pub enum KafkaGauges {
     /// - `producer_name`: The configured producer name/deployment identifier.
     /// - `state`: The current [`rdkafka::statistics::Broker::state`] of the broker.
     BrokerState,
-    /// Time since the last broker state change, in microseconds.
-    ///
-    /// This metric is tagged with:
-    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
-    /// - `producer_name`: The configured producer name/deployment identifier.
-    BrokerStateAge,
     /// The number of requests awaiting transmission to the broker.
     ///
     /// This metric is tagged with:
@@ -179,12 +173,6 @@ pub enum KafkaGauges {
     /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
     /// - `producer_name`: The configured producer name/deployment identifier.
     BrokerWaitResponseRequests,
-    /// The number of in-flight messages awaiting a response from the broker.
-    ///
-    /// This metric is tagged with:
-    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
-    /// - `producer_name`: The configured producer name/deployment identifier.
-    BrokerWaitResponseMessages,
     /// The number of connection attempts, including successful and failed attempts, and name resolution failures.
     ///
     /// This metric is tagged with:
@@ -215,25 +203,6 @@ pub enum KafkaGauges {
     /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
     /// - `producer_name`: The configured producer name/deployment identifier.
     BrokerRequestTimeouts,
-    /// The total number of requests sent to the broker, grouped by Kafka API type.
-    ///
-    /// This metric is tagged with:
-    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
-    /// - `producer_name`: The configured producer name/deployment identifier.
-    /// - `request_type`: The Kafka API request type.
-    BrokerRequests,
-    /// The total number of socket transmission errors.
-    ///
-    /// This metric is tagged with:
-    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
-    /// - `producer_name`: The configured producer name/deployment identifier.
-    BrokerTxErrors,
-    /// The total number of socket receive errors.
-    ///
-    /// This metric is tagged with:
-    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
-    /// - `producer_name`: The configured producer name/deployment identifier.
-    BrokerRxErrors,
     /// Average internal producer queue latency, in milliseconds.
     ///
     /// This metric is tagged with:
@@ -295,19 +264,14 @@ impl GaugeMetric for KafkaGauges {
             KafkaGauges::MessageSizeMax => "kafka.stats.message_size_max",
             KafkaGauges::TxMsgs => "kafka.stats.txmsgs",
             KafkaGauges::BrokerState => "kafka.stats.broker.state",
-            KafkaGauges::BrokerStateAge => "kafka.stats.broker.state_age",
             KafkaGauges::BrokerOutboundBufferRequests => "kafka.stats.broker.outbuf.requests",
             KafkaGauges::BrokerOutboundBufferMessages => "kafka.stats.broker.outbuf.messages",
             KafkaGauges::BrokerWaitResponseRequests => "kafka.stats.broker.waitresp.requests",
-            KafkaGauges::BrokerWaitResponseMessages => "kafka.stats.broker.waitresp.messages",
             KafkaGauges::BrokerConnects => "kafka.stats.broker.connects",
             KafkaGauges::BrokerDisconnects => "kafka.stats.broker.disconnects",
             KafkaGauges::BrokerTxIdle => "kafka.stats.broker.tx_idle",
             KafkaGauges::BrokerRxIdle => "kafka.stats.broker.rx_idle",
             KafkaGauges::BrokerRequestTimeouts => "kafka.stats.broker.request_timeouts",
-            KafkaGauges::BrokerRequests => "kafka.stats.broker.requests",
-            KafkaGauges::BrokerTxErrors => "kafka.stats.broker.tx_errors",
-            KafkaGauges::BrokerRxErrors => "kafka.stats.broker.rx_errors",
             KafkaGauges::BrokerIntLatencyAvg => "kafka.stats.broker.int_latency.avg",
             KafkaGauges::BrokerIntLatencyP99 => "kafka.stats.broker.int_latency.p99",
             KafkaGauges::BrokerOutbufLatencyAvg => "kafka.stats.broker.outbuf_latency.avg",
