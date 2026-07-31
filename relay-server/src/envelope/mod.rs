@@ -40,7 +40,7 @@ use std::time::Duration;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use relay_dynamic_config::{ErrorBoundary, Feature};
-use relay_event_normalization::{TransactionNameRule, normalize_transaction_name};
+use relay_event_normalization::{TransactionNameRule, parameterize_dsc_transaction};
 use relay_event_schema::protocol::{Event, EventId};
 use relay_protocol::{Annotated, Value};
 use relay_sampling::DynamicSamplingContext;
@@ -447,20 +447,7 @@ impl Envelope {
         let Some(ErrorBoundary::Ok(dsc)) = &mut self.headers.trace else {
             return;
         };
-
-        let parametrized_transaction = match &dsc.transaction {
-            Some(transaction) if transaction.contains('/') => {
-                // Ideally we would only apply transaction rules to transactions with source `url`,
-                // but the DSC does not contain this information. The chance of a transaction rename rule
-                // accidentially matching a non-URL transaction should be very low.
-                let mut annotated = Annotated::new(transaction.clone());
-                normalize_transaction_name(&mut annotated, rules);
-                annotated.into_value()
-            }
-            _ => return,
-        };
-
-        dsc.transaction = parametrized_transaction;
+        parameterize_dsc_transaction(dsc, rules);
     }
 
     /// Returns the dynamic sampling context from envelope headers, if present.

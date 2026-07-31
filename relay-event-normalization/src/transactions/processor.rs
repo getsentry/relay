@@ -7,6 +7,7 @@ use relay_event_schema::processor::{
 };
 use relay_event_schema::protocol::{Event, Span, SpanStatus, TraceContext, TransactionSource};
 use relay_protocol::{Annotated, Meta, Remark, RemarkType, RuleCondition};
+use relay_sampling::DynamicSamplingContext;
 use serde::{Deserialize, Serialize};
 
 use crate::TransactionNameRule;
@@ -32,6 +33,25 @@ pub fn normalize_transaction_name(
     if !rules.is_empty() {
         apply_transaction_rename_rules(transaction, rules);
     }
+}
+
+/// Apply parametrization to a DSC.
+pub fn parameterize_dsc_transaction(
+    dsc: &mut DynamicSamplingContext,
+    rules: &[TransactionNameRule],
+) {
+    let Some(transaction) = dsc.transaction.as_mut() else {
+        return;
+    };
+    if !transaction.contains('/') {
+        return;
+    }
+
+    dsc.transaction = {
+        let mut transaction = Annotated::new(transaction.clone());
+        normalize_transaction_name(&mut transaction, rules);
+        transaction.into_value()
+    };
 }
 
 /// Applies the rule if any found to the transaction name.

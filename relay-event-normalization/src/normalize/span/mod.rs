@@ -84,9 +84,6 @@ pub fn normalize_app_start_spans(event: &mut Event) {
 }
 
 /// Writes DSC attributes needed for dynamic sampling into the spans' `data`.
-///
-/// If `sentry.dsc.trace_id` is already present in a span's `data`, the function does nothing for
-/// that span.
 pub fn normalize_dsc_for_event_spans(event: &mut Event, config: &NormalizationConfig) {
     if let Some(ctx) = event.context_mut::<TraceContext>() {
         normalize_dsc_for_span_data(&mut ctx.data, config);
@@ -101,8 +98,6 @@ pub fn normalize_dsc_for_event_spans(event: &mut Event, config: &NormalizationCo
 }
 
 /// Writes DSC attributes needed for dynamic sampling into `span_data`.
-///
-/// If `sentry.dsc.trace_id` is already present in `span_data`, the function does nothing.
 pub fn normalize_dsc_for_span_data(
     span_data: &mut Annotated<SpanData>,
     config: &NormalizationConfig,
@@ -112,9 +107,6 @@ pub fn normalize_dsc_for_span_data(
     };
 
     let data = span_data.get_or_insert_with(SpanData::default);
-    if data.get_value(SENTRY__DSC__TRACE_ID).is_some() {
-        return;
-    }
     data.insert_value(SENTRY__DSC__TRACE_ID, dsc.trace_id.to_string());
     if let Some(project_id) = &dsc.project_id {
         data.insert_value(SENTRY__DSC__PROJECT_ID, project_id.to_string());
@@ -127,5 +119,7 @@ pub fn normalize_dsc_for_span_data(
             // Keep an empty value around for the DS job
             false => data.insert_value(SENTRY__DSC__TRANSACTION, "".to_owned()),
         }
+    } else {
+        data.remove(SENTRY__DSC__TRANSACTION);
     }
 }
