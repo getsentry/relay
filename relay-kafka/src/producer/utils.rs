@@ -255,6 +255,11 @@ impl ProducerContext for Context {
                     topic = message.topic(),
                     producer_name = self.producer_name.as_str(),
                 );
+                metric!(
+                    counter(KafkaCounters::ProcessingMessageProduced) += 1,
+                    topic = message.topic(),
+                    producer_name = self.producer_name.as_str(),
+                );
             }
             Err((error, message)) => {
                 relay_log::error!(

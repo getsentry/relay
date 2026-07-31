@@ -852,7 +852,7 @@ pub enum RelayCounters {
     ///  - `user_report`: A message from the user feedback dialog, sent to `ingest-events`.
     ///  - `session`: A release health session update, sent to `ingest-sessions`.
     #[cfg(feature = "processing")]
-    ProcessingMessageProduced,
+    ProcessingMessageEnqueued,
     /// Number of spans produced in the new format.
     #[cfg(feature = "processing")]
     SpanV2Produced,
@@ -1052,7 +1052,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProjectCacheSchedule => "project_cache.schedule",
             RelayCounters::ServerStarting => "server.starting",
             #[cfg(feature = "processing")]
-            RelayCounters::ProcessingMessageProduced => "processing.event.produced",
+            RelayCounters::ProcessingMessageEnqueued => "processing.event.enqueued",
             #[cfg(feature = "processing")]
             RelayCounters::SpanV2Produced => "store.produced.span_v2",
             RelayCounters::EventProtocol => "event.protocol",
