@@ -45,7 +45,7 @@ pub fn parameterize_dsc_transaction(
     };
     // Ideally we would only apply transaction rules to transactions with source `url`,
     // but the DSC does not contain this information. The chance of a transaction rename rule
-    // accidentially matching a non-URL transaction should be very low.
+    // accidentally matching a non-URL transaction should be very low.
     if !transaction.contains('/') {
         return;
     }
