@@ -965,6 +965,7 @@ def get_transaction_envelope(
     child_id_2: str,
     dsc: Literal["dsc_with_tx", "dsc_no_tx", "no_dsc"],
     sampling_project_config: dict,
+    dsc_transaction: str = "/dsc/",
 ):
     ts = datetime.now(timezone.utc)
 
@@ -1021,7 +1022,7 @@ def get_transaction_envelope(
             "sampled": "true",
             "release": "some_release",
             "environment": "some_environment",
-            **({"transaction": "/dsc/"} if dsc == "dsc_with_tx" else {}),
+            **({"transaction": dsc_transaction} if dsc == "dsc_with_tx" else {}),
             "org_id": sampling_project_config["organizationId"],
         }
 
@@ -1113,6 +1114,71 @@ def get_v2_envelope(
     envelope.headers["trace"] = trace_info
 
     return envelope
+
+
+def test_dsc_transaction_parametrization_applied_with_reconstructed_dsc(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    transactions_consumer,
+):
+    project_id = 42
+    sampling_project_id = 43
+
+    mini_sentry.add_full_project_config(project_id, extra={"organizationId": 1})
+    sampling_project_config = mini_sentry.add_full_project_config(
+        sampling_project_id, extra={"organizationId": 2}
+    )
+    relay = relay(relay_with_processing())
+    transactions_consumer = transactions_consumer()
+
+    transaction = "/users/1234/"
+
+    timestamp = datetime.now(timezone.utc).timestamp()
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="transaction",
+            payload=PayloadRef(
+                json={
+                    "type": "transaction",
+                    "transaction": transaction,
+                    "transaction_info": {"source": "url"},
+                    "start_timestamp": timestamp,
+                    "timestamp": timestamp + 1,
+                    "contexts": {
+                        "trace": {
+                            "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                            "span_id": "a" * 16,
+                            "op": "navigation",
+                            "data": {
+                                "sentry.dsc.trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                                "sentry.dsc.transaction": transaction,
+                            },
+                        }
+                    },
+                    "spans": [],
+                }
+            ),
+        )
+    )
+    envelope.headers["trace"] = {
+        "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+        "public_key": sampling_project_config["publicKeys"][0]["publicKey"],
+        "transaction": transaction,
+        "org_id": sampling_project_config["organizationId"],
+    }
+
+    relay.send_envelope(project_id, envelope)
+    event, _ = transactions_consumer.get_event()
+
+    parametrized_transaction = "/users/*/"
+    assert event["transaction"] == parametrized_transaction
+    assert event["_dsc"]["transaction"] == parametrized_transaction
+    assert (
+        event["contexts"]["trace"]["data"]["sentry.dsc.transaction"]
+        == parametrized_transaction
+    )
 
 
 @pytest.mark.parametrize("span_type", ["tx", "v2"])
@@ -1216,8 +1282,8 @@ def test_dsc_normalization(
 
     # Child span with sentry.dsc.* attributes already set in its span data
     assert spans[child_id_2]["is_segment"] is False
-    assert get_dsc_attr("transaction", child_id_2) == "/spandata/"
-    assert get_dsc_attr("project_id", child_id_2) == "41"
+    assert get_dsc_attr("transaction", child_id_2) == expected_tx
+    assert get_dsc_attr("project_id", child_id_2) == str(expected_project_id)
     assert get_dsc_attr("trace_id", child_id_2) == trace_id
 
     assert metrics == [
@@ -1254,3 +1320,48 @@ def test_dsc_normalization(
             "value": 1.0,
         },
     ]
+
+
+@pytest.mark.parametrize(
+    ("dsc_transaction", "expected_transaction"),
+    [
+        pytest.param("t" * 10, "t" * 10, id="at-limit"),
+        pytest.param("t" * 11, "", id="over-limit"),
+    ],
+)
+def test_dsc_transaction_tag_length(
+    mini_sentry,
+    relay,
+    dsc_transaction,
+    expected_transaction,
+):
+    project_id = 42
+
+    project_config = mini_sentry.add_full_project_config(project_id)
+    relay = relay(
+        mini_sentry,
+        options={
+            "aggregator": {"max_tag_value_length": 10},
+            "normalization": {"level": "full"},
+        },
+    )
+
+    envelope = get_transaction_envelope(
+        trace_id="a0fa8803753e40fd8124b21eeb2986b5",
+        segment_id="a" * 16,
+        child_id_1="b" * 16,
+        child_id_2="c" * 16,
+        dsc="dsc_with_tx",
+        sampling_project_config=project_config,
+        dsc_transaction=dsc_transaction,
+    )
+
+    relay.send_envelope(project_id, envelope)
+    event = mini_sentry.get_captured_envelope().get_transaction_event()
+
+    for data in (
+        event["contexts"]["trace"]["data"],
+        event["spans"][0]["data"],
+        # The second span has an intentionally different dsc
+    ):
+        assert data.get("sentry.dsc.transaction") == expected_transaction

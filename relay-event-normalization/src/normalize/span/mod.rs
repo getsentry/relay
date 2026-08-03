@@ -6,8 +6,9 @@ use relay_conventions::attributes::{
 };
 use relay_event_schema::protocol::{Event, SpanData, TraceContext};
 use relay_protocol::Annotated;
-use relay_sampling::DynamicSamplingContext;
 use std::sync::LazyLock;
+
+use crate::NormalizationConfig;
 
 pub mod ai;
 pub mod country_subregion;
@@ -83,42 +84,41 @@ pub fn normalize_app_start_spans(event: &mut Event) {
 }
 
 /// Writes DSC attributes needed for dynamic sampling into the spans' `data`.
-///
-/// If `sentry.dsc.trace_id` is already present in a span's `data`, the function does nothing for
-/// that span.
-pub fn normalize_dsc_for_event_spans(event: &mut Event, dsc: Option<&DynamicSamplingContext>) {
+pub fn normalize_dsc_for_event_spans(event: &mut Event, config: &NormalizationConfig) {
     if let Some(ctx) = event.context_mut::<TraceContext>() {
-        normalize_dsc_for_span_data(&mut ctx.data, dsc);
+        normalize_dsc_for_span_data(&mut ctx.data, config);
     }
     if let Some(spans) = event.spans.value_mut() {
         for span in spans {
             if let Some(span) = span.value_mut() {
-                normalize_dsc_for_span_data(&mut span.data, dsc);
+                normalize_dsc_for_span_data(&mut span.data, config);
             }
         }
     }
 }
 
 /// Writes DSC attributes needed for dynamic sampling into `span_data`.
-///
-/// If `sentry.dsc.trace_id` is already present in `span_data`, the function does nothing.
 pub fn normalize_dsc_for_span_data(
     span_data: &mut Annotated<SpanData>,
-    dsc: Option<&DynamicSamplingContext>,
+    config: &NormalizationConfig,
 ) {
-    let Some(dsc) = dsc else {
+    let Some(dsc) = config.dsc else {
         return;
     };
 
     let data = span_data.get_or_insert_with(SpanData::default);
-    if data.get_value(SENTRY__DSC__TRACE_ID).is_some() {
-        return;
-    }
     data.insert_value(SENTRY__DSC__TRACE_ID, dsc.trace_id.to_string());
     if let Some(project_id) = &dsc.project_id {
         data.insert_value(SENTRY__DSC__PROJECT_ID, project_id.to_string());
     }
-    if let Some(transaction) = &dsc.transaction {
-        data.insert_value(SENTRY__DSC__TRANSACTION, transaction.to_string());
+    match &dsc.transaction {
+        // To match the behaviour of the `count_per_root` metric, which had its tags
+        // removed if they were over the limit.
+        Some(tx) if tx.len() <= config.max_tag_value_length => {
+            data.insert_value(SENTRY__DSC__TRANSACTION, tx.clone())
+        }
+        // Keep an empty value around for the DS job
+        Some(_) => data.insert_value(SENTRY__DSC__TRANSACTION, "".to_owned()),
+        None => drop(data.remove(SENTRY__DSC__TRANSACTION)),
     }
 }

@@ -1,4 +1,5 @@
 use relay_cogs::{AppFeature, FeatureWeights};
+use relay_event_normalization::eap::time::TimestampOutOfRange;
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{TraceMetric, trace_metric};
 use relay_filter::FilterStatKey;
@@ -31,6 +32,8 @@ pub enum Error {
     /// Received trace metric exceeds the configured size limit.
     #[error("trace metric exeeds size limit")]
     TooLarge,
+    #[error(transparent)]
+    TimestampOutOfRange(#[from] TimestampOutOfRange),
     /// The metric name is not valid.
     #[error("trace metric name is not valid")]
     InvalidMetricName,
@@ -77,6 +80,7 @@ impl crate::managed::OutcomeError for Error {
             Self::TooLarge => Some(Outcome::Invalid(DiscardReason::ItemTooLarge(
                 DiscardItemType::TraceMetric,
             ))),
+            Self::TimestampOutOfRange(_) => Some(Outcome::Invalid(DiscardReason::Timestamp)),
             Self::InvalidMetricName => Some(Outcome::Invalid(DiscardReason::InvalidTraceMetric)),
             Self::ProcessingFailed(_) => {
                 relay_log::error!("internal error: trace metric processing failed");
