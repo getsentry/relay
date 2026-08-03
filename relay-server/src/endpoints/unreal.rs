@@ -3,7 +3,6 @@ use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
 use relay_config::Config;
-use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::EventId;
 use serde::Deserialize;
 
@@ -13,11 +12,6 @@ use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::middlewares;
 use crate::service::ServiceState;
-use crate::services::outcome::{DiscardItemType, DiscardReason};
-use crate::services::processor::ProcessingError;
-use crate::services::projects::project::ProjectState;
-use crate::statsd::RelayCounters;
-use crate::utils::extract_items;
 
 #[derive(Debug, Deserialize)]
 struct UnrealQuery {
@@ -35,61 +29,17 @@ struct UnrealParams {
 }
 
 impl UnrealParams {
-    async fn extract_envelope(
-        self,
-        state: &ServiceState,
-    ) -> Result<Box<Envelope>, BadStoreRequest> {
+    fn extract_envelope(self) -> Result<Box<Envelope>, BadStoreRequest> {
         let Self { meta, query, data } = self;
 
         if data.is_empty() {
             return Err(BadStoreRequest::EmptyBody);
         }
 
-        let public_key = meta.public_key();
         let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
 
         if let Some(user_id) = query.user_id {
             envelope.set_header(UNREAL_USER_HEADER, user_id);
-        }
-
-        let global_config = state.global_config_handle().current().unwrap_or_default();
-
-        if global_config.options.endpoint_fetch_config_enabled {
-            // Ensure that we really make it here.
-            relay_statsd::metric!(counter(RelayCounters::UnrealEndpointExpansion) += 1);
-
-            let project = state
-                .project_cache_handle()
-                .ready(public_key, state.config().query_timeout())
-                .await
-                .ok_or(BadStoreRequest::ProjectUnavailable)?;
-
-            let project_config = match project.state() {
-                ProjectState::Enabled(info) => Some(info.clone()),
-                // Note: In Proxy mode we should never make it here since the endpoint_fetch_config_enabled
-                // check should already fail.
-                ProjectState::Dummy => None,
-                ProjectState::Disabled | ProjectState::Pending => {
-                    return Err(BadStoreRequest::EventRejected(DiscardReason::ProjectId));
-                }
-            };
-
-            if let Some(project_config) = project_config
-                && project_config.has_feature(Feature::UnrealEndpointExpansion)
-            {
-                for mut item in
-                    extract_items(data, state.config()).map_err(|error| match error {
-                        ProcessingError::PayloadTooLarge(_) => {
-                            BadStoreRequest::ItemTooLarge(DiscardItemType::UnrealReport)
-                        }
-                        _ => BadStoreRequest::InvalidUnrealReport,
-                    })?
-                {
-                    item.set_unreal_expanded(true);
-                    envelope.add_item(item);
-                }
-                return Ok(envelope);
-            }
         }
 
         let mut item = Item::new(ItemType::UnrealReport);
@@ -104,7 +54,7 @@ async fn handle(
     state: ServiceState,
     params: UnrealParams,
 ) -> axum::response::Result<impl IntoResponse> {
-    let envelope = params.extract_envelope(&state).await?;
+    let envelope = params.extract_envelope()?;
     let id = envelope.event_id();
 
     // Never respond with a 429 since clients often retry these
