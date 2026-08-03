@@ -3099,19 +3099,35 @@ mod tests {
         normalize_attribute_names(&mut attributes);
         normalize_mobile_measurements(&mut attributes, Some(Duration::from_secs(5)));
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&attributes),  @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&attributes),  @r#"
         {
           "app.vitals.frames.frozen.count": {
             "type": "integer",
             "value": 2
           },
+          "app.vitals.frames.frozen.rate": {
+            "type": "double",
+            "value": 0.5
+          },
           "app.vitals.frames.slow.count": {
             "type": "integer",
             "value": 1
           },
+          "app.vitals.frames.slow.rate": {
+            "type": "double",
+            "value": 0.25
+          },
           "app.vitals.frames.total.count": {
             "type": "integer",
             "value": 4
+          },
+          "app.vitals.stall.duration": {
+            "type": "integer",
+            "value": 4000
+          },
+          "app.vitals.stall.percentage": {
+            "type": "double",
+            "value": 0.8
           },
           "frames.slow": {
             "type": "integer",
@@ -3121,23 +3137,11 @@ mod tests {
             "type": "integer",
             "value": 4
           },
-          "frames_frozen_rate": {
-            "type": "double",
-            "value": 0.5
-          },
-          "frames_slow_rate": {
-            "type": "double",
-            "value": 0.25
-          },
-          "stall_percentage": {
-            "type": "double",
-            "value": 0.8
-          },
           "stall_total_time": {
             "type": "integer",
             "value": 4000
           }
         }
-        "###);
+        "#);
     }
 }
