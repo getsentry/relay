@@ -39,12 +39,14 @@ pub fn convert(
             retention,
             server_sample_rate,
         };
+        let filename = meta.value().and_then(|m| m.filename.value().cloned());
         let trace_item = attachment_to_trace_item(meta, quantities, ctx)
             .ok_or(Outcome::Invalid(DiscardReason::InvalidTraceAttachment))?;
 
         Ok::<_, Outcome>(StoreTraceAttachment {
             trace_item,
             body,
+            filename,
             retention: retention.standard,
         })
     })

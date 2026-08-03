@@ -179,6 +179,8 @@ pub struct StoreTraceAttachment {
     pub body: Bytes,
     /// The trace item to be published via Kafka.
     pub trace_item: TraceItem,
+    /// The file name that downloads of this attachment are named after.
+    pub filename: Option<String>,
     /// Data retention in days for this attachment.
     pub retention: u16,
 }
@@ -671,12 +673,14 @@ impl ObjectstoreServiceInner {
 
         let body = Bytes::clone(&managed.body);
         let retention = managed.retention;
+        let filename = managed.filename.clone();
 
         // Make sure that the attachment can be converted into a trace item:
         let trace_item = managed.try_map(|attachment, _record_keeper| {
             let StoreTraceAttachment {
                 trace_item,
                 body: _,
+                filename: _,
                 retention: _,
             } = attachment;
             Ok::<_, Error>(StoreTraceItem { trace_item })
@@ -696,6 +700,7 @@ impl ObjectstoreServiceInner {
 
             let attributes = ObjectAttributes {
                 key: Some(key),
+                filename,
                 ..Default::default()
             };
 
