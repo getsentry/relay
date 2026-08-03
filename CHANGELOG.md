@@ -6,6 +6,10 @@
 
 - Extract nvgpu dumps and create GPU events. ([#6242](https://github.com/getsentry/relay/pull/6242))
 
+**Bug Fixes**:
+
+- Re-parameterize a DSC when it is computed from a transaction. ([#6279](https://github.com/getsentry/relay/pull/6279))
+
 ## 26.7.2
 
 **Features**:
