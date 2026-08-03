@@ -7,9 +7,33 @@ use relay_event_schema::{
     protocol::{Attributes, OurLog, Replay, SpanV2, Timestamp, TraceMetric},
 };
 use relay_protocol::{Annotated, ErrorKind, Remark, RemarkType};
-use std::time::Duration;
+use std::{fmt, time::Duration};
 
 use crate::ClockDriftProcessor;
+
+/// Error when the time is either too far in the future or past.
+#[derive(Debug, thiserror::Error, Clone, Copy)]
+pub struct TimestampOutOfRange {
+    timestamp: Timestamp,
+    received_at: DateTime<Utc>,
+    max_delta: Duration,
+    is_in_past: bool,
+}
+
+impl fmt::Display for TimestampOutOfRange {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "the item's timestamp ({}) is too far in the ",
+            self.timestamp
+        )?;
+        match self.is_in_past {
+            true => write!(f, "past ({})", self.received_at - self.max_delta)?,
+            false => write!(f, "future ({})", self.received_at + self.max_delta)?,
+        }
+        Ok(())
+    }
+}
 
 /// Configuration parameters for [`normalize`].
 #[derive(Debug, Default, Clone, Copy)]
@@ -24,11 +48,29 @@ pub struct Config {
     /// Client local timestamp when the SDK sent the item.
     pub sent_at: Option<DateTime<Utc>>,
     /// Maximum amount of time the timestamp is allowed to be in the past.
-    pub max_in_past: Option<Duration>,
+    pub max_in_past: Option<TimeEnforcement>,
     /// Maximum amount of time the timestamp is allowed to be in the future.
-    pub max_in_future: Option<Duration>,
+    pub max_in_future: Option<TimeEnforcement>,
     /// Limits clock drift correction to a minimum duration.
     pub minimum_clock_drift: Duration,
+}
+
+/// Configures how [`Config::max_in_past`] and [`Config::max_in_future`] should be enforced.
+#[derive(Copy, Clone, Debug)]
+pub enum TimeEnforcement {
+    /// The timestamp is shifted to comply with the given max.
+    Shift(Duration),
+    /// The item is rejected.
+    Reject(Duration),
+}
+
+impl TimeEnforcement {
+    fn shift(&self) -> Option<Duration> {
+        match self {
+            Self::Shift(duration) => Some(*duration),
+            _ => None,
+        }
+    }
 }
 
 /// Normalizes and validates timestamps.
@@ -36,7 +78,7 @@ pub struct Config {
 /// Applies a time shift correction to correct for time drift on clients, see [`ClockDriftProcessor`].
 /// Also makes sure timestamps are within boundaries defined by [`Config::max_in_past`] and
 /// [`Config::max_in_future`].
-pub fn normalize<T>(item: &mut Annotated<T>, config: Config)
+pub fn normalize<T>(item: &mut Annotated<T>, config: Config) -> Result<(), TimestampOutOfRange>
 where
     T: TimeNormalize,
 {
@@ -53,12 +95,14 @@ where
     if let Some(timestamp) = timestamp {
         if config
             .max_in_past
+            .and_then(|te| te.shift())
             .is_some_and(|delta| timestamp < received_at - delta)
         {
             error_kind = ErrorKind::PastTimestamp;
             sent_at = Some(timestamp.into_inner());
         } else if config
             .max_in_future
+            .and_then(|te| te.shift())
             .is_some_and(|delta| timestamp > received_at + delta)
         {
             error_kind = ErrorKind::FutureTimestamp;
@@ -87,6 +131,30 @@ where
         .as_mut()
         .map(|t| t.reference_timestamp_mut());
 
+    if let Some(timestamp) = timestamp.as_ref().and_then(|ts| ts.value()).copied() {
+        if let Some(TimeEnforcement::Reject(max_in_past)) = config.max_in_past
+            && timestamp < received_at - max_in_past
+        {
+            return Err(TimestampOutOfRange {
+                timestamp,
+                received_at,
+                max_delta: max_in_past,
+                is_in_past: true,
+            });
+        }
+
+        if let Some(TimeEnforcement::Reject(max_in_future)) = config.max_in_future
+            && timestamp > received_at + max_in_future
+        {
+            return Err(TimestampOutOfRange {
+                timestamp,
+                received_at,
+                max_delta: max_in_future,
+                is_in_past: false,
+            });
+        }
+    }
+
     if config.apply_sequence_shift
         && let Some(sequence) = sequence
         && let Some(ts) = timestamp
@@ -98,6 +166,8 @@ where
         ts.meta_mut()
             .add_remark(Remark::new(RemarkType::Substituted, "timestamp.sequence"));
     }
+
+    Ok(())
 }
 
 /// Items which can be processed by [`normalize`].
@@ -207,7 +277,7 @@ mod tests {
             ..Default::default()
         };
 
-        normalize(&mut item, config);
+        normalize(&mut item, config).unwrap();
 
         assert_annotated_snapshot!(item, @r#"
         {
@@ -230,7 +300,7 @@ mod tests {
             ..Default::default()
         };
 
-        normalize(&mut item, config);
+        normalize(&mut item, config).unwrap();
 
         assert_annotated_snapshot!(item, @r#"
         {
@@ -264,11 +334,11 @@ mod tests {
 
         let config = Config {
             received_at: ts(100_000).0,
-            max_in_past: Some(Duration::from_secs(10)),
+            max_in_past: Some(TimeEnforcement::Shift(Duration::from_secs(10))),
             ..Default::default()
         };
 
-        normalize(&mut item, config);
+        normalize(&mut item, config).unwrap();
 
         assert_annotated_snapshot!(item, @r#"
         {
@@ -302,11 +372,11 @@ mod tests {
 
         let config = Config {
             received_at: ts(10_000).0,
-            max_in_future: Some(Duration::from_secs(10)),
+            max_in_future: Some(TimeEnforcement::Shift(Duration::from_secs(10))),
             ..Default::default()
         };
 
-        normalize(&mut item, config);
+        normalize(&mut item, config).unwrap();
 
         assert_annotated_snapshot!(item, @r#"
         {
@@ -343,7 +413,7 @@ mod tests {
             ..Default::default()
         };
 
-        normalize(&mut item, config);
+        normalize(&mut item, config).unwrap();
 
         insta::assert_json_snapshot!(IntoValue::extract_meta_tree(&item), @r#"
         {
@@ -382,11 +452,11 @@ mod tests {
         let config = Config {
             apply_sequence_shift: true,
             received_at: ts(10_000).0,
-            max_in_future: Some(Duration::from_secs(10)),
+            max_in_future: Some(TimeEnforcement::Shift(Duration::from_secs(10))),
             ..Default::default()
         };
 
-        normalize(&mut item, config);
+        normalize(&mut item, config).unwrap();
 
         insta::assert_json_snapshot!(IntoValue::extract_meta_tree(&item), @r#"
         {
@@ -419,6 +489,46 @@ mod tests {
         assert_eq!(
             get_value!(item.other!).0,
             DateTime::from_timestamp_secs(0).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_normalize_time_too_far_in_past_reject() {
+        let mut item = Annotated::new(TestItem {
+            base: ts(90_000).into(),
+            other: ts(80_000).into(),
+        });
+
+        let config = Config {
+            received_at: ts(100_000).0,
+            max_in_past: Some(TimeEnforcement::Reject(Duration::from_secs(10))),
+            ..Default::default()
+        };
+
+        let err = normalize(&mut item, config).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "the item's timestamp (1970-01-02 01:00:00 UTC) is too far in the past (1970-01-02 03:46:30 UTC)"
+        );
+    }
+
+    #[test]
+    fn test_normalize_time_too_far_in_future_reject() {
+        let mut item = Annotated::new(TestItem {
+            base: ts(90_000).into(),
+            other: ts(80_000).into(),
+        });
+
+        let config = Config {
+            received_at: ts(10_000).0,
+            max_in_future: Some(TimeEnforcement::Reject(Duration::from_secs(10))),
+            ..Default::default()
+        };
+
+        let err = normalize(&mut item, config).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "the item's timestamp (1970-01-02 01:00:00 UTC) is too far in the future (1970-01-01 02:46:50 UTC)"
         );
     }
 }

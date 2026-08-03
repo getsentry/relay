@@ -482,14 +482,11 @@ pub fn normalize_dsc(
 
     let attributes = attributes.get_or_insert_with(Default::default);
 
-    // Check if DSC attributes are already set, the trace id is always required and must always be set.
-    if attributes.contains_key(SENTRY__DSC__TRACE_ID) {
-        return;
-    }
     attributes.insert(SENTRY__DSC__TRACE_ID, dsc.trace_id.to_string());
 
-    if let Some(transaction) = &dsc.transaction {
-        attributes.insert(SENTRY__DSC__TRANSACTION, transaction.clone());
+    match &dsc.transaction {
+        Some(transaction) => attributes.insert(SENTRY__DSC__TRANSACTION, transaction.clone()),
+        None => drop(attributes.remove(SENTRY__DSC__TRANSACTION)),
     }
 
     if let Some(project_id) = &dsc.project_id {

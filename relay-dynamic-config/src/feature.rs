@@ -93,10 +93,6 @@ pub enum Feature {
     /// Upload non-prosperodmp playstation attachments via the upload endpoint.
     #[serde(rename = "projects:relay-playstation-uploads")]
     PlaystationUploads,
-    /// Enable experimental expansion of the unreal report in the endpoint rather than in the
-    /// processor. Only enable for organizations with sufficient attachment quota.
-    #[serde(rename = "organizations:relay-unreal-endpoint-expansion")]
-    UnrealEndpointExpansion,
     /// Stream minidumps to objectstore.
     #[serde(rename = "projects:relay-minidump-uploads")]
     MinidumpUploads,

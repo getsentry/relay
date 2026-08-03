@@ -4,11 +4,14 @@
 
 **Features**:
 
+- Reject spans, logs, trace metrics, replays when they are too old instead of shifting their timestamp. ([#6272](https://github.com/getsentry/relay/pull/6272))
 - Extract nvgpu dumps and create GPU events. ([#6242](https://github.com/getsentry/relay/pull/6242))
 
 **Bug Fixes**:
 
 - Store the attachment file name in objectstore so that downloads are named after the attachment. ([#6276](https://github.com/getsentry/relay/pull/6276))
+- Fix streamed attachments having wrong retention. ([#6268](https://github.com/getsentry/relay/pull/6268))
+- Re-parameterize a DSC when it is computed from a transaction. ([#6279](https://github.com/getsentry/relay/pull/6279))
 
 ## 26.7.2
 
