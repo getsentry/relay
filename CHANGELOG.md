@@ -4,7 +4,6 @@
 
 **Features**:
 
-- Bump `sentry-conventions` to include the `"transform"` deprecation status. ([#6281](https://github.com/getsentry/relay/pull/6281))
 - Reject spans, logs, trace metrics, replays when they are too old instead of shifting their timestamp. ([#6272](https://github.com/getsentry/relay/pull/6272))
 - Extract nvgpu dumps and create GPU events. ([#6242](https://github.com/getsentry/relay/pull/6242))
 
