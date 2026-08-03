@@ -1,12 +1,12 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/work/relay/relay/target/debug/build/relay-conventions-7baad0b23e36d857/out/measurement_consts.rs`."><title>measurement_consts.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../../../../../../../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../../../../../../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../../../../../../../../../static.files/rustdoc-17e0aaed.css"><meta name="rustdoc-vars" data-root-path="../../../../../../../../../../../../" data-static-root-path="../../../../../../../../../../../../static.files/" data-current-crate="relay_conventions" data-themes="" data-resource-suffix="" data-rustdoc-version="1.97.1 (8bab26f4f 2026-07-14)" data-channel="1.97.1" data-search-js="search-fd9372ac.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../../../../../../../../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../../../../../../../../../../static.files/src-script-813739b1.js"></script><script defer src="../../../../../../../../../../../../src-files.js"></script><script defer src="../../../../../../../../../../../../static.files/main-fcd733ba.js"></script><noscript><link rel="stylesheet" href="../../../../../../../../../../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../../../../../../../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../../../../../../../../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">relay_conventions/home/runner/work/relay/relay/target/debug/build/relay-conventions-7baad0b23e36d857/out/</div>measurement_consts.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">/// measurements.frames_frozen divided by the measurements.frames_total.
 <a href=#2 id=2 data-nosnippet>2</a>///
-<a href=#3 id=3 data-nosnippet>3</a>/// Replacement attribute: [`FRAMES_FROZEN_RATE`](crate::attributes::FRAMES_FROZEN_RATE)
+<a href=#3 id=3 data-nosnippet>3</a>/// Replacement attribute: [`APP__VITALS__FRAMES__FROZEN__RATE`](crate::attributes::APP__VITALS__FRAMES__FROZEN__RATE)
 <a href=#4 id=4 data-nosnippet>4</a></span><span class="kw">pub const </span>FRAMES_FROZEN_RATE: <span class="kw-2">&amp;</span>str = <span class="string">"frames_frozen_rate"</span>;
 <a href=#5 id=5 data-nosnippet>5</a>
 <a href=#6 id=6 data-nosnippet>6</a>
 <a href=#7 id=7 data-nosnippet>7</a><span class="doccomment">/// The total stall time is the total combined time of all stalls. Only applies to React Native.
 <a href=#8 id=8 data-nosnippet>8</a>///
-<a href=#9 id=9 data-nosnippet>9</a>/// Replacement attribute: [`STALL_TOTAL_TIME`](crate::attributes::STALL_TOTAL_TIME)
+<a href=#9 id=9 data-nosnippet>9</a>/// Replacement attribute: [`APP__VITALS__STALL__DURATION`](crate::attributes::APP__VITALS__STALL__DURATION)
 <a href=#10 id=10 data-nosnippet>10</a></span><span class="kw">pub const </span>STALL_TOTAL_TIME: <span class="kw-2">&amp;</span>str = <span class="string">"stall_total_time"</span>;
 <a href=#11 id=11 data-nosnippet>11</a>
 <a href=#12 id=12 data-nosnippet>12</a>
@@ -28,9 +28,9 @@
 <a href=#28 id=28 data-nosnippet>28</a></span><span class="kw">pub const </span>INP: <span class="kw-2">&amp;</span>str = <span class="string">"inp"</span>;
 <a href=#29 id=29 data-nosnippet>29</a>
 <a href=#30 id=30 data-nosnippet>30</a>
-<a href=#31 id=31 data-nosnippet>31</a><span class="doccomment">/// Stall percentage is equal to the stall_total_time divided by the transaction.duration. Only applies to React Native.
+<a href=#31 id=31 data-nosnippet>31</a><span class="doccomment">/// Stall percentage is equal to app.vitals.stall.duration divided by transaction.duration. Only applies to React Native.
 <a href=#32 id=32 data-nosnippet>32</a>///
-<a href=#33 id=33 data-nosnippet>33</a>/// Replacement attribute: [`STALL_PERCENTAGE`](crate::attributes::STALL_PERCENTAGE)
+<a href=#33 id=33 data-nosnippet>33</a>/// Replacement attribute: [`APP__VITALS__STALL__PERCENTAGE`](crate::attributes::APP__VITALS__STALL__PERCENTAGE)
 <a href=#34 id=34 data-nosnippet>34</a></span><span class="kw">pub const </span>STALL_PERCENTAGE: <span class="kw-2">&amp;</span>str = <span class="string">"stall_percentage"</span>;
 <a href=#35 id=35 data-nosnippet>35</a>
 <a href=#36 id=36 data-nosnippet>36</a>
@@ -98,7 +98,7 @@
 <a href=#98 id=98 data-nosnippet>98</a>
 <a href=#99 id=99 data-nosnippet>99</a><span class="doccomment">/// measurements.frames_slow divided by the measurements.frames_total.
 <a href=#100 id=100 data-nosnippet>100</a>///
-<a href=#101 id=101 data-nosnippet>101</a>/// Replacement attribute: [`FRAMES_SLOW_RATE`](crate::attributes::FRAMES_SLOW_RATE)
+<a href=#101 id=101 data-nosnippet>101</a>/// Replacement attribute: [`APP__VITALS__FRAMES__SLOW__RATE`](crate::attributes::APP__VITALS__FRAMES__SLOW__RATE)
 <a href=#102 id=102 data-nosnippet>102</a></span><span class="kw">pub const </span>FRAMES_SLOW_RATE: <span class="kw-2">&amp;</span>str = <span class="string">"frames_slow_rate"</span>;
 <a href=#103 id=103 data-nosnippet>103</a>
 <a href=#104 id=104 data-nosnippet>104</a>

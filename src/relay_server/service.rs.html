@@ -136,7 +136,7 @@
 <a href=#136 id=136 data-nosnippet>136</a>    //
 <a href=#137 id=137 data-nosnippet>137</a>    // Ideally in the future the store will be single threaded again, after we move
 <a href=#138 id=138 data-nosnippet>138</a>    // all the heavy processing (de- and re-serialization) into the processor.
-<a href=#139 id=139 data-nosnippet>139</a>    </span><span class="kw">let </span>thread_count = config.cpu_concurrency().div_ceil(<span class="number">12</span>);
+<a href=#139 id=139 data-nosnippet>139</a>    </span><span class="kw">let </span>thread_count = config.cpu_concurrency().div_ceil(<span class="number">8</span>);
 <a href=#140 id=140 data-nosnippet>140</a>    <span class="macro">relay_log::info!</span>(<span class="string">"starting {thread_count} store workers"</span>);
 <a href=#141 id=141 data-nosnippet>141</a>
 <a href=#142 id=142 data-nosnippet>142</a>    <span class="kw">let </span>pool = <span class="kw">crate</span>::utils::ThreadPoolBuilder::new(<span class="string">"store"</span>, tokio::runtime::Handle::current())
