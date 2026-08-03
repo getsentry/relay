@@ -135,6 +135,10 @@ pub fn prepare_data(
         profile::remove_context_if_rate_limited(&mut work.event, scoping, *ctx);
 
         utils::dsc::validate_and_set_dsc(&mut work.headers, &work.event, ctx);
+        if let (Some(dsc), Some(config)) = (work.headers.dsc_mut(), ctx.sampling_project_info) {
+            let rules = &config.config.tx_name_rules;
+            relay_event_normalization::parameterize_dsc_transaction(dsc, rules);
+        }
 
         utils::event::finalize(
             &work.headers,

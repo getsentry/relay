@@ -1116,6 +1116,71 @@ def get_v2_envelope(
     return envelope
 
 
+def test_dsc_transaction_parametrization_applied_with_reconstructed_dsc(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    transactions_consumer,
+):
+    project_id = 42
+    sampling_project_id = 43
+
+    mini_sentry.add_full_project_config(project_id, extra={"organizationId": 1})
+    sampling_project_config = mini_sentry.add_full_project_config(
+        sampling_project_id, extra={"organizationId": 2}
+    )
+    relay = relay(relay_with_processing())
+    transactions_consumer = transactions_consumer()
+
+    transaction = "/users/1234/"
+
+    timestamp = datetime.now(timezone.utc).timestamp()
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="transaction",
+            payload=PayloadRef(
+                json={
+                    "type": "transaction",
+                    "transaction": transaction,
+                    "transaction_info": {"source": "url"},
+                    "start_timestamp": timestamp,
+                    "timestamp": timestamp + 1,
+                    "contexts": {
+                        "trace": {
+                            "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                            "span_id": "a" * 16,
+                            "op": "navigation",
+                            "data": {
+                                "sentry.dsc.trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                                "sentry.dsc.transaction": transaction,
+                            },
+                        }
+                    },
+                    "spans": [],
+                }
+            ),
+        )
+    )
+    envelope.headers["trace"] = {
+        "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+        "public_key": sampling_project_config["publicKeys"][0]["publicKey"],
+        "transaction": transaction,
+        "org_id": sampling_project_config["organizationId"],
+    }
+
+    relay.send_envelope(project_id, envelope)
+    event, _ = transactions_consumer.get_event()
+
+    parametrized_transaction = "/users/*/"
+    assert event["transaction"] == parametrized_transaction
+    assert event["_dsc"]["transaction"] == parametrized_transaction
+    assert (
+        event["contexts"]["trace"]["data"]["sentry.dsc.transaction"]
+        == parametrized_transaction
+    )
+
+
 @pytest.mark.parametrize("span_type", ["tx", "v2"])
 @pytest.mark.parametrize("org", ["same_org", "diff_org"])
 @pytest.mark.parametrize("dsc", ["dsc_with_tx", "dsc_no_tx", "no_dsc"])
@@ -1217,8 +1282,8 @@ def test_dsc_normalization(
 
     # Child span with sentry.dsc.* attributes already set in its span data
     assert spans[child_id_2]["is_segment"] is False
-    assert get_dsc_attr("transaction", child_id_2) == "/spandata/"
-    assert get_dsc_attr("project_id", child_id_2) == "41"
+    assert get_dsc_attr("transaction", child_id_2) == expected_tx
+    assert get_dsc_attr("project_id", child_id_2) == str(expected_project_id)
     assert get_dsc_attr("trace_id", child_id_2) == trace_id
 
     assert metrics == [

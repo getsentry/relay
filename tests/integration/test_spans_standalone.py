@@ -741,10 +741,10 @@ def test_spans_standalone_dsc_normalization(
     assert spans["cccccccccccccccc"]["is_segment"] is False
     assert get_transaction("aaaaaaaaaaaaaaaa") == "/my/fancy/endpoint"
     assert get_transaction("bbbbbbbbbbbbbbbb") == "/my/fancy/endpoint"
-    assert get_transaction("cccccccccccccccc") == "/transaction/already/exists"
+    assert get_transaction("cccccccccccccccc") == "/my/fancy/endpoint"
     assert get_project_id("aaaaaaaaaaaaaaaa") == "42"
     assert get_project_id("bbbbbbbbbbbbbbbb") == "42"
-    assert get_project_id("cccccccccccccccc") == "41"
+    assert get_project_id("cccccccccccccccc") == "42"
     assert get_trace_id("aaaaaaaaaaaaaaaa") == "5b8efff798038103d269b633813fc60c"
     assert get_trace_id("bbbbbbbbbbbbbbbb") == "5b8efff798038103d269b633813fc60c"
     assert get_trace_id("cccccccccccccccc") == "5b8efff798038103d269b633813fc60c"

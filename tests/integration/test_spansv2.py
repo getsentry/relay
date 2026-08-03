@@ -1726,33 +1726,50 @@ def test_time_corrections(mini_sentry, relay, delta, error):
 
     relay.send_envelope(project_id, envelope)
 
-    envelope = mini_sentry.get_captured_envelope()
-    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
-    assert item_payload["items"][0] == {
-        "_meta": {
-            "start_timestamp": {
-                "": {
-                    "err": [
-                        [
-                            error,
-                            {
-                                "sdk_time": time_within_delta(ts + delta),
-                                "server_time": time_within_delta(ts),
-                            },
+    if error == "past_timestamp":
+        assert mini_sentry.get_aggregated_outcomes() == [
+            {
+                "category": DataCategory.SPAN.value,
+                "outcome": 3,
+                "quantity": 1,
+                "reason": "timestamp",
+            },
+            {
+                "category": DataCategory.SPAN_INDEXED.value,
+                "outcome": 3,
+                "quantity": 1,
+                "reason": "timestamp",
+            },
+        ]
+        assert mini_sentry.captured_envelopes.empty()
+    else:
+        envelope = mini_sentry.get_captured_envelope()
+        item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+        assert item_payload["items"][0] == {
+            "_meta": {
+                "start_timestamp": {
+                    "": {
+                        "err": [
+                            [
+                                error,
+                                {
+                                    "sdk_time": time_within_delta(ts + delta),
+                                    "server_time": time_within_delta(ts),
+                                },
+                            ]
                         ]
-                    ]
+                    }
                 }
-            }
-        },
-        "attributes": matches_any(),
-        "status": "ok",
-        "is_segment": True,
-        "name": "some op",
-        "start_timestamp": time_within_delta(ts),
-        "end_timestamp": time_within_delta(ts),
-        "trace_id": "5b8efff798038103d269b633813fc60c",
-        "span_id": "eee19b7ec3c1b175",
-    }
+            },
+            "attributes": matches_any(),
+            "status": "ok",
+            "is_segment": True,
+            "name": "some op",
+            "start_timestamp": time_within_delta(ts),
+            "end_timestamp": time_within_delta(ts),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+        }
 
 
 # This test's performance score logic has been ported
