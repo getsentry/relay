@@ -122,10 +122,10 @@ fn transform_request_messages<T: AttributesLike>(attributes: &mut T) {
                 Some(OldContent::Parts(items)) => items
                     .into_iter()
                     .map(|mut part| {
-                        if !part.contains_key("content") {
-                            if let Some(text) = part.get("text").cloned() {
-                                part.insert("content".to_owned(), text);
-                            }
+                        if !part.contains_key("content")
+                            && let Some(text) = part.get("text").cloned()
+                        {
+                            part.insert("content".to_owned(), text);
                         }
                         serde_json::Value::Object(part)
                     })
