@@ -25,7 +25,6 @@ use super::attribute_like::{AttributeLike, AttributesLike};
 /// A message in the old `gen_ai.request.messages` format.
 #[derive(Deserialize)]
 struct OldMessage {
-    #[serde(default)]
     content: Option<OldContent>,
     #[serde(flatten)]
     rest: serde_json::Map<String, serde_json::Value>,
@@ -61,14 +60,20 @@ enum ResponseTextItem {
 
 // --- Output models (what we produce) ---
 
-/// A message in the new `gen_ai.input.messages` / `gen_ai.output.messages` format.
+/// A transformed request message for `gen_ai.input.messages`.
 #[derive(Serialize)]
-struct NewMessage {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    role: Option<String>,
+struct TransformedMessage {
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     parts: Vec<serde_json::Value>,
     #[serde(flatten)]
     rest: serde_json::Map<String, serde_json::Value>,
+}
+
+/// An output message for `gen_ai.output.messages`.
+#[derive(Serialize)]
+struct OutputMessage {
+    role: &'static str,
+    parts: Vec<serde_json::Value>,
 }
 
 /// A tool call entry from `gen_ai.response.tool_calls`.
@@ -105,13 +110,10 @@ fn transform_request_messages<T: AttributesLike>(attributes: &mut T) {
         return;
     };
 
-    let new_messages: Vec<NewMessage> = messages
+    let new_messages: Vec<TransformedMessage> = messages
         .into_iter()
         .map(|msg| {
-            let OldMessage { content, mut rest } = msg;
-            let role = rest
-                .remove("role")
-                .and_then(|v| v.as_str().map(String::from));
+            let OldMessage { content, rest } = msg;
 
             let parts = match content {
                 Some(OldContent::String(s)) => {
@@ -128,23 +130,10 @@ fn transform_request_messages<T: AttributesLike>(attributes: &mut T) {
                         serde_json::Value::Object(part)
                     })
                     .collect(),
-                None => {
-                    // No content field — put everything back and skip.
-                    if let Some(role) = role {
-                        rest.insert("role".to_owned(), serde_json::Value::String(role));
-                    }
-                    // Return the original object unchanged since there's nothing to transform.
-                    // We still need to return a NewMessage, so we use an empty parts vec
-                    // and let the rest carry the original fields.
-                    return NewMessage {
-                        role: None,
-                        parts: vec![],
-                        rest,
-                    };
-                }
+                None => vec![],
             };
 
-            NewMessage { role, parts, rest }
+            TransformedMessage { parts, rest }
         })
         .collect();
 
@@ -190,10 +179,9 @@ fn transform_response_to_output_messages<T: AttributesLike>(attributes: &mut T) 
         return;
     }
 
-    let output = [NewMessage {
-        role: Some("assistant".to_owned()),
+    let output = [OutputMessage {
+        role: "assistant",
         parts,
-        rest: Default::default(),
     }];
     if let Ok(json) = serde_json::to_string(&output) {
         attributes.insert(
