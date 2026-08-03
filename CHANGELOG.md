@@ -9,6 +9,7 @@
 
 **Bug Fixes**:
 
+- Fix streamed attachments having wrong retention. ([#6268](https://github.com/getsentry/relay/pull/6268))
 - Re-parameterize a DSC when it is computed from a transaction. ([#6279](https://github.com/getsentry/relay/pull/6279))
 
 ## 26.7.2

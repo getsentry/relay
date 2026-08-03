@@ -1015,8 +1015,6 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     /// - `expansion`: What expansion was used to expand the error (e.g. unreal).
     ErrorProcessed,
-    /// The number of times the new unreal expansion logic in the endpoint is hit.
-    UnrealEndpointExpansion,
     /// The number of times that relay receives a compressed minidump.
     CompressedMinidump,
     /// The number of times a trace metric has a nil trace ID.
@@ -1088,7 +1086,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EnvelopeWithLogs => "logs.envelope",
             RelayCounters::ProfileChunksWithoutPlatform => "profile_chunk.no_platform",
             RelayCounters::ErrorProcessed => "event.error.processed",
-            RelayCounters::UnrealEndpointExpansion => "unreal.endpoint_expansion",
             RelayCounters::CompressedMinidump => "minidump.compressed.count",
             RelayCounters::TraceMetricNilTraceId => "trace_metric.nil_trace_id",
         }

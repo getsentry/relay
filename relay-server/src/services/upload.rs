@@ -124,6 +124,8 @@ pub struct ProjectContext {
     pub scoping: Scoping,
     /// Where to send the request.
     pub upstream: Option<UpstreamDescriptor>,
+    /// The retention to use for the uploaded object (in days).
+    pub retention: u16,
 }
 
 /// Request to create an upload resource.
@@ -305,6 +307,7 @@ impl Service {
                                 organization_id,
                                 project_id,
                                 key,
+                                retention: project.retention,
                             })
                             .await
                             .map_err(Error::ObjectstoreServiceUnavailable)??;
@@ -364,6 +367,7 @@ impl Service {
                         organization_id: scoping.organization_id,
                         project_id,
                         upload_ref,
+                        retention: project.retention,
                         stream,
                     })
                     .await

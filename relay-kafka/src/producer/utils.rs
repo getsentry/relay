@@ -142,6 +142,10 @@ impl ClientContext for Context {
         let producer_name = self.producer_name.as_str();
 
         relay_statsd::metric!(
+            gauge(KafkaGauges::ReplyQueue) = statistics.replyq,
+            producer_name = producer_name
+        );
+        relay_statsd::metric!(
             gauge(KafkaGauges::MessageCount) = statistics.msg_cnt,
             producer_name = producer_name
         );
@@ -175,6 +179,11 @@ impl ClientContext for Context {
                 broker_name = &broker.name,
                 producer_name = producer_name
             );
+            relay_statsd::metric!(
+                gauge(KafkaGauges::BrokerWaitResponseRequests) = broker.waitresp_cnt,
+                broker_name = &broker.name,
+                producer_name = producer_name
+            );
             if let Some(connects) = broker.connects {
                 relay_statsd::metric!(
                     gauge(KafkaGauges::BrokerConnects) = connects as u64,
@@ -189,6 +198,25 @@ impl ClientContext for Context {
                     producer_name = producer_name
                 );
             }
+            if broker.txidle >= 0 {
+                relay_statsd::metric!(
+                    gauge(KafkaGauges::BrokerTxIdle) = (broker.txidle / 1000),
+                    broker_name = &broker.name,
+                    producer_name = producer_name
+                );
+            }
+            if broker.rxidle >= 0 {
+                relay_statsd::metric!(
+                    gauge(KafkaGauges::BrokerRxIdle) = (broker.rxidle / 1000),
+                    broker_name = &broker.name,
+                    producer_name = producer_name
+                );
+            }
+            relay_statsd::metric!(
+                gauge(KafkaGauges::BrokerRequestTimeouts) = broker.req_timeouts,
+                broker_name = &broker.name,
+                producer_name = producer_name
+            );
             if let Some(int_latency) = broker.int_latency {
                 relay_statsd::metric!(
                     gauge(KafkaGauges::BrokerIntLatencyAvg) = (int_latency.avg / 1000),

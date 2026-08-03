@@ -144,6 +144,8 @@ pub struct CreateMultipart {
     pub project_id: ProjectId,
     /// The desired objectstore key.
     pub key: String,
+    /// Retention for the uploaded object (in days).
+    pub retention: u16,
 }
 
 impl FromMessage<CreateMultipart> for Objectstore {
@@ -159,6 +161,7 @@ pub struct Stream {
     pub organization_id: OrganizationId,
     pub project_id: ProjectId,
     pub upload_ref: UploadRef,
+    pub retention: u16,
     pub stream: BoundedStream<MeteredStream<ByteStream>>,
 }
 
@@ -773,11 +776,15 @@ impl ObjectstoreServiceInner {
             organization_id,
             project_id,
             key,
+            retention,
         } = create;
         let session = self.session(&self.event_attachments, organization_id, project_id)?;
 
         let multipart_upload = session
             .initiate_multipart_upload()
+            .expiration_policy(ExpirationPolicy::TimeToLive(Duration::from_hours(
+                u64::from(retention) * 24,
+            )))
             .key(&key)
             .compression(Compression::Zstd) // make explicit because parts need to be manually compressed.
             .send()
@@ -797,6 +804,7 @@ impl ObjectstoreServiceInner {
             organization_id,
             project_id,
             upload_ref,
+            retention,
             stream,
         } = stream;
         let session = self.session(&self.event_attachments, organization_id, project_id)?;
@@ -807,6 +815,7 @@ impl ObjectstoreServiceInner {
             Upload::Stream {
                 body: TakeOnce::new(stream),
                 upload_ref,
+                retention,
             },
         )
         .await
@@ -918,12 +927,21 @@ impl ObjectstoreServiceInner {
 
                 Ok(ObjectstoreKey(response.key))
             }
-            UploadAttempt::Stream { body, upload_ref } => {
+            UploadAttempt::Stream {
+                body,
+                upload_ref,
+                retention,
+            } => {
                 let UploadRef { key, upload_id } = upload_ref;
                 let Some(upload_id) = upload_id else {
                     // No upload ID: simple upload in a single request.
                     let request = session.put_stream(body.boxed()).key(key);
-                    let response = request.send().await?;
+                    let response = request
+                        .expiration_policy(ExpirationPolicy::TimeToLive(Duration::from_hours(
+                            u64::from(retention) * 24,
+                        )))
+                        .send()
+                        .await?;
                     return Ok(ObjectstoreKey(response.key));
                 };
 
@@ -1007,6 +1025,7 @@ enum Upload {
     Stream {
         body: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
         upload_ref: UploadRef,
+        retention: u16,
     },
 }
 
@@ -1024,12 +1043,15 @@ impl Upload {
                 retention_hours: *retention_hours,
                 content_type: *content_type,
             }),
-            Self::Stream { body, upload_ref } => {
-                RetryableStream::new(body.clone()).map(|body| UploadAttempt::Stream {
-                    body,
-                    upload_ref: upload_ref.clone(),
-                })
-            }
+            Self::Stream {
+                body,
+                upload_ref,
+                retention,
+            } => RetryableStream::new(body.clone()).map(|body| UploadAttempt::Stream {
+                body,
+                upload_ref: upload_ref.clone(),
+                retention: *retention,
+            }),
         }
     }
 }
@@ -1047,6 +1069,7 @@ enum UploadAttempt {
     Stream {
         body: RetryableStream<BoundedStream<MeteredStream<ByteStream>>>,
         upload_ref: UploadRef,
+        retention: u16,
     },
 }
 
@@ -1105,6 +1128,7 @@ mod tests {
     use relay_quotas::DataCategory;
     use relay_system::Service;
 
+    use crate::constants::DEFAULT_EVENT_RETENTION;
     use crate::managed::ManagedTestHandle;
 
     use super::*;
@@ -1130,6 +1154,7 @@ mod tests {
                     key: "my_file".to_owned(),
                     upload_id: Some(UploadId::new("my_upload".to_owned()).unwrap()),
                 },
+                retention: DEFAULT_EVENT_RETENTION,
                 stream,
             })
             .await
