@@ -1,4 +1,3 @@
-use axum::RequestExt;
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
@@ -35,7 +34,8 @@ use crate::services::projects::project::ProjectState;
 use crate::services::upload::{ByteStream, ProjectContext, Upload};
 use crate::statsd::RelayCounters;
 use crate::utils::{
-    self, AttachmentStrategy, SizeSplit, read_bytes_into_item, read_field_into_item,
+    self, AttachmentStrategy, SizeSplit, find_error_source, is_length_limit_error, peek_n,
+    read_bytes_into_item, read_field_into_item,
 };
 
 /// The field name of a minidump in the multipart form-data upload.
@@ -57,6 +57,7 @@ const MINIDUMP_FILE_NAME: &str = "Minidump";
 /// Minidump attachments should have these magic bytes, little- and big-endian.
 const MINIDUMP_MAGIC_HEADER_LE: &[u8] = b"MDMP";
 const MINIDUMP_MAGIC_HEADER_BE: &[u8] = b"PMDM";
+const MINIDUMP_MAGIC_HEADER_LENGTH: usize = MINIDUMP_MAGIC_HEADER_LE.len();
 
 /// Magic bytes for gzip compressed minidump containers.
 const GZIP_MAGIC_HEADER: &[u8] = b"\x1F\x8B";
@@ -98,6 +99,23 @@ where
         Compression::Bzip2 => wrap_decode!(stream, BzDecoder),
     };
     Ok(decoded)
+}
+
+async fn decode_and_validate_stream<S, E>(stream: S) -> Result<ByteStream, BadStoreRequest>
+where
+    S: Stream<Item = Result<Bytes, E>> + Send + 'static,
+    E: Into<Box<dyn Error + Send + Sync>> + Send + 'static,
+{
+    let stream = decode_stream(stream)
+        .await
+        .map_err(|_| BadStoreRequest::InvalidMinidump)?;
+
+    let (head, stream) = peek_n(stream, MINIDUMP_MAGIC_HEADER_LENGTH)
+        .await
+        .map_err(|_| BadStoreRequest::InvalidMinidump)?;
+
+    validate_minidump(&head)?;
+    Ok(stream.boxed())
 }
 
 fn validate_minidump(data: &[u8]) -> Result<(), BadStoreRequest> {
@@ -388,7 +406,7 @@ where
         .map_err(|_| BadStoreRequest::UploadFailed);
     }
 
-    let stream = match decode_stream(stream).await {
+    let stream = match decode_and_validate_stream(stream).await {
         Ok(decoded) => decoded,
         Err(_) => {
             let _ = item.reject_err(Outcome::Invalid(DiscardReason::InvalidMinidump));
@@ -576,9 +594,7 @@ async fn raw_minidump_to_item(
                 })?;
             }
             SizeSplit::Large(stream) => {
-                let stream = decode_stream(stream)
-                    .await
-                    .map_err(|_| BadStoreRequest::InvalidMinidump)?;
+                let stream = decode_and_validate_stream(stream).await?;
 
                 item = upload_stream(
                     stream,
@@ -594,7 +610,16 @@ async fn raw_minidump_to_item(
             }
         }
     } else {
-        let minidump_data = request.extract().await?;
+        let minidump_data =
+            axum::body::to_bytes(request.into_body(), state.config().max_attachment_size())
+                .await
+                .map_err(|e| match find_error_source(&e, is_length_limit_error) {
+                    Some(_) => BadStoreRequest::ItemTooLarge(DiscardItemType::Attachment(
+                        DiscardAttachmentType::Minidump,
+                    )),
+                    None => BadStoreRequest::InvalidBody(std::io::Error::other(e)),
+                })?;
+
         item.try_modify(|inner, records| -> Result<(), BadStoreRequest> {
             let payload = decode_minidump(minidump_data, state.config().max_attachment_size())?;
             inner.set_payload(ContentType::Minidump, payload);
@@ -795,6 +820,63 @@ mod tests {
             assert!(decoded.is_ok());
             assert!(validate_minidump(&decoded.unwrap()).is_err());
         }
+
+        Ok(())
+    }
+
+    fn stream_of(data: Bytes) -> impl Stream<Item = Result<Bytes, Infallible>> + Send + 'static {
+        futures::stream::once(async move { Ok(data) })
+    }
+
+    #[tokio::test]
+    async fn test_decode_and_validate_minidump() -> Result<(), Box<dyn std::error::Error>> {
+        let encoders: Vec<EncodeFunction> = vec![encode_gzip, encode_zst, encode_bzip, encode_xz];
+        for encoder in &encoders {
+            let be_minidump = b"PMDMxxxxxx";
+            let compressed = encoder(be_minidump)?;
+            assert!(
+                decode_and_validate_stream(stream_of(compressed))
+                    .await
+                    .is_ok()
+            );
+
+            let le_minidump = b"MDMPxxxxxx";
+            let compressed = encoder(le_minidump)?;
+            assert!(
+                decode_and_validate_stream(stream_of(compressed))
+                    .await
+                    .is_ok()
+            );
+
+            let garbage = b"xxxxxx";
+            let compressed = encoder(garbage)?;
+            assert!(matches!(
+                decode_and_validate_stream(stream_of(compressed)).await,
+                Err(BadStoreRequest::InvalidMinidump)
+            ));
+        }
+
+        let plain = Bytes::from_static(b"MDMPxxxxxx");
+        assert!(decode_and_validate_stream(stream_of(plain)).await.is_ok());
+
+        let plain = Bytes::from_static(b"xxxxxxxxxx");
+        assert!(matches!(
+            decode_and_validate_stream(stream_of(plain)).await,
+            Err(BadStoreRequest::InvalidMinidump)
+        ));
+
+        let short = stream_of(Bytes::from_static(b"MD"));
+        assert!(matches!(
+            decode_and_validate_stream(short).await,
+            Err(BadStoreRequest::InvalidMinidump)
+        ));
+
+        let chunked = futures::stream::iter([
+            Ok::<_, Infallible>(Bytes::from_static(b"MD")),
+            Ok(Bytes::from_static(b"MP")),
+            Ok(Bytes::from_static(b"rest")),
+        ]);
+        assert!(decode_and_validate_stream(chunked).await.is_ok());
 
         Ok(())
     }
