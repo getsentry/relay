@@ -136,7 +136,7 @@ fn create_store_pool(config: &Config) -> Result<StoreServicePool> {
     //
     // Ideally in the future the store will be single threaded again, after we move
     // all the heavy processing (de- and re-serialization) into the processor.
-    let thread_count = config.cpu_concurrency().div_ceil(12);
+    let thread_count = config.cpu_concurrency().div_ceil(8);
     relay_log::info!("starting {thread_count} store workers");
 
     let pool = crate::utils::ThreadPoolBuilder::new("store", tokio::runtime::Handle::current())
