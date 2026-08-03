@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["normalize"],"struct":["Config"],"trait":["TimeNormalize"]};
+window.SIDEBAR_ITEMS = {"enum":["TimeEnforcement"],"fn":["normalize"],"struct":["Config","TimestampOutOfRange"],"trait":["TimeNormalize"]};
