@@ -168,7 +168,7 @@ fn normalize_log(
     eap::time::normalize(
         log,
         utils::normalize::time_config(headers, |f| f.log.as_ref(), ctx),
-    );
+    )?;
 
     if let Some(log) = log.value_mut() {
         let client_ua_info = settings.infer_user_agent.then(|| ClientUserAgentInfo {

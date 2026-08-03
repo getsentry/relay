@@ -3,19 +3,22 @@ import json
 from datetime import datetime, timezone, timedelta
 
 import pytest
+from sentry_relay.consts import DataCategory
 
 from .asserts import time_within_delta
 
 
 def generate_replay_sdk_event(replay_id="d2132d31b39445f1938d7e21b6bf0ec4"):
+    timestamp = datetime.now(timezone.utc).timestamp()
+
     return {
         "type": "replay_event",
         "replay_id": replay_id,
         "replay_type": "session",
         "event_id": replay_id,
         "segment_id": 0,
-        "timestamp": 1597977777.6189718,
-        "replay_start_timestamp": 1597976392.6542819,
+        "timestamp": timestamp,
+        "replay_start_timestamp": timestamp - 60.0,
         "urls": ["sentry.io"],
         "error_ids": [str(uuid.uuid4())],
         "trace_ids": [str(uuid.uuid4())],
@@ -175,7 +178,7 @@ def test_time_corrections(mini_sentry, relay, delta, error):
             }
         },
     )
-    relay = relay(mini_sentry)
+    relay = relay(mini_sentry, options={"outcomes": {"emit_outcomes": True}})
 
     now = datetime.now(timezone.utc)
     sdk_ts = (now + delta).timestamp()
@@ -186,29 +189,40 @@ def test_time_corrections(mini_sentry, relay, delta, error):
     replay["replay_start_timestamp"] = sdk_start_ts
 
     relay.send_replay_event(project_id, replay)
-    produced = mini_sentry.get_captured_envelope()
-    replay_items = [item for item in produced.items if item.type == "replay_event"]
-    assert len(replay_items) == 1
-
-    payload = json.loads(replay_items[0].payload.bytes.decode())
-
-    assert payload["timestamp"] == time_within_delta(now)
-    assert payload["replay_start_timestamp"] == time_within_delta(
-        now - timedelta(seconds=60)
-    )
-    assert payload["_meta"] == {
-        "timestamp": {
-            "": {
-                "err": [
-                    [
-                        error,
-                        {
-                            "sdk_time": time_within_delta(now + delta),
-                            "server_time": time_within_delta(now),
-                        },
-                    ]
-                ]
+    if error == "past_timestamp":
+        assert mini_sentry.get_aggregated_outcomes() == [
+            {
+                "category": DataCategory.REPLAY.value,
+                "outcome": 3,
+                "quantity": 2,
+                "reason": "timestamp",
             }
-        },
-        "user": {"email": {"": {"rem": [["@email", "s", 0, 7]], "len": 13}}},
-    }
+        ]
+        assert mini_sentry.captured_envelopes.empty()
+    else:
+        produced = mini_sentry.get_captured_envelope()
+        replay_items = [item for item in produced.items if item.type == "replay_event"]
+        assert len(replay_items) == 1
+
+        payload = json.loads(replay_items[0].payload.bytes.decode())
+
+        assert payload["timestamp"] == time_within_delta(now)
+        assert payload["replay_start_timestamp"] == time_within_delta(
+            now - timedelta(seconds=60)
+        )
+        assert payload["_meta"] == {
+            "timestamp": {
+                "": {
+                    "err": [
+                        [
+                            error,
+                            {
+                                "sdk_time": time_within_delta(now + delta),
+                                "server_time": time_within_delta(now),
+                            },
+                        ]
+                    ]
+                }
+            },
+            "user": {"email": {"": {"rem": [["@email", "s", 0, 7]], "len": 13}}},
+        }

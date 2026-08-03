@@ -237,7 +237,7 @@ fn normalize_span(
     eap::time::normalize(
         span,
         utils::normalize::time_config(headers, |f| f.span.as_ref(), ctx),
-    );
+    )?;
 
     if let Some(span) = span.value_mut() {
         let duration = span_duration(span);
@@ -1039,7 +1039,8 @@ mod tests {
         let dsn = "https://a94ae32be2584e0bbd7a4cbb95971fee:@sentry.io/42"
             .parse()
             .unwrap();
-        let meta = RequestMeta::new(dsn);
+        let mut meta = RequestMeta::new(dsn);
+        meta.set_received_at(DateTime::from_timestamp(1715000010, 0).unwrap());
         let envelope = Envelope::from_request(Some(EventId::new()), meta);
         let headers = envelope.headers().to_owned();
 

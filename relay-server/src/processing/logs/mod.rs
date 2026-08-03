@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use relay_cogs::{AppFeature, FeatureWeights};
 use relay_event_normalization::eap::Ingress;
+use relay_event_normalization::eap::time::TimestampOutOfRange;
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{OurLog, ourlog};
 use relay_filter::FilterStatKey;
@@ -40,6 +41,8 @@ pub enum Error {
     /// Received log exceeds the configured size limit.
     #[error("log exeeds size limit")]
     TooLarge,
+    #[error(transparent)]
+    TimestampOutOfRange(#[from] TimestampOutOfRange),
     /// Logs filtered because of a missing feature flag.
     #[error("logs feature flag missing")]
     FilterFeatureFlag,
@@ -63,6 +66,7 @@ impl OutcomeError for Error {
     fn consume(self) -> (Option<Outcome>, Self::Error) {
         let outcome = match &self {
             Self::DuplicateItem => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
+            Self::TimestampOutOfRange(_) => Some(Outcome::Invalid(DiscardReason::Timestamp)),
             Self::TooLarge => Some(Outcome::Invalid(DiscardReason::ItemTooLarge(
                 DiscardItemType::Log,
             ))),
