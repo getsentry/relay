@@ -167,13 +167,15 @@ fn transform_response_to_output_messages<T: AttributesLike>(attributes: &mut T) 
         extract_text_parts(text, &mut parts);
     }
 
-    if let Some(ref raw) = tool_calls_raw {
-        extract_tool_call_parts(raw, &mut parts);
-    }
+    let tool_calls_parsed = tool_calls_raw
+        .as_deref()
+        .is_none_or(|raw| extract_tool_call_parts(raw, &mut parts));
 
-    // Always clean up deprecated keys.
+    // Clean up deprecated keys. Keep tool_calls if it couldn't be parsed.
     attributes.remove(GEN_AI__RESPONSE__TEXT);
-    attributes.remove(GEN_AI__RESPONSE__TOOL_CALLS);
+    if tool_calls_parsed {
+        attributes.remove(GEN_AI__RESPONSE__TOOL_CALLS);
+    }
 
     if parts.is_empty() {
         return;
@@ -222,9 +224,11 @@ fn extract_text_parts(raw: &str, parts: &mut Vec<serde_json::Value>) {
 }
 
 /// Extracts tool_call parts from a `gen_ai.response.tool_calls` value.
-fn extract_tool_call_parts(raw: &str, parts: &mut Vec<serde_json::Value>) {
+///
+/// Returns `true` if the value was successfully parsed.
+fn extract_tool_call_parts(raw: &str, parts: &mut Vec<serde_json::Value>) -> bool {
     let Ok(tool_calls) = serde_json::from_str::<Vec<ToolCall>>(raw) else {
-        return;
+        return false;
     };
     for tool_call in tool_calls {
         let mut fields = tool_call.fields;
@@ -234,6 +238,7 @@ fn extract_tool_call_parts(raw: &str, parts: &mut Vec<serde_json::Value>) {
         );
         parts.push(serde_json::Value::Object(fields));
     }
+    true
 }
 
 /// Gets a string attribute value as an owned String.
@@ -540,6 +545,20 @@ mod tests {
         fn no_response_attributes_is_noop() {
             let mut attrs = make_attributes(&[]);
             transform_gen_ai(&mut attrs);
+            assert!(get_string(&attrs, GEN_AI__OUTPUT__MESSAGES).is_none());
+        }
+
+        #[test]
+        fn non_json_tool_calls_preserved() {
+            let mut attrs = make_attributes(&[(GEN_AI__RESPONSE__TOOL_CALLS, "some_tool_calls")]);
+
+            transform_gen_ai(&mut attrs);
+
+            // Can't parse, so the deprecated key is kept and no output is created.
+            assert_eq!(
+                get_string(&attrs, GEN_AI__RESPONSE__TOOL_CALLS).unwrap(),
+                "some_tool_calls"
+            );
             assert!(get_string(&attrs, GEN_AI__OUTPUT__MESSAGES).is_none());
         }
     }

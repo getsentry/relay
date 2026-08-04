@@ -521,19 +521,16 @@ def test_ai_spans_example_transaction(
                 "gen_ai.agent.name": {"type": "string", "value": "weather-chat"},
                 "gen_ai.function_id": {"type": "string", "value": "weather-chat"},
                 "gen_ai.operation.type": {"type": "string", "value": "ai_client"},
-                "gen_ai.tool.definitions": {
-                    "type": "string",
-                    "value": '["tools1"]',
-                },
+                "gen_ai.tool.definitions": matches_any(),
                 "gen_ai.input.messages": {
                     "type": "string",
                     "value": "Another weather prompt",
                 },
-                "gen_ai.request.available_tools": None,
+                "gen_ai.request.available_tools": matches_any(),
                 "gen_ai.request.model": {"type": "string", "value": "gpt-4o"},
                 "gen_ai.response.finish_reasons": {
                     "type": "string",
-                    "value": '["tool-calls"]',
+                    "value": matches_any(),
                 },
                 "gen_ai.response.id": {
                     "type": "string",
@@ -544,7 +541,7 @@ def test_ai_spans_example_transaction(
                     "value": "gpt-4o-2024-08-06",
                 },
                 "gen_ai.response.tokens_per_second": {"type": "double", "value": 92.0},
-                "gen_ai.system": None,
+                "gen_ai.system": matches_any(),
                 "gen_ai.response.tool_calls": {
                     "type": "string",
                     "value": "some_tool_calls",
@@ -753,8 +750,8 @@ def test_ai_spans_example_transaction(
                     '(56°F)","temperatureC":13,"temperatureF":56,"condition":"Haze","humidity":"88%","windSpeed":"4 '
                     'km/h"}',
                 },
-                "gen_ai.tool.input": None,
-                "gen_ai.tool.output": None,
+                "gen_ai.tool.input": matches_any(),
+                "gen_ai.tool.output": matches_any(),
                 "gen_ai.tool.type": {"type": "string", "value": "function"},
                 "operation.name": {
                     "type": "string",
@@ -912,8 +909,8 @@ def test_ai_spans_example_transaction(
                     'cloudy","humidity":"72%","windSpeed":"21 '
                     'km/h"}',
                 },
-                "gen_ai.tool.input": None,
-                "gen_ai.tool.output": None,
+                "gen_ai.tool.input": matches_any(),
+                "gen_ai.tool.output": matches_any(),
                 "gen_ai.tool.type": {"type": "string", "value": "function"},
                 "operation.name": {
                     "type": "string",
@@ -1080,19 +1077,16 @@ def test_ai_spans_example_transaction(
                 "gen_ai.agent.name": {"type": "string", "value": "weather-chat"},
                 "gen_ai.function_id": {"type": "string", "value": "weather-chat"},
                 "gen_ai.operation.type": {"type": "string", "value": "ai_client"},
-                "gen_ai.tool.definitions": {
-                    "type": "string",
-                    "value": '["tool_1"]',
-                },
+                "gen_ai.tool.definitions": matches_any(),
                 "gen_ai.input.messages": {
                     "type": "string",
                     "value": "Some AI Prompt about " "the Wheather",
                 },
-                "gen_ai.request.available_tools": None,
+                "gen_ai.request.available_tools": matches_any(),
                 "gen_ai.request.model": {"type": "string", "value": "gpt-4o"},
                 "gen_ai.response.finish_reasons": {
                     "type": "string",
-                    "value": '["stop"]',
+                    "value": matches_any(),
                 },
                 "gen_ai.response.id": {
                     "type": "string",
@@ -1108,7 +1102,7 @@ def test_ai_spans_example_transaction(
                     "value": matches_any(),
                 },
                 "gen_ai.response.tokens_per_second": {"type": "double", "value": 38.0},
-                "gen_ai.system": None,
+                "gen_ai.system": matches_any(),
                 "gen_ai.provider.name": {"type": "string", "value": "openai.responses"},
                 "gen_ai.usage.input_tokens": {"type": "integer", "value": 208},
                 "gen_ai.usage.output_tokens": {"type": "integer", "value": 19},

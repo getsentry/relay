@@ -34,7 +34,6 @@ pub fn normalize_ai(
         return;
     }
 
-    crate::eap::gen_ai_transform::transform_gen_ai(attributes);
     normalize_model(attributes);
     normalize_ai_type(attributes);
     normalize_total_tokens(attributes);

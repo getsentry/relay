@@ -582,6 +582,8 @@ pub fn normalize_attribute_names(attributes: &mut Annotated<impl AttributesLike>
         return;
     };
 
+    gen_ai_transform::transform_gen_ai(attributes);
+
     normalize_attribute_names_inner(
         attributes.as_object_mut(),
         relay_conventions::attribute_info_with_fragment,
