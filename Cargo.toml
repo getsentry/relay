@@ -45,7 +45,6 @@ relay-cogs = { path = "relay-cogs" }
 relay-common = { path = "relay-common" }
 relay-config = { path = "relay-config" }
 relay-conventions = { path = "relay-conventions" }
-relay-crash = { path = "relay-crash" }
 relay-dynamic-config = { path = "relay-dynamic-config" }
 relay-event-derive = { path = "relay-event-derive" }
 relay-event-normalization = { path = "relay-event-normalization" }
@@ -90,13 +89,20 @@ android_trace_log = { version = "0.3", features = ["serde"] }
 # Keep it pinned until it's possible to disable backtrace.
 anyhow = "=1.0.69"
 arc-swap = "1"
-async-compression = { version = "0.4", features = ["tokio", "gzip", "brotli", "deflate", "zstd", "bzip2", "xz"] }
+async-compression = { version = "0.4", features = [
+    "brotli",
+    "bzip2",
+    "deflate",
+    "gzip",
+    "tokio",
+    "xz",
+    "zstd",
+] }
 async-trait = "0.1"
 axum = "0.8"
 axum-extra = "0.12"
 axum-server = "0.8"
 backon = { version = "1", default-features = false }
-bindgen = "0.72"
 brotli = "7"
 bytecount = "0.6"
 bytes = "1"
@@ -107,7 +113,6 @@ chrono = { version = "0.4", default-features = false, features = [
 ] }
 clap = "4"
 clap_complete = "4"
-cmake = "0.1"
 console = "0.15"
 cookie = "0.18"
 criterion = "0.5"
@@ -148,12 +153,14 @@ memchr = "2"
 mimalloc = { version = "0.1", features = ["v3"] }
 mime = "0.3"
 minidump = "0.26"
+minidumper-child = "0.4.1"
 multer = "3"
 metrics = "0.24"
 metrics-exporter-dogstatsd = "0.9"
 num-traits = "0.2"
 num_cpus = "1"
-objectstore-client = "0.1"
+objectstore-client = { version = "0.2.1", features = ["multipart"] }
+objectstore-types = { version = "0.2.0" }
 opentelemetry-semantic-conventions = "0.31"
 opentelemetry-proto = { version = "0.31", default-features = false }
 papaya = "0.2"
@@ -215,8 +222,8 @@ smallvec = { version = "1", features = ["serde"] }
 socket2 = "0.6"
 sqlparser = "0.62"
 sqlx = { version = "0.8", default-features = false }
-symbolic-common = { version = "12", default-features = false }
-symbolic-unreal = { version = "12", default-features = false }
+symbolic-common = { version = "14.0.0-alpha.2", default-features = false }
+symbolic-unreal = { version = "14.0.0-alpha.2", default-features = false }
 syn = "2"
 sync_wrapper = "1"
 synstructure = "0.13"

@@ -3,6 +3,8 @@ use std::sync::Arc;
 use either::Either;
 use relay_cogs::{AppFeature, FeatureWeights};
 use relay_event_normalization::GeoIpLookup;
+use relay_event_normalization::eap::Ingress;
+use relay_event_normalization::eap::time::TimestampOutOfRange;
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{SpanV2, span_v2};
 use relay_quotas::{DataCategory, RateLimits};
@@ -19,6 +21,7 @@ use crate::metrics_extraction::ExtractedMetrics;
 use crate::processing::trace_attachments::forward::attachment_to_item;
 use crate::processing::trace_attachments::process::ScrubAttachmentError;
 use crate::processing::trace_attachments::types::ExpandedAttachment;
+use crate::processing::utils::types::{Indexed, TotalAndIndexed, TotalCategory};
 use crate::processing::{self, Context, Forward, Output, QuotaRateLimiter, RateLimited};
 use crate::services::outcome::{DiscardReason, Outcome};
 
@@ -37,6 +40,8 @@ pub enum Error {
     /// Multiple item containers and mixed span items are not allowed to be in the same envelope.
     #[error("duplicate or mixed span items in the same envelope")]
     DuplicateItem,
+    #[error(transparent)]
+    TimestampOutOfRange(#[from] TimestampOutOfRange),
     /// Standalone spans filtered because of a missing feature flag.
     #[error("spans feature flag missing")]
     FilterFeatureFlag,
@@ -64,6 +69,7 @@ impl OutcomeError for Error {
     fn consume(self) -> (Option<Outcome>, Self::Error) {
         let outcome = match &self {
             Self::DuplicateItem => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
+            Self::TimestampOutOfRange(_) => Some(Outcome::Invalid(DiscardReason::Timestamp)),
             Self::FilterFeatureFlag => None,
             Self::MissingDynamicSamplingContext => Some(Outcome::Invalid(
                 DiscardReason::MissingDynamicSamplingContext,
@@ -274,6 +280,9 @@ impl Forward for SpanOutput {
             match either.transpose() {
                 Either::Left(span) => {
                     if let Ok(span) = span.try_map(|span, _| store::convert(span, &ctx)) {
+                        if let Some(metrics) = relay_spans::extract_web_vital_metrics(&span.item) {
+                            processing::trace_metrics::produce_webvitals_metrics(s, &span, metrics);
+                        }
                         s.send_to_store(span);
                     }
                 }
@@ -394,6 +403,9 @@ struct Settings {
     /// with the legacy pipeline. For V2 spans, we assume the SDK is already
     /// sending the correct values.
     clear_web_vital_segment_info: bool,
+    /// Normalize the segment name by scrubbing identifiers and applying rules
+    /// from the project config.
+    normalize_segment_name: bool,
 }
 
 /// Spans which have been parsed and expanded from their serialized state.
@@ -404,6 +416,12 @@ pub struct ExpandedSpans<C = TotalAndIndexed> {
 
     /// Server side applied (dynamic) sample rate.
     server_sample_rate: Option<f64>,
+
+    /// How the contained spans entered Relay.
+    ///
+    /// This is only for reporting purposes. If you want the pipeline
+    /// to behave differently based on where spans came from, use `settings`.
+    ingress: Option<Ingress>,
 
     /// Client/protocol supplied settings controlling how spans should be normalized.
     settings: Settings,
@@ -490,6 +508,7 @@ impl ExpandedSpans<TotalAndIndexed> {
         let Self {
             headers,
             server_sample_rate,
+            ingress,
             settings,
             spans,
             stand_alone_attachments,
@@ -499,6 +518,7 @@ impl ExpandedSpans<TotalAndIndexed> {
         ExpandedSpans {
             headers,
             server_sample_rate,
+            ingress,
             settings,
             spans,
             stand_alone_attachments,
@@ -513,6 +533,7 @@ impl ExpandedSpans<Indexed> {
         let Self {
             headers: _,
             server_sample_rate: _,
+            ingress: _,
             settings: _,
             spans,
             stand_alone_attachments,
@@ -529,23 +550,7 @@ impl ExpandedSpans<Indexed> {
     }
 }
 
-/// The total and indexed category.
-///
-/// This category tracks spans in the total and indexed data categories.
-/// Until a span has metrics extracted it owns both categories.
-#[derive(Copy, Clone, Debug)]
-pub struct TotalAndIndexed;
-
-/// The indexed category.
-///
-/// Once metric extraction happened, spans no longer track/represent the total category, this was
-/// transferred over to the metrics.
-///
-/// Every stored span, must have metrics extracted and transferred this ownership.
-#[derive(Copy, Clone, Debug)]
-pub struct Indexed;
-
-impl Counted for ExpandedSpans<TotalAndIndexed> {
+impl<C: TotalCategory> Counted for ExpandedSpans<C> {
     fn quantities(&self) -> Quantities {
         let ExpandedSpansQuantities {
             span,
@@ -555,30 +560,9 @@ impl Counted for ExpandedSpans<TotalAndIndexed> {
 
         let mut quantities = smallvec::smallvec![];
         if span > 0 {
-            quantities.push((DataCategory::Span, span));
-            quantities.push((DataCategory::SpanIndexed, span));
-        }
-        if attachment > 0 {
-            quantities.push((DataCategory::Attachment, attachment));
-        }
-        if attachment_item > 0 {
-            quantities.push((DataCategory::AttachmentItem, attachment_item));
-        }
-
-        quantities
-    }
-}
-
-impl Counted for ExpandedSpans<Indexed> {
-    fn quantities(&self) -> Quantities {
-        let ExpandedSpansQuantities {
-            span,
-            attachment,
-            attachment_item,
-        } = self.span_quantities();
-
-        let mut quantities = smallvec::smallvec![];
-        if span > 0 {
+            if C::HAS_TOTAL {
+                quantities.push((DataCategory::Span, span));
+            }
             quantities.push((DataCategory::SpanIndexed, span));
         }
         if attachment > 0 {

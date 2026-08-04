@@ -5,14 +5,12 @@ use relay_dynamic_config::{RetentionConfig, RetentionsConfig};
 use relay_system::{Addr, FromMessage};
 
 use crate::Envelope;
-#[cfg(feature = "processing")]
-use crate::managed::ManagedEnvelope;
 use crate::managed::{Managed, Rejected};
 #[cfg(feature = "processing")]
 use crate::services::objectstore::Objectstore;
 use crate::services::projects::project::ProjectInfo;
 #[cfg(feature = "processing")]
-use crate::services::store::Store;
+use crate::services::store::{Store, StoreEvent};
 
 /// A transparent handle that dispatches between store-like services.
 #[cfg(feature = "processing")]
@@ -37,6 +35,31 @@ impl<'a> StoreHandle<'a> {
         }
     }
 
+    /// Dispatches an event message to either the [`Objectstore`] or [`Store`] service.
+    pub fn send_event(&self, message: Managed<Box<StoreEvent>>) {
+        if message.attachments.is_empty() {
+            self.store.send(message);
+            return;
+        }
+
+        let Some(objectstore) = self.objectstore else {
+            self.store.send(message);
+            return;
+        };
+
+        let use_objectstore = crate::utils::sample(
+            self.global_config
+                .options
+                .objectstore_attachments_sample_rate,
+        )
+        .is_keep();
+
+        match use_objectstore {
+            true => objectstore.send(message),
+            false => self.store.send(message),
+        }
+    }
+
     /// Sends a message to the [`Store`] service.
     pub fn send_to_store<M>(&self, message: M)
     where
@@ -54,36 +77,6 @@ impl<'a> StoreHandle<'a> {
             objectstore.send(message);
         } else {
             relay_log::error!("Objectstore service not configured. Dropping message.");
-        }
-    }
-
-    /// Dispatches an envelopes to either the [`Objectstore`] or [`Store`] service.
-    pub fn send_envelope(&self, envelope: ManagedEnvelope) {
-        use crate::services::store::StoreEnvelope;
-
-        let Some(objectstore) = self.objectstore else {
-            self.store.send(StoreEnvelope { envelope });
-            return;
-        };
-
-        let has_attachments = envelope
-            .envelope()
-            .items()
-            .any(|item| item.ty() == &crate::envelope::ItemType::Attachment);
-
-        let use_objectstore = || {
-            crate::utils::sample(
-                self.global_config
-                    .options
-                    .objectstore_attachments_sample_rate,
-            )
-            .is_keep()
-        };
-
-        if has_attachments && use_objectstore() {
-            objectstore.send(StoreEnvelope { envelope })
-        } else {
-            self.store.send(StoreEnvelope { envelope });
         }
     }
 }

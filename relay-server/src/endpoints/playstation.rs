@@ -113,6 +113,7 @@ async fn upload_context<'a>(
             project: ProjectContext {
                 scoping,
                 upstream: project_config.upstream.clone(),
+                retention: project_config.event_retention(),
             },
             inline_limit: global_config.options.attachment_inline_limit,
         })),

@@ -80,9 +80,9 @@ impl ContentType {
     fn from_str(ct: &str) -> Option<Self> {
         if ct.eq_ignore_ascii_case(Self::Text.as_str()) {
             Some(Self::Text)
-        } else if ct.eq_ignore_ascii_case(Self::Json.as_str()) {
+        } else if match_content_type_and_charset(ct, Self::Json.as_str(), "utf-8") {
             Some(Self::Json)
-        } else if ct.eq_ignore_ascii_case(Self::NdJson.as_str()) {
+        } else if match_content_type_and_charset(ct, Self::NdJson.as_str(), "utf-8") {
             Some(Self::NdJson)
         } else if ct.eq_ignore_ascii_case(Self::MsgPack.as_str()) {
             Some(Self::MsgPack)
@@ -90,8 +90,8 @@ impl ContentType {
             Some(Self::OctetStream)
         } else if ct.eq_ignore_ascii_case(Self::Minidump.as_str()) {
             Some(Self::Minidump)
-        } else if ct.eq_ignore_ascii_case(Self::Xml.as_str())
-            || ct.eq_ignore_ascii_case("application/xml")
+        } else if match_content_type_and_charset(ct, Self::Xml.as_str(), "utf-8")
+            || match_content_type_and_charset(ct, "application/xml", "utf-8")
         {
             Some(Self::Xml)
         } else if ct.eq_ignore_ascii_case(Self::Envelope.as_str()) {
@@ -124,6 +124,39 @@ impl fmt::Display for ContentType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
     }
+}
+
+/// Matches a `Content-Type` header value against an expected media type per RFC 9110.
+///
+/// Returns `true` if the media type equals `expected` and the only parameter is
+/// the allowed `charset`. Any other parameter is not allowed.
+fn match_content_type_and_charset(ct: &str, expected: &str, charset: &str) -> bool {
+    // RFC whitespace characters.
+    const OWS: [char; 2] = [' ', '\t'];
+
+    let mut segments = ct.split(';');
+
+    let media_type = segments.next().unwrap_or_default();
+    if !media_type.trim_matches(OWS).eq_ignore_ascii_case(expected) {
+        return false;
+    }
+
+    segments.all(|parameter| {
+        let parameter = parameter.trim_matches(OWS);
+        if parameter.is_empty() {
+            return true;
+        }
+
+        let Some((name, value)) = parameter.split_once('=') else {
+            return false;
+        };
+        let value = value
+            .strip_prefix('"')
+            .and_then(|v| v.strip_suffix('"'))
+            .unwrap_or(value);
+
+        name.eq_ignore_ascii_case("charset") && value.eq_ignore_ascii_case(charset)
+    })
 }
 
 impl From<Integration> for ContentType {
@@ -202,7 +235,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn attachment_ref_roundtrip() {
+    fn test_attachment_ref_roundtrip() {
         let canonical_name = "application/vnd.sentry.attachment-ref+json";
         let ct = ContentType::from_str(canonical_name).unwrap();
         assert_eq!(ct, ContentType::AttachmentRef);
@@ -211,5 +244,41 @@ mod tests {
         let legacy_alias = "application/vnd.sentry.attachment-ref";
         let ct = ContentType::from_str(legacy_alias).unwrap();
         assert_eq!(ct, ContentType::AttachmentRef);
+    }
+
+    #[test]
+    fn test_json_charset_parameter() {
+        for accepted in [
+            "application/json",
+            "application/json; charset=utf-8",
+            "application/json;charset=utf-8",
+            "application/json ;  charset=UTF-8",
+            "application/json;\tcharset=\"utf-8\"",
+            "APPLICATION/JSON; CHARSET=utf-8;",
+        ] {
+            assert_eq!(ContentType::from_str(accepted), Some(ContentType::Json));
+        }
+
+        for rejected in [
+            "application/json; charset=utf-16",
+            "application/json; charset",
+            "application/json; version=1",
+            "application/json2; charset=utf-8",
+            "application/ json; charset=utf-8",
+        ] {
+            assert_eq!(ContentType::from_str(rejected), None);
+        }
+    }
+
+    #[test]
+    fn test_xml_charset_parameter() {
+        for accepted in [
+            "text/xml",
+            "application/xml",
+            "text/xml; charset=utf-8",
+            "application/xml; charset=utf-8",
+        ] {
+            assert_eq!(ContentType::from_str(accepted), Some(ContentType::Xml));
+        }
     }
 }

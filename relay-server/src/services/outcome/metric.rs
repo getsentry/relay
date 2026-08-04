@@ -376,7 +376,13 @@ mod tests {
     #[test]
     fn test_to_client_report() {
         let mut buckets = vec![
-            bucket("c:custom/foo@none", 123, None, Some(DataCategory::Error), 7),
+            bucket(
+                "c:transactions/foo@none",
+                123,
+                None,
+                Some(DataCategory::Error),
+                7,
+            ),
             bucket(
                 FILTERED_MRI,
                 123,
@@ -418,7 +424,7 @@ mod tests {
         let reports = extract_client_reports(&mut buckets).collect::<Vec<_>>();
 
         assert_eq!(buckets.len(), 1);
-        assert_eq!(buckets[0].name.as_ref(), "c:custom/foo@none");
+        assert_eq!(buckets[0].name.as_ref(), "c:transactions/foo@none");
 
         insta::assert_json_snapshot!(reports, @r#"
         [

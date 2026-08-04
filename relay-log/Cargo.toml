@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Error reporting and logging for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "26.6.0"
+version = "26.7.2"
 edition = "2024"
 license-file = "../LICENSE.md"
 publish = false
@@ -13,10 +13,18 @@ build = "build.rs"
 [lints]
 workspace = true
 
+[features]
+default = []
+test = ["dep:tracing-subscriber"]
+init = ["dep:console", "dep:sentry", "dep:serde", "dep:tracing-subscriber"]
+crash-handler = ["init", "dep:minidumper-child"]
+sentry = ["dep:sentry"]
+
 [dependencies]
-console = { workspace = true, optional = true }
 relay-common = { workspace = true }
-relay-crash = { workspace = true, optional = true }
+
+console = { workspace = true, optional = true }
+minidumper-child = { workspace = true, optional = true }
 sentry = { workspace = true, features = [
     "debug-images",
     "tracing",
@@ -30,10 +38,3 @@ tracing-subscriber = { workspace = true, features = [
     "json",
     "time",
 ], optional = true }
-
-[features]
-default = []
-test = ["dep:tracing-subscriber"]
-init = ["dep:console", "dep:sentry", "dep:serde", "dep:tracing-subscriber"]
-crash-handler = ["init", "dep:relay-crash"]
-sentry = ["dep:sentry"]

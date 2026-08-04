@@ -28,7 +28,7 @@ use crate::services::upload::{Create, ProjectContext, Stream, Upload};
 use crate::statsd::{RelayCounters, RelayDistributions};
 use crate::utils::{
     self, ApiErrorResponse, BoundedStream, FormDataIter, MeteredStream, find_error_source,
-    is_length_limit_error,
+    is_length_limit_error, rmp,
 };
 
 #[derive(Clone, Copy, Debug, thiserror::Error)]
@@ -80,9 +80,6 @@ pub enum BadStoreRequest {
 
     #[error("missing minidump")]
     MissingMinidump,
-
-    #[error("invalid unreal crash report")]
-    InvalidUnrealReport,
 
     #[cfg(sentry)]
     #[error("invalid prosperodump")]
@@ -136,7 +133,6 @@ impl BadStoreRequest {
             Self::InvalidMultipart(_) => DiscardReason::InvalidMultipart,
             Self::InvalidMinidump => DiscardReason::InvalidMinidump,
             Self::MissingMinidump => DiscardReason::MissingMinidump,
-            Self::InvalidUnrealReport => DiscardReason::InvalidUnrealReport,
             #[cfg(sentry)]
             Self::InvalidProsperodump => DiscardReason::InvalidProsperodump,
             #[cfg(sentry)]
@@ -292,7 +288,8 @@ pub fn event_id_from_json(data: &[u8]) -> Result<Option<EventId>, BadStoreReques
 /// the provided is valid and returns an `Err` on parse errors. If the event id itself is malformed,
 /// an `Err` is returned.
 pub fn event_id_from_msgpack(data: &[u8]) -> Result<Option<EventId>, BadStoreRequest> {
-    rmp_serde::from_slice(data)
+    let mut deserializer = rmp::slice_deserializer(data);
+    MinimalEvent::deserialize(&mut deserializer)
         .map(|MinimalEvent { id, .. }| id)
         .map_err(BadStoreRequest::InvalidMsgpack)
 }
@@ -599,6 +596,7 @@ where
             project: project.clone(),
             length: None,
             attachment_type: item.attachment_type(),
+            multipart: false,
         })
         .await
         .ok()?

@@ -419,7 +419,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "postgresql",
+                        "db.system.name": "postgresql",
                         "db.operation": "SELECT"
                     }
                 },
@@ -443,7 +443,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "postgresql",
+                        "db.system.name": "postgresql",
                         "db.operation": "INSERT"
                     }
                 },
@@ -457,7 +457,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "postgresql",
+                        "db.system.name": "postgresql",
                         "db.operation": "INSERT"
                     }
                 },
@@ -481,7 +481,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "postgresql",
+                        "db.system.name": "postgresql",
                         "db.operation": "SELECT"
                     }
                 },
@@ -495,7 +495,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "postgresql",
+                        "db.system.name": "postgresql",
                         "db.operation": "SELECT"
                     }
                 },
@@ -509,7 +509,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "MyDatabase"
+                        "db.system.name": "MyDatabase"
                     }
                 },
                 {
@@ -522,7 +522,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "MyDatabase"
+                        "db.system.name": "MyDatabase"
                     }
                 },
                 {
@@ -535,7 +535,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "MyDatabase"
+                        "db.system.name": "MyDatabase"
                     }
                 },
                 {
@@ -619,7 +619,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "mongodb",
+                        "db.system.name": "mongodb",
                         "db.operation": "count"
                     }
                 },
@@ -633,7 +633,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "MyDatabase"
+                        "db.system.name": "MyDatabase"
                     }
                 },
                 {
@@ -657,7 +657,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "MyDatabase"
+                        "db.system.name": "MyDatabase"
                     }
                 },
                 {
@@ -670,7 +670,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "redis"
+                        "db.system.name": "redis"
                     }
                 },
                 {
@@ -911,7 +911,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "postgresql",
+                        "db.system.name": "postgresql",
                         "db.operation": "SELECT"
                     }
                 },
@@ -935,7 +935,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "postgresql",
+                        "db.system.name": "postgresql",
                         "db.operation": "INSERT"
                     }
                 },
@@ -949,7 +949,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "postgresql",
+                        "db.system.name": "postgresql",
                         "db.operation": "INSERT"
                     }
                 },
@@ -973,7 +973,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "postgresql",
+                        "db.system.name": "postgresql",
                         "db.operation": "SELECT"
                     }
                 },
@@ -987,7 +987,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "postgresql",
+                        "db.system.name": "postgresql",
                         "db.operation": "SELECT"
                     }
                 },
@@ -1001,7 +1001,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "MyDatabase"
+                        "db.system.name": "MyDatabase"
                     }
                 },
                 {
@@ -1014,7 +1014,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "MyDatabase"
+                        "db.system.name": "MyDatabase"
                     }
                 },
                 {
@@ -1027,7 +1027,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "MyDatabase"
+                        "db.system.name": "MyDatabase"
                     }
                 },
                 {

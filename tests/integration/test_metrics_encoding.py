@@ -69,43 +69,37 @@ def test_metric_bucket_encoding_legacy(
     assert metrics["s:spans/bar@none"]["value"] == [42.0]
 
 
-@pytest.mark.parametrize("namespace", [None, "spans", "custom"])
+@pytest.mark.parametrize("namespace", ["spans", "transactions"])
 @pytest.mark.parametrize("ty", ["set", "distribution"])
 def test_metric_bucket_encoding_dynamic_global_config_option(
     mini_sentry, relay_with_processing, metrics_consumer, namespace, ty
 ):
-    if namespace is not None:
-        mini_sentry.global_config["options"][f"relay.metric-bucket-{ty}-encodings"] = {
-            namespace: "array"
-        }
+    mini_sentry.global_config["options"][f"relay.metric-bucket-{ty}-encodings"] = {
+        namespace: "array"
+    }
 
     metrics_consumer = metrics_consumer()
     relay = relay_with_processing(options=TEST_CONFIG)
 
     project_id = 42
-    project_config = mini_sentry.add_basic_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:custom-metrics",
-    ]
+    mini_sentry.add_basic_project_config(project_id)
 
-    metrics_payload = (
-        f"{namespace or 'custom'}/foo:1337|d\n{namespace or 'custom'}/bar:42|s"
-    )
+    metrics_payload = f"{namespace}/foo:1337|d\n{namespace}/bar:42|s"
     relay.send_metrics(project_id, metrics_payload)
 
     metrics = metrics_by_name(metrics_consumer, 2)
 
-    dname = f"d:{namespace or 'custom'}/foo@none"
-    sname = f"s:{namespace or 'custom'}/bar@none"
+    dname = f"d:{namespace}/foo@none"
+    sname = f"s:{namespace}/bar@none"
     assert dname in metrics
     assert sname in metrics
 
-    if namespace is not None and ty == "distribution":
+    if ty == "distribution":
         assert metrics[dname]["value"] == {"format": "array", "data": [1337.0]}
     else:
         assert metrics[dname]["value"] == [1337.0]
 
-    if namespace is not None and ty == "set":
+    if ty == "set":
         assert metrics[sname]["value"] == {"format": "array", "data": [42.0]}
     else:
         assert metrics[sname]["value"] == [42.0]

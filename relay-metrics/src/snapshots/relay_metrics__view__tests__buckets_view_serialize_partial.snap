@@ -7,7 +7,7 @@ expression: partials
     {
       "timestamp": 5000,
       "width": 0,
-      "name": "c:custom/b1@none",
+      "name": "c:spans/b1@none",
       "type": "c",
       "value": 12.0,
       "tags": {
@@ -18,7 +18,7 @@ expression: partials
     {
       "timestamp": 5000,
       "width": 0,
-      "name": "d:custom/b2@none",
+      "name": "d:spans/b2@none",
       "type": "d",
       "value": [
         1.0,
@@ -34,7 +34,7 @@ expression: partials
     {
       "timestamp": 5000,
       "width": 0,
-      "name": "d:custom/b2@none",
+      "name": "d:spans/b2@none",
       "type": "d",
       "value": [
         3.0,
@@ -49,7 +49,7 @@ expression: partials
     {
       "timestamp": 5000,
       "width": 0,
-      "name": "s:custom/b3@none",
+      "name": "s:spans/b3@none",
       "type": "s",
       "value": [
         42
@@ -60,18 +60,16 @@ expression: partials
     {
       "timestamp": 5000,
       "width": 0,
-      "name": "s:custom/b3@none",
+      "name": "s:spans/b3@none",
       "type": "s",
       "value": [
         75
       ]
-    }
-  ],
-  [
+    },
     {
       "timestamp": 5000,
       "width": 0,
-      "name": "g:custom/b4@none",
+      "name": "g:spans/b4@none",
       "type": "g",
       "value": {
         "last": 25.0,

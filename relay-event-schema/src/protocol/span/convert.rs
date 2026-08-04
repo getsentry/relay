@@ -1,5 +1,11 @@
 //! This module defines bidirectional field mappings between spans and transactions.
 
+use relay_conventions::attributes::{
+    BROWSER__NAME, HTTP__QUERY, SENTRY__ENVIRONMENT, SENTRY__RELEASE, SENTRY__SDK__NAME,
+    SENTRY__SDK__VERSION, SENTRY__SEGMENT__NAME, URL__QUERY,
+};
+use relay_protocol::IntoValue;
+
 use crate::protocol::{BrowserContext, Event, ProfileContext, Span, SpanData, TraceContext};
 
 impl From<&Event> for Span {
@@ -29,24 +35,45 @@ impl From<&Event> for Span {
 
         // Overwrite specific fields:
         let span_data = data.get_or_insert_with(Default::default);
-        span_data.segment_name = transaction.clone();
+        span_data.insert(
+            SENTRY__SEGMENT__NAME,
+            transaction.clone().map_value(IntoValue::into_value),
+        );
         // For root spans, the name should just be the transaction name.
-        span_data.span_name = transaction.clone();
-        span_data.release = release.clone();
-        span_data.environment = environment.clone();
+        span_data.insert(
+            "sentry.name",
+            transaction.clone().map_value(IntoValue::into_value),
+        );
+        span_data.insert(
+            SENTRY__RELEASE,
+            release.clone().map_value(IntoValue::into_value),
+        );
+        span_data.insert(
+            SENTRY__ENVIRONMENT,
+            environment.clone().map_value(IntoValue::into_value),
+        );
         if let Some(browser) = event.context::<BrowserContext>() {
-            span_data.browser_name = browser.name.clone();
+            span_data.insert(
+                BROWSER__NAME,
+                browser.name.clone().map_value(IntoValue::into_value),
+            );
         }
         if let Some(client_sdk) = event.client_sdk.value() {
-            span_data.sdk_name = client_sdk.name.clone();
-            span_data.sdk_version = client_sdk.version.clone();
+            span_data.insert(
+                SENTRY__SDK__NAME,
+                client_sdk.name.clone().map_value(IntoValue::into_value),
+            );
+            span_data.insert(
+                SENTRY__SDK__VERSION,
+                client_sdk.version.clone().map_value(IntoValue::into_value),
+            );
         }
         if let Some(request) = event.request.value()
             && let Some(query) = request.query_string.value()
             && let Some(qs) = query.to_query_string()
         {
-            span_data.http_query = format!("?{qs}").into();
-            span_data.url_query = qs.into();
+            span_data.insert_value(HTTP__QUERY, format!("?{qs}"));
+            span_data.insert_value(URL__QUERY, qs);
         }
 
         Self {
@@ -166,105 +193,36 @@ mod tests {
                 a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab,
             ),
             data: SpanData {
-                app_start_type: ~,
-                gen_ai_pipeline_name: ~,
-                gen_ai_usage_total_tokens: ~,
-                gen_ai_usage_input_tokens: ~,
-                gen_ai_usage_input_tokens_cached: ~,
-                gen_ai_usage_input_tokens_cache_write: ~,
-                gen_ai_usage_output_tokens: ~,
-                gen_ai_usage_output_tokens_reasoning: ~,
-                gen_ai_response_model: ~,
-                gen_ai_request_model: ~,
-                gen_ai_context_window_size: ~,
-                gen_ai_context_utilization: ~,
-                gen_ai_cost_total_tokens: ~,
-                gen_ai_cost_input_tokens: ~,
-                gen_ai_cost_output_tokens: ~,
-                gen_ai_input_messages: ~,
-                gen_ai_tool_call_arguments: ~,
-                gen_ai_tool_call_result: ~,
-                gen_ai_output_messages: ~,
-                gen_ai_response_streaming: ~,
-                gen_ai_response_tokens_per_second: ~,
-                gen_ai_tool_definitions: ~,
-                gen_ai_request_frequency_penalty: ~,
-                gen_ai_request_presence_penalty: ~,
-                gen_ai_request_seed: ~,
-                gen_ai_request_temperature: ~,
-                gen_ai_request_top_k: ~,
-                gen_ai_request_top_p: ~,
-                gen_ai_response_finish_reasons: ~,
-                gen_ai_response_id: ~,
-                gen_ai_provider_name: ~,
-                gen_ai_system_instructions: ~,
-                gen_ai_tool_name: ~,
-                gen_ai_operation_name: ~,
-                gen_ai_operation_type: ~,
-                gen_ai_agent_name: ~,
-                gen_ai_function_id: ~,
-                browser_name: "Chrome",
-                db_operation: ~,
-                db_system: ~,
-                db_collection_name: ~,
-                environment: "prod",
-                release: LenientString(
-                    "myapp@1.0.0",
-                ),
-                http_decoded_response_content_length: ~,
-                http_request_method: ~,
-                http_response_content_length: ~,
-                http_response_transfer_size: ~,
-                resource_render_blocking_status: ~,
-                server_address: ~,
-                cache_hit: ~,
-                cache_key: ~,
-                cache_item_size: ~,
-                http_response_status_code: ~,
-                thread_name: ~,
-                thread_id: ~,
-                segment_name: "my 1st transaction",
-                ui_component_name: ~,
-                url_scheme: ~,
-                user: ~,
-                user_geo_country_code: ~,
-                user_geo_city: ~,
-                user_geo_subdivision: ~,
-                user_geo_region: ~,
-                exclusive_time: ~,
-                profile_id: ~,
-                replay_id: ~,
-                sdk_name: "sentry.php",
-                sdk_version: "1.2.3",
-                frames_slow: ~,
-                frames_frozen: ~,
-                frames_total: ~,
-                frames_delay: ~,
-                messaging_destination_name: ~,
-                messaging_message_retry_count: ~,
-                messaging_message_receive_latency: ~,
-                messaging_message_body_size: ~,
-                messaging_message_id: ~,
-                messaging_operation_name: ~,
-                messaging_operation_type: ~,
-                user_agent_original: ~,
-                url_full: ~,
-                url_query: "project=1&sort=date",
-                http_query: "?project=1&sort=date",
-                client_address: ~,
-                route: ~,
-                previous_route: ~,
-                lcp_element: ~,
-                lcp_size: ~,
-                lcp_id: ~,
-                lcp_url: ~,
-                sentry_dsc_trace_id: ~,
-                sentry_dsc_transaction: ~,
-                sentry_dsc_project_id: ~,
-                span_name: "my 1st transaction",
                 other: {
+                    "browser.name": String(
+                        "Chrome",
+                    ),
                     "custom_attribute": I64(
                         42,
+                    ),
+                    "http.query": String(
+                        "?project=1&sort=date",
+                    ),
+                    "sentry.environment": String(
+                        "prod",
+                    ),
+                    "sentry.name": String(
+                        "my 1st transaction",
+                    ),
+                    "sentry.release": String(
+                        "myapp@1.0.0",
+                    ),
+                    "sentry.sdk.name": String(
+                        "sentry.php",
+                    ),
+                    "sentry.sdk.version": String(
+                        "1.2.3",
+                    ),
+                    "sentry.segment.name": String(
+                        "my 1st transaction",
+                    ),
+                    "url.query": String(
+                        "project=1&sort=date",
                     ),
                 },
             },

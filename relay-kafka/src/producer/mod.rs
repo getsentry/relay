@@ -44,7 +44,7 @@ pub enum ClientError {
     InvalidTopicName,
 
     /// Failed to create a kafka producer because of the invalid configuration.
-    #[error("failed to create kafka producer: invalid kafka config")]
+    #[error("failed to create kafka producer: invalid kafka config: {0}")]
     InvalidConfig(#[source] rdkafka::error::KafkaError),
 
     /// Failed to serialize the message.

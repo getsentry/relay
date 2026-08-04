@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use relay_dynamic_config::{RetentionConfig, RetentionsConfig};
 use relay_event_normalization::eap;
+use relay_event_normalization::eap::time::TimeEnforcement;
 
 use crate::envelope::EnvelopeHeaders;
 use crate::processing::Context;
@@ -16,15 +17,16 @@ where
         apply_sequence_shift: ctx.is_processing(),
         received_at: headers.meta().received_at(),
         sent_at: headers.sent_at(),
-        max_in_past: Some(retention_days_to_duration(
+        max_in_past: Some(TimeEnforcement::Reject(retention_days_to_duration(
             ctx.to_forward().retention(f).standard,
-        )),
+        ))),
         max_in_future: ctx
             .config
             .max_secs_in_future()
             .try_into()
             .ok()
-            .map(Duration::from_secs),
+            .map(Duration::from_secs)
+            .map(TimeEnforcement::Shift),
         minimum_clock_drift: MINIMUM_CLOCK_DRIFT,
     }
 }

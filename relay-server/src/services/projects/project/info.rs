@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use url::Url;
 
+use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
 use crate::services::outcome::DiscardReason;
@@ -313,6 +314,15 @@ impl ProjectInfo {
     /// Returns `true` if the given feature is enabled for this project.
     pub fn has_feature(&self, feature: Feature) -> bool {
         self.config.features.has(feature)
+    }
+
+    /// Returns the event retention (in days) if configured else [`DEFAULT_EVENT_RETENTION`].
+    ///
+    /// This is also used for attachments.
+    pub fn event_retention(&self) -> u16 {
+        self.config
+            .event_retention
+            .unwrap_or(DEFAULT_EVENT_RETENTION)
     }
 }
 

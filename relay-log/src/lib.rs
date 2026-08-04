@@ -113,6 +113,8 @@
 #![allow(clippy::derive_partial_eq_without_eq)]
 
 #[cfg(feature = "init")]
+mod crash;
+#[cfg(feature = "init")]
 mod setup;
 #[cfg(feature = "init")]
 pub use setup::*;

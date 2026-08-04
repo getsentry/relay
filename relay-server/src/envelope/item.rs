@@ -105,29 +105,27 @@ impl Item {
         match self.ty() {
             ItemType::Event => smallvec![(DataCategory::Error, item_count)],
             ItemType::Transaction => {
-                let mut quantities = smallvec![
+                smallvec![
                     (DataCategory::Transaction, item_count),
                     (DataCategory::TransactionIndexed, item_count),
-                ];
-                if !self.spans_extracted() {
-                    quantities.extend([
-                        (DataCategory::Span, item_count + self.span_count() as usize),
-                        (
-                            DataCategory::SpanIndexed,
-                            item_count + self.span_count() as usize,
-                        ),
-                    ]);
-                }
-                quantities
+                    (DataCategory::Span, item_count + self.span_count() as usize),
+                    (
+                        DataCategory::SpanIndexed,
+                        item_count + self.span_count() as usize,
+                    ),
+                ]
             }
             ItemType::Security | ItemType::RawSecurity => {
                 smallvec![(DataCategory::Security, item_count)]
             }
             ItemType::UnrealReport => smallvec![(DataCategory::Error, item_count)],
-            ItemType::Attachment => smallvec![
-                (DataCategory::Attachment, self.attachment_body_size()),
-                (DataCategory::AttachmentItem, item_count),
-            ],
+            ItemType::Attachment => match self.rate_limited() {
+                true => smallvec![],
+                false => smallvec![
+                    (DataCategory::Attachment, self.attachment_body_size()),
+                    (DataCategory::AttachmentItem, item_count),
+                ],
+            },
             ItemType::Session | ItemType::Sessions => {
                 smallvec![(DataCategory::Session, item_count)]
             }
@@ -415,32 +413,6 @@ impl Item {
         self.headers.source_quantities = Some(source_quantities);
     }
 
-    /// Returns the metrics extracted flag.
-    pub fn metrics_extracted(&self) -> bool {
-        self.headers
-            .get(ItemHeaderKey::MetricsExtracted)
-            .unwrap_or_default()
-    }
-
-    /// Sets the metrics extracted flag.
-    pub fn set_metrics_extracted(&mut self, metrics_extracted: bool) {
-        self.headers
-            .set(ItemHeaderKey::MetricsExtracted, metrics_extracted);
-    }
-
-    /// Returns the spans extracted flag.
-    pub fn spans_extracted(&self) -> bool {
-        self.headers
-            .get(ItemHeaderKey::SpansExtracted)
-            .unwrap_or_default()
-    }
-
-    /// Sets the spans extracted flag.
-    pub fn set_spans_extracted(&mut self, spans_extracted: bool) {
-        self.headers
-            .set(ItemHeaderKey::SpansExtracted, spans_extracted);
-    }
-
     /// Returns the fully normalized flag.
     pub fn fully_normalized(&self) -> bool {
         self.headers
@@ -566,18 +538,6 @@ impl Item {
             && self.content_type() == Some(ContentType::AttachmentRef)
     }
 
-    /// Returns `true` if this item was extracted from an Unreal report.
-    pub fn is_unreal_expanded(&self) -> bool {
-        self.headers
-            .get(ItemHeaderKey::UnrealExpanded)
-            .unwrap_or(false)
-    }
-
-    /// Marks this item as having been extracted from an Unreal report.
-    pub fn set_unreal_expanded(&mut self, expanded: bool) {
-        self.headers.set(ItemHeaderKey::UnrealExpanded, expanded);
-    }
-
     /// Returns the [`AttachmentParentType`] of an attachment.
     ///
     /// For standard attachments (V1) always returns [`AttachmentParentType::Event`].
@@ -659,13 +619,15 @@ impl Item {
                         | AttachmentType::EventPayload
                         | AttachmentType::Prosperodump
                         | AttachmentType::Breadcrumbs
-                        | AttachmentType::NintendoSwitchDyingMessage,
+                        | AttachmentType::NintendoSwitchDyingMessage
+                        | AttachmentType::NvGpuDump,
                     ) => true,
                     Some(
                         AttachmentType::Attachment
                         | AttachmentType::UnrealContext
                         | AttachmentType::UnrealLogs
-                        | AttachmentType::ViewHierarchy,
+                        | AttachmentType::ViewHierarchy
+                        | AttachmentType::NvShaderDebug,
                     ) => false,
                     // When an outdated Relay instance forwards an unknown attachment type for compatibility,
                     // we assume that the attachment does not create a new event. This will make it hard
@@ -761,7 +723,7 @@ impl Item {
             spans: crate::utils::SeqCount,
         }
 
-        if self.headers.ty != ItemType::Transaction || self.spans_extracted() {
+        if self.headers.ty != ItemType::Transaction {
             return None;
         }
 
@@ -1034,21 +996,6 @@ pub enum ItemHeaderKey {
     /// This is currently considered optional for profile chunks, but may change
     /// to required in the future.
     Platform,
-    /// Flag indicating if metrics have already been extracted from the item.
-    ///
-    /// In order to only extract metrics once from an item while through a
-    /// chain of Relays, a Relay that extracts metrics from an item (typically
-    /// the first Relay) MUST set this flat to true so that upstream Relays do
-    /// not extract the metric again causing double counting of the metric.
-    MetricsExtracted,
-    /// Whether or not spans and span metrics have been extracted from a transaction.
-    ///
-    /// This header is set to `true` after both span extraction and span metrics extraction,
-    /// and can be used to skip extraction.
-    ///
-    /// NOTE: This header is also set to `true` for transactions that are themselves extracted
-    /// from spans (the opposite direction), to prevent going in circles.
-    SpansExtracted,
     /// The number of spans in the `event.spans` array.
     ///
     /// Should never be set except for transaction items.
@@ -1088,8 +1035,6 @@ pub enum ItemHeaderKey {
     SentryRelease,
     /// The Sentry environment stored in a header.
     SentryEnvironment,
-    /// Whether this item was expanded from an Unreal crash report.
-    UnrealExpanded,
 }
 
 /// The value of an item header.

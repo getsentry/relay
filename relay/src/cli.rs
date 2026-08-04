@@ -53,6 +53,9 @@ pub fn execute() -> Result<()> {
     // override file config with environment variables
     let env_config = extract_config_env_vars();
     config.apply_override(env_config)?;
+    // override config with global command line arguments
+    let global_config = extract_global_config_args(&matches);
+    config.apply_override(global_config)?;
 
     // SAFETY: The function cannot be called from a multi threaded environment,
     // this is the main entry point where no other threads have been spawned yet.
@@ -76,7 +79,16 @@ pub fn execute() -> Result<()> {
     }
 }
 
-/// Extract config arguments from a parsed command line arguments object
+/// Extract config arguments from the global command line arguments.
+pub fn extract_global_config_args(matches: &ArgMatches) -> OverridableConfig {
+    OverridableConfig {
+        log_level: matches.get_one("log_level").cloned(),
+        log_format: matches.get_one("log_format").cloned(),
+        ..Default::default()
+    }
+}
+
+/// Extract config arguments from a parsed command line arguments object.
 pub fn extract_config_args(matches: &ArgMatches) -> OverridableConfig {
     let processing = if matches.get_flag("processing") {
         Some("true".to_owned())
@@ -88,8 +100,8 @@ pub fn extract_config_args(matches: &ArgMatches) -> OverridableConfig {
 
     OverridableConfig {
         mode: matches.get_one("mode").cloned(),
-        log_level: matches.get_one("log_level").cloned(),
-        log_format: matches.get_one("log_format").cloned(),
+        log_level: None,
+        log_format: None,
         upstream: matches.get_one("upstream").cloned(),
         upstream_dsn: matches.get_one("upstream_dsn").cloned(),
         host: matches.get_one("host").cloned(),

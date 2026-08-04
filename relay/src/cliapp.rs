@@ -26,6 +26,20 @@ pub fn make_app() -> Command {
                 .value_parser(ValueParser::path_buf())
                 .help("The path to the config folder."),
         )
+        .arg(
+            Arg::new("log_level")
+                .long("log-level")
+                .global(true)
+                .help("The relay log level")
+                .value_parser(["info", "warn", "error", "debug", "trace"]),
+        )
+        .arg(
+            Arg::new("log_format")
+                .long("log-format")
+                .global(true)
+                .help("The relay log format")
+                .value_parser(["auto", "pretty", "simplified", "json"]),
+        )
         .subcommand(
             Command::new("run")
                 .about("Run the relay")
@@ -38,18 +52,6 @@ pub fn make_app() -> Command {
                         .long("mode")
                         .help("The relay mode to set")
                         .value_parser(["managed", "proxy", "static"]),
-                )
-                .arg(
-                    Arg::new("log_level")
-                        .long("log-level")
-                        .help("The relay log level")
-                        .value_parser(["info", "warn", "error", "debug", "trace"]),
-                )
-                .arg(
-                    Arg::new("log_format")
-                        .long("log-format")
-                        .help("The relay log format")
-                        .value_parser(["auto", "pretty", "simplified", "json"]),
                 )
                 .arg(
                     Arg::new("secret_key")

@@ -1,16 +1,20 @@
 //! Objectstore service for uploading attachments.
 use std::array::TryFromSliceError;
 use std::fmt;
-use std::num::NonZeroU16;
+use std::num::{NonZeroU16, NonZeroUsize};
 use std::sync::Arc;
 use std::time::Duration;
 
+use async_compression::tokio::bufread::ZstdEncoder;
 use bytes::Bytes;
 use futures::StreamExt;
 use http::StatusCode;
 use objectstore_client::{
-    Client, ExpirationPolicy, SecretKey as SigningKey, Session, TokenGenerator, Usecase,
+    Client, Compression, ExpirationPolicy, SecretKey as SigningKey, Session, TokenGenerator,
+    UploadId, Usecase,
 };
+
+use objectstore_types::multipart::InvalidUploadId;
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_config::ObjectstoreServiceConfig;
@@ -19,66 +23,68 @@ use relay_system::{
     Addr, AsyncResponse, FromMessage, Interface, LoadShed, NoResponse, Sender, SimpleService,
 };
 use sentry_protos::snuba::v1::TraceItem;
+use tokio_util::io::{ReaderStream, StreamReader};
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
 use crate::envelope::{ContentType, Item, ItemType};
-use crate::managed::{
-    Counted, ItemAction, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities,
-    Rejected,
-};
+use crate::managed::{Counted, Managed, ManagedResult, OutcomeError, Quantities, Rejected};
 use crate::processing::utils::store::item_id_to_uuid;
 use crate::services::outcome::DiscardReason;
 use crate::services::store::{
-    ProfileAttachment, Store, StoreAttachment, StoreEnvelope, StoreProfileChunk, StoreTraceItem,
+    ProfileAttachment, Store, StoreAttachment, StoreEvent, StoreProfileChunk, StoreTraceItem,
 };
 use crate::services::upload::ByteStream;
 use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::{BoundedStream, MeteredStream, RetryableStream, TakeOnce, find_error_source};
+use crate::utils::{
+    BoundedStream, MeteredStream, Rechunk, RetryableStream, TakeOnce, find_error_source,
+};
 
 use super::outcome::Outcome;
 
+/// Size of an individual request to objectstore.
+const CHUNK_SIZE: NonZeroUsize = NonZeroUsize::new(5 * 1024 * 1024).unwrap();
+
 /// Messages that the objectstore service can handle.
 pub enum Objectstore {
-    Envelope(StoreEnvelope),
+    Event(Managed<Box<StoreEvent>>),
     TraceAttachment(Managed<StoreTraceAttachment>),
     EventAttachment(Managed<StoreAttachment>),
     RawProfile(Managed<StoreRawProfile>),
+    Create(CreateMultipart, Sender<Result<UploadRef, Error>>),
     Stream(Stream, Sender<Result<ObjectstoreKey, Error>>),
 }
 
 impl Objectstore {
     fn kind(&self) -> MessageKind {
         match self {
-            Self::Envelope(_) => MessageKind::Envelope,
+            Self::Event(_) => MessageKind::Event,
             Self::TraceAttachment(_) => MessageKind::TraceAttachment,
             Self::EventAttachment(_) => MessageKind::EventAttachment,
             Self::RawProfile(_) => MessageKind::RawProfile,
             Self::Stream { .. } => MessageKind::Stream,
+            Self::Create { .. } => MessageKind::Create,
         }
     }
 
     fn attachment_count(&self) -> usize {
         match self {
-            Self::Envelope(StoreEnvelope { envelope }) => envelope
-                .envelope()
-                .items()
-                .filter(|item| *item.ty() == ItemType::Attachment)
-                .count(),
+            Self::Event(e) => e.attachments.len(),
             Self::TraceAttachment(_) => 1,
             Self::EventAttachment(_) => 1,
             Self::RawProfile(_) => 1,
             Self::Stream { .. } => 1,
+            Self::Create { .. } => 0,
         }
     }
 }
 
 impl Interface for Objectstore {}
 
-impl FromMessage<StoreEnvelope> for Objectstore {
+impl FromMessage<Managed<Box<StoreEvent>>> for Objectstore {
     type Response = NoResponse;
 
-    fn from_message(message: StoreEnvelope, _sender: ()) -> Self {
-        Self::Envelope(message)
+    fn from_message(message: Managed<Box<StoreEvent>>, _sender: ()) -> Self {
+        Self::Event(message)
     }
 }
 
@@ -109,22 +115,44 @@ impl FromMessage<Managed<StoreRawProfile>> for Objectstore {
 /// A type tag used for logging.
 #[derive(Debug, Clone, Copy)]
 enum MessageKind {
-    Envelope,
+    Event,
     EventAttachment,
     TraceAttachment,
     RawProfile,
     Stream,
+    Create,
 }
 
 impl MessageKind {
     fn as_str(&self) -> &'static str {
         match self {
-            Self::Envelope => "envelope",
+            Self::Event => "envelope",
             Self::EventAttachment => "attachment",
             Self::TraceAttachment => "attachment_v2",
             Self::RawProfile => "profile_raw",
             Self::Stream => "stream",
+            Self::Create => "create",
         }
+    }
+}
+
+/// A request to create a new objectstore multipart upload.
+pub struct CreateMultipart {
+    /// The sentry org.
+    pub organization_id: OrganizationId,
+    /// The sentry project.
+    pub project_id: ProjectId,
+    /// The desired objectstore key.
+    pub key: String,
+    /// Retention for the uploaded object (in days).
+    pub retention: u16,
+}
+
+impl FromMessage<CreateMultipart> for Objectstore {
+    type Response = AsyncResponse<Result<UploadRef, Error>>;
+
+    fn from_message(message: CreateMultipart, sender: Sender<Result<UploadRef, Error>>) -> Self {
+        Self::Create(message, sender)
     }
 }
 
@@ -132,7 +160,8 @@ impl MessageKind {
 pub struct Stream {
     pub organization_id: OrganizationId,
     pub project_id: ProjectId,
-    pub key: String,
+    pub upload_ref: UploadRef,
+    pub retention: u16,
     pub stream: BoundedStream<MeteredStream<ByteStream>>,
 }
 
@@ -150,6 +179,8 @@ pub struct StoreTraceAttachment {
     pub body: Bytes,
     /// The trace item to be published via Kafka.
     pub trace_item: TraceItem,
+    /// The file name that downloads of this attachment are named after.
+    pub filename: Option<String>,
     /// Data retention in days for this attachment.
     pub retention: u16,
 }
@@ -300,6 +331,27 @@ impl ObjectstoreKey {
     }
 }
 
+/// Identifier needed to resume an existing upload.
+#[derive(Debug, Clone)]
+pub struct UploadRef {
+    /// They key of the file (chosen by relay).
+    pub key: String,
+    /// The ID of the multipart upload session (chosen by objectstore).
+    /// `None` if the upload is not multipart.
+    pub upload_id: Option<UploadId>,
+}
+
+impl UploadRef {
+    /// Validates the upload ID and returns a new upload reference.
+    pub fn new(key: String, upload_id: Option<String>) -> Result<Self, InvalidUploadId> {
+        let upload_id = match upload_id {
+            Some(s) => Some(UploadId::new(s)?),
+            None => None,
+        };
+        Ok(Self { key, upload_id })
+    }
+}
+
 impl fmt::Display for ObjectstoreKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
@@ -398,12 +450,11 @@ impl LoadShed<Objectstore> for ObjectstoreService {
         let error = Error::from(ErrorKind::LoadShed).with_amount(message.attachment_count());
         error.log(message.kind());
         match message {
-            Objectstore::Envelope(envelope) => {
-                let StoreEnvelope { mut envelope } = envelope;
+            Objectstore::Event(mut event) => {
                 if !self.inner.fallback_to_kafka {
-                    drop_failed_uploads(&mut envelope);
+                    drop_attachments(&mut event);
                 }
-                self.inner.store.send(StoreEnvelope { envelope });
+                self.inner.store.send(event);
             }
             Objectstore::EventAttachment(message) => {
                 if self.inner.fallback_to_kafka {
@@ -421,6 +472,9 @@ impl LoadShed<Objectstore> for ObjectstoreService {
                     .send(managed.map(|profile, _| profile.profile_chunk));
             }
             Objectstore::Stream(_, sender) => {
+                sender.send(Err(error));
+            }
+            Objectstore::Create(_, sender) => {
                 sender.send(Err(error));
             }
         }
@@ -444,8 +498,8 @@ struct ObjectstoreServiceInner {
 impl ObjectstoreServiceInner {
     async fn handle_message(&self, message: Objectstore) {
         match message {
-            Objectstore::Envelope(StoreEnvelope { envelope }) => {
-                self.handle_envelope(envelope).await;
+            Objectstore::Event(event) => {
+                self.handle_event(event).await;
             }
             Objectstore::TraceAttachment(attachment) => {
                 let result = self
@@ -462,6 +516,13 @@ impl ObjectstoreServiceInner {
             Objectstore::RawProfile(profile) => {
                 self.handle_raw_profile(profile).await;
             }
+            Objectstore::Create(create, sender) => {
+                let result = self.handle_create(create).await;
+                if let Err(error) = &result {
+                    error.log(MessageKind::Create);
+                }
+                sender.send(result);
+            }
             Objectstore::Stream(stream, sender) => {
                 let result = self.handle_stream(stream).await;
                 if let Err(error) = &result {
@@ -472,65 +533,73 @@ impl ObjectstoreServiceInner {
         };
     }
 
-    /// Uploads all attachments belonging to the given envelope.
-    ///
-    /// This mutates the attachment items in-place, setting their `stored_key` field to the key
-    /// in objectstore.
-    async fn handle_envelope(&self, mut envelope: ManagedEnvelope) {
-        let scoping = envelope.scoping();
+    async fn handle_event(&self, mut event: Managed<Box<StoreEvent>>) {
+        let scoping = event.scoping();
         let session = self.session(
             &self.event_attachments,
             scoping.organization_id,
             scoping.project_id,
         );
-        let retention = envelope.envelope().retention();
 
-        let attachments = envelope
-            .envelope_mut()
-            .items_mut()
-            .filter(|item| should_upload(item));
-
-        match session {
+        let session = match session {
             Err(error) => {
                 error
-                    .with_amount(attachments.count())
-                    .log(MessageKind::Envelope);
-
+                    .with_amount(event.attachments.len())
+                    .log(MessageKind::Event);
                 if !self.fallback_to_kafka {
-                    drop_failed_uploads(&mut envelope);
+                    drop_attachments(&mut event);
                 }
+                self.store.send(event);
+                return;
             }
-            Ok(session) => {
-                for attachment in attachments {
-                    let result = self
-                        .upload_bytes(
-                            MessageKind::Envelope,
-                            &session,
-                            attachment.payload(),
-                            retention,
-                            None,
-                            None,
-                        )
-                        .await;
+            Ok(session) => session,
+        };
 
-                    match result {
-                        Ok(stored_key) => {
-                            attachment.set_stored_key(stored_key.into_inner());
-                        }
-                        Err(error) => {
-                            error.log(MessageKind::Envelope);
-                        }
+        let (mut event, attachments) = event.split_once(|mut e, _| {
+            let attachments = e
+                .attachments
+                .extract_if(.., |item| should_upload(item))
+                .collect::<Vec<_>>();
+
+            (e, attachments)
+        });
+
+        for mut attachment in attachments.split(|e| e) {
+            let attributes = ObjectAttributes {
+                filename: attachment.filename().map(String::from),
+                ..Default::default()
+            };
+
+            let result = self
+                .upload_bytes(
+                    MessageKind::Event,
+                    &session,
+                    attachment.payload(),
+                    event.retention_days,
+                    attributes,
+                )
+                .await;
+
+            match result {
+                Ok(stored_key) => {
+                    attachment.modify(|a, _| a.set_stored_key(stored_key.into_inner()));
+                }
+                Err(error) => {
+                    error.log(MessageKind::Event);
+                    if !self.fallback_to_kafka {
+                        let reason = Outcome::Invalid(DiscardReason::UploadFailed);
+                        let _ = attachment.reject_err(reason);
+                        continue;
                     }
                 }
-
-                if !self.fallback_to_kafka {
-                    drop_failed_uploads(&mut envelope);
-                }
             }
+
+            event.merge_with(attachment, |e, attachment, _| {
+                e.attachments.push(attachment)
+            });
         }
 
-        // last but not least, forward the envelope to the store endpoint
-        self.store.send(StoreEnvelope { envelope });
+        self.store.send(event);
     }
 
     /// Uploads the attachment.
@@ -553,13 +622,17 @@ impl ObjectstoreServiceInner {
         let upload_result = match session {
             Err(error) => Err(error),
             Ok(session) => {
+                let attributes = ObjectAttributes {
+                    filename: attachment.attachment.filename().map(String::from),
+                    ..Default::default()
+                };
+
                 self.upload_bytes(
                     MessageKind::EventAttachment,
                     &session,
                     attachment.attachment.payload(),
                     attachment.retention,
-                    None,
-                    None,
+                    attributes,
                 )
                 .await
             }
@@ -600,12 +673,14 @@ impl ObjectstoreServiceInner {
 
         let body = Bytes::clone(&managed.body);
         let retention = managed.retention;
+        let filename = managed.filename.clone();
 
         // Make sure that the attachment can be converted into a trace item:
         let trace_item = managed.try_map(|attachment, _record_keeper| {
             let StoreTraceAttachment {
                 trace_item,
                 body: _,
+                filename: _,
                 retention: _,
             } = attachment;
             Ok::<_, Error>(StoreTraceItem { trace_item })
@@ -623,14 +698,19 @@ impl ObjectstoreServiceInner {
             #[cfg(debug_assertions)]
             let original_key = key.clone();
 
+            let attributes = ObjectAttributes {
+                key: Some(key),
+                filename,
+                ..Default::default()
+            };
+
             let _stored_key = self
                 .upload_bytes(
                     MessageKind::TraceAttachment,
                     &session,
                     body,
                     retention,
-                    Some(key),
-                    None,
+                    attributes,
                 )
                 .await
                 .reject(&trace_item)?;
@@ -694,25 +774,58 @@ impl ObjectstoreServiceInner {
             .for_project(scoping.organization_id.value(), scoping.project_id.value())
             .session(&self.objectstore_client)?;
 
+        let attributes = ObjectAttributes {
+            content_type: Some(content_type),
+            ..Default::default()
+        };
+
         let stored_key = self
             .upload_bytes(
                 MessageKind::RawProfile,
                 &session,
                 payload,
                 retention,
-                None,
-                Some(content_type),
+                attributes,
             )
             .await?;
 
         Ok(Some(stored_key))
     }
 
+    async fn handle_create(&self, create: CreateMultipart) -> Result<UploadRef, Error> {
+        let CreateMultipart {
+            organization_id,
+            project_id,
+            key,
+            retention,
+        } = create;
+        let session = self.session(&self.event_attachments, organization_id, project_id)?;
+
+        let multipart_upload = session
+            .initiate_multipart_upload()
+            .expiration_policy(ExpirationPolicy::TimeToLive(Duration::from_hours(
+                u64::from(retention) * 24,
+            )))
+            .key(&key)
+            .compression(Compression::Zstd) // make explicit because parts need to be manually compressed.
+            .send()
+            .await?;
+        debug_assert_eq!(&key, multipart_upload.key());
+
+        let upload_id = multipart_upload.upload_id();
+
+        Ok(UploadRef {
+            key,
+            upload_id: Some(upload_id.clone()),
+        })
+    }
+
     async fn handle_stream(&self, stream: Stream) -> Result<ObjectstoreKey, Error> {
         let Stream {
             organization_id,
             project_id,
-            key,
+            upload_ref,
+            retention,
             stream,
         } = stream;
         let session = self.session(&self.event_attachments, organization_id, project_id)?;
@@ -720,10 +833,11 @@ impl ObjectstoreServiceInner {
         self.upload(
             MessageKind::Stream,
             &session,
-            Some(key),
-            Body::Stream(TakeOnce::new(stream)),
-            None,
-            None,
+            Upload::Stream {
+                body: TakeOnce::new(stream),
+                upload_ref,
+                retention,
+            },
         )
         .await
     }
@@ -734,17 +848,24 @@ impl ObjectstoreServiceInner {
         session: &Session,
         payload: Bytes,
         retention: u16,
-        key: Option<String>,
-        content_type: Option<ContentType>,
+        attributes: ObjectAttributes,
     ) -> Result<ObjectstoreKey, Error> {
+        let ObjectAttributes {
+            key,
+            content_type,
+            filename,
+        } = attributes;
         let retention_hours = retention.checked_mul(24);
         self.upload(
             kind,
             session,
-            key,
-            Body::Bytes(payload),
-            retention_hours,
-            content_type,
+            Upload::Bytes {
+                body: payload,
+                key,
+                retention_hours,
+                content_type,
+                filename,
+            },
         )
         .await
     }
@@ -753,15 +874,12 @@ impl ObjectstoreServiceInner {
         &self,
         kind: MessageKind,
         session: &Session,
-        key: Option<String>,
-        body: Body,
-        retention_hours: Option<u16>,
-        content_type: Option<ContentType>,
+        body: Upload,
     ) -> Result<ObjectstoreKey, Error> {
         let mut attempts = 0;
         let timeout = match &body {
-            Body::Bytes(_) => self.timeout,
-            Body::Stream(_) => self.stream_timeout,
+            Upload::Bytes { .. } => self.timeout,
+            Upload::Stream { .. } => self.stream_timeout,
         };
         let result = tokio::time::timeout(timeout, async {
             let mut result = None;
@@ -770,17 +888,7 @@ impl ObjectstoreServiceInner {
                     break;
                 };
                 attempts += 1;
-                result.replace(
-                    self.attempt_upload(
-                        kind,
-                        session,
-                        key.clone(),
-                        body,
-                        retention_hours,
-                        content_type,
-                    )
-                    .await,
-                );
+                result.replace(self.attempt_upload(kind, session, body).await);
 
                 if attempts < self.max_attempts.get()
                     && matches!(&result, Some(Err(e)) if is_retryable(e))
@@ -815,37 +923,107 @@ impl ObjectstoreServiceInner {
         &self,
         kind: MessageKind,
         session: &Session,
-        key: Option<String>,
-        body: BodyAttempt,
-        retention_hours: Option<u16>,
-        content_type: Option<ContentType>,
+        body: UploadAttempt,
     ) -> Result<ObjectstoreKey, objectstore_client::Error> {
-        let mut request = match body {
-            BodyAttempt::Bytes(bytes) => session.put(bytes),
-            BodyAttempt::Stream(stream) => session.put_stream(stream.boxed()),
-        };
+        match body {
+            UploadAttempt::Bytes {
+                body,
+                key,
+                retention_hours,
+                content_type,
+                filename,
+            } => {
+                let mut request = session.put(body);
+                if let Some(content_type) = content_type {
+                    request = request.content_type(content_type.as_str());
+                }
+                if let Some(filename) = filename {
+                    request = request.filename(filename);
+                }
+                if let Some(retention_hours) = retention_hours {
+                    request = request.expiration_policy(ExpirationPolicy::TimeToLive(
+                        Duration::from_hours(retention_hours.into()),
+                    ));
+                }
+                if let Some(key) = key {
+                    request = request.key(key);
+                }
+                let response = relay_statsd::metric!(
+                    timer(RelayTimers::AttachmentUploadDuration),
+                    type = kind.as_str(),
+                {
+                    request.send().await?
+                });
 
-        if let Some(content_type) = content_type {
-            request = request.content_type(content_type.as_str());
-        }
-        if let Some(retention_hours) = retention_hours {
-            request = request.expiration_policy(ExpirationPolicy::TimeToLive(
-                Duration::from_hours(retention_hours.into()),
-            ));
-        }
-        if let Some(key) = key {
-            request = request.key(key);
-        }
-
-        let response = relay_statsd::metric!(
-            timer(RelayTimers::AttachmentUploadDuration),
-            type = kind.as_str(),
-            {
-                request.send().await
+                Ok(ObjectstoreKey(response.key))
             }
-        )?;
+            UploadAttempt::Stream {
+                body,
+                upload_ref,
+                retention,
+            } => {
+                let UploadRef { key, upload_id } = upload_ref;
+                let Some(upload_id) = upload_id else {
+                    // No upload ID: simple upload in a single request.
+                    let request = session.put_stream(body.boxed()).key(key);
+                    let response = request
+                        .expiration_policy(ExpirationPolicy::TimeToLive(Duration::from_hours(
+                            u64::from(retention) * 24,
+                        )))
+                        .send()
+                        .await?;
+                    return Ok(ObjectstoreKey(response.key));
+                };
 
-        Ok(ObjectstoreKey(response.key))
+                let multipart_upload =
+                    session.resume_multipart_upload(key, upload_id.to_string())?;
+
+                let body = ReaderStream::new(ZstdEncoder::new(StreamReader::new(body)));
+
+                // Unfortunately, MinIO has the limitation that the length of a multipart request
+                // has to be known. Therefore, we need to materialize the stream into concrete
+                // chunks of bytes and send each chunk as an individual request.
+                let chunks = Rechunk::new(body, CHUNK_SIZE);
+                let mut body = chunks.enumerate();
+
+                let result = relay_statsd::metric!(
+                    timer(RelayTimers::AttachmentUploadDuration),
+                    type = kind.as_str(),
+                {
+                    let mut parts = vec![];
+                    // NOTE: Once every upload is a multipart upload, we can remove `RetryableStream`
+                    // because streams will never be effectively retried.
+                    while let Some((i, chunk)) = body.next().await {
+                        let chunk = chunk?;
+                        let part_number = u32::try_from(i + 1)
+                        .map_err(|_| objectstore_client::Error::InvalidPartNumber(u32::MAX))?;
+                        relay_log::trace!("Part number {part_number}");
+
+                        // NOTE: This is a retry loop within a retry loop (see caller of this function).
+                        // if we keep the Rechunked approach we might as well remove the outer loop for streaming uploads.
+                        let mut attempts = 0;
+                        let part = loop {
+                            let result = multipart_upload.put(chunk.clone(), part_number, None).await;
+                            attempts += 1;
+                            if attempts < self.max_attempts.get()
+                                && matches!(&result, Err(e) if is_retryable(e))
+                            {
+                                relay_log::trace!("Attempt {attempts}: Failed with {result:?}, retrying");
+                                tokio::time::sleep(self.retry_interval).await;
+                            } else {
+                                relay_log::trace!("Final attempt");
+                                break result;
+                            }
+                        };
+
+                        parts.push(part?);
+                    }
+                    multipart_upload.complete(parts).await?
+                });
+
+                Ok(ObjectstoreKey(result))
+            }
+        }
     }
 
     fn session(
@@ -864,19 +1042,65 @@ impl ObjectstoreServiceInner {
     }
 }
 
+/// Optional attributes of an object stored in objectstore.
+#[derive(Debug, Default)]
+struct ObjectAttributes {
+    /// The key to store the object under.
+    ///
+    /// If this is `None`, objectstore assigns a random key.
+    key: Option<String>,
+    /// The content type of the payload.
+    content_type: Option<ContentType>,
+    /// The file name that downloads of this object are named after.
+    ///
+    /// Objectstore only sends a `Content-Disposition` header for objects that were stored with a
+    /// file name.
+    filename: Option<String>,
+}
+
 /// Common interface for calls to [`ObjectstoreServiceInner::upload`].
 ///
 /// This type is shared across retries.
-enum Body {
-    Bytes(Bytes),
-    Stream(TakeOnce<BoundedStream<MeteredStream<ByteStream>>>),
+enum Upload {
+    Bytes {
+        body: Bytes,
+        key: Option<String>,
+        retention_hours: Option<u16>,
+        content_type: Option<ContentType>,
+        filename: Option<String>,
+    },
+    Stream {
+        body: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
+        upload_ref: UploadRef,
+        retention: u16,
+    },
 }
 
-impl Body {
-    fn try_clone(&self) -> Option<BodyAttempt> {
+impl Upload {
+    fn try_clone(&self) -> Option<UploadAttempt> {
         match self {
-            Self::Bytes(bytes) => Some(BodyAttempt::Bytes(bytes.clone())),
-            Self::Stream(stream) => RetryableStream::new(stream.clone()).map(BodyAttempt::Stream),
+            Self::Bytes {
+                body,
+                key,
+                retention_hours,
+                content_type,
+                filename,
+            } => Some(UploadAttempt::Bytes {
+                body: body.clone(),
+                key: key.clone(),
+                retention_hours: *retention_hours,
+                content_type: *content_type,
+                filename: filename.clone(),
+            }),
+            Self::Stream {
+                body,
+                upload_ref,
+                retention,
+            } => RetryableStream::new(body.clone()).map(|body| UploadAttempt::Stream {
+                body,
+                upload_ref: upload_ref.clone(),
+                retention: *retention,
+            }),
         }
     }
 }
@@ -884,9 +1108,19 @@ impl Body {
 /// Common interface for calls to [`ObjectstoreServiceInner::attempt_upload`].
 ///
 /// This type is instantiated for every retry.
-enum BodyAttempt {
-    Bytes(Bytes),
-    Stream(RetryableStream<BoundedStream<MeteredStream<ByteStream>>>),
+enum UploadAttempt {
+    Bytes {
+        body: Bytes,
+        key: Option<String>,
+        retention_hours: Option<u16>,
+        content_type: Option<ContentType>,
+        filename: Option<String>,
+    },
+    Stream {
+        body: RetryableStream<BoundedStream<MeteredStream<ByteStream>>>,
+        upload_ref: UploadRef,
+        retention: u16,
+    },
 }
 
 fn is_retryable(error: &objectstore_client::Error) -> bool {
@@ -927,25 +1161,25 @@ fn should_upload(item: &Item) -> bool {
         && !item.is_attachment_ref()
 }
 
-fn drop_failed_uploads(envelope: &mut ManagedEnvelope) {
-    envelope.retain_items(|item| {
-        if should_upload(item) {
-            ItemAction::Drop(Outcome::Invalid(DiscardReason::UploadFailed))
-        } else {
-            ItemAction::Keep
-        }
+fn drop_attachments(event: &mut Managed<Box<StoreEvent>>) {
+    event.modify(|event, records| {
+        let reason = Outcome::Invalid(DiscardReason::UploadFailed);
+        let attachments = event
+            .attachments
+            .extract_if(.., |item| should_upload(item))
+            .collect::<Vec<_>>();
+        records.reject_err(reason, attachments);
     });
-    envelope.update();
 }
 
 #[cfg(test)]
 mod tests {
-    use bytes::Bytes;
     use relay_event_schema::protocol::EventId;
     use relay_quotas::DataCategory;
     use relay_system::Service;
 
-    use crate::Envelope;
+    use crate::constants::DEFAULT_EVENT_RETENTION;
+    use crate::managed::ManagedTestHandle;
 
     use super::*;
 
@@ -966,7 +1200,11 @@ mod tests {
             .send(Stream {
                 organization_id: OrganizationId::new(0),
                 project_id: ProjectId::new(1),
-                key: "my_file".into(),
+                upload_ref: UploadRef {
+                    key: "my_file".to_owned(),
+                    upload_id: Some(UploadId::new("my_upload".to_owned()).unwrap()),
+                },
+                retention: DEFAULT_EVENT_RETENTION,
                 stream,
             })
             .await
@@ -977,133 +1215,104 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn envelope_falls_back_to_kafka_by_default() {
+    async fn event_falls_back_to_kafka_by_default() {
         let (store, mut store_rx) = Addr::custom();
-        let (outcomes, mut outcome_rx) = Addr::custom();
         let service = ObjectstoreService::new(&test_config(), Some(store))
             .unwrap()
             .unwrap();
 
-        service
-            .inner
-            .handle_envelope(ManagedEnvelope::new(test_envelope(), outcomes))
-            .await;
+        let (event, _handle) = test_event();
+        service.inner.handle_event(event).await;
 
-        let Store::Envelope(StoreEnvelope { envelope }) = store_rx.try_recv().unwrap() else {
-            panic!("expected envelope");
+        let Store::Event(event) = store_rx.try_recv().unwrap() else {
+            panic!("expected event");
         };
         {
-            let items = envelope.envelope().items().collect::<Vec<_>>();
-            assert_eq!(items.len(), 2);
-            assert_eq!(items[0].ty(), &ItemType::Event);
-            assert_eq!(items[1].ty(), &ItemType::Attachment);
-            assert_eq!(items[1].stored_key(), None);
+            assert_eq!(event.attachments.len(), 1);
+            assert_eq!(event.attachments[0].ty(), &ItemType::Attachment);
+            assert_eq!(event.attachments[0].stored_key(), None);
         }
-        envelope.accept();
-
-        assert!(outcome_rx.try_recv().is_err());
+        event.accept(|_| ());
     }
 
     #[tokio::test]
-    async fn envelope_rejects_failed_attachments_without_fallback() {
+    async fn event_rejects_failed_attachments_without_fallback() {
         let (store, mut store_rx) = Addr::custom();
-        let (outcomes, mut outcome_rx) = Addr::custom();
         let mut config = test_config();
         config.fallback_to_kafka = false;
         let service = ObjectstoreService::new(&config, Some(store))
             .unwrap()
             .unwrap();
 
-        service
-            .inner
-            .handle_envelope(ManagedEnvelope::new(test_envelope(), outcomes))
-            .await;
+        let (event, mut handle) = test_event();
+        service.inner.handle_event(event).await;
 
-        let Store::Envelope(StoreEnvelope { envelope }) = store_rx.try_recv().unwrap() else {
-            panic!("expected envelope");
+        let Store::Event(event) = store_rx.try_recv().unwrap() else {
+            panic!("expected event");
         };
-        {
-            let items = envelope.envelope().items().collect::<Vec<_>>();
-            assert_eq!(items.len(), 1);
-            assert_eq!(items[0].ty(), &ItemType::Event);
-        }
-        envelope.accept();
+        assert!(event.attachments.is_empty());
+        event.accept(|_| ());
 
-        let outcome = outcome_rx.try_recv().unwrap();
-        assert_eq!(
-            outcome.outcome,
-            Outcome::Invalid(DiscardReason::UploadFailed)
+        handle.assert_outcome(
+            &Outcome::Invalid(DiscardReason::UploadFailed),
+            DataCategory::Attachment,
+            5,
         );
-        assert_eq!(outcome.category, DataCategory::Attachment);
-        assert_eq!(outcome.quantity, 5);
-
-        let outcome = outcome_rx.try_recv().unwrap();
-        assert_eq!(
-            outcome.outcome,
-            Outcome::Invalid(DiscardReason::UploadFailed)
+        handle.assert_outcome(
+            &Outcome::Invalid(DiscardReason::UploadFailed),
+            DataCategory::AttachmentItem,
+            1,
         );
-        assert_eq!(outcome.category, DataCategory::AttachmentItem);
-        assert_eq!(outcome.quantity, 1);
-
-        assert!(outcome_rx.try_recv().is_err());
     }
 
     #[tokio::test]
     async fn event_attachment_rejects_without_fallback() {
         let (store, mut store_rx) = Addr::custom();
-        let (outcomes, mut outcome_rx) = Addr::custom();
         let mut config = test_config();
         config.fallback_to_kafka = false;
         let service = ObjectstoreService::new(&config, Some(store))
             .unwrap()
             .unwrap();
 
-        let envelope = ManagedEnvelope::untracked(test_envelope(), outcomes.clone());
         let mut item = Item::new(ItemType::Attachment);
         item.set_payload(ContentType::Text, "hello");
         let quantities = item.quantities();
-        let attachment = Managed::with_meta_from_managed_envelope(
-            &envelope,
-            StoreAttachment {
-                event_id: EventId::new(),
-                attachment: item,
-                quantities,
-                retention: 90,
-            },
-        );
+        let (attachment, mut handle) = Managed::for_test(StoreAttachment {
+            event_id: EventId::new(),
+            attachment: item,
+            quantities,
+            retention: 90,
+        })
+        .build();
 
         service.inner.handle_event_attachment(attachment).await;
 
         assert!(store_rx.try_recv().is_err());
 
-        let outcome = outcome_rx.try_recv().unwrap();
-        assert_eq!(
-            outcome.outcome,
-            Outcome::Invalid(DiscardReason::UploadFailed)
+        handle.assert_outcome(
+            &Outcome::Invalid(DiscardReason::UploadFailed),
+            DataCategory::Attachment,
+            5,
         );
-        assert_eq!(outcome.category, DataCategory::Attachment);
-        assert_eq!(outcome.quantity, 5);
-
-        let outcome = outcome_rx.try_recv().unwrap();
-        assert_eq!(
-            outcome.outcome,
-            Outcome::Invalid(DiscardReason::UploadFailed)
+        handle.assert_outcome(
+            &Outcome::Invalid(DiscardReason::UploadFailed),
+            DataCategory::AttachmentItem,
+            1,
         );
-        assert_eq!(outcome.category, DataCategory::AttachmentItem);
-        assert_eq!(outcome.quantity, 1);
-
-        assert!(outcome_rx.try_recv().is_err());
     }
 
-    fn test_envelope() -> Box<Envelope> {
-        Envelope::parse_bytes(Bytes::from_static(
-            b"{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
-              {\"type\":\"event\",\"length\":2}\n\
-              {}\n\
-              {\"type\":\"attachment\",\"length\":5,\"filename\":\"hello.txt\"}\n\
-              hello\n",
-        ))
-        .unwrap()
+    fn test_event() -> (Managed<Box<StoreEvent>>, ManagedTestHandle) {
+        let mut attachment = Item::new(ItemType::Attachment);
+        attachment.set_payload(ContentType::Text, "hello");
+
+        Managed::for_test(Box::new(StoreEvent {
+            event_category: DataCategory::Error,
+            event: Default::default(),
+            attachments: vec![attachment],
+            user_reports: Vec::new(),
+            retention_days: 90,
+        }))
+        .build()
     }
 
     fn test_config() -> ObjectstoreServiceConfig {

@@ -42,6 +42,11 @@ pub enum FilterStatKey {
     /// Filtered due to the namespace being disabled.
     DisabledNamespace,
 
+    /// Filtered by Relay.
+    ///
+    /// This is currently only used for transactions, after spans have been extracted.
+    Discarded,
+
     /// Filtered due to a generic filter.
     GenericFilter(String),
 }
@@ -73,6 +78,7 @@ impl FilterStatKey {
             FilterStatKey::FilteredTransactions => "filtered-transaction",
             FilterStatKey::DeniedName => "denied-name",
             FilterStatKey::DisabledNamespace => "disabled-namespace",
+            FilterStatKey::Discarded => "discarded",
             FilterStatKey::GenericFilter(filter_identifier) => {
                 return Cow::Owned(filter_identifier);
             }

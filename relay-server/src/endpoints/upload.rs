@@ -21,6 +21,7 @@ use relay_system::SendError;
 use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::Envelope;
+use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::endpoints::common::BadStoreRequest;
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
 use crate::extractors::RequestMeta;
@@ -103,6 +104,8 @@ impl IntoResponse for Error {
                 upload::Error::InvalidLocation(_) | upload::Error::SigningFailed => {
                     StatusCode::INTERNAL_SERVER_ERROR
                 }
+                #[cfg(feature = "processing")]
+                upload::Error::InvalidUploadId(_) => StatusCode::BAD_REQUEST,
                 upload::Error::SerializeFailed(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 upload::Error::InvalidSignature(_) => StatusCode::BAD_REQUEST,
                 upload::Error::ObjectstoreServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
@@ -112,10 +115,13 @@ impl IntoResponse for Error {
                     objectstore::ErrorKind::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
                     objectstore::ErrorKind::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
                     objectstore::ErrorKind::UploadFailed(error) => match error {
+                        objectstore_client::Error::Io(error) if is_upload_length_error(&error) => {
+                            StatusCode::BAD_REQUEST
+                        }
                         objectstore_client::Error::Reqwest(error) => match error.status() {
                             _ if error.is_timeout() => StatusCode::GATEWAY_TIMEOUT,
                             Some(status) => status,
-                            None if find_error_source(&error, is_hyper_user_error).is_some() => {
+                            None if find_error_source(&error, is_request_body_error).is_some() => {
                                 StatusCode::BAD_REQUEST
                             }
                             None => StatusCode::INTERNAL_SERVER_ERROR,
@@ -179,12 +185,18 @@ async fn handle_post(
             StatusCode::SERVICE_UNAVAILABLE
         })?;
 
+    let multipart = match project.state() {
+        ProjectState::Enabled(p) => p.has_feature(Feature::UploadMultipart),
+        _ => false,
+    };
+
     relay_log::trace!("Checking request");
     let project_context = validate_and_limit(&state, meta, &headers, project).await?;
 
     // Unconditionally create the upload location:
     relay_log::trace!("Creating upload location");
-    let result = create(&state, project_context, &headers).await;
+
+    let result = create(&state, project_context, &headers, multipart).await;
     let location = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "create failed");
     })?;
@@ -204,6 +216,7 @@ async fn handle_patch(
     Path(upload::LocationPath { project_id, key }): Path<upload::LocationPath>,
     Query(LocationQueryParams {
         upload_length,
+        upload_id,
         upload_signature,
         other,
     }): Query<LocationQueryParams<Provisional>>,
@@ -214,8 +227,14 @@ async fn handle_patch(
     relay_log::trace!("Validating headers");
     tus::validate_patch_headers(&headers).map_err(Error::from)?;
 
-    let location =
-        SignedLocation::from_parts(project_id, key, upload_length, upload_signature, other);
+    let location = SignedLocation::from_parts(
+        project_id,
+        key,
+        upload_length,
+        upload_id,
+        upload_signature,
+        other,
+    );
 
     let config = state.config();
 
@@ -300,6 +319,7 @@ async fn create(
     state: &ServiceState,
     project: ProjectContext,
     headers: &tus::Headers,
+    multipart: bool,
 ) -> Result<SignedLocation<Provisional>, Error> {
     let location = state
         .upload()
@@ -307,6 +327,7 @@ async fn create(
             project,
             length: headers.upload_length,
             attachment_type: headers.metadata.map(|m| m.attachment_type),
+            multipart,
         })
         .await??;
 
@@ -343,7 +364,6 @@ async fn validate_and_limit(
     project: Project<'_>,
 ) -> Result<ProjectContext, BadStoreRequest> {
     let mut envelope = Envelope::from_request(None, meta);
-    envelope.require_feature(Feature::UploadEndpoint);
     let mut item = Item::new(ItemType::Attachment);
     item.set_payload(ContentType::AttachmentRef, vec![]);
     item.set_attachment_length(headers.upload_length.unwrap_or(1));
@@ -370,7 +390,11 @@ async fn validate_and_limit(
     let scoping = envelope.scoping();
     let upstream = project_upstream(&project);
     envelope.accept(|x| x);
-    Ok(ProjectContext { scoping, upstream })
+    Ok(ProjectContext {
+        scoping,
+        upstream,
+        retention: event_retention(&project),
+    })
 }
 
 /// Returns the feature a project must have enabled to upload attachments with the given type.
@@ -386,8 +410,7 @@ async fn validate(
     meta: RequestMeta,
     project: Project<'_>,
 ) -> Result<ProjectContext, BadStoreRequest> {
-    let mut envelope = Envelope::from_request(None, meta);
-    envelope.require_feature(Feature::UploadEndpoint);
+    let envelope = Envelope::from_request(None, meta);
     let mut envelope = Managed::from_envelope(envelope, state.outcome_aggregator().clone());
 
     let _ = project
@@ -399,7 +422,11 @@ async fn validate(
     let scoping = envelope.scoping();
     let upstream = project_upstream(&project);
     envelope.accept(|x| x);
-    Ok(ProjectContext { scoping, upstream })
+    Ok(ProjectContext {
+        scoping,
+        upstream,
+        retention: event_retention(&project),
+    })
 }
 
 fn project_upstream(project: &Project<'_>) -> Option<UpstreamDescriptor> {
@@ -409,8 +436,32 @@ fn project_upstream(project: &Project<'_>) -> Option<UpstreamDescriptor> {
     }
 }
 
+fn event_retention(project: &Project<'_>) -> u16 {
+    match project.state() {
+        ProjectState::Enabled(info) => info.event_retention(),
+        ProjectState::Dummy | ProjectState::Disabled | ProjectState::Pending => {
+            DEFAULT_EVENT_RETENTION
+        }
+    }
+}
+
 fn is_hyper_user_error(error: &(dyn std::error::Error + 'static)) -> bool {
     error
         .downcast_ref::<hyper::Error>()
         .is_some_and(hyper::Error::is_user)
+}
+
+#[cfg(feature = "processing")]
+fn is_request_body_error(error: &(dyn std::error::Error + 'static)) -> bool {
+    is_hyper_user_error(error) || is_upload_length_error(error)
+}
+
+#[cfg(feature = "processing")]
+fn is_upload_length_error(error: &(dyn std::error::Error + 'static)) -> bool {
+    error.downcast_ref::<io::Error>().is_some_and(|error| {
+        matches!(
+            error.kind(),
+            io::ErrorKind::FileTooLarge | io::ErrorKind::UnexpectedEof
+        )
+    })
 }

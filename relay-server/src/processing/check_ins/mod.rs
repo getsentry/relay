@@ -121,10 +121,18 @@ impl Forward for CheckInsOutput {
         s: processing::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        let envelope = self.serialize_envelope(ctx)?;
-        let envelope = ManagedEnvelope::from(envelope);
+        use crate::services::store::StoreCheckIn;
 
-        s.send_to_store(crate::services::store::StoreEnvelope { envelope });
+        let sdk = self.0.headers.meta().client().map(str::to_owned);
+        let retention_days = ctx.event_retention().standard;
+
+        for check_in in self.0.split(|work| work.check_ins.into_iter()) {
+            s.send_to_store(check_in.map(|check_in, _| StoreCheckIn {
+                check_in,
+                sdk: sdk.clone(),
+                retention_days,
+            }));
+        }
 
         Ok(())
     }

@@ -4,6 +4,7 @@ use bytes::Bytes;
 
 use relay_cogs::{AppFeature, FeatureWeights};
 use relay_event_normalization::GeoIpLookup;
+use relay_event_normalization::eap::time::TimestampOutOfRange;
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::Replay;
 use relay_filter::FilterStatKey;
@@ -30,7 +31,6 @@ pub enum Error {
     /// Replays filtered because of a missing feature flag.
     #[error("replay feature flag missing")]
     FilterFeatureFlag,
-
     /// There is an invalid number of `replay_event`, `replay_recording` and `replay_video` items in
     /// the envelope.
     ///
@@ -38,53 +38,43 @@ pub enum Error {
     /// Standalone recordings are supported for SDK compatibility.
     #[error("invalid item count")]
     InvalidItemCount,
-
     /// Replay event without a recording.
     #[error("replay event without recording")]
     EventWithoutRecording,
-
     /// The Replay event could not be parsed from JSON.
     #[error("invalid json: {0}")]
     CouldNotParseEvent(#[from] serde_json::Error),
-
     /// The Replay event was parsed but did not match the schema.
     #[error("no data found")]
     NoEventContent,
-
     /// The Replay contains invalid data or is missing a required field.
     #[error("replay validation failed: {0}")]
     InvalidPayload(#[from] relay_event_normalization::replay::ReplayError),
-
     /// The Replay video could not be parsed.
     #[error("invalid replay video")]
     InvalidReplayVideoEvent,
-
     /// The processing of the Replay Recording failed.
     #[error("invalid replay")]
     InvalidReplayRecordingEvent,
-
+    #[error(transparent)]
+    TimestampOutOfRange(#[from] TimestampOutOfRange),
     /// An error occurred during PII scrubbing of the Replay.
     #[error("failed to scrub PII: {0}")]
     CouldNotScrub(#[from] ProcessingAction),
-
     /// The Replay was rate limited.
     #[error("rate limited")]
     RateLimited(RateLimits),
-
     /// Replay filtered due to a filtering rule.
     #[error("replay filtered with reason: {0}")]
     Filtered(FilterStatKey),
-
     /// Failed to re-serialize the replay.
     #[cfg(feature = "processing")]
     #[error("failed to serialize replay")]
     FailedToSerializeReplay,
-
     /// Replay recording too large for the consumer.
     #[cfg(feature = "processing")]
     #[error("replay recording too large")]
     TooLarge,
-
     /// The envelope did not contain an event ID.
     #[cfg(feature = "processing")]
     #[error("missing replay ID")]
@@ -114,8 +104,8 @@ impl OutcomeError for Error {
             Self::InvalidReplayRecordingEvent => {
                 Some(Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent))
             }
+            Self::TimestampOutOfRange(_) => Some(Outcome::Invalid(DiscardReason::Timestamp)),
             Self::CouldNotScrub(_) => Some(Outcome::Invalid(DiscardReason::InvalidReplayEventPii)),
-
             Self::RateLimited(limits) => {
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
                 Some(Outcome::RateLimited(reason_code))
@@ -203,7 +193,7 @@ impl processing::Processor for ReplaysProcessor {
         let mut replay = process::expand(replays)?;
 
         validate::validate(&replay).reject(&replay)?;
-        process::normalize(&mut replay, &self.geoip_lookup, ctx);
+        process::normalize(&mut replay, &self.geoip_lookup, ctx)?;
         filter::filter(&replay, ctx).reject(&replay)?;
 
         let mut replay = self.limiter.enforce_quotas(replay, ctx).await?;

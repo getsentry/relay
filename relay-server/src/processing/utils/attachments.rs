@@ -2,7 +2,7 @@ use std::error::Error;
 use std::time::Instant;
 
 use relay_config::Config;
-use relay_pii::{PiiAttachmentsProcessor, SelectorPathItem, SelectorSpec};
+use relay_pii::{PiiAttachmentsProcessor, PiiConfig, SelectorPathItem, SelectorSpec};
 use relay_statsd::metric;
 
 #[cfg(feature = "processing")]
@@ -14,6 +14,7 @@ use crate::services::processor::ProcessingError;
 use crate::statsd::RelayTimers;
 
 use crate::services::projects::project::ProjectInfo;
+use crate::utils::sample;
 use relay_dynamic_config::Feature;
 
 /// Validates the attachments and drop any invalid ones.
@@ -102,18 +103,18 @@ pub fn scrub<'a>(
                     );
                 }
             } else if item.attachment_type() == Some(AttachmentType::Minidump) {
-                scrub_minidump(item, config)
+                scrub_minidump(project_info, item, config)
             } else if item.ty() == &ItemType::Attachment && has_simple_attachment_selector(config) {
                 // We temporarily only scrub attachments to projects that have at least one simple attachment rule,
                 // such as `$attachments.'foo.txt'`.
                 // After we have assessed the impact on performance we can relax this condition.
-                scrub_attachment(item, config)
+                scrub_attachment(project_info, item, config)
             }
         }
     }
 }
 
-fn scrub_minidump(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfig) {
+fn scrub_minidump(project_info: &ProjectInfo, item: &mut Item, config: &PiiConfig) {
     debug_assert_eq!(item.attachment_type(), Some(AttachmentType::Minidump));
     let filename = item.filename().unwrap_or_default();
     let mut payload = item.payload().to_vec();
@@ -130,6 +131,12 @@ fn scrub_minidump(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfi
                 timer(RelayTimers::MinidumpScrubbing) = start.elapsed(),
                 status = if modified { "ok" } else { "n/a" },
             );
+            if modified && sample(0.1).is_keep() {
+                relay_log::info!(
+                    sentry_project = ?project_info.project_id,
+                    "Minidump changed by scrubbing rules",
+                );
+            }
         }
         Err(scrub_error) => {
             metric!(
@@ -146,7 +153,13 @@ fn scrub_minidump(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfi
                 timer(RelayTimers::AttachmentScrubbing) = start.elapsed(),
                 attachment_type = "minidump",
                 status = if modified { "ok" } else { "n/a" },
-            )
+            );
+            if modified {
+                relay_log::info!(
+                    sentry_project = ?project_info.project_id,
+                    "Minidump changed by fallback rules",
+                );
+            }
         }
     }
 
@@ -154,7 +167,7 @@ fn scrub_minidump(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfi
     item.set_payload_without_content_type(payload);
 }
 
-fn scrub_view_hierarchy(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfig) {
+fn scrub_view_hierarchy(item: &mut Item, config: &PiiConfig) {
     let processor = PiiAttachmentsProcessor::new(config.compiled());
 
     let payload = item.payload();
@@ -178,7 +191,7 @@ fn scrub_view_hierarchy(item: &mut crate::envelope::Item, config: &relay_pii::Pi
     }
 }
 
-pub fn has_simple_attachment_selector(config: &relay_pii::PiiConfig) -> bool {
+pub fn has_simple_attachment_selector(config: &PiiConfig) -> bool {
     for application in &config.applications {
         if let SelectorSpec::Path(vec) = &application.0 {
             let Some([a, b]) = vec.get(0..2) else {
@@ -196,7 +209,7 @@ pub fn has_simple_attachment_selector(config: &relay_pii::PiiConfig) -> bool {
     false
 }
 
-fn scrub_attachment(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfig) {
+fn scrub_attachment(project_info: &ProjectInfo, item: &mut Item, config: &PiiConfig) {
     let filename = item.filename().unwrap_or_default();
     let mut payload = item.payload().to_vec();
 
@@ -212,6 +225,12 @@ fn scrub_attachment(item: &mut crate::envelope::Item, config: &relay_pii::PiiCon
         attachment_type = attachment_type_tag,
         status = if modified { "ok" } else { "n/a" },
     );
+    if modified {
+        relay_log::info!(
+            sentry_project = ?project_info.project_id,
+            "Attachment changed by scrubbing rules",
+        );
+    }
 
     item.set_payload_without_content_type(payload);
 }

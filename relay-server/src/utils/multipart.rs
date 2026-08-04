@@ -94,7 +94,7 @@ impl<'a> FormDataEntry<'a> {
 ///
 /// This writer is used to serialize multiple plain fields from a multipart form data request into a
 /// single envelope item. Use `FormDataIter` to iterate all entries.
-struct FormDataWriter {
+pub struct FormDataWriter {
     data: Vec<u8>,
 }
 

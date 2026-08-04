@@ -142,6 +142,10 @@ impl ClientContext for Context {
         let producer_name = self.producer_name.as_str();
 
         relay_statsd::metric!(
+            gauge(KafkaGauges::ReplyQueue) = statistics.replyq,
+            producer_name = producer_name
+        );
+        relay_statsd::metric!(
             gauge(KafkaGauges::MessageCount) = statistics.msg_cnt,
             producer_name = producer_name
         );
@@ -175,6 +179,11 @@ impl ClientContext for Context {
                 broker_name = &broker.name,
                 producer_name = producer_name
             );
+            relay_statsd::metric!(
+                gauge(KafkaGauges::BrokerWaitResponseRequests) = broker.waitresp_cnt,
+                broker_name = &broker.name,
+                producer_name = producer_name
+            );
             if let Some(connects) = broker.connects {
                 relay_statsd::metric!(
                     gauge(KafkaGauges::BrokerConnects) = connects as u64,
@@ -189,38 +198,57 @@ impl ClientContext for Context {
                     producer_name = producer_name
                 );
             }
+            if broker.txidle >= 0 {
+                relay_statsd::metric!(
+                    gauge(KafkaGauges::BrokerTxIdle) = (broker.txidle / 1000),
+                    broker_name = &broker.name,
+                    producer_name = producer_name
+                );
+            }
+            if broker.rxidle >= 0 {
+                relay_statsd::metric!(
+                    gauge(KafkaGauges::BrokerRxIdle) = (broker.rxidle / 1000),
+                    broker_name = &broker.name,
+                    producer_name = producer_name
+                );
+            }
+            relay_statsd::metric!(
+                gauge(KafkaGauges::BrokerRequestTimeouts) = broker.req_timeouts,
+                broker_name = &broker.name,
+                producer_name = producer_name
+            );
             if let Some(int_latency) = broker.int_latency {
                 relay_statsd::metric!(
-                    gauge(KafkaGauges::BrokerIntLatencyAvg) = (int_latency.avg / 1000) as u64,
+                    gauge(KafkaGauges::BrokerIntLatencyAvg) = (int_latency.avg / 1000),
                     broker_name = &broker.name,
                     producer_name = producer_name
                 );
                 relay_statsd::metric!(
-                    gauge(KafkaGauges::BrokerIntLatencyP99) = (int_latency.p99 / 1000) as u64,
+                    gauge(KafkaGauges::BrokerIntLatencyP99) = (int_latency.p99 / 1000),
                     broker_name = &broker.name,
                     producer_name = producer_name
                 );
             }
             if let Some(outbuf_latency) = broker.outbuf_latency {
                 relay_statsd::metric!(
-                    gauge(KafkaGauges::BrokerOutbufLatencyAvg) = (outbuf_latency.avg / 1000) as u64,
+                    gauge(KafkaGauges::BrokerOutbufLatencyAvg) = (outbuf_latency.avg / 1000),
                     broker_name = &broker.name,
                     producer_name = producer_name
                 );
                 relay_statsd::metric!(
-                    gauge(KafkaGauges::BrokerOutbufLatencyP99) = (outbuf_latency.p99 / 1000) as u64,
+                    gauge(KafkaGauges::BrokerOutbufLatencyP99) = (outbuf_latency.p99 / 1000),
                     broker_name = &broker.name,
                     producer_name = producer_name
                 );
             }
             if let Some(rtt) = broker.rtt {
                 relay_statsd::metric!(
-                    gauge(KafkaGauges::BrokerRttAvg) = (rtt.avg / 1000) as u64,
+                    gauge(KafkaGauges::BrokerRttAvg) = (rtt.avg / 1000),
                     broker_name = &broker.name,
                     producer_name = producer_name
                 );
                 relay_statsd::metric!(
-                    gauge(KafkaGauges::BrokerRttP99) = (rtt.p99 / 1000) as u64,
+                    gauge(KafkaGauges::BrokerRttP99) = (rtt.p99 / 1000),
                     broker_name = &broker.name,
                     producer_name = producer_name
                 );
