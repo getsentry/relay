@@ -5,11 +5,37 @@ use relay_conventions::attributes::{
     SENTRY__SDK__VERSION, SENTRY__SEGMENT__NAME, SENTRY__TRANSACTION__BREADCRUMBS,
     SENTRY__TRANSACTION__CONTEXTS, SENTRY__TRANSACTION__EXTRA, URL__QUERY,
 };
-use relay_protocol::{Annotated, IntoValue};
+use relay_protocol::{IntoValue, Object, SerializePayload, SkipSerialization};
+use serde::ser::SerializeMap;
+use serde::{Serialize, Serializer};
 
 use crate::protocol::{
-    BrowserContext, DefaultContext, Event, ProfileContext, Span, SpanData, TraceContext,
+    BrowserContext, ContextInner, DefaultContext, Event, ProfileContext, Span, SpanData,
+    TraceContext,
 };
+
+/// Serializes a borrowed contexts map, skipping the given key.
+struct ContextsWithout<'a> {
+    contexts: &'a Object<ContextInner>,
+    skip_key: &'a str,
+}
+
+impl Serialize for ContextsWithout<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let behavior = SkipSerialization::default();
+        let mut map = serializer.serialize_map(None)?;
+        for (key, value) in self.contexts {
+            if key == self.skip_key || value.skip_serialization(behavior) {
+                continue;
+            }
+            map.serialize_entry(key, &SerializePayload(value, behavior))?;
+        }
+        map.end()
+    }
+}
 
 impl From<&Event> for Span {
     fn from(event: &Event) -> Self {
@@ -82,12 +108,18 @@ impl From<&Event> for Span {
         }
 
         if let Some(contexts) = contexts.value() {
-            let mut contexts = contexts.clone();
-            contexts.0.remove(TraceContext::default_key());
-            if !contexts.0.is_empty()
-                && let Ok(json) = Annotated::new(contexts).payload_to_json()
-            {
-                span_data.insert_value(SENTRY__TRANSACTION__CONTEXTS, json);
+            let has_other = contexts.0.iter().any(|(key, value)| {
+                key != TraceContext::default_key()
+                    && !value.skip_serialization(SkipSerialization::default())
+            });
+            if has_other {
+                let payload = ContextsWithout {
+                    contexts: &contexts.0,
+                    skip_key: TraceContext::default_key(),
+                };
+                if let Ok(json) = serde_json::to_string(&payload) {
+                    span_data.insert_value(SENTRY__TRANSACTION__CONTEXTS, json);
+                }
             }
         }
         if breadcrumbs
