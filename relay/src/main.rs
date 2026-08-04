@@ -58,6 +58,7 @@
 //!  - [`relay-redis`]: Pooled Redis and Redis cluster abstraction.
 //!  - [`relay-replays`]: Session replay protocol and processing.
 //!  - [`relay-sampling`]: Dynamic sampling functionality.
+//!  - [`relay-serialization`]: Bounded deserialization functionality.
 //!  - [`relay-server`]: Endpoints and services.
 //!  - [`relay-statsd`]: High-level StatsD metric client for internal measurements.
 //!  - [`relay-system`]: Foundational system components for Relay's services.
