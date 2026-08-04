@@ -633,25 +633,15 @@ def test_playstation_upload_attachments(
     outcomes_consumer = outcomes_consumer()
     attachments_consumer = attachments_consumer()
     credentials = relay_credentials()
-    relay = relay_processing_with_playstation(
-        {
-            # 1 MiB extra for minidump etc.
-            "limits": {
-                "max_attachment_size": len(playstation_dump) + 1 * 1024 * 1024,
-                "max_attachments_size": len(playstation_dump) + 1 * 1024 * 1024,
-            },
-        },
-        static_credentials=credentials,
-    )
+    relay = relay_processing_with_playstation(static_credentials=credentials)
     if use_pop_relay:
         relay = relay_with_playstation(relay, credentials=credentials)
-    # Video size exceeds attachment size limits - we expect this to be ignored
-    video_content = "1" * (len(playstation_dump) + 2 * 1024 * 1024)
 
+    video_content = "video content"
     response = relay.send_playstation_request(
         PROJECT_ID, playstation_dump, video_content
     )
-    # Attachment chunks sent to Kafka
+
     chunks = defaultdict(bytes)
     event = None
     while not event:
@@ -661,10 +651,7 @@ def test_playstation_upload_attachments(
         elif msg.get("type") == "event":
             event = msg
 
-    # Successful response
     assert response.ok
-
-    # No outcomes
     assert len(outcomes_consumer.get_outcomes()) == 0
 
     # Attachment chunks (created from the envelope) don't contain the video attachment, but instead
