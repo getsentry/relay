@@ -65,6 +65,13 @@ pub mod attributes {
         // TODO(buenaflor): Add as sentry convention once mobile SDKs can migrate to it.
         // Tracking issue: https://github.com/getsentry/sentry-conventions/issues/318
         pub const APP__VITALS__START__VALUE: &str = "app.vitals.start.value";
+
+        /// The transaction event's `contexts`, serialized as a JSON string.
+        pub const SENTRY__TRANSACTION__CONTEXTS: &str = "sentry.transaction.contexts";
+        /// The transaction event's `breadcrumbs`, serialized as a JSON string.
+        pub const SENTRY__TRANSACTION__BREADCRUMBS: &str = "sentry.transaction.breadcrumbs";
+        /// The transaction event's `extra`, serialized as a JSON string.
+        pub const SENTRY__TRANSACTION__EXTRA: &str = "sentry.transaction.extra";
     }
     pub use self::not_yet_defined::*;
 }

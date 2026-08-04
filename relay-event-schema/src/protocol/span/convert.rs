@@ -2,11 +2,14 @@
 
 use relay_conventions::attributes::{
     BROWSER__NAME, HTTP__QUERY, SENTRY__ENVIRONMENT, SENTRY__RELEASE, SENTRY__SDK__NAME,
-    SENTRY__SDK__VERSION, SENTRY__SEGMENT__NAME, URL__QUERY,
+    SENTRY__SDK__VERSION, SENTRY__SEGMENT__NAME, SENTRY__TRANSACTION__BREADCRUMBS,
+    SENTRY__TRANSACTION__CONTEXTS, SENTRY__TRANSACTION__EXTRA, URL__QUERY,
 };
-use relay_protocol::IntoValue;
+use relay_protocol::{Annotated, IntoValue};
 
-use crate::protocol::{BrowserContext, Event, ProfileContext, Span, SpanData, TraceContext};
+use crate::protocol::{
+    BrowserContext, DefaultContext, Event, ProfileContext, Span, SpanData, TraceContext,
+};
 
 impl From<&Event> for Span {
     fn from(event: &Event) -> Self {
@@ -20,7 +23,9 @@ impl From<&Event> for Span {
             release,
             environment,
             tags,
-
+            contexts,
+            breadcrumbs,
+            extra,
             measurements,
             _metrics,
             ..
@@ -74,6 +79,29 @@ impl From<&Event> for Span {
         {
             span_data.insert_value(HTTP__QUERY, format!("?{qs}"));
             span_data.insert_value(URL__QUERY, qs);
+        }
+
+        if let Some(contexts) = contexts.value() {
+            let mut contexts = contexts.clone();
+            contexts.0.remove(TraceContext::default_key());
+            if !contexts.0.is_empty()
+                && let Ok(json) = Annotated::new(contexts).payload_to_json()
+            {
+                span_data.insert_value(SENTRY__TRANSACTION__CONTEXTS, json);
+            }
+        }
+        if breadcrumbs
+            .value()
+            .and_then(|b| b.values.value())
+            .is_some_and(|v| !v.is_empty())
+            && let Ok(json) = breadcrumbs.payload_to_json()
+        {
+            span_data.insert_value(SENTRY__TRANSACTION__BREADCRUMBS, json);
+        }
+        if extra.value().is_some_and(|e| !e.is_empty())
+            && let Ok(json) = extra.payload_to_json()
+        {
+            span_data.insert_value(SENTRY__TRANSACTION__EXTRA, json);
         }
 
         Self {
@@ -155,6 +183,13 @@ mod tests {
                         ]
                     }
                 },
+                "breadcrumbs": [
+                    {"type": "default", "category": "auth", "message": "login"}
+                ],
+                "extra": {
+                    "my_key": 1,
+                    "some_other_value": "foo bar"
+                },
                 "request": {
                     "url": "http://example.com/api/0/organizations/",
                     "method": "GET",
@@ -221,6 +256,15 @@ mod tests {
                     "sentry.segment.name": String(
                         "my 1st transaction",
                     ),
+                    "sentry.transaction.breadcrumbs": String(
+                        "{\"values\":[{\"type\":\"default\",\"category\":\"auth\",\"message\":\"login\"}]}",
+                    ),
+                    "sentry.transaction.contexts": String(
+                        "{\"browser\":{\"name\":\"Chrome\",\"type\":\"browser\"},\"profile\":{\"profile_id\":\"a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaab\",\"type\":\"profile\"}}",
+                    ),
+                    "sentry.transaction.extra": String(
+                        "{\"my_key\":1,\"some_other_value\":\"foo bar\"}",
+                    ),
                     "url.query": String(
                         "project=1&sort=date",
                     ),
@@ -257,5 +301,93 @@ mod tests {
             other: {},
         }
         "#);
+    }
+
+    #[test]
+    fn convert_preserves_contexts_breadcrumbs_extra() {
+        let event = Annotated::<Event>::from_json(
+            r#"{
+                "type": "transaction",
+                "transaction": "my transaction",
+                "contexts": {
+                    "browser": {"name": "Chrome"},
+                    "trace": {
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74052"
+                    }
+                },
+                "breadcrumbs": [
+                    {"type": "default", "category": "auth", "message": "login"}
+                ],
+                "extra": {
+                    "my_key": 1,
+                    "some_other_value": "foo bar"
+                }
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        let span = Span::from(&event);
+        let data = span.data.value().unwrap();
+
+        assert_eq!(
+            data.get_str(SENTRY__TRANSACTION__CONTEXTS),
+            Some(r#"{"browser":{"name":"Chrome","type":"browser"}}"#)
+        );
+        assert_eq!(
+            data.get_str(SENTRY__TRANSACTION__BREADCRUMBS),
+            Some(r#"{"values":[{"type":"default","category":"auth","message":"login"}]}"#)
+        );
+        assert_eq!(
+            data.get_str(SENTRY__TRANSACTION__EXTRA),
+            Some(r#"{"my_key":1,"some_other_value":"foo bar"}"#)
+        );
+    }
+
+    #[test]
+    fn convert_omits_absent_contexts_breadcrumbs_extra() {
+        let event = Annotated::<Event>::from_json(
+            r#"{
+                "type": "transaction",
+                "transaction": "my transaction"
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        let span = Span::from(&event);
+
+        if let Some(data) = span.data.value() {
+            assert!(!data.contains(SENTRY__TRANSACTION__CONTEXTS));
+            assert!(!data.contains(SENTRY__TRANSACTION__BREADCRUMBS));
+            assert!(!data.contains(SENTRY__TRANSACTION__EXTRA));
+        }
+    }
+
+    #[test]
+    fn convert_omits_empty_contexts_breadcrumbs_extra() {
+        let event = Annotated::<Event>::from_json(
+            r#"{
+                "type": "transaction",
+                "transaction": "my transaction",
+                "contexts": {},
+                "breadcrumbs": [],
+                "extra": {}
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        let span = Span::from(&event);
+
+        if let Some(data) = span.data.value() {
+            assert!(!data.contains(SENTRY__TRANSACTION__CONTEXTS));
+            assert!(!data.contains(SENTRY__TRANSACTION__BREADCRUMBS));
+            assert!(!data.contains(SENTRY__TRANSACTION__EXTRA));
+        }
     }
 }
