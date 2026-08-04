@@ -374,7 +374,6 @@ def test_ai_spans_example_transaction(
 
     assert spans_consumer.get_spans(n=10) == [
         {
-            "_meta": matches_any(),
             "attributes": {
                 "gen_ai.conversation.id": {
                     "type": "string",
@@ -1359,13 +1358,6 @@ def test_ai_spans_example_transaction(
     ]
 
 
-TEST_CONFIG = {
-    "outcomes": {
-        "emit_outcomes": True,
-    }
-}
-
-
 def envelope_with_spans(*payloads: dict, trace_info=None, metadata=None) -> Envelope:
     envelope = Envelope()
     envelope.add_item(
@@ -1527,7 +1519,7 @@ def test_gen_ai_transform_request_messages_v2(
 
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    relay = relay(relay_with_processing())
 
     ts = datetime.now(timezone.utc)
     messages = json.dumps([{"role": "user", "content": "What is the weather?"}])
@@ -1579,7 +1571,7 @@ def test_gen_ai_transform_response_text_and_tool_calls_v2(
 
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
-    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    relay = relay(relay_with_processing())
 
     ts = datetime.now(timezone.utc)
     tool_calls = json.dumps(
