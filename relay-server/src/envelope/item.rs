@@ -833,9 +833,7 @@ impl ItemType {
             EventType::Default | EventType::Error => ItemType::Event,
             EventType::Transaction => ItemType::Transaction,
             EventType::UserReportV2 => ItemType::UserReportV2,
-            EventType::Csp | EventType::Hpkp | EventType::ExpectCt | EventType::ExpectStaple => {
-                ItemType::Security
-            }
+            EventType::Csp => ItemType::Security,
         }
     }
 
