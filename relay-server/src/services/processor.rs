@@ -53,7 +53,6 @@ use crate::statsd::{RelayCounters, RelayDistributions, RelayTimers};
 use crate::utils;
 use crate::{http, processing};
 use relay_threading::AsyncPool;
-use symbolic_unreal::{Unreal4Error, Unreal4ErrorKind};
 #[cfg(feature = "processing")]
 use {
     crate::services::objectstore::Objectstore,
@@ -63,6 +62,7 @@ use {
     relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
     relay_redis::RedisClients,
     std::time::Instant,
+    symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
 mod metrics;
@@ -79,6 +79,10 @@ pub enum ProcessingError {
     #[error("invalid message pack event payload")]
     InvalidMsgpack(#[from] rmp_serde::decode::Error),
 
+    #[error("event data too deeply nested")]
+    NestingTooDeep,
+
+    #[cfg(feature = "processing")]
     #[error("invalid unreal crash report")]
     InvalidUnrealReport(#[source] Unreal4Error),
 
@@ -139,6 +143,7 @@ impl ProcessingError {
             }
             Self::InvalidJson(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
             Self::InvalidMsgpack(_) => Some(Outcome::Invalid(DiscardReason::InvalidMsgpack)),
+            Self::NestingTooDeep => Some(Outcome::Invalid(DiscardReason::NestingTooDeep)),
             Self::InvalidSecurityType(_) => {
                 Some(Outcome::Invalid(DiscardReason::SecurityReportType))
             }
@@ -151,9 +156,11 @@ impl ProcessingError {
             Self::InvalidNintendoDyingMessage(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
             #[cfg(all(sentry, feature = "processing"))]
             Self::InvalidPlaystationDump(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
+            #[cfg(feature = "processing")]
             Self::InvalidUnrealReport(err) if err.kind() == Unreal4ErrorKind::BadCompression => {
                 Some(Outcome::Invalid(DiscardReason::InvalidCompression))
             }
+            #[cfg(feature = "processing")]
             Self::InvalidUnrealReport(_) => Some(Outcome::Invalid(DiscardReason::ProcessUnreal)),
             Self::SerializeFailed(_) | Self::ProcessingFailed(_) => {
                 Some(Outcome::Invalid(DiscardReason::Internal))
@@ -170,6 +177,7 @@ impl ProcessingError {
     }
 }
 
+#[cfg(feature = "processing")]
 impl From<Unreal4Error> for ProcessingError {
     fn from(err: Unreal4Error) -> Self {
         match err.kind() {
@@ -630,12 +638,6 @@ impl EnvelopeProcessorService {
                 .parametrize_dsc_transaction(&sampling_state.config.tx_name_rules);
         }
 
-        // Set the event retention. Effectively, this value will only be available in processing
-        // mode when the full project config is queried from the upstream.
-        if let Some(retention) = ctx.project_info.config.event_retention {
-            envelope.envelope_mut().set_retention(retention);
-        }
-
         // Ensure the project ID is updated to the stored instance for this project cache. This can
         // differ in two cases:
         //  1. The envelope was sent to the legacy `/store/` endpoint without a project ID.
@@ -1001,12 +1003,8 @@ impl EnvelopeProcessorService {
             return Vec::new();
         };
 
-        let mut buckets = self::metrics::apply_project_info(
-            buckets,
-            &self.inner.metric_outcomes,
-            project_info,
-            scoping,
-        );
+        let mut buckets =
+            self::metrics::remove_invalid_namespaces(buckets, &self.inner.metric_outcomes, scoping);
 
         let mut namespaces: BTreeSet<MetricNamespace> = buckets
             .iter()
@@ -1196,7 +1194,6 @@ impl EnvelopeProcessorService {
     ) {
         use crate::constants::DEFAULT_EVENT_RETENTION;
         use crate::services::store::StoreMetrics;
-        use relay_dynamic_config::Feature;
 
         for ProjectBuckets {
             buckets,
@@ -1213,16 +1210,10 @@ impl EnvelopeProcessorService {
                 continue;
             }
 
-            if project_info
-                .config
-                .features
-                .has(Feature::GenerateBillingOutcome)
-            {
-                // Emit metric billing outcomes.
-                self.inner
-                    .metric_outcomes
-                    .track_accepted_outcome(scoping, &mut buckets);
-            }
+            // Emit metric billing outcomes.
+            self.inner
+                .metric_outcomes
+                .track_accepted_outcome(scoping, &mut buckets);
 
             let retention = project_info
                 .config
@@ -2380,7 +2371,7 @@ mod tests {
             {
                 "timestamp": 1615889440,
                 "width": 0,
-                "name": "d:custom/endpoint.response_time@millisecond",
+                "name": "d:transactions/endpoint.response_time@millisecond",
                 "type": "d",
                 "value": [
                   68.0
@@ -2394,7 +2385,7 @@ mod tests {
             {
                 "timestamp": 1615889440,
                 "width": 0,
-                "name": "d:custom/endpoint.cache_rate@none",
+                "name": "d:transactions/endpoint.cache_rate@none",
                 "type": "d",
                 "value": [
                   36.0
@@ -2432,7 +2423,7 @@ mod tests {
                         timestamp: UnixTimestamp(1615889440),
                         width: 0,
                         name: MetricName(
-                            "d:custom/endpoint.response_time@millisecond",
+                            "d:transactions/endpoint.response_time@millisecond",
                         ),
                         value: Distribution(
                             [
@@ -2457,7 +2448,7 @@ mod tests {
                         timestamp: UnixTimestamp(1615889440),
                         width: 0,
                         name: MetricName(
-                            "d:custom/endpoint.cache_rate@none",
+                            "d:transactions/endpoint.cache_rate@none",
                         ),
                         value: Distribution(
                             [

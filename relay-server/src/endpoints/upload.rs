@@ -21,6 +21,7 @@ use relay_system::SendError;
 use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::Envelope;
+use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::endpoints::common::BadStoreRequest;
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
 use crate::extractors::RequestMeta;
@@ -184,12 +185,18 @@ async fn handle_post(
             StatusCode::SERVICE_UNAVAILABLE
         })?;
 
+    let multipart = match project.state() {
+        ProjectState::Enabled(p) => p.has_feature(Feature::UploadMultipart),
+        _ => false,
+    };
+
     relay_log::trace!("Checking request");
     let project_context = validate_and_limit(&state, meta, &headers, project).await?;
 
     // Unconditionally create the upload location:
     relay_log::trace!("Creating upload location");
-    let result = create(&state, project_context, &headers).await;
+
+    let result = create(&state, project_context, &headers, multipart).await;
     let location = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "create failed");
     })?;
@@ -312,6 +319,7 @@ async fn create(
     state: &ServiceState,
     project: ProjectContext,
     headers: &tus::Headers,
+    multipart: bool,
 ) -> Result<SignedLocation<Provisional>, Error> {
     let location = state
         .upload()
@@ -319,6 +327,7 @@ async fn create(
             project,
             length: headers.upload_length,
             attachment_type: headers.metadata.map(|m| m.attachment_type),
+            multipart,
         })
         .await??;
 
@@ -381,7 +390,11 @@ async fn validate_and_limit(
     let scoping = envelope.scoping();
     let upstream = project_upstream(&project);
     envelope.accept(|x| x);
-    Ok(ProjectContext { scoping, upstream })
+    Ok(ProjectContext {
+        scoping,
+        upstream,
+        retention: event_retention(&project),
+    })
 }
 
 /// Returns the feature a project must have enabled to upload attachments with the given type.
@@ -409,13 +422,26 @@ async fn validate(
     let scoping = envelope.scoping();
     let upstream = project_upstream(&project);
     envelope.accept(|x| x);
-    Ok(ProjectContext { scoping, upstream })
+    Ok(ProjectContext {
+        scoping,
+        upstream,
+        retention: event_retention(&project),
+    })
 }
 
 fn project_upstream(project: &Project<'_>) -> Option<UpstreamDescriptor> {
     match project.state() {
         ProjectState::Enabled(info) => info.upstream.clone(),
         ProjectState::Dummy | ProjectState::Disabled | ProjectState::Pending => None,
+    }
+}
+
+fn event_retention(project: &Project<'_>) -> u16 {
+    match project.state() {
+        ProjectState::Enabled(info) => info.event_retention(),
+        ProjectState::Dummy | ProjectState::Disabled | ProjectState::Pending => {
+            DEFAULT_EVENT_RETENTION
+        }
     }
 }
 

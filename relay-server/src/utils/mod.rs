@@ -2,6 +2,7 @@ mod api;
 mod debug;
 mod dynamic_sampling;
 mod error;
+pub mod gpu;
 mod multipart;
 mod param_parser;
 mod pick;
@@ -9,6 +10,7 @@ mod pick;
 pub mod playstation;
 mod rate_limits;
 mod retry;
+pub mod rmp;
 mod scheduled;
 mod sizes;
 mod sleep_handle;
@@ -23,6 +25,7 @@ mod memory;
 #[cfg(feature = "processing")]
 mod native;
 mod serde;
+#[cfg(feature = "processing")]
 mod unreal;
 
 pub use self::api::*;
@@ -46,4 +49,5 @@ pub use self::split_off::*;
 pub use self::statsd::*;
 pub use self::stream::*;
 pub use self::thread_pool::*;
+#[cfg(feature = "processing")]
 pub use self::unreal::*;

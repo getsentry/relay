@@ -1,16 +1,16 @@
-FROM us-docker.pkg.dev/sentryio/dhi-mirror/static:20250419-glibc-debian13 AS builder
+FROM gcr.io/distroless/cc-debian13:debug AS builder
 
-FROM us-docker.pkg.dev/sentryio/dhi-mirror/static:20250419-glibc-debian13
+RUN ["/busybox/busybox", "mkdir", "/work", "/etc/relay"]
+
+
+FROM gcr.io/distroless/cc-debian13:nonroot
 
 ARG TARGETPLATFORM
 
 EXPOSE 3000
 
-# The base image does not have a shell available, which means we cannot
-# `mkdir` the volume directories. As an alternative we can use the empty
-# home directory instead.
-COPY --from=builder --chown=nonroot:nonroot /home/nonroot /etc/relay
-COPY --from=builder --chown=nonroot:nonroot /home/nonroot /work
+COPY --from=builder --chown=nonroot:nonroot /etc/relay /etc/relay
+COPY --from=builder --chown=nonroot:nonroot /work /work
 
 VOLUME ["/etc/relay", "/work"]
 WORKDIR /work

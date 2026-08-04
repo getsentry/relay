@@ -141,6 +141,8 @@ def test_span_extraction(
                 "sentry.op": {"type": "string", "value": "http"},
                 "sentry.origin": {"type": "string", "value": "manual"},
                 "sentry.platform": {"type": "string", "value": "other"},
+                "sentry.relay.ingress": {"type": "string", "value": "legacy"},
+                "sentry.relay.pipeline": {"type": "string", "value": "transaction"},
                 "sentry.replay_id": {
                     "type": "string",
                     "value": "4c79f60c11214eb38604f4ae0781bfb2",
@@ -150,7 +152,6 @@ def test_span_extraction(
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.segment.name": {"type": "string", "value": "hi"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
-                "sentry.transaction": {"type": "string", "value": "hi"},
                 "sentry.transaction.op": {"type": "string", "value": "hi"},
                 "sentry.user": {"type": "string", "value": f"id:{user_id}"},
                 "sentry.user.geo.city": {"type": "string", "value": "Vienna"},
@@ -226,11 +227,14 @@ def test_span_extraction(
             "attributes": {  # Backfilled from `sentry_tags`
                 "http.request.method": {"type": "string", "value": "GET"},
                 "http.route": {"type": "string", "value": "*******************"},
+                "sentry.action": {"type": "string", "value": "GET"},
                 "sentry.category": {"type": "string", "value": "http"},
                 "sentry.exclusive_time": {"type": "double", "value": 500.0},
                 "sentry.op": {"type": "string", "value": "http.client"},
                 "sentry.origin": {"type": "string", "value": "auto"},
                 "sentry.platform": {"type": "string", "value": "other"},
+                "sentry.relay.ingress": {"type": "string", "value": "legacy"},
+                "sentry.relay.pipeline": {"type": "string", "value": "transaction"},
                 "sentry.replay_id": {
                     "type": "string",
                     "value": "4c79f60c11214eb38604f4ae0781bfb2",
@@ -240,7 +244,6 @@ def test_span_extraction(
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.segment.name": {"type": "string", "value": "hi"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
-                "sentry.transaction": {"type": "string", "value": "hi"},
                 "sentry.transaction.op": {"type": "string", "value": "hi"},
                 "sentry.user": {"type": "string", "value": f"id:{user_id}"},
                 "sentry.user.geo.city": {"type": "string", "value": "Vienna"},
@@ -318,6 +321,8 @@ def test_span_extraction(
             "sentry.op": {"type": "string", "value": "hi"},
             "sentry.origin": {"type": "string", "value": "manual"},
             "sentry.platform": {"type": "string", "value": "other"},
+            "sentry.relay.ingress": {"type": "string", "value": "legacy"},
+            "sentry.relay.pipeline": {"type": "string", "value": "transaction"},
             "sentry.replay_id": {
                 "type": "string",
                 "value": "4c79f60c11214eb38604f4ae0781bfb2",
@@ -329,7 +334,6 @@ def test_span_extraction(
             "sentry.status": {"type": "string", "value": "ok"},
             "sentry.trace.status": {"type": "string", "value": "ok"},
             "sentry.transaction.op": {"type": "string", "value": "hi"},
-            "sentry.transaction": {"type": "string", "value": "hi"},
             "sentry.user": {"type": "string", "value": f"id:{user_id}"},
             "sentry.user.geo.city": {"type": "string", "value": "Vienna"},
             "sentry.user.geo.country_code": {"type": "string", "value": "AT"},
@@ -487,7 +491,7 @@ def test_span_extraction_mobile_app_start_backfill(
         assert key not in attrs
 
 
-def envelope_with_spans(start: datetime, end: datetime) -> Envelope:
+def envelope_with_spans(start: datetime, end: datetime, public_key: str) -> Envelope:
     envelope = Envelope()
     envelope.add_item(
         Item(
@@ -500,6 +504,7 @@ def envelope_with_spans(start: datetime, end: datetime) -> Envelope:
                         # Span with the same `span_id` and `segment_id`, to make sure it is classified as `is_segment`.
                         "span_id": "b0429c44b67a3eb1",
                         "segment_id": "b0429c44b67a3eb1",
+                        "is_segment": True,
                         "start_timestamp": start.timestamp(),
                         "timestamp": end.timestamp() + 1,
                         "exclusive_time": 345.0,  # The SDK knows that this span has a lower exclusive time
@@ -562,6 +567,11 @@ def envelope_with_spans(start: datetime, end: datetime) -> Envelope:
             ),
         )
     )
+    envelope.headers["trace"] = {
+        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        "public_key": public_key,
+        "segment_name": "/auth/login/my_user_name",
+    }
 
     return envelope
 
@@ -626,7 +636,7 @@ def test_span_ingestion_with_performance_scores(
                 ],
                 "condition": {
                     "op": "eq",
-                    "name": "event.contexts.browser.name",
+                    "name": "span.attributes.browser.name.value",
                     "value": "Firefox",
                 },
             },
@@ -637,7 +647,7 @@ def test_span_ingestion_with_performance_scores(
                 ],
                 "condition": {
                     "op": "eq",
-                    "name": "event.contexts.browser.name",
+                    "name": "span.attributes.browser.name.value",
                     "value": "Firefox",
                 },
             },
@@ -708,6 +718,11 @@ def test_span_ingestion_with_performance_scores(
             ),
         )
     )
+    envelope.headers["trace"] = {
+        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        "public_key": project_config["publicKeys"][0]["publicKey"],
+        "segment_name": "/page/with/click/interaction/jane/123",
+    }
     relay.send_envelope(project_id, envelope)
 
     spans = spans_consumer.get_spans(timeout=10.0, n=2)
@@ -786,7 +801,9 @@ def test_rate_limit_indexed_consistent(
     start = datetime.now(timezone.utc)
     end = start + timedelta(seconds=1)
 
-    envelope = envelope_with_spans(start, end)
+    envelope = envelope_with_spans(
+        start, end, project_config["publicKeys"][0]["publicKey"]
+    )
 
     def summarize_outcomes():
         counter = Counter()
@@ -926,7 +943,9 @@ def test_rate_limit_spans_in_envelope(
     start = datetime.now(UTC)
     end = start + timedelta(seconds=1)
 
-    envelope = envelope_with_spans(start, end)
+    envelope = envelope_with_spans(
+        start, end, project_config["publicKeys"][0]["publicKey"]
+    )
 
     def summarize_outcomes():
         counter = Counter()
@@ -1096,8 +1115,16 @@ def test_discard_transaction(
     spans = spans_consumer.get_spans(n=2)
     assert len(spans) == 2
 
-    outcomes = outcomes_consumer.get_outcomes()
-    assert [(o["category"], o["outcome"], o["reason"]) for o in outcomes] == [
+    outcomes = outcomes_consumer.get_outcomes(n=3)
+
+    outcomes.sort(key=lambda o: o["outcome"])
+
+    # skip billing outcomes
+    assert outcomes[0]["outcome"] == 0
+    assert outcomes[1]["outcome"] == 0
+
+    o = outcomes[2]
+    assert [(o["category"], o["outcome"], o["reason"])] == [
         (9, 1, "discarded"),  # TransactionIndexed, Filtered
     ]
 
@@ -1115,7 +1142,7 @@ def test_span_filtering_with_generic_inbound_filter(
                 "isEnabled": True,
                 "condition": {
                     "op": "eq",
-                    "name": "span.data.release",
+                    "name": "span.attributes.sentry.release.value",
                     "value": "1.0",
                 },
             }
@@ -1124,7 +1151,7 @@ def test_span_filtering_with_generic_inbound_filter(
 
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
-    mini_sentry.add_full_project_config(project_id)
+    config = mini_sentry.add_full_project_config(project_id)
 
     spans_consumer = spans_consumer()
     outcomes_consumer = outcomes_consumer()
@@ -1153,6 +1180,11 @@ def test_span_filtering_with_generic_inbound_filter(
             ),
         )
     )
+    envelope.headers["trace"] = {
+        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        "public_key": config["publicKeys"][0]["publicKey"],
+        "segment_name": "/auth/login/my_user_name",
+    }
 
     relay.send_envelope(project_id, envelope)
 
@@ -1237,13 +1269,7 @@ def test_dynamic_sampling(
     start = end - duration
 
     # 1 - Send OTel span and sentry span via envelope
-    envelope = envelope_with_spans(start, end)
-    envelope.headers["trace"] = {
-        "public_key": sampling_public_key,
-        "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-        "segment_name": "/auth/login/my_user_name",
-    }
-
+    envelope = envelope_with_spans(start, end, sampling_public_key)
     relay.send_envelope(project_id, envelope)
 
     def summarize_outcomes(outcomes):

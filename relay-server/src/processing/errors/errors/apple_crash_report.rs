@@ -28,7 +28,7 @@ impl SentryError for AppleCrashReport {
         utils::if_processing!(ctx, {
             crate::utils::process_apple_crash_report(
                 event.get_or_insert_with(Default::default),
-                ctx.processing.project_info,
+                crate::utils::AdditionalExceptions::Retain,
             );
             metrics.bytes_ingested_event_applecrashreport =
                 (apple_crash_report.len() as u64).into();

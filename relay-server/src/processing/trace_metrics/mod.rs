@@ -1,10 +1,11 @@
-use std::sync::Arc;
-
 use relay_cogs::{AppFeature, FeatureWeights};
+use relay_event_normalization::eap::time::TimestampOutOfRange;
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{TraceMetric, trace_metric};
 use relay_filter::FilterStatKey;
 use relay_quotas::{DataCategory, RateLimits};
+use smallvec::smallvec;
+use std::sync::Arc;
 
 use crate::Envelope;
 use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemType, Items};
@@ -12,7 +13,6 @@ use crate::envelope::{ContainerWriteError, ItemContainer};
 use crate::managed::{Counted, Managed, ManagedEnvelope, ManagedResult as _, Quantities, Rejected};
 use crate::processing::{self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter};
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
-use smallvec::smallvec;
 
 mod filter;
 mod process;
@@ -23,12 +23,17 @@ mod validate;
 
 pub use self::utils::get_calculated_byte_size;
 
+#[cfg(feature = "processing")]
+pub use self::store::produce_webvitals_metrics;
+
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// Received trace metric exceeds the configured size limit.
     #[error("trace metric exeeds size limit")]
     TooLarge,
+    #[error(transparent)]
+    TimestampOutOfRange(#[from] TimestampOutOfRange),
     /// The metric name is not valid.
     #[error("trace metric name is not valid")]
     InvalidMetricName,
@@ -75,6 +80,7 @@ impl crate::managed::OutcomeError for Error {
             Self::TooLarge => Some(Outcome::Invalid(DiscardReason::ItemTooLarge(
                 DiscardItemType::TraceMetric,
             ))),
+            Self::TimestampOutOfRange(_) => Some(Outcome::Invalid(DiscardReason::Timestamp)),
             Self::InvalidMetricName => Some(Outcome::Invalid(DiscardReason::InvalidTraceMetric)),
             Self::ProcessingFailed(_) => {
                 relay_log::error!("internal error: trace metric processing failed");

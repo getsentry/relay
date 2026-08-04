@@ -148,7 +148,7 @@ fn normalize_trace_metric(
     eap::time::normalize(
         metric,
         utils::normalize::time_config(headers, |f| f.trace_metric.as_ref(), ctx),
-    );
+    )?;
 
     if let Some(metric_value) = metric.value_mut() {
         let client_ua_info = settings.infer_user_agent.then(|| ClientUserAgentInfo {

@@ -10,7 +10,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use chrono::{DateTime, Utc};
 use itertools::Either;
-use relay_event_schema::protocol::EventId;
 use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 use smallvec::SmallVec;
@@ -161,7 +160,6 @@ impl Managed<Box<Envelope>> {
             outcome_aggregator,
             received_at: envelope.received_at(),
             scoping: envelope.meta().get_partial_scoping().into_scoping(),
-            event_id: envelope.event_id(),
             remote_addr: envelope.meta().remote_addr(),
         });
 
@@ -198,7 +196,6 @@ impl<T: Counted> Managed<T> {
                 outcome_aggregator: envelope.outcome_aggregator().clone(),
                 received_at: envelope.received_at(),
                 scoping: envelope.scoping(),
-                event_id: envelope.envelope().event_id(),
                 remote_addr: envelope.meta().remote_addr(),
             }),
         )
@@ -216,7 +213,6 @@ impl<T: Counted> Managed<T> {
                 outcome_aggregator: outcome_aggregator.clone(),
                 received_at: request_meta.received_at(),
                 scoping: request_meta.get_partial_scoping().into_scoping(),
-                event_id: None,
                 remote_addr: request_meta.remote_addr(),
             }),
         )
@@ -777,8 +773,6 @@ struct Meta {
     received_at: DateTime<Utc>,
     /// Data scoping information of the contained item.
     scoping: Scoping,
-    /// Optional event id associated with the contained data.
-    event_id: Option<EventId>,
     /// Optional remote addr from where the data was received.
     remote_addr: Option<IpAddr>,
 }
@@ -789,7 +783,7 @@ impl Meta {
             timestamp: self.received_at,
             scoping: self.scoping,
             outcome,
-            event_id: self.event_id,
+            event_id: None,
             remote_addr: self.remote_addr,
             category,
             quantity: quantity as _,

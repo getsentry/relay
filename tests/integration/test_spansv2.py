@@ -1,5 +1,6 @@
 from datetime import datetime, timezone, timedelta
 
+from requests import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 
@@ -133,6 +134,8 @@ def test_spansv2_basic(
                 "value": time_within(ts, expect_resolution="ns"),
             },
             "sentry.op": {"type": "string", "value": "default"},
+            "sentry.relay.ingress": {"type": "string", "value": "container"},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "sentry.trace.status": {"type": "string", "value": "ok"},
         },
         "_meta": {
@@ -243,7 +246,7 @@ def test_spansv2_trimming_basic(
             # This is sufficient for all builtin attributes not
             # to be trimmed. The span fields that aren't trimmed
             # also still count for the size limit.
-            "trimming": {"span": {"maxSize": 513}},
+            "trimming": {"span": {"maxSize": 570}},
         }
     )
 
@@ -341,11 +344,13 @@ def test_spansv2_trimming_basic(
                 "value": time_within(ts, expect_resolution="ns"),
             },
             "sentry.op": {"type": "string", "value": "default"},
+            "sentry.relay.ingress": {"type": "string", "value": "container"},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "sentry.trace.status": {"type": "string", "value": "ok"},
         },
         "_meta": {
             "attributes": {
-                "": {"len": 586},
+                "": {"len": 643},
                 "custom.array.attribute": {
                     "value": {
                         "1": {
@@ -444,7 +449,6 @@ def test_spansv2_ds_drop(mini_sentry, relay, span, rule_type):
     """
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = ["projects:span-v2-experimental-processing"]
     # A transaction rule should never apply.
     add_sampling_config(project_config, sample_rate=1, rule_type="transaction")
     # Setup the actual rule we want to test against.
@@ -1071,7 +1075,8 @@ def test_spans_v2_multiple_containers_not_allowed(
         )
     )
 
-    relay.send_envelope(project_id, envelope)
+    with pytest.raises(HTTPError, match="413 Client Error"):
+        relay.send_envelope(project_id, envelope)
 
     assert mini_sentry.get_outcomes(n=2) == [
         {
@@ -1079,14 +1084,14 @@ def test_spans_v2_multiple_containers_not_allowed(
             "timestamp": time_within_delta(),
             "outcome": 3,  # Invalid
             "quantity": 3,
-            "reason": "duplicate_item",
+            "reason": "too_large:span",
         },
         {
             "category": DataCategory.SPAN_INDEXED.value,
             "timestamp": time_within_delta(),
             "outcome": 3,  # Invalid
             "quantity": 3,
-            "reason": "duplicate_item",
+            "reason": "too_large:span",
         },
     ]
 
@@ -1210,6 +1215,8 @@ def test_spanv2_with_string_pii_scrubbing(
                 "value": "5b8efff798038103d269b633813fc60c",
             },
             "test_pii": {"type": "string", "value": expected_scrubbed},
+            "sentry.relay.ingress": {"type": "string", "value": "container"},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
@@ -1349,6 +1356,8 @@ def test_spanv2_meta_pii_scrubbing_complex_attribute(mini_sentry, relay):
                 "type": "string",
                 "value": "5b8efff798038103d269b633813fc60c",
             },
+            "sentry.relay.ingress": {"type": "string", "value": "container"},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
@@ -1484,7 +1493,6 @@ def test_spansv2_attribute_normalization(
         "attributes": {
             "sentry.category": {"type": "string", "value": "db"},
             "sentry.op": {"type": "string", "value": "db"},
-            "db.system": {"type": "string", "value": "mysql"},
             "db.system.name": {"type": "string", "value": "mysql"},
             "db.operation.name": {"type": "string", "value": "SELECT"},
             "sentry.action": {"type": "string", "value": "SELECT"},
@@ -1520,6 +1528,8 @@ def test_spansv2_attribute_normalization(
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
             },
+            "sentry.relay.ingress": {"type": "string", "value": "container"},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
         },
     }
 
@@ -1546,6 +1556,8 @@ def test_spansv2_attribute_normalization(
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
             },
+            "sentry.relay.ingress": {"type": "string", "value": "container"},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "http.request.method": {"type": "string", "value": "GET"},
             "sentry.action": {"type": "string", "value": "GET"},
             "server.address": {"type": "string", "value": "*.service.io"},
@@ -1714,33 +1726,50 @@ def test_time_corrections(mini_sentry, relay, delta, error):
 
     relay.send_envelope(project_id, envelope)
 
-    envelope = mini_sentry.get_captured_envelope()
-    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
-    assert item_payload["items"][0] == {
-        "_meta": {
-            "start_timestamp": {
-                "": {
-                    "err": [
-                        [
-                            error,
-                            {
-                                "sdk_time": time_within_delta(ts + delta),
-                                "server_time": time_within_delta(ts),
-                            },
+    if error == "past_timestamp":
+        assert mini_sentry.get_aggregated_outcomes() == [
+            {
+                "category": DataCategory.SPAN.value,
+                "outcome": 3,
+                "quantity": 1,
+                "reason": "timestamp",
+            },
+            {
+                "category": DataCategory.SPAN_INDEXED.value,
+                "outcome": 3,
+                "quantity": 1,
+                "reason": "timestamp",
+            },
+        ]
+        assert mini_sentry.captured_envelopes.empty()
+    else:
+        envelope = mini_sentry.get_captured_envelope()
+        item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+        assert item_payload["items"][0] == {
+            "_meta": {
+                "start_timestamp": {
+                    "": {
+                        "err": [
+                            [
+                                error,
+                                {
+                                    "sdk_time": time_within_delta(ts + delta),
+                                    "server_time": time_within_delta(ts),
+                                },
+                            ]
                         ]
-                    ]
+                    }
                 }
-            }
-        },
-        "attributes": matches_any(),
-        "status": "ok",
-        "is_segment": True,
-        "name": "some op",
-        "start_timestamp": time_within_delta(ts),
-        "end_timestamp": time_within_delta(ts),
-        "trace_id": "5b8efff798038103d269b633813fc60c",
-        "span_id": "eee19b7ec3c1b175",
-    }
+            },
+            "attributes": matches_any(),
+            "status": "ok",
+            "is_segment": True,
+            "name": "some op",
+            "start_timestamp": time_within_delta(ts),
+            "end_timestamp": time_within_delta(ts),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+        }
 
 
 # This test's performance score logic has been ported
@@ -1997,6 +2026,8 @@ def test_spansv2_lcp_segment(mini_sentry, relay_with_processing, spans_consumer)
                 "type": "string",
                 "value": "ui.webvital.lcp",
             },
+            "sentry.relay.ingress": {"type": "string", "value": "container"},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "sentry.segment.name": {
                 "type": "string",
                 "value": "/issues/",
@@ -2004,10 +2035,6 @@ def test_spansv2_lcp_segment(mini_sentry, relay_with_processing, spans_consumer)
             "sentry.segment.id": {
                 "type": "string",
                 "value": "a84cb30362883928",
-            },
-            "sentry.transaction": {
-                "type": "string",
-                "value": "/issues/",
             },
             "user_agent.original": {
                 "type": "string",

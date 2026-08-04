@@ -4,6 +4,7 @@ use std::time::Duration;
 include!(concat!(env!("OUT_DIR"), "/constants.gen.rs"));
 
 /// Name of the custom tag in the crash user data for Sentry event payloads.
+#[cfg(feature = "processing")]
 pub const SENTRY_CRASH_PAYLOAD_KEY: &str = "__sentry";
 
 /// Name of the event attachment.
@@ -31,6 +32,11 @@ pub const UNREAL_USER_HEADER: &str = "unreal_user_id";
 /// The default retention for events if the server does not specify a value in project
 /// configurations.
 pub const DEFAULT_EVENT_RETENTION: u16 = 90;
+
+/// Maximum amount of items in an envelope will be parsed.
+///
+/// No valid envelope should ever contain more items than specified here.
+pub const MAX_ENVELOPE_ITEMS: usize = 500;
 
 /// Maximum size of JSON request bodies.
 pub const MAX_JSON_SIZE: usize = 262_144;

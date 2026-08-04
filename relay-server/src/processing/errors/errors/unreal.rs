@@ -5,16 +5,14 @@ use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing::ForwardContext;
 use crate::processing::errors::Result;
 use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
-
-#[derive(Debug)]
-pub enum UnrealReport {
-    Report(Item),
-    Expanded(Vec<Item>),
-}
+#[cfg(feature = "processing")]
+use crate::utils::AdditionalExceptions;
 
 #[derive(Debug)]
 pub enum Unreal {
-    Forward(UnrealReport),
+    Forward {
+        report: Item,
+    },
     #[cfg(feature = "processing")]
     Process {
         minidump: Option<Item>,
@@ -28,14 +26,8 @@ impl SentryError for Unreal {
     }
 
     fn try_expand(items: &mut Vec<Item>, ctx: Context<'_>) -> Result<Option<Expansion<Self>>> {
-        let report = if let Some(item) = utils::take_item_of_type(items, ItemType::UnrealReport) {
-            UnrealReport::Report(item)
-        } else {
-            let items: Vec<Item> = utils::take_items_by(items, |i| i.is_unreal_expanded());
-            if items.is_empty() {
-                return Ok(None);
-            }
-            UnrealReport::Expanded(items)
+        let Some(report) = utils::take_item_of_type(items, ItemType::UnrealReport) else {
+            return Ok(None);
         };
 
         let mut metrics = Default::default();
@@ -45,7 +37,7 @@ impl SentryError for Unreal {
                 event: Box::new(utils::take_event_from_crash_items(items, &mut metrics, ctx)?),
                 attachments: utils::take_items_of_type(items, ItemType::Attachment),
                 user_reports: utils::take_items_of_type(items, ItemType::UserReport),
-                error: Self::Forward(report),
+                error: Self::Forward { report },
                 metrics,
                 fully_normalized: false,
             }
@@ -53,10 +45,7 @@ impl SentryError for Unreal {
             use crate::envelope::AttachmentType;
             use crate::services::processor::ProcessingError;
 
-            let expansion = match report {
-                UnrealReport::Report(item) => crate::utils::expand_unreal(item.payload(), ctx.processing.config)?,
-                UnrealReport::Expanded(report_items) => crate::utils::expand_unreal_items(report_items.into())?,
-            };
+            let expansion = crate::utils::expand_unreal(report.payload(), ctx.processing.config)?;
 
             let event = expansion.event;
             let mut attachments = expansion.attachments.into_vec();
@@ -102,14 +91,13 @@ impl SentryError for Unreal {
             if let Some(minidump) = &minidump {
                 crate::utils::process_minidump(
                     event.get_or_insert_with(Default::default),
-                    minidump,
-                    ctx.processing.project_info
+                    minidump, AdditionalExceptions::Delete
                 );
                 metrics.bytes_ingested_event_minidump = (minidump.attachment_body_size() as u64).into();
             }
             if let Some(acr) = &apple_crash_report {
                 crate::utils::process_apple_crash_report(
-                    event.get_or_insert_with(Default::default), ctx.processing.project_info
+                    event.get_or_insert_with(Default::default), AdditionalExceptions::Delete
                 );
                 metrics.bytes_ingested_event_applecrashreport = (acr.len() as u64).into();
             }
@@ -176,8 +164,7 @@ impl SentryError for Unreal {
 
     fn serialize_into(self, items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
         match self {
-            Self::Forward(UnrealReport::Report(report)) => items.push(report),
-            Self::Forward(UnrealReport::Expanded(report_items)) => items.extend(report_items),
+            Self::Forward { report } => items.push(report),
             #[cfg(feature = "processing")]
             Self::Process {
                 minidump,
@@ -193,7 +180,7 @@ impl SentryError for Unreal {
 
     fn minidump_mut(&mut self) -> Option<&mut Item> {
         match self {
-            Self::Forward(..) => None,
+            Self::Forward { .. } => None,
             #[cfg(feature = "processing")]
             Self::Process { minidump, .. } => minidump.as_mut(),
         }
@@ -203,8 +190,7 @@ impl SentryError for Unreal {
 impl Counted for Unreal {
     fn quantities(&self) -> Quantities {
         match self {
-            Self::Forward(UnrealReport::Report(..)) => Quantities::default(),
-            Self::Forward(UnrealReport::Expanded(items)) => items.quantities(),
+            Self::Forward { .. } => Quantities::default(),
             #[cfg(feature = "processing")]
             Self::Process {
                 minidump,

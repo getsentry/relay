@@ -203,8 +203,8 @@ def _check_category_unit_generated():
 
 _check_category_unit_generated()
 
-SPAN_STATUS_CODE_TO_NAME = {}
-SPAN_STATUS_NAME_TO_CODE = {}
+SPAN_STATUS_CODE_TO_NAME: dict[int, str] = {}
+SPAN_STATUS_NAME_TO_CODE: dict[str, int] = {}
 
 
 def _make_span_statuses():

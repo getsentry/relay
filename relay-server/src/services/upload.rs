@@ -124,6 +124,8 @@ pub struct ProjectContext {
     pub scoping: Scoping,
     /// Where to send the request.
     pub upstream: Option<UpstreamDescriptor>,
+    /// The retention to use for the uploaded object (in days).
+    pub retention: u16,
 }
 
 /// Request to create an upload resource.
@@ -136,6 +138,8 @@ pub struct Create {
     pub length: Option<usize>,
     /// The attachment type of the upload.
     pub attachment_type: Option<AttachmentType>,
+    /// Whether multipart uploads should be used for this upload.
+    pub multipart: bool,
 }
 
 /// The type used to stream a request body.
@@ -267,10 +271,12 @@ impl Service {
             project,
             length,
             attachment_type,
+            multipart,
         }: Create,
     ) -> Result<SignedLocation<Provisional>, Error> {
         match &self.backend {
             Backend::Upstream { addr } => {
+                let _ = multipart; // upstream will check feature flag again, no need to propagate.
                 let (request, rx) = UploadRequest::create(project, length, attachment_type);
                 addr.send(SendRequest(request));
                 let response = rx.await??;
@@ -291,14 +297,17 @@ impl Service {
                     ..
                 } = project.scoping;
 
-                let (key, upload_id) = match length {
-                    Some(0) => (key, None), // multipart does not allow empty uploads
+                let (key, upload_id) = match (multipart, length) {
+                    // We should only create a multipart upload in objectstore if it was requested,
+                    // and if the upload actually has data (multipart does not allow empty parts).
+                    (false, _) | (_, Some(0)) => (key, None),
                     _ => {
                         let UploadRef { key, upload_id } = addr
-                            .send(objectstore::Create {
+                            .send(objectstore::CreateMultipart {
                                 organization_id,
                                 project_id,
                                 key,
+                                retention: project.retention,
                             })
                             .await
                             .map_err(Error::ObjectstoreServiceUnavailable)??;
@@ -358,6 +367,7 @@ impl Service {
                         organization_id: scoping.organization_id,
                         project_id,
                         upload_ref,
+                        retention: project.retention,
                         stream,
                     })
                     .await

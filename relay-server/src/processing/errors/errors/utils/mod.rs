@@ -165,7 +165,7 @@ pub fn take_event_from_formdata(
 
     let event = {
         let mut value = serde_json::Value::Object(Default::default());
-        formdata::merge_formdata(&mut value, &form_data);
+        formdata::merge_formdata(&mut value, &form_data)?;
         Annotated::deserialize_with_meta(value).map_err(ProcessingError::InvalidJson)
     }?;
     metrics.bytes_ingested_event = Annotated::new(form_data.len() as u64);
@@ -189,18 +189,36 @@ pub fn take_event_from_crash_items(
     metrics: &mut Metrics,
     ctx: Context<'_>,
 ) -> Result<Annotated<Event>> {
+    // Remove other event creating items to make sure there are no leftovers.
+    let remove_other_event_items = |items: &mut Vec<Item>| {
+        items
+            .extract_if(.., |item| {
+                let is_ev_item = matches!(item.ty(), ItemType::FormData);
+                let is_ev_attachment = matches!(
+                    item.attachment_type(),
+                    Some(AttachmentType::EventPayload | AttachmentType::Breadcrumbs)
+                );
+
+                is_ev_item || is_ev_attachment
+            })
+            .for_each(drop);
+    };
+
     let event = take_parsed_event(items, metrics, ctx)?;
     if event.0.is_some() {
+        remove_other_event_items(items);
         return Ok(event);
     }
 
     let event = take_event_from_attachments(items, metrics, ctx)?;
     if event.0.is_some() {
+        remove_other_event_items(items);
         return Ok(event);
     }
 
     let event = take_event_from_formdata(items, metrics)?;
     if event.0.is_some() {
+        remove_other_event_items(items);
         return Ok(event);
     }
 

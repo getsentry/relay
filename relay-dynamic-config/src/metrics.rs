@@ -8,23 +8,10 @@ use std::str::FromStr;
 use relay_base_schema::data_category::DataCategory;
 use relay_common::glob2::LazyGlob;
 use relay_common::impl_str_serde;
-use relay_pattern::{Patterns, TypedPatterns};
 use relay_protocol::RuleCondition;
 use serde::{Deserialize, Serialize};
 
 use crate::project::ProjectConfig;
-
-/// Configuration for removing tags matching the `tag` pattern on metrics whose name matches the `name` pattern.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(default)]
-pub struct TagBlock {
-    /// Name of metric of which we want to remove certain tags.
-    #[serde(skip_serializing_if = "Patterns::is_empty")]
-    pub name: TypedPatterns,
-    /// Pattern to match keys of tags that we want to remove.
-    #[serde(skip_serializing_if = "Patterns::is_empty")]
-    pub tags: TypedPatterns,
-}
 
 /// Rule defining when a target tag should be set on a metric.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -93,6 +80,12 @@ pub struct CombinedMetricExtractionConfig<'a> {
 }
 
 impl<'a> CombinedMetricExtractionConfig<'a> {
+    /// Empty config, used in tests and as a fallback.
+    pub const EMPTY: Self = Self {
+        global: MetricExtractionGroups::EMPTY,
+        project: &MetricExtractionConfig::empty(),
+    };
+
     /// Creates a new combined view from two references.
     pub fn new(global: &'a MetricExtractionGroups, project: &'a MetricExtractionConfig) -> Self {
         for key in project.global_groups.keys() {
@@ -243,12 +236,12 @@ impl MetricExtractionConfig {
     /// Returns an empty `MetricExtractionConfig` with the latest version.
     ///
     /// As opposed to `default()`, this will be enabled once populated with specs.
-    pub fn empty() -> Self {
+    pub const fn empty() -> Self {
         Self {
             version: Self::MAX_SUPPORTED_VERSION,
             global_groups: BTreeMap::new(),
-            metrics: Default::default(),
-            tags: Default::default(),
+            metrics: Vec::new(),
+            tags: Vec::new(),
             _conditional_tags_extended: false,
             _span_metrics_extended: false,
         }

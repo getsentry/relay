@@ -1,9 +1,9 @@
 use crate::Envelope;
 use crate::managed::{Managed, ManagedResult, Rejected};
-use crate::processing::spans::Indexed;
 use crate::processing::transactions::types::{
-    ExpandedTransaction, ExtractedIndexedSpans, StandaloneProfile,
+    ExpandedTransaction, ExtractedIndexedSpans, SpansExtracted, StandaloneProfile,
 };
+use crate::processing::utils::types::Indexed;
 use crate::processing::{Forward, ForwardContext};
 use crate::services::outcome::{DiscardReason, Outcome};
 
@@ -19,7 +19,7 @@ pub enum TransactionOutput {
     /// This is used in processing relays.
     Indexed {
         spans: Option<Managed<ExtractedIndexedSpans>>,
-        transaction: Managed<Box<ExpandedTransaction<Indexed>>>,
+        transaction: Managed<Box<ExpandedTransaction<Indexed, SpansExtracted>>>,
     },
 }
 
@@ -66,7 +66,6 @@ impl Forward for TransactionOutput {
             }
             TransactionOutput::Indexed { spans, transaction } => (spans, transaction),
         };
-
         let performance_issues_spans = ctx
             .project_info
             .has_feature(Feature::PerformanceIssuesSpans);
@@ -85,6 +84,13 @@ impl Forward for TransactionOutput {
                             span.performance_issues_spans = true;
                         });
                     }
+
+                    if let Some(metrics) = relay_spans::extract_web_vital_metrics(&span.item) {
+                        crate::processing::trace_metrics::produce_webvitals_metrics(
+                            s, &span, metrics,
+                        );
+                    }
+
                     s.send_to_store(span)
                 };
             }
@@ -98,6 +104,7 @@ impl Forward for TransactionOutput {
                 attachments,
                 profile,
                 category: _,
+                span_extraction: _,
             } = *tx;
 
             if performance_issues_spans && let Some(event) = event.value_mut() {

@@ -50,7 +50,7 @@ pub enum Objectstore {
     TraceAttachment(Managed<StoreTraceAttachment>),
     EventAttachment(Managed<StoreAttachment>),
     RawProfile(Managed<StoreRawProfile>),
-    Create(Create, Sender<Result<UploadRef, Error>>),
+    Create(CreateMultipart, Sender<Result<UploadRef, Error>>),
     Stream(Stream, Sender<Result<ObjectstoreKey, Error>>),
 }
 
@@ -137,19 +137,21 @@ impl MessageKind {
 }
 
 /// A request to create a new objectstore multipart upload.
-pub struct Create {
+pub struct CreateMultipart {
     /// The sentry org.
     pub organization_id: OrganizationId,
     /// The sentry project.
     pub project_id: ProjectId,
     /// The desired objectstore key.
     pub key: String,
+    /// Retention for the uploaded object (in days).
+    pub retention: u16,
 }
 
-impl FromMessage<Create> for Objectstore {
+impl FromMessage<CreateMultipart> for Objectstore {
     type Response = AsyncResponse<Result<UploadRef, Error>>;
 
-    fn from_message(message: Create, sender: Sender<Result<UploadRef, Error>>) -> Self {
+    fn from_message(message: CreateMultipart, sender: Sender<Result<UploadRef, Error>>) -> Self {
         Self::Create(message, sender)
     }
 }
@@ -159,6 +161,7 @@ pub struct Stream {
     pub organization_id: OrganizationId,
     pub project_id: ProjectId,
     pub upload_ref: UploadRef,
+    pub retention: u16,
     pub stream: BoundedStream<MeteredStream<ByteStream>>,
 }
 
@@ -176,6 +179,8 @@ pub struct StoreTraceAttachment {
     pub body: Bytes,
     /// The trace item to be published via Kafka.
     pub trace_item: TraceItem,
+    /// The file name that downloads of this attachment are named after.
+    pub filename: Option<String>,
     /// Data retention in days for this attachment.
     pub retention: u16,
 }
@@ -560,14 +565,18 @@ impl ObjectstoreServiceInner {
         });
 
         for mut attachment in attachments.split(|e| e) {
+            let attributes = ObjectAttributes {
+                filename: attachment.filename().map(String::from),
+                ..Default::default()
+            };
+
             let result = self
                 .upload_bytes(
                     MessageKind::Event,
                     &session,
                     attachment.payload(),
                     event.retention_days,
-                    None,
-                    None,
+                    attributes,
                 )
                 .await;
 
@@ -613,13 +622,17 @@ impl ObjectstoreServiceInner {
         let upload_result = match session {
             Err(error) => Err(error),
             Ok(session) => {
+                let attributes = ObjectAttributes {
+                    filename: attachment.attachment.filename().map(String::from),
+                    ..Default::default()
+                };
+
                 self.upload_bytes(
                     MessageKind::EventAttachment,
                     &session,
                     attachment.attachment.payload(),
                     attachment.retention,
-                    None,
-                    None,
+                    attributes,
                 )
                 .await
             }
@@ -660,12 +673,14 @@ impl ObjectstoreServiceInner {
 
         let body = Bytes::clone(&managed.body);
         let retention = managed.retention;
+        let filename = managed.filename.clone();
 
         // Make sure that the attachment can be converted into a trace item:
         let trace_item = managed.try_map(|attachment, _record_keeper| {
             let StoreTraceAttachment {
                 trace_item,
                 body: _,
+                filename: _,
                 retention: _,
             } = attachment;
             Ok::<_, Error>(StoreTraceItem { trace_item })
@@ -683,14 +698,19 @@ impl ObjectstoreServiceInner {
             #[cfg(debug_assertions)]
             let original_key = key.clone();
 
+            let attributes = ObjectAttributes {
+                key: Some(key),
+                filename,
+                ..Default::default()
+            };
+
             let _stored_key = self
                 .upload_bytes(
                     MessageKind::TraceAttachment,
                     &session,
                     body,
                     retention,
-                    Some(key),
-                    None,
+                    attributes,
                 )
                 .await
                 .reject(&trace_item)?;
@@ -754,35 +774,44 @@ impl ObjectstoreServiceInner {
             .for_project(scoping.organization_id.value(), scoping.project_id.value())
             .session(&self.objectstore_client)?;
 
+        let attributes = ObjectAttributes {
+            content_type: Some(content_type),
+            ..Default::default()
+        };
+
         let stored_key = self
             .upload_bytes(
                 MessageKind::RawProfile,
                 &session,
                 payload,
                 retention,
-                None,
-                Some(content_type),
+                attributes,
             )
             .await?;
 
         Ok(Some(stored_key))
     }
 
-    async fn handle_create(&self, create: Create) -> Result<UploadRef, Error> {
-        let Create {
+    async fn handle_create(&self, create: CreateMultipart) -> Result<UploadRef, Error> {
+        let CreateMultipart {
             organization_id,
             project_id,
             key,
+            retention,
         } = create;
         let session = self.session(&self.event_attachments, organization_id, project_id)?;
 
         let multipart_upload = session
             .initiate_multipart_upload()
+            .expiration_policy(ExpirationPolicy::TimeToLive(Duration::from_hours(
+                u64::from(retention) * 24,
+            )))
             .key(&key)
             .compression(Compression::Zstd) // make explicit because parts need to be manually compressed.
             .send()
             .await?;
         debug_assert_eq!(&key, multipart_upload.key());
+
         let upload_id = multipart_upload.upload_id();
 
         Ok(UploadRef {
@@ -796,6 +825,7 @@ impl ObjectstoreServiceInner {
             organization_id,
             project_id,
             upload_ref,
+            retention,
             stream,
         } = stream;
         let session = self.session(&self.event_attachments, organization_id, project_id)?;
@@ -806,6 +836,7 @@ impl ObjectstoreServiceInner {
             Upload::Stream {
                 body: TakeOnce::new(stream),
                 upload_ref,
+                retention,
             },
         )
         .await
@@ -817,9 +848,13 @@ impl ObjectstoreServiceInner {
         session: &Session,
         payload: Bytes,
         retention: u16,
-        key: Option<String>,
-        content_type: Option<ContentType>,
+        attributes: ObjectAttributes,
     ) -> Result<ObjectstoreKey, Error> {
+        let ObjectAttributes {
+            key,
+            content_type,
+            filename,
+        } = attributes;
         let retention_hours = retention.checked_mul(24);
         self.upload(
             kind,
@@ -829,6 +864,7 @@ impl ObjectstoreServiceInner {
                 key,
                 retention_hours,
                 content_type,
+                filename,
             },
         )
         .await
@@ -895,10 +931,14 @@ impl ObjectstoreServiceInner {
                 key,
                 retention_hours,
                 content_type,
+                filename,
             } => {
                 let mut request = session.put(body);
                 if let Some(content_type) = content_type {
                     request = request.content_type(content_type.as_str());
+                }
+                if let Some(filename) = filename {
+                    request = request.filename(filename);
                 }
                 if let Some(retention_hours) = retention_hours {
                     request = request.expiration_policy(ExpirationPolicy::TimeToLive(
@@ -917,12 +957,21 @@ impl ObjectstoreServiceInner {
 
                 Ok(ObjectstoreKey(response.key))
             }
-            UploadAttempt::Stream { body, upload_ref } => {
+            UploadAttempt::Stream {
+                body,
+                upload_ref,
+                retention,
+            } => {
                 let UploadRef { key, upload_id } = upload_ref;
                 let Some(upload_id) = upload_id else {
                     // No upload ID: simple upload in a single request.
                     let request = session.put_stream(body.boxed()).key(key);
-                    let response = request.send().await?;
+                    let response = request
+                        .expiration_policy(ExpirationPolicy::TimeToLive(Duration::from_hours(
+                            u64::from(retention) * 24,
+                        )))
+                        .send()
+                        .await?;
                     return Ok(ObjectstoreKey(response.key));
                 };
 
@@ -947,9 +996,27 @@ impl ObjectstoreServiceInner {
                     while let Some((i, chunk)) = body.next().await {
                         let chunk = chunk?;
                         let part_number = u32::try_from(i + 1)
-                            .map_err(|_| objectstore_client::Error::InvalidPartNumber(u32::MAX))?;
-                        let part = multipart_upload.put(chunk, part_number, None).await?;
-                        parts.push(part);
+                        .map_err(|_| objectstore_client::Error::InvalidPartNumber(u32::MAX))?;
+                        relay_log::trace!("Part number {part_number}");
+
+                        // NOTE: This is a retry loop within a retry loop (see caller of this function).
+                        // if we keep the Rechunked approach we might as well remove the outer loop for streaming uploads.
+                        let mut attempts = 0;
+                        let part = loop {
+                            let result = multipart_upload.put(chunk.clone(), part_number, None).await;
+                            attempts += 1;
+                            if attempts < self.max_attempts.get()
+                                && matches!(&result, Err(e) if is_retryable(e))
+                            {
+                                relay_log::trace!("Attempt {attempts}: Failed with {result:?}, retrying");
+                                tokio::time::sleep(self.retry_interval).await;
+                            } else {
+                                relay_log::trace!("Final attempt");
+                                break result;
+                            }
+                        };
+
+                        parts.push(part?);
                     }
                     multipart_upload.complete(parts).await?
                 });
@@ -975,6 +1042,22 @@ impl ObjectstoreServiceInner {
     }
 }
 
+/// Optional attributes of an object stored in objectstore.
+#[derive(Debug, Default)]
+struct ObjectAttributes {
+    /// The key to store the object under.
+    ///
+    /// If this is `None`, objectstore assigns a random key.
+    key: Option<String>,
+    /// The content type of the payload.
+    content_type: Option<ContentType>,
+    /// The file name that downloads of this object are named after.
+    ///
+    /// Objectstore only sends a `Content-Disposition` header for objects that were stored with a
+    /// file name.
+    filename: Option<String>,
+}
+
 /// Common interface for calls to [`ObjectstoreServiceInner::upload`].
 ///
 /// This type is shared across retries.
@@ -984,10 +1067,12 @@ enum Upload {
         key: Option<String>,
         retention_hours: Option<u16>,
         content_type: Option<ContentType>,
+        filename: Option<String>,
     },
     Stream {
         body: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
         upload_ref: UploadRef,
+        retention: u16,
     },
 }
 
@@ -999,18 +1084,23 @@ impl Upload {
                 key,
                 retention_hours,
                 content_type,
+                filename,
             } => Some(UploadAttempt::Bytes {
                 body: body.clone(),
                 key: key.clone(),
                 retention_hours: *retention_hours,
                 content_type: *content_type,
+                filename: filename.clone(),
             }),
-            Self::Stream { body, upload_ref } => {
-                RetryableStream::new(body.clone()).map(|body| UploadAttempt::Stream {
-                    body,
-                    upload_ref: upload_ref.clone(),
-                })
-            }
+            Self::Stream {
+                body,
+                upload_ref,
+                retention,
+            } => RetryableStream::new(body.clone()).map(|body| UploadAttempt::Stream {
+                body,
+                upload_ref: upload_ref.clone(),
+                retention: *retention,
+            }),
         }
     }
 }
@@ -1024,10 +1114,12 @@ enum UploadAttempt {
         key: Option<String>,
         retention_hours: Option<u16>,
         content_type: Option<ContentType>,
+        filename: Option<String>,
     },
     Stream {
         body: RetryableStream<BoundedStream<MeteredStream<ByteStream>>>,
         upload_ref: UploadRef,
+        retention: u16,
     },
 }
 
@@ -1086,6 +1178,7 @@ mod tests {
     use relay_quotas::DataCategory;
     use relay_system::Service;
 
+    use crate::constants::DEFAULT_EVENT_RETENTION;
     use crate::managed::ManagedTestHandle;
 
     use super::*;
@@ -1111,6 +1204,7 @@ mod tests {
                     key: "my_file".to_owned(),
                     upload_id: Some(UploadId::new("my_upload".to_owned()).unwrap()),
                 },
+                retention: DEFAULT_EVENT_RETENTION,
                 stream,
             })
             .await
