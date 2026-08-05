@@ -1,9 +1,9 @@
 //! This module defines bidirectional field mappings between spans and transactions.
 
 use relay_conventions::attributes::{
-    BROWSER__NAME, HTTP__QUERY, SENTRY__ENVIRONMENT, SENTRY__RELEASE, SENTRY__SDK__NAME,
-    SENTRY__SDK__VERSION, SENTRY__SEGMENT__NAME, SENTRY__TRANSACTION__BREADCRUMBS,
-    SENTRY__TRANSACTION__CONTEXTS, SENTRY__TRANSACTION__EXTRA, URL__QUERY,
+    BROWSER__NAME, HTTP__QUERY, SENTRY__ENVIRONMENT, SENTRY__EVENT__SERIALIZED_BREADCRUMBS,
+    SENTRY__EVENT__SERIALIZED_CONTEXTS, SENTRY__EVENT__SERIALIZED_EXTRA, SENTRY__RELEASE,
+    SENTRY__SDK__NAME, SENTRY__SDK__VERSION, SENTRY__SEGMENT__NAME, URL__QUERY,
 };
 use relay_protocol::{IntoValue, Object, SerializePayload, SkipSerialization};
 use serde::ser::SerializeMap;
@@ -118,7 +118,7 @@ impl From<&Event> for Span {
                     skip_key: TraceContext::default_key(),
                 };
                 if let Ok(json) = serde_json::to_string(&payload) {
-                    span_data.insert_value(SENTRY__TRANSACTION__CONTEXTS, json);
+                    span_data.insert_value(SENTRY__EVENT__SERIALIZED_CONTEXTS, json);
                 }
             }
         }
@@ -128,12 +128,12 @@ impl From<&Event> for Span {
             .is_some_and(|v| !v.is_empty())
             && let Ok(json) = breadcrumbs.payload_to_json()
         {
-            span_data.insert_value(SENTRY__TRANSACTION__BREADCRUMBS, json);
+            span_data.insert_value(SENTRY__EVENT__SERIALIZED_BREADCRUMBS, json);
         }
         if extra.value().is_some_and(|e| !e.is_empty())
             && let Ok(json) = extra.payload_to_json()
         {
-            span_data.insert_value(SENTRY__TRANSACTION__EXTRA, json);
+            span_data.insert_value(SENTRY__EVENT__SERIALIZED_EXTRA, json);
         }
 
         Self {
@@ -273,6 +273,15 @@ mod tests {
                     "sentry.environment": String(
                         "prod",
                     ),
+                    "sentry.event.serialized_breadcrumbs": String(
+                        "{\"values\":[{\"type\":\"default\",\"category\":\"auth\",\"message\":\"login\"}]}",
+                    ),
+                    "sentry.event.serialized_contexts": String(
+                        "{\"browser\":{\"name\":\"Chrome\",\"type\":\"browser\"},\"profile\":{\"profile_id\":\"a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaab\",\"type\":\"profile\"}}",
+                    ),
+                    "sentry.event.serialized_extra": String(
+                        "{\"my_key\":1,\"some_other_value\":\"foo bar\"}",
+                    ),
                     "sentry.name": String(
                         "my 1st transaction",
                     ),
@@ -287,15 +296,6 @@ mod tests {
                     ),
                     "sentry.segment.name": String(
                         "my 1st transaction",
-                    ),
-                    "sentry.transaction.breadcrumbs": String(
-                        "{\"values\":[{\"type\":\"default\",\"category\":\"auth\",\"message\":\"login\"}]}",
-                    ),
-                    "sentry.transaction.contexts": String(
-                        "{\"browser\":{\"name\":\"Chrome\",\"type\":\"browser\"},\"profile\":{\"profile_id\":\"a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaab\",\"type\":\"profile\"}}",
-                    ),
-                    "sentry.transaction.extra": String(
-                        "{\"my_key\":1,\"some_other_value\":\"foo bar\"}",
                     ),
                     "url.query": String(
                         "project=1&sort=date",
@@ -365,15 +365,15 @@ mod tests {
         let data = span.data.value().unwrap();
 
         assert_eq!(
-            data.get_str(SENTRY__TRANSACTION__CONTEXTS),
+            data.get_str(SENTRY__EVENT__SERIALIZED_CONTEXTS),
             Some(r#"{"browser":{"name":"Chrome","type":"browser"}}"#)
         );
         assert_eq!(
-            data.get_str(SENTRY__TRANSACTION__BREADCRUMBS),
+            data.get_str(SENTRY__EVENT__SERIALIZED_BREADCRUMBS),
             Some(r#"{"values":[{"type":"default","category":"auth","message":"login"}]}"#)
         );
         assert_eq!(
-            data.get_str(SENTRY__TRANSACTION__EXTRA),
+            data.get_str(SENTRY__EVENT__SERIALIZED_EXTRA),
             Some(r#"{"my_key":1,"some_other_value":"foo bar"}"#)
         );
     }
@@ -393,9 +393,9 @@ mod tests {
         let span = Span::from(&event);
 
         if let Some(data) = span.data.value() {
-            assert!(!data.contains(SENTRY__TRANSACTION__CONTEXTS));
-            assert!(!data.contains(SENTRY__TRANSACTION__BREADCRUMBS));
-            assert!(!data.contains(SENTRY__TRANSACTION__EXTRA));
+            assert!(!data.contains(SENTRY__EVENT__SERIALIZED_CONTEXTS));
+            assert!(!data.contains(SENTRY__EVENT__SERIALIZED_BREADCRUMBS));
+            assert!(!data.contains(SENTRY__EVENT__SERIALIZED_EXTRA));
         }
     }
 
@@ -417,9 +417,9 @@ mod tests {
         let span = Span::from(&event);
 
         if let Some(data) = span.data.value() {
-            assert!(!data.contains(SENTRY__TRANSACTION__CONTEXTS));
-            assert!(!data.contains(SENTRY__TRANSACTION__BREADCRUMBS));
-            assert!(!data.contains(SENTRY__TRANSACTION__EXTRA));
+            assert!(!data.contains(SENTRY__EVENT__SERIALIZED_CONTEXTS));
+            assert!(!data.contains(SENTRY__EVENT__SERIALIZED_BREADCRUMBS));
+            assert!(!data.contains(SENTRY__EVENT__SERIALIZED_EXTRA));
         }
     }
 }

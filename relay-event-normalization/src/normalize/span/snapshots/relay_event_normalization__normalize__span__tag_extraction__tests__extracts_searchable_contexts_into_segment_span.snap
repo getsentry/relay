@@ -13,9 +13,9 @@ expression: segment_span.to_json_pretty().unwrap()
   "description": "foo",
   "data": {
     "browser.name": "Chrome",
+    "sentry.event.serialized_contexts": "{\"app\":{\"app_start_time\":\"2025-04-07T13:33:38Z\",\"device_app_hash\":\"3e06efaccaec678afef02f3fc2b5289ee5f613d5\",\"build_type\":\"simulator\",\"app_identifier\":\"io.sentry.sample.iOS-Swift\",\"app_name\":\"iOS-Swift\",\"app_version\":\"8.48.0\",\"app_build\":\"1\",\"app_memory\":17793024,\"in_foreground\":true,\"app_id\":\"33410C22-5CBB-3C1C-8453-62311FADEF1A\",\"type\":\"app\"},\"browser\":{\"browser\":\"Chrome 134\",\"name\":\"Chrome\",\"version\":\"134\",\"type\":\"browser\"},\"device\":{\"family\":\"K\",\"model\":\"Generic_Android\",\"type\":\"device\"},\"runtime\":{\"runtime\":\"CPython 3.13.1\",\"name\":\"CPython\",\"version\":\"3.13.1\",\"type\":\"runtime\"}}",
     "sentry.name": "foo",
-    "sentry.segment.name": "foo",
-    "sentry.transaction.contexts": "{\"app\":{\"app_start_time\":\"2025-04-07T13:33:38Z\",\"device_app_hash\":\"3e06efaccaec678afef02f3fc2b5289ee5f613d5\",\"build_type\":\"simulator\",\"app_identifier\":\"io.sentry.sample.iOS-Swift\",\"app_name\":\"iOS-Swift\",\"app_version\":\"8.48.0\",\"app_build\":\"1\",\"app_memory\":17793024,\"in_foreground\":true,\"app_id\":\"33410C22-5CBB-3C1C-8453-62311FADEF1A\",\"type\":\"app\"},\"browser\":{\"browser\":\"Chrome 134\",\"name\":\"Chrome\",\"version\":\"134\",\"type\":\"browser\"},\"device\":{\"family\":\"K\",\"model\":\"Generic_Android\",\"type\":\"device\"},\"runtime\":{\"runtime\":\"CPython 3.13.1\",\"name\":\"CPython\",\"version\":\"3.13.1\",\"type\":\"runtime\"}}"
+    "sentry.segment.name": "foo"
   },
   "sentry_tags": {
     "device.family": "K",

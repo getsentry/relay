@@ -333,7 +333,7 @@ def test_span_extraction(
             "sentry.segment.name": {"type": "string", "value": "hi"},
             "sentry.status": {"type": "string", "value": "ok"},
             "sentry.trace.status": {"type": "string", "value": "ok"},
-            "sentry.transaction.contexts": {
+            "sentry.event.serialized_contexts": {
                 "type": "string",
                 "value": '{"replay":{"replay_id":"4c79f60c11214eb38604f4ae0781bfb2","type":"replay"}}',
             },
@@ -1477,12 +1477,12 @@ def test_segment_span_preserves_contexts_breadcrumbs_extra(
     segment_span = spans_consumer.get_span()
     attributes = segment_span["attributes"]
 
-    assert json.loads(attributes["sentry.transaction.extra"]["value"]) == {
+    assert json.loads(attributes["sentry.event.serialized_extra"]["value"]) == {
         "my_key": 1,
         "some_other_value": "foo bar",
     }
 
-    assert json.loads(attributes["sentry.transaction.breadcrumbs"]["value"]) == {
+    assert json.loads(attributes["sentry.event.serialized_breadcrumbs"]["value"]) == {
         "values": [
             {
                 "type": "default",
@@ -1492,7 +1492,7 @@ def test_segment_span_preserves_contexts_breadcrumbs_extra(
             }
         ]
     }
-    contexts = json.loads(attributes["sentry.transaction.contexts"]["value"])
+    contexts = json.loads(attributes["sentry.event.serialized_contexts"]["value"])
     assert contexts["gpu"] == {
         "name": "AMD Radeon Pro 560",
         "vendor_name": "Apple",
@@ -1525,7 +1525,9 @@ def test_segment_span_scrubs_extra_before_serializing(
     relay.send_event(project_id, event)
 
     segment_span = spans_consumer.get_span()
-    extra = json.loads(segment_span["attributes"]["sentry.transaction.extra"]["value"])
+    extra = json.loads(
+        segment_span["attributes"]["sentry.event.serialized_extra"]["value"]
+    )
 
     assert "john.doe@company.com" not in extra["note"]
     assert "[email]" in extra["note"]
