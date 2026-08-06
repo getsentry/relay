@@ -101,6 +101,7 @@
 //! [`relay-redis`]: ../relay_redis/index.html
 //! [`relay-replays`]: ../relay_replays/index.html
 //! [`relay-sampling`]: ../relay_sampling/index.html
+//! [`relay-serialization`]: ../relay_serialization/index.html
 //! [`relay-server`]: ../relay_server/index.html
 //! [`relay-statsd`]: ../relay_statsd/index.html
 //! [`relay-system`]: ../relay_system/index.html
