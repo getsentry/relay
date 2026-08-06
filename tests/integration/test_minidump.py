@@ -1293,13 +1293,13 @@ def test_minidump_objectstore_errors(
         {
             "category": DataCategory.ATTACHMENT,
             "outcome": 3,  # invalid
-            "reason": "internal",
+            "reason": "upload_failed",
             "quantity": 1,
         },
         {
             "category": DataCategory.ATTACHMENT_ITEM,
             "outcome": 3,  # invalid
-            "reason": "internal",
+            "reason": "upload_failed",
             "quantity": 1,
         },
     ]
@@ -1657,13 +1657,13 @@ def test_minidump_upload_failure_bubbles_up(mini_sentry, relay):
         {
             "category": DataCategory.ATTACHMENT,
             "outcome": 3,  # invalid
-            "reason": "internal",
+            "reason": "upload_failed",
             "quantity": 1,
         },
         {
             "category": DataCategory.ATTACHMENT_ITEM,
             "outcome": 3,  # invalid
-            "reason": "internal",
+            "reason": "upload_failed",
             "quantity": 1,
         },
     ]
