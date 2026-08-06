@@ -35,7 +35,8 @@ jobs:
 
       - name: Install Rust Toolchain
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --profile minimal --default-toolchain stable -y
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
+          sh /tmp/rustup-init.sh --profile minimal --default-toolchain stable -y
 
       - name: Build binary
         run: |
