@@ -9,6 +9,10 @@ use crate::managed::{Counted, Quantities, RecordKeeper};
 use crate::processing::ForwardContext;
 use crate::processing::errors::errors::{Context, Expansion, SentryError};
 use crate::processing::errors::{Error, Result};
+#[cfg(all(sentry, feature = "processing"))]
+use crate::services::outcome::DiscardItemType;
+#[cfg(all(sentry, feature = "processing"))]
+use crate::services::processor::ProcessingError;
 
 #[derive(Debug)]
 pub struct Playstation {
@@ -54,14 +58,15 @@ impl SentryError for Playstation {
             (event, None)
         } else {
             use crate::constants::SENTRY_CRASH_PAYLOAD_KEY;
-            use crate::services::processor::ProcessingError;
             use crate::statsd::RelayCounters;
+            use crate::utils::playstation;
 
             relay_statsd::metric!(counter(RelayCounters::PlaystationProcessing) += 1);
 
-            let data = relay_prosperoconv::extract_data(&prosperodump.payload()).map_err(|err| {
-                ProcessingError::InvalidPlaystationDump(format!("Failed to extract data: {err}"))
-            })?;
+            let data = playstation::uncompress(
+                prosperodump.payload(),
+                ctx.processing.config.max_attachment_size(),
+            ).map_err(ProcessingError::from)?;
             let prospero_dump = relay_prosperoconv::ProsperoDump::parse(&data).map_err(|err| {
                 ProcessingError::InvalidPlaystationDump(format!("Failed to parse dump: {err}"))
             })?;
@@ -213,8 +218,6 @@ fn merge_events(
     from_prospero: &[u8],
     ctx: Context<'_>,
 ) -> Result<Annotated<Event>> {
-    use crate::services::{outcome::DiscardItemType, processor::ProcessingError};
-
     if from_envelope.len().max(from_prospero.len()) > ctx.processing.config.max_event_size() {
         return Err(ProcessingError::PayloadTooLarge(DiscardItemType::Event).into());
     }
