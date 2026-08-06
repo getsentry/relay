@@ -7,6 +7,7 @@
 - Reject spans, logs, trace metrics, replays when they are too old instead of shifting their timestamp. ([#6272](https://github.com/getsentry/relay/pull/6272))
 - Extract nvgpu dumps and create GPU events. ([#6242](https://github.com/getsentry/relay/pull/6242))
 - Preserve transaction `contexts`, `extra`, and `breadcrumbs` on the segment span as serialized attributes. ([#6286](https://github.com/getsentry/relay/pull/6286))
+- Support shadow (dual) writes for the quotas Redis pool via a `shadow` list of cluster nodes, to ease migrations between Redis deployments. ([#6294](https://github.com/getsentry/relay/pull/6294))
 
 **Bug Fixes**:
 

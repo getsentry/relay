@@ -76,6 +76,19 @@ pub enum AsyncRedisClient {
     Cluster(pool::CustomClusterPool),
     /// Contains a connection pool to a single Redis instance.
     Single(pool::CustomSinglePool),
+    /// Fans out writes to a primary client and one or more shadow (secondary) clients.
+    ///
+    /// All commands are executed against the primary and, in a best-effort ("fail-open") fashion,
+    /// against every shadow client. Only the primary's result is returned to the caller; errors
+    /// talking to shadow clients are logged and swallowed.
+    ///
+    /// This is used to dual-write quota data while migrating between Redis deployments.
+    MultiWrite {
+        /// The primary client which is the source of truth for reads and results.
+        primary: Box<AsyncRedisClient>,
+        /// The shadow clients which receive duplicated writes.
+        secondaries: Vec<AsyncRedisClient>,
+    },
 }
 
 impl AsyncRedisClient {
@@ -128,16 +141,72 @@ impl AsyncRedisClient {
         Ok(AsyncRedisClient::Single(pool))
     }
 
+    /// Creates a new client which fans out writes to a `primary` and one or more `secondaries`.
+    ///
+    /// Commands executed against the returned client are sent to the primary and, best-effort, to
+    /// every shadow client. Only the primary result is returned.
+    pub fn multi_write(
+        primary: AsyncRedisClient,
+        secondaries: Vec<AsyncRedisClient>,
+    ) -> Result<Self, RedisError> {
+        if secondaries.is_empty() {
+            return Ok(primary);
+        }
+
+        Ok(AsyncRedisClient::MultiWrite {
+            primary: Box::new(primary),
+            secondaries,
+        })
+    }
+
     /// Acquires a connection from the pool.
     ///
     /// Returns a new [`AsyncRedisConnection`] that can be used to execute Redis commands.
     /// The connection is automatically returned to the pool when dropped.
     pub async fn get_connection(&self) -> Result<AsyncRedisConnection, RedisError> {
         match self {
-            Self::Cluster(pool) => pool.get().await.map(AsyncRedisConnection::Cluster),
-            Self::Single(pool) => pool.get().await.map(AsyncRedisConnection::Single),
+            Self::Cluster(pool) => pool
+                .get()
+                .await
+                .map(AsyncRedisConnection::Cluster)
+                .map_err(RedisError::Pool),
+            Self::Single(pool) => pool
+                .get()
+                .await
+                .map(AsyncRedisConnection::Single)
+                .map_err(RedisError::Pool),
+            Self::MultiWrite {
+                primary,
+                secondaries,
+            } => {
+                // Acquiring the primary connection must succeed, otherwise the whole operation
+                // fails, just like a non-shadowed client.
+                //
+                // The recursive `get_connection` calls are boxed to break the infinitely sized
+                // future that async recursion would otherwise create.
+                let primary = Box::new(Box::pin(primary.get_connection()).await?);
+
+                // Shadow connections are acquired best-effort: if a shadow instance is unavailable
+                // we log and skip it so it can never impact the primary write path.
+                let mut secondary_connections = Vec::with_capacity(secondaries.len());
+                for secondary in secondaries {
+                    match Box::pin(secondary.get_connection()).await {
+                        Ok(connection) => secondary_connections.push(connection),
+                        Err(error) => {
+                            relay_log::error!(
+                                error = &error as &dyn std::error::Error,
+                                "failed to acquire a connection to the shadow Redis instance",
+                            );
+                        }
+                    }
+                }
+
+                Ok(AsyncRedisConnection::MultiWrite {
+                    primary,
+                    secondaries: secondary_connections,
+                })
+            }
         }
-        .map_err(RedisError::Pool)
     }
 
     /// Returns statistics about the current state of the connection pool.
@@ -148,6 +217,8 @@ impl AsyncRedisClient {
         let status = match self {
             Self::Cluster(pool) => pool.status(),
             Self::Single(pool) => pool.status(),
+            // Shadow clients are transparent for stats, report the primary's state.
+            Self::MultiWrite { primary, .. } => return primary.stats(),
         };
 
         RedisClientStats {
@@ -168,6 +239,15 @@ impl AsyncRedisClient {
             }
             Self::Single(pool) => {
                 pool.retain(|_, metrics| predicate(metrics));
+            }
+            Self::MultiWrite {
+                primary,
+                secondaries,
+            } => {
+                primary.retain(&mut predicate);
+                for secondary in secondaries {
+                    secondary.retain(&mut predicate);
+                }
             }
         }
     }
@@ -207,6 +287,13 @@ impl std::fmt::Debug for AsyncRedisClient {
         match self {
             AsyncRedisClient::Cluster(_) => write!(f, "AsyncRedisPool::Cluster"),
             AsyncRedisClient::Single(_) => write!(f, "AsyncRedisPool::Single"),
+            AsyncRedisClient::MultiWrite { secondaries, .. } => {
+                write!(
+                    f,
+                    "AsyncRedisPool::MultiWrite({} shadows)",
+                    secondaries.len()
+                )
+            }
         }
     }
 }
@@ -222,15 +309,28 @@ pub enum AsyncRedisConnection {
     Cluster(pool::CustomClusterConnection),
     /// A connection to a single Redis instance.
     Single(pool::CustomSingleConnection),
+    /// A connection which fans out writes to a primary and one or more shadow connections.
+    ///
+    /// Every command is executed against the primary and, best-effort, against each shadow
+    /// connection. Only the primary's result is returned; shadow errors are logged and swallowed.
+    MultiWrite {
+        /// The primary connection which produces the returned result.
+        primary: Box<AsyncRedisConnection>,
+        /// The shadow connections which receive duplicated writes.
+        secondaries: Vec<AsyncRedisConnection>,
+    },
 }
 
 impl std::fmt::Debug for AsyncRedisConnection {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let name = match self {
-            Self::Cluster(_) => "Cluster",
-            Self::Single(_) => "Single",
-        };
-        f.debug_tuple(name).finish()
+        match self {
+            Self::Cluster(_) => f.debug_tuple("Cluster").finish(),
+            Self::Single(_) => f.debug_tuple("Single").finish(),
+            Self::MultiWrite { secondaries, .. } => f
+                .debug_struct("MultiWrite")
+                .field("shadows", &secondaries.len())
+                .finish(),
+        }
     }
 }
 
@@ -239,6 +339,32 @@ impl redis::aio::ConnectionLike for AsyncRedisConnection {
         match self {
             Self::Cluster(conn) => conn.req_packed_command(cmd),
             Self::Single(conn) => conn.req_packed_command(cmd),
+            Self::MultiWrite {
+                primary,
+                secondaries,
+            } => Box::pin(async move {
+                // Dispatch to the primary and all shadow instances concurrently so that shadow
+                // writes do not add their latency to the primary write path.
+                let primary = primary.req_packed_command(cmd);
+                let secondaries = futures::future::join_all(
+                    secondaries
+                        .iter_mut()
+                        .map(|secondary| secondary.req_packed_command(cmd)),
+                );
+
+                let (primary_result, secondary_results) =
+                    futures::future::join(primary, secondaries).await;
+
+                for result in secondary_results {
+                    if let Err(error) = result {
+                        relay_log::error!(
+                            error = &error as &dyn std::error::Error,
+                            "sending cmd to the shadow Redis instance failed",
+                        );
+                    }
+                }
+                primary_result
+            }),
         }
     }
 
@@ -251,6 +377,32 @@ impl redis::aio::ConnectionLike for AsyncRedisConnection {
         match self {
             Self::Cluster(conn) => conn.req_packed_commands(cmd, offset, count),
             Self::Single(conn) => conn.req_packed_commands(cmd, offset, count),
+            Self::MultiWrite {
+                primary,
+                secondaries,
+            } => Box::pin(async move {
+                // Dispatch to the primary and all shadow instances concurrently so that shadow
+                // writes do not add their latency to the primary write path.
+                let primary = primary.req_packed_commands(cmd, offset, count);
+                let secondaries = futures::future::join_all(
+                    secondaries
+                        .iter_mut()
+                        .map(|secondary| secondary.req_packed_commands(cmd, offset, count)),
+                );
+
+                let (primary_result, secondary_results) =
+                    futures::future::join(primary, secondaries).await;
+
+                for result in secondary_results {
+                    if let Err(error) = result {
+                        relay_log::error!(
+                            error = &error as &dyn std::error::Error,
+                            "sending cmds to the shadow Redis instance failed",
+                        );
+                    }
+                }
+                primary_result
+            }),
         }
     }
 
@@ -258,6 +410,7 @@ impl redis::aio::ConnectionLike for AsyncRedisConnection {
         match self {
             Self::Cluster(conn) => conn.get_db(),
             Self::Single(conn) => conn.get_db(),
+            Self::MultiWrite { primary, .. } => primary.get_db(),
         }
     }
 }
