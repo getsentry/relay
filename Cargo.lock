@@ -5014,6 +5014,7 @@ dependencies = [
  "json-forensics",
  "libc",
  "liblzma",
+ "lz4_flex",
  "matchit",
  "mime",
  "minidump",

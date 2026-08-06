@@ -333,6 +333,10 @@ def test_span_extraction(
             "sentry.segment.name": {"type": "string", "value": "hi"},
             "sentry.status": {"type": "string", "value": "ok"},
             "sentry.trace.status": {"type": "string", "value": "ok"},
+            "sentry.event.serialized_contexts": {
+                "type": "string",
+                "value": '{"replay":{"replay_id":"4c79f60c11214eb38604f4ae0781bfb2","type":"replay"}}',
+            },
             "sentry.transaction.op": {"type": "string", "value": "hi"},
             "sentry.user": {"type": "string", "value": f"id:{user_id}"},
             "sentry.user.geo.city": {"type": "string", "value": "Vienna"},
@@ -1445,3 +1449,87 @@ def test_outcomes_for_trimmed_spans(mini_sentry, relay):
             "timestamp": time_within_delta(),
         },
     ]
+
+
+def test_segment_span_preserves_contexts_breadcrumbs_extra(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+):
+    spans_consumer = spans_consumer()
+
+    relay = relay_with_processing(options=TEST_CONFIG)
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+
+    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    event["contexts"]["gpu"] = {"name": "AMD Radeon Pro 560", "vendor_name": "Apple"}
+    event["breadcrumbs"] = [
+        {"type": "default", "category": "auth", "message": "login", "level": "info"},
+    ]
+    event["extra"] = {
+        "my_key": 1,
+        "some_other_value": "foo bar",
+    }
+
+    relay.send_event(project_id, event)
+
+    segment_span = spans_consumer.get_span()
+    attributes = segment_span["attributes"]
+
+    assert json.loads(attributes["sentry.event.serialized_extra"]["value"]) == {
+        "my_key": 1,
+        "some_other_value": "foo bar",
+    }
+
+    assert json.loads(attributes["sentry.event.serialized_breadcrumbs"]["value"]) == {
+        "values": [
+            {
+                "type": "default",
+                "category": "auth",
+                "message": "login",
+                "level": "info",
+            }
+        ]
+    }
+    contexts = json.loads(attributes["sentry.event.serialized_contexts"]["value"])
+    assert contexts["gpu"] == {
+        "name": "AMD Radeon Pro 560",
+        "vendor_name": "Apple",
+        "type": "gpu",
+    }
+    assert "trace" not in contexts
+
+    spans_consumer.assert_empty()
+
+
+def test_segment_span_scrubs_extra_before_serializing(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+):
+    spans_consumer = spans_consumer()
+
+    relay = relay_with_processing(options=TEST_CONFIG)
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("datascrubbingSettings", {}).update(
+        {"scrubData": True, "scrubDefaults": True}
+    )
+
+    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    event["extra"] = {
+        "note": "contact john.doe@company.com for details",
+    }
+
+    relay.send_event(project_id, event)
+
+    segment_span = spans_consumer.get_span()
+    extra = json.loads(
+        segment_span["attributes"]["sentry.event.serialized_extra"]["value"]
+    )
+
+    assert "john.doe@company.com" not in extra["note"]
+    assert "[email]" in extra["note"]
+
+    spans_consumer.assert_empty()
