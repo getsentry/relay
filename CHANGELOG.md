@@ -11,6 +11,7 @@
 **Internal**:
 
 - Report specific discard reasons for log and span integration items instead of `integration`. ([#6604](https://github.com/getsentry/relay/pull/6604))
+- Support duplicating Redis write commands to a `secondary` Redis (single node or cluster) to ease migrations between Redis deployments. ([#6294](https://github.com/getsentry/relay/pull/6294))
 - Update sentry-conventions to 0.30.0. Adds `aws.lambda.initialization_type`, `aws.lambda.web.endpoint_name`, and `faas.max_memory` with manual scrubbing policies. ([#6586](https://github.com/getsentry/relay/pull/6586))
 
 **Bug Fixes**:
