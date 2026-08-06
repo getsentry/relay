@@ -621,7 +621,8 @@ impl<L: UploadLength> SignedLocation<L> {
         HeaderValue::from_str(&self.try_to_uri()?).map_err(Error::Internal)
     }
 
-    fn try_to_uri(&self) -> Result<String, Error> {
+    /// Converts the location into a URI.
+    pub fn try_to_uri(&self) -> Result<String, Error> {
         let Self {
             location,
             signature,
