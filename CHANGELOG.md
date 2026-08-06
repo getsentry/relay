@@ -46,6 +46,7 @@
 - Add proto bounds to otel logs. ([#6644](https://github.com/getsentry/relay/pull/6644))
 - Process outcomes in a separate service pipeline. [#6657](https://github.com/getsentry/relay/pull/6657)
 - Keep the debug quantity check on for metric buckets created during metric extraction. ([#6669](https://github.com/getsentry/relay/pull/6669))
+- Support duplicating Redis write commands to a `secondary` Redis (single node or cluster) to ease migrations between Redis deployments. ([#6294](https://github.com/getsentry/relay/pull/6294))
 
 **Bug Fixes**:
 
