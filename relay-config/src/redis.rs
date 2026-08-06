@@ -101,6 +101,9 @@ pub enum RedisConfig {
     Cluster {
         /// Redis nodes urls of the cluster.
         cluster_nodes: Vec<String>,
+        /// Optional secondary Redis which receives duplicated commands.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        secondary: Option<SecondaryRedisConfig>,
         /// Options of the Redis config.
         #[serde(flatten)]
         options: PartialRedisConfigOptions,
@@ -112,6 +115,7 @@ pub enum RedisConfig {
 /// Struct that can serialize a string to a single Redis connection.
 ///
 /// This struct is needed for backward compatibility.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(untagged)]
 pub enum SingleRedisConfig {
@@ -122,9 +126,24 @@ pub enum SingleRedisConfig {
         #[doc(hidden)]
         server: String,
         #[doc(hidden)]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        secondary: Option<SecondaryRedisConfig>,
+        #[doc(hidden)]
         #[serde(flatten)]
         options: PartialRedisConfigOptions,
     },
+}
+
+/// Configuration of a secondary Redis which receives a copy of selected commands.
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+pub struct SecondaryRedisConfig {
+    /// Redis node urls, must be exactly one unless `is_cluster` is set.
+    pub nodes: Vec<String>,
+    /// Whether `nodes` belong to a Redis Cluster.
+    pub is_cluster: bool,
+    /// Options of the secondary Redis config.
+    #[serde(flatten)]
+    pub options: PartialRedisConfigOptions,
 }
 
 impl RedisConfig {
@@ -132,6 +151,7 @@ impl RedisConfig {
     pub fn single(server: String) -> Self {
         RedisConfig::Single(SingleRedisConfig::Detailed {
             server,
+            secondary: None,
             options: Default::default(),
         })
     }
@@ -145,20 +165,23 @@ impl From<RedisConfigFromFile> for RedisConfig {
                 options,
             } => Self::Cluster {
                 cluster_nodes,
+                secondary: None,
                 options,
             },
-            RedisConfigFromFile::Single(server) => Self::Single(SingleRedisConfig::Detailed {
-                server,
-                options: Default::default(),
-            }),
+            RedisConfigFromFile::Single(server) => Self::single(server),
             RedisConfigFromFile::SingleWithOpts { server, options } => {
-                Self::Single(SingleRedisConfig::Detailed { server, options })
+                Self::Single(SingleRedisConfig::Detailed {
+                    server,
+                    secondary: None,
+                    options,
+                })
             }
         }
     }
 }
 
 /// Configurations for the various Redis pools used by Relay.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(untagged)]
 pub enum RedisConfigs {
@@ -180,6 +203,8 @@ pub enum RedisConfigRef<'a> {
     Cluster {
         /// Reference to the Redis nodes urls of the cluster.
         cluster_nodes: &'a Vec<String>,
+        /// Optional secondary Redis which receives duplicated commands.
+        secondary: Option<SecondaryRedisConfigRef<'a>>,
         /// Options of the Redis config.
         options: RedisConfigOptions,
     },
@@ -187,9 +212,22 @@ pub enum RedisConfigRef<'a> {
     Single {
         /// Reference to the Redis node url.
         server: &'a String,
+        /// Optional secondary Redis which receives duplicated commands.
+        secondary: Option<SecondaryRedisConfigRef<'a>>,
         /// Options of the Redis config.
         options: RedisConfigOptions,
     },
+}
+
+/// Reference to the [`SecondaryRedisConfig`] with the final [`RedisConfigOptions`].
+#[derive(Clone, Debug)]
+pub struct SecondaryRedisConfigRef<'a> {
+    /// Redis node urls.
+    pub nodes: &'a [String],
+    /// Whether `nodes` belong to a Redis Cluster.
+    pub is_cluster: bool,
+    /// Options of the Redis config.
+    pub options: RedisConfigOptions,
 }
 
 /// Helper struct bundling connections and options for the various Redis pools.
@@ -223,29 +261,50 @@ fn build_redis_config_options(
     }
 }
 
-/// Builds a [`RedisConfigsRef`] given a [`RedisConfig`].
-///
-/// The returned config contains more options for setting up Redis.
+/// Builds a [`SecondaryRedisConfigRef`] given a [`SecondaryRedisConfig`].
+fn build_secondary_redis_config(
+    config: &SecondaryRedisConfig,
+    default_connections: u32,
+) -> SecondaryRedisConfigRef<'_> {
+    SecondaryRedisConfigRef {
+        nodes: &config.nodes,
+        is_cluster: config.is_cluster,
+        options: build_redis_config_options(&config.options, default_connections),
+    }
+}
+
+/// Builds a [`RedisConfigRef`] given a top level [`RedisConfig`].
 pub(super) fn build_redis_config(
     config: &RedisConfig,
     default_connections: u32,
 ) -> RedisConfigRef<'_> {
+    let secondary = match config {
+        RedisConfig::Cluster { secondary, .. }
+        | RedisConfig::Single(SingleRedisConfig::Detailed { secondary, .. }) => secondary.as_ref(),
+        RedisConfig::Single(SingleRedisConfig::Simple(_)) => None,
+    }
+    .map(|s| build_secondary_redis_config(s, default_connections));
+
     match config {
         RedisConfig::Cluster {
             cluster_nodes,
             options,
+            ..
         } => RedisConfigRef::Cluster {
             cluster_nodes,
+            secondary,
             options: build_redis_config_options(options, default_connections),
         },
-        RedisConfig::Single(SingleRedisConfig::Detailed { server, options }) => {
-            RedisConfigRef::Single {
-                server,
-                options: build_redis_config_options(options, default_connections),
-            }
-        }
+        RedisConfig::Single(SingleRedisConfig::Detailed {
+            server, options, ..
+        }) => RedisConfigRef::Single {
+            server,
+            secondary,
+            options: build_redis_config_options(options, default_connections),
+        },
         RedisConfig::Single(SingleRedisConfig::Simple(server)) => RedisConfigRef::Single {
             server,
+            secondary,
             options: Default::default(),
         },
     }
@@ -313,6 +372,7 @@ connection_timeout: 5
             config,
             RedisConfig::Single(SingleRedisConfig::Detailed {
                 server: "redis://127.0.0.1:6379".to_owned(),
+                secondary: None,
                 options: PartialRedisConfigOptions {
                     max_connections: Some(42),
                     ..Default::default()
@@ -336,6 +396,7 @@ connection_timeout: 5
             config,
             RedisConfigs::Unified(RedisConfig::Single(SingleRedisConfig::Detailed {
                 server: "redis://127.0.0.1:6379".to_owned(),
+                secondary: None,
                 options: PartialRedisConfigOptions {
                     max_connections: Some(42),
                     ..Default::default()
@@ -363,6 +424,7 @@ quotas:
         let expected = RedisConfigs::Individual {
             project_configs: Box::new(RedisConfig::Single(SingleRedisConfig::Detailed {
                 server: "redis://127.0.0.1:6379".to_owned(),
+                secondary: None,
                 options: PartialRedisConfigOptions {
                     max_connections: Some(42),
                     ..Default::default()
@@ -373,6 +435,7 @@ quotas:
                     "redis://127.0.0.1:6379".to_owned(),
                     "redis://127.0.0.2:6379".to_owned(),
                 ],
+                secondary: None,
                 options: PartialRedisConfigOptions {
                     max_connections: Some(17),
                     ..Default::default()
@@ -387,6 +450,7 @@ quotas:
     fn test_redis_single_serialize() {
         let config = RedisConfig::Single(SingleRedisConfig::Detailed {
             server: "redis://127.0.0.1:6379".to_owned(),
+            secondary: None,
             options: PartialRedisConfigOptions {
                 max_connections: Some(42),
                 ..Default::default()
@@ -409,6 +473,7 @@ quotas:
     fn test_redis_single_serialize_unified() {
         let configs = RedisConfigs::Unified(RedisConfig::Single(SingleRedisConfig::Detailed {
             server: "redis://127.0.0.1:6379".to_owned(),
+            secondary: None,
             options: PartialRedisConfigOptions {
                 max_connections: Some(42),
                 ..Default::default()
@@ -440,6 +505,7 @@ server: "redis://127.0.0.1:6379"
             config,
             RedisConfig::Single(SingleRedisConfig::Detailed {
                 server: "redis://127.0.0.1:6379".to_owned(),
+                secondary: None,
                 options: Default::default()
             })
         );
@@ -483,6 +549,7 @@ max_connections: 10
                     "redis://127.0.0.1:6379".to_owned(),
                     "redis://127.0.0.2:6379".to_owned()
                 ],
+                secondary: None,
                 options: PartialRedisConfigOptions {
                     max_connections: Some(10),
                     ..Default::default()
@@ -510,6 +577,7 @@ max_connections: 20
                     "redis://127.0.0.1:6379".to_owned(),
                     "redis://127.0.0.2:6379".to_owned()
                 ],
+                secondary: None,
                 options: PartialRedisConfigOptions {
                     max_connections: Some(20),
                     ..Default::default()
@@ -525,6 +593,7 @@ max_connections: 20
                 "redis://127.0.0.1:6379".to_owned(),
                 "redis://127.0.0.2:6379".to_owned(),
             ],
+            secondary: None,
             options: PartialRedisConfigOptions {
                 max_connections: Some(42),
                 ..Default::default()
@@ -553,6 +622,7 @@ max_connections: 20
                 "redis://127.0.0.1:6379".to_owned(),
                 "redis://127.0.0.2:6379".to_owned(),
             ],
+            secondary: None,
             options: PartialRedisConfigOptions {
                 max_connections: Some(42),
                 ..Default::default()
@@ -579,6 +649,7 @@ max_connections: 20
         let configs = RedisConfigs::Individual {
             project_configs: Box::new(RedisConfig::Single(SingleRedisConfig::Detailed {
                 server: "redis://127.0.0.1:6379".to_owned(),
+                secondary: None,
                 options: PartialRedisConfigOptions {
                     max_connections: Some(42),
                     ..Default::default()
@@ -589,6 +660,7 @@ max_connections: 20
                     "redis://127.0.0.1:6379".to_owned(),
                     "redis://127.0.0.2:6379".to_owned(),
                 ],
+                secondary: None,
                 options: PartialRedisConfigOptions {
                     max_connections: Some(84),
                     ..Default::default()
@@ -617,6 +689,149 @@ max_connections: 20
             "recycle_timeout": 2,
             "response_timeout": 30
           }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_redis_cluster_with_single_secondary() {
+        let yaml = r#"
+cluster_nodes:
+    - "redis://127.0.0.1:6379"
+    - "redis://127.0.0.2:6379"
+secondary:
+    nodes: ["redis://secondary:6379"]
+    is_cluster: false
+    max_connections: 5
+max_connections: 10
+"#;
+
+        let config: RedisConfig = serde_yaml::from_str(yaml).unwrap();
+
+        assert_eq!(
+            config,
+            RedisConfig::Cluster {
+                cluster_nodes: vec![
+                    "redis://127.0.0.1:6379".to_owned(),
+                    "redis://127.0.0.2:6379".to_owned()
+                ],
+                secondary: Some(SecondaryRedisConfig {
+                    nodes: vec!["redis://secondary:6379".to_owned()],
+                    is_cluster: false,
+                    options: PartialRedisConfigOptions {
+                        max_connections: Some(5),
+                        ..Default::default()
+                    },
+                }),
+                options: PartialRedisConfigOptions {
+                    max_connections: Some(10),
+                    ..Default::default()
+                },
+            }
+        );
+    }
+
+    #[test]
+    fn test_redis_single_with_cluster_secondary() {
+        let yaml = r#"
+server: "redis://127.0.0.1:6379"
+secondary:
+    nodes:
+        - "redis://secondary.1:6379"
+        - "redis://secondary.2:6379"
+    is_cluster: true
+"#;
+
+        let config: RedisConfig = serde_yaml::from_str(yaml).unwrap();
+
+        assert_eq!(
+            config,
+            RedisConfig::Single(SingleRedisConfig::Detailed {
+                server: "redis://127.0.0.1:6379".to_owned(),
+                secondary: Some(SecondaryRedisConfig {
+                    nodes: vec![
+                        "redis://secondary.1:6379".to_owned(),
+                        "redis://secondary.2:6379".to_owned()
+                    ],
+                    is_cluster: true,
+                    options: Default::default(),
+                }),
+                options: Default::default(),
+            })
+        );
+    }
+
+    #[test]
+    fn test_redis_secondary_requires_fields() {
+        for secondary in [
+            r#"{nodes: ["redis://secondary:6379"]}"#,
+            r#"{is_cluster: false}"#,
+        ] {
+            let yaml = format!("server: redis://127.0.0.1:6379\nsecondary: {secondary}");
+            // A secondary with missing fields does not match any variant.
+            assert!(serde_yaml::from_str::<RedisConfig>(&yaml).is_err());
+        }
+    }
+
+    #[test]
+    fn test_redis_secondary_build_ref() {
+        let config = RedisConfig::Cluster {
+            cluster_nodes: vec!["redis://127.0.0.1:6379".to_owned()],
+            secondary: Some(SecondaryRedisConfig {
+                nodes: vec!["redis://secondary:6379".to_owned()],
+                is_cluster: false,
+                options: Default::default(),
+            }),
+            options: Default::default(),
+        };
+
+        let RedisConfigRef::Cluster {
+            secondary: Some(secondary),
+            ..
+        } = build_redis_config(&config, 7)
+        else {
+            panic!("expected cluster with secondary");
+        };
+        assert_eq!(secondary.nodes, ["redis://secondary:6379"]);
+        assert!(!secondary.is_cluster);
+        assert_eq!(secondary.options.max_connections, 7);
+    }
+
+    #[test]
+    fn test_redis_cluster_secondary_serialize() {
+        let config = RedisConfig::Cluster {
+            cluster_nodes: vec!["redis://127.0.0.1:6379".to_owned()],
+            secondary: Some(SecondaryRedisConfig {
+                nodes: vec!["redis://secondary.1:6379".to_owned()],
+                is_cluster: true,
+                options: Default::default(),
+            }),
+            options: PartialRedisConfigOptions {
+                max_connections: Some(42),
+                ..Default::default()
+            },
+        };
+
+        assert_json_snapshot!(config, @r#"
+        {
+          "cluster_nodes": [
+            "redis://127.0.0.1:6379"
+          ],
+          "secondary": {
+            "nodes": [
+              "redis://secondary.1:6379"
+            ],
+            "is_cluster": true,
+            "idle_timeout": 60,
+            "create_timeout": 3,
+            "recycle_timeout": 2,
+            "response_timeout": 30
+          },
+          "max_connections": 42,
+          "idle_timeout": 60,
+          "create_timeout": 3,
+          "recycle_timeout": 2,
+          "response_timeout": 30
         }
         "#);
     }
