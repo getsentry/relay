@@ -101,6 +101,15 @@ pub enum RedisConfig {
     Cluster {
         /// Redis nodes urls of the cluster.
         cluster_nodes: Vec<String>,
+        /// Optional shadow cluster node urls which receive duplicated writes.
+        ///
+        /// When set, every command executed against this pool is additionally sent to the shadow
+        /// cluster in a best-effort ("fail-open") fashion. Errors talking to the shadow cluster are
+        /// logged but never surfaced to the caller, and only the primary result is used.
+        ///
+        /// This is used to dual-write quota data while migrating between Redis deployments.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        shadow: Option<Vec<String>>,
         /// Options of the Redis config.
         #[serde(flatten)]
         options: PartialRedisConfigOptions,
@@ -145,6 +154,7 @@ impl From<RedisConfigFromFile> for RedisConfig {
                 options,
             } => Self::Cluster {
                 cluster_nodes,
+                shadow: None,
                 options,
             },
             RedisConfigFromFile::Single(server) => Self::Single(SingleRedisConfig::Detailed {
@@ -180,6 +190,8 @@ pub enum RedisConfigRef<'a> {
     Cluster {
         /// Reference to the Redis nodes urls of the cluster.
         cluster_nodes: &'a Vec<String>,
+        /// Optional reference to the shadow cluster node urls which receive duplicated writes.
+        shadow: Option<&'a Vec<String>>,
         /// Options of the Redis config.
         options: RedisConfigOptions,
     },
@@ -233,9 +245,11 @@ pub(super) fn build_redis_config(
     match config {
         RedisConfig::Cluster {
             cluster_nodes,
+            shadow,
             options,
         } => RedisConfigRef::Cluster {
             cluster_nodes,
+            shadow: shadow.as_ref(),
             options: build_redis_config_options(options, default_connections),
         },
         RedisConfig::Single(SingleRedisConfig::Detailed { server, options }) => {
@@ -373,6 +387,7 @@ quotas:
                     "redis://127.0.0.1:6379".to_owned(),
                     "redis://127.0.0.2:6379".to_owned(),
                 ],
+                shadow: None,
                 options: PartialRedisConfigOptions {
                     max_connections: Some(17),
                     ..Default::default()
@@ -483,6 +498,7 @@ max_connections: 10
                     "redis://127.0.0.1:6379".to_owned(),
                     "redis://127.0.0.2:6379".to_owned()
                 ],
+                shadow: None,
                 options: PartialRedisConfigOptions {
                     max_connections: Some(10),
                     ..Default::default()
@@ -510,6 +526,7 @@ max_connections: 20
                     "redis://127.0.0.1:6379".to_owned(),
                     "redis://127.0.0.2:6379".to_owned()
                 ],
+                shadow: None,
                 options: PartialRedisConfigOptions {
                     max_connections: Some(20),
                     ..Default::default()
@@ -525,6 +542,7 @@ max_connections: 20
                 "redis://127.0.0.1:6379".to_owned(),
                 "redis://127.0.0.2:6379".to_owned(),
             ],
+            shadow: None,
             options: PartialRedisConfigOptions {
                 max_connections: Some(42),
                 ..Default::default()
@@ -553,6 +571,7 @@ max_connections: 20
                 "redis://127.0.0.1:6379".to_owned(),
                 "redis://127.0.0.2:6379".to_owned(),
             ],
+            shadow: None,
             options: PartialRedisConfigOptions {
                 max_connections: Some(42),
                 ..Default::default()
@@ -589,6 +608,7 @@ max_connections: 20
                     "redis://127.0.0.1:6379".to_owned(),
                     "redis://127.0.0.2:6379".to_owned(),
                 ],
+                shadow: None,
                 options: PartialRedisConfigOptions {
                     max_connections: Some(84),
                     ..Default::default()
@@ -617,6 +637,68 @@ max_connections: 20
             "recycle_timeout": 2,
             "response_timeout": 30
           }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_redis_cluster_nodes_with_shadow() {
+        let yaml = r#"
+cluster_nodes:
+    - "redis://127.0.0.1:6379"
+    - "redis://127.0.0.2:6379"
+shadow:
+    - "redis://shadow.1:6379"
+    - "redis://shadow.2:6379"
+max_connections: 10
+"#;
+
+        let config: RedisConfig = serde_yaml::from_str(yaml)
+            .expect("Parsed processing redis config: cluster with shadow");
+
+        assert_eq!(
+            config,
+            RedisConfig::Cluster {
+                cluster_nodes: vec![
+                    "redis://127.0.0.1:6379".to_owned(),
+                    "redis://127.0.0.2:6379".to_owned()
+                ],
+                shadow: Some(vec![
+                    "redis://shadow.1:6379".to_owned(),
+                    "redis://shadow.2:6379".to_owned()
+                ]),
+                options: PartialRedisConfigOptions {
+                    max_connections: Some(10),
+                    ..Default::default()
+                },
+            }
+        );
+    }
+
+    #[test]
+    fn test_redis_cluster_shadow_serialize() {
+        let config = RedisConfig::Cluster {
+            cluster_nodes: vec!["redis://127.0.0.1:6379".to_owned()],
+            shadow: Some(vec!["redis://shadow.1:6379".to_owned()]),
+            options: PartialRedisConfigOptions {
+                max_connections: Some(42),
+                ..Default::default()
+            },
+        };
+
+        assert_json_snapshot!(config, @r#"
+        {
+          "cluster_nodes": [
+            "redis://127.0.0.1:6379"
+          ],
+          "shadow": [
+            "redis://shadow.1:6379"
+          ],
+          "max_connections": 42,
+          "idle_timeout": 60,
+          "create_timeout": 3,
+          "recycle_timeout": 2,
+          "response_timeout": 30
         }
         "#);
     }

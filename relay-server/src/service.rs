@@ -476,12 +476,19 @@ impl ServiceState {
 #[cfg(feature = "processing")]
 pub fn create_redis_clients(configs: RedisConfigsRef<'_>) -> Result<RedisClients, RedisError> {
     const PROJECT_CONFIG_REDIS_CLIENT: &str = "projectconfig";
+    const PROJECT_CONFIG_SHADOW_REDIS_CLIENT: &str = "projectconfig_shadow";
     const QUOTA_REDIS_CLIENT: &str = "quotas";
+    const QUOTA_SHADOW_REDIS_CLIENT: &str = "quotas_shadow";
     const UNIFIED_REDIS_CLIENT: &str = "unified";
+    const UNIFIED_SHADOW_REDIS_CLIENT: &str = "unified_shadow";
 
     match configs {
         RedisConfigsRef::Unified(unified) => {
-            let client = create_async_redis_client(UNIFIED_REDIS_CLIENT, &unified)?;
+            let client = create_async_redis_client(
+                UNIFIED_REDIS_CLIENT,
+                UNIFIED_SHADOW_REDIS_CLIENT,
+                &unified,
+            )?;
 
             Ok(RedisClients {
                 project_configs: client.clone(),
@@ -492,9 +499,13 @@ pub fn create_redis_clients(configs: RedisConfigsRef<'_>) -> Result<RedisClients
             project_configs,
             quotas,
         } => {
-            let project_configs =
-                create_async_redis_client(PROJECT_CONFIG_REDIS_CLIENT, &project_configs)?;
-            let quotas = create_async_redis_client(QUOTA_REDIS_CLIENT, &quotas)?;
+            let project_configs = create_async_redis_client(
+                PROJECT_CONFIG_REDIS_CLIENT,
+                PROJECT_CONFIG_SHADOW_REDIS_CLIENT,
+                &project_configs,
+            )?;
+            let quotas =
+                create_async_redis_client(QUOTA_REDIS_CLIENT, QUOTA_SHADOW_REDIS_CLIENT, &quotas)?;
 
             Ok(RedisClients {
                 project_configs,
@@ -507,13 +518,33 @@ pub fn create_redis_clients(configs: RedisConfigsRef<'_>) -> Result<RedisClients
 #[cfg(feature = "processing")]
 fn create_async_redis_client(
     name: &'static str,
+    shadow_name: &'static str,
     config: &RedisConfigRef<'_>,
 ) -> Result<AsyncRedisClient, RedisError> {
     match config {
         RedisConfigRef::Cluster {
             cluster_nodes,
+            shadow,
             options,
-        } => AsyncRedisClient::cluster(name, cluster_nodes.iter().map(|s| s.as_str()), options),
+        } => {
+            let primary =
+                AsyncRedisClient::cluster(name, cluster_nodes.iter().map(|s| s.as_str()), options)?;
+
+            match shadow {
+                // When a shadow cluster is configured, fan out writes to it in addition to the
+                // primary. This is used to dual-write quota data during Redis migrations.
+                Some(shadow_nodes) => {
+                    let secondary = AsyncRedisClient::cluster(
+                        shadow_name,
+                        shadow_nodes.iter().map(|s| s.as_str()),
+                        options,
+                    )?;
+
+                    AsyncRedisClient::multi_write(primary, vec![secondary])
+                }
+                None => Ok(primary),
+            }
+        }
         RedisConfigRef::Single { server, options } => {
             AsyncRedisClient::single(name, server, options)
         }
