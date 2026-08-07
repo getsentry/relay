@@ -1820,3 +1820,31 @@ def test_minidump_upload_exceeds_max_upload_size(mini_sentry, relay, dummy_uploa
             "quantity": 1,
         },
     ]
+
+
+def test_minidump_raw_size_limit(mini_sentry, relay):
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(mini_sentry, {"limits": {"max_attachment_size": 10}})
+
+    url = "/api/{}/minidump?sentry_key={}".format(
+        project_id, mini_sentry.get_dsn_public_key(project_id)
+    )
+
+    response = relay.request(
+        "post",
+        url,
+        headers={"Content-Type": "application/x-dmp"},
+        data=b"MDMP" + b"X" * 6,
+    )
+    assert response.status_code == 200, response.text
+    assert mini_sentry.get_captured_envelope()
+
+    response = relay.request(
+        "post",
+        url,
+        headers={"Content-Type": "application/x-dmp"},
+        data=b"MDMP" + b"X" * 7,
+    )
+    assert response.status_code == 413, response.text
+    assert mini_sentry.captured_envelopes.empty()
