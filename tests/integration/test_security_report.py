@@ -3,6 +3,9 @@ from time import sleep
 
 import pytest
 from requests.exceptions import HTTPError
+from sentry_relay.consts import DataCategory
+
+from .asserts import time_within_delta
 
 CSP_IGNORED_FIELDS = (
     "event_id",
@@ -10,9 +13,6 @@ CSP_IGNORED_FIELDS = (
     "received",
     "ingest_path",
 )
-EXPECT_CT_IGNORED_FIELDS = ("event_id", "ingest_path")
-EXPECT_STAPLE_IGNORED_FIELDS = ("event_id", "ingest_path")
-HPKP_IGNORED_FIELDS = ("event_id", "ingest_path")
 
 
 def get_security_report(envelope):
@@ -238,18 +238,12 @@ def test_deprication_reports_with_processing(
         ("csp_chrome", CSP_IGNORED_FIELDS),
         ("csp_chrome_blocked_asset", CSP_IGNORED_FIELDS),
         ("csp_firefox_blocked_asset", CSP_IGNORED_FIELDS),
-        ("expect_ct", EXPECT_CT_IGNORED_FIELDS),
-        ("expect_staple", EXPECT_STAPLE_IGNORED_FIELDS),
-        ("hpkp", HPKP_IGNORED_FIELDS),
     ],
     ids=(
         "csp",
         "csp_chrome",
         "csp_chrome_blocked_asset",
         "csp_firefox_blocked_asset",
-        "expect_ct",
-        "expect_staple",
-        "hpkp",
     ),
 )
 def test_security_report(mini_sentry, relay, test_case, json_fixture_provider):
@@ -283,6 +277,89 @@ def test_security_report(mini_sentry, relay, test_case, json_fixture_provider):
     event.get("contexts", {}).pop("trace", None)
 
     assert event == expected_evt
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {
+            "expect-ct-report": {
+                "hostname": "www.example.com",
+                "port": 443,
+                "effective-expiration-date": "2014-05-01T12:40:50Z",
+            }
+        },
+        {
+            "expect-staple-report": {
+                "hostname": "www.example.com",
+                "port": 443,
+                "response-status": "ERROR_RESPONSE",
+                "cert-status": "REVOKED",
+            }
+        },
+        {
+            "hostname": "www.example.com",
+            "port": 443,
+            "known-pins": ['pin-sha256="d6qzRu9zOECb90Uez27xWltNsj0e1Md7GkYYkVoZWmM="'],
+        },
+    ],
+    ids=("expect_ct", "expect_staple", "hpkp"),
+)
+def test_security_report_rejects_deprecated_types(mini_sentry, relay, payload):
+    """
+    Expect-CT, Expect-Staple and HPKP are no longer supported. Relay must reject such
+    reports with an ``invalid`` outcome and forward nothing upstream.
+    """
+    proj_id = 42
+    relay = relay(mini_sentry, {"outcomes": {"emit_outcomes": True}})
+    mini_sentry.add_full_project_config(proj_id)
+
+    resp = relay.send_security_report(
+        project_id=proj_id,
+        content_type="application/json",
+        payload=payload,
+        release="01d5c3165d9fbc5c8bdcf9550a1d6793a80fc02b",
+        environment="production",
+    )
+    assert resp.status_code == 200
+
+    assert mini_sentry.get_outcomes(n=1) == [
+        {
+            "category": DataCategory.SECURITY.value,
+            "outcome": 3,  # Invalid
+            "reason": "security_report_type",
+            "quantity": 1,
+            "timestamp": time_within_delta(),
+        }
+    ]
+
+    assert mini_sentry.captured_envelopes.empty()
+
+
+def test_security_report_rejects_dedicated_content_types(mini_sentry, relay):
+    """
+    The dedicated ``application/expect-ct-report`` and ``application/expect-staple-report``
+    content types are no longer accepted and are rejected at the endpoint.
+    """
+    proj_id = 42
+    relay = relay(mini_sentry)
+    mini_sentry.add_full_project_config(proj_id)
+
+    for content_type in (
+        "application/expect-ct-report",
+        "application/expect-staple-report",
+    ):
+        with pytest.raises(HTTPError) as excinfo:
+            relay.send_security_report(
+                project_id=proj_id,
+                content_type=content_type,
+                payload={"expect-ct-report": {"hostname": "www.example.com"}},
+                release="01d5c3165d9fbc5c8bdcf9550a1d6793a80fc02b",
+                environment="production",
+            )
+        assert excinfo.value.response.status_code == 415
+
+    assert mini_sentry.captured_envelopes.empty()
 
 
 def split_header(header_val):

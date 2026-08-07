@@ -418,9 +418,6 @@ fn normalize_security_report(
 
 fn is_security_report(event: &Event) -> bool {
     event.csp.value().is_some()
-        || event.expectct.value().is_some()
-        || event.expectstaple.value().is_some()
-        || event.hpkp.value().is_some()
 }
 
 /// Backfills IP addresses in various places.
@@ -1246,12 +1243,6 @@ fn infer_event_type(event: &Event) -> EventType {
         EventType::Error
     } else if event.csp.value().is_some() {
         EventType::Csp
-    } else if event.hpkp.value().is_some() {
-        EventType::Hpkp
-    } else if event.expectct.value().is_some() {
-        EventType::ExpectCt
-    } else if event.expectstaple.value().is_some() {
-        EventType::ExpectStaple
     } else {
         EventType::Default
     }

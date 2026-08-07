@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+**Breaking Changes**:
+
+- Stop accepting the deprecated Expect-CT, HPKP, and Expect-Staple security reports and remove their
+  event types and event schema fields. Such reports are now rejected at ingest with an `invalid`
+  outcome (`security_report_type`). Events already classified as `hpkp`, `expectct`, or `expectstaple`
+  by an older upstream Relay are still forwarded, but as `default` events counting against the error
+  quota. ([#6230](https://github.com/getsentry/relay/pull/6230))
+
 **Features**:
 
 - Reject spans, logs, trace metrics, replays when they are too old instead of shifting their timestamp. ([#6272](https://github.com/getsentry/relay/pull/6272))

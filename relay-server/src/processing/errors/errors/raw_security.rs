@@ -1,7 +1,5 @@
 use relay_base_schema::events::EventType;
-use relay_event_schema::protocol::{
-    Csp, Event, ExpectCt, ExpectStaple, Hpkp, LenientString, Metrics, SecurityReportType,
-};
+use relay_event_schema::protocol::{Csp, Event, LenientString, Metrics, SecurityReportType};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
@@ -83,15 +81,6 @@ fn event_from_security_report(
 
     let (apply_result, event_type) = match report_type {
         SecurityReportType::Csp => (Csp::apply_to_event(data, &mut event), EventType::Csp),
-        SecurityReportType::ExpectCt => (
-            ExpectCt::apply_to_event(data, &mut event),
-            EventType::ExpectCt,
-        ),
-        SecurityReportType::ExpectStaple => (
-            ExpectStaple::apply_to_event(data, &mut event),
-            EventType::ExpectStaple,
-        ),
-        SecurityReportType::Hpkp => (Hpkp::apply_to_event(data, &mut event), EventType::Hpkp),
         SecurityReportType::Unsupported => return Err(ProcessingError::UnsupportedSecurityType),
     };
 
