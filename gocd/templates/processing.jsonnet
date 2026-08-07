@@ -8,7 +8,7 @@ local pipedream_config = {
   name: 'relay-processing',
   auto_deploy: false,
   exclude_regions: [
-    's4s',
+    's4s2',
   ],
   materials: {
     relay_repo: {
