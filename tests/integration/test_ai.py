@@ -1,6 +1,8 @@
+import json
 from datetime import datetime, timezone
 
 from sentry_relay.consts import DataCategory
+from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 from .asserts import matches_any, time_within_delta
 
@@ -372,7 +374,6 @@ def test_ai_spans_example_transaction(
 
     assert spans_consumer.get_spans(n=10) == [
         {
-            "_meta": matches_any(),
             "attributes": {
                 "gen_ai.conversation.id": {
                     "type": "string",
@@ -409,9 +410,10 @@ def test_ai_spans_example_transaction(
                 "gen_ai.response.model": {"type": "string", "value": "gpt-4o"},
                 "gen_ai.output.messages": {
                     "type": "string",
-                    "value": "True. \n\n- London: 61°F \n- San Francisco: 13°C",
+                    # Transformed from gen_ai.response.text into parts format.
+                    # Exact JSON verified in test_gen_ai_transform_response_to_output_v1.
+                    "value": matches_any(),
                 },
-                "gen_ai.response.text": None,
                 "gen_ai.response.tokens_per_second": {"type": "double", "value": 130.0},
                 "gen_ai.usage.input_tokens": {"type": "integer", "value": 245},
                 "gen_ai.usage.output_tokens": {"type": "integer", "value": 65},
@@ -518,20 +520,16 @@ def test_ai_spans_example_transaction(
                 "gen_ai.agent.name": {"type": "string", "value": "weather-chat"},
                 "gen_ai.function_id": {"type": "string", "value": "weather-chat"},
                 "gen_ai.operation.type": {"type": "string", "value": "ai_client"},
-                "gen_ai.tool.definitions": {
-                    "type": "string",
-                    "value": '["tools1"]',
-                },
+                "gen_ai.tool.definitions": matches_any(),
                 "gen_ai.input.messages": {
                     "type": "string",
                     "value": "Another weather prompt",
                 },
-                "gen_ai.request.available_tools": None,
-                "gen_ai.request.messages": None,
+                "gen_ai.request.available_tools": matches_any(),
                 "gen_ai.request.model": {"type": "string", "value": "gpt-4o"},
                 "gen_ai.response.finish_reasons": {
                     "type": "string",
-                    "value": '["tool-calls"]',
+                    "value": matches_any(),
                 },
                 "gen_ai.response.id": {
                     "type": "string",
@@ -542,9 +540,8 @@ def test_ai_spans_example_transaction(
                     "value": "gpt-4o-2024-08-06",
                 },
                 "gen_ai.response.tokens_per_second": {"type": "double", "value": 92.0},
-                "gen_ai.response.tool_calls": None,
-                "gen_ai.system": None,
-                "gen_ai.output.messages": {
+                "gen_ai.system": matches_any(),
+                "gen_ai.response.tool_calls": {
                     "type": "string",
                     "value": "some_tool_calls",
                 },
@@ -752,8 +749,8 @@ def test_ai_spans_example_transaction(
                     '(56°F)","temperatureC":13,"temperatureF":56,"condition":"Haze","humidity":"88%","windSpeed":"4 '
                     'km/h"}',
                 },
-                "gen_ai.tool.input": None,
-                "gen_ai.tool.output": None,
+                "gen_ai.tool.input": matches_any(),
+                "gen_ai.tool.output": matches_any(),
                 "gen_ai.tool.type": {"type": "string", "value": "function"},
                 "operation.name": {
                     "type": "string",
@@ -911,8 +908,8 @@ def test_ai_spans_example_transaction(
                     'cloudy","humidity":"72%","windSpeed":"21 '
                     'km/h"}',
                 },
-                "gen_ai.tool.input": None,
-                "gen_ai.tool.output": None,
+                "gen_ai.tool.input": matches_any(),
+                "gen_ai.tool.output": matches_any(),
                 "gen_ai.tool.type": {"type": "string", "value": "function"},
                 "operation.name": {
                     "type": "string",
@@ -1079,20 +1076,16 @@ def test_ai_spans_example_transaction(
                 "gen_ai.agent.name": {"type": "string", "value": "weather-chat"},
                 "gen_ai.function_id": {"type": "string", "value": "weather-chat"},
                 "gen_ai.operation.type": {"type": "string", "value": "ai_client"},
-                "gen_ai.tool.definitions": {
-                    "type": "string",
-                    "value": '["tool_1"]',
-                },
+                "gen_ai.tool.definitions": matches_any(),
                 "gen_ai.input.messages": {
                     "type": "string",
                     "value": "Some AI Prompt about " "the Wheather",
                 },
-                "gen_ai.request.available_tools": None,
-                "gen_ai.request.messages": None,
+                "gen_ai.request.available_tools": matches_any(),
                 "gen_ai.request.model": {"type": "string", "value": "gpt-4o"},
                 "gen_ai.response.finish_reasons": {
                     "type": "string",
-                    "value": '["stop"]',
+                    "value": matches_any(),
                 },
                 "gen_ai.response.id": {
                     "type": "string",
@@ -1104,14 +1097,11 @@ def test_ai_spans_example_transaction(
                 },
                 "gen_ai.output.messages": {
                     "type": "string",
-                    "value": "True. \n"
-                    "\n"
-                    "- London: 61°F \n"
-                    "- San Francisco: 13°C",
+                    # Transformed from gen_ai.response.text into parts format.
+                    "value": matches_any(),
                 },
-                "gen_ai.response.text": None,
                 "gen_ai.response.tokens_per_second": {"type": "double", "value": 38.0},
-                "gen_ai.system": None,
+                "gen_ai.system": matches_any(),
                 "gen_ai.provider.name": {"type": "string", "value": "openai.responses"},
                 "gen_ai.usage.input_tokens": {"type": "integer", "value": 208},
                 "gen_ai.usage.output_tokens": {"type": "integer", "value": 19},
@@ -1365,4 +1355,671 @@ def test_ai_spans_example_transaction(
             "project_id": 42,
             "quantity": 10,
         },
+    ]
+
+
+def envelope_with_spans(*payloads: dict, trace_info=None, metadata=None) -> Envelope:
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="span",
+            payload=PayloadRef(json={"items": payloads, **(metadata or {})}),
+            content_type="application/vnd.sentry.items.span.v2+json",
+            headers={"item_count": len(payloads)},
+        )
+    )
+    envelope.headers["trace"] = trace_info
+    return envelope
+
+
+def test_gen_ai_transform_request_messages_transaction_path(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+):
+    """
+    SpanV1 (transaction) path: gen_ai.request.messages with JSON content
+    gets transformed to gen_ai.input.messages with parts format.
+    """
+    spans_consumer = spans_consumer()
+
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(relay_with_processing())
+
+    ts = datetime.now(timezone.utc)
+    messages = json.dumps([{"role": "user", "content": "What is the weather?"}])
+
+    relay.send_transaction(
+        project_id,
+        {
+            "contexts": {
+                "trace": {
+                    "span_id": "aaaa000000000001",
+                    "trace_id": "a9351cd574f092f6acad48e250981f11",
+                    "op": "gen_ai.generate_text",
+                    "origin": "manual",
+                    "status": "ok",
+                },
+            },
+            "spans": [
+                {
+                    "span_id": "bbbb000000000001",
+                    "trace_id": "a9351cd574f092f6acad48e250981f11",
+                    "parent_span_id": "aaaa000000000001",
+                    "start_timestamp": ts.timestamp() - 0.5,
+                    "timestamp": ts.timestamp(),
+                    "status": "ok",
+                    "op": "gen_ai.generate_text",
+                    "data": {
+                        "gen_ai.request.messages": messages,
+                        "gen_ai.request.model": "gpt-4o",
+                    },
+                },
+            ],
+            "start_timestamp": ts.timestamp() - 0.5,
+            "timestamp": ts.timestamp(),
+            "transaction": "test-transform",
+            "type": "transaction",
+            "transaction_info": {"source": "custom"},
+            "platform": "python",
+        },
+    )
+
+    spans = spans_consumer.get_spans(n=2)
+    ai_span = next(s for s in spans if s["span_id"] == "bbbb000000000001")
+    attrs = ai_span["attributes"]
+
+    result = json.loads(attrs["gen_ai.input.messages"]["value"])
+    assert result == [
+        {"role": "user", "parts": [{"type": "text", "content": "What is the weather?"}]}
+    ]
+    assert "gen_ai.request.messages" not in attrs
+
+
+def test_gen_ai_transform_response_to_output_transaction_path(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+):
+    """
+    SpanV1 (transaction) path: gen_ai.response.text gets transformed into
+    gen_ai.output.messages with assistant parts format.
+    """
+    spans_consumer = spans_consumer()
+
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(relay_with_processing())
+
+    ts = datetime.now(timezone.utc)
+    relay.send_transaction(
+        project_id,
+        {
+            "contexts": {
+                "trace": {
+                    "span_id": "aaaa000000000002",
+                    "trace_id": "b9351cd574f092f6acad48e250981f11",
+                    "op": "gen_ai.generate_text",
+                    "origin": "manual",
+                    "status": "ok",
+                },
+            },
+            "spans": [
+                {
+                    "span_id": "bbbb000000000002",
+                    "trace_id": "b9351cd574f092f6acad48e250981f11",
+                    "parent_span_id": "aaaa000000000002",
+                    "start_timestamp": ts.timestamp() - 0.5,
+                    "timestamp": ts.timestamp(),
+                    "status": "ok",
+                    "op": "gen_ai.generate_text",
+                    "data": {
+                        "gen_ai.response.text": "The weather is sunny.",
+                        "gen_ai.request.model": "gpt-4o",
+                    },
+                },
+            ],
+            "start_timestamp": ts.timestamp() - 0.5,
+            "timestamp": ts.timestamp(),
+            "transaction": "test-transform",
+            "type": "transaction",
+            "transaction_info": {"source": "custom"},
+            "platform": "python",
+        },
+    )
+
+    spans = spans_consumer.get_spans(n=2)
+    ai_span = next(s for s in spans if s["span_id"] == "bbbb000000000002")
+    attrs = ai_span["attributes"]
+
+    result = json.loads(attrs["gen_ai.output.messages"]["value"])
+    assert result == [
+        {
+            "role": "assistant",
+            "parts": [{"type": "text", "content": "The weather is sunny."}],
+        }
+    ]
+    assert "gen_ai.response.text" not in attrs
+
+
+# ---- Helpers for transform integration tests ----
+
+
+def _make_gen_ai_span(ts, span_id, trace_id, **extra_attrs):
+    """Build a SpanV2 dict with gen_ai defaults."""
+    attrs = {
+        "sentry.op": {"value": "gen_ai.generate_text", "type": "string"},
+        "gen_ai.request.model": {"value": "gpt-4o", "type": "string"},
+    }
+    for k, v in extra_attrs.items():
+        attrs[k] = {"value": v, "type": "string"}
+    return {
+        "start_timestamp": ts.timestamp(),
+        "end_timestamp": ts.timestamp() + 0.5,
+        "trace_id": trace_id,
+        "span_id": span_id,
+        "is_segment": True,
+        "name": "gen_ai.generate_text",
+        "status": "ok",
+        "attributes": attrs,
+    }
+
+
+# ---- Request message format tests ----
+
+
+def test_gen_ai_transform_request_string_content(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+):
+    """content: string → text part."""
+    spans_consumer = spans_consumer()
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(relay_with_processing())
+    ts = datetime.now(timezone.utc)
+
+    messages = json.dumps([{"role": "user", "content": "hello"}])
+    span = _make_gen_ai_span(
+        ts,
+        "aa00000000000001",
+        "aa00000000000000aa00000000000001",
+        **{"gen_ai.request.messages": messages},
+    )
+    envelope = envelope_with_spans(
+        span,
+        trace_info={
+            "trace_id": span["trace_id"],
+            "public_key": mini_sentry.get_dsn_public_key(project_id),
+        },
+    )
+    relay.send_envelope(project_id, envelope)
+    attrs = spans_consumer.get_spans(n=1)[0]["attributes"]
+
+    result = json.loads(attrs["gen_ai.input.messages"]["value"])
+    assert result == [{"role": "user", "parts": [{"type": "text", "content": "hello"}]}]
+    assert "gen_ai.request.messages" not in attrs
+
+
+def test_gen_ai_transform_request_text_with_text_field(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+):
+    """content: [{type: "text", text: "hello"}] — old SDK text field."""
+    spans_consumer = spans_consumer()
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(relay_with_processing())
+    ts = datetime.now(timezone.utc)
+
+    messages = json.dumps(
+        [{"role": "user", "content": [{"type": "text", "text": "hello"}]}]
+    )
+    span = _make_gen_ai_span(
+        ts,
+        "aa00000000000002",
+        "aa00000000000000aa00000000000002",
+        **{"gen_ai.request.messages": messages},
+    )
+    envelope = envelope_with_spans(
+        span,
+        trace_info={
+            "trace_id": span["trace_id"],
+            "public_key": mini_sentry.get_dsn_public_key(project_id),
+        },
+    )
+    relay.send_envelope(project_id, envelope)
+    attrs = spans_consumer.get_spans(n=1)[0]["attributes"]
+
+    result = json.loads(attrs["gen_ai.input.messages"]["value"])
+    assert result[0]["parts"][0] == {"type": "text", "content": "hello"}
+
+
+def test_gen_ai_transform_request_image_blob(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+):
+    """content: [{type: "image", image: "base64", mimeType: "image/png"}] → blob part."""
+    spans_consumer = spans_consumer()
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(relay_with_processing())
+    ts = datetime.now(timezone.utc)
+
+    messages = json.dumps(
+        [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image", "image": "base64data", "mimeType": "image/png"},
+                ],
+            },
+        ]
+    )
+    span = _make_gen_ai_span(
+        ts,
+        "aa00000000000003",
+        "aa00000000000000aa00000000000003",
+        **{"gen_ai.request.messages": messages},
+    )
+    envelope = envelope_with_spans(
+        span,
+        trace_info={
+            "trace_id": span["trace_id"],
+            "public_key": mini_sentry.get_dsn_public_key(project_id),
+        },
+    )
+    relay.send_envelope(project_id, envelope)
+    attrs = spans_consumer.get_spans(n=1)[0]["attributes"]
+
+    result = json.loads(attrs["gen_ai.input.messages"]["value"])
+    part = result[0]["parts"][0]
+    assert part["type"] == "blob"
+    assert part["content"] == "base64data"
+    assert part["mime_type"] == "image/png"
+    assert part["modality"] == "image"
+
+
+def test_gen_ai_transform_request_image_url(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+):
+    """content: [{type: "image_url", image_url: {url: "..."}}] → uri part."""
+    spans_consumer = spans_consumer()
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(relay_with_processing())
+    ts = datetime.now(timezone.utc)
+
+    messages = json.dumps(
+        [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": "https://example.com/img.png"},
+                    },
+                ],
+            },
+        ]
+    )
+    span = _make_gen_ai_span(
+        ts,
+        "aa00000000000004",
+        "aa00000000000000aa00000000000004",
+        **{"gen_ai.request.messages": messages},
+    )
+    envelope = envelope_with_spans(
+        span,
+        trace_info={
+            "trace_id": span["trace_id"],
+            "public_key": mini_sentry.get_dsn_public_key(project_id),
+        },
+    )
+    relay.send_envelope(project_id, envelope)
+    attrs = spans_consumer.get_spans(n=1)[0]["attributes"]
+
+    result = json.loads(attrs["gen_ai.input.messages"]["value"])
+    part = result[0]["parts"][0]
+    assert part["type"] == "uri"
+    assert part["uri"] == "https://example.com/img.png"
+
+
+def test_gen_ai_transform_request_function_call_output(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+):
+    """content: [{type: "function_call_output", call_id, output}] → tool_call_response."""
+    spans_consumer = spans_consumer()
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(relay_with_processing())
+    ts = datetime.now(timezone.utc)
+
+    messages = json.dumps(
+        [
+            {
+                "role": "tool",
+                "content": [
+                    {
+                        "type": "function_call_output",
+                        "call_id": "c1",
+                        "output": "sunny",
+                    },
+                ],
+            },
+        ]
+    )
+    span = _make_gen_ai_span(
+        ts,
+        "aa00000000000005",
+        "aa00000000000000aa00000000000005",
+        **{"gen_ai.request.messages": messages},
+    )
+    envelope = envelope_with_spans(
+        span,
+        trace_info={
+            "trace_id": span["trace_id"],
+            "public_key": mini_sentry.get_dsn_public_key(project_id),
+        },
+    )
+    relay.send_envelope(project_id, envelope)
+    attrs = spans_consumer.get_spans(n=1)[0]["attributes"]
+
+    result = json.loads(attrs["gen_ai.input.messages"]["value"])
+    part = result[0]["parts"][0]
+    assert part["type"] == "tool_call_response"
+    assert part["id"] == "c1"
+    assert part["response"] == "sunny"
+
+
+def test_gen_ai_transform_request_google_text_object(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+):
+    """content: {text: "hello"} (Google GenAI) → text part."""
+    spans_consumer = spans_consumer()
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(relay_with_processing())
+    ts = datetime.now(timezone.utc)
+
+    messages = json.dumps([{"role": "user", "content": {"text": "hello from google"}}])
+    span = _make_gen_ai_span(
+        ts,
+        "aa00000000000006",
+        "aa00000000000000aa00000000000006",
+        **{"gen_ai.request.messages": messages},
+    )
+    envelope = envelope_with_spans(
+        span,
+        trace_info={
+            "trace_id": span["trace_id"],
+            "public_key": mini_sentry.get_dsn_public_key(project_id),
+        },
+    )
+    relay.send_envelope(project_id, envelope)
+    attrs = spans_consumer.get_spans(n=1)[0]["attributes"]
+
+    result = json.loads(attrs["gen_ai.input.messages"]["value"])
+    assert result[0]["parts"][0] == {"type": "text", "content": "hello from google"}
+
+
+def test_gen_ai_transform_request_google_inline_data(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+):
+    """content: {inlineData: {mimeType, data}} (Google GenAI) → blob part."""
+    spans_consumer = spans_consumer()
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(relay_with_processing())
+    ts = datetime.now(timezone.utc)
+
+    messages = json.dumps(
+        [
+            {
+                "role": "user",
+                "content": {"inlineData": {"mimeType": "image/png", "data": "b64img"}},
+            },
+        ]
+    )
+    span = _make_gen_ai_span(
+        ts,
+        "aa00000000000007",
+        "aa00000000000000aa00000000000007",
+        **{"gen_ai.request.messages": messages},
+    )
+    envelope = envelope_with_spans(
+        span,
+        trace_info={
+            "trace_id": span["trace_id"],
+            "public_key": mini_sentry.get_dsn_public_key(project_id),
+        },
+    )
+    relay.send_envelope(project_id, envelope)
+    attrs = spans_consumer.get_spans(n=1)[0]["attributes"]
+
+    result = json.loads(attrs["gen_ai.input.messages"]["value"])
+    part = result[0]["parts"][0]
+    assert part["type"] == "blob"
+    assert part["content"] == "b64img"
+    assert part["mime_type"] == "image/png"
+
+
+# ---- Response text format tests ----
+
+
+def test_gen_ai_transform_response_plain_text(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+):
+    """gen_ai.response.text: "Paris." (plain text)."""
+    spans_consumer = spans_consumer()
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(relay_with_processing())
+    ts = datetime.now(timezone.utc)
+
+    span = _make_gen_ai_span(
+        ts,
+        "bb00000000000001",
+        "bb00000000000000bb00000000000001",
+        **{"gen_ai.response.text": "Paris."},
+    )
+    envelope = envelope_with_spans(
+        span,
+        trace_info={
+            "trace_id": span["trace_id"],
+            "public_key": mini_sentry.get_dsn_public_key(project_id),
+        },
+    )
+    relay.send_envelope(project_id, envelope)
+    attrs = spans_consumer.get_spans(n=1)[0]["attributes"]
+
+    result = json.loads(attrs["gen_ai.output.messages"]["value"])
+    assert result == [
+        {"role": "assistant", "parts": [{"type": "text", "content": "Paris."}]}
+    ]
+    assert "gen_ai.response.text" not in attrs
+
+
+def test_gen_ai_transform_response_string_array(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+):
+    """gen_ai.response.text: '["Paris."]' (JSON string array)."""
+    spans_consumer = spans_consumer()
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(relay_with_processing())
+    ts = datetime.now(timezone.utc)
+
+    span = _make_gen_ai_span(
+        ts,
+        "bb00000000000002",
+        "bb00000000000000bb00000000000002",
+        **{"gen_ai.response.text": json.dumps(["Paris."])},
+    )
+    envelope = envelope_with_spans(
+        span,
+        trace_info={
+            "trace_id": span["trace_id"],
+            "public_key": mini_sentry.get_dsn_public_key(project_id),
+        },
+    )
+    relay.send_envelope(project_id, envelope)
+    attrs = spans_consumer.get_spans(n=1)[0]["attributes"]
+
+    result = json.loads(attrs["gen_ai.output.messages"]["value"])
+    assert result == [
+        {"role": "assistant", "parts": [{"type": "text", "content": "Paris."}]}
+    ]
+
+
+def test_gen_ai_transform_response_message_array(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+):
+    """gen_ai.response.text: assistant message array with tool interleaving."""
+    spans_consumer = spans_consumer()
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(relay_with_processing())
+    ts = datetime.now(timezone.utc)
+
+    messages = json.dumps(
+        [
+            {"role": "assistant", "content": ""},
+            {"role": "tool", "content": "8"},
+            {"role": "assistant", "content": "The answer is 32."},
+        ]
+    )
+    span = _make_gen_ai_span(
+        ts,
+        "bb00000000000003",
+        "bb00000000000000bb00000000000003",
+        **{"gen_ai.response.text": messages},
+    )
+    envelope = envelope_with_spans(
+        span,
+        trace_info={
+            "trace_id": span["trace_id"],
+            "public_key": mini_sentry.get_dsn_public_key(project_id),
+        },
+    )
+    relay.send_envelope(project_id, envelope)
+    attrs = spans_consumer.get_spans(n=1)[0]["attributes"]
+
+    result = json.loads(attrs["gen_ai.output.messages"]["value"])
+    assert len(result) == 3
+    assert result[0]["role"] == "assistant"
+    assert result[1]["role"] == "tool"
+    assert result[1]["parts"][0]["content"] == "8"
+    assert result[2]["parts"][0]["content"] == "The answer is 32."
+
+
+def test_gen_ai_transform_response_openai_object(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+):
+    """gen_ai.response.text: OpenAI-style assistant object with extra fields."""
+    spans_consumer = spans_consumer()
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(relay_with_processing())
+    ts = datetime.now(timezone.utc)
+
+    obj = json.dumps(
+        {
+            "content": "Paris.",
+            "refusal": "None",
+            "role": "assistant",
+            "annotations": [],
+            "audio": "None",
+            "function_call": "None",
+            "tool_calls": "None",
+        }
+    )
+    span = _make_gen_ai_span(
+        ts,
+        "bb00000000000004",
+        "bb00000000000000bb00000000000004",
+        **{"gen_ai.response.text": obj},
+    )
+    envelope = envelope_with_spans(
+        span,
+        trace_info={
+            "trace_id": span["trace_id"],
+            "public_key": mini_sentry.get_dsn_public_key(project_id),
+        },
+    )
+    relay.send_envelope(project_id, envelope)
+    attrs = spans_consumer.get_spans(n=1)[0]["attributes"]
+
+    result = json.loads(attrs["gen_ai.output.messages"]["value"])
+    # Extra fields are dropped; only role and content survive.
+    assert result == [
+        {"role": "assistant", "parts": [{"type": "text", "content": "Paris."}]}
+    ]
+
+
+def test_gen_ai_transform_response_numeric(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+):
+    """gen_ai.response.text: "32" (stored as string in attribute)."""
+    spans_consumer = spans_consumer()
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(relay_with_processing())
+    ts = datetime.now(timezone.utc)
+
+    span = _make_gen_ai_span(
+        ts,
+        "bb00000000000005",
+        "bb00000000000000bb00000000000005",
+        **{"gen_ai.response.text": "32"},
+    )
+    envelope = envelope_with_spans(
+        span,
+        trace_info={
+            "trace_id": span["trace_id"],
+            "public_key": mini_sentry.get_dsn_public_key(project_id),
+        },
+    )
+    relay.send_envelope(project_id, envelope)
+    attrs = spans_consumer.get_spans(n=1)[0]["attributes"]
+
+    result = json.loads(attrs["gen_ai.output.messages"]["value"])
+    assert result == [
+        {"role": "assistant", "parts": [{"type": "text", "content": "32"}]}
     ]

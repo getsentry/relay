@@ -30,6 +30,7 @@ use crate::{
 
 mod ai;
 mod attribute_like;
+mod gen_ai_transform;
 mod mobile;
 mod size;
 pub mod time;
@@ -580,6 +581,8 @@ pub fn normalize_attribute_names(attributes: &mut Annotated<impl AttributesLike>
     let Some(attributes) = attributes.value_mut() else {
         return;
     };
+
+    gen_ai_transform::transform_gen_ai(attributes);
 
     normalize_attribute_names_inner(
         attributes.as_object_mut(),

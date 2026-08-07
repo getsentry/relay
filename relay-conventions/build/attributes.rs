@@ -128,11 +128,10 @@ fn format_write_behavior(deprecation: Option<&Deprecation>) -> String {
         DeprecationStatus::Backfill => {
             format!("WriteBehavior::BothNames({name})")
         }
-        // Transform is treated as Normalize until dedicated transformation
-        // code is added.
-        DeprecationStatus::Normalize | DeprecationStatus::Transform => {
+        DeprecationStatus::Normalize => {
             format!("WriteBehavior::NewName({name})")
         }
+        DeprecationStatus::Transform => "WriteBehavior::CurrentName".to_owned(),
     }
 }
 

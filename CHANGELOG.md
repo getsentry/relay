@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Transform deprecated `gen_ai.request.messages`, `gen_ai.response.text`, and `gen_ai.response.tool_calls` attributes into their normalized replacements (`gen_ai.input.messages` and `gen_ai.output.messages`). ([#6201](https://github.com/getsentry/relay/pull/6201))
 - Reject spans, logs, trace metrics, replays when they are too old instead of shifting their timestamp. ([#6272](https://github.com/getsentry/relay/pull/6272))
 - Extract nvgpu dumps and create GPU events. ([#6242](https://github.com/getsentry/relay/pull/6242))
 - Preserve transaction `contexts`, `extra`, and `breadcrumbs` on the segment span as serialized attributes. ([#6286](https://github.com/getsentry/relay/pull/6286))
