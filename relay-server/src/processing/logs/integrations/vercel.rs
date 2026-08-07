@@ -8,7 +8,7 @@ use crate::services::outcome::DiscardReason;
 /// Expands Vercel logs into the [`OurLog`] format.
 pub fn expand<F>(format: VercelLogDrainFormat, payload: &[u8], mut produce: F) -> Result<Settings>
 where
-    F: FnMut(OurLog),
+    F: FnMut(OurLog) -> Result<()>,
 {
     let mut count: i32 = 0;
 
@@ -25,7 +25,7 @@ where
             for log in logs {
                 count += 1;
                 let ourlog = relay_ourlogs::vercel_log_to_sentry_log(log);
-                produce(ourlog);
+                produce(ourlog)?;
             }
         }
         VercelLogDrainFormat::NdJson => {
@@ -37,7 +37,7 @@ where
                 if let Ok(log) = serde_json::from_slice::<VercelLog>(line) {
                     count += 1;
                     let ourlog = relay_ourlogs::vercel_log_to_sentry_log(log);
-                    produce(ourlog);
+                    produce(ourlog)?;
                 }
             }
         }
