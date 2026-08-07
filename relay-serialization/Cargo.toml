@@ -1,0 +1,19 @@
+[package]
+name = "relay-serialization"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Bounded deserialization for Relay"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "26.7.2"
+edition = "2024"
+license-file = "../LICENSE.md"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+serde = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
