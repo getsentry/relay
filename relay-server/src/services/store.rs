@@ -908,7 +908,7 @@ impl StoreService {
                 message: metric, ..
             } => {
                 metric!(
-                    counter(RelayCounters::ProcessingMessageProduced) += 1,
+                    counter(RelayCounters::ProcessingMessageEnqueued) += 1,
                     event_type = message.variant(),
                     topic = topic_name,
                     metric_type = metric.value.variant(),
@@ -919,7 +919,7 @@ impl StoreService {
                 let has_video = replay.replay_video.is_some();
 
                 metric!(
-                    counter(RelayCounters::ProcessingMessageProduced) += 1,
+                    counter(RelayCounters::ProcessingMessageEnqueued) += 1,
                     event_type = message.variant(),
                     topic = topic_name,
                     has_video = bool_to_str(has_video),
@@ -927,7 +927,7 @@ impl StoreService {
             }
             message => {
                 metric!(
-                    counter(RelayCounters::ProcessingMessageProduced) += 1,
+                    counter(RelayCounters::ProcessingMessageEnqueued) += 1,
                     event_type = message.variant(),
                     topic = topic_name,
                 );
