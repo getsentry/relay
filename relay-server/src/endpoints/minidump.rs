@@ -403,7 +403,7 @@ where
             referrer,
         )
         .await
-        .map_err(|_| BadStoreRequest::UploadFailed);
+        .map_err(BadStoreRequest::from);
     }
 
     let stream = match decode_and_validate_stream(stream).await {
@@ -433,7 +433,7 @@ where
         referrer,
     )
     .await
-    .map_err(|_| BadStoreRequest::UploadFailed)
+    .map_err(BadStoreRequest::from)
 }
 
 async fn multipart_to_items(
@@ -607,7 +607,7 @@ async fn raw_minidump_to_item(
                     "minidump",
                 )
                 .await
-                .map_err(|_| BadStoreRequest::UploadFailed)?;
+                .map_err(BadStoreRequest::from)?;
             }
         }
     } else {

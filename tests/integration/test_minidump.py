@@ -1293,13 +1293,13 @@ def test_minidump_objectstore_errors(
         {
             "category": DataCategory.ATTACHMENT,
             "outcome": 3,  # invalid
-            "reason": "internal",
+            "reason": "upload_failed",
             "quantity": 1,
         },
         {
             "category": DataCategory.ATTACHMENT_ITEM,
             "outcome": 3,  # invalid
-            "reason": "internal",
+            "reason": "upload_failed",
             "quantity": 1,
         },
     ]
@@ -1657,13 +1657,13 @@ def test_minidump_upload_failure_bubbles_up(mini_sentry, relay):
         {
             "category": DataCategory.ATTACHMENT,
             "outcome": 3,  # invalid
-            "reason": "internal",
+            "reason": "upload_failed",
             "quantity": 1,
         },
         {
             "category": DataCategory.ATTACHMENT_ITEM,
             "outcome": 3,  # invalid
-            "reason": "internal",
+            "reason": "upload_failed",
             "quantity": 1,
         },
     ]
@@ -1769,6 +1769,57 @@ def test_minidump_raw_inline_limit(mini_sentry, relay, dummy_upload):
         "location": DUMMY_UPLOAD_LOCATION,
         "content_type": "application/x-dmp",
     }
+
+
+def test_minidump_upload_exceeds_max_upload_size(mini_sentry, relay, dummy_upload):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).append(
+        "projects:relay-minidump-uploads"
+    )
+    mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = True
+
+    relay = relay(
+        mini_sentry,
+        options={
+            "limits": {"max_upload_size": 100},
+            "outcomes": {
+                "emit_outcomes": True,
+                "batch_size": 1,
+                "batch_interval": 1,
+            },
+        },
+    )
+
+    response = relay.send_minidump(
+        project_id=project_id,
+        files=[
+            (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", b"MDMP" + b"X" * 100),
+        ],
+        raise_for_status=False,
+    )
+
+    assert response.status_code == 413
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "category": DataCategory.ERROR,
+            "outcome": 3,
+            "reason": "too_large:attachment:minidump",
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.ATTACHMENT,
+            "outcome": 3,
+            "reason": "too_large:attachment:minidump",
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.ATTACHMENT_ITEM,
+            "outcome": 3,
+            "reason": "too_large:attachment:minidump",
+            "quantity": 1,
+        },
+    ]
 
 
 def test_minidump_raw_size_limit(mini_sentry, relay):
