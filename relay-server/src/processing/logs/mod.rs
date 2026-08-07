@@ -58,6 +58,9 @@ pub enum Error {
     /// The log is invalid.
     #[error("invalid: {0}")]
     Invalid(DiscardReason),
+    /// The expanded logs exceed the maximum number allowed.
+    #[error("expanded logs exeeds limit")]
+    TooManyExpandedLogs,
 }
 
 impl OutcomeError for Error {
@@ -78,6 +81,8 @@ impl OutcomeError for Error {
             }
             Self::ProcessingFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
             Self::Invalid(reason) => Some(Outcome::Invalid(*reason)),
+            // TODO: Or should this be abuse?  Or should this be filtered, or rate-limited?
+            Self::TooManyExpandedLogs => Some(Outcome::Invalid(DiscardReason::InvalidLog)),
         };
 
         (outcome, self)
@@ -157,7 +162,7 @@ impl processing::Processor for LogsProcessor {
         // Fast filters, which do not need expanded logs.
         filter::feature_flag(ctx).reject(&logs)?;
 
-        let mut logs = process::expand(logs)?;
+        let mut logs = process::expand(logs, ctx.config.max_expanded_log_count())?;
 
         validate::size(&mut logs, ctx);
 
