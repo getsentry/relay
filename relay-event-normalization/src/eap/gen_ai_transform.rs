@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use super::attribute_like::{AttributeLike, AttributesLike};
 
-// --- SDK input models (what SDKs send) ---
+// ---- SDK request models ----
 
 #[derive(Deserialize)]
 struct RequestMessage {
@@ -42,17 +42,7 @@ enum SdkContentItem {
     Generic(GenericPart),
 }
 
-impl From<SdkContentItem> for InputPart {
-    fn from(item: SdkContentItem) -> Self {
-        match item {
-            SdkContentItem::Tagged(p) => p.into(),
-            SdkContentItem::Untagged(o) => o.into(),
-            SdkContentItem::Generic(g) => InputPart::Generic(g),
-        }
-    }
-}
-
-/// A part as sent by SDKs. Tagged by `type` with aliases for common SDK variants.
+/// Tagged by `type` with aliases for SDK-specific type names.
 #[derive(Deserialize)]
 #[serde(tag = "type")]
 enum SdkPart {
@@ -82,19 +72,16 @@ enum SdkPart {
     Compaction(SdkCompactionPart),
 }
 
-/// For `content: object` without a `type` tag (Google GenAI, etc.).
+/// Untagged content objects without a `type` field (Google GenAI, etc.).
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum SdkContentObject {
     Text(SdkTextObject),
     InlineData(SdkInlineDataObject),
     ToolResult(SdkToolResultObject),
-    Generic(GenericPart),
 }
 
-// SDK part structs — deserialize with aliases for field name variations.
-
-/// `{ text }` or `{ content }` or `{ text, content }`
+/// Old SDKs send `text` instead of `content`.
 #[derive(Deserialize)]
 struct SdkTextPart {
     #[serde(default)]
@@ -195,8 +182,6 @@ struct SdkCompactionPart {
     content: Option<String>,
 }
 
-// Untagged object content variants (no `type` field).
-
 /// `{ text: "..." }` (Google GenAI)
 #[derive(Deserialize)]
 struct SdkTextObject {
@@ -227,14 +212,7 @@ struct SdkToolResultObject {
     output: serde_json::Value,
 }
 
-/// Catch-all preserving all fields.
-#[derive(Deserialize, Serialize)]
-struct GenericPart {
-    #[serde(flatten)]
-    fields: serde_json::Map<String, serde_json::Value>,
-}
-
-// --- OTel canonical output models ---
+// ---- OTel input models (gen_ai.input.messages) ----
 
 #[derive(Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -254,80 +232,25 @@ enum InputPart {
 }
 
 #[derive(Serialize)]
-struct TextPart {
-    content: String,
+struct InputMessage {
+    role: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    parts: Vec<InputPart>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
 }
 
-#[derive(Serialize)]
-struct ToolCallPart {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    id: Option<String>,
-    name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    arguments: Option<serde_json::Value>,
-}
+// ---- SDK → InputPart conversions ----
 
-#[derive(Serialize)]
-struct ToolCallResponsePart {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    id: Option<String>,
-    response: serde_json::Value,
+impl From<SdkContentItem> for InputPart {
+    fn from(item: SdkContentItem) -> Self {
+        match item {
+            SdkContentItem::Tagged(p) => p.into(),
+            SdkContentItem::Untagged(o) => o.into(),
+            SdkContentItem::Generic(g) => InputPart::Generic(g),
+        }
+    }
 }
-
-#[derive(Serialize)]
-struct ServerToolCallPart {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    id: Option<String>,
-    name: String,
-    server_tool_call: GenericPart,
-}
-
-#[derive(Serialize)]
-struct ServerToolCallResponsePart {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    id: Option<String>,
-    server_tool_call_response: GenericPart,
-}
-
-#[derive(Serialize)]
-struct BlobPart {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    mime_type: Option<String>,
-    modality: String,
-    content: String,
-}
-
-#[derive(Serialize)]
-struct FilePart {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    mime_type: Option<String>,
-    modality: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    file_id: Option<String>,
-}
-
-#[derive(Serialize)]
-struct UriPart {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    mime_type: Option<String>,
-    modality: String,
-    uri: String,
-}
-
-#[derive(Serialize)]
-struct ReasoningPart {
-    content: String,
-}
-
-#[derive(Serialize)]
-struct CompactionPart {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    content: Option<String>,
-}
-
-// --- Mapping from SDK models to OTel output ---
 
 impl From<SdkPart> for InputPart {
     fn from(sdk: SdkPart) -> Self {
@@ -404,58 +327,175 @@ impl From<SdkContentObject> for InputPart {
                 id: Some(p.tool_call_id),
                 response: p.output,
             }),
-            SdkContentObject::Generic(p) => InputPart::Generic(p),
         }
     }
 }
 
-#[derive(Serialize)]
-struct InputMessage {
-    role: String,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    parts: Vec<InputPart>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+// ---- SDK response models ----
+
+/// All observed shapes of `gen_ai.response.text`.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum SdkResponseText {
+    MessageArray(Vec<SdkResponseMessage>),
+    StringArray(Vec<String>),
+    MessageObject(SdkResponseMessage),
+    String(String),
+}
+
+#[derive(Deserialize)]
+struct SdkResponseMessage {
+    #[serde(default)]
+    role: Option<String>,
+    #[serde(default)]
+    content: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct SdkToolCall {
+    #[serde(default, alias = "call_id", alias = "toolCallId")]
+    id: Option<String>,
+    #[serde(default, alias = "toolName")]
     name: Option<String>,
+    #[serde(default)]
+    arguments: Option<serde_json::Value>,
 }
 
-// --- Response output models ---
+// ---- OTel output models (gen_ai.output.messages) ----
 
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum ResponseText {
-    String(String),
-    Array(Vec<ResponseTextItem>),
-    Object { content: serde_json::Value },
-}
-
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum ResponseTextItem {
-    String(String),
-    Object { content: serde_json::Value },
+#[derive(Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum OutputPart {
+    Text(TextPart),
+    ToolCall(ToolCallPart),
+    Reasoning(ReasoningPart),
+    #[serde(untagged)]
+    Generic(GenericPart),
 }
 
 #[derive(Serialize)]
 struct OutputMessage {
-    role: &'static str,
-    parts: Vec<serde_json::Value>,
+    role: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    parts: Vec<OutputPart>,
 }
 
-#[derive(Deserialize)]
-struct ToolCall {
+// ---- SDK → Output conversions ----
+
+impl From<SdkResponseMessage> for OutputMessage {
+    fn from(msg: SdkResponseMessage) -> Self {
+        let parts = match msg.content {
+            Some(text) if !text.is_empty() => {
+                vec![OutputPart::Text(TextPart { content: text })]
+            }
+            _ => vec![],
+        };
+        OutputMessage {
+            role: msg.role.unwrap_or_else(|| "assistant".to_owned()),
+            parts,
+        }
+    }
+}
+
+impl From<SdkToolCall> for OutputPart {
+    fn from(tc: SdkToolCall) -> Self {
+        OutputPart::ToolCall(ToolCallPart {
+            id: tc.id,
+            name: tc.name.unwrap_or_default(),
+            arguments: tc.arguments,
+        })
+    }
+}
+
+// ---- Shared part structs (used by both input and output) ----
+
+#[derive(Serialize)]
+struct TextPart {
+    content: String,
+}
+
+#[derive(Serialize)]
+struct ToolCallPart {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    id: Option<String>,
+    name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    arguments: Option<serde_json::Value>,
+}
+
+#[derive(Serialize)]
+struct ToolCallResponsePart {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    id: Option<String>,
+    response: serde_json::Value,
+}
+
+#[derive(Serialize)]
+struct ServerToolCallPart {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    id: Option<String>,
+    name: String,
+    server_tool_call: GenericPart,
+}
+
+#[derive(Serialize)]
+struct ServerToolCallResponsePart {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    id: Option<String>,
+    server_tool_call_response: GenericPart,
+}
+
+#[derive(Serialize)]
+struct BlobPart {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    mime_type: Option<String>,
+    modality: String,
+    content: String,
+}
+
+#[derive(Serialize)]
+struct FilePart {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    mime_type: Option<String>,
+    modality: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    file_id: Option<String>,
+}
+
+#[derive(Serialize)]
+struct UriPart {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    mime_type: Option<String>,
+    modality: String,
+    uri: String,
+}
+
+#[derive(Serialize)]
+struct ReasoningPart {
+    content: String,
+}
+
+#[derive(Serialize)]
+struct CompactionPart {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    content: Option<String>,
+}
+
+#[derive(Deserialize, Serialize)]
+struct GenericPart {
     #[serde(flatten)]
     fields: serde_json::Map<String, serde_json::Value>,
 }
 
-// --- Transformation logic ---
+// ---- Transformation logic ----
 
-/// Applies gen_ai attribute transformations.
 pub(super) fn transform_gen_ai<T: AttributesLike>(attributes: &mut T) {
     transform_request_messages(attributes);
     transform_response_to_output_messages(attributes);
 }
 
-/// Transforms `gen_ai.request.messages` → `gen_ai.input.messages`.
 fn transform_request_messages<T: AttributesLike>(attributes: &mut T) {
     if attributes.contains_key(GEN_AI__INPUT__MESSAGES) {
         attributes.remove(GEN_AI__REQUEST__MESSAGES);
@@ -504,7 +544,6 @@ fn transform_request_messages<T: AttributesLike>(attributes: &mut T) {
     attributes.remove(GEN_AI__REQUEST__MESSAGES);
 }
 
-/// Transforms `gen_ai.response.text` + `gen_ai.response.tool_calls` → `gen_ai.output.messages`.
 fn transform_response_to_output_messages<T: AttributesLike>(attributes: &mut T) {
     if attributes.contains_key(GEN_AI__OUTPUT__MESSAGES) {
         attributes.remove(GEN_AI__RESPONSE__TEXT);
@@ -519,31 +558,26 @@ fn transform_response_to_output_messages<T: AttributesLike>(attributes: &mut T) 
         return;
     }
 
-    let mut parts = Vec::new();
+    let mut messages: Vec<OutputMessage> = Vec::new();
 
     if let Some(ref text) = response_text {
-        extract_text_parts(text, &mut parts);
+        extract_response_text(text, &mut messages);
     }
 
     let tool_calls_parsed = tool_calls_raw
         .as_deref()
-        .is_none_or(|raw| extract_tool_call_parts(raw, &mut parts));
+        .is_none_or(|raw| extract_tool_calls(raw, &mut messages));
 
-    // Clean up deprecated keys. Keep tool_calls if it couldn't be parsed.
     attributes.remove(GEN_AI__RESPONSE__TEXT);
     if tool_calls_parsed {
         attributes.remove(GEN_AI__RESPONSE__TOOL_CALLS);
     }
 
-    if parts.is_empty() {
+    if messages.is_empty() {
         return;
     }
 
-    let output = [OutputMessage {
-        role: "assistant",
-        parts,
-    }];
-    if let Ok(json) = serde_json::to_string(&output) {
+    if let Ok(json) = serde_json::to_string(&messages) {
         attributes.insert(
             GEN_AI__OUTPUT__MESSAGES.to_owned(),
             T::Value::from(json).into(),
@@ -551,55 +585,57 @@ fn transform_response_to_output_messages<T: AttributesLike>(attributes: &mut T) 
     }
 }
 
-/// Extracts text parts from a `gen_ai.response.text` value.
-fn extract_text_parts(raw: &str, parts: &mut Vec<serde_json::Value>) {
-    let Ok(parsed) = serde_json::from_str::<ResponseText>(raw) else {
-        // Not valid JSON — treat the entire raw string as plain text.
-        parts.push(serde_json::json!({"type": "text", "content": raw}));
+fn extract_response_text(raw: &str, messages: &mut Vec<OutputMessage>) {
+    let Ok(parsed) = serde_json::from_str::<SdkResponseText>(raw) else {
+        messages.push(OutputMessage {
+            role: "assistant".to_owned(),
+            parts: vec![OutputPart::Text(TextPart {
+                content: raw.to_owned(),
+            })],
+        });
         return;
     };
 
     match parsed {
-        ResponseText::String(s) => {
-            parts.push(serde_json::json!({"type": "text", "content": s}));
+        SdkResponseText::MessageArray(msgs) => {
+            messages.extend(msgs.into_iter().map(OutputMessage::from));
         }
-        ResponseText::Array(items) => {
-            for item in items {
-                match item {
-                    ResponseTextItem::String(s) => {
-                        parts.push(serde_json::json!({"type": "text", "content": s}));
-                    }
-                    ResponseTextItem::Object { content } => {
-                        parts.push(serde_json::json!({"type": "text", "content": content}));
-                    }
-                }
-            }
+        SdkResponseText::StringArray(strings) => {
+            let parts = strings
+                .into_iter()
+                .map(|s| OutputPart::Text(TextPart { content: s }))
+                .collect();
+            messages.push(OutputMessage {
+                role: "assistant".to_owned(),
+                parts,
+            });
         }
-        ResponseText::Object { content } => {
-            parts.push(serde_json::json!({"type": "text", "content": content}));
+        SdkResponseText::MessageObject(msg) => {
+            messages.push(msg.into());
+        }
+        SdkResponseText::String(s) => {
+            messages.push(OutputMessage {
+                role: "assistant".to_owned(),
+                parts: vec![OutputPart::Text(TextPart { content: s })],
+            });
         }
     }
 }
 
-/// Extracts tool_call parts from a `gen_ai.response.tool_calls` value.
-///
-/// Returns `true` if the value was successfully parsed.
-fn extract_tool_call_parts(raw: &str, parts: &mut Vec<serde_json::Value>) -> bool {
-    let Ok(tool_calls) = serde_json::from_str::<Vec<ToolCall>>(raw) else {
+fn extract_tool_calls(raw: &str, messages: &mut Vec<OutputMessage>) -> bool {
+    let Ok(tool_calls) = serde_json::from_str::<Vec<SdkToolCall>>(raw) else {
         return false;
     };
-    for tool_call in tool_calls {
-        let mut fields = tool_call.fields;
-        fields.insert(
-            "type".to_owned(),
-            serde_json::Value::String("tool_call".to_owned()),
-        );
-        parts.push(serde_json::Value::Object(fields));
+    let parts: Vec<OutputPart> = tool_calls.into_iter().map(OutputPart::from).collect();
+    if !parts.is_empty() {
+        messages.push(OutputMessage {
+            role: "assistant".to_owned(),
+            parts,
+        });
     }
     true
 }
 
-/// Gets a string attribute value as an owned String.
 fn get_str<T: AttributesLike>(attributes: &T, key: &str) -> Option<String> {
     let annotated = attributes.as_object().get(key)?;
     let value = annotated.value()?;
@@ -1058,12 +1094,13 @@ mod tests {
             transform_gen_ai(&mut attrs);
 
             let result = get_string(&attrs, GEN_AI__OUTPUT__MESSAGES).unwrap();
+            // Each object becomes a separate message.
             assert_eq!(
                 parse_json(&result),
-                serde_json::json!([{"role": "assistant", "parts": [
-                    {"type": "text", "content": "hello"},
-                    {"type": "text", "content": "world"}
-                ]}]),
+                serde_json::json!([
+                    {"role": "assistant", "parts": [{"type": "text", "content": "hello"}]},
+                    {"role": "assistant", "parts": [{"type": "text", "content": "world"}]}
+                ]),
             );
         }
 
@@ -1082,10 +1119,10 @@ mod tests {
             let result = get_string(&attrs, GEN_AI__OUTPUT__MESSAGES).unwrap();
             assert_eq!(
                 parse_json(&result),
-                serde_json::json!([{"role": "assistant", "parts": [
-                    {"type": "text", "content": "hello"},
-                    {"id": "call_1", "name": "weather", "arguments": {}, "type": "tool_call"}
-                ]}]),
+                serde_json::json!([
+                    {"role": "assistant", "parts": [{"type": "text", "content": "hello"}]},
+                    {"role": "assistant", "parts": [{"id": "call_1", "name": "weather", "arguments": {}, "type": "tool_call"}]}
+                ]),
             );
             assert!(get_string(&attrs, GEN_AI__RESPONSE__TEXT).is_none());
             assert!(get_string(&attrs, GEN_AI__RESPONSE__TOOL_CALLS).is_none());
@@ -1138,12 +1175,156 @@ mod tests {
 
             transform_gen_ai(&mut attrs);
 
-            // Can't parse, so the deprecated key is kept and no output is created.
             assert_eq!(
                 get_string(&attrs, GEN_AI__RESPONSE__TOOL_CALLS).unwrap(),
                 "some_tool_calls"
             );
             assert!(get_string(&attrs, GEN_AI__OUTPUT__MESSAGES).is_none());
+        }
+
+        // --- SDK response.text format variants ---
+
+        #[test]
+        fn sdk_json_string_array() {
+            let mut attrs = make_attributes(&[(GEN_AI__RESPONSE__TEXT, r#"["Paris."]"#)]);
+            transform_gen_ai(&mut attrs);
+            let result = parse_json(&get_string(&attrs, GEN_AI__OUTPUT__MESSAGES).unwrap());
+            assert_eq!(
+                result,
+                serde_json::json!([
+                    {"role": "assistant", "parts": [{"type": "text", "content": "Paris."}]}
+                ])
+            );
+        }
+
+        #[test]
+        fn sdk_assistant_message_array() {
+            let mut attrs = make_attributes(&[(
+                GEN_AI__RESPONSE__TEXT,
+                r#"[{"role":"assistant","content":"The capital of France is Paris."}]"#,
+            )]);
+            transform_gen_ai(&mut attrs);
+            let result = parse_json(&get_string(&attrs, GEN_AI__OUTPUT__MESSAGES).unwrap());
+            assert_eq!(
+                result,
+                serde_json::json!([
+                    {"role": "assistant", "parts": [{"type": "text", "content": "The capital of France is Paris."}]}
+                ])
+            );
+        }
+
+        #[test]
+        fn sdk_message_sequence_with_tool() {
+            let mut attrs = make_attributes(&[(
+                GEN_AI__RESPONSE__TEXT,
+                r#"[{"role":"assistant","content":""},{"role":"tool","content":"8"},{"role":"assistant","content":""},{"role":"tool","content":"32"},{"role":"assistant","content":"The result of (3 + 5) * 4 is 32."}]"#,
+            )]);
+            transform_gen_ai(&mut attrs);
+            let result = parse_json(&get_string(&attrs, GEN_AI__OUTPUT__MESSAGES).unwrap());
+            assert_eq!(result.as_array().unwrap().len(), 5);
+            assert_eq!(result[1]["role"], "tool");
+            assert_eq!(result[1]["parts"][0]["content"], "8");
+            assert_eq!(result[4]["role"], "assistant");
+            assert_eq!(
+                result[4]["parts"][0]["content"],
+                "The result of (3 + 5) * 4 is 32."
+            );
+        }
+
+        #[test]
+        fn sdk_openai_assistant_object() {
+            let mut attrs = make_attributes(&[(
+                GEN_AI__RESPONSE__TEXT,
+                r#"{"content":"Paris.","refusal":"None","role":"assistant","annotations":[],"audio":"None","function_call":"None","tool_calls":"None"}"#,
+            )]);
+            transform_gen_ai(&mut attrs);
+            let result = parse_json(&get_string(&attrs, GEN_AI__OUTPUT__MESSAGES).unwrap());
+            assert_eq!(
+                result,
+                serde_json::json!([
+                    {"role": "assistant", "parts": [{"type": "text", "content": "Paris."}]}
+                ])
+            );
+        }
+
+        #[test]
+        fn sdk_litellm_assistant_object() {
+            let mut attrs = make_attributes(&[(
+                GEN_AI__RESPONSE__TEXT,
+                r#"{"content":"Paris.","role":"assistant","tool_calls":"None","function_call":"None","provider_specific_fields":"None"}"#,
+            )]);
+            transform_gen_ai(&mut attrs);
+            let result = parse_json(&get_string(&attrs, GEN_AI__OUTPUT__MESSAGES).unwrap());
+            assert_eq!(
+                result,
+                serde_json::json!([
+                    {"role": "assistant", "parts": [{"type": "text", "content": "Paris."}]}
+                ])
+            );
+        }
+
+        #[test]
+        fn sdk_litellm_with_provider_fields() {
+            let mut attrs = make_attributes(&[(
+                GEN_AI__RESPONSE__TEXT,
+                r#"{"content":"Paris.","role":"assistant","tool_calls":"None","function_call":"None","provider_specific_fields":{"refusal":"None"},"annotations":[]}"#,
+            )]);
+            transform_gen_ai(&mut attrs);
+            let result = parse_json(&get_string(&attrs, GEN_AI__OUTPUT__MESSAGES).unwrap());
+            assert_eq!(
+                result,
+                serde_json::json!([
+                    {"role": "assistant", "parts": [{"type": "text", "content": "Paris."}]}
+                ])
+            );
+        }
+
+        #[test]
+        fn sdk_json_numeric_value() {
+            // Stored as the string "32" in the span attribute.
+            let mut attrs = make_attributes(&[(GEN_AI__RESPONSE__TEXT, "32")]);
+            transform_gen_ai(&mut attrs);
+            let result = parse_json(&get_string(&attrs, GEN_AI__OUTPUT__MESSAGES).unwrap());
+            assert_eq!(
+                result,
+                serde_json::json!([
+                    {"role": "assistant", "parts": [{"type": "text", "content": "32"}]}
+                ])
+            );
+        }
+
+        #[test]
+        fn sdk_empty_content_messages_filtered() {
+            let mut attrs = make_attributes(&[(
+                GEN_AI__RESPONSE__TEXT,
+                r#"[{"role":"assistant","content":""}]"#,
+            )]);
+            transform_gen_ai(&mut attrs);
+            let result = parse_json(&get_string(&attrs, GEN_AI__OUTPUT__MESSAGES).unwrap());
+            // Empty content produces a message with no parts.
+            assert_eq!(
+                result,
+                serde_json::json!([
+                    {"role": "assistant"}
+                ])
+            );
+        }
+
+        #[test]
+        fn sdk_tool_calls_with_aliases() {
+            let mut attrs = make_attributes(&[(
+                GEN_AI__RESPONSE__TOOL_CALLS,
+                r#"[{"call_id":"c1","toolName":"weather","arguments":{"city":"Paris"}}]"#,
+            )]);
+            transform_gen_ai(&mut attrs);
+            let result = parse_json(&get_string(&attrs, GEN_AI__OUTPUT__MESSAGES).unwrap());
+            assert_eq!(result[0]["parts"][0]["type"], "tool_call");
+            assert_eq!(result[0]["parts"][0]["id"], "c1");
+            assert_eq!(result[0]["parts"][0]["name"], "weather");
+            assert_eq!(
+                result[0]["parts"][0]["arguments"],
+                serde_json::json!({"city": "Paris"})
+            );
         }
     }
 }
