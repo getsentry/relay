@@ -1,0 +1,11 @@
+// Groups carry their own framing, which the generator refuses to describe. Only used to assert
+// that refusal, hence proto2.
+syntax = "proto2";
+
+package relay.test.v1;
+
+message WithGroup {
+  optional group Inner = 1 {
+    optional string label = 1;
+  }
+}
