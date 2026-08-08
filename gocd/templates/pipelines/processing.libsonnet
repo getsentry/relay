@@ -16,6 +16,7 @@ local monitors_for(region) =
   if std.objectHas(datadog_monitors, region) then datadog_monitors[region] else datadog_monitors.default;
 
 local canary_regions = ['us', 'de', 'us2', 's4s2'];
+local saas_regions = ['us', 'de', 'us2', 's4s2'];
 
 local sentry_deploy_vars(region) = {
   SENTRY_REGION: region,
@@ -38,7 +39,7 @@ local sentry_create_env_vars(region) = {
 // The purpose of this stage is to let the deployment soak for a while and
 // detect any issues that might have been introduced.
 local soak_time(region) =
-  if region == 'us' then
+  if std.member(saas_regions, region) then
     [
       {
         'soak-time': {
