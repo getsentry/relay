@@ -14,12 +14,19 @@ pub enum Counters {
     ///  - `integration`: The integration used for the cost calculation.
     ///  - `platform`: The platform used for the cost calculation.
     GenAiCostCalculationResult,
+    /// Counts gen_ai attribute transformation failures.
+    ///
+    /// Tagged with:
+    ///  - `transformation`: Which transformation failed
+    ///    (`request_messages`, `response_text`, `tool_calls`).
+    GenAiTransformFailed,
 }
 
 impl CounterMetric for Counters {
     fn name(&self) -> &'static str {
         match *self {
             Self::GenAiCostCalculationResult => "gen_ai.cost_calculation.result",
+            Self::GenAiTransformFailed => "gen_ai.transform.failed",
         }
     }
 }

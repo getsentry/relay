@@ -507,9 +507,10 @@ fn transform_request_messages<T: AttributesLike>(attributes: &mut T) {
     };
 
     let Ok(messages) = serde_json::from_str::<Vec<RequestMessage>>(&raw) else {
-        if let Some(attr) = attributes.remove(GEN_AI__REQUEST__MESSAGES) {
-            attributes.insert(GEN_AI__INPUT__MESSAGES.to_owned(), attr);
-        }
+        relay_statsd::metric!(
+            counter(crate::statsd::Counters::GenAiTransformFailed) += 1,
+            transformation = "request_messages",
+        );
         return;
     };
 
@@ -587,6 +588,10 @@ fn transform_response_to_output_messages<T: AttributesLike>(attributes: &mut T) 
 
 fn extract_response_text(raw: &str, messages: &mut Vec<OutputMessage>) {
     let Ok(parsed) = serde_json::from_str::<SdkResponseText>(raw) else {
+        relay_statsd::metric!(
+            counter(crate::statsd::Counters::GenAiTransformFailed) += 1,
+            transformation = "response_text",
+        );
         messages.push(OutputMessage {
             role: "assistant".to_owned(),
             parts: vec![OutputPart::Text(TextPart {
@@ -624,6 +629,10 @@ fn extract_response_text(raw: &str, messages: &mut Vec<OutputMessage>) {
 
 fn extract_tool_calls(raw: &str, messages: &mut Vec<OutputMessage>) -> bool {
     let Ok(tool_calls) = serde_json::from_str::<Vec<SdkToolCall>>(raw) else {
+        relay_statsd::metric!(
+            counter(crate::statsd::Counters::GenAiTransformFailed) += 1,
+            transformation = "tool_calls",
+        );
         return false;
     };
     let parts: Vec<OutputPart> = tool_calls.into_iter().map(OutputPart::from).collect();
@@ -815,16 +824,17 @@ mod tests {
         }
 
         #[test]
-        fn invalid_json_moves_as_is() {
+        fn invalid_json_kept_in_place() {
             let mut attrs = make_attributes(&[(GEN_AI__REQUEST__MESSAGES, "not json")]);
 
             transform_gen_ai(&mut attrs);
 
+            // Unparseable value stays under the deprecated key.
             assert_eq!(
-                get_string(&attrs, GEN_AI__INPUT__MESSAGES).unwrap(),
+                get_string(&attrs, GEN_AI__REQUEST__MESSAGES).unwrap(),
                 "not json"
             );
-            assert!(get_string(&attrs, GEN_AI__REQUEST__MESSAGES).is_none());
+            assert!(get_string(&attrs, GEN_AI__INPUT__MESSAGES).is_none());
         }
 
         // --- SDK content: array variants ---
