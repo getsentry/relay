@@ -68,6 +68,7 @@ relay-quotas = { path = "relay-quotas" }
 relay-redis = { path = "relay-redis" }
 relay-replays = { path = "relay-replays" }
 relay-sampling = { path = "relay-sampling" }
+relay-serialization = { path = "relay-serialization" }
 relay-server = { path = "relay-server" }
 relay-spans = { path = "relay-spans" }
 relay-statsd = { path = "relay-statsd" }

@@ -4983,6 +4983,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-serialization"
+version = "26.7.2"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "relay-server"
 version = "26.7.2"
 dependencies = [
