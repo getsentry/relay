@@ -656,400 +656,396 @@
 <a href=#656 id=656 data-nosnippet>656</a>    meta: RequestMeta,
 <a href=#657 id=657 data-nosnippet>657</a>    managed_err: Managed&lt;(DataCategory, usize)&gt;,
 <a href=#658 id=658 data-nosnippet>658</a>) -&gt; <span class="prelude-ty">Result</span>&lt;Managed&lt;Box&lt;Envelope&gt;&gt;, BadStoreRequest&gt; {
-<a href=#659 id=659 data-nosnippet>659</a>    <span class="kw">let </span>event_id = common::event_id_from_items(<span class="kw-2">&amp;</span>items)
-<a href=#660 id=660 data-nosnippet>660</a>        .reject2(<span class="kw-2">&amp;</span>items, <span class="kw-2">&amp;</span>managed_err)<span class="question-mark">?
-<a href=#661 id=661 data-nosnippet>661</a>        </span>.unwrap_or_else(EventId::new);
-<a href=#662 id=662 data-nosnippet>662</a>    <span class="kw">let </span>envelope = items.map(|items, records| {
-<a href=#663 id=663 data-nosnippet>663</a>        managed_err.accept(|<span class="kw">_</span>| ()); <span class="comment">// There will be an envelope with (DataCategory::Error, 1) now
-<a href=#664 id=664 data-nosnippet>664</a>        </span>records.modify_by(DataCategory::Error, <span class="number">1</span>);
-<a href=#665 id=665 data-nosnippet>665</a>        Box::new(Envelope::from_request(<span class="prelude-val">Some</span>(event_id), meta).with_items(items))
-<a href=#666 id=666 data-nosnippet>666</a>    });
-<a href=#667 id=667 data-nosnippet>667</a>    <span class="prelude-val">Ok</span>(envelope)
-<a href=#668 id=668 data-nosnippet>668</a>}
-<a href=#669 id=669 data-nosnippet>669</a>
-<a href=#670 id=670 data-nosnippet>670</a><span class="kw">async fn </span>handle(
-<a href=#671 id=671 data-nosnippet>671</a>    state: ServiceState,
-<a href=#672 id=672 data-nosnippet>672</a>    meta: RequestMeta,
-<a href=#673 id=673 data-nosnippet>673</a>    content_type: RawContentType,
-<a href=#674 id=674 data-nosnippet>674</a>    request: Request,
-<a href=#675 id=675 data-nosnippet>675</a>) -&gt; axum::response::Result&lt;<span class="kw">impl </span>IntoResponse&gt; {
-<a href=#676 id=676 data-nosnippet>676</a>    <span class="comment">// The minidump can either be transmitted as the request body, or as
-<a href=#677 id=677 data-nosnippet>677</a>    // `upload_file_minidump` in a multipart form-data/ request.
-<a href=#678 id=678 data-nosnippet>678</a>    // Minidump request payloads do not have the same structure as usual events from other SDKs. The
-<a href=#679 id=679 data-nosnippet>679</a>    // minidump can either be transmitted as request body, or as `upload_file_minidump` in a
-<a href=#680 id=680 data-nosnippet>680</a>    // multipart formdata request.
-<a href=#681 id=681 data-nosnippet>681</a>
-<a href=#682 id=682 data-nosnippet>682</a>    // If something goes wrong before the envelope is created, this managed error ensures an
-<a href=#683 id=683 data-nosnippet>683</a>    // outcome is emitted. This is a best effort outcome, in the sense that we also drop some
-<a href=#684 id=684 data-nosnippet>684</a>    // attachments but since we know neither the amount or size we can't emit an accurate outcome
-<a href=#685 id=685 data-nosnippet>685</a>    // for them.
-<a href=#686 id=686 data-nosnippet>686</a>    </span><span class="kw">let </span>err = (DataCategory::Error, <span class="number">1</span>);
-<a href=#687 id=687 data-nosnippet>687</a>    <span class="kw">let </span>managed_err = Managed::with_meta_from_request_meta(<span class="kw-2">&amp;</span>meta, state.outcome_aggregator(), err);
-<a href=#688 id=688 data-nosnippet>688</a>
-<a href=#689 id=689 data-nosnippet>689</a>    <span class="kw">let </span>upload_context = upload_context(<span class="kw-2">&amp;</span>meta, <span class="kw-2">&amp;</span>state).<span class="kw">await</span>.reject(<span class="kw-2">&amp;</span>managed_err)<span class="question-mark">?</span>;
-<a href=#690 id=690 data-nosnippet>690</a>
-<a href=#691 id=691 data-nosnippet>691</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(upload_context) = <span class="kw-2">&amp;</span>upload_context
-<a href=#692 id=692 data-nosnippet>692</a>        &amp;&amp; <span class="kw">let </span>UploadDecision::Drop(limits) = <span class="kw-2">&amp;</span>upload_context.upload_minidumps
-<a href=#693 id=693 data-nosnippet>693</a>    {
-<a href=#694 id=694 data-nosnippet>694</a>        <span class="kw">let _ </span>= managed_err.reject_err(Outcome::RateLimited(
-<a href=#695 id=695 data-nosnippet>695</a>            limits.longest().and_then(|l| l.reason_code.clone()),
-<a href=#696 id=696 data-nosnippet>696</a>        ));
-<a href=#697 id=697 data-nosnippet>697</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(TextResponse(<span class="prelude-val">Some</span>(EventId::new())));
-<a href=#698 id=698 data-nosnippet>698</a>    }
+<a href=#659 id=659 data-nosnippet>659</a>    <span class="prelude-val">Ok</span>(Managed::zip(managed_err, items).try_map(|(<span class="kw">_</span>, items), <span class="kw">_</span>| {
+<a href=#660 id=660 data-nosnippet>660</a>        <span class="kw">let </span>event_id = common::event_id_from_items(<span class="kw-2">&amp;</span>items)<span class="question-mark">?</span>.unwrap_or_default();
+<a href=#661 id=661 data-nosnippet>661</a>        <span class="kw">let </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(event_id), meta).with_items(items);
+<a href=#662 id=662 data-nosnippet>662</a>        <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, BadStoreRequest&gt;(Box::new(envelope))
+<a href=#663 id=663 data-nosnippet>663</a>    })<span class="question-mark">?</span>)
+<a href=#664 id=664 data-nosnippet>664</a>}
+<a href=#665 id=665 data-nosnippet>665</a>
+<a href=#666 id=666 data-nosnippet>666</a><span class="kw">async fn </span>handle(
+<a href=#667 id=667 data-nosnippet>667</a>    state: ServiceState,
+<a href=#668 id=668 data-nosnippet>668</a>    meta: RequestMeta,
+<a href=#669 id=669 data-nosnippet>669</a>    content_type: RawContentType,
+<a href=#670 id=670 data-nosnippet>670</a>    request: Request,
+<a href=#671 id=671 data-nosnippet>671</a>) -&gt; axum::response::Result&lt;<span class="kw">impl </span>IntoResponse&gt; {
+<a href=#672 id=672 data-nosnippet>672</a>    <span class="comment">// The minidump can either be transmitted as the request body, or as
+<a href=#673 id=673 data-nosnippet>673</a>    // `upload_file_minidump` in a multipart form-data/ request.
+<a href=#674 id=674 data-nosnippet>674</a>    // Minidump request payloads do not have the same structure as usual events from other SDKs. The
+<a href=#675 id=675 data-nosnippet>675</a>    // minidump can either be transmitted as request body, or as `upload_file_minidump` in a
+<a href=#676 id=676 data-nosnippet>676</a>    // multipart formdata request.
+<a href=#677 id=677 data-nosnippet>677</a>
+<a href=#678 id=678 data-nosnippet>678</a>    // If something goes wrong before the envelope is created, this managed error ensures an
+<a href=#679 id=679 data-nosnippet>679</a>    // outcome is emitted. This is a best effort outcome, in the sense that we also drop some
+<a href=#680 id=680 data-nosnippet>680</a>    // attachments but since we know neither the amount or size we can't emit an accurate outcome
+<a href=#681 id=681 data-nosnippet>681</a>    // for them.
+<a href=#682 id=682 data-nosnippet>682</a>    </span><span class="kw">let </span>err = (DataCategory::Error, <span class="number">1</span>);
+<a href=#683 id=683 data-nosnippet>683</a>    <span class="kw">let </span>managed_err = Managed::with_meta_from_request_meta(<span class="kw-2">&amp;</span>meta, state.outcome_aggregator(), err);
+<a href=#684 id=684 data-nosnippet>684</a>
+<a href=#685 id=685 data-nosnippet>685</a>    <span class="kw">let </span>upload_context = upload_context(<span class="kw-2">&amp;</span>meta, <span class="kw-2">&amp;</span>state).<span class="kw">await</span>.reject(<span class="kw-2">&amp;</span>managed_err)<span class="question-mark">?</span>;
+<a href=#686 id=686 data-nosnippet>686</a>
+<a href=#687 id=687 data-nosnippet>687</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(upload_context) = <span class="kw-2">&amp;</span>upload_context
+<a href=#688 id=688 data-nosnippet>688</a>        &amp;&amp; <span class="kw">let </span>UploadDecision::Drop(limits) = <span class="kw-2">&amp;</span>upload_context.upload_minidumps
+<a href=#689 id=689 data-nosnippet>689</a>    {
+<a href=#690 id=690 data-nosnippet>690</a>        <span class="kw">let _ </span>= managed_err.reject_err(Outcome::RateLimited(
+<a href=#691 id=691 data-nosnippet>691</a>            limits.longest().and_then(|l| l.reason_code.clone()),
+<a href=#692 id=692 data-nosnippet>692</a>        ));
+<a href=#693 id=693 data-nosnippet>693</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(TextResponse(<span class="prelude-val">Some</span>(EventId::new())));
+<a href=#694 id=694 data-nosnippet>694</a>    }
+<a href=#695 id=695 data-nosnippet>695</a>
+<a href=#696 id=696 data-nosnippet>696</a>    <span class="kw">let </span>gpu_crash_split = upload_context
+<a href=#697 id=697 data-nosnippet>697</a>        .as_ref()
+<a href=#698 id=698 data-nosnippet>698</a>        .is_some_and(|ctx| ctx.gpu_crash_split);
 <a href=#699 id=699 data-nosnippet>699</a>
-<a href=#700 id=700 data-nosnippet>700</a>    <span class="kw">let </span>gpu_crash_split = upload_context
-<a href=#701 id=701 data-nosnippet>701</a>        .as_ref()
-<a href=#702 id=702 data-nosnippet>702</a>        .is_some_and(|ctx| ctx.gpu_crash_split);
+<a href=#700 id=700 data-nosnippet>700</a>    <span class="kw">let </span>items = items(upload_context, <span class="kw-2">&amp;</span>state, <span class="kw-2">&amp;</span>meta, content_type, request)
+<a href=#701 id=701 data-nosnippet>701</a>        .<span class="kw">await
+<a href=#702 id=702 data-nosnippet>702</a>        </span>.reject(<span class="kw-2">&amp;</span>managed_err)<span class="question-mark">?</span>;
 <a href=#703 id=703 data-nosnippet>703</a>
-<a href=#704 id=704 data-nosnippet>704</a>    <span class="kw">let </span>items = items(upload_context, <span class="kw-2">&amp;</span>state, <span class="kw-2">&amp;</span>meta, content_type, request)
-<a href=#705 id=705 data-nosnippet>705</a>        .<span class="kw">await
-<a href=#706 id=706 data-nosnippet>706</a>        </span>.reject(<span class="kw-2">&amp;</span>managed_err)<span class="question-mark">?</span>;
-<a href=#707 id=707 data-nosnippet>707</a>
-<a href=#708 id=708 data-nosnippet>708</a>    <span class="kw">let </span><span class="kw-2">mut </span>envelope = envelope(items, meta, managed_err)<span class="question-mark">?</span>;
-<a href=#709 id=709 data-nosnippet>709</a>    <span class="kw">if </span>gpu_crash_split {
-<a href=#710 id=710 data-nosnippet>710</a>        <span class="kw">let </span>(cpu, gpu) = utils::gpu::split_crash(envelope);
-<a href=#711 id=711 data-nosnippet>711</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(gpu) = gpu {
-<a href=#712 id=712 data-nosnippet>712</a>            <span class="comment">// The GPU crash is a best-effort duplicate: a failure submitting it must
-<a href=#713 id=713 data-nosnippet>713</a>            // not drop the CPU crash, which clients do not retry.
-<a href=#714 id=714 data-nosnippet>714</a>            </span><span class="kw">match </span>common::handle_managed_envelope(<span class="kw-2">&amp;</span>state, gpu).<span class="kw">await </span>{
-<a href=#715 id=715 data-nosnippet>715</a>                <span class="prelude-val">Ok</span>(handled) =&gt; {
-<a href=#716 id=716 data-nosnippet>716</a>                    handled.ignore_rate_limits();
-<a href=#717 id=717 data-nosnippet>717</a>                }
-<a href=#718 id=718 data-nosnippet>718</a>                <span class="prelude-val">Err</span>(rejected) =&gt; <span class="macro">relay_log::debug!</span>(
-<a href=#719 id=719 data-nosnippet>719</a>                    error = <span class="kw-2">&amp;</span>rejected.into_inner() <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
-<a href=#720 id=720 data-nosnippet>720</a>                    <span class="string">"failed to submit split-off GPU crash envelope"</span>,
-<a href=#721 id=721 data-nosnippet>721</a>                ),
-<a href=#722 id=722 data-nosnippet>722</a>            }
-<a href=#723 id=723 data-nosnippet>723</a>        }
-<a href=#724 id=724 data-nosnippet>724</a>        envelope = cpu;
-<a href=#725 id=725 data-nosnippet>725</a>    }
-<a href=#726 id=726 data-nosnippet>726</a>
-<a href=#727 id=727 data-nosnippet>727</a>    <span class="kw">let </span>id = envelope.event_id();
-<a href=#728 id=728 data-nosnippet>728</a>
-<a href=#729 id=729 data-nosnippet>729</a>    <span class="comment">// Never respond with a 429 since clients often retry these
-<a href=#730 id=730 data-nosnippet>730</a>    </span>common::handle_managed_envelope(<span class="kw-2">&amp;</span>state, envelope)
-<a href=#731 id=731 data-nosnippet>731</a>        .<span class="kw">await</span><span class="question-mark">?
-<a href=#732 id=732 data-nosnippet>732</a>        </span>.ignore_rate_limits();
-<a href=#733 id=733 data-nosnippet>733</a>
-<a href=#734 id=734 data-nosnippet>734</a>    <span class="comment">// The return here is only useful for consistency because the UE4 crash reporter doesn't
-<a href=#735 id=735 data-nosnippet>735</a>    // care about it.
-<a href=#736 id=736 data-nosnippet>736</a>    </span><span class="prelude-val">Ok</span>(TextResponse(id))
-<a href=#737 id=737 data-nosnippet>737</a>}
-<a href=#738 id=738 data-nosnippet>738</a>
-<a href=#739 id=739 data-nosnippet>739</a><span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState&gt; {
-<a href=#740 id=740 data-nosnippet>740</a>    post(handle)
-<a href=#741 id=741 data-nosnippet>741</a>        .route_layer(RequestBodyLimitLayer::new(
-<a href=#742 id=742 data-nosnippet>742</a>            config.max_upload_size() + config.max_attachments_size(),
-<a href=#743 id=743 data-nosnippet>743</a>        ))
-<a href=#744 id=744 data-nosnippet>744</a>        .route_layer(DefaultBodyLimit::disable())
-<a href=#745 id=745 data-nosnippet>745</a>        .route_layer(axum::middleware::from_fn(middlewares::content_length))
-<a href=#746 id=746 data-nosnippet>746</a>}
-<a href=#747 id=747 data-nosnippet>747</a>
-<a href=#748 id=748 data-nosnippet>748</a><span class="attr">#[cfg(test)]
-<a href=#749 id=749 data-nosnippet>749</a></span><span class="kw">mod </span>tests {
-<a href=#750 id=750 data-nosnippet>750</a>    <span class="kw">use </span><span class="kw">crate</span>::envelope::ContentType;
-<a href=#751 id=751 data-nosnippet>751</a>    <span class="kw">use </span><span class="kw">crate</span>::utils::FormDataIter;
-<a href=#752 id=752 data-nosnippet>752</a>    <span class="kw">use </span>axum::body::Body;
-<a href=#753 id=753 data-nosnippet>753</a>    <span class="kw">use </span>bzip2::Compression <span class="kw">as </span>BzCompression;
-<a href=#754 id=754 data-nosnippet>754</a>    <span class="kw">use </span>bzip2::write::BzEncoder;
-<a href=#755 id=755 data-nosnippet>755</a>    <span class="kw">use </span>flate2::Compression <span class="kw">as </span>GzCompression;
-<a href=#756 id=756 data-nosnippet>756</a>    <span class="kw">use </span>flate2::write::GzEncoder;
-<a href=#757 id=757 data-nosnippet>757</a>    <span class="kw">use </span>liblzma::write::XzEncoder;
-<a href=#758 id=758 data-nosnippet>758</a>    <span class="kw">use </span>relay_config::Config;
-<a href=#759 id=759 data-nosnippet>759</a>    <span class="kw">use </span>std::io::Write;
-<a href=#760 id=760 data-nosnippet>760</a>    <span class="kw">use </span>zstd::stream::Encoder <span class="kw">as </span>ZstdEncoder;
-<a href=#761 id=761 data-nosnippet>761</a>
-<a href=#762 id=762 data-nosnippet>762</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#763 id=763 data-nosnippet>763</a>
-<a href=#764 id=764 data-nosnippet>764</a>    <span class="attr">#[test]
-<a href=#765 id=765 data-nosnippet>765</a>    </span><span class="kw">fn </span>test_validate_minidump() {
-<a href=#766 id=766 data-nosnippet>766</a>        <span class="kw">let </span>be_minidump = <span class="string">b"PMDMxxxxxx"</span>;
-<a href=#767 id=767 data-nosnippet>767</a>        <span class="macro">assert!</span>(validate_minidump(be_minidump).is_ok());
-<a href=#768 id=768 data-nosnippet>768</a>
-<a href=#769 id=769 data-nosnippet>769</a>        <span class="kw">let </span>le_minidump = <span class="string">b"MDMPxxxxxx"</span>;
-<a href=#770 id=770 data-nosnippet>770</a>        <span class="macro">assert!</span>(validate_minidump(le_minidump).is_ok());
+<a href=#704 id=704 data-nosnippet>704</a>    <span class="kw">let </span><span class="kw-2">mut </span>envelope = envelope(items, meta, managed_err)<span class="question-mark">?</span>;
+<a href=#705 id=705 data-nosnippet>705</a>    <span class="kw">if </span>gpu_crash_split {
+<a href=#706 id=706 data-nosnippet>706</a>        <span class="kw">let </span>(cpu, gpu) = utils::gpu::split_crash(envelope);
+<a href=#707 id=707 data-nosnippet>707</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(gpu) = gpu {
+<a href=#708 id=708 data-nosnippet>708</a>            <span class="comment">// The GPU crash is a best-effort duplicate: a failure submitting it must
+<a href=#709 id=709 data-nosnippet>709</a>            // not drop the CPU crash, which clients do not retry.
+<a href=#710 id=710 data-nosnippet>710</a>            </span><span class="kw">match </span>common::handle_managed_envelope(<span class="kw-2">&amp;</span>state, gpu).<span class="kw">await </span>{
+<a href=#711 id=711 data-nosnippet>711</a>                <span class="prelude-val">Ok</span>(handled) =&gt; {
+<a href=#712 id=712 data-nosnippet>712</a>                    handled.ignore_rate_limits();
+<a href=#713 id=713 data-nosnippet>713</a>                }
+<a href=#714 id=714 data-nosnippet>714</a>                <span class="prelude-val">Err</span>(rejected) =&gt; <span class="macro">relay_log::debug!</span>(
+<a href=#715 id=715 data-nosnippet>715</a>                    error = <span class="kw-2">&amp;</span>rejected.into_inner() <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+<a href=#716 id=716 data-nosnippet>716</a>                    <span class="string">"failed to submit split-off GPU crash envelope"</span>,
+<a href=#717 id=717 data-nosnippet>717</a>                ),
+<a href=#718 id=718 data-nosnippet>718</a>            }
+<a href=#719 id=719 data-nosnippet>719</a>        }
+<a href=#720 id=720 data-nosnippet>720</a>        envelope = cpu;
+<a href=#721 id=721 data-nosnippet>721</a>    }
+<a href=#722 id=722 data-nosnippet>722</a>
+<a href=#723 id=723 data-nosnippet>723</a>    <span class="kw">let </span>id = envelope.event_id();
+<a href=#724 id=724 data-nosnippet>724</a>
+<a href=#725 id=725 data-nosnippet>725</a>    <span class="comment">// Never respond with a 429 since clients often retry these
+<a href=#726 id=726 data-nosnippet>726</a>    </span>common::handle_managed_envelope(<span class="kw-2">&amp;</span>state, envelope)
+<a href=#727 id=727 data-nosnippet>727</a>        .<span class="kw">await</span><span class="question-mark">?
+<a href=#728 id=728 data-nosnippet>728</a>        </span>.ignore_rate_limits();
+<a href=#729 id=729 data-nosnippet>729</a>
+<a href=#730 id=730 data-nosnippet>730</a>    <span class="comment">// The return here is only useful for consistency because the UE4 crash reporter doesn't
+<a href=#731 id=731 data-nosnippet>731</a>    // care about it.
+<a href=#732 id=732 data-nosnippet>732</a>    </span><span class="prelude-val">Ok</span>(TextResponse(id))
+<a href=#733 id=733 data-nosnippet>733</a>}
+<a href=#734 id=734 data-nosnippet>734</a>
+<a href=#735 id=735 data-nosnippet>735</a><span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState&gt; {
+<a href=#736 id=736 data-nosnippet>736</a>    post(handle)
+<a href=#737 id=737 data-nosnippet>737</a>        .route_layer(RequestBodyLimitLayer::new(
+<a href=#738 id=738 data-nosnippet>738</a>            config.max_upload_size() + config.max_attachments_size(),
+<a href=#739 id=739 data-nosnippet>739</a>        ))
+<a href=#740 id=740 data-nosnippet>740</a>        .route_layer(DefaultBodyLimit::disable())
+<a href=#741 id=741 data-nosnippet>741</a>        .route_layer(axum::middleware::from_fn(middlewares::content_length))
+<a href=#742 id=742 data-nosnippet>742</a>}
+<a href=#743 id=743 data-nosnippet>743</a>
+<a href=#744 id=744 data-nosnippet>744</a><span class="attr">#[cfg(test)]
+<a href=#745 id=745 data-nosnippet>745</a></span><span class="kw">mod </span>tests {
+<a href=#746 id=746 data-nosnippet>746</a>    <span class="kw">use </span><span class="kw">crate</span>::envelope::ContentType;
+<a href=#747 id=747 data-nosnippet>747</a>    <span class="kw">use </span><span class="kw">crate</span>::utils::FormDataIter;
+<a href=#748 id=748 data-nosnippet>748</a>    <span class="kw">use </span>axum::body::Body;
+<a href=#749 id=749 data-nosnippet>749</a>    <span class="kw">use </span>bzip2::Compression <span class="kw">as </span>BzCompression;
+<a href=#750 id=750 data-nosnippet>750</a>    <span class="kw">use </span>bzip2::write::BzEncoder;
+<a href=#751 id=751 data-nosnippet>751</a>    <span class="kw">use </span>flate2::Compression <span class="kw">as </span>GzCompression;
+<a href=#752 id=752 data-nosnippet>752</a>    <span class="kw">use </span>flate2::write::GzEncoder;
+<a href=#753 id=753 data-nosnippet>753</a>    <span class="kw">use </span>liblzma::write::XzEncoder;
+<a href=#754 id=754 data-nosnippet>754</a>    <span class="kw">use </span>relay_config::Config;
+<a href=#755 id=755 data-nosnippet>755</a>    <span class="kw">use </span>std::io::Write;
+<a href=#756 id=756 data-nosnippet>756</a>    <span class="kw">use </span>zstd::stream::Encoder <span class="kw">as </span>ZstdEncoder;
+<a href=#757 id=757 data-nosnippet>757</a>
+<a href=#758 id=758 data-nosnippet>758</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#759 id=759 data-nosnippet>759</a>
+<a href=#760 id=760 data-nosnippet>760</a>    <span class="attr">#[test]
+<a href=#761 id=761 data-nosnippet>761</a>    </span><span class="kw">fn </span>test_validate_minidump() {
+<a href=#762 id=762 data-nosnippet>762</a>        <span class="kw">let </span>be_minidump = <span class="string">b"PMDMxxxxxx"</span>;
+<a href=#763 id=763 data-nosnippet>763</a>        <span class="macro">assert!</span>(validate_minidump(be_minidump).is_ok());
+<a href=#764 id=764 data-nosnippet>764</a>
+<a href=#765 id=765 data-nosnippet>765</a>        <span class="kw">let </span>le_minidump = <span class="string">b"MDMPxxxxxx"</span>;
+<a href=#766 id=766 data-nosnippet>766</a>        <span class="macro">assert!</span>(validate_minidump(le_minidump).is_ok());
+<a href=#767 id=767 data-nosnippet>767</a>
+<a href=#768 id=768 data-nosnippet>768</a>        <span class="kw">let </span>garbage = <span class="string">b"xxxxxx"</span>;
+<a href=#769 id=769 data-nosnippet>769</a>        <span class="macro">assert!</span>(validate_minidump(garbage).is_err());
+<a href=#770 id=770 data-nosnippet>770</a>    }
 <a href=#771 id=771 data-nosnippet>771</a>
-<a href=#772 id=772 data-nosnippet>772</a>        <span class="kw">let </span>garbage = <span class="string">b"xxxxxx"</span>;
-<a href=#773 id=773 data-nosnippet>773</a>        <span class="macro">assert!</span>(validate_minidump(garbage).is_err());
-<a href=#774 id=774 data-nosnippet>774</a>    }
-<a href=#775 id=775 data-nosnippet>775</a>
-<a href=#776 id=776 data-nosnippet>776</a>    <span class="kw">type </span>EncodeFunction = <span class="kw">fn</span>(<span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt;;
-<a href=#777 id=777 data-nosnippet>777</a>
-<a href=#778 id=778 data-nosnippet>778</a>    <span class="kw">fn </span>encode_gzip(be_minidump: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
-<a href=#779 id=779 data-nosnippet>779</a>        <span class="kw">let </span><span class="kw-2">mut </span>encoder = GzEncoder::new(Vec::new(), GzCompression::default());
-<a href=#780 id=780 data-nosnippet>780</a>        encoder.write_all(be_minidump)<span class="question-mark">?</span>;
-<a href=#781 id=781 data-nosnippet>781</a>        <span class="kw">let </span>compressed = encoder.finish()<span class="question-mark">?</span>;
-<a href=#782 id=782 data-nosnippet>782</a>        <span class="prelude-val">Ok</span>(Bytes::from(compressed))
-<a href=#783 id=783 data-nosnippet>783</a>    }
-<a href=#784 id=784 data-nosnippet>784</a>    <span class="kw">fn </span>encode_bzip(be_minidump: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
-<a href=#785 id=785 data-nosnippet>785</a>        <span class="kw">let </span><span class="kw-2">mut </span>encoder = BzEncoder::new(Vec::new(), BzCompression::default());
-<a href=#786 id=786 data-nosnippet>786</a>        encoder.write_all(be_minidump)<span class="question-mark">?</span>;
-<a href=#787 id=787 data-nosnippet>787</a>        <span class="kw">let </span>compressed = encoder.finish()<span class="question-mark">?</span>;
-<a href=#788 id=788 data-nosnippet>788</a>        <span class="prelude-val">Ok</span>(Bytes::from(compressed))
-<a href=#789 id=789 data-nosnippet>789</a>    }
-<a href=#790 id=790 data-nosnippet>790</a>    <span class="kw">fn </span>encode_xz(be_minidump: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
-<a href=#791 id=791 data-nosnippet>791</a>        <span class="kw">let </span><span class="kw-2">mut </span>encoder = XzEncoder::new(Vec::new(), <span class="number">6</span>);
-<a href=#792 id=792 data-nosnippet>792</a>        encoder.write_all(be_minidump)<span class="question-mark">?</span>;
-<a href=#793 id=793 data-nosnippet>793</a>        <span class="kw">let </span>compressed = encoder.finish()<span class="question-mark">?</span>;
-<a href=#794 id=794 data-nosnippet>794</a>        <span class="prelude-val">Ok</span>(Bytes::from(compressed))
-<a href=#795 id=795 data-nosnippet>795</a>    }
-<a href=#796 id=796 data-nosnippet>796</a>    <span class="kw">fn </span>encode_zst(be_minidump: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
-<a href=#797 id=797 data-nosnippet>797</a>        <span class="kw">let </span><span class="kw-2">mut </span>encoder = ZstdEncoder::new(Vec::new(), <span class="number">0</span>)<span class="question-mark">?</span>;
-<a href=#798 id=798 data-nosnippet>798</a>        encoder.write_all(be_minidump)<span class="question-mark">?</span>;
-<a href=#799 id=799 data-nosnippet>799</a>        <span class="kw">let </span>compressed = encoder.finish()<span class="question-mark">?</span>;
-<a href=#800 id=800 data-nosnippet>800</a>        <span class="prelude-val">Ok</span>(Bytes::from(compressed))
-<a href=#801 id=801 data-nosnippet>801</a>    }
-<a href=#802 id=802 data-nosnippet>802</a>
-<a href=#803 id=803 data-nosnippet>803</a>    <span class="attr">#[test]
-<a href=#804 id=804 data-nosnippet>804</a>    </span><span class="kw">fn </span>test_validate_encoded_minidump() -&gt; <span class="prelude-ty">Result</span>&lt;(), Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
-<a href=#805 id=805 data-nosnippet>805</a>        <span class="kw">let </span>encoders: Vec&lt;EncodeFunction&gt; = <span class="macro">vec!</span>[encode_gzip, encode_zst, encode_bzip, encode_xz];
-<a href=#806 id=806 data-nosnippet>806</a>        <span class="kw">for </span>encoder <span class="kw">in </span><span class="kw-2">&amp;</span>encoders {
-<a href=#807 id=807 data-nosnippet>807</a>            <span class="kw">let </span>be_minidump = <span class="string">b"PMDMxxxxxx"</span>;
-<a href=#808 id=808 data-nosnippet>808</a>            <span class="kw">let </span>compressed = encoder(be_minidump)<span class="question-mark">?</span>;
-<a href=#809 id=809 data-nosnippet>809</a>            <span class="kw">let </span>decoder = decoder_from(compressed).unwrap();
-<a href=#810 id=810 data-nosnippet>810</a>            <span class="macro">assert!</span>(run_decoder(decoder).is_ok());
-<a href=#811 id=811 data-nosnippet>811</a>
-<a href=#812 id=812 data-nosnippet>812</a>            <span class="kw">let </span>le_minidump = <span class="string">b"MDMPxxxxxx"</span>;
-<a href=#813 id=813 data-nosnippet>813</a>            <span class="kw">let </span>compressed = encoder(le_minidump)<span class="question-mark">?</span>;
-<a href=#814 id=814 data-nosnippet>814</a>            <span class="kw">let </span>decoder = decoder_from(compressed).unwrap();
-<a href=#815 id=815 data-nosnippet>815</a>            <span class="macro">assert!</span>(run_decoder(decoder).is_ok());
-<a href=#816 id=816 data-nosnippet>816</a>
-<a href=#817 id=817 data-nosnippet>817</a>            <span class="kw">let </span>garbage = <span class="string">b"xxxxxx"</span>;
-<a href=#818 id=818 data-nosnippet>818</a>            <span class="kw">let </span>compressed = encoder(garbage)<span class="question-mark">?</span>;
-<a href=#819 id=819 data-nosnippet>819</a>            <span class="kw">let </span>decoder = decoder_from(compressed).unwrap();
-<a href=#820 id=820 data-nosnippet>820</a>            <span class="kw">let </span>decoded = run_decoder(decoder);
-<a href=#821 id=821 data-nosnippet>821</a>            <span class="macro">assert!</span>(decoded.is_ok());
-<a href=#822 id=822 data-nosnippet>822</a>            <span class="macro">assert!</span>(validate_minidump(<span class="kw-2">&amp;</span>decoded.unwrap()).is_err());
-<a href=#823 id=823 data-nosnippet>823</a>        }
-<a href=#824 id=824 data-nosnippet>824</a>
-<a href=#825 id=825 data-nosnippet>825</a>        <span class="prelude-val">Ok</span>(())
+<a href=#772 id=772 data-nosnippet>772</a>    <span class="kw">type </span>EncodeFunction = <span class="kw">fn</span>(<span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt;;
+<a href=#773 id=773 data-nosnippet>773</a>
+<a href=#774 id=774 data-nosnippet>774</a>    <span class="kw">fn </span>encode_gzip(be_minidump: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
+<a href=#775 id=775 data-nosnippet>775</a>        <span class="kw">let </span><span class="kw-2">mut </span>encoder = GzEncoder::new(Vec::new(), GzCompression::default());
+<a href=#776 id=776 data-nosnippet>776</a>        encoder.write_all(be_minidump)<span class="question-mark">?</span>;
+<a href=#777 id=777 data-nosnippet>777</a>        <span class="kw">let </span>compressed = encoder.finish()<span class="question-mark">?</span>;
+<a href=#778 id=778 data-nosnippet>778</a>        <span class="prelude-val">Ok</span>(Bytes::from(compressed))
+<a href=#779 id=779 data-nosnippet>779</a>    }
+<a href=#780 id=780 data-nosnippet>780</a>    <span class="kw">fn </span>encode_bzip(be_minidump: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
+<a href=#781 id=781 data-nosnippet>781</a>        <span class="kw">let </span><span class="kw-2">mut </span>encoder = BzEncoder::new(Vec::new(), BzCompression::default());
+<a href=#782 id=782 data-nosnippet>782</a>        encoder.write_all(be_minidump)<span class="question-mark">?</span>;
+<a href=#783 id=783 data-nosnippet>783</a>        <span class="kw">let </span>compressed = encoder.finish()<span class="question-mark">?</span>;
+<a href=#784 id=784 data-nosnippet>784</a>        <span class="prelude-val">Ok</span>(Bytes::from(compressed))
+<a href=#785 id=785 data-nosnippet>785</a>    }
+<a href=#786 id=786 data-nosnippet>786</a>    <span class="kw">fn </span>encode_xz(be_minidump: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
+<a href=#787 id=787 data-nosnippet>787</a>        <span class="kw">let </span><span class="kw-2">mut </span>encoder = XzEncoder::new(Vec::new(), <span class="number">6</span>);
+<a href=#788 id=788 data-nosnippet>788</a>        encoder.write_all(be_minidump)<span class="question-mark">?</span>;
+<a href=#789 id=789 data-nosnippet>789</a>        <span class="kw">let </span>compressed = encoder.finish()<span class="question-mark">?</span>;
+<a href=#790 id=790 data-nosnippet>790</a>        <span class="prelude-val">Ok</span>(Bytes::from(compressed))
+<a href=#791 id=791 data-nosnippet>791</a>    }
+<a href=#792 id=792 data-nosnippet>792</a>    <span class="kw">fn </span>encode_zst(be_minidump: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
+<a href=#793 id=793 data-nosnippet>793</a>        <span class="kw">let </span><span class="kw-2">mut </span>encoder = ZstdEncoder::new(Vec::new(), <span class="number">0</span>)<span class="question-mark">?</span>;
+<a href=#794 id=794 data-nosnippet>794</a>        encoder.write_all(be_minidump)<span class="question-mark">?</span>;
+<a href=#795 id=795 data-nosnippet>795</a>        <span class="kw">let </span>compressed = encoder.finish()<span class="question-mark">?</span>;
+<a href=#796 id=796 data-nosnippet>796</a>        <span class="prelude-val">Ok</span>(Bytes::from(compressed))
+<a href=#797 id=797 data-nosnippet>797</a>    }
+<a href=#798 id=798 data-nosnippet>798</a>
+<a href=#799 id=799 data-nosnippet>799</a>    <span class="attr">#[test]
+<a href=#800 id=800 data-nosnippet>800</a>    </span><span class="kw">fn </span>test_validate_encoded_minidump() -&gt; <span class="prelude-ty">Result</span>&lt;(), Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
+<a href=#801 id=801 data-nosnippet>801</a>        <span class="kw">let </span>encoders: Vec&lt;EncodeFunction&gt; = <span class="macro">vec!</span>[encode_gzip, encode_zst, encode_bzip, encode_xz];
+<a href=#802 id=802 data-nosnippet>802</a>        <span class="kw">for </span>encoder <span class="kw">in </span><span class="kw-2">&amp;</span>encoders {
+<a href=#803 id=803 data-nosnippet>803</a>            <span class="kw">let </span>be_minidump = <span class="string">b"PMDMxxxxxx"</span>;
+<a href=#804 id=804 data-nosnippet>804</a>            <span class="kw">let </span>compressed = encoder(be_minidump)<span class="question-mark">?</span>;
+<a href=#805 id=805 data-nosnippet>805</a>            <span class="kw">let </span>decoder = decoder_from(compressed).unwrap();
+<a href=#806 id=806 data-nosnippet>806</a>            <span class="macro">assert!</span>(run_decoder(decoder).is_ok());
+<a href=#807 id=807 data-nosnippet>807</a>
+<a href=#808 id=808 data-nosnippet>808</a>            <span class="kw">let </span>le_minidump = <span class="string">b"MDMPxxxxxx"</span>;
+<a href=#809 id=809 data-nosnippet>809</a>            <span class="kw">let </span>compressed = encoder(le_minidump)<span class="question-mark">?</span>;
+<a href=#810 id=810 data-nosnippet>810</a>            <span class="kw">let </span>decoder = decoder_from(compressed).unwrap();
+<a href=#811 id=811 data-nosnippet>811</a>            <span class="macro">assert!</span>(run_decoder(decoder).is_ok());
+<a href=#812 id=812 data-nosnippet>812</a>
+<a href=#813 id=813 data-nosnippet>813</a>            <span class="kw">let </span>garbage = <span class="string">b"xxxxxx"</span>;
+<a href=#814 id=814 data-nosnippet>814</a>            <span class="kw">let </span>compressed = encoder(garbage)<span class="question-mark">?</span>;
+<a href=#815 id=815 data-nosnippet>815</a>            <span class="kw">let </span>decoder = decoder_from(compressed).unwrap();
+<a href=#816 id=816 data-nosnippet>816</a>            <span class="kw">let </span>decoded = run_decoder(decoder);
+<a href=#817 id=817 data-nosnippet>817</a>            <span class="macro">assert!</span>(decoded.is_ok());
+<a href=#818 id=818 data-nosnippet>818</a>            <span class="macro">assert!</span>(validate_minidump(<span class="kw-2">&amp;</span>decoded.unwrap()).is_err());
+<a href=#819 id=819 data-nosnippet>819</a>        }
+<a href=#820 id=820 data-nosnippet>820</a>
+<a href=#821 id=821 data-nosnippet>821</a>        <span class="prelude-val">Ok</span>(())
+<a href=#822 id=822 data-nosnippet>822</a>    }
+<a href=#823 id=823 data-nosnippet>823</a>
+<a href=#824 id=824 data-nosnippet>824</a>    <span class="kw">fn </span>stream_of(data: Bytes) -&gt; <span class="kw">impl </span>Stream&lt;Item = <span class="prelude-ty">Result</span>&lt;Bytes, Infallible&gt;&gt; + Send + <span class="lifetime">'static </span>{
+<a href=#825 id=825 data-nosnippet>825</a>        futures::stream::once(<span class="kw">async move </span>{ <span class="prelude-val">Ok</span>(data) })
 <a href=#826 id=826 data-nosnippet>826</a>    }
 <a href=#827 id=827 data-nosnippet>827</a>
-<a href=#828 id=828 data-nosnippet>828</a>    <span class="kw">fn </span>stream_of(data: Bytes) -&gt; <span class="kw">impl </span>Stream&lt;Item = <span class="prelude-ty">Result</span>&lt;Bytes, Infallible&gt;&gt; + Send + <span class="lifetime">'static </span>{
-<a href=#829 id=829 data-nosnippet>829</a>        futures::stream::once(<span class="kw">async move </span>{ <span class="prelude-val">Ok</span>(data) })
-<a href=#830 id=830 data-nosnippet>830</a>    }
-<a href=#831 id=831 data-nosnippet>831</a>
-<a href=#832 id=832 data-nosnippet>832</a>    <span class="attr">#[tokio::test]
-<a href=#833 id=833 data-nosnippet>833</a>    </span><span class="kw">async fn </span>test_decode_and_validate_minidump() -&gt; <span class="prelude-ty">Result</span>&lt;(), Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
-<a href=#834 id=834 data-nosnippet>834</a>        <span class="kw">let </span>encoders: Vec&lt;EncodeFunction&gt; = <span class="macro">vec!</span>[encode_gzip, encode_zst, encode_bzip, encode_xz];
-<a href=#835 id=835 data-nosnippet>835</a>        <span class="kw">for </span>encoder <span class="kw">in </span><span class="kw-2">&amp;</span>encoders {
-<a href=#836 id=836 data-nosnippet>836</a>            <span class="kw">let </span>be_minidump = <span class="string">b"PMDMxxxxxx"</span>;
-<a href=#837 id=837 data-nosnippet>837</a>            <span class="kw">let </span>compressed = encoder(be_minidump)<span class="question-mark">?</span>;
-<a href=#838 id=838 data-nosnippet>838</a>            <span class="macro">assert!</span>(
-<a href=#839 id=839 data-nosnippet>839</a>                decode_and_validate_stream(stream_of(compressed))
-<a href=#840 id=840 data-nosnippet>840</a>                    .<span class="kw">await
-<a href=#841 id=841 data-nosnippet>841</a>                    </span>.is_ok()
-<a href=#842 id=842 data-nosnippet>842</a>            );
-<a href=#843 id=843 data-nosnippet>843</a>
-<a href=#844 id=844 data-nosnippet>844</a>            <span class="kw">let </span>le_minidump = <span class="string">b"MDMPxxxxxx"</span>;
-<a href=#845 id=845 data-nosnippet>845</a>            <span class="kw">let </span>compressed = encoder(le_minidump)<span class="question-mark">?</span>;
-<a href=#846 id=846 data-nosnippet>846</a>            <span class="macro">assert!</span>(
-<a href=#847 id=847 data-nosnippet>847</a>                decode_and_validate_stream(stream_of(compressed))
-<a href=#848 id=848 data-nosnippet>848</a>                    .<span class="kw">await
-<a href=#849 id=849 data-nosnippet>849</a>                    </span>.is_ok()
-<a href=#850 id=850 data-nosnippet>850</a>            );
-<a href=#851 id=851 data-nosnippet>851</a>
-<a href=#852 id=852 data-nosnippet>852</a>            <span class="kw">let </span>garbage = <span class="string">b"xxxxxx"</span>;
-<a href=#853 id=853 data-nosnippet>853</a>            <span class="kw">let </span>compressed = encoder(garbage)<span class="question-mark">?</span>;
-<a href=#854 id=854 data-nosnippet>854</a>            <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-<a href=#855 id=855 data-nosnippet>855</a>                decode_and_validate_stream(stream_of(compressed)).<span class="kw">await</span>,
-<a href=#856 id=856 data-nosnippet>856</a>                <span class="prelude-val">Err</span>(BadStoreRequest::InvalidMinidump)
-<a href=#857 id=857 data-nosnippet>857</a>            ));
-<a href=#858 id=858 data-nosnippet>858</a>        }
-<a href=#859 id=859 data-nosnippet>859</a>
-<a href=#860 id=860 data-nosnippet>860</a>        <span class="kw">let </span>plain = Bytes::from_static(<span class="string">b"MDMPxxxxxx"</span>);
-<a href=#861 id=861 data-nosnippet>861</a>        <span class="macro">assert!</span>(decode_and_validate_stream(stream_of(plain)).<span class="kw">await</span>.is_ok());
-<a href=#862 id=862 data-nosnippet>862</a>
-<a href=#863 id=863 data-nosnippet>863</a>        <span class="kw">let </span>plain = Bytes::from_static(<span class="string">b"xxxxxxxxxx"</span>);
-<a href=#864 id=864 data-nosnippet>864</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-<a href=#865 id=865 data-nosnippet>865</a>            decode_and_validate_stream(stream_of(plain)).<span class="kw">await</span>,
-<a href=#866 id=866 data-nosnippet>866</a>            <span class="prelude-val">Err</span>(BadStoreRequest::InvalidMinidump)
-<a href=#867 id=867 data-nosnippet>867</a>        ));
-<a href=#868 id=868 data-nosnippet>868</a>
-<a href=#869 id=869 data-nosnippet>869</a>        <span class="kw">let </span>short = stream_of(Bytes::from_static(<span class="string">b"MD"</span>));
-<a href=#870 id=870 data-nosnippet>870</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-<a href=#871 id=871 data-nosnippet>871</a>            decode_and_validate_stream(short).<span class="kw">await</span>,
-<a href=#872 id=872 data-nosnippet>872</a>            <span class="prelude-val">Err</span>(BadStoreRequest::InvalidMinidump)
-<a href=#873 id=873 data-nosnippet>873</a>        ));
-<a href=#874 id=874 data-nosnippet>874</a>
-<a href=#875 id=875 data-nosnippet>875</a>        <span class="kw">let </span>chunked = futures::stream::iter([
-<a href=#876 id=876 data-nosnippet>876</a>            <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, Infallible&gt;(Bytes::from_static(<span class="string">b"MD"</span>)),
-<a href=#877 id=877 data-nosnippet>877</a>            <span class="prelude-val">Ok</span>(Bytes::from_static(<span class="string">b"MP"</span>)),
-<a href=#878 id=878 data-nosnippet>878</a>            <span class="prelude-val">Ok</span>(Bytes::from_static(<span class="string">b"rest"</span>)),
-<a href=#879 id=879 data-nosnippet>879</a>        ]);
-<a href=#880 id=880 data-nosnippet>880</a>        <span class="macro">assert!</span>(decode_and_validate_stream(chunked).<span class="kw">await</span>.is_ok());
-<a href=#881 id=881 data-nosnippet>881</a>
-<a href=#882 id=882 data-nosnippet>882</a>        <span class="prelude-val">Ok</span>(())
-<a href=#883 id=883 data-nosnippet>883</a>    }
-<a href=#884 id=884 data-nosnippet>884</a>
-<a href=#885 id=885 data-nosnippet>885</a>    <span class="attr">#[test]
-<a href=#886 id=886 data-nosnippet>886</a>    </span><span class="kw">fn </span>test_decode_minidump_size_limit() -&gt; <span class="prelude-ty">Result</span>&lt;(), Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
-<a href=#887 id=887 data-nosnippet>887</a>        <span class="comment">// Create a minidump that will decompress to 100 bytes
-<a href=#888 id=888 data-nosnippet>888</a>        </span><span class="kw">let </span>minidump_data = <span class="string">b"xxxxxxxxxx"</span>.repeat(<span class="number">10</span>);
-<a href=#889 id=889 data-nosnippet>889</a>        <span class="kw">let </span>compressed = encode_gzip(<span class="kw-2">&amp;</span>minidump_data)<span class="question-mark">?</span>;
-<a href=#890 id=890 data-nosnippet>890</a>
-<a href=#891 id=891 data-nosnippet>891</a>        <span class="comment">// With a limit larger than the decompressed size, decoding should succeed
-<a href=#892 id=892 data-nosnippet>892</a>        </span><span class="kw">let </span>result = decode_minidump(compressed.clone(), <span class="number">200</span>);
-<a href=#893 id=893 data-nosnippet>893</a>        <span class="macro">assert!</span>(result.is_ok());
-<a href=#894 id=894 data-nosnippet>894</a>        <span class="macro">assert_eq!</span>(result.unwrap().len(), <span class="number">100</span>);
+<a href=#828 id=828 data-nosnippet>828</a>    <span class="attr">#[tokio::test]
+<a href=#829 id=829 data-nosnippet>829</a>    </span><span class="kw">async fn </span>test_decode_and_validate_minidump() -&gt; <span class="prelude-ty">Result</span>&lt;(), Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
+<a href=#830 id=830 data-nosnippet>830</a>        <span class="kw">let </span>encoders: Vec&lt;EncodeFunction&gt; = <span class="macro">vec!</span>[encode_gzip, encode_zst, encode_bzip, encode_xz];
+<a href=#831 id=831 data-nosnippet>831</a>        <span class="kw">for </span>encoder <span class="kw">in </span><span class="kw-2">&amp;</span>encoders {
+<a href=#832 id=832 data-nosnippet>832</a>            <span class="kw">let </span>be_minidump = <span class="string">b"PMDMxxxxxx"</span>;
+<a href=#833 id=833 data-nosnippet>833</a>            <span class="kw">let </span>compressed = encoder(be_minidump)<span class="question-mark">?</span>;
+<a href=#834 id=834 data-nosnippet>834</a>            <span class="macro">assert!</span>(
+<a href=#835 id=835 data-nosnippet>835</a>                decode_and_validate_stream(stream_of(compressed))
+<a href=#836 id=836 data-nosnippet>836</a>                    .<span class="kw">await
+<a href=#837 id=837 data-nosnippet>837</a>                    </span>.is_ok()
+<a href=#838 id=838 data-nosnippet>838</a>            );
+<a href=#839 id=839 data-nosnippet>839</a>
+<a href=#840 id=840 data-nosnippet>840</a>            <span class="kw">let </span>le_minidump = <span class="string">b"MDMPxxxxxx"</span>;
+<a href=#841 id=841 data-nosnippet>841</a>            <span class="kw">let </span>compressed = encoder(le_minidump)<span class="question-mark">?</span>;
+<a href=#842 id=842 data-nosnippet>842</a>            <span class="macro">assert!</span>(
+<a href=#843 id=843 data-nosnippet>843</a>                decode_and_validate_stream(stream_of(compressed))
+<a href=#844 id=844 data-nosnippet>844</a>                    .<span class="kw">await
+<a href=#845 id=845 data-nosnippet>845</a>                    </span>.is_ok()
+<a href=#846 id=846 data-nosnippet>846</a>            );
+<a href=#847 id=847 data-nosnippet>847</a>
+<a href=#848 id=848 data-nosnippet>848</a>            <span class="kw">let </span>garbage = <span class="string">b"xxxxxx"</span>;
+<a href=#849 id=849 data-nosnippet>849</a>            <span class="kw">let </span>compressed = encoder(garbage)<span class="question-mark">?</span>;
+<a href=#850 id=850 data-nosnippet>850</a>            <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+<a href=#851 id=851 data-nosnippet>851</a>                decode_and_validate_stream(stream_of(compressed)).<span class="kw">await</span>,
+<a href=#852 id=852 data-nosnippet>852</a>                <span class="prelude-val">Err</span>(BadStoreRequest::InvalidMinidump)
+<a href=#853 id=853 data-nosnippet>853</a>            ));
+<a href=#854 id=854 data-nosnippet>854</a>        }
+<a href=#855 id=855 data-nosnippet>855</a>
+<a href=#856 id=856 data-nosnippet>856</a>        <span class="kw">let </span>plain = Bytes::from_static(<span class="string">b"MDMPxxxxxx"</span>);
+<a href=#857 id=857 data-nosnippet>857</a>        <span class="macro">assert!</span>(decode_and_validate_stream(stream_of(plain)).<span class="kw">await</span>.is_ok());
+<a href=#858 id=858 data-nosnippet>858</a>
+<a href=#859 id=859 data-nosnippet>859</a>        <span class="kw">let </span>plain = Bytes::from_static(<span class="string">b"xxxxxxxxxx"</span>);
+<a href=#860 id=860 data-nosnippet>860</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+<a href=#861 id=861 data-nosnippet>861</a>            decode_and_validate_stream(stream_of(plain)).<span class="kw">await</span>,
+<a href=#862 id=862 data-nosnippet>862</a>            <span class="prelude-val">Err</span>(BadStoreRequest::InvalidMinidump)
+<a href=#863 id=863 data-nosnippet>863</a>        ));
+<a href=#864 id=864 data-nosnippet>864</a>
+<a href=#865 id=865 data-nosnippet>865</a>        <span class="kw">let </span>short = stream_of(Bytes::from_static(<span class="string">b"MD"</span>));
+<a href=#866 id=866 data-nosnippet>866</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+<a href=#867 id=867 data-nosnippet>867</a>            decode_and_validate_stream(short).<span class="kw">await</span>,
+<a href=#868 id=868 data-nosnippet>868</a>            <span class="prelude-val">Err</span>(BadStoreRequest::InvalidMinidump)
+<a href=#869 id=869 data-nosnippet>869</a>        ));
+<a href=#870 id=870 data-nosnippet>870</a>
+<a href=#871 id=871 data-nosnippet>871</a>        <span class="kw">let </span>chunked = futures::stream::iter([
+<a href=#872 id=872 data-nosnippet>872</a>            <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, Infallible&gt;(Bytes::from_static(<span class="string">b"MD"</span>)),
+<a href=#873 id=873 data-nosnippet>873</a>            <span class="prelude-val">Ok</span>(Bytes::from_static(<span class="string">b"MP"</span>)),
+<a href=#874 id=874 data-nosnippet>874</a>            <span class="prelude-val">Ok</span>(Bytes::from_static(<span class="string">b"rest"</span>)),
+<a href=#875 id=875 data-nosnippet>875</a>        ]);
+<a href=#876 id=876 data-nosnippet>876</a>        <span class="macro">assert!</span>(decode_and_validate_stream(chunked).<span class="kw">await</span>.is_ok());
+<a href=#877 id=877 data-nosnippet>877</a>
+<a href=#878 id=878 data-nosnippet>878</a>        <span class="prelude-val">Ok</span>(())
+<a href=#879 id=879 data-nosnippet>879</a>    }
+<a href=#880 id=880 data-nosnippet>880</a>
+<a href=#881 id=881 data-nosnippet>881</a>    <span class="attr">#[test]
+<a href=#882 id=882 data-nosnippet>882</a>    </span><span class="kw">fn </span>test_decode_minidump_size_limit() -&gt; <span class="prelude-ty">Result</span>&lt;(), Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
+<a href=#883 id=883 data-nosnippet>883</a>        <span class="comment">// Create a minidump that will decompress to 100 bytes
+<a href=#884 id=884 data-nosnippet>884</a>        </span><span class="kw">let </span>minidump_data = <span class="string">b"xxxxxxxxxx"</span>.repeat(<span class="number">10</span>);
+<a href=#885 id=885 data-nosnippet>885</a>        <span class="kw">let </span>compressed = encode_gzip(<span class="kw-2">&amp;</span>minidump_data)<span class="question-mark">?</span>;
+<a href=#886 id=886 data-nosnippet>886</a>
+<a href=#887 id=887 data-nosnippet>887</a>        <span class="comment">// With a limit larger than the decompressed size, decoding should succeed
+<a href=#888 id=888 data-nosnippet>888</a>        </span><span class="kw">let </span>result = decode_minidump(compressed.clone(), <span class="number">200</span>);
+<a href=#889 id=889 data-nosnippet>889</a>        <span class="macro">assert!</span>(result.is_ok());
+<a href=#890 id=890 data-nosnippet>890</a>        <span class="macro">assert_eq!</span>(result.unwrap().len(), <span class="number">100</span>);
+<a href=#891 id=891 data-nosnippet>891</a>
+<a href=#892 id=892 data-nosnippet>892</a>        <span class="comment">// With a limit smaller than the decompressed size, decoding should fail with Overflow
+<a href=#893 id=893 data-nosnippet>893</a>        </span><span class="kw">let </span>result = decode_minidump(compressed, <span class="number">50</span>);
+<a href=#894 id=894 data-nosnippet>894</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(result, <span class="prelude-val">Err</span>(BadStoreRequest::ItemTooLarge(<span class="kw">_</span>))));
 <a href=#895 id=895 data-nosnippet>895</a>
-<a href=#896 id=896 data-nosnippet>896</a>        <span class="comment">// With a limit smaller than the decompressed size, decoding should fail with Overflow
-<a href=#897 id=897 data-nosnippet>897</a>        </span><span class="kw">let </span>result = decode_minidump(compressed, <span class="number">50</span>);
-<a href=#898 id=898 data-nosnippet>898</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(result, <span class="prelude-val">Err</span>(BadStoreRequest::ItemTooLarge(<span class="kw">_</span>))));
-<a href=#899 id=899 data-nosnippet>899</a>
-<a href=#900 id=900 data-nosnippet>900</a>        <span class="prelude-val">Ok</span>(())
-<a href=#901 id=901 data-nosnippet>901</a>    }
-<a href=#902 id=902 data-nosnippet>902</a>
-<a href=#903 id=903 data-nosnippet>903</a>    <span class="attr">#[test]
-<a href=#904 id=904 data-nosnippet>904</a>    </span><span class="kw">fn </span>test_remove_container_extension() -&gt; <span class="prelude-ty">Result</span>&lt;(), Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
-<a href=#905 id=905 data-nosnippet>905</a>        <span class="macro">assert_eq!</span>(remove_container_extension(<span class="string">"minidump"</span>), <span class="string">"minidump"</span>);
-<a href=#906 id=906 data-nosnippet>906</a>        <span class="macro">assert_eq!</span>(remove_container_extension(<span class="string">"minidump.gz"</span>), <span class="string">"minidump"</span>);
-<a href=#907 id=907 data-nosnippet>907</a>        <span class="macro">assert_eq!</span>(remove_container_extension(<span class="string">"minidump.bz2"</span>), <span class="string">"minidump"</span>);
-<a href=#908 id=908 data-nosnippet>908</a>        <span class="macro">assert_eq!</span>(remove_container_extension(<span class="string">"minidump.xz"</span>), <span class="string">"minidump"</span>);
-<a href=#909 id=909 data-nosnippet>909</a>        <span class="macro">assert_eq!</span>(remove_container_extension(<span class="string">"minidump.zst"</span>), <span class="string">"minidump"</span>);
-<a href=#910 id=910 data-nosnippet>910</a>        <span class="macro">assert_eq!</span>(remove_container_extension(<span class="string">"minidump.dmp"</span>), <span class="string">"minidump.dmp"</span>);
+<a href=#896 id=896 data-nosnippet>896</a>        <span class="prelude-val">Ok</span>(())
+<a href=#897 id=897 data-nosnippet>897</a>    }
+<a href=#898 id=898 data-nosnippet>898</a>
+<a href=#899 id=899 data-nosnippet>899</a>    <span class="attr">#[test]
+<a href=#900 id=900 data-nosnippet>900</a>    </span><span class="kw">fn </span>test_remove_container_extension() -&gt; <span class="prelude-ty">Result</span>&lt;(), Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
+<a href=#901 id=901 data-nosnippet>901</a>        <span class="macro">assert_eq!</span>(remove_container_extension(<span class="string">"minidump"</span>), <span class="string">"minidump"</span>);
+<a href=#902 id=902 data-nosnippet>902</a>        <span class="macro">assert_eq!</span>(remove_container_extension(<span class="string">"minidump.gz"</span>), <span class="string">"minidump"</span>);
+<a href=#903 id=903 data-nosnippet>903</a>        <span class="macro">assert_eq!</span>(remove_container_extension(<span class="string">"minidump.bz2"</span>), <span class="string">"minidump"</span>);
+<a href=#904 id=904 data-nosnippet>904</a>        <span class="macro">assert_eq!</span>(remove_container_extension(<span class="string">"minidump.xz"</span>), <span class="string">"minidump"</span>);
+<a href=#905 id=905 data-nosnippet>905</a>        <span class="macro">assert_eq!</span>(remove_container_extension(<span class="string">"minidump.zst"</span>), <span class="string">"minidump"</span>);
+<a href=#906 id=906 data-nosnippet>906</a>        <span class="macro">assert_eq!</span>(remove_container_extension(<span class="string">"minidump.dmp"</span>), <span class="string">"minidump.dmp"</span>);
+<a href=#907 id=907 data-nosnippet>907</a>        <span class="macro">assert_eq!</span>(
+<a href=#908 id=908 data-nosnippet>908</a>            remove_container_extension(<span class="string">"minidump.dmp.gz"</span>),
+<a href=#909 id=909 data-nosnippet>909</a>            <span class="string">"minidump.dmp"
+<a href=#910 id=910 data-nosnippet>910</a>        </span>);
 <a href=#911 id=911 data-nosnippet>911</a>        <span class="macro">assert_eq!</span>(
-<a href=#912 id=912 data-nosnippet>912</a>            remove_container_extension(<span class="string">"minidump.dmp.gz"</span>),
+<a href=#912 id=912 data-nosnippet>912</a>            remove_container_extension(<span class="string">"minidump.dmp.bz2"</span>),
 <a href=#913 id=913 data-nosnippet>913</a>            <span class="string">"minidump.dmp"
 <a href=#914 id=914 data-nosnippet>914</a>        </span>);
 <a href=#915 id=915 data-nosnippet>915</a>        <span class="macro">assert_eq!</span>(
-<a href=#916 id=916 data-nosnippet>916</a>            remove_container_extension(<span class="string">"minidump.dmp.bz2"</span>),
+<a href=#916 id=916 data-nosnippet>916</a>            remove_container_extension(<span class="string">"minidump.dmp.xz"</span>),
 <a href=#917 id=917 data-nosnippet>917</a>            <span class="string">"minidump.dmp"
 <a href=#918 id=918 data-nosnippet>918</a>        </span>);
 <a href=#919 id=919 data-nosnippet>919</a>        <span class="macro">assert_eq!</span>(
-<a href=#920 id=920 data-nosnippet>920</a>            remove_container_extension(<span class="string">"minidump.dmp.xz"</span>),
+<a href=#920 id=920 data-nosnippet>920</a>            remove_container_extension(<span class="string">"minidump.dmp.zst"</span>),
 <a href=#921 id=921 data-nosnippet>921</a>            <span class="string">"minidump.dmp"
 <a href=#922 id=922 data-nosnippet>922</a>        </span>);
-<a href=#923 id=923 data-nosnippet>923</a>        <span class="macro">assert_eq!</span>(
-<a href=#924 id=924 data-nosnippet>924</a>            remove_container_extension(<span class="string">"minidump.dmp.zst"</span>),
-<a href=#925 id=925 data-nosnippet>925</a>            <span class="string">"minidump.dmp"
-<a href=#926 id=926 data-nosnippet>926</a>        </span>);
-<a href=#927 id=927 data-nosnippet>927</a>
-<a href=#928 id=928 data-nosnippet>928</a>        <span class="prelude-val">Ok</span>(())
-<a href=#929 id=929 data-nosnippet>929</a>    }
-<a href=#930 id=930 data-nosnippet>930</a>
-<a href=#931 id=931 data-nosnippet>931</a>    <span class="attr">#[tokio::test]
-<a href=#932 id=932 data-nosnippet>932</a>    </span><span class="kw">async fn </span>test_minidump_multipart_attachments() {
-<a href=#933 id=933 data-nosnippet>933</a>        <span class="kw">let </span>multipart_body: <span class="kw-2">&amp;</span>[u8] =
-<a href=#934 id=934 data-nosnippet>934</a>            <span class="string">b"-----MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw---\x0d\x0a\
-<a href=#935 id=935 data-nosnippet>935</a>            Content-Disposition: form-data; name=\"guid\"\x0d\x0a\x0d\x0add46bb04-bb27-448c-aad0-0deb0c134bdb\x0d\x0a\
-<a href=#936 id=936 data-nosnippet>936</a>            -----MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw---\x0d\x0a\
-<a href=#937 id=937 data-nosnippet>937</a>            Content-Disposition: form-data; name=\"config.json\"; filename=\"config.json\"\x0d\x0a\x0d\x0a\
-<a href=#938 id=938 data-nosnippet>938</a>            \"Sentry\": { \"Dsn\": \"https://ingest.us.sentry.io/xxxxxxx\", \"MaxBreadcrumbs\": 50, \"Debug\": true }\x0d\x0a\
-<a href=#939 id=939 data-nosnippet>939</a>            -----MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw---\x0d\x0a\
-<a href=#940 id=940 data-nosnippet>940</a>            Content-Disposition: form-data; name=\"__sentry-breadcrumb1\"; filename=\"__sentry-breadcrumb1\"\x0d\x0a\
-<a href=#941 id=941 data-nosnippet>941</a>            Content-Type: application/octet-stream\x0d\x0a\x0d\x0a\
-<a href=#942 id=942 data-nosnippet>942</a>            \x82\
-<a href=#943 id=943 data-nosnippet>943</a>            \xa9timestamp\xb82024-03-12T16:59:33.069Z\
-<a href=#944 id=944 data-nosnippet>944</a>            \xa7message\xb5default level is info\x0d\x0a\
+<a href=#923 id=923 data-nosnippet>923</a>
+<a href=#924 id=924 data-nosnippet>924</a>        <span class="prelude-val">Ok</span>(())
+<a href=#925 id=925 data-nosnippet>925</a>    }
+<a href=#926 id=926 data-nosnippet>926</a>
+<a href=#927 id=927 data-nosnippet>927</a>    <span class="attr">#[tokio::test]
+<a href=#928 id=928 data-nosnippet>928</a>    </span><span class="kw">async fn </span>test_minidump_multipart_attachments() {
+<a href=#929 id=929 data-nosnippet>929</a>        <span class="kw">let </span>multipart_body: <span class="kw-2">&amp;</span>[u8] =
+<a href=#930 id=930 data-nosnippet>930</a>            <span class="string">b"-----MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw---\x0d\x0a\
+<a href=#931 id=931 data-nosnippet>931</a>            Content-Disposition: form-data; name=\"guid\"\x0d\x0a\x0d\x0add46bb04-bb27-448c-aad0-0deb0c134bdb\x0d\x0a\
+<a href=#932 id=932 data-nosnippet>932</a>            -----MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw---\x0d\x0a\
+<a href=#933 id=933 data-nosnippet>933</a>            Content-Disposition: form-data; name=\"config.json\"; filename=\"config.json\"\x0d\x0a\x0d\x0a\
+<a href=#934 id=934 data-nosnippet>934</a>            \"Sentry\": { \"Dsn\": \"https://ingest.us.sentry.io/xxxxxxx\", \"MaxBreadcrumbs\": 50, \"Debug\": true }\x0d\x0a\
+<a href=#935 id=935 data-nosnippet>935</a>            -----MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw---\x0d\x0a\
+<a href=#936 id=936 data-nosnippet>936</a>            Content-Disposition: form-data; name=\"__sentry-breadcrumb1\"; filename=\"__sentry-breadcrumb1\"\x0d\x0a\
+<a href=#937 id=937 data-nosnippet>937</a>            Content-Type: application/octet-stream\x0d\x0a\x0d\x0a\
+<a href=#938 id=938 data-nosnippet>938</a>            \x82\
+<a href=#939 id=939 data-nosnippet>939</a>            \xa9timestamp\xb82024-03-12T16:59:33.069Z\
+<a href=#940 id=940 data-nosnippet>940</a>            \xa7message\xb5default level is info\x0d\x0a\
+<a href=#941 id=941 data-nosnippet>941</a>            -----MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw---\x0d\x0a\
+<a href=#942 id=942 data-nosnippet>942</a>            Content-Disposition: form-data; name=\"__sentry-breadcrumb2\"; filename=\"__sentry-breadcrumb2\"\x0d\x0a\
+<a href=#943 id=943 data-nosnippet>943</a>            Content-Type: application/octet-stream\x0d\x0a\x0d\x0a\
+<a href=#944 id=944 data-nosnippet>944</a>            \x0d\x0a\
 <a href=#945 id=945 data-nosnippet>945</a>            -----MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw---\x0d\x0a\
-<a href=#946 id=946 data-nosnippet>946</a>            Content-Disposition: form-data; name=\"__sentry-breadcrumb2\"; filename=\"__sentry-breadcrumb2\"\x0d\x0a\
+<a href=#946 id=946 data-nosnippet>946</a>            Content-Disposition: form-data; name=\"__sentry-event\"; filename=\"__sentry-event\"\x0d\x0a\
 <a href=#947 id=947 data-nosnippet>947</a>            Content-Type: application/octet-stream\x0d\x0a\x0d\x0a\
-<a href=#948 id=948 data-nosnippet>948</a>            \x0d\x0a\
+<a href=#948 id=948 data-nosnippet>948</a>            \x82\xa5level\xa5fatal\xa8platform\xa6native\x0d\x0a\
 <a href=#949 id=949 data-nosnippet>949</a>            -----MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw---\x0d\x0a\
-<a href=#950 id=950 data-nosnippet>950</a>            Content-Disposition: form-data; name=\"__sentry-event\"; filename=\"__sentry-event\"\x0d\x0a\
-<a href=#951 id=951 data-nosnippet>951</a>            Content-Type: application/octet-stream\x0d\x0a\x0d\x0a\
-<a href=#952 id=952 data-nosnippet>952</a>            \x82\xa5level\xa5fatal\xa8platform\xa6native\x0d\x0a\
-<a href=#953 id=953 data-nosnippet>953</a>            -----MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw---\x0d\x0a\
-<a href=#954 id=954 data-nosnippet>954</a>            Content-Disposition: form-data; name=\"view-hierarchy.json\"; filename=\"view-hierarchy.json\"\x0d\x0a\
-<a href=#955 id=955 data-nosnippet>955</a>            Content-Type: application/json\x0d\x0a\x0d\x0a\
-<a href=#956 id=956 data-nosnippet>956</a>            {\"rendering_system\":\"android_view_system\",\"windows\":[{\"type\":\"com.android.internal.policy.DecorView\",\"width\":768.0,\"height\":1280.0,\"x\":0.0,\"y\":0.0,\"visibility\":\"visible\",\"alpha\":1.0}]}\x0d\x0a\
-<a href=#957 id=957 data-nosnippet>957</a>            -----MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw-----\x0d\x0a"</span>;
-<a href=#958 id=958 data-nosnippet>958</a>
-<a href=#959 id=959 data-nosnippet>959</a>        <span class="kw">let </span>request = Request::builder()
-<a href=#960 id=960 data-nosnippet>960</a>            .header(
-<a href=#961 id=961 data-nosnippet>961</a>                <span class="string">"content-type"</span>,
-<a href=#962 id=962 data-nosnippet>962</a>                <span class="string">"multipart/form-data; boundary=---MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw---"</span>,
-<a href=#963 id=963 data-nosnippet>963</a>            )
-<a href=#964 id=964 data-nosnippet>964</a>            .body(Body::from(multipart_body)).unwrap();
-<a href=#965 id=965 data-nosnippet>965</a>
-<a href=#966 id=966 data-nosnippet>966</a>        <span class="kw">let </span>config = Config::default();
-<a href=#967 id=967 data-nosnippet>967</a>
-<a href=#968 id=968 data-nosnippet>968</a>        <span class="kw">let </span>request_meta = RequestMeta::new(
-<a href=#969 id=969 data-nosnippet>969</a>            <span class="string">"https://a94ae32be2582e0bbd7a4cbb95971fee:@sentry.io/42"
-<a href=#970 id=970 data-nosnippet>970</a>                </span>.parse()
-<a href=#971 id=971 data-nosnippet>971</a>                .unwrap(),
-<a href=#972 id=972 data-nosnippet>972</a>        );
-<a href=#973 id=973 data-nosnippet>973</a>        <span class="kw">let </span>multipart = utils::multipart_from_request(request).unwrap();
-<a href=#974 id=974 data-nosnippet>974</a>        <span class="kw">let </span>items = utils::multipart_items(
-<a href=#975 id=975 data-nosnippet>975</a>            multipart,
-<a href=#976 id=976 data-nosnippet>976</a>            <span class="kw-2">&amp;</span>config,
-<a href=#977 id=977 data-nosnippet>977</a>            MinidumpAttachmentStrategy {
-<a href=#978 id=978 data-nosnippet>978</a>                upload_context: <span class="prelude-val">None</span>,
-<a href=#979 id=979 data-nosnippet>979</a>            },
-<a href=#980 id=980 data-nosnippet>980</a>            <span class="kw-2">&amp;</span>request_meta,
-<a href=#981 id=981 data-nosnippet>981</a>            <span class="kw-2">&amp;</span>Addr::dummy(),
-<a href=#982 id=982 data-nosnippet>982</a>        )
-<a href=#983 id=983 data-nosnippet>983</a>        .<span class="kw">await
-<a href=#984 id=984 data-nosnippet>984</a>        </span>.unwrap();
-<a href=#985 id=985 data-nosnippet>985</a>
-<a href=#986 id=986 data-nosnippet>986</a>        <span class="comment">// we expect the multipart body to contain
-<a href=#987 id=987 data-nosnippet>987</a>        // * one arbitrary attachment from the user (a `config.json`)
-<a href=#988 id=988 data-nosnippet>988</a>        // * two breadcrumb files
-<a href=#989 id=989 data-nosnippet>989</a>        // * one event file
-<a href=#990 id=990 data-nosnippet>990</a>        // * one form-data item
-<a href=#991 id=991 data-nosnippet>991</a>        // * one view-hierarchy file
-<a href=#992 id=992 data-nosnippet>992</a>        </span><span class="macro">assert_eq!</span>(<span class="number">6</span>, items.len());
-<a href=#993 id=993 data-nosnippet>993</a>
-<a href=#994 id=994 data-nosnippet>994</a>        <span class="comment">// `config.json` has no content-type. MIME-detection in later processing will assign this.
-<a href=#995 id=995 data-nosnippet>995</a>        </span><span class="kw">let </span>item = <span class="kw-2">&amp;</span>items[<span class="number">0</span>];
-<a href=#996 id=996 data-nosnippet>996</a>        <span class="macro">assert_eq!</span>(item.filename().unwrap(), <span class="string">"config.json"</span>);
-<a href=#997 id=997 data-nosnippet>997</a>        <span class="macro">assert!</span>(item.content_type().is_none());
-<a href=#998 id=998 data-nosnippet>998</a>        <span class="macro">assert_eq!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
-<a href=#999 id=999 data-nosnippet>999</a>        <span class="macro">assert_eq!</span>(item.attachment_type().unwrap(), AttachmentType::Attachment);
-<a href=#1000 id=1000 data-nosnippet>1000</a>        <span class="macro">assert_eq!</span>(item.payload().len(), <span class="number">95</span>);
-<a href=#1001 id=1001 data-nosnippet>1001</a>
-<a href=#1002 id=1002 data-nosnippet>1002</a>        <span class="comment">// the first breadcrumb buffer
-<a href=#1003 id=1003 data-nosnippet>1003</a>        </span><span class="kw">let </span>item = <span class="kw-2">&amp;</span>items[<span class="number">1</span>];
-<a href=#1004 id=1004 data-nosnippet>1004</a>        <span class="macro">assert_eq!</span>(item.filename().unwrap(), <span class="string">"__sentry-breadcrumb1"</span>);
-<a href=#1005 id=1005 data-nosnippet>1005</a>        <span class="macro">assert_eq!</span>(item.content_type().unwrap(), ContentType::OctetStream);
-<a href=#1006 id=1006 data-nosnippet>1006</a>        <span class="macro">assert_eq!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
-<a href=#1007 id=1007 data-nosnippet>1007</a>        <span class="macro">assert_eq!</span>(item.attachment_type().unwrap(), AttachmentType::Breadcrumbs);
-<a href=#1008 id=1008 data-nosnippet>1008</a>        <span class="macro">assert_eq!</span>(item.payload().len(), <span class="number">66</span>);
-<a href=#1009 id=1009 data-nosnippet>1009</a>
-<a href=#1010 id=1010 data-nosnippet>1010</a>        <span class="comment">// the second breadcrumb buffer is empty since we haven't reached our max in the first
-<a href=#1011 id=1011 data-nosnippet>1011</a>        </span><span class="kw">let </span>item = <span class="kw-2">&amp;</span>items[<span class="number">2</span>];
-<a href=#1012 id=1012 data-nosnippet>1012</a>        <span class="macro">assert_eq!</span>(item.filename().unwrap(), <span class="string">"__sentry-breadcrumb2"</span>);
-<a href=#1013 id=1013 data-nosnippet>1013</a>        <span class="macro">assert_eq!</span>(item.content_type().unwrap(), ContentType::OctetStream);
-<a href=#1014 id=1014 data-nosnippet>1014</a>        <span class="macro">assert_eq!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
-<a href=#1015 id=1015 data-nosnippet>1015</a>        <span class="macro">assert_eq!</span>(item.attachment_type().unwrap(), AttachmentType::Breadcrumbs);
-<a href=#1016 id=1016 data-nosnippet>1016</a>        <span class="macro">assert_eq!</span>(item.payload().len(), <span class="number">0</span>);
-<a href=#1017 id=1017 data-nosnippet>1017</a>
-<a href=#1018 id=1018 data-nosnippet>1018</a>        <span class="comment">// the msg-pack encoded event file
-<a href=#1019 id=1019 data-nosnippet>1019</a>        </span><span class="kw">let </span>item = <span class="kw-2">&amp;</span>items[<span class="number">3</span>];
-<a href=#1020 id=1020 data-nosnippet>1020</a>        <span class="macro">assert_eq!</span>(item.filename().unwrap(), <span class="string">"__sentry-event"</span>);
-<a href=#1021 id=1021 data-nosnippet>1021</a>        <span class="macro">assert_eq!</span>(item.content_type().unwrap(), ContentType::OctetStream);
-<a href=#1022 id=1022 data-nosnippet>1022</a>        <span class="macro">assert_eq!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
-<a href=#1023 id=1023 data-nosnippet>1023</a>        <span class="macro">assert_eq!</span>(
-<a href=#1024 id=1024 data-nosnippet>1024</a>            item.attachment_type().unwrap(),
-<a href=#1025 id=1025 data-nosnippet>1025</a>            AttachmentType::EventPayload
-<a href=#1026 id=1026 data-nosnippet>1026</a>        );
-<a href=#1027 id=1027 data-nosnippet>1027</a>        <span class="macro">assert_eq!</span>(item.payload().len(), <span class="number">29</span>);
-<a href=#1028 id=1028 data-nosnippet>1028</a>
-<a href=#1029 id=1029 data-nosnippet>1029</a>        <span class="comment">// the next item is the view-hierarchy file
-<a href=#1030 id=1030 data-nosnippet>1030</a>        </span><span class="kw">let </span>item = <span class="kw-2">&amp;</span>items[<span class="number">4</span>];
-<a href=#1031 id=1031 data-nosnippet>1031</a>        <span class="macro">assert_eq!</span>(item.filename().unwrap(), <span class="string">"view-hierarchy.json"</span>);
-<a href=#1032 id=1032 data-nosnippet>1032</a>        <span class="macro">assert_eq!</span>(item.content_type().unwrap(), ContentType::Json);
-<a href=#1033 id=1033 data-nosnippet>1033</a>        <span class="macro">assert_eq!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
-<a href=#1034 id=1034 data-nosnippet>1034</a>        <span class="macro">assert_eq!</span>(
-<a href=#1035 id=1035 data-nosnippet>1035</a>            item.attachment_type().unwrap(),
-<a href=#1036 id=1036 data-nosnippet>1036</a>            AttachmentType::ViewHierarchy
-<a href=#1037 id=1037 data-nosnippet>1037</a>        );
-<a href=#1038 id=1038 data-nosnippet>1038</a>        <span class="macro">assert_eq!</span>(item.payload().len(), <span class="number">184</span>);
-<a href=#1039 id=1039 data-nosnippet>1039</a>
-<a href=#1040 id=1040 data-nosnippet>1040</a>        <span class="comment">// the last item is the form-data if any and contains a `guid` from the `crashpad_handler`
-<a href=#1041 id=1041 data-nosnippet>1041</a>        </span><span class="kw">let </span>item = <span class="kw-2">&amp;</span>items[<span class="number">5</span>];
-<a href=#1042 id=1042 data-nosnippet>1042</a>        <span class="macro">assert!</span>(item.filename().is_none());
-<a href=#1043 id=1043 data-nosnippet>1043</a>        <span class="macro">assert_eq!</span>(item.content_type().unwrap(), ContentType::Text);
-<a href=#1044 id=1044 data-nosnippet>1044</a>        <span class="macro">assert_eq!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::FormData);
-<a href=#1045 id=1045 data-nosnippet>1045</a>        <span class="macro">assert!</span>(item.attachment_type().is_none());
-<a href=#1046 id=1046 data-nosnippet>1046</a>        <span class="kw">let </span>form_payload = item.payload();
-<a href=#1047 id=1047 data-nosnippet>1047</a>        <span class="kw">let </span>form_data_entry = FormDataIter::new(form_payload.as_ref()).next().unwrap();
-<a href=#1048 id=1048 data-nosnippet>1048</a>        <span class="macro">assert_eq!</span>(form_data_entry.key(), <span class="string">"guid"</span>);
-<a href=#1049 id=1049 data-nosnippet>1049</a>        <span class="macro">assert_eq!</span>(
-<a href=#1050 id=1050 data-nosnippet>1050</a>            form_data_entry.value(),
-<a href=#1051 id=1051 data-nosnippet>1051</a>            <span class="string">"dd46bb04-bb27-448c-aad0-0deb0c134bdb"
-<a href=#1052 id=1052 data-nosnippet>1052</a>        </span>);
-<a href=#1053 id=1053 data-nosnippet>1053</a>    }
-<a href=#1054 id=1054 data-nosnippet>1054</a>}
+<a href=#950 id=950 data-nosnippet>950</a>            Content-Disposition: form-data; name=\"view-hierarchy.json\"; filename=\"view-hierarchy.json\"\x0d\x0a\
+<a href=#951 id=951 data-nosnippet>951</a>            Content-Type: application/json\x0d\x0a\x0d\x0a\
+<a href=#952 id=952 data-nosnippet>952</a>            {\"rendering_system\":\"android_view_system\",\"windows\":[{\"type\":\"com.android.internal.policy.DecorView\",\"width\":768.0,\"height\":1280.0,\"x\":0.0,\"y\":0.0,\"visibility\":\"visible\",\"alpha\":1.0}]}\x0d\x0a\
+<a href=#953 id=953 data-nosnippet>953</a>            -----MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw-----\x0d\x0a"</span>;
+<a href=#954 id=954 data-nosnippet>954</a>
+<a href=#955 id=955 data-nosnippet>955</a>        <span class="kw">let </span>request = Request::builder()
+<a href=#956 id=956 data-nosnippet>956</a>            .header(
+<a href=#957 id=957 data-nosnippet>957</a>                <span class="string">"content-type"</span>,
+<a href=#958 id=958 data-nosnippet>958</a>                <span class="string">"multipart/form-data; boundary=---MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw---"</span>,
+<a href=#959 id=959 data-nosnippet>959</a>            )
+<a href=#960 id=960 data-nosnippet>960</a>            .body(Body::from(multipart_body)).unwrap();
+<a href=#961 id=961 data-nosnippet>961</a>
+<a href=#962 id=962 data-nosnippet>962</a>        <span class="kw">let </span>config = Config::default();
+<a href=#963 id=963 data-nosnippet>963</a>
+<a href=#964 id=964 data-nosnippet>964</a>        <span class="kw">let </span>request_meta = RequestMeta::new(
+<a href=#965 id=965 data-nosnippet>965</a>            <span class="string">"https://a94ae32be2582e0bbd7a4cbb95971fee:@sentry.io/42"
+<a href=#966 id=966 data-nosnippet>966</a>                </span>.parse()
+<a href=#967 id=967 data-nosnippet>967</a>                .unwrap(),
+<a href=#968 id=968 data-nosnippet>968</a>        );
+<a href=#969 id=969 data-nosnippet>969</a>        <span class="kw">let </span>multipart = utils::multipart_from_request(request).unwrap();
+<a href=#970 id=970 data-nosnippet>970</a>        <span class="kw">let </span>items = utils::multipart_items(
+<a href=#971 id=971 data-nosnippet>971</a>            multipart,
+<a href=#972 id=972 data-nosnippet>972</a>            <span class="kw-2">&amp;</span>config,
+<a href=#973 id=973 data-nosnippet>973</a>            MinidumpAttachmentStrategy {
+<a href=#974 id=974 data-nosnippet>974</a>                upload_context: <span class="prelude-val">None</span>,
+<a href=#975 id=975 data-nosnippet>975</a>            },
+<a href=#976 id=976 data-nosnippet>976</a>            <span class="kw-2">&amp;</span>request_meta,
+<a href=#977 id=977 data-nosnippet>977</a>            <span class="kw-2">&amp;</span>Addr::dummy(),
+<a href=#978 id=978 data-nosnippet>978</a>        )
+<a href=#979 id=979 data-nosnippet>979</a>        .<span class="kw">await
+<a href=#980 id=980 data-nosnippet>980</a>        </span>.unwrap();
+<a href=#981 id=981 data-nosnippet>981</a>
+<a href=#982 id=982 data-nosnippet>982</a>        <span class="comment">// we expect the multipart body to contain
+<a href=#983 id=983 data-nosnippet>983</a>        // * one arbitrary attachment from the user (a `config.json`)
+<a href=#984 id=984 data-nosnippet>984</a>        // * two breadcrumb files
+<a href=#985 id=985 data-nosnippet>985</a>        // * one event file
+<a href=#986 id=986 data-nosnippet>986</a>        // * one form-data item
+<a href=#987 id=987 data-nosnippet>987</a>        // * one view-hierarchy file
+<a href=#988 id=988 data-nosnippet>988</a>        </span><span class="macro">assert_eq!</span>(<span class="number">6</span>, items.len());
+<a href=#989 id=989 data-nosnippet>989</a>
+<a href=#990 id=990 data-nosnippet>990</a>        <span class="comment">// `config.json` has no content-type. MIME-detection in later processing will assign this.
+<a href=#991 id=991 data-nosnippet>991</a>        </span><span class="kw">let </span>item = <span class="kw-2">&amp;</span>items[<span class="number">0</span>];
+<a href=#992 id=992 data-nosnippet>992</a>        <span class="macro">assert_eq!</span>(item.filename().unwrap(), <span class="string">"config.json"</span>);
+<a href=#993 id=993 data-nosnippet>993</a>        <span class="macro">assert!</span>(item.content_type().is_none());
+<a href=#994 id=994 data-nosnippet>994</a>        <span class="macro">assert_eq!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
+<a href=#995 id=995 data-nosnippet>995</a>        <span class="macro">assert_eq!</span>(item.attachment_type().unwrap(), AttachmentType::Attachment);
+<a href=#996 id=996 data-nosnippet>996</a>        <span class="macro">assert_eq!</span>(item.payload().len(), <span class="number">95</span>);
+<a href=#997 id=997 data-nosnippet>997</a>
+<a href=#998 id=998 data-nosnippet>998</a>        <span class="comment">// the first breadcrumb buffer
+<a href=#999 id=999 data-nosnippet>999</a>        </span><span class="kw">let </span>item = <span class="kw-2">&amp;</span>items[<span class="number">1</span>];
+<a href=#1000 id=1000 data-nosnippet>1000</a>        <span class="macro">assert_eq!</span>(item.filename().unwrap(), <span class="string">"__sentry-breadcrumb1"</span>);
+<a href=#1001 id=1001 data-nosnippet>1001</a>        <span class="macro">assert_eq!</span>(item.content_type().unwrap(), ContentType::OctetStream);
+<a href=#1002 id=1002 data-nosnippet>1002</a>        <span class="macro">assert_eq!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
+<a href=#1003 id=1003 data-nosnippet>1003</a>        <span class="macro">assert_eq!</span>(item.attachment_type().unwrap(), AttachmentType::Breadcrumbs);
+<a href=#1004 id=1004 data-nosnippet>1004</a>        <span class="macro">assert_eq!</span>(item.payload().len(), <span class="number">66</span>);
+<a href=#1005 id=1005 data-nosnippet>1005</a>
+<a href=#1006 id=1006 data-nosnippet>1006</a>        <span class="comment">// the second breadcrumb buffer is empty since we haven't reached our max in the first
+<a href=#1007 id=1007 data-nosnippet>1007</a>        </span><span class="kw">let </span>item = <span class="kw-2">&amp;</span>items[<span class="number">2</span>];
+<a href=#1008 id=1008 data-nosnippet>1008</a>        <span class="macro">assert_eq!</span>(item.filename().unwrap(), <span class="string">"__sentry-breadcrumb2"</span>);
+<a href=#1009 id=1009 data-nosnippet>1009</a>        <span class="macro">assert_eq!</span>(item.content_type().unwrap(), ContentType::OctetStream);
+<a href=#1010 id=1010 data-nosnippet>1010</a>        <span class="macro">assert_eq!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
+<a href=#1011 id=1011 data-nosnippet>1011</a>        <span class="macro">assert_eq!</span>(item.attachment_type().unwrap(), AttachmentType::Breadcrumbs);
+<a href=#1012 id=1012 data-nosnippet>1012</a>        <span class="macro">assert_eq!</span>(item.payload().len(), <span class="number">0</span>);
+<a href=#1013 id=1013 data-nosnippet>1013</a>
+<a href=#1014 id=1014 data-nosnippet>1014</a>        <span class="comment">// the msg-pack encoded event file
+<a href=#1015 id=1015 data-nosnippet>1015</a>        </span><span class="kw">let </span>item = <span class="kw-2">&amp;</span>items[<span class="number">3</span>];
+<a href=#1016 id=1016 data-nosnippet>1016</a>        <span class="macro">assert_eq!</span>(item.filename().unwrap(), <span class="string">"__sentry-event"</span>);
+<a href=#1017 id=1017 data-nosnippet>1017</a>        <span class="macro">assert_eq!</span>(item.content_type().unwrap(), ContentType::OctetStream);
+<a href=#1018 id=1018 data-nosnippet>1018</a>        <span class="macro">assert_eq!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
+<a href=#1019 id=1019 data-nosnippet>1019</a>        <span class="macro">assert_eq!</span>(
+<a href=#1020 id=1020 data-nosnippet>1020</a>            item.attachment_type().unwrap(),
+<a href=#1021 id=1021 data-nosnippet>1021</a>            AttachmentType::EventPayload
+<a href=#1022 id=1022 data-nosnippet>1022</a>        );
+<a href=#1023 id=1023 data-nosnippet>1023</a>        <span class="macro">assert_eq!</span>(item.payload().len(), <span class="number">29</span>);
+<a href=#1024 id=1024 data-nosnippet>1024</a>
+<a href=#1025 id=1025 data-nosnippet>1025</a>        <span class="comment">// the next item is the view-hierarchy file
+<a href=#1026 id=1026 data-nosnippet>1026</a>        </span><span class="kw">let </span>item = <span class="kw-2">&amp;</span>items[<span class="number">4</span>];
+<a href=#1027 id=1027 data-nosnippet>1027</a>        <span class="macro">assert_eq!</span>(item.filename().unwrap(), <span class="string">"view-hierarchy.json"</span>);
+<a href=#1028 id=1028 data-nosnippet>1028</a>        <span class="macro">assert_eq!</span>(item.content_type().unwrap(), ContentType::Json);
+<a href=#1029 id=1029 data-nosnippet>1029</a>        <span class="macro">assert_eq!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
+<a href=#1030 id=1030 data-nosnippet>1030</a>        <span class="macro">assert_eq!</span>(
+<a href=#1031 id=1031 data-nosnippet>1031</a>            item.attachment_type().unwrap(),
+<a href=#1032 id=1032 data-nosnippet>1032</a>            AttachmentType::ViewHierarchy
+<a href=#1033 id=1033 data-nosnippet>1033</a>        );
+<a href=#1034 id=1034 data-nosnippet>1034</a>        <span class="macro">assert_eq!</span>(item.payload().len(), <span class="number">184</span>);
+<a href=#1035 id=1035 data-nosnippet>1035</a>
+<a href=#1036 id=1036 data-nosnippet>1036</a>        <span class="comment">// the last item is the form-data if any and contains a `guid` from the `crashpad_handler`
+<a href=#1037 id=1037 data-nosnippet>1037</a>        </span><span class="kw">let </span>item = <span class="kw-2">&amp;</span>items[<span class="number">5</span>];
+<a href=#1038 id=1038 data-nosnippet>1038</a>        <span class="macro">assert!</span>(item.filename().is_none());
+<a href=#1039 id=1039 data-nosnippet>1039</a>        <span class="macro">assert_eq!</span>(item.content_type().unwrap(), ContentType::Text);
+<a href=#1040 id=1040 data-nosnippet>1040</a>        <span class="macro">assert_eq!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::FormData);
+<a href=#1041 id=1041 data-nosnippet>1041</a>        <span class="macro">assert!</span>(item.attachment_type().is_none());
+<a href=#1042 id=1042 data-nosnippet>1042</a>        <span class="kw">let </span>form_payload = item.payload();
+<a href=#1043 id=1043 data-nosnippet>1043</a>        <span class="kw">let </span>form_data_entry = FormDataIter::new(form_payload.as_ref()).next().unwrap();
+<a href=#1044 id=1044 data-nosnippet>1044</a>        <span class="macro">assert_eq!</span>(form_data_entry.key(), <span class="string">"guid"</span>);
+<a href=#1045 id=1045 data-nosnippet>1045</a>        <span class="macro">assert_eq!</span>(
+<a href=#1046 id=1046 data-nosnippet>1046</a>            form_data_entry.value(),
+<a href=#1047 id=1047 data-nosnippet>1047</a>            <span class="string">"dd46bb04-bb27-448c-aad0-0deb0c134bdb"
+<a href=#1048 id=1048 data-nosnippet>1048</a>        </span>);
+<a href=#1049 id=1049 data-nosnippet>1049</a>    }
+<a href=#1050 id=1050 data-nosnippet>1050</a>}
 </code></pre></div></section></main></body></html>
