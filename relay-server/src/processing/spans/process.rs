@@ -283,7 +283,10 @@ fn normalize_span(
         eap::normalize_mobile_measurements(&mut span.attributes, duration);
         eap::normalize_attribute_values(&mut span.attributes, allowed_hosts);
         eap::write_legacy_attributes(&mut span.attributes);
-        eap::normalize_client_sample_rate(&mut span.attributes);
+        eap::normalize_client_sample_rate(
+            &mut span.attributes,
+            headers.dsc().and_then(|dsc| dsc.sample_rate),
+        );
         eap::normalize_pipeline_attributes(&mut span.attributes, ingress, Some(&Pipeline::SpanV2));
     };
 

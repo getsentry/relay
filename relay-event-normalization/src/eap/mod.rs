@@ -541,11 +541,19 @@ pub fn normalize_trace_status(
 
 /// Normalizes the client sample rate attribute to be in the range `(0, 1]`.
 ///
+/// If the attribute is missing, it is created from the DSC sample rate, falling back to `1.0`. The
+/// resulting value is validated the same way as a client supplied one.
+///
 /// This is only relevant for spans as other eap types re not sampled.
-pub fn normalize_client_sample_rate(attributes: &mut Annotated<Attributes>) {
-    let Some(attributes) = attributes.value_mut() else {
-        return;
-    };
+pub fn normalize_client_sample_rate(
+    attributes: &mut Annotated<Attributes>,
+    dsc_sample_rate: Option<f64>,
+) {
+    let attributes = attributes.get_or_insert_with(Default::default);
+
+    if attributes.get_value(SENTRY__CLIENT_SAMPLE_RATE).is_none() {
+        attributes.insert(SENTRY__CLIENT_SAMPLE_RATE, dsc_sample_rate.unwrap_or(1.0));
+    }
 
     // This is fine if normalizations like this stay one-offs. If at some point we end up with more
     // of these structural validations or normalizations based on attributes, they should be
@@ -2978,13 +2986,72 @@ mod tests {
         )
         .unwrap();
 
-        normalize_client_sample_rate(&mut attributes);
+        normalize_client_sample_rate(&mut attributes, None);
 
         assert_annotated_snapshot!(attributes, @r#"
         {
           "sentry.client_sample_rate": {
             "type": "double",
             "value": 1.0
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_client_sample_rate_missing_uses_dsc() {
+        let mut attributes = Annotated::new(Attributes::new());
+
+        normalize_client_sample_rate(&mut attributes, Some(0.25));
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.client_sample_rate": {
+            "type": "double",
+            "value": 0.25
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_client_sample_rate_missing_defaults_to_one() {
+        let mut attributes = Annotated::new(Attributes::new());
+
+        normalize_client_sample_rate(&mut attributes, None);
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.client_sample_rate": {
+            "type": "double",
+            "value": 1.0
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_client_sample_rate_invalid_dsc_marked_as_error() {
+        let mut attributes = Annotated::new(Attributes::new());
+
+        normalize_client_sample_rate(&mut attributes, Some(0.0));
+
+        assert_annotated_snapshot!(attributes, @r#"
+        {
+          "sentry.client_sample_rate": null,
+          "_meta": {
+            "sentry.client_sample_rate": {
+              "": {
+                "err": [
+                  [
+                    "invalid_data",
+                    {
+                      "reason": "expected sample rate > 0.0, <= 1.0"
+                    }
+                  ]
+                ]
+              }
+            }
           }
         }
         "#);
@@ -2998,7 +3065,7 @@ mod tests {
             Annotated::new(attrs)
         };
 
-        normalize_client_sample_rate(&mut attributes);
+        normalize_client_sample_rate(&mut attributes, None);
 
         assert_annotated_snapshot!(attributes, @r#"
         {
@@ -3029,7 +3096,7 @@ mod tests {
             Annotated::new(attrs)
         };
 
-        normalize_client_sample_rate(&mut attributes);
+        normalize_client_sample_rate(&mut attributes, None);
 
         assert_annotated_snapshot!(attributes, @r#"
         {
@@ -3060,7 +3127,7 @@ mod tests {
             Annotated::new(attrs)
         };
 
-        normalize_client_sample_rate(&mut attributes);
+        normalize_client_sample_rate(&mut attributes, None);
 
         assert_annotated_snapshot!(attributes, @r#"
         {
