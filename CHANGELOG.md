@@ -18,6 +18,10 @@
 - Correct error and outcome for too large streams. ([#6291](https://github.com/getsentry/relay/pull/6291))
 - Validate streamed minidumps and correctly enforce size limit for buffered minidumps. ([#6282](https://github.com/getsentry/relay/pull/6282))
 
+**Internal**:
+
+- Graduate the profiling feature flag. ([#6300](https://github.com/getsentry/relay/pull/6300))
+
 ## 26.7.2
 
 **Features**:

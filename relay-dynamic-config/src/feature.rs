@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 pub const GRADUATED_FEATURE_FLAGS: &[Feature] = &[
     Feature::UserReportV2Ingest,
     Feature::IngestUnsampledProfiles,
+    Feature::DeprecatedProfiling,
     Feature::DeprecatedOtelTracesEndpoint,
     Feature::DeprecatedOtelLogsEndpoint,
     Feature::DeprecatedExtractSpansFromEvent,
@@ -32,11 +33,6 @@ pub enum Feature {
     /// Serialized as `organizations:session-replay-video-disabled`.
     #[serde(rename = "organizations:session-replay-video-disabled")]
     SessionReplayVideoDisabled,
-    /// Enable processing profiles.
-    ///
-    /// Serialized as `organizations:profiling`.
-    #[serde(rename = "organizations:profiling")]
-    Profiling,
     /// Enable playstation crash dump ingestion via the `/playstation/` endpoint.
     ///
     /// Serialized as `organizations:relay-playstation-ingestion`.
@@ -140,7 +136,12 @@ pub enum Feature {
     #[doc(hidden)]
     #[serde(rename = "organizations:standalone-span-ingestion")]
     DeprecatedStandaloneSpanIngestion,
-
+    /// Enable processing profiles.
+    ///
+    /// This feature has graduated and is hard-coded for external Relays.
+    #[doc(hidden)]
+    #[serde(rename = "organizations:profiling")]
+    DeprecatedProfiling,
     /// Enables the experimental Span V2 processing pipeline in Relay.
     ///
     /// This feature has graduated.

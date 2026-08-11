@@ -217,7 +217,7 @@ def test_profile_chunk_outcomes_rate_limited(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
 
-    # Enable profiling feature flag
+    # Enable continuous profiling feature flag
     project_config.setdefault("features", []).append(
         "organizations:continuous-profiling"
     )

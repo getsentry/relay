@@ -778,8 +778,8 @@ def test_profile_outcomes(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
 
-    project_config.setdefault("features", []).extend(
-        ["organizations:profiling", "organizations:relay-generate-billing-outcome"]
+    project_config.setdefault("features", []).append(
+        "organizations:relay-generate-billing-outcome"
     )
     project_config["sampling"] = {
         "version": 2,
@@ -956,8 +956,8 @@ def test_profile_outcomes_invalid(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
-    project_config.setdefault("features", []).extend(
-        ["organizations:profiling", "organizations:relay-generate-billing-outcome"]
+    project_config.setdefault("features", []).append(
+        "organizations:relay-generate-billing-outcome"
     )
 
     config = {
@@ -1046,8 +1046,8 @@ def test_profile_outcomes_too_many(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
 
-    project_config.setdefault("features", []).extend(
-        ["organizations:profiling", "organizations:relay-generate-billing-outcome"]
+    project_config.setdefault("features", []).append(
+        "organizations:relay-generate-billing-outcome"
     )
 
     config = {
@@ -1165,8 +1165,8 @@ def test_profile_outcomes_rate_limited(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
 
-    project_config.setdefault("features", []).extend(
-        ["organizations:profiling", "organizations:relay-generate-billing-outcome"]
+    project_config.setdefault("features", []).append(
+        "organizations:relay-generate-billing-outcome"
     )
     project_config["quotas"] = [
         {
@@ -1283,7 +1283,6 @@ def test_profile_outcomes_rate_limited_when_dynamic_sampling_drops(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
 
-    project_config.setdefault("features", []).append("organizations:profiling")
     project_config["quotas"] = [
         {
             "id": f"test_rate_limiting_{uuid.uuid4().hex}",
@@ -1357,8 +1356,8 @@ def test_span_outcomes(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
-    project_config.setdefault("features", []).extend(
-        ["organizations:profiling", "organizations:relay-generate-billing-outcome"]
+    project_config.setdefault("features", []).append(
+        "organizations:relay-generate-billing-outcome"
     )
     project_config["sampling"] = {
         "version": 2,
