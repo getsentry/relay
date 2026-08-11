@@ -9,7 +9,7 @@ use crate::services::outcome::DiscardReason;
 /// Expands OTeL logs into the [`OurLog`] format.
 pub fn expand<F>(format: OtelFormat, payload: &[u8], mut produce: F) -> Result<Settings>
 where
-    F: FnMut(OurLog),
+    F: FnMut(OurLog) -> Result<()>,
 {
     let logs = parse_logs_data(format, payload)?;
 
@@ -19,7 +19,7 @@ where
             let scope = scope_logs.scope.as_ref();
             for log_record in scope_logs.log_records {
                 let log = relay_ourlogs::otel_to_sentry_log(log_record, resource, scope);
-                produce(log);
+                produce(log)?;
             }
         }
     }
