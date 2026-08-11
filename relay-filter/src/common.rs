@@ -51,9 +51,6 @@ pub enum FilterStatKey {
     GenericFilter(String),
 
     /// Filtered due to a customer defined inbound filter.
-    ///
-    /// These filters have an identifier which is unique per project. The identifier is not
-    /// reported, so that the set of outcome reasons stays bounded.
     CustomFilter,
 }
 
