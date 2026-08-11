@@ -50,7 +50,7 @@ pub(crate) fn should_filter<F: Getter>(
 
     for filter_config in filters {
         if filter_config.is_enabled && matches(item, filter_config.condition) {
-            return Err(FilterStatKey::GenericFilter(filter_config.id.to_owned()));
+            return Err(FilterStatKey::from_generic_filter_id(filter_config.id));
         }
     }
 
@@ -221,6 +221,28 @@ mod tests {
         assert_eq!(
             should_filter(&event, &config, None),
             Err(FilterStatKey::GenericFilter("helloTransactions".to_owned()))
+        );
+    }
+
+    #[test]
+    fn test_should_filter_custom_filter() {
+        let config = GenericFiltersConfig {
+            version: 1,
+            filters: vec![GenericFilterConfig {
+                id: "cif-42".to_owned(),
+                is_enabled: true,
+                condition: Some(RuleCondition::eq("event.release", "1.0")),
+            }]
+            .into(),
+        };
+
+        let event = Event {
+            release: Annotated::new(LenientString("1.0".to_owned())),
+            ..Default::default()
+        };
+        assert_eq!(
+            should_filter(&event, &config, None),
+            Err(FilterStatKey::CustomFilter)
         );
     }
 

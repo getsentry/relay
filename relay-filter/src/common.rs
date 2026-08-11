@@ -49,6 +49,12 @@ pub enum FilterStatKey {
 
     /// Filtered due to a generic filter.
     GenericFilter(String),
+
+    /// Filtered due to a customer defined inbound filter.
+    ///
+    /// These filters have an identifier which is unique per project. The identifier is not
+    /// reported, so that the set of outcome reasons stays bounded.
+    CustomFilter,
 }
 
 // An event grouped to a removed group.
@@ -63,7 +69,19 @@ pub enum FilterStatKey {
 // that is why it was commented here and moved to OutcomeInvalidReason enum
 // Cors,
 
+/// Prefix that Sentry gives to the identifiers of customer defined inbound filters.
+const CUSTOM_FILTER_PREFIX: &str = "cif-";
+
 impl FilterStatKey {
+    /// Returns the stat key for a generic filter with the given identifier.
+    pub fn from_generic_filter_id(id: &str) -> Self {
+        if id.starts_with(CUSTOM_FILTER_PREFIX) {
+            FilterStatKey::CustomFilter
+        } else {
+            FilterStatKey::GenericFilter(id.to_owned())
+        }
+    }
+
     /// Returns the string identifier of the filter stat key.
     pub fn name(self) -> Cow<'static, str> {
         Cow::Borrowed(match self {
@@ -79,6 +97,7 @@ impl FilterStatKey {
             FilterStatKey::DeniedName => "denied-name",
             FilterStatKey::DisabledNamespace => "disabled-namespace",
             FilterStatKey::Discarded => "discarded",
+            FilterStatKey::CustomFilter => "custom-filter",
             FilterStatKey::GenericFilter(filter_identifier) => {
                 return Cow::Owned(filter_identifier);
             }
@@ -106,7 +125,8 @@ impl<'a> TryFrom<&'a str> for FilterStatKey {
             "web-crawlers" => FilterStatKey::WebCrawlers,
             "invalid-csp" => FilterStatKey::InvalidCsp,
             "filtered-transaction" => FilterStatKey::FilteredTransactions,
-            other => FilterStatKey::GenericFilter(other.to_owned()),
+            "custom-filter" => FilterStatKey::CustomFilter,
+            other => FilterStatKey::from_generic_filter_id(other),
         })
     }
 }
