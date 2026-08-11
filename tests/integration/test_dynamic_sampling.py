@@ -781,9 +781,6 @@ def test_relay_chain_keep_unsampled_profile(
     else:
         relay = relay_with_processing()
     config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["features"] = [
-        "organizations:profiling",
-    ]
 
     public_key = config["publicKeys"][0]["publicKey"]
     add_sampling_config(config, sample_rate=0.0, rule_type="transaction")

@@ -129,8 +129,7 @@ pub fn prepare_data(
     ctx: &mut Context<'_>,
 ) -> Result<(), Rejected<Error>> {
     let scoping = work.scoping();
-    work.try_modify(|work, record_keeper| {
-        profile::filter(work, record_keeper, *ctx);
+    work.try_modify(|work, _| {
         profile::transfer_id(&mut work.event, work.profile.as_ref().map(|p| p.meta.id));
         profile::remove_context_if_rate_limited(&mut work.event, scoping, *ctx);
 
