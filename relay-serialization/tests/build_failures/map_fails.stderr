@@ -1,0 +1,5 @@
+error: map types are currently unsupported
+ --> tests/build_failures/map_fails.rs:7:17
+  |
+7 |     #[prost(map = "string, string", tag = "1")]
+  |                 ^
