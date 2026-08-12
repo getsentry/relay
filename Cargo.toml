@@ -246,3 +246,7 @@ utf16string = "0.2"
 uuid = { version = "1", features = ["serde", "v4", "v7"] }
 walkdir = "2"
 zstd = { version = "0.13", features = ["experimental"] }
+
+
+[patch.crates-io]
+dynfmt = { git = "https://github.com/tobias-wilfert/dynfmt", rev = "b083d5d294f591ae4dbb349a3aef8a3f6b2acf90" }
