@@ -21,6 +21,7 @@
 **Internal**:
 
 - Graduate the profiling feature flag. ([#6300](https://github.com/getsentry/relay/pull/6300))
+- Limit interpolated `formatted` message for `LogEntry`. ([#6303](https://github.com/getsentry/relay/pull/6303))
 
 ## 26.7.2
 
