@@ -122,7 +122,7 @@ deadpool = "0.12"
 debugid = "0.8"
 dialoguer = "0.11"
 dircpy = "0.3"
-dynfmt = "0.1"
+dynfmt = "0.2"
 ed25519-dalek = { version = "2", features = ["digest", "pem", "pkcs8"] }
 enumset = "1"
 either = "1"
@@ -246,7 +246,3 @@ utf16string = "0.2"
 uuid = { version = "1", features = ["serde", "v4", "v7"] }
 walkdir = "2"
 zstd = { version = "0.13", features = ["experimental"] }
-
-
-[patch.crates-io]
-dynfmt = { git = "https://github.com/tobias-wilfert/dynfmt", rev = "b083d5d294f591ae4dbb349a3aef8a3f6b2acf90" }
