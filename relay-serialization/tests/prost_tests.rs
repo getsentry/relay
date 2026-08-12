@@ -1,10 +1,10 @@
 mod prost {
     use prost::Message;
     use relay_serialization::prost::{decode, ops, scan};
-    use relay_serialization_derive::BoundedMessage as DeriveBoundedMessage;
+    use relay_serialization_derive::RuntimeDescription as DeriveRuntimeDescription;
 
     /// A leaf message with one field of every shape the scanner dispatches on.
-    #[derive(Clone, PartialEq, Message, DeriveBoundedMessage)]
+    #[derive(Clone, PartialEq, Message, DeriveRuntimeDescription)]
     struct Leaf {
         #[prost(string, tag = "1")]
         text: String,
@@ -21,7 +21,7 @@ mod prost {
     }
 
     /// A message which nests, so the scanner has to recurse to see the leaves.
-    #[derive(Clone, PartialEq, Message, DeriveBoundedMessage)]
+    #[derive(Clone, PartialEq, Message, DeriveRuntimeDescription)]
     struct Branch {
         #[prost(message, repeated, tag = "1")]
         leaves: Vec<Leaf>,
@@ -32,7 +32,7 @@ mod prost {
     }
 
     /// A message which nests, so the scanner has to recurse to see the leaves.
-    #[derive(Clone, PartialEq, prost::Oneof, DeriveBoundedMessage)]
+    #[derive(Clone, PartialEq, prost::Oneof, DeriveRuntimeDescription)]
     enum Var {
         #[prost(string, tag = "6")]
         Name(String),

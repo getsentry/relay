@@ -35,7 +35,7 @@ pub enum Nested {
 
 /// A trait for prost Messages to implement, allowing them to self-describe the kinds of nested
 /// fields that have on themselves.
-pub trait BoundedMessage {
+pub trait RuntimeDescription {
     /// Returns the one and only array of nested fields (fields that refer to other messages)
     /// on this particular Message.
     fn desc() -> &'static [Nested];
@@ -93,7 +93,7 @@ impl std::error::Error for Error {
 /// [`Error::LimitExceeded`] if the message exceeds the budget.
 pub fn decode<M>(buf: &[u8], max_ops: usize) -> Result<M, Error>
 where
-    M: Message + Default + BoundedMessage,
+    M: Message + Default + RuntimeDescription,
 {
     scan::<M>(buf, max_ops)?;
     M::decode(buf).map_err(Error::Decode)
@@ -101,7 +101,7 @@ where
 
 /// Checks that the message in `buf` fits within `max_ops`, without decoding it.  Returns
 /// the number of ops spent doing the scan.
-pub fn scan<T: BoundedMessage + Message>(buf: &[u8], max_ops: usize) -> Result<usize, Error> {
+pub fn scan<T: RuntimeDescription + Message>(buf: &[u8], max_ops: usize) -> Result<usize, Error> {
     let mut meter = Meter::new(max_ops);
 
     match scan_message(buf, T::desc(), &mut meter, 0) {
@@ -256,7 +256,7 @@ impl<'a> Reader<'a> {
 /// Returns the number of ops consumed deserializing the supplied message.
 pub fn ops<T>(msg: &T) -> usize
 where
-    T: BoundedMessage + Message,
+    T: RuntimeDescription + Message,
 {
     let mut meter = Meter::new(usize::MAX);
     scan_message(&msg.encode_to_vec(), T::desc(), &mut meter, 0).unwrap();

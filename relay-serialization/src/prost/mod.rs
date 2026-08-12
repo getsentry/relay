@@ -6,6 +6,6 @@ mod scan;
 pub use scan::Error;
 pub use scan::decode;
 pub use scan::scan;
-pub use scan::{BoundedMessage, Nested};
+pub use scan::{Nested, RuntimeDescription};
 
 pub use scan::ops;

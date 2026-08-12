@@ -4,7 +4,7 @@ use quote::{quote, quote_spanned};
 use syn::spanned::Spanned;
 use syn::{DeriveInput, LitStr, PathArguments, Type, parse_macro_input};
 
-#[proc_macro_derive(BoundedMessage)]
+#[proc_macro_derive(RuntimeDescription)]
 pub fn derive(s: TokenStream) -> TokenStream {
     let input = parse_macro_input!(s as DeriveInput);
 
@@ -48,18 +48,18 @@ pub fn derive(s: TokenStream) -> TokenStream {
     let qs = nested_v.into_iter().map(|(typ, tag)| {
         if let TypeKind::Field(tag) = tag {
             quote! {
-                ::relay_serialization::prost::Nested::Field(#tag, < #typ as ::relay_serialization::prost::BoundedMessage>::desc)
+                ::relay_serialization::prost::Nested::Field(#tag, < #typ as ::relay_serialization::prost::RuntimeDescription>::desc)
             }
         } else {
             quote! {
-                ::relay_serialization::prost::Nested::Oneof(< #typ as ::relay_serialization::prost::BoundedMessage>::desc)
+                ::relay_serialization::prost::Nested::Oneof(< #typ as ::relay_serialization::prost::RuntimeDescription>::desc)
             }
         }
     });
 
     let typ = &input.ident;
     quote! {
-        impl ::relay_serialization::prost::BoundedMessage for #typ {
+        impl ::relay_serialization::prost::RuntimeDescription for #typ {
             fn desc() -> &'static [::relay_serialization::prost::Nested] {
                 &[#(#qs,)*]
             }
