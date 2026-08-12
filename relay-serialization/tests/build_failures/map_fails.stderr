@@ -1,5 +1,17 @@
 error: map types are currently unsupported
- --> tests/build_failures/map_fails.rs:7:17
+ --> tests/build_failures/map_fails.rs:8:17
   |
-7 |     #[prost(map = "string, string", tag = "1")]
+8 |     #[prost(map = "string, string", tag = "1")]
   |                 ^
+
+error: map types are currently unsupported
+  --> tests/build_failures/map_fails.rs:14:22
+   |
+14 |     #[prost(hash_map = "string, string", tag = "1")]
+   |                      ^
+
+error: map types are currently unsupported
+  --> tests/build_failures/map_fails.rs:20:23
+   |
+20 |     #[prost(btree_map = "string, string", tag = "1")]
+   |                       ^

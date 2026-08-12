@@ -36,7 +36,13 @@ pub fn derive(s: TokenStream) -> TokenStream {
                 }
             }
         }
-        syn::Data::Union(_) => {}
+        syn::Data::Union(_) => {
+            let span = input.span();
+            return quote_spanned! {
+                span => compile_error!("unions are unsupported")
+            }
+            .into();
+        }
     }
 
     let qs = nested_v.into_iter().map(|(typ, tag)| {
@@ -55,7 +61,6 @@ pub fn derive(s: TokenStream) -> TokenStream {
     quote! {
         impl ::relay_serialization::prost::BoundedMessage for #typ {
             fn desc() -> &'static [::relay_serialization::prost::Nested] {
-
                 &[#(#qs,)*]
             }
         }
@@ -124,6 +129,7 @@ fn collect_tags_and_types(
         if meta.path.is_ident("bytes")
             || meta.path.is_ident("enumeration")
             || meta.path.is_ident("tags")
+            || meta.path.is_ident("packed")
         {
             let value = meta.value()?;
             let _: LitStr = value.parse()?;

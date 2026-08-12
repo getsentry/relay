@@ -142,7 +142,11 @@ mod prost {
         };
         let payload = branch.encode_to_vec();
 
-        assert!(decode::<Branch>(&payload, 128).is_err());
+        assert!(
+            decode::<Branch>(&payload, 128)
+                .unwrap_err()
+                .is_limit_exceeded()
+        );
         // The same payload decodes once the budget accommodates it.
         let decoded = decode::<Branch>(&payload, 1 << 20).unwrap();
         assert_eq!(decoded, branch);
@@ -166,8 +170,8 @@ mod prost {
             [0x00, 0x01].as_slice(),
             [0x08, 0xff].as_slice(),
         ] {
-            let error = scan::<Branch>(payload, 1 << 20).unwrap_err();
-            assert!(!error.is_limit_exceeded(), "{payload:?}");
+            let error = decode::<Branch>(payload, 1 << 20).unwrap_err();
+            assert!(error.is_scan_error(), "{payload:?}");
             // Whatever the scanner rejects, prost rejects too.
             assert!(Branch::decode(payload).is_err(), "{payload:?}");
         }

@@ -57,6 +57,16 @@ impl Error {
     pub fn is_limit_exceeded(&self) -> bool {
         matches!(self, Self::LimitExceeded)
     }
+
+    /// Returns `true` if the message decoding encountered a decoding (prost) error.
+    pub fn is_decode_error(&self) -> bool {
+        matches!(self, Self::Decode(_))
+    }
+
+    /// Returns `true` if the message decoding encountered a parsing error during scanning.
+    pub fn is_scan_error(&self) -> bool {
+        matches!(self, Self::ScanError(_))
+    }
 }
 
 impl fmt::Display for Error {
