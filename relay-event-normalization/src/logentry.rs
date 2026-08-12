@@ -224,16 +224,16 @@ mod tests {
     }
 
     #[test]
-    fn normalize_logentry_limit() {
+    fn test_normalize_logentry_limit() {
         let mut logentry = LogEntry {
-            message: Annotated::new("{0}".to_owned().into()),
+            message: Annotated::new("{0}{0}{0}{0}".to_owned().into()),
             params: Annotated::new(Value::Array(vec![Annotated::new(Value::String(
-                "#".repeat(9000 * 4),
+                "#".repeat(9000),
             ))])),
             ..LogEntry::default()
         };
 
         normalize_logentry(&mut logentry, &mut Meta::default());
-        assert_eq!(logentry.formatted.as_str(), Some("{0}"));
+        assert_eq!(logentry.formatted.as_str(), Some("{0}{0}{0}{0}"));
     }
 }
