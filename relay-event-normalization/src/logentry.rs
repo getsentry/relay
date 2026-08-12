@@ -1,7 +1,6 @@
 #![cfg_attr(test, allow(unused_must_use))]
 
-use std::borrow::Cow;
-
+use bytes::BufMut;
 use dynfmt::{Argument, Format, FormatArgs, PythonFormat, SimpleCurlyFormat};
 use relay_event_schema::processor::{ProcessingAction, ProcessingResult};
 use relay_event_schema::protocol::LogEntry;
@@ -31,22 +30,25 @@ impl FormatArgs for ValueRef<'_> {
     }
 }
 
-fn format_message(format: &str, params: &Value) -> Option<String> {
+fn format_message(format: &str, params: &Value, limit: usize) -> Option<String> {
     // NB: This currently resembles the historic logic for formatting strings. It could be much more
     // lenient however, and try multiple formats one after another without exiting early.
+    let mut buf = Vec::new();
+    let writer = (&mut buf).limit(limit).writer();
+
     if format.contains('%') {
         PythonFormat
-            .format(format, ValueRef(params))
-            .ok()
-            .map(Cow::into_owned)
+            .format_into(writer, format, ValueRef(params))
+            .ok()?
     } else if format.contains('{') {
         SimpleCurlyFormat
-            .format(format, ValueRef(params))
-            .ok()
-            .map(Cow::into_owned)
+            .format_into(writer, format, ValueRef(params))
+            .ok()?
     } else {
-        None
-    }
+        return None;
+    };
+
+    String::from_utf8(buf).ok()
 }
 
 pub fn normalize_logentry(logentry: &mut LogEntry, meta: &mut Meta) -> ProcessingResult {
@@ -60,10 +62,13 @@ pub fn normalize_logentry(logentry: &mut LogEntry, meta: &mut Meta) -> Processin
         return Err(ProcessingAction::DeleteValueSoft);
     }
 
+    // Conservative limit assuming all chars are 4 bytes.
+    let limit = LogEntry::MAX_MESSAGE_CHARS * 4;
+
     if let Some(params) = logentry.params.value()
         && logentry.formatted.value().is_none()
         && let Some(message) = logentry.message.value()
-        && let Some(formatted) = format_message(message.as_ref(), params)
+        && let Some(formatted) = format_message(message.as_ref(), params, limit)
     {
         logentry.formatted = Annotated::new(formatted.into());
     }
@@ -206,5 +211,29 @@ mod tests {
 
         assert_eq!(normalize_logentry(&mut logentry, &mut meta), Ok(()));
         assert!(!meta.has_errors());
+    }
+
+    #[test]
+    fn test_format_message_limit() {
+        let params = Value::Array(vec![Annotated::new(Value::String("world".to_owned()))]);
+        assert_eq!(
+            format_message("hello, {}!", &params, 13).as_deref(),
+            Some("hello, world!")
+        );
+        assert_eq!(format_message("hello, {}!", &params, 12), None);
+    }
+
+    #[test]
+    fn normalize_logentry_limit() {
+        let mut logentry = LogEntry {
+            message: Annotated::new("{0}".to_owned().into()),
+            params: Annotated::new(Value::Array(vec![Annotated::new(Value::String(
+                "#".repeat(9000 * 4),
+            ))])),
+            ..LogEntry::default()
+        };
+
+        normalize_logentry(&mut logentry, &mut Meta::default());
+        assert_eq!(logentry.formatted.as_str(), Some("{0}"));
     }
 }

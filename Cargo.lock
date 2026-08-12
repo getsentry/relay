@@ -4590,6 +4590,7 @@ name = "relay-event-normalization"
 version = "26.7.2"
 dependencies = [
  "bytecount",
+ "bytes",
  "chrono",
  "dynfmt",
  "insta",
