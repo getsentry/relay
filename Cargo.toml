@@ -122,7 +122,7 @@ deadpool = "0.12"
 debugid = "0.8"
 dialoguer = "0.11"
 dircpy = "0.3"
-dynfmt = "0.1"
+dynfmt = "0.2"
 ed25519-dalek = { version = "2", features = ["digest", "pem", "pkcs8"] }
 enumset = "1"
 either = "1"
