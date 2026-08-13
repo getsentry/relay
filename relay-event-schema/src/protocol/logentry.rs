@@ -34,7 +34,7 @@ pub struct LogEntry {
     /// Therefore this really should just be a string template, i.e. `Sending %d requests` instead
     /// of `Sending 9999 requests`. The latter is much better at home in `formatted`.
     ///
-    /// It must not exceed [LogEntry::MAX_MESSAGE_CHARS] characters. Longer messages will be truncated.
+    /// It must not exceed [`LogEntry::MAX_MESSAGE_CHARS`] characters. Longer messages will be truncated.
     #[metastructure(max_chars = LogEntry::MAX_MESSAGE_CHARS, max_chars_allowance = 200)]
     pub message: Annotated<Message>,
 
