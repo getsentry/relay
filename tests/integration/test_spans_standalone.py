@@ -220,6 +220,7 @@ def test_lcp_span(
                 "AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
             },
             "browser.version": {"type": "string", "value": "42.0"},
+            "sentry.client_sample_rate": {"type": "double", "value": 1.0},
             "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
@@ -427,6 +428,7 @@ def test_cls_span(
                 "AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
             },
             "browser.version": {"type": "string", "value": "42.0"},
+            "sentry.client_sample_rate": {"type": "double", "value": 1.0},
             "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
@@ -609,6 +611,7 @@ def test_inp_span(
                 "AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
             },
             "browser.version": {"type": "string", "value": "42.0"},
+            "sentry.client_sample_rate": {"type": "double", "value": 1.0},
             "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
@@ -846,6 +849,7 @@ def test_mobile_measurements(
                 "AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
             },
             "browser.version": {"type": "string", "value": "42.0"},
+            "sentry.client_sample_rate": {"type": "double", "value": 1.0},
             "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
@@ -967,6 +971,7 @@ def test_ua_ip_inference(
                 "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
             },
             "browser.version": {"type": "string", "value": "42.0"},
+            "sentry.client_sample_rate": {"type": "double", "value": 1.0},
             "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
@@ -1077,6 +1082,7 @@ def test_name_inference(
                 "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
             },
             "browser.version": {"type": "string", "value": "42.0"},
+            "sentry.client_sample_rate": {"type": "double", "value": 1.0},
             "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
