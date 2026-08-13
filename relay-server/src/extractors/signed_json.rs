@@ -40,6 +40,13 @@ impl IntoResponse for SignatureError {
             _ => StatusCode::UNAUTHORIZED,
         };
 
+        if let SignatureError::BadSignature(ref error) = self {
+            relay_log::warn!(
+                error = error as &dyn std::error::Error,
+                "invalid relay signature"
+            )
+        }
+
         (status, ApiErrorResponse::from_error(&self)).into_response()
     }
 }
