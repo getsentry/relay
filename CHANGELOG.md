@@ -12,6 +12,7 @@
 
 - Reject spans, logs, trace metrics, replays when they are too old instead of shifting their timestamp. ([#6272](https://github.com/getsentry/relay/pull/6272))
 - Extract nvgpu dumps and create GPU events. ([#6242](https://github.com/getsentry/relay/pull/6242))
+- Add support for more inbound filters for logs, trace metrics and spans. ([#6306](https://github.com/getsentry/relay/pull/6306))
 - Preserve transaction `contexts`, `extra`, and `breadcrumbs` on the segment span as serialized attributes. ([#6286](https://github.com/getsentry/relay/pull/6286))
 
 **Bug Fixes**:

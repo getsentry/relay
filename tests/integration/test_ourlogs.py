@@ -938,6 +938,55 @@ def test_browser_name_version_extraction(
             id="release",
         ),
         pytest.param(
+            "filtered-transaction",
+            {"ignoreTransactions": {"isEnabled": True, "patterns": ["*health*"]}},
+            {
+                "attributes": {
+                    "sentry.segment.name": {
+                        "value": "/foo/healthz",
+                        "type": "string",
+                    }
+                }
+            },
+            id="transaction",
+        ),
+        pytest.param(
+            "localhost",
+            {"localhost": {"isEnabled": True}},
+            {
+                "attributes": {
+                    "client.address": {"value": "127.0.0.1", "type": "string"}
+                }
+            },
+            id="localhost-ip",
+        ),
+        pytest.param(
+            "localhost",
+            {"localhost": {"isEnabled": True}},
+            {
+                "attributes": {
+                    "url.full": {
+                        "value": "http://localhost:8000/foo",
+                        "type": "string",
+                    }
+                }
+            },
+            id="localhost-url",
+        ),
+        pytest.param(
+            "localhost",
+            {"localhost": {"isEnabled": True}},
+            {
+                "attributes": {
+                    "http.request.header.Host": {
+                        "value": "localhost:8000",
+                        "type": "string",
+                    }
+                }
+            },
+            id="localhost-header",
+        ),
+        pytest.param(
             "legacy-browsers",
             {"legacyBrowsers": {"isEnabled": True, "options": ["ie9"]}},
             {
@@ -1021,6 +1070,14 @@ def test_filters_are_applied_to_logs(
             "attributes": {
                 "some_integer": {"value": 123, "type": "integer"},
                 "sentry.release": {"value": "foobar@1.0", "type": "string"},
+                **args.get("attributes", {}),
+            },
+        },
+        metadata={
+            "version": 2,
+            "ingest_settings": {
+                "infer_ip": "never",
+                "infer_user_agent": "auto",
             },
         },
     )

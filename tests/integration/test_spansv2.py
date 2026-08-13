@@ -1001,6 +1001,42 @@ def test_spansv2_ds_root_in_different_org(
             id="transaction",
         ),
         pytest.param(
+            "localhost",
+            {"localhost": {"isEnabled": True}},
+            {
+                "attributes": {
+                    "client.address": {"value": "127.0.0.1", "type": "string"}
+                }
+            },
+            id="localhost-ip",
+        ),
+        pytest.param(
+            "localhost",
+            {"localhost": {"isEnabled": True}},
+            {
+                "attributes": {
+                    "url.full": {
+                        "value": "http://localhost:8000/foo",
+                        "type": "string",
+                    }
+                }
+            },
+            id="localhost-url",
+        ),
+        pytest.param(
+            "localhost",
+            {"localhost": {"isEnabled": True}},
+            {
+                "attributes": {
+                    "http.request.header.Host": {
+                        "value": "localhost:8000",
+                        "type": "string",
+                    }
+                }
+            },
+            id="localhost-header",
+        ),
+        pytest.param(
             "legacy-browsers",
             {"legacyBrowsers": {"isEnabled": True, "options": ["ie9"]}},
             {
@@ -1081,11 +1117,13 @@ def test_spanv2_inbound_filters(
                 "some_integer": {"value": 123, "type": "integer"},
                 "sentry.release": {"value": "foobar@1.0", "type": "string"},
                 "sentry.segment.name": {"value": "/foo/healthz", "type": "string"},
+                **args.get("attributes", {}),
             },
         },
         metadata={
             "version": 2,
             "ingest_settings": {
+                "infer_ip": "never",
                 "infer_user_agent": "auto",
             },
         },
