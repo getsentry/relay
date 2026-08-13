@@ -41,7 +41,7 @@ pub struct LogEntry {
     /// The formatted message. If `message` and `params` are given, Sentry
     /// will attempt to backfill `formatted` if empty.
     ///
-    /// It must not exceed [LogEntry::MAX_MESSAGE_CHARS] characters. Longer messages will be truncated.
+    /// It must not exceed [`LogEntry::MAX_MESSAGE_CHARS`] characters. Longer messages will be truncated.
     #[metastructure(max_chars = LogEntry::MAX_MESSAGE_CHARS, max_chars_allowance = 200, pii = "true")]
     pub formatted: Annotated<Message>,
 
