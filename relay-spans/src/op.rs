@@ -35,6 +35,13 @@ pub fn derive_op_for_v2_span(attributes: &Annotated<Attributes>) -> String {
         return String::from("db");
     }
 
+    if let Some(operation) = attributes
+        .get_value(GEN_AI__OPERATION__NAME)
+        .and_then(|v| v.as_str())
+    {
+        return format!("gen_ai.{operation}");
+    }
+
     if attributes.contains_key(GEN_AI__PROVIDER__NAME) {
         return String::from("gen_ai");
     }
@@ -52,4 +59,49 @@ pub fn derive_op_for_v2_span(attributes: &Annotated<Attributes>) -> String {
     }
 
     op
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn op_for(pairs: &[(&str, &str)]) -> String {
+        let attributes = Attributes::from_iter(
+            pairs
+                .iter()
+                .map(|(k, v)| ((*k).to_owned(), Annotated::new((*v).to_owned().into()))),
+        );
+        derive_op_for_v2_span(&Annotated::new(attributes))
+    }
+
+    #[test]
+    fn test_gen_ai_op_operation_name_takes_precedence_over_provider() {
+        assert_eq!(
+            op_for(&[
+                (GEN_AI__OPERATION__NAME, "chat"),
+                (GEN_AI__PROVIDER__NAME, "openai"),
+            ]),
+            "gen_ai.chat"
+        );
+        assert_eq!(
+            op_for(&[
+                (GEN_AI__OPERATION__NAME, "invoke_agent"),
+                (GEN_AI__PROVIDER__NAME, "openai"),
+            ]),
+            "gen_ai.invoke_agent"
+        );
+    }
+
+    #[test]
+    fn test_gen_ai_op_execute_tool_without_provider() {
+        assert_eq!(
+            op_for(&[(GEN_AI__OPERATION__NAME, "execute_tool")]),
+            "gen_ai.execute_tool"
+        );
+    }
+
+    #[test]
+    fn test_gen_ai_op_falls_back_to_provider() {
+        assert_eq!(op_for(&[(GEN_AI__PROVIDER__NAME, "openai")]), "gen_ai");
+    }
 }
