@@ -513,15 +513,16 @@ mod tests {
 
     #[test]
     fn test_switch_crash_is_reshaped() {
-        // Minimal, empty dying message (magic + version 0 + encoding 0 + length 0): no scope
-        // patch, so we exercise only the reshaping of the event Nintendo forwards.
-        let dying_message = Bytes::from("sntr\0\0\0\0");
+        // The DyingMessage carries the scope patch our SDK serializes before the crash. It
+        // includes `level: error`, and since the patch is the merge base it downgrades the
+        // `fatal` Nintendo forwards (magic + version 0 + encoding 0 + u16 payload length).
+        let dying_message = Bytes::from("sntr\0\0\0\x22{\"type\":\"event\"}\n{\"level\":\"error\"}");
 
         // The parent envelope event is what Nintendo forwards: the abort result code as the
-        // exception `type`, a readable `value`, the crashing function, and level `error`.
+        // exception `type`, a readable `value`, an unhandled mechanism, and level `fatal`.
         let envelope = r#"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"}
 {"type":"event"}
-{"level":"error","exception":{"values":[{"type":"2168-0002 ResultAccessViolationData","value":"Data access to an invalid memory region was performed. (2: Access Violation Data)","stacktrace":{"frames":[{"function":"ASentryTowerTurret::Shoot"}]}}]}}
+{"level":"fatal","exception":{"values":[{"type":"2168-0002 ResultAccessViolationData","value":"Data access to an invalid memory region was performed. (2: Access Violation Data)","mechanism":{"type":"2168-0002","handled":false},"stacktrace":{"frames":[{"function":"ASentryTowerTurret::Shoot"}]}}]}}
 {"type":"attachment","filename":"dying_message.dat","length":<len>}
 "#
         .replace("<len>", &dying_message.len().to_string());
@@ -534,7 +535,8 @@ mod tests {
 
         let event = parsed.event.value().unwrap();
 
-        // The crash is rendered as fatal (Nintendo forwarded it as `error`).
+        // The crash is rendered as fatal: the DyingMessage merge downgraded it to `error`,
+        // and the reshape re-asserts Nintendo's original severity.
         assert_eq!(event.level.value(), Some(&Level::Fatal));
 
         let exception = event
@@ -549,8 +551,8 @@ mod tests {
             .value()
             .unwrap();
 
-        // Marked synthetic and unhandled, so Sentry drops the result-code `type` from the
-        // title (falling back to the crashing function) and renders it as unhandled.
+        // Marked synthetic, so Sentry drops the result-code `type` from the title and falls
+        // back to the crashing function. Nintendo's own `handled: false` passes through.
         let mechanism = exception.mechanism.value().unwrap();
         assert_eq!(mechanism.synthetic.value(), Some(&true));
         assert_eq!(mechanism.handled.value(), Some(&false));

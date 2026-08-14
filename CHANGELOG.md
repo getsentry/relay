@@ -10,7 +10,7 @@
 
 **Bug Fixes**:
 
-- Reshape Nintendo Switch crashes so the issue title falls back to the crashing function instead of the raw abort result code, and render them as fatal and unhandled. ([#6253](https://github.com/getsentry/relay/pull/6253))
+- Reshape Nintendo Switch crashes so the issue title falls back to the crashing function instead of the raw abort result code, and restore the `fatal` level the DyingMessage merge downgrades. ([#6253](https://github.com/getsentry/relay/pull/6253))
 - Reject Nintendo Switch dying message attachments with an invalid magic number instead of panicking on a short payload. ([#6253](https://github.com/getsentry/relay/pull/6253))
 
 ## 26.7.0
