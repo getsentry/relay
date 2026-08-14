@@ -4,14 +4,60 @@
 
 **Features**:
 
+- Reject spans, logs, trace metrics, replays when they are too old instead of shifting their timestamp. ([#6272](https://github.com/getsentry/relay/pull/6272))
+- Extract nvgpu dumps and create GPU events. ([#6242](https://github.com/getsentry/relay/pull/6242))
+- Preserve transaction `contexts`, `extra`, and `breadcrumbs` on the segment span as serialized attributes. ([#6286](https://github.com/getsentry/relay/pull/6286))
+
+**Bug Fixes**:
+
+- Store the attachment file name in objectstore so that downloads are named after the attachment. ([#6276](https://github.com/getsentry/relay/pull/6276))
+- Add compression limit for playstation dumps. ([#6211](https://github.com/getsentry/relay/pull/6211))
+- OTLP logs being rejected or ingested with an incorrect timestamp if they only contain an observed time. ([#6290](https://github.com/getsentry/relay/pull/6290))
+- Fix streamed attachments having wrong retention. ([#6268](https://github.com/getsentry/relay/pull/6268))
+- Re-parameterize a DSC when it is computed from a transaction. ([#6279](https://github.com/getsentry/relay/pull/6279))
+- Correct error and outcome for too large streams. ([#6291](https://github.com/getsentry/relay/pull/6291))
+- Validate streamed minidumps and correctly enforce size limit for buffered minidumps. ([#6282](https://github.com/getsentry/relay/pull/6282))
+- Improve `gen_ai` span op inference. ([#6307](https://github.com/getsentry/relay/pull/6307))
+- Always set `sentry.client_sample_rate` on span v2 spans, preferring the SDK-provided attribute over the DSC and falling back to `1.0`. ([#6299](https://github.com/getsentry/relay/pull/6299))
+- Reshape Nintendo Switch crashes so the issue title falls back to the crashing function instead of the raw abort result code, and restore the `fatal` level the DyingMessage merge downgrades. ([#6253](https://github.com/getsentry/relay/pull/6253))
+- Reject Nintendo Switch dying message attachments with an invalid magic number instead of panicking on a short payload. ([#6253](https://github.com/getsentry/relay/pull/6253))
+
+**Internal**:
+
+- Graduate the profiling feature flag. ([#6300](https://github.com/getsentry/relay/pull/6300))
+- Allow signatures slightly in the future. ([#6308](https://github.com/getsentry/relay/pull/6308))
+- Limit interpolated `formatted` message for `LogEntry`. ([#6303](https://github.com/getsentry/relay/pull/6303))
+
+## 26.7.2
+
+**Features**:
+
+- Make the V2 standalone span pipeline the default. ([#6262](https://github.com/getsentry/relay/pull/6262))
+
+**Bug Fixes**:
+
+- Fix Android trace and ANR profile parsing. Serialize Android trace chunks with `version: "2.android-trace"`. Custom
+  Android trace `profile_chunk` producers should send `version: "2.android-trace"`; legacy `version: "2"` is accepted
+  only for Android `sampled_profile` payloads. `version: "1"` and versionless Android trace chunks are rejected.
+  ([#6183](https://github.com/getsentry/relay/pull/6183))
+- Defer dynamic sampling until metrics config is valid. ([#6246](https://github.com/getsentry/relay/pull/6246))
+
+## 26.7.1
+
+**Features**:
+
 - Emit web-vitals as metrics. ([#6118](https://github.com/getsentry/relay/pull/6118))
 - No longer write the deprecated `sentry.transaction` and `db.system` attributes. ([#6237](https://github.com/getsentry/relay/pull/6237), [#6238](https://github.com/getsentry/relay/pull/6238))
 - Allow additional exceptions in minidump and apple crash report events. ([#6241](https://github.com/getsentry/relay/pull/6241))
 
 **Bug Fixes**:
 
-- Reshape Nintendo Switch crashes so the issue title falls back to the crashing function instead of the raw abort result code, and restore the `fatal` level the DyingMessage merge downgrades. ([#6253](https://github.com/getsentry/relay/pull/6253))
-- Reject Nintendo Switch dying message attachments with an invalid magic number instead of panicking on a short payload. ([#6253](https://github.com/getsentry/relay/pull/6253))
+- Consistently enforces envelope size limits for all items. ([#6250](https://github.com/getsentry/relay/pull/6250))
+- Prevent partially trimmed transaction spans. ([#6256](https://github.com/getsentry/relay/pull/6256))
+
+**Internal**:
+
+- Limit the maximum amount of items in an envelope to 500. ([#6251](https://github.com/getsentry/relay/pull/6251))
 
 ## 26.7.0
 
@@ -37,7 +83,6 @@
 - Unset segment info for web vital spans. ([#6042](https://github.com/getsentry/relay/pull/6042))
 - Set sentry.trace.status on segment spans. ([#6140](https://github.com/getsentry/relay/pull/6140))
 - Don't modify segment information for V2 web vital spans. ([#6160](https://github.com/getsentry/relay/pull/6160))
-
 - Support compressed minidumps when the `relay-minidump-uploads` feature is enabled. ([#6151](https://github.com/getsentry/relay/pull/6151))
 - Make `--log-level` and `--log-format` take effect again and accept them on all subcommands. ([#6198](https://github.com/getsentry/relay/pull/6198))
 - Parse two-component versions in iOS and iPadOS `raw_description` into `version` instead of `kernel_version`. ([#6197](https://github.com/getsentry/relay/pull/6197))
@@ -93,7 +138,7 @@
 **Internal**:
 
 - Handle outcomes as metrics. ([#6082](https://github.com/getsentry/relay/pull/6082))
-- Restore top-level _performance_issues_spans. ([#6045](https://github.com/getsentry/relay/pull/6045))
+- Restore top-level \_performance_issues_spans. ([#6045](https://github.com/getsentry/relay/pull/6045))
 - Update sentry-conventions to 0.11.0, migrating deprecated `gen_ai` attribute constants. ([#6068](https://github.com/getsentry/relay/pull/6068))
 
 ## 26.5.2

@@ -34,15 +34,15 @@ pub struct LogEntry {
     /// Therefore this really should just be a string template, i.e. `Sending %d requests` instead
     /// of `Sending 9999 requests`. The latter is much better at home in `formatted`.
     ///
-    /// It must not exceed 8192 characters. Longer messages will be truncated.
-    #[metastructure(max_chars = 8192, max_chars_allowance = 200)]
+    /// It must not exceed [`LogEntry::MAX_MESSAGE_CHARS`] characters. Longer messages will be truncated.
+    #[metastructure(max_chars = LogEntry::MAX_MESSAGE_CHARS, max_chars_allowance = 200)]
     pub message: Annotated<Message>,
 
     /// The formatted message. If `message` and `params` are given, Sentry
     /// will attempt to backfill `formatted` if empty.
     ///
-    /// It must not exceed 8192 characters. Longer messages will be truncated.
-    #[metastructure(max_chars = 8192, max_chars_allowance = 200, pii = "true")]
+    /// It must not exceed [`LogEntry::MAX_MESSAGE_CHARS`] characters. Longer messages will be truncated.
+    #[metastructure(max_chars = LogEntry::MAX_MESSAGE_CHARS, max_chars_allowance = 200, pii = "true")]
     pub formatted: Annotated<Message>,
 
     /// Parameters to be interpolated into the log message. This can be an array of positional
@@ -53,6 +53,11 @@ pub struct LogEntry {
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii = "true")]
     pub other: Object<Value>,
+}
+
+impl LogEntry {
+    /// Maximum number of characters in a log entry message.
+    pub const MAX_MESSAGE_CHARS: usize = 8192;
 }
 
 impl From<String> for LogEntry {

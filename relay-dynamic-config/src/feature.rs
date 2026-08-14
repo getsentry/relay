@@ -7,10 +7,12 @@ use serde::{Deserialize, Serialize};
 pub const GRADUATED_FEATURE_FLAGS: &[Feature] = &[
     Feature::UserReportV2Ingest,
     Feature::IngestUnsampledProfiles,
+    Feature::DeprecatedProfiling,
     Feature::DeprecatedOtelTracesEndpoint,
     Feature::DeprecatedOtelLogsEndpoint,
     Feature::DeprecatedExtractSpansFromEvent,
     Feature::DeprecatedStandaloneSpanIngestion,
+    Feature::DeprecatedSpanV2ExperimentalProcessing,
 ];
 
 /// Features exposed by project config.
@@ -31,11 +33,6 @@ pub enum Feature {
     /// Serialized as `organizations:session-replay-video-disabled`.
     #[serde(rename = "organizations:session-replay-video-disabled")]
     SessionReplayVideoDisabled,
-    /// Enable processing profiles.
-    ///
-    /// Serialized as `organizations:profiling`.
-    #[serde(rename = "organizations:profiling")]
-    Profiling,
     /// Enable playstation crash dump ingestion via the `/playstation/` endpoint.
     ///
     /// Serialized as `organizations:relay-playstation-ingestion`.
@@ -83,9 +80,6 @@ pub enum Feature {
     /// Detect performance issues in the new standalone spans pipeline instead of on transactions.
     #[serde(rename = "organizations:performance-issues-spans")]
     PerformanceIssuesSpans,
-    /// Enables the experimental Span V2 processing pipeline in Relay.
-    #[serde(rename = "projects:span-v2-experimental-processing")]
-    SpanV2ExperimentalProcessing,
     /// Enable the experimental Span Attachment subset of the Span V2 processing pipeline in Relay.
     #[serde(rename = "projects:span-v2-attachment-processing")]
     SpanV2AttachmentProcessing,
@@ -95,10 +89,6 @@ pub enum Feature {
     /// Upload non-prosperodmp playstation attachments via the upload endpoint.
     #[serde(rename = "projects:relay-playstation-uploads")]
     PlaystationUploads,
-    /// Enable experimental expansion of the unreal report in the endpoint rather than in the
-    /// processor. Only enable for organizations with sufficient attachment quota.
-    #[serde(rename = "organizations:relay-unreal-endpoint-expansion")]
-    UnrealEndpointExpansion,
     /// Stream minidumps to objectstore.
     #[serde(rename = "projects:relay-minidump-uploads")]
     MinidumpUploads,
@@ -107,6 +97,10 @@ pub enum Feature {
     /// See <https://getsentry.github.io/objectstore/rust/objectstore_service/multipart/>.
     #[serde(rename = "projects:relay-upload-multipart")]
     UploadMultipart,
+    /// Split an NVIDIA GPU crash dump (`.nv-gpudmp`) off a minidump upload into its
+    /// own event.
+    #[serde(rename = "organizations:gpu-crash-symbolication")]
+    NvGpuCrashSplit,
     /// Enables OTLP spans to use the Span V2 processing pipeline in Relay.
     ///
     /// This is now the default behaviour of Relay.
@@ -142,6 +136,18 @@ pub enum Feature {
     #[doc(hidden)]
     #[serde(rename = "organizations:standalone-span-ingestion")]
     DeprecatedStandaloneSpanIngestion,
+    /// Enable processing profiles.
+    ///
+    /// This feature has graduated and is hard-coded for external Relays.
+    #[doc(hidden)]
+    #[serde(rename = "organizations:profiling")]
+    DeprecatedProfiling,
+    /// Enables the experimental Span V2 processing pipeline in Relay.
+    ///
+    /// This feature has graduated.
+    #[doc(hidden)]
+    #[serde(rename = "projects:span-v2-experimental-processing")]
+    DeprecatedSpanV2ExperimentalProcessing,
 
     /// Forward compatibility.
     #[doc(hidden)]

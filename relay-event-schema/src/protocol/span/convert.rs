@@ -1,12 +1,41 @@
 //! This module defines bidirectional field mappings between spans and transactions.
 
 use relay_conventions::attributes::{
-    BROWSER__NAME, HTTP__QUERY, SENTRY__ENVIRONMENT, SENTRY__RELEASE, SENTRY__SDK__NAME,
-    SENTRY__SDK__VERSION, SENTRY__SEGMENT__NAME, URL__QUERY,
+    BROWSER__NAME, HTTP__QUERY, SENTRY__ENVIRONMENT, SENTRY__EVENT__SERIALIZED_BREADCRUMBS,
+    SENTRY__EVENT__SERIALIZED_CONTEXTS, SENTRY__EVENT__SERIALIZED_EXTRA, SENTRY__RELEASE,
+    SENTRY__SDK__NAME, SENTRY__SDK__VERSION, SENTRY__SEGMENT__NAME, URL__QUERY,
 };
-use relay_protocol::IntoValue;
+use relay_protocol::{IntoValue, Object, SerializePayload, SkipSerialization};
+use serde::ser::SerializeMap;
+use serde::{Serialize, Serializer};
 
-use crate::protocol::{BrowserContext, Event, ProfileContext, Span, SpanData, TraceContext};
+use crate::protocol::{
+    BrowserContext, ContextInner, DefaultContext, Event, ProfileContext, Span, SpanData,
+    TraceContext,
+};
+
+/// Serializes a borrowed contexts map, skipping the given key.
+struct ContextsWithout<'a> {
+    contexts: &'a Object<ContextInner>,
+    skip_key: &'a str,
+}
+
+impl Serialize for ContextsWithout<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let behavior = SkipSerialization::default();
+        let mut map = serializer.serialize_map(None)?;
+        for (key, value) in self.contexts {
+            if key == self.skip_key || value.skip_serialization(behavior) {
+                continue;
+            }
+            map.serialize_entry(key, &SerializePayload(value, behavior))?;
+        }
+        map.end()
+    }
+}
 
 impl From<&Event> for Span {
     fn from(event: &Event) -> Self {
@@ -20,7 +49,9 @@ impl From<&Event> for Span {
             release,
             environment,
             tags,
-
+            contexts,
+            breadcrumbs,
+            extra,
             measurements,
             _metrics,
             ..
@@ -74,6 +105,35 @@ impl From<&Event> for Span {
         {
             span_data.insert_value(HTTP__QUERY, format!("?{qs}"));
             span_data.insert_value(URL__QUERY, qs);
+        }
+
+        if let Some(contexts) = contexts.value() {
+            let has_other = contexts.0.iter().any(|(key, value)| {
+                key != TraceContext::default_key()
+                    && !value.skip_serialization(SkipSerialization::default())
+            });
+            if has_other {
+                let payload = ContextsWithout {
+                    contexts: &contexts.0,
+                    skip_key: TraceContext::default_key(),
+                };
+                if let Ok(json) = serde_json::to_string(&payload) {
+                    span_data.insert_value(SENTRY__EVENT__SERIALIZED_CONTEXTS, json);
+                }
+            }
+        }
+        if breadcrumbs
+            .value()
+            .and_then(|b| b.values.value())
+            .is_some_and(|v| !v.is_empty())
+            && let Ok(json) = breadcrumbs.payload_to_json()
+        {
+            span_data.insert_value(SENTRY__EVENT__SERIALIZED_BREADCRUMBS, json);
+        }
+        if extra.value().is_some_and(|e| !e.is_empty())
+            && let Ok(json) = extra.payload_to_json()
+        {
+            span_data.insert_value(SENTRY__EVENT__SERIALIZED_EXTRA, json);
         }
 
         Self {
@@ -155,6 +215,13 @@ mod tests {
                         ]
                     }
                 },
+                "breadcrumbs": [
+                    {"type": "default", "category": "auth", "message": "login"}
+                ],
+                "extra": {
+                    "my_key": 1,
+                    "some_other_value": "foo bar"
+                },
                 "request": {
                     "url": "http://example.com/api/0/organizations/",
                     "method": "GET",
@@ -205,6 +272,15 @@ mod tests {
                     ),
                     "sentry.environment": String(
                         "prod",
+                    ),
+                    "sentry.event.serialized_breadcrumbs": String(
+                        "{\"values\":[{\"type\":\"default\",\"category\":\"auth\",\"message\":\"login\"}]}",
+                    ),
+                    "sentry.event.serialized_contexts": String(
+                        "{\"browser\":{\"name\":\"Chrome\",\"type\":\"browser\"},\"profile\":{\"profile_id\":\"a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaab\",\"type\":\"profile\"}}",
+                    ),
+                    "sentry.event.serialized_extra": String(
+                        "{\"my_key\":1,\"some_other_value\":\"foo bar\"}",
                     ),
                     "sentry.name": String(
                         "my 1st transaction",
@@ -257,5 +333,93 @@ mod tests {
             other: {},
         }
         "#);
+    }
+
+    #[test]
+    fn convert_preserves_contexts_breadcrumbs_extra() {
+        let event = Annotated::<Event>::from_json(
+            r#"{
+                "type": "transaction",
+                "transaction": "my transaction",
+                "contexts": {
+                    "browser": {"name": "Chrome"},
+                    "trace": {
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74052"
+                    }
+                },
+                "breadcrumbs": [
+                    {"type": "default", "category": "auth", "message": "login"}
+                ],
+                "extra": {
+                    "my_key": 1,
+                    "some_other_value": "foo bar"
+                }
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        let span = Span::from(&event);
+        let data = span.data.value().unwrap();
+
+        assert_eq!(
+            data.get_str(SENTRY__EVENT__SERIALIZED_CONTEXTS),
+            Some(r#"{"browser":{"name":"Chrome","type":"browser"}}"#)
+        );
+        assert_eq!(
+            data.get_str(SENTRY__EVENT__SERIALIZED_BREADCRUMBS),
+            Some(r#"{"values":[{"type":"default","category":"auth","message":"login"}]}"#)
+        );
+        assert_eq!(
+            data.get_str(SENTRY__EVENT__SERIALIZED_EXTRA),
+            Some(r#"{"my_key":1,"some_other_value":"foo bar"}"#)
+        );
+    }
+
+    #[test]
+    fn convert_omits_absent_contexts_breadcrumbs_extra() {
+        let event = Annotated::<Event>::from_json(
+            r#"{
+                "type": "transaction",
+                "transaction": "my transaction"
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        let span = Span::from(&event);
+
+        if let Some(data) = span.data.value() {
+            assert!(!data.contains(SENTRY__EVENT__SERIALIZED_CONTEXTS));
+            assert!(!data.contains(SENTRY__EVENT__SERIALIZED_BREADCRUMBS));
+            assert!(!data.contains(SENTRY__EVENT__SERIALIZED_EXTRA));
+        }
+    }
+
+    #[test]
+    fn convert_omits_empty_contexts_breadcrumbs_extra() {
+        let event = Annotated::<Event>::from_json(
+            r#"{
+                "type": "transaction",
+                "transaction": "my transaction",
+                "contexts": {},
+                "breadcrumbs": [],
+                "extra": {}
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        let span = Span::from(&event);
+
+        if let Some(data) = span.data.value() {
+            assert!(!data.contains(SENTRY__EVENT__SERIALIZED_CONTEXTS));
+            assert!(!data.contains(SENTRY__EVENT__SERIALIZED_BREADCRUMBS));
+            assert!(!data.contains(SENTRY__EVENT__SERIALIZED_EXTRA));
+        }
     }
 }

@@ -19,10 +19,10 @@ use crate::envelope::{
     AttachmentPlaceholder, AttachmentType, ContentType, Envelope, EnvelopeError, Item, ItemType,
     Items,
 };
-use crate::managed::{Managed, ManagedResult, Rejected};
+use crate::managed::{Managed, Rejected};
 use crate::service::ServiceState;
 use crate::services::buffer::{ProjectKeyPair, PushError};
-use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
+use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome};
 use crate::services::processor::{BucketSource, MetricData, ProcessMetrics};
 use crate::services::upload::{Create, ProjectContext, Stream, Upload};
 use crate::statsd::{RelayCounters, RelayDistributions};
@@ -81,9 +81,6 @@ pub enum BadStoreRequest {
     #[error("missing minidump")]
     MissingMinidump,
 
-    #[error("invalid unreal crash report")]
-    InvalidUnrealReport,
-
     #[cfg(sentry)]
     #[error("invalid prosperodump")]
     InvalidProsperodump,
@@ -136,7 +133,6 @@ impl BadStoreRequest {
             Self::InvalidMultipart(_) => DiscardReason::InvalidMultipart,
             Self::InvalidMinidump => DiscardReason::InvalidMinidump,
             Self::MissingMinidump => DiscardReason::MissingMinidump,
-            Self::InvalidUnrealReport => DiscardReason::InvalidUnrealReport,
             #[cfg(sentry)]
             Self::InvalidProsperodump => DiscardReason::InvalidProsperodump,
             #[cfg(sentry)]
@@ -556,7 +552,7 @@ pub async fn upload_stream<S, E>(
     project: ProjectContext,
     upload: &Addr<Upload>,
     referrer: &'static str,
-) -> Result<Managed<Item>, Rejected<()>>
+) -> Result<Managed<Item>, Rejected<BadStoreRequest>>
 where
     S: futures::Stream<Item = Result<Bytes, E>> + Send + 'static,
     E: Into<Box<dyn std::error::Error + Send + Sync>> + 'static,
@@ -572,8 +568,8 @@ where
     )
     .await;
     match res {
-        Some(()) => Ok(item),
-        None => Err(Outcome::Invalid(DiscardReason::Internal)).reject(&item),
+        Ok(()) => Ok(item),
+        Err(e) => Err(item.reject_err(e)),
     }
 }
 
@@ -585,7 +581,7 @@ async fn upload_stream_inner<S, E>(
     project: ProjectContext,
     upload: &Addr<Upload>,
     referrer: &'static str,
-) -> Option<()>
+) -> Result<(), BadStoreRequest>
 where
     S: futures::Stream<Item = Result<Bytes, E>> + Send + 'static,
     E: Into<Box<dyn std::error::Error + Send + Sync>> + 'static,
@@ -603,8 +599,8 @@ where
             multipart: false,
         })
         .await
-        .ok()?
-        .ok()?;
+        .map_err(|_| BadStoreRequest::UploadFailed)?
+        .map_err(|_| BadStoreRequest::UploadFailed)?;
 
     let scoping = project.scoping;
 
@@ -616,7 +612,7 @@ where
             stream,
         })
         .await
-        .ok()?;
+        .map_err(|_| BadStoreRequest::UploadFailed)?;
 
     let location = result
         .inspect_err(|e| {
@@ -629,21 +625,33 @@ where
                 "multipart item upload failed",
             );
         })
-        .ok()?;
-    let location = location.into_header_value().ok()?;
-    let location = location.to_str().ok()?;
+        .map_err(|_| {
+            if byte_counter.get() > config.max_upload_size() {
+                BadStoreRequest::ItemTooLarge(DiscardItemType::Attachment(
+                    item.attachment_type()
+                        .map_or(DiscardAttachmentType::Attachment, Into::into),
+                ))
+            } else {
+                BadStoreRequest::UploadFailed
+            }
+        })?;
+
+    let location = location
+        .try_to_uri()
+        .map_err(|_| BadStoreRequest::UploadFailed)?;
+
     let placeholder = serde_json::to_vec(&AttachmentPlaceholder {
-        location,
+        location: &location,
         content_type,
     })
-    .ok()?;
+    .map_err(|_| BadStoreRequest::UploadFailed)?;
 
     item.modify(|inner, records| {
         inner.set_payload(ContentType::AttachmentRef, placeholder);
         inner.set_attachment_length(byte_counter.get());
         records.lenient(DataCategory::Attachment); // item was empty before
     });
-    Some(())
+    Ok(())
 }
 
 #[derive(Debug)]

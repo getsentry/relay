@@ -318,7 +318,7 @@ def test_v1_spans(mini_sentry, relay_with_processing, items_consumer, spans_cons
                 ],
                 "condition": {
                     "op": "eq",
-                    "name": "event.contexts.browser.name",
+                    "name": "span.attributes.browser.name.value",
                     "value": "Firefox",
                 },
             },
@@ -329,7 +329,7 @@ def test_v1_spans(mini_sentry, relay_with_processing, items_consumer, spans_cons
                 ],
                 "condition": {
                     "op": "eq",
-                    "name": "event.contexts.browser.name",
+                    "name": "span.attributes.browser.name.value",
                     "value": "Firefox",
                 },
             },
@@ -382,6 +382,11 @@ def test_v1_spans(mini_sentry, relay_with_processing, items_consumer, spans_cons
             },
         },
     )
+    envelope.headers["trace"] = {
+        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        "public_key": project_config["publicKeys"][0]["publicKey"],
+        "segment_name": "/page/with/click/interaction/jane/123",
+    }
 
     relay.send_envelope(project_id, envelope)
 
@@ -532,6 +537,9 @@ def test_v1_spans(mini_sentry, relay_with_processing, items_consumer, spans_cons
                 "sentry.segment.name": {
                     "stringValue": "/page/with/click/interaction/*/*"
                 },
+                "sentry._meta.fields.attributes.sentry.segment.name": {
+                    "stringValue": '{"meta":{"value":{"":{"rem":[["int","s",34,37],["**/interaction/*/**","s"]],"val":"/page/with/click/interaction/jane/123"}}}}',
+                },
             },
             "clientSampleRate": 1.0,
             "serverSampleRate": 1.0,
@@ -617,7 +625,7 @@ def test_v1_spans(mini_sentry, relay_with_processing, items_consumer, spans_cons
     items = [dict(sorted(item.items())) for item in items_consumer.get_items()]
     items.sort(key=lambda item: item["attributes"]["sentry.metric_name"]["stringValue"])
 
-    assert expected_metrics == items
+    assert items == expected_metrics
 
 
 # Test standalone spans (just lcp)

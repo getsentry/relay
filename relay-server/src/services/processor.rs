@@ -53,7 +53,6 @@ use crate::statsd::{RelayCounters, RelayDistributions, RelayTimers};
 use crate::utils;
 use crate::{http, processing};
 use relay_threading::AsyncPool;
-use symbolic_unreal::{Unreal4Error, Unreal4ErrorKind};
 #[cfg(feature = "processing")]
 use {
     crate::services::objectstore::Objectstore,
@@ -63,6 +62,7 @@ use {
     relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
     relay_redis::RedisClients,
     std::time::Instant,
+    symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
 mod metrics;
@@ -82,6 +82,7 @@ pub enum ProcessingError {
     #[error("event data too deeply nested")]
     NestingTooDeep,
 
+    #[cfg(feature = "processing")]
     #[error("invalid unreal crash report")]
     InvalidUnrealReport(#[source] Unreal4Error),
 
@@ -155,9 +156,11 @@ impl ProcessingError {
             Self::InvalidNintendoDyingMessage(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
             #[cfg(all(sentry, feature = "processing"))]
             Self::InvalidPlaystationDump(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
+            #[cfg(feature = "processing")]
             Self::InvalidUnrealReport(err) if err.kind() == Unreal4ErrorKind::BadCompression => {
                 Some(Outcome::Invalid(DiscardReason::InvalidCompression))
             }
+            #[cfg(feature = "processing")]
             Self::InvalidUnrealReport(_) => Some(Outcome::Invalid(DiscardReason::ProcessUnreal)),
             Self::SerializeFailed(_) | Self::ProcessingFailed(_) => {
                 Some(Outcome::Invalid(DiscardReason::Internal))
@@ -174,6 +177,7 @@ impl ProcessingError {
     }
 }
 
+#[cfg(feature = "processing")]
 impl From<Unreal4Error> for ProcessingError {
     fn from(err: Unreal4Error) -> Self {
         match err.kind() {
@@ -632,12 +636,6 @@ impl EnvelopeProcessorService {
             envelope
                 .envelope_mut()
                 .parametrize_dsc_transaction(&sampling_state.config.tx_name_rules);
-        }
-
-        // Set the event retention. Effectively, this value will only be available in processing
-        // mode when the full project config is queried from the upstream.
-        if let Some(retention) = ctx.project_info.config.event_retention {
-            envelope.envelope_mut().set_retention(retention);
         }
 
         // Ensure the project ID is updated to the stored instance for this project cache. This can

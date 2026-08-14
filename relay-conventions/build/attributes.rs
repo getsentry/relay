@@ -40,6 +40,11 @@ pub enum DeprecationStatus {
     Backfill,
     /// Only write the replacement name.
     Normalize,
+    /// Dedicated transformation code handles the move-and-reshape.
+    ///
+    /// Produces `WriteBehavior::CurrentName` so the generic renaming logic
+    /// leaves these attributes alone.
+    Transform,
 }
 
 /// Information about an attribute's deprecation.
@@ -123,7 +128,9 @@ fn format_write_behavior(deprecation: Option<&Deprecation>) -> String {
         DeprecationStatus::Backfill => {
             format!("WriteBehavior::BothNames({name})")
         }
-        DeprecationStatus::Normalize => {
+        // Transform is treated as Normalize until dedicated transformation
+        // code is added.
+        DeprecationStatus::Normalize | DeprecationStatus::Transform => {
             format!("WriteBehavior::NewName({name})")
         }
     }

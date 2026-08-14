@@ -333,6 +333,10 @@ def test_span_extraction(
             "sentry.segment.name": {"type": "string", "value": "hi"},
             "sentry.status": {"type": "string", "value": "ok"},
             "sentry.trace.status": {"type": "string", "value": "ok"},
+            "sentry.event.serialized_contexts": {
+                "type": "string",
+                "value": '{"replay":{"replay_id":"4c79f60c11214eb38604f4ae0781bfb2","type":"replay"}}',
+            },
             "sentry.transaction.op": {"type": "string", "value": "hi"},
             "sentry.user": {"type": "string", "value": f"id:{user_id}"},
             "sentry.user.geo.city": {"type": "string", "value": "Vienna"},
@@ -491,7 +495,7 @@ def test_span_extraction_mobile_app_start_backfill(
         assert key not in attrs
 
 
-def envelope_with_spans(start: datetime, end: datetime) -> Envelope:
+def envelope_with_spans(start: datetime, end: datetime, public_key: str) -> Envelope:
     envelope = Envelope()
     envelope.add_item(
         Item(
@@ -504,6 +508,7 @@ def envelope_with_spans(start: datetime, end: datetime) -> Envelope:
                         # Span with the same `span_id` and `segment_id`, to make sure it is classified as `is_segment`.
                         "span_id": "b0429c44b67a3eb1",
                         "segment_id": "b0429c44b67a3eb1",
+                        "is_segment": True,
                         "start_timestamp": start.timestamp(),
                         "timestamp": end.timestamp() + 1,
                         "exclusive_time": 345.0,  # The SDK knows that this span has a lower exclusive time
@@ -566,6 +571,11 @@ def envelope_with_spans(start: datetime, end: datetime) -> Envelope:
             ),
         )
     )
+    envelope.headers["trace"] = {
+        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        "public_key": public_key,
+        "segment_name": "/auth/login/my_user_name",
+    }
 
     return envelope
 
@@ -630,7 +640,7 @@ def test_span_ingestion_with_performance_scores(
                 ],
                 "condition": {
                     "op": "eq",
-                    "name": "event.contexts.browser.name",
+                    "name": "span.attributes.browser.name.value",
                     "value": "Firefox",
                 },
             },
@@ -641,7 +651,7 @@ def test_span_ingestion_with_performance_scores(
                 ],
                 "condition": {
                     "op": "eq",
-                    "name": "event.contexts.browser.name",
+                    "name": "span.attributes.browser.name.value",
                     "value": "Firefox",
                 },
             },
@@ -712,6 +722,11 @@ def test_span_ingestion_with_performance_scores(
             ),
         )
     )
+    envelope.headers["trace"] = {
+        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        "public_key": project_config["publicKeys"][0]["publicKey"],
+        "segment_name": "/page/with/click/interaction/jane/123",
+    }
     relay.send_envelope(project_id, envelope)
 
     spans = spans_consumer.get_spans(timeout=10.0, n=2)
@@ -790,7 +805,9 @@ def test_rate_limit_indexed_consistent(
     start = datetime.now(timezone.utc)
     end = start + timedelta(seconds=1)
 
-    envelope = envelope_with_spans(start, end)
+    envelope = envelope_with_spans(
+        start, end, project_config["publicKeys"][0]["publicKey"]
+    )
 
     def summarize_outcomes():
         counter = Counter()
@@ -930,7 +947,9 @@ def test_rate_limit_spans_in_envelope(
     start = datetime.now(UTC)
     end = start + timedelta(seconds=1)
 
-    envelope = envelope_with_spans(start, end)
+    envelope = envelope_with_spans(
+        start, end, project_config["publicKeys"][0]["publicKey"]
+    )
 
     def summarize_outcomes():
         counter = Counter()
@@ -1127,7 +1146,7 @@ def test_span_filtering_with_generic_inbound_filter(
                 "isEnabled": True,
                 "condition": {
                     "op": "eq",
-                    "name": "span.data.sentry\\.release",
+                    "name": "span.attributes.sentry.release.value",
                     "value": "1.0",
                 },
             }
@@ -1136,7 +1155,7 @@ def test_span_filtering_with_generic_inbound_filter(
 
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
-    mini_sentry.add_full_project_config(project_id)
+    config = mini_sentry.add_full_project_config(project_id)
 
     spans_consumer = spans_consumer()
     outcomes_consumer = outcomes_consumer()
@@ -1165,6 +1184,11 @@ def test_span_filtering_with_generic_inbound_filter(
             ),
         )
     )
+    envelope.headers["trace"] = {
+        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        "public_key": config["publicKeys"][0]["publicKey"],
+        "segment_name": "/auth/login/my_user_name",
+    }
 
     relay.send_envelope(project_id, envelope)
 
@@ -1249,13 +1273,7 @@ def test_dynamic_sampling(
     start = end - duration
 
     # 1 - Send OTel span and sentry span via envelope
-    envelope = envelope_with_spans(start, end)
-    envelope.headers["trace"] = {
-        "public_key": sampling_public_key,
-        "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-        "segment_name": "/auth/login/my_user_name",
-    }
-
+    envelope = envelope_with_spans(start, end, sampling_public_key)
     relay.send_envelope(project_id, envelope)
 
     def summarize_outcomes(outcomes):
@@ -1431,3 +1449,87 @@ def test_outcomes_for_trimmed_spans(mini_sentry, relay):
             "timestamp": time_within_delta(),
         },
     ]
+
+
+def test_segment_span_preserves_contexts_breadcrumbs_extra(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+):
+    spans_consumer = spans_consumer()
+
+    relay = relay_with_processing(options=TEST_CONFIG)
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+
+    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    event["contexts"]["gpu"] = {"name": "AMD Radeon Pro 560", "vendor_name": "Apple"}
+    event["breadcrumbs"] = [
+        {"type": "default", "category": "auth", "message": "login", "level": "info"},
+    ]
+    event["extra"] = {
+        "my_key": 1,
+        "some_other_value": "foo bar",
+    }
+
+    relay.send_event(project_id, event)
+
+    segment_span = spans_consumer.get_span()
+    attributes = segment_span["attributes"]
+
+    assert json.loads(attributes["sentry.event.serialized_extra"]["value"]) == {
+        "my_key": 1,
+        "some_other_value": "foo bar",
+    }
+
+    assert json.loads(attributes["sentry.event.serialized_breadcrumbs"]["value"]) == {
+        "values": [
+            {
+                "type": "default",
+                "category": "auth",
+                "message": "login",
+                "level": "info",
+            }
+        ]
+    }
+    contexts = json.loads(attributes["sentry.event.serialized_contexts"]["value"])
+    assert contexts["gpu"] == {
+        "name": "AMD Radeon Pro 560",
+        "vendor_name": "Apple",
+        "type": "gpu",
+    }
+    assert "trace" not in contexts
+
+    spans_consumer.assert_empty()
+
+
+def test_segment_span_scrubs_extra_before_serializing(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+):
+    spans_consumer = spans_consumer()
+
+    relay = relay_with_processing(options=TEST_CONFIG)
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("datascrubbingSettings", {}).update(
+        {"scrubData": True, "scrubDefaults": True}
+    )
+
+    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    event["extra"] = {
+        "note": "contact john.doe@company.com for details",
+    }
+
+    relay.send_event(project_id, event)
+
+    segment_span = spans_consumer.get_span()
+    extra = json.loads(
+        segment_span["attributes"]["sentry.event.serialized_extra"]["value"]
+    )
+
+    assert "john.doe@company.com" not in extra["note"]
+    assert "[email]" in extra["note"]
+
+    spans_consumer.assert_empty()

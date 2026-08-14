@@ -1323,7 +1323,6 @@ def test_ai_spans_example_transaction(
                 "sentry.segment.id": {"type": "string", "value": "657cf984a6a4e59b"},
                 "sentry.segment.name": {"type": "string", "value": "main"},
                 "sentry.source": {"type": "string", "value": "custom"},
-                "sentry.span.source": {"type": "string", "value": "custom"},
                 "sentry.status": {"type": "string", "value": "ok"},
                 "sentry.trace.status": {"type": "string", "value": "ok"},
                 "sentry.transaction.op": {

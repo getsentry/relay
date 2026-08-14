@@ -747,6 +747,12 @@ pub enum RelayCounters {
     ///  - `sdk`: The name of the Sentry SDK sending the envelope. This tag is only set for
     ///    Sentry's SDKs and defaults to "proprietary".
     EnvelopeItemBytes,
+    /// Number of envelopes rejected because of size limits.
+    ///
+    /// This metric is tagged with:
+    ///  - `item`: The type of the items being counted.
+    ///  - `limit`: Which limit was breached.
+    EnvelopeSizeLimited,
     /// Number of times an envelope from the buffer is trying to be popped.
     BufferTryPop,
     /// Number of envelopes spool to disk.
@@ -1009,8 +1015,6 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     /// - `expansion`: What expansion was used to expand the error (e.g. unreal).
     ErrorProcessed,
-    /// The number of times the new unreal expansion logic in the endpoint is hit.
-    UnrealEndpointExpansion,
     /// The number of times that relay receives a compressed minidump.
     CompressedMinidump,
     /// The number of times a trace metric has a nil trace ID.
@@ -1029,6 +1033,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EnvelopeRejected => "event.rejected",
             RelayCounters::EnvelopeItems => "event.items",
             RelayCounters::EnvelopeItemBytes => "event.item_bytes",
+            RelayCounters::EnvelopeSizeLimited => "envelope.rejected.size",
             RelayCounters::BufferTryPop => "buffer.try_pop",
             RelayCounters::BufferSpooledEnvelopes => "buffer.spooled_envelopes",
             RelayCounters::BufferUnspooledEnvelopes => "buffer.unspooled_envelopes",
@@ -1081,7 +1086,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EnvelopeWithLogs => "logs.envelope",
             RelayCounters::ProfileChunksWithoutPlatform => "profile_chunk.no_platform",
             RelayCounters::ErrorProcessed => "event.error.processed",
-            RelayCounters::UnrealEndpointExpansion => "unreal.endpoint_expansion",
             RelayCounters::CompressedMinidump => "minidump.compressed.count",
             RelayCounters::TraceMetricNilTraceId => "trace_metric.nil_trace_id",
         }

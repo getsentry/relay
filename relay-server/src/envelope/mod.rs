@@ -40,7 +40,7 @@ use std::time::Duration;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use relay_dynamic_config::{ErrorBoundary, Feature};
-use relay_event_normalization::{TransactionNameRule, normalize_transaction_name};
+use relay_event_normalization::{TransactionNameRule, parameterize_dsc_transaction};
 use relay_event_schema::protocol::{Event, EventId};
 use relay_protocol::{Annotated, Value};
 use relay_sampling::DynamicSamplingContext;
@@ -48,7 +48,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use crate::constants::DEFAULT_EVENT_RETENTION;
+use crate::constants;
 use crate::extractors::{PartialMeta, RequestMeta};
 
 mod attachment;
@@ -67,6 +67,8 @@ pub use self::meta::*;
 pub enum EnvelopeError {
     #[error("unexpected end of file")]
     UnexpectedEof,
+    #[error("too many individual items")]
+    TooManyItems,
     #[error("missing envelope header")]
     MissingHeader,
     #[error("missing newline after header or payload")]
@@ -95,13 +97,6 @@ pub struct EnvelopeHeaders<M = RequestMeta> {
     /// Further event information derived from a store request.
     #[serde(flatten)]
     meta: M,
-
-    /// Data retention in days for the items of this envelope.
-    ///
-    /// This value is always overwritten in processing mode by the value specified in the project
-    /// configuration.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    retention: Option<u16>,
 
     /// Timestamp when the event has been sent, according to the SDK.
     ///
@@ -157,7 +152,6 @@ impl EnvelopeHeaders<PartialMeta> {
         Ok(EnvelopeHeaders {
             event_id: self.event_id,
             meta: meta.copy_to(request_meta),
-            retention: self.retention,
             sent_at: self.sent_at,
             trace: self.trace,
             required_features: self.required_features,
@@ -234,7 +228,6 @@ where
         let Self {
             event_id,
             meta,
-            retention,
             sent_at,
             trace,
             required_features,
@@ -247,9 +240,6 @@ where
             map.entry(&"event_id", &event_id.0);
         }
         map.entry(&"meta", &meta);
-        if let Some(retention) = retention {
-            map.entry(&"retention", retention);
-        }
         if let Some(sent_at) = sent_at {
             map.entry(&"sent_at", sent_at);
         }
@@ -301,7 +291,6 @@ impl Envelope {
             headers: EnvelopeHeaders {
                 event_id,
                 meta,
-                retention: None,
                 sent_at: None,
                 other: BTreeMap::new(),
                 trace: None,
@@ -399,12 +388,6 @@ impl Envelope {
         &mut self.headers.meta
     }
 
-    /// Returns the data retention in days for items in this envelope.
-    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
-    pub fn retention(&self) -> u16 {
-        self.headers.retention.unwrap_or(DEFAULT_EVENT_RETENTION)
-    }
-
     /// When the event has been sent, according to the SDK.
     pub fn sent_at(&self) -> Option<DateTime<Utc>> {
         self.headers.sent_at
@@ -457,11 +440,6 @@ impl Envelope {
         self.headers.meta.set_received_at(start_time)
     }
 
-    /// Sets the data retention in days for items in this envelope.
-    pub fn set_retention(&mut self, retention: u16) {
-        self.headers.retention = Some(retention);
-    }
-
     /// Runs transaction parametrization on the DSC trace transaction.
     ///
     /// The purpose is for trace rules to match on the parametrized version of the transaction.
@@ -469,20 +447,7 @@ impl Envelope {
         let Some(ErrorBoundary::Ok(dsc)) = &mut self.headers.trace else {
             return;
         };
-
-        let parametrized_transaction = match &dsc.transaction {
-            Some(transaction) if transaction.contains('/') => {
-                // Ideally we would only apply transaction rules to transactions with source `url`,
-                // but the DSC does not contain this information. The chance of a transaction rename rule
-                // accidentially matching a non-URL transaction should be very low.
-                let mut annotated = Annotated::new(transaction.clone());
-                normalize_transaction_name(&mut annotated, rules);
-                annotated.into_value()
-            }
-            _ => return,
-        };
-
-        dsc.transaction = parametrized_transaction;
+        parameterize_dsc_transaction(dsc, rules);
     }
 
     /// Returns the dynamic sampling context from envelope headers, if present.
@@ -707,6 +672,9 @@ impl Envelope {
             let (item, item_size) = Item::parse(bytes.slice(offset..))?;
             offset += item_size;
             items.push(item);
+            if items.len() > constants::MAX_ENVELOPE_ITEMS {
+                return Err(EnvelopeError::TooManyItems);
+            }
         }
 
         Ok(items)
@@ -1066,6 +1034,21 @@ mod tests {
         assert_eq!(items[0].ty(), &ItemType::Attachment);
         assert_eq!(items[1].len(), 10);
         assert_eq!(items[1].ty(), &ItemType::ReplayRecording);
+    }
+
+    #[test]
+    fn test_parse_too_many_items() {
+        let mut envelope = "{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n".to_owned();
+        for _ in 0..constants::MAX_ENVELOPE_ITEMS + 1 {
+            envelope.push_str("{\"type\":\"attachment\"}\n");
+            envelope.push_str("hello world\n");
+        }
+        let envelope = Bytes::from(envelope.into_bytes());
+
+        std::assert_matches!(
+            Envelope::parse_bytes(envelope),
+            Err(EnvelopeError::TooManyItems)
+        );
     }
 
     #[test]

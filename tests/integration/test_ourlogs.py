@@ -95,7 +95,8 @@ def test_ourlog_multiple_containers_not_allowed(
             )
         )
 
-    relay.send_envelope(project_id, envelope)
+    with pytest.raises(HTTPError, match="413 Client Error"):
+        relay.send_envelope(project_id, envelope)
 
     outcomes = outcomes_consumer.get_outcomes()
     outcomes.sort(key=lambda o: sorted(o.items()))
@@ -109,7 +110,7 @@ def test_ourlog_multiple_containers_not_allowed(
             "outcome": 3,  # Invalid
             "project_id": 42,
             "quantity": 2,
-            "reason": "duplicate_item",
+            "reason": "too_large:log",
         },
         {
             "category": DataCategory.LOG_BYTE.value,
@@ -119,7 +120,7 @@ def test_ourlog_multiple_containers_not_allowed(
             "outcome": 3,  # Invalid
             "project_id": 42,
             "quantity": matches(lambda x: 300 < x < 400),
-            "reason": "duplicate_item",
+            "reason": "too_large:log",
         },
     ]
 
@@ -1081,32 +1082,49 @@ def test_time_corrections(mini_sentry, relay, delta, error):
 
     relay.send_envelope(project_id, envelope)
 
-    envelope = mini_sentry.get_captured_envelope()
-    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
-    assert item_payload["items"][0] == {
-        "__header": {"byte_size": 3},
-        "_meta": {
-            "timestamp": {
-                "": {
-                    "err": [
-                        [
-                            error,
-                            {
-                                "sdk_time": time_within_delta(ts + delta),
-                                "server_time": time_within_delta(ts),
-                            },
+    if error == "past_timestamp":
+        assert mini_sentry.get_aggregated_outcomes() == [
+            {
+                "category": DataCategory.LOG_ITEM.value,
+                "outcome": 3,
+                "quantity": 1,
+                "reason": "timestamp",
+            },
+            {
+                "category": DataCategory.LOG_BYTE.value,
+                "outcome": 3,
+                "quantity": matches_any(),
+                "reason": "timestamp",
+            },
+        ]
+        assert mini_sentry.captured_envelopes.empty()
+    else:
+        envelope = mini_sentry.get_captured_envelope()
+        item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+        assert item_payload["items"][0] == {
+            "__header": {"byte_size": 3},
+            "_meta": {
+                "timestamp": {
+                    "": {
+                        "err": [
+                            [
+                                error,
+                                {
+                                    "sdk_time": time_within_delta(ts + delta),
+                                    "server_time": time_within_delta(ts),
+                                },
+                            ]
                         ]
-                    ]
+                    }
                 }
-            }
-        },
-        "attributes": matches_any(),
-        "body": "foo",
-        "level": "error",
-        "span_id": "eee19b7ec3c1b175",
-        "timestamp": time_within_delta(ts),
-        "trace_id": "5b8efff798038103d269b633813fc60c",
-    }
+            },
+            "attributes": matches_any(),
+            "body": "foo",
+            "level": "error",
+            "span_id": "eee19b7ec3c1b175",
+            "timestamp": time_within_delta(ts),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+        }
 
 
 def test_time_sequence_shift(mini_sentry, relay_with_processing, items_consumer):

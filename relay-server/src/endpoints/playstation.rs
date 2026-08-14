@@ -7,7 +7,6 @@ use axum::routing::{MethodRouter, post};
 use multer::{Field, Multipart};
 use relay_config::Config;
 use relay_dynamic_config::Feature;
-use relay_event_schema::protocol::EventId;
 use relay_quotas::DataCategory;
 use relay_system::Addr;
 use serde::Serialize;
@@ -113,6 +112,7 @@ async fn upload_context<'a>(
             project: ProjectContext {
                 scoping,
                 upstream: project_config.upstream.clone(),
+                retention: project_config.event_retention(),
             },
             inline_limit: global_config.options.attachment_inline_limit,
         })),
@@ -225,18 +225,13 @@ fn envelope(
     meta: RequestMeta,
     managed_err: Managed<(DataCategory, usize)>,
 ) -> Result<Managed<Box<Envelope>>, BadStoreRequest> {
-    let event_id = common::event_id_from_items(&items)
-        .reject2(&items, &managed_err)?
-        .unwrap_or_else(EventId::new);
-    let envelope = items.map(|items, records| {
-        managed_err.accept(|_| ()); // There will be an envelope with (DataCategory::Error, 1) now
-        records.modify_by(DataCategory::Error, 1);
+    Ok(Managed::zip(managed_err, items).try_map(|(_, items), _| {
+        let event_id = common::event_id_from_items(&items)?.unwrap_or_default();
         let envelope = Envelope::from_request(Some(event_id), meta)
             .with_items(items)
             .with_required_feature(Feature::PlaystationIngestion);
-        Box::new(envelope)
-    });
-    Ok(envelope)
+        Ok::<_, BadStoreRequest>(Box::new(envelope))
+    })?)
 }
 
 async fn handle(

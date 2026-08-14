@@ -3,7 +3,7 @@
 //! This module provides functionality to convert OpenTelemetry log records
 //! into Sentry's internal log format (`OurLog`).
 
-use chrono::{TimeZone, Utc};
+use chrono::{DateTime, Utc};
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 use opentelemetry_proto::tonic::common::v1::{AnyValue, InstrumentationScope};
 use opentelemetry_proto::tonic::logs::v1::LogRecord as OtelLogRecord;
@@ -81,7 +81,7 @@ pub fn otel_to_sentry_log(
         trace_id,
         span_id,
         event_name,
-        observed_time_unix_nano: _,
+        observed_time_unix_nano,
         dropped_attributes_count: _,
         flags: _,
     } = otel_log;
@@ -91,7 +91,11 @@ pub fn otel_to_sentry_log(
         false => SpanId::try_from(span_id.as_slice()).into(),
     };
     let trace_id = TraceId::try_from_slice_or_random(trace_id.as_slice());
-    let timestamp = Utc.timestamp_nanos(time_unix_nano as i64);
+
+    let timestamp = nanos_to_utc(time_unix_nano)
+        .or_else(|| nanos_to_utc(observed_time_unix_nano))
+        .unwrap_or_else(Utc::now);
+
     let level = map_severity_to_level(severity_number, &severity_text);
     let body = otel_body_to_sentry_body(body);
 
@@ -127,6 +131,13 @@ pub fn otel_to_sentry_log(
         attributes: Annotated::new(attribute_data),
         other: Object::default(),
     }
+}
+
+fn nanos_to_utc(ts: u64) -> Option<DateTime<Utc>> {
+    i64::try_from(ts)
+        .ok()
+        .filter(|&ts| ts > 0)
+        .map(DateTime::from_timestamp_nanos)
 }
 
 #[cfg(test)]
@@ -761,5 +772,51 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed["key1"], "value1");
         assert_eq!(parsed["key2"], 42);
+    }
+
+    #[test]
+    fn parse_otel_only_observed_timestamp() {
+        let json = r#"{
+            "observedTimeUnixNano": "1544712660300000000",
+            "traceId": "5B8EFFF798038103D269B633813FC60C",
+            "body": {
+                "stringValue": "Example log record"
+            }
+        }"#;
+
+        let otel_log: OtelLogRecord = serde_json::from_str(json).unwrap();
+        let our_log: OurLog = otel_to_sentry_log(otel_log, None, None);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&Annotated::new(our_log)), @r#"
+        {
+          "timestamp": 1544712660.3,
+          "trace_id": "5b8efff798038103d269b633813fc60c",
+          "level": "info",
+          "body": "Example log record",
+          "attributes": {
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.otlp.logs"
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn parse_otel_no_timestamp() {
+        let json = r#"{
+            "traceId": "5B8EFFF798038103D269B633813FC60C",
+            "body": {
+                "stringValue": "Example log record"
+            }
+        }"#;
+
+        let otel_log: OtelLogRecord = serde_json::from_str(json).unwrap();
+        let our_log: OurLog = otel_to_sentry_log(otel_log, None, None);
+
+        let ts = our_log.timestamp.value().unwrap().0;
+        assert!(ts <= Utc::now());
+        assert!(ts >= Utc::now() - chrono::Duration::seconds(5));
     }
 }

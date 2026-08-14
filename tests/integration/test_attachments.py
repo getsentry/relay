@@ -650,6 +650,7 @@ def test_event_with_attachment(
         Item(
             type="attachment",
             payload=PayloadRef(bytes=b"event attachment"),
+            filename="event.txt",
         )
     )
 
@@ -664,7 +665,7 @@ def test_event_with_attachment(
     assert event_message["attachments"][0].pop("id")
     assert list(event_message["attachments"]) == [
         {
-            "name": "Unnamed Attachment",
+            "name": "event.txt",
             "rate_limited": False,
             "content_type": "application/octet-stream",
             "attachment_type": "event.attachment",
@@ -676,7 +677,10 @@ def test_event_with_attachment(
 
     if use_objectstore:
         stored_id = event_message["attachments"][0]["stored_id"]
-        assert objectstore.get(stored_id).payload.read() == b"event attachment"
+        stored = objectstore.get(stored_id)
+        assert stored.payload.read() == b"event attachment"
+        # The file name is required for `Content-Disposition` on downloads.
+        assert stored.metadata.filename == "event.txt"
 
     # transaction attachments are sent as individual attachments,
     # either using chunks by default, or contents inlined
@@ -686,13 +690,14 @@ def test_event_with_attachment(
         Item(
             type="attachment",
             payload=PayloadRef(bytes=b"transaction attachment"),
+            filename="transaction.txt",
         )
     )
 
     relay.send_envelope(project_id, envelope)
 
     expected_attachment = {
-        "name": "Unnamed Attachment",
+        "name": "transaction.txt",
         "rate_limited": False,
         "content_type": "application/octet-stream",
         "attachment_type": "event.attachment",
@@ -710,7 +715,9 @@ def test_event_with_attachment(
 
     if use_objectstore:
         stored_id = attachment["attachment"]["stored_id"]
-        assert objectstore.get(stored_id).payload.read() == b"transaction attachment"
+        stored = objectstore.get(stored_id)
+        assert stored.payload.read() == b"transaction attachment"
+        assert stored.metadata.filename == "transaction.txt"
 
     assert attachment == {
         "type": "attachment",
