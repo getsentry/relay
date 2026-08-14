@@ -22,6 +22,7 @@
 **Internal**:
 
 - Graduate the profiling feature flag. ([#6300](https://github.com/getsentry/relay/pull/6300))
+- Allow signatures slightly in the future. ([#6308](https://github.com/getsentry/relay/pull/6308))
 - Limit interpolated `formatted` message for `LogEntry`. ([#6303](https://github.com/getsentry/relay/pull/6303))
 
 ## 26.7.2
