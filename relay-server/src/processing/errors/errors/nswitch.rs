@@ -516,7 +516,8 @@ mod tests {
         // The DyingMessage carries the scope patch our SDK serializes before the crash. It
         // includes `level: error`, and since the patch is the merge base it downgrades the
         // `fatal` Nintendo forwards (magic + version 0 + encoding 0 + u16 payload length).
-        let dying_message = Bytes::from("sntr\0\0\0\x22{\"type\":\"event\"}\n{\"level\":\"error\"}");
+        let dying_message =
+            Bytes::from("sntr\0\0\0\x22{\"type\":\"event\"}\n{\"level\":\"error\"}");
 
         // The parent envelope event is what Nintendo forwards: the abort result code as the
         // exception `type`, a readable `value`, an unhandled mechanism, and level `fatal`.
