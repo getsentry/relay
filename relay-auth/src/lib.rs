@@ -33,7 +33,6 @@ use ed25519_dalek::{Digest, DigestSigner, DigestVerifier, Signer, Verifier};
 use hmac::{Hmac, Mac};
 use rand::rngs::OsRng;
 use rand::{RngCore as _, TryRngCore as _};
-use relay_common::time::UnixTimestamp;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sha2::Sha512;
@@ -46,6 +45,12 @@ const LATEST_VERSION: RelayVersion = RelayVersion::new(VERSION_MAJOR, VERSION_MI
 
 /// The oldest downstream Relay version still supported by this Relay.
 const OLDEST_VERSION: RelayVersion = RelayVersion::new(0, 0, 0); // support all
+
+/// The maximum time a timestamp is allowed to be in the future.
+///
+/// Timestamps are always expected to be in the past, but due to time sync inconsistencies
+/// we allow a certain leniency for timestamps to be in the future.
+const MAX_TIME_IN_FUTURE: Duration = Duration::seconds(15);
 
 /// Alias for Relay IDs (UUIDs).
 pub type RelayId = Uuid;
@@ -132,6 +137,17 @@ pub enum KeyParseError {
     BadKey,
 }
 
+/// Raised if the signature timestamp is not valid.
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+pub enum TimeError {
+    /// The signature timestamp is too far in the future.
+    #[error("the timestamp is too far in the future")]
+    TooFarInFuture,
+    /// The signature timestamp is too far in the past.
+    #[error("the timestamp is too far in the past")]
+    TooFarInPast,
+}
+
 /// Raised to indicate errors when verifying a signature.
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum SignatureError {
@@ -142,8 +158,8 @@ pub enum SignatureError {
     #[error("signature cannot be verified")]
     Unverifiable,
     /// Raised if the signature timestamp cannot be verified.
-    #[error("signature is too old")]
-    Expired,
+    #[error("{0}")]
+    Time(#[from] TimeError),
 }
 
 /// Raised to indicate failure on unpacking.
@@ -158,16 +174,16 @@ pub enum UnpackError {
     /// Raised if deserializing of data failed.
     #[error("could not deserialize payload")]
     BadPayload(#[source] serde_json::Error),
-    /// Raised on unpacking if the data is too old.
-    #[error("signature is too old")]
-    SignatureExpired,
+    /// Raised on unpacking if the data carries an invalid timestamp.
+    #[error("{0}")]
+    Time(#[from] TimeError),
 }
 
 impl From<SignatureError> for UnpackError {
     fn from(value: SignatureError) -> Self {
         match value {
             SignatureError::Invalid | SignatureError::Unverifiable => Self::BadSignature,
-            SignatureError::Expired => Self::SignatureExpired,
+            SignatureError::Time(time) => Self::Time(time),
         }
     }
 }
@@ -428,12 +444,10 @@ impl PublicKey {
             return Err(SignatureError::Unverifiable);
         };
 
-        if !is_valid_time(parsed.timestamp, start_time, max_age) {
-            return Err(SignatureError::Expired);
-        }
+        let timestamp = verify_time(parsed.timestamp, start_time, max_age)?;
 
         Ok(VerifiedSignatureHeader {
-            timestamp: parsed.timestamp,
+            timestamp,
             signature_algorithm,
         })
     }
@@ -557,7 +571,6 @@ impl SignedRegisterState {
     /// Unpacks the encoded state and validates the signature.
     ///
     /// The timestamp in the state is validated against the current timestamp.
-    /// If the stored timestamp is older than `max_age`, [`UnpackError::SignatureExpired`] is returned.
     pub fn unpack(
         &self,
         secret: &[u8],
@@ -580,13 +593,7 @@ impl SignedRegisterState {
         let state =
             serde_json::from_slice::<RegisterState>(&json).map_err(UnpackError::BadPayload)?;
 
-        let ts = state
-            .timestamp
-            .as_datetime()
-            .ok_or(UnpackError::SignatureExpired)?;
-        if !is_valid_time(ts, start_time, max_age) {
-            return Err(UnpackError::SignatureExpired);
-        }
+        let _ = verify_time(state.timestamp, start_time, max_age)?;
 
         Ok(state)
     }
@@ -605,7 +612,8 @@ impl fmt::Display for SignedRegisterState {
 /// replay attacks.
 #[derive(Clone, Deserialize, Serialize)]
 pub struct RegisterState {
-    timestamp: UnixTimestamp,
+    #[serde(with = "chrono::serde::ts_seconds")]
+    timestamp: DateTime<Utc>,
     relay_id: RelayId,
     public_key: PublicKey,
     rand: String,
@@ -613,7 +621,7 @@ pub struct RegisterState {
 
 impl RegisterState {
     /// Returns the timestamp at which the challenge was created.
-    pub fn timestamp(&self) -> UnixTimestamp {
+    pub fn timestamp(&self) -> DateTime<Utc> {
         self.timestamp
     }
 
@@ -688,7 +696,7 @@ impl RegisterRequest {
     /// Creates a register challenge for this request.
     pub fn into_challenge(self, secret: &[u8]) -> RegisterChallenge {
         let state = RegisterState {
-            timestamp: UnixTimestamp::now(),
+            timestamp: Utc::now(),
             relay_id: self.relay_id,
             public_key: self.public_key,
             rand: nonce(),
@@ -836,9 +844,19 @@ impl Signature {
 pub struct SignatureRef<'a>(pub &'a str);
 
 /// Verifies a timestamp `ts` is not in the future and not expired.
-fn is_valid_time(ts: DateTime<Utc>, start_time: DateTime<Utc>, max_age: Duration) -> bool {
+fn verify_time(
+    ts: DateTime<Utc>,
+    start_time: DateTime<Utc>,
+    max_age: Duration,
+) -> Result<DateTime<Utc>, TimeError> {
     let diff = start_time - ts;
-    diff >= Duration::zero() && diff <= max_age
+    if diff > max_age {
+        Err(TimeError::TooFarInPast)
+    } else if diff < -MAX_TIME_IN_FUTURE {
+        Err(TimeError::TooFarInFuture)
+    } else {
+        Ok(ts)
+    }
 }
 
 #[cfg(test)]
@@ -1099,24 +1117,40 @@ mod tests {
     #[test]
     fn test_verify_max_age() {
         let pair = generate_key_pair();
-        let signature = pair.0.sign(&[]);
         let start_time = Utc::now();
+        let header = SignatureHeader {
+            timestamp: start_time,
+            signature_algorithm: None,
+        };
+        let signature = pair.0.sign_with_header(&[], &header);
 
         // The signature is valid in general
-        let _verified = signature
+        let verified = signature
             .verify(&[], &pair.1, start_time, Duration::seconds(10))
             .unwrap();
+        assert_eq!(verified.timestamp(), start_time);
 
-        // Signature is no longer valid because too far in the future.
+        // Future timestamps within the allowed clock skew are valid.
+        let verified = signature
+            .verify(
+                &[],
+                &pair.1,
+                start_time - MAX_TIME_IN_FUTURE,
+                Duration::seconds(10),
+            )
+            .unwrap();
+        assert_eq!(verified.timestamp(), start_time);
+
+        // Future timestamps beyond the allowed clock skew are invalid.
         let err = signature
             .verify(
                 &[],
                 &pair.1,
-                start_time - Duration::seconds(1),
-                Duration::milliseconds(500),
+                start_time - MAX_TIME_IN_FUTURE - Duration::milliseconds(1),
+                Duration::seconds(10),
             )
             .unwrap_err();
-        assert_eq!(err, SignatureError::Expired);
+        assert_eq!(err, SignatureError::Time(TimeError::TooFarInFuture));
 
         // Signature is no longer valid because too much time elapsed
         let err = signature
@@ -1127,7 +1161,7 @@ mod tests {
                 Duration::milliseconds(500),
             )
             .unwrap_err();
-        assert_eq!(err, SignatureError::Expired);
+        assert_eq!(err, SignatureError::Time(TimeError::TooFarInPast));
     }
 
     #[test]
