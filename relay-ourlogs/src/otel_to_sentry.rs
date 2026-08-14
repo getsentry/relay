@@ -69,8 +69,8 @@ fn otel_body_to_sentry_body(body: Option<AnyValue>) -> Option<String> {
 /// Transforms an OpenTelemetry log record to a Sentry log.
 pub fn otel_to_sentry_log(
     otel_log: OtelLogRecord,
-    resource: Option<&Resource>,
-    scope: Option<&InstrumentationScope>,
+    resource: &Option<Resource>,
+    scope: &Option<InstrumentationScope>,
 ) -> OurLog {
     let OtelLogRecord {
         time_unix_nano,
@@ -105,7 +105,7 @@ pub fn otel_to_sentry_log(
         attribute_data.insert(EVENT__NAME, event_name.to_owned());
     }
     if let Some(resource) = resource
-        && let Some(platform) = otel_resource_to_platform(resource)
+        && let Some(platform) = otel_resource_to_platform(&resource)
     {
         attribute_data.insert(SENTRY__PLATFORM, platform.to_owned());
     }

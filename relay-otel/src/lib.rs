@@ -100,8 +100,8 @@ pub fn otel_value_to_attribute(otel_value: OtelValue) -> Option<Attribute> {
 /// Applies Otel scopes into Sentry [`Attributes`].
 pub fn otel_scope_into_attributes(
     attributes: &mut Attributes,
-    resource: Option<&Resource>,
-    scope: Option<&InstrumentationScope>,
+    resource: &Option<Resource>,
+    scope: &Option<InstrumentationScope>,
 ) {
     for attribute in resource.into_iter().flat_map(|s| &s.attributes) {
         if let Some(attr) = attribute
