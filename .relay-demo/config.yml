@@ -1,0 +1,25 @@
+relay:
+  # static = project configs come from ./projects/*.json on disk. Relay never asks
+  # upstream for them, so `vars.publicKey` survives (Sentry's _merge_pii_configs
+  # strips `vars`, which is why managed mode needs a patch and static mode does not).
+  mode: static
+
+  # Where processed events get forwarded. Point at http://localhost:8000/ to send
+  # them into a local Sentry devserver instead of a throwaway sink.
+  upstream: http://127.0.0.1:8999/
+
+  host: 127.0.0.1
+  port: 3001
+
+logging:
+  level: info
+
+limits:
+  shutdown_timeout: 0
+
+cache:
+  # Defaults are 10s file poll and a 300s project cache, so edits to projects/*.json
+  # take up to 5 minutes to apply. Shorten both so rule changes land immediately.
+  file_interval: 1
+  project_expiry: 1
+  project_grace_period: 0

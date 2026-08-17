@@ -1,0 +1,38 @@
+{
+  "projectId": 42,
+  "slug": "encrypt-demo",
+  "publicKeys": [
+    {
+      "publicKey": "e12d836b15bb49d7bbf99e64295d995b",
+      "isEnabled": true,
+      "numericId": 1
+    }
+  ],
+  "config": {
+    "allowedDomains": [
+      "*"
+    ],
+    "trustedRelays": [],
+    "piiConfig": {
+      "vars": {
+        "publicKey": "d9KbvrQ9LZm0PMF2fC2sFbdO3E4KL35k2g1QVxdgeko="
+      },
+      "rules": {
+        "recoverable": {
+          "type": "anything",
+          "redaction": {
+            "method": "encrypt"
+          }
+        }
+      },
+      "applications": {
+        "$user.email": [
+          "@email:mask"
+        ],
+        "$request.data.**": [
+          "recoverable"
+        ]
+      }
+    }
+  }
+}
