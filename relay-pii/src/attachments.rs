@@ -177,6 +177,15 @@ trait StringMods: AsRef<[u8]> {
             Redaction::Replace(replace) => {
                 self.swap_content(replace.text.as_str(), PADDING);
             }
+            Redaction::Encrypt => {
+                // Attachment scrubbing rewrites bytes in place and cannot grow the buffer, but that
+                // does not matter here: the ciphertext lives outside the attachment entirely. Fill
+                // the value like `Remove` would and let the sealed payload carry the original.
+                //
+                // Note that `EncryptProcessor` walks the event, not attachment bodies, so for now
+                // nothing is actually collected for attachments -- they are scrubbed, not recovered.
+                self.fill_content(PADDING);
+            }
             Redaction::Other => relay_log::debug!("Incoming redaction is not supported"),
         }
     }

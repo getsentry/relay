@@ -11,7 +11,12 @@ use crate::{PiiConfig, PiiConfigError, Redaction, RuleSpec, RuleType, SelectorSp
 #[derive(Debug, Clone)]
 pub struct CompiledPiiConfig {
     pub(super) applications: Vec<(SelectorSpec, BTreeSet<RuleRef>)>,
+    /// Decoded bytes of [`Vars::public_key`](crate::Vars::public_key), if it parsed.
+    pub(super) public_key: Option<[u8; PUBLIC_KEY_SIZE]>,
 }
+
+/// Size of an X25519 public key in bytes.
+pub(super) const PUBLIC_KEY_SIZE: usize = 32;
 
 impl CompiledPiiConfig {
     /// Computes the compiled PII config.
@@ -26,7 +31,14 @@ impl CompiledPiiConfig {
             applications.push((selector.clone(), rule_set));
         }
 
-        CompiledPiiConfig { applications }
+        CompiledPiiConfig {
+            applications,
+            public_key: config
+                .vars
+                .public_key
+                .as_deref()
+                .and_then(decode_public_key),
+        }
     }
 
     /// Force compilation of all regex patterns in this config.
@@ -61,6 +73,30 @@ impl CompiledPiiConfig {
             }
         }
         Ok(())
+    }
+}
+
+/// Decodes a base64-encoded X25519 public key, logging and discarding invalid input.
+///
+/// A bad key must not fail the whole config: the rest of the PII rules still need to run, and
+/// dropping the key here means `encrypt` rules degrade to plain replacement rather than leaking the
+/// original value.
+fn decode_public_key(encoded: &str) -> Option<[u8; PUBLIC_KEY_SIZE]> {
+    let decoded = match data_encoding::BASE64.decode(encoded.as_bytes()) {
+        Ok(decoded) => decoded,
+        Err(error) => {
+            relay_log::debug!("PII public key is not valid base64: {error}");
+            return None;
+        }
+    };
+
+    let len = decoded.len();
+    match <[u8; PUBLIC_KEY_SIZE]>::try_from(decoded) {
+        Ok(key) => Some(key),
+        Err(_) => {
+            relay_log::debug!("PII public key must be {PUBLIC_KEY_SIZE} bytes, got {len}");
+            None
+        }
     }
 }
 

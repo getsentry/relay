@@ -1,3 +1,15 @@
+"""PII scrubbing integration tests.
+
+Note on selectors: normalization runs *before* scrubbing and derives fields from user input --
+`user.sentry_user` is built from `user.email`/`user.id`, for example. A selector that names only the
+source field (`$user.email`) leaves the derived copy untouched. That is pre-existing behaviour for
+any redaction method, not something specific to `encrypt`, but it is worth knowing when configuring
+rules: prefer `user.**` over `$user.email` if the goal is that a value appears nowhere.
+"""
+
+import base64
+import json
+
 import pytest
 
 
@@ -215,3 +227,81 @@ def test_logentry_formatted_data_scrubbing_settings(
 
     if non_destructive.additional_checks:
         assert non_destructive.additional_checks(formatted_value)
+
+
+def test_encrypt_pii_roundtrip(mini_sentry, relay):
+    """Values matched by an `encrypt` rule are scrubbed from the event but recoverable
+    with the private key, which only the org holds."""
+    nacl_public = pytest.importorskip("nacl.public")
+
+    secret = nacl_public.PrivateKey.generate()
+    public_key = base64.b64encode(bytes(secret.public_key)).decode()
+
+    relay = relay(mini_sentry)
+    config = mini_sentry.add_basic_project_config(42)
+    config["config"]["piiConfig"] = {
+        "vars": {"publicKey": public_key},
+        "rules": {"recoverable": {"type": "anything", "redaction": {"method": "encrypt"}}},
+        "applications": {"user.**": ["recoverable"]},
+    }
+
+    relay.send_event(42, {"user": {"id": "42", "email": "bruno@example.com"}})
+
+    event = mini_sentry.get_captured_envelope().get_event()
+
+    # Scrubbed in the event body, and the untouched field is left alone.
+    assert event["user"]["email"] == "[Encrypted]"
+    assert "bruno@example.com" not in json.dumps(event)
+
+    # Recoverable by whoever holds the private key.
+    sealed = base64.b64decode(event["_encrypted_pii"])
+    recovered = json.loads(nacl_public.SealedBox(secret).decrypt(sealed))
+    assert recovered["user.email"] == "bruno@example.com"
+    # `user.**` also covers the fields normalization derives before scrubbing runs, such as
+    # `sentry_user`. Narrower selectors leave those behind -- see the `sentry_user` note in the
+    # module docstring.
+    assert recovered["user.id"] == "42"
+
+
+def test_encrypt_pii_nondeterministic(mini_sentry, relay):
+    """Two identical events must produce different ciphertext, so nothing downstream can
+    tell that the same value occurred twice."""
+    pytest.importorskip("nacl.public")
+    import nacl.public
+
+    secret = nacl.public.PrivateKey.generate()
+    public_key = base64.b64encode(bytes(secret.public_key)).decode()
+
+    relay = relay(mini_sentry)
+    config = mini_sentry.add_basic_project_config(42)
+    config["config"]["piiConfig"] = {
+        "vars": {"publicKey": public_key},
+        "rules": {"recoverable": {"type": "anything", "redaction": {"method": "encrypt"}}},
+        "applications": {"user.**": ["recoverable"]},
+    }
+
+    payload = {"user": {"email": "bruno@example.com"}}
+    relay.send_event(42, dict(payload))
+    first = mini_sentry.get_captured_envelope().get_event()
+    relay.send_event(42, dict(payload))
+    second = mini_sentry.get_captured_envelope().get_event()
+
+    assert first["_encrypted_pii"] != second["_encrypted_pii"]
+
+
+def test_encrypt_pii_without_key_still_scrubs(mini_sentry, relay):
+    """With no public key configured the value must still be destroyed, and no payload
+    attached. Failing open here would be the worst outcome."""
+    relay = relay(mini_sentry)
+    config = mini_sentry.add_basic_project_config(42)
+    config["config"]["piiConfig"] = {
+        "rules": {"recoverable": {"type": "anything", "redaction": {"method": "encrypt"}}},
+        "applications": {"user.**": ["recoverable"]},
+    }
+
+    relay.send_event(42, {"user": {"email": "bruno@example.com"}})
+
+    event = mini_sentry.get_captured_envelope().get_event()
+    assert event["user"]["email"] == "[Encrypted]"
+    assert "bruno@example.com" not in json.dumps(event)
+    assert "_encrypted_pii" not in event

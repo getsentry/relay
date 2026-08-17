@@ -24,9 +24,10 @@ use relay_event_schema::protocol::IpAddr;
 use relay_event_schema::protocol::{Event, Metrics, OtelContext, RelayInfo};
 use relay_filter::FilterStatKey;
 use relay_metrics::MetricNamespace;
-use relay_pii::PiiProcessor;
+use relay_pii::{ENCRYPTED_PII_KEY, EncryptProcessor, PiiProcessor};
 use relay_protocol::Annotated;
 use relay_protocol::Empty;
+use relay_protocol::Value;
 use relay_quotas::DataCategory;
 use relay_statsd::metric;
 
@@ -420,6 +421,21 @@ pub fn scrub(
     }
 
     metric!(timer(RelayTimers::EventProcessingPii), {
+        // Collect the values `encrypt` rules target before anything destroys them. This only reads
+        // the event; the sealed payload is attached after scrubbing so that it is not itself
+        // scrubbed.
+        let sealed = config
+            .pii_config
+            .as_ref()
+            .map(|c| c.compiled())
+            .filter(|c| EncryptProcessor::is_enabled(c))
+            .map(|compiled| {
+                let mut processor = EncryptProcessor::new(compiled);
+                processor::process_value(event, &mut processor, ProcessingState::root())?;
+                Ok::<_, ProcessingError>(processor.seal())
+            })
+            .transpose()?;
+
         if let Some(ref config) = config.pii_config {
             let mut processor = PiiProcessor::new(config.compiled());
             processor::process_value(event, &mut processor, ProcessingState::root())?;
@@ -428,6 +444,27 @@ pub fn scrub(
         if let Some(config) = pii_config {
             let mut processor = PiiProcessor::new(config.compiled());
             processor::process_value(event, &mut processor, ProcessingState::root())?;
+        }
+
+        // Attach last, so no PII rule can strip or rewrite the ciphertext.
+        match sealed {
+            Some(Ok(Some(sealed))) => {
+                if let Some(event) = event.value_mut() {
+                    event.other.insert(
+                        ENCRYPTED_PII_KEY.to_owned(),
+                        Annotated::new(Value::String(sealed)),
+                    );
+                }
+            }
+            Some(Err(error)) => {
+                // Failing to seal must not drop the event: it has already been scrubbed, so the
+                // only loss is that the org cannot recover the originals for this one event.
+                relay_log::error!(
+                    error = &error as &dyn std::error::Error,
+                    "failed to encrypt PII values"
+                );
+            }
+            Some(Ok(None)) | None => {}
         }
     });
 

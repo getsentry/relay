@@ -117,6 +117,7 @@ clap_complete = "4"
 console = "0.15"
 cookie = "0.18"
 criterion = "0.5"
+crypto_box = { version = "0.9.1", features = ["seal"] }
 data-encoding = "2"
 deadpool = "0.12"
 debugid = "0.8"

@@ -28,6 +28,7 @@ dev = [
     "objectstore-client",
     "opentelemetry-proto",
     "pre-commit",
+    "pynacl",
     "pytest",
     "pytest-timeout",
     "pytest-localserver",

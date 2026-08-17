@@ -13,6 +13,8 @@ publish = false
 workspace = true
 
 [dependencies]
+crypto_box = { workspace = true }
+data-encoding = { workspace = true }
 hmac = { workspace = true }
 minidump = { workspace = true }
 num-traits = { workspace = true }

@@ -5,6 +5,7 @@
 **Features**:
 
 - Raise the size limit for the flags context to 128 KiB. ([#6310](https://github.com/getsentry/relay/pull/6310))
+- Add an `encrypt` PII redaction method that seals the original value against an org-held public key and attaches it to the event as `_encrypted_pii`. Relay only holds the public half, so only the org can read the values back.
 
 ## 26.8.0
 

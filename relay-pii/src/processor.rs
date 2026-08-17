@@ -620,6 +620,16 @@ fn insert_replacement_chunks(rule: &RuleRef, text: &str, output: &mut Vec<Chunk<
                 text: Cow::Owned(replace.text.clone()),
             });
         }
+        Redaction::Encrypt => {
+            // The ciphertext does not go here. `EncryptProcessor` has already collected the
+            // original value and seals it into `_encrypted_pii` separately, so all that is left to
+            // do in the event body is destroy the value like any other redaction would.
+            output.push(Chunk::Redaction {
+                ty: RemarkType::Encrypted,
+                rule_id: Cow::Owned(rule.origin.to_string()),
+                text: Cow::Borrowed("[Encrypted]"),
+            });
+        }
         Redaction::Other => relay_log::debug!("Incoming redaction is not supported"),
     }
 }

@@ -223,11 +223,18 @@ pub struct Vars {
     /// The default secret key for hashing operations.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hash_key: Option<String>,
+
+    /// The org's X25519 public key used by `encrypt` rules, base64-encoded (32 bytes).
+    ///
+    /// Relay only ever holds the public half, so it can seal values but not open them again. The
+    /// matching private key never leaves the org.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub public_key: Option<String>,
 }
 
 impl Vars {
     fn is_empty(&self) -> bool {
-        self.hash_key.is_none()
+        self.hash_key.is_none() && self.public_key.is_none()
     }
 }
 

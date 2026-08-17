@@ -14,8 +14,8 @@ use relay_event_normalization::{
 };
 use relay_event_schema::processor::{ProcessingState, process_value};
 use relay_event_schema::protocol::Event;
-use relay_pii::{PiiConfig, PiiProcessor};
-use relay_protocol::Annotated;
+use relay_pii::{ENCRYPTED_PII_KEY, EncryptProcessor, PiiConfig, PiiProcessor, generate_keypair};
+use relay_protocol::{Annotated, Value};
 
 /// Processes a Sentry event payload.
 ///
@@ -43,6 +43,13 @@ struct Cli {
     /// Debug print the internal structure.
     #[arg(long)]
     debug: bool,
+
+    /// Generate an X25519 keypair for `encrypt` PII rules and exit.
+    ///
+    /// The public half goes into the PII config under `vars.publicKey`; keep the secret half to
+    /// decrypt with.
+    #[arg(long)]
+    keygen: bool,
 }
 
 impl Cli {
@@ -74,12 +81,39 @@ impl Cli {
     }
 
     pub fn run(self) -> Result<()> {
+        if self.keygen {
+            let (public_key, secret_key) = generate_keypair();
+            eprintln!("secret key (keep private, needed to decrypt): {secret_key}");
+            println!("{}", serde_json::json!({"vars": {"publicKey": public_key}}));
+            return Ok(());
+        }
+
         let mut event = self.load_event()?;
 
         if let Some(pii_config) = self.load_pii_config()? {
-            let mut processor = PiiProcessor::new(pii_config.compiled());
+            let compiled = pii_config.compiled();
+
+            // Mirror the server: collect the originals first, scrub, then attach the sealed payload
+            // so no rule can strip it.
+            let sealed = if EncryptProcessor::is_enabled(compiled) {
+                let mut processor = EncryptProcessor::new(compiled);
+                process_value(&mut event, &mut processor, ProcessingState::root())
+                    .map_err(|e| format_err!("{e}"))?;
+                processor.seal().context("failed to encrypt PII values")?
+            } else {
+                None
+            };
+
+            let mut processor = PiiProcessor::new(compiled);
             process_value(&mut event, &mut processor, ProcessingState::root())
                 .map_err(|e| format_err!("{e}"))?;
+
+            if let (Some(sealed), Some(event)) = (sealed, event.value_mut()) {
+                event.other.insert(
+                    ENCRYPTED_PII_KEY.to_owned(),
+                    Annotated::new(Value::String(sealed)),
+                );
+            }
         }
 
         if self.store {

@@ -47,6 +47,18 @@ pub enum Redaction {
     Mask,
     /// Replaces the value with a hash
     Hash,
+    /// Replaces the value with a placeholder and stores the original, encrypted, on the side.
+    ///
+    /// The matched value itself is replaced just like [`Redaction::Replace`] would, so nothing
+    /// downstream of PII scrubbing observes any difference. Separately, the full original value of
+    /// every field touched by an `encrypt` rule is collected by
+    /// [`EncryptProcessor`](crate::EncryptProcessor), sealed against the org's public key from
+    /// [`Vars::public_key`](crate::Vars::public_key), and attached to the event under
+    /// `_encrypted_pii`.
+    ///
+    /// Only the org holds the private key, so Relay can write these values but never read them
+    /// back.
+    Encrypt,
     /// Added for forward compatibility as catch-all variant.
     #[serde(other, skip_serializing)]
     Other,
