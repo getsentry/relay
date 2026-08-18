@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Raises the size limit for the flags context to 128 KiB. ([#6137](https://github.com/getsentry/relay/pull/6137))
+- Raise the size limit for the flags context to 128 KiB. ([#6137](https://github.com/getsentry/relay/pull/6137))
 
 ## 26.8.0
 
