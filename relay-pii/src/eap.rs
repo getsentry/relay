@@ -3,11 +3,56 @@
 //! This module also contains tests for scrubbing attributes.
 
 use relay_event_schema::processor::{
-    ProcessValue, ProcessingResult, ProcessingState, ValueType, process_value,
+    ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, ValueType, process_value,
 };
 use relay_protocol::Annotated;
 
-use crate::{AttributeMode, PiiConfig, PiiProcessor};
+use crate::{AttributeMode, EncryptError, EncryptProcessor, PiiConfig, PiiProcessor};
+
+/// Collects the values targeted by `encrypt` rules, then scrubs the item.
+///
+/// Returns the sealed payload, base64-encoded, or `None` when the config has no usable `encrypt`
+/// rule or nothing matched. Callers are expected to attach the payload to the item afterwards --
+/// for spans, as an `_encrypted_pii` attribute.
+///
+/// Collection has to happen before [`scrub`] destroys the originals, which is why this is a single
+/// function rather than something callers sequence themselves.
+pub fn scrub_and_seal<T: ProcessValue>(
+    value_type: ValueType,
+    item: &mut Annotated<T>,
+    advanced_rules: Option<&PiiConfig>,
+    legacy_rule: Option<&PiiConfig>,
+) -> Result<Option<String>, ProcessingAction> {
+    let state = ProcessingState::root().enter_borrowed("", None, [value_type]);
+
+    let sealed = match advanced_rules {
+        Some(config) if EncryptProcessor::is_enabled(config.compiled()) => {
+            let mut processor = EncryptProcessor::new(config.compiled());
+            process_value(item, &mut processor, &state)?;
+            match processor.seal() {
+                Ok(sealed) => sealed,
+                Err(error) => {
+                    // Never fail the item: it still gets scrubbed below, so the only loss is that
+                    // the org cannot recover the originals for this one item.
+                    log_seal_error(&error);
+                    None
+                }
+            }
+        }
+        _ => None,
+    };
+
+    scrub(value_type, item, advanced_rules, legacy_rule)?;
+
+    Ok(sealed)
+}
+
+fn log_seal_error(error: &EncryptError) {
+    relay_log::error!(
+        error = error as &dyn std::error::Error,
+        "failed to encrypt PII values"
+    );
+}
 
 /// Scrubs an EAP item (such as an `OurLog` or `SpanV2`) with the given PII configs.
 pub fn scrub<T: ProcessValue>(

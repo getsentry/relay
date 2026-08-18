@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::Event;
 use relay_pii::{EncryptProcessor, PiiConfig, PiiProcessor, generate_keypair};
-use relay_protocol::FromValue;
+use relay_protocol::{Annotated, FromValue};
 
 /// Decrypts a sealed payload the way an org would, returning the recovered path -> value map.
 fn unseal(secret_key: &str, sealed: &str) -> BTreeMap<String, String> {
@@ -118,4 +118,63 @@ fn test_unknown_method_fails_closed() {
     processor::process_value(&mut event, &mut pii, ProcessingState::root()).unwrap();
 
     assert!(!event.to_json().unwrap().contains("bruno@example.com"));
+}
+
+#[test]
+fn test_encrypt_span_attributes() {
+    use relay_event_schema::processor::ValueType;
+    use relay_event_schema::protocol::SpanV2;
+    use relay_pii::eap;
+
+    let (public_key, secret_key) = generate_keypair();
+
+    // Span attributes are addressed as `<attribute name>.value`; dotted names need quoting.
+    let config: PiiConfig = serde_json::from_value(serde_json::json!({
+        "vars": {"publicKey": public_key},
+        "rules": {"recoverable": {"type": "anything", "redaction": {"method": "encrypt"}}},
+        "applications": {"'user.email'.value": ["recoverable"]}
+    }))
+    .unwrap();
+
+    let mut span = Annotated::<SpanV2>::from_json(
+        r#"{
+          "trace_id": "ff62a8b040f340bda5d830223def1d81",
+          "span_id": "b0429c44b67a3eb1",
+          "name": "GET /users",
+          "status": "ok",
+          "start_timestamp": 1700000000.0,
+          "end_timestamp": 1700000001.0,
+          "attributes": {
+            "user.email": {"type": "string", "value": "ivy@example.com"},
+            "other.field": {"type": "string", "value": "keepme"}
+          }
+        }"#,
+    )
+    .unwrap();
+
+    let sealed = eap::scrub_and_seal(ValueType::Span, &mut span, Some(&config), None)
+        .unwrap()
+        .expect("the email was collected");
+
+    // Mirror what the server does: attach the payload after scrubbing.
+    span.value_mut()
+        .as_mut()
+        .unwrap()
+        .attributes
+        .get_or_insert_with(relay_event_schema::protocol::Attributes::new)
+        .insert(relay_pii::ENCRYPTED_PII_KEY, sealed.clone());
+
+    let json = span.to_json().unwrap();
+    assert!(!json.contains("ivy@example.com"), "{json}");
+    assert!(json.contains("[Encrypted]"), "{json}");
+    // Untargeted attributes are left alone.
+    assert!(json.contains("keepme"), "{json}");
+    assert!(json.contains(relay_pii::ENCRYPTED_PII_KEY), "{json}");
+
+    let recovered = unseal(&secret_key, &sealed);
+    assert_eq!(
+        recovered.get("attributes.user.email.value").map(String::as_str),
+        Some("ivy@example.com"),
+        "recovered: {recovered:?}"
+    );
 }

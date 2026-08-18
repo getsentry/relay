@@ -1,0 +1,57 @@
+{
+  "projectId": 1,
+  "slug": "internal",
+  "publicKeys": [
+    {
+      "publicKey": "8d460806bda69bc787bbd2b69e70e258",
+      "isEnabled": true,
+      "numericId": 1
+    }
+  ],
+  "config": {
+    "allowedDomains": [
+      "*"
+    ],
+    "trustedRelays": [],
+    "piiConfig": {
+      "vars": {
+        "publicKey": "d9KbvrQ9LZm0PMF2fC2sFbdO3E4KL35k2g1QVxdgeko="
+      },
+      "rules": {
+        "recoverable": {
+          "type": "anything",
+          "redaction": {
+            "method": "encrypt"
+          }
+        }
+      },
+      "applications": {
+        "user.**": [
+          "recoverable"
+        ],
+        "$request.data.**": [
+          "recoverable"
+        ],
+        "extra.**": [
+          "recoverable"
+        ],
+        "$error.value": [
+          "recoverable"
+        ],
+        "'user.email'.value": [
+          "recoverable"
+        ],
+        "'user.name'.value": [
+          "recoverable"
+        ],
+        "'user.id'.value": [
+          "recoverable"
+        ]
+      }
+    },
+    "features": [
+      "organizations:standalone-span-ingestion",
+      "projects:relay-otel-endpoint"
+    ]
+  }
+}

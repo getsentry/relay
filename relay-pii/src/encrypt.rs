@@ -131,8 +131,12 @@ impl Processor for EncryptProcessor<'_> {
         }
 
         if self.should_encrypt(state) {
-            self.collected
-                .insert(state.path().to_string(), value.clone());
+            // EAP items are walked from a root state entered with an empty key, which leaves a
+            // leading `.` on every path. Strip it so the payload keys read the same whether they
+            // came from an event (`user.email`) or a span (`attributes.user.email.value`).
+            let path = state.path().to_string();
+            let path = path.strip_prefix('.').unwrap_or(&path).to_owned();
+            self.collected.insert(path, value.clone());
         }
 
         Ok(())

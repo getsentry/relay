@@ -75,7 +75,19 @@ pub fn validate_and_set_dsc(
         let client_is_relay = spans.headers.meta().client_name() == ClientName::Relay;
         let dsc = match spans.headers.dsc_mut() {
             None if client_is_relay => return Ok(()),
-            None => return Err(Error::MissingDynamicSamplingContext),
+            // LOCAL DEV PATCH -- do not commit.
+            //
+            // Upstream rejects span envelopes without a DSC to enforce SDK protocol conformance.
+            // The JS SDK's `createSpanEnvelope` omits the `trace` header whenever the DSC lacks
+            // `trace_id`/`public_key`, which it does for some standalone spans, so browser traffic
+            // never reaches Explore locally. A missing DSC only means a 100% sample rate, so
+            // accepting it is safe for local testing.
+            //
+            // Revert with: git checkout -- relay-server/src/processing/spans/dynamic_sampling.rs
+            None => {
+                relay_log::debug!("accepting span envelope without a DSC (local dev patch)");
+                return Ok(());
+            }
             Some(dsc) => dsc,
         };
 

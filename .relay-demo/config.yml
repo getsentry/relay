@@ -1,18 +1,35 @@
 relay:
-  # static = project configs come from ./projects/*.json on disk. Relay never asks
-  # upstream for them, so `vars.publicKey` survives (Sentry's _merge_pii_configs
-  # strips `vars`, which is why managed mode needs a patch and static mode does not).
-  mode: static
+  # managed = project configs are fetched from upstream Sentry. Required because
+  # `processing` (below) only works in managed mode, and processing is the only
+  # way into a local Sentry: Sentry has no HTTP ingest endpoint any more, so a
+  # forwarded envelope just hits the React catch-all and 403s on CSRF.
+  #
+  # `vars.publicKey` survives the round trip only because of the patch to
+  # _merge_pii_configs in sentry (src/sentry/relay/datascrubbing.py) that carries
+  # `vars` through the org+project merge. The piiConfig now lives on the Sentry
+  # project option `sentry:relay_pii_config`, not in ./projects/*.json, and its
+  # rule name arrives prefixed as `project:recoverable`.
+  mode: managed
 
-  # Where processed events get forwarded. Point at http://localhost:8000/ to send
-  # them into a local Sentry devserver instead of a throwaway sink.
-  upstream: http://127.0.0.1:8999/
+  # Upstream Sentry, used for registration and project config fetches. With
+  # watchers on, the devserver binds Django to 8001 and gives 8000 to the rspack
+  # proxy, so talk to 8001 rather than through the asset proxy.
+  upstream: http://127.0.0.1:8001/
 
   host: 127.0.0.1
   port: 3001
 
+processing:
+  # Produce straight to Kafka, where Sentry's ingest-events consumer picks events
+  # up. Requires a build with the feature enabled: `cargo run --all-features`.
+  enabled: true
+  kafka_config:
+    - { name: "bootstrap.servers", value: "127.0.0.1:9092" }
+    # Align with Relay's default `max_envelope_size` (200 MiB).
+    - { name: "message.max.bytes", value: 209715200 }
+  redis: redis://127.0.0.1:6379
 logging:
-  level: info
+  level: trace
 
 limits:
   shutdown_timeout: 0

@@ -4,7 +4,7 @@ use std::time::Duration;
 use relay_event_normalization::eap::{ClientUserAgentInfo, Ingress, Pipeline};
 use relay_event_normalization::{GeoIpLookup, RequiredMode, SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
-use relay_event_schema::protocol::{Span, SpanId, SpanV2};
+use relay_event_schema::protocol::{Attributes, Span, SpanId, SpanV2};
 use relay_protocol::Annotated;
 
 use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer, ParentId, WithHeader};
@@ -412,12 +412,25 @@ pub fn scrub(spans: &mut Managed<ExpandedSpans>, ctx: Context<'_>) {
 fn scrub_span(span: &mut Annotated<SpanV2>, ctx: Context<'_>) -> Result<()> {
     let pii_config_from_scrubbing = ctx.project_info.config.datascrubbing_settings.pii_config();
 
-    relay_pii::eap::scrub(
+    // Collects anything an `encrypt` rule targets before scrubbing destroys it, then seals it
+    // against the org's public key.
+    let sealed = relay_pii::eap::scrub_and_seal(
         ValueType::Span,
         span,
         ctx.project_info.config.pii_config.as_ref(),
         pii_config_from_scrubbing.as_ref(),
     )?;
+
+    // Attach after scrubbing so that no PII rule can strip or rewrite the ciphertext. Spans have no
+    // enclosing event to hang the payload off, so it rides along as an attribute on the span
+    // itself.
+    if let Some(sealed) = sealed
+        && let Some(span) = span.value_mut()
+    {
+        span.attributes
+            .get_or_insert_with(Attributes::new)
+            .insert(relay_pii::ENCRYPTED_PII_KEY, sealed);
+    }
 
     Ok(())
 }

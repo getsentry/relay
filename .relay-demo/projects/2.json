@@ -1,11 +1,11 @@
 {
-  "projectId": 42,
+  "projectId": 2,
   "slug": "encrypt-demo",
   "publicKeys": [
     {
-      "publicKey": "e12d836b15bb49d7bbf99e64295d995b",
+      "publicKey": "c0783b2f43b7decf133a7f06d2f2c898",
       "isEnabled": true,
-      "numericId": 1
+      "numericId": 2
     }
   ],
   "config": {
