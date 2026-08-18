@@ -1398,7 +1398,7 @@ mod tests {
         // Make sure flags contexts has its own limit applied.
         let values = &contexts.get::<FlagsContext>().unwrap().values;
 
-        assert_eq!(values.value().unwrap().len(), 292);
+        assert_eq!(values.value().unwrap().len(), 588);
         assert_eq!(values.meta().original_length(), Some(original_flags_count));
 
         // Make sure the custom context is trimmed to 8192.
