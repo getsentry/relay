@@ -1219,8 +1219,11 @@ pub fn is_valid_platform(platform: &str) -> bool {
     VALID_PLATFORMS.contains(&platform)
 }
 
-/// Infers the `EventType` from the event's interfaces.
-fn infer_event_type(event: &Event) -> EventType {
+/// Infers the [`EventType`] from the event's interfaces.
+///
+/// This is the type normalization assigns. A declared type is only honoured for transactions and
+/// user feedback.
+pub fn infer_event_type(event: &Event) -> EventType {
     // The event type may be set explicitly when constructing the event items from specific
     // items. This is DEPRECATED, and each distinct event type may get its own base class. For
     // the time being, this is only implemented for transactions, so be specific:

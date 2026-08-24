@@ -4,6 +4,7 @@ from time import sleep
 import pytest
 from requests.exceptions import HTTPError
 from sentry_relay.consts import DataCategory
+from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 from .asserts import time_within_delta
 
@@ -358,6 +359,71 @@ def test_security_report_rejects_dedicated_content_types(mini_sentry, relay):
                 environment="production",
             )
         assert excinfo.value.response.status_code == 415
+
+    assert mini_sentry.captured_envelopes.empty()
+
+
+def test_security_report_forwards_classified_events(mini_sentry, relay):
+    """A ``security`` item from an upstream Relay is forwarded as a security event."""
+    proj_id = 42
+    relay = relay(mini_sentry, {"outcomes": {"emit_outcomes": True}})
+    mini_sentry.add_full_project_config(proj_id)
+
+    envelope = Envelope(headers={"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(
+                json={
+                    "type": "csp",
+                    "csp": {
+                        "blocked_uri": "http://evilhackerscripts.com",
+                        "document_uri": "https://example.com/foo/bar",
+                        "effective_directive": "default-src",
+                    },
+                }
+            ),
+            type="security",
+        )
+    )
+    relay.send_envelope(proj_id, envelope)
+
+    envelope = mini_sentry.get_captured_envelope()
+    assert [item.type for item in envelope.items] == ["security"]
+    assert get_security_report(envelope)["csp"]["effective_directive"] == "default-src"
+
+    assert mini_sentry.captured_outcomes.empty()
+
+
+@pytest.mark.parametrize("event_type", ["hpkp", "expectct", "expectstaple"])
+def test_security_report_rejects_deprecated_events(mini_sentry, relay, event_type):
+    """Reports an older upstream Relay already classified are rejected, not turned into errors."""
+    proj_id = 42
+    relay = relay(mini_sentry, {"outcomes": {"emit_outcomes": True}})
+    mini_sentry.add_full_project_config(proj_id)
+
+    envelope = Envelope(headers={"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(
+                json={
+                    "type": event_type,
+                    event_type: {"hostname": "www.example.com", "port": 443},
+                }
+            ),
+            type="security",
+        )
+    )
+    relay.send_envelope(proj_id, envelope)
+
+    assert mini_sentry.get_outcomes(n=1) == [
+        {
+            "category": DataCategory.SECURITY.value,
+            "outcome": 3,  # Invalid
+            "reason": "security_report_type",
+            "quantity": 1,
+            "timestamp": time_within_delta(),
+        }
+    ]
 
     assert mini_sentry.captured_envelopes.empty()
 
