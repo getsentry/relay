@@ -5,6 +5,7 @@
 **Features**:
 
 - Raise the size limit for the flags context to 128 KiB. ([#6310](https://github.com/getsentry/relay/pull/6310))
+- Raise the size limit for logs to 2 MiB.
 
 ## 26.8.0
 
