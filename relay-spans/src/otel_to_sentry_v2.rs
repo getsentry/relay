@@ -194,9 +194,7 @@ fn client_sample_rate_from_trace_state(trace_state: &str) -> Option<f64> {
     }
 
     // Extend with trailing zeros to 14 hex digits, then parse as a 56-bit unsigned integer.
-    let mut padded = [b'0'; 14];
-    padded[..th.len()].copy_from_slice(th.as_bytes());
-    let threshold = u64::from_str_radix(std::str::from_utf8(&padded).ok()?, 16).ok()?;
+    let threshold = u64::from_str_radix(th, 16).ok()? << ((14 - th.len()) * 4);
 
     Some((OTEL_MAX_ADJUSTED_COUNT - threshold) as f64 / OTEL_MAX_ADJUSTED_COUNT as f64)
 }
@@ -1216,6 +1214,11 @@ mod tests {
         assert_eq!(client_sample_rate_from_trace_state("ot=th:0"), Some(1.0));
         // `th:c` is the spec example for 25% sampling.
         assert_eq!(client_sample_rate_from_trace_state("ot=th:c"), Some(0.25));
+        // Short thresholds are extended with trailing zeroes, not parsed as-is.
+        assert_eq!(
+            client_sample_rate_from_trace_state("ot=th:12"),
+            Some(0.9296875)
+        );
         // Other `ot` sub-keys and vendor entries must be ignored.
         assert_eq!(
             client_sample_rate_from_trace_state(
