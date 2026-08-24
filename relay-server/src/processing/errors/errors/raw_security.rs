@@ -10,6 +10,7 @@ use crate::processing::ForwardContext;
 use crate::processing::errors::Result;
 use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
 use crate::services::processor::ProcessingError;
+use crate::utils::DebugBytes;
 
 #[derive(Debug)]
 pub struct RawSecurity;
@@ -85,9 +86,10 @@ fn event_from_security_report(
     };
 
     if let Err(json_error) = apply_result {
-        // logged in extract_event
+        // The payload is attacker controlled and as large as `max_event_size`.
+        let payload = format!("{:?}", DebugBytes(data));
         relay_log::configure_scope(|scope| {
-            scope.set_extra("payload", String::from_utf8_lossy(data).into());
+            scope.set_extra("payload", payload.into());
         });
 
         return Err(ProcessingError::InvalidSecurityReport(json_error));
