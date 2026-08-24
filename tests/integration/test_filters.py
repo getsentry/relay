@@ -594,11 +594,8 @@ def test_filters_are_applied_to_profiles(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"].setdefault("features", []).extend(
-        [
-            "organizations:profiling",
-            "organizations:continuous-profiling",
-        ]
+    project_config["config"].setdefault("features", []).append(
+        "organizations:continuous-profiling"
     )
     filter_settings = project_config["config"]["filterSettings"]
     for key in filter_config.keys():

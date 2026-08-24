@@ -11,7 +11,7 @@ use serde::Deserialize;
 use crate::envelope::Item;
 use crate::managed::{Managed, Rejected};
 use crate::processing::replays::{
-    Error, ExpandedReplay, ReplayPayload, ReplayVideoEvent, SerializedReplays,
+    Error, ExpandedReplay, ReplayPayload, ReplayVideoEvent, Result, SerializedReplays,
 };
 use crate::processing::{Context, utils};
 use crate::statsd::RelayTimers;
@@ -103,7 +103,7 @@ pub fn normalize(
     replay: &mut Managed<ExpandedReplay>,
     geoip_lookup: &GeoIpLookup,
     ctx: Context<'_>,
-) {
+) -> Result<(), Rejected<Error>> {
     let meta = replay.headers.meta();
     let client_addr = meta.client_addr();
     let time_config = utils::normalize::time_config(&replay.headers, |_| None, ctx);
@@ -112,11 +112,12 @@ pub fn normalize(
         client_hints: meta.client_hints().to_owned(),
     };
 
-    replay.modify(|replay, _| {
+    replay.try_modify(|replay, _| -> Result<(), Error> {
         if let Some(event) = replay.payload.event_mut() {
-            eap::time::normalize(event, time_config);
-            replay::normalize(event, client_addr, &user_agent.as_deref(), geoip_lookup)
+            eap::time::normalize(event, time_config)?;
+            replay::normalize(event, client_addr, &user_agent.as_deref(), geoip_lookup);
         }
+        Ok(())
     })
 }
 

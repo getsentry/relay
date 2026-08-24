@@ -114,37 +114,36 @@ pub enum KafkaGauges {
     /// - `variant`: The Kafka message variant.
     /// - `producer_name`: The configured producer name/deployment identifier.
     InFlightCount,
-
+    /// The number of operations and callbacks waiting in the librdkafka reply queue.
+    ///
+    /// This metric is tagged with:
+    /// - `producer_name`: The configured producer name/deployment identifier.
+    ReplyQueue,
     /// The current number of messages in producer queues.
     ///
     /// This metric is tagged with:
     /// - `producer_name`: The configured producer name/deployment identifier.
     MessageCount,
-
     /// The maximum number of messages allowed in the producer queues.
     ///
     /// This metric is tagged with:
     /// - `producer_name`: The configured producer name/deployment identifier.
     MessageCountMax,
-
     /// The current total size of messages in producer queues.
     ///
     /// This metric is tagged with:
     /// - `producer_name`: The configured producer name/deployment identifier.
     MessageSize,
-
     /// The maximum total size of messages allowed in the producer queues.
     ///
     /// This metric is tagged with:
     /// - `producer_name`: The configured producer name/deployment identifier.
     MessageSizeMax,
-
     /// The total number of messages transmitted (produced) to all brokers.
     ///
     /// This metric is tagged with:
     /// - `producer_name`: The configured producer name/deployment identifier.
     TxMsgs,
-
     /// A snapshot of the broker state.
     ///
     /// All broker states are emitted as a separate series tagged with `state`.
@@ -156,84 +155,96 @@ pub enum KafkaGauges {
     /// - `producer_name`: The configured producer name/deployment identifier.
     /// - `state`: The current [`rdkafka::statistics::Broker::state`] of the broker.
     BrokerState,
-
     /// The number of requests awaiting transmission to the broker.
     ///
     /// This metric is tagged with:
     /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
     /// - `producer_name`: The configured producer name/deployment identifier.
     BrokerOutboundBufferRequests,
-
     /// The number of messages awaiting transmission to the broker.
     ///
     /// This metric is tagged with:
     /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
     /// - `producer_name`: The configured producer name/deployment identifier.
     BrokerOutboundBufferMessages,
-
+    /// The number of in-flight requests awaiting a response from the broker.
+    ///
+    /// This metric is tagged with:
+    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
+    /// - `producer_name`: The configured producer name/deployment identifier.
+    BrokerWaitResponseRequests,
     /// The number of connection attempts, including successful and failed attempts, and name resolution failures.
     ///
     /// This metric is tagged with:
     /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
     /// - `producer_name`: The configured producer name/deployment identifier.
     BrokerConnects,
-
     /// The number of disconnections, whether triggered by the broker, the network, the load balancer, or something else.
     ///
     /// This metric is tagged with:
     /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
     /// - `producer_name`: The configured producer name/deployment identifier.
     BrokerDisconnects,
-
+    /// Milliseconds since the last socket send.
+    ///
+    /// This metric is tagged with:
+    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
+    /// - `producer_name`: The configured producer name/deployment identifier.
+    BrokerTxIdle,
+    /// Milliseconds since the last socket receive.
+    ///
+    /// This metric is tagged with:
+    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
+    /// - `producer_name`: The configured producer name/deployment identifier.
+    BrokerRxIdle,
+    /// The total number of requests that timed out.
+    ///
+    /// This metric is tagged with:
+    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
+    /// - `producer_name`: The configured producer name/deployment identifier.
+    BrokerRequestTimeouts,
     /// Average internal producer queue latency, in milliseconds.
     ///
     /// This metric is tagged with:
     /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
     /// - `producer_name`: The configured producer name/deployment identifier.
     BrokerIntLatencyAvg,
-
     /// 99th percentile internal producer queue latency, in milliseconds.
     ///
     /// This metric is tagged with:
     /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
     /// - `producer_name`: The configured producer name/deployment identifier.
     BrokerIntLatencyP99,
-
     /// Average output buffer latency, in milliseconds.
     ///
     /// This metric is tagged with:
     /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
     /// - `producer_name`: The configured producer name/deployment identifier.
     BrokerOutbufLatencyAvg,
-
     /// 99th percentile output buffer latency, in milliseconds.
     ///
     /// This metric is tagged with:
     /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
     /// - `producer_name`: The configured producer name/deployment identifier.
     BrokerOutbufLatencyP99,
-
     /// Average round-trip time to the broker, in milliseconds.
     ///
     /// This metric is tagged with:
     /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
     /// - `producer_name`: The configured producer name/deployment identifier.
     BrokerRttAvg,
-
     /// 99th percentile round-trip time to the broker, in milliseconds.
     ///
     /// This metric is tagged with:
     /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
     /// - `producer_name`: The configured producer name/deployment identifier.
     BrokerRttP99,
-
     /// Total number of requests sent to the broker.
     ///
     /// This metric is tagged with:
     /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
     /// - `producer_name`: The configured producer name/deployment identifier.
     BrokerTx,
-
     /// Total number of bytes sent to the broker.
     ///
     /// This metric is tagged with:
@@ -246,6 +257,7 @@ impl GaugeMetric for KafkaGauges {
     fn name(&self) -> &'static str {
         match self {
             KafkaGauges::InFlightCount => "kafka.in_flight_count",
+            KafkaGauges::ReplyQueue => "kafka.stats.replyq",
             KafkaGauges::MessageCount => "kafka.stats.message_count",
             KafkaGauges::MessageCountMax => "kafka.stats.message_count_max",
             KafkaGauges::MessageSize => "kafka.stats.message_size",
@@ -254,8 +266,12 @@ impl GaugeMetric for KafkaGauges {
             KafkaGauges::BrokerState => "kafka.stats.broker.state",
             KafkaGauges::BrokerOutboundBufferRequests => "kafka.stats.broker.outbuf.requests",
             KafkaGauges::BrokerOutboundBufferMessages => "kafka.stats.broker.outbuf.messages",
+            KafkaGauges::BrokerWaitResponseRequests => "kafka.stats.broker.waitresp.requests",
             KafkaGauges::BrokerConnects => "kafka.stats.broker.connects",
             KafkaGauges::BrokerDisconnects => "kafka.stats.broker.disconnects",
+            KafkaGauges::BrokerTxIdle => "kafka.stats.broker.tx_idle",
+            KafkaGauges::BrokerRxIdle => "kafka.stats.broker.rx_idle",
+            KafkaGauges::BrokerRequestTimeouts => "kafka.stats.broker.request_timeouts",
             KafkaGauges::BrokerIntLatencyAvg => "kafka.stats.broker.int_latency.avg",
             KafkaGauges::BrokerIntLatencyP99 => "kafka.stats.broker.int_latency.p99",
             KafkaGauges::BrokerOutbufLatencyAvg => "kafka.stats.broker.outbuf_latency.avg",

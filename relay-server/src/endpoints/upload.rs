@@ -21,6 +21,7 @@ use relay_system::SendError;
 use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::Envelope;
+use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::endpoints::common::BadStoreRequest;
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
 use crate::extractors::RequestMeta;
@@ -389,7 +390,11 @@ async fn validate_and_limit(
     let scoping = envelope.scoping();
     let upstream = project_upstream(&project);
     envelope.accept(|x| x);
-    Ok(ProjectContext { scoping, upstream })
+    Ok(ProjectContext {
+        scoping,
+        upstream,
+        retention: event_retention(&project),
+    })
 }
 
 /// Returns the feature a project must have enabled to upload attachments with the given type.
@@ -417,13 +422,26 @@ async fn validate(
     let scoping = envelope.scoping();
     let upstream = project_upstream(&project);
     envelope.accept(|x| x);
-    Ok(ProjectContext { scoping, upstream })
+    Ok(ProjectContext {
+        scoping,
+        upstream,
+        retention: event_retention(&project),
+    })
 }
 
 fn project_upstream(project: &Project<'_>) -> Option<UpstreamDescriptor> {
     match project.state() {
         ProjectState::Enabled(info) => info.upstream.clone(),
         ProjectState::Dummy | ProjectState::Disabled | ProjectState::Pending => None,
+    }
+}
+
+fn event_retention(project: &Project<'_>) -> u16 {
+    match project.state() {
+        ProjectState::Enabled(info) => info.event_retention(),
+        ProjectState::Dummy | ProjectState::Disabled | ProjectState::Pending => {
+            DEFAULT_EVENT_RETENTION
+        }
     }
 }
 

@@ -11,7 +11,7 @@ use std::str::FromStr;
 use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens, quote};
 use syn::spanned::Spanned;
-use syn::{Data, Error, Lit, LitStr};
+use syn::{Data, Error, LitStr};
 use synstructure::decl_derive;
 
 mod utils;
@@ -631,7 +631,7 @@ fn parse_type_attributes(s: &synstructure::Structure<'_>) -> syn::Result<TypeAtt
                 rv.tag_key = Some(s.value());
             } else {
                 // Ignore other attributes used by `ProcessValue` derive macro.
-                let _ = meta.value()?.parse::<Lit>()?;
+                let _ = meta.value()?.parse::<syn::Expr>()?;
             }
 
             Ok(())
@@ -744,7 +744,7 @@ fn parse_field_attributes(
                     .map_err(|_| meta.error("Unknown value"))?;
             } else {
                 // Ignore other attributes used by `ProcessValue` derive macro.
-                let _ = meta.value()?.parse::<Lit>()?;
+                let _ = meta.value()?.parse::<syn::Expr>()?;
             }
 
             Ok(())
@@ -780,7 +780,7 @@ fn parse_variant_attributes(attrs: &[syn::Attribute]) -> syn::Result<VariantAttr
                 rv.tag_override = Some(meta.value()?.parse::<LitStr>()?.value());
             } else {
                 // Ignore other attributes used by `ProcessValue` derive macro.
-                let _ = meta.value()?.parse::<Lit>()?;
+                let _ = meta.value()?.parse::<syn::Expr>()?;
             }
 
             Ok(())

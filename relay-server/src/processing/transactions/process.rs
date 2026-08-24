@@ -129,12 +129,15 @@ pub fn prepare_data(
     ctx: &mut Context<'_>,
 ) -> Result<(), Rejected<Error>> {
     let scoping = work.scoping();
-    work.try_modify(|work, record_keeper| {
-        profile::filter(work, record_keeper, *ctx);
+    work.try_modify(|work, _| {
         profile::transfer_id(&mut work.event, work.profile.as_ref().map(|p| p.meta.id));
         profile::remove_context_if_rate_limited(&mut work.event, scoping, *ctx);
 
         utils::dsc::validate_and_set_dsc(&mut work.headers, &work.event, ctx);
+        if let (Some(dsc), Some(config)) = (work.headers.dsc_mut(), ctx.sampling_project_info) {
+            let rules = &config.config.tx_name_rules;
+            relay_event_normalization::parameterize_dsc_transaction(dsc, rules);
+        }
 
         utils::event::finalize(
             &work.headers,

@@ -5,11 +5,14 @@ Tests for the TUS upload endpoint (/api/{project_id}/upload/).
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import timedelta
+from urllib.parse import urlparse
 
 from flask import Response
 import pytest
 
 from sentry_relay.auth import SecretKey
+from objectstore_client.metadata import TimeToLive
 
 from .consts import (
     DUMMY_UPLOAD_PATH,
@@ -675,6 +678,51 @@ def upload_something(relay, project_id, project_key):
         },
         data=data,
     )
+
+
+@pytest.mark.parametrize(
+    "with_multipart",
+    [pytest.param(False, id="no multipart"), pytest.param(True, id="with multipart")],
+)
+def test_objectstore_retention(
+    mini_sentry, relay_with_processing, objectstore, with_multipart
+):
+    project_id = 42
+    config = mini_sentry.add_full_project_config(project_id)["config"]
+    config["eventRetention"] = 20
+    if with_multipart:
+        config.setdefault("features", []).append("projects:relay-upload-multipart")
+    project_key = mini_sentry.get_dsn_public_key(project_id)
+
+    relay = relay_with_processing()
+
+    data = b"hello world"
+    create = relay.post(
+        f"/api/{project_id}/upload/?sentry_key={project_key}",
+        headers={
+            "Content-Length": "0",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": str(len(data)),
+        },
+    )
+    assert create.status_code == 201, create.text
+    location = create.headers["Location"]
+    key = urlparse(location).path.rstrip("/").split("/")[-1]
+
+    patch = relay.patch(
+        f"{location}&sentry_key={project_key}",
+        headers={
+            "Content-Length": str(len(data)),
+            "Content-Type": "application/offset+octet-stream",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Offset": "0",
+        },
+        data=data,
+    )
+    assert patch.status_code == 204, patch.text
+
+    meta = objectstore("attachments", project_id).head(key)
+    assert meta.expiration_policy == TimeToLive(timedelta(days=20))
 
 
 @pytest.mark.parametrize(

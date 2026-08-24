@@ -101,7 +101,10 @@ pub fn normalize_mobile_measurements(
             .and_then(|v| v.as_f64())
         {
             let frames_frozen_rate = frames_frozen / frames_total;
-            attributes.insert(FRAMES_FROZEN_RATE.to_owned(), frames_frozen_rate);
+            attributes.insert(
+                APP__VITALS__FRAMES__FROZEN__RATE.to_owned(),
+                frames_frozen_rate,
+            );
         }
 
         if let Some(frames_slow) = attributes
@@ -109,7 +112,7 @@ pub fn normalize_mobile_measurements(
             .and_then(|v| v.as_f64())
         {
             let frames_slow_rate = frames_slow / frames_total;
-            attributes.insert(FRAMES_SLOW_RATE.to_owned(), frames_slow_rate);
+            attributes.insert(APP__VITALS__FRAMES__SLOW__RATE.to_owned(), frames_slow_rate);
         }
     }
 
@@ -117,11 +120,11 @@ pub fn normalize_mobile_measurements(
     if let Some(span_duration) = span_duration
         && !span_duration.is_zero()
         && let Some(stall_total_time_ms) = attributes
-            .get_value(STALL_TOTAL_TIME)
+            .get_value(APP__VITALS__STALL__DURATION)
             .and_then(|v| v.as_f64())
     {
         let stall_percentage = stall_total_time_ms / (span_duration.as_millis() as f64);
-        attributes.insert(STALL_PERCENTAGE.to_owned(), stall_percentage);
+        attributes.insert(APP__VITALS__STALL__PERCENTAGE.to_owned(), stall_percentage);
     }
 }
 

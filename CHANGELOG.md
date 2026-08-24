@@ -12,7 +12,33 @@
 
 **Features**:
 
+- Raise the size limit for the flags context to 128 KiB. ([#6310](https://github.com/getsentry/relay/pull/6310))
+
+## 26.8.0
+
+**Features**:
+
+- Reject spans, logs, trace metrics, replays when they are too old instead of shifting their timestamp. ([#6272](https://github.com/getsentry/relay/pull/6272))
 - Extract nvgpu dumps and create GPU events. ([#6242](https://github.com/getsentry/relay/pull/6242))
+- Preserve transaction `contexts`, `extra`, and `breadcrumbs` on the segment span as serialized attributes. ([#6286](https://github.com/getsentry/relay/pull/6286))
+
+**Bug Fixes**:
+
+- Store the attachment file name in objectstore so that downloads are named after the attachment. ([#6276](https://github.com/getsentry/relay/pull/6276))
+- Add compression limit for playstation dumps. ([#6211](https://github.com/getsentry/relay/pull/6211))
+- OTLP logs being rejected or ingested with an incorrect timestamp if they only contain an observed time. ([#6290](https://github.com/getsentry/relay/pull/6290))
+- Fix streamed attachments having wrong retention. ([#6268](https://github.com/getsentry/relay/pull/6268))
+- Re-parameterize a DSC when it is computed from a transaction. ([#6279](https://github.com/getsentry/relay/pull/6279))
+- Correct error and outcome for too large streams. ([#6291](https://github.com/getsentry/relay/pull/6291))
+- Validate streamed minidumps and correctly enforce size limit for buffered minidumps. ([#6282](https://github.com/getsentry/relay/pull/6282))
+- Improve `gen_ai` span op inference. ([#6307](https://github.com/getsentry/relay/pull/6307))
+- Always set `sentry.client_sample_rate` on span v2 spans, preferring the SDK-provided attribute over the DSC and falling back to `1.0`. ([#6299](https://github.com/getsentry/relay/pull/6299))
+
+**Internal**:
+
+- Graduate the profiling feature flag. ([#6300](https://github.com/getsentry/relay/pull/6300))
+- Allow signatures slightly in the future. ([#6308](https://github.com/getsentry/relay/pull/6308))
+- Limit interpolated `formatted` message for `LogEntry`. ([#6303](https://github.com/getsentry/relay/pull/6303))
 
 ## 26.7.2
 

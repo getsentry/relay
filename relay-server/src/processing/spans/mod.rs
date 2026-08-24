@@ -4,6 +4,7 @@ use either::Either;
 use relay_cogs::{AppFeature, FeatureWeights};
 use relay_event_normalization::GeoIpLookup;
 use relay_event_normalization::eap::Ingress;
+use relay_event_normalization::eap::time::TimestampOutOfRange;
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{SpanV2, span_v2};
 use relay_quotas::{DataCategory, RateLimits};
@@ -39,6 +40,8 @@ pub enum Error {
     /// Multiple item containers and mixed span items are not allowed to be in the same envelope.
     #[error("duplicate or mixed span items in the same envelope")]
     DuplicateItem,
+    #[error(transparent)]
+    TimestampOutOfRange(#[from] TimestampOutOfRange),
     /// Standalone spans filtered because of a missing feature flag.
     #[error("spans feature flag missing")]
     FilterFeatureFlag,
@@ -66,6 +69,7 @@ impl OutcomeError for Error {
     fn consume(self) -> (Option<Outcome>, Self::Error) {
         let outcome = match &self {
             Self::DuplicateItem => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
+            Self::TimestampOutOfRange(_) => Some(Outcome::Invalid(DiscardReason::Timestamp)),
             Self::FilterFeatureFlag => None,
             Self::MissingDynamicSamplingContext => Some(Outcome::Invalid(
                 DiscardReason::MissingDynamicSamplingContext,

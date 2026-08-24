@@ -220,6 +220,7 @@ def test_lcp_span(
                 "AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
             },
             "browser.version": {"type": "string", "value": "42.0"},
+            "sentry.client_sample_rate": {"type": "double", "value": 1.0},
             "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
@@ -427,6 +428,7 @@ def test_cls_span(
                 "AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
             },
             "browser.version": {"type": "string", "value": "42.0"},
+            "sentry.client_sample_rate": {"type": "double", "value": 1.0},
             "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
@@ -609,6 +611,7 @@ def test_inp_span(
                 "AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
             },
             "browser.version": {"type": "string", "value": "42.0"},
+            "sentry.client_sample_rate": {"type": "double", "value": 1.0},
             "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
@@ -741,10 +744,10 @@ def test_spans_standalone_dsc_normalization(
     assert spans["cccccccccccccccc"]["is_segment"] is False
     assert get_transaction("aaaaaaaaaaaaaaaa") == "/my/fancy/endpoint"
     assert get_transaction("bbbbbbbbbbbbbbbb") == "/my/fancy/endpoint"
-    assert get_transaction("cccccccccccccccc") == "/transaction/already/exists"
+    assert get_transaction("cccccccccccccccc") == "/my/fancy/endpoint"
     assert get_project_id("aaaaaaaaaaaaaaaa") == "42"
     assert get_project_id("bbbbbbbbbbbbbbbb") == "42"
-    assert get_project_id("cccccccccccccccc") == "41"
+    assert get_project_id("cccccccccccccccc") == "42"
     assert get_trace_id("aaaaaaaaaaaaaaaa") == "5b8efff798038103d269b633813fc60c"
     assert get_trace_id("bbbbbbbbbbbbbbbb") == "5b8efff798038103d269b633813fc60c"
     assert get_trace_id("cccccccccccccccc") == "5b8efff798038103d269b633813fc60c"
@@ -846,18 +849,19 @@ def test_mobile_measurements(
                 "AppleWebKit/537.36 (KHTML, like Gecko) Firefox/42.0",
             },
             "browser.version": {"type": "string", "value": "42.0"},
+            "sentry.client_sample_rate": {"type": "double", "value": 1.0},
             "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within_delta(expect_resolution="ns"),
             },
-            "stall_total_time": {"value": 4000.0, "type": "double"},
-            "stall_percentage": {"value": 0.8, "type": "double"},
+            "app.vitals.stall.duration": {"value": 4000.0, "type": "double"},
+            "app.vitals.stall.percentage": {"value": 0.8, "type": "double"},
             "app.vitals.frames.slow.count": {"value": 1.0, "type": "double"},
             "app.vitals.frames.frozen.count": {"value": 2.0, "type": "double"},
             "app.vitals.frames.total.count": {"value": 4.0, "type": "double"},
-            "frames_frozen_rate": {"value": 0.5, "type": "double"},
-            "frames_slow_rate": {"value": 0.25, "type": "double"},
+            "app.vitals.frames.frozen.rate": {"value": 0.5, "type": "double"},
+            "app.vitals.frames.slow.rate": {"value": 0.25, "type": "double"},
             "app.vitals.start.cold.value": {"value": 0.123, "type": "double"},
             "app.vitals.start.value": {"value": 0.123, "type": "double"},
             "app.vitals.start.type": {"value": "cold", "type": "string"},
@@ -967,6 +971,7 @@ def test_ua_ip_inference(
                 "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
             },
             "browser.version": {"type": "string", "value": "42.0"},
+            "sentry.client_sample_rate": {"type": "double", "value": 1.0},
             "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
@@ -1077,6 +1082,7 @@ def test_name_inference(
                 "value": "RelayIntegrationTests/1.0.0 Firefox/42.0",
             },
             "browser.version": {"type": "string", "value": "42.0"},
+            "sentry.client_sample_rate": {"type": "double", "value": 1.0},
             "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
