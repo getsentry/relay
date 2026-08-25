@@ -6,6 +6,10 @@
 
 - Raise the size limit for the flags context to 128 KiB. ([#6310](https://github.com/getsentry/relay/pull/6310))
 
+**Internal**:
+
+- Update sentry-conventions to 0.20.0. ([#6315](https://github.com/getsentry/relay/pull/6315))
+
 ## 26.8.0
 
 **Features**:
