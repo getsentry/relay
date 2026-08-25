@@ -251,7 +251,6 @@ impl Item {
     }
 
     /// Returns the content type of this item's payload.
-    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn content_type(&self) -> Option<ContentType> {
         self.headers.get(ItemHeaderKey::ContentType)
     }
@@ -262,7 +261,6 @@ impl Item {
     }
 
     /// Sets the raw content type, overriding the one specified by the SDK.
-    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn set_raw_content_type<S>(&mut self, content_type: S)
     where
         S: Into<String>,
@@ -370,7 +368,6 @@ impl Item {
     }
 
     /// Returns the file name of this item, if it is an attachment.
-    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn filename(&self) -> Option<&str> {
         self.headers.get(ItemHeaderKey::Filename)
     }

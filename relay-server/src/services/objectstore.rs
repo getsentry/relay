@@ -1204,7 +1204,8 @@ fn normalize_content_type(raw: Option<&str>, filename: Option<&str>) -> Cow<'sta
         Some(content_type) => Cow::Owned(content_type),
         None => filename
             .and_then(|filename| mime_guess::from_path(filename).first_raw())
-            .map_or(Cow::Borrowed(octet_stream), Cow::Borrowed),
+            .unwrap_or(octet_stream)
+            .into(),
     }
 }
 
