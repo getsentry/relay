@@ -203,6 +203,7 @@ def test_trace_metric_extraction(
             "sentry.client_sample_rate": {"doubleValue": 0.25},
             "http.request.method": {"stringValue": "GET"},
             "http.status_code": {"intValue": "200"},
+            "http.response.status_code": {"intValue": "200"},
             "sentry._internal.cooccuring.name.http.request.duration_seconds": {
                 "boolValue": True
             },
