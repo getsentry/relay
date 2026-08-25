@@ -1,20 +1,18 @@
 //! Objectstore service for uploading attachments.
 use std::array::TryFromSliceError;
 use std::fmt;
-use std::num::{NonZeroU16, NonZeroUsize};
+use std::num::NonZeroU16;
 use std::sync::Arc;
 use std::time::Duration;
 
-use async_compression::tokio::bufread::ZstdEncoder;
 use bytes::Bytes;
 use futures::StreamExt;
 use http::StatusCode;
 use objectstore_client::{
-    Client, Compression, ExpirationPolicy, SecretKey as SigningKey, Session, TokenGenerator,
-    UploadId, Usecase,
+    Client, ExpirationPolicy, SecretKey as SigningKey, Session, TokenGenerator, Usecase,
 };
 
-use objectstore_types::multipart::InvalidUploadId;
+use objectstore_types::multipart::{InvalidUploadId, UploadId};
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_config::ObjectstoreServiceConfig;
@@ -23,7 +21,6 @@ use relay_system::{
     Addr, AsyncResponse, FromMessage, Interface, LoadShed, NoResponse, Sender, SimpleService,
 };
 use sentry_protos::snuba::v1::TraceItem;
-use tokio_util::io::{ReaderStream, StreamReader};
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
 use crate::envelope::{ContentType, Item, ItemType};
@@ -35,14 +32,9 @@ use crate::services::store::{
 };
 use crate::services::upload::ByteStream;
 use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::{
-    BoundedStream, MeteredStream, Rechunk, RetryableStream, TakeOnce, find_error_source,
-};
+use crate::utils::{BoundedStream, MeteredStream, RetryableStream, TakeOnce, find_error_source};
 
 use super::outcome::Outcome;
-
-/// Size of an individual request to objectstore.
-const CHUNK_SIZE: NonZeroUsize = NonZeroUsize::new(5 * 1024 * 1024).unwrap();
 
 /// Messages that the objectstore service can handle.
 pub enum Objectstore {
@@ -337,7 +329,7 @@ pub struct UploadRef {
     /// They key of the file (chosen by relay).
     pub key: String,
     /// The ID of the multipart upload session (chosen by objectstore).
-    /// `None` if the upload is not multipart.
+    /// `None` if the upload is not a resumable session.
     pub upload_id: Option<UploadId>,
 }
 
@@ -801,21 +793,12 @@ impl ObjectstoreServiceInner {
         } = create;
         let session = self.session(&self.event_attachments, organization_id, project_id)?;
 
-        let multipart_upload = session
-            .initiate_multipart_upload()
-            .expiration_policy(ExpirationPolicy::TimeToLive(Duration::from_hours(
-                u64::from(retention) * 24,
-            )))
-            .key(&key)
-            .compression(Compression::Zstd) // make explicit because parts need to be manually compressed.
-            .send()
-            .await?;
-        debug_assert_eq!(&key, multipart_upload.key());
-        let upload_id = multipart_upload.upload_id();
+        // This is intentionally a stub. Once Objectstore implements resumable uploads,
+        // create an upload session here.
 
         Ok(UploadRef {
             key,
-            upload_id: Some(upload_id.clone()),
+            upload_id: None,
         })
     }
 
@@ -961,48 +944,17 @@ impl ObjectstoreServiceInner {
                 upload_ref,
                 retention,
             } => {
-                let UploadRef { key, upload_id } = upload_ref;
-                let Some(upload_id) = upload_id else {
-                    // No upload ID: simple upload in a single request.
-                    let request = session.put_stream(body.boxed()).key(key);
-                    let response = request
-                        .expiration_policy(ExpirationPolicy::TimeToLive(Duration::from_hours(
-                            u64::from(retention) * 24,
-                        )))
-                        .send()
-                        .await?;
-                    return Ok(ObjectstoreKey(response.key));
-                };
+                let UploadRef { key, upload_id: _ } = upload_ref;
 
-                let multipart_upload =
-                    session.resume_multipart_upload(key, upload_id.to_string())?;
+                let request = session.put_stream(body.boxed()).key(key);
+                let response = request
+                    .expiration_policy(ExpirationPolicy::TimeToLive(Duration::from_hours(
+                        u64::from(retention) * 24,
+                    )))
+                    .send()
+                    .await?;
 
-                let body = ReaderStream::new(ZstdEncoder::new(StreamReader::new(body)));
-
-                // Unfortunately, MinIO has the limitation that the length of a multipart request
-                // has to be known. Therefore, we need to materialize the stream into concrete
-                // chunks of bytes and send each chunk as an individual request.
-                let chunks = Rechunk::new(body, CHUNK_SIZE);
-                let mut body = chunks.enumerate();
-
-                let result = relay_statsd::metric!(
-                    timer(RelayTimers::AttachmentUploadDuration),
-                    type = kind.as_str(),
-                {
-                    let mut parts = vec![];
-                    // NOTE: Once every upload is a multipart upload, we can remove `RetryableStream`
-                    // because streams will never be effectively retried.
-                    while let Some((i, chunk)) = body.next().await {
-                        let chunk = chunk?;
-                        let part_number = u32::try_from(i + 1)
-                            .map_err(|_| objectstore_client::Error::InvalidPartNumber(u32::MAX))?;
-                        let part = multipart_upload.put(chunk, part_number, None).await?;
-                        parts.push(part);
-                    }
-                    multipart_upload.complete(parts).await?
-                });
-
-                Ok(ObjectstoreKey(result))
+                Ok(ObjectstoreKey(response.key))
             }
         }
     }
