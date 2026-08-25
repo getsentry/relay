@@ -171,10 +171,10 @@ def test_standalone_attachment_store(
     }
 
     objectstore = objectstore(usecase="trace_attachments", project_id=project_id)
-    assert (
-        objectstore.get(attachment_metadata["attachment_id"]).payload.read()
-        == attachment_body
-    )
+    stored = objectstore.get(attachment_metadata["attachment_id"])
+    assert stored.payload.read() == attachment_body
+    assert stored.metadata.filename == "myfile.txt"
+    assert stored.metadata.content_type == "text/plain"
 
 
 @pytest.mark.parametrize(

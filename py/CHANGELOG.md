@@ -1,10 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.9.28
 
 ### Features
 
 - (auth) Support PEM file format for signing / verification keys by @jjbayer in ([#6155](https://github.com/getsentry/relay/pull/6155))
+- (normalization) Raise the size limit for the flags context to 128 KiB by @jjbayer in ([#6310](https://github.com/getsentry/relay/pull/6310))
 
 ## 0.9.27
 
