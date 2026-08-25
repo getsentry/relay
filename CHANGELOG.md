@@ -22,6 +22,7 @@
 
 - Graduate the profiling feature flag. ([#6300](https://github.com/getsentry/relay/pull/6300))
 - Limit interpolated `formatted` message for `LogEntry`. ([#6303](https://github.com/getsentry/relay/pull/6303))
+- Implement `Getter` for sessions so generic inbound filters can match them by `event.release` and `event.environment`. ([#6306](https://github.com/getsentry/relay/pull/6306))
 
 ## 26.7.2
 
