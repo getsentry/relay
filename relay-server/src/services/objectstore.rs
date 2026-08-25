@@ -23,7 +23,6 @@ use relay_system::{
     Addr, AsyncResponse, FromMessage, Interface, LoadShed, NoResponse, Sender, SimpleService,
 };
 use sentry_protos::snuba::v1::{AnyValue, TraceItem, any_value};
-use tokio_util::io::{ReaderStream, StreamReader};
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
 use crate::envelope::{ContentType, Item, ItemType};
@@ -819,9 +818,9 @@ impl ObjectstoreServiceInner {
             organization_id,
             project_id,
             key,
-            retention,
+            retention: _,
         } = create;
-        let session = self.session(&self.event_attachments, organization_id, project_id)?;
+        let _session = self.session(&self.event_attachments, organization_id, project_id)?;
 
         // This is intentionally a stub. Once Objectstore implements resumable uploads,
         // create an upload session here.
