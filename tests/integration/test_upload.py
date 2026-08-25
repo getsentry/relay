@@ -620,7 +620,9 @@ def test_objectstore_retries(
     assert response.status_code == 500
 
 
-def test_objectstore_timeout(mini_sentry, relay_with_processing, project_config):
+def test_objectstore_timeout(
+    mini_sentry, relay_with_processing, project_config, dummy_upload
+):
     mini_sentry.allow_chunked = True
     mini_sentry.fail_on_relay_error = False
     project_id = 42
@@ -630,6 +632,7 @@ def test_objectstore_timeout(mini_sentry, relay_with_processing, project_config)
         "/v1/objects:multipart/attachments/<scope>/<key>", methods=["PUT"]
     )
     def multipart_create(**params):
+        print(params)
         return {"key": params["key"], "upload_id": "foo"}, 201
 
     @mini_sentry.app.route(
@@ -637,14 +640,14 @@ def test_objectstore_timeout(mini_sentry, relay_with_processing, project_config)
     )
     def multipart_upload(**opts):
         time.sleep(2)
-        return 204
+        raise NotImplementedError
 
     relay = relay_with_processing(
         options={
             "processing": {
                 "objectstore": {
                     "objectstore_url": mini_sentry.url,
-                    "stream_timeout": 1,
+                    "timeout": 1,
                 }
             }
         }
@@ -652,7 +655,7 @@ def test_objectstore_timeout(mini_sentry, relay_with_processing, project_config)
 
     response = upload_something(relay, project_id, project_key)
 
-    assert response.status_code == 504
+    assert response.status_code == 500  # not 504
 
 
 def upload_something(relay, project_id, project_key):
