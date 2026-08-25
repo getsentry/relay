@@ -1,5 +1,6 @@
 //! Objectstore service for uploading attachments.
 use std::array::TryFromSliceError;
+use std::borrow::Cow;
 use std::fmt;
 use std::num::{NonZeroU16, NonZeroUsize};
 use std::sync::Arc;
@@ -9,6 +10,7 @@ use async_compression::tokio::bufread::ZstdEncoder;
 use bytes::Bytes;
 use futures::StreamExt;
 use http::StatusCode;
+use mime::Mime;
 use objectstore_client::{
     Client, Compression, ExpirationPolicy, SecretKey as SigningKey, Session, TokenGenerator,
     UploadId, Usecase,
@@ -22,12 +24,13 @@ use relay_quotas::Scoping;
 use relay_system::{
     Addr, AsyncResponse, FromMessage, Interface, LoadShed, NoResponse, Sender, SimpleService,
 };
-use sentry_protos::snuba::v1::TraceItem;
+use sentry_protos::snuba::v1::{AnyValue, TraceItem, any_value};
 use tokio_util::io::{ReaderStream, StreamReader};
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::managed::{Counted, Managed, ManagedResult, OutcomeError, Quantities, Rejected};
+use crate::processing::trace_attachments::store::CONTENT_TYPE_ATTRIBUTE;
 use crate::processing::utils::store::item_id_to_uuid;
 use crate::services::outcome::DiscardReason;
 use crate::services::store::{
@@ -179,6 +182,8 @@ pub struct StoreTraceAttachment {
     pub body: Bytes,
     /// The trace item to be published via Kafka.
     pub trace_item: TraceItem,
+    /// The content type of the attachment body.
+    pub content_type: Option<String>,
     /// The file name that downloads of this attachment are named after.
     pub filename: Option<String>,
     /// Data retention in days for this attachment.
@@ -565,7 +570,12 @@ impl ObjectstoreServiceInner {
         });
 
         for mut attachment in attachments.split(|e| e) {
+            let content_type =
+                normalize_content_type(attachment.raw_content_type(), attachment.filename());
+            attachment.modify(|a, _| a.set_raw_content_type(content_type.clone()));
+
             let attributes = ObjectAttributes {
+                content_type: Some(content_type),
                 filename: attachment.filename().map(String::from),
                 ..Default::default()
             };
@@ -619,10 +629,17 @@ impl ObjectstoreServiceInner {
             scoping.project_id,
         );
 
+        let content_type = normalize_content_type(
+            attachment.attachment.raw_content_type(),
+            attachment.attachment.filename(),
+        );
+        attachment.modify(|a, _| a.attachment.set_raw_content_type(content_type.clone()));
+
         let upload_result = match session {
             Err(error) => Err(error),
             Ok(session) => {
                 let attributes = ObjectAttributes {
+                    content_type: Some(content_type),
                     filename: attachment.attachment.filename().map(String::from),
                     ..Default::default()
                 };
@@ -674,17 +691,29 @@ impl ObjectstoreServiceInner {
         let body = Bytes::clone(&managed.body);
         let retention = managed.retention;
         let filename = managed.filename.clone();
+        let content_type =
+            normalize_content_type(managed.content_type.as_deref(), filename.as_deref());
 
         // Make sure that the attachment can be converted into a trace item:
-        let trace_item = managed.try_map(|attachment, _record_keeper| {
+        let mut trace_item = managed.try_map(|attachment, _record_keeper| {
             let StoreTraceAttachment {
                 trace_item,
                 body: _,
+                content_type: _,
                 filename: _,
                 retention: _,
             } = attachment;
             Ok::<_, Error>(StoreTraceItem { trace_item })
         })?;
+
+        // Write back the normalized content type for the `Store` service:
+        trace_item.modify(|item, _| {
+            let value = any_value::Value::StringValue(content_type.clone().into_owned());
+            item.trace_item.attributes.insert(
+                CONTENT_TYPE_ATTRIBUTE.to_owned(),
+                AnyValue { value: Some(value) },
+            );
+        });
 
         // Upload the attachment:
         if !body.is_empty() {
@@ -700,8 +729,8 @@ impl ObjectstoreServiceInner {
 
             let attributes = ObjectAttributes {
                 key: Some(key),
+                content_type: Some(content_type),
                 filename,
-                ..Default::default()
             };
 
             let _stored_key = self
@@ -775,7 +804,7 @@ impl ObjectstoreServiceInner {
             .session(&self.objectstore_client)?;
 
         let attributes = ObjectAttributes {
-            content_type: Some(content_type),
+            content_type: Some(Cow::Borrowed(content_type.as_str())),
             ..Default::default()
         };
 
@@ -935,7 +964,7 @@ impl ObjectstoreServiceInner {
             } => {
                 let mut request = session.put(body);
                 if let Some(content_type) = content_type {
-                    request = request.content_type(content_type.as_str());
+                    request = request.content_type(content_type);
                 }
                 if let Some(filename) = filename {
                     request = request.filename(filename);
@@ -1050,7 +1079,9 @@ struct ObjectAttributes {
     /// If this is `None`, objectstore assigns a random key.
     key: Option<String>,
     /// The content type of the payload.
-    content_type: Option<ContentType>,
+    ///
+    /// If this is `None`, objectstore assumes `application/octet-stream`.
+    content_type: Option<Cow<'static, str>>,
     /// The file name that downloads of this object are named after.
     ///
     /// Objectstore only sends a `Content-Disposition` header for objects that were stored with a
@@ -1066,7 +1097,7 @@ enum Upload {
         body: Bytes,
         key: Option<String>,
         retention_hours: Option<u16>,
-        content_type: Option<ContentType>,
+        content_type: Option<Cow<'static, str>>,
         filename: Option<String>,
     },
     Stream {
@@ -1089,7 +1120,7 @@ impl Upload {
                 body: body.clone(),
                 key: key.clone(),
                 retention_hours: *retention_hours,
-                content_type: *content_type,
+                content_type: content_type.clone(),
                 filename: filename.clone(),
             }),
             Self::Stream {
@@ -1113,7 +1144,7 @@ enum UploadAttempt {
         body: Bytes,
         key: Option<String>,
         retention_hours: Option<u16>,
-        content_type: Option<ContentType>,
+        content_type: Option<Cow<'static, str>>,
         filename: Option<String>,
     },
     Stream {
@@ -1152,6 +1183,30 @@ fn is_user_error(error: &(dyn std::error::Error + 'static)) -> bool {
             std::io::ErrorKind::FileTooLarge | std::io::ErrorKind::UnexpectedEof
         )
     })
+}
+
+/// Normalizes the content type of an attachment into an IANA media type.
+///
+/// Content types of attachments are arbitrary strings supplied by SDKs, and most SDKs default to
+/// the generic `application/octet-stream`. Media type parameters such as `charset` are stripped,
+/// and the type is guessed from the file name if it is missing, generic, or not a valid media
+/// type. This matches how Sentry normalizes content types when it serves attachments.
+fn normalize_content_type(raw: Option<&str>, filename: Option<&str>) -> Cow<'static, str> {
+    let octet_stream = ContentType::OctetStream.as_str();
+
+    // Parsing as a media type validates the content type and strips parameters such as `charset`.
+    let declared = raw
+        .and_then(|content_type| content_type.parse::<Mime>().ok())
+        .map(|media_type| media_type.essence_str().to_ascii_lowercase())
+        .filter(|essence| essence != octet_stream);
+
+    match declared {
+        Some(content_type) => Cow::Owned(content_type),
+        None => filename
+            .and_then(|filename| mime_guess::from_path(filename).first_raw())
+            .unwrap_or(octet_stream)
+            .into(),
+    }
 }
 
 fn should_upload(item: &Item) -> bool {
@@ -1298,6 +1353,47 @@ mod tests {
             &Outcome::Invalid(DiscardReason::UploadFailed),
             DataCategory::AttachmentItem,
             1,
+        );
+    }
+
+    #[test]
+    fn content_type_normalizes_declared() {
+        assert_eq!(normalize_content_type(Some("Image/PNG"), None), "image/png");
+        assert_eq!(
+            normalize_content_type(Some("text/plain; charset=utf-8"), None),
+            "text/plain"
+        );
+    }
+
+    #[test]
+    fn content_type_guessed_from_filename() {
+        // Most SDKs send the generic octet stream, which is less specific than the file name.
+        let declared = Some("application/octet-stream");
+        assert_eq!(
+            normalize_content_type(declared, Some("screenshot.png")),
+            "image/png"
+        );
+        assert_eq!(normalize_content_type(None, Some("view.txt")), "text/plain");
+    }
+
+    #[test]
+    fn content_type_falls_back_to_octet_stream() {
+        assert_eq!(
+            normalize_content_type(None, None),
+            ContentType::OctetStream.as_str()
+        );
+        assert_eq!(
+            normalize_content_type(None, Some("crash.unknown-extension")),
+            ContentType::OctetStream.as_str()
+        );
+        // Content types are arbitrary strings from SDKs, invalid ones must not reach objectstore.
+        assert_eq!(
+            normalize_content_type(Some("not a media type"), Some("view.txt")),
+            "text/plain"
+        );
+        assert_eq!(
+            normalize_content_type(Some("image"), None),
+            ContentType::OctetStream.as_str()
         );
     }
 
