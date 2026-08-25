@@ -261,6 +261,16 @@ impl Item {
         self.headers.get(ItemHeaderKey::ContentType)
     }
 
+    /// Sets the raw content type, overriding the one specified by the SDK.
+    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
+    pub fn set_raw_content_type<S>(&mut self, content_type: S)
+    where
+        S: Into<String>,
+    {
+        self.headers
+            .set(ItemHeaderKey::ContentType, content_type.into());
+    }
+
     /// Sets the content type if there isn't already one set.
     pub fn set_default_content_type(&mut self, content_type: ContentType) {
         if !self.headers.contains(ItemHeaderKey::ContentType) {
