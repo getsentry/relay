@@ -872,7 +872,7 @@
 <a href=#872 id=872 data-nosnippet>872</a>
 <a href=#873 id=873 data-nosnippet>873</a>                eap::scrub(ValueType::Span, <span class="kw-2">&amp;mut </span>span, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>config), scrubbing_config.as_ref()).unwrap();
 <a href=#874 id=874 data-nosnippet>874</a>
-<a href=#875 id=875 data-nosnippet>875</a>                <span class="macro">insta::allow_duplicates!</span>(<span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>span.value().unwrap().attributes), @<span class="macro-nonterminal">$snapshot</span>));
+<a href=#875 id=875 data-nosnippet>875</a>                <span class="macro">insta::allow_duplicates!</span>(<span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>span.value().unwrap().attributes), @<span class="macro-nonterminal">$snapshot</span>););
 <a href=#876 id=876 data-nosnippet>876</a>
 <a href=#877 id=877 data-nosnippet>877</a>                <span class="kw">let </span>log_json = <span class="macro">format!</span>(<span class="string">r#"{{
 <a href=#878 id=878 data-nosnippet>878</a>                    "timestamp": 1544719860.0,
@@ -898,7 +898,7 @@
 <a href=#898 id=898 data-nosnippet>898</a>
 <a href=#899 id=899 data-nosnippet>899</a>                eap::scrub(ValueType::OurLog, <span class="kw-2">&amp;mut </span>log, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>config), scrubbing_config.as_ref()).unwrap();
 <a href=#900 id=900 data-nosnippet>900</a>
-<a href=#901 id=901 data-nosnippet>901</a>                <span class="macro">insta::allow_duplicates!</span>(<span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>log.value().unwrap().attributes), @<span class="macro-nonterminal">$snapshot</span>));
+<a href=#901 id=901 data-nosnippet>901</a>                <span class="macro">insta::allow_duplicates!</span>(<span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>log.value().unwrap().attributes), @<span class="macro-nonterminal">$snapshot</span>););
 <a href=#902 id=902 data-nosnippet>902</a>
 <a href=#903 id=903 data-nosnippet>903</a>                <span class="kw">let </span>metric_json = <span class="macro">format!</span>(<span class="string">r#"{{
 <a href=#904 id=904 data-nosnippet>904</a>                    "timestamp": 1544719860.0,
@@ -924,7 +924,7 @@
 <a href=#924 id=924 data-nosnippet>924</a>
 <a href=#925 id=925 data-nosnippet>925</a>                eap::scrub(ValueType::TraceMetric, <span class="kw-2">&amp;mut </span>metric, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>config), scrubbing_config.as_ref()).unwrap();
 <a href=#926 id=926 data-nosnippet>926</a>
-<a href=#927 id=927 data-nosnippet>927</a>                <span class="macro">insta::allow_duplicates!</span>(<span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>metric.value().unwrap().attributes), @<span class="macro-nonterminal">$snapshot</span>));
+<a href=#927 id=927 data-nosnippet>927</a>                <span class="macro">insta::allow_duplicates!</span>(<span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>metric.value().unwrap().attributes), @<span class="macro-nonterminal">$snapshot</span>););
 <a href=#928 id=928 data-nosnippet>928</a>            }
 <a href=#929 id=929 data-nosnippet>929</a>        };
 <a href=#930 id=930 data-nosnippet>930</a>    }
