@@ -167,6 +167,8 @@ def test_attachments_with_objectstore(
             "id": matches_any(),
             "name": "foo.txt",
             "rate_limited": False,
+            # Uploads guess the content type from the file name.
+            "content_type": "text/plain",
             "attachment_type": "event.attachment",
             "size": len(chunked_contents),
             "retention_days": 90,
@@ -175,8 +177,8 @@ def test_attachments_with_objectstore(
         "project_id": project_id,
     }
 
-    # Empty attachments are still transmitted with zero chunks,
-    # and not stored on objectstore
+    # Empty attachments are still transmitted with zero chunks, and not stored on
+    # objectstore, so their content type remains unset
     empty = attachments_by_name["foobar.txt"]
     assert empty == {
         "type": "attachment",
