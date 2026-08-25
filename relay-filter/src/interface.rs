@@ -1,12 +1,9 @@
 //! This module contains the trait for items that can be filtered by Inbound Filters, plus
 //! the implementation for [`Event`].
-use std::sync::LazyLock;
-
 use relay_conventions::attributes::{
     BROWSER__NAME, BROWSER__VERSION, CLIENT__ADDRESS, SENTRY__RELEASE, SENTRY__SEGMENT__NAME,
     URL__FULL, USER_AGENT__ORIGINAL,
 };
-use relay_conventions::interpolate::http__request__header__key;
 use url::Url;
 
 use relay_event_schema::protocol::{
@@ -271,11 +268,6 @@ macro_rules! impl_for_attributes {
             fn user_agent(&self) -> UserAgent<'_> {
                 user_agent_from_attributes(&self.attributes)
             }
-
-            fn header(&self, header_name: &str) -> Option<&str> {
-                let key = http__request__header__key(header_name);
-                self.attributes.value()?.get_value(&key)?.as_str()
-            }
         }
     };
 }
@@ -300,20 +292,10 @@ fn user_agent_from_attributes(attributes: &relay_protocol::Annotated<Attributes>
         })
     })();
 
-    static HTTP_USER_AGENT: LazyLock<String> =
-        LazyLock::new(|| http__request__header__key("user-agent"));
-
-    let ua_original = attributes
+    let raw = attributes
         .value()
         .and_then(|attr| attr.get_value(USER_AGENT__ORIGINAL))
         .and_then(|ua| ua.as_str());
-
-    let ua_header = attributes
-        .value()
-        .and_then(|attr| attr.get_value(&*HTTP_USER_AGENT))
-        .and_then(|ua| ua.as_str());
-
-    let raw = ua_original.or(ua_header);
 
     UserAgent { raw, parsed }
 }

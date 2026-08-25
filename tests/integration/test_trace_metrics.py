@@ -1065,19 +1065,6 @@ def test_trace_metric_container_metadata(
             id="localhost-url",
         ),
         pytest.param(
-            "localhost",
-            {"localhost": {"isEnabled": True}},
-            {
-                "attributes": {
-                    "http.request.header.Host": {
-                        "value": "localhost:8000",
-                        "type": "string",
-                    }
-                }
-            },
-            id="localhost-header",
-        ),
-        pytest.param(
             "legacy-browsers",
             {"legacyBrowsers": {"isEnabled": True, "options": ["ie9"]}},
             {
