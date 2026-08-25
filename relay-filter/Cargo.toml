@@ -18,9 +18,10 @@ indexmap = { workspace = true }
 regex = { workspace = true }
 relay-common = { workspace = true }
 relay-conventions = { workspace = true }
-relay-pattern = { workspace = true }
 relay-event-schema = { workspace = true }
+relay-pattern = { workspace = true }
 relay-protocol = { workspace = true }
+relay-statsd = { workspace = true }
 relay-ua = { workspace = true }
 serde = { workspace = true }
 url = { workspace = true }
