@@ -154,6 +154,7 @@ md5 = "0.8"
 memchr = "2"
 mimalloc = { version = "0.1", features = ["v3"] }
 mime = "0.3"
+mime_guess = "2.0.5"
 minidump = "0.26"
 minidumper-child = "0.4.1"
 multer = "3"
