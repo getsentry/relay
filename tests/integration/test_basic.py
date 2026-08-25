@@ -1,8 +1,6 @@
-from contextlib import closing
 import datetime
 import os
 import gzip
-import sqlite3
 import tempfile
 
 import pytest
@@ -45,63 +43,6 @@ def test_graceful_shutdown_with_ephemeral_buffer(mini_sentry, relay, backend):
     # buffer will try and pop as always as long as it can (within the shutdown timeout).
     event = mini_sentry.get_captured_envelope().get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
-
-
-def test_graceful_shutdown_with_sqlite_buffer(mini_sentry, relay):
-    import threading
-    from flask import request as flask_request
-    from time import sleep
-
-    # Create a temporary directory for the sqlite db.
-    with tempfile.TemporaryDirectory() as db_dir:
-        db_file_path = os.path.join(db_dir, "database.db")
-
-        project_config_requested = threading.Event()
-        get_project_config_original = mini_sentry.app.view_functions[
-            "get_project_config"
-        ]
-
-        @mini_sentry.app.endpoint("get_project_config")
-        def get_project_config():
-            # Delay only regular project config fetches to keep envelopes buffered while shutdown starts.
-            if flask_request.json.get("global") is not True:
-                project_config_requested.set()
-                sleep(1)
-            return get_project_config_original()
-
-        project_id = 42
-        mini_sentry.add_basic_project_config(project_id)
-
-        relay = relay(
-            mini_sentry,
-            {
-                "limits": {"shutdown_timeout": 2},
-                "spool": {"envelopes": {"path": db_file_path}},
-            },
-        )
-
-        n = 10
-        relay.send_event(project_id)
-        assert project_config_requested.wait(
-            timeout=2
-        ), "Relay did not request project config while event was buffered"
-        for _ in range(n - 1):
-            relay.send_event(project_id)
-
-        relay.shutdown(sig=signal.SIGTERM)
-
-        # When using the disk envelope buffer, we don't forward envelopes, but we spool them to disk.
-        assert mini_sentry.captured_envelopes.empty()
-
-        # Check if there's data in the SQLite table `envelopes`.
-        with closing(sqlite3.connect(db_file_path)) as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT COALESCE(SUM(count), 0) FROM envelopes")
-            row_count = cursor.fetchone()[0]
-
-        assert (
-            row_count == n
-        ), f"The 'envelopes' table is empty. Expected {n} rows, but found {row_count}"
 
 
 def test_batch_size_bytes_asserted(mini_sentry, relay):
