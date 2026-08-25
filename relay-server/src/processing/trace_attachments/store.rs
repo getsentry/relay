@@ -16,6 +16,9 @@ use crate::processing::utils::store::{
 use crate::services::objectstore::StoreTraceAttachment;
 use crate::services::outcome::{DiscardReason, Outcome};
 
+/// The trace item attribute that carries the content type of the attachment.
+pub const CONTENT_TYPE_ATTRIBUTE: &str = "sentry.content-type";
+
 /// Converts an expanded attachment to a storable unit.
 pub fn convert(
     attachment: Managed<ExpandedAttachment>,
@@ -39,6 +42,7 @@ pub fn convert(
             retention,
             server_sample_rate,
         };
+        let content_type = meta.value().and_then(|m| m.content_type.value().cloned());
         let filename = meta.value().and_then(|m| m.filename.value().cloned());
         let trace_item = attachment_to_trace_item(meta, quantities, ctx)
             .ok_or(Outcome::Invalid(DiscardReason::InvalidTraceAttachment))?;
@@ -46,6 +50,7 @@ pub fn convert(
         Ok::<_, Outcome>(StoreTraceAttachment {
             trace_item,
             body,
+            content_type,
             filename,
             retention: retention.standard,
         })
@@ -168,7 +173,7 @@ fn convert_attributes(
     } = fields;
 
     result.insert(
-        "sentry.content-type".to_owned(),
+        CONTENT_TYPE_ATTRIBUTE.to_owned(),
         AnyValue {
             value: Some(any_value::Value::StringValue(
                 content_type.as_str().to_owned(),

@@ -9,6 +9,7 @@ local pipedream_config = {
   auto_deploy: false,
   exclude_regions: [
     's4s2',
+    'de',
   ],
   materials: {
     relay_repo: {

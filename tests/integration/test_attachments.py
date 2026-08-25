@@ -167,6 +167,8 @@ def test_attachments_with_objectstore(
             "id": matches_any(),
             "name": "foo.txt",
             "rate_limited": False,
+            # Uploads guess the content type from the file name.
+            "content_type": "text/plain",
             "attachment_type": "event.attachment",
             "size": len(chunked_contents),
             "retention_days": 90,
@@ -175,8 +177,8 @@ def test_attachments_with_objectstore(
         "project_id": project_id,
     }
 
-    # Empty attachments are still transmitted with zero chunks,
-    # and not stored on objectstore
+    # Empty attachments are still transmitted with zero chunks, and not stored on
+    # objectstore, so their content type remains unset
     empty = attachments_by_name["foobar.txt"]
     assert empty == {
         "type": "attachment",
@@ -651,6 +653,7 @@ def test_event_with_attachment(
             type="attachment",
             payload=PayloadRef(bytes=b"event attachment"),
             filename="event.txt",
+            content_type="text/plain",
         )
     )
 
@@ -667,7 +670,7 @@ def test_event_with_attachment(
         {
             "name": "event.txt",
             "rate_limited": False,
-            "content_type": "application/octet-stream",
+            "content_type": "text/plain",
             "attachment_type": "event.attachment",
             "size": len(b"event attachment"),
             "retention_days": 90,
@@ -681,6 +684,7 @@ def test_event_with_attachment(
         assert stored.payload.read() == b"event attachment"
         # The file name is required for `Content-Disposition` on downloads.
         assert stored.metadata.filename == "event.txt"
+        assert stored.metadata.content_type == "text/plain"
 
     # transaction attachments are sent as individual attachments,
     # either using chunks by default, or contents inlined
@@ -699,7 +703,8 @@ def test_event_with_attachment(
     expected_attachment = {
         "name": "transaction.txt",
         "rate_limited": False,
-        "content_type": "application/octet-stream",
+        # Uploads normalize the generic content type by guessing from the file name.
+        "content_type": "text/plain" if use_objectstore else "application/octet-stream",
         "attachment_type": "event.attachment",
         "size": len(b"transaction attachment"),
         "retention_days": 90,
@@ -718,6 +723,7 @@ def test_event_with_attachment(
         stored = objectstore.get(stored_id)
         assert stored.payload.read() == b"transaction attachment"
         assert stored.metadata.filename == "transaction.txt"
+        assert stored.metadata.content_type == "text/plain"
 
     assert attachment == {
         "type": "attachment",

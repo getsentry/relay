@@ -96,7 +96,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use futures::StreamExt as _;
     use futures::stream;
 
     use super::*;
