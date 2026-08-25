@@ -3,6 +3,9 @@
 //! This module contains implementations for all supported relay endpoints, as well as a generic
 //! `forward` endpoint that sends unknown requests to the upstream.
 
+// Axum's standard `ErrorResponse` is larger than Clippy's default threshold.
+#![allow(clippy::result_large_err)]
+
 pub(crate) mod common;
 
 mod attachments;
