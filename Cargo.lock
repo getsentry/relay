@@ -4681,6 +4681,7 @@ dependencies = [
  "relay-event-schema",
  "relay-pattern",
  "relay-protocol",
+ "relay-statsd",
  "relay-ua",
  "serde",
  "serde_json",
