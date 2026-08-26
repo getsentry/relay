@@ -206,13 +206,29 @@ pub fn process_check_in(
     let namespace = NAMESPACE
         .get_or_init(|| Uuid::new_v5(&Uuid::NAMESPACE_URL, b"https://sentry.io/crons/#did"));
 
-    // Use the project_id + monitor_slug as the routing key hint. This helps ensure monitor
-    // check-ins are processed in order by consistently routing check-ins from the same monitor.
-
+    // Use the project_id + monitor_slug + monitor env as the routing key hint. This helps ensure
+    // monitor check-ins are processed in order by consistently routing check-ins from the same
+    // monitor + env combo.
+    //
+    // This has to stay in sync with `CheckinItem.processing_key` in Sentry, which is the key the
+    // monitors consumer groups check-ins on and the only unit it serializes them within:
+    // https://github.com/getsentry/sentry/blob/master/src/sentry/monitors/types.py
+    //
+    // Sentry also resolves a missing or empty environment to "production", so both forms name the
+    // same monitor environment and have to land on the same partition, otherwise their check-ins
+    // are processed by different consumers with independent lag:
+    // https://github.com/getsentry/sentry/blob/master/src/sentry/monitors/models.py
+    // (`MonitorEnvironmentManager.ensure_environment`)
+    //
+    // Only the routing key is normalized here, the payload is forwarded untouched.
     let slug = &check_in.monitor_slug;
-    let project_id_slug_key = format!("{project_id}:{slug}");
+    let environment = match check_in.environment.as_deref() {
+        Some(environment) if !environment.is_empty() => environment,
+        _ => "production",
+    };
+    let routing_key = format!("{project_id}:{slug}:{environment}");
 
-    let routing_hint = Uuid::new_v5(namespace, project_id_slug_key.as_bytes());
+    let routing_hint = Uuid::new_v5(namespace, routing_key.as_bytes());
 
     Ok(ProcessedCheckInResult {
         routing_hint,
@@ -342,8 +358,8 @@ mod tests {
 
         let result = process_check_in(json.as_bytes(), ProjectId::new(1));
 
-        // The routing_hint should be consistent for the (project_id, monitor_slug)
-        let expected_uuid = Uuid::parse_str("66e5c5fa-b1b9-5980-8d85-432c1874521a").unwrap();
+        // The routing_hint should be consistent for the (project_id, monitor_slug, environment)
+        let expected_uuid = Uuid::parse_str("9aa99731-a8e3-5594-9f00-c3e8a62c2b11").unwrap();
 
         if let Ok(processed_result) = result {
             assert_eq!(String::from_utf8(processed_result.payload).unwrap(), json);
@@ -351,6 +367,47 @@ mod tests {
         } else {
             panic!("Failed to process check-in")
         }
+    }
+
+    #[test]
+    fn routing_hint_splits_environments() {
+        let hint = |env: &str| {
+            let json = format!(
+                r#"{{"check_in_id":"a460c25ff2554577b920fcfacae4e5eb","monitor_slug":"my-monitor","environment":"{env}","status":"ok"}}"#
+            );
+            process_check_in(json.as_bytes(), ProjectId::new(1))
+                .unwrap()
+                .routing_hint
+        };
+
+        // The consumer groups on (project, slug, environment) and only guarantees order within a
+        // group, so environments of one monitor do not need to share a partition.
+        assert_ne!(hint("prod"), hint("dev"));
+        assert_eq!(hint("prod"), hint("prod"));
+        assert_eq!(
+            hint("prod"),
+            Uuid::parse_str("f97ad155-c5c6-57f4-b748-03a301a14e54").unwrap()
+        );
+    }
+
+    #[test]
+    fn routing_hint_treats_missing_environment_as_production() {
+        let hint = |env: Option<&str>| {
+            let json = match env {
+                Some(env) => format!(
+                    r#"{{"check_in_id":"a460c25ff2554577b920fcfacae4e5eb","monitor_slug":"my-monitor","environment":"{env}","status":"ok"}}"#
+                ),
+                None => r#"{"check_in_id":"a460c25ff2554577b920fcfacae4e5eb","monitor_slug":"my-monitor","status":"ok"}"#.to_owned(),
+            };
+            process_check_in(json.as_bytes(), ProjectId::new(1))
+                .unwrap()
+                .routing_hint
+        };
+
+        // Sentry resolves all three to the same monitor environment, so they have to share a
+        // partition or their check-ins can be processed out of order.
+        assert_eq!(hint(None), hint(Some("")));
+        assert_eq!(hint(None), hint(Some("production")));
     }
 
     #[test]
