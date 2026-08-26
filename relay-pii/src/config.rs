@@ -269,13 +269,11 @@ impl PiiConfig {
         self.compiled.get_or_init(|| {
             let compiled = self.compiled_uncached();
             // Log a single warning per PiiConfig instance if any pattern fails to compile.
-            // Using warn rather than error because this is a configuration issue in a specific
-            // project's PII rules, not a system-level failure. Affected rules are silently
-            // skipped during processing (see `get_regex_for_rule_type`).
+            // Affected rules are silently skipped during processing.
             if let Err(ref error) = compiled.force_compile() {
                 relay_log::warn!(
                     error = error as &dyn std::error::Error,
-                    "PII config contains a pattern that could not be compiled; the affected rule will be skipped"
+                    "PII rule pattern could not be compiled; the rule will be skipped"
                 );
             }
             compiled
