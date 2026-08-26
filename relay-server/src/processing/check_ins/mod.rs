@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+#[cfg(feature = "processing")]
+use futures::future;
 use relay_cogs::{AppFeature, FeatureWeights};
 use relay_quotas::{DataCategory, RateLimits};
 
@@ -9,6 +11,8 @@ use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities
 use crate::processing::{self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
 
+#[cfg(feature = "processing")]
+mod limiter;
 mod process;
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -50,12 +54,21 @@ impl From<RateLimits> for Error {
 /// A processor for Check-Ins.
 pub struct CheckInsProcessor {
     limiter: Arc<QuotaRateLimiter>,
+    #[cfg(feature = "processing")]
+    redis: Option<Arc<relay_quotas::RedisRateLimiter>>,
 }
 
 impl CheckInsProcessor {
     /// Creates a new [`Self`].
-    pub fn new(limiter: Arc<QuotaRateLimiter>) -> Self {
-        Self { limiter }
+    pub fn new(
+        limiter: Arc<QuotaRateLimiter>,
+        #[cfg(feature = "processing")] redis: Option<Arc<relay_quotas::RedisRateLimiter>>,
+    ) -> Self {
+        Self {
+            limiter,
+            #[cfg(feature = "processing")]
+            redis,
+        }
     }
 }
 
@@ -89,13 +102,79 @@ impl processing::Processor for CheckInsProcessor {
         mut check_ins: Managed<Self::Input>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
-        if ctx.is_processing() {
-            process::normalize(&mut check_ins);
+        #[cfg_attr(not(feature = "processing"), allow(unused_variables))]
+        let monitors = ctx
+            .is_processing()
+            .then(|| process::normalize(&mut check_ins));
+
+        #[cfg_attr(not(feature = "processing"), allow(unused_mut))]
+        let mut check_ins = self.limiter.enforce_quotas(check_ins, ctx).await?;
+
+        #[cfg(feature = "processing")]
+        if let (Some(monitors), Some(redis)) = (monitors, &self.redis) {
+            self.enforce_monitor_limits(&mut check_ins, &monitors, redis, ctx)
+                .await;
         }
 
-        let check_ins = self.limiter.enforce_quotas(check_ins, ctx).await?;
-
         Ok(Output::just(CheckInsOutput(check_ins)))
+    }
+}
+
+#[cfg(feature = "processing")]
+impl CheckInsProcessor {
+    /// Drops check-ins whose monitor has exceeded its own limit.
+    async fn enforce_monitor_limits(
+        &self,
+        check_ins: &mut Managed<SerializedCheckIns>,
+        monitors: &[(String, String)],
+        redis: &relay_quotas::RedisRateLimiter,
+        ctx: Context<'_>,
+    ) {
+        let limit = ctx
+            .global_config
+            .options
+            .cron_monitor_rate_limit
+            .unwrap_or(limiter::DEFAULT_LIMIT);
+
+        if limit == 0 {
+            return;
+        }
+
+        let item_scoping = check_ins.scoping().item(DataCategory::Monitor);
+        let mut limited = future::join_all(monitors.iter().map(|(slug, environment)| {
+            let quota = limiter::monitor_quota(slug, environment, limit, limiter::DEFAULT_WINDOW);
+
+            async move {
+                match redis
+                    .is_rate_limited(&[quota], item_scoping, 1, false)
+                    .await
+                {
+                    Ok(limits) => limits.is_limited().then_some(limits),
+                    Err(err) => {
+                        relay_log::error!(
+                            error = &err as &dyn std::error::Error,
+                            "failed to check monitor check-in rate limit"
+                        );
+                        None
+                    }
+                }
+            }
+        }))
+        .await;
+
+        let mut i = 0;
+        check_ins.retain(
+            |check_ins| &mut check_ins.check_ins,
+            |_check_in, _| {
+                let limits = limited.get_mut(i).and_then(Option::take);
+                i += 1;
+
+                match limits {
+                    Some(limits) => Err(Error::RateLimited(limits)),
+                    None => Ok(()),
+                }
+            },
+        );
     }
 }
 

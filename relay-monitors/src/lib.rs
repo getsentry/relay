@@ -174,6 +174,16 @@ pub struct ProcessedCheckInResult {
 
     /// The JSON payload of the processed check-in.
     pub payload: Vec<u8>,
+
+    /// The normalized monitor slug, after trimming.
+    pub monitor_slug: String,
+
+    /// The environment the check-in is associated with.
+    ///
+    /// Normalized the same way as the routing key, so a per-monitor limiter keyed on this cannot
+    /// disagree with the partition the check-in is routed to. Absent and empty environments are
+    /// both reported as `production`, matching Sentry.
+    pub environment: String,
 }
 
 /// Normalizes a monitor check-in payload.
@@ -228,9 +238,14 @@ pub fn process_check_in(
 
     let routing_hint = Uuid::new_v5(namespace, routing_key.as_bytes());
 
+    let monitor_slug = check_in.monitor_slug.clone();
+    let environment = environment.to_owned();
+
     Ok(ProcessedCheckInResult {
         routing_hint,
         payload: serde_json::to_vec(&check_in)?,
+        monitor_slug,
+        environment,
     })
 }
 

@@ -58,6 +58,7 @@ impl RelayProcessor {
         quota_limiter: &Arc<QuotaRateLimiter>,
         geoip_lookup: &GeoIpLookup,
         outcome_aggregator: Addr<TrackOutcome>,
+        #[cfg(feature = "processing")] rate_limiter: Option<Arc<relay_quotas::RedisRateLimiter>>,
     ) -> Self {
         // Just so everything fits in a single line.
         let ql = || Arc::clone(quota_limiter);
@@ -66,7 +67,11 @@ impl RelayProcessor {
             cogs,
 
             attachments: AttachmentProcessor::new(ql()),
-            check_ins: CheckInsProcessor::new(ql()),
+            check_ins: CheckInsProcessor::new(
+                ql(),
+                #[cfg(feature = "processing")]
+                rate_limiter,
+            ),
             client_reports: ClientReportsProcessor::new(outcome_aggregator),
             errors: ErrorsProcessor::new(ql(), geoip_lookup.clone()),
             forward_unknown: ForwardUnknownProcessor::new(),

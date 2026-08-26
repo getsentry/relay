@@ -8,6 +8,7 @@
 - Raise the size limit for the flags context to 128 KiB. ([#6310](https://github.com/getsentry/relay/pull/6310))
 - Raise the size limit for logs to 2 MiB. ([#6316](https://github.com/getsentry/relay/pull/6316))
 - Include the environment in the cron check-in routing key so a monitor's environments no longer share a single Kafka partition. ([#6331](https://github.com/getsentry/relay/pull/6331))
+- Rate limit cron check-ins per monitor environment, controlled by the `relay.cron-monitor-rate-limit` option. ([#6330](https://github.com/getsentry/relay/pull/6330))
 
 **Bug Fixes**:
 

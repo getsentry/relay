@@ -181,3 +181,54 @@ def test_monitor_post_json_body(mini_sentry, relay):
             "timezone": "America/Los_Angles",
         },
     }
+
+
+def test_monitor_rate_limit_with_processing(
+    mini_sentry, relay_with_processing, monitors_consumer, outcomes_consumer
+):
+    project_id = 44
+    mini_sentry.add_basic_project_config(project_id)
+    # Relay only refetches global config every `cache.global_config_fetch_interval` seconds
+    # (10 by default), so the option has to be set before it starts.
+    mini_sentry.set_global_config_option("relay.cron-monitor-rate-limit", 2)
+    relay = relay_with_processing()
+    monitors_consumer = monitors_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    for _ in range(4):
+        relay.send_check_in(project_id, generate_check_in("limited-monitor"))
+
+    for _ in range(2):
+        check_in, _ = monitors_consumer.get_check_in()
+        assert check_in["monitor_slug"] == "limited-monitor"
+    monitors_consumer.assert_empty()
+
+    outcomes_consumer.assert_rate_limited(
+        "monitor_rate_limit", categories=["monitor"], quantity=2
+    )
+
+
+def test_monitor_rate_limit_is_per_environment_with_processing(
+    mini_sentry, relay_with_processing, monitors_consumer, outcomes_consumer
+):
+    project_id = 45
+    mini_sentry.add_basic_project_config(project_id)
+    # Relay only refetches global config every `cache.global_config_fetch_interval` seconds
+    # (10 by default), so the option has to be set before it starts.
+    mini_sentry.set_global_config_option("relay.cron-monitor-rate-limit", 1)
+    relay = relay_with_processing()
+    monitors_consumer = monitors_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    for environment in ["prod", "staging"]:
+        check_in = generate_check_in("shared-monitor")
+        check_in["environment"] = environment
+        relay.send_check_in(project_id, check_in)
+
+    environments = {
+        monitors_consumer.get_check_in()[0]["environment"] for _ in range(2)
+    }
+    assert environments == {"prod", "staging"}
+
+    monitors_consumer.assert_empty()
+    outcomes_consumer.assert_empty()

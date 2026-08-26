@@ -605,12 +605,14 @@ impl EnvelopeProcessorService {
             global_config,
             project_cache,
             #[cfg(feature = "processing")]
-            rate_limiter,
+            rate_limiter: rate_limiter.clone(),
             processor: RelayProcessor::new(
                 cogs.clone(),
                 &quota_limiter,
                 &geoip_lookup,
                 addrs.outcome_aggregator.clone(),
+                #[cfg(feature = "processing")]
+                rate_limiter,
             ),
             cogs,
             addrs,

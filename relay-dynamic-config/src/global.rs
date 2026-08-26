@@ -156,6 +156,14 @@ pub struct Options {
     )]
     pub sessions_eap_rollout_rate: f32,
 
+    /// Cron check-in messages accepted per monitor environment per minute.
+    #[serde(
+        rename = "relay.cron-monitor-rate-limit",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub cron_monitor_rate_limit: Option<u64>,
+
     /// Kill-switch for fetching project configs in endpoints.
     #[serde(
         default = "default_killswitched",
