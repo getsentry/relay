@@ -16,6 +16,10 @@
 
 - Implement `Getter` for sessions so generic inbound filters can match them by `event.release` and `event.environment`. ([#6325](https://github.com/getsentry/relay/pull/6325))
 
+**Internal**:
+
+- Update sentry-conventions to 0.20.0. ([#6315](https://github.com/getsentry/relay/pull/6315))
+
 ## 26.8.0
 
 **Features**:

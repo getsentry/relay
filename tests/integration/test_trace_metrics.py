@@ -104,7 +104,7 @@ def test_trace_metric_multiple_containers_not_allowed(
         # If an external Relay/Client makes modifications, sizes can change,
         # this is fuzzy due to slight changes in sizes due to added timestamps
         # and may need to be adjusted when changing normalization.
-        ("managed", 189),
+        ("managed", 222),
     ],
 )
 def test_trace_metric_extraction(
@@ -203,6 +203,7 @@ def test_trace_metric_extraction(
             "sentry.client_sample_rate": {"doubleValue": 0.25},
             "http.request.method": {"stringValue": "GET"},
             "http.status_code": {"intValue": "200"},
+            "http.response.status_code": {"intValue": "200"},
             "sentry._internal.cooccuring.name.http.request.duration_seconds": {
                 "boolValue": True
             },
