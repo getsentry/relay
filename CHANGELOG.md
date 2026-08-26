@@ -10,6 +10,10 @@
 
 - Store a normalized attachment content type in objectstore so that downloads are served with the correct type. ([#6319](https://github.com/getsentry/relay/pull/6319))
 
+**Internal**:
+
+- Implement `Getter` for sessions so generic inbound filters can match them by `event.release` and `event.environment`. ([#6325](https://github.com/getsentry/relay/pull/6325))
+
 ## 26.8.0
 
 **Features**:
@@ -35,7 +39,6 @@
 - Graduate the profiling feature flag. ([#6300](https://github.com/getsentry/relay/pull/6300))
 - Allow signatures slightly in the future. ([#6308](https://github.com/getsentry/relay/pull/6308))
 - Limit interpolated `formatted` message for `LogEntry`. ([#6303](https://github.com/getsentry/relay/pull/6303))
-- Implement `Getter` for sessions so generic inbound filters can match them by `event.release` and `event.environment`. ([#6325](https://github.com/getsentry/relay/pull/6325))
 
 ## 26.7.2
 
