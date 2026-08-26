@@ -12,6 +12,10 @@
 
 - Store a normalized attachment content type in objectstore so that downloads are served with the correct type. ([#6319](https://github.com/getsentry/relay/pull/6319))
 
+**Internal**:
+
+- Implement `Getter` for sessions so generic inbound filters can match them by `event.release` and `event.environment`. ([#6325](https://github.com/getsentry/relay/pull/6325))
+
 ## 26.8.0
 
 **Features**:
