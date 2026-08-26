@@ -67,19 +67,11 @@ impl LazyPattern {
     pub fn compiled(&self) -> Result<&Regex, &PiiConfigError> {
         self.pattern
             .get_or_init(|| {
-                let regex_result = RegexBuilder::new(&self.raw)
+                RegexBuilder::new(&self.raw)
                     .size_limit(COMPILED_PATTERN_MAX_SIZE)
                     .case_insensitive(self.case_insensitive)
                     .build()
-                    .map_err(PiiConfigError::RegexError);
-
-                if let Err(ref error) = regex_result {
-                    relay_log::error!(
-                        error = error as &dyn std::error::Error,
-                        "unable to compile pattern into regex"
-                    );
-                }
-                regex_result
+                    .map_err(PiiConfigError::RegexError)
             })
             .as_ref()
     }
@@ -274,7 +266,20 @@ impl PiiConfig {
     /// This can be computationally expensive when called for the first time. The result is cached
     /// internally and reused on the second call.
     pub fn compiled(&self) -> &CompiledPiiConfig {
-        self.compiled.get_or_init(|| self.compiled_uncached())
+        self.compiled.get_or_init(|| {
+            let compiled = self.compiled_uncached();
+            // Log a single warning per PiiConfig instance if any pattern fails to compile.
+            // Using warn rather than error because this is a configuration issue in a specific
+            // project's PII rules, not a system-level failure. Affected rules are silently
+            // skipped during processing (see `get_regex_for_rule_type`).
+            if let Err(ref error) = compiled.force_compile() {
+                relay_log::warn!(
+                    error = error as &dyn std::error::Error,
+                    "PII config contains a pattern that could not be compiled; the affected rule will be skipped"
+                );
+            }
+            compiled
+        })
     }
 
     /// Like [`compiled`](Self::compiled) but without internal caching.

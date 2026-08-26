@@ -23,6 +23,7 @@ __all__ = [
     "parse_release",
     "validate_pii_selector",
     "validate_pii_config",
+    "validate_datascrubbing_config",
     "convert_datascrubbing_config",
     "pii_strip_event",
     "pii_selector_suggestions_from_event",
@@ -202,6 +203,24 @@ def validate_pii_config(config):
     """
     assert isinstance(config, str)
     raw_error = rustcall(lib.relay_validate_pii_config, encode_str(config))
+    error = decode_str(raw_error, free=True)
+    if error:
+        raise ValueError(error)
+
+
+def validate_datascrubbing_config(
+    config,
+    json_dumps: Callable[[Any], Any] = json.dumps,
+):
+    """
+    Validate a datascrubbing config by converting it to the PII config format and checking that
+    all regex patterns compile within Relay's size limit.
+
+    Raises ValueError if any pattern would exceed Relay's compiled regex size limit.
+    Used in project/organization options UI to catch oversized patterns before they reach Relay.
+    """
+    raw_config = encode_str(json_dumps(config))
+    raw_error = rustcall(lib.relay_validate_datascrubbing_config, raw_config)
     error = decode_str(raw_error, free=True)
     if error:
         raise ValueError(error)

@@ -332,6 +332,28 @@ pub unsafe extern "C" fn relay_convert_datascrubbing_config(config: *const Relay
     }
 }
 
+/// Validate a datascrubbing config by converting it to the PII config format and checking that all
+/// regex patterns compile within Relay's size limit.
+///
+/// Returns an empty string on success, or an error message if any pattern is invalid.
+/// Used in project/organization options UI to catch oversized regex patterns before they reach Relay.
+#[unsafe(no_mangle)]
+#[relay_ffi::catch_unwind]
+pub unsafe extern "C" fn relay_validate_datascrubbing_config(
+    config: *const RelayStr,
+) -> RelayStr {
+    let datascrubbing_config: DataScrubbingConfig =
+        serde_json::from_str(unsafe { (*config).as_str() })?;
+    let pii_config = match datascrubbing_config.pii_config() {
+        Some(config) => config,
+        None => return RelayStr::new(""),
+    };
+    match pii_config.compiled().force_compile() {
+        Ok(_) => RelayStr::new(""),
+        Err(PiiConfigError::RegexError(source)) => RelayStr::from_string(source.to_string()),
+    }
+}
+
 /// Scrub an event using new PII stripping config.
 #[unsafe(no_mangle)]
 #[relay_ffi::catch_unwind]
