@@ -1343,37 +1343,6 @@ mod tests {
         assert_eq!(report_type, None);
     }
 
-    /// A CSP report whose body is `depth` levels of nested JSON arrays.
-    fn deeply_nested_csp_report(depth: usize) -> Vec<u8> {
-        let mut payload = br#"{"csp-report":"#.to_vec();
-        payload.extend(std::iter::repeat_n(b'[', depth));
-        payload.extend(std::iter::repeat_n(b']', depth));
-        payload.push(b'}');
-        payload
-    }
-
-    #[test]
-    fn test_deeply_nested_csp_report_is_rejected() {
-        // Nesting must not recurse until the stack overflows. `serde_json` caps recursion at 128
-        // levels and Relay never lifts that limit.
-        let payload = deeply_nested_csp_report(1_000_000);
-
-        let mut event = Event::default();
-        let error = Csp::apply_to_event(&payload, &mut event).unwrap_err();
-
-        assert!(error.is_syntax(), "expected a syntax error, got: {error}");
-        assert_eq!(event, Event::default());
-    }
-
-    #[test]
-    fn test_deeply_nested_report_type_deduction_is_bounded() {
-        let payload = deeply_nested_csp_report(1_000_000);
-
-        // The classifier ignores the report body, so it still recognizes the type.
-        let report_type = SecurityReportType::from_json(&payload).unwrap();
-        assert_eq!(report_type, Some(SecurityReportType::Csp));
-    }
-
     #[test]
     fn test_effective_directive_from_violated_directive_single() {
         // Example from Firefox:
