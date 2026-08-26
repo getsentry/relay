@@ -210,15 +210,13 @@ pub fn process_check_in(
     // monitor check-ins are processed in order by consistently routing check-ins from the same
     // monitor + env combo.
     //
-    // This has to stay in sync with `CheckinItem.processing_key` in Sentry, which is the key the
-    // monitors consumer groups check-ins on and the only unit it serializes them within:
+    // Keep this in sync with `CheckinItem.processing_key` in Sentry
     // https://github.com/getsentry/sentry/blob/master/src/sentry/monitors/types.py
     //
-    // Sentry also resolves a missing or empty environment to "production", so both forms name the
-    // same monitor environment and have to land on the same partition, otherwise their check-ins
-    // are processed by different consumers with independent lag:
+    // Also keep the environment in sync with Sentry's `ensure_environment`
     // https://github.com/getsentry/sentry/blob/master/src/sentry/monitors/models.py
-    // (`MonitorEnvironmentManager.ensure_environment`)
+    // We translate empty environments to `production`. This needs to be consistent here or we can
+    // end up with checkins for the same monitor/env routed to different partitions.
     //
     // Only the routing key is normalized here, the payload is forwarded untouched.
     let slug = &check_in.monitor_slug;
