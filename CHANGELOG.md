@@ -6,6 +6,10 @@
 
 - Raise the size limit for the flags context to 128 KiB. ([#6310](https://github.com/getsentry/relay/pull/6310))
 
+**Bug Fixes**:
+
+- Downgrade PII pattern compile failures from `error` to `warn` and log only once per config load instead of on every processed envelope. Add a `relay_validate_datascrubbing_config` C API to allow Sentry to reject oversized regex patterns at save time. ([#6329](https://github.com/getsentry/relay/pull/6329))
+
 ## 26.8.0
 
 **Features**:
