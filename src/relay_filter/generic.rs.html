@@ -177,7 +177,7 @@
 <a href=#177 id=177 data-nosnippet>177</a>
 <a href=#178 id=178 data-nosnippet>178</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 <a href=#179 id=179 data-nosnippet>179</a>
-<a href=#180 id=180 data-nosnippet>180</a>    <span class="kw">use </span>relay_event_schema::protocol::{Event, LenientString};
+<a href=#180 id=180 data-nosnippet>180</a>    <span class="kw">use </span>relay_event_schema::protocol::{Event, LenientString, SessionAggregates, SessionUpdate};
 <a href=#181 id=181 data-nosnippet>181</a>    <span class="kw">use </span>relay_protocol::{Annotated, FromValue <span class="kw">as _</span>};
 <a href=#182 id=182 data-nosnippet>182</a>
 <a href=#183 id=183 data-nosnippet>183</a>    <span class="kw">fn </span>mock_filters() -&gt; GenericFiltersMap {
@@ -828,5 +828,101 @@
 <a href=#828 id=828 data-nosnippet>828</a>            );
 <a href=#829 id=829 data-nosnippet>829</a>        }
 <a href=#830 id=830 data-nosnippet>830</a>    }
-<a href=#831 id=831 data-nosnippet>831</a>}
+<a href=#831 id=831 data-nosnippet>831</a>
+<a href=#832 id=832 data-nosnippet>832</a>    <span class="doccomment">/// The catch-all release filter Sentry emits: an `or` over the release path of every data type.
+<a href=#833 id=833 data-nosnippet>833</a>    </span><span class="kw">fn </span>catch_all_release_filter(release: <span class="kw-2">&amp;</span>str) -&gt; GenericFiltersConfig {
+<a href=#834 id=834 data-nosnippet>834</a>        <span class="kw">let </span>condition = RuleCondition::glob(<span class="string">"event.release"</span>, release)
+<a href=#835 id=835 data-nosnippet>835</a>            .or(RuleCondition::glob(
+<a href=#836 id=836 data-nosnippet>836</a>                <span class="string">"log.attributes.sentry.release.value"</span>,
+<a href=#837 id=837 data-nosnippet>837</a>                release,
+<a href=#838 id=838 data-nosnippet>838</a>            ))
+<a href=#839 id=839 data-nosnippet>839</a>            .or(RuleCondition::glob(
+<a href=#840 id=840 data-nosnippet>840</a>                <span class="string">"trace_metric.attributes.sentry.release.value"</span>,
+<a href=#841 id=841 data-nosnippet>841</a>                release,
+<a href=#842 id=842 data-nosnippet>842</a>            ));
+<a href=#843 id=843 data-nosnippet>843</a>
+<a href=#844 id=844 data-nosnippet>844</a>        GenericFiltersConfig {
+<a href=#845 id=845 data-nosnippet>845</a>            version: <span class="number">1</span>,
+<a href=#846 id=846 data-nosnippet>846</a>            filters: <span class="macro">vec!</span>[GenericFilterConfig {
+<a href=#847 id=847 data-nosnippet>847</a>                id: <span class="string">"catchAllRelease"</span>.to_owned(),
+<a href=#848 id=848 data-nosnippet>848</a>                is_enabled: <span class="bool-val">true</span>,
+<a href=#849 id=849 data-nosnippet>849</a>                condition: <span class="prelude-val">Some</span>(condition),
+<a href=#850 id=850 data-nosnippet>850</a>            }]
+<a href=#851 id=851 data-nosnippet>851</a>            .into(),
+<a href=#852 id=852 data-nosnippet>852</a>        }
+<a href=#853 id=853 data-nosnippet>853</a>    }
+<a href=#854 id=854 data-nosnippet>854</a>
+<a href=#855 id=855 data-nosnippet>855</a>    <span class="kw">fn </span>session_update(release: <span class="kw-2">&amp;</span>str) -&gt; SessionUpdate {
+<a href=#856 id=856 data-nosnippet>856</a>        SessionUpdate::parse(
+<a href=#857 id=857 data-nosnippet>857</a>            <span class="macro">format!</span>(
+<a href=#858 id=858 data-nosnippet>858</a>                <span class="string">r#"{{"started": "2020-02-07T14:16:00Z", "attrs": {{"release": "{release}"}}}}"#
+<a href=#859 id=859 data-nosnippet>859</a>            </span>)
+<a href=#860 id=860 data-nosnippet>860</a>            .as_bytes(),
+<a href=#861 id=861 data-nosnippet>861</a>        )
+<a href=#862 id=862 data-nosnippet>862</a>        .unwrap()
+<a href=#863 id=863 data-nosnippet>863</a>    }
+<a href=#864 id=864 data-nosnippet>864</a>
+<a href=#865 id=865 data-nosnippet>865</a>    <span class="kw">fn </span>session_aggregates(release: <span class="kw-2">&amp;</span>str) -&gt; SessionAggregates {
+<a href=#866 id=866 data-nosnippet>866</a>        SessionAggregates::parse(
+<a href=#867 id=867 data-nosnippet>867</a>            <span class="macro">format!</span>(
+<a href=#868 id=868 data-nosnippet>868</a>                <span class="string">r#"{{"aggregates": [{{"started": "2020-02-07T14:16:00Z", "exited": 2}}], "attrs": {{"release": "{release}"}}}}"#
+<a href=#869 id=869 data-nosnippet>869</a>            </span>)
+<a href=#870 id=870 data-nosnippet>870</a>            .as_bytes(),
+<a href=#871 id=871 data-nosnippet>871</a>        )
+<a href=#872 id=872 data-nosnippet>872</a>        .unwrap()
+<a href=#873 id=873 data-nosnippet>873</a>    }
+<a href=#874 id=874 data-nosnippet>874</a>
+<a href=#875 id=875 data-nosnippet>875</a>    <span class="attr">#[test]
+<a href=#876 id=876 data-nosnippet>876</a>    </span><span class="kw">fn </span>test_should_filter_session_by_release() {
+<a href=#877 id=877 data-nosnippet>877</a>        <span class="kw">let </span>config = catch_all_release_filter(<span class="string">"1.0.0"</span>);
+<a href=#878 id=878 data-nosnippet>878</a>
+<a href=#879 id=879 data-nosnippet>879</a>        <span class="macro">assert_eq!</span>(
+<a href=#880 id=880 data-nosnippet>880</a>            should_filter(<span class="kw-2">&amp;</span>session_update(<span class="string">"1.0.0"</span>), <span class="kw-2">&amp;</span>config, <span class="prelude-val">None</span>),
+<a href=#881 id=881 data-nosnippet>881</a>            <span class="prelude-val">Err</span>(FilterStatKey::GenericFilter(<span class="string">"catchAllRelease"</span>.to_owned()))
+<a href=#882 id=882 data-nosnippet>882</a>        );
+<a href=#883 id=883 data-nosnippet>883</a>        <span class="macro">assert_eq!</span>(
+<a href=#884 id=884 data-nosnippet>884</a>            should_filter(<span class="kw-2">&amp;</span>session_aggregates(<span class="string">"1.0.0"</span>), <span class="kw-2">&amp;</span>config, <span class="prelude-val">None</span>),
+<a href=#885 id=885 data-nosnippet>885</a>            <span class="prelude-val">Err</span>(FilterStatKey::GenericFilter(<span class="string">"catchAllRelease"</span>.to_owned()))
+<a href=#886 id=886 data-nosnippet>886</a>        );
+<a href=#887 id=887 data-nosnippet>887</a>
+<a href=#888 id=888 data-nosnippet>888</a>        <span class="macro">assert_eq!</span>(
+<a href=#889 id=889 data-nosnippet>889</a>            should_filter(<span class="kw-2">&amp;</span>session_update(<span class="string">"2.0.0"</span>), <span class="kw-2">&amp;</span>config, <span class="prelude-val">None</span>),
+<a href=#890 id=890 data-nosnippet>890</a>            <span class="prelude-val">Ok</span>(())
+<a href=#891 id=891 data-nosnippet>891</a>        );
+<a href=#892 id=892 data-nosnippet>892</a>        <span class="macro">assert_eq!</span>(
+<a href=#893 id=893 data-nosnippet>893</a>            should_filter(<span class="kw-2">&amp;</span>session_aggregates(<span class="string">"2.0.0"</span>), <span class="kw-2">&amp;</span>config, <span class="prelude-val">None</span>),
+<a href=#894 id=894 data-nosnippet>894</a>            <span class="prelude-val">Ok</span>(())
+<a href=#895 id=895 data-nosnippet>895</a>        );
+<a href=#896 id=896 data-nosnippet>896</a>    }
+<a href=#897 id=897 data-nosnippet>897</a>
+<a href=#898 id=898 data-nosnippet>898</a>    <span class="doccomment">/// A filter that only lists other data types' release paths must never match a session.
+<a href=#899 id=899 data-nosnippet>899</a>    </span><span class="attr">#[test]
+<a href=#900 id=900 data-nosnippet>900</a>    </span><span class="kw">fn </span>test_should_not_filter_session_by_foreign_release_path() {
+<a href=#901 id=901 data-nosnippet>901</a>        <span class="kw">let </span>config = GenericFiltersConfig {
+<a href=#902 id=902 data-nosnippet>902</a>            version: <span class="number">1</span>,
+<a href=#903 id=903 data-nosnippet>903</a>            filters: <span class="macro">vec!</span>[GenericFilterConfig {
+<a href=#904 id=904 data-nosnippet>904</a>                id: <span class="string">"otherTypesOnly"</span>.to_owned(),
+<a href=#905 id=905 data-nosnippet>905</a>                is_enabled: <span class="bool-val">true</span>,
+<a href=#906 id=906 data-nosnippet>906</a>                condition: <span class="prelude-val">Some</span>(
+<a href=#907 id=907 data-nosnippet>907</a>                    RuleCondition::glob(<span class="string">"log.attributes.sentry.release.value"</span>, <span class="string">"1.0.0"</span>).or(
+<a href=#908 id=908 data-nosnippet>908</a>                        RuleCondition::glob(
+<a href=#909 id=909 data-nosnippet>909</a>                            <span class="string">"trace_metric.attributes.sentry.release.value"</span>,
+<a href=#910 id=910 data-nosnippet>910</a>                            <span class="string">"1.0.0"</span>,
+<a href=#911 id=911 data-nosnippet>911</a>                        ),
+<a href=#912 id=912 data-nosnippet>912</a>                    ),
+<a href=#913 id=913 data-nosnippet>913</a>                ),
+<a href=#914 id=914 data-nosnippet>914</a>            }]
+<a href=#915 id=915 data-nosnippet>915</a>            .into(),
+<a href=#916 id=916 data-nosnippet>916</a>        };
+<a href=#917 id=917 data-nosnippet>917</a>
+<a href=#918 id=918 data-nosnippet>918</a>        <span class="macro">assert_eq!</span>(
+<a href=#919 id=919 data-nosnippet>919</a>            should_filter(<span class="kw-2">&amp;</span>session_update(<span class="string">"1.0.0"</span>), <span class="kw-2">&amp;</span>config, <span class="prelude-val">None</span>),
+<a href=#920 id=920 data-nosnippet>920</a>            <span class="prelude-val">Ok</span>(())
+<a href=#921 id=921 data-nosnippet>921</a>        );
+<a href=#922 id=922 data-nosnippet>922</a>        <span class="macro">assert_eq!</span>(
+<a href=#923 id=923 data-nosnippet>923</a>            should_filter(<span class="kw-2">&amp;</span>session_aggregates(<span class="string">"1.0.0"</span>), <span class="kw-2">&amp;</span>config, <span class="prelude-val">None</span>),
+<a href=#924 id=924 data-nosnippet>924</a>            <span class="prelude-val">Ok</span>(())
+<a href=#925 id=925 data-nosnippet>925</a>        );
+<a href=#926 id=926 data-nosnippet>926</a>    }
+<a href=#927 id=927 data-nosnippet>927</a>}
 </code></pre></div></section></main></body></html>
