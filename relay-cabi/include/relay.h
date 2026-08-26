@@ -847,6 +847,13 @@ struct RelayStr relay_validate_pii_config(const struct RelayStr *value);
 struct RelayStr relay_convert_datascrubbing_config(const struct RelayStr *config);
 
 /**
+ * Validate a datascrubbing config by converting it to PII config format and checking that all
+ * regex patterns compile within Relay's size limit. Returns an empty string on success, or an
+ * error message if a pattern is invalid. Used in the project options UI.
+ */
+struct RelayStr relay_validate_datascrubbing_config(const struct RelayStr *config);
+
+/**
  * Scrub an event using new PII stripping config.
  */
 struct RelayStr relay_pii_strip_event(const struct RelayStr *config,
