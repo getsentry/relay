@@ -155,6 +155,7 @@ pub fn otel_resource_to_platform(resource: &Resource) -> Option<&str> {
         "dotnet" => "csharp",
         "nodejs" => "node",
         "webjs" => "javascript",
+        "js" => "javascript",
         _ => language,
     })
 }
