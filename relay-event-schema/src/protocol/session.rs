@@ -2,7 +2,7 @@ use std::fmt::{self, Display};
 use std::time::SystemTime;
 
 use chrono::{DateTime, Utc};
-use relay_protocol::Getter;
+use relay_protocol::{Getter, Val};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -148,6 +148,16 @@ pub struct SessionAttributes {
     pub user_agent: Option<String>,
 }
 
+impl Getter for SessionAttributes {
+    fn get_value(&self, path: &str) -> Option<Val<'_>> {
+        Some(match path.strip_prefix("event.")? {
+            "release" => self.release.as_str().into(),
+            "environment" => self.environment.as_deref()?.into(),
+            _ => return None,
+        })
+    }
+}
+
 fn default_sequence() -> u64 {
     SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
@@ -280,11 +290,9 @@ impl SessionLike for SessionUpdate {
     }
 }
 
-// Dummy implementation of `Getter` to satisfy the bound of `should_filter`.
-// We don't actually want to use `get_value` at this time.`
 impl Getter for SessionUpdate {
-    fn get_value(&self, _path: &str) -> Option<relay_protocol::Val<'_>> {
-        None
+    fn get_value(&self, path: &str) -> Option<Val<'_>> {
+        self.attributes.get_value(path)
     }
 }
 
@@ -381,11 +389,9 @@ impl SessionAggregates {
     }
 }
 
-// Dummy implementation of `Getter` to satisfy the bound of `should_filter`.
-// We don't actually want to use `get_value` at this time.`
 impl Getter for SessionAggregates {
-    fn get_value(&self, _path: &str) -> Option<relay_protocol::Val<'_>> {
-        None
+    fn get_value(&self, path: &str) -> Option<Val<'_>> {
+        self.attributes.get_value(path)
     }
 }
 
@@ -609,5 +615,51 @@ mod tests {
 
         let update = SessionUpdate::parse(json.as_bytes()).unwrap();
         assert_eq!(update.abnormal_mechanism, AbnormalMechanism::None);
+    }
+
+    #[test]
+    fn test_session_update_get_value() {
+        let json = r#"{
+  "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+  "started": "2020-02-07T14:16:00Z",
+  "attrs": {
+    "release": "sentry-test@1.0.0",
+    "environment": "production"
+  }
+}"#;
+
+        let update = SessionUpdate::parse(json.as_bytes()).unwrap();
+        assert_eq!(
+            update.get_value("event.release"),
+            Some(Val::String("sentry-test@1.0.0"))
+        );
+        assert_eq!(
+            update.get_value("event.environment"),
+            Some(Val::String("production"))
+        );
+        assert_eq!(update.get_value("event.transaction"), None);
+        assert_eq!(
+            update.get_value("log.attributes.sentry.release.value"),
+            None
+        );
+        assert_eq!(update.get_value("release"), None);
+    }
+
+    #[test]
+    fn test_session_update_get_value_without_environment() {
+        let json = r#"{
+  "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+  "started": "2020-02-07T14:16:00Z",
+  "attrs": {
+    "release": "sentry-test@1.0.0"
+  }
+}"#;
+
+        let update = SessionUpdate::parse(json.as_bytes()).unwrap();
+        assert_eq!(
+            update.get_value("event.release"),
+            Some(Val::String("sentry-test@1.0.0"))
+        );
+        assert_eq!(update.get_value("event.environment"), None);
     }
 }

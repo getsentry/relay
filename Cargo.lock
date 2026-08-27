@@ -5028,6 +5028,7 @@ dependencies = [
  "lz4_flex",
  "matchit",
  "mime",
+ "mime_guess",
  "minidump",
  "multer",
  "objectstore-client",
