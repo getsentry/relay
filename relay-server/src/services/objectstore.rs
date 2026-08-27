@@ -396,22 +396,11 @@ impl ObjectstoreService {
             let mut builder = Client::builder(objectstore_url);
 
             if let Some(auth) = auth {
-                // TODO(FS-313): when Objectstore starts enforcing auth, propagate error with ?
                 let token_generator = TokenGenerator::new(SigningKey {
                     kid: auth.key_id.clone(),
                     secret_key: auth.signing_key.clone(),
-                });
-
-                builder = match token_generator {
-                    Ok(token_generator) => builder.token(token_generator),
-                    Err(error) => {
-                        relay_log::error!(
-                            error = &error as &dyn std::error::Error,
-                            "failed to configure objectstore auth"
-                        );
-                        builder
-                    }
-                };
+                })?;
+                builder = builder.token(token_generator);
             }
 
             builder.build()?
