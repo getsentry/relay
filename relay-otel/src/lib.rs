@@ -154,8 +154,7 @@ pub fn otel_resource_to_platform(resource: &Resource) -> Option<&str> {
     Some(match language.as_str() {
         "dotnet" => "csharp",
         "nodejs" => "node",
-        "webjs" => "javascript",
-        "js" => "javascript",
+        "js" | "webjs" => "javascript",
         _ => language,
     })
 }
