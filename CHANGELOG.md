@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+**Breaking Changes**:
+
+- Stop accepting the deprecated Expect-CT, HPKP, and Expect-Staple security reports and remove their
+  event types and event schema fields. Such reports are now rejected at ingest with an `invalid`
+  outcome (`security_report_type`), including events which an older upstream Relay already classified
+  as `hpkp`, `expectct`, or `expectstaple`. ([#6230](https://github.com/getsentry/relay/pull/6230))
+
 **Features**:
 
 - Extract OTLP spans' client sample rate from TraceState. ([#6312](https://github.com/getsentry/relay/pull/6312))

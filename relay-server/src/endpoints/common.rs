@@ -702,13 +702,13 @@ mod tests {
 
     #[test]
     fn test_minimal_event_type() {
-        let json = r#"{"type": "expectct"}"#;
+        let json = r#"{"type": "csp"}"#;
         let minimal = minimal_event_from_json(json.as_ref()).unwrap();
         assert_eq!(
             minimal,
             MinimalEvent {
                 id: None,
-                ty: EventType::ExpectCt,
+                ty: EventType::Csp,
             }
         );
     }

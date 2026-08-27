@@ -418,9 +418,6 @@ fn normalize_security_report(
 
 fn is_security_report(event: &Event) -> bool {
     event.csp.value().is_some()
-        || event.expectct.value().is_some()
-        || event.expectstaple.value().is_some()
-        || event.hpkp.value().is_some()
 }
 
 /// Backfills IP addresses in various places.
@@ -1222,8 +1219,11 @@ pub fn is_valid_platform(platform: &str) -> bool {
     VALID_PLATFORMS.contains(&platform)
 }
 
-/// Infers the `EventType` from the event's interfaces.
-fn infer_event_type(event: &Event) -> EventType {
+/// Infers the [`EventType`] from the event's interfaces.
+///
+/// This is the type normalization assigns. A declared type is only honoured for transactions and
+/// user feedback.
+pub fn infer_event_type(event: &Event) -> EventType {
     // The event type may be set explicitly when constructing the event items from specific
     // items. This is DEPRECATED, and each distinct event type may get its own base class. For
     // the time being, this is only implemented for transactions, so be specific:
@@ -1246,12 +1246,6 @@ fn infer_event_type(event: &Event) -> EventType {
         EventType::Error
     } else if event.csp.value().is_some() {
         EventType::Csp
-    } else if event.hpkp.value().is_some() {
-        EventType::Hpkp
-    } else if event.expectct.value().is_some() {
-        EventType::ExpectCt
-    } else if event.expectstaple.value().is_some() {
-        EventType::ExpectStaple
     } else {
         EventType::Default
     }
