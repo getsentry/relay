@@ -196,26 +196,6 @@ impl Filterable for Span {
     }
 }
 
-impl Filterable for SpanV2 {
-    fn release(&self) -> Option<&str> {
-        self.attributes
-            .value()?
-            .get_value(SENTRY__RELEASE)?
-            .as_str()
-    }
-
-    fn transaction(&self) -> Option<&str> {
-        self.attributes
-            .value()?
-            .get_value(SENTRY__SEGMENT__NAME)?
-            .as_str()
-    }
-
-    fn user_agent(&self) -> UserAgent<'_> {
-        user_agent_from_attributes(&self.attributes)
-    }
-}
-
 impl Filterable for SessionUpdate {
     fn ip_addr(&self) -> Option<&str> {
         self.attributes
@@ -256,31 +236,45 @@ impl Filterable for SessionAggregates {
     }
 }
 
-impl Filterable for OurLog {
-    fn release(&self) -> Option<&str> {
-        self.attributes
-            .value()?
-            .get_value(SENTRY__RELEASE)?
-            .as_str()
-    }
+macro_rules! impl_for_attributes {
+    ($ty:ty) => {
+        impl Filterable for $ty {
+            fn ip_addr(&self) -> Option<&str> {
+                self.attributes
+                    .value()?
+                    .get_value(CLIENT__ADDRESS)?
+                    .as_str()
+            }
 
-    fn user_agent(&self) -> UserAgent<'_> {
-        user_agent_from_attributes(&self.attributes)
-    }
+            fn release(&self) -> Option<&str> {
+                self.attributes
+                    .value()?
+                    .get_value(SENTRY__RELEASE)?
+                    .as_str()
+            }
+
+            fn transaction(&self) -> Option<&str> {
+                self.attributes
+                    .value()?
+                    .get_value(SENTRY__SEGMENT__NAME)?
+                    .as_str()
+            }
+
+            fn url(&self) -> Option<Url> {
+                let url = self.attributes.value()?.get_value(URL__FULL)?.as_str()?;
+                Url::parse(url).ok()
+            }
+
+            fn user_agent(&self) -> UserAgent<'_> {
+                user_agent_from_attributes(&self.attributes)
+            }
+        }
+    };
 }
 
-impl Filterable for TraceMetric {
-    fn release(&self) -> Option<&str> {
-        self.attributes
-            .value()?
-            .get_value(SENTRY__RELEASE)?
-            .as_str()
-    }
-
-    fn user_agent(&self) -> UserAgent<'_> {
-        user_agent_from_attributes(&self.attributes)
-    }
-}
+impl_for_attributes!(SpanV2);
+impl_for_attributes!(OurLog);
+impl_for_attributes!(TraceMetric);
 
 fn user_agent_from_attributes(attributes: &relay_protocol::Annotated<Attributes>) -> UserAgent<'_> {
     let parsed = (|| {
