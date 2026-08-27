@@ -37,7 +37,7 @@ pipelines:
               elastic_profile_id: relay
               tasks:
                 - script: |
-                    checks-githubactions-checkruns \
+                    checks-githubactions-checkruns2 \
                     getsentry/relay \
                     ${GO_REVISION_RELAY_REPO} \
                     "Integration Tests" \
