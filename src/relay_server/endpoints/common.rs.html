@@ -702,13 +702,13 @@
 <a href=#702 id=702 data-nosnippet>702</a>
 <a href=#703 id=703 data-nosnippet>703</a>    <span class="attr">#[test]
 <a href=#704 id=704 data-nosnippet>704</a>    </span><span class="kw">fn </span>test_minimal_event_type() {
-<a href=#705 id=705 data-nosnippet>705</a>        <span class="kw">let </span>json = <span class="string">r#"{"type": "expectct"}"#</span>;
+<a href=#705 id=705 data-nosnippet>705</a>        <span class="kw">let </span>json = <span class="string">r#"{"type": "csp"}"#</span>;
 <a href=#706 id=706 data-nosnippet>706</a>        <span class="kw">let </span>minimal = minimal_event_from_json(json.as_ref()).unwrap();
 <a href=#707 id=707 data-nosnippet>707</a>        <span class="macro">assert_eq!</span>(
 <a href=#708 id=708 data-nosnippet>708</a>            minimal,
 <a href=#709 id=709 data-nosnippet>709</a>            MinimalEvent {
 <a href=#710 id=710 data-nosnippet>710</a>                id: <span class="prelude-val">None</span>,
-<a href=#711 id=711 data-nosnippet>711</a>                ty: EventType::ExpectCt,
+<a href=#711 id=711 data-nosnippet>711</a>                ty: EventType::Csp,
 <a href=#712 id=712 data-nosnippet>712</a>            }
 <a href=#713 id=713 data-nosnippet>713</a>        );
 <a href=#714 id=714 data-nosnippet>714</a>    }
