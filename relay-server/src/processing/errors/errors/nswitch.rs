@@ -82,7 +82,7 @@ impl SentryError for Nswitch {
         // crash on other platforms: fall the title back to the crashing function and render the
         // event as a fatal, unhandled crash. Normalization runs after this and preserves it.
         utils::if_processing!(ctx, {
-            if let Some(event) = event.value_mut() {
+            if let Some(event) = event.value_mut() && ctx.processing.project_info.has_feature(Feature::NintendoEventRewrite) {
                 crate::utils::reshape_switch_crash(event);
             }
         });
