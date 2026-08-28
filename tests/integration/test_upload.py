@@ -618,7 +618,7 @@ def test_objectstore_timeout(
     project_key = mini_sentry.get_dsn_public_key(project_id)
 
     @mini_sentry.app.route("/v1/objects/attachments/<scope>/<key>", methods=["PUT"])
-    def multipart_upload(**opts):
+    def slow_upload(**opts):
         time.sleep(2)
         raise NotImplementedError
 
@@ -627,7 +627,7 @@ def test_objectstore_timeout(
             "processing": {
                 "objectstore": {
                     "objectstore_url": mini_sentry.url,
-                    "timeout": 1,
+                    "stream_timeout": 1,
                 }
             }
         }
@@ -635,7 +635,7 @@ def test_objectstore_timeout(
 
     response = upload_something(relay, project_id, project_key)
 
-    assert response.status_code == 500  # not 504
+    assert response.status_code == 504
 
 
 def upload_something(relay, project_id, project_key):
