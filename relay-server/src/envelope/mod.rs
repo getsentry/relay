@@ -476,7 +476,6 @@ impl Envelope {
     }
 
     /// Returns the specified header value, if present.
-    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn get_header<K>(&self, name: &K) -> Option<&Value>
     where
         String: Borrow<K>,

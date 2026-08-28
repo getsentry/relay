@@ -43,7 +43,6 @@ pub struct Context<'a> {
 #[cfg(test)]
 impl Context<'static> {
     /// Returns a [`Context`] with default values for testing.
-    #[cfg_attr(not(feature = "processing"), expect(unused))]
     pub fn for_test() -> Self {
         use std::sync::LazyLock;
 

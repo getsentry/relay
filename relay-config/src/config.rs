@@ -738,7 +738,7 @@ impl Default for Limits {
             max_api_chunk_upload_size: ByteSize::mebibytes(100),
             max_profile_size: ByteSize::mebibytes(50),
             max_trace_metric_size: ByteSize::mebibytes(1),
-            max_log_size: ByteSize::mebibytes(1),
+            max_log_size: ByteSize::mebibytes(2),
             max_span_size: ByteSize::mebibytes(10),
             max_standalone_span_count: 25,
             max_container_size: ByteSize::mebibytes(12),

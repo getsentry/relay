@@ -351,3 +351,76 @@ def test_span_ingestion(
             "quantity": 1,
         },
     ]
+
+
+def test_otel_client_sample_rate(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+):
+    spans_consumer = spans_consumer()
+
+    relay = relay(relay_with_processing())
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).extend(
+        ["organizations:relay-generate-billing-outcome"]
+    )
+
+    ts = datetime.now(timezone.utc)
+
+    def otel_span(span_id, trace_state="", attributes=None):
+        return Span(
+            trace_id=bytes.fromhex("89143b0763095bd9c9955e8175d1fb24"),
+            span_id=bytes.fromhex(span_id),
+            parent_span_id=bytes.fromhex("f0f0f0abcdef1234"),
+            name="A Proto Span",
+            start_time_unix_nano=int(ts.timestamp() * 1e9),
+            end_time_unix_nano=int((ts.timestamp() + 0.5) * 1e9),
+            trace_state=trace_state,
+            attributes=attributes or [],
+        )
+
+    resource_spans = ResourceSpans(
+        scope_spans=[
+            ScopeSpans(
+                spans=[
+                    # TraceState `th:c` is 25% sampling.
+                    otel_span("aaaaaaaaaaaaaaaa", trace_state="ot=th:c"),
+                    # Explicit attribute wins over TraceState.
+                    otel_span(
+                        "bbbbbbbbbbbbbbbb",
+                        trace_state="ot=th:c",
+                        attributes=[
+                            KeyValue(
+                                key="sentry.client_sample_rate",
+                                value=AnyValue(double_value=0.1),
+                            )
+                        ],
+                    ),
+                    # No TraceState and no attribute: falls back to 1.0.
+                    otel_span("cccccccccccccccc"),
+                ]
+            )
+        ]
+    )
+
+    relay.send_otel_span(
+        project_id,
+        bytes=TracesData(resource_spans=[resource_spans]).SerializeToString(),
+        headers={"Content-Type": "application/x-protobuf"},
+    )
+
+    client_sample_rates = {
+        span["span_id"]: span["attributes"]["sentry.client_sample_rate"]["value"]
+        for span in spans_consumer.get_spans(n=3)
+    }
+    assert client_sample_rates == {
+        "aaaaaaaaaaaaaaaa": 0.25,
+        "bbbbbbbbbbbbbbbb": 0.1,
+        "cccccccccccccccc": 1.0,
+    }
+
+    spans_consumer.assert_empty()

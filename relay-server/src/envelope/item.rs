@@ -251,7 +251,6 @@ impl Item {
     }
 
     /// Returns the content type of this item's payload.
-    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn content_type(&self) -> Option<ContentType> {
         self.headers.get(ItemHeaderKey::ContentType)
     }
@@ -259,6 +258,15 @@ impl Item {
     /// Returns the raw (unparsed) content type, as specified by the SDK.
     pub fn raw_content_type(&self) -> Option<&str> {
         self.headers.get(ItemHeaderKey::ContentType)
+    }
+
+    /// Sets the raw content type, overriding the one specified by the SDK.
+    pub fn set_raw_content_type<S>(&mut self, content_type: S)
+    where
+        S: Into<String>,
+    {
+        self.headers
+            .set(ItemHeaderKey::ContentType, content_type.into());
     }
 
     /// Sets the content type if there isn't already one set.
@@ -360,7 +368,6 @@ impl Item {
     }
 
     /// Returns the file name of this item, if it is an attachment.
-    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn filename(&self) -> Option<&str> {
         self.headers.get(ItemHeaderKey::Filename)
     }
@@ -821,9 +828,7 @@ impl ItemType {
             EventType::Default | EventType::Error => ItemType::Event,
             EventType::Transaction => ItemType::Transaction,
             EventType::UserReportV2 => ItemType::UserReportV2,
-            EventType::Csp | EventType::Hpkp | EventType::ExpectCt | EventType::ExpectStaple => {
-                ItemType::Security
-            }
+            EventType::Csp => ItemType::Security,
         }
     }
 

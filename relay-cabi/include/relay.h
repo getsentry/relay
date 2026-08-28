@@ -35,7 +35,7 @@ enum RelayDataCategory {
    */
   RELAY_DATA_CATEGORY_TRANSACTION = 2,
   /**
-   * Events with an event type of `csp`, `hpkp`, `expectct` and `expectstaple`.
+   * Events with an event type of `csp`.
    *
    * SDK rate limiting behavior: ignore.
    */
