@@ -13,6 +13,7 @@ publish = false
 [features]
 default = []
 processing = [
+  "dep:mime_guess",
   "dep:minidump",
   "dep:prost-types",
   "dep:sentry_protos",
@@ -58,6 +59,7 @@ liblzma = { workspace = true }
 lz4_flex = { workspace = true }
 matchit = { workspace = true }
 mime = { workspace = true }
+mime_guess = { workspace = true, optional = true }
 minidump = { workspace = true, optional = true }
 multer = { workspace = true }
 objectstore-client = { workspace = true }

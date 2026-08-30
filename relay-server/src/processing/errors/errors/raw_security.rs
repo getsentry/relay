@@ -1,7 +1,5 @@
 use relay_base_schema::events::EventType;
-use relay_event_schema::protocol::{
-    Csp, Event, ExpectCt, ExpectStaple, Hpkp, LenientString, Metrics, SecurityReportType,
-};
+use relay_event_schema::protocol::{Csp, Event, LenientString, Metrics, SecurityReportType};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
@@ -12,6 +10,7 @@ use crate::processing::ForwardContext;
 use crate::processing::errors::Result;
 use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
 use crate::services::processor::ProcessingError;
+use crate::utils::DebugBytes;
 
 #[derive(Debug)]
 pub struct RawSecurity;
@@ -83,22 +82,14 @@ fn event_from_security_report(
 
     let (apply_result, event_type) = match report_type {
         SecurityReportType::Csp => (Csp::apply_to_event(data, &mut event), EventType::Csp),
-        SecurityReportType::ExpectCt => (
-            ExpectCt::apply_to_event(data, &mut event),
-            EventType::ExpectCt,
-        ),
-        SecurityReportType::ExpectStaple => (
-            ExpectStaple::apply_to_event(data, &mut event),
-            EventType::ExpectStaple,
-        ),
-        SecurityReportType::Hpkp => (Hpkp::apply_to_event(data, &mut event), EventType::Hpkp),
         SecurityReportType::Unsupported => return Err(ProcessingError::UnsupportedSecurityType),
     };
 
     if let Err(json_error) = apply_result {
-        // logged in extract_event
+        // The payload is attacker controlled and as large as `max_event_size`.
+        let payload = format!("{:?}", DebugBytes(data));
         relay_log::configure_scope(|scope| {
-            scope.set_extra("payload", String::from_utf8_lossy(data).into());
+            scope.set_extra("payload", payload.into());
         });
 
         return Err(ProcessingError::InvalidSecurityReport(json_error));

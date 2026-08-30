@@ -104,7 +104,7 @@ def test_trace_metric_multiple_containers_not_allowed(
         # If an external Relay/Client makes modifications, sizes can change,
         # this is fuzzy due to slight changes in sizes due to added timestamps
         # and may need to be adjusted when changing normalization.
-        ("managed", 189),
+        ("managed", 222),
     ],
 )
 def test_trace_metric_extraction(
@@ -203,6 +203,7 @@ def test_trace_metric_extraction(
             "sentry.client_sample_rate": {"doubleValue": 0.25},
             "http.request.method": {"stringValue": "GET"},
             "http.status_code": {"intValue": "200"},
+            "http.response.status_code": {"intValue": "200"},
             "sentry._internal.cooccuring.name.http.request.duration_seconds": {
                 "boolValue": True
             },
@@ -1029,6 +1030,42 @@ def test_trace_metric_container_metadata(
             id="release",
         ),
         pytest.param(
+            "filtered-transaction",
+            {"ignoreTransactions": {"isEnabled": True, "patterns": ["*health*"]}},
+            {
+                "attributes": {
+                    "sentry.segment.name": {
+                        "value": "/foo/healthz",
+                        "type": "string",
+                    }
+                }
+            },
+            id="transaction",
+        ),
+        pytest.param(
+            "localhost",
+            {"localhost": {"isEnabled": True}},
+            {
+                "attributes": {
+                    "client.address": {"value": "127.0.0.1", "type": "string"}
+                }
+            },
+            id="localhost-ip",
+        ),
+        pytest.param(
+            "localhost",
+            {"localhost": {"isEnabled": True}},
+            {
+                "attributes": {
+                    "url.full": {
+                        "value": "http://localhost:8000/foo",
+                        "type": "string",
+                    }
+                }
+            },
+            id="localhost-url",
+        ),
+        pytest.param(
             "legacy-browsers",
             {"legacyBrowsers": {"isEnabled": True, "options": ["ie9"]}},
             {
@@ -1101,7 +1138,7 @@ def test_filters_are_applied_to_trace_metrics(
 
     metadata = {
         "version": 2,
-        "ingest_settings": {"infer_ip": "auto", "infer_user_agent": "auto"},
+        "ingest_settings": {"infer_ip": "never", "infer_user_agent": "auto"},
     }
 
     envelope = envelope_with_trace_metrics(
@@ -1114,6 +1151,7 @@ def test_filters_are_applied_to_trace_metrics(
             "attributes": {
                 "http.status_code": {"value": 500, "type": "integer"},
                 "sentry.release": {"value": "foobar@1.0", "type": "string"},
+                **args.get("attributes", {}),
             },
         },
         metadata=metadata,

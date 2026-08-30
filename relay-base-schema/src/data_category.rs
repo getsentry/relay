@@ -28,7 +28,7 @@ pub enum DataCategory {
     ///
     /// SDK rate limiting behavior: apply to the entire envelope if it contains an item `transaction`.
     Transaction = 2,
-    /// Events with an event type of `csp`, `hpkp`, `expectct` and `expectstaple`.
+    /// Events with an event type of `csp`.
     ///
     /// SDK rate limiting behavior: ignore.
     Security = 3,
@@ -400,9 +400,7 @@ impl From<EventType> for DataCategory {
         match ty {
             EventType::Default | EventType::Error => Self::Error,
             EventType::Transaction => Self::Transaction,
-            EventType::Csp | EventType::Hpkp | EventType::ExpectCt | EventType::ExpectStaple => {
-                Self::Security
-            }
+            EventType::Csp => Self::Security,
             EventType::UserReportV2 => Self::UserReportV2,
         }
     }

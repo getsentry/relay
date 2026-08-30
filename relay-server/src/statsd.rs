@@ -91,7 +91,7 @@ impl GaugeMetric for RelayGauges {
             Self::AsyncPoolUtilization => "async_pool.utilization",
             Self::AsyncPoolActivity => "async_pool.activity",
             Self::NetworkOutage => "upstream.network_outage",
-            Self::BufferEnvelopesCount => "buffer.envelopes_count",
+            Self::BufferEnvelopesCount => "buffer.envelopes_count.gauge",
             Self::BufferStackCount => "buffer.stack_count",
             Self::BufferDiskUsed => "buffer.disk_used",
             Self::SystemMemoryUsed => "health.system_memory.used",
