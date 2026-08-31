@@ -207,6 +207,11 @@ fn extract_ai_model_cost_data(
     origin: Option<&str>,
     platform: Option<&str>,
 ) {
+    // Preserve existing total cost instead of recalculating and overwriting it.
+    if data.contains(GEN_AI__COST__TOTAL_TOKENS) {
+        return;
+    }
+
     let integration = map_origin_to_integration(origin);
     let platform = platform_tag(platform);
 
@@ -695,6 +700,26 @@ mod tests {
             reasoning_output: 30.0,
         }
         ");
+    }
+
+    #[test]
+    fn test_existing_cost_is_not_overwritten() {
+        let mut span = ai_span_with_data(json!({
+            "gen_ai.response.model": "claude-2.1",
+            "gen_ai.usage.input_tokens": 1000.0,
+            "gen_ai.cost.input_tokens": 99.0,
+            "gen_ai.cost.total_tokens": 123.0,
+        }));
+
+        enrich_ai_span(&mut span, Some(&metadata_with_context_size()));
+
+        let data = span.data.value().unwrap();
+        assert_eq!(
+            data.get_value(GEN_AI__COST__TOTAL_TOKENS)
+                .and_then(Value::as_f64),
+            Some(123.0)
+        );
+        assert!(data.get_value(GEN_AI__COST__OUTPUT_TOKENS).is_none());
     }
 
     #[test]
