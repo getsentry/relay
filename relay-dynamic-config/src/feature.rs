@@ -89,6 +89,9 @@ pub enum Feature {
     /// Upload non-prosperodmp playstation attachments via the upload endpoint.
     #[serde(rename = "projects:relay-playstation-uploads")]
     PlaystationUploads,
+    /// Enable Nintendo event rewrite.
+    #[serde(rename = "projects:relay-nintendo-event-rewrite")]
+    NintendoEventRewrite,
     /// Stream minidumps to objectstore.
     #[serde(rename = "projects:relay-minidump-uploads")]
     MinidumpUploads,
