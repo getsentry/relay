@@ -3366,7 +3366,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d76659c9da42fc50c394edda51e9d69dc6b3a6a770029e50f8e267c85cbfe69f"
 dependencies = [
  "async-compression",
- "base64",
  "bytes",
  "futures-util",
  "infer",
