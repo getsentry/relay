@@ -1,5 +1,6 @@
 //! AI cost calculation.
 
+use crate::eap::AttributesLike;
 use crate::statsd::{Counters, map_origin_to_integration, platform_tag};
 use crate::{ModelCostV2, ModelMetadata};
 use relay_conventions::attributes::*;
@@ -200,8 +201,11 @@ pub fn infer_ai_operation_type(op_name: &str) -> Option<&'static str> {
 }
 
 /// Returns whether a valid total cost is attached.
-pub fn has_valid_total_cost(value: Option<&Value>) -> bool {
-    value.and_then(Value::as_f64).is_some()
+pub fn has_valid_total_cost(attributes: &impl AttributesLike) -> bool {
+    attributes
+        .get_value(GEN_AI__COST__TOTAL_TOKENS)
+        .and_then(Value::as_f64)
+        .is_some()
 }
 
 /// Calculates the cost of an AI model based on the model cost and the tokens used.
@@ -213,7 +217,7 @@ fn extract_ai_model_cost_data(
     platform: Option<&str>,
 ) {
     // Preserve existing total cost instead of recalculating and overwriting it.
-    if has_valid_total_cost(data.get_value(GEN_AI__COST__TOTAL_TOKENS)) {
+    if has_valid_total_cost(data) {
         return;
     }
 
@@ -553,9 +557,13 @@ mod tests {
 
     #[test]
     fn test_has_valid_total_cost() {
-        assert!(!has_valid_total_cost(None));
-        assert!(!has_valid_total_cost(Some(&Value::Bool(false))));
-        assert!(has_valid_total_cost(Some(&Value::F64(1.0))));
+        let missing = ai_span_with_data(json!({}));
+        let invalid = ai_span_with_data(json!({"gen_ai.cost.total_tokens": false}));
+        let valid = ai_span_with_data(json!({"gen_ai.cost.total_tokens": 1.0}));
+
+        assert!(!has_valid_total_cost(missing.data.value().unwrap()));
+        assert!(!has_valid_total_cost(invalid.data.value().unwrap()));
+        assert!(has_valid_total_cost(valid.data.value().unwrap()));
     }
 
     #[test]
