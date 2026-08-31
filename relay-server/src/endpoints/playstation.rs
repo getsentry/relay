@@ -220,20 +220,6 @@ async fn multipart_to_items(
     Ok(items)
 }
 
-fn envelope(
-    items: Managed<Items>,
-    meta: RequestMeta,
-    managed_err: Managed<(DataCategory, usize)>,
-) -> Result<Managed<Box<Envelope>>, BadStoreRequest> {
-    Ok(Managed::zip(managed_err, items).try_map(|(_, items), _| {
-        let event_id = common::event_id_from_items(&items)?.unwrap_or_default();
-        let envelope = Envelope::from_request(Some(event_id), meta)
-            .with_items(items)
-            .with_required_feature(Feature::PlaystationIngestion);
-        Ok::<_, BadStoreRequest>(Box::new(envelope))
-    })?)
-}
-
 async fn handle(
     state: ServiceState,
     meta: RequestMeta,
@@ -255,7 +241,13 @@ async fn handle(
     let items = multipart_to_items(multipart, &meta, &state, upload_context)
         .await
         .reject(&managed_err)?;
-    let envelope = envelope(items, meta, managed_err)?;
+    let envelope = Managed::zip(managed_err, items).try_map(|(_, items), _| {
+        let event_id = common::event_id_from_items(&items)?.unwrap_or_default();
+        let envelope = Envelope::from_request(Some(event_id), meta)
+            .with_items(items)
+            .with_required_feature(Feature::PlaystationIngestion);
+        Ok::<_, BadStoreRequest>(Box::new(envelope))
+    })?;
 
     let id = envelope.event_id();
 
