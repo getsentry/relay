@@ -200,7 +200,7 @@ pub fn infer_ai_operation_type(op_name: &str) -> Option<&'static str> {
 }
 
 /// Returns whether a valid total cost is attached.
-pub(crate) fn has_valid_total_cost(value: Option<&Value>) -> bool {
+pub fn has_valid_total_cost(value: Option<&Value>) -> bool {
     value.and_then(Value::as_f64).is_some()
 }
 
