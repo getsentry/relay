@@ -199,6 +199,11 @@ pub fn infer_ai_operation_type(op_name: &str) -> Option<&'static str> {
     Some(ai_op)
 }
 
+/// Returns whether a valid total cost is attached.
+pub(crate) fn has_valid_total_cost(value: Option<&Value>) -> bool {
+    value.and_then(Value::as_f64).is_some()
+}
+
 /// Calculates the cost of an AI model based on the model cost and the tokens used.
 /// Calculated cost is in US dollars.
 fn extract_ai_model_cost_data(
@@ -208,7 +213,7 @@ fn extract_ai_model_cost_data(
     platform: Option<&str>,
 ) {
     // Preserve existing total cost instead of recalculating and overwriting it.
-    if data.contains(GEN_AI__COST__TOTAL_TOKENS) {
+    if has_valid_total_cost(data.get_value(GEN_AI__COST__TOTAL_TOKENS)) {
         return;
     }
 
@@ -544,6 +549,13 @@ mod tests {
             data: SpanData::from_value(data.into()),
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn test_has_valid_total_cost() {
+        assert!(!has_valid_total_cost(None));
+        assert!(!has_valid_total_cost(Some(&Value::Bool(false))));
+        assert!(has_valid_total_cost(Some(&Value::F64(1.0))));
     }
 
     #[test]

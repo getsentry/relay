@@ -153,7 +153,7 @@ fn normalize_context_utilization(
 /// Calculates model costs and serializes them into attributes.
 fn normalize_ai_costs(attributes: &mut Attributes, model_metadata: Option<&ModelMetadata>) {
     // Preserve existing total cost instead of recalculating and overwriting it.
-    if attributes.contains_key(GEN_AI__COST__TOTAL_TOKENS) {
+    if ai::has_valid_total_cost(attributes.get_value(GEN_AI__COST__TOTAL_TOKENS)) {
         return;
     }
 
