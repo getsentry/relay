@@ -334,7 +334,7 @@ mod tests {
     use zstd::bulk::Compressor as ZstdCompressor;
 
     use crate::constants::NNSWITCH_DYING_MESSAGE_FILENAME;
-    use crate::envelope::Item;
+    use crate::envelope::{ContentType, Item};
     use crate::processing;
     use crate::services::projects::project::ProjectInfo;
 
@@ -528,31 +528,45 @@ mod tests {
 
     #[test]
     fn test_switch_crash_is_reshaped() {
-        // The DyingMessage carries the scope patch our SDK serializes before the crash. It
-        // includes `level: error`, and since the patch is the merge base it downgrades the
-        // `fatal` Nintendo forwards (magic + version 0 + encoding 0 + u16 payload length).
-        let dying_message =
-            Bytes::from("sntr\0\0\0\x22{\"type\":\"event\"}\n{\"level\":\"error\"}");
+        let mut event = Item::new(ItemType::Event);
+        event.set_payload(
+            ContentType::Json,
+            include_bytes!(
+                "../../../../../tests/integration/fixtures/native/nnswitch_crportal_event.json"
+            )
+            .as_slice(),
+        );
 
-        // The parent envelope event is what Nintendo forwards: the abort result code as the
-        // exception `type`, a readable `value`, an unhandled mechanism, and level `fatal`.
-        let envelope = r#"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"}
-{"type":"event"}
-{"level":"fatal","exception":{"values":[{"type":"2168-0002 ResultAccessViolationData","value":"Data access to an invalid memory region was performed. (2: Access Violation Data)","mechanism":{"type":"2168-0002","handled":false},"stacktrace":{"frames":[{"function":"ASentryTowerTurret::Shoot"}]}}]}}
-{"type":"attachment","filename":"dying_message.dat","length":<len>}
-"#
-        .replace("<len>", &dying_message.len().to_string());
+        let mut dying_message = Item::new(ItemType::Attachment);
+        dying_message.set_filename(NNSWITCH_DYING_MESSAGE_FILENAME);
+        dying_message.set_attachment_type(AttachmentType::NintendoSwitchDyingMessage);
+        dying_message.set_payload(
+            ContentType::OctetStream,
+            include_bytes!(
+                "../../../../../tests/integration/fixtures/native/nnswitch_crportal_dying_message_raw.dat"
+            )
+            .as_slice(),
+        );
 
-        let mut envelope =
-            Envelope::parse_bytes([Bytes::from(envelope), dying_message].concat().into()).unwrap();
-        let mut items = envelope.take_items_by(|_| true).into_vec();
+        let mut items = vec![event, dying_message];
 
         let parsed = Nswitch::try_expand(&mut items, ctx()).unwrap().unwrap();
 
         let event = parsed.event.value().unwrap();
 
-        // The crash is rendered as fatal: the DyingMessage merge downgraded it to `error`,
-        // and the reshape re-asserts Nintendo's original severity.
+        // The DyingMessage scope patch is the merge base and contributes the fields the
+        // forwarded event lacks.
+        assert_eq!(
+            event.release.value().map(|release| release.as_str()),
+            Some("test-app@1.0.0")
+        );
+        assert_eq!(
+            event.environment.value().map(String::as_str),
+            Some("integration-test")
+        );
+
+        // The crash is rendered as fatal: both the forwarded event and the scope patch carry
+        // `level: error`, and the reshape asserts the severity of a captured crash.
         assert_eq!(event.level.value(), Some(&Level::Fatal));
 
         let exception = event
