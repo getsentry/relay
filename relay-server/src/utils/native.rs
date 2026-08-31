@@ -342,8 +342,6 @@ pub fn reshape_switch_crash(event: &mut Event) {
         .get_or_insert_with(Mechanism::default);
     mechanism.synthetic.set_value(Some(true));
 
-    // Nintendo forwards crashes as `fatal`, but our DyingMessage contains `level: error`
-    // which wins the merge (see `merge_events` in `nswitch.rs`), so re-assert the
-    // severity of a captured crash here.
+    // Events have level `error` by default, so set to `fatal` like for other native crashes.
     event.level.set_value(Some(Level::Fatal));
 }
