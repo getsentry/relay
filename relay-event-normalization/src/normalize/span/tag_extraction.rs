@@ -1020,10 +1020,10 @@ pub fn extract_tags(
                 }
 
                 if let Some(value) = data
-                    .get_value(HTTP__DECODED_RESPONSE_CONTENT_LENGTH)
+                    .get_value(HTTP__RESPONSE__BODY__DECODED_SIZE)
                     .and_then(|v| String::try_from(v).ok())
                 {
-                    span_tags.http_decoded_response_content_length = value.into();
+                    span_tags.response.body.decoded_size = value.into();
                 }
 
                 if let Some(value) = data
@@ -1203,8 +1203,8 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
     {
         for (attribute, key) in [
             (
-                HTTP__DECODED_RESPONSE_CONTENT_LENGTH,
-                "http.decoded_response_content_length",
+                HTTP__RESPONSE__BODY__DECODED_SIZE,
+                "http.response.body.decoded_size",
             ),
             (HTTP__RESPONSE__BODY__SIZE, "http.response_content_length"),
             (HTTP__RESPONSE__SIZE, "http.response_transfer_size"),
