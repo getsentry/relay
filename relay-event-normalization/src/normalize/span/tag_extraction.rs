@@ -803,6 +803,7 @@ fn extract_segment_tags(event: &Event) -> SegmentTags {
 /// [span operations](https://develop.sentry.dev/sdk/performance/span-operations/) and
 /// existing [span data](https://develop.sentry.dev/sdk/performance/span-data-conventions/) fields,
 /// and rely on Sentry conventions and heuristics.
+#[allow(deprecated)]
 #[allow(clippy::too_many_arguments)]
 pub fn extract_tags(
     span: &Span,
@@ -1178,6 +1179,7 @@ fn value_to_finite_f64(val: Option<&Value>) -> Option<FiniteF64> {
 }
 
 /// Copies specific numeric values from span data to span measurements.
+#[allow(deprecated)]
 pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
     let Some(span_op) = span.op.as_str() else {
         return;
