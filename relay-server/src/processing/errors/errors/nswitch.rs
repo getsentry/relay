@@ -76,7 +76,7 @@ impl SentryError for Nswitch {
             (None, Some(event)) => utils::event_from_json_payload(event, None, &mut metrics, ctx)?,
             (None, None) => return Err(ProcessingError::NoEventPayload.into()),
         };
-        
+
         // Reshape switch crash title to match other native platforms, and mark it as fatal.
         utils::if_processing!(ctx, {
             use relay_dynamic_config::Feature;
