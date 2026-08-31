@@ -651,18 +651,6 @@ async fn items(
     Ok(items)
 }
 
-fn envelope(
-    items: Managed<Items>,
-    meta: RequestMeta,
-    managed_err: Managed<(DataCategory, usize)>,
-) -> Result<Managed<Box<Envelope>>, BadStoreRequest> {
-    Ok(Managed::zip(managed_err, items).try_map(|(_, items), _| {
-        let event_id = common::event_id_from_items(&items)?.unwrap_or_default();
-        let envelope = Envelope::from_request(Some(event_id), meta).with_items(items);
-        Ok::<_, BadStoreRequest>(Box::new(envelope))
-    })?)
-}
-
 async fn handle(
     state: ServiceState,
     meta: RequestMeta,
@@ -701,7 +689,11 @@ async fn handle(
         .await
         .reject(&managed_err)?;
 
-    let mut envelope = envelope(items, meta, managed_err)?;
+    let mut envelope = Managed::zip(managed_err, items).try_map(|(_, items), _| {
+        let event_id = common::event_id_from_items(&items)?.unwrap_or_default();
+        let envelope = Envelope::from_request(Some(event_id), meta).with_items(items);
+        Ok::<_, BadStoreRequest>(Box::new(envelope))
+    })?;
     if gpu_crash_split {
         let (cpu, gpu) = utils::gpu::split_crash(envelope);
         if let Some(gpu) = gpu {
