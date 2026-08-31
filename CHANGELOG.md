@@ -23,6 +23,7 @@
 - Store a normalized attachment content type in objectstore so that downloads are served with the correct type. ([#6319](https://github.com/getsentry/relay/pull/6319))
 - Reshape Nintendo Switch crashes so the issue title falls back to the crashing function instead of the raw abort result code, and raise their level to `fatal`. ([#6253](https://github.com/getsentry/relay/pull/6253))
 - Reject Nintendo Switch dying message attachments with an invalid magic number instead of panicking on a short payload. ([#6253](https://github.com/getsentry/relay/pull/6253))
+- Downgrade Kafka to prevent producers from getting stuck. ([#6336](https://github.com/getsentry/relay/pull/6336))
 
 **Internal**:
 
