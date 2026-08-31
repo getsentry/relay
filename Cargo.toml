@@ -183,8 +183,10 @@ psl = "2"
 quote = "1"
 rand = "0.9"
 rand_pcg = "0.9"
-rdkafka = "0.39"
-rdkafka-sys = "4"
+# Downgraded versions for rdkafka and rdkafka-sys to fix librdkafka 2.12 regression
+# https://github.com/confluentinc/librdkafka/issues/5301
+rdkafka = "=0.38"
+rdkafka-sys = "=4.9.0+2.10.0"
 redis = { version = "1", default-features = false }
 matchit = "0.8"
 regex = "1"
