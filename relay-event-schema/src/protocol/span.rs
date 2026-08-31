@@ -294,7 +294,7 @@ pub struct SentryTags {
     pub domain: Annotated<String>,
     pub raw_domain: Annotated<String>,
     pub group: Annotated<String>,
-   #[metastructure(field = "http.decoded_response_content_length")]
+    #[metastructure(field = "http.decoded_response_content_length")]
     pub http_decoded_response_content_length: Annotated<String>,
     #[metastructure(field = "http.response_content_length")]
     pub http_response_content_length: Annotated<String>,
@@ -395,9 +395,9 @@ impl Getter for SentryTags {
             "environment" => &self.environment,
             "file_extension" => &self.file_extension,
             "group" => &self.group,
-            "http.response.body.decoded_size" => &self.http_response_body_decoded_size,
-            "http.response.body.size" => &self.http_response_body_size,
-            "http.response.size" => &self.http_response_size,
+            "http.decoded_response_content_length" => &self.http_decoded_response_content_length,
+            "http.response_content_length" => &self.http_response_content_length,
+            "http.response_transfer_size" => &self.http_response_transfer_size,
             "main_thread" => &self.main_thread,
             "messaging.destination.name" => &self.messaging_destination_name,
             "messaging.message.id" => &self.messaging_message_id,
