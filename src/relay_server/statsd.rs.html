@@ -852,7 +852,7 @@
 <a href=#852 id=852 data-nosnippet>852</a>    ///  - `user_report`: A message from the user feedback dialog, sent to `ingest-events`.
 <a href=#853 id=853 data-nosnippet>853</a>    ///  - `session`: A release health session update, sent to `ingest-sessions`.
 <a href=#854 id=854 data-nosnippet>854</a>    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#855 id=855 data-nosnippet>855</a>    </span>ProcessingMessageProduced,
+<a href=#855 id=855 data-nosnippet>855</a>    </span>ProcessingMessageEnqueued,
 <a href=#856 id=856 data-nosnippet>856</a>    <span class="doccomment">/// Number of spans produced in the new format.
 <a href=#857 id=857 data-nosnippet>857</a>    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 <a href=#858 id=858 data-nosnippet>858</a>    </span>SpanV2Produced,
@@ -1050,7 +1050,7 @@
 <a href=#1050 id=1050 data-nosnippet>1050</a>            RelayCounters::ProjectCacheSchedule =&gt; <span class="string">"project_cache.schedule"</span>,
 <a href=#1051 id=1051 data-nosnippet>1051</a>            RelayCounters::ServerStarting =&gt; <span class="string">"server.starting"</span>,
 <a href=#1052 id=1052 data-nosnippet>1052</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#1053 id=1053 data-nosnippet>1053</a>            </span>RelayCounters::ProcessingMessageProduced =&gt; <span class="string">"processing.event.produced"</span>,
+<a href=#1053 id=1053 data-nosnippet>1053</a>            </span>RelayCounters::ProcessingMessageEnqueued =&gt; <span class="string">"processing.event.enqueued"</span>,
 <a href=#1054 id=1054 data-nosnippet>1054</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 <a href=#1055 id=1055 data-nosnippet>1055</a>            </span>RelayCounters::SpanV2Produced =&gt; <span class="string">"store.produced.span_v2"</span>,
 <a href=#1056 id=1056 data-nosnippet>1056</a>            RelayCounters::EventProtocol =&gt; <span class="string">"event.protocol"</span>,
