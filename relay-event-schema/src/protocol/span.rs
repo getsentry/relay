@@ -294,12 +294,12 @@ pub struct SentryTags {
     pub domain: Annotated<String>,
     pub raw_domain: Annotated<String>,
     pub group: Annotated<String>,
-    #[metastructure(field = "http.decoded_response_content_length")]
-    pub http_decoded_response_content_length: Annotated<String>,
-    #[metastructure(field = "http.response_content_length")]
-    pub http_response_content_length: Annotated<String>,
-    #[metastructure(field = "http.response_transfer_size")]
-    pub http_response_transfer_size: Annotated<String>,
+    #[metastructure(field = "http.response.body.decoded_size")]
+    pub http_response_body_decoded_size: Annotated<String>,
+    #[metastructure(field = "http.response.body.size")]
+    pub http_response_body_size: Annotated<String>,
+    #[metastructure(field = "http.response.size")]
+    pub http_response_size: Annotated<String>,
     #[metastructure(field = "resource.render_blocking_status")]
     pub resource_render_blocking_status: Annotated<String>,
     pub op: Annotated<String>,
@@ -395,9 +395,13 @@ impl Getter for SentryTags {
             "environment" => &self.environment,
             "file_extension" => &self.file_extension,
             "group" => &self.group,
-            "http.decoded_response_content_length" => &self.http_decoded_response_content_length,
-            "http.response_content_length" => &self.http_response_content_length,
-            "http.response_transfer_size" => &self.http_response_transfer_size,
+            "http.response.body.decoded_size" | "http.decoded_response_content_length" => {
+                &self.http_response_body_decoded_size
+            }
+            "http.response.body.size" | "http.response_content_length" => {
+                &self.http_response_body_size
+            }
+            "http.response.size" | "http.response_transfer_size" => &self.http_response_size,
             "main_thread" => &self.main_thread,
             "messaging.destination.name" => &self.messaging_destination_name,
             "messaging.message.id" => &self.messaging_message_id,

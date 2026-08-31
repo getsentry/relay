@@ -1016,21 +1016,21 @@ pub fn extract_tags(
                     .get_value(HTTP__RESPONSE__BODY__SIZE)
                     .and_then(|v| String::try_from(v).ok())
                 {
-                    span_tags.http_response_content_length = value.into();
+                    span_tags.http_response_body_size = value.into();
                 }
 
                 if let Some(value) = data
                     .get_value(HTTP__RESPONSE__BODY__DECODED_SIZE)
                     .and_then(|v| String::try_from(v).ok())
                 {
-                    span_tags.response.body.decoded_size = value.into();
+                    span_tags.http_response_body_decoded_size = value.into();
                 }
 
                 if let Some(value) = data
                     .get_value(HTTP__RESPONSE__SIZE)
                     .and_then(|v| String::try_from(v).ok())
                 {
-                    span_tags.http_response_transfer_size = value.into();
+                    span_tags.http_response_size = value.into();
                 }
             }
 
@@ -1206,8 +1206,8 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
                 HTTP__RESPONSE__BODY__DECODED_SIZE,
                 "http.response.body.decoded_size",
             ),
-            (HTTP__RESPONSE__BODY__SIZE, "http.response_content_length"),
-            (HTTP__RESPONSE__SIZE, "http.response_transfer_size"),
+            (HTTP__RESPONSE__BODY__SIZE, "http.response.body.size"),
+            (HTTP__RESPONSE__SIZE, "http.response.size"),
         ] {
             if let Some(value) = value_to_finite_f64(data.get_value(attribute)) {
                 let measurements = span.measurements.get_or_insert_with(Default::default);
@@ -1938,7 +1938,7 @@ LIMIT 1
                         "trace_id": "ff62a8b040f340bda5d830223def1d81",
                         "data": {
                             "http.response.body.size": 1,
-                            "http.decoded_response_content_length": 2.0,
+                            "http.response.body.decoded_size": 2.0,
                             "http.response.size": 3.3
                         }
                     }
@@ -1957,21 +1957,17 @@ LIMIT 1
 
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
         assert_eq!(
-            tags.get_value("http.response_content_length")
-                .unwrap()
-                .as_str(),
+            tags.get_value("http.response.body.size").unwrap().as_str(),
             Some("1"),
         );
         assert_eq!(
-            tags.get_value("http.decoded_response_content_length")
+            tags.get_value("http.response.body.decoded_size")
                 .unwrap()
                 .as_str(),
             Some("2"),
         );
         assert_eq!(
-            tags.get_value("http.response_transfer_size")
-                .unwrap()
-                .as_str(),
+            tags.get_value("http.response.size").unwrap().as_str(),
             Some("3.3"),
         );
 
@@ -1979,19 +1975,19 @@ LIMIT 1
         assert_debug_snapshot!(measurements, @r###"
         Measurements(
             {
-                "http.decoded_response_content_length": Measurement {
+                "http.response.body.decoded_size": Measurement {
                     value: 2.0,
                     unit: Information(
                         Byte,
                     ),
                 },
-                "http.response_content_length": Measurement {
+                "http.response.body.size": Measurement {
                     value: 1.0,
                     unit: Information(
                         Byte,
                     ),
                 },
-                "http.response_transfer_size": Measurement {
+                "http.response.size": Measurement {
                     value: 3.3,
                     unit: Information(
                         Byte,
