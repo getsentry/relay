@@ -76,13 +76,17 @@ impl SentryError for Nswitch {
             (None, Some(event)) => utils::event_from_json_payload(event, None, &mut metrics, ctx)?,
             (None, None) => return Err(ProcessingError::NoEventPayload.into()),
         };
-
-        // Nintendo forwards the crash with the abort result code as the exception `type`, which
-        // Sentry would otherwise render as the issue title. Reshape it to look like a native
-        // crash on other platforms: fall the title back to the crashing function and render the
-        // event as a fatal, unhandled crash. Normalization runs after this and preserves it.
+        
+        // Reshape switch crash title to match other native platforms, and mark it as fatal.
         utils::if_processing!(ctx, {
-            if let Some(event) = event.value_mut() && ctx.processing.project_info.has_feature(Feature::NintendoEventRewrite) {
+            use relay_dynamic_config::Feature;
+
+            if let Some(event) = event.value_mut()
+                && ctx
+                    .processing
+                    .project_info
+                    .has_feature(Feature::NintendoEventRewrite)
+            {
                 crate::utils::reshape_switch_crash(event);
             }
         });
@@ -325,6 +329,7 @@ mod tests {
     use super::*;
 
     use relay_config::{Config, OverridableConfig};
+    use relay_dynamic_config::Feature;
     use relay_event_schema::protocol::Level;
     use relay_protocol::assert_annotated_snapshot;
     use std::io::Write;
@@ -333,6 +338,7 @@ mod tests {
     use crate::constants::NNSWITCH_DYING_MESSAGE_FILENAME;
     use crate::envelope::Item;
     use crate::processing;
+    use crate::services::projects::project::ProjectInfo;
 
     fn ctx() -> Context<'static> {
         static CONFIG: std::sync::LazyLock<Config> = std::sync::LazyLock::new(|| {
@@ -346,9 +352,20 @@ mod tests {
             config
         });
 
+        static PROJECT_INFO: std::sync::LazyLock<ProjectInfo> = std::sync::LazyLock::new(|| {
+            let mut project_info = ProjectInfo::default();
+            project_info
+                .config
+                .features
+                .0
+                .insert(Feature::NintendoEventRewrite);
+            project_info
+        });
+
         Context {
             processing: processing::Context {
                 config: &CONFIG,
+                project_info: &PROJECT_INFO,
                 ..processing::Context::for_test()
             },
             ..Context::for_test()

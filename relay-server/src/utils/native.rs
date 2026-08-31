@@ -309,22 +309,19 @@ pub fn process_apple_crash_report(event: &mut Event, additional_exceptions: Addi
     write_native_placeholder(event, placeholder, additional_exceptions);
 }
 
-/// Reshapes a Nintendo Switch crash so it renders like the same crash captured on other
-/// native platforms (for example a Windows minidump).
+/// Reshapes a Switch crashes so they render the same as crashes on other platforms.
 ///
-/// Unlike a minidump, a Switch crash reaches Relay as a fully-formed event assembled by
-/// Nintendo's crash pipeline: its exception `type` is the raw abort result code (for example
-/// `2168-0002 ResultAccessViolationData`). Left untouched, Sentry renders that result code as
-/// the issue title and hides the crashing function.
+/// Unlike a minidump, a Switch crash reaches Relay straight from the Nintendo crash pipeline:
+///  its exception `type` is the raw abort result code (for example
+/// `2168-0002 ResultAccessViolationData`).
 ///
 /// Native crashes that Relay assembles itself (see [`write_native_placeholder`]) mark their
 /// exception `synthetic`, which tells Sentry to drop the exception `type` from the title and
-/// fall back to the crashing function. We apply the same treatment here, so the issue matches
-/// its Windows/macOS counterpart. Nintendo already marks the mechanism unhandled, so that is
-/// left untouched.
+/// fall back to the crashing function. We apply the same treatment here, so the issue title
+/// matches its Windows/macOS counterpart.
 ///
 /// The exception `value` is deliberately preserved: as with minidumps, it remains the issue
-/// subtitle. Only the `type`'s influence on the title is removed via the synthetic flag.
+/// subtitle.
 pub fn reshape_switch_crash(event: &mut Event) {
     // Sentry derives the issue title from the last exception in the list (see `_get_exception`
     // in `sentry/eventtypes/error.py`), so that is the one whose `type` we must neutralize.
@@ -346,8 +343,8 @@ pub fn reshape_switch_crash(event: &mut Event) {
         .get_or_insert_with(Mechanism::default);
     mechanism.synthetic.set_value(Some(true));
 
-    // Nintendo forwards the crash as `fatal`, but the DyingMessage event patch our SDK writes
-    // is the merge base and its `level: error` wins the merge (see `merge_events` in
-    // `nswitch.rs`), so re-assert the severity of a captured crash here.
+    // Nintendo forwards crashes as `fatal`, but our DyingMessage contains `level: error`
+    // which wins the merge (see `merge_events` in `nswitch.rs`), so re-assert the
+    //severity of a captured crash here.
     event.level.set_value(Some(Level::Fatal));
 }
