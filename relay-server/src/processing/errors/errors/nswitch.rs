@@ -185,9 +185,7 @@ struct ExpandedDyingMessage {
 fn expand_dying_message(mut payload: Bytes) -> Result<ExpandedDyingMessage, SwitchProcessingError> {
     // `Item::attachment_type` may report `NintendoSwitchDyingMessage` from an explicitly set item
     // header, which bypasses the `starts_with(magic)` guard it applies when inferring the type.
-    // Validate the magic here so a crafted short payload can't panic the `advance` below:
-    // `Bytes::advance` panics when the count exceeds the remaining length, and `starts_with` is
-    // already false for any payload shorter than the magic.
+    // Validate the magic here so a crafted short payload can't panic the `advance` below.
     if !payload.starts_with(NNSWITCH_SENTRY_MAGIC) {
         return Err(SwitchProcessingError::InvalidMagic);
     }

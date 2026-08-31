@@ -309,7 +309,7 @@ pub fn process_apple_crash_report(event: &mut Event, additional_exceptions: Addi
     write_native_placeholder(event, placeholder, additional_exceptions);
 }
 
-/// Reshapes a Switch crashes so they render the same as crashes on other platforms.
+/// Reshapes a Switch crash so it renders the same as crashes on other platforms.
 ///
 /// Unlike a minidump, a Switch crash reaches Relay straight from the Nintendo crash pipeline:
 ///  its exception `type` is the raw abort result code (for example
@@ -333,7 +333,6 @@ pub fn reshape_switch_crash(event: &mut Event) {
         .and_then(|exceptions| exceptions.last_mut())
         .and_then(|exception| exception.value_mut().as_mut())
     else {
-        // No exception means there is no crash title to fix; leave the event untouched.
         return;
     };
 
@@ -345,6 +344,6 @@ pub fn reshape_switch_crash(event: &mut Event) {
 
     // Nintendo forwards crashes as `fatal`, but our DyingMessage contains `level: error`
     // which wins the merge (see `merge_events` in `nswitch.rs`), so re-assert the
-    //severity of a captured crash here.
+    // severity of a captured crash here.
     event.level.set_value(Some(Level::Fatal));
 }
