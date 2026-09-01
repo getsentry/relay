@@ -10,12 +10,8 @@ use crate::statsd::{Counters, map_origin_to_integration, platform_tag};
 
 /// Normalizes AI attributes.
 ///
-/// This aggressively overwrites existing AI attributes, in order to guarantee a consistent data
-/// set for the AI product module.
-///
-/// As an example, an OTeL user may be manually instrumenting AI request costs on spans but in a
-/// local currency. Sentry's AI model requires a consistent cost value, independent of local
-/// currencies.
+/// This aggressively overwrites existing AI attributes, except for existing model costs, in order
+/// to guarantee a consistent data set for the AI product module.
 ///
 /// Callers may choose to only run this normalization in processing mode to not have the
 /// normalization run multiple times.
@@ -156,6 +152,12 @@ fn normalize_context_utilization(
 
 /// Calculates model costs and serializes them into attributes.
 fn normalize_ai_costs(attributes: &mut Attributes, model_metadata: Option<&ModelMetadata>) {
+    // Preserve a valid attached total cost because Relay cannot calculate costs for self-hosted or
+    // otherwise unknown models.
+    if ai::has_valid_total_cost(attributes) {
+        return;
+    }
+
     let origin = extract_string_value(attributes, SENTRY__ORIGIN);
     let platform = extract_string_value(attributes, SENTRY__PLATFORM);
 
@@ -578,7 +580,7 @@ mod tests {
     }
 
     #[test]
-    fn test_normalize_ai_overwrite_costs() {
+    fn test_normalize_ai_preserves_costs() {
         let mut attributes = Annotated::new(attributes! {
             "gen_ai.operation.type" => "ai_client".to_owned(),
             "gen_ai.usage.input_tokens" => 1000,
@@ -602,29 +604,17 @@ mod tests {
 
         assert_annotated_snapshot!(attributes, @r#"
         {
-          "gen_ai.cost.cache_creation.input_tokens": {
-            "type": "double",
-            "value": 0.0
-          },
-          "gen_ai.cost.cache_read.input_tokens": {
-            "type": "double",
-            "value": 0.0
-          },
           "gen_ai.cost.input_tokens": {
             "type": "double",
-            "value": 90.0
+            "value": 99.0
           },
           "gen_ai.cost.output_tokens": {
             "type": "double",
-            "value": 100.0
-          },
-          "gen_ai.cost.reasoning.output_tokens": {
-            "type": "double",
-            "value": 0.0
+            "value": 99.0
           },
           "gen_ai.cost.total_tokens": {
             "type": "double",
-            "value": 190.0
+            "value": 123.0
           },
           "gen_ai.operation.type": {
             "type": "string",

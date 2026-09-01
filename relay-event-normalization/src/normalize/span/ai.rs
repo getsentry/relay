@@ -1,5 +1,6 @@
 //! AI cost calculation.
 
+use crate::eap::AttributesLike;
 use crate::statsd::{Counters, map_origin_to_integration, platform_tag};
 use crate::{ModelCostV2, ModelMetadata};
 use relay_conventions::attributes::*;
@@ -199,6 +200,14 @@ pub fn infer_ai_operation_type(op_name: &str) -> Option<&'static str> {
     Some(ai_op)
 }
 
+/// Returns whether a valid total cost is attached.
+pub fn has_valid_total_cost(attributes: &impl AttributesLike) -> bool {
+    attributes
+        .get_value(GEN_AI__COST__TOTAL_TOKENS)
+        .and_then(Value::as_f64)
+        .is_some()
+}
+
 /// Calculates the cost of an AI model based on the model cost and the tokens used.
 /// Calculated cost is in US dollars.
 fn extract_ai_model_cost_data(
@@ -207,6 +216,11 @@ fn extract_ai_model_cost_data(
     origin: Option<&str>,
     platform: Option<&str>,
 ) {
+    // Preserve existing total cost instead of recalculating and overwriting it.
+    if has_valid_total_cost(data) {
+        return;
+    }
+
     let integration = map_origin_to_integration(origin);
     let platform = platform_tag(platform);
 
@@ -542,6 +556,17 @@ mod tests {
     }
 
     #[test]
+    fn test_has_valid_total_cost() {
+        let missing = ai_span_with_data(json!({}));
+        let invalid = ai_span_with_data(json!({"gen_ai.cost.total_tokens": false}));
+        let valid = ai_span_with_data(json!({"gen_ai.cost.total_tokens": 1.0}));
+
+        assert!(!has_valid_total_cost(missing.data.value().unwrap()));
+        assert!(!has_valid_total_cost(invalid.data.value().unwrap()));
+        assert!(has_valid_total_cost(valid.data.value().unwrap()));
+    }
+
+    #[test]
     fn test_calculate_cost_no_tokens() {
         let cost = calculate_costs(
             &ModelCostV2 {
@@ -695,6 +720,26 @@ mod tests {
             reasoning_output: 30.0,
         }
         ");
+    }
+
+    #[test]
+    fn test_existing_cost_is_not_overwritten() {
+        let mut span = ai_span_with_data(json!({
+            "gen_ai.response.model": "claude-2.1",
+            "gen_ai.usage.input_tokens": 1000.0,
+            "gen_ai.cost.input_tokens": 99.0,
+            "gen_ai.cost.total_tokens": 123.0,
+        }));
+
+        enrich_ai_span(&mut span, Some(&metadata_with_context_size()));
+
+        let data = span.data.value().unwrap();
+        assert_eq!(
+            data.get_value(GEN_AI__COST__TOTAL_TOKENS)
+                .and_then(Value::as_f64),
+            Some(123.0)
+        );
+        assert!(data.get_value(GEN_AI__COST__OUTPUT_TOKENS).is_none());
     }
 
     #[test]

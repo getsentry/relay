@@ -17,6 +17,14 @@ pub trait AttributesLike {
     /// Access this container through the underlying [`Object`] mutably.
     fn as_object_mut(&mut self) -> &mut Object<Self::Value>;
 
+    /// Returns an attribute value.
+    fn get_value(&self, key: &str) -> Option<&Value> {
+        self.as_object()
+            .get(key)
+            .and_then(Annotated::value)
+            .and_then(AttributeLike::as_value)
+    }
+
     /// Checks whether this collection contains an attribute with the given `key`.
     fn contains_key(&self, key: &str) -> bool {
         self.as_object().contains_key(key)
