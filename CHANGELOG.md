@@ -11,6 +11,7 @@
 
 **Features**:
 
+- Switch the container base image from distroless to docker hardened. ([#6335](https://github.com/getsentry/relay/pull/6335))
 - Extract OTLP spans' client sample rate from TraceState. ([#6312](https://github.com/getsentry/relay/pull/6312))
 - Raise the size limit for the flags context to 128 KiB. ([#6310](https://github.com/getsentry/relay/pull/6310))
 - Add support for more inbound filters for logs, trace metrics and spans. ([#6306](https://github.com/getsentry/relay/pull/6306))
