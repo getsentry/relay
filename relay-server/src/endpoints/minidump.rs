@@ -160,7 +160,7 @@ async fn decode_minidump(minidump_data: Bytes, max_size: usize) -> Result<Bytes,
 
     // Decoding happens lazily while peeking, stopping early once `max_size` is
     // exceeded. This prevents decompression bombs from exhausting memory.
-    match utils::stream::split_by_size(decoded, max_size).await {
+    match utils::stream::split_by_size(decoded, max_size.saturating_add(1)).await {
         Ok(SizeSplit::Small(decoded)) => Ok(decoded),
         Ok(SizeSplit::Large(_)) => {
             let item_type = DiscardItemType::Attachment(DiscardAttachmentType::Minidump);
