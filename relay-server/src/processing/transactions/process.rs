@@ -145,7 +145,6 @@ pub fn prepare_data(
             work.attachments.iter(),
             &mut Default::default(),
             ctx.config,
-            ctx.relay_public_key,
         )
         .map_err(Error::from)
     })?;

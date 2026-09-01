@@ -311,7 +311,7 @@ impl ForwardRequestBuilder {
         self
     }
 
-    /// Applies the specified Relay [`Config`] to the forwarded request.
+    /// Applies the specified Relay [`ConfigSnapshot`] to the forwarded request.
     pub fn with_config(mut self, config: &ConfigSnapshot) -> Self {
         self.timeout = config.http_timeout();
         self

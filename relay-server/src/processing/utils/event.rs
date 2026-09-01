@@ -6,7 +6,7 @@ use std::fmt::Debug;
 use std::sync::OnceLock;
 
 use chrono::Duration as SignedDuration;
-use relay_auth::{PublicKey, RelayVersion};
+use relay_auth::RelayVersion;
 use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectId;
 use relay_config::ConfigSnapshot;
@@ -63,7 +63,6 @@ pub fn finalize<'a>(
     attachments: impl Iterator<Item = &'a Item>,
     metrics: &mut Metrics,
     config: &ConfigSnapshot,
-    relay_public_key: Option<&PublicKey>,
 ) -> Result<(), ProcessingError> {
     let inner_event = match event.value_mut() {
         Some(event) => event,
@@ -80,8 +79,9 @@ pub fn finalize<'a>(
             .get_or_insert_with(Default::default)
             .push(Annotated::new(RelayInfo {
                 version: Annotated::new(my_version.clone()),
-                public_key: relay_public_key
-                    .map_or(Annotated::empty(), |pk| Annotated::new(pk.to_string())),
+                public_key: todo!(),
+                // public_key: config.public_key()
+                //     .map_or(Annotated::empty(), |pk| Annotated::new(pk.to_string())),
                 other: Default::default(),
             }));
     }

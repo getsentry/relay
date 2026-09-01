@@ -375,11 +375,8 @@ impl EnvelopeBufferService {
     }
 
     fn memory_ready(&self) -> bool {
-        self.memory_stat.memory().used_percent()
-            <= self
-                .config
-                .current()
-                .spool_max_backpressure_memory_percent()
+        let config = self.config.current();
+        self.memory_stat.memory().used_percent() <= config.spool_max_backpressure_memory_percent()
     }
 
     /// Tries to pop an envelope for a ready project.

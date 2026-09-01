@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use relay_base_schema::project::ProjectKey;
-use relay_config::ConfigSnapshot;
+use relay_config::Config;
 use relay_system::Addr;
 use tokio::sync::broadcast;
 
@@ -20,7 +20,7 @@ use crate::statsd::RelayTimers;
 #[derive(Clone)]
 pub struct ProjectCacheHandle {
     pub(super) shared: Arc<Shared>,
-    pub(super) config: ConfigSnapshot,
+    pub(super) config: Arc<Config>,
     pub(super) service: Addr<ProjectCache>,
     pub(super) project_changes: broadcast::Sender<ProjectChange>,
 }
@@ -32,7 +32,7 @@ impl ProjectCacheHandle {
         // Always trigger a fetch after retrieving the project to make sure the state is up to date.
         self.fetch(project_key);
 
-        Project::new(project, &self.config)
+        Project::new(project, self.config.current())
     }
 
     /// Awaits until the given project state becomes ready (enabled or disabled).
@@ -77,7 +77,7 @@ impl ProjectCacheHandle {
             let change_listener = project.outdated();
             if !project.project_state().is_pending() {
                 drop(change_listener);
-                return Project::new(project, &self.config);
+                return Project::new(project, self.config.current());
             }
             change_listener.await;
         }
@@ -119,7 +119,7 @@ mod test {
         pub fn for_test() -> Self {
             Self {
                 shared: Default::default(),
-                config: Config::default().current(),
+                config: Arc::new(Config::default()),
                 service: Addr::dummy(),
                 project_changes: broadcast::channel(999_999).0,
             }

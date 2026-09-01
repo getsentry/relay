@@ -24,7 +24,7 @@ pub struct SqliteStackProvider {
 
 #[warn(dead_code)]
 impl SqliteStackProvider {
-    /// Creates a new [`SqliteStackProvider`] from the provided [`Config`].
+    /// Creates a new [`SqliteStackProvider`] from the provided [`ConfigSnapshot`].
     pub async fn new(
         partition_id: u8,
         config: &ConfigSnapshot,

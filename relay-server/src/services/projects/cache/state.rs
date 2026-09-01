@@ -936,6 +936,8 @@ struct ExpiryTime(Instant);
 mod tests {
     use std::time::Duration;
 
+    use relay_config::Config;
+
     use super::*;
 
     async fn collect_evicted(store: &mut ProjectStore) -> Vec<ProjectKey> {
@@ -962,7 +964,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_store_fetch() {
         let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
-        let mut store = ProjectStore::new(&relay_config::Config::default().current());
+        let mut store = ProjectStore::new(&Config::default().current());
 
         let fetch = store.try_begin_fetch(project_key).unwrap();
         assert_eq!(fetch.project_key(), project_key);
@@ -1004,7 +1006,7 @@ mod tests {
     async fn test_store_fetch_pending_does_not_replace_state() {
         let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         let mut store = ProjectStore::new(
-            &relay_config::Config::from_json_value(serde_json::json!({
+            &Config::from_json_value(serde_json::json!({
                 "cache": {
                     "project_expiry": 5,
                     "project_grace_period": 5,
@@ -1038,7 +1040,7 @@ mod tests {
         let project_key1 = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         let project_key2 = ProjectKey::parse("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb").unwrap();
         let mut store = ProjectStore::new(
-            &relay_config::Config::from_json_value(serde_json::json!({
+            &Config::from_json_value(serde_json::json!({
                 "cache": {
                     "project_expiry": 5,
                     "project_grace_period": 0,
@@ -1078,7 +1080,7 @@ mod tests {
         let project_key1 = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         let project_key2 = ProjectKey::parse("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb").unwrap();
         let mut store = ProjectStore::new(
-            &relay_config::Config::from_json_value(serde_json::json!({
+            &Config::from_json_value(serde_json::json!({
                 "cache": {
                     "project_expiry": 5,
                     "project_grace_period": 0,
@@ -1118,7 +1120,7 @@ mod tests {
     async fn test_store_evict_projects_stale() {
         let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         let mut store = ProjectStore::new(
-            &relay_config::Config::from_json_value(serde_json::json!({
+            &Config::from_json_value(serde_json::json!({
                 "cache": {
                     "project_expiry": 5,
                     "project_grace_period": 5,
@@ -1149,7 +1151,7 @@ mod tests {
     async fn test_store_no_eviction_during_fetch() {
         let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         let mut store = ProjectStore::new(
-            &relay_config::Config::from_json_value(serde_json::json!({
+            &Config::from_json_value(serde_json::json!({
                 "cache": {
                     "project_expiry": 5,
                     "project_grace_period": 5,
@@ -1195,7 +1197,7 @@ mod tests {
     async fn test_store_refresh() {
         let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         let mut store = ProjectStore::new(
-            &relay_config::Config::from_json_value(serde_json::json!({
+            &Config::from_json_value(serde_json::json!({
                 "cache": {
                     "project_expiry": 5,
                     "project_grace_period": 5,
@@ -1245,7 +1247,7 @@ mod tests {
     async fn test_store_refresh_overtaken_by_eviction() {
         let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         let mut store = ProjectStore::new(
-            &relay_config::Config::from_json_value(serde_json::json!({
+            &Config::from_json_value(serde_json::json!({
                 "cache": {
                     "project_expiry": 5,
                     "project_grace_period": 5,
@@ -1286,7 +1288,7 @@ mod tests {
     async fn test_store_refresh_during_eviction() {
         let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         let mut store = ProjectStore::new(
-            &relay_config::Config::from_json_value(serde_json::json!({
+            &Config::from_json_value(serde_json::json!({
                 "cache": {
                     "project_expiry": 5,
                     "project_grace_period": 5,

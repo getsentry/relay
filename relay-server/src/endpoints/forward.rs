@@ -32,7 +32,9 @@ async fn handle(
     headers: HeaderMap<HeaderValue>,
     data: Body,
 ) -> impl IntoResponse {
-    if !state.config().http_forward() {
+    let config = state.config();
+
+    if !config.http_forward() {
         return StatusCode::NOT_FOUND.into_response();
     }
 
@@ -47,7 +49,7 @@ async fn handle(
         .with_headers(headers)
         .with_forwarded_for(forwarded_for)
         .with_body(data)
-        .with_config(&state.config())
+        .with_config(&config)
         .send_to(state.upstream_relay())
         .await
         .into_response()

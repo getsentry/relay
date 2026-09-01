@@ -1,3 +1,4 @@
+use std::marker::PhantomData;
 use std::sync::Arc;
 
 use relay_config::ConfigSnapshot;
@@ -14,12 +15,21 @@ use crate::utils::{CheckLimits, EnvelopeLimiter};
 /// A loaded project.
 pub struct Project<'a> {
     shared: SharedProject,
-    config: &'a ConfigSnapshot,
+    config: ConfigSnapshot,
+    // This lifetime is a leftover from before we started introducing a reloadable
+    // configuration. It's not yet removed to keep changes a bit more isolated to config.
+    //
+    // This will be removed in a follow-up PR. I promise.
+    _lifetime: PhantomData<&'a ()>,
 }
 
 impl<'a> Project<'a> {
-    pub(crate) fn new(shared: SharedProject, config: &'a ConfigSnapshot) -> Self {
-        Self { shared, config }
+    pub(crate) fn new(shared: SharedProject, config: ConfigSnapshot) -> Self {
+        Self {
+            shared,
+            config,
+            _lifetime: PhantomData,
+        }
     }
 
     /// Returns a reference to the currently cached project state.
@@ -65,7 +75,7 @@ impl<'a> Project<'a> {
             scoping = state.scope_request(envelope.meta());
             envelope.scope(scoping);
 
-            if let Err(reason) = state.check_envelope(envelope, self.config) {
+            if let Err(reason) = state.check_envelope(envelope, &self.config) {
                 return Err(envelope
                     .reject_err(Outcome::Invalid(reason))
                     .map(|_| reason));
@@ -133,7 +143,7 @@ mod tests {
 
     use super::*;
 
-    fn create_project(config: &ConfigSnapshot, data: Option<serde_json::Value>) -> Project<'_> {
+    fn create_project(config: ConfigSnapshot, data: Option<serde_json::Value>) -> Project<'static> {
         let mut project_info = ProjectInfo {
             project_id: Some(ProjectId::new(42)),
             ..Default::default()
@@ -169,7 +179,7 @@ mod tests {
     async fn test_track_nested_spans_outcomes() {
         let config = relay_config::Config::default().current();
         let project = create_project(
-            &config,
+            config,
             Some(json!({
                 "quotas": [{
                    "id": "foo",
@@ -242,7 +252,7 @@ mod tests {
     async fn test_track_nested_spans_outcomes_predefined() {
         let config = relay_config::Config::default().current();
         let project = create_project(
-            &config,
+            config,
             Some(json!({
                 "quotas": [{
                    "id": "foo",

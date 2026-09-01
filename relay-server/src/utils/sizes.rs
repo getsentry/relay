@@ -12,7 +12,7 @@ use crate::statsd::RelayCounters;
 /// an `Err` containing the offending item type, in which case the envelope should be discarded
 /// and a `413 Payload Too Large` response should be given.
 ///
-/// Each envelope item is checked against its limits defined in the [`Config`].
+/// Each envelope item is checked against its limits defined in the [`ConfigSnapshot`].
 pub fn check_envelope_size_limits(
     config: &ConfigSnapshot,
     envelope: &Envelope,

@@ -146,6 +146,7 @@ struct LoadedConfig<C> {
     ///
     /// The config may be built from multiple files due to the support for `${file:}` references
     /// in arbitrary config keys.
+    #[expect(unused, reason = "not yet implemented")]
     dependencies: BTreeSet<PathBuf>,
 }
 
@@ -2013,8 +2014,13 @@ impl Config {
         self.credentials.as_ref().map(|x| &x.id)
     }
 
+    /// Acquires a current [`snapshot`](ConfigSnapshot) of the config.
+    ///
+    /// A snapshot is the way to actually consume values from the config. A snapshot should ideally be acquired
+    /// once per unit of work.
     pub fn current(&self) -> ConfigSnapshot {
-        ConfigSnapshot { values: todo!() }
+        let values = self.values.load();
+        ConfigSnapshot { values }
     }
 
     fn do_apply_config_overrides(&mut self, overrides: &OverridableConfig) -> anyhow::Result<()> {
@@ -2099,9 +2105,14 @@ impl Config {
         Ok(())
     }
 }
-#[derive(Debug, Clone)]
+
+/// A config snapshot is a point in time snapshot of the [`Config`].
+///
+/// The [`Config`] may change over time, to guarantee a consistent view of the config
+/// a snapshot must be acquired first.
+#[derive(Debug)]
 pub struct ConfigSnapshot {
-    values: ConfigValues,
+    values: arc_swap::Guard<Arc<LoadedConfig<ConfigValues>>>,
 }
 
 impl ConfigSnapshot {

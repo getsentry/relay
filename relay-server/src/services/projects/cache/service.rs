@@ -98,7 +98,7 @@ impl ProjectCacheService {
 
         let handle = ProjectCacheHandle {
             shared: self.store.shared(),
-            config: self.config.current(),
+            config: Arc::clone(&self.config),
             service: addr,
             project_changes: self.project_events_tx.clone(),
         };

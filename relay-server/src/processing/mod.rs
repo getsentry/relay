@@ -6,7 +6,6 @@
 //!
 //! The processor service, will then do its actual work using the processing logic defined here.
 
-use relay_auth::PublicKey;
 use relay_cogs::FeatureWeights;
 use relay_config::{ConfigSnapshot, RelayMode};
 use relay_dynamic_config::GlobalConfig;
@@ -82,8 +81,6 @@ pub trait Processor {
 pub struct Context<'a> {
     /// The Relay configuration.
     pub config: &'a ConfigSnapshot,
-    /// The public key of this Relay, if configured.
-    pub relay_public_key: Option<&'a PublicKey>,
     /// A view of the currently active global configuration.
     pub global_config: &'a GlobalConfig,
     /// Project configuration associated with the unit of work.
@@ -140,7 +137,6 @@ impl Context<'static> {
 
         Self {
             config: &CONFIG,
-            relay_public_key: None,
             global_config: &GLOBAL_CONFIG,
             project_info: &PROJECT_INFO,
             sampling_project_info: None,

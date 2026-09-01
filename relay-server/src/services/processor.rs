@@ -18,7 +18,7 @@ use futures::future::BoxFuture;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
-use relay_config::{Config, EmitOutcomes, HttpEncoding, UpstreamDescriptor};
+use relay_config::{Config, ConfigSnapshot, EmitOutcomes, HttpEncoding, UpstreamDescriptor};
 use relay_event_normalization::{ClockDriftProcessor, GeoIpLookup};
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::ClientReport;
@@ -701,7 +701,6 @@ impl EnvelopeProcessorService {
 
         let ctx = processing::Context {
             config: &config,
-            relay_public_key: self.inner.config.public_key(),
             global_config: &global_config,
             project_info: &message.project_info,
             sampling_project_info: message.sampling_project_info.as_deref(),
@@ -881,7 +880,11 @@ impl EnvelopeProcessorService {
         match output.serialize_envelope(ctx) {
             Ok(envelope) => {
                 let envelope = ManagedEnvelope::from(envelope);
-                self.submit_envelope_upstream(envelope, ctx.project_info.upstream.clone());
+                self.submit_envelope_upstream(
+                    envelope,
+                    ctx.config,
+                    ctx.project_info.upstream.clone(),
+                );
             }
             Err(_) => relay_log::error!("failed to serialize output to an envelope"),
         };
@@ -890,12 +893,11 @@ impl EnvelopeProcessorService {
     fn submit_envelope_upstream(
         &self,
         mut envelope: ManagedEnvelope,
+        config: &ConfigSnapshot,
         // Currently allowed to be optional as code is migrated to respect the upstream override
         // provided from the project config. Eventually must be available and is required.
         upstream: Option<UpstreamDescriptor>,
     ) {
-        let config = self.inner.config.current();
-
         if envelope.envelope_mut().is_empty() {
             envelope.accept();
             return;
@@ -991,7 +993,7 @@ impl EnvelopeProcessorService {
         }
 
         let envelope = ManagedEnvelope::new(envelope, self.inner.addrs.outcome_aggregator.clone());
-        self.submit_envelope_upstream(envelope, None);
+        self.submit_envelope_upstream(envelope, &self.inner.config.current(), None);
     }
 
     fn check_buckets(
@@ -1288,7 +1290,7 @@ impl EnvelopeProcessorService {
                     distribution(RelayDistributions::BucketsPerBatch) = batch.len() as u64
                 );
 
-                self.submit_envelope_upstream(envelope, project_info.upstream.clone());
+                self.submit_envelope_upstream(envelope, &config, project_info.upstream.clone());
                 num_batches += 1;
             }
 
