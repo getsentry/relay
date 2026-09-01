@@ -89,14 +89,12 @@ pub enum Feature {
     /// Upload non-prosperodmp playstation attachments via the upload endpoint.
     #[serde(rename = "projects:relay-playstation-uploads")]
     PlaystationUploads,
+    /// Enable Nintendo event rewrite.
+    #[serde(rename = "projects:relay-nintendo-event-rewrite")]
+    NintendoEventRewrite,
     /// Stream minidumps to objectstore.
     #[serde(rename = "projects:relay-minidump-uploads")]
     MinidumpUploads,
-    /// Use objectstore multipart for upload requests.
-    ///
-    /// See <https://getsentry.github.io/objectstore/rust/objectstore_service/multipart/>.
-    #[serde(rename = "projects:relay-upload-multipart")]
-    UploadMultipart,
     /// Split an NVIDIA GPU crash dump (`.nv-gpudmp`) off a minidump upload into its
     /// own event.
     #[serde(rename = "organizations:gpu-crash-symbolication")]

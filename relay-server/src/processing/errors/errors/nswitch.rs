@@ -65,7 +65,8 @@ impl SentryError for Nswitch {
         let mut attachments = attachments;
         attachments.extend(dying_message.attachments);
 
-        let event = match (event, dying_message.event) {
+        #[cfg_attr(not(feature = "processing"), expect(unused_mut))]
+        let mut event = match (event, dying_message.event) {
             (Some(event), Some(dying_message)) => {
                 metrics.bytes_ingested_event =
                     Annotated::new((event.len() + dying_message.len()) as u64);
@@ -75,6 +76,20 @@ impl SentryError for Nswitch {
             (None, Some(event)) => utils::event_from_json_payload(event, None, &mut metrics, ctx)?,
             (None, None) => return Err(ProcessingError::NoEventPayload.into()),
         };
+
+        // Reshape switch crash title to match other native platforms, and mark it as fatal.
+        utils::if_processing!(ctx, {
+            use relay_dynamic_config::Feature;
+
+            if let Some(event) = event.value_mut()
+                && ctx
+                    .processing
+                    .project_info
+                    .has_feature(Feature::NintendoEventRewrite)
+            {
+                crate::utils::reshape_switch_crash(event);
+            }
+        });
 
         Ok(Some(Expansion {
             event: Box::new(event),
@@ -124,6 +139,8 @@ pub enum SwitchProcessingError {
     EnvelopeParsing(#[from] EnvelopeError),
     #[error("unexpected EOF, expected {expected:?}")]
     UnexpectedEof { expected: &'static str },
+    #[error("invalid magic number")]
+    InvalidMagic,
     #[error("invalid {0:?} ({1:?})")]
     InvalidValue(&'static str, usize),
     #[error("Zstandard error")]
@@ -166,6 +183,12 @@ struct ExpandedDyingMessage {
 /// Parses DyingMessage contents and updates the envelope.
 /// See dying_message.md for the documentation.
 fn expand_dying_message(mut payload: Bytes) -> Result<ExpandedDyingMessage, SwitchProcessingError> {
+    // `Item::attachment_type` may report `NintendoSwitchDyingMessage` from an explicitly set item
+    // header, which bypasses the `starts_with(magic)` guard it applies when inferring the type.
+    // Validate the magic here so a crafted short payload can't panic the `advance` below.
+    if !payload.starts_with(NNSWITCH_SENTRY_MAGIC) {
+        return Err(SwitchProcessingError::InvalidMagic);
+    }
     payload.advance(NNSWITCH_SENTRY_MAGIC.len());
     let version = payload
         .try_get_u8()
@@ -304,13 +327,16 @@ mod tests {
     use super::*;
 
     use relay_config::{Config, OverridableConfig};
+    use relay_dynamic_config::Feature;
+    use relay_event_schema::protocol::Level;
     use relay_protocol::assert_annotated_snapshot;
     use std::io::Write;
     use zstd::bulk::Compressor as ZstdCompressor;
 
     use crate::constants::NNSWITCH_DYING_MESSAGE_FILENAME;
-    use crate::envelope::Item;
+    use crate::envelope::{ContentType, Item};
     use crate::processing;
+    use crate::services::projects::project::ProjectInfo;
 
     fn ctx() -> Context<'static> {
         static CONFIG: std::sync::LazyLock<Config> = std::sync::LazyLock::new(|| {
@@ -324,9 +350,20 @@ mod tests {
             config
         });
 
+        static PROJECT_INFO: std::sync::LazyLock<ProjectInfo> = std::sync::LazyLock::new(|| {
+            let mut project_info = ProjectInfo::default();
+            project_info
+                .config
+                .features
+                .0
+                .insert(Feature::NintendoEventRewrite);
+            project_info
+        });
+
         Context {
             processing: processing::Context {
                 config: &CONFIG,
+                project_info: &PROJECT_INFO,
                 ..processing::Context::for_test()
             },
             ..Context::for_test()
@@ -469,5 +506,92 @@ mod tests {
         let mut items = create_envelope_items(Bytes::from("sntr\0\0\0\0"));
 
         let _ = Nswitch::try_expand(&mut items, ctx()).unwrap().unwrap();
+    }
+
+    #[test]
+    fn test_expand_dying_message_rejects_short_or_invalid_magic() {
+        // A payload shorter than the 4-byte magic must return an error rather than panic in
+        // `advance` (reachable when the attachment type is set explicitly in the item header).
+        for payload in ["", "s", "sn", "snt"] {
+            assert!(matches!(
+                expand_dying_message(Bytes::from(payload)),
+                Err(SwitchProcessingError::InvalidMagic)
+            ));
+        }
+
+        // A long-enough payload whose magic doesn't match is rejected too.
+        assert!(matches!(
+            expand_dying_message(Bytes::from("xxxx")),
+            Err(SwitchProcessingError::InvalidMagic)
+        ));
+    }
+
+    #[test]
+    fn test_switch_crash_is_reshaped() {
+        let mut event = Item::new(ItemType::Event);
+        event.set_payload(
+            ContentType::Json,
+            include_bytes!(
+                "../../../../../tests/integration/fixtures/native/nnswitch_crportal_event.json"
+            )
+            .as_slice(),
+        );
+
+        let mut dying_message = Item::new(ItemType::Attachment);
+        dying_message.set_filename(NNSWITCH_DYING_MESSAGE_FILENAME);
+        dying_message.set_attachment_type(AttachmentType::NintendoSwitchDyingMessage);
+        dying_message.set_payload(
+            ContentType::OctetStream,
+            include_bytes!(
+                "../../../../../tests/integration/fixtures/native/nnswitch_crportal_dying_message_raw.dat"
+            )
+            .as_slice(),
+        );
+
+        let mut items = vec![event, dying_message];
+
+        let parsed = Nswitch::try_expand(&mut items, ctx()).unwrap().unwrap();
+
+        let event = parsed.event.value().unwrap();
+
+        // The DyingMessage scope patch is the merge base and contributes the fields the
+        // forwarded event lacks.
+        assert_eq!(
+            event.release.value().map(|release| release.as_str()),
+            Some("test-app@1.0.0")
+        );
+        assert_eq!(
+            event.environment.value().map(String::as_str),
+            Some("integration-test")
+        );
+
+        // The crash is rendered as fatal: both the forwarded event and the scope patch carry
+        // `level: error`, and the reshape asserts the severity of a captured crash.
+        assert_eq!(event.level.value(), Some(&Level::Fatal));
+
+        let exception = event
+            .exceptions
+            .value()
+            .unwrap()
+            .values
+            .value()
+            .unwrap()
+            .last()
+            .unwrap()
+            .value()
+            .unwrap();
+
+        // Marked synthetic, so Sentry drops the result-code `type` from the title and falls
+        // back to the crashing function. Nintendo's own `handled: false` passes through.
+        let mechanism = exception.mechanism.value().unwrap();
+        assert_eq!(mechanism.synthetic.value(), Some(&true));
+        assert_eq!(mechanism.handled.value(), Some(&false));
+
+        // The result code and its description are preserved; only the `type`'s influence on the
+        // title is removed. `value` remains as the issue subtitle.
+        assert_eq!(
+            exception.ty.value().map(String::as_str),
+            Some("2168-0002 ResultAccessViolationData")
+        );
     }
 }

@@ -596,7 +596,6 @@ where
             project: project.clone(),
             length: None,
             attachment_type: item.attachment_type(),
-            multipart: false,
         })
         .await
         .map_err(|_| BadStoreRequest::UploadFailed)?

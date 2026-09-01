@@ -308,3 +308,40 @@ pub fn process_apple_crash_report(event: &mut Event, additional_exceptions: Addi
     };
     write_native_placeholder(event, placeholder, additional_exceptions);
 }
+
+/// Reshapes a Switch crash so it renders the same as crashes on other platforms.
+///
+/// Unlike a minidump, a Switch crash reaches Relay straight from the Nintendo crash pipeline:
+///  its exception `type` is the raw abort result code (for example
+/// `2168-0002 ResultAccessViolationData`).
+///
+/// Native crashes that Relay assembles itself (see [`write_native_placeholder`]) mark their
+/// exception `synthetic`, which tells Sentry to drop the exception `type` from the title and
+/// fall back to the crashing function. We apply the same treatment here, so the issue title
+/// matches its Windows/macOS counterpart.
+///
+/// The exception `value` is deliberately preserved: as with minidumps, it remains the issue
+/// subtitle.
+pub fn reshape_switch_crash(event: &mut Event) {
+    // Sentry derives the issue title from the last exception in the list (see `_get_exception`
+    // in `sentry/eventtypes/error.py`), so that is the one whose `type` we must neutralize.
+    let Some(exception) = event
+        .exceptions
+        .value_mut()
+        .as_mut()
+        .and_then(|values| values.values.value_mut().as_mut())
+        .and_then(|exceptions| exceptions.last_mut())
+        .and_then(|exception| exception.value_mut().as_mut())
+    else {
+        return;
+    };
+
+    let mechanism = exception
+        .mechanism
+        .value_mut()
+        .get_or_insert_with(Mechanism::default);
+    mechanism.synthetic.set_value(Some(true));
+
+    // Events have level `error` by default, so set to `fatal` like for other native crashes.
+    event.level.set_value(Some(Level::Fatal));
+}

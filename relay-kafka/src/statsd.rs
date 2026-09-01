@@ -65,6 +65,13 @@ pub enum KafkaCounters {
     /// - `producer_name`: The configured producer name/deployment identifier.
     ProduceStatusSuccess,
 
+    /// Number of messages successfully produced to Kafka brokers.
+    ///
+    /// This metric is tagged with:
+    /// - `topic`: The Kafka topic produced to.
+    /// - `producer_name`: The configured producer name/deployment identifier.
+    ProcessingMessageProduced,
+
     /// Number of failed message produce operations.
     ///
     /// This metric is tagged with:
@@ -79,6 +86,7 @@ impl CounterMetric for KafkaCounters {
             Self::ProducerEnqueueError => "producer.enqueue.error",
             Self::ProducerPartitionKeyRateLimit => "producer.partition_key.rate_limit",
             Self::ProduceStatusSuccess => "producer.produce_status.success",
+            Self::ProcessingMessageProduced => "processing.event.produced",
             Self::ProduceStatusError => "producer.produce_status.error",
         }
     }

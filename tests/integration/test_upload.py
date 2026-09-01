@@ -566,13 +566,7 @@ def test_concurrency_limit(mini_sentry, relay, project_config):
             }, r.text
 
 
-@pytest.mark.parametrize(
-    "with_multipart",
-    [pytest.param(False, id="no multipart"), pytest.param(True, id="with multipart")],
-)
-def test_objectstore_retries(
-    mini_sentry, relay_with_processing, with_multipart, project_config
-):
+def test_objectstore_retries(mini_sentry, relay_with_processing, project_config):
     project_id = 42
     project_key = mini_sentry.get_dsn_public_key(project_id)
 
@@ -590,9 +584,6 @@ def test_objectstore_retries(
 
     location = f"/api/{project_id}/upload/019cdc82ed6c7761ba21fd34b86481c2/"
     sep = "?"
-    if with_multipart:
-        location += "?upload_id=my_upload_id"
-        sep = "&"
     signature = SecretKey.parse(relay.secret_key).sign(location.encode())
     signed_location = (
         f"{location}{sep}sentry_key={project_key}&upload_signature={signature}"
@@ -609,36 +600,27 @@ def test_objectstore_retries(
         },
         data=data,
     )
+    print(response.text)
 
     failure = mini_sentry.test_failures.get(timeout=10)
-    expected_attempts = 1 if with_multipart else 3  # multipart cannot be retried
-    assert (
-        f"failed to upload 1 attachment(s) to objectstore in {expected_attempts} attempt(s)"
-        in str(failure)
+    assert "failed to upload 1 attachment(s) to objectstore in 3 attempt(s)" in str(
+        failure
     )
     assert response.status_code == 500
 
 
-def test_objectstore_timeout(mini_sentry, relay_with_processing):
+def test_objectstore_timeout(
+    mini_sentry, relay_with_processing, project_config, dummy_upload
+):
     mini_sentry.allow_chunked = True
     mini_sentry.fail_on_relay_error = False
     project_id = 42
-    config = mini_sentry.add_full_project_config(project_id)["config"]
-    config.setdefault("features", []).append("projects:relay-upload-multipart")
     project_key = mini_sentry.get_dsn_public_key(project_id)
 
-    @mini_sentry.app.route(
-        "/v1/objects:multipart/attachments/<scope>/<key>", methods=["PUT"]
-    )
-    def multipart_create(**params):
-        return {"key": params["key"], "upload_id": "foo"}, 201
-
-    @mini_sentry.app.route(
-        "/v1/objects:multipart:parts/attachments/<scope>/<key>", methods=["PUT"]
-    )
-    def multipart_upload(**opts):
+    @mini_sentry.app.route("/v1/objects/attachments/<scope>/<key>", methods=["PUT"])
+    def slow_upload(**opts):
         time.sleep(2)
-        return 204
+        raise NotImplementedError
 
     relay = relay_with_processing(
         options={
@@ -680,18 +662,10 @@ def upload_something(relay, project_id, project_key):
     )
 
 
-@pytest.mark.parametrize(
-    "with_multipart",
-    [pytest.param(False, id="no multipart"), pytest.param(True, id="with multipart")],
-)
-def test_objectstore_retention(
-    mini_sentry, relay_with_processing, objectstore, with_multipart
-):
+def test_objectstore_retention(mini_sentry, relay_with_processing, objectstore):
     project_id = 42
     config = mini_sentry.add_full_project_config(project_id)["config"]
     config["eventRetention"] = 20
-    if with_multipart:
-        config.setdefault("features", []).append("projects:relay-upload-multipart")
     project_key = mini_sentry.get_dsn_public_key(project_id)
 
     relay = relay_with_processing()

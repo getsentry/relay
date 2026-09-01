@@ -422,7 +422,12 @@ fn slim_frame_data(frames: &mut Array<Frame>, frame_allowance: usize) {
 
     // TODO: Which annotation to set?
 
-    for i in system_frames_to_remove.iter().chain(app_frames_to_remove) {
+    let top_frame_index = frames_len.saturating_sub(1);
+    for i in system_frames_to_remove
+        .iter()
+        .chain(app_frames_to_remove)
+        .filter(|&&i| i != top_frame_index)
+    {
         if let Some(frame) = frames.get_mut(*i)
             && let Some(ref mut frame) = frame.value_mut().as_mut()
         {
@@ -1054,6 +1059,39 @@ mod tests {
         ];
 
         assert_eq!(frames, expected);
+    }
+
+    #[test]
+    fn test_slim_frame_data_does_not_trim_top_frame_metadata() {
+        let mut frames: Array<Frame> = (0..50)
+            .map(|n| {
+                Annotated::new(Frame {
+                    filename: Annotated::new(format!("system {n}").into()),
+                    ..Default::default()
+                })
+            })
+            .collect();
+        frames.push(Annotated::new(Frame {
+            filename: Annotated::new("raising".into()),
+            pre_context: Annotated::new(vec![Annotated::new("before".to_owned())]),
+            context_line: Annotated::new("current".to_owned()),
+            post_context: Annotated::new(vec![Annotated::new("after".to_owned())]),
+            vars: Annotated::new({
+                let mut vars = Object::new();
+                vars.insert("local".to_owned(), Annotated::new("value".into()));
+                vars.into()
+            }),
+            in_app: Annotated::new(true),
+            ..Default::default()
+        }));
+
+        slim_frame_data(&mut frames, 50);
+
+        let top_frame = frames.last().unwrap().value().unwrap();
+        assert!(top_frame.vars.value().is_some());
+        assert!(top_frame.pre_context.value().is_some());
+        assert!(top_frame.context_line.value().is_some());
+        assert!(top_frame.post_context.value().is_some());
     }
 
     #[test]
