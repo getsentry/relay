@@ -15,6 +15,8 @@ pub fn healthcheck(config: &Config, matches: &ArgMatches) -> Result<()> {
         .get_one::<u64>("timeout")
         .expect("`timeout` is required");
 
+    let config = config.current();
+
     let addr = matches
         .get_one::<SocketAddr>("addr")
         .copied()

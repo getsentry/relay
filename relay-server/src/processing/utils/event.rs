@@ -79,7 +79,7 @@ pub fn finalize<'a>(
             .get_or_insert_with(Default::default)
             .push(Annotated::new(RelayInfo {
                 version: Annotated::new(my_version.clone()),
-                public_key: todo!(),
+                public_key: Annotated::empty(), // TODO: fix this
                 // public_key: config.public_key()
                 //     .map_or(Annotated::empty(), |pk| Annotated::new(pk.to_string())),
                 other: Default::default(),

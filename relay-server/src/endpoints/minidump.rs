@@ -427,7 +427,7 @@ where
         stream,
         Some(ContentType::Minidump.to_string()),
         item,
-        &config,
+        config,
         project,
         upload,
         referrer,

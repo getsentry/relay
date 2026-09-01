@@ -60,6 +60,7 @@ pub fn execute() -> Result<()> {
     // SAFETY: The function cannot be called from a multi threaded environment,
     // this is the main entry point where no other threads have been spawned yet.
     unsafe {
+        let config = config.current();
         relay_log::init(config.logging(), config.sentry());
     }
 
@@ -321,7 +322,7 @@ pub fn init_config<P: AsRef<Path>>(config_path: P, _matches: &ArgMatches) -> Res
     }
 
     let mut config = Config::from_path(&config_path)?;
-    if config.relay_mode() == RelayMode::Managed && !config.has_credentials() {
+    if config.current().relay_mode() == RelayMode::Managed && !config.has_credentials() {
         let credentials = Credentials::generate();
         config.replace_credentials(Some(credentials))?;
         println!("Generated new credentials");
@@ -366,7 +367,7 @@ pub fn generate_completions(matches: &ArgMatches) -> Result<()> {
 pub fn run(config: Config, _matches: &ArgMatches) -> Result<()> {
     setup::dump_spawn_infos(&config);
     setup::check_config(&config)?;
-    setup::init_metrics(&config)?;
+    setup::init_metrics(&config.current())?;
     relay_server::run(config)?;
     Ok(())
 }
