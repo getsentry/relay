@@ -803,7 +803,6 @@ fn extract_segment_tags(event: &Event) -> SegmentTags {
 /// [span operations](https://develop.sentry.dev/sdk/performance/span-operations/) and
 /// existing [span data](https://develop.sentry.dev/sdk/performance/span-data-conventions/) fields,
 /// and rely on Sentry conventions and heuristics.
-#[allow(deprecated)]
 #[allow(clippy::too_many_arguments)]
 pub fn extract_tags(
     span: &Span,
@@ -1021,7 +1020,7 @@ pub fn extract_tags(
                 }
 
                 if let Some(value) = data
-                    .get_value(HTTP__DECODED_RESPONSE_CONTENT_LENGTH)
+                    .get_value(HTTP__RESPONSE__BODY__DECODED_SIZE)
                     .and_then(|v| String::try_from(v).ok())
                 {
                     span_tags.http_decoded_response_content_length = value.into();
@@ -1179,7 +1178,6 @@ fn value_to_finite_f64(val: Option<&Value>) -> Option<FiniteF64> {
 }
 
 /// Copies specific numeric values from span data to span measurements.
-#[allow(deprecated)]
 pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
     let Some(span_op) = span.op.as_str() else {
         return;
@@ -1205,7 +1203,7 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
     {
         for (attribute, key) in [
             (
-                HTTP__DECODED_RESPONSE_CONTENT_LENGTH,
+                HTTP__RESPONSE__BODY__DECODED_SIZE,
                 "http.decoded_response_content_length",
             ),
             (HTTP__RESPONSE__BODY__SIZE, "http.response_content_length"),
