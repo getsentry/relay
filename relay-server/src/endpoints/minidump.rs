@@ -150,6 +150,9 @@ impl Compression {
 ///
 /// Returns an `Overflow` error if the decompressed size exceeds `max_size`.
 async fn decode_minidump(minidump_data: Bytes, max_size: usize) -> Result<Bytes, BadStoreRequest> {
+    if matches!(Compression::from(&minidump_data), Compression::None) {
+        return Ok(minidump_data);
+    }
     let stream = futures::stream::once(async move { Ok::<_, Infallible>(minidump_data) });
     let decoded = decode_stream(stream)
         .await
