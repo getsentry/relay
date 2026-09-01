@@ -1,4 +1,4 @@
-use relay_config::{Config, ConfigSnapshot};
+use relay_config::ConfigSnapshot;
 use relay_dynamic_config::GlobalConfig;
 use relay_dynamic_config::{RetentionConfig, RetentionsConfig};
 #[cfg(feature = "processing")]

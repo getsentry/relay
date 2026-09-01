@@ -123,12 +123,14 @@ impl RedisProjectSource {
     }
 
     fn get_redis_project_config_key(&self, key: ProjectKey) -> String {
-        let prefix = self.config.projectconfig_cache_prefix();
+        let config = self.config.current();
+        let prefix = config.projectconfig_cache_prefix();
         format!("{prefix}:{key}")
     }
 
     fn get_redis_rev_key(&self, key: ProjectKey) -> String {
-        let prefix = self.config.projectconfig_cache_prefix();
+        let config = self.config.current();
+        let prefix = config.projectconfig_cache_prefix();
         format!("{prefix}:{key}.rev")
     }
 }

@@ -253,7 +253,7 @@ impl GlobalConfigService {
     fn schedule_fetch(&mut self) {
         if !self.shutdown && self.fetch_handle.is_idle() {
             self.fetch_handle
-                .set(self.config.global_config_fetch_interval());
+                .set(self.config.current().global_config_fetch_interval());
         }
     }
 
@@ -345,7 +345,7 @@ impl Service for GlobalConfigService {
         let mut shutdown_handle = Controller::shutdown_handle();
 
         relay_log::info!("global config service starting");
-        if self.config.relay_mode() == RelayMode::Managed {
+        if self.config.current().relay_mode() == RelayMode::Managed {
             relay_log::info!("requesting global config from upstream");
             self.request_global_config();
         } else {
@@ -418,7 +418,7 @@ mod tests {
         Controller::start(Duration::from_secs(1));
         let mut config = Config::default();
         config.regenerate_credentials(false).unwrap();
-        let fetch_interval = config.global_config_fetch_interval();
+        let fetch_interval = config.current().global_config_fetch_interval();
 
         let service = GlobalConfigService::new(Arc::new(config), upstream)
             .0
@@ -450,7 +450,7 @@ mod tests {
         .unwrap();
         config.regenerate_credentials(false).unwrap();
 
-        let fetch_interval = config.global_config_fetch_interval();
+        let fetch_interval = config.current().global_config_fetch_interval();
         let service = GlobalConfigService::new(Arc::new(config), upstream)
             .0
             .start_detached();
@@ -476,7 +476,7 @@ mod tests {
         }))
         .unwrap();
 
-        let fetch_interval = config.global_config_fetch_interval();
+        let fetch_interval = config.current().global_config_fetch_interval();
 
         let service = GlobalConfigService::new(Arc::new(config), upstream)
             .0

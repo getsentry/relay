@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
 use relay_base_schema::data_category::DataCategory;
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use relay_event_schema::protocol::{ClientReport, DiscardedEvent};
 use relay_metrics::{Bucket, BucketValue, MetricName, MetricNamespace, UnixTimestamp};
 use relay_protocol::FiniteF64;
@@ -28,7 +28,7 @@ const CLIENT_DISCARD_MRI: &str = "c:outcomes/client_discard@none";
 const CARDINALITY_LIMITED_MRI: &str = "c:outcomes/cardinality_limited@none";
 
 /// Converts a [`TrackOutcome`] to a metric [`Bucket`].
-pub fn to_metric(outcome: &TrackOutcome, config: &Config) -> Bucket {
+pub fn to_metric(outcome: &TrackOutcome, config: &ConfigSnapshot) -> Bucket {
     static ACCEPTED: LazyLock<MetricName> = LazyLock::new(|| OUTCOME_ACCEPTED_MRI.into());
     static FILTERED: LazyLock<MetricName> = LazyLock::new(|| FILTERED_MRI.into());
     static RATE_LIMITED: LazyLock<MetricName> = LazyLock::new(|| RATE_LIMITED_MRI.into());
@@ -199,6 +199,7 @@ mod tests {
     use relay_base_schema::data_category::DataCategory;
     use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::ProjectId;
+    use relay_config::Config;
     use relay_filter::FilterStatKey;
     use relay_metrics::{MetricNamespace, MetricType};
     use relay_quotas::Scoping;
@@ -216,13 +217,14 @@ mod tests {
         }
     }
 
-    fn config() -> Config {
+    fn config() -> ConfigSnapshot {
         Config::from_json_value(serde_json::json!({
             "outcomes": {
                 "source": "I bims",
             }
         }))
         .unwrap()
+        .current()
     }
 
     fn bucket(

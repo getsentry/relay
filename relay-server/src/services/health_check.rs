@@ -108,13 +108,14 @@ impl HealthCheckService {
     }
 
     fn system_memory_probe(&mut self) -> Status {
+        let config = self.config.current();
         if let MemoryCheck::Exceeded(memory) = self.memory_checker.check_memory_percent() {
             relay_log::error!(
                 "Not enough memory, {} / {} ({:.2}% >= {:.2}%)",
                 memory.used,
                 memory.total,
                 memory.used_percent() * 100.0,
-                self.config.health_max_memory_watermark_percent() * 100.0,
+                config.health_max_memory_watermark_percent() * 100.0,
             );
             return Status::Unhealthy;
         }
@@ -125,7 +126,7 @@ impl HealthCheckService {
                 memory.used,
                 memory.total,
                 memory.used,
-                self.config.health_max_memory_watermark_bytes(),
+                config.health_max_memory_watermark_bytes(),
             );
             return Status::Unhealthy;
         }
@@ -134,7 +135,7 @@ impl HealthCheckService {
     }
 
     async fn auth_probe(&self) -> Status {
-        if !self.config.requires_auth() {
+        if !self.config.current().requires_auth() {
             return Status::Healthy;
         }
 
@@ -159,7 +160,7 @@ impl HealthCheckService {
     }
 
     async fn probe(&self, name: &'static str, fut: impl Future<Output = Status>) -> Status {
-        match timeout(self.config.health_probe_timeout(), fut).await {
+        match timeout(self.config.current().health_probe_timeout(), fut).await {
             Err(_) => {
                 relay_log::error!("Health check probe '{name}' timed out");
                 Status::Unhealthy
@@ -192,9 +193,10 @@ impl Service for HealthCheckService {
 
     async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         let (update_tx, update_rx) = watch::channel(StatusUpdate::new(Status::Unhealthy));
-        let check_interval = self.config.health_refresh_interval();
+        let config = self.config.current();
+        let check_interval = config.health_refresh_interval();
         // Add 10% buffer to the internal timeouts to avoid race conditions.
-        let status_timeout = (check_interval + self.config.health_probe_timeout()).mul_f64(1.1);
+        let status_timeout = (check_interval + config.health_probe_timeout()).mul_f64(1.1);
 
         relay_system::spawn!(async move {
             let shutdown = Controller::shutdown_handle();

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use relay_quotas::{CachedRateLimits, DataCategory, MetricNamespaceScoping, RateLimits};
 
 use crate::Envelope;
@@ -14,11 +14,11 @@ use crate::utils::{CheckLimits, EnvelopeLimiter};
 /// A loaded project.
 pub struct Project<'a> {
     shared: SharedProject,
-    config: &'a Config,
+    config: &'a ConfigSnapshot,
 }
 
 impl<'a> Project<'a> {
-    pub(crate) fn new(shared: SharedProject, config: &'a Config) -> Self {
+    pub(crate) fn new(shared: SharedProject, config: &'a ConfigSnapshot) -> Self {
         Self { shared, config }
     }
 
@@ -133,7 +133,7 @@ mod tests {
 
     use super::*;
 
-    fn create_project(config: &Config, data: Option<serde_json::Value>) -> Project<'_> {
+    fn create_project(config: &ConfigSnapshot, data: Option<serde_json::Value>) -> Project<'_> {
         let mut project_info = ProjectInfo {
             project_id: Some(ProjectId::new(42)),
             ..Default::default()
@@ -167,7 +167,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_track_nested_spans_outcomes() {
-        let config = Default::default();
+        let config = relay_config::Config::default().current();
         let project = create_project(
             &config,
             Some(json!({
@@ -240,7 +240,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_track_nested_spans_outcomes_predefined() {
-        let config = Default::default();
+        let config = relay_config::Config::default().current();
         let project = create_project(
             &config,
             Some(json!({

@@ -697,9 +697,11 @@ impl EnvelopeProcessorService {
         cogs.cancel();
 
         let global_config = self.inner.global_config.current().unwrap_or_default();
+        let config = self.inner.config.current();
 
         let ctx = processing::Context {
-            config: &self.inner.config.current(),
+            config: &config,
+            relay_public_key: self.inner.config.public_key(),
             global_config: &global_config,
             project_info: &message.project_info,
             sampling_project_info: message.sampling_project_info.as_deref(),
@@ -892,6 +894,8 @@ impl EnvelopeProcessorService {
         // provided from the project config. Eventually must be available and is required.
         upstream: Option<UpstreamDescriptor>,
     ) {
+        let config = self.inner.config.current();
+
         if envelope.envelope_mut().is_empty() {
             envelope.accept();
             return;
@@ -902,7 +906,7 @@ impl EnvelopeProcessorService {
         // Any item which is produced by processing is handled in `submit_upstream`,
         // metrics are sent to the store directly and outcomes must be produced to Kafka
         // instead of being sent onward as client report.
-        if self.inner.config.processing_enabled() {
+        if config.processing_enabled() {
             relay_log::error!(
                 "attempt to forward envelope to http upstream when processing is enabled"
             );
@@ -917,7 +921,7 @@ impl EnvelopeProcessorService {
         envelope.envelope_mut().set_sent_at(Utc::now());
 
         relay_log::trace!("sending envelope to sentry endpoint");
-        let http_encoding = self.inner.config.http_encoding();
+        let http_encoding = config.http_encoding();
         let result = envelope.envelope().to_vec().and_then(|v| {
             encode_payload(&v.into(), http_encoding).map_err(EnvelopeError::PayloadIoFailed)
         });
@@ -965,7 +969,8 @@ impl EnvelopeProcessorService {
             return;
         }
 
-        let upstream = self.inner.config.upstream();
+        let config = self.inner.config.current();
+        let upstream = config.upstream();
         let dsn = PartialDsn::outbound(&scoping, upstream);
 
         let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
@@ -1247,8 +1252,9 @@ impl EnvelopeProcessorService {
             buckets,
         } = message;
 
-        let batch_size = self.inner.config.metrics_max_batch_size_bytes();
-        let upstream = self.inner.config.upstream();
+        let config = self.inner.config.current();
+        let batch_size = config.metrics_max_batch_size_bytes();
+        let upstream = config.upstream();
 
         for ProjectBuckets {
             buckets,
@@ -1304,7 +1310,7 @@ impl EnvelopeProcessorService {
         }
 
         let (unencoded, project_info) = partition.take();
-        let http_encoding = self.inner.config.http_encoding();
+        let http_encoding = self.inner.config.current().http_encoding();
         let encoded = match encode_payload(&unencoded, http_encoding) {
             Ok(payload) => payload,
             Err(error) => {
@@ -1343,7 +1349,7 @@ impl EnvelopeProcessorService {
             buckets,
         } = message;
 
-        let batch_size = self.inner.config.metrics_max_batch_size_bytes();
+        let batch_size = self.inner.config.current().metrics_max_batch_size_bytes();
         let mut partitions = BTreeMap::new();
         let mut partition_splits = 0;
 
@@ -1480,7 +1486,7 @@ impl EnvelopeProcessorService {
                 .buckets
                 .values()
                 .map(|s| {
-                    if self.inner.config.processing_enabled() {
+                    if self.inner.config.current().processing_enabled() {
                         // Processing does not encode the metrics but instead rate limit the metrics,
                         // which scales by count and not size.
                         relay_metrics::cogs::ByCount(&s.buckets).into()
@@ -2174,7 +2180,7 @@ mod tests {
 
         let processor =
             create_test_processor(Config::from_json_value(config.clone()).unwrap()).await;
-        let config = Config::from_json_value(config).unwrap();
+        let config = Config::from_json_value(config).unwrap().current();
         let ctx = processing::Context {
             config: &config,
             project_info: &project_info,

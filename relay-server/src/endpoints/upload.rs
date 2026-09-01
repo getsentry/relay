@@ -15,7 +15,7 @@ use axum::routing::{MethodRouter, patch, post};
 use chrono::Utc;
 use futures::StreamExt;
 use http::header;
-use relay_config::{Config, UpstreamDescriptor};
+use relay_config::{ConfigSnapshot, UpstreamDescriptor};
 use relay_dynamic_config::Feature;
 use relay_system::SendError;
 use tower_http::limit::RequestBodyLimitLayer;
@@ -40,13 +40,13 @@ use crate::statsd::RelayCounters;
 use crate::utils::{ApiErrorResponse, MeteredStream};
 use crate::utils::{BoundedStream, find_error_source, tus};
 
-pub fn route_post(config: &Config) -> MethodRouter<ServiceState> {
+pub fn route_post(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
     post(handle_post)
         .route_layer(RequestBodyLimitLayer::new(config.max_upload_size()))
         .route_layer(DefaultBodyLimit::disable())
 }
 
-pub fn route_patch(config: &Config) -> MethodRouter<ServiceState> {
+pub fn route_patch(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
     patch(handle_patch)
         .route_layer(RequestBodyLimitLayer::new(config.max_upload_size()))
         .route_layer(DefaultBodyLimit::disable())

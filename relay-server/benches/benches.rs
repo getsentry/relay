@@ -234,6 +234,7 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
     }))
     .unwrap()
     .into();
+    let current_config = config.current();
     let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
 
     group.throughput(Throughput::Elements(
@@ -260,10 +261,13 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
             },
             |envelopes| {
                 runtime.block_on(async {
-                    let mut buffer =
-                        PolymorphicEnvelopeBuffer::from_config(0, &config, memory_checker.clone())
-                            .await
-                            .unwrap();
+                    let mut buffer = PolymorphicEnvelopeBuffer::from_config(
+                        0,
+                        &current_config,
+                        memory_checker.clone(),
+                    )
+                    .await
+                    .unwrap();
                     for envelope in envelopes.into_iter() {
                         buffer.push(envelope).await.unwrap();
                     }
@@ -292,10 +296,13 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
             },
             |envelopes| {
                 runtime.block_on(async {
-                    let mut buffer =
-                        PolymorphicEnvelopeBuffer::from_config(0, &config, memory_checker.clone())
-                            .await
-                            .unwrap();
+                    let mut buffer = PolymorphicEnvelopeBuffer::from_config(
+                        0,
+                        &current_config,
+                        memory_checker.clone(),
+                    )
+                    .await
+                    .unwrap();
                     let n = envelopes.len();
                     for envelope in envelopes.into_iter() {
                         let public_key = envelope.meta().public_key();

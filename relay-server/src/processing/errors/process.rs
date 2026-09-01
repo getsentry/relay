@@ -95,6 +95,7 @@ pub fn finalize(
             error.attachments.iter(),
             &mut error.metrics,
             ctx.config,
+            ctx.relay_public_key,
         )?;
 
         Ok::<_, Error>(())

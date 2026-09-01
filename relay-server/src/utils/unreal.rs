@@ -1,6 +1,6 @@
 use bytes::Bytes;
 use chrono::{TimeZone, Utc};
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use relay_event_schema::protocol::{
     AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DeviceContext, Event, EventId,
     GpuContext, LenientString, Level, LogEntry, Message, OsContext, TagEntry, Tags, Timestamp,
@@ -24,7 +24,7 @@ const MAX_NUM_UNREAL_LOGS: usize = 40;
 const CLIENT_SDK_NAME: &str = "unreal.crashreporter";
 
 /// Extracts the items from an Unreal 4 crash report payload.
-pub fn extract_items(payload: Bytes, config: &Config) -> Result<Items, ProcessingError> {
+pub fn extract_items(payload: Bytes, config: &ConfigSnapshot) -> Result<Items, ProcessingError> {
     let mut items = Items::new();
     let crash = Unreal4Crash::parse_with_limit(&payload, config.max_envelope_size())?;
 
@@ -56,7 +56,10 @@ pub fn extract_items(payload: Bytes, config: &Config) -> Result<Items, Processin
 }
 
 /// Expands an Unreal 4 crash report payload and returns the expanded items.
-pub fn expand_unreal(payload: Bytes, config: &Config) -> Result<UnrealExpansion, ProcessingError> {
+pub fn expand_unreal(
+    payload: Bytes,
+    config: &ConfigSnapshot,
+) -> Result<UnrealExpansion, ProcessingError> {
     let items = extract_items(payload, config)?;
 
     let mut context = items

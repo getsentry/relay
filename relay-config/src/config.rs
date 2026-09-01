@@ -2099,6 +2099,7 @@ impl Config {
         Ok(())
     }
 }
+#[derive(Debug, Clone)]
 pub struct ConfigSnapshot {
     values: ConfigValues,
 }

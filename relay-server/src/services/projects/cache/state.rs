@@ -8,6 +8,7 @@ use tokio::time::Instant;
 
 use arc_swap::ArcSwap;
 use relay_base_schema::project::ProjectKey;
+use relay_config::ConfigSnapshot;
 use relay_quotas::CachedRateLimits;
 use relay_statsd::metric;
 
@@ -39,7 +40,7 @@ pub struct ProjectStore {
 }
 
 impl ProjectStore {
-    pub fn new(config: &relay_config::Config) -> Self {
+    pub fn new(config: &ConfigSnapshot) -> Self {
         Self {
             config: Config::new(config),
             shared: Default::default(),
@@ -266,7 +267,7 @@ struct Config {
 }
 
 impl Config {
-    fn new(config: &relay_config::Config) -> Self {
+    fn new(config: &ConfigSnapshot) -> Self {
         let expiry = config.project_cache_expiry();
         let grace_period = config.project_grace_period();
 
@@ -961,7 +962,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_store_fetch() {
         let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
-        let mut store = ProjectStore::new(&Default::default());
+        let mut store = ProjectStore::new(&relay_config::Config::default().current());
 
         let fetch = store.try_begin_fetch(project_key).unwrap();
         assert_eq!(fetch.project_key(), project_key);
@@ -1009,7 +1010,8 @@ mod tests {
                     "project_grace_period": 5,
                 }
             }))
-            .unwrap(),
+            .unwrap()
+            .current(),
         );
 
         let fetch = store.try_begin_fetch(project_key).unwrap();
@@ -1042,7 +1044,8 @@ mod tests {
                     "project_grace_period": 0,
                 }
             }))
-            .unwrap(),
+            .unwrap()
+            .current(),
         );
 
         let fetch = store.try_begin_fetch(project_key1).unwrap();
@@ -1081,7 +1084,8 @@ mod tests {
                     "project_grace_period": 0,
                 }
             }))
-            .unwrap(),
+            .unwrap()
+            .current(),
         );
 
         let fetch = store.try_begin_fetch(project_key1).unwrap();
@@ -1120,7 +1124,8 @@ mod tests {
                     "project_grace_period": 5,
                 }
             }))
-            .unwrap(),
+            .unwrap()
+            .current(),
         );
 
         let fetch = store.try_begin_fetch(project_key).unwrap();
@@ -1150,7 +1155,8 @@ mod tests {
                     "project_grace_period": 5,
                 }
             }))
-            .unwrap(),
+            .unwrap()
+            .current(),
         );
 
         let fetch = store.try_begin_fetch(project_key).unwrap();
@@ -1196,7 +1202,8 @@ mod tests {
                     "project_refresh_interval": 7,
                 }
             }))
-            .unwrap(),
+            .unwrap()
+            .current(),
         );
 
         let fetch = store.try_begin_fetch(project_key).unwrap();
@@ -1245,7 +1252,8 @@ mod tests {
                     "project_refresh_interval": 7,
                 }
             }))
-            .unwrap(),
+            .unwrap()
+            .current(),
         );
 
         let fetch = store.try_begin_fetch(project_key).unwrap();
@@ -1285,7 +1293,8 @@ mod tests {
                     "project_refresh_interval": 7,
                 }
             }))
-            .unwrap(),
+            .unwrap()
+            .current(),
         );
 
         let fetch = store.try_begin_fetch(project_key).unwrap();

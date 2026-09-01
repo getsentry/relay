@@ -12,7 +12,7 @@ use axum::handler::Handler;
 use axum::http::{HeaderMap, HeaderValue, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use relay_common::glob2::GlobMatcher;
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::extractors::ForwardedFor;
@@ -47,7 +47,7 @@ async fn handle(
         .with_headers(headers)
         .with_forwarded_for(forwarded_for)
         .with_body(data)
-        .with_config(state.config())
+        .with_config(&state.config())
         .send_to(state.upstream_relay())
         .await
         .into_response()
@@ -81,7 +81,7 @@ static SPECIAL_ROUTES: LazyLock<GlobMatcher<SpecialRoute>> = LazyLock::new(|| {
 });
 
 /// Returns the maximum request body size for a route path.
-fn get_limit_for_path(path: &str, config: &Config) -> usize {
+fn get_limit_for_path(path: &str, config: &ConfigSnapshot) -> usize {
     match SPECIAL_ROUTES.test(path) {
         Some(SpecialRoute::FileUpload) => config.max_api_file_upload_size(),
         Some(SpecialRoute::ChunkUpload) => config.max_api_chunk_upload_size(),
@@ -102,7 +102,7 @@ fn get_limit_for_path(path: &str, config: &Config) -> usize {
 /// - Use it as [`Handler`] directly in router methods when registering this as a route.
 /// - Call this manually from other request handlers to conditionally forward from other endpoints.
 pub fn forward(state: ServiceState, req: Request) -> impl Future<Output = Response> {
-    let limit = get_limit_for_path(req.uri().path(), state.config());
+    let limit = get_limit_for_path(req.uri().path(), &state.config());
     handle
         // `RequestBodyLimitLayer` checks the stream, DefaultBodyLimit does not.
         .layer(RequestBodyLimitLayer::new(limit))

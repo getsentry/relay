@@ -7,7 +7,7 @@ use flate2::read::GzDecoder;
 use futures::{self, Stream, StreamExt, TryStreamExt};
 use liblzma::read::XzDecoder;
 use multer::{Field, Multipart};
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::EventId;
 use relay_quotas::{DataCategory, RateLimits};
@@ -301,7 +301,7 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
         &self,
         field: Field<'static>,
         item: Managed<Item>,
-        config: &Config,
+        config: &ConfigSnapshot,
     ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
         let read_inline = async |field: Field<'static>, item: Managed<Item>| {
             let is_minidump = matches!(item.attachment_type(), Some(AttachmentType::Minidump));
@@ -383,7 +383,7 @@ pub async fn upload_stream_checked<S, E>(
     stream: S,
     content_type: Option<String>,
     mut item: Managed<Item>,
-    config: &Config,
+    config: &ConfigSnapshot,
     project: ProjectContext,
     upload: &Addr<Upload>,
     referrer: &'static str,
@@ -427,7 +427,7 @@ where
         stream,
         Some(ContentType::Minidump.to_string()),
         item,
-        config,
+        &config,
         project,
         upload,
         referrer,
@@ -447,7 +447,7 @@ async fn multipart_to_items(
 
     let mut items = utils::multipart_items(
         multipart,
-        config,
+        &config,
         minidump_attachment_strategy,
         meta,
         state.outcome_aggregator(),
@@ -601,7 +601,7 @@ async fn raw_minidump_to_item(
                     stream,
                     Some(ContentType::Minidump.to_string()),
                     item,
-                    state.config(),
+                    &state.config(),
                     upload_context.project,
                     upload_context.upload,
                     "minidump",
@@ -724,7 +724,7 @@ async fn handle(
     Ok(TextResponse(id))
 }
 
-pub fn route(config: &Config) -> MethodRouter<ServiceState> {
+pub fn route(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
     post(handle)
         .route_layer(RequestBodyLimitLayer::new(
             config.max_upload_size() + config.max_attachments_size(),
@@ -952,6 +952,7 @@ mod tests {
             .body(Body::from(multipart_body)).unwrap();
 
         let config = Config::default();
+        let config = config.current();
 
         let request_meta = RequestMeta::new(
             "https://a94ae32be2582e0bbd7a4cbb95971fee:@sentry.io/42"

@@ -18,7 +18,7 @@ use itertools::Itertools;
 use relay_auth::{
     RegisterChallenge, RegisterRequest, RegisterResponse, Registration, SecretKey, Signature,
 };
-use relay_config::{Config, Credentials, RelayMode, UpstreamDescriptor};
+use relay_config::{Config, ConfigSnapshot, Credentials, RelayMode, UpstreamDescriptor};
 use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode, RetryAfter,
     Scoping,
@@ -459,7 +459,7 @@ pub trait UpstreamRequest: Send + Sync + fmt::Debug {
     /// creation time the configuration is not available.
     ///
     /// This method is optional and defaults to a no-op.
-    fn configure(&mut self, _config: &Config) {}
+    fn configure(&mut self, _config: &ConfigSnapshot) {}
 
     /// Callback to build the outgoing web request.
     ///
@@ -625,7 +625,7 @@ where
         self.query.route()
     }
 
-    fn configure(&mut self, config: &Config) {
+    fn configure(&mut self, config: &ConfigSnapshot) {
         // This config attribute is needed during `respond`, which does not have access to the
         // config. For this reason, we need to store it on the request struct.
         self.max_response_size = config.max_api_payload_size();
@@ -906,13 +906,14 @@ struct SharedClient {
 impl SharedClient {
     /// Creates a new `SharedClient` instance.
     pub fn build(config: Arc<Config>) -> Self {
+        let current_config = config.current();
         let reqwest = reqwest::ClientBuilder::new()
-            .connect_timeout(config.http_connection_timeout())
-            .timeout(config.http_timeout())
+            .connect_timeout(current_config.http_connection_timeout())
+            .timeout(current_config.http_timeout())
             // In the forward endpoint, this means that content negotiation is done twice, and the
             // response body is first decompressed by the client, then re-compressed by the server.
             .gzip(true)
-            .hickory_dns(config.http_dns_cache())
+            .hickory_dns(current_config.http_dns_cache())
             .build()
             .unwrap();
 
@@ -927,15 +928,16 @@ impl SharedClient {
     fn build_request(
         &self,
         request: &mut dyn UpstreamRequest,
+        config: &ConfigSnapshot,
     ) -> Result<reqwest::Request, UpstreamRequestError> {
         tokio::task::block_in_place(|| {
             let url = request
                 .upstream()
-                .unwrap_or_else(|| self.config.upstream())
+                .unwrap_or_else(|| config.upstream())
                 .get_url(request.path().as_ref());
 
             let mut builder = RequestBuilder::reqwest(self.reqwest.request(request.method(), url));
-            if let Some(host_header) = self.config.http_host_header() {
+            if let Some(host_header) = config.http_host_header() {
                 builder.header("Host", host_header.as_bytes());
             }
 
@@ -984,6 +986,7 @@ impl SharedClient {
         &self,
         request: &dyn UpstreamRequest,
         response: Response,
+        config: &ConfigSnapshot,
     ) -> Result<Response, UpstreamRequestError> {
         let status = response.status();
 
@@ -1015,7 +1018,7 @@ impl SharedClient {
         // payload stream, regardless of the status code. Parsing the JSON body may fail, which is a
         // non-fatal failure as the upstream is not expected to always include a valid JSON
         // response.
-        let json_result = response.json(self.config.max_api_payload_size()).await;
+        let json_result = response.json(config.max_api_payload_size()).await;
 
         if let Some(upstream_limits) = upstream_limits {
             Err(UpstreamRequestError::RateLimited(upstream_limits))
@@ -1031,10 +1034,12 @@ impl SharedClient {
         &self,
         request: &mut dyn UpstreamRequest,
     ) -> Result<Response, UpstreamRequestError> {
-        request.configure(&self.config);
-        let client_request = self.build_request(request)?;
+        let config = self.config.current();
+        request.configure(&config);
+        let client_request = self.build_request(request, &config)?;
         let response = self.reqwest.execute(client_request).await?;
-        self.transform_response(request, Response(response)).await
+        self.transform_response(request, Response(response), &config)
+            .await
     }
 
     /// Convenience method to send a query to the upstream and await the result.
@@ -1212,7 +1217,7 @@ impl AuthState {
     ///
     /// - Relays in managed mode require authentication. The state is set to `AuthState::Unknown`.
     /// - Other Relays do not require authentication. The state is set to `AuthState::Registered`.
-    pub fn init(config: &Config) -> Self {
+    pub fn init(config: &ConfigSnapshot) -> Self {
         match config.relay_mode() {
             RelayMode::Managed => AuthState::Unknown,
             _ => AuthState::Registered,
@@ -1290,12 +1295,13 @@ impl AuthMonitor {
     /// Returns `Some` if authentication should be retried. Returns `None` if authentication is
     /// permanent.
     fn renew_auth_interval(&self) -> Option<std::time::Duration> {
-        if self.config.processing_enabled() {
+        let config = self.config.current();
+        if config.processing_enabled() {
             // processing relays do NOT re-authenticate
             None
         } else {
             // only relays that have a configured auth-interval reauthenticate
-            self.config.http_auth_interval()
+            config.http_auth_interval()
         }
     }
 
@@ -1319,8 +1325,9 @@ impl AuthMonitor {
         &mut self,
         credentials: &Credentials,
     ) -> Result<(), UpstreamRequestError> {
+        let config = self.config.current();
         relay_log::info!(
-            descriptor = %self.config.upstream(),
+            descriptor = %config.upstream(),
             "registering with upstream"
         );
 
@@ -1353,7 +1360,8 @@ impl AuthMonitor {
     ///  - The upstream responded with a permanent rejection (auth denied).
     ///  - All subscibers have shut down and the action channel is closed.
     pub async fn run(mut self) {
-        if self.config.relay_mode() != RelayMode::Managed {
+        let current_config = self.config.current();
+        if current_config.relay_mode() != RelayMode::Managed {
             return;
         }
 
@@ -1364,7 +1372,7 @@ impl AuthMonitor {
             return;
         };
 
-        let mut backoff = RetryBackoff::new(self.config.http_max_retry_interval());
+        let mut backoff = RetryBackoff::new(current_config.http_max_retry_interval());
 
         loop {
             match self.authenticate(credentials).await {
@@ -1484,7 +1492,7 @@ impl ConnectionMonitor {
 
     /// Performs connection attempts with exponential backoff until successful.
     async fn connect(client: SharedClient, tx: ActionTx) {
-        let mut backoff = RetryBackoff::new(client.config.http_max_retry_interval());
+        let mut backoff = RetryBackoff::new(client.config.current().http_max_retry_interval());
 
         loop {
             let next_backoff = backoff.next_backoff();
@@ -1520,7 +1528,7 @@ impl ConnectionMonitor {
         self.state = ConnectionState::Interrupted(first_error);
 
         // Only take action if we exceeded the grace period.
-        if first_error + self.client.config.http_outage_grace_period() <= now {
+        if first_error + self.client.config.current().http_outage_grace_period() <= now {
             let return_tx = return_tx.clone();
             let task = relay_system::spawn!(Self::connect(self.client.clone(), return_tx));
             self.state = ConnectionState::Reconnecting(task);
@@ -1678,6 +1686,7 @@ impl Service for UpstreamRelayService {
 
     async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
         let Self { config } = self;
+        let current_config = config.current();
 
         let client = SharedClient::build(config.clone());
 
@@ -1699,10 +1708,10 @@ impl Service for UpstreamRelayService {
         // and authentication state.
         let mut broker = UpstreamBroker {
             client: client.clone(),
-            queue: UpstreamQueue::new(config.http_retry_delay()),
-            auth_state: AuthState::init(&config),
+            queue: UpstreamQueue::new(current_config.http_retry_delay()),
+            auth_state: AuthState::init(&current_config),
             conn: ConnectionMonitor::new(client),
-            permits: config.max_concurrent_requests(),
+            permits: current_config.max_concurrent_requests(),
             action_tx,
         };
 

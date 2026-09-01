@@ -204,7 +204,8 @@ impl MemoryChecker {
     /// Checks if the used percentage of memory is below the specified threshold.
     pub fn check_memory_percent(&self) -> MemoryCheck {
         let memory = self.memory_stat.memory();
-        if memory.used_percent() < self.config.health_max_memory_watermark_percent() {
+        let config = self.config.current();
+        if memory.used_percent() < config.health_max_memory_watermark_percent() {
             return MemoryCheck::Ok(memory);
         }
 
@@ -214,7 +215,8 @@ impl MemoryChecker {
     /// Checks if the used memory (in bytes) is below the specified threshold.
     pub fn check_memory_bytes(&self) -> MemoryCheck {
         let memory = self.memory_stat.memory();
-        if memory.used < self.config.health_max_memory_watermark_bytes() {
+        let config = self.config.current();
+        if memory.used < config.health_max_memory_watermark_bytes() {
             return MemoryCheck::Ok(memory);
         }
 
@@ -227,8 +229,9 @@ impl MemoryChecker {
     /// enough memory.
     pub fn check_memory(&self) -> MemoryCheck {
         let memory = self.memory_stat.memory();
-        if memory.used_percent() < self.config.health_max_memory_watermark_percent()
-            && memory.used < self.config.health_max_memory_watermark_bytes()
+        let config = self.config.current();
+        if memory.used_percent() < config.health_max_memory_watermark_percent()
+            && memory.used < config.health_max_memory_watermark_bytes()
         {
             return MemoryCheck::Ok(memory);
         }

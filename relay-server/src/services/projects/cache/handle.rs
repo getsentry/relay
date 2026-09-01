@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use relay_base_schema::project::ProjectKey;
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use relay_system::Addr;
 use tokio::sync::broadcast;
 
@@ -20,7 +20,7 @@ use crate::statsd::RelayTimers;
 #[derive(Clone)]
 pub struct ProjectCacheHandle {
     pub(super) shared: Arc<Shared>,
-    pub(super) config: Arc<Config>,
+    pub(super) config: ConfigSnapshot,
     pub(super) service: Addr<ProjectCache>,
     pub(super) project_changes: broadcast::Sender<ProjectChange>,
 }
@@ -107,8 +107,10 @@ impl fmt::Debug for ProjectCacheHandle {
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use crate::services::projects::project::ProjectState;
+    use relay_config::Config;
+
+    use super::*;
 
     impl ProjectCacheHandle {
         /// Creates a new [`ProjectCacheHandle`] for testing only.
@@ -117,7 +119,7 @@ mod test {
         pub fn for_test() -> Self {
             Self {
                 shared: Default::default(),
-                config: Default::default(),
+                config: Config::default().current(),
                 service: Addr::dummy(),
                 project_changes: broadcast::channel(999_999).0,
             }

@@ -4,7 +4,7 @@ use chrono::{DateTime, Duration, Utc};
 
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::{ProjectId, ProjectKey};
-use relay_config::{Config, UpstreamDescriptor};
+use relay_config::{ConfigSnapshot, UpstreamDescriptor};
 use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig, SignatureVerification};
 use relay_filter::matches_any_origin;
 use relay_quotas::{Quota, Scoping};
@@ -128,7 +128,7 @@ impl ProjectInfo {
     pub fn check_envelope(
         &self,
         envelope: &Envelope,
-        config: &Config,
+        config: &ConfigSnapshot,
     ) -> Result<(), DiscardReason> {
         // Verify that the stated project id in the DSN matches the public key used to retrieve this
         // project state.
@@ -170,7 +170,7 @@ impl ProjectInfo {
     fn check_envelope_signature(
         &self,
         envelope: &Envelope,
-        config: &Config,
+        config: &ConfigSnapshot,
     ) -> Result<(), DiscardReason> {
         if envelope.meta().request_trust().is_trusted() {
             return Ok(());
@@ -205,7 +205,7 @@ impl ProjectInfo {
     /// If the project state has not been loaded, this check is skipped because the project
     /// identifier is not yet known. Likewise, this check is skipped for the legacy store endpoint
     /// which comes without a project ID. The id is later overwritten in `check_envelope`.
-    fn is_valid_project_id(&self, stated_id: Option<ProjectId>, config: &Config) -> bool {
+    fn is_valid_project_id(&self, stated_id: Option<ProjectId>, config: &ConfigSnapshot) -> bool {
         match (self.project_id, stated_id, config.override_project_ids()) {
             (Some(actual_id), Some(stated_id), false) => actual_id == stated_id,
             _ => true,

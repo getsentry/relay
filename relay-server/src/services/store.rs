@@ -569,7 +569,7 @@ impl StoreService {
             retention,
         } = message;
 
-        let batch_size = self.config.metrics_max_batch_size_bytes();
+        let batch_size = self.config.current().metrics_max_batch_size_bytes();
         let mut error = None;
 
         let global_config = self.global_config.current().unwrap_or_default();
@@ -950,9 +950,10 @@ impl StoreService {
         let payload = item.payload();
         let placeholder: AttachmentPlaceholder<'_> =
             serde_json::from_slice(&payload).map_err(|_| StoreError::InvalidAttachmentRef)?;
+        let config = self.config.current();
         let location = SignedLocation::<Final>::try_from_str(placeholder.location)
             .ok_or(StoreError::InvalidAttachmentRef)?
-            .verify(Utc::now(), &self.config)
+            .verify(Utc::now(), &config)
             .map_err(|_| StoreError::InvalidAttachmentRef)?;
 
         let store_key = location.key;
@@ -982,7 +983,7 @@ impl StoreService {
 
         let payload = item.payload();
         let size = item.len();
-        let max_chunk_size = self.config.attachment_chunk_size();
+        let max_chunk_size = self.config.current().attachment_chunk_size();
 
         let payload = if size == 0 {
             AttachmentPayload::Chunked(0)
