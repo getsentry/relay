@@ -1938,7 +1938,7 @@ LIMIT 1
                         "trace_id": "ff62a8b040f340bda5d830223def1d81",
                         "data": {
                             "http.response.body.size": 1,
-                            "http.decoded_response_content_length": 2.0,
+                            "http.response.body.decoded_size": 2.0,
                             "http.response.size": 3.3
                         }
                     }
