@@ -32,7 +32,6 @@ use crate::service::ServiceState;
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome};
 use crate::services::projects::project::ProjectState;
 use crate::services::upload::{ByteStream, ProjectContext, Upload};
-use crate::statsd::RelayCounters;
 use crate::utils::{
     self, AttachmentStrategy, SizeSplit, find_error_source, is_length_limit_error, peek_n,
     read_bytes_into_item, read_field_into_item,
@@ -189,9 +188,6 @@ fn decode_minidump(minidump_data: Bytes, max_size: usize) -> Result<Bytes, BadSt
         // proceed to process the payload untouched (as a plain minidump).
         return Ok(minidump_data);
     };
-
-    // Determine if this is a niche use-case of if this happens frequently.
-    relay_statsd::metric!(counter(RelayCounters::CompressedMinidump) += 1);
 
     let decoder = decoder.take(max_size.saturating_add(1) as u64);
 
