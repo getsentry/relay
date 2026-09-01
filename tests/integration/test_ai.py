@@ -79,6 +79,7 @@ def test_ai_spans_example_transaction(
                     "gen_ai.usage.output_tokens": 65,
                     "gen_ai.usage.input_tokens": 245,
                     "gen_ai.usage.total_tokens": 310,
+                    "gen_ai.cost.total_tokens": None,
                     "gen_ai.response.text": "True. \n\n- London: 61°F \n- San Francisco: 13°C",
                     "gen_ai.conversation.id": "resp_0c1c943ef2dc8bf9006909e7b8e3e88197bffb4d0e80187ca1",
                     "vercel.ai.operationId": "ai.generateText",
