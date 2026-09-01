@@ -20,7 +20,7 @@ use relay_base_schema::data_category::DataCategory;
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
-use relay_config::Config;
+use relay_config::{Config, ConfigSnapshot};
 use relay_event_schema::protocol::{Event, EventId, SpanV2, datetime_to_timestamp};
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message, SerializationOutput};
 use relay_metrics::{
@@ -86,7 +86,7 @@ struct Producer {
 }
 
 impl Producer {
-    pub fn create(config: &Config) -> anyhow::Result<Self> {
+    pub fn create(config: &ConfigSnapshot) -> anyhow::Result<Self> {
         let mut client_builder = KafkaClient::builder();
 
         for topic in KafkaTopic::iter() {
@@ -442,7 +442,7 @@ impl StoreService {
         global_config: GlobalConfigHandle,
         metric_outcomes: MetricOutcomes,
     ) -> anyhow::Result<Self> {
-        let producer = Producer::create(&config)?;
+        let producer = Producer::create(&config.current())?;
         Ok(Self {
             pool,
             config,

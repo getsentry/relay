@@ -169,6 +169,8 @@ impl ServiceState {
     ) -> Result<Self> {
         let upstream_relay = services.start(UpstreamRelayService::new(config.clone()));
 
+        dbg!(&config);
+
         #[cfg(feature = "processing")]
         let redis_clients = config
             .redis()

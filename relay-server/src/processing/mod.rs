@@ -7,7 +7,7 @@
 //! The processor service, will then do its actual work using the processing logic defined here.
 
 use relay_cogs::FeatureWeights;
-use relay_config::{Config, RelayMode};
+use relay_config::{ConfigSnapshot, RelayMode};
 use relay_dynamic_config::GlobalConfig;
 use relay_quotas::RateLimits;
 
@@ -80,7 +80,7 @@ pub trait Processor {
 #[derive(Copy, Clone, Debug)]
 pub struct Context<'a> {
     /// The Relay configuration.
-    pub config: &'a Config,
+    pub config: &'a ConfigSnapshot,
     /// A view of the currently active global configuration.
     pub global_config: &'a GlobalConfig,
     /// Project configuration associated with the unit of work.
@@ -129,7 +129,7 @@ impl Context<'static> {
     pub fn for_test() -> Self {
         use std::sync::LazyLock;
 
-        static CONFIG: LazyLock<Config> = LazyLock::new(Default::default);
+        static CONFIG: LazyLock<ConfigSnapshot> = LazyLock::new(Default::default);
         static GLOBAL_CONFIG: LazyLock<GlobalConfig> = LazyLock::new(Default::default);
         static PROJECT_INFO: LazyLock<ProjectInfo> = LazyLock::new(Default::default);
         static RATE_LIMITS: LazyLock<RateLimits> = LazyLock::new(Default::default);

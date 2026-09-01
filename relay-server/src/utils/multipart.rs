@@ -5,7 +5,7 @@ use axum::extract::Request;
 use bytes::Bytes;
 use futures::TryStreamExt;
 use multer::{Field, Multipart};
-use relay_config::Config;
+use relay_config::{Config, ConfigSnapshot};
 use relay_quotas::DataCategory;
 use relay_system::Addr;
 use serde::{Deserialize, Serialize};
@@ -206,7 +206,7 @@ pub fn read_bytes_into_item(
 pub async fn read_field_into_item(
     field: Field<'static>,
     mut item: Managed<Item>,
-    config: &Config,
+    config: &ConfigSnapshot,
 ) -> Result<Managed<Item>, multer::Error> {
     let content_type = field
         .content_type()

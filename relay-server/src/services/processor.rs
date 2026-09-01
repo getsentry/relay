@@ -568,7 +568,9 @@ impl EnvelopeProcessorService {
         addrs: Addrs,
         metric_outcomes: MetricOutcomes,
     ) -> Self {
-        let geoip_lookup = config
+        let c = config.current();
+
+        let geoip_lookup = c
             .geoip_path()
             .and_then(
                 |p| match GeoIpLookup::open(p).context(ServiceError::GeoIp) {
@@ -588,8 +590,8 @@ impl EnvelopeProcessorService {
         #[cfg(feature = "processing")]
         let rate_limiter = redis.map(|redis| {
             RedisRateLimiter::new(redis.quotas)
-                .max_limit(config.max_rate_limit())
-                .cache(config.quota_cache_ratio(), config.quota_cache_max())
+                .max_limit(c.max_rate_limit())
+                .cache(c.quota_cache_ratio(), c.quota_cache_max())
         });
 
         let quota_limiter = Arc::new(QuotaRateLimiter::new(
@@ -697,7 +699,7 @@ impl EnvelopeProcessorService {
         let global_config = self.inner.global_config.current().unwrap_or_default();
 
         let ctx = processing::Context {
-            config: &self.inner.config,
+            config: &self.inner.config.current(),
             global_config: &global_config,
             project_info: &message.project_info,
             sampling_project_info: message.sampling_project_info.as_deref(),
@@ -1414,8 +1416,10 @@ impl EnvelopeProcessorService {
                 self.check_buckets(*project_key, &pb.project_info, &pb.rate_limits, buckets);
         }
 
+        let config = self.inner.config.current();
+
         #[cfg(feature = "processing")]
-        if self.inner.config.processing_enabled()
+        if config.processing_enabled()
             && let Some(ref store_forwarder) = self.inner.addrs.store_forwarder
         {
             return self
@@ -1425,13 +1429,13 @@ impl EnvelopeProcessorService {
 
         // Processing Relays never send outcomes as client reports, which is why this check is after
         // the processing check.
-        if self.inner.config.emit_outcomes() == EmitOutcomes::AsClientReports {
+        if config.emit_outcomes() == EmitOutcomes::AsClientReports {
             // Remove client reports from metrics to be sent, if configured as client reports
             // and send them separately.
             message = self.encode_metrics_client_reports(message);
         }
 
-        if self.inner.config.http_global_metrics() {
+        if config.http_global_metrics() {
             self.encode_metrics_global(message)
         } else {
             self.encode_metrics_envelope(message)

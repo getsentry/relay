@@ -4518,6 +4518,7 @@ name = "relay-config"
 version = "26.8.0"
 dependencies = [
  "anyhow",
+ "arc-swap",
  "human-size",
  "insta",
  "num_cpus",
@@ -5737,8 +5738,6 @@ dependencies = [
 [[package]]
 name = "serde-vars"
 version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c31ed6ad0418012bd1f7493bb01d9b107e81aec23042be9292d7d154909a5c45"
 dependencies = [
  "serde",
 ]
