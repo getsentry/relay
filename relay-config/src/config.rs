@@ -1982,9 +1982,7 @@ impl Config {
         // the need for this `try_rcu` dance here.
         crate::utils::try_rcu(&self.inner, |inner| {
             let mut new = ConfigInner::clone(inner);
-            for ovr in &self.overrides {
-                new.apply_overrides(ovr)?;
-            }
+            new.apply_overrides(&overrides)?;
             Ok::<_, anyhow::Error>(Arc::new(new))
         })?;
 
@@ -2021,7 +2019,7 @@ impl Config {
             return Ok(false);
         }
 
-        if &*self.path != "" {
+        if !self.path.is_empty() {
             match &credentials {
                 Some(creds) => {
                     creds.save(&self.path)?;

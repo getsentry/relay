@@ -607,17 +607,19 @@ impl Service for EnvelopeBufferService {
     type Interface = EnvelopeBuffer;
 
     async fn run(mut self, mut rx: Receiver<Self::Interface>) {
-        let config = self.config.current();
         let memory_checker = MemoryChecker::new(self.memory_stat.clone(), self.config.clone());
         let mut global_config_rx = self.global_config_rx.clone();
         let services = self.services.clone();
 
         let dequeue = Arc::<AtomicBool>::new(true.into());
 
-        let mut buffer =
-            PolymorphicEnvelopeBuffer::from_config(self.partition_id, &config, memory_checker)
-                .await
-                .expect("failed to start the envelope buffer service");
+        let mut buffer = PolymorphicEnvelopeBuffer::from_config(
+            self.partition_id,
+            &self.config.current(),
+            memory_checker,
+        )
+        .await
+        .expect("failed to start the envelope buffer service");
 
         buffer.initialize().await;
 
@@ -650,6 +652,7 @@ impl Service for EnvelopeBufferService {
                 partition_id = &partition_tag
             );
             let mut sleep = DEFAULT_SLEEP;
+            let config = self.config.current();
 
             tokio::select! {
                 // NOTE: we do not select a bias here.

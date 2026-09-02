@@ -322,12 +322,11 @@ pub fn init_config<P: AsRef<Path>>(config_path: P, _matches: &ArgMatches) -> Res
     }
 
     let mut config = Config::from_path(&config_path)?;
-    let current = config.current();
-    if current.relay_mode() == RelayMode::Managed && !current.has_credentials() {
+    if config.current().relay_mode() == RelayMode::Managed && !config.current().has_credentials() {
         let credentials = Credentials::generate();
         config.replace_credentials(Some(credentials))?;
         println!("Generated new credentials");
-        setup::dump_credentials(&current);
+        setup::dump_credentials(&config.current());
         done_something = true;
     }
 
