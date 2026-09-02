@@ -102,9 +102,10 @@ where
             } else {
                 break;
             }
-            pos = from;
+        } else if from < pos {
+            break;
         }
-        if let Some(piece) = text.get(pos..to) {
+        if let Some(piece) = text.get(from..to) {
             rv.push(Chunk::Redaction {
                 text: Cow::Borrowed(piece),
                 rule_id: remark.rule_id().into(),
