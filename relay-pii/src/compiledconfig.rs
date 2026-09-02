@@ -102,9 +102,11 @@ fn collect_rules(
             } else {
                 None
             };
+            rules.insert(rule.clone()); // insert to break cycles
             for rule_id in &m.rules {
                 collect_rules(config, rules, rule_id, parent.clone());
             }
+            rules.remove(&rule); // don't persist intermediates
         }
         RuleType::Alias(ref a) => {
             let parent = if a.hide_inner {
@@ -112,7 +114,9 @@ fn collect_rules(
             } else {
                 None
             };
+            rules.insert(rule.clone()); // insert to break cycles
             collect_rules(config, rules, &a.rule, parent);
+            rules.remove(&rule); // don't persist intermediates
         }
         RuleType::Unknown(_) => {}
         _ => {
@@ -170,5 +174,72 @@ impl PartialOrd for RuleRef {
 impl Ord for RuleRef {
     fn cmp(&self, other: &Self) -> Ordering {
         self.id.cmp(&other.id)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use crate::AliasRule;
+
+    use super::*;
+
+    #[test]
+    fn recursion() {
+        let config = PiiConfig {
+            rules: BTreeMap::from([(
+                "a".to_owned(),
+                RuleSpec {
+                    ty: RuleType::Alias(AliasRule {
+                        rule: "a".to_owned(),
+                        hide_inner: false,
+                    }),
+                    redaction: Redaction::Default,
+                },
+            )]),
+            ..Default::default()
+        };
+        #[allow(clippy::mutable_key_type)]
+        let mut collected_rules = Default::default();
+        collect_rules(&config, &mut collected_rules, "a", None);
+
+        // The cycle has been removed:
+        assert!(collected_rules.is_empty());
+    }
+
+    #[test]
+    fn recursion2() {
+        let config = PiiConfig {
+            rules: BTreeMap::from([
+                (
+                    "a".to_owned(),
+                    RuleSpec {
+                        ty: RuleType::Alias(AliasRule {
+                            rule: "b".to_owned(),
+                            hide_inner: false,
+                        }),
+                        redaction: Redaction::Default,
+                    },
+                ),
+                (
+                    "b".to_owned(),
+                    RuleSpec {
+                        ty: RuleType::Alias(AliasRule {
+                            rule: "a".to_owned(),
+                            hide_inner: false,
+                        }),
+                        redaction: Redaction::Default,
+                    },
+                ),
+            ]),
+            ..Default::default()
+        };
+        #[allow(clippy::mutable_key_type)]
+        let mut collected_rules = Default::default();
+        collect_rules(&config, &mut collected_rules, "a", None);
+
+        // The cycle has been removed:
+        assert!(collected_rules.is_empty());
     }
 }
