@@ -146,7 +146,7 @@ struct LoadedConfig<C> {
     ///
     /// The config may be built from multiple files due to the support for `${file:}` references
     /// in arbitrary config keys.
-    dependencies: BTreeSet<PathBuf>,
+    source_files: BTreeSet<PathBuf>,
 }
 enum ConfigFormat {
     Yaml,
@@ -182,14 +182,14 @@ trait ConfigObject: DeserializeOwned + Serialize {
             .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotOpenFile, &path))?;
         let f = io::BufReader::new(f);
 
-        let mut dependencies = BTreeSet::new();
+        let mut source_files = BTreeSet::new();
 
         let mut source = {
             let file = serde_vars::FileSource::default()
                 .with_variable_prefix("${file:")
                 .with_variable_suffix("}")
                 .with_base_path(base)
-                .with_file_system(crate::source::TrackingFileSystem(&mut dependencies));
+                .with_file_system(crate::source::TrackingFileSystem(&mut source_files));
             let env = serde_vars::EnvSource::default()
                 .with_variable_prefix("${")
                 .with_variable_suffix("}");
@@ -207,11 +207,11 @@ trait ConfigObject: DeserializeOwned + Serialize {
         }?;
 
         // The base config path is also a dependency of the entire config.
-        dependencies.insert(path);
+        source_files.insert(path);
 
         Ok(LoadedConfig {
             config,
-            dependencies,
+            source_files,
         })
     }
 
@@ -1749,8 +1749,8 @@ struct ConfigInner {
     ///
     /// Credentials may be missing for proxy mode.
     credentials: Option<Credentials>,
-    /// All file dependencies which the config was parsed from.
-    dependencies: BTreeSet<PathBuf>,
+    /// All source files the config was parsed from.
+    source_files: BTreeSet<PathBuf>,
 }
 
 impl ConfigInner {
@@ -1919,7 +1919,7 @@ impl fmt::Debug for Config {
             .field("path", &self.path)
             // Only print specific parts of `inner` to not leak the credentials.
             .field("values", &inner.values)
-            .field("dependencies", &inner.dependencies)
+            .field("source_files", &inner.source_files)
             .finish()
     }
 }
@@ -1935,13 +1935,13 @@ impl Config {
         let mut inner = ConfigInner {
             values: values.config,
             credentials: None,
-            dependencies: values.dependencies,
+            source_files: values.source_files,
         };
 
         if Credentials::path(&path).exists() {
             let credentials = Credentials::load(&path)?;
             inner.credentials = Some(credentials.config);
-            inner.dependencies.extend(credentials.dependencies);
+            inner.source_files.extend(credentials.source_files);
         }
 
         let config = Config {
@@ -1966,7 +1966,7 @@ impl Config {
                 values: serde_json::from_value(value)
                     .with_context(|| ConfigError::new(ConfigErrorKind::BadJson))?,
                 credentials: None,
-                dependencies: Default::default(),
+                source_files: Default::default(),
             }),
             overrides: Vec::new(),
             path: PathBuf::new(),
@@ -2919,7 +2919,7 @@ impl fmt::Debug for ConfigSnapshot {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ConfigSnapshot")
             .field("values", &self.inner.values)
-            .field("dependencies", &self.inner.dependencies)
+            .field("source_files", &self.inner.source_files)
             .finish()
     }
 }
