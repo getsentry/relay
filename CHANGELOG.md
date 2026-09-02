@@ -11,6 +11,7 @@
 
 **Features**:
 
+- Switch the container base image from distroless to docker hardened. ([#6335](https://github.com/getsentry/relay/pull/6335))
 - Extract OTLP spans' client sample rate from TraceState. ([#6312](https://github.com/getsentry/relay/pull/6312))
 - Raise the size limit for the flags context to 128 KiB. ([#6310](https://github.com/getsentry/relay/pull/6310))
 - Add support for more inbound filters for logs, trace metrics and spans. ([#6306](https://github.com/getsentry/relay/pull/6306))
@@ -23,6 +24,8 @@
 - Store a normalized attachment content type in objectstore so that downloads are served with the correct type. ([#6319](https://github.com/getsentry/relay/pull/6319))
 - Reshape Nintendo Switch crashes so the issue title falls back to the crashing function instead of the raw abort result code, and raise their level to `fatal`. ([#6253](https://github.com/getsentry/relay/pull/6253))
 - Reject Nintendo Switch dying message attachments with an invalid magic number instead of panicking on a short payload. ([#6253](https://github.com/getsentry/relay/pull/6253))
+- Downgrade Kafka to prevent producers from getting stuck. ([#6336](https://github.com/getsentry/relay/pull/6336))
+- Prevent memory bomb in PII processor's `split_chunks`. ([#6343](https://github.com/getsentry/relay/pull/6343))
 
 **Internal**:
 
@@ -30,7 +33,7 @@
 
 **Internal**:
 
-- Update sentry-conventions to 0.20.0. ([#6315](https://github.com/getsentry/relay/pull/6315))
+- Update sentry-conventions to 0.21.0. Resource size sentry tags and measurements now use `http.response.body.size`, `http.response.body.decoded_size`, and `http.response.size`. ([#6339](https://github.com/getsentry/relay/pull/6339), [#6315](https://github.com/getsentry/relay/pull/6315))
 
 ## 26.8.0
 

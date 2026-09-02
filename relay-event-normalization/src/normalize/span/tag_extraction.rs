@@ -1020,7 +1020,7 @@ pub fn extract_tags(
                 }
 
                 if let Some(value) = data
-                    .get_value(HTTP__DECODED_RESPONSE_CONTENT_LENGTH)
+                    .get_value(HTTP__RESPONSE__BODY__DECODED_SIZE)
                     .and_then(|v| String::try_from(v).ok())
                 {
                     span_tags.http_decoded_response_content_length = value.into();
@@ -1203,7 +1203,7 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
     {
         for (attribute, key) in [
             (
-                HTTP__DECODED_RESPONSE_CONTENT_LENGTH,
+                HTTP__RESPONSE__BODY__DECODED_SIZE,
                 "http.decoded_response_content_length",
             ),
             (HTTP__RESPONSE__BODY__SIZE, "http.response_content_length"),
@@ -1938,7 +1938,7 @@ LIMIT 1
                         "trace_id": "ff62a8b040f340bda5d830223def1d81",
                         "data": {
                             "http.response.body.size": 1,
-                            "http.decoded_response_content_length": 2.0,
+                            "http.response.body.decoded_size": 2.0,
                             "http.response.size": 3.3
                         }
                     }
