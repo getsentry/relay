@@ -186,7 +186,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn recursion() {
+    fn cycle_singleton() {
+        // a -> a
         let config = PiiConfig {
             rules: BTreeMap::from([(
                 "a".to_owned(),
@@ -209,7 +210,8 @@ mod tests {
     }
 
     #[test]
-    fn recursion2() {
+    fn cycle_pair() {
+        // a -> b -> a
         let config = PiiConfig {
             rules: BTreeMap::from([
                 (
@@ -241,5 +243,62 @@ mod tests {
 
         // The cycle has been removed:
         assert!(collected_rules.is_empty());
+    }
+
+    #[test]
+    fn only_one_shared_rule_survives() {
+        // When multiple aliases point to the same rule, only one of their names survives.
+        // a -> c
+        // b -> c
+        let config = PiiConfig {
+            rules: BTreeMap::from([
+                (
+                    "a".to_owned(),
+                    RuleSpec {
+                        ty: RuleType::Alias(AliasRule {
+                            rule: "c".to_owned(),
+                            hide_inner: true,
+                        }),
+                        redaction: Redaction::Default,
+                    },
+                ),
+                (
+                    "b".to_owned(),
+                    RuleSpec {
+                        ty: RuleType::Alias(AliasRule {
+                            rule: "c".to_owned(),
+                            hide_inner: true,
+                        }),
+                        redaction: Redaction::Default,
+                    },
+                ),
+                (
+                    "c".to_owned(),
+                    RuleSpec {
+                        ty: RuleType::Anything,
+                        redaction: Redaction::Default,
+                    },
+                ),
+            ]),
+            ..Default::default()
+        };
+        #[allow(clippy::mutable_key_type)]
+        let mut collected_rules = Default::default();
+        collect_rules(&config, &mut collected_rules, "a", None);
+        collect_rules(&config, &mut collected_rules, "b", None);
+
+        let collected_rules: Vec<_> = collected_rules
+            .into_iter()
+            .map(|rr| (rr.origin, rr.id))
+            .collect();
+
+        insta::assert_debug_snapshot!(collected_rules, @r#"
+        [
+            (
+                "a",
+                "c",
+            ),
+        ]
+        "#);
     }
 }
