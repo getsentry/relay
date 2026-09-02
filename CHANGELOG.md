@@ -20,6 +20,7 @@
 
 **Bug Fixes**:
 
+- Bump symbolic so Unreal crash parsing no longer pre-allocates from untrusted counts. ([#6347](https://github.com/getsentry/relay/pull/6347))
 - Don't trim metadata on the top frame when slimming stacktraces. ([#6340](https://github.com/getsentry/relay/pull/6340))
 - Store a normalized attachment content type in objectstore so that downloads are served with the correct type. ([#6319](https://github.com/getsentry/relay/pull/6319))
 - Reshape Nintendo Switch crashes so the issue title falls back to the crashing function instead of the raw abort result code, and raise their level to `fatal`. ([#6253](https://github.com/getsentry/relay/pull/6253))
