@@ -20,3 +20,32 @@ where
         cur = Arc::clone(&prev);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_try_rcu_replaces_value() {
+        let swap = ArcSwap::from_pointee(1);
+        let old = swap.load_full();
+
+        try_rcu(&swap, |value| Ok::<_, ()>(Arc::new(**value + 1))).unwrap();
+
+        let new = swap.load_full();
+        assert_eq!(*new, 2);
+        assert!(!Arc::ptr_eq(&old, &new));
+    }
+
+    #[test]
+    fn test_try_rcu_keeps_unchanged_value() {
+        let swap = ArcSwap::from_pointee(1);
+        let old = swap.load_full();
+
+        try_rcu(&swap, |value| Ok::<_, ()>(Arc::clone(value))).unwrap();
+
+        let new = swap.load_full();
+        assert_eq!(*new, 1);
+        assert!(Arc::ptr_eq(&old, &new));
+    }
+}

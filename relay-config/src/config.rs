@@ -1901,6 +1901,9 @@ pub struct Config {
     /// The actual config.
     inner: ArcSwap<ConfigInner>,
     /// A list of overrides applied to the config, in order.
+    ///
+    /// When re-loading the configuration these overrides need to be applied again
+    /// in the same order as they were applied originally.
     overrides: Vec<OverridableConfig>,
     /// Path from which the config is loaded.
     ///
