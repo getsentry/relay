@@ -678,7 +678,7 @@ mod tests {
     }
 
     #[test]
-    fn test_scrub_preexisting_meta() {
+    fn test_remark_overlap() {
         let mut data = Annotated::<Event>::from_json_bytes(
             br#"{
                 "extra": {"foo": "bar"},
@@ -686,13 +686,14 @@ mod tests {
                     "extra": {
                         "foo":{
                             "":{
-                                "rem":[["some_rule","s",0,3],["some_rule","s",0,3],["some_rule","s",0,0]]
+                                "rem":[["some_rule","s",0,3],["some_rule","s",0,3]]
                             }
                         }
                     }
                 }
             }"#,
-        ).unwrap();
+        )
+        .unwrap();
 
         let scrubbing_config = DataScrubbingConfig {
             scrub_data: true,
@@ -708,6 +709,43 @@ mod tests {
 
         // Verify that overlapping remarks do not make the string longer:
         assert_eq!(get_value!(data.extra["foo"]!).0.as_str(), Some("bar"));
+    }
+
+    #[test]
+    fn test_resume_after_gap() {
+        let mut data = Annotated::<Event>::from_json_bytes(
+            br#"{
+                "extra": {"foo": "abcdefghijklmnopqrstuvwxyz"},
+                "_meta":{
+                    "extra": {
+                        "foo":{
+                            "":{
+                                "rem":[["some_rule","s",0,3],["some_rule","s",6,5]]
+                            }
+                        }
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let scrubbing_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_ip_addresses: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+
+        let pii_config = to_pii_config(&scrubbing_config).unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+
+        // Verify that an invalid remark after a gap does not repeat the gap:
+        assert_eq!(
+            get_value!(data.extra["foo"]!).0.as_str(),
+            Some("abcdefghijklmnopqrstuvwxyz")
+        );
     }
 
     #[test]
