@@ -103,6 +103,7 @@ where
             }
             pos = from;
         } else if from < pos {
+            // A lower `from` would duplicate parts of the string and is therefore illegal.
             break;
         }
         if let Some(piece) = text.get(from..to) {
