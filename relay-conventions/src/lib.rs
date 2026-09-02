@@ -247,6 +247,7 @@ mod tests {
             apply_scrubbing: Auto,
             aliases: [
                 "params.<key>",
+                "url.path.params.<key>",
             ],
         }
         "#);

@@ -33,7 +33,7 @@
 
 **Internal**:
 
-- Update sentry-conventions to 0.20.0. ([#6315](https://github.com/getsentry/relay/pull/6315))
+- Update sentry-conventions to 0.21.0. Resource size sentry tags and measurements now use `http.response.body.size`, `http.response.body.decoded_size`, and `http.response.size`. ([#6339](https://github.com/getsentry/relay/pull/6339), [#6315](https://github.com/getsentry/relay/pull/6315))
 
 ## 26.8.0
 
