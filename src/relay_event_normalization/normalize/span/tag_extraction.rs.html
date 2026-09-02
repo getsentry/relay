@@ -1020,7 +1020,7 @@
 <a href=#1020 id=1020 data-nosnippet>1020</a>                }
 <a href=#1021 id=1021 data-nosnippet>1021</a>
 <a href=#1022 id=1022 data-nosnippet>1022</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = data
-<a href=#1023 id=1023 data-nosnippet>1023</a>                    .get_value(HTTP__DECODED_RESPONSE_CONTENT_LENGTH)
+<a href=#1023 id=1023 data-nosnippet>1023</a>                    .get_value(HTTP__RESPONSE__BODY__DECODED_SIZE)
 <a href=#1024 id=1024 data-nosnippet>1024</a>                    .and_then(|v| String::try_from(v).ok())
 <a href=#1025 id=1025 data-nosnippet>1025</a>                {
 <a href=#1026 id=1026 data-nosnippet>1026</a>                    span_tags.http_decoded_response_content_length = value.into();
@@ -1203,7 +1203,7 @@
 <a href=#1203 id=1203 data-nosnippet>1203</a>    {
 <a href=#1204 id=1204 data-nosnippet>1204</a>        <span class="kw">for </span>(attribute, key) <span class="kw">in </span>[
 <a href=#1205 id=1205 data-nosnippet>1205</a>            (
-<a href=#1206 id=1206 data-nosnippet>1206</a>                HTTP__DECODED_RESPONSE_CONTENT_LENGTH,
+<a href=#1206 id=1206 data-nosnippet>1206</a>                HTTP__RESPONSE__BODY__DECODED_SIZE,
 <a href=#1207 id=1207 data-nosnippet>1207</a>                <span class="string">"http.decoded_response_content_length"</span>,
 <a href=#1208 id=1208 data-nosnippet>1208</a>            ),
 <a href=#1209 id=1209 data-nosnippet>1209</a>            (HTTP__RESPONSE__BODY__SIZE, <span class="string">"http.response_content_length"</span>),
@@ -1938,7 +1938,7 @@
 <a href=#1938 id=1938 data-nosnippet>1938</a>                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
 <a href=#1939 id=1939 data-nosnippet>1939</a>                        "data": {
 <a href=#1940 id=1940 data-nosnippet>1940</a>                            "http.response.body.size": 1,
-<a href=#1941 id=1941 data-nosnippet>1941</a>                            "http.decoded_response_content_length": 2.0,
+<a href=#1941 id=1941 data-nosnippet>1941</a>                            "http.response.body.decoded_size": 2.0,
 <a href=#1942 id=1942 data-nosnippet>1942</a>                            "http.response.size": 3.3
 <a href=#1943 id=1943 data-nosnippet>1943</a>                        }
 <a href=#1944 id=1944 data-nosnippet>1944</a>                    }

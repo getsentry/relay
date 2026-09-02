@@ -205,15 +205,28 @@
 <a href=#205 id=205 data-nosnippet>205</a>
 <a href=#206 id=206 data-nosnippet>206</a>
 <a href=#207 id=207 data-nosnippet>207</a><span class="doccomment">/// Instantiates the `&lt;key&gt;` placeholder in the attribute
-<a href=#208 id=208 data-nosnippet>208</a>/// [`MCP__REQUEST__ARGUMENT__KEY`](crate::attributes::MCP__REQUEST__ARGUMENT__KEY) (`mcp.request.argument.&lt;key&gt;`) with a concrete value.
+<a href=#208 id=208 data-nosnippet>208</a>/// [`URL__PATH__PARAMS__KEY`](crate::attributes::URL__PATH__PARAMS__KEY) (`url.path.params.&lt;key&gt;`) with a concrete value.
 <a href=#209 id=209 data-nosnippet>209</a>/// # Example
 <a href=#210 id=210 data-nosnippet>210</a>/// ```
-<a href=#211 id=211 data-nosnippet>211</a>/// use relay_conventions::interpolate::mcp__request__argument__key;
-<a href=#212 id=212 data-nosnippet>212</a>/// assert_eq!(mcp__request__argument__key("foobar"), "mcp.request.argument.foobar");
+<a href=#211 id=211 data-nosnippet>211</a>/// use relay_conventions::interpolate::url__path__params__key;
+<a href=#212 id=212 data-nosnippet>212</a>/// assert_eq!(url__path__params__key("foobar"), "url.path.params.foobar");
 <a href=#213 id=213 data-nosnippet>213</a>/// ```
-<a href=#214 id=214 data-nosnippet>214</a></span><span class="kw">pub fn </span>mcp__request__argument__key&lt;T: std::fmt::Display&gt;(value: T) -&gt; String {
-<a href=#215 id=215 data-nosnippet>215</a>    <span class="macro">format!</span>(<span class="string">"mcp.request.argument.{value}"</span>)
-<a href=#216 id=216 data-nosnippet>216</a>}
-<a href=#217 id=217 data-nosnippet>217</a>
+<a href=#214 id=214 data-nosnippet>214</a></span><span class="attr">#[deprecated(note=<span class="string">"Use [`URL__PATH__PARAMETER__KEY`](crate::attributes::URL__PATH__PARAMETER__KEY) (`url.path.parameter.&lt;key&gt;`) instead."</span>)]
+<a href=#215 id=215 data-nosnippet>215</a></span><span class="kw">pub fn </span>url__path__params__key&lt;T: std::fmt::Display&gt;(value: T) -&gt; String {
+<a href=#216 id=216 data-nosnippet>216</a>    <span class="macro">format!</span>(<span class="string">"url.path.params.{value}"</span>)
+<a href=#217 id=217 data-nosnippet>217</a>}
 <a href=#218 id=218 data-nosnippet>218</a>
+<a href=#219 id=219 data-nosnippet>219</a>
+<a href=#220 id=220 data-nosnippet>220</a><span class="doccomment">/// Instantiates the `&lt;key&gt;` placeholder in the attribute
+<a href=#221 id=221 data-nosnippet>221</a>/// [`MCP__REQUEST__ARGUMENT__KEY`](crate::attributes::MCP__REQUEST__ARGUMENT__KEY) (`mcp.request.argument.&lt;key&gt;`) with a concrete value.
+<a href=#222 id=222 data-nosnippet>222</a>/// # Example
+<a href=#223 id=223 data-nosnippet>223</a>/// ```
+<a href=#224 id=224 data-nosnippet>224</a>/// use relay_conventions::interpolate::mcp__request__argument__key;
+<a href=#225 id=225 data-nosnippet>225</a>/// assert_eq!(mcp__request__argument__key("foobar"), "mcp.request.argument.foobar");
+<a href=#226 id=226 data-nosnippet>226</a>/// ```
+<a href=#227 id=227 data-nosnippet>227</a></span><span class="kw">pub fn </span>mcp__request__argument__key&lt;T: std::fmt::Display&gt;(value: T) -&gt; String {
+<a href=#228 id=228 data-nosnippet>228</a>    <span class="macro">format!</span>(<span class="string">"mcp.request.argument.{value}"</span>)
+<a href=#229 id=229 data-nosnippet>229</a>}
+<a href=#230 id=230 data-nosnippet>230</a>
+<a href=#231 id=231 data-nosnippet>231</a>
 </code></pre></div></section></main></body></html>
