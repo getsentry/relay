@@ -396,6 +396,7 @@ pub struct ProcessedUnrealReport {
 #[cfg(test)]
 mod tests {
 
+    use relay_config::Config;
     use relay_protocol::SerializableAnnotated;
 
     use super::*;
@@ -475,7 +476,7 @@ mod tests {
         let payload = Bytes::from_static(bytes);
 
         // Everything parses with default config:
-        let config = Config::default();
+        let config = Config::default().current();
         let items = extract_items(payload.clone(), &config).unwrap();
         assert_eq!(items.len(), 4);
 
@@ -485,7 +486,8 @@ mod tests {
                 "max_attachment_count": 3
             }
         }))
-        .unwrap();
+        .unwrap()
+        .current();
         let items = extract_items(payload, &config).unwrap();
         assert_eq!(items.len(), 3);
     }
