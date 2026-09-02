@@ -1022,6 +1022,11 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     /// - `sdk`: low-cardinality client name
     TraceMetricNilTraceId,
+    /// Amount of standalone attachments processed.
+    ///
+    /// This metric is tagged with:
+    /// - `sdk`: low-cardinality client name
+    StandaloneAttachment,
 }
 
 impl CounterMetric for RelayCounters {
@@ -1088,6 +1093,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ErrorProcessed => "event.error.processed",
             RelayCounters::CompressedMinidump => "minidump.compressed.count",
             RelayCounters::TraceMetricNilTraceId => "trace_metric.nil_trace_id",
+            RelayCounters::StandaloneAttachment => "processing.standalone_attachment",
         }
     }
 }
