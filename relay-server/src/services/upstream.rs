@@ -942,7 +942,7 @@ impl SharedClient {
             }
 
             if request.set_relay_id()
-                && let Some(credentials) = self.config.credentials()
+                && let Some(credentials) = config.credentials()
             {
                 builder.header("X-Sentry-Relay-Id", credentials.id.to_string());
             }
@@ -951,7 +951,7 @@ impl SharedClient {
 
             if let Some(payload) = request.sign()
                 && let Some(signature) = payload
-                    .create_signature(self.config.credentials().map(|cred| &cred.secret_key))
+                    .create_signature(config.credentials().map(|cred| &cred.secret_key))
                     .map_err(|_| UpstreamRequestError::NoCredentials)?
             {
                 builder.header("x-sentry-relay-signature", &signature.0);
@@ -1365,8 +1365,7 @@ impl AuthMonitor {
             return;
         }
 
-        let config = self.config.clone();
-        let Some(credentials) = config.credentials() else {
+        let Some(credentials) = current_config.credentials() else {
             // This is checked during setup by `check_config` and should never happen.
             relay_log::error!("authentication called without credentials");
             return;

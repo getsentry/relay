@@ -394,7 +394,7 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use relay_config::{Config, RelayMode};
+    use relay_config::{Config, Credentials, RelayMode};
     use relay_system::{Controller, Service, ShutdownMode};
     use relay_test::mock_service;
 
@@ -417,7 +417,9 @@ mod tests {
 
         Controller::start(Duration::from_secs(1));
         let mut config = Config::default();
-        config.regenerate_credentials(false).unwrap();
+        config
+            .replace_credentials(Some(Credentials::generate()))
+            .unwrap();
         let fetch_interval = config.current().global_config_fetch_interval();
 
         let service = GlobalConfigService::new(Arc::new(config), upstream)
@@ -448,7 +450,9 @@ mod tests {
             }
         }))
         .unwrap();
-        config.regenerate_credentials(false).unwrap();
+        config
+            .replace_credentials(Some(Credentials::generate()))
+            .unwrap();
 
         let fetch_interval = config.current().global_config_fetch_interval();
         let service = GlobalConfigService::new(Arc::new(config), upstream)

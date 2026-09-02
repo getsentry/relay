@@ -30,11 +30,8 @@ fn assert_batch_size_bytes(config: &ConfigSnapshot) -> Result<()> {
     Ok(())
 }
 
-pub fn check_config(config: &Config) -> Result<()> {
-    let credentials = config.credentials();
-    let config = config.current();
-
-    if config.relay_mode() == RelayMode::Managed && credentials.is_none() {
+pub fn check_config(config: &ConfigSnapshot) -> Result<()> {
+    if config.relay_mode() == RelayMode::Managed && !config.has_credentials() {
         anyhow::bail!(
             "relay has no credentials, which are required in managed mode. \
              Generate some with \"relay credentials generate\" first.",
@@ -61,7 +58,7 @@ pub fn check_config(config: &Config) -> Result<()> {
         }
     }
 
-    assert_batch_size_bytes(&config)?;
+    assert_batch_size_bytes(config)?;
 
     Ok(())
 }
@@ -77,7 +74,8 @@ pub fn dump_spawn_infos(config: &Config) {
         );
     }
 
-    relay_log::info!("  relay mode: {}", config.current().relay_mode());
+    let config = config.current();
+    relay_log::info!("  relay mode: {}", config.relay_mode());
 
     match config.relay_id() {
         Some(id) => relay_log::info!("  relay id: {id}"),
@@ -87,11 +85,11 @@ pub fn dump_spawn_infos(config: &Config) {
         Some(key) => relay_log::info!("  public key: {key}"),
         None => relay_log::info!("  public key: -"),
     };
-    relay_log::info!("  log level: {}", config.current().logging().level);
+    relay_log::info!("  log level: {}", config.logging().level);
 }
 
 /// Dumps out credential info.
-pub fn dump_credentials(config: &Config) {
+pub fn dump_credentials(config: &ConfigSnapshot) {
     match config.relay_id() {
         Some(id) => println!("  relay id: {id}"),
         None => println!("  relay id: -"),

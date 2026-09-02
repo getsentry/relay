@@ -315,7 +315,7 @@ impl RelayCacheService {
             return;
         }
 
-        if self.config.credentials().is_none() {
+        if !self.config.current().has_credentials() {
             relay_log::error!(
                 "no credentials configured. relay {relay_id} cannot send requests to this relay",
             );

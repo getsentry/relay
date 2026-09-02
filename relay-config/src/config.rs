@@ -146,32 +146,7 @@ struct LoadedConfig<C> {
     ///
     /// The config may be built from multiple files due to the support for `${file:}` references
     /// in arbitrary config keys.
-    #[expect(unused, reason = "not yet implemented")]
     dependencies: BTreeSet<PathBuf>,
-}
-
-impl<C> LoadedConfig<C> {
-    /// Creates a [`LoadedConfig`] without any dependencies.
-    fn just(config: C) -> Self {
-        Self {
-            config,
-            dependencies: Default::default(),
-        }
-    }
-}
-
-impl<C> std::ops::Deref for LoadedConfig<C> {
-    type Target = C;
-
-    fn deref(&self) -> &Self::Target {
-        &self.config
-    }
-}
-
-impl<C> std::ops::DerefMut for LoadedConfig<C> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.config
-    }
 }
 enum ConfigFormat {
     Yaml,
@@ -1755,17 +1730,40 @@ pub struct ConfigValues {
     pub cogs: Cogs,
     pub upload: Upload,
 }
-impl ConfigValues {
-    fn apply_override(&mut self, overrides: &OverridableConfig) -> anyhow::Result<()> {
+
+impl ConfigObject for ConfigValues {
+    fn format() -> ConfigFormat {
+        ConfigFormat::Yaml
+    }
+
+    fn name() -> &'static str {
+        "config"
+    }
+}
+
+#[derive(Default, Clone)]
+struct ConfigInner {
+    /// Relay's config values.
+    values: ConfigValues,
+    /// Configured Relay credentials.
+    ///
+    /// Credentials may be missing for proxy mode.
+    credentials: Option<Credentials>,
+    /// All file dependencies which the config was parsed from.
+    dependencies: BTreeSet<PathBuf>,
+}
+
+impl ConfigInner {
+    fn apply_overrides(&mut self, overrides: &OverridableConfig) -> anyhow::Result<()> {
         if let Some(log_level) = &overrides.log_level {
-            self.logging.level = log_level.parse()?;
+            self.values.logging.level = log_level.parse()?;
         }
 
         if let Some(log_format) = &overrides.log_format {
-            self.logging.format = log_format.parse()?;
+            self.values.logging.format = log_format.parse()?;
         }
 
-        let relay = &mut self.relay;
+        let relay = &mut self.values.relay;
         if let Some(mode) = &overrides.mode {
             relay.mode = mode
                 .parse::<RelayMode>()
@@ -1798,7 +1796,7 @@ impl ConfigValues {
                 .with_context(|| ConfigError::field("port"))?;
         }
 
-        let processing = &mut self.processing;
+        let processing = &mut self.values.processing;
         if let Some(enabled) = &overrides.processing {
             match enabled.to_lowercase().as_str() {
                 "true" | "1" => processing.enabled = true,
@@ -1818,7 +1816,7 @@ impl ConfigValues {
             if let Some(config_param) = existing {
                 config_param.value = kafka_url;
             } else {
-                self.processing.kafka_config.push(KafkaConfigParam {
+                self.values.processing.kafka_config.push(KafkaConfigParam {
                     name: "bootstrap.servers".to_owned(),
                     value: kafka_url,
                 })
@@ -1826,227 +1824,19 @@ impl ConfigValues {
         }
 
         if overrides.outcome_source.is_some() {
-            self.outcomes.source = overrides.outcome_source.clone();
+            self.values.outcomes.source = overrides.outcome_source.clone();
         }
 
         if let Some(shutdown_timeout) = &overrides.shutdown_timeout
             && let Ok(shutdown_timeout) = shutdown_timeout.parse::<u64>()
         {
-            self.limits.shutdown_timeout = shutdown_timeout;
+            self.values.limits.shutdown_timeout = shutdown_timeout;
         }
 
         if let Some(server_name) = overrides.server_name.clone() {
-            self.sentry.server_name = Some(server_name.into());
+            self.values.sentry.server_name = Some(server_name.into());
         }
 
-        Ok(())
-    }
-}
-
-impl ConfigObject for ConfigValues {
-    fn format() -> ConfigFormat {
-        ConfigFormat::Yaml
-    }
-
-    fn name() -> &'static str {
-        "config"
-    }
-}
-
-/// Config struct.
-pub struct Config {
-    values: ArcSwap<LoadedConfig<ConfigValues>>,
-    credentials: Option<LoadedConfig<Credentials>>,
-    /// A list of overrides applied to the config, in order.
-    overrides: Vec<OverridableConfig>,
-    path: PathBuf,
-}
-
-impl fmt::Debug for Config {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Config")
-            .field("path", &self.path)
-            .field("values", &self.values)
-            .finish()
-    }
-}
-
-impl Config {
-    /// Loads a config from a given config folder.
-    pub fn from_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Config> {
-        let path = env::current_dir()
-            .map(|x| x.join(path.as_ref()))
-            .unwrap_or_else(|_| path.as_ref().to_path_buf());
-
-        let config = Config {
-            values: ArcSwap::from_pointee(ConfigValues::load(&path)?),
-            credentials: match Credentials::path(&path).exists() {
-                true => Some(Credentials::load(&path)?),
-                false => None,
-            },
-            overrides: Vec::new(),
-            path: path.clone(),
-        };
-
-        // TODO: fix this
-        // if cfg!(not(feature = "processing")) && config.processing_enabled() {
-        //     return Err(ConfigError::file(ConfigErrorKind::ProcessingNotAvailable, &path).into());
-        // }
-
-        Ok(config)
-    }
-
-    /// Creates a config from a JSON value.
-    ///
-    /// This is mostly useful for tests.
-    pub fn from_json_value(value: serde_json::Value) -> anyhow::Result<Config> {
-        Ok(Config {
-            values: ArcSwap::from_pointee(LoadedConfig {
-                config: serde_json::from_value(value)
-                    .with_context(|| ConfigError::new(ConfigErrorKind::BadJson))?,
-                dependencies: BTreeSet::new(),
-            }),
-            credentials: None,
-            overrides: Vec::new(),
-            path: PathBuf::new(),
-        })
-    }
-
-    /// Override configuration with values coming from other sources (e.g. env variables or
-    /// command line parameters).
-    ///
-    /// If applying the overrides fails, the config may be left in an inconsistent state.
-    pub fn apply_override(&mut self, overrides: OverridableConfig) -> anyhow::Result<&mut Self> {
-        // We could introduce a config builder which operates on mutable configs, which would also
-        // simplify applying overrides, as we no longer would need to clone the value out of the `ArcSwap`.
-        self.do_apply_credentials_overrides(&overrides)?;
-        self.do_apply_config_overrides(&overrides)?;
-
-        // Overrides successfully applied.
-        self.overrides.push(overrides);
-
-        Ok(self)
-    }
-
-    /// Checks if the config is already initialized.
-    pub fn config_exists<P: AsRef<Path>>(path: P) -> bool {
-        fs::metadata(ConfigValues::path(path.as_ref())).is_ok()
-    }
-
-    /// Returns the filename of the config file.
-    pub fn path(&self) -> &Path {
-        &self.path
-    }
-
-    /// Dumps out a YAML string of the values.
-    pub fn to_yaml_string(&self) -> anyhow::Result<String> {
-        serde_yaml::to_string(&self.values.load().config)
-            .with_context(|| ConfigError::new(ConfigErrorKind::CouldNotWriteFile))
-    }
-
-    /// Regenerates the relay credentials.
-    ///
-    /// This also writes the credentials back to the file.
-    pub fn regenerate_credentials(&mut self, save: bool) -> anyhow::Result<()> {
-        let creds = Credentials::generate();
-        if save {
-            creds.save(&self.path)?;
-        }
-        self.credentials = Some(LoadedConfig::just(creds));
-        Ok(())
-    }
-
-    /// Return the current credentials
-    pub fn credentials(&self) -> Option<&Credentials> {
-        self.credentials.as_deref()
-    }
-
-    /// Set new credentials.
-    ///
-    /// This also writes the credentials back to the file.
-    pub fn replace_credentials(
-        &mut self,
-        credentials: Option<Credentials>,
-    ) -> anyhow::Result<bool> {
-        if self.credentials.as_deref() == credentials.as_ref() {
-            return Ok(false);
-        }
-
-        match credentials {
-            Some(creds) => {
-                creds.save(&self.path)?;
-                self.credentials = Some(LoadedConfig {
-                    config: creds,
-                    dependencies: BTreeSet::from([Credentials::path(&self.path)]),
-                })
-            }
-            None => {
-                let path = Credentials::path(&self.path);
-                if fs::metadata(&path).is_ok() {
-                    fs::remove_file(&path).with_context(|| {
-                        ConfigError::file(ConfigErrorKind::CouldNotWriteFile, &path)
-                    })?;
-                }
-                self.credentials = None;
-            }
-        }
-
-        Ok(true)
-    }
-
-    /// Returns `true` if the config is ready to use.
-    pub fn has_credentials(&self) -> bool {
-        self.credentials.is_some()
-    }
-
-    /// Returns the secret key if set.
-    pub fn secret_key(&self) -> Option<&SecretKey> {
-        self.credentials.as_ref().map(|x| &x.secret_key)
-    }
-
-    /// Returns the public key if set.
-    pub fn public_key(&self) -> Option<&PublicKey> {
-        self.credentials.as_ref().map(|x| &x.public_key)
-    }
-
-    /// Returns the relay ID.
-    pub fn relay_id(&self) -> Option<&RelayId> {
-        self.credentials.as_ref().map(|x| &x.id)
-    }
-
-    /// Acquires a current [`snapshot`](ConfigSnapshot) of the config.
-    ///
-    /// A snapshot is the way to actually consume values from the config. A snapshot should ideally be acquired
-    /// once per unit of work.
-    pub fn current(&self) -> ConfigSnapshot {
-        let values = self.values.load();
-        ConfigSnapshot { values }
-    }
-
-    fn do_apply_config_overrides(&mut self, overrides: &OverridableConfig) -> anyhow::Result<()> {
-        let mut cur = self.values.load_full();
-        loop {
-            let new = {
-                let mut config = LoadedConfig::clone(&cur);
-                config.config.apply_override(overrides)?;
-                config
-            };
-
-            let prev = self.values.compare_and_swap(&cur, Arc::new(new));
-            if Arc::ptr_eq(&cur, &prev) {
-                break;
-            }
-            // Someone else updated the value in the meantime.
-            cur = Arc::clone(&prev);
-        }
-
-        Ok(())
-    }
-
-    fn do_apply_credentials_overrides(
-        &mut self,
-        overrides: &OverridableConfig,
-    ) -> anyhow::Result<()> {
         let id = if let Some(id) = &overrides.id {
             let id = Uuid::parse_str(id).with_context(|| ConfigError::field("id"))?;
             Some(id)
@@ -2086,11 +1876,11 @@ impl Config {
             //no existing credentials we may only create the full credentials
             match (id, public_key, secret_key) {
                 (Some(id), Some(public_key), Some(secret_key)) => {
-                    self.credentials = Some(LoadedConfig::just(Credentials {
+                    self.credentials = Some(Credentials {
                         secret_key,
                         public_key,
                         id,
-                    }))
+                    })
                 }
                 (None, None, None) => {
                     // nothing provided, we'll just leave the credentials None, maybe we
@@ -2106,44 +1896,242 @@ impl Config {
     }
 }
 
+/// Relay's Configuration.
+pub struct Config {
+    /// The actual config.
+    inner: ArcSwap<ConfigInner>,
+    /// A list of overrides applied to the config, in order.
+    overrides: Vec<OverridableConfig>,
+    /// Path from which the config is loaded.
+    ///
+    /// This is Relay's configuration directory.
+    path: PathBuf,
+}
+
+impl fmt::Debug for Config {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let inner = self.inner.load();
+
+        f.debug_struct("Config")
+            .field("path", &self.path)
+            // Only print specific parts of `inner` to not leak the credentials.
+            .field("values", &inner.values)
+            .field("dependencies", &inner.dependencies)
+            .finish()
+    }
+}
+
+impl Config {
+    /// Loads a config from a given config folder.
+    pub fn from_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Config> {
+        let path = env::current_dir()
+            .map(|x| x.join(path.as_ref()))
+            .unwrap_or_else(|_| path.as_ref().to_path_buf());
+
+        let values = ConfigValues::load(&path)?;
+        let mut inner = ConfigInner {
+            values: values.config,
+            credentials: None,
+            dependencies: values.dependencies,
+        };
+
+        if Credentials::path(&path).exists() {
+            let credentials = Credentials::load(&path)?;
+            inner.credentials = Some(credentials.config);
+            inner.dependencies.extend(credentials.dependencies);
+        }
+
+        let config = Config {
+            inner: ArcSwap::from_pointee(inner),
+            overrides: Vec::new(),
+            path: path.clone(),
+        };
+
+        if cfg!(not(feature = "processing")) && config.current().processing_enabled() {
+            return Err(ConfigError::file(ConfigErrorKind::ProcessingNotAvailable, &path).into());
+        }
+
+        Ok(config)
+    }
+
+    /// Creates a config from a JSON value.
+    ///
+    /// This is mostly useful for tests.
+    pub fn from_json_value(value: serde_json::Value) -> anyhow::Result<Config> {
+        Ok(Config {
+            inner: ArcSwap::from_pointee(ConfigInner {
+                values: serde_json::from_value(value)
+                    .with_context(|| ConfigError::new(ConfigErrorKind::BadJson))?,
+                credentials: None,
+                dependencies: Default::default(),
+            }),
+            overrides: Vec::new(),
+            path: PathBuf::new(),
+        })
+    }
+
+    /// Override configuration with values coming from other sources (e.g. env variables or
+    /// command line parameters).
+    ///
+    /// If applying the overrides fails, the config may be left in an inconsistent state.
+    pub fn apply_override(&mut self, overrides: OverridableConfig) -> anyhow::Result<&mut Self> {
+        // We could introduce a config builder which operates on mutable configs, which would eliminate
+        // the need for this `try_rcu` dance here.
+        crate::utils::try_rcu(&self.inner, |inner| {
+            let mut new = ConfigInner::clone(inner);
+            for ovr in &self.overrides {
+                new.apply_overrides(ovr)?;
+            }
+            Ok::<_, anyhow::Error>(Arc::new(new))
+        })?;
+
+        // Overrides successfully applied.
+        self.overrides.push(overrides);
+
+        Ok(self)
+    }
+
+    /// Checks if the config is already initialized.
+    pub fn config_exists<P: AsRef<Path>>(path: P) -> bool {
+        fs::metadata(ConfigValues::path(path.as_ref())).is_ok()
+    }
+
+    /// Returns the filename of the config file.
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// Dumps out a YAML string of the values.
+    pub fn to_yaml_string(&self) -> anyhow::Result<String> {
+        serde_yaml::to_string(&self.inner.load().values)
+            .with_context(|| ConfigError::new(ConfigErrorKind::CouldNotWriteFile))
+    }
+
+    /// Set new credentials.
+    ///
+    /// This also writes the credentials back to the file, if this config was loaded from the file-system.
+    pub fn replace_credentials(
+        &mut self,
+        credentials: Option<Credentials>,
+    ) -> anyhow::Result<bool> {
+        if self.inner.load().credentials == credentials {
+            return Ok(false);
+        }
+
+        if &*self.path != "" {
+            match &credentials {
+                Some(creds) => {
+                    creds.save(&self.path)?;
+                }
+                None => {
+                    let path = Credentials::path(&self.path);
+                    if fs::metadata(&path).is_ok() {
+                        fs::remove_file(&path).with_context(|| {
+                            ConfigError::file(ConfigErrorKind::CouldNotWriteFile, &path)
+                        })?;
+                    }
+                }
+            }
+        }
+
+        // Note: there is never anyone racing on the `ArcSwap` as long as `Self` borrowed mutably.
+        //
+        // We can improve this if we split out mutable operations into a separate struct and only
+        // once `frozen()` we change to an `ArcSwap` internally.
+        self.inner.rcu(|inner| {
+            let mut inner = ConfigInner::clone(inner);
+            inner.credentials = credentials.clone();
+            Arc::new(inner)
+        });
+
+        Ok(true)
+    }
+
+    /// Acquires a current [`snapshot`](ConfigSnapshot) of the config.
+    ///
+    /// A snapshot is the way to actually consume values from the config. A snapshot should ideally be acquired
+    /// once per unit of work.
+    pub fn current(&self) -> ConfigSnapshot {
+        let inner = self.inner.load();
+        ConfigSnapshot { inner }
+    }
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            inner: ArcSwap::from_pointee(Default::default()),
+            overrides: Vec::new(),
+            path: PathBuf::new(),
+        }
+    }
+}
+
 /// A config snapshot is a point in time snapshot of the [`Config`].
 ///
 /// The [`Config`] may change over time, to guarantee a consistent view of the config
 /// a snapshot must be acquired first.
-#[derive(Debug)]
+///
+/// The snapshot should not be stored in a long lasting datastructure. As a rule of thumb it should
+/// only exist on the stack.
 pub struct ConfigSnapshot {
-    values: arc_swap::Guard<Arc<LoadedConfig<ConfigValues>>>,
+    inner: arc_swap::Guard<Arc<ConfigInner>>,
 }
 
 impl ConfigSnapshot {
+    /// Returns `true` if the config is ready to use.
+    pub fn has_credentials(&self) -> bool {
+        self.inner.credentials.is_some()
+    }
+
+    /// Return the current credentials.
+    pub fn credentials(&self) -> Option<&Credentials> {
+        self.inner.credentials.as_ref()
+    }
+
+    /// Returns the secret key if set.
+    pub fn secret_key(&self) -> Option<&SecretKey> {
+        self.inner.credentials.as_ref().map(|x| &x.secret_key)
+    }
+
+    /// Returns the public key if set.
+    pub fn public_key(&self) -> Option<&PublicKey> {
+        self.inner.credentials.as_ref().map(|x| &x.public_key)
+    }
+
+    /// Returns the relay ID.
+    pub fn relay_id(&self) -> Option<&RelayId> {
+        self.inner.credentials.as_ref().map(|x| &x.id)
+    }
+
     /// Returns the relay mode.
     pub fn relay_mode(&self) -> RelayMode {
-        self.values.relay.mode
+        self.inner.values.relay.mode
     }
 
     /// Returns the instance type of relay.
     pub fn relay_instance(&self) -> RelayInstance {
-        self.values.relay.instance
+        self.inner.values.relay.instance
     }
 
     /// Returns the upstream target as descriptor.
     pub fn upstream(&self) -> &UpstreamDescriptor {
-        &self.values.relay.upstream
+        &self.inner.values.relay.upstream
     }
 
     /// Returns the advertised upstream for downstream instances as descriptor.
     pub fn advertised_upstream(&self) -> Option<&UpstreamDescriptor> {
-        self.values.relay.advertised_upstream.as_ref()
+        self.inner.values.relay.advertised_upstream.as_ref()
     }
 
     /// Returns the custom HTTP "Host" header.
     pub fn http_host_header(&self) -> Option<&str> {
-        self.values.http.host_header.as_deref()
+        self.inner.values.http.host_header.as_deref()
     }
 
     /// Returns the listen address.
     pub fn listen_addr(&self) -> SocketAddr {
-        (self.values.relay.host, self.values.relay.port).into()
+        (self.inner.values.relay.host, self.inner.values.relay.port).into()
     }
 
     /// Returns the listen address for internal APIs.
@@ -2155,11 +2143,11 @@ impl ConfigSnapshot {
     /// and they should instead be exposed on the main [`Self::listen_addr`].
     pub fn listen_addr_internal(&self) -> Option<SocketAddr> {
         match (
-            self.values.relay.internal_host,
-            self.values.relay.internal_port,
+            self.inner.values.relay.internal_host,
+            self.inner.values.relay.internal_port,
         ) {
-            (Some(host), None) => Some((host, self.values.relay.port).into()),
-            (None, Some(port)) => Some((self.values.relay.host, port).into()),
+            (Some(host), None) => Some((host, self.inner.values.relay.port).into()),
+            (None, Some(port)) => Some((self.inner.values.relay.host, port).into()),
             (Some(host), Some(port)) => Some((host, port).into()),
             (None, None) => None,
         }
@@ -2167,9 +2155,9 @@ impl ConfigSnapshot {
 
     /// Returns the TLS listen address.
     pub fn tls_listen_addr(&self) -> Option<SocketAddr> {
-        if self.values.relay.tls_identity_path.is_some() {
-            let port = self.values.relay.tls_port.unwrap_or(3443);
-            Some((self.values.relay.host, port).into())
+        if self.inner.values.relay.tls_identity_path.is_some() {
+            let port = self.inner.values.relay.tls_port.unwrap_or(3443);
+            Some((self.inner.values.relay.host, port).into())
         } else {
             None
         }
@@ -2177,26 +2165,26 @@ impl ConfigSnapshot {
 
     /// Returns the path to the identity bundle
     pub fn tls_identity_path(&self) -> Option<&Path> {
-        self.values.relay.tls_identity_path.as_deref()
+        self.inner.values.relay.tls_identity_path.as_deref()
     }
 
     /// Returns the password for the identity bundle
     pub fn tls_identity_password(&self) -> Option<&str> {
-        self.values.relay.tls_identity_password.as_deref()
+        self.inner.values.relay.tls_identity_password.as_deref()
     }
 
     /// Returns `true` when project IDs should be overriden rather than validated.
     ///
     /// Defaults to `false`, which requires project ID validation.
     pub fn override_project_ids(&self) -> bool {
-        self.values.relay.override_project_ids
+        self.inner.values.relay.override_project_ids
     }
 
     /// Returns `true` if Relay requires authentication for readiness.
     ///
     /// See [`ReadinessCondition`] for more information.
     pub fn requires_auth(&self) -> bool {
-        match self.values.auth.ready {
+        match self.inner.values.auth.ready {
             ReadinessCondition::Authenticated => self.relay_mode() == RelayMode::Managed,
             ReadinessCondition::Always => false,
         }
@@ -2210,7 +2198,7 @@ impl ConfigSnapshot {
             return None;
         }
 
-        match self.values.http.auth_interval {
+        match self.inner.values.http.auth_interval {
             None | Some(0) => None,
             Some(secs) => Some(Duration::from_secs(secs)),
         }
@@ -2219,7 +2207,7 @@ impl ConfigSnapshot {
     /// The maximum time of experiencing uninterrupted network failures until Relay considers that
     /// it has encountered a network outage.
     pub fn http_outage_grace_period(&self) -> Duration {
-        Duration::from_secs(self.values.http.outage_grace_period)
+        Duration::from_secs(self.inner.values.http.outage_grace_period)
     }
 
     /// Time Relay waits before retrying an upstream request.
@@ -2227,22 +2215,22 @@ impl ConfigSnapshot {
     /// Before going into a network outage, Relay may fail to make upstream
     /// requests. This is the time Relay waits before retrying the same request.
     pub fn http_retry_delay(&self) -> Duration {
-        Duration::from_secs(self.values.http.retry_delay)
+        Duration::from_secs(self.inner.values.http.retry_delay)
     }
 
     /// Time of continued project request failures before Relay emits an error.
     pub fn http_project_failure_interval(&self) -> Duration {
-        Duration::from_secs(self.values.http.project_failure_interval)
+        Duration::from_secs(self.inner.values.http.project_failure_interval)
     }
 
     /// Content encoding of upstream requests.
     pub fn http_encoding(&self) -> HttpEncoding {
-        self.values.http.encoding
+        self.inner.values.http.encoding
     }
 
     /// Returns whether metrics should be sent globally through a shared endpoint.
     pub fn http_global_metrics(&self) -> bool {
-        self.values.http.global_metrics
+        self.inner.values.http.global_metrics
     }
 
     /// Returns `true` if Relay supports forwarding unknown API requests.
@@ -2250,7 +2238,7 @@ impl ConfigSnapshot {
     /// Relay instances with processing enabled are expected to support the latest API and do never
     /// support forwarding requests to Sentry.
     pub fn http_forward(&self) -> bool {
-        self.values.http.forward && !self.processing_enabled()
+        self.inner.values.http.forward && !self.processing_enabled()
     }
 
     /// Returns whether this Relay should emit outcomes.
@@ -2261,64 +2249,64 @@ impl ConfigSnapshot {
         if self.processing_enabled() {
             return EmitOutcomes::AsOutcomes;
         }
-        self.values.outcomes.emit_outcomes
+        self.inner.values.outcomes.emit_outcomes
     }
 
     /// Returns the maximum number of outcomes that are batched before being sent
     pub fn outcome_batch_size(&self) -> usize {
-        self.values.outcomes.batch_size
+        self.inner.values.outcomes.batch_size
     }
 
     /// Returns the maximum interval that an outcome may be batched
     pub fn outcome_batch_interval(&self) -> Duration {
-        Duration::from_millis(self.values.outcomes.batch_interval)
+        Duration::from_millis(self.inner.values.outcomes.batch_interval)
     }
 
     /// The originating source of the outcome
     pub fn outcome_source(&self) -> Option<&str> {
-        self.values.outcomes.source.as_deref()
+        self.inner.values.outcomes.source.as_deref()
     }
 
     /// Returns logging configuration.
     pub fn logging(&self) -> &relay_log::LogConfig {
-        &self.values.logging
+        &self.inner.values.logging
     }
 
     /// Returns logging configuration.
     pub fn sentry(&self) -> &relay_log::SentryConfig {
-        &self.values.sentry
+        &self.inner.values.sentry
     }
 
     /// Returns the addresses for statsd metrics.
     pub fn statsd_addr(&self) -> Option<&str> {
-        self.values.metrics.statsd.as_deref()
+        self.inner.values.metrics.statsd.as_deref()
     }
 
     /// Returns the addresses for statsd metrics.
     pub fn statsd_buffer_size(&self) -> Option<usize> {
-        self.values.metrics.statsd_buffer_size
+        self.inner.values.metrics.statsd_buffer_size
     }
 
     /// Return the prefix for statsd metrics.
     pub fn metrics_prefix(&self) -> &str {
-        &self.values.metrics.prefix
+        &self.inner.values.metrics.prefix
     }
 
     /// Returns the default tags for statsd metrics.
     pub fn metrics_default_tags(&self) -> &BTreeMap<String, String> {
-        &self.values.metrics.default_tags
+        &self.inner.values.metrics.default_tags
     }
 
     /// Returns the name of the hostname tag that should be attached to each outgoing metric.
     pub fn metrics_hostname_tag(&self) -> Option<&str> {
-        self.values.metrics.hostname_tag.as_deref()
+        self.inner.values.metrics.hostname_tag.as_deref()
     }
 
     /// Returns the interval for periodic metrics emitted from Relay.
     ///
     /// `None` if periodic metrics are disabled.
     pub fn metrics_periodic_interval(&self) -> Option<Duration> {
-        match self.values.metrics.periodic_secs {
+        match self.inner.values.metrics.periodic_secs {
             0 => None,
             secs => Some(Duration::from_secs(secs)),
         }
@@ -2326,42 +2314,43 @@ impl ConfigSnapshot {
 
     /// Returns the default timeout for all upstream HTTP requests.
     pub fn http_timeout(&self) -> Duration {
-        Duration::from_secs(self.values.http.timeout.into())
+        Duration::from_secs(self.inner.values.http.timeout.into())
     }
 
     /// Returns the connection timeout for all upstream HTTP requests.
     pub fn http_connection_timeout(&self) -> Duration {
-        Duration::from_secs(self.values.http.connection_timeout.into())
+        Duration::from_secs(self.inner.values.http.connection_timeout.into())
     }
 
     /// Returns the failed upstream request retry interval.
     pub fn http_max_retry_interval(&self) -> Duration {
-        Duration::from_secs(self.values.http.max_retry_interval.into())
+        Duration::from_secs(self.inner.values.http.max_retry_interval.into())
     }
 
     /// Returns `true` if relay should use an in-process cache for DNS lookups.
     pub fn http_dns_cache(&self) -> bool {
-        self.values.http.dns_cache
+        self.inner.values.http.dns_cache
     }
 
     /// Returns the expiry timeout for cached projects.
     pub fn project_cache_expiry(&self) -> Duration {
-        Duration::from_secs(self.values.cache.project_expiry.into())
+        Duration::from_secs(self.inner.values.cache.project_expiry.into())
     }
 
     /// Returns `true` if the full project state should be requested from upstream.
     pub fn request_full_project_config(&self) -> bool {
-        self.values.cache.project_request_full_config
+        self.inner.values.cache.project_request_full_config
     }
 
     /// Returns the expiry timeout for cached relay infos (public keys).
     pub fn relay_cache_expiry(&self) -> Duration {
-        Duration::from_secs(self.values.cache.relay_expiry.into())
+        Duration::from_secs(self.inner.values.cache.relay_expiry.into())
     }
 
     /// Returns the maximum number of buffered envelopes
     pub fn envelope_buffer_size(&self) -> usize {
-        self.values
+        self.inner
+            .values
             .cache
             .envelope_buffer_size
             .try_into()
@@ -2370,19 +2359,20 @@ impl ConfigSnapshot {
 
     /// Returns the expiry timeout for cached misses before trying to refetch.
     pub fn cache_miss_expiry(&self) -> Duration {
-        Duration::from_secs(self.values.cache.miss_expiry.into())
+        Duration::from_secs(self.inner.values.cache.miss_expiry.into())
     }
 
     /// Returns the grace period for project caches.
     pub fn project_grace_period(&self) -> Duration {
-        Duration::from_secs(self.values.cache.project_grace_period.into())
+        Duration::from_secs(self.inner.values.cache.project_grace_period.into())
     }
 
     /// Returns the refresh interval for a project.
     ///
     /// Validates the refresh time to be between the grace period and expiry.
     pub fn project_refresh_interval(&self) -> Option<Duration> {
-        self.values
+        self.inner
+            .values
             .cache
             .project_refresh_interval
             .map(Into::into)
@@ -2392,23 +2382,29 @@ impl ConfigSnapshot {
     /// Returns the duration in which batchable project config queries are
     /// collected before sending them in a single request.
     pub fn query_batch_interval(&self) -> Duration {
-        Duration::from_millis(self.values.cache.batch_interval.into())
+        Duration::from_millis(self.inner.values.cache.batch_interval.into())
     }
 
     /// Returns the duration in which downstream relays are requested from upstream.
     pub fn downstream_relays_batch_interval(&self) -> Duration {
-        Duration::from_millis(self.values.cache.downstream_relays_batch_interval.into())
+        Duration::from_millis(
+            self.inner
+                .values
+                .cache
+                .downstream_relays_batch_interval
+                .into(),
+        )
     }
 
     /// Returns the interval in seconds in which local project configurations should be reloaded.
     pub fn local_cache_interval(&self) -> Duration {
-        Duration::from_secs(self.values.cache.file_interval.into())
+        Duration::from_secs(self.inner.values.cache.file_interval.into())
     }
 
     /// Returns the interval in seconds in which fresh global configs should be
     /// fetched from  upstream.
     pub fn global_config_fetch_interval(&self) -> Duration {
-        Duration::from_secs(self.values.cache.global_config_fetch_interval.into())
+        Duration::from_secs(self.inner.values.cache.global_config_fetch_interval.into())
     }
 
     /// Returns the path of the buffer file if the `cache.persistent_envelope_buffer.path` is configured.
@@ -2417,6 +2413,7 @@ impl ConfigSnapshot {
     /// suffixed with `.{partition_id}`.
     pub fn spool_envelopes_path(&self, partition_id: u8) -> Option<PathBuf> {
         let mut path = self
+            .inner
             .values
             .spool
             .envelopes
@@ -2437,166 +2434,193 @@ impl ConfigSnapshot {
 
     /// The maximum size of the buffer, in bytes.
     pub fn spool_envelopes_max_disk_size(&self) -> usize {
-        self.values.spool.envelopes.max_disk_size.as_bytes()
+        self.inner.values.spool.envelopes.max_disk_size.as_bytes()
     }
 
     /// Number of encoded envelope bytes that need to be accumulated before
     /// flushing one batch to disk.
     pub fn spool_envelopes_batch_size_bytes(&self) -> usize {
-        self.values.spool.envelopes.batch_size_bytes.as_bytes()
+        self.inner
+            .values
+            .spool
+            .envelopes
+            .batch_size_bytes
+            .as_bytes()
     }
 
     /// Returns the time after which we drop envelopes as a [`Duration`] object.
     pub fn spool_envelopes_max_age(&self) -> Duration {
-        Duration::from_secs(self.values.spool.envelopes.max_envelope_delay_secs)
+        Duration::from_secs(self.inner.values.spool.envelopes.max_envelope_delay_secs)
     }
 
     /// Returns the refresh frequency for disk usage monitoring as a [`Duration`] object.
     pub fn spool_disk_usage_refresh_frequency_ms(&self) -> Duration {
-        Duration::from_millis(self.values.spool.envelopes.disk_usage_refresh_frequency_ms)
+        Duration::from_millis(
+            self.inner
+                .values
+                .spool
+                .envelopes
+                .disk_usage_refresh_frequency_ms,
+        )
     }
 
     /// Returns the relative memory usage up to which the disk buffer will unspool envelopes.
     pub fn spool_max_backpressure_memory_percent(&self) -> f32 {
-        self.values.spool.envelopes.max_backpressure_memory_percent
+        self.inner
+            .values
+            .spool
+            .envelopes
+            .max_backpressure_memory_percent
     }
 
     /// Returns the number of partitions for the buffer.
     pub fn spool_partitions(&self) -> NonZeroU8 {
-        self.values.spool.envelopes.partitions
+        self.inner.values.spool.envelopes.partitions
     }
 
     /// Returns the strategy used to assign envelopes to buffer partitions.
     pub fn spool_partitioning(&self) -> EnvelopeSpoolPartitioning {
-        self.values.spool.envelopes.partitioning
+        self.inner.values.spool.envelopes.partitioning
     }
 
     /// Returns `true` if the data is stored on ephemeral disks.
     pub fn spool_ephemeral(&self) -> bool {
-        self.values.spool.envelopes.ephemeral
+        self.inner.values.spool.envelopes.ephemeral
     }
 
     /// Returns the maximum size of an event payload in bytes.
     pub fn max_event_size(&self) -> usize {
-        self.values.limits.max_event_size.as_bytes()
+        self.inner.values.limits.max_event_size.as_bytes()
     }
 
     /// Returns the maximum size of each attachment.
     pub fn max_attachment_size(&self) -> usize {
-        self.values.limits.max_attachment_size.as_bytes()
+        self.inner.values.limits.max_attachment_size.as_bytes()
     }
 
     /// The maximum amount of attachments in a single envelope.
     pub fn max_attachment_count(&self) -> usize {
-        self.values.limits.max_attachment_count
+        self.inner.values.limits.max_attachment_count
     }
 
     /// Returns the maximum combined size of attachments or payloads containing attachments
     /// (minidump, unreal, standalone attachments) in bytes.
     pub fn max_attachments_size(&self) -> usize {
-        self.values.limits.max_attachments_size.as_bytes()
+        self.inner.values.limits.max_attachments_size.as_bytes()
     }
 
     /// Returns the maximum size of a TUS upload request body.
     pub fn max_upload_size(&self) -> usize {
-        self.values.limits.max_upload_size.as_bytes()
+        self.inner.values.limits.max_upload_size.as_bytes()
     }
 
     /// Returns the maximum number of client reports per envelope.
     pub fn max_client_reports_count(&self) -> usize {
-        self.values.limits.max_client_reports_count
+        self.inner.values.limits.max_client_reports_count
     }
 
     /// Returns the maximum combined size of client reports in bytes.
     pub fn max_client_reports_size(&self) -> usize {
-        self.values.limits.max_client_reports_size.as_bytes()
+        self.inner.values.limits.max_client_reports_size.as_bytes()
     }
 
     /// Returns the maximum payload size of a monitor check-in in bytes.
     pub fn max_check_in_size(&self) -> usize {
-        self.values.limits.max_check_in_size.as_bytes()
+        self.inner.values.limits.max_check_in_size.as_bytes()
     }
 
     /// Returns the maximum payload size of a log in bytes.
     pub fn max_log_size(&self) -> usize {
-        self.values.limits.max_log_size.as_bytes()
+        self.inner.values.limits.max_log_size.as_bytes()
     }
 
     /// Returns the maximum payload size of a span in bytes.
     pub fn max_span_size(&self) -> usize {
-        self.values.limits.max_span_size.as_bytes()
+        self.inner.values.limits.max_span_size.as_bytes()
     }
 
     /// Returns the maximum amount of standalone transaction spans per envelope.
     pub fn max_standalone_span_count(&self) -> usize {
-        self.values.limits.max_standalone_span_count
+        self.inner.values.limits.max_standalone_span_count
     }
 
     /// Returns the maximum payload size of an item container in bytes.
     pub fn max_container_size(&self) -> usize {
-        self.values.limits.max_container_size.as_bytes()
+        self.inner.values.limits.max_container_size.as_bytes()
     }
 
     /// Returns the maximum size of an envelope payload in bytes.
     ///
     /// Individual item size limits still apply.
     pub fn max_envelope_size(&self) -> usize {
-        self.values.limits.max_envelope_size.as_bytes()
+        self.inner.values.limits.max_envelope_size.as_bytes()
     }
 
     /// Returns the maximum number of sessions per envelope.
     pub fn max_session_count(&self) -> usize {
-        self.values.limits.max_session_count
+        self.inner.values.limits.max_session_count
     }
 
     /// Returns the maximum combined size for all sessions in an envelope in bytes.
     pub fn max_sessions_size(&self) -> usize {
-        self.values.limits.max_sessions_size.as_bytes()
+        self.inner.values.limits.max_sessions_size.as_bytes()
     }
 
     /// Returns the maximum payload size of a statsd metric in bytes.
     pub fn max_statsd_size(&self) -> usize {
-        self.values.limits.max_statsd_size.as_bytes()
+        self.inner.values.limits.max_statsd_size.as_bytes()
     }
 
     /// Returns the maximum payload size of metric buckets in bytes.
     pub fn max_metric_buckets_size(&self) -> usize {
-        self.values.limits.max_metric_buckets_size.as_bytes()
+        self.inner.values.limits.max_metric_buckets_size.as_bytes()
     }
 
     /// Returns the maximum payload size for general API requests.
     pub fn max_api_payload_size(&self) -> usize {
-        self.values.limits.max_api_payload_size.as_bytes()
+        self.inner.values.limits.max_api_payload_size.as_bytes()
     }
 
     /// Returns the maximum payload size for file uploads and chunks.
     pub fn max_api_file_upload_size(&self) -> usize {
-        self.values.limits.max_api_file_upload_size.as_bytes()
+        self.inner.values.limits.max_api_file_upload_size.as_bytes()
     }
 
     /// Returns the maximum payload size for chunks
     pub fn max_api_chunk_upload_size(&self) -> usize {
-        self.values.limits.max_api_chunk_upload_size.as_bytes()
+        self.inner
+            .values
+            .limits
+            .max_api_chunk_upload_size
+            .as_bytes()
     }
 
     /// Returns the maximum payload size for a profile
     pub fn max_profile_size(&self) -> usize {
-        self.values.limits.max_profile_size.as_bytes()
+        self.inner.values.limits.max_profile_size.as_bytes()
     }
 
     /// Returns the maximum payload size for a trace metric.
     pub fn max_trace_metric_size(&self) -> usize {
-        self.values.limits.max_trace_metric_size.as_bytes()
+        self.inner.values.limits.max_trace_metric_size.as_bytes()
     }
 
     /// Returns the maximum payload size for a compressed replay.
     pub fn max_replay_compressed_size(&self) -> usize {
-        self.values.limits.max_replay_compressed_size.as_bytes()
+        self.inner
+            .values
+            .limits
+            .max_replay_compressed_size
+            .as_bytes()
     }
 
     /// Returns the maximum payload size for an uncompressed replay.
     pub fn max_replay_uncompressed_size(&self) -> usize {
-        self.values.limits.max_replay_uncompressed_size.as_bytes()
+        self.inner
+            .values
+            .limits
+            .max_replay_uncompressed_size
+            .as_bytes()
     }
 
     /// Returns the maximum message size for an uncompressed replay.
@@ -2605,101 +2629,110 @@ impl ConfigSnapshot {
     /// it can include additional metadata about the replay in
     /// addition to the recording.
     pub fn max_replay_message_size(&self) -> usize {
-        self.values.limits.max_replay_message_size.as_bytes()
+        self.inner.values.limits.max_replay_message_size.as_bytes()
     }
 
     /// Returns the maximum number of active requests
     pub fn max_concurrent_requests(&self) -> usize {
-        self.values.limits.max_concurrent_requests
+        self.inner.values.limits.max_concurrent_requests
     }
 
     /// Returns the maximum number of active queries
     pub fn max_concurrent_queries(&self) -> usize {
-        self.values.limits.max_concurrent_queries
+        self.inner.values.limits.max_concurrent_queries
     }
 
     /// Returns the maximum combined size of keys of invalid attributes.
     pub fn max_removed_attribute_key_size(&self) -> usize {
-        self.values.limits.max_removed_attribute_key_size.as_bytes()
+        self.inner
+            .values
+            .limits
+            .max_removed_attribute_key_size
+            .as_bytes()
     }
 
     /// The maximum number of seconds a query is allowed to take across retries.
     pub fn query_timeout(&self) -> Duration {
-        Duration::from_secs(self.values.limits.query_timeout)
+        Duration::from_secs(self.inner.values.limits.query_timeout)
     }
 
     /// The maximum number of seconds to wait for pending envelopes after receiving a shutdown
     /// signal.
     pub fn shutdown_timeout(&self) -> Duration {
-        Duration::from_secs(self.values.limits.shutdown_timeout)
+        Duration::from_secs(self.inner.values.limits.shutdown_timeout)
     }
 
     /// Returns the server keep-alive timeout in seconds.
     ///
     /// By default keep alive is set to a 5 seconds.
     pub fn keepalive_timeout(&self) -> Duration {
-        Duration::from_secs(self.values.limits.keepalive_timeout)
+        Duration::from_secs(self.inner.values.limits.keepalive_timeout)
     }
 
     /// Returns the server idle timeout in seconds.
     pub fn idle_timeout(&self) -> Option<Duration> {
-        self.values.limits.idle_timeout.map(Duration::from_secs)
+        self.inner
+            .values
+            .limits
+            .idle_timeout
+            .map(Duration::from_secs)
     }
 
     /// Returns the maximum connections.
     pub fn max_connections(&self) -> Option<usize> {
-        self.values.limits.max_connections
+        self.inner.values.limits.max_connections
     }
 
     /// TCP listen backlog to configure on Relay's listening socket.
     pub fn tcp_listen_backlog(&self) -> u32 {
-        self.values.limits.tcp_listen_backlog
+        self.inner.values.limits.tcp_listen_backlog
     }
 
     /// Returns the number of cores to use for thread pools.
     pub fn cpu_concurrency(&self) -> usize {
-        self.values.limits.max_thread_count
+        self.inner.values.limits.max_thread_count
     }
 
     /// Returns the number of tasks that can run concurrently in the worker pool.
     pub fn pool_concurrency(&self) -> usize {
-        self.values.limits.max_pool_concurrency
+        self.inner.values.limits.max_pool_concurrency
     }
 
     /// Returns the maximum size of a project config query.
     pub fn query_batch_size(&self) -> usize {
-        self.values.cache.batch_size
+        self.inner.values.cache.batch_size
     }
 
     /// True if the Relay should do processing.
     pub fn processing_enabled(&self) -> bool {
-        self.values.processing.enabled
+        self.inner.values.processing.enabled
     }
 
     /// Level of normalization for Relay to apply to incoming data.
     pub fn normalization_level(&self) -> NormalizationLevel {
-        self.values.normalization.level
+        self.inner.values.normalization.level
     }
 
     /// The path to the GeoIp database required for event processing.
     pub fn geoip_path(&self) -> Option<&Path> {
-        self.values
-            .geoip
-            .path
-            .as_deref()
-            .or(self.values.processing.geoip_path.as_deref())
+        self.inner.values.geoip.path.as_deref().or(self
+            .inner
+            .values
+            .processing
+            .geoip_path
+            .as_deref())
     }
 
     /// Maximum future timestamp of ingested data.
     ///
     /// Events past this timestamp will be adjusted to `now()`. Sessions will be dropped.
     pub fn max_secs_in_future(&self) -> i64 {
-        self.values.processing.max_secs_in_future.into()
+        self.inner.values.processing.max_secs_in_future.into()
     }
 
     /// Maximum age of ingested sessions. Older sessions will be dropped.
     pub fn max_session_secs_in_past(&self) -> i64 {
-        self.values.processing.max_session_secs_in_past.into()
+        self.inner.values.processing.max_session_secs_in_past.into()
     }
 
     /// Configuration name and list of Kafka configuration parameters for a given topic.
@@ -2707,59 +2740,60 @@ impl ConfigSnapshot {
         &self,
         topic: KafkaTopic,
     ) -> Result<KafkaTopicConfig<'_>, KafkaConfigError> {
-        self.values.processing.topics.get(topic).kafka_configs(
-            &self.values.processing.kafka_config,
-            &self.values.processing.secondary_kafka_configs,
-        )
+        self.inner
+            .values
+            .processing
+            .topics
+            .get(topic)
+            .kafka_configs(
+                &self.inner.values.processing.kafka_config,
+                &self.inner.values.processing.secondary_kafka_configs,
+            )
     }
 
     /// Whether to validate the topics against Kafka.
     pub fn kafka_validate_topics(&self) -> bool {
-        self.values.processing.kafka_validate_topics
+        self.inner.values.processing.kafka_validate_topics
     }
 
     /// All unused but configured topic assignments.
     pub fn unused_topic_assignments(&self) -> &relay_kafka::Unused {
-        &self.values.processing.topics.unused
+        &self.inner.values.processing.topics.unused
     }
 
     /// Configuration of the objectstore service.
     pub fn objectstore(&self) -> &ObjectstoreServiceConfig {
-        &self.values.processing.objectstore
+        &self.inner.values.processing.objectstore
     }
 
     /// Configuration of the upload service.
     pub fn upload(&self) -> &Upload {
-        &self.values.upload
+        &self.inner.values.upload
     }
 
     /// Returns the key used to sign upload locations.
     #[cfg(feature = "processing")]
     pub fn upload_signing_key(&self) -> Option<&SecretKey> {
-        // self.upload()
-        //     .credentials
-        //     .as_ref()
-        //     .map(|c| &c.signing_key)
-        //     .or(self.credentials().map(|c| &c.secret_key))
-
-        todo!()
+        self.upload()
+            .credentials
+            .as_ref()
+            .map(|c| &c.signing_key)
+            .or(self.credentials().map(|c| &c.secret_key))
     }
 
     /// Returns the key used to verify upload locations.
     #[cfg(feature = "processing")]
     pub fn upload_verification_key(&self) -> Option<&PublicKey> {
-        // self.upload()
-        //     .credentials
-        //     .as_ref()
-        //     .map(|c| &c.verification_key)
-        //     .or(self.credentials().map(|c| &c.public_key))
-
-        todo!()
+        self.upload()
+            .credentials
+            .as_ref()
+            .map(|c| &c.verification_key)
+            .or(self.credentials().map(|c| &c.public_key))
     }
 
     /// Redis servers to connect to for project configs, rate limiting, and metrics metadata.
     pub fn redis(&self) -> Option<RedisConfigsRef<'_>> {
-        let redis_configs = self.values.processing.redis.as_ref()?;
+        let redis_configs = self.inner.values.processing.redis.as_ref()?;
 
         Some(build_redis_configs(
             redis_configs,
@@ -2770,43 +2804,48 @@ impl ConfigSnapshot {
 
     /// Chunk size of attachments in bytes.
     pub fn attachment_chunk_size(&self) -> usize {
-        self.values.processing.attachment_chunk_size.as_bytes()
+        self.inner
+            .values
+            .processing
+            .attachment_chunk_size
+            .as_bytes()
     }
 
     /// Maximum metrics batch size in bytes.
     pub fn metrics_max_batch_size_bytes(&self) -> usize {
-        self.values.aggregator.max_flush_bytes
+        self.inner.values.aggregator.max_flush_bytes
     }
 
     /// Default prefix to use when looking up project configs in Redis. This is only done when
     /// Relay is in processing mode.
     pub fn projectconfig_cache_prefix(&self) -> &str {
-        &self.values.processing.projectconfig_cache_prefix
+        &self.inner.values.processing.projectconfig_cache_prefix
     }
 
     /// Maximum rate limit to report to clients in seconds.
     pub fn max_rate_limit(&self) -> Option<u64> {
-        self.values.processing.max_rate_limit.map(u32::into)
+        self.inner.values.processing.max_rate_limit.map(u32::into)
     }
 
     /// Amount of remaining quota which is cached in memory.
     pub fn quota_cache_ratio(&self) -> Option<f32> {
-        self.values.processing.quota_cache_ratio
+        self.inner.values.processing.quota_cache_ratio
     }
 
     /// Maximum limit (ratio) for the in memory quota cache.
     pub fn quota_cache_max(&self) -> Option<f32> {
-        self.values.processing.quota_cache_max
+        self.inner.values.processing.quota_cache_max
     }
 
     /// Interval to refresh internal health checks.
     pub fn health_refresh_interval(&self) -> Duration {
-        Duration::from_millis(self.values.health.refresh_interval_ms)
+        Duration::from_millis(self.inner.values.health.refresh_interval_ms)
     }
 
     /// Maximum memory watermark in bytes.
     pub fn health_max_memory_watermark_bytes(&self) -> u64 {
-        self.values
+        self.inner
+            .values
             .health
             .max_memory_bytes
             .as_ref()
@@ -2815,74 +2854,72 @@ impl ConfigSnapshot {
 
     /// Maximum memory watermark as a percentage of maximum system memory.
     pub fn health_max_memory_watermark_percent(&self) -> f32 {
-        self.values.health.max_memory_percent
+        self.inner.values.health.max_memory_percent
     }
 
     /// Health check probe timeout.
     pub fn health_probe_timeout(&self) -> Duration {
-        Duration::from_millis(self.values.health.probe_timeout_ms)
+        Duration::from_millis(self.inner.values.health.probe_timeout_ms)
     }
 
     /// Refresh frequency for polling new memory stats.
     pub fn memory_stat_refresh_frequency_ms(&self) -> u64 {
-        self.values.health.memory_stat_refresh_frequency_ms
+        self.inner.values.health.memory_stat_refresh_frequency_ms
     }
 
     /// Maximum amount of COGS measurements buffered in memory.
     pub fn cogs_max_queue_size(&self) -> u64 {
-        self.values.cogs.max_queue_size
+        self.inner.values.cogs.max_queue_size
     }
 
     /// Resource ID to use for Relay COGS measurements.
     pub fn cogs_relay_resource_id(&self) -> &str {
-        &self.values.cogs.relay_resource_id
+        &self.inner.values.cogs.relay_resource_id
     }
 
     /// Returns configuration for the default metrics aggregator.
     pub fn default_aggregator_config(&self) -> &AggregatorServiceConfig {
-        &self.values.aggregator
+        &self.inner.values.aggregator
     }
 
     /// Returns configuration for non-default metrics aggregator.
     pub fn secondary_aggregator_configs(&self) -> &Vec<ScopedAggregatorConfig> {
-        &self.values.secondary_aggregators
+        &self.inner.values.secondary_aggregators
     }
 
     /// Returns aggregator config for a given metrics namespace.
     pub fn aggregator_config_for(&self, namespace: MetricNamespace) -> &AggregatorServiceConfig {
-        for entry in &self.values.secondary_aggregators {
+        for entry in &self.inner.values.secondary_aggregators {
             if entry.condition.matches(Some(namespace)) {
                 return &entry.config;
             }
         }
-        &self.values.aggregator
+        &self.inner.values.aggregator
     }
 
     /// Return the statically configured Relays.
     pub fn static_relays(&self) -> &HashMap<RelayId, RelayInfo> {
-        &self.values.auth.static_relays
+        &self.inner.values.auth.static_relays
     }
 
     /// Returns the max age a signature is considered valid, in seconds.
     pub fn signature_max_age(&self) -> Duration {
-        Duration::from_secs(self.values.auth.signature_max_age)
+        Duration::from_secs(self.inner.values.auth.signature_max_age)
     }
 
     /// Returns `true` if unknown items should be accepted and forwarded.
     pub fn accept_unknown_items(&self) -> bool {
-        let forward = self.values.routing.accept_unknown_items;
+        let forward = self.inner.values.routing.accept_unknown_items;
         forward.unwrap_or_else(|| !self.processing_enabled())
     }
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            values: ArcSwap::from_pointee(LoadedConfig::just(ConfigValues::default())),
-            credentials: None,
-            overrides: Vec::new(),
-            path: PathBuf::new(),
-        }
+impl fmt::Debug for ConfigSnapshot {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ConfigSnapshot")
+            .field("values", &self.inner.values)
+            .field("dependencies", &self.inner.dependencies)
+            .finish()
     }
 }
 
@@ -2904,37 +2941,36 @@ cache:
         assert_eq!(values.cache.envelope_expiry, 1800);
     }
 
-    // TODO: fix this
-    //     #[cfg(feature = "processing")]
-    //     #[test]
-    //     fn test_upload_secret_key_from_file() {
-    //         let path = env::temp_dir().join(Uuid::new_v4().to_string());
-    //         fs::create_dir(&path).unwrap();
-    //         fs::write(
-    //             path.join("my_secret.txt"),
-    //             "U3LSQM5NorvgnoYHW_aZpc_43nuuh3lhs3zjjcBwaks",
-    //         )
-    //         .unwrap();
-    //         fs::write(
-    //             ConfigValues::path(&path),
-    //             r#"
-    // upload:
-    //     credentials:
-    //         signing_key: ${file:my_secret.txt}
-    //         verification_key: "VNS8haF0VTnuMMDR2t-f7AgnmUcXmcdzV3SVksSk34s""#,
-    //         )
-    //         .unwrap();
-    //
-    //         let config = Config::from_path(&path).unwrap();
-    //
-    //         fs::remove_dir_all(path).unwrap();
-    //
-    //         let signing_key = &config.upload().credentials.as_ref().unwrap().signing_key;
-    //         assert_eq!(
-    //             signing_key.to_string(),
-    //             "U3LSQM5NorvgnoYHW_aZpc_43nuuh3lhs3zjjcBwaks"
-    //         );
-    //     }
+    #[cfg(feature = "processing")]
+    #[test]
+    fn test_upload_secret_key_from_file() {
+        let path = env::temp_dir().join(Uuid::new_v4().to_string());
+        fs::create_dir(&path).unwrap();
+        fs::write(
+            path.join("my_secret.txt"),
+            "U3LSQM5NorvgnoYHW_aZpc_43nuuh3lhs3zjjcBwaks",
+        )
+        .unwrap();
+        fs::write(
+            ConfigValues::path(&path),
+            r#"
+    upload:
+        credentials:
+            signing_key: ${file:my_secret.txt}
+            verification_key: "VNS8haF0VTnuMMDR2t-f7AgnmUcXmcdzV3SVksSk34s""#,
+        )
+        .unwrap();
+
+        let config = Config::from_path(&path).unwrap().current();
+
+        fs::remove_dir_all(path).unwrap();
+
+        let signing_key = &config.upload().credentials.as_ref().unwrap().signing_key;
+        assert_eq!(
+            signing_key.to_string(),
+            "U3LSQM5NorvgnoYHW_aZpc_43nuuh3lhs3zjjcBwaks"
+        );
+    }
 
     #[test]
     fn test_emit_outcomes() {
