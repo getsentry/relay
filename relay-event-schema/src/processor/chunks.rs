@@ -89,12 +89,10 @@ where
     let mut pos = 0;
 
     for remark in remarks {
-        let (mut from, to) = match remark.range() {
+        let (from, to) = match remark.range() {
             Some(range) => *range,
             None => continue,
         };
-
-        from = from.max(pos);
 
         if from > pos {
             if let Some(piece) = text.get(pos..from) {
@@ -104,8 +102,9 @@ where
             } else {
                 break;
             }
+            pos = from;
         }
-        if let Some(piece) = text.get(from..to) {
+        if let Some(piece) = text.get(pos..to) {
             rv.push(Chunk::Redaction {
                 text: Cow::Borrowed(piece),
                 rule_id: remark.rule_id().into(),

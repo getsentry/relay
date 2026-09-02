@@ -686,14 +686,13 @@ mod tests {
                     "extra": {
                         "foo":{
                             "":{
-                                "rem":[["some_rule","s",0,3],["some_rule","s",0,3],["some_rule","s",0,1]]
+                                "rem":[["some_rule","s",0,3],["some_rule","s",0,3],["some_rule","s",0,0]]
                             }
                         }
                     }
                 }
             }"#,
         ).unwrap();
-        dbg!(&data);
 
         let scrubbing_config = DataScrubbingConfig {
             scrub_data: true,
@@ -707,7 +706,8 @@ mod tests {
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
 
-        println!("{}", data.to_json().unwrap());
+        // Verify that overlapping remarks do not make the string longer:
+        assert_eq!(get_value!(data.extra["foo"]!).0.as_str(), Some("bar"));
     }
 
     #[test]
