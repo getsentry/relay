@@ -24,11 +24,11 @@ const MAX_NUM_UNREAL_LOGS: usize = 40;
 const CLIENT_SDK_NAME: &str = "unreal.crashreporter";
 
 /// Extracts the items from an Unreal 4 crash report payload.
-pub fn extract_items(payload: Bytes, config: &Config) -> Result<Items, ProcessingError> {
+fn extract_items(payload: Bytes, config: &Config) -> Result<Items, ProcessingError> {
     let mut items = Items::new();
     let crash = Unreal4Crash::parse_with_limit(&payload, config.max_envelope_size())?;
 
-    for file in crash.files() {
+    for file in crash.files().take(config.max_attachment_count()) {
         let (content_type, attachment_type) = match file.ty() {
             Unreal4FileType::Minidump => (ContentType::Minidump, AttachmentType::Minidump),
             Unreal4FileType::AppleCrashReport => {
@@ -464,6 +464,27 @@ mod tests {
 "#;
 
         Unreal4Context::parse(raw_context).unwrap()
+    }
+
+    #[test]
+    fn test_extract_items_limits_attachment_count() {
+        let bytes = include_bytes!("../../../tests/integration/fixtures/native/unreal_crash");
+        let payload = Bytes::from_static(bytes);
+
+        // Everything parses with default config:
+        let config = Config::default();
+        let items = extract_items(payload.clone(), &config).unwrap();
+        assert_eq!(items.len(), 4);
+
+        // Extraction honors the attachment limit:
+        let config = Config::from_json_value(serde_json::json!({
+            "limits": {
+                "max_attachment_count": 3
+            }
+        }))
+        .unwrap();
+        let items = extract_items(payload, &config).unwrap();
+        assert_eq!(items.len(), 3);
     }
 
     #[test]
