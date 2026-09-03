@@ -22,18 +22,9 @@ impl Forward for UserReportsOutput {
         _: ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
         use crate::services::store::StoreUserReport;
-        use crate::statsd::RelayCounters;
-        use crate::utils::client_name_tag;
 
         let Self(reports) = self;
         let Some(event_id) = reports.headers.event_id() else {
-            // Temporary counter to figure out which SDKs are sendingb user reports without event IDs.
-            relay_statsd::metric!(
-                counter(RelayCounters::UserReport) += 1,
-                sdk = client_name_tag(reports.headers.meta().client_name()),
-                has_event_id = "false",
-            );
-
             return Err(reports.reject_err(super::Error::NoEventId).map(drop));
         };
 

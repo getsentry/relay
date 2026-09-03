@@ -48,18 +48,9 @@ impl Forward for ReplaysOutput {
         s: processing::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
-        use crate::{statsd::RelayCounters, utils::client_name_tag};
-
         let Self(replay) = self;
 
         let Some(event_id) = replay.headers.event_id() else {
-            // Temporary counter to figure out which SDKs are sendingb replays without event IDs.
-            relay_statsd::metric!(
-                counter(RelayCounters::Replay) += 1,
-                sdk = client_name_tag(replay.headers.meta().client_name()),
-                has_event_id = "false",
-            );
-
             return Err(replay.reject_err(super::Error::NoEventId).map(drop));
         };
 

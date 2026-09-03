@@ -76,7 +76,6 @@ pub enum Error {
     #[error("replay recording too large")]
     TooLarge,
     /// The envelope did not contain an event ID.
-    #[cfg(feature = "processing")]
     #[error("missing replay ID")]
     NoEventId,
 }
@@ -117,7 +116,6 @@ impl OutcomeError for Error {
             Self::TooLarge => Some(Outcome::Invalid(DiscardReason::ItemTooLarge(
                 crate::services::outcome::DiscardItemType::ReplayRecording,
             ))),
-            #[cfg(feature = "processing")]
             Self::NoEventId => Some(Outcome::Invalid(DiscardReason::InvalidEventId)),
         };
         (outcome, self)

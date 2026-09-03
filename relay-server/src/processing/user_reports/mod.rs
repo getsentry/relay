@@ -4,12 +4,15 @@ use relay_cogs::{AppFeature, FeatureWeights};
 use relay_quotas::RateLimits;
 
 use crate::envelope::{EnvelopeHeaders, Item, ItemType};
-use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
+use crate::managed::{
+    Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
+};
 use crate::processing::{Context, CountRateLimited, Output, Processor, QuotaRateLimiter};
 use crate::services::outcome::Outcome;
 
 mod forward;
 mod process;
+mod validate;
 
 pub use process::process_user_reports;
 
@@ -20,7 +23,6 @@ pub enum Error {
     RateLimited(RateLimits),
 
     /// The envelope did not contain an event ID.
-    #[cfg(feature = "processing")]
     #[error("missing event ID")]
     NoEventId,
 }
@@ -34,7 +36,6 @@ impl OutcomeError for Error {
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
                 Some(Outcome::RateLimited(reason_code))
             }
-            #[cfg(feature = "processing")]
             Self::NoEventId => Some(Outcome::Invalid(
                 crate::services::outcome::DiscardReason::InvalidEventId,
             )),
@@ -91,6 +92,7 @@ impl Processor for UserReportsProcessor {
         mut reports: Managed<Self::Input>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
+        validate::validate(&reports).reject(&reports)?;
         process::process(&mut reports);
 
         let reports = self.limiter.enforce_quotas(reports, ctx).await?;
