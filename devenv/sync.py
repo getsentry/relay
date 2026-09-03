@@ -1,11 +1,15 @@
 from devenv import constants
-from devenv.lib import brew, proc
+from devenv.lib import brew, fs, proc, uv
 
 import shutil
 
 
 def main(context: dict[str, str]) -> int:
     reporoot = context["reporoot"]
+
+    # clean up leftover devenv uv install
+    binroot = fs.ensure_binroot(reporoot)
+    uv.uninstall(binroot)
 
     brew.install()
 
