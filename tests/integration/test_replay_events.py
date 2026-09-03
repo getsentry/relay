@@ -122,7 +122,9 @@ def test_replay_events_without_processing(mini_sentry, relay_chain):
 
     replay_item = generate_replay_sdk_event()
 
-    relay.send_replay_event(42, replay_item)
+    relay.send_replay_event(
+        42, replay_item, envelope_headers={"event_id": replay_item["event_id"]}
+    )
 
     envelope = mini_sentry.get_captured_envelope(timeout=20)
     assert len(envelope.items) == 2
@@ -147,7 +149,9 @@ def test_replay_events_are_filtered(
     replay = generate_replay_sdk_event()
     replay["request"]["url"] = "http://localhost:1200"
 
-    relay.send_replay_event(42, replay)
+    relay.send_replay_event(
+        42, replay, envelope_headers={"event_id": replay["event_id"]}
+    )
 
     outcome = outcomes_consumer.get_outcome(timeout=10)
     assert outcome["org_id"] == 1
@@ -188,7 +192,9 @@ def test_time_corrections(mini_sentry, relay, delta, error):
     replay["timestamp"] = sdk_ts
     replay["replay_start_timestamp"] = sdk_start_ts
 
-    relay.send_replay_event(project_id, replay)
+    relay.send_replay_event(
+        42, replay, envelope_headers={"event_id": replay["event_id"]}
+    )
     if error == "past_timestamp":
         assert mini_sentry.get_aggregated_outcomes() == [
             {
