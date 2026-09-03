@@ -26,6 +26,7 @@
 - Reject Nintendo Switch dying message attachments with an invalid magic number instead of panicking on a short payload. ([#6253](https://github.com/getsentry/relay/pull/6253))
 - Downgrade Kafka to prevent producers from getting stuck. ([#6336](https://github.com/getsentry/relay/pull/6336))
 - Prevent memory bomb in PII processor's `split_chunks`. ([#6343](https://github.com/getsentry/relay/pull/6343))
+- Fill in missing event IDs only if items would create events. ([#6350](https://github.com/getsentry/relay/pull/6350))
 
 **Internal**:
 
