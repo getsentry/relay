@@ -1,6 +1,6 @@
 use std::fmt;
 
-use relay_quotas::{ItemScoping, Quota, RateLimits};
+use relay_quotas::{Dimensions, ItemScoping, Quota, RateLimits};
 
 use crate::managed::OutcomeError;
 use crate::processing::{Context, Counted, Managed, Rejected};
@@ -146,6 +146,10 @@ where
 /// if any category has rate limits enforced the implementation will reject the entire item.
 pub trait CountRateLimited {
     type Error: From<RateLimits> + OutcomeError;
+
+    fn dimensions(&self) -> Option<Dimensions> {
+        None
+    }
 }
 
 impl<T> RateLimited for Managed<T>
@@ -167,9 +171,13 @@ where
         let scoping = self.scoping();
 
         for (category, quantity) in self.quantities() {
-            let limits = rate_limiter
-                .try_consume(scoping.item(category), quantity)
-                .await;
+            let scope = if let Some(dimensions) = self.dimensions() {
+                scoping.item_with_dimensions(category, dimensions)
+            } else {
+                scoping.item(category)
+            };
+
+            let limits = rate_limiter.try_consume(&scope, quantity).await;
 
             if !limits.is_empty() {
                 let error = <Managed<T> as CountRateLimited>::Error::from(limits);

@@ -181,26 +181,7 @@ pub fn process_check_in(
     payload: &[u8],
     project_id: ProjectId,
 ) -> Result<ProcessedCheckInResult, ProcessCheckInError> {
-    let mut check_in = serde_json::from_slice::<CheckIn>(payload)?;
-
-    // Missed status cannot be ingested, this is computed on the server.
-    if check_in.status == CheckInStatus::Missed {
-        check_in.status = CheckInStatus::Unknown;
-    }
-
-    trim_slug(&mut check_in.monitor_slug);
-
-    if check_in.monitor_slug.is_empty() {
-        return Err(ProcessCheckInError::EmptySlug);
-    }
-
-    if check_in
-        .environment
-        .as_ref()
-        .is_some_and(|e| e.chars().count() > ENVIRONMENT_LENGTH)
-    {
-        return Err(ProcessCheckInError::InvalidEnvironment);
-    }
+    let check_in = payload_to_checkin(payload)?;
 
     static NAMESPACE: OnceLock<Uuid> = OnceLock::new();
     let namespace = NAMESPACE
@@ -232,6 +213,25 @@ pub fn process_check_in(
         routing_hint,
         payload: serde_json::to_vec(&check_in)?,
     })
+}
+
+pub fn payload_to_checkin(payload: &[u8]) -> Result<CheckIn, ProcessCheckInError> {
+    let mut check_in = serde_json::from_slice::<CheckIn>(payload)?;
+    if check_in.status == CheckInStatus::Missed {
+        check_in.status = CheckInStatus::Unknown;
+    }
+    trim_slug(&mut check_in.monitor_slug);
+    if check_in.monitor_slug.is_empty() {
+        return Err(ProcessCheckInError::EmptySlug);
+    }
+    if check_in
+        .environment
+        .as_ref()
+        .is_some_and(|e| e.chars().count() > ENVIRONMENT_LENGTH)
+    {
+        return Err(ProcessCheckInError::InvalidEnvironment);
+    }
+    Ok(check_in)
 }
 
 fn trim_slug(slug: &mut String) {

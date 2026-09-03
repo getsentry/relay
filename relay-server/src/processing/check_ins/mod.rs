@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use relay_cogs::{AppFeature, FeatureWeights};
-use relay_quotas::{DataCategory, RateLimits};
+use relay_monitors::payload_to_checkin;
+use relay_quotas::{DataCategory, Dimensions, RateLimits};
 
 use crate::Envelope;
 use crate::envelope::{EnvelopeHeaders, Item, ItemType, Items};
@@ -158,4 +159,21 @@ impl Counted for SerializedCheckIns {
 
 impl CountRateLimited for Managed<SerializedCheckIns> {
     type Error = Error;
+
+    fn dimensions(&self) -> Option<Dimensions> {
+        // Yikes--we have to do a second payload_to_checkin, which is a second deserialization, in
+        // order to get the normalized slug and environment strings.
+
+        if let Ok(checkin) = payload_to_checkin(&self.check_ins.first().unwrap().payload()) {
+            let mut dims = Dimensions::new();
+            dims.insert(
+                relay_quotas::Dimension::CheckInEnvironment,
+                checkin.environment.unwrap_or_default(),
+            );
+            dims.insert(relay_quotas::Dimension::CheckInSlug, checkin.monitor_slug);
+            return Some(dims);
+        }
+
+        None
+    }
 }

@@ -1,4 +1,6 @@
+use std::collections::BTreeMap;
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -43,6 +45,20 @@ impl Scoping {
             category,
             scoping: *self,
             namespace: MetricNamespaceScoping::None,
+            dimensions: Dimensions::default(),
+        }
+    }
+
+    pub fn item_with_dimensions(
+        &self,
+        category: DataCategory,
+        dimensions: Dimensions,
+    ) -> ItemScoping {
+        ItemScoping {
+            category,
+            scoping: *self,
+            namespace: MetricNamespaceScoping::None,
+            dimensions,
         }
     }
 
@@ -56,6 +72,7 @@ impl Scoping {
             category: DataCategory::MetricBucket,
             scoping: *self,
             namespace: MetricNamespaceScoping::Some(namespace),
+            dimensions: Dimensions::default(),
         }
     }
 }
@@ -107,7 +124,7 @@ impl From<MetricNamespace> for MetricNamespaceScoping {
 ///
 /// [`ItemScoping`] combines a data category, scoping information, and optional
 /// metric namespace to fully define an item for rate limiting purposes.
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ItemScoping {
     /// The data category of the item.
     pub category: DataCategory,
@@ -117,7 +134,14 @@ pub struct ItemScoping {
 
     /// Namespace for metric items, requiring [`DataCategory::MetricBucket`].
     pub namespace: MetricNamespaceScoping,
+
+    /// Dimensions this quota will be matched on.
+    pub dimensions: Dimensions,
 }
+
+// Maybe this should be <DimensionKind, DimensionType>, but given we're going to be
+// hashing, maybe strings are all we need?
+pub type Dimensions = BTreeMap<Dimension, String>;
 
 impl std::ops::Deref for ItemScoping {
     type Target = Scoping;
@@ -141,6 +165,29 @@ impl ItemScoping {
         }
     }
 
+    /// Converts the btree of dimensions on this quota into a single hashed 64-bit
+    /// number, itself converted to a string.  Returns an empty string if there were no
+    /// dimensions (or only Unknown dimensions) on this quota.
+    pub fn dimensions_as_string(&self) -> String {
+        let mut hasher = fnv::FnvHasher::with_key(1);
+
+        let mut did_work = false;
+        for (_, dim) in self
+            .dimensions
+            .iter()
+            .filter(|(d, s)| !matches!(d, Dimension::Unknown))
+        {
+            did_work = true;
+            dim.hash(&mut hasher);
+        }
+
+        if !did_work {
+            return String::default();
+        }
+
+        hasher.finish().to_string()
+    }
+
     /// Checks whether the category matches any of the quota's categories.
     pub(crate) fn matches_categories(&self, categories: DataCategories) -> bool {
         // An empty list of categories means that this quota matches all categories. Note that we
@@ -148,6 +195,24 @@ impl ItemScoping {
         // we do **not** match, since apparently the quota is meant for some data this Relay does
         // not support yet.
         categories.is_empty() || categories.contains(&self.category)
+    }
+
+    pub(crate) fn matches_dimensions(&self, dimensions: &Option<Vec<Dimension>>) -> bool {
+        let Some(dimensions) = dimensions else {
+            return self.dimensions.len() == 0;
+        };
+
+        if self.dimensions.len() != dimensions.len() {
+            return false;
+        }
+
+        for dim in dimensions {
+            if !self.dimensions.contains_key(dim) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// Returns `true` if the rate limit namespace matches the namespace of the item.
@@ -498,6 +563,22 @@ pub struct Quota {
     /// unlimited quotas can never be exceeded.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason_code: Option<ReasonCode>,
+
+    /// The optional list of dimensions that this quota will use.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dimensions: Option<Vec<Dimension>>,
+}
+
+/// The kinds of dimensions that can be applied to a given quota.
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq, PartialOrd, Ord, Hash)]
+pub enum Dimension {
+    /// The environment used in a monitor check-in.
+    CheckInEnvironment,
+
+    /// The slug used in a monitor check-in.
+    CheckInSlug,
+
+    Unknown,
 }
 
 impl Quota {
@@ -557,10 +638,11 @@ impl Quota {
     ///
     /// This method determines if this quota should be applied to a given item
     /// based on its scope, categories, and namespace.
-    pub fn matches(&self, scoping: ItemScoping) -> bool {
-        self.matches_scope(scoping)
+    pub fn matches(&self, scoping: &ItemScoping) -> bool {
+        self.matches_scope(&scoping)
             && scoping.matches_categories(self.categories)
             && scoping.matches_namespaces(&self.namespace)
+            && scoping.matches_dimensions(&self.dimensions)
     }
 }
 

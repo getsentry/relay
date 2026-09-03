@@ -366,6 +366,7 @@ impl RedisRateLimiter {
                 let redis_key = quota.key().to_string();
                 // Remaining quotas are expected to be track-able in Redis.
                 let refund_key = get_refunded_quota_key(&redis_key);
+                let redis_dims_key = item_scoping.dimensions_as_string();
 
                 invocation.key(redis_key);
                 invocation.key(refund_key);
@@ -374,6 +375,7 @@ impl RedisRateLimiter {
                 invocation.arg(quota.key_expiry());
                 invocation.arg(quota.quantity);
                 invocation.arg(over_accept_once);
+                invocation.arg(redis_dims_key);
 
                 tracked_quotas.push(quota);
             } else {
