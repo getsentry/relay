@@ -8,7 +8,7 @@ use crate::utils::client_name_tag;
 pub fn validate(replay: &ExpandedReplay) -> Result<()> {
     let has_event_id = replay.headers.event_id().is_some();
 
-    // Temporary counter to figure out which SDKs are sendingb replays without event IDs.
+    // Temporary counter to figure out which SDKs are sending replays without event IDs.
     relay_statsd::metric!(
         counter(RelayCounters::Replay) += 1,
         sdk = client_name_tag(replay.headers.meta().client_name()),
