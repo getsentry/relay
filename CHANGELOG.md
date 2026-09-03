@@ -28,6 +28,7 @@
 - Downgrade Kafka to prevent producers from getting stuck. ([#6336](https://github.com/getsentry/relay/pull/6336))
 - Use async instead of sync decompression in minidump endpoint. ([#6341](https://github.com/getsentry/relay/pull/6341))
 - Prevent memory bomb in PII processor's `split_chunks`. ([#6343](https://github.com/getsentry/relay/pull/6343))
+- Fill in missing event IDs only if items would create events. ([#6350](https://github.com/getsentry/relay/pull/6350))
 
 **Internal**:
 

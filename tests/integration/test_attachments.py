@@ -6,6 +6,7 @@ import json
 
 from requests.exceptions import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
+from sentry_relay.consts import DataCategory
 
 from .asserts import matches_any
 from .test_store import make_transaction
@@ -446,7 +447,7 @@ Dana White dana.white@example.co.uk +1029384756 6011 0009 9013 9424
 path=c:\Users\yan\mylogfile.txt
 password=mysupersecretpassword123"""
 
-    envelope = Envelope()
+    envelope = Envelope(headers={"event_id": "515539018c9b4260a6f999572f1661ee"})
     item = Item(
         payload=attachment, type="attachment", headers={"filename": "logfile.txt"}
     )
@@ -734,6 +735,53 @@ def test_event_with_attachment(
 
     _, event = transactions_consumer.get_event()
     assert event["event_id"] == event_id
+
+
+def test_attachment_without_event_id(
+    mini_sentry,
+    relay_with_processing,
+    outcomes_consumer,
+):
+    project_id = 42
+
+    mini_sentry.add_full_project_config(project_id)
+    outcomes_consumer = outcomes_consumer()
+
+    relay = relay_with_processing()
+
+    envelope = Envelope(headers=[])
+    envelope.add_item(
+        Item(
+            type="attachment",
+            payload=PayloadRef(bytes=b"event attachment"),
+            filename="event.txt",
+            content_type="text/plain",
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
+    assert outcomes == [
+        {
+            "category": DataCategory.ATTACHMENT.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,  # Invalid
+            "project_id": 42,
+            "quantity": 16,
+            "reason": "invalid_event_id",
+        },
+        {
+            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,  # Invalid
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "invalid_event_id",
+        },
+    ]
 
 
 def test_form_data_is_rejected(
