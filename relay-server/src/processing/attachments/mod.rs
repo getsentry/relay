@@ -36,7 +36,7 @@ impl OutcomeError for Error {
                 Some(Outcome::RateLimited(reason_code))
             }
             #[cfg(feature = "processing")]
-            Self::NoEventId => Some(Outcome::Invalid(DiscardReason::Internal)),
+            Self::NoEventId => Some(Outcome::Invalid(DiscardReason::InvalidEventId)),
         };
         (outcome, self)
     }
