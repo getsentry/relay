@@ -1028,6 +1028,18 @@ pub enum RelayCounters {
     /// - `sdk`: low-cardinality client name
     /// - `has_event_id`: whether the envelope contained an event ID
     StandaloneAttachment,
+    /// Amount of user reports processed.
+    ///
+    /// This metric is tagged with:
+    /// - `sdk`: low-cardinality client name
+    /// - `has_event_id`: whether the envelope contained an event ID
+    UserReport,
+    /// Amount of replays processed.
+    ///
+    /// This metric is tagged with:
+    /// - `sdk`: low-cardinality client name
+    /// - `has_event_id`: whether the envelope contained an event ID
+    Replay,
 }
 
 impl CounterMetric for RelayCounters {
@@ -1095,6 +1107,8 @@ impl CounterMetric for RelayCounters {
             RelayCounters::CompressedMinidump => "minidump.compressed.count",
             RelayCounters::TraceMetricNilTraceId => "trace_metric.nil_trace_id",
             RelayCounters::StandaloneAttachment => "processing.standalone_attachment",
+            RelayCounters::UserReport => "processing.user_report",
+            RelayCounters::Replay => "processing.replay",
         }
     }
 }
