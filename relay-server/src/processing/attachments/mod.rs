@@ -96,6 +96,10 @@ impl processing::Processor for AttachmentProcessor {
         mut attachments: Managed<Self::Input>,
         ctx: processing::Context<'_>,
     ) -> Result<processing::Output<Self::Output>, Rejected<Self::Error>> {
+        if attachments.headers.event_id().is_none() {
+            return Err(attachments.reject_err(Error::NoEventId));
+        }
+
         attachments::validate_attachments(&mut attachments, |a| &mut a.attachments, ctx);
         let mut attachments = self.limiter.enforce_quotas(attachments, ctx).await?;
         process::scrub(&mut attachments, ctx)?;

@@ -1,6 +1,6 @@
 use crate::Envelope;
 use crate::managed::{Managed, Rejected};
-use crate::processing::attachments::{AttachmentsOutput, Error};
+use crate::processing::attachments::AttachmentsOutput;
 use crate::processing::{self, Forward};
 
 impl Forward for AttachmentsOutput {
@@ -9,11 +9,6 @@ impl Forward for AttachmentsOutput {
         _: processing::ForwardContext<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         let Self(attachments) = self;
-
-        if attachments.headers.event_id().is_none() {
-            return Err(attachments.reject_err(Error::NoEventId).map(drop));
-        }
-
         Ok(attachments.map(|attachments, _| {
             Envelope::from_parts(attachments.headers, attachments.attachments)
         }))
@@ -25,6 +20,8 @@ impl Forward for AttachmentsOutput {
         s: processing::StoreHandle<'_>,
         ctx: processing::ForwardContext<'_>,
     ) -> Result<(), Rejected<()>> {
+        use crate::processing::attachments::Error;
+
         let Self(attachments) = self;
 
         let Some(event_id) = attachments.headers.event_id() else {
