@@ -1,12 +1,11 @@
 from devenv import constants
-from devenv.lib import brew, config, proc, uv
+from devenv.lib import brew, proc
 
 import shutil
 
 
 def main(context: dict[str, str]) -> int:
     reporoot = context["reporoot"]
-    cfg = config.get_repo(reporoot)
 
     brew.install()
 
@@ -38,17 +37,14 @@ def main(context: dict[str, str]) -> int:
     print("updating submodules")
     proc.run(("git", "submodule", "update", "--init", "--recursive"))
 
-    uv.install(
-        cfg["uv"]["version"],
-        cfg["uv"][constants.SYSTEM_MACHINE],
-        cfg["uv"][f"{constants.SYSTEM_MACHINE}_sha256"],
-        reporoot,
-    )
-
     print("syncing .venv ...")
+
+    if not shutil.which("uv"):
+        raise SystemExit("uv not on PATH. Did you run `direnv allow`?")
+
     proc.run(
         (
-            f"{reporoot}/.devenv/bin/uv",
+            "uv",
             "sync",
             "--frozen",
             "--quiet",
