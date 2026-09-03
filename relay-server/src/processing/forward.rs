@@ -1,4 +1,4 @@
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use relay_dynamic_config::GlobalConfig;
 use relay_dynamic_config::{RetentionConfig, RetentionsConfig};
 #[cfg(feature = "processing")]
@@ -105,7 +105,7 @@ pub trait Forward {
 #[derive(Copy, Clone, Debug)]
 pub struct ForwardContext<'a> {
     /// The Relay configuration.
-    pub config: &'a Config,
+    pub config: &'a ConfigSnapshot,
     /// A view of the currently active global configuration.
     #[cfg_attr(not(feature = "processing"), expect(unused))]
     pub global_config: &'a GlobalConfig,

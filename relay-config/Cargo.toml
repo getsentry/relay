@@ -18,6 +18,7 @@ workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
+arc-swap = { workspace = true }
 human-size = { workspace = true }
 num_cpus = { workspace = true }
 relay-auth = { workspace = true }

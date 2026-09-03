@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::time::Instant;
 
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use relay_pii::{PiiAttachmentsProcessor, PiiConfig, SelectorPathItem, SelectorSpec};
 use relay_statsd::metric;
 
@@ -35,7 +35,7 @@ pub fn validate_attachments<T, V>(
 }
 
 #[cfg_attr(not(feature = "processing"), expect(unused_variables))]
-fn validate(item: &Item, config: &Config) -> Result<(), ProcessingError> {
+fn validate(item: &Item, config: &ConfigSnapshot) -> Result<(), ProcessingError> {
     #[cfg(not(feature = "processing"))]
     return Ok(());
 

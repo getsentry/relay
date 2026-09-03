@@ -10,7 +10,9 @@ pub mod aggregator;
 mod byte_size;
 mod config;
 mod redis;
+mod source;
 mod upstream;
+mod utils;
 
 pub use crate::aggregator::{AggregatorServiceConfig, ScopedAggregatorConfig};
 pub use crate::byte_size::*;

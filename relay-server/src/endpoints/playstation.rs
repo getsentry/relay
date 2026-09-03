@@ -5,7 +5,7 @@ use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use multer::{Field, Multipart};
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use relay_dynamic_config::Feature;
 use relay_quotas::DataCategory;
 use relay_system::Addr;
@@ -140,7 +140,7 @@ impl<'a> AttachmentStrategy for PlaystationAttachmentStrategy<'a> {
         &self,
         field: Field<'static>,
         item: Managed<Item>,
-        config: &Config,
+        config: &ConfigSnapshot,
     ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
         match &self.upload_context {
             Some(upload_context) if self.infer_type(&field) != AttachmentType::Prosperodump => {
@@ -200,7 +200,7 @@ async fn multipart_to_items(
 ) -> Result<Managed<Items>, BadStoreRequest> {
     let mut items = utils::multipart_items(
         multipart,
-        state.config(),
+        &state.config(),
         PlaystationAttachmentStrategy { upload_context },
         meta,
         state.outcome_aggregator(),
@@ -260,7 +260,7 @@ async fn handle(
     Ok(TextResponse(id).into_response())
 }
 
-pub fn route(config: &Config) -> MethodRouter<ServiceState> {
+pub fn route(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
     post(handle)
         .route_layer(RequestBodyLimitLayer::new(
             config.max_upload_size() + config.max_attachments_size(),

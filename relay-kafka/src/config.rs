@@ -74,7 +74,7 @@ impl KafkaTopic {
 macro_rules! define_topic_assignments {
     ($($field_name:ident : ($kafka_topic:path, $default_topic:literal, $doc:literal)),* $(,)?) => {
         /// Configuration for topics.
-        #[derive(Deserialize, Serialize, Debug)]
+        #[derive(Deserialize, Serialize, Debug, Clone)]
         #[serde(default)]
         pub struct TopicAssignments {
             $(
@@ -144,7 +144,7 @@ define_topic_assignments! {
 }
 
 /// A list of all currently, by this Relay, unused topic configurations.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Unused(Vec<String>);
 
 impl Unused {
@@ -171,7 +171,7 @@ impl<'de> de::Deserialize<'de> for Unused {
 /// custom kafka cluster, or an array of topic names/configs for sharded topics.
 ///
 /// See documentation for `secondary_kafka_configs` for more information.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct TopicAssignment(Vec<TopicConfig>);
 
 impl<'de> de::Deserialize<'de> for TopicAssignment {
@@ -207,7 +207,7 @@ impl<'de> de::Deserialize<'de> for TopicAssignment {
 }
 
 /// Configuration for topic
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct TopicConfig {
     /// The topic name to use.
     #[serde(rename = "name")]
@@ -310,7 +310,7 @@ impl TopicAssignment {
 }
 
 /// A name value pair of Kafka config parameter.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct KafkaConfigParam {
     /// Name of the Kafka config parameter.
     pub name: String,
