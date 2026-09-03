@@ -2128,7 +2128,7 @@ dependencies = [
  "js-sys",
  "log",
  "wasm-bindgen",
- "windows-core 0.62.2",
+ "windows-core",
 ]
 
 [[package]]
@@ -4080,9 +4080,9 @@ dependencies = [
 
 [[package]]
 name = "quick-xml"
-version = "0.40.1"
+version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2474bd2e5029e7ccb6abb2ba48cf2383a333851dedf495901544281590c7da7f"
+checksum = "e660451e55124f798a69a5af3f49ccfbefbd41910eefd25caf2393e1f3473ec1"
 dependencies = [
  "memchr",
 ]
@@ -4518,6 +4518,7 @@ name = "relay-config"
 version = "26.8.0"
 dependencies = [
  "anyhow",
+ "arc-swap",
  "human-size",
  "insta",
  "num_cpus",
@@ -5736,9 +5737,9 @@ dependencies = [
 
 [[package]]
 name = "serde-vars"
-version = "0.3.1"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c31ed6ad0418012bd1f7493bb01d9b107e81aec23042be9292d7d154909a5c45"
+checksum = "3a65612ae74ca3f9679f104fee36535603891b589ec4ce665569940600c6f2a4"
 dependencies = [
  "serde",
 ]
@@ -6272,9 +6273,8 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "symbolic-common"
-version = "14.0.0-alpha.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5c3feac7ee22596442698d72c3b6eb7cad20117a4590f282b81c3ecf3fa7f05"
+version = "14.0.0-alpha.3"
+source = "git+https://github.com/getsentry/symbolic?rev=c1a4ce020b5e384635a65aae63098935da8d7f84#c1a4ce020b5e384635a65aae63098935da8d7f84"
 dependencies = [
  "debugid",
  "memmap2",
@@ -6284,9 +6284,8 @@ dependencies = [
 
 [[package]]
 name = "symbolic-unreal"
-version = "14.0.0-alpha.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "777a743a43c7dc8d1820aafe89540b4f3309d1c3d0613547d59d53bcefdedb5f"
+version = "14.0.0-alpha.3"
+source = "git+https://github.com/getsentry/symbolic?rev=c1a4ce020b5e384635a65aae63098935da8d7f84#c1a4ce020b5e384635a65aae63098935da8d7f84"
 dependencies = [
  "anylog",
  "bytes",
@@ -6379,7 +6378,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
@@ -7202,7 +7201,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9babd3a767a4c1aef6900409f85f5d53ce2544ccdfaa86dad48c91782c6d6893"
 dependencies = [
  "windows-collections",
- "windows-core 0.61.2",
+ "windows-core",
  "windows-future",
  "windows-link 0.1.3",
  "windows-numerics",
@@ -7214,7 +7213,7 @@ version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3beeceb5e5cfd9eb1d76b381630e82c4241ccd0d27f1a39ed41b2760b255c5e8"
 dependencies = [
- "windows-core 0.61.2",
+ "windows-core",
 ]
 
 [[package]]
@@ -7231,25 +7230,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "windows-core"
-version = "0.62.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8e83a14d34d0623b51dce9581199302a221863196a1dde71a7663a4c2be9deb"
-dependencies = [
- "windows-implement",
- "windows-interface",
- "windows-link 0.2.1",
- "windows-result 0.4.1",
- "windows-strings 0.5.1",
-]
-
-[[package]]
 name = "windows-future"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc6a41e98427b19fe4b73c550f060b59fa592d7d686537eebf9385621bfbad8e"
 dependencies = [
- "windows-core 0.61.2",
+ "windows-core",
  "windows-link 0.1.3",
  "windows-threading",
 ]
@@ -7294,7 +7280,7 @@ version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9150af68066c4c5c07ddc0ce30421554771e528bde427614c61038bc2c92c2b1"
 dependencies = [
- "windows-core 0.61.2",
+ "windows-core",
  "windows-link 0.1.3",
 ]
 

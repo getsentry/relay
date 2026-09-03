@@ -213,7 +213,7 @@ sentry-types = "0.41"
 sentry_protos = "0.7"
 serde = { version = "=1.0.228", features = ["derive", "rc"] }
 serde-transcode = "1"
-serde-vars = "0.3"
+serde-vars = "0.4"
 serde_bytes = "0.11"
 serde_json = "1"
 serde_path_to_error = "0.1"
@@ -227,8 +227,8 @@ smallvec = { version = "1", features = ["serde"] }
 socket2 = "0.6"
 sqlparser = "0.62"
 sqlx = { version = "0.8", default-features = false }
-symbolic-common = { version = "14.0.0-alpha.2", default-features = false }
-symbolic-unreal = { version = "14.0.0-alpha.2", default-features = false }
+symbolic-common = { git = "https://github.com/getsentry/symbolic", rev = "c1a4ce020b5e384635a65aae63098935da8d7f84", default-features = false }
+symbolic-unreal = { git = "https://github.com/getsentry/symbolic", rev = "c1a4ce020b5e384635a65aae63098935da8d7f84", default-features = false }
 syn = "2"
 sync_wrapper = "1"
 synstructure = "0.13"

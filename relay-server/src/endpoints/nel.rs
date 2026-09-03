@@ -4,7 +4,7 @@ use axum::extract::DefaultBodyLimit;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 
 use crate::endpoints::common;
 use crate::extractors::{IntegrationBuilder, Mime};
@@ -41,6 +41,6 @@ async fn handle(
     Ok(StatusCode::OK)
 }
 
-pub fn route(config: &Config) -> MethodRouter<ServiceState> {
+pub fn route(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
     post(handle).route_layer(DefaultBodyLimit::max(config.max_container_size()))
 }

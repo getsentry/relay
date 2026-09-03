@@ -6,14 +6,8 @@ pub struct RedisScripts;
 
 impl RedisScripts {
     /// Returns all [`Script`]s.
-    pub fn all() -> [&'static Script; 2] {
-        [Self::load_global_quota(), Self::load_is_rate_limited()]
-    }
-
-    /// Loads the global quota Redis script.
-    pub fn load_global_quota() -> &'static Script {
-        static SCRIPT: OnceLock<Script> = OnceLock::new();
-        SCRIPT.get_or_init(|| Script::new(include_str!("scripts/global_quota.lua")))
+    pub fn all() -> [&'static Script; 1] {
+        [Self::load_is_rate_limited()]
     }
 
     /// Loads the rate limiting check Redis script.

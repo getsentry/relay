@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use relay_auth::{PublicKey, RelayId};
-use relay_config::{Config, RelayInfo};
+use relay_config::{Config, ConfigSnapshot, RelayInfo};
 use relay_system::{
     Addr, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
 };
@@ -135,7 +135,7 @@ enum RelayState {
 
 impl RelayState {
     /// Returns `true` if this cache entry is still valid.
-    fn is_valid_cache(&self, config: &Config) -> bool {
+    fn is_valid_cache(&self, config: &ConfigSnapshot) -> bool {
         match *self {
             RelayState::Exists { checked_at, .. } => {
                 checked_at.elapsed() < config.relay_cache_expiry()
@@ -192,12 +192,13 @@ pub struct RelayCacheService {
 impl RelayCacheService {
     /// Creates a new [`RelayCache`] service.
     pub fn new(config: Arc<Config>, upstream_relay: Addr<UpstreamRelay>) -> Self {
+        let current_config = config.current();
         Self {
-            static_relays: config.static_relays().clone(),
+            static_relays: current_config.static_relays().clone(),
             relays: HashMap::new(),
             channels: HashMap::new(),
             fetch_channel: mpsc::channel(1),
-            backoff: RetryBackoff::new(config.http_max_retry_interval()),
+            backoff: RetryBackoff::new(current_config.http_max_retry_interval()),
             delay: SleepHandle::idle(),
             config,
             upstream_relay,
@@ -215,7 +216,7 @@ impl RelayCacheService {
     /// If previous queries succeeded, this will be the general batch interval. Additionally, an
     /// exponentially increasing backoff is used for retrying the upstream request.
     fn next_backoff(&mut self) -> Duration {
-        self.config.downstream_relays_batch_interval() + self.backoff.next_backoff()
+        self.config.current().downstream_relays_batch_interval() + self.backoff.next_backoff()
     }
 
     /// Schedules a batched upstream query with exponential backoff.
@@ -308,13 +309,13 @@ impl RelayCacheService {
         }
 
         if let Some(key) = self.relays.get(&relay_id)
-            && key.is_valid_cache(&self.config)
+            && key.is_valid_cache(&self.config.current())
         {
             sender.send(key.as_option().cloned());
             return;
         }
 
-        if self.config.credentials().is_none() {
+        if !self.config.current().has_credentials() {
             relay_log::error!(
                 "no credentials configured. relay {relay_id} cannot send requests to this relay",
             );

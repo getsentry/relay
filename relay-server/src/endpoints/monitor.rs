@@ -4,7 +4,7 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{MethodFilter, MethodRouter, on};
 use axum::{Json, RequestExt};
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use relay_event_schema::protocol::EventId;
 use relay_monitors::{CheckIn, CheckInStatus};
 use serde::Deserialize;
@@ -74,7 +74,7 @@ async fn handle(
     Ok(StatusCode::ACCEPTED)
 }
 
-pub fn route(config: &Config) -> MethodRouter<ServiceState> {
+pub fn route(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
     on(MethodFilter::GET.or(MethodFilter::POST), handle)
         .route_layer(DefaultBodyLimit::max(config.max_event_size()))
 }

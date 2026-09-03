@@ -10,6 +10,8 @@ use crate::processing::{self, CountRateLimited, Output, QuotaRateLimiter};
 #[cfg(feature = "processing")]
 use crate::services::outcome::DiscardReason;
 use crate::services::outcome::Outcome;
+use crate::statsd::RelayCounters;
+use crate::utils::client_name_tag;
 
 mod forward;
 mod process;
@@ -96,7 +98,14 @@ impl processing::Processor for AttachmentProcessor {
         mut attachments: Managed<Self::Input>,
         ctx: processing::Context<'_>,
     ) -> Result<processing::Output<Self::Output>, Rejected<Self::Error>> {
+        // Temporary counter to figure out which SDKs are still sending standalone attachments.
+        relay_statsd::metric!(
+            counter(RelayCounters::StandaloneAttachment) += 1,
+            sdk = client_name_tag(attachments.headers.meta().client_name())
+        );
+
         attachments::validate_attachments(&mut attachments, |a| &mut a.attachments, ctx);
+
         let mut attachments = self.limiter.enforce_quotas(attachments, ctx).await?;
         process::scrub(&mut attachments, ctx)?;
 
