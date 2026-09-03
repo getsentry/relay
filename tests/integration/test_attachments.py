@@ -447,7 +447,7 @@ Dana White dana.white@example.co.uk +1029384756 6011 0009 9013 9424
 path=c:\Users\yan\mylogfile.txt
 password=mysupersecretpassword123"""
 
-    envelope = Envelope()
+    envelope = Envelope(headers={"event_id": "515539018c9b4260a6f999572f1661ee"})
     item = Item(
         payload=attachment, type="attachment", headers={"filename": "logfile.txt"}
     )
