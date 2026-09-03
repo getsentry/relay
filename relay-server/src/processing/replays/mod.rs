@@ -118,7 +118,7 @@ impl OutcomeError for Error {
                 crate::services::outcome::DiscardItemType::ReplayRecording,
             ))),
             #[cfg(feature = "processing")]
-            Self::NoEventId => Some(Outcome::Invalid(DiscardReason::Internal)),
+            Self::NoEventId => Some(Outcome::Invalid(DiscardReason::InvalidEventId)),
         };
         (outcome, self)
     }

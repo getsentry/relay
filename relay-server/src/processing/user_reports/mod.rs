@@ -36,7 +36,7 @@ impl OutcomeError for Error {
             }
             #[cfg(feature = "processing")]
             Self::NoEventId => Some(Outcome::Invalid(
-                crate::services::outcome::DiscardReason::Internal,
+                crate::services::outcome::DiscardReason::InvalidEventId,
             )),
         };
         (outcome, self)
