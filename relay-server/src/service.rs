@@ -8,6 +8,7 @@ use crate::services::buffer::{
     ObservableEnvelopeBuffer, PartitionedEnvelopeBuffer, ProjectKeyPair,
 };
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
+use crate::services::config_reload::ConfigReloadService;
 use crate::services::global_config::{
     GlobalConfigHandle, GlobalConfigManager, GlobalConfigService,
 };
@@ -371,6 +372,15 @@ impl ServiceState {
             #[cfg(feature = "processing")]
             &objectstore,
         ));
+
+        match ConfigReloadService::new(config.clone()) {
+            Ok(crs) => drop(services.start(crs)),
+            // If the service is not running, that's not fatal, let's just keep going.
+            Err(err) => relay_log::error!(
+                error = err.as_ref() as &dyn std::error::Error,
+                "failed to start config reloading service"
+            ),
+        }
 
         let registry = Registry {
             processor,

@@ -5,7 +5,7 @@ use std::net::{IpAddr, SocketAddr};
 use std::num::{NonZeroU8, NonZeroU16};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 use std::{env, fmt, fs, io};
 
@@ -1575,7 +1575,7 @@ pub struct GeoIpConfig {
 ///
 /// After breaching one of the configured thresholds, Relay will
 /// return an `unhealthy` status from its health endpoint.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(default)]
 pub struct Health {
     /// Interval to refresh internal health checks.
@@ -1894,10 +1894,36 @@ impl ConfigInner {
 
         Ok(())
     }
+
+    /// Merges reloadable parts of the config from `other` into `self`.
+    fn reload_with(&mut self, other: &Self) {
+        // Source files must always be updated. The configuration was fully reloaded,
+        // either previous file references are now new file references or these file
+        // references were used in immutable parts of the config, where it no longer
+        // matters if they are accurate references.
+        //
+        // Therefore we can just use the source files unconditionally of the current, on the
+        // filesystem config.
+        self.source_files = other.source_files.clone();
+
+        if self.values.health != other.values.health {
+            relay_log::debug!("updating health");
+            self.values.health = other.values.health.clone();
+        }
+    }
 }
 
 /// Relay's Configuration.
 pub struct Config {
+    /// A mutex to serialize all write accesses to `inner`.
+    ///
+    /// Accessing the arc swap is done with compare and swap, but we still want serialized
+    /// access and operations to guarantee consistency when dealing with e.g. the filesystem.
+    ///
+    /// The mutex must be acquired before changing `inner`. Methods taking `&mut` can omit
+    /// this, as the `&mut` requirement already satisfies that there is no concurrent access
+    /// possible.
+    inner_access: Mutex<()>,
     /// The actual config.
     inner: ArcSwap<ConfigInner>,
     /// A list of overrides applied to the config, in order.
@@ -1945,6 +1971,7 @@ impl Config {
         }
 
         let config = Config {
+            inner_access: Mutex::new(()),
             inner: ArcSwap::from_pointee(inner),
             overrides: Vec::new(),
             path: path.clone(),
@@ -1962,6 +1989,7 @@ impl Config {
     /// This is mostly useful for tests.
     pub fn from_json_value(value: serde_json::Value) -> anyhow::Result<Config> {
         Ok(Config {
+            inner_access: Mutex::new(()),
             inner: ArcSwap::from_pointee(ConfigInner {
                 values: serde_json::from_value(value)
                     .with_context(|| ConfigError::new(ConfigErrorKind::BadJson))?,
@@ -2048,6 +2076,41 @@ impl Config {
         Ok(true)
     }
 
+    /// Reloads the configuration from disk.
+    ///
+    /// In order for a config to be reloadable it must've been loaded from a path. The original
+    /// config will be re-read and reloadable parts of the config will be replaced with their updated
+    /// values.
+    ///
+    /// If the reload fails for any reason, the current config is untouched.
+    pub fn reload(&self) -> anyhow::Result<()> {
+        if self.path.is_empty() {
+            return Ok(());
+        }
+
+        let _access = self
+            .inner_access
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+
+        let mut new_config = Self::from_path(&self.path)?;
+        for overrides in &self.overrides {
+            new_config.apply_override(overrides.clone())?;
+        }
+        let new_config = new_config.current();
+
+        // Since we do have the `_access` lock, this will always succeed on the first try.
+        self.inner.rcu(|inner| {
+            let mut new_inner = ConfigInner::clone(inner);
+            new_inner.reload_with(&new_config.inner);
+            Arc::new(new_inner)
+        });
+
+        // Currently we don't give the caller any information what changed in the config,
+        // we may want to return here some kind of status "x and y reloaded".
+        Ok(())
+    }
+
     /// Acquires a current [`snapshot`](ConfigSnapshot) of the config.
     ///
     /// A snapshot is the way to actually consume values from the config. A snapshot should ideally be acquired
@@ -2061,6 +2124,7 @@ impl Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            inner_access: Mutex::new(()),
             inner: ArcSwap::from_pointee(Default::default()),
             overrides: Vec::new(),
             path: PathBuf::new(),
@@ -2080,6 +2144,11 @@ pub struct ConfigSnapshot {
 }
 
 impl ConfigSnapshot {
+    /// Returns the list of files this configuration was parsed from.
+    pub fn source_files(&self) -> &BTreeSet<PathBuf> {
+        &self.inner.source_files
+    }
+
     /// Returns `true` if the config is ready to use.
     pub fn has_credentials(&self) -> bool {
         self.inner.credentials.is_some()

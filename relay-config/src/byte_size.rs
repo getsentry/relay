@@ -35,7 +35,7 @@ use serde::{Serialize, de};
 /// let size = ByteSize::kibibytes(42);
 /// assert_eq!("42KiB", size.to_string());
 /// ```
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct ByteSize(Size);
 
 impl ByteSize {
