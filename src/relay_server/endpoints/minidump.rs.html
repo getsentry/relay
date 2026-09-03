@@ -7,7 +7,7 @@
 <a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>futures::{<span class="self">self</span>, Stream, StreamExt, TryStreamExt};
 <a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>liblzma::read::XzDecoder;
 <a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>multer::{Field, Multipart};
-<a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>relay_config::Config;
+<a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>relay_config::ConfigSnapshot;
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>relay_dynamic_config::Feature;
 <a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span>relay_event_schema::protocol::EventId;
 <a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span>relay_quotas::{DataCategory, RateLimits};
@@ -301,7 +301,7 @@
 <a href=#301 id=301 data-nosnippet>301</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
 <a href=#302 id=302 data-nosnippet>302</a>        field: Field&lt;<span class="lifetime">'static</span>&gt;,
 <a href=#303 id=303 data-nosnippet>303</a>        item: Managed&lt;Item&gt;,
-<a href=#304 id=304 data-nosnippet>304</a>        config: <span class="kw-2">&amp;</span>Config,
+<a href=#304 id=304 data-nosnippet>304</a>        config: <span class="kw-2">&amp;</span>ConfigSnapshot,
 <a href=#305 id=305 data-nosnippet>305</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Managed&lt;Item&gt;&gt;, BadStoreRequest&gt; {
 <a href=#306 id=306 data-nosnippet>306</a>        <span class="kw">let </span>read_inline = <span class="kw">async </span>|field: Field&lt;<span class="lifetime">'static</span>&gt;, item: Managed&lt;Item&gt;| {
 <a href=#307 id=307 data-nosnippet>307</a>            <span class="kw">let </span>is_minidump = <span class="macro">matches!</span>(item.attachment_type(), <span class="prelude-val">Some</span>(AttachmentType::Minidump));
@@ -383,7 +383,7 @@
 <a href=#383 id=383 data-nosnippet>383</a>    stream: S,
 <a href=#384 id=384 data-nosnippet>384</a>    content_type: <span class="prelude-ty">Option</span>&lt;String&gt;,
 <a href=#385 id=385 data-nosnippet>385</a>    <span class="kw-2">mut </span>item: Managed&lt;Item&gt;,
-<a href=#386 id=386 data-nosnippet>386</a>    config: <span class="kw-2">&amp;</span>Config,
+<a href=#386 id=386 data-nosnippet>386</a>    config: <span class="kw-2">&amp;</span>ConfigSnapshot,
 <a href=#387 id=387 data-nosnippet>387</a>    project: ProjectContext,
 <a href=#388 id=388 data-nosnippet>388</a>    upload: <span class="kw-2">&amp;</span>Addr&lt;Upload&gt;,
 <a href=#389 id=389 data-nosnippet>389</a>    referrer: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
@@ -447,7 +447,7 @@
 <a href=#447 id=447 data-nosnippet>447</a>
 <a href=#448 id=448 data-nosnippet>448</a>    <span class="kw">let </span><span class="kw-2">mut </span>items = utils::multipart_items(
 <a href=#449 id=449 data-nosnippet>449</a>        multipart,
-<a href=#450 id=450 data-nosnippet>450</a>        config,
+<a href=#450 id=450 data-nosnippet>450</a>        <span class="kw-2">&amp;</span>config,
 <a href=#451 id=451 data-nosnippet>451</a>        minidump_attachment_strategy,
 <a href=#452 id=452 data-nosnippet>452</a>        meta,
 <a href=#453 id=453 data-nosnippet>453</a>        state.outcome_aggregator(),
@@ -601,7 +601,7 @@
 <a href=#601 id=601 data-nosnippet>601</a>                    stream,
 <a href=#602 id=602 data-nosnippet>602</a>                    <span class="prelude-val">Some</span>(ContentType::Minidump.to_string()),
 <a href=#603 id=603 data-nosnippet>603</a>                    item,
-<a href=#604 id=604 data-nosnippet>604</a>                    state.config(),
+<a href=#604 id=604 data-nosnippet>604</a>                    <span class="kw-2">&amp;</span>state.config(),
 <a href=#605 id=605 data-nosnippet>605</a>                    upload_context.project,
 <a href=#606 id=606 data-nosnippet>606</a>                    upload_context.upload,
 <a href=#607 id=607 data-nosnippet>607</a>                    <span class="string">"minidump"</span>,
@@ -724,7 +724,7 @@
 <a href=#724 id=724 data-nosnippet>724</a>    </span><span class="prelude-val">Ok</span>(TextResponse(id))
 <a href=#725 id=725 data-nosnippet>725</a>}
 <a href=#726 id=726 data-nosnippet>726</a>
-<a href=#727 id=727 data-nosnippet>727</a><span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState&gt; {
+<a href=#727 id=727 data-nosnippet>727</a><span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>ConfigSnapshot) -&gt; MethodRouter&lt;ServiceState&gt; {
 <a href=#728 id=728 data-nosnippet>728</a>    post(handle)
 <a href=#729 id=729 data-nosnippet>729</a>        .route_layer(RequestBodyLimitLayer::new(
 <a href=#730 id=730 data-nosnippet>730</a>            config.max_upload_size() + config.max_attachments_size(),
@@ -952,92 +952,93 @@
 <a href=#952 id=952 data-nosnippet>952</a>            .body(Body::from(multipart_body)).unwrap();
 <a href=#953 id=953 data-nosnippet>953</a>
 <a href=#954 id=954 data-nosnippet>954</a>        <span class="kw">let </span>config = Config::default();
-<a href=#955 id=955 data-nosnippet>955</a>
-<a href=#956 id=956 data-nosnippet>956</a>        <span class="kw">let </span>request_meta = RequestMeta::new(
-<a href=#957 id=957 data-nosnippet>957</a>            <span class="string">"https://a94ae32be2582e0bbd7a4cbb95971fee:@sentry.io/42"
-<a href=#958 id=958 data-nosnippet>958</a>                </span>.parse()
-<a href=#959 id=959 data-nosnippet>959</a>                .unwrap(),
-<a href=#960 id=960 data-nosnippet>960</a>        );
-<a href=#961 id=961 data-nosnippet>961</a>        <span class="kw">let </span>multipart = utils::multipart_from_request(request).unwrap();
-<a href=#962 id=962 data-nosnippet>962</a>        <span class="kw">let </span>items = utils::multipart_items(
-<a href=#963 id=963 data-nosnippet>963</a>            multipart,
-<a href=#964 id=964 data-nosnippet>964</a>            <span class="kw-2">&amp;</span>config,
-<a href=#965 id=965 data-nosnippet>965</a>            MinidumpAttachmentStrategy {
-<a href=#966 id=966 data-nosnippet>966</a>                upload_context: <span class="prelude-val">None</span>,
-<a href=#967 id=967 data-nosnippet>967</a>            },
-<a href=#968 id=968 data-nosnippet>968</a>            <span class="kw-2">&amp;</span>request_meta,
-<a href=#969 id=969 data-nosnippet>969</a>            <span class="kw-2">&amp;</span>Addr::dummy(),
-<a href=#970 id=970 data-nosnippet>970</a>        )
-<a href=#971 id=971 data-nosnippet>971</a>        .<span class="kw">await
-<a href=#972 id=972 data-nosnippet>972</a>        </span>.unwrap();
-<a href=#973 id=973 data-nosnippet>973</a>
-<a href=#974 id=974 data-nosnippet>974</a>        <span class="comment">// we expect the multipart body to contain
-<a href=#975 id=975 data-nosnippet>975</a>        // * one arbitrary attachment from the user (a `config.json`)
-<a href=#976 id=976 data-nosnippet>976</a>        // * two breadcrumb files
-<a href=#977 id=977 data-nosnippet>977</a>        // * one event file
-<a href=#978 id=978 data-nosnippet>978</a>        // * one form-data item
-<a href=#979 id=979 data-nosnippet>979</a>        // * one view-hierarchy file
-<a href=#980 id=980 data-nosnippet>980</a>        </span><span class="macro">assert_eq!</span>(<span class="number">6</span>, items.len());
-<a href=#981 id=981 data-nosnippet>981</a>
-<a href=#982 id=982 data-nosnippet>982</a>        <span class="comment">// `config.json` has no content-type. MIME-detection in later processing will assign this.
-<a href=#983 id=983 data-nosnippet>983</a>        </span><span class="kw">let </span>item = <span class="kw-2">&amp;</span>items[<span class="number">0</span>];
-<a href=#984 id=984 data-nosnippet>984</a>        <span class="macro">assert_eq!</span>(item.filename().unwrap(), <span class="string">"config.json"</span>);
-<a href=#985 id=985 data-nosnippet>985</a>        <span class="macro">assert!</span>(item.content_type().is_none());
-<a href=#986 id=986 data-nosnippet>986</a>        <span class="macro">assert_eq!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
-<a href=#987 id=987 data-nosnippet>987</a>        <span class="macro">assert_eq!</span>(item.attachment_type().unwrap(), AttachmentType::Attachment);
-<a href=#988 id=988 data-nosnippet>988</a>        <span class="macro">assert_eq!</span>(item.payload().len(), <span class="number">95</span>);
-<a href=#989 id=989 data-nosnippet>989</a>
-<a href=#990 id=990 data-nosnippet>990</a>        <span class="comment">// the first breadcrumb buffer
-<a href=#991 id=991 data-nosnippet>991</a>        </span><span class="kw">let </span>item = <span class="kw-2">&amp;</span>items[<span class="number">1</span>];
-<a href=#992 id=992 data-nosnippet>992</a>        <span class="macro">assert_eq!</span>(item.filename().unwrap(), <span class="string">"__sentry-breadcrumb1"</span>);
-<a href=#993 id=993 data-nosnippet>993</a>        <span class="macro">assert_eq!</span>(item.content_type().unwrap(), ContentType::OctetStream);
-<a href=#994 id=994 data-nosnippet>994</a>        <span class="macro">assert_eq!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
-<a href=#995 id=995 data-nosnippet>995</a>        <span class="macro">assert_eq!</span>(item.attachment_type().unwrap(), AttachmentType::Breadcrumbs);
-<a href=#996 id=996 data-nosnippet>996</a>        <span class="macro">assert_eq!</span>(item.payload().len(), <span class="number">66</span>);
-<a href=#997 id=997 data-nosnippet>997</a>
-<a href=#998 id=998 data-nosnippet>998</a>        <span class="comment">// the second breadcrumb buffer is empty since we haven't reached our max in the first
-<a href=#999 id=999 data-nosnippet>999</a>        </span><span class="kw">let </span>item = <span class="kw-2">&amp;</span>items[<span class="number">2</span>];
-<a href=#1000 id=1000 data-nosnippet>1000</a>        <span class="macro">assert_eq!</span>(item.filename().unwrap(), <span class="string">"__sentry-breadcrumb2"</span>);
-<a href=#1001 id=1001 data-nosnippet>1001</a>        <span class="macro">assert_eq!</span>(item.content_type().unwrap(), ContentType::OctetStream);
-<a href=#1002 id=1002 data-nosnippet>1002</a>        <span class="macro">assert_eq!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
-<a href=#1003 id=1003 data-nosnippet>1003</a>        <span class="macro">assert_eq!</span>(item.attachment_type().unwrap(), AttachmentType::Breadcrumbs);
-<a href=#1004 id=1004 data-nosnippet>1004</a>        <span class="macro">assert_eq!</span>(item.payload().len(), <span class="number">0</span>);
-<a href=#1005 id=1005 data-nosnippet>1005</a>
-<a href=#1006 id=1006 data-nosnippet>1006</a>        <span class="comment">// the msg-pack encoded event file
-<a href=#1007 id=1007 data-nosnippet>1007</a>        </span><span class="kw">let </span>item = <span class="kw-2">&amp;</span>items[<span class="number">3</span>];
-<a href=#1008 id=1008 data-nosnippet>1008</a>        <span class="macro">assert_eq!</span>(item.filename().unwrap(), <span class="string">"__sentry-event"</span>);
-<a href=#1009 id=1009 data-nosnippet>1009</a>        <span class="macro">assert_eq!</span>(item.content_type().unwrap(), ContentType::OctetStream);
-<a href=#1010 id=1010 data-nosnippet>1010</a>        <span class="macro">assert_eq!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
-<a href=#1011 id=1011 data-nosnippet>1011</a>        <span class="macro">assert_eq!</span>(
-<a href=#1012 id=1012 data-nosnippet>1012</a>            item.attachment_type().unwrap(),
-<a href=#1013 id=1013 data-nosnippet>1013</a>            AttachmentType::EventPayload
-<a href=#1014 id=1014 data-nosnippet>1014</a>        );
-<a href=#1015 id=1015 data-nosnippet>1015</a>        <span class="macro">assert_eq!</span>(item.payload().len(), <span class="number">29</span>);
-<a href=#1016 id=1016 data-nosnippet>1016</a>
-<a href=#1017 id=1017 data-nosnippet>1017</a>        <span class="comment">// the next item is the view-hierarchy file
-<a href=#1018 id=1018 data-nosnippet>1018</a>        </span><span class="kw">let </span>item = <span class="kw-2">&amp;</span>items[<span class="number">4</span>];
-<a href=#1019 id=1019 data-nosnippet>1019</a>        <span class="macro">assert_eq!</span>(item.filename().unwrap(), <span class="string">"view-hierarchy.json"</span>);
-<a href=#1020 id=1020 data-nosnippet>1020</a>        <span class="macro">assert_eq!</span>(item.content_type().unwrap(), ContentType::Json);
-<a href=#1021 id=1021 data-nosnippet>1021</a>        <span class="macro">assert_eq!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
-<a href=#1022 id=1022 data-nosnippet>1022</a>        <span class="macro">assert_eq!</span>(
-<a href=#1023 id=1023 data-nosnippet>1023</a>            item.attachment_type().unwrap(),
-<a href=#1024 id=1024 data-nosnippet>1024</a>            AttachmentType::ViewHierarchy
-<a href=#1025 id=1025 data-nosnippet>1025</a>        );
-<a href=#1026 id=1026 data-nosnippet>1026</a>        <span class="macro">assert_eq!</span>(item.payload().len(), <span class="number">184</span>);
-<a href=#1027 id=1027 data-nosnippet>1027</a>
-<a href=#1028 id=1028 data-nosnippet>1028</a>        <span class="comment">// the last item is the form-data if any and contains a `guid` from the `crashpad_handler`
-<a href=#1029 id=1029 data-nosnippet>1029</a>        </span><span class="kw">let </span>item = <span class="kw-2">&amp;</span>items[<span class="number">5</span>];
-<a href=#1030 id=1030 data-nosnippet>1030</a>        <span class="macro">assert!</span>(item.filename().is_none());
-<a href=#1031 id=1031 data-nosnippet>1031</a>        <span class="macro">assert_eq!</span>(item.content_type().unwrap(), ContentType::Text);
-<a href=#1032 id=1032 data-nosnippet>1032</a>        <span class="macro">assert_eq!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::FormData);
-<a href=#1033 id=1033 data-nosnippet>1033</a>        <span class="macro">assert!</span>(item.attachment_type().is_none());
-<a href=#1034 id=1034 data-nosnippet>1034</a>        <span class="kw">let </span>form_payload = item.payload();
-<a href=#1035 id=1035 data-nosnippet>1035</a>        <span class="kw">let </span>form_data_entry = FormDataIter::new(form_payload.as_ref()).next().unwrap();
-<a href=#1036 id=1036 data-nosnippet>1036</a>        <span class="macro">assert_eq!</span>(form_data_entry.key(), <span class="string">"guid"</span>);
-<a href=#1037 id=1037 data-nosnippet>1037</a>        <span class="macro">assert_eq!</span>(
-<a href=#1038 id=1038 data-nosnippet>1038</a>            form_data_entry.value(),
-<a href=#1039 id=1039 data-nosnippet>1039</a>            <span class="string">"dd46bb04-bb27-448c-aad0-0deb0c134bdb"
-<a href=#1040 id=1040 data-nosnippet>1040</a>        </span>);
-<a href=#1041 id=1041 data-nosnippet>1041</a>    }
-<a href=#1042 id=1042 data-nosnippet>1042</a>}
+<a href=#955 id=955 data-nosnippet>955</a>        <span class="kw">let </span>config = config.current();
+<a href=#956 id=956 data-nosnippet>956</a>
+<a href=#957 id=957 data-nosnippet>957</a>        <span class="kw">let </span>request_meta = RequestMeta::new(
+<a href=#958 id=958 data-nosnippet>958</a>            <span class="string">"https://a94ae32be2582e0bbd7a4cbb95971fee:@sentry.io/42"
+<a href=#959 id=959 data-nosnippet>959</a>                </span>.parse()
+<a href=#960 id=960 data-nosnippet>960</a>                .unwrap(),
+<a href=#961 id=961 data-nosnippet>961</a>        );
+<a href=#962 id=962 data-nosnippet>962</a>        <span class="kw">let </span>multipart = utils::multipart_from_request(request).unwrap();
+<a href=#963 id=963 data-nosnippet>963</a>        <span class="kw">let </span>items = utils::multipart_items(
+<a href=#964 id=964 data-nosnippet>964</a>            multipart,
+<a href=#965 id=965 data-nosnippet>965</a>            <span class="kw-2">&amp;</span>config,
+<a href=#966 id=966 data-nosnippet>966</a>            MinidumpAttachmentStrategy {
+<a href=#967 id=967 data-nosnippet>967</a>                upload_context: <span class="prelude-val">None</span>,
+<a href=#968 id=968 data-nosnippet>968</a>            },
+<a href=#969 id=969 data-nosnippet>969</a>            <span class="kw-2">&amp;</span>request_meta,
+<a href=#970 id=970 data-nosnippet>970</a>            <span class="kw-2">&amp;</span>Addr::dummy(),
+<a href=#971 id=971 data-nosnippet>971</a>        )
+<a href=#972 id=972 data-nosnippet>972</a>        .<span class="kw">await
+<a href=#973 id=973 data-nosnippet>973</a>        </span>.unwrap();
+<a href=#974 id=974 data-nosnippet>974</a>
+<a href=#975 id=975 data-nosnippet>975</a>        <span class="comment">// we expect the multipart body to contain
+<a href=#976 id=976 data-nosnippet>976</a>        // * one arbitrary attachment from the user (a `config.json`)
+<a href=#977 id=977 data-nosnippet>977</a>        // * two breadcrumb files
+<a href=#978 id=978 data-nosnippet>978</a>        // * one event file
+<a href=#979 id=979 data-nosnippet>979</a>        // * one form-data item
+<a href=#980 id=980 data-nosnippet>980</a>        // * one view-hierarchy file
+<a href=#981 id=981 data-nosnippet>981</a>        </span><span class="macro">assert_eq!</span>(<span class="number">6</span>, items.len());
+<a href=#982 id=982 data-nosnippet>982</a>
+<a href=#983 id=983 data-nosnippet>983</a>        <span class="comment">// `config.json` has no content-type. MIME-detection in later processing will assign this.
+<a href=#984 id=984 data-nosnippet>984</a>        </span><span class="kw">let </span>item = <span class="kw-2">&amp;</span>items[<span class="number">0</span>];
+<a href=#985 id=985 data-nosnippet>985</a>        <span class="macro">assert_eq!</span>(item.filename().unwrap(), <span class="string">"config.json"</span>);
+<a href=#986 id=986 data-nosnippet>986</a>        <span class="macro">assert!</span>(item.content_type().is_none());
+<a href=#987 id=987 data-nosnippet>987</a>        <span class="macro">assert_eq!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
+<a href=#988 id=988 data-nosnippet>988</a>        <span class="macro">assert_eq!</span>(item.attachment_type().unwrap(), AttachmentType::Attachment);
+<a href=#989 id=989 data-nosnippet>989</a>        <span class="macro">assert_eq!</span>(item.payload().len(), <span class="number">95</span>);
+<a href=#990 id=990 data-nosnippet>990</a>
+<a href=#991 id=991 data-nosnippet>991</a>        <span class="comment">// the first breadcrumb buffer
+<a href=#992 id=992 data-nosnippet>992</a>        </span><span class="kw">let </span>item = <span class="kw-2">&amp;</span>items[<span class="number">1</span>];
+<a href=#993 id=993 data-nosnippet>993</a>        <span class="macro">assert_eq!</span>(item.filename().unwrap(), <span class="string">"__sentry-breadcrumb1"</span>);
+<a href=#994 id=994 data-nosnippet>994</a>        <span class="macro">assert_eq!</span>(item.content_type().unwrap(), ContentType::OctetStream);
+<a href=#995 id=995 data-nosnippet>995</a>        <span class="macro">assert_eq!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
+<a href=#996 id=996 data-nosnippet>996</a>        <span class="macro">assert_eq!</span>(item.attachment_type().unwrap(), AttachmentType::Breadcrumbs);
+<a href=#997 id=997 data-nosnippet>997</a>        <span class="macro">assert_eq!</span>(item.payload().len(), <span class="number">66</span>);
+<a href=#998 id=998 data-nosnippet>998</a>
+<a href=#999 id=999 data-nosnippet>999</a>        <span class="comment">// the second breadcrumb buffer is empty since we haven't reached our max in the first
+<a href=#1000 id=1000 data-nosnippet>1000</a>        </span><span class="kw">let </span>item = <span class="kw-2">&amp;</span>items[<span class="number">2</span>];
+<a href=#1001 id=1001 data-nosnippet>1001</a>        <span class="macro">assert_eq!</span>(item.filename().unwrap(), <span class="string">"__sentry-breadcrumb2"</span>);
+<a href=#1002 id=1002 data-nosnippet>1002</a>        <span class="macro">assert_eq!</span>(item.content_type().unwrap(), ContentType::OctetStream);
+<a href=#1003 id=1003 data-nosnippet>1003</a>        <span class="macro">assert_eq!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
+<a href=#1004 id=1004 data-nosnippet>1004</a>        <span class="macro">assert_eq!</span>(item.attachment_type().unwrap(), AttachmentType::Breadcrumbs);
+<a href=#1005 id=1005 data-nosnippet>1005</a>        <span class="macro">assert_eq!</span>(item.payload().len(), <span class="number">0</span>);
+<a href=#1006 id=1006 data-nosnippet>1006</a>
+<a href=#1007 id=1007 data-nosnippet>1007</a>        <span class="comment">// the msg-pack encoded event file
+<a href=#1008 id=1008 data-nosnippet>1008</a>        </span><span class="kw">let </span>item = <span class="kw-2">&amp;</span>items[<span class="number">3</span>];
+<a href=#1009 id=1009 data-nosnippet>1009</a>        <span class="macro">assert_eq!</span>(item.filename().unwrap(), <span class="string">"__sentry-event"</span>);
+<a href=#1010 id=1010 data-nosnippet>1010</a>        <span class="macro">assert_eq!</span>(item.content_type().unwrap(), ContentType::OctetStream);
+<a href=#1011 id=1011 data-nosnippet>1011</a>        <span class="macro">assert_eq!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
+<a href=#1012 id=1012 data-nosnippet>1012</a>        <span class="macro">assert_eq!</span>(
+<a href=#1013 id=1013 data-nosnippet>1013</a>            item.attachment_type().unwrap(),
+<a href=#1014 id=1014 data-nosnippet>1014</a>            AttachmentType::EventPayload
+<a href=#1015 id=1015 data-nosnippet>1015</a>        );
+<a href=#1016 id=1016 data-nosnippet>1016</a>        <span class="macro">assert_eq!</span>(item.payload().len(), <span class="number">29</span>);
+<a href=#1017 id=1017 data-nosnippet>1017</a>
+<a href=#1018 id=1018 data-nosnippet>1018</a>        <span class="comment">// the next item is the view-hierarchy file
+<a href=#1019 id=1019 data-nosnippet>1019</a>        </span><span class="kw">let </span>item = <span class="kw-2">&amp;</span>items[<span class="number">4</span>];
+<a href=#1020 id=1020 data-nosnippet>1020</a>        <span class="macro">assert_eq!</span>(item.filename().unwrap(), <span class="string">"view-hierarchy.json"</span>);
+<a href=#1021 id=1021 data-nosnippet>1021</a>        <span class="macro">assert_eq!</span>(item.content_type().unwrap(), ContentType::Json);
+<a href=#1022 id=1022 data-nosnippet>1022</a>        <span class="macro">assert_eq!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
+<a href=#1023 id=1023 data-nosnippet>1023</a>        <span class="macro">assert_eq!</span>(
+<a href=#1024 id=1024 data-nosnippet>1024</a>            item.attachment_type().unwrap(),
+<a href=#1025 id=1025 data-nosnippet>1025</a>            AttachmentType::ViewHierarchy
+<a href=#1026 id=1026 data-nosnippet>1026</a>        );
+<a href=#1027 id=1027 data-nosnippet>1027</a>        <span class="macro">assert_eq!</span>(item.payload().len(), <span class="number">184</span>);
+<a href=#1028 id=1028 data-nosnippet>1028</a>
+<a href=#1029 id=1029 data-nosnippet>1029</a>        <span class="comment">// the last item is the form-data if any and contains a `guid` from the `crashpad_handler`
+<a href=#1030 id=1030 data-nosnippet>1030</a>        </span><span class="kw">let </span>item = <span class="kw-2">&amp;</span>items[<span class="number">5</span>];
+<a href=#1031 id=1031 data-nosnippet>1031</a>        <span class="macro">assert!</span>(item.filename().is_none());
+<a href=#1032 id=1032 data-nosnippet>1032</a>        <span class="macro">assert_eq!</span>(item.content_type().unwrap(), ContentType::Text);
+<a href=#1033 id=1033 data-nosnippet>1033</a>        <span class="macro">assert_eq!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::FormData);
+<a href=#1034 id=1034 data-nosnippet>1034</a>        <span class="macro">assert!</span>(item.attachment_type().is_none());
+<a href=#1035 id=1035 data-nosnippet>1035</a>        <span class="kw">let </span>form_payload = item.payload();
+<a href=#1036 id=1036 data-nosnippet>1036</a>        <span class="kw">let </span>form_data_entry = FormDataIter::new(form_payload.as_ref()).next().unwrap();
+<a href=#1037 id=1037 data-nosnippet>1037</a>        <span class="macro">assert_eq!</span>(form_data_entry.key(), <span class="string">"guid"</span>);
+<a href=#1038 id=1038 data-nosnippet>1038</a>        <span class="macro">assert_eq!</span>(
+<a href=#1039 id=1039 data-nosnippet>1039</a>            form_data_entry.value(),
+<a href=#1040 id=1040 data-nosnippet>1040</a>            <span class="string">"dd46bb04-bb27-448c-aad0-0deb0c134bdb"
+<a href=#1041 id=1041 data-nosnippet>1041</a>        </span>);
+<a href=#1042 id=1042 data-nosnippet>1042</a>    }
+<a href=#1043 id=1043 data-nosnippet>1043</a>}
 </code></pre></div></section></main></body></html>

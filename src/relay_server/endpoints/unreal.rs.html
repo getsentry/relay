@@ -2,7 +2,7 @@
 <a href=#2 id=2 data-nosnippet>2</a><span class="kw">use </span>axum::response::IntoResponse;
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span>axum::routing::{MethodRouter, post};
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>bytes::Bytes;
-<a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>relay_config::Config;
+<a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>relay_config::ConfigSnapshot;
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>relay_event_schema::protocol::EventId;
 <a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>serde::Deserialize;
 <a href=#8 id=8 data-nosnippet>8</a>
@@ -67,7 +67,7 @@
 <a href=#67 id=67 data-nosnippet>67</a>    </span><span class="prelude-val">Ok</span>(TextResponse(id))
 <a href=#68 id=68 data-nosnippet>68</a>}
 <a href=#69 id=69 data-nosnippet>69</a>
-<a href=#70 id=70 data-nosnippet>70</a><span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState&gt; {
+<a href=#70 id=70 data-nosnippet>70</a><span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>ConfigSnapshot) -&gt; MethodRouter&lt;ServiceState&gt; {
 <a href=#71 id=71 data-nosnippet>71</a>    post(handle)
 <a href=#72 id=72 data-nosnippet>72</a>        .route_layer(DefaultBodyLimit::max(config.max_attachments_size()))
 <a href=#73 id=73 data-nosnippet>73</a>        .route_layer(axum::middleware::from_fn(middlewares::content_length))

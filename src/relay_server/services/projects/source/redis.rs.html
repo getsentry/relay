@@ -1,5 +1,5 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/projects/source/redis.rs`."><title>redis.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../../static.files/rustdoc-1ed95124.css"><meta name="rustdoc-vars" data-root-path="../../../../../" data-static-root-path="../../../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.98.0 (88d9e12ae 2026-08-18)" data-channel="1.98.0" data-search-js="search-9944d736.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../../../static.files/src-script-813739b1.js"></script><script defer src="../../../../../src-files.js"></script><script defer src="../../../../../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../../../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">relay_server/services/projects/source/</div>redis.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span>relay_base_schema::project::ProjectKey;
-<a href=#2 id=2 data-nosnippet>2</a><span class="kw">use </span>relay_config::Config;
+<a href=#2 id=2 data-nosnippet>2</a><span class="kw">use </span>relay_config::{Config, ConfigSnapshot};
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span>relay_redis::{AsyncRedisClient, RedisError};
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>relay_statsd::metric;
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>std::fmt::Debug;
@@ -64,91 +64,93 @@
 <a href=#64 id=64 data-nosnippet>64</a>        revision: Revision,
 <a href=#65 id=65 data-nosnippet>65</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;SourceProjectState, RedisProjectError&gt; {
 <a href=#66 id=66 data-nosnippet>66</a>        <span class="kw">let </span><span class="kw-2">mut </span>connection = <span class="self">self</span>.redis.get_connection().<span class="kw">await</span><span class="question-mark">?</span>;
-<a href=#67 id=67 data-nosnippet>67</a>        <span class="comment">// Only check for the revision if we were passed a revision.
-<a href=#68 id=68 data-nosnippet>68</a>        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(revision) = revision.as_str() {
-<a href=#69 id=69 data-nosnippet>69</a>            <span class="kw">let </span>current_revision: <span class="prelude-ty">Option</span>&lt;String&gt; = cmd(<span class="string">"GET"</span>)
-<a href=#70 id=70 data-nosnippet>70</a>                .arg(<span class="self">self</span>.get_redis_rev_key(key))
-<a href=#71 id=71 data-nosnippet>71</a>                .query_async(<span class="kw-2">&amp;mut </span>connection)
-<a href=#72 id=72 data-nosnippet>72</a>                .<span class="kw">await
-<a href=#73 id=73 data-nosnippet>73</a>                </span>.map_err(RedisError::Redis)<span class="question-mark">?</span>;
-<a href=#74 id=74 data-nosnippet>74</a>
-<a href=#75 id=75 data-nosnippet>75</a>            <span class="macro">relay_log::trace!</span>(
-<a href=#76 id=76 data-nosnippet>76</a>                <span class="string">"Redis revision {current_revision:?}, requested revision {revision:?}"
-<a href=#77 id=77 data-nosnippet>77</a>            </span>);
-<a href=#78 id=78 data-nosnippet>78</a>            <span class="kw">if </span>current_revision.as_deref() == <span class="prelude-val">Some</span>(revision) {
-<a href=#79 id=79 data-nosnippet>79</a>                <span class="macro">metric!</span>(
-<a href=#80 id=80 data-nosnippet>80</a>                    counter(RelayCounters::ProjectStateRedis) += <span class="number">1</span>,
-<a href=#81 id=81 data-nosnippet>81</a>                    hit = <span class="string">"revision"</span>,
-<a href=#82 id=82 data-nosnippet>82</a>                );
-<a href=#83 id=83 data-nosnippet>83</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(SourceProjectState::NotModified);
-<a href=#84 id=84 data-nosnippet>84</a>            }
-<a href=#85 id=85 data-nosnippet>85</a>        }
-<a href=#86 id=86 data-nosnippet>86</a>
-<a href=#87 id=87 data-nosnippet>87</a>        <span class="kw">let </span>raw_response_opt: <span class="prelude-ty">Option</span>&lt;Vec&lt;u8&gt;&gt; = cmd(<span class="string">"GET"</span>)
-<a href=#88 id=88 data-nosnippet>88</a>            .arg(<span class="self">self</span>.get_redis_project_config_key(key))
-<a href=#89 id=89 data-nosnippet>89</a>            .query_async(<span class="kw-2">&amp;mut </span>connection)
-<a href=#90 id=90 data-nosnippet>90</a>            .<span class="kw">await
-<a href=#91 id=91 data-nosnippet>91</a>            </span>.map_err(RedisError::Redis)<span class="question-mark">?</span>;
-<a href=#92 id=92 data-nosnippet>92</a>
-<a href=#93 id=93 data-nosnippet>93</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(response) = raw_response_opt <span class="kw">else </span>{
-<a href=#94 id=94 data-nosnippet>94</a>            <span class="macro">metric!</span>(
-<a href=#95 id=95 data-nosnippet>95</a>                counter(RelayCounters::ProjectStateRedis) += <span class="number">1</span>,
-<a href=#96 id=96 data-nosnippet>96</a>                hit = <span class="string">"false"
-<a href=#97 id=97 data-nosnippet>97</a>            </span>);
-<a href=#98 id=98 data-nosnippet>98</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(SourceProjectState::New(ProjectState::Pending));
-<a href=#99 id=99 data-nosnippet>99</a>        };
-<a href=#100 id=100 data-nosnippet>100</a>
-<a href=#101 id=101 data-nosnippet>101</a>        <span class="kw">let </span>response = ProjectState::from(parse_redis_response(response.as_slice())<span class="question-mark">?</span>);
+<a href=#67 id=67 data-nosnippet>67</a>        <span class="kw">let </span>config = <span class="self">self</span>.config.current();
+<a href=#68 id=68 data-nosnippet>68</a>
+<a href=#69 id=69 data-nosnippet>69</a>        <span class="comment">// Only check for the revision if we were passed a revision.
+<a href=#70 id=70 data-nosnippet>70</a>        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(revision) = revision.as_str() {
+<a href=#71 id=71 data-nosnippet>71</a>            <span class="kw">let </span>current_revision: <span class="prelude-ty">Option</span>&lt;String&gt; = cmd(<span class="string">"GET"</span>)
+<a href=#72 id=72 data-nosnippet>72</a>                .arg(get_redis_rev_key(<span class="kw-2">&amp;</span>config, key))
+<a href=#73 id=73 data-nosnippet>73</a>                .query_async(<span class="kw-2">&amp;mut </span>connection)
+<a href=#74 id=74 data-nosnippet>74</a>                .<span class="kw">await
+<a href=#75 id=75 data-nosnippet>75</a>                </span>.map_err(RedisError::Redis)<span class="question-mark">?</span>;
+<a href=#76 id=76 data-nosnippet>76</a>
+<a href=#77 id=77 data-nosnippet>77</a>            <span class="macro">relay_log::trace!</span>(
+<a href=#78 id=78 data-nosnippet>78</a>                <span class="string">"Redis revision {current_revision:?}, requested revision {revision:?}"
+<a href=#79 id=79 data-nosnippet>79</a>            </span>);
+<a href=#80 id=80 data-nosnippet>80</a>            <span class="kw">if </span>current_revision.as_deref() == <span class="prelude-val">Some</span>(revision) {
+<a href=#81 id=81 data-nosnippet>81</a>                <span class="macro">metric!</span>(
+<a href=#82 id=82 data-nosnippet>82</a>                    counter(RelayCounters::ProjectStateRedis) += <span class="number">1</span>,
+<a href=#83 id=83 data-nosnippet>83</a>                    hit = <span class="string">"revision"</span>,
+<a href=#84 id=84 data-nosnippet>84</a>                );
+<a href=#85 id=85 data-nosnippet>85</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(SourceProjectState::NotModified);
+<a href=#86 id=86 data-nosnippet>86</a>            }
+<a href=#87 id=87 data-nosnippet>87</a>        }
+<a href=#88 id=88 data-nosnippet>88</a>
+<a href=#89 id=89 data-nosnippet>89</a>        <span class="kw">let </span>raw_response_opt: <span class="prelude-ty">Option</span>&lt;Vec&lt;u8&gt;&gt; = cmd(<span class="string">"GET"</span>)
+<a href=#90 id=90 data-nosnippet>90</a>            .arg(get_redis_project_config_key(<span class="kw-2">&amp;</span>config, key))
+<a href=#91 id=91 data-nosnippet>91</a>            .query_async(<span class="kw-2">&amp;mut </span>connection)
+<a href=#92 id=92 data-nosnippet>92</a>            .<span class="kw">await
+<a href=#93 id=93 data-nosnippet>93</a>            </span>.map_err(RedisError::Redis)<span class="question-mark">?</span>;
+<a href=#94 id=94 data-nosnippet>94</a>
+<a href=#95 id=95 data-nosnippet>95</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(response) = raw_response_opt <span class="kw">else </span>{
+<a href=#96 id=96 data-nosnippet>96</a>            <span class="macro">metric!</span>(
+<a href=#97 id=97 data-nosnippet>97</a>                counter(RelayCounters::ProjectStateRedis) += <span class="number">1</span>,
+<a href=#98 id=98 data-nosnippet>98</a>                hit = <span class="string">"false"
+<a href=#99 id=99 data-nosnippet>99</a>            </span>);
+<a href=#100 id=100 data-nosnippet>100</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(SourceProjectState::New(ProjectState::Pending));
+<a href=#101 id=101 data-nosnippet>101</a>        };
 <a href=#102 id=102 data-nosnippet>102</a>
-<a href=#103 id=103 data-nosnippet>103</a>        <span class="comment">// If we were passed a revision, check if we just loaded the same revision from Redis.
-<a href=#104 id=104 data-nosnippet>104</a>        //
-<a href=#105 id=105 data-nosnippet>105</a>        // We always want to keep the old revision alive if possible, since the already loaded
-<a href=#106 id=106 data-nosnippet>106</a>        // version has already initialized caches.
-<a href=#107 id=107 data-nosnippet>107</a>        //
-<a href=#108 id=108 data-nosnippet>108</a>        // While this is theoretically possible this should always been handled using the above revision
-<a href=#109 id=109 data-nosnippet>109</a>        // check using the additional Redis key.
-<a href=#110 id=110 data-nosnippet>110</a>        </span><span class="kw">if </span>response.revision() == revision {
-<a href=#111 id=111 data-nosnippet>111</a>            <span class="macro">metric!</span>(
-<a href=#112 id=112 data-nosnippet>112</a>                counter(RelayCounters::ProjectStateRedis) += <span class="number">1</span>,
-<a href=#113 id=113 data-nosnippet>113</a>                hit = <span class="string">"project_config_revision"
-<a href=#114 id=114 data-nosnippet>114</a>            </span>);
-<a href=#115 id=115 data-nosnippet>115</a>            <span class="prelude-val">Ok</span>(SourceProjectState::NotModified)
-<a href=#116 id=116 data-nosnippet>116</a>        } <span class="kw">else </span>{
-<a href=#117 id=117 data-nosnippet>117</a>            <span class="macro">metric!</span>(
-<a href=#118 id=118 data-nosnippet>118</a>                counter(RelayCounters::ProjectStateRedis) += <span class="number">1</span>,
-<a href=#119 id=119 data-nosnippet>119</a>                hit = <span class="string">"project_config"
-<a href=#120 id=120 data-nosnippet>120</a>            </span>);
-<a href=#121 id=121 data-nosnippet>121</a>            <span class="prelude-val">Ok</span>(SourceProjectState::New(response))
-<a href=#122 id=122 data-nosnippet>122</a>        }
-<a href=#123 id=123 data-nosnippet>123</a>    }
-<a href=#124 id=124 data-nosnippet>124</a>
-<a href=#125 id=125 data-nosnippet>125</a>    <span class="kw">fn </span>get_redis_project_config_key(<span class="kw-2">&amp;</span><span class="self">self</span>, key: ProjectKey) -&gt; String {
-<a href=#126 id=126 data-nosnippet>126</a>        <span class="kw">let </span>prefix = <span class="self">self</span>.config.projectconfig_cache_prefix();
-<a href=#127 id=127 data-nosnippet>127</a>        <span class="macro">format!</span>(<span class="string">"{prefix}:{key}"</span>)
-<a href=#128 id=128 data-nosnippet>128</a>    }
-<a href=#129 id=129 data-nosnippet>129</a>
-<a href=#130 id=130 data-nosnippet>130</a>    <span class="kw">fn </span>get_redis_rev_key(<span class="kw-2">&amp;</span><span class="self">self</span>, key: ProjectKey) -&gt; String {
-<a href=#131 id=131 data-nosnippet>131</a>        <span class="kw">let </span>prefix = <span class="self">self</span>.config.projectconfig_cache_prefix();
-<a href=#132 id=132 data-nosnippet>132</a>        <span class="macro">format!</span>(<span class="string">"{prefix}:{key}.rev"</span>)
-<a href=#133 id=133 data-nosnippet>133</a>    }
-<a href=#134 id=134 data-nosnippet>134</a>}
-<a href=#135 id=135 data-nosnippet>135</a>
-<a href=#136 id=136 data-nosnippet>136</a><span class="attr">#[cfg(test)]
-<a href=#137 id=137 data-nosnippet>137</a></span><span class="kw">mod </span>tests {
-<a href=#138 id=138 data-nosnippet>138</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#139 id=139 data-nosnippet>139</a>
-<a href=#140 id=140 data-nosnippet>140</a>    <span class="attr">#[test]
-<a href=#141 id=141 data-nosnippet>141</a>    </span><span class="kw">fn </span>test_parse_redis_response() {
-<a href=#142 id=142 data-nosnippet>142</a>        <span class="kw">let </span>raw_response = <span class="string">b"{}"</span>;
-<a href=#143 id=143 data-nosnippet>143</a>        <span class="kw">let </span>result = parse_redis_response(raw_response);
-<a href=#144 id=144 data-nosnippet>144</a>        <span class="macro">assert!</span>(result.is_ok());
-<a href=#145 id=145 data-nosnippet>145</a>    }
-<a href=#146 id=146 data-nosnippet>146</a>
-<a href=#147 id=147 data-nosnippet>147</a>    <span class="attr">#[test]
-<a href=#148 id=148 data-nosnippet>148</a>    </span><span class="kw">fn </span>test_parse_redis_response_compressed() {
-<a href=#149 id=149 data-nosnippet>149</a>        <span class="kw">let </span>raw_response = <span class="string">b"(\xb5/\xfd \x02\x11\x00\x00{}"</span>; <span class="comment">// As dumped by python zstandard library
-<a href=#150 id=150 data-nosnippet>150</a>        </span><span class="kw">let </span>result = parse_redis_response(raw_response);
-<a href=#151 id=151 data-nosnippet>151</a>        <span class="macro">assert!</span>(result.is_ok(), <span class="string">"{result:?}"</span>);
-<a href=#152 id=152 data-nosnippet>152</a>    }
-<a href=#153 id=153 data-nosnippet>153</a>}
+<a href=#103 id=103 data-nosnippet>103</a>        <span class="kw">let </span>response = ProjectState::from(parse_redis_response(response.as_slice())<span class="question-mark">?</span>);
+<a href=#104 id=104 data-nosnippet>104</a>
+<a href=#105 id=105 data-nosnippet>105</a>        <span class="comment">// If we were passed a revision, check if we just loaded the same revision from Redis.
+<a href=#106 id=106 data-nosnippet>106</a>        //
+<a href=#107 id=107 data-nosnippet>107</a>        // We always want to keep the old revision alive if possible, since the already loaded
+<a href=#108 id=108 data-nosnippet>108</a>        // version has already initialized caches.
+<a href=#109 id=109 data-nosnippet>109</a>        //
+<a href=#110 id=110 data-nosnippet>110</a>        // While this is theoretically possible this should always been handled using the above revision
+<a href=#111 id=111 data-nosnippet>111</a>        // check using the additional Redis key.
+<a href=#112 id=112 data-nosnippet>112</a>        </span><span class="kw">if </span>response.revision() == revision {
+<a href=#113 id=113 data-nosnippet>113</a>            <span class="macro">metric!</span>(
+<a href=#114 id=114 data-nosnippet>114</a>                counter(RelayCounters::ProjectStateRedis) += <span class="number">1</span>,
+<a href=#115 id=115 data-nosnippet>115</a>                hit = <span class="string">"project_config_revision"
+<a href=#116 id=116 data-nosnippet>116</a>            </span>);
+<a href=#117 id=117 data-nosnippet>117</a>            <span class="prelude-val">Ok</span>(SourceProjectState::NotModified)
+<a href=#118 id=118 data-nosnippet>118</a>        } <span class="kw">else </span>{
+<a href=#119 id=119 data-nosnippet>119</a>            <span class="macro">metric!</span>(
+<a href=#120 id=120 data-nosnippet>120</a>                counter(RelayCounters::ProjectStateRedis) += <span class="number">1</span>,
+<a href=#121 id=121 data-nosnippet>121</a>                hit = <span class="string">"project_config"
+<a href=#122 id=122 data-nosnippet>122</a>            </span>);
+<a href=#123 id=123 data-nosnippet>123</a>            <span class="prelude-val">Ok</span>(SourceProjectState::New(response))
+<a href=#124 id=124 data-nosnippet>124</a>        }
+<a href=#125 id=125 data-nosnippet>125</a>    }
+<a href=#126 id=126 data-nosnippet>126</a>}
+<a href=#127 id=127 data-nosnippet>127</a>
+<a href=#128 id=128 data-nosnippet>128</a><span class="kw">fn </span>get_redis_project_config_key(config: <span class="kw-2">&amp;</span>ConfigSnapshot, key: ProjectKey) -&gt; String {
+<a href=#129 id=129 data-nosnippet>129</a>    <span class="kw">let </span>prefix = config.projectconfig_cache_prefix();
+<a href=#130 id=130 data-nosnippet>130</a>    <span class="macro">format!</span>(<span class="string">"{prefix}:{key}"</span>)
+<a href=#131 id=131 data-nosnippet>131</a>}
+<a href=#132 id=132 data-nosnippet>132</a>
+<a href=#133 id=133 data-nosnippet>133</a><span class="kw">fn </span>get_redis_rev_key(config: <span class="kw-2">&amp;</span>ConfigSnapshot, key: ProjectKey) -&gt; String {
+<a href=#134 id=134 data-nosnippet>134</a>    <span class="kw">let </span>prefix = config.projectconfig_cache_prefix();
+<a href=#135 id=135 data-nosnippet>135</a>    <span class="macro">format!</span>(<span class="string">"{prefix}:{key}.rev"</span>)
+<a href=#136 id=136 data-nosnippet>136</a>}
+<a href=#137 id=137 data-nosnippet>137</a>
+<a href=#138 id=138 data-nosnippet>138</a><span class="attr">#[cfg(test)]
+<a href=#139 id=139 data-nosnippet>139</a></span><span class="kw">mod </span>tests {
+<a href=#140 id=140 data-nosnippet>140</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#141 id=141 data-nosnippet>141</a>
+<a href=#142 id=142 data-nosnippet>142</a>    <span class="attr">#[test]
+<a href=#143 id=143 data-nosnippet>143</a>    </span><span class="kw">fn </span>test_parse_redis_response() {
+<a href=#144 id=144 data-nosnippet>144</a>        <span class="kw">let </span>raw_response = <span class="string">b"{}"</span>;
+<a href=#145 id=145 data-nosnippet>145</a>        <span class="kw">let </span>result = parse_redis_response(raw_response);
+<a href=#146 id=146 data-nosnippet>146</a>        <span class="macro">assert!</span>(result.is_ok());
+<a href=#147 id=147 data-nosnippet>147</a>    }
+<a href=#148 id=148 data-nosnippet>148</a>
+<a href=#149 id=149 data-nosnippet>149</a>    <span class="attr">#[test]
+<a href=#150 id=150 data-nosnippet>150</a>    </span><span class="kw">fn </span>test_parse_redis_response_compressed() {
+<a href=#151 id=151 data-nosnippet>151</a>        <span class="kw">let </span>raw_response = <span class="string">b"(\xb5/\xfd \x02\x11\x00\x00{}"</span>; <span class="comment">// As dumped by python zstandard library
+<a href=#152 id=152 data-nosnippet>152</a>        </span><span class="kw">let </span>result = parse_redis_response(raw_response);
+<a href=#153 id=153 data-nosnippet>153</a>        <span class="macro">assert!</span>(result.is_ok(), <span class="string">"{result:?}"</span>);
+<a href=#154 id=154 data-nosnippet>154</a>    }
+<a href=#155 id=155 data-nosnippet>155</a>}
 </code></pre></div></section></main></body></html>

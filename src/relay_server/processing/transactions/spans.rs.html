@@ -3,7 +3,7 @@
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span><span class="kw">crate</span>::processing;
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span><span class="kw">crate</span>::processing::utils::event::event_type;
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>relay_base_schema::events::EventType;
-<a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>relay_config::Config;
+<a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>relay_config::ConfigSnapshot;
 <a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>relay_event_normalization::eap::{Ingress, Pipeline};
 <a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>relay_event_schema::protocol::{Event, Measurement, Measurements, Span, SpanV2, TraceContext};
 <a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>relay_metrics::MetricNamespace;
@@ -14,7 +14,7 @@
 <a href=#14 id=14 data-nosnippet>14</a><span class="kw">pub fn </span>extract_from_event(
 <a href=#15 id=15 data-nosnippet>15</a>    dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>DynamicSamplingContext&gt;,
 <a href=#16 id=16 data-nosnippet>16</a>    event: <span class="kw-2">&amp;</span>Annotated&lt;Event&gt;,
-<a href=#17 id=17 data-nosnippet>17</a>    config: <span class="kw-2">&amp;</span>Config,
+<a href=#17 id=17 data-nosnippet>17</a>    config: <span class="kw-2">&amp;</span>ConfigSnapshot,
 <a href=#18 id=18 data-nosnippet>18</a>    server_sample_rate: <span class="prelude-ty">Option</span>&lt;f64&gt;,
 <a href=#19 id=19 data-nosnippet>19</a>) -&gt; Vec&lt;<span class="prelude-ty">Result</span>&lt;Annotated&lt;SpanV2&gt;, ()&gt;&gt; {
 <a href=#20 id=20 data-nosnippet>20</a>    <span class="comment">// Only extract spans from transactions (not errors).

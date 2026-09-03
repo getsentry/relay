@@ -6,7 +6,7 @@
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>axum::routing::{MethodRouter, post};
 <a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>bytes::Bytes;
 <a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>itertools::Either;
-<a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>relay_config::Config;
+<a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>relay_config::ConfigSnapshot;
 <a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>relay_event_schema::protocol::EventId;
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>serde::Deserialize;
 <a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span>serde_json::value::RawValue;
@@ -106,7 +106,7 @@
 <a href=#106 id=106 data-nosnippet>106</a>    <span class="prelude-val">Ok</span>(().into_response())
 <a href=#107 id=107 data-nosnippet>107</a>}
 <a href=#108 id=108 data-nosnippet>108</a>
-<a href=#109 id=109 data-nosnippet>109</a><span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState&gt; {
+<a href=#109 id=109 data-nosnippet>109</a><span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>ConfigSnapshot) -&gt; MethodRouter&lt;ServiceState&gt; {
 <a href=#110 id=110 data-nosnippet>110</a>    post(handle).route_layer(DefaultBodyLimit::max(config.max_event_size()))
 <a href=#111 id=111 data-nosnippet>111</a>}
 </code></pre></div></section></main></body></html>

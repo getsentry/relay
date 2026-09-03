@@ -81,7 +81,7 @@
 <a href=#81 id=81 data-nosnippet>81</a>    );
 <a href=#82 id=82 data-nosnippet>82</a>
 <a href=#83 id=83 data-nosnippet>83</a>    <span class="kw">let </span>memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
-<a href=#84 id=84 data-nosnippet>84</a>    <span class="kw">let </span>buffer = PolymorphicEnvelopeBuffer::from_config(<span class="number">0</span>, <span class="kw-2">&amp;</span>config, memory_checker)
+<a href=#84 id=84 data-nosnippet>84</a>    <span class="kw">let </span>buffer = PolymorphicEnvelopeBuffer::from_config(<span class="number">0</span>, <span class="kw-2">&amp;</span>config.current(), memory_checker)
 <a href=#85 id=85 data-nosnippet>85</a>        .<span class="kw">await
 <a href=#86 id=86 data-nosnippet>86</a>        </span>.unwrap();
 <a href=#87 id=87 data-nosnippet>87</a>

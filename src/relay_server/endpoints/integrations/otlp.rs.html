@@ -4,7 +4,7 @@
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>axum::routing::{MethodRouter, post};
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>opentelemetry_proto::tonic::collector::logs::v1::ExportLogsServiceResponse;
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceResponse;
-<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>relay_config::Config;
+<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>relay_config::ConfigSnapshot;
 <a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>relay_dynamic_config::Feature;
 <a href=#9 id=9 data-nosnippet>9</a>
 <a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span><span class="kw">crate</span>::endpoints::common;
@@ -20,7 +20,7 @@
 <a href=#20 id=20 data-nosnippet>20</a>/// The integration currently supports the following endpoints:
 <a href=#21 id=21 data-nosnippet>21</a>///  - V1 Traces
 <a href=#22 id=22 data-nosnippet>22</a>///  - V1 Logs
-<a href=#23 id=23 data-nosnippet>23</a></span><span class="kw">pub fn </span>routes(config: <span class="kw-2">&amp;</span>Config) -&gt; axum::Router&lt;ServiceState&gt; {
+<a href=#23 id=23 data-nosnippet>23</a></span><span class="kw">pub fn </span>routes(config: <span class="kw-2">&amp;</span>ConfigSnapshot) -&gt; axum::Router&lt;ServiceState&gt; {
 <a href=#24 id=24 data-nosnippet>24</a>    axum::Router::new()
 <a href=#25 id=25 data-nosnippet>25</a>        .route(<span class="string">"/v1/traces"</span>, traces::route(config))
 <a href=#26 id=26 data-nosnippet>26</a>        .route(<span class="string">"/v1/traces/"</span>, traces::route(config))
@@ -56,7 +56,7 @@
 <a href=#56 id=56 data-nosnippet>56</a>        <span class="prelude-val">Ok</span>(SuccessResponse::new(format))
 <a href=#57 id=57 data-nosnippet>57</a>    }
 <a href=#58 id=58 data-nosnippet>58</a>
-<a href=#59 id=59 data-nosnippet>59</a>    <span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState&gt; {
+<a href=#59 id=59 data-nosnippet>59</a>    <span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>ConfigSnapshot) -&gt; MethodRouter&lt;ServiceState&gt; {
 <a href=#60 id=60 data-nosnippet>60</a>        post(handle).route_layer(DefaultBodyLimit::max(config.max_container_size()))
 <a href=#61 id=61 data-nosnippet>61</a>    }
 <a href=#62 id=62 data-nosnippet>62</a>}
@@ -90,7 +90,7 @@
 <a href=#90 id=90 data-nosnippet>90</a>        <span class="prelude-val">Ok</span>(SuccessResponse::new(format))
 <a href=#91 id=91 data-nosnippet>91</a>    }
 <a href=#92 id=92 data-nosnippet>92</a>
-<a href=#93 id=93 data-nosnippet>93</a>    <span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState&gt; {
+<a href=#93 id=93 data-nosnippet>93</a>    <span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>ConfigSnapshot) -&gt; MethodRouter&lt;ServiceState&gt; {
 <a href=#94 id=94 data-nosnippet>94</a>        post(handle).route_layer(DefaultBodyLimit::max(config.max_container_size()))
 <a href=#95 id=95 data-nosnippet>95</a>    }
 <a href=#96 id=96 data-nosnippet>96</a>}

@@ -14,7 +14,7 @@
 <a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span>futures::stream::StreamExt;
 <a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span>hashbrown::HashSet;
 <a href=#16 id=16 data-nosnippet>16</a><span class="kw">use </span>relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
-<a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span>relay_config::Config;
+<a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span>relay_config::ConfigSnapshot;
 <a href=#18 id=18 data-nosnippet>18</a><span class="kw">use </span>serde::{Deserialize, Serialize};
 <a href=#19 id=19 data-nosnippet>19</a><span class="kw">use </span>sqlx::migrate::MigrateError;
 <a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span>sqlx::query::Query;
@@ -313,7 +313,7 @@
 <a href=#313 id=313 data-nosnippet>313</a>    /// the folders where data will be stored.
 <a href=#314 id=314 data-nosnippet>314</a>    </span><span class="kw">pub async fn </span>prepare(
 <a href=#315 id=315 data-nosnippet>315</a>        partition_id: u8,
-<a href=#316 id=316 data-nosnippet>316</a>        config: <span class="kw-2">&amp;</span>Config,
+<a href=#316 id=316 data-nosnippet>316</a>        config: <span class="kw-2">&amp;</span>ConfigSnapshot,
 <a href=#317 id=317 data-nosnippet>317</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;SqliteEnvelopeStore, SqliteEnvelopeStoreError&gt; {
 <a href=#318 id=318 data-nosnippet>318</a>        <span class="comment">// If no path is provided, we can't do disk spooling.
 <a href=#319 id=319 data-nosnippet>319</a>        </span><span class="kw">let </span><span class="prelude-val">Some</span>(path) = config.spool_envelopes_path(partition_id) <span class="kw">else </span>{

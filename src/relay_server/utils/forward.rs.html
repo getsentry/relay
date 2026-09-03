@@ -10,7 +10,7 @@
 <a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>axum::response::{IntoResponse, Response};
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>bytes::Bytes;
 <a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span>hyper::body::{Frame, SizeHint};
-<a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span>relay_config::{Config, UpstreamDescriptor};
+<a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span>relay_config::{ConfigSnapshot, UpstreamDescriptor};
 <a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span>relay_system::Addr;
 <a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span>sync_wrapper::SyncWrapper;
 <a href=#16 id=16 data-nosnippet>16</a><span class="kw">use </span>tokio::sync::oneshot;
@@ -311,8 +311,8 @@
 <a href=#311 id=311 data-nosnippet>311</a>        <span class="self">self
 <a href=#312 id=312 data-nosnippet>312</a>    </span>}
 <a href=#313 id=313 data-nosnippet>313</a>
-<a href=#314 id=314 data-nosnippet>314</a>    <span class="doccomment">/// Applies the specified Relay [`Config`] to the forwarded request.
-<a href=#315 id=315 data-nosnippet>315</a>    </span><span class="kw">pub fn </span>with_config(<span class="kw-2">mut </span><span class="self">self</span>, config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="self">Self </span>{
+<a href=#314 id=314 data-nosnippet>314</a>    <span class="doccomment">/// Applies the specified Relay [`ConfigSnapshot`] to the forwarded request.
+<a href=#315 id=315 data-nosnippet>315</a>    </span><span class="kw">pub fn </span>with_config(<span class="kw-2">mut </span><span class="self">self</span>, config: <span class="kw-2">&amp;</span>ConfigSnapshot) -&gt; <span class="self">Self </span>{
 <a href=#316 id=316 data-nosnippet>316</a>        <span class="self">self</span>.timeout = config.http_timeout();
 <a href=#317 id=317 data-nosnippet>317</a>        <span class="self">self
 <a href=#318 id=318 data-nosnippet>318</a>    </span>}

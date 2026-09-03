@@ -4,7 +4,7 @@
 <a href=#4 id=4 data-nosnippet>4</a>
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>relay_base_schema::organization::OrganizationId;
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
-<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>relay_config::{Config, UpstreamDescriptor};
+<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>relay_config::{ConfigSnapshot, UpstreamDescriptor};
 <a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig, SignatureVerification};
 <a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>relay_filter::matches_any_origin;
 <a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>relay_quotas::{Quota, Scoping};
@@ -128,7 +128,7 @@
 <a href=#128 id=128 data-nosnippet>128</a>    </span><span class="kw">pub fn </span>check_envelope(
 <a href=#129 id=129 data-nosnippet>129</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
 <a href=#130 id=130 data-nosnippet>130</a>        envelope: <span class="kw-2">&amp;</span>Envelope,
-<a href=#131 id=131 data-nosnippet>131</a>        config: <span class="kw-2">&amp;</span>Config,
+<a href=#131 id=131 data-nosnippet>131</a>        config: <span class="kw-2">&amp;</span>ConfigSnapshot,
 <a href=#132 id=132 data-nosnippet>132</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), DiscardReason&gt; {
 <a href=#133 id=133 data-nosnippet>133</a>        <span class="comment">// Verify that the stated project id in the DSN matches the public key used to retrieve this
 <a href=#134 id=134 data-nosnippet>134</a>        // project state.
@@ -170,7 +170,7 @@
 <a href=#170 id=170 data-nosnippet>170</a>    </span><span class="kw">fn </span>check_envelope_signature(
 <a href=#171 id=171 data-nosnippet>171</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
 <a href=#172 id=172 data-nosnippet>172</a>        envelope: <span class="kw-2">&amp;</span>Envelope,
-<a href=#173 id=173 data-nosnippet>173</a>        config: <span class="kw-2">&amp;</span>Config,
+<a href=#173 id=173 data-nosnippet>173</a>        config: <span class="kw-2">&amp;</span>ConfigSnapshot,
 <a href=#174 id=174 data-nosnippet>174</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), DiscardReason&gt; {
 <a href=#175 id=175 data-nosnippet>175</a>        <span class="kw">if </span>envelope.meta().request_trust().is_trusted() {
 <a href=#176 id=176 data-nosnippet>176</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
@@ -205,7 +205,7 @@
 <a href=#205 id=205 data-nosnippet>205</a>    /// If the project state has not been loaded, this check is skipped because the project
 <a href=#206 id=206 data-nosnippet>206</a>    /// identifier is not yet known. Likewise, this check is skipped for the legacy store endpoint
 <a href=#207 id=207 data-nosnippet>207</a>    /// which comes without a project ID. The id is later overwritten in `check_envelope`.
-<a href=#208 id=208 data-nosnippet>208</a>    </span><span class="kw">fn </span>is_valid_project_id(<span class="kw-2">&amp;</span><span class="self">self</span>, stated_id: <span class="prelude-ty">Option</span>&lt;ProjectId&gt;, config: <span class="kw-2">&amp;</span>Config) -&gt; bool {
+<a href=#208 id=208 data-nosnippet>208</a>    </span><span class="kw">fn </span>is_valid_project_id(<span class="kw-2">&amp;</span><span class="self">self</span>, stated_id: <span class="prelude-ty">Option</span>&lt;ProjectId&gt;, config: <span class="kw-2">&amp;</span>ConfigSnapshot) -&gt; bool {
 <a href=#209 id=209 data-nosnippet>209</a>        <span class="kw">match </span>(<span class="self">self</span>.project_id, stated_id, config.override_project_ids()) {
 <a href=#210 id=210 data-nosnippet>210</a>            (<span class="prelude-val">Some</span>(actual_id), <span class="prelude-val">Some</span>(stated_id), <span class="bool-val">false</span>) =&gt; actual_id == stated_id,
 <a href=#211 id=211 data-nosnippet>211</a>            <span class="kw">_ </span>=&gt; <span class="bool-val">true</span>,

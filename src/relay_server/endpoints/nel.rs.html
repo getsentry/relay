@@ -4,7 +4,7 @@
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>axum::http::StatusCode;
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>axum::response::IntoResponse;
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>axum::routing::{MethodRouter, post};
-<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>relay_config::Config;
+<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>relay_config::ConfigSnapshot;
 <a href=#8 id=8 data-nosnippet>8</a>
 <a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span><span class="kw">crate</span>::endpoints::common;
 <a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span><span class="kw">crate</span>::extractors::{IntegrationBuilder, Mime};
@@ -41,7 +41,7 @@
 <a href=#41 id=41 data-nosnippet>41</a>    <span class="prelude-val">Ok</span>(StatusCode::OK)
 <a href=#42 id=42 data-nosnippet>42</a>}
 <a href=#43 id=43 data-nosnippet>43</a>
-<a href=#44 id=44 data-nosnippet>44</a><span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState&gt; {
+<a href=#44 id=44 data-nosnippet>44</a><span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>ConfigSnapshot) -&gt; MethodRouter&lt;ServiceState&gt; {
 <a href=#45 id=45 data-nosnippet>45</a>    post(handle).route_layer(DefaultBodyLimit::max(config.max_container_size()))
 <a href=#46 id=46 data-nosnippet>46</a>}
 </code></pre></div></section></main></body></html>

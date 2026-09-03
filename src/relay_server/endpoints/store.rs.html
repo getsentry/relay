@@ -9,7 +9,7 @@
 <a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>bytes::Bytes;
 <a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>data_encoding::BASE64;
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>flate2::bufread::ZlibDecoder;
-<a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span>relay_config::Config;
+<a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span>relay_config::ConfigSnapshot;
 <a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span>relay_event_schema::protocol::EventId;
 <a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span>serde::{Deserialize, Serialize};
 <a href=#15 id=15 data-nosnippet>15</a>
@@ -52,7 +52,7 @@
 <a href=#52 id=52 data-nosnippet>52</a></span><span class="kw">fn </span>parse_event(
 <a href=#53 id=53 data-nosnippet>53</a>    <span class="kw-2">mut </span>body: Bytes,
 <a href=#54 id=54 data-nosnippet>54</a>    meta: RequestMeta,
-<a href=#55 id=55 data-nosnippet>55</a>    config: <span class="kw-2">&amp;</span>Config,
+<a href=#55 id=55 data-nosnippet>55</a>    config: <span class="kw-2">&amp;</span>ConfigSnapshot,
 <a href=#56 id=56 data-nosnippet>56</a>) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
 <a href=#57 id=57 data-nosnippet>57</a>    <span class="comment">// The body may be zlib compressed and encoded as base64. Decode it transparently if this is the
 <a href=#58 id=58 data-nosnippet>58</a>    // case.
@@ -113,7 +113,7 @@
 <a href=#113 id=113 data-nosnippet>113</a>        envelope::CONTENT_TYPE =&gt; {
 <a href=#114 id=114 data-nosnippet>114</a>            Envelope::parse_request(body, meta).map_err(BadStoreRequest::InvalidEnvelope)<span class="question-mark">?
 <a href=#115 id=115 data-nosnippet>115</a>        </span>}
-<a href=#116 id=116 data-nosnippet>116</a>        <span class="kw">_ </span>=&gt; parse_event(body, meta, state.config())<span class="question-mark">?</span>,
+<a href=#116 id=116 data-nosnippet>116</a>        <span class="kw">_ </span>=&gt; parse_event(body, meta, <span class="kw-2">&amp;</span>state.config())<span class="question-mark">?</span>,
 <a href=#117 id=117 data-nosnippet>117</a>    };
 <a href=#118 id=118 data-nosnippet>118</a>    <span class="kw">if </span>envelope.is_internal() {
 <a href=#119 id=119 data-nosnippet>119</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::InternalEnvelope.into());
@@ -146,14 +146,14 @@
 <a href=#146 id=146 data-nosnippet>146</a>    meta: RequestMeta,
 <a href=#147 id=147 data-nosnippet>147</a>    Query(query): Query&lt;GetQuery&gt;,
 <a href=#148 id=148 data-nosnippet>148</a>) -&gt; axum::response::Result&lt;<span class="kw">impl </span>IntoResponse&gt; {
-<a href=#149 id=149 data-nosnippet>149</a>    <span class="kw">let </span>envelope = parse_event(query.sentry_data.into(), meta, state.config())<span class="question-mark">?</span>;
+<a href=#149 id=149 data-nosnippet>149</a>    <span class="kw">let </span>envelope = parse_event(query.sentry_data.into(), meta, <span class="kw-2">&amp;</span>state.config())<span class="question-mark">?</span>;
 <a href=#150 id=150 data-nosnippet>150</a>    common::handle_envelope(<span class="kw-2">&amp;</span>state, envelope)
 <a href=#151 id=151 data-nosnippet>151</a>        .<span class="kw">await</span><span class="question-mark">?
 <a href=#152 id=152 data-nosnippet>152</a>        </span>.check_rate_limits()<span class="question-mark">?</span>;
 <a href=#153 id=153 data-nosnippet>153</a>    <span class="prelude-val">Ok</span>(([(header::CONTENT_TYPE, <span class="string">"image/gif"</span>)], PIXEL))
 <a href=#154 id=154 data-nosnippet>154</a>}
 <a href=#155 id=155 data-nosnippet>155</a>
-<a href=#156 id=156 data-nosnippet>156</a><span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState&gt; {
+<a href=#156 id=156 data-nosnippet>156</a><span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>ConfigSnapshot) -&gt; MethodRouter&lt;ServiceState&gt; {
 <a href=#157 id=157 data-nosnippet>157</a>    (post(handle_post).get(handle_get)).route_layer(DefaultBodyLimit::max(config.max_event_size()))
 <a href=#158 id=158 data-nosnippet>158</a>}
 </code></pre></div></section></main></body></html>
