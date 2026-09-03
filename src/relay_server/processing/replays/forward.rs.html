@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/processing/replays/forward.rs`."><title>forward.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-1ed95124.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.98.0 (88d9e12ae 2026-08-18)" data-channel="1.98.0" data-search-js="search-9944d736.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../../static.files/src-script-813739b1.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">relay_server/processing/replays/</div>forward.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span>bytes::Bytes;
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/processing/replays/forward.rs`."><title>forward.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-1ed95124.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.98.1 (48a229cea 2026-09-01)" data-channel="1.98.1" data-search-js="search-9944d736.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../../static.files/src-script-813739b1.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">relay_server/processing/replays/</div>forward.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span>bytes::Bytes;
 <a href=#2 id=2 data-nosnippet>2</a><span class="kw">use </span>smallvec::smallvec;
 <a href=#3 id=3 data-nosnippet>3</a>
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span><span class="kw">crate</span>::Envelope;
@@ -50,72 +50,70 @@
 <a href=#50 id=50 data-nosnippet>50</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), Rejected&lt;()&gt;&gt; {
 <a href=#51 id=51 data-nosnippet>51</a>        <span class="kw">let </span><span class="self">Self</span>(replay) = <span class="self">self</span>;
 <a href=#52 id=52 data-nosnippet>52</a>
-<a href=#53 id=53 data-nosnippet>53</a>        <span class="kw">let </span>event_id = replay.headers.event_id().ok_or_else(|| {
-<a href=#54 id=54 data-nosnippet>54</a>            replay
-<a href=#55 id=55 data-nosnippet>55</a>                .reject_err(<span class="kw">crate</span>::processing::replays::Error::NoEventId)
-<a href=#56 id=56 data-nosnippet>56</a>                .map(drop)
-<a href=#57 id=57 data-nosnippet>57</a>        })<span class="question-mark">?</span>;
-<a href=#58 id=58 data-nosnippet>58</a>
-<a href=#59 id=59 data-nosnippet>59</a>        <span class="kw">let </span>ctx = store::Context {
-<a href=#60 id=60 data-nosnippet>60</a>            event_id,
-<a href=#61 id=61 data-nosnippet>61</a>            retention: ctx.event_retention().standard,
-<a href=#62 id=62 data-nosnippet>62</a>            max_replay_message_size: ctx.config.max_replay_message_size(),
-<a href=#63 id=63 data-nosnippet>63</a>        };
-<a href=#64 id=64 data-nosnippet>64</a>
-<a href=#65 id=65 data-nosnippet>65</a>        <span class="kw">if let </span><span class="prelude-val">Ok</span>(replay) = replay.try_map(|replay, <span class="kw">_</span>| store::convert(replay.payload, <span class="kw-2">&amp;</span>ctx)) {
-<a href=#66 id=66 data-nosnippet>66</a>            s.send_to_store(replay);
-<a href=#67 id=67 data-nosnippet>67</a>        }
-<a href=#68 id=68 data-nosnippet>68</a>        <span class="prelude-val">Ok</span>(())
-<a href=#69 id=69 data-nosnippet>69</a>    }
-<a href=#70 id=70 data-nosnippet>70</a>}
-<a href=#71 id=71 data-nosnippet>71</a>
-<a href=#72 id=72 data-nosnippet>72</a><span class="kw">fn </span>create_replay_event_item(payload: Bytes) -&gt; Item {
-<a href=#73 id=73 data-nosnippet>73</a>    <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::ReplayEvent);
-<a href=#74 id=74 data-nosnippet>74</a>    item.set_payload(ContentType::Json, payload);
-<a href=#75 id=75 data-nosnippet>75</a>    item
-<a href=#76 id=76 data-nosnippet>76</a>}
-<a href=#77 id=77 data-nosnippet>77</a>
-<a href=#78 id=78 data-nosnippet>78</a><span class="kw">fn </span>create_replay_recording_item(payload: Bytes) -&gt; Item {
-<a href=#79 id=79 data-nosnippet>79</a>    <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::ReplayRecording);
-<a href=#80 id=80 data-nosnippet>80</a>    item.set_payload(ContentType::OctetStream, payload);
-<a href=#81 id=81 data-nosnippet>81</a>    item
-<a href=#82 id=82 data-nosnippet>82</a>}
-<a href=#83 id=83 data-nosnippet>83</a>
-<a href=#84 id=84 data-nosnippet>84</a><span class="kw">fn </span>create_replay_video_item(payload: Bytes) -&gt; Item {
-<a href=#85 id=85 data-nosnippet>85</a>    <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::ReplayVideo);
-<a href=#86 id=86 data-nosnippet>86</a>    item.set_payload(ContentType::OctetStream, payload);
-<a href=#87 id=87 data-nosnippet>87</a>    item
-<a href=#88 id=88 data-nosnippet>88</a>}
-<a href=#89 id=89 data-nosnippet>89</a>
-<a href=#90 id=90 data-nosnippet>90</a><span class="kw">fn </span>serialize_replay(replay: <span class="kw-2">&amp;</span>ReplayPayload) -&gt; <span class="prelude-ty">Result</span>&lt;Items, SerializeReplayError&gt; {
-<a href=#91 id=91 data-nosnippet>91</a>    <span class="kw">match </span>replay {
-<a href=#92 id=92 data-nosnippet>92</a>        ReplayPayload::WebReplay { event, recording } =&gt; {
-<a href=#93 id=93 data-nosnippet>93</a>            <span class="kw">let </span>event_bytes: Bytes = event.to_json()<span class="question-mark">?</span>.into_bytes().into();
-<a href=#94 id=94 data-nosnippet>94</a>
-<a href=#95 id=95 data-nosnippet>95</a>            <span class="prelude-val">Ok</span>(<span class="macro">smallvec!</span>[
-<a href=#96 id=96 data-nosnippet>96</a>                create_replay_event_item(event_bytes),
-<a href=#97 id=97 data-nosnippet>97</a>                create_replay_recording_item(recording.clone())
-<a href=#98 id=98 data-nosnippet>98</a>            ])
-<a href=#99 id=99 data-nosnippet>99</a>        }
-<a href=#100 id=100 data-nosnippet>100</a>        ReplayPayload::NativeReplay {
-<a href=#101 id=101 data-nosnippet>101</a>            event,
-<a href=#102 id=102 data-nosnippet>102</a>            recording,
-<a href=#103 id=103 data-nosnippet>103</a>            video,
-<a href=#104 id=104 data-nosnippet>104</a>        } =&gt; {
-<a href=#105 id=105 data-nosnippet>105</a>            <span class="kw">let </span>event_bytes: Bytes = event.to_json()<span class="question-mark">?</span>.into_bytes().into();
-<a href=#106 id=106 data-nosnippet>106</a>
-<a href=#107 id=107 data-nosnippet>107</a>            <span class="kw">let </span>video_event = ReplayVideoEvent {
-<a href=#108 id=108 data-nosnippet>108</a>                replay_event: event_bytes,
-<a href=#109 id=109 data-nosnippet>109</a>                replay_recording: recording.clone(),
-<a href=#110 id=110 data-nosnippet>110</a>                replay_video: video.clone(),
-<a href=#111 id=111 data-nosnippet>111</a>            };
-<a href=#112 id=112 data-nosnippet>112</a>
-<a href=#113 id=113 data-nosnippet>113</a>            <span class="kw">let </span>payload = rmp_serde::to_vec_named(<span class="kw-2">&amp;</span>video_event)<span class="question-mark">?</span>;
-<a href=#114 id=114 data-nosnippet>114</a>            <span class="prelude-val">Ok</span>(<span class="macro">smallvec!</span>[create_replay_video_item(payload.into())])
-<a href=#115 id=115 data-nosnippet>115</a>        }
-<a href=#116 id=116 data-nosnippet>116</a>        ReplayPayload::StandaloneRecording { recording } =&gt; {
-<a href=#117 id=117 data-nosnippet>117</a>            <span class="prelude-val">Ok</span>(<span class="macro">smallvec!</span>[create_replay_recording_item(recording.clone())])
-<a href=#118 id=118 data-nosnippet>118</a>        }
-<a href=#119 id=119 data-nosnippet>119</a>    }
-<a href=#120 id=120 data-nosnippet>120</a>}
+<a href=#53 id=53 data-nosnippet>53</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(event_id) = replay.headers.event_id() <span class="kw">else </span>{
+<a href=#54 id=54 data-nosnippet>54</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(replay.reject_err(<span class="kw">super</span>::Error::NoEventId).map(drop));
+<a href=#55 id=55 data-nosnippet>55</a>        };
+<a href=#56 id=56 data-nosnippet>56</a>
+<a href=#57 id=57 data-nosnippet>57</a>        <span class="kw">let </span>ctx = store::Context {
+<a href=#58 id=58 data-nosnippet>58</a>            event_id,
+<a href=#59 id=59 data-nosnippet>59</a>            retention: ctx.event_retention().standard,
+<a href=#60 id=60 data-nosnippet>60</a>            max_replay_message_size: ctx.config.max_replay_message_size(),
+<a href=#61 id=61 data-nosnippet>61</a>        };
+<a href=#62 id=62 data-nosnippet>62</a>
+<a href=#63 id=63 data-nosnippet>63</a>        <span class="kw">if let </span><span class="prelude-val">Ok</span>(replay) = replay.try_map(|replay, <span class="kw">_</span>| store::convert(replay.payload, <span class="kw-2">&amp;</span>ctx)) {
+<a href=#64 id=64 data-nosnippet>64</a>            s.send_to_store(replay);
+<a href=#65 id=65 data-nosnippet>65</a>        }
+<a href=#66 id=66 data-nosnippet>66</a>        <span class="prelude-val">Ok</span>(())
+<a href=#67 id=67 data-nosnippet>67</a>    }
+<a href=#68 id=68 data-nosnippet>68</a>}
+<a href=#69 id=69 data-nosnippet>69</a>
+<a href=#70 id=70 data-nosnippet>70</a><span class="kw">fn </span>create_replay_event_item(payload: Bytes) -&gt; Item {
+<a href=#71 id=71 data-nosnippet>71</a>    <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::ReplayEvent);
+<a href=#72 id=72 data-nosnippet>72</a>    item.set_payload(ContentType::Json, payload);
+<a href=#73 id=73 data-nosnippet>73</a>    item
+<a href=#74 id=74 data-nosnippet>74</a>}
+<a href=#75 id=75 data-nosnippet>75</a>
+<a href=#76 id=76 data-nosnippet>76</a><span class="kw">fn </span>create_replay_recording_item(payload: Bytes) -&gt; Item {
+<a href=#77 id=77 data-nosnippet>77</a>    <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::ReplayRecording);
+<a href=#78 id=78 data-nosnippet>78</a>    item.set_payload(ContentType::OctetStream, payload);
+<a href=#79 id=79 data-nosnippet>79</a>    item
+<a href=#80 id=80 data-nosnippet>80</a>}
+<a href=#81 id=81 data-nosnippet>81</a>
+<a href=#82 id=82 data-nosnippet>82</a><span class="kw">fn </span>create_replay_video_item(payload: Bytes) -&gt; Item {
+<a href=#83 id=83 data-nosnippet>83</a>    <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::ReplayVideo);
+<a href=#84 id=84 data-nosnippet>84</a>    item.set_payload(ContentType::OctetStream, payload);
+<a href=#85 id=85 data-nosnippet>85</a>    item
+<a href=#86 id=86 data-nosnippet>86</a>}
+<a href=#87 id=87 data-nosnippet>87</a>
+<a href=#88 id=88 data-nosnippet>88</a><span class="kw">fn </span>serialize_replay(replay: <span class="kw-2">&amp;</span>ReplayPayload) -&gt; <span class="prelude-ty">Result</span>&lt;Items, SerializeReplayError&gt; {
+<a href=#89 id=89 data-nosnippet>89</a>    <span class="kw">match </span>replay {
+<a href=#90 id=90 data-nosnippet>90</a>        ReplayPayload::WebReplay { event, recording } =&gt; {
+<a href=#91 id=91 data-nosnippet>91</a>            <span class="kw">let </span>event_bytes: Bytes = event.to_json()<span class="question-mark">?</span>.into_bytes().into();
+<a href=#92 id=92 data-nosnippet>92</a>
+<a href=#93 id=93 data-nosnippet>93</a>            <span class="prelude-val">Ok</span>(<span class="macro">smallvec!</span>[
+<a href=#94 id=94 data-nosnippet>94</a>                create_replay_event_item(event_bytes),
+<a href=#95 id=95 data-nosnippet>95</a>                create_replay_recording_item(recording.clone())
+<a href=#96 id=96 data-nosnippet>96</a>            ])
+<a href=#97 id=97 data-nosnippet>97</a>        }
+<a href=#98 id=98 data-nosnippet>98</a>        ReplayPayload::NativeReplay {
+<a href=#99 id=99 data-nosnippet>99</a>            event,
+<a href=#100 id=100 data-nosnippet>100</a>            recording,
+<a href=#101 id=101 data-nosnippet>101</a>            video,
+<a href=#102 id=102 data-nosnippet>102</a>        } =&gt; {
+<a href=#103 id=103 data-nosnippet>103</a>            <span class="kw">let </span>event_bytes: Bytes = event.to_json()<span class="question-mark">?</span>.into_bytes().into();
+<a href=#104 id=104 data-nosnippet>104</a>
+<a href=#105 id=105 data-nosnippet>105</a>            <span class="kw">let </span>video_event = ReplayVideoEvent {
+<a href=#106 id=106 data-nosnippet>106</a>                replay_event: event_bytes,
+<a href=#107 id=107 data-nosnippet>107</a>                replay_recording: recording.clone(),
+<a href=#108 id=108 data-nosnippet>108</a>                replay_video: video.clone(),
+<a href=#109 id=109 data-nosnippet>109</a>            };
+<a href=#110 id=110 data-nosnippet>110</a>
+<a href=#111 id=111 data-nosnippet>111</a>            <span class="kw">let </span>payload = rmp_serde::to_vec_named(<span class="kw-2">&amp;</span>video_event)<span class="question-mark">?</span>;
+<a href=#112 id=112 data-nosnippet>112</a>            <span class="prelude-val">Ok</span>(<span class="macro">smallvec!</span>[create_replay_video_item(payload.into())])
+<a href=#113 id=113 data-nosnippet>113</a>        }
+<a href=#114 id=114 data-nosnippet>114</a>        ReplayPayload::StandaloneRecording { recording } =&gt; {
+<a href=#115 id=115 data-nosnippet>115</a>            <span class="prelude-val">Ok</span>(<span class="macro">smallvec!</span>[create_replay_recording_item(recording.clone())])
+<a href=#116 id=116 data-nosnippet>116</a>        }
+<a href=#117 id=117 data-nosnippet>117</a>    }
+<a href=#118 id=118 data-nosnippet>118</a>}
 </code></pre></div></section></main></body></html>
