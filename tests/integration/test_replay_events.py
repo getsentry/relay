@@ -6,6 +6,7 @@ import pytest
 from sentry_relay.consts import DataCategory
 
 from .asserts import time_within_delta
+from .consts import Outcome
 
 
 def generate_replay_sdk_event(replay_id="d2132d31b39445f1938d7e21b6bf0ec4"):
@@ -156,9 +157,9 @@ def test_replay_events_are_filtered(
     outcome = outcomes_consumer.get_outcome(timeout=10)
     assert outcome["org_id"] == 1
     assert outcome["project_id"] == 42
-    assert outcome["outcome"] == 1
+    assert outcome["outcome"] == Outcome.FILTERED
     assert outcome["reason"] == "localhost"
-    assert outcome["category"] == 7
+    assert outcome["category"] == DataCategory.REPLAY
     assert outcome["quantity"] == 2
 
     outcomes_consumer.assert_empty()
@@ -198,8 +199,8 @@ def test_time_corrections(mini_sentry, relay, delta, error):
     if error == "past_timestamp":
         assert mini_sentry.get_aggregated_outcomes() == [
             {
-                "category": DataCategory.REPLAY.value,
-                "outcome": 3,
+                "category": DataCategory.REPLAY,
+                "outcome": Outcome.INVALID,
                 "quantity": 2,
                 "reason": "timestamp",
             }

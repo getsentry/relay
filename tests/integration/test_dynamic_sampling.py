@@ -8,6 +8,7 @@ from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 import queue
 from .asserts import time_within_delta
+from .consts import Outcome
 
 
 def _create_transaction_item(trace_id=None, event_id=None, transaction=None, **kwargs):
@@ -254,7 +255,7 @@ def test_it_removes_events(mini_sentry, relay):
     assert mini_sentry.get_aggregated_outcomes(n=2) == [
         {
             "category": DataCategory.TRANSACTION_INDEXED,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "public_key": public_key,
             "quantity": 1,
             "reason": "Sampled:0",
@@ -262,7 +263,7 @@ def test_it_removes_events(mini_sentry, relay):
         },
         {
             "category": DataCategory.SPAN_INDEXED,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "public_key": public_key,
             "quantity": 1,
             "reason": "Sampled:0",
@@ -407,7 +408,7 @@ def test_sample_on_parametrized_root_transaction(mini_sentry, relay):
     assert mini_sentry.get_aggregated_outcomes(n=2) == [
         {
             "category": DataCategory.TRANSACTION_INDEXED,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "public_key": public_key,
             "quantity": 1,
             "reason": "Sampled:0",
@@ -415,7 +416,7 @@ def test_sample_on_parametrized_root_transaction(mini_sentry, relay):
         },
         {
             "category": DataCategory.SPAN_INDEXED,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "public_key": public_key,
             "quantity": 1,
             "reason": "Sampled:0",
@@ -512,7 +513,7 @@ def test_uses_trace_public_key(mini_sentry, relay):
     assert mini_sentry.get_aggregated_outcomes(n=2) == [
         {
             "category": DataCategory.TRANSACTION_INDEXED,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "public_key": public_key2,
             "quantity": 1,
             "reason": "Sampled:0",
@@ -520,7 +521,7 @@ def test_uses_trace_public_key(mini_sentry, relay):
         },
         {
             "category": DataCategory.SPAN_INDEXED,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "public_key": public_key2,
             "quantity": 1,
             "reason": "Sampled:0",
@@ -598,7 +599,7 @@ def test_multi_item_envelope(mini_sentry, relay, rule_type, event_factory):
         assert mini_sentry.get_aggregated_outcomes(n=4) == [
             {
                 "category": DataCategory.ATTACHMENT,
-                "outcome": 1,
+                "outcome": Outcome.FILTERED,
                 "public_key": public_key,
                 "quantity": 52,
                 "reason": "Sampled:0",
@@ -606,7 +607,7 @@ def test_multi_item_envelope(mini_sentry, relay, rule_type, event_factory):
             },
             {
                 "category": DataCategory.TRANSACTION_INDEXED,
-                "outcome": 1,
+                "outcome": Outcome.FILTERED,
                 "public_key": public_key,
                 "quantity": 1,
                 "reason": "Sampled:0",
@@ -614,7 +615,7 @@ def test_multi_item_envelope(mini_sentry, relay, rule_type, event_factory):
             },
             {
                 "category": DataCategory.SPAN_INDEXED,
-                "outcome": 1,
+                "outcome": Outcome.FILTERED,
                 "public_key": public_key,
                 "quantity": 1,
                 "reason": "Sampled:0",
@@ -622,7 +623,7 @@ def test_multi_item_envelope(mini_sentry, relay, rule_type, event_factory):
             },
             {
                 "category": DataCategory.ATTACHMENT_ITEM,
-                "outcome": 1,
+                "outcome": Outcome.FILTERED,
                 "public_key": public_key,
                 "quantity": 2,
                 "reason": "Sampled:0",

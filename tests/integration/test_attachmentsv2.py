@@ -12,6 +12,7 @@ from .test_dynamic_sampling import add_sampling_config
 import json
 import uuid
 import pytest
+from .consts import Outcome
 
 TEST_CONFIG = {
     "outcomes": {
@@ -158,11 +159,11 @@ def test_standalone_attachment_store(
         "outcomes": {
             "categoryCount": [
                 {
-                    "dataCategory": DataCategory.ATTACHMENT.value,
+                    "dataCategory": DataCategory.ATTACHMENT,
                     "quantity": "36",
                 },
                 {
-                    "dataCategory": DataCategory.ATTACHMENT_ITEM.value,
+                    "dataCategory": DataCategory.ATTACHMENT_ITEM,
                     "quantity": "1",
                 },
             ],
@@ -232,15 +233,15 @@ def test_invalid_item_headers(mini_sentry, relay, invalid_headers, quantity, rea
 
     assert mini_sentry.get_outcomes(n=2) == [
         {
-            "category": DataCategory.ATTACHMENT.value,
-            "outcome": 3,
+            "category": DataCategory.ATTACHMENT,
+            "outcome": Outcome.INVALID,
             "reason": reason,
             "quantity": quantity,
             "timestamp": time_within_delta(),
         },
         {
-            "category": DataCategory.ATTACHMENT_ITEM.value,
-            "outcome": 3,
+            "category": DataCategory.ATTACHMENT_ITEM,
+            "outcome": Outcome.INVALID,
             "reason": reason,
             "quantity": 1,
             "timestamp": time_within_delta(),
@@ -405,11 +406,11 @@ def test_attachment_with_matching_span_store(
         "outcomes": {
             "categoryCount": [
                 {
-                    "dataCategory": DataCategory.ATTACHMENT.value,
+                    "dataCategory": DataCategory.ATTACHMENT,
                     "quantity": "23",
                 },
                 {
-                    "dataCategory": DataCategory.ATTACHMENT_ITEM.value,
+                    "dataCategory": DataCategory.ATTACHMENT_ITEM,
                     "quantity": "1",
                 },
             ],
@@ -423,18 +424,18 @@ def test_attachment_with_matching_span_store(
     outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
     assert outcomes == [
         {
-            "category": DataCategory.TRANSACTION.value,
+            "category": DataCategory.TRANSACTION,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 1,
         },
         {
-            "category": DataCategory.SPAN.value,
+            "category": DataCategory.SPAN,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 1,
         },
@@ -592,23 +593,23 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
     assert mini_sentry.get_outcomes(n=3) == [
         {
             "timestamp": time_within_delta(),
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:0",
-            "category": DataCategory.ATTACHMENT.value,
+            "category": DataCategory.ATTACHMENT,
             "quantity": len(body),
         },
         {
             "timestamp": time_within_delta(),
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:0",
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN_INDEXED,
             "quantity": 1,
         },
         {
             "timestamp": time_within_delta(),
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:0",
-            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "quantity": 1,
         },
     ]
@@ -692,16 +693,16 @@ def test_trace_attachment_ds(mini_sentry, relay, rule_type, should_drop):
         assert mini_sentry.get_outcomes(n=2) == [
             {
                 "timestamp": time_within_delta(),
-                "outcome": 1,
+                "outcome": Outcome.FILTERED,
                 "reason": "Sampled:0",
-                "category": DataCategory.ATTACHMENT.value,
+                "category": DataCategory.ATTACHMENT,
                 "quantity": len(body),
             },
             {
                 "timestamp": time_within_delta(),
-                "outcome": 1,
+                "outcome": Outcome.FILTERED,
                 "reason": "Sampled:0",
-                "category": DataCategory.ATTACHMENT_ITEM.value,
+                "category": DataCategory.ATTACHMENT_ITEM,
                 "quantity": 1,
             },
         ]
@@ -761,16 +762,16 @@ def test_standalone_attachment_only_ds_drop(mini_sentry, relay, rule_type):
     assert mini_sentry.get_outcomes(n=2) == [
         {
             "timestamp": time_within_delta(),
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:0",
-            "category": DataCategory.ATTACHMENT.value,
+            "category": DataCategory.ATTACHMENT,
             "quantity": len(body),
         },
         {
             "timestamp": time_within_delta(),
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:0",
-            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "quantity": 1,
         },
     ]
@@ -837,30 +838,30 @@ def test_attachments_dropped_with_span_inbound_filters(mini_sentry, relay):
     assert mini_sentry.get_outcomes(n=4) == [
         {
             "timestamp": time_within_delta(ts),
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "release-version",
-            "category": DataCategory.ATTACHMENT.value,
+            "category": DataCategory.ATTACHMENT,
             "quantity": 23,
         },
         {
             "timestamp": time_within_delta(ts),
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "release-version",
-            "category": DataCategory.SPAN.value,
+            "category": DataCategory.SPAN,
             "quantity": 1,
         },
         {
             "timestamp": time_within_delta(ts),
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "release-version",
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN_INDEXED,
             "quantity": 1,
         },
         {
             "timestamp": time_within_delta(ts),
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "release-version",
-            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "quantity": 1,
         },
     ]
@@ -916,30 +917,30 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
     assert mini_sentry.get_outcomes(n=4) == [
         {
             "timestamp": time_within_delta(ts),
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "no_data",
-            "category": DataCategory.ATTACHMENT.value,
+            "category": DataCategory.ATTACHMENT,
             "quantity": 23,
         },
         {
             "timestamp": time_within_delta(ts),
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "no_data",
-            "category": DataCategory.SPAN.value,
+            "category": DataCategory.SPAN,
             "quantity": 1,
         },
         {
             "timestamp": time_within_delta(ts),
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "no_data",
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN_INDEXED,
             "quantity": 1,
         },
         {
             "timestamp": time_within_delta(ts),
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "no_data",
-            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "quantity": 1,
         },
     ]
@@ -962,11 +963,11 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
             ],
             {
                 # Rate limit spans
-                (DataCategory.SPAN.value, 2): 1,
-                (DataCategory.SPAN_INDEXED.value, 2): 1,
+                (DataCategory.SPAN, 2): 1,
+                (DataCategory.SPAN_INDEXED, 2): 1,
                 # Rate limit associated span attachments
-                (DataCategory.ATTACHMENT.value, 2): 64,
-                (DataCategory.ATTACHMENT_ITEM.value, 2): 2,
+                (DataCategory.ATTACHMENT, 2): 64,
+                (DataCategory.ATTACHMENT_ITEM, 2): 2,
             },
             id="span_quota_exceeded",
         ),
@@ -981,9 +982,9 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
                 }
             ],
             {
-                (DataCategory.SPAN_INDEXED.value, 2): 1,
-                (DataCategory.ATTACHMENT.value, 2): 64,
-                (DataCategory.ATTACHMENT_ITEM.value, 2): 2,
+                (DataCategory.SPAN_INDEXED, 2): 1,
+                (DataCategory.ATTACHMENT, 2): 64,
+                (DataCategory.ATTACHMENT_ITEM, 2): 2,
             },
             id="span_indexed_quota_exceeded",
         ),
@@ -999,8 +1000,8 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
             ],
             {
                 # Attachments don't make it through
-                (DataCategory.ATTACHMENT.value, 2): 104,
-                (DataCategory.ATTACHMENT_ITEM.value, 2): 3,
+                (DataCategory.ATTACHMENT, 2): 104,
+                (DataCategory.ATTACHMENT_ITEM, 2): 3,
             },
             id="attachment_quota_exceeded",
         ),
@@ -1023,10 +1024,10 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
             ],
             {
                 # Nothing makes it through
-                (DataCategory.SPAN.value, 2): 1,
-                (DataCategory.SPAN_INDEXED.value, 2): 1,
-                (DataCategory.ATTACHMENT.value, 2): 104,
-                (DataCategory.ATTACHMENT_ITEM.value, 2): 3,
+                (DataCategory.SPAN, 2): 1,
+                (DataCategory.SPAN_INDEXED, 2): 1,
+                (DataCategory.ATTACHMENT, 2): 104,
+                (DataCategory.ATTACHMENT_ITEM, 2): 3,
             },
             id="both_quotas_exceeded",
         ),

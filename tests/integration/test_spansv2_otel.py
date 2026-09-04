@@ -20,6 +20,7 @@ from opentelemetry.proto.trace.v1.trace_pb2 import (
 from sentry_relay.consts import DataCategory
 
 from .asserts import time_within_delta, time_within
+from .consts import Outcome
 
 GRPC_INVALID_ARGUMENT = 3
 GRPC_RESOURCE_EXHAUSTED = 8
@@ -335,18 +336,18 @@ def test_span_ingestion(
 
     assert outcomes_consumer.get_aggregated_outcomes(n=2) == [
         {
-            "category": DataCategory.TRANSACTION.value,
+            "category": DataCategory.TRANSACTION,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 1,
         },
         {
-            "category": DataCategory.SPAN.value,
+            "category": DataCategory.SPAN,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 1,
         },

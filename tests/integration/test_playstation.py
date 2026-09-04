@@ -11,6 +11,7 @@ from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from urllib3 import encode_multipart_formdata
 from .asserts import matches_any, time_within_delta
 from .consts import DUMMY_UPLOAD_LOCATION
+from .consts import Outcome
 
 
 @cache
@@ -244,9 +245,9 @@ def test_playstation_no_feature_flag(
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "feature_disabled",
-            "category": 1,
+            "category": DataCategory.ERROR,
             "quantity": 1,
         },
         {
@@ -254,9 +255,9 @@ def test_playstation_no_feature_flag(
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "feature_disabled",
-            "category": 4,
+            "category": DataCategory.ATTACHMENT,
             "quantity": 209385,
         },
         {
@@ -264,9 +265,9 @@ def test_playstation_no_feature_flag(
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "feature_disabled",
-            "category": 22,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "quantity": 1,
         },
     ]
@@ -295,9 +296,9 @@ def test_playstation_invalid_prosperodump(
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "invalid_prosperodump",
-            "category": DataCategory.ERROR.value,
+            "category": DataCategory.ERROR,
             "quantity": 1,
         },
         {
@@ -305,9 +306,9 @@ def test_playstation_invalid_prosperodump(
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "invalid_prosperodump",
-            "category": DataCategory.ATTACHMENT.value,
+            "category": DataCategory.ATTACHMENT,
             "quantity": len(playstation_dump),
         },
         {
@@ -315,9 +316,9 @@ def test_playstation_invalid_prosperodump(
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "invalid_prosperodump",
-            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "quantity": 1,
         },
     ]
@@ -347,9 +348,9 @@ def test_playstation_missing_prosperodump(
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "missing_prosperodump_upload",
-            "category": DataCategory.ERROR.value,
+            "category": DataCategory.ERROR,
             "quantity": 1,
         },
         {
@@ -357,9 +358,9 @@ def test_playstation_missing_prosperodump(
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "missing_prosperodump_upload",
-            "category": DataCategory.ATTACHMENT.value,
+            "category": DataCategory.ATTACHMENT,
             "quantity": len(video_content),
         },
         {
@@ -367,9 +368,9 @@ def test_playstation_missing_prosperodump(
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "missing_prosperodump_upload",
-            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "quantity": 1,
         },
     ]
@@ -405,9 +406,9 @@ def test_playstation_max_attachments_size_exceeded(
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "request_too_large",
-            "category": DataCategory.ERROR.value,
+            "category": DataCategory.ERROR,
             "quantity": 1,
         },
         {
@@ -415,9 +416,9 @@ def test_playstation_max_attachments_size_exceeded(
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "too_large:attachment:attachment",
-            "category": DataCategory.ATTACHMENT.value,
+            "category": DataCategory.ATTACHMENT,
             "quantity": len(playstation_dump),
         },
         {
@@ -425,9 +426,9 @@ def test_playstation_max_attachments_size_exceeded(
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "too_large:attachment:attachment",
-            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "quantity": 1,
         },
     ]
@@ -462,9 +463,9 @@ def test_playstation_max_attachment_size_exceeded(
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "missing_prosperodump_upload",
-            "category": DataCategory.ERROR.value,
+            "category": DataCategory.ERROR,
             "quantity": 1,
         },
         {
@@ -472,9 +473,9 @@ def test_playstation_max_attachment_size_exceeded(
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "too_large:attachment:prosperodump",
-            "category": DataCategory.ATTACHMENT.value,
+            "category": DataCategory.ATTACHMENT,
             "quantity": len(playstation_dump),
         },
         {
@@ -482,9 +483,9 @@ def test_playstation_max_attachment_size_exceeded(
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "too_large:attachment:prosperodump",
-            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "quantity": 1,
         },
     ]

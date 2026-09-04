@@ -7,6 +7,7 @@ from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 from .asserts import time_within_delta
+from .consts import Outcome
 
 CSP_IGNORED_FIELDS = (
     "event_id",
@@ -326,8 +327,8 @@ def test_security_report_rejects_deprecated_types(mini_sentry, relay, payload):
 
     assert mini_sentry.get_outcomes(n=1) == [
         {
-            "category": DataCategory.SECURITY.value,
-            "outcome": 3,  # Invalid
+            "category": DataCategory.SECURITY,
+            "outcome": Outcome.INVALID,
             "reason": "security_report_type",
             "quantity": 1,
             "timestamp": time_within_delta(),
@@ -417,8 +418,8 @@ def test_security_report_rejects_deprecated_events(mini_sentry, relay, event_typ
 
     assert mini_sentry.get_outcomes(n=1) == [
         {
-            "category": DataCategory.SECURITY.value,
-            "outcome": 3,  # Invalid
+            "category": DataCategory.SECURITY,
+            "outcome": Outcome.INVALID,
             "reason": "security_report_type",
             "quantity": 1,
             "timestamp": time_within_delta(),

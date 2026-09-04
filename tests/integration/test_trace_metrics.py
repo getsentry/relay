@@ -9,6 +9,7 @@ from .asserts import matches_any, time_within_delta, time_within, only_items, ma
 
 import pytest
 import json
+from .consts import Outcome
 
 TEST_CONFIG = {
     "outcomes": {
@@ -76,16 +77,16 @@ def test_trace_metric_multiple_containers_not_allowed(
 
     assert outcomes == [
         {
-            "category": DataCategory.TRACE_METRIC.value,
+            "category": DataCategory.TRACE_METRIC,
             "timestamp": time_within_delta(),
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "quantity": 3,
             "reason": "too_large:trace_metric",
         },
         {
-            "category": DataCategory.TRACE_METRIC_BYTE.value,
+            "category": DataCategory.TRACE_METRIC_BYTE,
             "timestamp": time_within_delta(),
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "quantity": matches(lambda x: 300 < x < 500),
             "reason": "too_large:trace_metric",
         },
@@ -224,11 +225,11 @@ def test_trace_metric_extraction(
         "outcomes": {
             "categoryCount": [
                 {
-                    "dataCategory": DataCategory.TRACE_METRIC.value,
+                    "dataCategory": DataCategory.TRACE_METRIC,
                     "quantity": "1",
                 },
                 {
-                    "dataCategory": DataCategory.TRACE_METRIC_BYTE.value,
+                    "dataCategory": DataCategory.TRACE_METRIC_BYTE,
                     "quantity": f"{expected_byte_size}",
                 },
             ],
@@ -278,14 +279,14 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
 
     assert mini_sentry.get_aggregated_outcomes() == [
         {
-            "category": 33,
-            "outcome": 2,
+            "category": DataCategory.TRACE_METRIC,
+            "outcome": Outcome.RATE_LIMITED,
             "reason": "no_more_quota",
             "quantity": 1,
         },
         {
-            "category": 37,
-            "outcome": 2,
+            "category": DataCategory.TRACE_METRIC_BYTE,
+            "outcome": Outcome.RATE_LIMITED,
             "reason": "no_more_quota",
             "quantity": 134,
         },
@@ -296,14 +297,14 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
 
     assert mini_sentry.get_aggregated_outcomes() == [
         {
-            "category": 33,
-            "outcome": 2,
+            "category": DataCategory.TRACE_METRIC,
+            "outcome": Outcome.RATE_LIMITED,
             "reason": "no_more_quota",
             "quantity": 1,
         },
         {
-            "category": 37,
-            "outcome": 2,
+            "category": DataCategory.TRACE_METRIC_BYTE,
+            "outcome": Outcome.RATE_LIMITED,
             "reason": "no_more_quota",
             "quantity": 134,
         },
@@ -343,19 +344,19 @@ def test_trace_metric_validation(
     outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
     assert outcomes == [
         {
-            "category": DataCategory.TRACE_METRIC.value,
+            "category": DataCategory.TRACE_METRIC,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": 1,
             "reason": "invalid_trace_metric",
         },
         {
-            "category": DataCategory.TRACE_METRIC_BYTE.value,
+            "category": DataCategory.TRACE_METRIC_BYTE,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": 19,
             "reason": "invalid_trace_metric",
@@ -447,11 +448,11 @@ def test_trace_metric_pii_scrubbing(
         "outcomes": {
             "categoryCount": [
                 {
-                    "dataCategory": DataCategory.TRACE_METRIC.value,
+                    "dataCategory": DataCategory.TRACE_METRIC,
                     "quantity": "1",
                 },
                 {
-                    "dataCategory": DataCategory.TRACE_METRIC_BYTE.value,
+                    "dataCategory": DataCategory.TRACE_METRIC_BYTE,
                     "quantity": "99",
                 },
             ],
@@ -719,14 +720,14 @@ def test_trace_metric_size_limits(
     assert mini_sentry.get_captured_envelope() == only_items("trace_metric")
     assert mini_sentry.get_aggregated_outcomes() == [
         {
-            "category": 33,
-            "outcome": 3,
+            "category": DataCategory.TRACE_METRIC,
+            "outcome": Outcome.INVALID,
             "quantity": 1,
             "reason": "too_large:trace_metric",
         },
         {
-            "category": 37,
-            "outcome": 3,
+            "category": DataCategory.TRACE_METRIC_BYTE,
+            "outcome": Outcome.INVALID,
             "quantity": 608,
             "reason": "too_large:trace_metric",
         },
@@ -769,14 +770,14 @@ def test_time_corrections(mini_sentry, relay, delta, error):
     if error == "past_timestamp":
         assert mini_sentry.get_aggregated_outcomes() == [
             {
-                "category": DataCategory.TRACE_METRIC.value,
-                "outcome": 3,
+                "category": DataCategory.TRACE_METRIC,
+                "outcome": Outcome.INVALID,
                 "quantity": 1,
                 "reason": "timestamp",
             },
             {
-                "category": DataCategory.TRACE_METRIC_BYTE.value,
-                "outcome": 3,
+                "category": DataCategory.TRACE_METRIC_BYTE,
+                "outcome": Outcome.INVALID,
                 "quantity": matches_any(),
                 "reason": "timestamp",
             },
@@ -908,11 +909,11 @@ def test_time_sequence_shift(mini_sentry, relay_with_processing, items_consumer)
         "outcomes": {
             "categoryCount": [
                 {
-                    "dataCategory": DataCategory.TRACE_METRIC.value,
+                    "dataCategory": DataCategory.TRACE_METRIC,
                     "quantity": "1",
                 },
                 {
-                    "dataCategory": DataCategory.TRACE_METRIC_BYTE.value,
+                    "dataCategory": DataCategory.TRACE_METRIC_BYTE,
                     "quantity": "62",
                 },
             ],
@@ -1165,14 +1166,14 @@ def test_filters_are_applied_to_trace_metrics(
 
     assert mini_sentry.get_aggregated_outcomes(n=2) == [
         {
-            "category": DataCategory.TRACE_METRIC.value,
-            "outcome": 1,  # Filtered
+            "category": DataCategory.TRACE_METRIC,
+            "outcome": Outcome.FILTERED,
             "reason": filter_name,
             "quantity": 1,
         },
         {
-            "category": DataCategory.TRACE_METRIC_BYTE.value,
-            "outcome": 1,
+            "category": DataCategory.TRACE_METRIC_BYTE,
+            "outcome": Outcome.FILTERED,
             "quantity": matches_any(),
             "reason": filter_name,
         },
