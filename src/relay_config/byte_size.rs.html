@@ -35,7 +35,7 @@
 <a href=#35 id=35 data-nosnippet>35</a>/// let size = ByteSize::kibibytes(42);
 <a href=#36 id=36 data-nosnippet>36</a>/// assert_eq!("42KiB", size.to_string());
 <a href=#37 id=37 data-nosnippet>37</a>/// ```
-<a href=#38 id=38 data-nosnippet>38</a></span><span class="attr">#[derive(Copy, Clone)]
+<a href=#38 id=38 data-nosnippet>38</a></span><span class="attr">#[derive(Copy, Clone, PartialEq, Eq)]
 <a href=#39 id=39 data-nosnippet>39</a></span><span class="kw">pub struct </span>ByteSize(Size);
 <a href=#40 id=40 data-nosnippet>40</a>
 <a href=#41 id=41 data-nosnippet>41</a><span class="kw">impl </span>ByteSize {
