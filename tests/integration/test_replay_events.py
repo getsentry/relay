@@ -159,7 +159,7 @@ def test_replay_events_are_filtered(
     assert outcome["project_id"] == 42
     assert outcome["outcome"] == Outcome.FILTERED
     assert outcome["reason"] == "localhost"
-    assert outcome["category"] == 7
+    assert outcome["category"] == DataCategory.REPLAY
     assert outcome["quantity"] == 2
 
     outcomes_consumer.assert_empty()

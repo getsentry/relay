@@ -279,13 +279,13 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
 
     assert mini_sentry.get_aggregated_outcomes() == [
         {
-            "category": 33,
+            "category": DataCategory.TRACE_METRIC,
             "outcome": Outcome.RATE_LIMITED,
             "reason": "no_more_quota",
             "quantity": 1,
         },
         {
-            "category": 37,
+            "category": DataCategory.TRACE_METRIC_BYTE,
             "outcome": Outcome.RATE_LIMITED,
             "reason": "no_more_quota",
             "quantity": 134,
@@ -297,13 +297,13 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
 
     assert mini_sentry.get_aggregated_outcomes() == [
         {
-            "category": 33,
+            "category": DataCategory.TRACE_METRIC,
             "outcome": Outcome.RATE_LIMITED,
             "reason": "no_more_quota",
             "quantity": 1,
         },
         {
-            "category": 37,
+            "category": DataCategory.TRACE_METRIC_BYTE,
             "outcome": Outcome.RATE_LIMITED,
             "reason": "no_more_quota",
             "quantity": 134,
@@ -720,13 +720,13 @@ def test_trace_metric_size_limits(
     assert mini_sentry.get_captured_envelope() == only_items("trace_metric")
     assert mini_sentry.get_aggregated_outcomes() == [
         {
-            "category": 33,
+            "category": DataCategory.TRACE_METRIC,
             "outcome": Outcome.INVALID,
             "quantity": 1,
             "reason": "too_large:trace_metric",
         },
         {
-            "category": 37,
+            "category": DataCategory.TRACE_METRIC_BYTE,
             "outcome": Outcome.INVALID,
             "quantity": 608,
             "reason": "too_large:trace_metric",

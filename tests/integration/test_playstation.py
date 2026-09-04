@@ -247,7 +247,7 @@ def test_playstation_no_feature_flag(
             "key_id": 123,
             "outcome": Outcome.INVALID,
             "reason": "feature_disabled",
-            "category": 1,
+            "category": DataCategory.ERROR,
             "quantity": 1,
         },
         {
@@ -257,7 +257,7 @@ def test_playstation_no_feature_flag(
             "key_id": 123,
             "outcome": Outcome.INVALID,
             "reason": "feature_disabled",
-            "category": 4,
+            "category": DataCategory.ATTACHMENT,
             "quantity": 209385,
         },
         {
@@ -267,7 +267,7 @@ def test_playstation_no_feature_flag(
             "key_id": 123,
             "outcome": Outcome.INVALID,
             "reason": "feature_disabled",
-            "category": 22,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "quantity": 1,
         },
     ]

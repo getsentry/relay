@@ -586,7 +586,7 @@ def test_spansv2_rate_limits(mini_sentry, relay, rate_limit):
         *(
             [
                 {
-                    "category": 12,
+                    "category": DataCategory.SPAN,
                     "outcome": Outcome.RATE_LIMITED,
                     "quantity": 1,
                     "reason": "rate_limit_exceeded",

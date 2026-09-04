@@ -1433,13 +1433,13 @@ def test_minidump_objectstore_uploads_rate_limits(
         expected_outcomes.extend(
             [
                 {
-                    "category": 4,
+                    "category": DataCategory.ATTACHMENT,
                     "outcome": Outcome.RATE_LIMITED,
                     "quantity": 13,
                     "reason": "test_endpoint_check",
                 },
                 {
-                    "category": 22,
+                    "category": DataCategory.ATTACHMENT_ITEM,
                     "outcome": Outcome.RATE_LIMITED,
                     "quantity": 2,
                     "reason": "test_endpoint_check",
@@ -1596,13 +1596,13 @@ def test_minidump_large_attachment_skipped_when_no_project_fetching(mini_sentry,
 
     assert outcomes == [
         {
-            "category": 4,
+            "category": DataCategory.ATTACHMENT,
             "outcome": Outcome.INVALID,
             "quantity": 1500,
             "reason": "too_large:attachment:attachment",
         },
         {
-            "category": 22,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "outcome": Outcome.INVALID,
             "quantity": 1,
             "reason": "too_large:attachment:attachment",

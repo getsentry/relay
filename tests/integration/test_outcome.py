@@ -360,7 +360,7 @@ def test_outcomes_forwarding_rate_limited(
         "outcome": Outcome.RATE_LIMITED,
         "project_id": 42,
         "source": "processing-layer",
-        "category": 1,
+        "category": DataCategory.ERROR,
         "quantity": 1,
     }
     assert outcome == expected_outcome
@@ -695,7 +695,7 @@ def test_outcomes_aggregate_inbound_filters(
             "key_id": 123,
             "outcome": Outcome.FILTERED,
             "reason": "release-version",
-            "category": 1,
+            "category": DataCategory.ERROR,
             "quantity": 2,
         }
     ]
@@ -1582,7 +1582,7 @@ def test_replay_outcomes_item_failed(
     assert len(outcomes) == 1
 
     expected = {
-        "category": 7,
+        "category": DataCategory.REPLAY,
         "key_id": 123,
         "outcome": Outcome.INVALID,
         "project_id": 42,
@@ -1703,7 +1703,7 @@ def test_outcomes_as_metrics_forwarded_to_kafka_billing(
     relay.send_event(42, {"message": "this is rate limited"})
     assert consumer_with_outcome.get_aggregated_outcomes(n=1) == [
         {
-            "category": 1,
+            "category": DataCategory.ERROR,
             "key_id": 123,
             "org_id": 1,
             "outcome": Outcome.RATE_LIMITED,
@@ -1719,7 +1719,7 @@ def test_outcomes_as_metrics_forwarded_to_kafka_billing(
         relay.send_event(42, {"message": "this is rate limited"})
     assert consumer_with_outcome.get_aggregated_outcomes(n=1) == [
         {
-            "category": 1,
+            "category": DataCategory.ERROR,
             "key_id": 123,
             "org_id": 1,
             "outcome": Outcome.RATE_LIMITED,

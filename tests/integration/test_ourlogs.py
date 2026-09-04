@@ -167,13 +167,13 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
 
     assert mini_sentry.get_aggregated_outcomes() == [
         {
-            "category": 23,
+            "category": DataCategory.LOG_ITEM,
             "outcome": Outcome.RATE_LIMITED,
             "reason": "no_more_quota",
             "quantity": 1,
         },
         {
-            "category": 24,
+            "category": DataCategory.LOG_BYTE,
             "outcome": Outcome.RATE_LIMITED,
             "reason": "no_more_quota",
             "quantity": 157,
@@ -185,13 +185,13 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
 
     assert mini_sentry.get_aggregated_outcomes() == [
         {
-            "category": 23,
+            "category": DataCategory.LOG_ITEM,
             "outcome": Outcome.RATE_LIMITED,
             "reason": "no_more_quota",
             "quantity": 1,
         },
         {
-            "category": 24,
+            "category": DataCategory.LOG_BYTE,
             "outcome": Outcome.RATE_LIMITED,
             "reason": "no_more_quota",
             "quantity": 157,
