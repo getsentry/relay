@@ -20,8 +20,9 @@ impl CompiledPiiConfig {
         for (selector, rules) in &config.applications {
             #[allow(clippy::mutable_key_type)]
             let mut rule_set = BTreeSet::default();
+            let mut seen_ids = BTreeSet::default();
             for rule_id in rules {
-                collect_rules(config, &mut rule_set, rule_id, None);
+                collect_rules(config, &mut rule_set, &mut seen_ids, rule_id, None);
             }
             applications.push((selector.clone(), rule_set));
         }
@@ -78,6 +79,7 @@ fn get_rule(config: &PiiConfig, id: &str) -> Option<RuleRef> {
 fn collect_rules(
     config: &PiiConfig,
     rules: &mut BTreeSet<RuleRef>,
+    seen_ids: &mut BTreeSet<Box<str>>,
     rule_id: &str,
     parent: Option<RuleRef>,
 ) {
@@ -86,7 +88,7 @@ fn collect_rules(
         None => return,
     };
 
-    if rules.contains(&rule) {
+    if !seen_ids.insert(rule_id.into()) {
         return;
     }
 
@@ -102,11 +104,9 @@ fn collect_rules(
             } else {
                 None
             };
-            rules.insert(rule.clone()); // insert to break cycles
             for rule_id in &m.rules {
-                collect_rules(config, rules, rule_id, parent.clone());
+                collect_rules(config, rules, seen_ids, rule_id, parent.clone());
             }
-            rules.remove(&rule); // don't persist intermediates
         }
         RuleType::Alias(ref a) => {
             let parent = if a.hide_inner {
@@ -114,9 +114,7 @@ fn collect_rules(
             } else {
                 None
             };
-            rules.insert(rule.clone()); // insert to break cycles
-            collect_rules(config, rules, &a.rule, parent);
-            rules.remove(&rule); // don't persist intermediates
+            collect_rules(config, rules, seen_ids, &a.rule, parent);
         }
         RuleType::Unknown(_) => {}
         _ => {
@@ -203,7 +201,8 @@ mod tests {
         };
         #[allow(clippy::mutable_key_type)]
         let mut collected_rules = Default::default();
-        collect_rules(&config, &mut collected_rules, "a", None);
+        let mut seen_ids = Default::default();
+        collect_rules(&config, &mut collected_rules, &mut seen_ids, "a", None);
 
         // The cycle has been removed:
         assert!(collected_rules.is_empty());
@@ -239,7 +238,8 @@ mod tests {
         };
         #[allow(clippy::mutable_key_type)]
         let mut collected_rules = Default::default();
-        collect_rules(&config, &mut collected_rules, "a", None);
+        let mut seen_ids = Default::default();
+        collect_rules(&config, &mut collected_rules, &mut seen_ids, "a", None);
 
         // The cycle has been removed:
         assert!(collected_rules.is_empty());
@@ -283,9 +283,65 @@ mod tests {
             ..Default::default()
         };
         #[allow(clippy::mutable_key_type)]
+        let mut collected_rules = BTreeSet::new();
+        let mut seen_ids = BTreeSet::new();
+        collect_rules(&config, &mut collected_rules, &mut seen_ids, "a", None);
+        collect_rules(&config, &mut collected_rules, &mut seen_ids, "b", None);
+
+        let collected_rules: Vec<_> = collected_rules
+            .into_iter()
+            .map(|rr| (rr.origin, rr.id))
+            .collect();
+
+        insta::assert_debug_snapshot!(collected_rules, @r#"
+        [
+            (
+                "a",
+                "c",
+            ),
+        ]
+        "#);
+    }
+
+    #[test]
+    fn double_origin() {
+        // a -> b -> c
+        let config = PiiConfig {
+            rules: BTreeMap::from([
+                (
+                    "a".to_owned(),
+                    RuleSpec {
+                        ty: RuleType::Alias(AliasRule {
+                            rule: "b".to_owned(),
+                            hide_inner: true,
+                        }),
+                        redaction: Redaction::Default,
+                    },
+                ),
+                (
+                    "b".to_owned(),
+                    RuleSpec {
+                        ty: RuleType::Alias(AliasRule {
+                            rule: "c".to_owned(),
+                            hide_inner: true,
+                        }),
+                        redaction: Redaction::Default,
+                    },
+                ),
+                (
+                    "c".to_owned(),
+                    RuleSpec {
+                        ty: RuleType::Anything,
+                        redaction: Redaction::Default,
+                    },
+                ),
+            ]),
+            ..Default::default()
+        };
+        #[allow(clippy::mutable_key_type)]
         let mut collected_rules = Default::default();
-        collect_rules(&config, &mut collected_rules, "a", None);
-        collect_rules(&config, &mut collected_rules, "b", None);
+        let mut seen_ids = Default::default();
+        collect_rules(&config, &mut collected_rules, &mut seen_ids, "a", None);
 
         let collected_rules: Vec<_> = collected_rules
             .into_iter()
