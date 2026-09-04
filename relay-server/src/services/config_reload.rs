@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
 use relay_config::Config;
-use relay_system::{Controller, Receiver, Service};
-use tokio::time::timeout;
+use relay_system::{Receiver, Service};
 
 use crate::statsd::RelayCounters;
 
@@ -46,7 +45,8 @@ impl Service for ConfigReloadService {
     type Interface = ();
 
     async fn run(mut self, _rx: Receiver<Self::Interface>) {
-        let mut shutdown_handle = Controller::shutdown_handle();
+        #[cfg(not(test))]
+        let mut shutdown_handle = relay_system::Controller::shutdown_handle();
 
         let Some(interval) = self.config.current().config_reload_interval() else {
             // No interval -> nothing to do.
@@ -56,10 +56,17 @@ impl Service for ConfigReloadService {
         relay_log::info!("watching for configuration changes every {interval:?}");
 
         loop {
-            if timeout(interval, shutdown_handle.notified()).await.is_ok() {
+            // Other tests may set the shutdown handle and never reset it.
+            #[cfg(not(test))]
+            if tokio::time::timeout(interval, shutdown_handle.notified())
+                .await
+                .is_ok()
+            {
                 // Shutdown initiated, we can just exit here.
                 break;
             }
+            #[cfg(test)]
+            tokio::time::sleep(interval).await;
 
             self.handle_reload().await;
         }

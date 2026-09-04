@@ -2086,7 +2086,10 @@ impl Config {
         self.inner.rcu(|inner| {
             let mut new_inner = ConfigInner::clone(inner);
             changed = new_inner.reload_with(&new_config.inner);
-            Arc::new(new_inner)
+            match changed {
+                true => Arc::new(new_inner),
+                false => Arc::clone(inner),
+            }
         });
 
         Ok(changed)
