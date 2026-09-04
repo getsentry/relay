@@ -171,7 +171,7 @@ def test_profile_chunk_outcomes_invalid(
 
     assert outcomes == [
         {
-            "category": DataCategory.PROFILE_CHUNK.value,
+            "category": DataCategory.PROFILE_CHUNK,
             "timestamp": time_within_delta(),
             "key_id": 123,
             "org_id": 1,
@@ -244,7 +244,7 @@ def test_profile_chunk_outcomes_rate_limited(
 
     assert outcomes == [
         {
-            "category": DataCategory.PROFILE_CHUNK_UI.value,
+            "category": DataCategory.PROFILE_CHUNK_UI,
             "timestamp": time_within_delta(),
             "key_id": 123,
             "org_id": 1,

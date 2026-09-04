@@ -654,13 +654,13 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
         {
             "outcome": Outcome.FILTERED,
             "reason": "Sampled:3000",
-            "category": DataCategory.TRANSACTION_INDEXED.value,
+            "category": DataCategory.TRANSACTION_INDEXED,
             "quantity": 2,
         },
         {
             "outcome": Outcome.FILTERED,
             "reason": "Sampled:3000",
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN_INDEXED,
             "quantity": 2,
         },
     ]
@@ -743,13 +743,13 @@ def test_graceful_shutdown(relay, mini_sentry):
         {
             "outcome": Outcome.FILTERED,
             "reason": "Sampled:3000",
-            "category": DataCategory.TRANSACTION_INDEXED.value,
+            "category": DataCategory.TRANSACTION_INDEXED,
             "quantity": 1,
         },
         {
             "outcome": Outcome.FILTERED,
             "reason": "Sampled:3000",
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN_INDEXED,
             "quantity": 1,
         },
     ]
@@ -858,7 +858,7 @@ def test_profile_outcomes(
     }[num_intermediate_relays]
     expected_outcomes = [
         {
-            "category": DataCategory.TRANSACTION.value,
+            "category": DataCategory.TRANSACTION,
             "key_id": 123,
             "org_id": 1,
             "outcome": Outcome.ACCEPTED,
@@ -867,7 +867,7 @@ def test_profile_outcomes(
             "source": "processing-relay",
         },
         {
-            "category": DataCategory.ATTACHMENT.value,  # attachment
+            "category": DataCategory.ATTACHMENT,  # attachment
             "key_id": 123,
             "org_id": 1,
             "outcome": Outcome.FILTERED,
@@ -877,7 +877,7 @@ def test_profile_outcomes(
             "source": expected_source,
         },
         {
-            "category": DataCategory.TRANSACTION_INDEXED.value,
+            "category": DataCategory.TRANSACTION_INDEXED,
             "key_id": 123,
             "org_id": 1,
             "outcome": Outcome.FILTERED,
@@ -887,7 +887,7 @@ def test_profile_outcomes(
             "source": expected_source,
         },
         {
-            "category": DataCategory.SPAN.value,
+            "category": DataCategory.SPAN,
             "key_id": 123,
             "org_id": 1,
             "outcome": Outcome.ACCEPTED,
@@ -896,7 +896,7 @@ def test_profile_outcomes(
             "source": "processing-relay",
         },
         {
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN_INDEXED,
             "key_id": 123,
             "org_id": 1,
             "outcome": Outcome.FILTERED,
@@ -906,7 +906,7 @@ def test_profile_outcomes(
             "source": expected_source,
         },
         {
-            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "key_id": 123,
             "org_id": 1,
             "outcome": Outcome.FILTERED,
@@ -992,7 +992,7 @@ def test_profile_outcomes_invalid(
 
     assert outcomes == [
         {
-            "category": DataCategory.TRANSACTION.value,
+            "category": DataCategory.TRANSACTION,
             "key_id": 123,
             "org_id": 1,
             "outcome": Outcome.ACCEPTED,
@@ -1001,7 +1001,7 @@ def test_profile_outcomes_invalid(
             "timestamp": time_within_delta(),
         },
         {
-            "category": DataCategory.PROFILE.value,
+            "category": DataCategory.PROFILE,
             "key_id": 123,
             "org_id": 1,
             "outcome": Outcome.INVALID,
@@ -1011,7 +1011,7 @@ def test_profile_outcomes_invalid(
             "timestamp": time_within_delta(),
         },
         {
-            "category": DataCategory.PROFILE_INDEXED.value,
+            "category": DataCategory.PROFILE_INDEXED,
             "key_id": 123,
             "org_id": 1,
             "outcome": Outcome.INVALID,
@@ -1021,7 +1021,7 @@ def test_profile_outcomes_invalid(
             "timestamp": time_within_delta(),
         },
         {
-            "category": DataCategory.SPAN.value,
+            "category": DataCategory.SPAN,
             "key_id": 123,
             "org_id": 1,
             "outcome": Outcome.ACCEPTED,
@@ -1087,7 +1087,7 @@ def test_profile_outcomes_too_many(
     outcomes = outcomes_consumer.get_aggregated_outcomes(n=6)
     assert outcomes == [
         {
-            "category": DataCategory.TRANSACTION.value,
+            "category": DataCategory.TRANSACTION,
             "key_id": 123,
             "org_id": 1,
             "outcome": Outcome.INVALID,
@@ -1096,7 +1096,7 @@ def test_profile_outcomes_too_many(
             "reason": "too_large:profile",
         },
         {
-            "category": DataCategory.PROFILE.value,
+            "category": DataCategory.PROFILE,
             "key_id": 123,
             "org_id": 1,
             "outcome": Outcome.INVALID,
@@ -1105,7 +1105,7 @@ def test_profile_outcomes_too_many(
             "reason": "too_large:profile",
         },
         {
-            "category": DataCategory.TRANSACTION_INDEXED.value,
+            "category": DataCategory.TRANSACTION_INDEXED,
             "key_id": 123,
             "org_id": 1,
             "outcome": Outcome.INVALID,
@@ -1114,7 +1114,7 @@ def test_profile_outcomes_too_many(
             "reason": "too_large:profile",
         },
         {
-            "category": DataCategory.PROFILE_INDEXED.value,
+            "category": DataCategory.PROFILE_INDEXED,
             "key_id": 123,
             "org_id": 1,
             "outcome": Outcome.INVALID,
@@ -1123,7 +1123,7 @@ def test_profile_outcomes_too_many(
             "reason": "too_large:profile",
         },
         {
-            "category": DataCategory.SPAN.value,
+            "category": DataCategory.SPAN,
             "key_id": 123,
             "org_id": 1,
             "outcome": Outcome.INVALID,
@@ -1132,7 +1132,7 @@ def test_profile_outcomes_too_many(
             "reason": "too_large:profile",
         },
         {
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN_INDEXED,
             "key_id": 123,
             "org_id": 1,
             "outcome": Outcome.INVALID,
@@ -1212,14 +1212,14 @@ def test_profile_outcomes_rate_limited(
     outcomes = outcomes_consumer.get_outcomes()
 
     expected_categories = [
-        (DataCategory.PROFILE.value, 1),
-        (DataCategory.PROFILE_INDEXED.value, 1),
+        (DataCategory.PROFILE, 1),
+        (DataCategory.PROFILE_INDEXED, 1),
     ]
     # If the platform header is set, the outcome can be emitted in the fast path, for all limits,
     # if the header is missing, it can only be enforced with consistent rate limiting, which only
     # happens for the `profile_ui` category (as the rate limit can't be enforced in the fast path).
     if with_platform_header or quota_category == "profile_ui":
-        expected_categories.append((DataCategory.PROFILE_UI.value, 1))
+        expected_categories.append((DataCategory.PROFILE_UI, 1))
 
     if quota_category == "transaction":
         # Transaction got rate limited as well:
@@ -1246,7 +1246,7 @@ def test_profile_outcomes_rate_limited(
     if quota_category != "transaction":
         expected_outcomes.append(
             {
-                "category": DataCategory.TRANSACTION.value,
+                "category": DataCategory.TRANSACTION,
                 "key_id": 123,
                 "org_id": 1,
                 "outcome": Outcome.ACCEPTED,
@@ -1257,7 +1257,7 @@ def test_profile_outcomes_rate_limited(
 
         expected_outcomes.append(
             {
-                "category": DataCategory.SPAN.value,
+                "category": DataCategory.SPAN,
                 "key_id": 123,
                 "org_id": 1,
                 "outcome": Outcome.ACCEPTED,
@@ -1427,7 +1427,7 @@ def test_span_outcomes(
     outcomes = outcomes_consumer.get_aggregated_outcomes()
     assert outcomes == [
         {
-            "category": DataCategory.TRANSACTION.value,
+            "category": DataCategory.TRANSACTION,
             "key_id": 123,
             "org_id": 1,
             "outcome": Outcome.ACCEPTED,
@@ -1436,7 +1436,7 @@ def test_span_outcomes(
             "source": "processing-relay",
         },
         {
-            "category": DataCategory.TRANSACTION_INDEXED.value,
+            "category": DataCategory.TRANSACTION_INDEXED,
             "key_id": 123,
             "org_id": 1,
             "outcome": Outcome.FILTERED,
@@ -1446,7 +1446,7 @@ def test_span_outcomes(
             "source": expected_source,
         },
         {
-            "category": DataCategory.SPAN.value,
+            "category": DataCategory.SPAN,
             "key_id": 123,
             "org_id": 1,
             "outcome": Outcome.ACCEPTED,
@@ -1455,7 +1455,7 @@ def test_span_outcomes(
             "source": "processing-relay",
         },
         {
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN_INDEXED,
             "key_id": 123,
             "org_id": 1,
             "outcome": Outcome.FILTERED,

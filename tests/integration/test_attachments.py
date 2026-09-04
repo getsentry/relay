@@ -765,7 +765,7 @@ def test_attachment_without_event_id(
     outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
     assert outcomes == [
         {
-            "category": DataCategory.ATTACHMENT.value,
+            "category": DataCategory.ATTACHMENT,
             "key_id": 123,
             "org_id": 1,
             "outcome": Outcome.INVALID,
@@ -774,7 +774,7 @@ def test_attachment_without_event_id(
             "reason": "invalid_event_id",
         },
         {
-            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "key_id": 123,
             "org_id": 1,
             "outcome": Outcome.INVALID,

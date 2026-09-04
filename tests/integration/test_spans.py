@@ -391,7 +391,7 @@ def test_span_extraction(
 
     assert outcomes_consumer.get_aggregated_outcomes(n=2) == [
         {
-            "category": DataCategory.TRANSACTION.value,
+            "category": DataCategory.TRANSACTION,
             "key_id": 123,
             "org_id": 1,
             "outcome": Outcome.ACCEPTED,
@@ -399,7 +399,7 @@ def test_span_extraction(
             "quantity": 1,
         },
         {
-            "category": DataCategory.SPAN.value,
+            "category": DataCategory.SPAN,
             "key_id": 123,
             "org_id": 1,
             "outcome": Outcome.ACCEPTED,

@@ -301,11 +301,11 @@ def test_otlp_logs_conversion(
             "outcomes": {
                 "categoryCount": [
                     {
-                        "dataCategory": DataCategory.LOG_ITEM.value,
+                        "dataCategory": DataCategory.LOG_ITEM,
                         "quantity": "1",
                     },
                     {
-                        "dataCategory": DataCategory.LOG_BYTE.value,
+                        "dataCategory": DataCategory.LOG_BYTE,
                         "quantity": "349",
                     },
                 ],
@@ -404,11 +404,11 @@ def test_otlp_logs_multiple_records(
             "outcomes": {
                 "categoryCount": [
                     {
-                        "dataCategory": DataCategory.LOG_ITEM.value,
+                        "dataCategory": DataCategory.LOG_ITEM,
                         "quantity": "1",
                     },
                     {
-                        "dataCategory": DataCategory.LOG_BYTE.value,
+                        "dataCategory": DataCategory.LOG_BYTE,
                         "quantity": "123",
                     },
                 ],
@@ -449,11 +449,11 @@ def test_otlp_logs_multiple_records(
             "outcomes": {
                 "categoryCount": [
                     {
-                        "dataCategory": DataCategory.LOG_ITEM.value,
+                        "dataCategory": DataCategory.LOG_ITEM,
                         "quantity": "1",
                     },
                     {
-                        "dataCategory": DataCategory.LOG_BYTE.value,
+                        "dataCategory": DataCategory.LOG_BYTE,
                         "quantity": "124",
                     },
                 ],

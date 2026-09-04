@@ -298,7 +298,7 @@ def test_playstation_invalid_prosperodump(
             "key_id": 123,
             "outcome": Outcome.INVALID,
             "reason": "invalid_prosperodump",
-            "category": DataCategory.ERROR.value,
+            "category": DataCategory.ERROR,
             "quantity": 1,
         },
         {
@@ -308,7 +308,7 @@ def test_playstation_invalid_prosperodump(
             "key_id": 123,
             "outcome": Outcome.INVALID,
             "reason": "invalid_prosperodump",
-            "category": DataCategory.ATTACHMENT.value,
+            "category": DataCategory.ATTACHMENT,
             "quantity": len(playstation_dump),
         },
         {
@@ -318,7 +318,7 @@ def test_playstation_invalid_prosperodump(
             "key_id": 123,
             "outcome": Outcome.INVALID,
             "reason": "invalid_prosperodump",
-            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "quantity": 1,
         },
     ]
@@ -350,7 +350,7 @@ def test_playstation_missing_prosperodump(
             "key_id": 123,
             "outcome": Outcome.INVALID,
             "reason": "missing_prosperodump_upload",
-            "category": DataCategory.ERROR.value,
+            "category": DataCategory.ERROR,
             "quantity": 1,
         },
         {
@@ -360,7 +360,7 @@ def test_playstation_missing_prosperodump(
             "key_id": 123,
             "outcome": Outcome.INVALID,
             "reason": "missing_prosperodump_upload",
-            "category": DataCategory.ATTACHMENT.value,
+            "category": DataCategory.ATTACHMENT,
             "quantity": len(video_content),
         },
         {
@@ -370,7 +370,7 @@ def test_playstation_missing_prosperodump(
             "key_id": 123,
             "outcome": Outcome.INVALID,
             "reason": "missing_prosperodump_upload",
-            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "quantity": 1,
         },
     ]
@@ -408,7 +408,7 @@ def test_playstation_max_attachments_size_exceeded(
             "key_id": 123,
             "outcome": Outcome.INVALID,
             "reason": "request_too_large",
-            "category": DataCategory.ERROR.value,
+            "category": DataCategory.ERROR,
             "quantity": 1,
         },
         {
@@ -418,7 +418,7 @@ def test_playstation_max_attachments_size_exceeded(
             "key_id": 123,
             "outcome": Outcome.INVALID,
             "reason": "too_large:attachment:attachment",
-            "category": DataCategory.ATTACHMENT.value,
+            "category": DataCategory.ATTACHMENT,
             "quantity": len(playstation_dump),
         },
         {
@@ -428,7 +428,7 @@ def test_playstation_max_attachments_size_exceeded(
             "key_id": 123,
             "outcome": Outcome.INVALID,
             "reason": "too_large:attachment:attachment",
-            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "quantity": 1,
         },
     ]
@@ -465,7 +465,7 @@ def test_playstation_max_attachment_size_exceeded(
             "key_id": 123,
             "outcome": Outcome.INVALID,
             "reason": "missing_prosperodump_upload",
-            "category": DataCategory.ERROR.value,
+            "category": DataCategory.ERROR,
             "quantity": 1,
         },
         {
@@ -475,7 +475,7 @@ def test_playstation_max_attachment_size_exceeded(
             "key_id": 123,
             "outcome": Outcome.INVALID,
             "reason": "too_large:attachment:prosperodump",
-            "category": DataCategory.ATTACHMENT.value,
+            "category": DataCategory.ATTACHMENT,
             "quantity": len(playstation_dump),
         },
         {
@@ -485,7 +485,7 @@ def test_playstation_max_attachment_size_exceeded(
             "key_id": 123,
             "outcome": Outcome.INVALID,
             "reason": "too_large:attachment:prosperodump",
-            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "quantity": 1,
         },
     ]

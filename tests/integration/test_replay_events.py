@@ -199,7 +199,7 @@ def test_time_corrections(mini_sentry, relay, delta, error):
     if error == "past_timestamp":
         assert mini_sentry.get_aggregated_outcomes() == [
             {
-                "category": DataCategory.REPLAY.value,
+                "category": DataCategory.REPLAY,
                 "outcome": Outcome.INVALID,
                 "quantity": 2,
                 "reason": "timestamp",

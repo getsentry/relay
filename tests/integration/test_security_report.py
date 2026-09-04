@@ -327,7 +327,7 @@ def test_security_report_rejects_deprecated_types(mini_sentry, relay, payload):
 
     assert mini_sentry.get_outcomes(n=1) == [
         {
-            "category": DataCategory.SECURITY.value,
+            "category": DataCategory.SECURITY,
             "outcome": Outcome.INVALID,
             "reason": "security_report_type",
             "quantity": 1,
@@ -418,7 +418,7 @@ def test_security_report_rejects_deprecated_events(mini_sentry, relay, event_typ
 
     assert mini_sentry.get_outcomes(n=1) == [
         {
-            "category": DataCategory.SECURITY.value,
+            "category": DataCategory.SECURITY,
             "outcome": Outcome.INVALID,
             "reason": "security_report_type",
             "quantity": 1,

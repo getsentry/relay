@@ -311,7 +311,7 @@ def test_minidump_invalid_magic(mini_sentry, relay_with_processing, outcomes_con
             "key_id": 123,
             "outcome": Outcome.INVALID,
             "reason": "invalid_minidump",
-            "category": DataCategory.ERROR.value,
+            "category": DataCategory.ERROR,
             "quantity": 1,
         },
         {
@@ -321,7 +321,7 @@ def test_minidump_invalid_magic(mini_sentry, relay_with_processing, outcomes_con
             "key_id": 123,
             "outcome": Outcome.INVALID,
             "reason": "invalid_minidump",
-            "category": DataCategory.ATTACHMENT.value,
+            "category": DataCategory.ATTACHMENT,
             "quantity": len(content),
         },
         {
@@ -331,7 +331,7 @@ def test_minidump_invalid_magic(mini_sentry, relay_with_processing, outcomes_con
             "key_id": 123,
             "outcome": Outcome.INVALID,
             "reason": "invalid_minidump",
-            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "quantity": 1,
         },
     ]
@@ -359,7 +359,7 @@ def test_minidump_invalid_field(mini_sentry, relay_with_processing, outcomes_con
             "key_id": 123,
             "outcome": Outcome.INVALID,
             "reason": "missing_minidump_upload",
-            "category": DataCategory.ERROR.value,
+            "category": DataCategory.ERROR,
             "quantity": 1,
         },
         {
@@ -369,7 +369,7 @@ def test_minidump_invalid_field(mini_sentry, relay_with_processing, outcomes_con
             "key_id": 123,
             "outcome": Outcome.INVALID,
             "reason": "missing_minidump_upload",
-            "category": DataCategory.ATTACHMENT.value,
+            "category": DataCategory.ATTACHMENT,
             "quantity": len(content),
         },
         {
@@ -379,7 +379,7 @@ def test_minidump_invalid_field(mini_sentry, relay_with_processing, outcomes_con
             "key_id": 123,
             "outcome": Outcome.INVALID,
             "reason": "missing_minidump_upload",
-            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "quantity": 1,
         },
     ]
@@ -409,7 +409,7 @@ def test_minidump_invalid_compression_outcome(
             "key_id": 123,
             "outcome": Outcome.INVALID,
             "reason": "invalid_compression",
-            "category": DataCategory.ERROR.value,
+            "category": DataCategory.ERROR,
             "quantity": 1,
         },
         {
@@ -419,7 +419,7 @@ def test_minidump_invalid_compression_outcome(
             "key_id": 123,
             "outcome": Outcome.INVALID,
             "reason": "invalid_compression",
-            "category": DataCategory.ATTACHMENT.value,
+            "category": DataCategory.ATTACHMENT,
             "quantity": len(content),
         },
         {
@@ -429,7 +429,7 @@ def test_minidump_invalid_compression_outcome(
             "key_id": 123,
             "outcome": Outcome.INVALID,
             "reason": "invalid_compression",
-            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "quantity": 1,
         },
     ]
@@ -656,7 +656,7 @@ def test_minidump_with_processing(
     if rate_limit == "attachment":
         assert outcomes_consumer.get_aggregated_outcomes(n=2) == [
             {
-                "category": DataCategory.ATTACHMENT.value,
+                "category": DataCategory.ATTACHMENT,
                 "key_id": 123,
                 "org_id": 1,
                 "outcome": Outcome.RATE_LIMITED,
@@ -665,7 +665,7 @@ def test_minidump_with_processing(
                 "reason": "static_disabled_quota",
             },
             {
-                "category": DataCategory.ATTACHMENT_ITEM.value,
+                "category": DataCategory.ATTACHMENT_ITEM,
                 "key_id": 123,
                 "org_id": 1,
                 "outcome": Outcome.RATE_LIMITED,
@@ -1421,7 +1421,7 @@ def test_minidump_objectstore_uploads_rate_limits(
         # Attachments are not accounted for since we never read them and hence know nothing about them.
         expected_outcomes.append(
             {
-                "category": DataCategory.ERROR.value,
+                "category": DataCategory.ERROR,
                 "outcome": Outcome.RATE_LIMITED,
                 "reason": "test_endpoint_check",
                 "quantity": 1,
@@ -1529,7 +1529,7 @@ def test_minidump_max_attachment_size_exceeded(
             "key_id": 123,
             "outcome": Outcome.INVALID,
             "reason": "invalid_multipart",
-            "category": DataCategory.ERROR.value,
+            "category": DataCategory.ERROR,
             "quantity": 1,
         },
         {
@@ -1539,7 +1539,7 @@ def test_minidump_max_attachment_size_exceeded(
             "key_id": 123,
             "outcome": Outcome.INVALID,
             "reason": "too_large:attachment:minidump",
-            "category": DataCategory.ATTACHMENT.value,
+            "category": DataCategory.ATTACHMENT,
             "quantity": len(minidump_content) + len(attachment_content),
         },
         {
@@ -1549,7 +1549,7 @@ def test_minidump_max_attachment_size_exceeded(
             "key_id": 123,
             "outcome": Outcome.INVALID,
             "reason": "too_large:attachment:minidump",
-            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "quantity": 2,
         },
     ]
