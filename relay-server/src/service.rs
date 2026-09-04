@@ -373,14 +373,7 @@ impl ServiceState {
             &objectstore,
         ));
 
-        match ConfigReloadService::new(config.clone()) {
-            Ok(crs) => drop(services.start(crs)),
-            // If the service is not running, that's not fatal, let's just keep going.
-            Err(err) => relay_log::error!(
-                error = err.as_ref() as &dyn std::error::Error,
-                "failed to start config reloading service"
-            ),
-        }
+        let _ = services.start(ConfigReloadService::new(config.clone()));
 
         let registry = Registry {
             processor,

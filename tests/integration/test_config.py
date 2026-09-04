@@ -80,7 +80,7 @@ def test_variable_loaded_from_file_is_reloaded(mini_sentry, relay):
     relay = relay(
         mini_sentry,
         options={
-            "relay": {"mode": "proxy"},
+            "relay": {"mode": "proxy", "config_reload_interval": 0},
             "health": {"max_memory_bytes": f"${{file:{tmp.name}}}"},
         },
     )

@@ -1,98 +1,44 @@
-use std::collections::BTreeSet;
-use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
 
-use notify_debouncer_mini::DebounceEventResult;
-use notify_debouncer_mini::notify::{RecommendedWatcher, RecursiveMode};
 use relay_config::Config;
 use relay_system::{Controller, Receiver, Service};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::time::timeout;
 
 use crate::statsd::RelayCounters;
-
-/// Duration over which config file changes are debounced.
-const CONFIG_DEBOUNCE: Duration = Duration::from_secs(1);
 
 /// Service which watches for configuration changes and reloads the config.
 pub struct ConfigReloadService {
     config: Arc<Config>,
-    watcher: notify_debouncer_mini::Debouncer<RecommendedWatcher>,
-    events: UnboundedReceiver<DebounceEventResult>,
-    currently_watched: BTreeSet<PathBuf>,
 }
 
 impl ConfigReloadService {
-    pub fn new(config: Arc<Config>) -> anyhow::Result<Self> {
-        let (tx, events) = tokio::sync::mpsc::unbounded_channel();
-
-        let watcher = notify_debouncer_mini::new_debouncer(CONFIG_DEBOUNCE, TokioEventAdapter(tx))?;
-
-        Ok(Self {
-            config,
-            watcher,
-            events,
-            currently_watched: Default::default(),
-        })
+    pub fn new(config: Arc<Config>) -> Self {
+        Self { config }
     }
 
-    fn update_watch(&mut self) {
-        let config = self.config.current();
-        let watcher = self.watcher.watcher();
+    async fn handle_reload(&mut self) {
+        let config = Arc::clone(&self.config);
+        let reload = tokio::task::spawn_blocking(move || config.reload()).await;
 
-        for to_remove in self.currently_watched.difference(config.source_files()) {
-            relay_log::trace!("no longer watching {}", to_remove.display());
-            let _ = watcher.unwatch(to_remove);
-        }
-        for to_add in config.source_files().difference(&self.currently_watched) {
-            // No need for recursive, we're only watching files.
-            match watcher.watch(to_add, RecursiveMode::NonRecursive) {
-                Ok(()) => relay_log::info!("watching configuration file: {}", to_add.display()),
-                Err(err) => {
-                    relay_log::warn!(
-                        error = &err as &dyn std::error::Error,
-                        "failed to watch configuration file: {}",
-                        to_add.display()
-                    )
-                }
-            }
-        }
-
-        self.currently_watched = config.source_files().clone();
-    }
-
-    fn handle_watch_event(&mut self, event: DebounceEventResult) {
-        let event = match event {
-            Ok(event) => event,
+        match reload {
             Err(err) => {
                 relay_log::warn!(
                     error = &err as &dyn std::error::Error,
-                    "config watch encountered an error"
+                    "failed to reload the configuration"
                 );
-                return;
             }
-        };
-
-        for ev in event {
-            relay_log::debug!("config changed: {}", ev.path.display());
-        }
-
-        relay_statsd::metric!(counter(RelayCounters::ConfigReload) += 1);
-
-        // The reload does read from the file system sync, which may end up blocking
-        // the Tokio thread for a bit. Since this is a very rare occasion and the runtime
-        // is multi threaded, we accept this for now. Especially since the fs reads are expected
-        // to be quite fast.
-        match self.config.reload() {
-            Ok(()) => relay_log::info!("configuration reloaded!"),
-            Err(err) => {
+            Ok(Err(err)) => {
                 relay_log::warn!(
                     error = err.as_ref() as &dyn std::error::Error,
                     "failed to reload the configuration"
                 );
             }
+            Ok(Ok(true)) => {
+                relay_statsd::metric!(counter(RelayCounters::ConfigReload) += 1);
+                relay_log::info!("configuration reloaded!")
+            }
+            Ok(Ok(false)) => (),
         }
-        self.update_watch();
     }
 }
 
@@ -102,25 +48,94 @@ impl Service for ConfigReloadService {
     async fn run(mut self, _rx: Receiver<Self::Interface>) {
         let mut shutdown_handle = Controller::shutdown_handle();
 
-        self.update_watch();
+        let Some(interval) = self.config.current().config_reload_interval() else {
+            // No interval -> nothing to do.
+            return;
+        };
+
+        relay_log::info!("watching for configuration changes every {interval:?}");
 
         loop {
-            tokio::select! {
-                Some(event) = self.events.recv() => self.handle_watch_event(event),
-                _ = shutdown_handle.notified() => break,
-
-                else => break,
+            if timeout(interval, shutdown_handle.notified()).await.is_ok() {
+                // Shutdown initiated, we can just exit here.
+                break;
             }
-        }
 
-        relay_log::info!("config reload service stopped");
+            self.handle_reload().await;
+        }
     }
 }
 
-struct TokioEventAdapter(UnboundedSender<DebounceEventResult>);
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+    use std::time::Duration;
 
-impl notify_debouncer_mini::DebounceEventHandler for TokioEventAdapter {
-    fn handle_event(&mut self, event: DebounceEventResult) {
-        let _ = self.0.send(event);
+    use super::*;
+
+    /// Writes a new config with the specified `max_memory_bytes` and atomically replaces
+    /// the old config with the new one using a rename.
+    fn write_config_atomic(dir: &Path, max_memory_bytes: &str) {
+        let tmp = dir.join("config.yml.tmp");
+        let config = format!(
+            r#"
+relay:
+  config_reload_interval: 0
+health:
+  max_memory_bytes: {max_memory_bytes}
+"#
+        );
+        std::fs::write(&tmp, config).unwrap();
+        std::fs::rename(&tmp, dir.join("config.yml")).unwrap();
+    }
+
+    async fn wait_for_reload(config: &Config, expected: u64) -> bool {
+        for _ in 0..100 {
+            if config.current().health_max_memory_watermark_bytes() == expected {
+                return true;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        config.current().health_max_memory_watermark_bytes() == expected
+    }
+
+    #[tokio::test]
+    async fn test_reload_atomic_replace() {
+        relay_test::setup();
+
+        let dir = tempfile::tempdir().unwrap();
+        write_config_atomic(dir.path(), "1000");
+
+        let config = Arc::new(Config::from_path(dir.path()).unwrap());
+
+        let service = ConfigReloadService::new(config.clone());
+        service.start_detached();
+
+        write_config_atomic(dir.path(), "2000");
+        assert!(wait_for_reload(&config, 2000).await);
+
+        write_config_atomic(dir.path(), "3000");
+        assert!(wait_for_reload(&config, 3000).await);
+    }
+
+    #[tokio::test]
+    async fn test_reload_file_reference_changes() {
+        relay_test::setup();
+
+        let dir = tempfile::tempdir().unwrap();
+        let ref_file = dir.path().join("ref.value");
+        write_config_atomic(dir.path(), &format!("${{file:{}}}", ref_file.display()));
+        std::fs::write(&ref_file, b"1000").unwrap();
+
+        let config = Arc::new(Config::from_path(dir.path()).unwrap());
+
+        let service = ConfigReloadService::new(config.clone());
+        service.start_detached();
+
+        std::fs::write(&ref_file, b"2000").unwrap();
+        assert!(wait_for_reload(&config, 2000).await);
+
+        std::fs::write(&ref_file, b"3000").unwrap();
+        assert!(wait_for_reload(&config, 3000).await);
     }
 }
