@@ -1105,16 +1105,6 @@ pub struct Cache {
     pub project_refresh_interval: Option<u32>,
     /// The cache timeout for downstream relay info (public keys) in seconds.
     pub relay_expiry: u32,
-    /// Unused cache timeout for envelopes.
-    ///
-    /// The envelope buffer is instead controlled by `envelope_buffer_size`, which controls the
-    /// maximum number of envelopes in the buffer. A time based configuration may be re-introduced
-    /// at a later point.
-    #[serde(alias = "event_expiry")]
-    envelope_expiry: u32,
-    /// The maximum amount of envelopes to queue before dropping them.
-    #[serde(alias = "event_buffer_size")]
-    envelope_buffer_size: u32,
     /// The cache timeout for non-existing entries.
     pub miss_expiry: u32,
     /// The buffer timeout for batched project config queries before sending them upstream in ms.
@@ -1138,9 +1128,7 @@ impl Default for Cache {
             project_expiry: 300,       // 5 minutes
             project_grace_period: 120, // 2 minutes
             project_refresh_interval: None,
-            relay_expiry: 3600,   // 1 hour
-            envelope_expiry: 600, // 10 minutes
-            envelope_buffer_size: 1000,
+            relay_expiry: 3600,                    // 1 hour
             miss_expiry: 60,                       // 1 minute
             batch_interval: 100,                   // 100ms
             downstream_relays_batch_interval: 100, // 100ms
@@ -2348,16 +2336,6 @@ impl ConfigSnapshot {
         Duration::from_secs(self.inner.values.cache.relay_expiry.into())
     }
 
-    /// Returns the maximum number of buffered envelopes
-    pub fn envelope_buffer_size(&self) -> usize {
-        self.inner
-            .values
-            .cache
-            .envelope_buffer_size
-            .try_into()
-            .unwrap_or(usize::MAX)
-    }
-
     /// Returns the expiry timeout for cached misses before trying to refetch.
     pub fn cache_miss_expiry(&self) -> Duration {
         Duration::from_secs(self.inner.values.cache.miss_expiry.into())
@@ -2927,20 +2905,6 @@ impl fmt::Debug for ConfigSnapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// Regression test for renaming the envelope buffer flags.
-    #[test]
-    fn test_event_buffer_size() {
-        let yaml = r###"
-cache:
-    event_buffer_size: 1000000
-    event_expiry: 1800
-"###;
-
-        let values: ConfigValues = serde_yaml::from_str(yaml).unwrap();
-        assert_eq!(values.cache.envelope_buffer_size, 1_000_000);
-        assert_eq!(values.cache.envelope_expiry, 1800);
-    }
 
     #[cfg(feature = "processing")]
     #[test]
