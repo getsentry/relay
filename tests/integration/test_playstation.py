@@ -98,6 +98,7 @@ def user_data_event_json(response):
         },
         "tags": [
             ["tag-name", "tag value"],
+            ["titleId", "NPXS29997"],
             ["server_name", "5be3652dd663dbdcd044da0f2144b17f"],
         ],
         "extra": {"extra-name": "extra value"},
@@ -961,6 +962,7 @@ def test_event_merging(
             ["test.crash_id", "30b929e6-add4-4fce-e457-cb3187a0db7a"],
             ["test.suite", "integration"],
             ["test.type", "crash-capture"],
+            ["titleId", "NPXS29997"],
             ["server_name", "5be3652dd663dbdcd044da0f2144b17f"],
         ],
         "sdk": {
