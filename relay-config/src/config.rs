@@ -1,11 +1,11 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::io::Write;
 use std::net::{IpAddr, SocketAddr};
 use std::num::{NonZeroU8, NonZeroU16};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 use std::{env, fmt, fs, io};
 
@@ -139,15 +139,6 @@ impl fmt::Display for ConfigError {
 
 impl Error for ConfigError {}
 
-#[derive(Debug, Default, Clone)]
-struct LoadedConfig<C> {
-    config: C,
-    /// A list of files this config is built from.
-    ///
-    /// The config may be built from multiple files due to the support for `${file:}` references
-    /// in arbitrary config keys.
-    source_files: BTreeSet<PathBuf>,
-}
 enum ConfigFormat {
     Yaml,
     Json,
@@ -175,27 +166,24 @@ trait ConfigObject: DeserializeOwned + Serialize {
     }
 
     /// Loads the config file from a file within the given directory location.
-    fn load(base: &Path) -> anyhow::Result<LoadedConfig<Self>> {
+    fn load(base: &Path) -> anyhow::Result<Self> {
         let path = Self::path(base);
 
         let f = fs::File::open(&path)
             .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotOpenFile, &path))?;
         let f = io::BufReader::new(f);
 
-        let mut source_files = BTreeSet::new();
-
         let mut source = {
             let file = serde_vars::FileSource::default()
                 .with_variable_prefix("${file:")
                 .with_variable_suffix("}")
-                .with_base_path(base)
-                .with_file_system(crate::source::TrackingFileSystem(&mut source_files));
+                .with_base_path(base);
             let env = serde_vars::EnvSource::default()
                 .with_variable_prefix("${")
                 .with_variable_suffix("}");
             (file, env)
         };
-        let config = match Self::format() {
+        match Self::format() {
             ConfigFormat::Yaml => {
                 serde_vars::deserialize(serde_yaml::Deserializer::from_reader(f), &mut source)
                     .with_context(|| ConfigError::file(ConfigErrorKind::BadYaml, &path))
@@ -204,15 +192,7 @@ trait ConfigObject: DeserializeOwned + Serialize {
                 serde_vars::deserialize(&mut serde_json::Deserializer::from_reader(f), &mut source)
                     .with_context(|| ConfigError::file(ConfigErrorKind::BadJson, &path))
             }
-        }?;
-
-        // The base config path is also a dependency of the entire config.
-        source_files.insert(path);
-
-        Ok(LoadedConfig {
-            config,
-            source_files,
-        })
+        }
     }
 
     /// Writes the configuration to a file within the given directory location.
@@ -560,6 +540,15 @@ pub struct Relay {
     /// Validation of project identifiers can be safely skipped in these cases.
     #[serde(skip_serializing_if = "is_default")]
     pub override_project_ids: bool,
+    /// Interval in seconds for Relay to check if its configuration changed.
+    ///
+    /// If configured Relay will periodically check its configuration for changes
+    /// and hot reload it.
+    ///
+    /// Hot reloading is only supported for a limited set of values.
+    ///
+    /// Defaults to `None` / off.
+    pub config_reload_interval: Option<u64>,
 }
 
 impl Default for Relay {
@@ -577,6 +566,7 @@ impl Default for Relay {
             tls_identity_path: None,
             tls_identity_password: None,
             override_project_ids: false,
+            config_reload_interval: None,
         }
     }
 }
@@ -1575,7 +1565,7 @@ pub struct GeoIpConfig {
 ///
 /// After breaching one of the configured thresholds, Relay will
 /// return an `unhealthy` status from its health endpoint.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(default)]
 pub struct Health {
     /// Interval to refresh internal health checks.
@@ -1749,8 +1739,6 @@ struct ConfigInner {
     ///
     /// Credentials may be missing for proxy mode.
     credentials: Option<Credentials>,
-    /// All source files the config was parsed from.
-    source_files: BTreeSet<PathBuf>,
 }
 
 impl ConfigInner {
@@ -1894,10 +1882,34 @@ impl ConfigInner {
 
         Ok(())
     }
+
+    /// Merges reloadable parts of the config from `other` into `self`.
+    ///
+    /// Returns `true` if any parts of the config were updated.
+    fn reload_with(&mut self, other: &Self) -> bool {
+        let mut changed = false;
+
+        if self.values.health != other.values.health {
+            relay_log::debug!("updating health");
+            self.values.health = other.values.health.clone();
+            changed = true;
+        }
+
+        changed
+    }
 }
 
 /// Relay's Configuration.
 pub struct Config {
+    /// A mutex to serialize all write accesses to `inner`.
+    ///
+    /// Accessing the arc swap is done with compare and swap, but we still want serialized
+    /// access and operations to guarantee consistency when dealing with e.g. the filesystem.
+    ///
+    /// The mutex must be acquired before changing `inner`. Methods taking `&mut` can omit
+    /// this, as the `&mut` requirement already satisfies that there is no concurrent access
+    /// possible.
+    inner_access: Mutex<()>,
     /// The actual config.
     inner: ArcSwap<ConfigInner>,
     /// A list of overrides applied to the config, in order.
@@ -1919,7 +1931,6 @@ impl fmt::Debug for Config {
             .field("path", &self.path)
             // Only print specific parts of `inner` to not leak the credentials.
             .field("values", &inner.values)
-            .field("source_files", &inner.source_files)
             .finish()
     }
 }
@@ -1931,20 +1942,16 @@ impl Config {
             .map(|x| x.join(path.as_ref()))
             .unwrap_or_else(|_| path.as_ref().to_path_buf());
 
-        let values = ConfigValues::load(&path)?;
-        let mut inner = ConfigInner {
-            values: values.config,
-            credentials: None,
-            source_files: values.source_files,
+        let inner = ConfigInner {
+            values: ConfigValues::load(&path)?,
+            credentials: match Credentials::path(&path).exists() {
+                true => Some(Credentials::load(&path)?),
+                false => None,
+            },
         };
 
-        if Credentials::path(&path).exists() {
-            let credentials = Credentials::load(&path)?;
-            inner.credentials = Some(credentials.config);
-            inner.source_files.extend(credentials.source_files);
-        }
-
         let config = Config {
+            inner_access: Mutex::new(()),
             inner: ArcSwap::from_pointee(inner),
             overrides: Vec::new(),
             path: path.clone(),
@@ -1962,11 +1969,11 @@ impl Config {
     /// This is mostly useful for tests.
     pub fn from_json_value(value: serde_json::Value) -> anyhow::Result<Config> {
         Ok(Config {
+            inner_access: Mutex::new(()),
             inner: ArcSwap::from_pointee(ConfigInner {
                 values: serde_json::from_value(value)
                     .with_context(|| ConfigError::new(ConfigErrorKind::BadJson))?,
                 credentials: None,
-                source_files: Default::default(),
             }),
             overrides: Vec::new(),
             path: PathBuf::new(),
@@ -2048,6 +2055,46 @@ impl Config {
         Ok(true)
     }
 
+    /// Reloads the configuration from disk.
+    ///
+    /// Returns `true` if the configuration changed.
+    ///
+    /// In order for a config to be reloadable it must've been loaded from a path. The original
+    /// config will be re-read and reloadable parts of the config will be replaced with their updated
+    /// values.
+    ///
+    /// If the reload fails for any reason, the current config is untouched.
+    pub fn reload(&self) -> anyhow::Result<bool> {
+        if self.path.is_empty() {
+            return Ok(false);
+        }
+
+        let _access = self
+            .inner_access
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+
+        let mut new_config = Self::from_path(&self.path)?;
+        for overrides in &self.overrides {
+            new_config.apply_override(overrides.clone())?;
+        }
+        let new_config = new_config.current();
+
+        let mut changed = false;
+
+        // Since we do have the `_access` lock, this will always succeed on the first try.
+        self.inner.rcu(|inner| {
+            let mut new_inner = ConfigInner::clone(inner);
+            changed = new_inner.reload_with(&new_config.inner);
+            match changed {
+                true => Arc::new(new_inner),
+                false => Arc::clone(inner),
+            }
+        });
+
+        Ok(changed)
+    }
+
     /// Acquires a current [`snapshot`](ConfigSnapshot) of the config.
     ///
     /// A snapshot is the way to actually consume values from the config. A snapshot should ideally be acquired
@@ -2061,6 +2108,7 @@ impl Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            inner_access: Mutex::new(()),
             inner: ArcSwap::from_pointee(Default::default()),
             overrides: Vec::new(),
             path: PathBuf::new(),
@@ -2179,6 +2227,19 @@ impl ConfigSnapshot {
     /// Defaults to `false`, which requires project ID validation.
     pub fn override_project_ids(&self) -> bool {
         self.inner.values.relay.override_project_ids
+    }
+
+    /// Returns the interval to check for configuration changes.
+    ///
+    /// `None` if the config should never be reloaded.
+    pub fn config_reload_interval(&self) -> Option<Duration> {
+        let interval = self.inner.values.relay.config_reload_interval?;
+        Some(match interval {
+            // Useful for tests to be able to configure this to a very small value,
+            // but we also don't want it to be actually 0.
+            0 => Duration::from_millis(50),
+            secs => Duration::from_secs(secs),
+        })
     }
 
     /// Returns `true` if Relay requires authentication for readiness.
@@ -2919,7 +2980,6 @@ impl fmt::Debug for ConfigSnapshot {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ConfigSnapshot")
             .field("values", &self.inner.values)
-            .field("source_files", &self.inner.source_files)
             .finish()
     }
 }
