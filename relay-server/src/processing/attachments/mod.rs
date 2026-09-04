@@ -105,6 +105,14 @@ impl processing::Processor for AttachmentProcessor {
         );
 
         if !has_event_id {
+            relay_log::info!(
+                sdk = attachments.headers.meta().client().unwrap_or("unknown"),
+                project_id = ?attachments
+                    .headers
+                    .meta()
+                    .project_id(),
+                "attachment without EventId"
+            );
             return Err(attachments.reject_err(Error::NoEventId));
         }
 
