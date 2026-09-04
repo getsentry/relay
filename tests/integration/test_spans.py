@@ -11,6 +11,7 @@ from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 from .asserts import time_within_delta
 from .test_store import make_transaction
+from .consts import Outcome
 
 TEST_CONFIG = {
     "aggregator": {
@@ -393,7 +394,7 @@ def test_span_extraction(
             "category": DataCategory.TRANSACTION.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 1,
         },
@@ -401,7 +402,7 @@ def test_span_extraction(
             "category": DataCategory.SPAN.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 3,
         },
@@ -1124,8 +1125,8 @@ def test_discard_transaction(
     outcomes.sort(key=lambda o: o["outcome"])
 
     # skip billing outcomes
-    assert outcomes[0]["outcome"] == 0
-    assert outcomes[1]["outcome"] == 0
+    assert outcomes[0]["outcome"] == Outcome.ACCEPTED
+    assert outcomes[1]["outcome"] == Outcome.ACCEPTED
 
     o = outcomes[2]
     assert [(o["category"], o["outcome"], o["reason"])] == [
@@ -1436,14 +1437,14 @@ def test_outcomes_for_trimmed_spans(mini_sentry, relay):
     assert outcomes == [
         {
             "category": DataCategory.SPAN,
-            "outcome": 3,  # invalid
+            "outcome": Outcome.INVALID,
             "quantity": 1,
             "reason": "too_large:span",
             "timestamp": time_within_delta(),
         },
         {
             "category": DataCategory.SPAN_INDEXED,
-            "outcome": 3,  # invalid
+            "outcome": Outcome.INVALID,
             "quantity": 1,
             "reason": "too_large:span",
             "timestamp": time_within_delta(),

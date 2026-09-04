@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from sentry_relay.consts import DataCategory
 
 from .asserts import matches_any, time_within_delta
+from .consts import Outcome
 
 
 def test_ai_spans_example_transaction(
@@ -1354,7 +1355,7 @@ def test_ai_spans_example_transaction(
             "category": DataCategory.TRANSACTION.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 1,
         },
@@ -1362,7 +1363,7 @@ def test_ai_spans_example_transaction(
             "category": DataCategory.SPAN.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 10,
         },

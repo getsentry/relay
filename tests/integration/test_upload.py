@@ -18,6 +18,7 @@ from .consts import (
     DUMMY_UPLOAD_PATH,
     DUMMY_UPLOAD_LOCATION,
 )
+from .consts import Outcome
 
 
 @pytest.fixture
@@ -757,7 +758,8 @@ def test_upload_minidump_opt_in(
         )
         outcomes = mini_sentry.get_outcomes(n=1)
         assert any(
-            o["outcome"] == 3 and o["reason"] == "feature_disabled" for o in outcomes
+            o["outcome"] == Outcome.INVALID and o["reason"] == "feature_disabled"
+            for o in outcomes
         )
     else:
         assert mini_sentry.captured_outcomes.empty()

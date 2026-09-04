@@ -7,6 +7,7 @@ from sentry_relay.consts import DataCategory
 
 from .test_spansv2_otel import parse_google_rpc_status
 from .asserts import matches_any, time_within_delta, time_within, only_items
+from .consts import Outcome
 
 TEST_CONFIG = {
     "outcomes": {
@@ -509,13 +510,13 @@ def test_otlp_logs_size_limits(mini_sentry, relay):
     assert mini_sentry.get_aggregated_outcomes() == [
         {
             "category": DataCategory.LOG_ITEM,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "quantity": 1,
             "reason": "too_large:log",
         },
         {
             "category": DataCategory.LOG_BYTE,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "quantity": 127,
             "reason": "too_large:log",
         },

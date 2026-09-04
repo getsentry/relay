@@ -11,6 +11,7 @@ from .test_dynamic_sampling import add_sampling_config
 import uuid
 import json
 import pytest
+from .consts import Outcome
 
 TEST_CONFIG = {
     "outcomes": {
@@ -207,7 +208,7 @@ def test_spansv2_basic(
             "category": DataCategory.TRANSACTION.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 1,
         },
@@ -215,7 +216,7 @@ def test_spansv2_basic(
             "category": DataCategory.SPAN.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 1,
         },
@@ -502,7 +503,7 @@ def test_spansv2_ds_drop(mini_sentry, relay, span, rule_type):
     assert mini_sentry.get_aggregated_outcomes() == [
         {
             "category": DataCategory.SPAN_INDEXED.value,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "quantity": 1,
             "reason": "Sampled:0",
         },
@@ -586,7 +587,7 @@ def test_spansv2_rate_limits(mini_sentry, relay, rate_limit):
             [
                 {
                     "category": 12,
-                    "outcome": 2,
+                    "outcome": Outcome.RATE_LIMITED,
                     "quantity": 1,
                     "reason": "rate_limit_exceeded",
                 }
@@ -596,7 +597,7 @@ def test_spansv2_rate_limits(mini_sentry, relay, rate_limit):
         ),
         {
             "category": DataCategory.SPAN_INDEXED.value,
-            "outcome": 2,
+            "outcome": Outcome.RATE_LIMITED,
             "quantity": 1,
             "reason": "rate_limit_exceeded",
         },
@@ -857,7 +858,7 @@ def test_spansv2_ds_sampled(
             "category": DataCategory.TRANSACTION.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 1,
         },
@@ -865,7 +866,7 @@ def test_spansv2_ds_sampled(
             "category": DataCategory.SPAN.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 2,
         },
@@ -965,7 +966,7 @@ def test_spansv2_ds_root_in_different_org(
             "category": DataCategory.SPAN_INDEXED.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "project_id": 42,
             "quantity": 1,
             "reason": "Sampled:0",
@@ -975,7 +976,7 @@ def test_spansv2_ds_root_in_different_org(
             "category": DataCategory.SPAN.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 1,
             "timestamp": time_within_delta(),
@@ -1129,14 +1130,14 @@ def test_spanv2_inbound_filters(
     assert mini_sentry.get_outcomes(n=2) == [
         {
             "category": DataCategory.SPAN.value,
-            "outcome": 1,  # Filtered
+            "outcome": Outcome.FILTERED,
             "reason": filter_name,
             "quantity": 1,
             "timestamp": time_within_delta(ts),
         },
         {
             "category": DataCategory.SPAN_INDEXED.value,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "quantity": 1,
             "reason": filter_name,
             "timestamp": time_within_delta(ts),
@@ -1190,14 +1191,14 @@ def test_spans_v2_multiple_containers_not_allowed(
         {
             "category": DataCategory.SPAN.value,
             "timestamp": time_within_delta(),
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "quantity": 3,
             "reason": "too_large:span",
         },
         {
             "category": DataCategory.SPAN_INDEXED.value,
             "timestamp": time_within_delta(),
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "quantity": 3,
             "reason": "too_large:span",
         },
@@ -1260,14 +1261,14 @@ def test_spans_v2_dsc_validations(
         {
             "category": DataCategory.SPAN.value,
             "timestamp": time_within_delta(),
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "quantity": 2,
             "reason": validation,
         },
         {
             "category": DataCategory.SPAN_INDEXED.value,
             "timestamp": time_within_delta(),
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "quantity": 2,
             "reason": validation,
         },
@@ -1763,37 +1764,37 @@ def test_invalid_spans(mini_sentry, relay):
     assert outcomes == [
         {
             "category": DataCategory.SPAN.value,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "quantity": 3,
             "reason": "invalid_span",
         },
         {
             "category": DataCategory.SPAN.value,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "no_data",
             "quantity": 4,
         },
         {
             "category": DataCategory.SPAN.value,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "timestamp",
             "quantity": 6,
         },
         {
             "category": DataCategory.SPAN_INDEXED.value,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "quantity": 3,
             "reason": "invalid_span",
         },
         {
             "category": DataCategory.SPAN_INDEXED.value,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "no_data",
             "quantity": 4,
         },
         {
             "category": DataCategory.SPAN_INDEXED.value,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "timestamp",
             "quantity": 6,
         },
@@ -1842,13 +1843,13 @@ def test_time_corrections(mini_sentry, relay, delta, error):
         assert mini_sentry.get_aggregated_outcomes() == [
             {
                 "category": DataCategory.SPAN.value,
-                "outcome": 3,
+                "outcome": Outcome.INVALID,
                 "quantity": 1,
                 "reason": "timestamp",
             },
             {
                 "category": DataCategory.SPAN_INDEXED.value,
-                "outcome": 3,
+                "outcome": Outcome.INVALID,
                 "quantity": 1,
                 "reason": "timestamp",
             },

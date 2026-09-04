@@ -10,6 +10,7 @@ from sentry_relay.consts import DataCategory
 
 from .asserts import matches_any
 from .test_store import make_transaction
+from .consts import Outcome
 
 
 def test_attachments_400(mini_sentry, relay_with_processing, attachments_consumer):
@@ -767,7 +768,7 @@ def test_attachment_without_event_id(
             "category": DataCategory.ATTACHMENT.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": 16,
             "reason": "invalid_event_id",
@@ -776,7 +777,7 @@ def test_attachment_without_event_id(
             "category": DataCategory.ATTACHMENT_ITEM.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": 1,
             "reason": "invalid_event_id",

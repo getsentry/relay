@@ -12,6 +12,7 @@ from .test_dynamic_sampling import add_sampling_config
 import json
 import uuid
 import pytest
+from .consts import Outcome
 
 TEST_CONFIG = {
     "outcomes": {
@@ -233,14 +234,14 @@ def test_invalid_item_headers(mini_sentry, relay, invalid_headers, quantity, rea
     assert mini_sentry.get_outcomes(n=2) == [
         {
             "category": DataCategory.ATTACHMENT.value,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": reason,
             "quantity": quantity,
             "timestamp": time_within_delta(),
         },
         {
             "category": DataCategory.ATTACHMENT_ITEM.value,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": reason,
             "quantity": 1,
             "timestamp": time_within_delta(),
@@ -426,7 +427,7 @@ def test_attachment_with_matching_span_store(
             "category": DataCategory.TRANSACTION.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 1,
         },
@@ -434,7 +435,7 @@ def test_attachment_with_matching_span_store(
             "category": DataCategory.SPAN.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 1,
         },
@@ -592,21 +593,21 @@ def test_span_attachment_ds_drop(mini_sentry, relay, rule_type):
     assert mini_sentry.get_outcomes(n=3) == [
         {
             "timestamp": time_within_delta(),
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:0",
             "category": DataCategory.ATTACHMENT.value,
             "quantity": len(body),
         },
         {
             "timestamp": time_within_delta(),
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:0",
             "category": DataCategory.SPAN_INDEXED.value,
             "quantity": 1,
         },
         {
             "timestamp": time_within_delta(),
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:0",
             "category": DataCategory.ATTACHMENT_ITEM.value,
             "quantity": 1,
@@ -692,14 +693,14 @@ def test_trace_attachment_ds(mini_sentry, relay, rule_type, should_drop):
         assert mini_sentry.get_outcomes(n=2) == [
             {
                 "timestamp": time_within_delta(),
-                "outcome": 1,
+                "outcome": Outcome.FILTERED,
                 "reason": "Sampled:0",
                 "category": DataCategory.ATTACHMENT.value,
                 "quantity": len(body),
             },
             {
                 "timestamp": time_within_delta(),
-                "outcome": 1,
+                "outcome": Outcome.FILTERED,
                 "reason": "Sampled:0",
                 "category": DataCategory.ATTACHMENT_ITEM.value,
                 "quantity": 1,
@@ -761,14 +762,14 @@ def test_standalone_attachment_only_ds_drop(mini_sentry, relay, rule_type):
     assert mini_sentry.get_outcomes(n=2) == [
         {
             "timestamp": time_within_delta(),
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:0",
             "category": DataCategory.ATTACHMENT.value,
             "quantity": len(body),
         },
         {
             "timestamp": time_within_delta(),
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:0",
             "category": DataCategory.ATTACHMENT_ITEM.value,
             "quantity": 1,
@@ -837,28 +838,28 @@ def test_attachments_dropped_with_span_inbound_filters(mini_sentry, relay):
     assert mini_sentry.get_outcomes(n=4) == [
         {
             "timestamp": time_within_delta(ts),
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "release-version",
             "category": DataCategory.ATTACHMENT.value,
             "quantity": 23,
         },
         {
             "timestamp": time_within_delta(ts),
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "release-version",
             "category": DataCategory.SPAN.value,
             "quantity": 1,
         },
         {
             "timestamp": time_within_delta(ts),
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "release-version",
             "category": DataCategory.SPAN_INDEXED.value,
             "quantity": 1,
         },
         {
             "timestamp": time_within_delta(ts),
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "release-version",
             "category": DataCategory.ATTACHMENT_ITEM.value,
             "quantity": 1,
@@ -916,28 +917,28 @@ def test_attachment_dropped_with_invalid_spans(mini_sentry, relay):
     assert mini_sentry.get_outcomes(n=4) == [
         {
             "timestamp": time_within_delta(ts),
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "no_data",
             "category": DataCategory.ATTACHMENT.value,
             "quantity": 23,
         },
         {
             "timestamp": time_within_delta(ts),
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "no_data",
             "category": DataCategory.SPAN.value,
             "quantity": 1,
         },
         {
             "timestamp": time_within_delta(ts),
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "no_data",
             "category": DataCategory.SPAN_INDEXED.value,
             "quantity": 1,
         },
         {
             "timestamp": time_within_delta(ts),
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "no_data",
             "category": DataCategory.ATTACHMENT_ITEM.value,
             "quantity": 1,

@@ -14,6 +14,7 @@ import confluent_kafka as kafka
 
 from sentry_relay.consts import DataCategory
 from sentry_protos.snuba.v1.trace_item_pb2 import TraceItem
+from ..consts import Outcome
 
 TRANSIENT_CONSUMER_ERROR_CODES = {
     kafka.KafkaError.NOT_COORDINATOR,
@@ -369,7 +370,7 @@ class OutcomesConsumer(ConsumerBase):
         for outcome in outcomes:
             if ignore_other and outcome["category"] not in expected_categories:
                 continue
-            assert outcome["outcome"] == 2, outcome
+            assert outcome["outcome"] == Outcome.RATE_LIMITED, outcome
             assert outcome["reason"] == reason, outcome["reason"]
             if key_id is not None:
                 assert outcome["key_id"] == key_id, (outcome["key_id"], key_id)

@@ -12,6 +12,7 @@ from requests import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 from .asserts import time_within_delta
+from .consts import Outcome
 
 RELAY_ROOT = Path(__file__).parent.parent.parent
 
@@ -95,7 +96,7 @@ def test_outcomes_processing(relay_with_processing, mini_sentry, outcomes_consum
         "category": DataCategory.ERROR,
         "key_id": 123,
         "org_id": 1,
-        "outcome": 2,
+        "outcome": Outcome.RATE_LIMITED,
         "project_id": 42,
         "quantity": 1,
         "reason": "rate_limited",
@@ -150,7 +151,7 @@ def test_outcomes_custom_topic(
         "category": DataCategory.ERROR,
         "key_id": 123,
         "org_id": 1,
-        "outcome": 1,
+        "outcome": Outcome.FILTERED,
         "project_id": 42,
         "quantity": 1,
         "reason": "error-message",
@@ -187,7 +188,7 @@ def test_outcomes_non_processing(relay, mini_sentry, event_type):
 
     assert mini_sentry.get_aggregated_outcomes() == [
         {
-            "outcome": 2,  # rate limited
+            "outcome": Outcome.RATE_LIMITED,
             "reason": "rate_limited",
             "source": "my-layer",
             "category": category,
@@ -285,7 +286,7 @@ def test_outcome_forwarding(
             "project_id": 42,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 1,  # filtered
+            "outcome": Outcome.FILTERED,
             "source": "downstream-layer",
             "reason": "release-version",
             "category": category,
@@ -356,7 +357,7 @@ def test_outcomes_forwarding_rate_limited(
         "reason": "rate_limited",
         "org_id": 1,
         "key_id": 123,
-        "outcome": 2,
+        "outcome": Outcome.RATE_LIMITED,
         "project_id": 42,
         "source": "processing-layer",
         "category": 1,
@@ -574,13 +575,13 @@ def test_outcome_to_client_report(relay, mini_sentry):
 
     assert mini_sentry.get_aggregated_outcomes(n=2) == [
         {
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:3000",
             "category": DataCategory.TRANSACTION_INDEXED,
             "quantity": 1,
         },
         {
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:3000",
             "category": DataCategory.SPAN_INDEXED,
             "quantity": 1,
@@ -651,13 +652,13 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
 
     assert mini_sentry.get_aggregated_outcomes(n=2) == [
         {
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:3000",
             "category": DataCategory.TRANSACTION_INDEXED.value,
             "quantity": 2,
         },
         {
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:3000",
             "category": DataCategory.SPAN_INDEXED.value,
             "quantity": 2,
@@ -692,7 +693,7 @@ def test_outcomes_aggregate_inbound_filters(
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "release-version",
             "category": 1,
             "quantity": 2,
@@ -740,13 +741,13 @@ def test_graceful_shutdown(relay, mini_sentry):
 
     assert mini_sentry.get_aggregated_outcomes(n=2) == [
         {
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:3000",
             "category": DataCategory.TRANSACTION_INDEXED.value,
             "quantity": 1,
         },
         {
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:3000",
             "category": DataCategory.SPAN_INDEXED.value,
             "quantity": 1,
@@ -860,7 +861,7 @@ def test_profile_outcomes(
             "category": DataCategory.TRANSACTION.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 2,
             "source": "processing-relay",
@@ -869,7 +870,7 @@ def test_profile_outcomes(
             "category": DataCategory.ATTACHMENT.value,  # attachment
             "key_id": 123,
             "org_id": 1,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "project_id": 42,
             "quantity": 6,  # len(b"foobar")
             "reason": "Sampled:3000",
@@ -879,7 +880,7 @@ def test_profile_outcomes(
             "category": DataCategory.TRANSACTION_INDEXED.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 1,  # Filtered
+            "outcome": Outcome.FILTERED,
             "project_id": 42,
             "quantity": 1,
             "reason": "Sampled:3000",
@@ -889,7 +890,7 @@ def test_profile_outcomes(
             "category": DataCategory.SPAN.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 4,
             "source": "processing-relay",
@@ -898,7 +899,7 @@ def test_profile_outcomes(
             "category": DataCategory.SPAN_INDEXED.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 1,  # Filtered
+            "outcome": Outcome.FILTERED,
             "project_id": 42,
             "quantity": 2,
             "reason": "Sampled:3000",
@@ -908,7 +909,7 @@ def test_profile_outcomes(
             "category": DataCategory.ATTACHMENT_ITEM.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "project_id": 42,
             "quantity": 1,  # number of attachments
             "reason": "Sampled:3000",
@@ -994,7 +995,7 @@ def test_profile_outcomes_invalid(
             "category": DataCategory.TRANSACTION.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 1,
             "timestamp": time_within_delta(),
@@ -1003,7 +1004,7 @@ def test_profile_outcomes_invalid(
             "category": DataCategory.PROFILE.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": 1,
             "reason": expected_outcome,
@@ -1013,7 +1014,7 @@ def test_profile_outcomes_invalid(
             "category": DataCategory.PROFILE_INDEXED.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": 1,
             "reason": expected_outcome,
@@ -1023,7 +1024,7 @@ def test_profile_outcomes_invalid(
             "category": DataCategory.SPAN.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 2,
             "timestamp": time_within_delta(),
@@ -1089,7 +1090,7 @@ def test_profile_outcomes_too_many(
             "category": DataCategory.TRANSACTION.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": 1,
             "reason": "too_large:profile",
@@ -1098,7 +1099,7 @@ def test_profile_outcomes_too_many(
             "category": DataCategory.PROFILE.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": 2,
             "reason": "too_large:profile",
@@ -1107,7 +1108,7 @@ def test_profile_outcomes_too_many(
             "category": DataCategory.TRANSACTION_INDEXED.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": 1,
             "reason": "too_large:profile",
@@ -1116,7 +1117,7 @@ def test_profile_outcomes_too_many(
             "category": DataCategory.PROFILE_INDEXED.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": 2,
             "reason": "too_large:profile",
@@ -1125,7 +1126,7 @@ def test_profile_outcomes_too_many(
             "category": DataCategory.SPAN.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": 1,
             "reason": "too_large:profile",
@@ -1134,7 +1135,7 @@ def test_profile_outcomes_too_many(
             "category": DataCategory.SPAN_INDEXED.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": 1,
             "reason": "too_large:profile",
@@ -1234,7 +1235,7 @@ def test_profile_outcomes_rate_limited(
             "category": category,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 2,  # RateLimited
+            "outcome": Outcome.RATE_LIMITED,
             "project_id": 42,
             "quantity": quantity,
             "reason": "profiles_exceeded",
@@ -1248,7 +1249,7 @@ def test_profile_outcomes_rate_limited(
                 "category": DataCategory.TRANSACTION.value,
                 "key_id": 123,
                 "org_id": 1,
-                "outcome": 0,
+                "outcome": Outcome.ACCEPTED,
                 "project_id": 42,
                 "quantity": 1,
             }
@@ -1259,7 +1260,7 @@ def test_profile_outcomes_rate_limited(
                 "category": DataCategory.SPAN.value,
                 "key_id": 123,
                 "org_id": 1,
-                "outcome": 0,
+                "outcome": Outcome.ACCEPTED,
                 "project_id": 42,
                 "quantity": 2,
             }
@@ -1317,13 +1318,13 @@ def test_profile_outcomes_rate_limited_when_dynamic_sampling_drops(
         assert mini_sentry.get_aggregated_outcomes() == [
             {
                 "category": DataCategory.PROFILE,
-                "outcome": 2,
+                "outcome": Outcome.RATE_LIMITED,
                 "quantity": 1,
                 "reason": "profiles_exceeded",
             },
             {
                 "category": DataCategory.PROFILE_INDEXED,
-                "outcome": 2,
+                "outcome": Outcome.RATE_LIMITED,
                 "quantity": 1,
                 "reason": "profiles_exceeded",
             },
@@ -1429,7 +1430,7 @@ def test_span_outcomes(
             "category": DataCategory.TRANSACTION.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 2,
             "source": "processing-relay",
@@ -1438,7 +1439,7 @@ def test_span_outcomes(
             "category": DataCategory.TRANSACTION_INDEXED.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 1,  # Filtered
+            "outcome": Outcome.FILTERED,
             "project_id": 42,
             "quantity": 1,
             "reason": "Sampled:3000",
@@ -1448,7 +1449,7 @@ def test_span_outcomes(
             "category": DataCategory.SPAN.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 4,
             "source": "processing-relay",
@@ -1457,7 +1458,7 @@ def test_span_outcomes(
             "category": DataCategory.SPAN_INDEXED.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 1,  # Filtered
+            "outcome": Outcome.FILTERED,
             "project_id": 42,
             "quantity": 2,
             "reason": "Sampled:3000",
@@ -1519,7 +1520,7 @@ def test_span_outcomes_invalid(
             "category": category,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": quantity,
             "reason": reason,
@@ -1583,7 +1584,7 @@ def test_replay_outcomes_item_failed(
     expected = {
         "category": 7,
         "key_id": 123,
-        "outcome": 3,
+        "outcome": Outcome.INVALID,
         "project_id": 42,
         "quantity": 2,
         "reason": "invalid_replay",
@@ -1617,7 +1618,7 @@ def test_outcomes_as_metrics_forwarded_as_metrics(relay, mini_sentry):
     assert mini_sentry.get_outcomes(n=1) == [
         {
             "category": DataCategory.ERROR,
-            "outcome": 5,
+            "outcome": Outcome.CLIENT_DISCARD,
             "quantity": 42,
             "reason": "queue_overflow",
             "timestamp": time_within_delta(),
@@ -1705,7 +1706,7 @@ def test_outcomes_as_metrics_forwarded_to_kafka_billing(
             "category": 1,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 2,
+            "outcome": Outcome.RATE_LIMITED,
             "project_id": 42,
             "quantity": 1,
             "reason": "static_disabled_quota",
@@ -1721,7 +1722,7 @@ def test_outcomes_as_metrics_forwarded_to_kafka_billing(
             "category": 1,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 2,
+            "outcome": Outcome.RATE_LIMITED,
             "project_id": 42,
             "quantity": 1,
             "reason": "static_disabled_quota",

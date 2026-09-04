@@ -11,6 +11,7 @@ from sentry_relay.consts import DataCategory
 from .asserts import time_within_delta, time_within, matches, matches_any
 
 import pytest
+from .consts import Outcome
 
 TEST_CONFIG = {
     "outcomes": {
@@ -107,7 +108,7 @@ def test_ourlog_multiple_containers_not_allowed(
             "timestamp": time_within_delta(),
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": 2,
             "reason": "too_large:log",
@@ -117,7 +118,7 @@ def test_ourlog_multiple_containers_not_allowed(
             "timestamp": time_within_delta(),
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": matches(lambda x: 300 < x < 400),
             "reason": "too_large:log",
@@ -167,13 +168,13 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
     assert mini_sentry.get_aggregated_outcomes() == [
         {
             "category": 23,
-            "outcome": 2,
+            "outcome": Outcome.RATE_LIMITED,
             "reason": "no_more_quota",
             "quantity": 1,
         },
         {
             "category": 24,
-            "outcome": 2,
+            "outcome": Outcome.RATE_LIMITED,
             "reason": "no_more_quota",
             "quantity": 157,
         },
@@ -185,13 +186,13 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
     assert mini_sentry.get_aggregated_outcomes() == [
         {
             "category": 23,
-            "outcome": 2,
+            "outcome": Outcome.RATE_LIMITED,
             "reason": "no_more_quota",
             "quantity": 1,
         },
         {
             "category": 24,
-            "outcome": 2,
+            "outcome": Outcome.RATE_LIMITED,
             "reason": "no_more_quota",
             "quantity": 157,
         },
@@ -1078,14 +1079,14 @@ def test_filters_are_applied_to_logs(
     assert mini_sentry.get_outcomes(n=2) == [
         {
             "category": DataCategory.LOG_ITEM.value,
-            "outcome": 1,  # Filtered
+            "outcome": Outcome.FILTERED,
             "reason": filter_name,
             "quantity": 1,
             "timestamp": time_within_delta(ts),
         },
         {
             "category": DataCategory.LOG_BYTE.value,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "quantity": matches_any(),
             "reason": filter_name,
             "timestamp": time_within_delta(ts),
@@ -1130,13 +1131,13 @@ def test_time_corrections(mini_sentry, relay, delta, error):
         assert mini_sentry.get_aggregated_outcomes() == [
             {
                 "category": DataCategory.LOG_ITEM.value,
-                "outcome": 3,
+                "outcome": Outcome.INVALID,
                 "quantity": 1,
                 "reason": "timestamp",
             },
             {
                 "category": DataCategory.LOG_BYTE.value,
-                "outcome": 3,
+                "outcome": Outcome.INVALID,
                 "quantity": matches_any(),
                 "reason": "timestamp",
             },
