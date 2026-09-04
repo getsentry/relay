@@ -867,7 +867,7 @@ def test_profile_outcomes(
             "source": "processing-relay",
         },
         {
-            "category": DataCategory.ATTACHMENT,  # attachment
+            "category": DataCategory.ATTACHMENT,
             "key_id": 123,
             "org_id": 1,
             "outcome": Outcome.FILTERED,
