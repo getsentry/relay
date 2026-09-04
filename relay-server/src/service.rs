@@ -8,6 +8,7 @@ use crate::services::buffer::{
     ObservableEnvelopeBuffer, PartitionedEnvelopeBuffer, ProjectKeyPair,
 };
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
+use crate::services::config_reload::ConfigReloadService;
 use crate::services::global_config::{
     GlobalConfigHandle, GlobalConfigManager, GlobalConfigService,
 };
@@ -371,6 +372,8 @@ impl ServiceState {
             #[cfg(feature = "processing")]
             &objectstore,
         ));
+
+        let _ = services.start(ConfigReloadService::new(config.clone()));
 
         let registry = Registry {
             processor,

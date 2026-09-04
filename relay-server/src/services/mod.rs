@@ -30,6 +30,7 @@
 pub mod autoscaling;
 pub mod buffer;
 pub mod cogs;
+pub mod config_reload;
 pub mod global_config;
 pub mod health_check;
 pub mod metrics;

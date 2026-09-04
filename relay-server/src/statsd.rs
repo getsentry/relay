@@ -698,6 +698,8 @@ impl TimerMetric for RelayTimers {
 
 /// Counter metrics used by Relay
 pub enum RelayCounters {
+    /// Amount of times the configuration was reloaded.
+    ConfigReload,
     /// Tracks the number of tasks driven to completion by the async pool.
     ///
     /// This metric is tagged with:
@@ -1043,6 +1045,7 @@ pub enum RelayCounters {
 impl CounterMetric for RelayCounters {
     fn name(&self) -> &'static str {
         match self {
+            RelayCounters::ConfigReload => "config.reload",
             RelayCounters::AsyncPoolFinishedTasks => "async_pool.finished_tasks",
             RelayCounters::EventCorrupted => "event.corrupted",
             RelayCounters::EnvelopeAccepted => "event.accepted",
