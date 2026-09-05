@@ -773,6 +773,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
 
 [[package]]
+name = "convert_case"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "affbf0190ed2caf063e3def54ff444b449371d55c58e513a95ab98eca50adb49"
+dependencies = [
+ "unicode-segmentation",
+]
+
+[[package]]
 name = "cookie"
 version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1140,7 +1149,7 @@ version = "0.99.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6edb4b64a43d977b8e99788fe3a04d483834fba1215a7e02caa415b626497f7f"
 dependencies = [
- "convert_case",
+ "convert_case 0.4.0",
  "proc-macro2",
  "quote",
  "rustc_version",
@@ -2505,6 +2514,12 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 dependencies = [
  "spin",
 ]
+
+[[package]]
+name = "leb128"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c83bff1d572d6b9aeef67ddfc8448e4a3737909cb28e81f97c791b9018703e52"
 
 [[package]]
 name = "libbz2-rs-sys"
@@ -4039,6 +4054,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "proto-descriptors"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "convert_case 0.11.0",
+ "prost 0.14.4",
+ "prost-types",
+ "relay-serialization",
+]
+
+[[package]]
 name = "psl"
 version = "2.1.216"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4989,6 +5016,8 @@ dependencies = [
 name = "relay-serialization"
 version = "26.8.0"
 dependencies = [
+ "leb128",
+ "prost 0.14.4",
  "serde",
  "serde_json",
 ]
@@ -5064,6 +5093,7 @@ dependencies = [
  "relay-redis",
  "relay-replays",
  "relay-sampling",
+ "relay-serialization",
  "relay-spans",
  "relay-statsd",
  "relay-system",
