@@ -93,6 +93,7 @@ relay-protocol = { workspace = true }
 relay-quotas = { workspace = true }
 relay-redis = { workspace = true }
 relay-replays = { workspace = true }
+relay-serialization = { workspace = true }
 relay-conventions = { workspace = true }
 relay-sampling = { workspace = true }
 relay-spans = { workspace = true }

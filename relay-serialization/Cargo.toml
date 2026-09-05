@@ -13,7 +13,11 @@ publish = false
 workspace = true
 
 [dependencies]
+prost = { workspace = true }
 serde = { workspace = true }
+leb128 = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }
+relay-serialization-derive = { workspace = true }
+trybuild = { workspace = true }
