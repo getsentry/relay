@@ -17,7 +17,10 @@ use crate::services::outcome::DiscardReason;
 /// Parses all serialized logs into their [`ExpandedLogs`] representation.
 ///
 /// Individual, invalid logs will be discarded.
-pub fn expand(logs: Managed<SerializedLogs>) -> Result<Managed<ExpandedLogs>, Rejected<Error>> {
+pub fn expand(
+    logs: Managed<SerializedLogs>,
+    max_ops: usize,
+) -> Result<Managed<ExpandedLogs>, Rejected<Error>> {
     let trust = logs.headers.meta().request_trust();
 
     logs.try_map(|logs, records| {
@@ -44,7 +47,7 @@ pub fn expand(logs: Managed<SerializedLogs>) -> Result<Managed<ExpandedLogs>, Re
         let (settings, logs) = match items {
             LogItems::Container(item) => expand_log_container(&item, trust)?,
             LogItems::Integration(item) => {
-                logs::integrations::expand(item, records, &headers).unwrap_or_default()
+                logs::integrations::expand(item, records, &headers, max_ops).unwrap_or_default()
             }
         };
 
