@@ -1525,11 +1525,13 @@ def test_segment_span_scrubs_extra_before_serializing(
     relay.send_event(project_id, event)
 
     segment_span = spans_consumer.get_span()
-    extra = json.loads(
-        segment_span["attributes"]["sentry.event.serialized_extra"]["value"]
-    )
+    attributes = segment_span["attributes"]
+    extra = json.loads(attributes["sentry.event.serialized_extra"]["value"])
 
     assert "john.doe@company.com" not in extra["note"]
     assert "[email]" in extra["note"]
+
+    meta = json.loads(attributes["sentry.event.serialized_meta"]["value"])
+    assert meta["extra"]["note"][""]["rem"][0][0] == "@email"
 
     spans_consumer.assert_empty()
