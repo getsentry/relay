@@ -93,11 +93,11 @@ EXPECTED_ITEMS = [
         "outcomes": {
             "categoryCount": [
                 {
-                    "dataCategory": DataCategory.LOG_ITEM.value,
+                    "dataCategory": DataCategory.LOG_ITEM,
                     "quantity": "1",
                 },
                 {
-                    "dataCategory": DataCategory.LOG_BYTE.value,
+                    "dataCategory": DataCategory.LOG_BYTE,
                     "quantity": "407",
                 },
             ],
@@ -155,11 +155,11 @@ EXPECTED_ITEMS = [
         "outcomes": {
             "categoryCount": [
                 {
-                    "dataCategory": DataCategory.LOG_ITEM.value,
+                    "dataCategory": DataCategory.LOG_ITEM,
                     "quantity": "1",
                 },
                 {
-                    "dataCategory": DataCategory.LOG_BYTE.value,
+                    "dataCategory": DataCategory.LOG_BYTE,
                     "quantity": "860",
                 },
             ],

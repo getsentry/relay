@@ -4,7 +4,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{MethodRouter, post};
 use opentelemetry_proto::tonic::collector::logs::v1::ExportLogsServiceResponse;
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceResponse;
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use relay_dynamic_config::Feature;
 
 use crate::endpoints::common;
@@ -20,7 +20,7 @@ use crate::service::ServiceState;
 /// The integration currently supports the following endpoints:
 ///  - V1 Traces
 ///  - V1 Logs
-pub fn routes(config: &Config) -> axum::Router<ServiceState> {
+pub fn routes(config: &ConfigSnapshot) -> axum::Router<ServiceState> {
     axum::Router::new()
         .route("/v1/traces", traces::route(config))
         .route("/v1/traces/", traces::route(config))
@@ -56,7 +56,7 @@ mod traces {
         Ok(SuccessResponse::new(format))
     }
 
-    pub fn route(config: &Config) -> MethodRouter<ServiceState> {
+    pub fn route(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
         post(handle).route_layer(DefaultBodyLimit::max(config.max_container_size()))
     }
 }
@@ -90,7 +90,7 @@ mod logs {
         Ok(SuccessResponse::new(format))
     }
 
-    pub fn route(config: &Config) -> MethodRouter<ServiceState> {
+    pub fn route(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
         post(handle).route_layer(DefaultBodyLimit::max(config.max_container_size()))
     }
 }

@@ -18,7 +18,7 @@ use relay_auth::SignatureError;
 #[cfg(feature = "processing")]
 use relay_auth::SignatureHeader;
 use relay_base_schema::project::ProjectId;
-use relay_config::{Config, HttpEncoding, UpstreamDescriptor};
+use relay_config::{Config, ConfigSnapshot, HttpEncoding, UpstreamDescriptor};
 use relay_quotas::Scoping;
 use relay_system::{
     Addr, AsyncResponse, ConcurrentService, FromMessage, Interface, LoadShed, SendError, Sender,
@@ -192,6 +192,7 @@ pub fn create_service(
     upstream: &Addr<UpstreamRelay>,
     #[cfg(feature = "processing")] objectstore: &Option<Addr<Objectstore>>,
 ) -> ConcurrentService<Service> {
+    let current_config = config.current();
     let backend = create_backend(
         config,
         upstream,
@@ -199,12 +200,12 @@ pub fn create_service(
         objectstore,
     );
     let service = Service {
-        timeout: Duration::from_secs(config.upload().timeout),
+        timeout: Duration::from_secs(current_config.upload().timeout),
         backend,
     };
     ConcurrentService::new(service)
         .with_backlog_limit(0)
-        .with_concurrency_limit(config.upload().max_concurrent_requests)
+        .with_concurrency_limit(current_config.upload().max_concurrent_requests)
 }
 
 fn create_backend(
@@ -281,6 +282,7 @@ impl Service {
             #[cfg(feature = "processing")]
             Backend::Objectstore { addr, config } => {
                 use crate::services::objectstore::UploadRef;
+                let config = config.current();
 
                 // Create the key:
                 let key = Uuid::now_v7().as_simple().to_string();
@@ -318,7 +320,7 @@ impl Service {
                     upload_id: upload_id.map(|s| s.to_string()),
                     other: Default::default(),
                 }
-                .try_sign(config)
+                .try_sign(&config)
             }
         }
     }
@@ -341,6 +343,7 @@ impl Service {
             #[cfg(feature = "processing")]
             Backend::Objectstore { addr, config } => {
                 use crate::services::objectstore::UploadRef;
+                let config = config.current();
 
                 let Location {
                     project_id,
@@ -348,7 +351,7 @@ impl Service {
                     length,
                     upload_id,
                     other,
-                } = location.verify(received, config)?;
+                } = location.verify(received, &config)?;
 
                 let scoping = project.scoping;
                 debug_assert_eq!(scoping.project_id, project_id);
@@ -376,7 +379,7 @@ impl Service {
                     upload_id: None,
                     other,
                 }
-                .try_sign(config)
+                .try_sign(&config)
             }
         }
     }
@@ -502,7 +505,7 @@ impl<L: UploadLength> Location<L> {
     }
 
     #[cfg(feature = "processing")]
-    fn try_sign(self, config: &Config) -> Result<SignedLocation<L>, Error> {
+    fn try_sign(self, config: &ConfigSnapshot) -> Result<SignedLocation<L>, Error> {
         let uri = self.try_to_uri()?;
         let secret_key = config.upload_signing_key().ok_or(Error::SigningFailed)?;
         let signature = secret_key.sign_with_header(
@@ -633,7 +636,11 @@ impl<L: UploadLength> SignedLocation<L> {
     ///
     /// Fails if the signature is outdated or incorrect.
     #[cfg(feature = "processing")]
-    pub fn verify(self, received: DateTime<Utc>, config: &Config) -> Result<Location<L>, Error> {
+    pub fn verify(
+        self,
+        received: DateTime<Utc>,
+        config: &ConfigSnapshot,
+    ) -> Result<Location<L>, Error> {
         let location = self.location.try_to_uri()?;
         let max_age = chrono::Duration::seconds(config.upload().max_age);
         let public_key = config
@@ -866,7 +873,7 @@ impl UpstreamRequest for UploadRequest {
         Ok(())
     }
 
-    fn configure(&mut self, config: &Config) {
+    fn configure(&mut self, config: &ConfigSnapshot) {
         if let RequestKind::Upload { encoding, .. } = &mut self.kind {
             *encoding = config.http_encoding();
         }
@@ -913,7 +920,7 @@ mod tests {
         fn config(
             relay_credentials: Credentials,
             credentials: Option<UploadCredentials>,
-        ) -> Config {
+        ) -> ConfigSnapshot {
             let mut config = Config::from_json_value(serde_json::json!({
                 "upload": {
                     "credentials": credentials,
@@ -928,7 +935,7 @@ mod tests {
                     ..Default::default()
                 })
                 .unwrap();
-            config
+            config.current()
         }
 
         #[test]

@@ -3,7 +3,7 @@ use std::error::Error;
 use crate::processing;
 use crate::processing::utils::event::event_type;
 use relay_base_schema::events::EventType;
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use relay_event_normalization::eap::{Ingress, Pipeline};
 use relay_event_schema::protocol::{Event, Measurement, Measurements, Span, SpanV2, TraceContext};
 use relay_metrics::MetricNamespace;
@@ -14,7 +14,7 @@ use relay_sampling::DynamicSamplingContext;
 pub fn extract_from_event(
     dsc: Option<&DynamicSamplingContext>,
     event: &Annotated<Event>,
-    config: &Config,
+    config: &ConfigSnapshot,
     server_sample_rate: Option<f64>,
 ) -> Vec<Result<Annotated<SpanV2>, ()>> {
     // Only extract spans from transactions (not errors).

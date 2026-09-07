@@ -81,7 +81,7 @@ async fn main() {
     );
 
     let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
-    let buffer = PolymorphicEnvelopeBuffer::from_config(0, &config, memory_checker)
+    let buffer = PolymorphicEnvelopeBuffer::from_config(0, &config.current(), memory_checker)
         .await
         .unwrap();
 

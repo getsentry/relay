@@ -1,6 +1,8 @@
 import pytest
 from queue import Empty
 from datetime import datetime, timezone, timedelta
+from .consts import Outcome
+from sentry_relay.consts import DataCategory
 
 
 def test_client_reports(relay, mini_sentry):
@@ -33,17 +35,17 @@ def test_client_reports(relay, mini_sentry):
 
     assert mini_sentry.get_aggregated_outcomes(n=2) == [
         {
-            "outcome": 5,
+            "outcome": Outcome.CLIENT_DISCARD,
             "reason": "queue_overflow",
             "source": "my-layer",
-            "category": 1,
+            "category": DataCategory.ERROR,
             "quantity": 84,
         },
         {
-            "outcome": 5,
+            "outcome": Outcome.CLIENT_DISCARD,
             "reason": "queue_overflow",
             "source": "my-layer",
-            "category": 2,
+            "category": DataCategory.TRANSACTION,
             "quantity": 2462,
         },
     ]

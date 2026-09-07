@@ -1,6 +1,6 @@
 use bytes::Bytes;
 use chrono::{TimeZone, Utc};
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use relay_event_schema::protocol::{
     AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DeviceContext, Event, EventId,
     GpuContext, LenientString, Level, LogEntry, Message, OsContext, TagEntry, Tags, Timestamp,
@@ -24,7 +24,7 @@ const MAX_NUM_UNREAL_LOGS: usize = 40;
 const CLIENT_SDK_NAME: &str = "unreal.crashreporter";
 
 /// Extracts the items from an Unreal 4 crash report payload.
-fn extract_items(payload: Bytes, config: &Config) -> Result<Items, ProcessingError> {
+fn extract_items(payload: Bytes, config: &ConfigSnapshot) -> Result<Items, ProcessingError> {
     let mut items = Items::new();
     let crash = Unreal4Crash::parse_with_limit(&payload, config.max_envelope_size())?;
 
@@ -56,7 +56,10 @@ fn extract_items(payload: Bytes, config: &Config) -> Result<Items, ProcessingErr
 }
 
 /// Expands an Unreal 4 crash report payload and returns the expanded items.
-pub fn expand_unreal(payload: Bytes, config: &Config) -> Result<UnrealExpansion, ProcessingError> {
+pub fn expand_unreal(
+    payload: Bytes,
+    config: &ConfigSnapshot,
+) -> Result<UnrealExpansion, ProcessingError> {
     let items = extract_items(payload, config)?;
 
     let mut context = items
@@ -393,6 +396,7 @@ pub struct ProcessedUnrealReport {
 #[cfg(test)]
 mod tests {
 
+    use relay_config::Config;
     use relay_protocol::SerializableAnnotated;
 
     use super::*;
@@ -472,7 +476,7 @@ mod tests {
         let payload = Bytes::from_static(bytes);
 
         // Everything parses with default config:
-        let config = Config::default();
+        let config = Config::default().current();
         let items = extract_items(payload.clone(), &config).unwrap();
         assert_eq!(items.len(), 4);
 
@@ -482,7 +486,8 @@ mod tests {
                 "max_attachment_count": 3
             }
         }))
-        .unwrap();
+        .unwrap()
+        .current();
         let items = extract_items(payload, &config).unwrap();
         assert_eq!(items.len(), 3);
     }

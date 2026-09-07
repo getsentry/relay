@@ -60,7 +60,9 @@ impl ProjectSource {
         no_cache: bool,
         current_revision: Revision,
     ) -> Result<SourceProjectState, ProjectSourceError> {
-        match self.config.relay_mode() {
+        let config = self.config.current();
+
+        match config.relay_mode() {
             RelayMode::Proxy => return Ok(ProjectState::Dummy.into()),
             RelayMode::Managed => (), // Proceed with loading the config from redis or upstream
         }
@@ -78,7 +80,7 @@ impl ProjectSource {
                 //
                 // If it is pending, we must fallback to fetching from the upstream.
                 Ok(SourceProjectState::New(state)) => {
-                    let state = state.sanitized(self.config.processing_enabled());
+                    let state = state.sanitized(config.processing_enabled());
                     if !state.is_pending() {
                         return Ok(state.into());
                     }
@@ -107,7 +109,7 @@ impl ProjectSource {
 
         Ok(match state {
             SourceProjectState::New(state) => {
-                SourceProjectState::New(state.sanitized(self.config.processing_enabled()))
+                SourceProjectState::New(state.sanitized(config.processing_enabled()))
             }
             SourceProjectState::NotModified => SourceProjectState::NotModified,
         })

@@ -82,7 +82,7 @@ impl ProjectCacheService {
         let project_events_tx = broadcast::channel(PROJECT_EVENTS_CHANNEL_SIZE).0;
 
         Self {
-            store: ProjectStore::new(&config),
+            store: ProjectStore::new(&config.current()),
             source,
             config,
             scheduled_fetches: FuturesScheduled::default(),
