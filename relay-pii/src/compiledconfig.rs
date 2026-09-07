@@ -382,7 +382,7 @@ mod tests {
             )
         };
         let config = PiiConfig {
-            rules: BTreeMap::from_iter((0..1000).map(|i| rule_fn(i))),
+            rules: BTreeMap::from_iter((0..1000).map(rule_fn)),
             ..Default::default()
         };
         #[allow(clippy::mutable_key_type)]
