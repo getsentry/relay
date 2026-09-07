@@ -4,6 +4,9 @@ use std::collections::BTreeSet;
 use crate::builtin::BUILTIN_RULES_MAP;
 use crate::{PiiConfig, PiiConfigError, Redaction, RuleSpec, RuleType, SelectorSpec};
 
+/// Maximum depth for recursive rules;
+const MAX_DEPTH: usize = 200;
+
 /// A representation of `PiiConfig` that is more (CPU-)efficient for use in `PiiProcessor`.
 ///
 /// It is lossy in the sense that it cannot be consumed by downstream Relays, so both versions have
@@ -22,7 +25,7 @@ impl CompiledPiiConfig {
             let mut rule_set = BTreeSet::default();
             let mut seen_ids = BTreeSet::default();
             for rule_id in rules {
-                collect_rules(config, &mut rule_set, &mut seen_ids, rule_id, None);
+                collect_rules(config, &mut rule_set, &mut seen_ids, rule_id, None, 0);
             }
             applications.push((selector.clone(), rule_set));
         }
@@ -82,7 +85,12 @@ fn collect_rules(
     seen_ids: &mut BTreeSet<Box<str>>,
     rule_id: &str,
     parent: Option<RuleRef>,
+    depth: usize,
 ) {
+    if depth > MAX_DEPTH {
+        return;
+    }
+
     let rule = match get_rule(config, rule_id) {
         Some(rule) => rule,
         None => return,
@@ -105,7 +113,7 @@ fn collect_rules(
                 None
             };
             for rule_id in &m.rules {
-                collect_rules(config, rules, seen_ids, rule_id, parent.clone());
+                collect_rules(config, rules, seen_ids, rule_id, parent.clone(), depth + 1);
             }
         }
         RuleType::Alias(ref a) => {
@@ -114,7 +122,7 @@ fn collect_rules(
             } else {
                 None
             };
-            collect_rules(config, rules, seen_ids, &a.rule, parent);
+            collect_rules(config, rules, seen_ids, &a.rule, parent, depth + 1);
         }
         RuleType::Unknown(_) => {}
         _ => {
@@ -202,7 +210,7 @@ mod tests {
         #[allow(clippy::mutable_key_type)]
         let mut collected_rules = Default::default();
         let mut seen_ids = Default::default();
-        collect_rules(&config, &mut collected_rules, &mut seen_ids, "a", None);
+        collect_rules(&config, &mut collected_rules, &mut seen_ids, "a", None, 0);
 
         // The cycle has been removed:
         assert!(collected_rules.is_empty());
@@ -239,7 +247,7 @@ mod tests {
         #[allow(clippy::mutable_key_type)]
         let mut collected_rules = Default::default();
         let mut seen_ids = Default::default();
-        collect_rules(&config, &mut collected_rules, &mut seen_ids, "a", None);
+        collect_rules(&config, &mut collected_rules, &mut seen_ids, "a", None, 0);
 
         // The cycle has been removed:
         assert!(collected_rules.is_empty());
@@ -285,8 +293,8 @@ mod tests {
         #[allow(clippy::mutable_key_type)]
         let mut collected_rules = BTreeSet::new();
         let mut seen_ids = BTreeSet::new();
-        collect_rules(&config, &mut collected_rules, &mut seen_ids, "a", None);
-        collect_rules(&config, &mut collected_rules, &mut seen_ids, "b", None);
+        collect_rules(&config, &mut collected_rules, &mut seen_ids, "a", None, 0);
+        collect_rules(&config, &mut collected_rules, &mut seen_ids, "b", None, 0);
 
         let collected_rules: Vec<_> = collected_rules
             .into_iter()
@@ -341,7 +349,7 @@ mod tests {
         #[allow(clippy::mutable_key_type)]
         let mut collected_rules = Default::default();
         let mut seen_ids = Default::default();
-        collect_rules(&config, &mut collected_rules, &mut seen_ids, "a", None);
+        collect_rules(&config, &mut collected_rules, &mut seen_ids, "a", None, 0);
 
         let collected_rules: Vec<_> = collected_rules
             .into_iter()
@@ -356,5 +364,32 @@ mod tests {
             ),
         ]
         "#);
+    }
+
+    #[test]
+    fn depth_bound() {
+        // 0 -> 1 -> 2 ...
+        let rule_fn = |i: usize| {
+            (
+                i.to_string(),
+                RuleSpec {
+                    ty: RuleType::Alias(AliasRule {
+                        rule: (i + 1).to_string(),
+                        hide_inner: false,
+                    }),
+                    redaction: Redaction::Default,
+                },
+            )
+        };
+        let config = PiiConfig {
+            rules: BTreeMap::from_iter((0..1000).map(|i| rule_fn(i))),
+            ..Default::default()
+        };
+        #[allow(clippy::mutable_key_type)]
+        let mut collected_rules = Default::default();
+        let mut seen_ids = Default::default();
+        collect_rules(&config, &mut collected_rules, &mut seen_ids, "0", None, 0);
+
+        assert!(collected_rules.is_empty()); // does not crash
     }
 }
