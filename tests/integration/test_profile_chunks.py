@@ -8,6 +8,7 @@ import pytest
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 from .asserts import time_within_delta
+from .consts import Outcome
 
 RELAY_ROOT = Path(__file__).parent.parent.parent
 
@@ -170,11 +171,11 @@ def test_profile_chunk_outcomes_invalid(
 
     assert outcomes == [
         {
-            "category": DataCategory.PROFILE_CHUNK.value,
+            "category": DataCategory.PROFILE_CHUNK,
             "timestamp": time_within_delta(),
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": 1,
             "reason": "profiling_invalid_json",
@@ -243,11 +244,11 @@ def test_profile_chunk_outcomes_rate_limited(
 
     assert outcomes == [
         {
-            "category": DataCategory.PROFILE_CHUNK_UI.value,
+            "category": DataCategory.PROFILE_CHUNK_UI,
             "timestamp": time_within_delta(),
             "key_id": 123,
             "org_id": 1,
-            "outcome": 2,  # RateLimited
+            "outcome": Outcome.RATE_LIMITED,
             "project_id": 42,
             "quantity": 1,
             "reason": "profile_chunks_exceeded",

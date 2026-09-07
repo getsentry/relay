@@ -11,6 +11,7 @@ from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 from .asserts import time_within_delta
 from .test_store import make_transaction
+from .consts import Outcome
 
 TEST_CONFIG = {
     "aggregator": {
@@ -390,18 +391,18 @@ def test_span_extraction(
 
     assert outcomes_consumer.get_aggregated_outcomes(n=2) == [
         {
-            "category": DataCategory.TRANSACTION.value,
+            "category": DataCategory.TRANSACTION,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 1,
         },
         {
-            "category": DataCategory.SPAN.value,
+            "category": DataCategory.SPAN,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 3,
         },
@@ -820,17 +821,17 @@ def test_rate_limit_indexed_consistent(
     spans = spans_consumer.get_spans(n=3, timeout=10)
     assert len(spans) == 3
     assert summarize_outcomes() == {
-        (12, 0): 3,
-        (2, 0): 1,
-    }  # SpanIndexed, Accepted
+        (DataCategory.SPAN, Outcome.ACCEPTED): 3,
+        (DataCategory.TRANSACTION, Outcome.ACCEPTED): 1,
+    }
 
     # Second batch is limited
     relay.send_envelope(project_id, envelope)
     assert summarize_outcomes() == {
-        (16, 2): 3,
-        (12, 0): 3,
-        (2, 0): 1,
-    }  # SpanIndexed, RateLimited
+        (DataCategory.SPAN_INDEXED, Outcome.RATE_LIMITED): 3,
+        (DataCategory.SPAN, Outcome.ACCEPTED): 3,
+        (DataCategory.TRANSACTION, Outcome.ACCEPTED): 1,
+    }
 
     spans_consumer.assert_empty()
     outcomes_consumer.assert_empty()
@@ -895,9 +896,9 @@ def test_rate_limit_consistent_extracted(
     # one for the transaction, one for the contained span
     assert len(spans) == 2
     assert summarize_outcomes() == {
-        (12, 0): 2,
-        (2, 0): 1,
-    }  # SpanIndexed, Accepted
+        (DataCategory.SPAN, Outcome.ACCEPTED): 2,
+        (DataCategory.TRANSACTION, Outcome.ACCEPTED): 1,
+    }
     # A limit only for span_indexed does not affect extracted metrics
     metrics = metrics_consumer.get_metrics(n=4)
     span_count = sum(
@@ -910,8 +911,8 @@ def test_rate_limit_consistent_extracted(
     outcomes = summarize_outcomes()
 
     expected_outcomes = {
-        (12, 2): 2,
-        (16, 2): 2,  # SpanIndexed, RateLimited
+        (DataCategory.SPAN, Outcome.RATE_LIMITED): 2,
+        (DataCategory.SPAN_INDEXED, Outcome.RATE_LIMITED): 2,
     }
     assert outcomes == expected_outcomes
 
@@ -959,7 +960,10 @@ def test_rate_limit_spans_in_envelope(
 
     relay.send_envelope(project_id, envelope)
 
-    assert summarize_outcomes() == {(12, 2): 3, (16, 2): 3}
+    assert summarize_outcomes() == {
+        (DataCategory.SPAN, Outcome.RATE_LIMITED): 3,
+        (DataCategory.SPAN_INDEXED, Outcome.RATE_LIMITED): 3,
+    }
 
     spans_consumer.assert_empty()
     metrics_consumer.assert_empty()
@@ -1031,9 +1035,9 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     spans = spans_consumer.get_spans(n=2, timeout=10)
     assert len(spans) == 2
     assert summarize_outcomes() == {
-        (2, 0): 1,
-        (12, 0): 2,
-    }  # SpanIndexed, Accepted
+        (DataCategory.TRANSACTION, Outcome.ACCEPTED): 1,
+        (DataCategory.SPAN, Outcome.ACCEPTED): 2,
+    }
     assert span_usage_metric() == 2
 
     # Second batch nothing passes
@@ -1043,18 +1047,18 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     spans_consumer.assert_empty()
     if category == "transaction":
         assert summarize_outcomes() == {
-            (2, 2): 1,  # Transaction, Rate Limited
-            (9, 2): 1,  # TransactionIndexed, Rate Limited
-            (12, 2): 2,  # Span, Rate Limited
-            (16, 2): 2,  # SpanIndexed, Rate Limited
+            (DataCategory.TRANSACTION, Outcome.RATE_LIMITED): 1,
+            (DataCategory.TRANSACTION_INDEXED, Outcome.RATE_LIMITED): 1,
+            (DataCategory.SPAN, Outcome.RATE_LIMITED): 2,
+            (DataCategory.SPAN_INDEXED, Outcome.RATE_LIMITED): 2,
         }
         assert span_usage_metric() == 0
     elif category == "transaction_indexed":
         assert summarize_outcomes() == {
-            (2, 0): 1,
-            (9, 2): 1,  # TransactionIndexed, Rate Limited
-            (12, 0): 2,
-            (16, 2): 2,  # SpanIndexed, Rate Limited
+            (DataCategory.TRANSACTION, Outcome.ACCEPTED): 1,
+            (DataCategory.TRANSACTION_INDEXED, Outcome.RATE_LIMITED): 1,
+            (DataCategory.SPAN, Outcome.ACCEPTED): 2,
+            (DataCategory.SPAN_INDEXED, Outcome.RATE_LIMITED): 2,
         }
         assert span_usage_metric() == 2
 
@@ -1072,20 +1076,20 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
 
     if category == "transaction":
         assert summarize_outcomes() == {
-            (2, 2): 1,  # Transaction, Rate Limited
-            (9, 2): 1,  # TransactionIndexed, Rate Limited
-            (12, 2): expected_span_count,  # Span, Rate Limited
-            (16, 2): expected_span_count,  # SpanIndexed, Rate Limited
+            (DataCategory.TRANSACTION, Outcome.RATE_LIMITED): 1,
+            (DataCategory.TRANSACTION_INDEXED, Outcome.RATE_LIMITED): 1,
+            (DataCategory.SPAN, Outcome.RATE_LIMITED): expected_span_count,
+            (DataCategory.SPAN_INDEXED, Outcome.RATE_LIMITED): expected_span_count,
         }
         assert span_usage_metric() == 0
     elif category == "transaction_indexed":
         # We do not check indexed limits on the fast path,
         # so we count the correct number of spans (ignoring the span_count header):
         assert summarize_outcomes() == {
-            (2, 0): 1,
-            (9, 2): 1,  # TransactionIndexed, Rate Limited
-            (12, 0): 2,
-            (16, 2): 2,  # SpanIndexed, Rate Limited
+            (DataCategory.TRANSACTION, Outcome.ACCEPTED): 1,
+            (DataCategory.TRANSACTION_INDEXED, Outcome.RATE_LIMITED): 1,
+            (DataCategory.SPAN, Outcome.ACCEPTED): 2,
+            (DataCategory.SPAN_INDEXED, Outcome.RATE_LIMITED): 2,
         }
         # Metrics are always correct:
         assert span_usage_metric() == 2
@@ -1124,12 +1128,12 @@ def test_discard_transaction(
     outcomes.sort(key=lambda o: o["outcome"])
 
     # skip billing outcomes
-    assert outcomes[0]["outcome"] == 0
-    assert outcomes[1]["outcome"] == 0
+    assert outcomes[0]["outcome"] == Outcome.ACCEPTED
+    assert outcomes[1]["outcome"] == Outcome.ACCEPTED
 
     o = outcomes[2]
     assert [(o["category"], o["outcome"], o["reason"])] == [
-        (9, 1, "discarded"),  # TransactionIndexed, Filtered
+        (DataCategory.TRANSACTION_INDEXED, Outcome.FILTERED, "discarded"),
     ]
 
     transactions_consumer.assert_empty()
@@ -1198,7 +1202,10 @@ def test_span_filtering_with_generic_inbound_filter(
             counter[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
         return counter
 
-    assert summarize_outcomes() == {(12, 1): 1, (16, 1): 1}
+    assert summarize_outcomes() == {
+        (DataCategory.SPAN, Outcome.FILTERED): 1,
+        (DataCategory.SPAN_INDEXED, Outcome.FILTERED): 1,
+    }
     spans_consumer.assert_empty()
     outcomes_consumer.assert_empty()
 
@@ -1287,17 +1294,17 @@ def test_dynamic_sampling(
         assert len(spans) == 3
         outcomes = outcomes_consumer.get_outcomes(timeout=10, n=2)
         assert summarize_outcomes(outcomes) == {
-            (12, 0): 3,
-            (2, 0): 1,
-        }  # SpanIndexed, Accepted
+            (DataCategory.SPAN, Outcome.ACCEPTED): 3,
+            (DataCategory.TRANSACTION, Outcome.ACCEPTED): 1,
+        }
     else:
         outcomes = outcomes_consumer.get_outcomes(timeout=10, n=3)
         assert summarize_outcomes(outcomes) == {
-            (16, 1): 3,  # SpanIndexed, Filtered
-            (12, 0): 3,
-            (2, 0): 1,
+            (DataCategory.SPAN_INDEXED, Outcome.FILTERED): 3,
+            (DataCategory.SPAN, Outcome.ACCEPTED): 3,
+            (DataCategory.TRANSACTION, Outcome.ACCEPTED): 1,
         }
-        assert {o["reason"] for o in outcomes if o["outcome"] != 0} == {
+        assert {o["reason"] for o in outcomes if o["outcome"] != Outcome.ACCEPTED} == {
             "Sampled:3000",
         }
 
@@ -1436,14 +1443,14 @@ def test_outcomes_for_trimmed_spans(mini_sentry, relay):
     assert outcomes == [
         {
             "category": DataCategory.SPAN,
-            "outcome": 3,  # invalid
+            "outcome": Outcome.INVALID,
             "quantity": 1,
             "reason": "too_large:span",
             "timestamp": time_within_delta(),
         },
         {
             "category": DataCategory.SPAN_INDEXED,
-            "outcome": 3,  # invalid
+            "outcome": Outcome.INVALID,
             "quantity": 1,
             "reason": "too_large:span",
             "timestamp": time_within_delta(),

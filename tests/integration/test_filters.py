@@ -7,6 +7,7 @@ import pytest
 
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
+from .consts import Outcome
 
 RELAY_ROOT = Path(__file__).parent.parent.parent
 
@@ -617,7 +618,7 @@ def test_filters_are_applied_to_profiles(
                 "org_id": 1,
                 "project_id": 42,
                 "key_id": 123,
-                "outcome": 1,  # Filtered
+                "outcome": Outcome.FILTERED,
                 "reason": "release-version",
                 "quantity": 1,
             },

@@ -11,6 +11,7 @@ from sentry_relay.consts import DataCategory
 from .asserts import time_within_delta, time_within, matches, matches_any
 
 import pytest
+from .consts import Outcome
 
 TEST_CONFIG = {
     "outcomes": {
@@ -103,21 +104,21 @@ def test_ourlog_multiple_containers_not_allowed(
 
     assert outcomes == [
         {
-            "category": DataCategory.LOG_ITEM.value,
+            "category": DataCategory.LOG_ITEM,
             "timestamp": time_within_delta(),
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": 2,
             "reason": "too_large:log",
         },
         {
-            "category": DataCategory.LOG_BYTE.value,
+            "category": DataCategory.LOG_BYTE,
             "timestamp": time_within_delta(),
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": matches(lambda x: 300 < x < 400),
             "reason": "too_large:log",
@@ -166,14 +167,14 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
 
     assert mini_sentry.get_aggregated_outcomes() == [
         {
-            "category": 23,
-            "outcome": 2,
+            "category": DataCategory.LOG_ITEM,
+            "outcome": Outcome.RATE_LIMITED,
             "reason": "no_more_quota",
             "quantity": 1,
         },
         {
-            "category": 24,
-            "outcome": 2,
+            "category": DataCategory.LOG_BYTE,
+            "outcome": Outcome.RATE_LIMITED,
             "reason": "no_more_quota",
             "quantity": 157,
         },
@@ -184,14 +185,14 @@ def test_fast_path_rate_limits(mini_sentry, relay, categories):
 
     assert mini_sentry.get_aggregated_outcomes() == [
         {
-            "category": 23,
-            "outcome": 2,
+            "category": DataCategory.LOG_ITEM,
+            "outcome": Outcome.RATE_LIMITED,
             "reason": "no_more_quota",
             "quantity": 1,
         },
         {
-            "category": 24,
-            "outcome": 2,
+            "category": DataCategory.LOG_BYTE,
+            "outcome": Outcome.RATE_LIMITED,
             "reason": "no_more_quota",
             "quantity": 157,
         },
@@ -325,11 +326,11 @@ def test_ourlog_extraction_with_sentry_logs(
             "outcomes": {
                 "categoryCount": [
                     {
-                        "dataCategory": DataCategory.LOG_ITEM.value,
+                        "dataCategory": DataCategory.LOG_ITEM,
                         "quantity": "1",
                     },
                     {
-                        "dataCategory": DataCategory.LOG_BYTE.value,
+                        "dataCategory": DataCategory.LOG_BYTE,
                         "quantity": f"{expected_byte_size_1}",
                     },
                 ],
@@ -408,11 +409,11 @@ def test_ourlog_extraction_with_sentry_logs(
             "outcomes": {
                 "categoryCount": [
                     {
-                        "dataCategory": DataCategory.LOG_ITEM.value,
+                        "dataCategory": DataCategory.LOG_ITEM,
                         "quantity": "1",
                     },
                     {
-                        "dataCategory": DataCategory.LOG_BYTE.value,
+                        "dataCategory": DataCategory.LOG_BYTE,
                         "quantity": f"{expected_byte_size_2}",
                     },
                 ],
@@ -689,11 +690,11 @@ def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attribut
         "outcomes": {
             "categoryCount": [
                 {
-                    "dataCategory": DataCategory.LOG_ITEM.value,
+                    "dataCategory": DataCategory.LOG_ITEM,
                     "quantity": "1",
                 },
                 {
-                    "dataCategory": DataCategory.LOG_BYTE.value,
+                    "dataCategory": DataCategory.LOG_BYTE,
                     "quantity": "32",
                 },
             ],
@@ -757,11 +758,11 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
         "outcomes": {
             "categoryCount": [
                 {
-                    "dataCategory": DataCategory.LOG_ITEM.value,
+                    "dataCategory": DataCategory.LOG_ITEM,
                     "quantity": "1",
                 },
                 {
-                    "dataCategory": DataCategory.LOG_BYTE.value,
+                    "dataCategory": DataCategory.LOG_BYTE,
                     "quantity": "20",
                 },
             ],
@@ -915,11 +916,11 @@ def test_browser_name_version_extraction(
         "outcomes": {
             "categoryCount": [
                 {
-                    "dataCategory": DataCategory.LOG_ITEM.value,
+                    "dataCategory": DataCategory.LOG_ITEM,
                     "quantity": mock.ANY,
                 },
                 {
-                    "dataCategory": DataCategory.LOG_BYTE.value,
+                    "dataCategory": DataCategory.LOG_BYTE,
                     "quantity": mock.ANY,
                 },
             ],
@@ -1077,15 +1078,15 @@ def test_filters_are_applied_to_logs(
 
     assert mini_sentry.get_outcomes(n=2) == [
         {
-            "category": DataCategory.LOG_ITEM.value,
-            "outcome": 1,  # Filtered
+            "category": DataCategory.LOG_ITEM,
+            "outcome": Outcome.FILTERED,
             "reason": filter_name,
             "quantity": 1,
             "timestamp": time_within_delta(ts),
         },
         {
-            "category": DataCategory.LOG_BYTE.value,
-            "outcome": 1,
+            "category": DataCategory.LOG_BYTE,
+            "outcome": Outcome.FILTERED,
             "quantity": matches_any(),
             "reason": filter_name,
             "timestamp": time_within_delta(ts),
@@ -1129,14 +1130,14 @@ def test_time_corrections(mini_sentry, relay, delta, error):
     if error == "past_timestamp":
         assert mini_sentry.get_aggregated_outcomes() == [
             {
-                "category": DataCategory.LOG_ITEM.value,
-                "outcome": 3,
+                "category": DataCategory.LOG_ITEM,
+                "outcome": Outcome.INVALID,
                 "quantity": 1,
                 "reason": "timestamp",
             },
             {
-                "category": DataCategory.LOG_BYTE.value,
-                "outcome": 3,
+                "category": DataCategory.LOG_BYTE,
+                "outcome": Outcome.INVALID,
                 "quantity": matches_any(),
                 "reason": "timestamp",
             },
@@ -1263,11 +1264,11 @@ def test_time_sequence_shift(mini_sentry, relay_with_processing, items_consumer)
         "outcomes": {
             "categoryCount": [
                 {
-                    "dataCategory": DataCategory.LOG_ITEM.value,
+                    "dataCategory": DataCategory.LOG_ITEM,
                     "quantity": "1",
                 },
                 {
-                    "dataCategory": DataCategory.LOG_BYTE.value,
+                    "dataCategory": DataCategory.LOG_BYTE,
                     "quantity": "36",
                 },
             ],
