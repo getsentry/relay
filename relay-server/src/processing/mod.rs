@@ -6,6 +6,8 @@
 //!
 //! The processor service, will then do its actual work using the processing logic defined here.
 
+use std::sync::Arc;
+
 use relay_cogs::FeatureWeights;
 use relay_config::{ConfigSnapshot, RelayMode};
 use relay_dynamic_config::{GlobalConfig, RetentionConfig, RetentionsConfig};
@@ -82,15 +84,15 @@ pub struct Context<'a> {
     /// The Relay configuration.
     pub config: &'a ConfigSnapshot,
     /// A view of the currently active global configuration.
-    pub global_config: &'a GlobalConfig,
+    pub global_config: &'a Arc<GlobalConfig>,
     /// Project configuration associated with the unit of work.
-    pub project_info: &'a ProjectInfo,
+    pub project_info: &'a Arc<ProjectInfo>,
     /// Project configuration associated with the root of the trace of the unit of work.
-    pub sampling_project_info: Option<&'a ProjectInfo>,
+    pub sampling_project_info: Option<&'a Arc<ProjectInfo>>,
     /// Cached rate limits associated with the unit of work.
     ///
     /// The caller needs to ensure the rate limits are not yet expired.
-    pub rate_limits: &'a RateLimits,
+    pub rate_limits: &'a Arc<RateLimits>,
 }
 
 impl<'a> Context<'a> {
@@ -146,12 +148,15 @@ impl Context<'static> {
     /// Returns a [`Context`] with default values for testing.
     pub fn for_test() -> Self {
         use relay_config::Config;
-        use std::sync::LazyLock;
+        use std::sync::{Arc, LazyLock};
 
         static CONFIG: LazyLock<ConfigSnapshot> = LazyLock::new(|| Config::default().current());
-        static GLOBAL_CONFIG: LazyLock<GlobalConfig> = LazyLock::new(Default::default);
-        static PROJECT_INFO: LazyLock<ProjectInfo> = LazyLock::new(Default::default);
-        static RATE_LIMITS: LazyLock<RateLimits> = LazyLock::new(Default::default);
+        static GLOBAL_CONFIG: LazyLock<Arc<GlobalConfig>> =
+            LazyLock::new(|| Arc::new(Default::default()));
+        static PROJECT_INFO: LazyLock<Arc<ProjectInfo>> =
+            LazyLock::new(|| Arc::new(Default::default()));
+        static RATE_LIMITS: LazyLock<Arc<RateLimits>> =
+            LazyLock::new(|| Arc::new(Default::default()));
 
         Self {
             config: &CONFIG,

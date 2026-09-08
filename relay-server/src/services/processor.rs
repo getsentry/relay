@@ -703,7 +703,7 @@ impl EnvelopeProcessorService {
             config: &config,
             global_config: &global_config,
             project_info: &message.project_info,
-            sampling_project_info: message.sampling_project_info.as_deref(),
+            sampling_project_info: message.sampling_project_info.as_ref(),
             rate_limits: &message.rate_limits,
         };
 
@@ -1858,6 +1858,8 @@ impl<'a> IntoIterator for CombinedQuotas<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use insta::assert_debug_snapshot;
     use relay_common::glob2::LazyGlob;
     use relay_dynamic_config::ProjectConfig;
@@ -2094,10 +2096,10 @@ mod tests {
             ..Default::default()
         };
 
-        let project_info = ProjectInfo {
+        let project_info = Arc::new(ProjectInfo {
             config,
             ..Default::default()
-        };
+        });
 
         let envelope = ManagedEnvelope::new(envelope, outcome_aggregator);
 
@@ -2166,6 +2168,7 @@ mod tests {
             public_key: ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
             numeric_id: Some(1),
         });
+        let project_info = Arc::new(project_info);
 
         let config = serde_json::json!({
             "processing": {

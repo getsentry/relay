@@ -42,7 +42,7 @@ pub fn validate_configs(ctx: Context<'_>) {
     if !is_sampling_config_supported(ctx.project_info)
         || !ctx
             .sampling_project_info
-            .is_none_or(is_sampling_config_supported)
+            .is_none_or(|pi| is_sampling_config_supported(pi))
     {
         relay_log::error!(
             project_id = ?ctx.project_info.project_id,
@@ -213,7 +213,7 @@ fn compute(spans: &Managed<ExpandedSpans>, ctx: Context<'_>) -> SamplingResult {
         // Fallback to current project if there is no trace root project, this may happen,
         // if the trace root is from a different organization.
         .or(Some(ctx.project_info))
-        .and_then(get_sampling_config);
+        .and_then(|pi| get_sampling_config(pi));
 
     // The root sampling config is always required for dynamic sampling. It determines the sample
     // rate which is applied to the item.

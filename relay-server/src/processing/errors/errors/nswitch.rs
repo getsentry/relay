@@ -331,6 +331,7 @@ mod tests {
     use relay_event_schema::protocol::Level;
     use relay_protocol::assert_annotated_snapshot;
     use std::io::Write;
+    use std::sync::Arc;
     use zstd::bulk::Compressor as ZstdCompressor;
 
     use crate::constants::NNSWITCH_DYING_MESSAGE_FILENAME;
@@ -350,15 +351,16 @@ mod tests {
             config.current()
         });
 
-        static PROJECT_INFO: std::sync::LazyLock<ProjectInfo> = std::sync::LazyLock::new(|| {
-            let mut project_info = ProjectInfo::default();
-            project_info
-                .config
-                .features
-                .0
-                .insert(Feature::NintendoEventRewrite);
-            project_info
-        });
+        static PROJECT_INFO: std::sync::LazyLock<Arc<ProjectInfo>> =
+            std::sync::LazyLock::new(|| {
+                let mut project_info = ProjectInfo::default();
+                project_info
+                    .config
+                    .features
+                    .0
+                    .insert(Feature::NintendoEventRewrite);
+                Arc::new(project_info)
+            });
 
         Context {
             processing: processing::Context {

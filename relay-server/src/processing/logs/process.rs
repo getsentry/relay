@@ -231,6 +231,8 @@ fn normalize_log_derived(log: &mut Annotated<OurLog>) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use relay_pii::PiiConfig;
     use relay_protocol::assert_annotated_snapshot;
 
@@ -258,13 +260,13 @@ mod tests {
         datascrubbing_settings.scrub_defaults = true;
 
         let ctx = Context {
-            project_info: &ProjectInfo {
+            project_info: &Arc::new(ProjectInfo {
                 config: relay_dynamic_config::ProjectConfig {
                     datascrubbing_settings,
                     ..Default::default()
                 },
                 ..Default::default()
-            },
+            }),
             ..Context::for_test()
         };
 
@@ -335,13 +337,13 @@ mod tests {
         .unwrap();
 
         let ctx = Context {
-            project_info: &ProjectInfo {
+            project_info: &Arc::new(ProjectInfo {
                 config: relay_dynamic_config::ProjectConfig {
                     pii_config: Some(deep_wildcard_config),
                     ..Default::default()
                 },
                 ..Default::default()
-            },
+            }),
             ..Context::for_test()
         };
 
@@ -402,13 +404,13 @@ mod tests {
         .unwrap();
 
         let ctx = Context {
-            project_info: &ProjectInfo {
+            project_info: &Arc::new(ProjectInfo {
                 config: relay_dynamic_config::ProjectConfig {
                     pii_config: Some(config),
                     ..Default::default()
                 },
                 ..Default::default()
-            },
+            }),
             ..Context::for_test()
         };
 
@@ -468,13 +470,13 @@ mod tests {
         .unwrap();
 
         let ctx = Context {
-            project_info: &ProjectInfo {
+            project_info: &Arc::new(ProjectInfo {
                 config: relay_dynamic_config::ProjectConfig {
                     pii_config: Some(config),
                     ..Default::default()
                 },
                 ..Default::default()
-            },
+            }),
             ..Context::for_test()
         };
 

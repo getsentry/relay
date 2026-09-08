@@ -163,6 +163,8 @@ pub fn scrub_attachment<'a>(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use relay_event_schema::protocol::{AttachmentId, TraceAttachmentMeta};
     use relay_pii::PiiConfig;
     use relay_protocol::SerializableAnnotated;
@@ -192,13 +194,13 @@ mod tests {
         };
 
         let ctx = Context {
-            project_info: &ProjectInfo {
+            project_info: &Arc::new(ProjectInfo {
                 config: relay_dynamic_config::ProjectConfig {
                     pii_config: Some(pii_config),
                     ..Default::default()
                 },
                 ..Default::default()
-            },
+            }),
             ..Context::for_test()
         };
 
@@ -239,13 +241,13 @@ mod tests {
         };
 
         let ctx = Context {
-            project_info: &ProjectInfo {
+            project_info: &Arc::new(ProjectInfo {
                 config: relay_dynamic_config::ProjectConfig {
                     pii_config: Some(pii_config),
                     ..Default::default()
                 },
                 ..Default::default()
-            },
+            }),
             ..Context::for_test()
         };
 

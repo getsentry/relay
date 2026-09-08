@@ -430,6 +430,8 @@ fn span_duration(span: &SpanV2) -> Option<Duration> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use chrono::DateTime;
 
     use relay_conventions::attributes::*;
@@ -499,13 +501,13 @@ mod tests {
         datascrubbing_settings.exclude_fields = vec!["public_data".to_owned()];
 
         let ctx = Context {
-            project_info: &ProjectInfo {
+            project_info: &Arc::new(ProjectInfo {
                 config: relay_dynamic_config::ProjectConfig {
                     datascrubbing_settings,
                     ..Default::default()
                 },
                 ..Default::default()
-            },
+            }),
             ..Context::for_test()
         };
         scrub_span(&mut data, ctx).unwrap();
@@ -746,14 +748,14 @@ mod tests {
         .unwrap();
 
         let ctx = Context {
-            project_info: &ProjectInfo {
+            project_info: &Arc::new(ProjectInfo {
                 config: relay_dynamic_config::ProjectConfig {
                     pii_config: Some(config),
                     datascrubbing_settings,
                     ..Default::default()
                 },
                 ..Default::default()
-            },
+            }),
             ..Context::for_test()
         };
         scrub_span(&mut data, ctx).unwrap();
