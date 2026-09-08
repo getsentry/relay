@@ -6,7 +6,7 @@ use relay_quotas::{DataCategory, RateLimits};
 
 use crate::envelope::Item;
 use crate::managed::{Counted, Quantities, RecordKeeper};
-use crate::processing::ForwardContext;
+use crate::processing;
 use crate::processing::errors::errors::{Context, Expansion, SentryError};
 use crate::processing::errors::{Error, Result};
 #[cfg(all(sentry, feature = "processing"))]
@@ -180,7 +180,7 @@ impl SentryError for Playstation {
         Ok(())
     }
 
-    fn serialize_into(self, items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
+    fn serialize_into(self, items: &mut Vec<Item>, _ctx: processing::Context<'_>) -> Result<()> {
         items.push(self.prosperodump);
         items.extend(self.minidump);
         Ok(())

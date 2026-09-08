@@ -14,7 +14,7 @@ use crate::Envelope;
 use crate::constants::NNSWITCH_SENTRY_MAGIC;
 use crate::envelope::{AttachmentType, EnvelopeError, Item, ItemType};
 use crate::managed::{Counted, Quantities, RecordKeeper};
-use crate::processing::ForwardContext;
+use crate::processing;
 use crate::processing::errors::Result;
 use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
 use crate::services::outcome::DiscardItemType;
@@ -110,7 +110,7 @@ impl SentryError for Nswitch {
         Ok(())
     }
 
-    fn serialize_into(self, items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
+    fn serialize_into(self, items: &mut Vec<Item>, _ctx: processing::Context<'_>) -> Result<()> {
         match self {
             Self::Forward { dying_message } => items.push(dying_message),
             Self::Process => {}

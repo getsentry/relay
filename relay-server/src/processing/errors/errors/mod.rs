@@ -4,8 +4,8 @@ use relay_quotas::{DataCategory, RateLimits};
 
 use crate::envelope::{EnvelopeHeaders, Item};
 use crate::managed::{Counted, Quantities, RecordKeeper};
+use crate::processing;
 use crate::processing::errors::Result;
-use crate::processing::{self, ForwardContext};
 use crate::statsd::RelayCounters;
 
 mod apple_crash_report;
@@ -82,7 +82,7 @@ pub trait SentryError: Counted {
     ) -> Result<()>;
 
     /// Serializes the error back into items, ready to be attached to an envelope.
-    fn serialize_into(self, items: &mut Vec<Item>, ctx: ForwardContext<'_>) -> Result<()>
+    fn serialize_into(self, items: &mut Vec<Item>, ctx: processing::Context<'_>) -> Result<()>
     where
         Self: Sized;
 
@@ -144,7 +144,7 @@ macro_rules! gen_error_kind {
                 }
             }
 
-            fn serialize_into(self, items: &mut Vec<Item>, ctx: ForwardContext<'_>) -> Result<()> {
+            fn serialize_into(self, items: &mut Vec<Item>, ctx: processing::Context<'_>) -> Result<()> {
                 match self {
                     $(Self::$name(error) => error.serialize_into(items, ctx),)*
                 }

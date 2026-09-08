@@ -106,7 +106,7 @@ pub struct CheckInsOutput(Managed<SerializedCheckIns>);
 impl Forward for CheckInsOutput {
     fn serialize_envelope(
         self,
-        _: processing::ForwardContext<'_>,
+        _: processing::Context<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         let envelope = self.0.map(|SerializedCheckIns { headers, check_ins }, _| {
             Envelope::from_parts(headers, Items::from_vec(check_ins))
@@ -119,7 +119,7 @@ impl Forward for CheckInsOutput {
     fn forward_store(
         self,
         s: processing::StoreHandle<'_>,
-        ctx: processing::ForwardContext<'_>,
+        ctx: processing::Context<'_>,
     ) -> Result<(), Rejected<()>> {
         use crate::services::store::StoreCheckIn;
 

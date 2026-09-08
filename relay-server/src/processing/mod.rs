@@ -8,7 +8,7 @@
 
 use relay_cogs::FeatureWeights;
 use relay_config::{ConfigSnapshot, RelayMode};
-use relay_dynamic_config::GlobalConfig;
+use relay_dynamic_config::{GlobalConfig, RetentionConfig, RetentionsConfig};
 use relay_quotas::RateLimits;
 
 use crate::managed::{Counted, Managed, ManagedEnvelope, Rejected};
@@ -113,13 +113,31 @@ impl<'a> Context<'a> {
         }
     }
 
-    /// Creates a [`ForwardContext`] from this [`Context`].
-    pub fn to_forward(self) -> ForwardContext<'a> {
-        ForwardContext {
-            config: self.config,
-            global_config: self.global_config,
-            project_info: self.project_info,
+    /// Returns the [`Retention`] for a specific type/product.
+    pub fn retention<F>(&self, f: F) -> Retention
+    where
+        F: FnOnce(&RetentionsConfig) -> Option<&RetentionConfig>,
+    {
+        if let Some(retention) = f(&self.project_info.config.retentions) {
+            return Retention::from(*retention);
         }
+
+        self.event_retention()
+    }
+
+    /// Returns the event [`Retention`].
+    ///
+    /// This retention is also often used for older products and can be considered a default
+    /// retention for products which do not define their own retention.
+    pub fn event_retention(&self) -> Retention {
+        Retention::from(RetentionConfig {
+            standard: self
+                .project_info
+                .config
+                .event_retention
+                .unwrap_or(crate::constants::DEFAULT_EVENT_RETENTION),
+            downsampled: self.project_info.config.downsampled_event_retention,
+        })
     }
 }
 

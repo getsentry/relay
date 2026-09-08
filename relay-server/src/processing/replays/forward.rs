@@ -24,7 +24,7 @@ enum SerializeReplayError {
 impl Forward for ReplaysOutput {
     fn serialize_envelope(
         self,
-        _ctx: processing::ForwardContext<'_>,
+        _ctx: processing::Context<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         self.0.try_map(|replay, _| {
             let ExpandedReplay { headers, payload } = replay;
@@ -46,7 +46,7 @@ impl Forward for ReplaysOutput {
     fn forward_store(
         self,
         s: processing::StoreHandle<'_>,
-        ctx: processing::ForwardContext<'_>,
+        ctx: processing::Context<'_>,
     ) -> Result<(), Rejected<()>> {
         let Self(replay) = self;
 

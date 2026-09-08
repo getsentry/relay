@@ -172,7 +172,7 @@ pub struct TraceMetricOutput(Managed<ExpandedTraceMetrics>);
 impl Forward for TraceMetricOutput {
     fn serialize_envelope(
         self,
-        _: processing::ForwardContext<'_>,
+        _: processing::Context<'_>,
     ) -> Result<Managed<Box<crate::Envelope>>, Rejected<()>> {
         self.0.try_map(|metrics, r| {
             r.lenient(DataCategory::TraceMetricByte);
@@ -192,7 +192,7 @@ impl Forward for TraceMetricOutput {
     fn forward_store(
         self,
         s: processing::forward::StoreHandle<'_>,
-        ctx: processing::ForwardContext<'_>,
+        ctx: processing::Context<'_>,
     ) -> Result<(), Rejected<()>> {
         let Self(metrics) = self;
 

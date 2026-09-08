@@ -3,7 +3,7 @@ use crate::envelope::{ContentType, Item, ItemType, Items};
 use crate::managed::{Managed, ManagedResult, Rejected};
 use crate::processing::trace_attachments::ExpandedAttachments;
 use crate::processing::trace_attachments::types::ExpandedAttachment;
-use crate::processing::{Forward, ForwardContext};
+use crate::processing::{Context, Forward};
 #[cfg(feature = "processing")]
 use crate::processing::{StoreHandle, trace_attachments::store};
 use crate::services::outcome::{DiscardReason, Outcome};
@@ -24,10 +24,7 @@ impl ExpandedAttachments {
 }
 
 impl Forward for Managed<ExpandedAttachments> {
-    fn serialize_envelope(
-        self,
-        _ctx: ForwardContext<'_>,
-    ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
+    fn serialize_envelope(self, _ctx: Context<'_>) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         self.try_map(|this, _| {
             this.serialize_envelope()
                 .map_err(drop)
@@ -39,7 +36,7 @@ impl Forward for Managed<ExpandedAttachments> {
     fn forward_store(
         self,
         s: StoreHandle<'_>,
-        ctx: ForwardContext<'_>,
+        ctx: Context<'_>,
     ) -> Result<(), Rejected<()>> {
         let retention = ctx.retention(|r| r.trace_attachment.as_ref());
         let server_sample_rate = self.server_sample_rate;

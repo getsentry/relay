@@ -4,7 +4,7 @@ use crate::processing::transactions::types::{
     ExpandedTransaction, ExtractedIndexedSpans, SpansExtracted, StandaloneProfile,
 };
 use crate::processing::utils::types::Indexed;
-use crate::processing::{Forward, ForwardContext};
+use crate::processing::{Context, Forward};
 use crate::services::outcome::{DiscardReason, Outcome};
 
 /// Output of the transaction processor.
@@ -24,10 +24,7 @@ pub enum TransactionOutput {
 }
 
 impl Forward for TransactionOutput {
-    fn serialize_envelope(
-        self,
-        _ctx: ForwardContext<'_>,
-    ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
+    fn serialize_envelope(self, _ctx: Context<'_>) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         match self {
             TransactionOutput::Full(managed) => managed.try_map(|work, _| {
                 work.serialize_envelope()
@@ -50,7 +47,7 @@ impl Forward for TransactionOutput {
     fn forward_store(
         self,
         s: crate::processing::StoreHandle<'_>,
-        ctx: ForwardContext<'_>,
+        ctx: Context<'_>,
     ) -> Result<(), Rejected<()>> {
         use crate::services::store::StoreEvent;
         use relay_dynamic_config::Feature;
@@ -151,7 +148,7 @@ mod store {
     pub fn convert_profile(
         profile: ExpandedProfile,
         sampled: bool,
-        ctx: ForwardContext<'_>,
+        ctx: Context<'_>,
     ) -> StoreProfile {
         let retention_days = ctx.event_retention().standard;
 

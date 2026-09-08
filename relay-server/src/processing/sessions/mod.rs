@@ -121,7 +121,7 @@ pub struct SessionsOutput(Managed<SerializedSessions>);
 impl Forward for SessionsOutput {
     fn serialize_envelope(
         self,
-        _: processing::ForwardContext<'_>,
+        _: processing::Context<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         Ok(self.0.map(|sessions, _| sessions.serialize_envelope()))
     }
@@ -130,7 +130,7 @@ impl Forward for SessionsOutput {
     fn forward_store(
         self,
         _: processing::forward::StoreHandle<'_>,
-        _: processing::ForwardContext<'_>,
+        _: processing::Context<'_>,
     ) -> Result<(), Rejected<()>> {
         let SessionsOutput(sessions) = self;
         Err(sessions.internal_error("sessions should always be extracted into metrics"))

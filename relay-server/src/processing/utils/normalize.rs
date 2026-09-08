@@ -18,7 +18,7 @@ where
         received_at: headers.meta().received_at(),
         sent_at: headers.sent_at(),
         max_in_past: Some(TimeEnforcement::Reject(retention_days_to_duration(
-            ctx.to_forward().retention(f).standard,
+            ctx.retention(f).standard,
         ))),
         max_in_future: ctx
             .config

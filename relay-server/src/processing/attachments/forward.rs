@@ -6,7 +6,7 @@ use crate::processing::{self, Forward};
 impl Forward for AttachmentsOutput {
     fn serialize_envelope(
         self,
-        _: processing::ForwardContext<'_>,
+        _: processing::Context<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         let Self(attachments) = self;
         Ok(attachments.map(|attachments, _| {
@@ -18,7 +18,7 @@ impl Forward for AttachmentsOutput {
     fn forward_store(
         self,
         s: processing::StoreHandle<'_>,
-        ctx: processing::ForwardContext<'_>,
+        ctx: processing::Context<'_>,
     ) -> Result<(), Rejected<()>> {
         use crate::processing::attachments::Error;
 

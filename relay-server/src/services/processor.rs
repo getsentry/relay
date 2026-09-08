@@ -735,7 +735,6 @@ impl EnvelopeProcessorService {
             self.process(message.envelope, ctx).await
         });
 
-        let ctx = ctx.to_forward();
         for Output { main, metrics } in outputs {
             if let Some(metrics) = metrics {
                 let agg = &self.inner.addrs.aggregator;
@@ -853,12 +852,7 @@ impl EnvelopeProcessorService {
     /// Submits a processor [`Output`] to the appropriate upstream.
     ///
     /// If processing is enabled, the upstream is Kafka.
-    fn submit_upstream(
-        &self,
-        cogs: &mut Token,
-        output: Outputs,
-        ctx: processing::ForwardContext<'_>,
-    ) {
+    fn submit_upstream(&self, cogs: &mut Token, output: Outputs, ctx: processing::Context<'_>) {
         let _submit = cogs.start_category("submit");
 
         #[cfg(feature = "processing")]
@@ -1903,7 +1897,7 @@ mod tests {
         }
 
         main.unwrap()
-            .serialize_envelope(ctx.to_forward())
+            .serialize_envelope(ctx)
             .unwrap()
             .accept(|envelope| envelope)
     }

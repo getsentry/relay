@@ -2,7 +2,7 @@ use relay_quotas::DataCategory;
 
 use crate::envelope::{Item, ItemType};
 use crate::managed::{Counted, Quantities, RecordKeeper};
-use crate::processing::ForwardContext;
+use crate::processing;
 use crate::processing::errors::Result;
 use crate::processing::errors::errors::{Context, Expansion, SentryError, utils};
 #[cfg(feature = "processing")]
@@ -162,7 +162,7 @@ impl SentryError for Unreal {
         Ok(())
     }
 
-    fn serialize_into(self, items: &mut Vec<Item>, _ctx: ForwardContext<'_>) -> Result<()> {
+    fn serialize_into(self, items: &mut Vec<Item>, _ctx: processing::Context<'_>) -> Result<()> {
         match self {
             Self::Forward { report } => items.push(report),
             #[cfg(feature = "processing")]

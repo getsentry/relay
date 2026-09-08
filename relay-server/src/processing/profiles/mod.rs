@@ -8,9 +8,7 @@ use smallvec::smallvec;
 use crate::Envelope;
 use crate::envelope::{EnvelopeHeaders, Item, ItemType, Items};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
-use crate::processing::{
-    Context, CountRateLimited, Forward, ForwardContext, Output, Processor, QuotaRateLimiter,
-};
+use crate::processing::{Context, CountRateLimited, Forward, Output, Processor, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
 
 mod process;
@@ -158,10 +156,7 @@ impl CountRateLimited for Managed<ExpandedProfile> {
 pub struct ProfilesOutput(Managed<ExpandedProfile>);
 
 impl Forward for ProfilesOutput {
-    fn serialize_envelope(
-        self,
-        _ctx: ForwardContext<'_>,
-    ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
+    fn serialize_envelope(self, _ctx: Context<'_>) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         let Self(profile) = self;
         let envelope = profile.map(
             |ExpandedProfile {
@@ -179,7 +174,7 @@ impl Forward for ProfilesOutput {
     fn forward_store(
         self,
         s: crate::processing::StoreHandle<'_>,
-        ctx: ForwardContext<'_>,
+        ctx: Context<'_>,
     ) -> Result<(), Rejected<()>> {
         use crate::services::store::StoreProfile;
 

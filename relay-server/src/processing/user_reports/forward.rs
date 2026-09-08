@@ -1,13 +1,10 @@
 use crate::Envelope;
 use crate::managed::{Managed, Rejected};
 use crate::processing::user_reports::{SerializedUserReports, UserReportsOutput};
-use crate::processing::{Forward, ForwardContext};
+use crate::processing::{Context, Forward};
 
 impl Forward for UserReportsOutput {
-    fn serialize_envelope(
-        self,
-        _: ForwardContext<'_>,
-    ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
+    fn serialize_envelope(self, _: Context<'_>) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         let Self(reports) = self;
         let envelope = reports.map(|SerializedUserReports { headers, reports }, _| {
             Envelope::from_parts(headers, reports.into())
@@ -19,7 +16,7 @@ impl Forward for UserReportsOutput {
     fn forward_store(
         self,
         s: crate::processing::StoreHandle<'_>,
-        _: ForwardContext<'_>,
+        _: Context<'_>,
     ) -> Result<(), Rejected<()>> {
         use crate::services::store::StoreUserReport;
 

@@ -3,14 +3,14 @@ use relay_profiling::AnyProfileChunk;
 
 use crate::envelope::ContentType;
 use crate::managed::Counted;
-use crate::processing::ForwardContext;
+use crate::processing::Context;
 use crate::processing::profile_chunks::{ExpandedProfileChunk, Result};
 use crate::services::objectstore::{RawProfile, StoreRawProfile};
 use crate::services::store::StoreProfileChunk;
 
 pub fn convert(
     pc: ExpandedProfileChunk,
-    ctx: ForwardContext<'_>,
+    ctx: Context<'_>,
 ) -> Result<Either<StoreProfileChunk, StoreRawProfile>> {
     let retention_days = ctx.event_retention().standard;
 

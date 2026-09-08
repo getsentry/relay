@@ -1,14 +1,14 @@
-use relay_config::ConfigSnapshot;
+#[cfg(feature = "processing")]
 use relay_dynamic_config::GlobalConfig;
-use relay_dynamic_config::{RetentionConfig, RetentionsConfig};
+use relay_dynamic_config::RetentionConfig;
 #[cfg(feature = "processing")]
 use relay_system::{Addr, FromMessage};
 
 use crate::Envelope;
 use crate::managed::{Managed, Rejected};
+use crate::processing::Context;
 #[cfg(feature = "processing")]
 use crate::services::objectstore::Objectstore;
-use crate::services::projects::project::ProjectInfo;
 #[cfg(feature = "processing")]
 use crate::services::store::{Store, StoreEvent};
 
@@ -86,60 +86,17 @@ pub trait Forward {
     /// Serializes the output into an [`Envelope`].
     ///
     /// All output must be serializable as an envelope.
-    fn serialize_envelope(
-        self,
-        ctx: ForwardContext<'_>,
-    ) -> Result<Managed<Box<Envelope>>, Rejected<()>>;
+    fn serialize_envelope(self, ctx: Context<'_>) -> Result<Managed<Box<Envelope>>, Rejected<()>>;
 
     /// Serializes the output into a [`crate::services::store::StoreService`] compatible format.
     ///
     /// This function must only be called when Relay is configured to be in processing mode.
     #[cfg(feature = "processing")]
-    fn forward_store(self, s: StoreHandle<'_>, ctx: ForwardContext<'_>)
-    -> Result<(), Rejected<()>>;
-}
-
-/// Context passed to [`Forward`].
-///
-/// A minified version of [`Context`](super::Context), which does not contain processing specific information.
-#[derive(Copy, Clone, Debug)]
-pub struct ForwardContext<'a> {
-    /// The Relay configuration.
-    pub config: &'a ConfigSnapshot,
-    /// A view of the currently active global configuration.
-    #[cfg_attr(not(feature = "processing"), expect(unused))]
-    pub global_config: &'a GlobalConfig,
-    /// Project configuration associated with the unit of work.
-    pub project_info: &'a ProjectInfo,
-}
-
-impl ForwardContext<'_> {
-    /// Returns the [`Retention`] for a specific type/product.
-    pub fn retention<F>(&self, f: F) -> Retention
-    where
-        F: FnOnce(&RetentionsConfig) -> Option<&RetentionConfig>,
-    {
-        if let Some(retention) = f(&self.project_info.config.retentions) {
-            return Retention::from(*retention);
-        }
-
-        self.event_retention()
-    }
-
-    /// Returns the event [`Retention`].
-    ///
-    /// This retention is also often used for older products and can be considered a default
-    /// retention for products which do not define their own retention.
-    pub fn event_retention(&self) -> Retention {
-        Retention::from(RetentionConfig {
-            standard: self
-                .project_info
-                .config
-                .event_retention
-                .unwrap_or(crate::constants::DEFAULT_EVENT_RETENTION),
-            downsampled: self.project_info.config.downsampled_event_retention,
-        })
-    }
+    fn forward_store(
+        self,
+        s: StoreHandle<'_>,
+        ctx: Context<'_>,
+    ) -> Result<(), Rejected<()>>;
 }
 
 /// The [`Nothing`] output.
@@ -149,15 +106,16 @@ impl ForwardContext<'_> {
 pub struct Nothing(std::convert::Infallible);
 
 impl Forward for Nothing {
-    fn serialize_envelope(
-        self,
-        _: ForwardContext<'_>,
-    ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
+    fn serialize_envelope(self, _: Context<'_>) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         match self {}
     }
 
     #[cfg(feature = "processing")]
-    fn forward_store(self, _: StoreHandle<'_>, _: ForwardContext<'_>) -> Result<(), Rejected<()>> {
+    fn forward_store(
+        self,
+        _: StoreHandle<'_>,
+        _: Context<'_>,
+    ) -> Result<(), Rejected<()>> {
         match self {}
     }
 }

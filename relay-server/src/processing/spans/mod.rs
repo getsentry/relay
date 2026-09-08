@@ -230,7 +230,7 @@ pub enum SpanOutput {
 impl Forward for SpanOutput {
     fn serialize_envelope(
         self,
-        _: processing::ForwardContext<'_>,
+        _: processing::Context<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         let spans = match self {
             Self::TotalAndIndexed(spans) => spans,
@@ -260,7 +260,7 @@ impl Forward for SpanOutput {
     fn forward_store(
         self,
         s: processing::forward::StoreHandle<'_>,
-        ctx: processing::ForwardContext<'_>,
+        ctx: processing::Context<'_>,
     ) -> Result<(), Rejected<()>> {
         let spans = match self {
             Self::TotalAndIndexed(spans) => {

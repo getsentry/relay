@@ -140,7 +140,7 @@ pub enum ProfileChunkOutput {
 impl Forward for ProfileChunkOutput {
     fn serialize_envelope(
         self,
-        _: processing::ForwardContext<'_>,
+        _: processing::Context<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         match self {
             Self::Serialized(profile_chunks) => Ok(profile_chunks
@@ -155,7 +155,7 @@ impl Forward for ProfileChunkOutput {
     fn forward_store(
         self,
         s: processing::forward::StoreHandle<'_>,
-        ctx: processing::ForwardContext<'_>,
+        ctx: processing::Context<'_>,
     ) -> Result<(), Rejected<()>> {
         let expanded = match self {
             Self::Expanded(e) => e,

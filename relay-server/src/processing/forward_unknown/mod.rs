@@ -79,7 +79,7 @@ pub struct ForwardUnknownOutput(Managed<UnknownItems>);
 impl Forward for ForwardUnknownOutput {
     fn serialize_envelope(
         self,
-        _: processing::ForwardContext<'_>,
+        _: processing::Context<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         let Self(ui) = self;
         Ok(ui.map(|ui, _| Envelope::from_parts(ui.headers, Items::from_vec(ui.unknown_items))))
@@ -89,7 +89,7 @@ impl Forward for ForwardUnknownOutput {
     fn forward_store(
         self,
         _s: processing::forward::StoreHandle<'_>,
-        _ctx: processing::ForwardContext<'_>,
+        _ctx: processing::Context<'_>,
     ) -> Result<(), Rejected<()>> {
         Err(self.0.reject_err(UnsupportedItem).map(drop))
     }

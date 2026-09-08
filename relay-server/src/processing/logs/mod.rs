@@ -179,7 +179,7 @@ pub struct LogOutput(Managed<ExpandedLogs>);
 impl Forward for LogOutput {
     fn serialize_envelope(
         self,
-        _: processing::ForwardContext<'_>,
+        _: processing::Context<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         self.0.try_map(|logs, r| {
             r.lenient(DataCategory::LogByte);
@@ -193,7 +193,7 @@ impl Forward for LogOutput {
     fn forward_store(
         self,
         s: processing::StoreHandle<'_>,
-        ctx: processing::ForwardContext<'_>,
+        ctx: processing::Context<'_>,
     ) -> Result<(), Rejected<()>> {
         let Self(logs) = self;
 

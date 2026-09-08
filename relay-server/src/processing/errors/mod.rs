@@ -295,7 +295,7 @@ pub struct ErrorOutput(Managed<ExpandedError>);
 impl Forward for ErrorOutput {
     fn serialize_envelope(
         self,
-        ctx: processing::ForwardContext<'_>,
+        ctx: processing::Context<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         self.0
             .try_map(|errors, _records| {
@@ -351,7 +351,7 @@ impl Forward for ErrorOutput {
     fn forward_store(
         self,
         s: processing::StoreHandle<'_>,
-        ctx: processing::ForwardContext<'_>,
+        ctx: processing::Context<'_>,
     ) -> Result<(), Rejected<()>> {
         use crate::services::store::StoreEvent;
 
