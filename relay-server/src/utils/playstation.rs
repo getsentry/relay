@@ -74,10 +74,6 @@ pub fn legacy_userdata_extraction(event: &mut Event, prospero: &ProsperoDump) {
         add_tag!("runtime", system_version);
         add_tag!("runtime.version", system_version);
     }
-
-    if let Some(app_info) = &prospero.app_info {
-        add_tag!("titleId", app_info.title_id);
-    }
 }
 
 pub fn merge_playstation_context(event: &mut Event, prospero: &ProsperoDump) {
@@ -97,13 +93,21 @@ pub fn merge_playstation_context(event: &mut Event, prospero: &ProsperoDump) {
         event.server_name = Annotated::new(hardware_id);
     }
 
-    if let Some(app_info) = &prospero.app_info
-        && !contexts.contains::<AppContext>()
-    {
-        contexts.add(AppContext {
-            app_version: Annotated::new(app_info.version.to_owned()),
-            ..Default::default()
-        });
+    if let Some(app_info) = &prospero.app_info {
+        if !contexts.contains::<AppContext>() {
+            contexts.add(AppContext {
+                app_version: Annotated::new(app_info.version.to_owned()),
+                ..Default::default()
+            });
+        }
+
+        let tags = event.tags.value_mut().get_or_insert_with(Tags::default);
+        if tags.get("titleId").is_none() {
+            tags.0.insert(
+                "titleId".into(),
+                Annotated::new(app_info.title_id.to_owned()),
+            );
+        }
     }
 
     if !contexts.contains::<DeviceContext>() {
