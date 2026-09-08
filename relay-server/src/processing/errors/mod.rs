@@ -351,6 +351,7 @@ impl Forward for ErrorOutput {
     fn forward_store(
         self,
         s: processing::StoreHandle<'_>,
+        _e: processing::EnvelopeProcessorHandle,
         ctx: processing::Context<'_>,
     ) -> Result<(), Rejected<()>> {
         use crate::services::store::StoreEvent;

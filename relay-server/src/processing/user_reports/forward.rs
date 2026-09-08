@@ -16,6 +16,7 @@ impl Forward for UserReportsOutput {
     fn forward_store(
         self,
         s: crate::processing::StoreHandle<'_>,
+        _e: crate::processing::EnvelopeProcessorHandle,
         _: Context<'_>,
     ) -> Result<(), Rejected<()>> {
         use crate::services::store::StoreUserReport;

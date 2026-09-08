@@ -46,6 +46,7 @@ impl Forward for ReplaysOutput {
     fn forward_store(
         self,
         s: processing::StoreHandle<'_>,
+        _e: processing::EnvelopeProcessorHandle,
         ctx: processing::Context<'_>,
     ) -> Result<(), Rejected<()>> {
         let Self(replay) = self;

@@ -155,6 +155,7 @@ impl Forward for ProfileChunkOutput {
     fn forward_store(
         self,
         s: processing::forward::StoreHandle<'_>,
+        _e: processing::forward::EnvelopeProcessorHandle,
         ctx: processing::Context<'_>,
     ) -> Result<(), Rejected<()>> {
         let expanded = match self {

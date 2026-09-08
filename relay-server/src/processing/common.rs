@@ -41,11 +41,12 @@ macro_rules! outputs {
             fn forward_store(
                 self,
                 s: crate::processing::StoreHandle<'_>,
+                e: crate::processing::EnvelopeProcessorHandle<'_>,
                 ctx: Context<'_>,
             ) -> Result<(), Rejected<()>> {
                 match self {
                     $(
-                        Self::$variant(output) => output.forward_store(s, ctx)
+                        Self::$variant(output) => output.forward_store(s, e, ctx)
                     ),*
                 }
             }

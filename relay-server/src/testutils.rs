@@ -113,6 +113,8 @@ pub async fn create_test_processor(config: Config) -> EnvelopeProcessorService {
             store_forwarder: None,
             #[cfg(feature = "processing")]
             objectstore: None,
+            #[cfg(feature = "processing")]
+            envelope_processor: Addr::dummy(),
             aggregator,
         },
         metric_outcomes,

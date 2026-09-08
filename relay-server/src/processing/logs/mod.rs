@@ -193,6 +193,7 @@ impl Forward for LogOutput {
     fn forward_store(
         self,
         s: processing::StoreHandle<'_>,
+        _e: processing::EnvelopeProcessorHandle,
         ctx: processing::Context<'_>,
     ) -> Result<(), Rejected<()>> {
         let Self(logs) = self;

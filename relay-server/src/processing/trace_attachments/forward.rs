@@ -5,7 +5,7 @@ use crate::processing::trace_attachments::ExpandedAttachments;
 use crate::processing::trace_attachments::types::ExpandedAttachment;
 use crate::processing::{Context, Forward};
 #[cfg(feature = "processing")]
-use crate::processing::{StoreHandle, trace_attachments::store};
+use crate::processing::{EnvelopeProcessorHandle, StoreHandle, trace_attachments::store};
 use crate::services::outcome::{DiscardReason, Outcome};
 
 impl ExpandedAttachments {
@@ -36,6 +36,7 @@ impl Forward for Managed<ExpandedAttachments> {
     fn forward_store(
         self,
         s: StoreHandle<'_>,
+        _e: EnvelopeProcessorHandle,
         ctx: Context<'_>,
     ) -> Result<(), Rejected<()>> {
         let retention = ctx.retention(|r| r.trace_attachment.as_ref());

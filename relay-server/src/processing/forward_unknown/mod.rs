@@ -89,6 +89,7 @@ impl Forward for ForwardUnknownOutput {
     fn forward_store(
         self,
         _s: processing::forward::StoreHandle<'_>,
+        _e: processing::forward::EnvelopeProcessorHandle,
         _ctx: processing::Context<'_>,
     ) -> Result<(), Rejected<()>> {
         Err(self.0.reject_err(UnsupportedItem).map(drop))

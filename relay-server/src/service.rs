@@ -325,6 +325,8 @@ impl ServiceState {
                             #[cfg(feature = "processing")]
                             store_forwarder: store,
                             aggregator: aggregator.clone(),
+                            #[cfg(feature = "processing")]
+                            envelope_processor: processor.clone(),
                         },
                         metric_outcomes.clone(),
                     ),

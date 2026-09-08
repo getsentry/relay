@@ -260,6 +260,7 @@ impl Forward for SpanOutput {
     fn forward_store(
         self,
         s: processing::forward::StoreHandle<'_>,
+        _e: processing::EnvelopeProcessorHandle,
         ctx: processing::Context<'_>,
     ) -> Result<(), Rejected<()>> {
         let spans = match self {

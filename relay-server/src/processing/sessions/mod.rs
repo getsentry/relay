@@ -130,6 +130,7 @@ impl Forward for SessionsOutput {
     fn forward_store(
         self,
         _: processing::forward::StoreHandle<'_>,
+        _: processing::forward::EnvelopeProcessorHandle,
         _: processing::Context<'_>,
     ) -> Result<(), Rejected<()>> {
         let SessionsOutput(sessions) = self;

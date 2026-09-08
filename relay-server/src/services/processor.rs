@@ -525,6 +525,8 @@ pub struct Addrs {
     pub objectstore: Option<Addr<Objectstore>>,
     #[cfg(feature = "processing")]
     pub store_forwarder: Option<Addr<Store>>,
+    #[cfg(feature = "processing")]
+    pub envelope_processor: Addr<EnvelopeProcessor>,
     pub aggregator: Addr<Aggregator>,
 }
 
@@ -537,6 +539,8 @@ impl Default for Addrs {
             objectstore: None,
             #[cfg(feature = "processing")]
             store_forwarder: None,
+            #[cfg(feature = "processing")]
+            envelope_processor: Addr::dummy(),
             aggregator: Addr::dummy(),
         }
     }
@@ -859,13 +863,14 @@ impl EnvelopeProcessorService {
         if ctx.config.processing_enabled()
             && let Some(store_forwarder) = &self.inner.addrs.store_forwarder
         {
-            use crate::processing::StoreHandle;
+            use crate::processing::{EnvelopeProcessorHandle, StoreHandle};
 
             let objectstore = self.inner.addrs.objectstore.as_ref();
-            let handle = StoreHandle::new(store_forwarder, objectstore, ctx.global_config);
+            let store_handle = StoreHandle::new(store_forwarder, objectstore, ctx.global_config);
+            let self_handle = EnvelopeProcessorHandle::new(&self.inner.addrs.envelope_processor);
 
             output
-                .forward_store(handle, ctx)
+                .forward_store(store_handle, self_handle, ctx)
                 .unwrap_or_else(|err| err.into_inner());
 
             return;

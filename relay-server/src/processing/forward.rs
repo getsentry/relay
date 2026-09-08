@@ -5,10 +5,14 @@ use relay_dynamic_config::RetentionConfig;
 use relay_system::{Addr, FromMessage};
 
 use crate::Envelope;
+#[cfg(feature = "processing")]
+use crate::managed::ManagedEnvelope;
 use crate::managed::{Managed, Rejected};
 use crate::processing::Context;
 #[cfg(feature = "processing")]
 use crate::services::objectstore::Objectstore;
+#[cfg(feature = "processing")]
+use crate::services::processor::{EnvelopeProcessor, ProcessEnvelope};
 #[cfg(feature = "processing")]
 use crate::services::store::{Store, StoreEvent};
 
@@ -81,6 +85,30 @@ impl<'a> StoreHandle<'a> {
     }
 }
 
+/// A handle to an envelope processor, which can be used to
+/// re-enqueue additional items during processing.
+#[cfg(feature = "processing")]
+#[derive(Debug, Clone, Copy)]
+#[expect(dead_code)]
+pub struct EnvelopeProcessorHandle<'a>(&'a Addr<EnvelopeProcessor>);
+
+#[cfg(feature = "processing")]
+impl<'a> EnvelopeProcessorHandle<'a> {
+    pub fn new(addr: &'a Addr<EnvelopeProcessor>) -> Self {
+        Self(addr)
+    }
+
+    #[expect(dead_code)]
+    pub fn send_envelope(&self, envelope: ManagedEnvelope, ctx: Context<'_>) {
+        self.0.send(ProcessEnvelope {
+            envelope,
+            project_info: ctx.project_info.clone(),
+            rate_limits: ctx.rate_limits.clone(),
+            sampling_project_info: ctx.sampling_project_info.cloned(),
+        })
+    }
+}
+
 /// A processor output which can be forwarded to a different destination.
 pub trait Forward {
     /// Serializes the output into an [`Envelope`].
@@ -90,11 +118,15 @@ pub trait Forward {
 
     /// Serializes the output into a [`crate::services::store::StoreService`] compatible format.
     ///
+    /// Additional items which need to go through the processing pipeline in an additional pass
+    /// can be wrapped in an envelope and passed to the [`EnvelopeProcessorHandle`].
+    ///
     /// This function must only be called when Relay is configured to be in processing mode.
     #[cfg(feature = "processing")]
     fn forward_store(
         self,
         s: StoreHandle<'_>,
+        e: EnvelopeProcessorHandle,
         ctx: Context<'_>,
     ) -> Result<(), Rejected<()>>;
 }
@@ -114,6 +146,7 @@ impl Forward for Nothing {
     fn forward_store(
         self,
         _: StoreHandle<'_>,
+        _: EnvelopeProcessorHandle,
         _: Context<'_>,
     ) -> Result<(), Rejected<()>> {
         match self {}

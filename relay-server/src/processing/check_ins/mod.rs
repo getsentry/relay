@@ -119,6 +119,7 @@ impl Forward for CheckInsOutput {
     fn forward_store(
         self,
         s: processing::StoreHandle<'_>,
+        _e: processing::EnvelopeProcessorHandle<'_>,
         ctx: processing::Context<'_>,
     ) -> Result<(), Rejected<()>> {
         use crate::services::store::StoreCheckIn;

@@ -47,6 +47,7 @@ impl Forward for TransactionOutput {
     fn forward_store(
         self,
         s: crate::processing::StoreHandle<'_>,
+        _e: crate::processing::EnvelopeProcessorHandle,
         ctx: Context<'_>,
     ) -> Result<(), Rejected<()>> {
         use crate::services::store::StoreEvent;
