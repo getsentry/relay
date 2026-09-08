@@ -103,8 +103,7 @@ fn public_routes_raw(config: &ConfigSnapshot) -> Router<ServiceState> {
         .route("/api/{project_id}/minidump/", minidump::route(config))
         .route("/api/{project_id}/events/{event_id}/attachments/", attachments::route(config))
         .route("/api/{project_id}/unreal/{sentry_key}/", unreal::route(config))
-        .route("/api/{project_id}/upload/", upload::route_post(config))
-        .route(UPLOAD_PATCH_PATH, upload::route_patch(config));
+        .route("/api/{project_id}/upload/", upload::route_post(config));
 
     #[cfg(sentry)]
     let store_routes = store_routes.route("/api/{project_id}/playstation/", playstation::route(config));
@@ -119,6 +118,11 @@ fn public_routes_raw(config: &ConfigSnapshot) -> Router<ServiceState> {
         .nest("/api/{project_id}/integration/vercel", integrations::vercel::routes(config))
         .route_layer(middlewares::cors());
 
+    // Routes that receive request bodies verbatim, including their `Content-Encoding`.
+    let raw_routes = Router::new()
+        .route(UPLOAD_PATCH_PATH, upload::route_patch(config))
+        .route_layer(middlewares::cors());
+
     // NOTE: If you add a new (non-experimental) route here, please also list it in
     // https://github.com/getsentry/sentry-docs/blob/master/docs/product/relay/operating-guidelines.mdx
 
@@ -129,4 +133,6 @@ fn public_routes_raw(config: &ConfigSnapshot) -> Router<ServiceState> {
         .merge(integration_routes)
         // Forward all other API routes to the upstream. This will 404 for non-API routes.
         .fallback(forward::forward)
+        .layer(middlewares::RequestDecompressionLayer::new())
+        .merge(raw_routes)
 }

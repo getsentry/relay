@@ -13,7 +13,7 @@ use mime::Mime;
 use objectstore_client::{
     Client, ExpirationPolicy, SecretKey as SigningKey, Session, TokenGenerator, Usecase,
 };
-
+use objectstore_types::metadata::Compression;
 use objectstore_types::multipart::{InvalidUploadId, UploadId};
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
@@ -158,6 +158,10 @@ pub struct Stream {
     pub upload_ref: UploadRef,
     pub retention: u16,
     pub stream: BoundedStream<MeteredStream<ByteStream>>,
+    /// The compression the stream is already encoded with, if any.
+    ///
+    /// The stream is uploaded verbatim and the algorithm is recorded on the object.
+    pub compression: Option<Compression>,
 }
 
 impl FromMessage<Stream> for Objectstore {
@@ -827,6 +831,7 @@ impl ObjectstoreServiceInner {
             upload_ref,
             retention,
             stream,
+            compression,
         } = stream;
         let session = self.session(&self.event_attachments, organization_id, project_id)?;
 
@@ -837,6 +842,7 @@ impl ObjectstoreServiceInner {
                 body: TakeOnce::new(stream),
                 upload_ref,
                 retention,
+                compression,
             },
         )
         .await
@@ -961,10 +967,14 @@ impl ObjectstoreServiceInner {
                 body,
                 upload_ref,
                 retention,
+                compression,
             } => {
                 let UploadRef { key, upload_id: _ } = upload_ref;
 
-                let request = session.put_stream(body.boxed()).key(key);
+                let mut request = session.put_stream(body.boxed()).key(key);
+                if let Some(compression) = compression {
+                    request = request.precompressed(compression);
+                }
                 let response = request
                     .expiration_policy(ExpirationPolicy::TimeToLive(Duration::from_hours(
                         u64::from(retention) * 24,
@@ -1026,6 +1036,7 @@ enum Upload {
         body: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
         upload_ref: UploadRef,
         retention: u16,
+        compression: Option<Compression>,
     },
 }
 
@@ -1049,10 +1060,12 @@ impl Upload {
                 body,
                 upload_ref,
                 retention,
+                compression,
             } => RetryableStream::new(body.clone()).map(|body| UploadAttempt::Stream {
                 body,
                 upload_ref: upload_ref.clone(),
                 retention: *retention,
+                compression: *compression,
             }),
         }
     }
@@ -1073,6 +1086,7 @@ enum UploadAttempt {
         body: RetryableStream<BoundedStream<MeteredStream<ByteStream>>>,
         upload_ref: UploadRef,
         retention: u16,
+        compression: Option<Compression>,
     },
 }
 
@@ -1183,6 +1197,7 @@ mod tests {
                 },
                 retention: DEFAULT_EVENT_RETENTION,
                 stream,
+                compression: None,
             })
             .await
             .unwrap();

@@ -5,6 +5,8 @@ from os import path
 from typing import Optional
 import json
 import redis
+import zstandard
+from queue import Queue
 from flask import Response, request
 import pytest
 
@@ -304,6 +306,7 @@ def redis_client():
 @pytest.fixture
 def dummy_upload(mini_sentry):  # noqa
     mini_sentry.allow_chunked = True
+    mini_sentry.uploads = Queue()
 
     @mini_sentry.app.route("/api/<project>/upload/", methods=["POST"])
     def create(**opts):
@@ -318,6 +321,9 @@ def dummy_upload(mini_sentry):  # noqa
     def upload(**opts):
         assert request.headers["Content-Encoding"] == "zstd"
         assert request.data.startswith(ZSTD_MAGIC_HEADER)
+        mini_sentry.uploads.put(
+            zstandard.decompress(request.data, max_output_size=1_000_000)
+        )
         return Response(
             "",
             status=204,

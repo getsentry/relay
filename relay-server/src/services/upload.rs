@@ -13,6 +13,7 @@ use chrono::Utc;
 use futures::StreamExt;
 use futures::stream::BoxStream;
 use http::{HeaderValue, Method};
+use objectstore_types::metadata::Compression;
 use relay_auth::Signature;
 use relay_auth::SignatureError;
 #[cfg(feature = "processing")]
@@ -153,6 +154,11 @@ pub struct Stream {
     pub location: SignedLocation<Provisional>,
     /// The body to be uploaded to objectstore, with length validation.
     pub stream: BoundedStream<MeteredStream<ByteStream>>,
+    /// The compression that the body is already encoded with, if any.
+    ///
+    /// The body is never decompressed. It is passed on verbatim and the compression is recorded
+    /// as an annotation on the stored object.
+    pub compression: Option<Compression>,
 }
 
 impl FromMessage<Create> for Upload {
@@ -332,10 +338,12 @@ impl Service {
             project,
             location,
             stream,
+            compression,
         } = stream;
         match &self.backend {
             Backend::Upstream { addr } => {
-                let (request, rx) = UploadRequest::upload(project, location.try_to_uri()?, stream);
+                let (request, rx) =
+                    UploadRequest::upload(project, location.try_to_uri()?, stream, compression);
                 addr.send(SendRequest(request));
                 let response = rx.await??;
                 SignedLocation::try_from_response(response)
@@ -366,11 +374,14 @@ impl Service {
                         upload_ref,
                         retention: project.retention,
                         stream,
+                        compression,
                     })
                     .await
                     .map_err(Error::ObjectstoreServiceUnavailable)??
                     .into_inner();
-                let length = Final(byte_counter.get());
+                // A compressed body is stored verbatim, so the bytes on the wire do not describe
+                // the size of the object.
+                let length = Final(length.value().unwrap_or_else(|| byte_counter.get()));
 
                 Location {
                     project_id,
@@ -437,7 +448,10 @@ impl UploadLength for Provisional {
     }
 }
 
-/// A final upload length that represents the actual amount of bytes uploaded to objectstore.
+/// A final upload length that represents the size of the stored object.
+///
+/// For a compressed upload, this is the declared `Upload-Length`, not the number of bytes
+/// received on the wire.
 ///
 /// See also [`Provisional`].
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -719,8 +733,16 @@ enum RequestKind {
     Upload {
         uri: String,
         stream: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
-        encoding: HttpEncoding,
+        encoding: BodyEncoding,
     },
+}
+
+/// How the body of a forwarded upload is encoded.
+enum BodyEncoding {
+    /// The body is already compressed and is forwarded verbatim.
+    Verbatim(Compression),
+    /// The body is uncompressed and is compressed with the configured encoding.
+    Encode(HttpEncoding),
 }
 
 /// An upstream request made to the `/upload` endpoint.
@@ -758,18 +780,24 @@ impl UploadRequest {
         project: ProjectContext,
         uri: String,
         stream: BoundedStream<MeteredStream<ByteStream>>,
+        compression: Option<Compression>,
     ) -> (
         Self,
         oneshot::Receiver<Result<Response, UpstreamRequestError>>,
     ) {
         let (sender, rx) = oneshot::channel();
+        let encoding = match compression {
+            Some(compression) => BodyEncoding::Verbatim(compression),
+            // just a default, will be overwritten by .configure()
+            None => BodyEncoding::Encode(HttpEncoding::Zstd),
+        };
         (
             Self {
                 project,
                 kind: RequestKind::Upload {
                     uri,
                     stream: TakeOnce::new(stream),
-                    encoding: HttpEncoding::Zstd, // just a default, will be overwritten by .configure()
+                    encoding,
                 },
                 sender,
             },
@@ -859,8 +887,16 @@ impl UpstreamRequest for UploadRequest {
                 };
                 tus::add_upload_headers(builder);
 
-                let body = encode_body(body, *encoding);
-                builder.content_encoding(*encoding);
+                let body = match encoding {
+                    BodyEncoding::Verbatim(compression) => {
+                        builder.header("content-encoding", compression.as_str());
+                        body.boxed()
+                    }
+                    BodyEncoding::Encode(encoding) => {
+                        builder.content_encoding(*encoding);
+                        encode_body(body, *encoding)
+                    }
+                };
 
                 builder.body(reqwest::Body::wrap_stream(body));
             }
@@ -874,7 +910,11 @@ impl UpstreamRequest for UploadRequest {
     }
 
     fn configure(&mut self, config: &ConfigSnapshot) {
-        if let RequestKind::Upload { encoding, .. } = &mut self.kind {
+        if let RequestKind::Upload {
+            encoding: BodyEncoding::Encode(encoding),
+            ..
+        } = &mut self.kind
+        {
             *encoding = config.http_encoding();
         }
     }

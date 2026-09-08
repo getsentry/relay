@@ -611,6 +611,7 @@ where
             project,
             location,
             stream,
+            compression: None,
         })
         .await
         .map_err(|_| BadStoreRequest::UploadFailed)?;

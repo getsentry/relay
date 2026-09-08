@@ -13,6 +13,9 @@
 
 - Switch the container base image from distroless to docker hardened. ([#6335](https://github.com/getsentry/relay/pull/6335))
 - Extract OTLP spans' client sample rate from TraceState. ([#6312](https://github.com/getsentry/relay/pull/6312))
+- Stop decompressing upload bodies. A `zstd` encoded body is forwarded and stored verbatim, and the
+  compression is recorded on the stored object. Other content encodings are rejected with
+  `415 Unsupported Media Type`. ([#6357](https://github.com/getsentry/relay/pull/6357))
 - Raise the size limit for the flags context to 128 KiB. ([#6310](https://github.com/getsentry/relay/pull/6310))
 - Add support for more inbound filters for logs, trace metrics and spans. ([#6306](https://github.com/getsentry/relay/pull/6306))
 - Raise the size limit for logs to 2 MiB. ([#6316](https://github.com/getsentry/relay/pull/6316))

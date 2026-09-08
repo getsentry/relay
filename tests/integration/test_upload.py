@@ -2,14 +2,17 @@
 Tests for the TUS upload endpoint (/api/{project_id}/upload/).
 """
 
+import gzip
 import time
 import uuid
+import zlib
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import timedelta
 from urllib.parse import urlparse
 
 from flask import Response
 import pytest
+import zstandard
 
 from sentry_relay.auth import SecretKey
 from objectstore_client.metadata import TimeToLive
@@ -93,6 +96,58 @@ def test_forward_patch(
     )
 
     assert response.status_code == expected_status_code, response.text
+
+
+@pytest.mark.parametrize(
+    "encoding,expected_status_code",
+    [
+        pytest.param(None, 204, id="no encoding"),
+        pytest.param("identity", 204, id="identity"),
+        pytest.param("zstd", 204, id="zstd"),
+        pytest.param("gzip", 415, id="gzip"),
+        pytest.param("deflate", 415, id="deflate"),
+    ],
+)
+def test_forward_patch_encoding(
+    mini_sentry, relay, dummy_upload, encoding, expected_status_code
+):
+    """Upload bodies are never decompressed, so only zstd is accepted."""
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(mini_sentry)
+
+    data = b"hello world"
+    body = {
+        None: data,
+        "identity": data,
+        "zstd": zstandard.compress(data),
+        "gzip": gzip.compress(data),
+        "deflate": zlib.compress(data),
+    }[encoding]
+
+    headers = {
+        "Tus-Resumable": "1.0.0",
+        "Content-Type": "application/offset+octet-stream",
+        "Upload-Offset": "0",
+    }
+    if encoding is not None:
+        headers["Content-Encoding"] = encoding
+
+    response = relay.patch(
+        "%s&sentry_key=%s"
+        % (
+            DUMMY_UPLOAD_LOCATION,
+            mini_sentry.get_dsn_public_key(project_id),
+        ),
+        headers=headers,
+        data=body,
+    )
+
+    assert response.status_code == expected_status_code, response.text
+    if expected_status_code == 204:
+        assert response.headers["Upload-Offset"] == "11"
+        # The upstream receives the payload, regardless of how it was encoded on the wire.
+        assert mini_sentry.uploads.get(timeout=1) == data
 
 
 def test_post_retries(mini_sentry, relay, project_config):
@@ -698,6 +753,47 @@ def test_objectstore_retention(mini_sentry, relay_with_processing, objectstore):
 
     meta = objectstore("attachments", project_id).head(key)
     assert meta.expiration_policy == TimeToLive(timedelta(days=20))
+
+
+def test_objectstore_precompressed(mini_sentry, relay_with_processing, objectstore):
+    """A zstd body is stored verbatim and annotated, so downloads decompress it."""
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    project_key = mini_sentry.get_dsn_public_key(project_id)
+
+    relay = relay_with_processing()
+
+    data = b"hello world" * 100
+    body = zstandard.compress(data)
+    create = relay.post(
+        f"/api/{project_id}/upload/?sentry_key={project_key}",
+        headers={
+            "Content-Length": "0",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": str(len(data)),
+        },
+    )
+    assert create.status_code == 201, create.text
+    location = create.headers["Location"]
+    key = urlparse(location).path.rstrip("/").split("/")[-1]
+
+    patch = relay.patch(
+        f"{location}&sentry_key={project_key}",
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Encoding": "zstd",
+            "Content-Type": "application/offset+octet-stream",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Offset": "0",
+        },
+        data=body,
+    )
+    assert patch.status_code == 204, patch.text
+    assert patch.headers["Upload-Offset"] == str(len(data))
+
+    session = objectstore("attachments", project_id)
+    assert session.get(key).payload.read() == data
+    assert session.get(key, decompress=False).payload.read() == body
 
 
 @pytest.mark.parametrize(
