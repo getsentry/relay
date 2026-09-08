@@ -6,11 +6,9 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
-use async_compression::tokio::bufread::{BrotliEncoder, DeflateEncoder, GzipEncoder, ZstdEncoder};
 use bytes::Bytes;
 use chrono::DateTime;
 use chrono::Utc;
-use futures::StreamExt;
 use futures::stream::BoxStream;
 use http::{HeaderValue, Method};
 use objectstore_types::metadata::Compression;
@@ -19,17 +17,15 @@ use relay_auth::SignatureError;
 #[cfg(feature = "processing")]
 use relay_auth::SignatureHeader;
 use relay_base_schema::project::ProjectId;
-use relay_config::{Config, ConfigSnapshot, HttpEncoding, UpstreamDescriptor};
+use relay_config::{Config, ConfigSnapshot, UpstreamDescriptor};
 use relay_quotas::Scoping;
 use relay_system::{
     Addr, AsyncResponse, ConcurrentService, FromMessage, Interface, LoadShed, SendError, Sender,
     SimpleService,
 };
 use serde::{Deserialize, Serialize};
-use tokio::io::BufReader;
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::error::RecvError;
-use tokio_util::io::{ReaderStream, StreamReader};
 #[cfg(feature = "processing")]
 use uuid::Uuid;
 
@@ -379,9 +375,8 @@ impl Service {
                     .await
                     .map_err(Error::ObjectstoreServiceUnavailable)??
                     .into_inner();
-                // A compressed body is stored verbatim, so the bytes on the wire do not describe
-                // the size of the object.
-                let length = Final(length.value().unwrap_or_else(|| byte_counter.get()));
+
+                let length = Final(byte_counter.get());
 
                 Location {
                     project_id,
@@ -733,16 +728,8 @@ enum RequestKind {
     Upload {
         uri: String,
         stream: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
-        encoding: BodyEncoding,
+        compression: Option<Compression>,
     },
-}
-
-/// How the body of a forwarded upload is encoded.
-enum BodyEncoding {
-    /// The body is already compressed and is forwarded verbatim.
-    Verbatim(Compression),
-    /// The body is uncompressed and is compressed with the configured encoding.
-    Encode(HttpEncoding),
 }
 
 /// An upstream request made to the `/upload` endpoint.
@@ -786,18 +773,13 @@ impl UploadRequest {
         oneshot::Receiver<Result<Response, UpstreamRequestError>>,
     ) {
         let (sender, rx) = oneshot::channel();
-        let encoding = match compression {
-            Some(compression) => BodyEncoding::Verbatim(compression),
-            // just a default, will be overwritten by .configure()
-            None => BodyEncoding::Encode(HttpEncoding::Zstd),
-        };
         (
             Self {
                 project,
                 kind: RequestKind::Upload {
                     uri,
                     stream: TakeOnce::new(stream),
-                    encoding,
+                    compression,
                 },
                 sender,
             },
@@ -879,7 +861,7 @@ impl UpstreamRequest for UploadRequest {
             RequestKind::Upload {
                 uri: _,
                 stream,
-                encoding,
+                compression,
             } => {
                 let Some(body) = RetryableStream::new(stream.clone()) else {
                     relay_log::error!("upload request stream was already consumed");
@@ -887,17 +869,10 @@ impl UpstreamRequest for UploadRequest {
                 };
                 tus::add_upload_headers(builder);
 
-                let body = match encoding {
-                    BodyEncoding::Verbatim(compression) => {
-                        builder.header("content-encoding", compression.as_str());
-                        body.boxed()
-                    }
-                    BodyEncoding::Encode(encoding) => {
-                        builder.content_encoding(*encoding);
-                        encode_body(body, *encoding)
-                    }
-                };
-
+                builder.header_opt(
+                    "content-encoding",
+                    compression.as_ref().map(Compression::as_str),
+                );
                 builder.body(reqwest::Body::wrap_stream(body));
             }
         };
@@ -907,30 +882,6 @@ impl UpstreamRequest for UploadRequest {
         builder.timeout(Duration::MAX); // rely on service timeout to cancel requests
 
         Ok(())
-    }
-
-    fn configure(&mut self, config: &ConfigSnapshot) {
-        if let RequestKind::Upload {
-            encoding: BodyEncoding::Encode(encoding),
-            ..
-        } = &mut self.kind
-        {
-            *encoding = config.http_encoding();
-        }
-    }
-}
-
-fn encode_body<S>(stream: S, encoding: HttpEncoding) -> ByteStream
-where
-    S: futures::Stream<Item = std::io::Result<Bytes>> + Send + 'static,
-{
-    let reader = BufReader::new(StreamReader::new(stream));
-    match encoding {
-        HttpEncoding::Identity => ReaderStream::new(reader).boxed(),
-        HttpEncoding::Deflate => ReaderStream::new(DeflateEncoder::new(reader)).boxed(),
-        HttpEncoding::Gzip => ReaderStream::new(GzipEncoder::new(reader)).boxed(),
-        HttpEncoding::Br => ReaderStream::new(BrotliEncoder::new(reader)).boxed(),
-        HttpEncoding::Zstd => ReaderStream::new(ZstdEncoder::new(reader)).boxed(),
     }
 }
 

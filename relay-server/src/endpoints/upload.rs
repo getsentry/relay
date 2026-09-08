@@ -259,11 +259,9 @@ async fn handle_patch(
         .boxed();
     let stream = MeteredStream::new(stream, "upload");
 
-    let (lower_bound, upper_bound) = match (compression, upload_length.value()) {
-        // A compressed body is passed on verbatim, so the number of bytes on the wire is smaller
-        // than the declared upload length.
-        (Some(_), _) | (None, None) => (1, config.max_upload_size()),
-        (None, Some(length)) => (length, length),
+    let (lower_bound, upper_bound) = match upload_length.value() {
+        None => (1, config.max_upload_size()),
+        Some(u) => (u, u),
     };
     let stream = BoundedStream::new(stream, lower_bound, upper_bound);
     let byte_counter = stream.byte_counter();
@@ -274,8 +272,7 @@ async fn handle_patch(
         relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
     })?;
 
-    // The bytes on the wire are compressed, so they do not describe the upload's progress.
-    let upload_offset = upload_length.value().unwrap_or_else(|| byte_counter.get());
+    let upload_offset = byte_counter.get();
 
     let mut response = NoContent.into_response();
 
@@ -298,7 +295,7 @@ async fn handle_patch(
 
 /// Reads the compression of the request body from the `Content-Encoding` header.
 ///
-/// Relay never decompresses upload bodies. It passes them on verbatim and records the algorithm
+/// The upload endpoint never decompresses request bodies. It passes them on verbatim and records the algorithm
 /// as an annotation on the stored object, which limits the accepted encodings to [`Compression`].
 fn body_compression(headers: &HeaderMap) -> Result<Option<Compression>, Error> {
     let Some(encoding) = headers.get(header::CONTENT_ENCODING) else {
@@ -312,6 +309,7 @@ fn body_compression(headers: &HeaderMap) -> Result<Option<Compression>, Error> {
 
     match encoding.to_ascii_lowercase().parse() {
         Ok(compression) => Ok(Some(compression)),
+        // FIXME: do current clients use gzip?
         Err(_) => Err(Error::UnsupportedEncoding(encoding.to_owned())),
     }
 }

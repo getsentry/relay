@@ -974,6 +974,8 @@ impl ObjectstoreServiceInner {
                 let mut request = session.put_stream(body.boxed()).key(key);
                 if let Some(compression) = compression {
                     request = request.precompressed(compression);
+                } else {
+                    request = request.compress(None);
                 }
                 let response = request
                     .expiration_policy(ExpirationPolicy::TimeToLive(Duration::from_hours(
