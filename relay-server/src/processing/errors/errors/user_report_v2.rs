@@ -38,6 +38,7 @@ impl SentryError for UserReportV2 {
             )?),
             attachments,
             user_reports: Default::default(),
+            extra_items: vec![],
             error: Self,
             metrics,
             fully_normalized: false,

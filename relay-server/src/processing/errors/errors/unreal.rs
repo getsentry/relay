@@ -37,6 +37,7 @@ impl SentryError for Unreal {
                 event: Box::new(utils::take_event_from_crash_items(items, &mut metrics, ctx)?),
                 attachments: utils::take_items_of_type(items, ItemType::Attachment),
                 user_reports: utils::take_items_of_type(items, ItemType::UserReport),
+                extra_items: vec![],
                 error: Self::Forward { report },
                 metrics,
                 fully_normalized: false,
@@ -106,6 +107,7 @@ impl SentryError for Unreal {
                 event: Box::new(event),
                 attachments,
                 user_reports,
+                extra_items: vec![],
                 error: Self::Process {
                     minidump,
                     apple_crash_report,

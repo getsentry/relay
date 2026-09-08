@@ -71,6 +71,7 @@ fn do_expand(
         event: parsed.event,
         attachments: parsed.attachments,
         user_reports: parsed.user_reports,
+        extra_items: parsed.extra_items,
         data: parsed.error,
         other: error.items,
     })

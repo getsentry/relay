@@ -177,6 +177,11 @@ struct ExpandedError {
     pub attachments: Vec<Item>,
     /// Optional list of user reports sent with the event.
     pub user_reports: Vec<Item>,
+    /// Additional items extracted from the error that need to be processed in a separate pass.
+    ///
+    /// In [`serialize_envelope`](Forward::serialize_envelope), these are simply added to the envelope.
+    /// In [`submit_store`](Forward::forward_store), they are sent back to the envelope processor service.
+    pub extra_items: Vec<Item>,
     /// Custom event data.
     ///
     /// This may contain elements which are custom to the specific event shape being handled.
@@ -202,6 +207,7 @@ impl Counted for ExpandedError {
             event: _,
             attachments,
             user_reports,
+            extra_items,
             data,
             other,
         } = self;
@@ -213,6 +219,7 @@ impl Counted for ExpandedError {
         quantities.extend(user_reports.quantities());
         quantities.extend(data.quantities());
         quantities.extend(other.quantities());
+        quantities.extend(extra_items.quantities());
 
         quantities
     }
@@ -306,11 +313,14 @@ impl Forward for ErrorOutput {
                     event,
                     attachments,
                     user_reports,
+                    extra_items,
                     data,
                     other,
                 } = errors;
 
-                let mut items = Vec::with_capacity(1 + attachments.len() + user_reports.len());
+                let mut items = Vec::with_capacity(
+                    1 + attachments.len() + user_reports.len() + extra_items.len(),
+                );
 
                 if let Some(ev) = event.value() {
                     let event_type = ev.ty.value().copied().unwrap_or_default();
@@ -334,6 +344,7 @@ impl Forward for ErrorOutput {
 
                 items.extend(attachments);
                 items.extend(user_reports);
+                items.extend(extra_items);
 
                 if !ctx.config.processing_enabled() {
                     items.extend(other);
@@ -351,22 +362,23 @@ impl Forward for ErrorOutput {
     fn forward_store(
         self,
         s: processing::StoreHandle<'_>,
-        _e: processing::EnvelopeProcessorHandle,
+        e: processing::EnvelopeProcessorHandle<'_>,
         ctx: processing::Context<'_>,
     ) -> Result<(), Rejected<()>> {
         use crate::services::store::StoreEvent;
 
         let ErrorOutput(event) = self;
 
-        let event = event
+        let managed = event
             .try_map(|errors, _| -> Result<_> {
                 let ExpandedError {
-                    headers: _,
+                    headers,
                     fully_normalized: _,
                     metrics: _,
                     event,
                     mut attachments,
                     user_reports,
+                    extra_items,
                     data,
                     other,
                 } = errors;
@@ -378,15 +390,28 @@ impl Forward for ErrorOutput {
                 let event_category = data.event_category();
                 data.serialize_into(&mut attachments, ctx)?;
 
-                Ok(Box::new(StoreEvent {
+                let store_event = Box::new(StoreEvent {
                     event_category,
                     event: *event,
                     attachments,
                     user_reports,
                     retention_days: ctx.event_retention().standard,
-                }))
+                });
+
+                let extra_envelope = Envelope::from_parts(headers, extra_items.into());
+
+                Ok((store_event, extra_envelope))
             })
             .map_err(|err| err.map(|_| ()))?;
+
+        let (event, extra_envelope) =
+            managed.split_once(|(event, extra_envelope), _| (event, extra_envelope));
+
+        // Send the envelope with the `extra_items` back to the envelope processor service,
+        // to be processed separately.
+        if !extra_envelope.is_empty() {
+            e.send_envelope(extra_envelope.into(), ctx);
+        }
 
         s.send_event(event);
 

@@ -89,7 +89,6 @@ impl<'a> StoreHandle<'a> {
 /// re-enqueue additional items during processing.
 #[cfg(feature = "processing")]
 #[derive(Debug, Clone, Copy)]
-#[expect(dead_code)]
 pub struct EnvelopeProcessorHandle<'a>(&'a Addr<EnvelopeProcessor>);
 
 #[cfg(feature = "processing")]
@@ -98,7 +97,6 @@ impl<'a> EnvelopeProcessorHandle<'a> {
         Self(addr)
     }
 
-    #[expect(dead_code)]
     pub fn send_envelope(&self, envelope: ManagedEnvelope, ctx: Context<'_>) {
         self.0.send(ProcessEnvelope {
             envelope,
