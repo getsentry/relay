@@ -210,9 +210,6 @@ pub struct SessionUpdate {
     pub timestamp: DateTime<Utc>,
     /// The timestamp of when the session itself started.
     pub started: DateTime<Utc>,
-    /// An optional duration of the session in seconds.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub duration: Option<f64>,
     /// The status of the session.
     #[serde(default)]
     pub status: SessionStatus,
@@ -474,7 +471,6 @@ mod tests {
             sequence: 4711, // this would be a timestamp instead
             timestamp: "2020-02-07T15:17:00Z".parse().unwrap(),
             started: "2020-02-07T14:16:00Z".parse().unwrap(),
-            duration: None,
             init: false,
             status: SessionStatus::Ok,
             abnormal_mechanism: AbnormalMechanism::None,
@@ -519,7 +515,6 @@ mod tests {
   "init": true,
   "timestamp": "2020-02-07T15:17:00Z",
   "started": "2020-02-07T14:16:00Z",
-  "duration": 1947.49,
   "status": "exited",
   "errors": 0,
   "attrs": {
@@ -536,7 +531,6 @@ mod tests {
             sequence: 42,
             timestamp: "2020-02-07T15:17:00Z".parse().unwrap(),
             started: "2020-02-07T14:16:00Z".parse().unwrap(),
-            duration: Some(1947.49),
             status: SessionStatus::Exited,
             abnormal_mechanism: AbnormalMechanism::None,
             errors: 0,
