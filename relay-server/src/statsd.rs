@@ -698,6 +698,8 @@ impl TimerMetric for RelayTimers {
 
 /// Counter metrics used by Relay
 pub enum RelayCounters {
+    /// Amount of times the configuration was reloaded.
+    ConfigReload,
     /// Tracks the number of tasks driven to completion by the async pool.
     ///
     /// This metric is tagged with:
@@ -1015,18 +1017,35 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     /// - `expansion`: What expansion was used to expand the error (e.g. unreal).
     ErrorProcessed,
-    /// The number of times that relay receives a compressed minidump.
-    CompressedMinidump,
     /// The number of times a trace metric has a nil trace ID.
     ///
     /// This metric is tagged with:
     /// - `sdk`: low-cardinality client name
     TraceMetricNilTraceId,
+    /// Amount of standalone attachments processed.
+    ///
+    /// This metric is tagged with:
+    /// - `sdk`: low-cardinality client name
+    /// - `has_event_id`: whether the envelope contained an event ID
+    StandaloneAttachment,
+    /// Amount of user reports processed.
+    ///
+    /// This metric is tagged with:
+    /// - `sdk`: low-cardinality client name
+    /// - `has_event_id`: whether the envelope contained an event ID
+    UserReport,
+    /// Amount of replays processed.
+    ///
+    /// This metric is tagged with:
+    /// - `sdk`: low-cardinality client name
+    /// - `has_event_id`: whether the envelope contained an event ID
+    Replay,
 }
 
 impl CounterMetric for RelayCounters {
     fn name(&self) -> &'static str {
         match self {
+            RelayCounters::ConfigReload => "config.reload",
             RelayCounters::AsyncPoolFinishedTasks => "async_pool.finished_tasks",
             RelayCounters::EventCorrupted => "event.corrupted",
             RelayCounters::EnvelopeAccepted => "event.accepted",
@@ -1086,8 +1105,10 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EnvelopeWithLogs => "logs.envelope",
             RelayCounters::ProfileChunksWithoutPlatform => "profile_chunk.no_platform",
             RelayCounters::ErrorProcessed => "event.error.processed",
-            RelayCounters::CompressedMinidump => "minidump.compressed.count",
             RelayCounters::TraceMetricNilTraceId => "trace_metric.nil_trace_id",
+            RelayCounters::StandaloneAttachment => "processing.standalone_attachment",
+            RelayCounters::UserReport => "processing.user_report",
+            RelayCounters::Replay => "processing.replay",
         }
     }
 }

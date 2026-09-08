@@ -335,15 +335,12 @@ class SentryLike:
 
         self.send_envelope(project_id, envelope)
 
-    def send_replay_event(self, project_id, payload, item_headers=None):
-        envelope = Envelope()
+    def send_replay_event(self, project_id, payload, envelope_headers=None):
+        envelope = Envelope(headers=envelope_headers)
         envelope.add_item(Item(payload=PayloadRef(json=payload), type="replay_event"))
         envelope.add_item(
             Item(payload=PayloadRef(bytes=b"{}\n[]"), type="replay_recording")
         )
-        if envelope.headers is None:
-            envelope.headers = {}
-
         self.send_envelope(project_id, envelope)
 
     def send_session_aggregates(self, project_id, payload, headers=None):

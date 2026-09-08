@@ -326,7 +326,7 @@ fn decompress_data_zstd(data: Bytes, dictionary_id: u8) -> std::io::Result<Vec<u
 mod tests {
     use super::*;
 
-    use relay_config::{Config, OverridableConfig};
+    use relay_config::{Config, ConfigSnapshot, OverridableConfig};
     use relay_dynamic_config::Feature;
     use relay_event_schema::protocol::Level;
     use relay_protocol::assert_annotated_snapshot;
@@ -339,7 +339,7 @@ mod tests {
     use crate::services::projects::project::ProjectInfo;
 
     fn ctx() -> Context<'static> {
-        static CONFIG: std::sync::LazyLock<Config> = std::sync::LazyLock::new(|| {
+        static CONFIG: std::sync::LazyLock<ConfigSnapshot> = std::sync::LazyLock::new(|| {
             let mut config = Config::default();
             config
                 .apply_override(OverridableConfig {
@@ -347,7 +347,7 @@ mod tests {
                     ..Default::default()
                 })
                 .unwrap();
-            config
+            config.current()
         });
 
         static PROJECT_INFO: std::sync::LazyLock<ProjectInfo> = std::sync::LazyLock::new(|| {

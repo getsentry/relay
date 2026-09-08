@@ -3,7 +3,7 @@ use relay_dynamic_config::GlobalConfig;
 use relay_quotas::{DataCategory, Scoping};
 use std::net::IpAddr;
 
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use relay_event_schema::protocol::{Contexts, Event, ProfileContext};
 use relay_filter::ProjectFiltersConfig;
 use relay_profiling::{ProfileId, ProfileType};
@@ -148,7 +148,7 @@ pub fn scrub_profiler_id(event: &mut Annotated<Event>) {
 fn expand_profile(
     item: &mut Item,
     event: &Event,
-    config: &Config,
+    config: &ConfigSnapshot,
     client_ip: Option<IpAddr>,
     filter_settings: &ProjectFiltersConfig,
     global_config: &GlobalConfig,

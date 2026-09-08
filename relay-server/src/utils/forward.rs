@@ -10,7 +10,7 @@ use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
 use hyper::body::{Frame, SizeHint};
-use relay_config::{Config, UpstreamDescriptor};
+use relay_config::{ConfigSnapshot, UpstreamDescriptor};
 use relay_system::Addr;
 use sync_wrapper::SyncWrapper;
 use tokio::sync::oneshot;
@@ -311,8 +311,8 @@ impl ForwardRequestBuilder {
         self
     }
 
-    /// Applies the specified Relay [`Config`] to the forwarded request.
-    pub fn with_config(mut self, config: &Config) -> Self {
+    /// Applies the specified Relay [`ConfigSnapshot`] to the forwarded request.
+    pub fn with_config(mut self, config: &ConfigSnapshot) -> Self {
         self.timeout = config.http_timeout();
         self
     }

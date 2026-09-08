@@ -60,6 +60,7 @@ pub fn execute() -> Result<()> {
     // SAFETY: The function cannot be called from a multi threaded environment,
     // this is the main entry point where no other threads have been spawned yet.
     unsafe {
+        let config = config.current();
         relay_log::init(config.logging(), config.sentry());
     }
 
@@ -147,7 +148,7 @@ pub fn extract_config_env_vars() -> OverridableConfig {
 pub fn manage_credentials(mut config: Config, matches: &ArgMatches) -> Result<()> {
     // generate completely new credentials
     if let Some(matches) = matches.subcommand_matches("generate") {
-        if config.has_credentials() && !matches.get_flag("overwrite") {
+        if config.current().has_credentials() && !matches.get_flag("overwrite") {
             bail!("aborting because credentials already exist. Pass --overwrite to force.");
         }
         let credentials = Credentials::generate();
@@ -156,7 +157,7 @@ pub fn manage_credentials(mut config: Config, matches: &ArgMatches) -> Result<()
         } else {
             config.replace_credentials(Some(credentials))?;
             println!("Generated new credentials");
-            setup::dump_credentials(&config);
+            setup::dump_credentials(&config.current());
         }
     } else if let Some(matches) = matches.subcommand_matches("set") {
         let mut prompted = false;
@@ -166,7 +167,7 @@ pub fn manage_credentials(mut config: Config, matches: &ArgMatches) -> Result<()
                     .parse()
                     .map_err(|_| anyhow!("invalid secret key supplied"))?,
             ),
-            None => config.credentials().map(|x| x.secret_key.clone()),
+            None => config.current().credentials().map(|x| x.secret_key.clone()),
         };
         let public_key = match matches.get_one::<String>("public_key") {
             Some(value) => Some(
@@ -174,7 +175,7 @@ pub fn manage_credentials(mut config: Config, matches: &ArgMatches) -> Result<()
                     .parse()
                     .map_err(|_| anyhow!("invalid public key supplied"))?,
             ),
-            None => config.credentials().map(|x| x.public_key.clone()),
+            None => config.current().credentials().map(|x| x.public_key.clone()),
         };
         let id = match matches.get_one::<String>("id").map(String::as_str) {
             Some("random") => Some(Uuid::new_v4()),
@@ -183,7 +184,7 @@ pub fn manage_credentials(mut config: Config, matches: &ArgMatches) -> Result<()
                     .parse()
                     .map_err(|_| anyhow!("invalid relay id supplied"))?,
             ),
-            None => config.credentials().map(|x| x.id),
+            None => config.current().credentials().map(|x| x.id),
         };
         let changed = config.replace_credentials(Some(Credentials {
             secret_key: match secret_key {
@@ -222,10 +223,10 @@ pub fn manage_credentials(mut config: Config, matches: &ArgMatches) -> Result<()
             }
         } else {
             println!("Stored updated credentials:");
-            setup::dump_credentials(&config);
+            setup::dump_credentials(&config.current());
         }
     } else if let Some(matches) = matches.subcommand_matches("remove") {
-        if config.has_credentials() {
+        if config.current().has_credentials() {
             if matches.get_flag("yes")
                 || Confirm::with_theme(get_theme())
                     .with_prompt("Remove stored credentials?")
@@ -238,11 +239,11 @@ pub fn manage_credentials(mut config: Config, matches: &ArgMatches) -> Result<()
             println!("No credentials");
         }
     } else if matches.subcommand_matches("show").is_some() {
-        if !config.has_credentials() {
+        if !config.current().has_credentials() {
             bail!("no stored credentials");
         } else {
             println!("Credentials:");
-            setup::dump_credentials(&config);
+            setup::dump_credentials(&config.current());
         }
     } else {
         unreachable!();
@@ -321,11 +322,11 @@ pub fn init_config<P: AsRef<Path>>(config_path: P, _matches: &ArgMatches) -> Res
     }
 
     let mut config = Config::from_path(&config_path)?;
-    if config.relay_mode() == RelayMode::Managed && !config.has_credentials() {
+    if config.current().relay_mode() == RelayMode::Managed && !config.current().has_credentials() {
         let credentials = Credentials::generate();
         config.replace_credentials(Some(credentials))?;
         println!("Generated new credentials");
-        setup::dump_credentials(&config);
+        setup::dump_credentials(&config.current());
         done_something = true;
     }
 
@@ -365,8 +366,8 @@ pub fn generate_completions(matches: &ArgMatches) -> Result<()> {
 
 pub fn run(config: Config, _matches: &ArgMatches) -> Result<()> {
     setup::dump_spawn_infos(&config);
-    setup::check_config(&config)?;
-    setup::init_metrics(&config)?;
+    setup::check_config(&config.current())?;
+    setup::init_metrics(&config.current())?;
     relay_server::run(config)?;
     Ok(())
 }

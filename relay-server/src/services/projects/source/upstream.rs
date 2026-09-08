@@ -8,7 +8,7 @@ use std::time::Duration;
 use futures::future;
 use itertools::Itertools;
 use relay_base_schema::project::ProjectKey;
-use relay_config::Config;
+use relay_config::{Config, ConfigSnapshot};
 use relay_dynamic_config::ErrorBoundary;
 use relay_statsd::metric;
 use relay_system::{
@@ -262,16 +262,17 @@ impl UpstreamProjectSourceService {
     /// Creates a new [`UpstreamProjectSourceService`] instance.
     pub fn new(config: Arc<Config>, upstream_relay: Addr<UpstreamRelay>) -> Self {
         let (inner_tx, inner_rx) = mpsc::unbounded_channel();
+        let current_config = config.current();
 
         Self {
-            backoff: RetryBackoff::new(config.http_max_retry_interval()),
+            backoff: RetryBackoff::new(current_config.http_max_retry_interval()),
             state_channels: HashMap::new(),
             fetch_handle: SleepHandle::idle(),
             upstream_relay,
             inner_tx,
             inner_rx,
             last_failed_fetch: None,
-            failure_interval: config.http_project_failure_interval(),
+            failure_interval: current_config.http_project_failure_interval(),
             config,
         }
     }
@@ -281,15 +282,16 @@ impl UpstreamProjectSourceService {
     /// If previous queries succeeded, this will be the general batch interval. Additionally, an
     /// exponentially increasing backoff is used for retrying the upstream request.
     fn next_backoff(&mut self) -> Duration {
-        self.config.query_batch_interval() + self.backoff.next_backoff()
+        self.config.current().query_batch_interval() + self.backoff.next_backoff()
     }
 
     /// Prepares the batches of the cache and nocache channels which could be used to request the
     /// project states.
     fn prepare_batches(&mut self) -> ChannelsBatch {
         let now = Instant::now();
-        let batch_size = self.config.query_batch_size();
-        let num_batches = self.config.max_concurrent_queries();
+        let config = self.config.current();
+        let batch_size = config.query_batch_size();
+        let num_batches = config.max_concurrent_queries();
 
         // Pop N items from state_channels. Intuitively, we would use
         // `state_channels.drain().take(n)`, but that clears the entire hashmap regardless how
@@ -377,7 +379,7 @@ impl UpstreamProjectSourceService {
     /// This assumes that currently no request is running. If the upstream request fails or new
     /// channels are pushed in the meanwhile, this will reschedule automatically.
     async fn fetch_states(
-        config: Arc<Config>,
+        config: ConfigSnapshot,
         upstream_relay: Addr<UpstreamRelay>,
         channels: ChannelsBatch,
     ) -> Vec<Option<UpstreamResponse>> {
@@ -600,7 +602,7 @@ impl UpstreamProjectSourceService {
             return;
         }
 
-        let config = self.config.clone();
+        let config = self.config.current();
         let inner_tx = self.inner_tx.clone();
         let channels = self.prepare_batches();
         let upstream_relay = self.upstream_relay.clone();
@@ -626,7 +628,7 @@ impl UpstreamProjectSourceService {
             sender,
         ) = message;
 
-        let query_timeout = self.config.query_timeout();
+        let query_timeout = self.config.current().query_timeout();
 
         // If there is already channel for the requested project key, we attach to it,
         // otherwise create a new one.
@@ -707,7 +709,7 @@ mod tests {
                 let UpstreamRelay::SendRequest(mut req) = upstream_rx.recv().await.unwrap() else {
                     panic!()
                 };
-                req.configure(&config);
+                req.configure(&config.current());
                 req
             }};
         }

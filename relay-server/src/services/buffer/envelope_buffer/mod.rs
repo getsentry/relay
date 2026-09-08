@@ -8,7 +8,7 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use tokio::time::{Instant, timeout};
 
 use crate::envelope::Envelope;
@@ -52,7 +52,7 @@ impl PolymorphicEnvelopeBuffer {
     /// depending on the given configuration.
     pub async fn from_config(
         partition_id: u8,
-        config: &Config,
+        config: &ConfigSnapshot,
         memory_checker: MemoryChecker,
     ) -> Result<Self, EnvelopeBufferError> {
         let buffer = if config.spool_envelopes_path(partition_id).is_some() {
@@ -278,7 +278,10 @@ impl EnvelopeBuffer<MemoryStackProvider> {
 #[allow(dead_code)]
 impl EnvelopeBuffer<SqliteStackProvider> {
     /// Creates an empty sqlite-based buffer.
-    pub async fn new(partition_id: u8, config: &Config) -> Result<Self, EnvelopeBufferError> {
+    pub async fn new(
+        partition_id: u8,
+        config: &ConfigSnapshot,
+    ) -> Result<Self, EnvelopeBufferError> {
         Ok(Self {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
@@ -715,6 +718,7 @@ impl Readiness {
 mod tests {
     use relay_base_schema::project::ProjectId;
     use relay_common::Dsn;
+    use relay_config::Config;
     use relay_event_schema::protocol::EventId;
     use relay_sampling::DynamicSamplingContext;
     use std::str::FromStr;
@@ -1075,8 +1079,11 @@ mod tests {
             .into_string()
             .unwrap();
         let config = mock_config(&path);
-        let mut store = SqliteEnvelopeStore::prepare(0, &config).await.unwrap();
-        let mut buffer = EnvelopeBuffer::<SqliteStackProvider>::new(0, &config)
+        let current_config = config.current();
+        let mut store = SqliteEnvelopeStore::prepare(0, &current_config)
+            .await
+            .unwrap();
+        let mut buffer = EnvelopeBuffer::<SqliteStackProvider>::new(0, &current_config)
             .await
             .unwrap();
 

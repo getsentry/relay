@@ -7,7 +7,7 @@ use axum::extract::Request;
 use axum::http::{HeaderName, HeaderValue, header};
 use axum_server::Handle;
 use hyper_util::rt::TokioTimer;
-use relay_config::Config;
+use relay_config::{Config, ConfigSnapshot};
 use relay_system::{Controller, Service, Shutdown};
 use sentry::integrations::tower::{NewSentryLayer, SentryHttpLayer};
 use tokio::net::TcpSocket;
@@ -56,7 +56,10 @@ pub enum ServerError {
 type App = NormalizePath<axum::Router>;
 
 /// Build the axum application with all routes and middleware.
-fn make_app(service: ServiceState, f: impl FnOnce(&Config) -> axum::Router<ServiceState>) -> App {
+fn make_app(
+    service: ServiceState,
+    f: impl FnOnce(&ConfigSnapshot) -> axum::Router<ServiceState>,
+) -> App {
     // Build the router middleware into a single service which runs _after_ routing. Service
     // builder order defines layers added first will be called first. This means:
     //  - Requests go from top to bottom
@@ -82,14 +85,14 @@ fn make_app(service: ServiceState, f: impl FnOnce(&Config) -> axum::Router<Servi
                 .compress_when(SizeAbove::new(COMPRESSION_MIN_SIZE).and(DefaultPredicate::new())),
         );
 
-    let router = f(service.config()).layer(middleware).with_state(service);
+    let router = f(&service.config()).layer(middleware).with_state(service);
 
     // Add middlewares that need to run _before_ routing, which need to wrap the router. This are
     // especially middlewares that modify the request path for the router:
     NormalizePath::new(router)
 }
 
-fn listen(addr: SocketAddr, config: &Config) -> Result<TcpListener, ServerError> {
+fn listen(addr: SocketAddr, config: &ConfigSnapshot) -> Result<TcpListener, ServerError> {
     let socket = match addr {
         SocketAddr::V4(_) => TcpSocket::new_v4(),
         SocketAddr::V6(_) => TcpSocket::new_v6(),
@@ -101,7 +104,7 @@ fn listen(addr: SocketAddr, config: &Config) -> Result<TcpListener, ServerError>
     Ok(socket.listen(config.tcp_listen_backlog())?.into_std()?)
 }
 
-async fn serve(listener: TcpListener, app: App, config: &Config) -> std::io::Result<()> {
+async fn serve(listener: TcpListener, app: App, config: &ConfigSnapshot) -> std::io::Result<()> {
     let handle = Handle::new();
 
     let acceptor = self::acceptor::RelayAcceptor::new()
@@ -164,17 +167,19 @@ pub struct HttpServer {
 
 impl HttpServer {
     pub fn new(config: Arc<Config>, service: ServiceState) -> Result<Self, ServerError> {
+        let current_config = config.current();
+
         // Inform the user about a removed feature.
-        if config.tls_listen_addr().is_some()
-            || config.tls_identity_password().is_some()
-            || config.tls_identity_path().is_some()
+        if current_config.tls_listen_addr().is_some()
+            || current_config.tls_identity_password().is_some()
+            || current_config.tls_identity_path().is_some()
         {
             return Err(ServerError::TlsNotSupported);
         }
 
-        let listener = listen(config.listen_addr(), &config)?;
-        let internal_listener = match config.listen_addr_internal() {
-            Some(addr) => Some(listen(addr, &config)?),
+        let listener = listen(current_config.listen_addr(), &current_config)?;
+        let internal_listener = match current_config.listen_addr_internal() {
+            Some(addr) => Some(listen(addr, &current_config)?),
             None => None,
         };
 
@@ -197,12 +202,13 @@ impl Service for HttpServer {
             listener,
             internal_listener,
         } = self;
+        let current_config = config.current();
 
-        let listen_addr = config.listen_addr();
+        let listen_addr = current_config.listen_addr();
 
         relay_log::info!("spawning http server");
         relay_log::info!("  listening on http://{listen_addr}/");
-        if let Some(internal_addr) = config.listen_addr_internal() {
+        if let Some(internal_addr) = current_config.listen_addr_internal() {
             relay_log::info!("  listening on http://{internal_addr}/ [internal]");
         }
         relay_statsd::metric!(counter(RelayCounters::ServerStarting) += 1);
@@ -212,13 +218,13 @@ impl Service for HttpServer {
             let internal = make_app(service, crate::endpoints::internal_routes);
 
             tokio::try_join!(
-                serve(listener, public, &config),
-                serve(internal_listener, internal, &config),
+                serve(listener, public, &current_config),
+                serve(internal_listener, internal, &current_config),
             )
             .map(drop)
         } else {
             let app = make_app(service, crate::endpoints::all_routes);
-            serve(listener, app, &config).await
+            serve(listener, app, &current_config).await
         }
         .expect("axum listener to not fail")
     }

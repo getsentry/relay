@@ -20,7 +20,7 @@ use relay_base_schema::data_category::DataCategory;
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
-use relay_config::Config;
+use relay_config::{Config, ConfigSnapshot};
 use relay_event_schema::protocol::{Event, EventId, SpanV2, datetime_to_timestamp};
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message, SerializationOutput};
 use relay_metrics::{
@@ -86,7 +86,7 @@ struct Producer {
 }
 
 impl Producer {
-    pub fn create(config: &Config) -> anyhow::Result<Self> {
+    pub fn create(config: &ConfigSnapshot) -> anyhow::Result<Self> {
         let mut client_builder = KafkaClient::builder();
 
         for topic in KafkaTopic::iter() {
@@ -442,7 +442,7 @@ impl StoreService {
         global_config: GlobalConfigHandle,
         metric_outcomes: MetricOutcomes,
     ) -> anyhow::Result<Self> {
-        let producer = Producer::create(&config)?;
+        let producer = Producer::create(&config.current())?;
         Ok(Self {
             pool,
             config,
@@ -569,7 +569,7 @@ impl StoreService {
             retention,
         } = message;
 
-        let batch_size = self.config.metrics_max_batch_size_bytes();
+        let batch_size = self.config.current().metrics_max_batch_size_bytes();
         let mut error = None;
 
         let global_config = self.global_config.current().unwrap_or_default();
@@ -950,9 +950,10 @@ impl StoreService {
         let payload = item.payload();
         let placeholder: AttachmentPlaceholder<'_> =
             serde_json::from_slice(&payload).map_err(|_| StoreError::InvalidAttachmentRef)?;
+        let config = self.config.current();
         let location = SignedLocation::<Final>::try_from_str(placeholder.location)
             .ok_or(StoreError::InvalidAttachmentRef)?
-            .verify(Utc::now(), &self.config)
+            .verify(Utc::now(), &config)
             .map_err(|_| StoreError::InvalidAttachmentRef)?;
 
         let store_key = location.key;
@@ -982,7 +983,7 @@ impl StoreService {
 
         let payload = item.payload();
         let size = item.len();
-        let max_chunk_size = self.config.attachment_chunk_size();
+        let max_chunk_size = self.config.current().attachment_chunk_size();
 
         let payload = if size == 0 {
             AttachmentPayload::Chunked(0)

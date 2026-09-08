@@ -1,13 +1,13 @@
 #[cfg(feature = "processing")]
 use anyhow::Context;
 use anyhow::Result;
-use relay_config::{Config, RelayMode};
+use relay_config::{Config, ConfigSnapshot, RelayMode};
 use relay_server::MemoryStat;
 use relay_statsd::MetricsConfig;
 
 /// Validates that the `batch_size_bytes` of the configuration is correct and doesn't lead to
 /// deadlocks in the buffer.
-fn assert_batch_size_bytes(config: &Config) -> Result<()> {
+fn assert_batch_size_bytes(config: &ConfigSnapshot) -> Result<()> {
     // We create a temporary memory reading used just for the config check.
     let memory = MemoryStat::current_memory();
 
@@ -30,8 +30,8 @@ fn assert_batch_size_bytes(config: &Config) -> Result<()> {
     Ok(())
 }
 
-pub fn check_config(config: &Config) -> Result<()> {
-    if config.relay_mode() == RelayMode::Managed && config.credentials().is_none() {
+pub fn check_config(config: &ConfigSnapshot) -> Result<()> {
+    if config.relay_mode() == RelayMode::Managed && !config.has_credentials() {
         anyhow::bail!(
             "relay has no credentials, which are required in managed mode. \
              Generate some with \"relay credentials generate\" first.",
@@ -73,6 +73,8 @@ pub fn dump_spawn_infos(config: &Config) {
             config.path().display()
         );
     }
+
+    let config = config.current();
     relay_log::info!("  relay mode: {}", config.relay_mode());
 
     match config.relay_id() {
@@ -87,7 +89,7 @@ pub fn dump_spawn_infos(config: &Config) {
 }
 
 /// Dumps out credential info.
-pub fn dump_credentials(config: &Config) {
+pub fn dump_credentials(config: &ConfigSnapshot) {
     match config.relay_id() {
         Some(id) => println!("  relay id: {id}"),
         None => println!("  relay id: -"),
@@ -99,7 +101,7 @@ pub fn dump_credentials(config: &Config) {
 }
 
 /// Initialize the metric system.
-pub fn init_metrics(config: &Config) -> Result<()> {
+pub fn init_metrics(config: &ConfigSnapshot) -> Result<()> {
     let Some(host) = config.statsd_addr() else {
         return Ok(());
     };

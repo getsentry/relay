@@ -5,7 +5,7 @@ use axum::extract::Request;
 use bytes::Bytes;
 use futures::TryStreamExt;
 use multer::{Field, Multipart};
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use relay_quotas::DataCategory;
 use relay_system::Addr;
 use serde::{Deserialize, Serialize};
@@ -182,7 +182,7 @@ pub trait AttachmentStrategy {
         &self,
         field: Field<'static>,
         item: Managed<Item>,
-        config: &Config,
+        config: &ConfigSnapshot,
     ) -> impl Future<Output = Result<Option<Managed<Item>>, BadStoreRequest>> + Send;
 }
 
@@ -206,7 +206,7 @@ pub fn read_bytes_into_item(
 pub async fn read_field_into_item(
     field: Field<'static>,
     mut item: Managed<Item>,
-    config: &Config,
+    config: &ConfigSnapshot,
 ) -> Result<Managed<Item>, multer::Error> {
     let content_type = field
         .content_type()
@@ -246,7 +246,7 @@ pub async fn read_field_into_item(
 
 pub async fn multipart_items(
     mut multipart: Multipart<'static>,
-    config: &Config,
+    config: &ConfigSnapshot,
     attachment_strategy: impl AttachmentStrategy,
     request_meta: &RequestMeta,
     outcome_aggregator: &Addr<TrackOutcome>,
@@ -329,6 +329,8 @@ pub fn multipart_from_request(request: Request) -> Result<Multipart<'static>, Ba
 #[cfg(test)]
 mod tests {
     use std::convert::Infallible;
+
+    use relay_config::Config;
 
     use super::*;
 
@@ -426,7 +428,8 @@ mod tests {
                 "max_attachment_size": 5
             }
         }))
-        .unwrap();
+        .unwrap()
+        .current();
 
         struct MockAttachmentStrategy;
         impl AttachmentStrategy for MockAttachmentStrategy {
@@ -434,7 +437,7 @@ mod tests {
                 &self,
                 field: Field<'static>,
                 item: Managed<Item>,
-                config: &Config,
+                config: &ConfigSnapshot,
             ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
                 Ok(Some(read_field_into_item(field, item, config).await?))
             }
@@ -474,12 +477,13 @@ mod tests {
 
         let stream = futures::stream::once(async move { Ok::<_, Infallible>(data) });
 
-        let config = &Config::from_json_value(serde_json::json!({
+        let config = Config::from_json_value(serde_json::json!({
             "limits": {
                 "max_attachments_size": 5
             }
         }))
-        .unwrap();
+        .unwrap()
+        .current();
 
         let multipart = Multipart::new(stream, "X-BOUNDARY");
 
@@ -489,7 +493,7 @@ mod tests {
                 &self,
                 field: Field<'static>,
                 item: Managed<Item>,
-                config: &Config,
+                config: &ConfigSnapshot,
             ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
                 Ok(Some(read_field_into_item(field, item, config).await?))
             }
@@ -501,7 +505,7 @@ mod tests {
 
         let result = multipart_items(
             multipart,
-            config,
+            &config,
             MockAttachmentStrategy,
             &mock_request_meta(),
             &Addr::dummy(),

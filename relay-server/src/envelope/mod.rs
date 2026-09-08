@@ -330,7 +330,7 @@ impl Envelope {
 
         // Event-related envelopes *must* contain an event id.
         let items = Self::parse_items(&bytes, offset)?;
-        if items.iter().any(Item::requires_event) {
+        if items.iter().any(Item::creates_event) {
             headers.event_id.get_or_insert_with(EventId::new);
         }
 

@@ -13,7 +13,7 @@ pub async fn challenge(state: ServiceState, headers: HeaderMap, body: Bytes) -> 
         .with_upstream(None)
         .with_headers(headers)
         .with_body(body)
-        .with_config(state.config())
+        .with_config(&state.config())
         .send_to(state.upstream_relay())
         .await
 }
@@ -25,7 +25,7 @@ pub async fn response(state: ServiceState, headers: HeaderMap, body: Bytes) -> i
         .with_upstream(None)
         .with_headers(headers)
         .with_body(body)
-        .with_config(state.config())
+        .with_config(&state.config())
         .send_to(state.upstream_relay())
         .await
 }

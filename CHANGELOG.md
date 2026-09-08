@@ -21,11 +21,16 @@
 
 **Bug Fixes**:
 
+- Bump symbolic so Unreal crash parsing no longer pre-allocates from untrusted counts. ([#6347](https://github.com/getsentry/relay/pull/6347))
 - Don't trim metadata on the top frame when slimming stacktraces. ([#6340](https://github.com/getsentry/relay/pull/6340))
 - Store a normalized attachment content type in objectstore so that downloads are served with the correct type. ([#6319](https://github.com/getsentry/relay/pull/6319))
 - Reshape Nintendo Switch crashes so the issue title falls back to the crashing function instead of the raw abort result code, and raise their level to `fatal`. ([#6253](https://github.com/getsentry/relay/pull/6253))
 - Reject Nintendo Switch dying message attachments with an invalid magic number instead of panicking on a short payload. ([#6253](https://github.com/getsentry/relay/pull/6253))
 - Downgrade Kafka to prevent producers from getting stuck. ([#6336](https://github.com/getsentry/relay/pull/6336))
+- Use async instead of sync decompression in minidump endpoint. ([#6341](https://github.com/getsentry/relay/pull/6341))
+- Prevent memory bomb in PII processor's `split_chunks`. ([#6343](https://github.com/getsentry/relay/pull/6343))
+- Prevent stack overflow in PII rule compilation. ([#6344](https://github.com/getsentry/relay/pull/6344))
+- Fill in missing event IDs only if items would create events. ([#6350](https://github.com/getsentry/relay/pull/6350))
 
 **Internal**:
 
@@ -33,7 +38,7 @@
 
 **Internal**:
 
-- Update sentry-conventions to 0.20.0. ([#6315](https://github.com/getsentry/relay/pull/6315))
+- Update sentry-conventions to 0.21.0. Resource size sentry tags and measurements now use `http.response.body.size`, `http.response.body.decoded_size`, and `http.response.size`. ([#6339](https://github.com/getsentry/relay/pull/6339), [#6315](https://github.com/getsentry/relay/pull/6315))
 
 ## 26.8.0
 
