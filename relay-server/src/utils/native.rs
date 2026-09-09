@@ -88,6 +88,16 @@ fn write_native_placeholder(
         )
     }
 
+    // Client exceptions are ordered oldest to newest; only the last selects a thread.
+    let source = (placeholder.mechanism_type == "minidump")
+        .then(|| exceptions.last().and_then(Annotated::value))
+        .flatten();
+    let thread_id = source.map(|exc| exc.thread_id.clone()).unwrap_or_default();
+    let stacktrace = source
+        .filter(|exc| exc.thread_id.value().is_some() || exc.thread_id.meta().has_errors())
+        .map(|exc| exc.stacktrace.clone())
+        .unwrap_or_default();
+
     if matches!(additional_exceptions, AdditionalExceptions::Delete) {
         exceptions.clear(); // clear previous errors if any
     }
@@ -97,6 +107,8 @@ fn write_native_placeholder(
     exceptions.insert(
         0,
         Annotated::new(Exception {
+            thread_id,
+            stacktrace,
             ty: Annotated::new(placeholder.exception_type.to_owned()),
             value: Annotated::new(JsonLenientString(placeholder.exception_value.to_owned())),
             mechanism: Annotated::new(Mechanism {
@@ -344,4 +356,78 @@ pub fn reshape_switch_crash(event: &mut Event) {
 
     // Events have level `error` by default, so set to `fatal` like for other native crashes.
     event.level.set_value(Some(Level::Fatal));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_minidump_preserves_last_thread() {
+        for policy in [AdditionalExceptions::Retain, AdditionalExceptions::Delete] {
+            for id in ["\"42\"", "true"] {
+                let json = format!(
+                    r#"{{"exception":{{"values":[
+                        {{"thread_id":1}},
+                        {{"thread_id":{id},"stacktrace":{{"frames":[{{"instruction_addr":"0x1000"}}]}}}}
+                    ]}}}}"#
+                );
+                let mut event = Annotated::<Event>::from_json(&json).unwrap();
+                let source = get_value!(event.exceptions.values[1]!).clone();
+
+                process_minidump(
+                    event.value_mut().as_mut().unwrap(),
+                    &Item::new(ItemType::Attachment),
+                    policy,
+                );
+
+                let placeholder = get_value!(event.exceptions.values[0]!);
+                assert_eq!(placeholder.thread_id, source.thread_id);
+                assert_eq!(placeholder.stacktrace, source.stacktrace);
+                assert_eq!(
+                    get_value!(event.exceptions.values!).len(),
+                    match policy {
+                        AdditionalExceptions::Retain => 3,
+                        AdditionalExceptions::Delete => 1,
+                    }
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_minidump_without_thread() {
+        let mut event = Annotated::<Event>::from_json(
+            r#"{"exception":{"values":[
+                {"thread_id":1},
+                {"stacktrace":{"frames":[{"function":"other"}]}}
+            ]}}"#,
+        )
+        .unwrap();
+
+        process_minidump(
+            event.value_mut().as_mut().unwrap(),
+            &Item::new(ItemType::Attachment),
+            AdditionalExceptions::Retain,
+        );
+
+        let placeholder = get_value!(event.exceptions.values[0]!);
+        assert!(placeholder.thread_id.value().is_none());
+        assert!(placeholder.stacktrace.value().is_none());
+    }
+
+    #[test]
+    fn test_apple_report_does_not_preserve_thread() {
+        let mut event = Annotated::<Event>::from_json(
+            r#"{"exception":{"values":[{"type":"Other","thread_id":42}]}}"#,
+        )
+        .unwrap();
+
+        process_apple_crash_report(
+            event.value_mut().as_mut().unwrap(),
+            AdditionalExceptions::Retain,
+        );
+
+        assert!(get_value!(event.exceptions.values[0].thread_id).is_none());
+    }
 }

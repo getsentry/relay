@@ -755,6 +755,7 @@ def test_minidump_with_event_exception(
                     {
                         "type": "ZeroDivisionError",
                         "value": "division by zero",
+                        "thread_id": "36",
                         "stacktrace": {
                             "frames": [
                                 {
@@ -767,6 +768,7 @@ def test_minidump_with_event_exception(
                     }
                 ]
             },
+            "threads": {"values": [{"id": "36", "crashed": False}]},
         }
     )
     envelope.add_item(
@@ -798,6 +800,9 @@ def test_minidump_with_event_exception(
     (user_exception,) = additional_exceptions
     assert user_exception["value"] == "division by zero"
     assert user_exception["stacktrace"]["frames"][0]["function"] == "divide"
+    assert minidump_exception["thread_id"] == "36"
+    assert minidump_exception["stacktrace"] == user_exception["stacktrace"]
+    assert event["threads"]["values"] == [{"id": "36", "crashed": False}]
 
     # The minidump must still be forwarded as an attachment.
     assert any(att["name"] == "minidump.dmp" for att in message["attachments"])
