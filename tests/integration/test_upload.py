@@ -764,13 +764,13 @@ def test_objectstore_precompressed(mini_sentry, relay_with_processing, objectsto
     relay = relay_with_processing()
 
     data = b"hello world" * 100
-    body = zstandard.compress(data)
+    compressed_data = zstandard.compress(data)
     create = relay.post(
         f"/api/{project_id}/upload/?sentry_key={project_key}",
         headers={
             "Content-Length": "0",
             "Tus-Resumable": "1.0.0",
-            "Upload-Length": str(len(data)),
+            "Upload-Length": str(len(compressed_data)),
         },
     )
     assert create.status_code == 201, create.text
@@ -780,20 +780,20 @@ def test_objectstore_precompressed(mini_sentry, relay_with_processing, objectsto
     patch = relay.patch(
         f"{location}&sentry_key={project_key}",
         headers={
-            "Content-Length": str(len(body)),
+            "Content-Length": str(len(compressed_data)),
             "Content-Encoding": "zstd",
             "Content-Type": "application/offset+octet-stream",
             "Tus-Resumable": "1.0.0",
             "Upload-Offset": "0",
         },
-        data=body,
+        data=compressed_data,
     )
     assert patch.status_code == 204, patch.text
-    assert patch.headers["Upload-Offset"] == str(len(data))
+    assert patch.headers["Upload-Offset"] == str(len(compressed_data))
 
     session = objectstore("attachments", project_id)
     assert session.get(key).payload.read() == data
-    assert session.get(key, decompress=False).payload.read() == body
+    assert session.get(key, decompress=False).payload.read() == compressed_data
 
 
 @pytest.mark.parametrize(
