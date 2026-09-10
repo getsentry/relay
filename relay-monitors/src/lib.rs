@@ -335,8 +335,8 @@ mod tests {
     #[test]
     fn process_simple() {
         let json = r#"{"check_in_id":"a460c25ff2554577b920fcfacae4e5eb","monitor_slug":"my-monitor","status":"ok"}"#;
-        let mut check_in = serde_json::from_str(json).unwrap();
-        let rh = routing_hint(&mut check_in, &ProjectId::new(1));
+        let check_in = serde_json::from_str(json).unwrap();
+        let rh = routing_hint(&check_in, &ProjectId::new(1));
 
         // The routing_hint should be consistent for the (project_id, monitor_slug, environment)
         let expected_uuid = Uuid::parse_str("9aa99731-a8e3-5594-9f00-c3e8a62c2b11").unwrap();
@@ -350,9 +350,8 @@ mod tests {
             let json = format!(
                 r#"{{"check_in_id":"a460c25ff2554577b920fcfacae4e5eb","monitor_slug":"my-monitor","environment":"{env}","status":"ok"}}"#
             );
-            let mut check_in = serde_json::from_str(&json).unwrap();
-            let rh = routing_hint(&mut check_in, &ProjectId::new(1));
-            rh
+            let check_in = serde_json::from_str(&json).unwrap();
+            routing_hint(&check_in, &ProjectId::new(1))
         };
 
         // The consumer groups on (project, slug, environment) and only guarantees order within a
@@ -374,8 +373,8 @@ mod tests {
                 ),
                 None => r#"{"check_in_id":"a460c25ff2554577b920fcfacae4e5eb","monitor_slug":"my-monitor","status":"ok"}"#.to_owned(),
             };
-            let mut check_in = serde_json::from_str(&json).unwrap();
-            routing_hint(&mut check_in, &ProjectId::new(1))
+            let check_in = serde_json::from_str(&json).unwrap();
+            routing_hint(&check_in, &ProjectId::new(1))
         };
 
         // Sentry resolves all three to the same monitor environment, so they have to share a
