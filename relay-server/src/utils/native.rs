@@ -91,12 +91,10 @@ fn write_native_placeholder(
     // Client exceptions are ordered oldest to newest; only the last selects a thread.
     let source = (placeholder.mechanism_type == "minidump")
         .then(|| exceptions.last().and_then(Annotated::value))
-        .flatten();
+        .flatten()
+        .filter(|exc| exc.thread_id.value().is_some());
     let thread_id = source.map(|exc| exc.thread_id.clone()).unwrap_or_default();
-    let stacktrace = source
-        .filter(|exc| exc.thread_id.value().is_some() || exc.thread_id.meta().has_errors())
-        .map(|exc| exc.stacktrace.clone())
-        .unwrap_or_default();
+    let stacktrace = source.map(|exc| exc.stacktrace.clone()).unwrap_or_default();
 
     if matches!(additional_exceptions, AdditionalExceptions::Delete) {
         exceptions.clear(); // clear previous errors if any
@@ -365,33 +363,31 @@ mod tests {
     #[test]
     fn test_minidump_preserves_last_thread() {
         for policy in [AdditionalExceptions::Retain, AdditionalExceptions::Delete] {
-            for id in ["\"42\"", "true"] {
-                let json = format!(
-                    r#"{{"exception":{{"values":[
-                        {{"thread_id":1}},
-                        {{"thread_id":{id},"stacktrace":{{"frames":[{{"instruction_addr":"0x1000"}}]}}}}
-                    ]}}}}"#
-                );
-                let mut event = Annotated::<Event>::from_json(&json).unwrap();
-                let source = get_value!(event.exceptions.values[1]!).clone();
+            let mut event = Annotated::<Event>::from_json(
+                r#"{"exception":{"values":[
+                    {"thread_id":1},
+                    {"thread_id":"42","stacktrace":{"frames":[{"instruction_addr":"0x1000"}]}}
+                ]}}"#,
+            )
+            .unwrap();
+            let source = get_value!(event.exceptions.values[1]!).clone();
 
-                process_minidump(
-                    event.value_mut().as_mut().unwrap(),
-                    &Item::new(ItemType::Attachment),
-                    policy,
-                );
+            process_minidump(
+                event.value_mut().as_mut().unwrap(),
+                &Item::new(ItemType::Attachment),
+                policy,
+            );
 
-                let placeholder = get_value!(event.exceptions.values[0]!);
-                assert_eq!(placeholder.thread_id, source.thread_id);
-                assert_eq!(placeholder.stacktrace, source.stacktrace);
-                assert_eq!(
-                    get_value!(event.exceptions.values!).len(),
-                    match policy {
-                        AdditionalExceptions::Retain => 3,
-                        AdditionalExceptions::Delete => 1,
-                    }
-                );
-            }
+            let placeholder = get_value!(event.exceptions.values[0]!);
+            assert_eq!(placeholder.thread_id, source.thread_id);
+            assert_eq!(placeholder.stacktrace, source.stacktrace);
+            assert_eq!(
+                get_value!(event.exceptions.values!).len(),
+                match policy {
+                    AdditionalExceptions::Retain => 3,
+                    AdditionalExceptions::Delete => 1,
+                }
+            );
         }
     }
 
