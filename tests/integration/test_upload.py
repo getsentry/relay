@@ -111,7 +111,7 @@ def test_forward_patch(
 def test_forward_patch_encoding(
     mini_sentry, relay, dummy_upload, encoding, expected_status_code
 ):
-    """Upload bodies are never decompressed, so only zstd is accepted."""
+    """The only accepted encodings are `identity` and `zstd`"""
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
     relay = relay(mini_sentry)
@@ -133,19 +133,19 @@ def test_forward_patch_encoding(
     if encoding is not None:
         headers["Content-Encoding"] = encoding
 
+    location = DUMMY_UPLOAD_LOCATION.replace(
+        "upload_length=11", f"upload_length={len(body)}"
+    )
+
     response = relay.patch(
-        "%s&sentry_key=%s"
-        % (
-            DUMMY_UPLOAD_LOCATION,
-            mini_sentry.get_dsn_public_key(project_id),
-        ),
+        f"{location}&sentry_key={mini_sentry.get_dsn_public_key(project_id)}",
         headers=headers,
         data=body,
     )
 
     assert response.status_code == expected_status_code, response.text
     if expected_status_code == 204:
-        assert response.headers["Upload-Offset"] == "11"
+        assert response.headers["Upload-Offset"] == str(len(body))
         # The upstream receives the payload, regardless of how it was encoded on the wire.
         assert mini_sentry.uploads.get(timeout=1) == data
 

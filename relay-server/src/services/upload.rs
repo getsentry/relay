@@ -17,7 +17,7 @@ use relay_auth::SignatureError;
 #[cfg(feature = "processing")]
 use relay_auth::SignatureHeader;
 use relay_base_schema::project::ProjectId;
-use relay_config::{Config, ConfigSnapshot, UpstreamDescriptor};
+use relay_config::{Config, UpstreamDescriptor};
 use relay_quotas::Scoping;
 use relay_system::{
     Addr, AsyncResponse, ConcurrentService, FromMessage, Interface, LoadShed, SendError, Sender,
@@ -514,7 +514,7 @@ impl<L: UploadLength> Location<L> {
     }
 
     #[cfg(feature = "processing")]
-    fn try_sign(self, config: &ConfigSnapshot) -> Result<SignedLocation<L>, Error> {
+    fn try_sign(self, config: &relay_config::ConfigSnapshot) -> Result<SignedLocation<L>, Error> {
         let uri = self.try_to_uri()?;
         let secret_key = config.upload_signing_key().ok_or(Error::SigningFailed)?;
         let signature = secret_key.sign_with_header(
@@ -648,7 +648,7 @@ impl<L: UploadLength> SignedLocation<L> {
     pub fn verify(
         self,
         received: DateTime<Utc>,
-        config: &ConfigSnapshot,
+        config: &relay_config::ConfigSnapshot,
     ) -> Result<Location<L>, Error> {
         let location = self.location.try_to_uri()?;
         let max_age = chrono::Duration::seconds(config.upload().max_age);
