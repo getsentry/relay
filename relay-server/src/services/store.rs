@@ -1121,7 +1121,15 @@ impl StoreService {
                 );
                 return Ok(());
             }
-            _ => KafkaTopic::MetricsGeneric,
+
+            MetricNamespace::Spans | MetricNamespace::Transactions => {
+                if let Some(global_config) = self.global_config.current()
+                    && global_config.options.generic_metrics_disabled
+                {
+                    return Ok(());
+                }
+                KafkaTopic::MetricsGeneric
+            }
         };
 
         let headers = BTreeMap::from([("namespace".to_owned(), namespace.to_string())]);
