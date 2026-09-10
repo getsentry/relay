@@ -145,6 +145,7 @@ insta = { version = "1", features = ["json", "redactions", "ron"] }
 ipnetwork = "0.21"
 itertools = "0.14"
 json-forensics = "0.1"
+leb128 = "0.2.7"
 libc = "0.2"
 liblzma = "0.4"
 lru = "0.16"
