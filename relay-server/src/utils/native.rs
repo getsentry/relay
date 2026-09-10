@@ -59,10 +59,8 @@ fn write_native_placeholder(
     let platform = event.platform.value_mut();
     *platform = Some("native".to_owned());
 
-    // Assume that this minidump is the result of a crash and assign the fatal
-    // level. Note that the use of `setdefault` here doesn't generally allow the
-    // user to override the minidump's level as processing will overwrite it
-    // later.
+    // Unless the event explicitly specifies a level, assume that this minidump
+    // is the result of a crash and assign the fatal level.
     event.level.get_or_insert_with(|| Level::Fatal);
 
     // Create a placeholder exception. This signals normalization that this is an
@@ -95,6 +93,11 @@ fn write_native_placeholder(
         .filter(|exc| exc.thread_id.value().is_some());
     let thread_id = source.map(|exc| exc.thread_id.clone()).unwrap_or_default();
     let stacktrace = source.map(|exc| exc.stacktrace.clone()).unwrap_or_default();
+    let handled = source
+        .and_then(|exc| exc.mechanism.value())
+        .and_then(|mechanism| mechanism.handled.value())
+        .copied()
+        .unwrap_or(false);
 
     if matches!(additional_exceptions, AdditionalExceptions::Delete) {
         exceptions.clear(); // clear previous errors if any
@@ -111,7 +114,7 @@ fn write_native_placeholder(
             value: Annotated::new(JsonLenientString(placeholder.exception_value.to_owned())),
             mechanism: Annotated::new(Mechanism {
                 ty: Annotated::from(placeholder.mechanism_type.to_owned()),
-                handled: Annotated::from(false),
+                handled: Annotated::from(handled),
                 synthetic: Annotated::from(true),
                 ..Mechanism::default()
             }),
@@ -364,9 +367,10 @@ mod tests {
     fn test_minidump_preserves_last_thread() {
         for policy in [AdditionalExceptions::Retain, AdditionalExceptions::Delete] {
             let mut event = Annotated::<Event>::from_json(
-                r#"{"exception":{"values":[
+                r#"{"level":"error","exception":{"values":[
                     {"thread_id":1},
-                    {"thread_id":"42","stacktrace":{"frames":[{"instruction_addr":"0x1000"}]}}
+                    {"thread_id":"42","mechanism":{"type":"AppHang","handled":true},
+                     "stacktrace":{"frames":[{"instruction_addr":"0x1000"}]}}
                 ]}}"#,
             )
             .unwrap();
@@ -381,6 +385,15 @@ mod tests {
             let placeholder = get_value!(event.exceptions.values[0]!);
             assert_eq!(placeholder.thread_id, source.thread_id);
             assert_eq!(placeholder.stacktrace, source.stacktrace);
+            assert_eq!(
+                get_value!(event.exceptions.values[0].mechanism.handled),
+                Some(&true)
+            );
+            assert_eq!(
+                get_value!(event.exceptions.values[0].mechanism.ty).unwrap(),
+                "minidump"
+            );
+            assert_eq!(get_value!(event.level), Some(&Level::Error));
             assert_eq!(
                 get_value!(event.exceptions.values!).len(),
                 match policy {
@@ -410,6 +423,10 @@ mod tests {
         let placeholder = get_value!(event.exceptions.values[0]!);
         assert!(placeholder.thread_id.value().is_none());
         assert!(placeholder.stacktrace.value().is_none());
+        assert_eq!(
+            get_value!(event.exceptions.values[0].mechanism.handled),
+            Some(&false)
+        );
     }
 
     #[test]

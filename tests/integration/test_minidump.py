@@ -750,12 +750,14 @@ def test_minidump_with_event_exception(
     envelope.add_event(
         {
             "event_id": event_id,
+            "level": "error",
             "exception": {
                 "values": [
                     {
                         "type": "ZeroDivisionError",
                         "value": "division by zero",
                         "thread_id": "36",
+                        "mechanism": {"type": "generic", "handled": True},
                         "stacktrace": {
                             "frames": [
                                 {
@@ -795,6 +797,8 @@ def test_minidump_with_event_exception(
     # so the event is picked up for native processing in Sentry.
     minidump_exception, *additional_exceptions = event["exception"]["values"]
     assert minidump_exception["mechanism"]["type"] == "minidump"
+    assert minidump_exception["mechanism"]["handled"] is True
+    assert event["level"] == "error"
 
     # The user-provided exception with its stack trace must be preserved.
     (user_exception,) = additional_exceptions
