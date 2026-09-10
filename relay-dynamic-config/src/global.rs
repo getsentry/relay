@@ -183,7 +183,7 @@ pub struct Options {
         deserialize_with = "default_on_error",
         skip_serializing_if = "is_default"
     )]
-    pub generic_metrics_enabled: bool,
+    pub generic_metrics_disabled: bool,
 
     /// All other unknown options.
     #[serde(flatten)]
