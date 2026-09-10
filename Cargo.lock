@@ -4918,6 +4918,7 @@ version = "26.8.0"
 dependencies = [
  "ahash",
  "async-trait",
+ "fnv",
  "hashbrown 0.15.5",
  "insta",
  "itertools 0.14.0",

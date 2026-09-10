@@ -569,6 +569,8 @@ fn inherited_categories(category: &DataCategory) -> &'static [DataCategory] {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use smallvec::smallvec;
 
     use super::*;
@@ -639,6 +641,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         }));
 
         assert!(!rate_limit.matches(&ItemScoping {
@@ -650,6 +653,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         }));
     }
 
@@ -672,6 +676,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         }));
 
         assert!(!rate_limit.matches(&ItemScoping {
@@ -683,6 +688,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         }));
     }
 
@@ -705,6 +711,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         }));
 
         assert!(!rate_limit.matches(&ItemScoping {
@@ -716,6 +723,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         }));
     }
 
@@ -740,12 +748,14 @@ mod tests {
             category: DataCategory::MetricBucket,
             scoping,
             namespace: MetricNamespaceScoping::Some(MetricNamespace::Transactions),
+            dimensions: BTreeMap::default(),
         }));
 
         assert!(!rate_limit.matches(&ItemScoping {
             category: DataCategory::MetricBucket,
             scoping,
             namespace: MetricNamespaceScoping::Some(MetricNamespace::Spans),
+            dimensions: BTreeMap::default(),
         }));
 
         let general_rate_limit = RateLimit {
@@ -760,12 +770,14 @@ mod tests {
             category: DataCategory::MetricBucket,
             scoping,
             namespace: MetricNamespaceScoping::Some(MetricNamespace::Spans),
+            dimensions: BTreeMap::default(),
         }));
 
         assert!(general_rate_limit.matches(&ItemScoping {
             category: DataCategory::MetricBucket,
             scoping,
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         }));
     }
 
@@ -790,6 +802,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         }));
 
         assert!(!rate_limit.matches(&ItemScoping {
@@ -801,6 +814,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         }));
     }
 
@@ -1117,6 +1131,7 @@ mod tests {
             window: None,
             reason_code: Some(ReasonCode::new("zero")),
             namespace: None,
+            dimensions: None,
         }];
 
         assert!(
@@ -1170,6 +1185,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         });
 
         // Check that the error limit is applied
@@ -1221,6 +1237,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         };
 
         let quotas = &[Quota {
@@ -1232,6 +1249,7 @@ mod tests {
             window: None,
             reason_code: Some(ReasonCode::new("zero")),
             namespace: None,
+            dimensions: None,
         }];
 
         let applied_limits = rate_limits.check_with_quotas(quotas, &item_scoping);

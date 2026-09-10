@@ -5,11 +5,13 @@
 --  * [string] Key of the counter.
 --  * [string] Key of the refund counter.
 --
--- ``ARGV`` (4 per quota):
+-- ``ARGV`` (5 per quota):
 --  * [number]  Quota limit. Can be ``-1`` for unlimited quotas.
 --  * [number]  Absolute Expiration time as Unix timestamp (secs since 1.1.1970 ) for the key.
 --  * [number]  Quantity to increment the quota by, or ``0`` to check without incrementing.
 --  * [boolean] If set to `true` - reject only if the previous update already reached the limit.
+--  * [string]  The (hashed) dimensions of the quota, as a string.
+--  * [number]  The maximum cardinality of the hash set to allow.
 --
 -- For example, to check the following two quotas each with a timeout of 10 minutes from now:
 --  * Key ``foo``, refund key ``foo_refund``, limit ``10``; quantity ``5``
@@ -28,30 +30,40 @@
 --
 -- The result is a Lua table/array (Redis multi bulk reply) that specifies
 -- whether or not the item was *rejected* based on the provided limit.
-assert(#KEYS % 2 == 0, "there must be 2 keys per quota")
-assert(#ARGV % 4 == 0, "there must be 4 args per quota")
-assert(#KEYS / 2 == #ARGV / 4, "incorrect number of keys and arguments provided")
-
-local all_values = redis.call('MGET', unpack(KEYS))
+local NUM_KEYS = 2
+local NUM_ARGS = 6
+assert(#KEYS % NUM_KEYS == 0, "there must be 2 keys per quota")
+assert(#ARGV % NUM_ARGS == 0, "there must be 6 args per quota")
+assert(#KEYS / NUM_KEYS == #ARGV / NUM_ARGS, "incorrect number of keys and arguments provided")
 
 local results = {}
 local failed = false
-local num_quotas = #KEYS / 2
+local num_quotas = #KEYS / NUM_KEYS
 for i = 0, num_quotas - 1 do
-    local k = i * 2 + 1
-    local v = i * 4 + 1
+    local k = i * NUM_KEYS + 1
+    local v = i * NUM_ARGS + 1
 
     local limit = tonumber(ARGV[v])
     local quantity = tonumber(ARGV[v + 2])
     local over_accept_once = ARGV[v + 3]
+    local dims_key = ARGV[v + 4]
+    local cardinality_limit = tonumber(ARGV[v + 5])
 
-    local main_value = all_values[k] or 0
-    local refund_value = all_values[k + 1] or 0
+    local redis_key = KEYS[k]
+    local refund_key = KEYS[k + 1]
+
+    local main_value = redis.call('HGET', redis_key, dims_key) or 0
+    local refund_value = redis.call('GET', refund_key) or 0
+
     local consumed = main_value - refund_value
 
-    local rejected = false;
+    local rejected = false
+
+    if cardinality_limit >= 0 then
+        rejected = redis.call('HLEN', redis_key) > cardinality_limit
+    end
     -- limit=-1 means "no limit"
-    if limit >= 0 then
+    if not rejected and limit >= 0 then
         -- Without over_accept_once, we never increment past the limit. if quantity is 0, check instead if we reached limit.
         -- With over_accept_once, we only reject if the previous update already reached the limit.
         -- This way, we ensure that we increment to or past the limit at some point,
@@ -73,16 +85,17 @@ end
 
 if not failed then
     for i = 0, num_quotas - 1 do
-        local k = i * 2 + 1
-        local v = i * 4 + 1
+        local k = i * NUM_KEYS + 1
+        local v = i * NUM_ARGS + 1
 
         local quantity = tonumber(ARGV[v + 2])
         local expiry = ARGV[v + 1]
+        local dims = ARGV[v + 4]
+        local redis_key = KEYS[k]
 
         if quantity > 0 then
-            if redis.call('INCRBY', KEYS[k], quantity) == quantity then
-                -- Only expire on the first invocation of `INCRBY`.
-                redis.call('EXPIREAT', KEYS[k], expiry)
+            if redis.call('HINCRBY', redis_key, dims, quantity) == quantity then
+                redis.call('EXPIREAT', redis_key, expiry)
             end
 
             -- Adjust the consumed value with the just increased quantity.

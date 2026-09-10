@@ -1,8 +1,9 @@
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use relay_cogs::{AppFeature, FeatureWeights};
 use relay_monitors::{CheckIn, ProcessCheckInError};
-use relay_quotas::{DataCategory, RateLimits};
+use relay_quotas::{DataCategory, Dimension, RateLimits};
 
 use crate::Envelope;
 use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
@@ -191,10 +192,20 @@ impl Counted for ExpandedCheckIn {
     }
 }
 
-impl CountRateLimited for Managed<SerializedCheckIns> {
-    type Error = Error;
-}
-
 impl CountRateLimited for Managed<ExpandedCheckIn> {
     type Error = Error;
+
+    fn dimensions(&self) -> Option<BTreeMap<Dimension, String>> {
+        let mut dims = BTreeMap::new();
+        dims.insert(
+            relay_quotas::Dimension::CheckInEnvironment,
+            self.check_in.environment.clone().unwrap_or_default(),
+        );
+        dims.insert(
+            relay_quotas::Dimension::CheckInSlug,
+            self.check_in.monitor_slug.clone(),
+        );
+
+        Some(dims)
+    }
 }

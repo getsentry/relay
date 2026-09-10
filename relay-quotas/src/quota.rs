@@ -1,4 +1,6 @@
-use std::fmt;
+use std::collections::{BTreeMap, HashSet};
+use std::fmt::{self};
+use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -43,6 +45,20 @@ impl Scoping {
             category,
             scoping: *self,
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
+        }
+    }
+
+    pub fn item_with_dimensions(
+        &self,
+        category: DataCategory,
+        dimensions: BTreeMap<Dimension, String>,
+    ) -> ItemScoping {
+        ItemScoping {
+            category,
+            scoping: *self,
+            namespace: MetricNamespaceScoping::None,
+            dimensions,
         }
     }
 
@@ -56,6 +72,7 @@ impl Scoping {
             category: DataCategory::MetricBucket,
             scoping: *self,
             namespace: MetricNamespaceScoping::Some(namespace),
+            dimensions: BTreeMap::default(),
         }
     }
 }
@@ -107,7 +124,7 @@ impl From<MetricNamespace> for MetricNamespaceScoping {
 ///
 /// [`ItemScoping`] combines a data category, scoping information, and optional
 /// metric namespace to fully define an item for rate limiting purposes.
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ItemScoping {
     /// The data category of the item.
     pub category: DataCategory,
@@ -117,6 +134,9 @@ pub struct ItemScoping {
 
     /// Namespace for metric items, requiring [`DataCategory::MetricBucket`].
     pub namespace: MetricNamespaceScoping,
+
+    /// Dimensions this quota will be matched on.
+    pub dimensions: BTreeMap<Dimension, String>,
 }
 
 impl std::ops::Deref for ItemScoping {
@@ -141,6 +161,33 @@ impl ItemScoping {
         }
     }
 
+    /// Converts the dimensions of this item scoping into a string of the dimension name
+    /// and hashed value.  This looks like ':key1:hash1:key2:hash2'.
+    pub fn dimensions_as_string(&self) -> String {
+        let mut result = String::new();
+
+        for (key, val) in self
+            .dimensions
+            .iter()
+            .filter(|(d, _s)| !matches!(d, Dimension::Unknown))
+        {
+            let mut hasher = fnv::FnvHasher::with_key(1);
+            val.hash(&mut hasher);
+            let h = &hasher.finish();
+
+            result.push(':');
+            result += &key.to_string();
+            result.push(':');
+            result += &h.to_string();
+        }
+
+        if result.is_empty() {
+            result.push('_');
+        }
+
+        result
+    }
+
     /// Checks whether the category matches any of the quota's categories.
     pub(crate) fn matches_categories(&self, categories: DataCategories) -> bool {
         // An empty list of categories means that this quota matches all categories. Note that we
@@ -148,6 +195,20 @@ impl ItemScoping {
         // we do **not** match, since apparently the quota is meant for some data this Relay does
         // not support yet.
         categories.is_empty() || categories.contains(&self.category)
+    }
+
+    pub(crate) fn matches_dimensions(&self, dimensions: &Option<Dimensions>) -> bool {
+        let Some(dims) = dimensions else {
+            return true;
+        };
+
+        for dim in dims.dimensions.iter() {
+            if !self.dimensions.contains_key(dim) {
+                return false;
+            }
+        }
+
+        true
     }
 
     /// Returns `true` if the rate limit namespace matches the namespace of the item.
@@ -498,6 +559,40 @@ pub struct Quota {
     /// unlimited quotas can never be exceeded.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason_code: Option<ReasonCode>,
+
+    /// The optional list of dimensions that this quota will use.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dimensions: Option<Dimensions>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+pub struct Dimensions {
+    /// The maximum number combinations of dimensions on this quota to allow.  Set to -1
+    /// for "infinite".
+    pub max_cardinality: i32,
+
+    /// The list of dimensions this quota will use.
+    pub dimensions: Arc<[Dimension]>,
+}
+
+/// The kinds of dimensions that can be applied to a given quota.
+#[derive(Copy, Clone, Debug, Deserialize, Serialize, Eq, PartialEq, PartialOrd, Ord, Hash)]
+pub enum Dimension {
+    /// The environment used in a monitor check-in.
+    CheckInEnvironment = 1,
+
+    /// The slug used in a monitor check-in.
+    CheckInSlug,
+
+    /// An unknown dimension.
+    #[serde(other)]
+    Unknown = 0,
+}
+
+impl fmt::Display for Dimension {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("{}", *self as u32))
+    }
 }
 
 impl Quota {
@@ -507,9 +602,29 @@ impl Quota {
     ///  - The quota only applies to [`DataCategory::Unknown`] data categories.
     ///  - The quota is counted (not limit `0`) but specifies categories with different units.
     ///  - The quota references an unsupported namespace.
+    ///  - The dimensions contain Unknown, or are not distinct.
     pub fn is_valid(&self) -> bool {
         if self.namespace == Some(MetricNamespace::Unsupported) {
             return false;
+        }
+
+        if let Some(dims) = &self.dimensions {
+            if dims.max_cardinality < -1 {
+                return false;
+            }
+
+            let mut distinct = HashSet::new();
+            for dim in dims.dimensions.iter() {
+                if *dim == Dimension::Unknown {
+                    return false;
+                }
+
+                distinct.insert(dim);
+            }
+
+            if distinct.len() != dims.dimensions.len() {
+                return false;
+            }
         }
 
         let mut units = self
@@ -561,6 +676,7 @@ impl Quota {
         self.matches_scope(scoping)
             && scoping.matches_categories(self.categories)
             && scoping.matches_namespaces(&self.namespace)
+            && scoping.matches_dimensions(&self.dimensions)
     }
 }
 
@@ -782,6 +898,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            dimensions: None,
         };
 
         assert!(quota.is_valid());
@@ -798,6 +915,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            dimensions: None,
         };
 
         assert!(!quota.is_valid());
@@ -814,6 +932,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            dimensions: None,
         };
 
         assert!(quota.is_valid());
@@ -830,6 +949,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            dimensions: None,
         };
 
         // This category is limited and counted, but has multiple units.
@@ -847,6 +967,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            dimensions: None,
         };
 
         // This category is unlimited and counted, but has multiple units.
@@ -864,6 +985,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            dimensions: None,
         };
 
         assert!(quota.matches(&ItemScoping {
@@ -875,6 +997,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         }));
     }
 
@@ -889,6 +1012,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            dimensions: None,
         };
 
         assert!(!quota.matches(&ItemScoping {
@@ -900,6 +1024,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         }));
     }
 
@@ -914,6 +1039,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            dimensions: None,
         };
 
         assert!(quota.matches(&ItemScoping {
@@ -925,6 +1051,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         }));
 
         assert!(!quota.matches(&ItemScoping {
@@ -936,6 +1063,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         }));
     }
 
@@ -950,6 +1078,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            dimensions: None,
         };
 
         assert!(!quota.matches(&ItemScoping {
@@ -961,6 +1090,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         }));
     }
 
@@ -975,6 +1105,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            dimensions: None,
         };
 
         assert!(quota.matches(&ItemScoping {
@@ -986,6 +1117,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         }));
 
         assert!(!quota.matches(&ItemScoping {
@@ -997,6 +1129,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         }));
     }
 
@@ -1011,6 +1144,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            dimensions: None,
         };
 
         assert!(quota.matches(&ItemScoping {
@@ -1022,6 +1156,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         }));
 
         assert!(!quota.matches(&ItemScoping {
@@ -1033,6 +1168,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         }));
     }
 
@@ -1047,6 +1183,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            dimensions: None,
         };
 
         assert!(quota.matches(&ItemScoping {
@@ -1058,6 +1195,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         }));
 
         assert!(!quota.matches(&ItemScoping {
@@ -1069,6 +1207,7 @@ mod tests {
                 key_id: Some(0),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         }));
 
         assert!(!quota.matches(&ItemScoping {
@@ -1080,6 +1219,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         }));
     }
 

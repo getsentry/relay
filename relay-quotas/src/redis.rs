@@ -75,7 +75,7 @@ impl OwnedRedisQuota {
     pub fn build_ref(&self) -> RedisQuota<'_> {
         RedisQuota {
             quota: &self.quota,
-            scoping: self.scoping,
+            scoping: self.scoping.clone(),
             prefix: Arc::clone(&self.prefix),
             window: self.window,
             quantity: self.quantity,
@@ -132,7 +132,7 @@ impl<'a> RedisQuota<'a> {
     pub fn build_owned(&self) -> OwnedRedisQuota {
         OwnedRedisQuota {
             quota: self.quota.clone(),
-            scoping: self.scoping,
+            scoping: self.scoping.clone(),
             prefix: Arc::clone(&self.prefix),
             window: self.window,
             quantity: self.quantity,
@@ -210,6 +210,14 @@ impl<'a> RedisQuota<'a> {
             subscope,
             namespace: self.namespace,
             slot: self.slot(),
+            dimension_hash: self.scoping.dimensions_as_string(),
+        }
+    }
+
+    pub fn max_dimensions_cardinality(&self) -> i32 {
+        match &self.dimensions {
+            Some(dims) => dims.max_cardinality,
+            None => -1,
         }
     }
 
@@ -244,13 +252,14 @@ pub struct QuotaCacheKey {
     subscope: Option<u64>,
     namespace: Option<MetricNamespace>,
     slot: u64,
+    dimension_hash: String,
 }
 
 impl fmt::Display for QuotaCacheKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "quota:{id}{{{org}}}{subscope}{namespace}:{slot}",
+            "quota:{id}{{{org}}}{subscope}{namespace}:{slot}:hash",
             id = self.id,
             org = self.org,
             subscope = OptionalDisplay(self.subscope),
@@ -366,6 +375,8 @@ impl RedisRateLimiter {
                 let redis_key = quota.key().to_string();
                 // Remaining quotas are expected to be track-able in Redis.
                 let refund_key = get_refunded_quota_key(&redis_key);
+                let redis_dims_key = item_scoping.dimensions_as_string();
+                let max_cardinality = quota.max_dimensions_cardinality();
 
                 invocation.key(redis_key);
                 invocation.key(refund_key);
@@ -374,6 +385,8 @@ impl RedisRateLimiter {
                 invocation.arg(quota.key_expiry());
                 invocation.arg(quota.quantity);
                 invocation.arg(over_accept_once);
+                invocation.arg(redis_dims_key);
+                invocation.arg(max_cardinality);
 
                 tracked_quotas.push(quota);
             } else {
@@ -486,12 +499,13 @@ struct QuotaState {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use super::*;
-    use crate::MetricNamespaceScoping;
     use crate::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
     use crate::rate_limit::RateLimitScope;
+    use crate::{Dimension, Dimensions, MetricNamespaceScoping};
     use relay_base_schema::metrics::MetricNamespace;
     use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::{ProjectId, ProjectKey};
@@ -525,6 +539,7 @@ mod tests {
                 window: None,
                 reason_code: Some(ReasonCode::new("get_lost")),
                 namespace: None,
+                dimensions: None,
             },
             Quota {
                 id: Some("42".into()),
@@ -535,6 +550,7 @@ mod tests {
                 window: Some(42),
                 reason_code: Some(ReasonCode::new("unlimited")),
                 namespace: None,
+                dimensions: None,
             },
         ];
 
@@ -547,6 +563,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         };
 
         let rate_limits: Vec<RateLimit> = build_rate_limiter()
@@ -582,6 +599,7 @@ mod tests {
                 window: Some(600),
                 reason_code: Some(ReasonCode::new(format!("ns: {namespace:?}"))),
                 namespace,
+                dimensions: None,
             }
         };
 
@@ -597,6 +615,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::Some(MetricNamespace::Sessions),
+            dimensions: BTreeMap::default(),
         };
 
         let rate_limiter = build_rate_limiter();
@@ -651,6 +670,7 @@ mod tests {
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
             namespace: None,
+            dimensions: None,
         }];
 
         let scoping = ItemScoping {
@@ -662,6 +682,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         };
 
         let rate_limiter = build_rate_limiter();
@@ -702,6 +723,7 @@ mod tests {
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
             namespace: None,
+            dimensions: None,
         }];
 
         let scoping = ItemScoping {
@@ -713,6 +735,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         };
 
         let rate_limiter = build_rate_limiter();
@@ -765,6 +788,7 @@ mod tests {
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
             namespace: None,
+            dimensions: None,
         }];
 
         let scoping = ItemScoping {
@@ -776,6 +800,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         };
 
         let rate_limiter = build_rate_limiter();
@@ -824,6 +849,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         };
 
         let rate_limits: Vec<RateLimit> = build_rate_limiter()
@@ -848,6 +874,7 @@ mod tests {
                 window: Some(1),
                 reason_code: Some(ReasonCode::new("project_quota0")),
                 namespace: None,
+                dimensions: None,
             },
             Quota {
                 id: Some("q1".into()),
@@ -858,6 +885,7 @@ mod tests {
                 window: Some(1),
                 reason_code: Some(ReasonCode::new("project_quota1")),
                 namespace: None,
+                dimensions: None,
             },
         ];
 
@@ -870,6 +898,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         };
 
         let rate_limiter = build_rate_limiter();
@@ -910,6 +939,7 @@ mod tests {
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
             namespace: None,
+            dimensions: None,
         }];
 
         let scoping = ItemScoping {
@@ -921,6 +951,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         };
 
         let rate_limiter = build_rate_limiter();
@@ -961,6 +992,7 @@ mod tests {
             limit: Some(0),
             reason_code: None,
             namespace: None,
+            dimensions: None,
         };
 
         let scoping = ItemScoping {
@@ -972,6 +1004,7 @@ mod tests {
                 key_id: Some(4711),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         };
 
         let timestamp = UnixTimestamp::from_secs(123_123_123);
@@ -990,6 +1023,7 @@ mod tests {
             limit: Some(0),
             reason_code: None,
             namespace: None,
+            dimensions: None,
         };
 
         let scoping = ItemScoping {
@@ -1001,6 +1035,7 @@ mod tests {
                 key_id: Some(4711),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         };
 
         let timestamp = UnixTimestamp::from_secs(234_531);
@@ -1019,6 +1054,7 @@ mod tests {
             limit: Some(9223372036854775808), // i64::MAX + 1
             reason_code: None,
             namespace: None,
+            dimensions: None,
         };
 
         let scoping = ItemScoping {
@@ -1030,6 +1066,7 @@ mod tests {
                 key_id: Some(4711),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         };
 
         let timestamp = UnixTimestamp::from_secs(234_531);
@@ -1291,6 +1328,7 @@ mod tests {
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
             namespace: None,
+            dimensions: None,
         }];
 
         let scoping = ItemScoping {
@@ -1302,6 +1340,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         };
 
         // For this test, with only a single rate limiter accessing Redis and always a quantity of
@@ -1350,6 +1389,7 @@ mod tests {
             window: Some(window),
             reason_code: Some(ReasonCode::new("get_lost")),
             namespace: None,
+            dimensions: None,
         }];
 
         let scoping = ItemScoping {
@@ -1361,6 +1401,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
         };
 
         // 10% Quota cache.
@@ -1412,5 +1453,97 @@ mod tests {
                 namespaces: smallvec![],
             }]
         );
+    }
+
+    #[tokio::test]
+    async fn test_quota_dimensions() {
+        let quotas = &[
+            Quota {
+                id: Some(format!("test_quota_go_over{}", uuid::Uuid::new_v4()).into()),
+                categories: DataCategories::new().add(DataCategory::Monitor).unwrap(),
+                scope: QuotaScope::Project,
+                scope_id: None,
+                limit: Some(2),
+                window: Some(60),
+                reason_code: Some(ReasonCode::new("get_lost")),
+                namespace: None,
+                dimensions: Some(Dimensions {
+                    max_cardinality: -1,
+                    dimensions: [Dimension::CheckInEnvironment, Dimension::CheckInSlug].into(),
+                }),
+            },
+            Quota {
+                id: Some(format!("test_quota_wont_go_over{}", uuid::Uuid::new_v4()).into()),
+                categories: DataCategories::new().add(DataCategory::Monitor).unwrap(),
+                scope: QuotaScope::Project,
+                scope_id: None,
+                limit: Some(2),
+                window: Some(60),
+                reason_code: Some(ReasonCode::new("get_lost")),
+                namespace: None,
+                dimensions: None,
+            },
+        ];
+
+        let mut dimensions = BTreeMap::new();
+        dimensions.insert(Dimension::CheckInEnvironment, "us".to_owned());
+        dimensions.insert(Dimension::CheckInSlug, "cron1".to_owned());
+
+        let scoping = ItemScoping {
+            category: DataCategory::Monitor,
+            scoping: Scoping {
+                organization_id: OrganizationId::new(42),
+                project_id: ProjectId::new(43),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(44),
+            },
+            namespace: MetricNamespaceScoping::None,
+            dimensions,
+        };
+
+        let no_dims_scoping = ItemScoping {
+            category: DataCategory::Monitor,
+            scoping: Scoping {
+                organization_id: OrganizationId::new(42),
+                project_id: ProjectId::new(43),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(44),
+            },
+            namespace: MetricNamespaceScoping::None,
+            dimensions: BTreeMap::default(),
+        };
+
+        let rate_limiter = build_rate_limiter();
+
+        // limit is 2, so first call not rate limited
+        let is_limited = rate_limiter
+            .is_rate_limited(quotas, &scoping, 1, true)
+            .await
+            .unwrap()
+            .is_limited();
+        assert!(!is_limited);
+
+        let is_limited = rate_limiter
+            .is_rate_limited(quotas, &scoping, 2, false)
+            .await
+            .unwrap()
+            .is_limited();
+        assert!(is_limited);
+
+        // make sure the non-dimensioned monitor is not limited...
+        let is_limited = rate_limiter
+            .is_rate_limited(quotas, &no_dims_scoping, 1, true)
+            .await
+            .unwrap()
+            .is_limited();
+        assert!(!is_limited);
+
+        // ...until we invoke again
+        let is_limited = rate_limiter
+            .is_rate_limited(quotas, &no_dims_scoping, 2, false)
+            .await
+            .unwrap()
+            .is_limited();
+        assert!(is_limited);
     }
 }

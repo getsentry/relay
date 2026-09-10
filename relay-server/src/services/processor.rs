@@ -1907,6 +1907,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            dimensions: None,
         }
     }
 
@@ -1959,6 +1960,7 @@ mod tests {
                     window: None,
                     reason_code: Some(ReasonCode::new("test")),
                     namespace: None,
+                    dimensions: None,
                 };
 
                 let mut config = ProjectConfig::default();
