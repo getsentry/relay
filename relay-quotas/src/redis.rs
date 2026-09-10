@@ -333,7 +333,7 @@ impl RedisRateLimiter {
     pub async fn is_rate_limited<'a>(
         &self,
         quotas: impl IntoIterator<Item = &'a Quota>,
-        item_scoping: ItemScoping,
+        item_scoping: &ItemScoping,
         quantity: usize,
         over_accept_once: bool,
     ) -> Result<RateLimits, RateLimitingError> {
@@ -352,9 +352,9 @@ impl RedisRateLimiter {
                 // increment any keys, as one quota has reached capacity (this is how regular quotas
                 // behave as well).
                 let retry_after = self.retry_after(REJECT_ALL_SECS);
-                rate_limits.add(RateLimit::from_quota(quota, *item_scoping, retry_after));
+                rate_limits.add(RateLimit::from_quota(quota, item_scoping, retry_after));
             } else if let Some(mut quota) =
-                RedisQuota::new(quota, quantity, item_scoping, timestamp)
+                RedisQuota::new(quota, quantity, item_scoping.clone(), timestamp)
             {
                 if let Some(cache) = &self.cache {
                     quota.quantity = match cache.check_quota(quota.for_cache(), quantity) {
@@ -414,7 +414,7 @@ impl RedisRateLimiter {
                 );
 
                 let retry_after = self.retry_after((quota.expiry() - timestamp).as_secs());
-                rate_limits.add(RateLimit::from_quota(quota, *item_scoping, retry_after));
+                rate_limits.add(RateLimit::from_quota(quota, item_scoping, retry_after));
             } else if let Some(cache) = &self.cache {
                 // Only update the cache if it's really necessary. Quotas which are being rejected,
                 // will not be able to be handled from the cache anyways.
@@ -550,7 +550,7 @@ mod tests {
         };
 
         let rate_limits: Vec<RateLimit> = build_rate_limiter()
-            .is_rate_limited(quotas, scoping, 1, false)
+            .is_rate_limited(quotas, &scoping, 1, false)
             .await
             .expect("rate limiting failed")
             .into_iter()
@@ -604,7 +604,7 @@ mod tests {
         // First confirm normal behaviour without namespace.
         for i in 0..10 {
             let rate_limits: Vec<RateLimit> = rate_limiter
-                .is_rate_limited(quotas, scoping, 1, false)
+                .is_rate_limited(quotas, &scoping, 1, false)
                 .await
                 .expect("rate limiting failed")
                 .into_iter()
@@ -623,7 +623,7 @@ mod tests {
         // Then, send identical quota with namespace and confirm it counts separately.
         for i in 0..10 {
             let rate_limits: Vec<RateLimit> = rate_limiter
-                .is_rate_limited(quota_with_namespace, scoping, 1, false)
+                .is_rate_limited(quota_with_namespace, &scoping, 1, false)
                 .await
                 .expect("rate limiting failed")
                 .into_iter()
@@ -668,7 +668,7 @@ mod tests {
 
         for i in 0..10 {
             let rate_limits: Vec<RateLimit> = rate_limiter
-                .is_rate_limited(quotas, scoping, 1, false)
+                .is_rate_limited(quotas, &scoping, 1, false)
                 .await
                 .expect("rate limiting failed")
                 .into_iter()
@@ -720,7 +720,7 @@ mod tests {
         // limit is 1, so first call not rate limited
         assert!(
             !rate_limiter
-                .is_rate_limited(quotas, scoping, 1, false)
+                .is_rate_limited(quotas, &scoping, 1, false)
                 .await
                 .unwrap()
                 .is_limited()
@@ -729,7 +729,7 @@ mod tests {
         // quota is now exhausted
         assert!(
             rate_limiter
-                .is_rate_limited(quotas, scoping, 1, false)
+                .is_rate_limited(quotas, &scoping, 1, false)
                 .await
                 .unwrap()
                 .is_limited()
@@ -738,7 +738,7 @@ mod tests {
         // quota is exhausted, regardless of the quantity
         assert!(
             rate_limiter
-                .is_rate_limited(quotas, scoping, 0, false)
+                .is_rate_limited(quotas, &scoping, 0, false)
                 .await
                 .unwrap()
                 .is_limited()
@@ -747,7 +747,7 @@ mod tests {
         // quota is exhausted, regardless of the quantity
         assert!(
             rate_limiter
-                .is_rate_limited(quotas, scoping, 1, false)
+                .is_rate_limited(quotas, &scoping, 1, false)
                 .await
                 .unwrap()
                 .is_limited()
@@ -782,7 +782,7 @@ mod tests {
 
         // limit is 2, so first call not rate limited
         let is_limited = rate_limiter
-            .is_rate_limited(quotas, scoping, 1, true)
+            .is_rate_limited(quotas, &scoping, 1, true)
             .await
             .unwrap()
             .is_limited();
@@ -790,7 +790,7 @@ mod tests {
 
         // go over limit, but first call is over-accepted
         let is_limited = rate_limiter
-            .is_rate_limited(quotas, scoping, 2, true)
+            .is_rate_limited(quotas, &scoping, 2, true)
             .await
             .unwrap()
             .is_limited();
@@ -798,7 +798,7 @@ mod tests {
 
         // quota is exhausted, regardless of the quantity
         let is_limited = rate_limiter
-            .is_rate_limited(quotas, scoping, 0, true)
+            .is_rate_limited(quotas, &scoping, 0, true)
             .await
             .unwrap()
             .is_limited();
@@ -806,7 +806,7 @@ mod tests {
 
         // quota is exhausted, regardless of the quantity
         let is_limited = rate_limiter
-            .is_rate_limited(quotas, scoping, 1, true)
+            .is_rate_limited(quotas, &scoping, 1, true)
             .await
             .unwrap()
             .is_limited();
@@ -827,7 +827,7 @@ mod tests {
         };
 
         let rate_limits: Vec<RateLimit> = build_rate_limiter()
-            .is_rate_limited(&[], scoping, 1, false)
+            .is_rate_limited(&[], &scoping, 1, false)
             .await
             .expect("rate limiting failed")
             .into_iter()
@@ -876,7 +876,7 @@ mod tests {
 
         for i in 0..1 {
             let rate_limits: Vec<RateLimit> = rate_limiter
-                .is_rate_limited(quotas, scoping, 1, false)
+                .is_rate_limited(quotas, &scoping, 1, false)
                 .await
                 .expect("rate limiting failed")
                 .into_iter()
@@ -927,7 +927,7 @@ mod tests {
 
         for i in 0..10 {
             let rate_limits: Vec<RateLimit> = rate_limiter
-                .is_rate_limited(quotas, scoping, 100, false)
+                .is_rate_limited(quotas, &scoping, 100, false)
                 .await
                 .expect("rate limiting failed")
                 .into_iter()
@@ -1310,7 +1310,7 @@ mod tests {
 
         for _ in 0..50 {
             let rate_limits = rate_limiter
-                .is_rate_limited(quotas, scoping, 1, false)
+                .is_rate_limited(quotas, &scoping, 1, false)
                 .await
                 .unwrap();
 
@@ -1318,7 +1318,7 @@ mod tests {
         }
 
         let rate_limits: Vec<RateLimit> = rate_limiter
-            .is_rate_limited(quotas, scoping, 1, false)
+            .is_rate_limited(quotas, &scoping, 1, false)
             .await
             .expect("rate limiting failed")
             .into_iter()
@@ -1369,34 +1369,34 @@ mod tests {
 
         // Prime the cache.
         let rate_limits = rate_limiter1
-            .is_rate_limited(quotas, scoping, 1, false)
+            .is_rate_limited(quotas, &scoping, 1, false)
             .await
             .unwrap();
         assert!(rate_limits.is_empty());
         // Reserve 3 out 5 in the cache.
         let rate_limits = rate_limiter1
-            .is_rate_limited(quotas, scoping, 3, false)
+            .is_rate_limited(quotas, &scoping, 3, false)
             .await
             .unwrap();
         assert!(rate_limits.is_empty());
 
         // Consume right up to the limit on the other limiter
         let rate_limits = rate_limiter2
-            .is_rate_limited(quotas, scoping, limit as usize - 1, false)
+            .is_rate_limited(quotas, &scoping, limit as usize - 1, false)
             .await
             .unwrap();
         assert!(rate_limits.is_empty());
 
         // There is still one more slot in the cache.
         let rate_limits = rate_limiter1
-            .is_rate_limited(quotas, scoping, 1, false)
+            .is_rate_limited(quotas, &scoping, 1, false)
             .await
             .unwrap();
         assert!(rate_limits.is_empty());
 
         // This should now rate limit, as the cache is exhausted and Redis is checked.
         let rate_limits: Vec<RateLimit> = rate_limiter1
-            .is_rate_limited(quotas, scoping, 1, false)
+            .is_rate_limited(quotas, &scoping, 1, false)
             .await
             .unwrap()
             .into_iter()

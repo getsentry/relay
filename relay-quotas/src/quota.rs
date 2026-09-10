@@ -535,7 +535,7 @@ impl Quota {
     ///  - there is no `scope_id` constraint
     ///  - the `scope_id` constraint is not numeric
     ///  - the scope identifier matches the one from ascoping and the scope is known
-    fn matches_scope(&self, scoping: ItemScoping) -> bool {
+    fn matches_scope(&self, scoping: &ItemScoping) -> bool {
         // Check for a scope identifier constraint. If there is no constraint, this means that the
         // quota matches any scope. In case the scope is unknown, it will be coerced to the most
         // specific scope later.
@@ -557,7 +557,7 @@ impl Quota {
     ///
     /// This method determines if this quota should be applied to a given item
     /// based on its scope, categories, and namespace.
-    pub fn matches(&self, scoping: ItemScoping) -> bool {
+    pub fn matches(&self, scoping: &ItemScoping) -> bool {
         self.matches_scope(scoping)
             && scoping.matches_categories(self.categories)
             && scoping.matches_namespaces(&self.namespace)
@@ -866,7 +866,7 @@ mod tests {
             namespace: None,
         };
 
-        assert!(quota.matches(ItemScoping {
+        assert!(quota.matches(&ItemScoping {
             category: DataCategory::Error,
             scoping: Scoping {
                 organization_id: OrganizationId::new(42),
@@ -891,7 +891,7 @@ mod tests {
             namespace: None,
         };
 
-        assert!(!quota.matches(ItemScoping {
+        assert!(!quota.matches(&ItemScoping {
             category: DataCategory::Error,
             scoping: Scoping {
                 organization_id: OrganizationId::new(42),
@@ -916,7 +916,7 @@ mod tests {
             namespace: None,
         };
 
-        assert!(quota.matches(ItemScoping {
+        assert!(quota.matches(&ItemScoping {
             category: DataCategory::Error,
             scoping: Scoping {
                 organization_id: OrganizationId::new(42),
@@ -927,7 +927,7 @@ mod tests {
             namespace: MetricNamespaceScoping::None,
         }));
 
-        assert!(!quota.matches(ItemScoping {
+        assert!(!quota.matches(&ItemScoping {
             category: DataCategory::Transaction,
             scoping: Scoping {
                 organization_id: OrganizationId::new(42),
@@ -952,7 +952,7 @@ mod tests {
             namespace: None,
         };
 
-        assert!(!quota.matches(ItemScoping {
+        assert!(!quota.matches(&ItemScoping {
             category: DataCategory::Error,
             scoping: Scoping {
                 organization_id: OrganizationId::new(42),
@@ -977,7 +977,7 @@ mod tests {
             namespace: None,
         };
 
-        assert!(quota.matches(ItemScoping {
+        assert!(quota.matches(&ItemScoping {
             category: DataCategory::Error,
             scoping: Scoping {
                 organization_id: OrganizationId::new(42),
@@ -988,7 +988,7 @@ mod tests {
             namespace: MetricNamespaceScoping::None,
         }));
 
-        assert!(!quota.matches(ItemScoping {
+        assert!(!quota.matches(&ItemScoping {
             category: DataCategory::Error,
             scoping: Scoping {
                 organization_id: OrganizationId::new(0),
@@ -1013,7 +1013,7 @@ mod tests {
             namespace: None,
         };
 
-        assert!(quota.matches(ItemScoping {
+        assert!(quota.matches(&ItemScoping {
             category: DataCategory::Error,
             scoping: Scoping {
                 organization_id: OrganizationId::new(42),
@@ -1024,7 +1024,7 @@ mod tests {
             namespace: MetricNamespaceScoping::None,
         }));
 
-        assert!(!quota.matches(ItemScoping {
+        assert!(!quota.matches(&ItemScoping {
             category: DataCategory::Error,
             scoping: Scoping {
                 organization_id: OrganizationId::new(42),
@@ -1049,7 +1049,7 @@ mod tests {
             namespace: None,
         };
 
-        assert!(quota.matches(ItemScoping {
+        assert!(quota.matches(&ItemScoping {
             category: DataCategory::Error,
             scoping: Scoping {
                 organization_id: OrganizationId::new(42),
@@ -1060,7 +1060,7 @@ mod tests {
             namespace: MetricNamespaceScoping::None,
         }));
 
-        assert!(!quota.matches(ItemScoping {
+        assert!(!quota.matches(&ItemScoping {
             category: DataCategory::Error,
             scoping: Scoping {
                 organization_id: OrganizationId::new(42),
@@ -1071,7 +1071,7 @@ mod tests {
             namespace: MetricNamespaceScoping::None,
         }));
 
-        assert!(!quota.matches(ItemScoping {
+        assert!(!quota.matches(&ItemScoping {
             category: DataCategory::Error,
             scoping: Scoping {
                 organization_id: OrganizationId::new(42),

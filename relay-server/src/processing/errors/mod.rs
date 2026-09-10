@@ -233,7 +233,7 @@ impl processing::RateLimited for Managed<ExpandedError> {
         let scoping = self.scoping();
 
         let limits = rate_limiter
-            .try_consume(scoping.item(self.data.event_category()), 1)
+            .try_consume(&scoping.item(self.data.event_category()), 1)
             .await;
 
         if !limits.is_empty() {
@@ -242,7 +242,7 @@ impl processing::RateLimited for Managed<ExpandedError> {
 
         for (category, quantity) in self.data.quantities() {
             let limits = rate_limiter
-                .try_consume(scoping.item(category), quantity)
+                .try_consume(&scoping.item(category), quantity)
                 .await;
 
             if !limits.is_empty() {
@@ -255,7 +255,7 @@ impl processing::RateLimited for Managed<ExpandedError> {
 
         for (category, quantity) in self.attachments.quantities() {
             let limits = rate_limiter
-                .try_consume(scoping.item(category), quantity)
+                .try_consume(&scoping.item(category), quantity)
                 .await;
 
             if !limits.is_empty() {
@@ -271,7 +271,7 @@ impl processing::RateLimited for Managed<ExpandedError> {
 
         for (category, quantity) in self.user_reports.quantities() {
             let limits = rate_limiter
-                .try_consume(scoping.item(category), quantity)
+                .try_consume(&scoping.item(category), quantity)
                 .await;
 
             if !limits.is_empty() {

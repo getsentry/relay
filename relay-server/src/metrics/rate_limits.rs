@@ -165,7 +165,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         metric_outcomes: &MetricOutcomes,
     ) -> bool {
         let active_rate_limits = rate_limits
-            .check_with_quotas(self.quotas.as_ref(), self.scoping.item(DataCategory::Span));
+            .check_with_quotas(self.quotas.as_ref(), &self.scoping.item(DataCategory::Span));
 
         // If a rate limit is active, discard relevant buckets.
         if let Some(limit) = active_rate_limits.longest() {

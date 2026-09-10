@@ -78,7 +78,7 @@ pub fn parse_rate_limits(scoping: &Scoping, string: &str) -> RateLimits {
             .collect();
 
         let quota_scope = QuotaScope::from_name(components.next().unwrap_or(""));
-        let scope = RateLimitScope::for_quota(*scoping, quota_scope);
+        let scope = RateLimitScope::for_quota(scoping, quota_scope);
 
         let reason_code = components
             .next()

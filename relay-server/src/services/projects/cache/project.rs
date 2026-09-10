@@ -87,7 +87,7 @@ impl<'a> Project<'a> {
 
         let envelope_limiter = EnvelopeLimiter::new(CheckLimits::NonIndexed, |item_scoping, _| {
             let current_limits = Arc::clone(&current_limits);
-            async move { Ok(current_limits.check_with_quotas(quotas, item_scoping)) }
+            async move { Ok(current_limits.check_with_quotas(quotas, &item_scoping)) }
         });
 
         let (enforcement, mut rate_limits) = envelope_limiter.compute(envelope, &scoping).await?;
@@ -100,7 +100,7 @@ impl<'a> Project<'a> {
         if envelope.items().any(|i| i.ty().is_metrics()) {
             let mut metrics_scoping = scoping.item(DataCategory::MetricBucket);
             metrics_scoping.namespace = MetricNamespaceScoping::Any;
-            rate_limits.merge(current_limits.check_with_quotas(quotas, metrics_scoping));
+            rate_limits.merge(current_limits.check_with_quotas(quotas, &metrics_scoping));
         }
 
         Ok(rate_limits)

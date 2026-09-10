@@ -103,7 +103,7 @@ pub trait RateLimiter {
     /// Rate limits must always apply the passed `scope`.
     ///
     /// If there are no (empty) rate limits returned, the item shall not be rate limited.
-    async fn try_consume(&mut self, scope: ItemScoping, quantity: usize) -> RateLimits;
+    async fn try_consume(&mut self, scope: &ItemScoping, quantity: usize) -> RateLimits;
 }
 
 /// An item which can be rate limited with a [`RateLimiter`].
@@ -132,7 +132,7 @@ impl<T> RateLimiter for Option<T>
 where
     T: RateLimiter,
 {
-    async fn try_consume(&mut self, scope: ItemScoping, quantity: usize) -> RateLimits {
+    async fn try_consume(&mut self, scope: &ItemScoping, quantity: usize) -> RateLimits {
         match self.as_mut() {
             Some(limiter) => limiter.try_consume(scope, quantity).await,
             None => RateLimits::default(),
@@ -168,7 +168,7 @@ where
 
         for (category, quantity) in self.quantities() {
             let limits = rate_limiter
-                .try_consume(scoping.item(category), quantity)
+                .try_consume(&scoping.item(category), quantity)
                 .await;
 
             if !limits.is_empty() {
@@ -188,7 +188,7 @@ struct CachedRateLimiter<'a> {
 }
 
 impl RateLimiter for CachedRateLimiter<'_> {
-    async fn try_consume(&mut self, scope: ItemScoping, _quantity: usize) -> RateLimits {
+    async fn try_consume(&mut self, scope: &ItemScoping, _quantity: usize) -> RateLimits {
         self.cached.check_with_quotas(self.quotas, scope)
     }
 }
@@ -208,7 +208,7 @@ mod redis {
     }
 
     impl RateLimiter for RedisRateLimiter<'_> {
-        async fn try_consume(&mut self, scope: ItemScoping, quantity: usize) -> RateLimits {
+        async fn try_consume(&mut self, scope: &ItemScoping, quantity: usize) -> RateLimits {
             let limits = self
                 .redis
                 .is_rate_limited(self.quotas, scope, quantity, false)
@@ -242,7 +242,7 @@ mod redis {
         T: RateLimiter,
         S: RateLimiter,
     {
-        async fn try_consume(&mut self, scope: ItemScoping, quantity: usize) -> RateLimits {
+        async fn try_consume(&mut self, scope: &ItemScoping, quantity: usize) -> RateLimits {
             let limits = self.0.try_consume(scope, quantity).await;
             if !limits.is_empty() {
                 return limits;

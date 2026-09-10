@@ -598,7 +598,7 @@ impl RateLimited for Managed<ExpandedSpans<TotalAndIndexed>> {
 
         // Always check span limits, all items depend on spans.
         let limits = rate_limiter
-            .try_consume(scoping.item(DataCategory::Span), span)
+            .try_consume(&scoping.item(DataCategory::Span), span)
             .await;
         if !limits.is_empty() {
             // If there is a span quota reject all the spans and the associated attachments.
@@ -606,7 +606,7 @@ impl RateLimited for Managed<ExpandedSpans<TotalAndIndexed>> {
         }
 
         let limits = rate_limiter
-            .try_consume(scoping.item(DataCategory::SpanIndexed), span)
+            .try_consume(&scoping.item(DataCategory::SpanIndexed), span)
             .await;
         if !limits.is_empty() {
             // If there is an indexed span quota reject all the spans and the associated attachments,
@@ -650,7 +650,7 @@ impl Managed<ExpandedSpans<TotalAndIndexed>> {
         T: processing::RateLimiter,
     {
         let limits = rate_limiter
-            .try_consume(scoping.item(category), quantity)
+            .try_consume(&scoping.item(category), quantity)
             .await;
 
         if !limits.is_empty() {

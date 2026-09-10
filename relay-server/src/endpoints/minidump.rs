@@ -523,12 +523,12 @@ async fn upload_context<'a>(
 
     let rate_limits = project.rate_limits().current_limits().check_with_quotas(
         project_config.get_quotas(),
-        scoping.item(DataCategory::Error),
+        &scoping.item(DataCategory::Error),
     );
 
     let attachment_rate_limits = project.rate_limits().current_limits().check_with_quotas(
         project_config.get_quotas(),
-        scoping.item(DataCategory::Attachment),
+        &scoping.item(DataCategory::Attachment),
     );
 
     let upload_minidumps = if !project_config.has_feature(Feature::MinidumpUploads) {
