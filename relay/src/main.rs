@@ -59,6 +59,7 @@
 //!  - [`relay-replays`]: Session replay protocol and processing.
 //!  - [`relay-sampling`]: Dynamic sampling functionality.
 //!  - [`relay-serialization`]: Bounded deserialization functionality.
+//!  - [`relay-serialization-derive`]: Derive macros for relay deserialization functionality.
 //!  - [`relay-server`]: Endpoints and services.
 //!  - [`relay-statsd`]: High-level StatsD metric client for internal measurements.
 //!  - [`relay-system`]: Foundational system components for Relay's services.
@@ -102,6 +103,7 @@
 //! [`relay-replays`]: ../relay_replays/index.html
 //! [`relay-sampling`]: ../relay_sampling/index.html
 //! [`relay-serialization`]: ../relay_serialization/index.html
+//! [`relay-serialization-derive`]: ../relay_serialization_derive/index.html
 //! [`relay-server`]: ../relay_server/index.html
 //! [`relay-statsd`]: ../relay_statsd/index.html
 //! [`relay-system`]: ../relay_system/index.html
