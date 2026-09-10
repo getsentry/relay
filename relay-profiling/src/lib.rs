@@ -33,7 +33,7 @@
 //! Each item type expects a different format.
 //!
 //! For `Profile` item type, we expect the Sample format v1 or Android format.
-//! For `ProfileChunk` item type, we expect the Sample format v2.
+//! For `ProfileChunk` item type, we expect the Sample format v2 or Android trace chunk format.
 //!
 //! # Ingestion
 //!

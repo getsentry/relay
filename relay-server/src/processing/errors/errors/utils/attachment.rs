@@ -1,12 +1,13 @@
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use relay_event_schema::protocol::{Breadcrumb, Event, Values};
 use relay_protocol::{Annotated, Array, Object};
 
 use crate::envelope::Item;
 use crate::services::processor::ProcessingError;
+use crate::utils::rmp;
 
 pub fn event_from_attachments(
-    config: &Config,
+    config: &ConfigSnapshot,
     event_item: Option<Item>,
     breadcrumbs_item1: Option<Item>,
     breadcrumbs_item2: Option<Item>,
@@ -58,7 +59,7 @@ pub fn event_from_attachments(
 }
 
 fn extract_attached_event(
-    config: &Config,
+    config: &ConfigSnapshot,
     item: Option<Item>,
 ) -> Result<Annotated<Event>, ProcessingError> {
     let item = match item {
@@ -77,12 +78,12 @@ fn extract_attached_event(
     }
 
     let payload = item.payload();
-    let deserializer = &mut rmp_serde::Deserializer::from_read_ref(payload.as_ref());
+    let deserializer = &mut rmp::slice_deserializer(payload.as_ref());
     Annotated::deserialize_with_meta(deserializer).map_err(ProcessingError::InvalidMsgpack)
 }
 
 fn parse_msgpack_breadcrumbs(
-    config: &Config,
+    config: &ConfigSnapshot,
     item: Option<Item>,
 ) -> Result<Array<Breadcrumb>, ProcessingError> {
     let mut breadcrumbs = Array::new();
@@ -104,7 +105,7 @@ fn parse_msgpack_breadcrumbs(
     }
 
     let payload = item.payload();
-    let mut deserializer = rmp_serde::Deserializer::new(payload.as_ref());
+    let mut deserializer = rmp::stream_deserializer(&payload);
 
     while !deserializer.get_ref().is_empty() {
         let breadcrumb = Annotated::deserialize_with_meta(&mut deserializer)?;
@@ -116,14 +117,18 @@ fn parse_msgpack_breadcrumbs(
 
 #[cfg(test)]
 mod tests {
-
     use std::collections::BTreeMap;
 
     use chrono::{DateTime, TimeZone, Utc};
+    use relay_config::Config;
 
     use crate::envelope::{ContentType, ItemType};
 
     use super::*;
+
+    fn config() -> ConfigSnapshot {
+        Config::default().current()
+    }
 
     fn create_breadcrumbs_item(breadcrumbs: &[(Option<DateTime<Utc>>, &str)]) -> Item {
         let mut data = Vec::new();
@@ -160,7 +165,7 @@ mod tests {
         let item = create_breadcrumbs_item(&[(None, "item1")]);
 
         // NOTE: using (Some, None) here:
-        let result = event_from_attachments(&Config::default(), None, Some(item), None);
+        let result = event_from_attachments(&config(), None, Some(item), None);
 
         let event = result.unwrap().0;
         let breadcrumbs = breadcrumbs_from_event(&event);
@@ -175,7 +180,7 @@ mod tests {
         let item = create_breadcrumbs_item(&[(None, "item2")]);
 
         // NOTE: using (None, Some) here:
-        let result = event_from_attachments(&Config::default(), None, None, Some(item));
+        let result = event_from_attachments(&config(), None, None, Some(item));
 
         let event = result.unwrap().0;
         let breadcrumbs = breadcrumbs_from_event(&event);
@@ -190,7 +195,7 @@ mod tests {
         let item1 = create_breadcrumbs_item(&[(None, "crumb1")]);
         let item2 = create_breadcrumbs_item(&[(None, "crumb2"), (None, "crumb3")]);
 
-        let result = event_from_attachments(&Config::default(), None, Some(item1), Some(item2));
+        let result = event_from_attachments(&config(), None, Some(item1), Some(item2));
 
         let event = result.unwrap().0;
         let breadcrumbs = breadcrumbs_from_event(&event);
@@ -205,7 +210,7 @@ mod tests {
         let item1 = create_breadcrumbs_item(&[(None, "none"), (Some(d1), "d1")]);
         let item2 = create_breadcrumbs_item(&[(Some(d2), "d2")]);
 
-        let result = event_from_attachments(&Config::default(), None, Some(item1), Some(item2));
+        let result = event_from_attachments(&config(), None, Some(item1), Some(item2));
 
         let event = result.unwrap().0;
         let breadcrumbs = breadcrumbs_from_event(&event);
@@ -223,7 +228,7 @@ mod tests {
         let item1 = create_breadcrumbs_item(&[(Some(d2), "d2")]);
         let item2 = create_breadcrumbs_item(&[(None, "none"), (Some(d1), "d1")]);
 
-        let result = event_from_attachments(&Config::default(), None, Some(item1), Some(item2));
+        let result = event_from_attachments(&config(), None, Some(item1), Some(item2));
 
         let event = result.unwrap().0;
         let breadcrumbs = breadcrumbs_from_event(&event);
@@ -239,10 +244,37 @@ mod tests {
         let item2 = create_breadcrumbs_item(&[]);
         let item3 = create_breadcrumbs_item(&[]);
 
-        let result =
-            event_from_attachments(&Config::default(), Some(item1), Some(item2), Some(item3));
+        let result = event_from_attachments(&config(), Some(item1), Some(item2), Some(item3));
 
         // regression test to ensure we don't fail parsing an empty file
         result.expect("event_from_attachments");
+    }
+
+    fn deeply_nested_msgpack_event(depth: usize) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(depth + 8);
+        buf.push(0x81); // fixmap with 1 entry
+        buf.push(0xa1); // fixstr of length 1
+        buf.push(b'a'); //   the key "a"
+        buf.resize(buf.len() + depth, 0x91); // `depth` fixarrays of length 1 (one level each)
+        buf.push(0x90); // innermost: fixarray of length 0
+        buf
+    }
+
+    /// Reject event encoded as msgpack if it is too deeply nested.
+    #[test]
+    fn test_msgpack_deep_nesting_is_rejected() {
+        // ~200 KB payload, comfortably under the 1 MiB max_event_size, but 200k levels deep.
+        let payload = deeply_nested_msgpack_event(200_000);
+        assert!(payload.len() < config().max_event_size());
+
+        let mut item = Item::new(ItemType::Attachment);
+        item.set_payload(ContentType::MsgPack, payload);
+
+        let result = extract_attached_event(&config(), Some(item));
+
+        assert!(
+            matches!(result, Err(ProcessingError::InvalidMsgpack(_))),
+            "expected the deeply nested payload to be rejected, got: {result:?}"
+        );
     }
 }

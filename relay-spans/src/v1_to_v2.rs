@@ -857,18 +857,18 @@ mod tests {
         let span_v1 = SpanV1::from(&txn);
 
         // Both the name and the segment name are the same as the transaction.
-        insta::assert_json_snapshot!(SerializableAnnotated(&Annotated::new(span_v1.clone())), @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&Annotated::new(span_v1.clone())), @r#"
         {
           "is_segment": true,
           "is_remote": true,
           "description": "hi",
           "data": {
-            "sentry.segment.name": "hi",
-            "sentry.name": "hi"
+            "sentry.name": "hi",
+            "sentry.segment.name": "hi"
           },
           "was_transaction": true
         }
-        "###);
+        "#);
 
         let span_v2 = span_v1_to_span_v2(span_v1, false);
 

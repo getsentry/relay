@@ -35,6 +35,13 @@ def test_graceful_shutdown(mini_sentry, relay, storage):
             },
         )
 
+        # Send an event and wait for it--to make sure that things are stood up on the Relay side,
+        # like the EnvelopeProcessingBuffer.
+        relay.send_event(project_id)
+        event = mini_sentry.get_captured_envelope().get_event()
+        assert event["logentry"] == {"formatted": "Hello, World!"}
+
+        # At this point, we're ready to send an incomplete request.
         host, port = relay.server_address
         dsn_key = relay.get_dsn_public_key(project_id)
 

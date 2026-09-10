@@ -177,7 +177,7 @@ mod tests {
 
     use super::*;
 
-    use relay_event_schema::protocol::{Event, LenientString};
+    use relay_event_schema::protocol::{Event, LenientString, SessionAggregates, SessionUpdate};
     use relay_protocol::{Annotated, FromValue as _};
 
     fn mock_filters() -> GenericFiltersMap {
@@ -827,5 +827,101 @@ mod tests {
                 expected
             );
         }
+    }
+
+    /// The catch-all release filter Sentry emits: an `or` over the release path of every data type.
+    fn catch_all_release_filter(release: &str) -> GenericFiltersConfig {
+        let condition = RuleCondition::glob("event.release", release)
+            .or(RuleCondition::glob(
+                "log.attributes.sentry.release.value",
+                release,
+            ))
+            .or(RuleCondition::glob(
+                "trace_metric.attributes.sentry.release.value",
+                release,
+            ));
+
+        GenericFiltersConfig {
+            version: 1,
+            filters: vec![GenericFilterConfig {
+                id: "catchAllRelease".to_owned(),
+                is_enabled: true,
+                condition: Some(condition),
+            }]
+            .into(),
+        }
+    }
+
+    fn session_update(release: &str) -> SessionUpdate {
+        SessionUpdate::parse(
+            format!(
+                r#"{{"started": "2020-02-07T14:16:00Z", "attrs": {{"release": "{release}"}}}}"#
+            )
+            .as_bytes(),
+        )
+        .unwrap()
+    }
+
+    fn session_aggregates(release: &str) -> SessionAggregates {
+        SessionAggregates::parse(
+            format!(
+                r#"{{"aggregates": [{{"started": "2020-02-07T14:16:00Z", "exited": 2}}], "attrs": {{"release": "{release}"}}}}"#
+            )
+            .as_bytes(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn test_should_filter_session_by_release() {
+        let config = catch_all_release_filter("1.0.0");
+
+        assert_eq!(
+            should_filter(&session_update("1.0.0"), &config, None),
+            Err(FilterStatKey::GenericFilter("catchAllRelease".to_owned()))
+        );
+        assert_eq!(
+            should_filter(&session_aggregates("1.0.0"), &config, None),
+            Err(FilterStatKey::GenericFilter("catchAllRelease".to_owned()))
+        );
+
+        assert_eq!(
+            should_filter(&session_update("2.0.0"), &config, None),
+            Ok(())
+        );
+        assert_eq!(
+            should_filter(&session_aggregates("2.0.0"), &config, None),
+            Ok(())
+        );
+    }
+
+    /// A filter that only lists other data types' release paths must never match a session.
+    #[test]
+    fn test_should_not_filter_session_by_foreign_release_path() {
+        let config = GenericFiltersConfig {
+            version: 1,
+            filters: vec![GenericFilterConfig {
+                id: "otherTypesOnly".to_owned(),
+                is_enabled: true,
+                condition: Some(
+                    RuleCondition::glob("log.attributes.sentry.release.value", "1.0.0").or(
+                        RuleCondition::glob(
+                            "trace_metric.attributes.sentry.release.value",
+                            "1.0.0",
+                        ),
+                    ),
+                ),
+            }]
+            .into(),
+        };
+
+        assert_eq!(
+            should_filter(&session_update("1.0.0"), &config, None),
+            Ok(())
+        );
+        assert_eq!(
+            should_filter(&session_aggregates("1.0.0"), &config, None),
+            Ok(())
+        );
     }
 }

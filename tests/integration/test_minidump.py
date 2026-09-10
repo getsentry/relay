@@ -13,9 +13,10 @@ from uuid import UUID
 from urllib3.filepost import encode_multipart_formdata
 
 from sentry_relay.consts import DataCategory
+from .consts import DUMMY_UPLOAD_LOCATION
 from .asserts import matches_any, time_within_delta
 from .test_attachment_ref import upload_and_make_ref
-from .consts import DUMMY_UPLOAD_LOCATION
+from .consts import Outcome
 
 MINIDUMP_ATTACHMENT_NAME = "upload_file_minidump"
 EVENT_ATTACHMENT_NAME = "__sentry-event"
@@ -74,8 +75,9 @@ def test_minidump(mini_sentry, relay):
 
 def test_minidump_attachments(mini_sentry, relay):
     project_id = 42
-    relay = relay(mini_sentry)
     mini_sentry.add_full_project_config(project_id)
+    mini_sentry.global_config["options"]["relay.attachment-inline.limit"] = 1024 * 1024
+    relay = relay(mini_sentry)
 
     event = {"event_id": "2dd132e467174db48dbaddabd3cbed57", "user": {"id": "123"}}
     breadcrumbs1 = {
@@ -99,9 +101,15 @@ def test_minidump_attachments(mini_sentry, relay):
         ("attachment1", "attach1.txt", "attachment content"),
     ]
 
-    relay.send_minidump(project_id=project_id, files=attachments)
+    relay.send_minidump(
+        project_id=project_id,
+        files=attachments,
+        params=[("guid", "dd46bb04-bb27-448c-aad0-0deb0c134bdb")],
+    )
     envelope = mini_sentry.get_captured_envelope()
     assert envelope
+
+    assert all(item.headers.get("type") != "form_data" for item in envelope.items)
 
     # Check that the envelope assumes the given event id
     assert envelope.headers.get("event_id") == "2dd132e467174db48dbaddabd3cbed57"
@@ -301,9 +309,9 @@ def test_minidump_invalid_magic(mini_sentry, relay_with_processing, outcomes_con
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "invalid_minidump",
-            "category": DataCategory.ERROR.value,
+            "category": DataCategory.ERROR,
             "quantity": 1,
         },
         {
@@ -311,9 +319,9 @@ def test_minidump_invalid_magic(mini_sentry, relay_with_processing, outcomes_con
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "invalid_minidump",
-            "category": DataCategory.ATTACHMENT.value,
+            "category": DataCategory.ATTACHMENT,
             "quantity": len(content),
         },
         {
@@ -321,9 +329,9 @@ def test_minidump_invalid_magic(mini_sentry, relay_with_processing, outcomes_con
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "invalid_minidump",
-            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "quantity": 1,
         },
     ]
@@ -349,9 +357,9 @@ def test_minidump_invalid_field(mini_sentry, relay_with_processing, outcomes_con
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "missing_minidump_upload",
-            "category": DataCategory.ERROR.value,
+            "category": DataCategory.ERROR,
             "quantity": 1,
         },
         {
@@ -359,9 +367,9 @@ def test_minidump_invalid_field(mini_sentry, relay_with_processing, outcomes_con
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "missing_minidump_upload",
-            "category": DataCategory.ATTACHMENT.value,
+            "category": DataCategory.ATTACHMENT,
             "quantity": len(content),
         },
         {
@@ -369,9 +377,9 @@ def test_minidump_invalid_field(mini_sentry, relay_with_processing, outcomes_con
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "missing_minidump_upload",
-            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "quantity": 1,
         },
     ]
@@ -399,9 +407,9 @@ def test_minidump_invalid_compression_outcome(
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "invalid_compression",
-            "category": DataCategory.ERROR.value,
+            "category": DataCategory.ERROR,
             "quantity": 1,
         },
         {
@@ -409,9 +417,9 @@ def test_minidump_invalid_compression_outcome(
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "invalid_compression",
-            "category": DataCategory.ATTACHMENT.value,
+            "category": DataCategory.ATTACHMENT,
             "quantity": len(content),
         },
         {
@@ -419,9 +427,9 @@ def test_minidump_invalid_compression_outcome(
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "invalid_compression",
-            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "quantity": 1,
         },
     ]
@@ -648,19 +656,19 @@ def test_minidump_with_processing(
     if rate_limit == "attachment":
         assert outcomes_consumer.get_aggregated_outcomes(n=2) == [
             {
-                "category": DataCategory.ATTACHMENT.value,
+                "category": DataCategory.ATTACHMENT,
                 "key_id": 123,
                 "org_id": 1,
-                "outcome": 2,
+                "outcome": Outcome.RATE_LIMITED,
                 "project_id": 42,
                 "quantity": len(content),
                 "reason": "static_disabled_quota",
             },
             {
-                "category": DataCategory.ATTACHMENT_ITEM.value,
+                "category": DataCategory.ATTACHMENT_ITEM,
                 "key_id": 123,
                 "org_id": 1,
-                "outcome": 2,
+                "outcome": Outcome.RATE_LIMITED,
                 "project_id": 42,
                 "quantity": 1,
                 "reason": "static_disabled_quota",
@@ -713,9 +721,8 @@ def test_minidump_with_processing_invalid(
     ]
 
 
-@pytest.mark.parametrize("feature_flag", [False, True])
 def test_minidump_with_event_exception(
-    mini_sentry, relay_with_processing, attachments_consumer, feature_flag
+    mini_sentry, relay_with_processing, attachments_consumer
 ):
     """
     An envelope can carry both a minidump attachment and an event item that already
@@ -731,8 +738,6 @@ def test_minidump_with_event_exception(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     config = project_config["config"]
-    if feature_flag:
-        config.setdefault("features", []).append("projects:minidump-multi-exception")
 
     # Disable scrubbing, the basic and full project configs from the mini_sentry fixture
     # will modify the minidump since it contains user paths in the module list.
@@ -790,12 +795,9 @@ def test_minidump_with_event_exception(
     assert minidump_exception["mechanism"]["type"] == "minidump"
 
     # The user-provided exception with its stack trace must be preserved.
-    if feature_flag:
-        (user_exception,) = additional_exceptions
-        assert user_exception["value"] == "division by zero"
-        assert user_exception["stacktrace"]["frames"][0]["function"] == "divide"
-    else:
-        assert not additional_exceptions
+    (user_exception,) = additional_exceptions
+    assert user_exception["value"] == "division by zero"
+    assert user_exception["stacktrace"]["frames"][0]["function"] == "divide"
 
     # The minidump must still be forwarded as an attachment.
     assert any(att["name"] == "minidump.dmp" for att in message["attachments"])
@@ -1053,21 +1055,19 @@ def test_size_limits(mini_sentry, relay, limit, expected_status_code):
 
 
 @pytest.mark.parametrize(
-    "config_fetch,upload_attachments,upload_minidump",
+    "config_fetch,upload_minidump",
     [
-        (False, True, True),  # if the option is not set we don't check the features
-        (True, True, False),
-        (True, False, True),
-        (True, True, True),
+        (False, True),  # if the option is not set we don't check the features
+        (True, False),
+        (True, True),
     ],
-    ids=["no-option", "stream-attachments", "stream-minidumps", "stream-all"],
+    ids=["no-option", "no-minidumps", "stream-minidumps"],
 )
 def test_minidump_objectstore_uploads(
     mini_sentry,
     relay,
     dummy_upload,
     config_fetch,
-    upload_attachments,
     upload_minidump,
 ):
     project_id = 42
@@ -1075,10 +1075,6 @@ def test_minidump_objectstore_uploads(
     log_content = b"\x1f\x8b Some log file content"
 
     project_config = mini_sentry.add_full_project_config(project_id)
-    if upload_attachments:
-        project_config["config"].setdefault("features", []).append(
-            "projects:relay-minidump-attachment-uploads"
-        )
     if upload_minidump:
         project_config["config"].setdefault("features", []).append(
             "projects:relay-minidump-uploads"
@@ -1123,7 +1119,7 @@ def test_minidump_objectstore_uploads(
     minidump = by_name["minidump.dmp"]
     logs = by_name["log.txt"]
 
-    if config_fetch and upload_attachments:
+    if config_fetch:
         assert (
             logs.headers["content_type"] == "application/vnd.sentry.attachment-ref+json"
         )
@@ -1178,11 +1174,6 @@ def test_minidump_objectstore_uploads_external_chain(
     log_content = b"Some log file content"
 
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"].setdefault("features", []).extend(
-        [
-            "projects:relay-minidump-attachment-uploads",
-        ]
-    )
 
     relay = relay(relay_with_processing(), external=True)
     project_config["config"]["trustedRelays"] = list(relay.iter_public_keys())
@@ -1219,7 +1210,6 @@ def test_minidump_objectstore_uploads_external_chain_attachment_limited(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"].setdefault("features", []).extend(
         [
-            "projects:relay-minidump-attachment-uploads",
             "projects:relay-minidump-uploads",
         ]
     )
@@ -1270,10 +1260,7 @@ def test_minidump_objectstore_errors(
     minidump_content = b"MDMP content"
     log_content = b"Some log file content"
 
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"].setdefault("features", []).append(
-        "projects:relay-minidump-attachment-uploads"
-    )
+    mini_sentry.add_full_project_config(project_id)
 
     @mini_sentry.app.route("/api/<project>/upload/", methods=["POST"])
     def create(**opts):
@@ -1306,14 +1293,14 @@ def test_minidump_objectstore_errors(
     assert mini_sentry.get_aggregated_outcomes() == [
         {
             "category": DataCategory.ATTACHMENT,
-            "outcome": 3,  # invalid
-            "reason": "internal",
+            "outcome": Outcome.INVALID,
+            "reason": "upload_failed",
             "quantity": 1,
         },
         {
             "category": DataCategory.ATTACHMENT_ITEM,
-            "outcome": 3,  # invalid
-            "reason": "internal",
+            "outcome": Outcome.INVALID,
+            "reason": "upload_failed",
             "quantity": 1,
         },
     ]
@@ -1371,7 +1358,6 @@ def test_minidump_objectstore_uploads_rate_limits(
     project_config["config"].setdefault("features", []).extend(
         [
             "projects:relay-minidump-uploads",
-            "projects:relay-minidump-attachment-uploads",
         ]
     )
     if rate_limited:
@@ -1435,8 +1421,8 @@ def test_minidump_objectstore_uploads_rate_limits(
         # Attachments are not accounted for since we never read them and hence know nothing about them.
         expected_outcomes.append(
             {
-                "category": DataCategory.ERROR.value,
-                "outcome": 2,
+                "category": DataCategory.ERROR,
+                "outcome": Outcome.RATE_LIMITED,
                 "reason": "test_endpoint_check",
                 "quantity": 1,
             }
@@ -1447,14 +1433,14 @@ def test_minidump_objectstore_uploads_rate_limits(
         expected_outcomes.extend(
             [
                 {
-                    "category": 4,
-                    "outcome": 2,
+                    "category": DataCategory.ATTACHMENT,
+                    "outcome": Outcome.RATE_LIMITED,
                     "quantity": 13,
                     "reason": "test_endpoint_check",
                 },
                 {
-                    "category": 22,
-                    "outcome": 2,
+                    "category": DataCategory.ATTACHMENT_ITEM,
+                    "outcome": Outcome.RATE_LIMITED,
                     "quantity": 2,
                     "reason": "test_endpoint_check",
                 },
@@ -1541,9 +1527,9 @@ def test_minidump_max_attachment_size_exceeded(
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "invalid_multipart",
-            "category": DataCategory.ERROR.value,
+            "category": DataCategory.ERROR,
             "quantity": 1,
         },
         {
@@ -1551,9 +1537,9 @@ def test_minidump_max_attachment_size_exceeded(
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "too_large:attachment:minidump",
-            "category": DataCategory.ATTACHMENT.value,
+            "category": DataCategory.ATTACHMENT,
             "quantity": len(minidump_content) + len(attachment_content),
         },
         {
@@ -1561,9 +1547,9 @@ def test_minidump_max_attachment_size_exceeded(
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "reason": "too_large:attachment:minidump",
-            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "quantity": 2,
         },
     ]
@@ -1610,14 +1596,14 @@ def test_minidump_large_attachment_skipped_when_no_project_fetching(mini_sentry,
 
     assert outcomes == [
         {
-            "category": 4,
-            "outcome": 3,
+            "category": DataCategory.ATTACHMENT,
+            "outcome": Outcome.INVALID,
             "quantity": 1500,
             "reason": "too_large:attachment:attachment",
         },
         {
-            "category": 22,
-            "outcome": 3,
+            "category": DataCategory.ATTACHMENT_ITEM,
+            "outcome": Outcome.INVALID,
             "quantity": 1,
             "reason": "too_large:attachment:attachment",
         },
@@ -1665,20 +1651,20 @@ def test_minidump_upload_failure_bubbles_up(mini_sentry, relay):
     assert mini_sentry.get_aggregated_outcomes() == [
         {
             "category": DataCategory.ERROR,
-            "outcome": 3,  # invalid
+            "outcome": Outcome.INVALID,
             "reason": "upload_failed",
             "quantity": 1,
         },
         {
             "category": DataCategory.ATTACHMENT,
-            "outcome": 3,  # invalid
-            "reason": "internal",
+            "outcome": Outcome.INVALID,
+            "reason": "upload_failed",
             "quantity": 1,
         },
         {
             "category": DataCategory.ATTACHMENT_ITEM,
-            "outcome": 3,  # invalid
-            "reason": "internal",
+            "outcome": Outcome.INVALID,
+            "reason": "upload_failed",
             "quantity": 1,
         },
     ]
@@ -1727,10 +1713,7 @@ def test_minidump_proxy_mode(mini_sentry, relay):
 
 def test_minidump_attachment_inline_limit(mini_sentry, relay, dummy_upload):
     project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"].setdefault("features", []).append(
-        "projects:relay-minidump-attachment-uploads"
-    )
+    mini_sentry.add_full_project_config(project_id)
     mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = True
     mini_sentry.global_config["options"]["relay.attachment-inline.limit"] = 16
     relay = relay(mini_sentry)
@@ -1809,3 +1792,82 @@ def test_minidump_raw_inline_limit(mini_sentry, relay, dummy_upload):
         "location": DUMMY_UPLOAD_LOCATION,
         "content_type": "application/x-dmp",
     }
+
+
+def test_minidump_upload_exceeds_max_upload_size(mini_sentry, relay, dummy_upload):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).append(
+        "projects:relay-minidump-uploads"
+    )
+    mini_sentry.global_config["options"]["relay.endpoint-fetch-config.enabled"] = True
+
+    relay = relay(
+        mini_sentry,
+        options={
+            "limits": {"max_upload_size": 100},
+            "outcomes": {
+                "emit_outcomes": True,
+                "batch_size": 1,
+                "batch_interval": 1,
+            },
+        },
+    )
+
+    response = relay.send_minidump(
+        project_id=project_id,
+        files=[
+            (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", b"MDMP" + b"X" * 100),
+        ],
+        raise_for_status=False,
+    )
+
+    assert response.status_code == 413
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "category": DataCategory.ERROR,
+            "outcome": Outcome.INVALID,
+            "reason": "too_large:attachment:minidump",
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.ATTACHMENT,
+            "outcome": Outcome.INVALID,
+            "reason": "too_large:attachment:minidump",
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.ATTACHMENT_ITEM,
+            "outcome": Outcome.INVALID,
+            "reason": "too_large:attachment:minidump",
+            "quantity": 1,
+        },
+    ]
+
+
+def test_minidump_raw_size_limit(mini_sentry, relay):
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay(mini_sentry, {"limits": {"max_attachment_size": 10}})
+
+    url = "/api/{}/minidump?sentry_key={}".format(
+        project_id, mini_sentry.get_dsn_public_key(project_id)
+    )
+
+    response = relay.request(
+        "post",
+        url,
+        headers={"Content-Type": "application/x-dmp"},
+        data=b"MDMP" + b"X" * 6,
+    )
+    assert response.status_code == 200, response.text
+    assert mini_sentry.get_captured_envelope()
+
+    response = relay.request(
+        "post",
+        url,
+        headers={"Content-Type": "application/x-dmp"},
+        data=b"MDMP" + b"X" * 7,
+    )
+    assert response.status_code == 413, response.text
+    assert mini_sentry.captured_envelopes.empty()

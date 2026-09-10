@@ -91,7 +91,7 @@ impl GaugeMetric for RelayGauges {
             Self::AsyncPoolUtilization => "async_pool.utilization",
             Self::AsyncPoolActivity => "async_pool.activity",
             Self::NetworkOutage => "upstream.network_outage",
-            Self::BufferEnvelopesCount => "buffer.envelopes_count",
+            Self::BufferEnvelopesCount => "buffer.envelopes_count.gauge",
             Self::BufferStackCount => "buffer.stack_count",
             Self::BufferDiskUsed => "buffer.disk_used",
             Self::SystemMemoryUsed => "health.system_memory.used",
@@ -698,6 +698,8 @@ impl TimerMetric for RelayTimers {
 
 /// Counter metrics used by Relay
 pub enum RelayCounters {
+    /// Amount of times the configuration was reloaded.
+    ConfigReload,
     /// Tracks the number of tasks driven to completion by the async pool.
     ///
     /// This metric is tagged with:
@@ -747,6 +749,12 @@ pub enum RelayCounters {
     ///  - `sdk`: The name of the Sentry SDK sending the envelope. This tag is only set for
     ///    Sentry's SDKs and defaults to "proprietary".
     EnvelopeItemBytes,
+    /// Number of envelopes rejected because of size limits.
+    ///
+    /// This metric is tagged with:
+    ///  - `item`: The type of the items being counted.
+    ///  - `limit`: Which limit was breached.
+    EnvelopeSizeLimited,
     /// Number of times an envelope from the buffer is trying to be popped.
     BufferTryPop,
     /// Number of envelopes spool to disk.
@@ -846,7 +854,7 @@ pub enum RelayCounters {
     ///  - `user_report`: A message from the user feedback dialog, sent to `ingest-events`.
     ///  - `session`: A release health session update, sent to `ingest-sessions`.
     #[cfg(feature = "processing")]
-    ProcessingMessageProduced,
+    ProcessingMessageEnqueued,
     /// Number of spans produced in the new format.
     #[cfg(feature = "processing")]
     SpanV2Produced,
@@ -1009,26 +1017,42 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     /// - `expansion`: What expansion was used to expand the error (e.g. unreal).
     ErrorProcessed,
-    /// The number of times the new unreal expansion logic in the endpoint is hit.
-    UnrealEndpointExpansion,
-    /// The number of times that relay receives a compressed minidump.
-    CompressedMinidump,
     /// The number of times a trace metric has a nil trace ID.
     ///
     /// This metric is tagged with:
     /// - `sdk`: low-cardinality client name
     TraceMetricNilTraceId,
+    /// Amount of standalone attachments processed.
+    ///
+    /// This metric is tagged with:
+    /// - `sdk`: low-cardinality client name
+    /// - `has_event_id`: whether the envelope contained an event ID
+    StandaloneAttachment,
+    /// Amount of user reports processed.
+    ///
+    /// This metric is tagged with:
+    /// - `sdk`: low-cardinality client name
+    /// - `has_event_id`: whether the envelope contained an event ID
+    UserReport,
+    /// Amount of replays processed.
+    ///
+    /// This metric is tagged with:
+    /// - `sdk`: low-cardinality client name
+    /// - `has_event_id`: whether the envelope contained an event ID
+    Replay,
 }
 
 impl CounterMetric for RelayCounters {
     fn name(&self) -> &'static str {
         match self {
+            RelayCounters::ConfigReload => "config.reload",
             RelayCounters::AsyncPoolFinishedTasks => "async_pool.finished_tasks",
             RelayCounters::EventCorrupted => "event.corrupted",
             RelayCounters::EnvelopeAccepted => "event.accepted",
             RelayCounters::EnvelopeRejected => "event.rejected",
             RelayCounters::EnvelopeItems => "event.items",
             RelayCounters::EnvelopeItemBytes => "event.item_bytes",
+            RelayCounters::EnvelopeSizeLimited => "envelope.rejected.size",
             RelayCounters::BufferTryPop => "buffer.try_pop",
             RelayCounters::BufferSpooledEnvelopes => "buffer.spooled_envelopes",
             RelayCounters::BufferUnspooledEnvelopes => "buffer.unspooled_envelopes",
@@ -1045,7 +1069,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProjectCacheSchedule => "project_cache.schedule",
             RelayCounters::ServerStarting => "server.starting",
             #[cfg(feature = "processing")]
-            RelayCounters::ProcessingMessageProduced => "processing.event.produced",
+            RelayCounters::ProcessingMessageEnqueued => "processing.event.enqueued",
             #[cfg(feature = "processing")]
             RelayCounters::SpanV2Produced => "store.produced.span_v2",
             RelayCounters::EventProtocol => "event.protocol",
@@ -1081,9 +1105,10 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EnvelopeWithLogs => "logs.envelope",
             RelayCounters::ProfileChunksWithoutPlatform => "profile_chunk.no_platform",
             RelayCounters::ErrorProcessed => "event.error.processed",
-            RelayCounters::UnrealEndpointExpansion => "unreal.endpoint_expansion",
-            RelayCounters::CompressedMinidump => "minidump.compressed.count",
             RelayCounters::TraceMetricNilTraceId => "trace_metric.nil_trace_id",
+            RelayCounters::StandaloneAttachment => "processing.standalone_attachment",
+            RelayCounters::UserReport => "processing.user_report",
+            RelayCounters::Replay => "processing.replay",
         }
     }
 }

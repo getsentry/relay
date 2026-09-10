@@ -532,8 +532,8 @@ pub struct Bucket {
     ///
     /// # Statsd Format
     ///
-    /// MRIs are sent in a more relaxed format: `[<namespace/]name[@unit]`. The value type is not
-    /// part of the metric name and namespaces are optional.
+    /// MRIs are sent in a more relaxed format: `<namespace>/<name>[@unit]`. The value type is not
+    /// part of the metric name.
     ///
     /// Namespaces and units must consist of ASCII characters and match the regular expression
     /// `/\w+/`. The name component of MRIs consist of unicode characters and must match the
@@ -546,9 +546,8 @@ pub struct Bucket {
     /// # Examples
     ///
     /// ```text
-    /// endpoint.hits:1|c
-    /// custom/endpoint.hits:1|c
-    /// custom/endpoint.duration@millisecond:21.5|d
+    /// transactions/endpoint.hits:1|c
+    /// transactions/endpoint.duration@millisecond:21.5|d
     /// ```
     pub name: MetricName,
 
@@ -671,7 +670,7 @@ impl Bucket {
     /// ```
     /// use relay_metrics::{Bucket, UnixTimestamp};
     ///
-    /// let bucket = Bucket::parse(b"response_time@millisecond:57|d", UnixTimestamp::now())
+    /// let bucket = Bucket::parse(b"transactions/response_time@millisecond:57|d", UnixTimestamp::now())
     ///     .expect("metric should parse");
     /// ```
     pub fn parse(slice: &[u8], timestamp: UnixTimestamp) -> Result<Self, ParseMetricError> {
@@ -694,8 +693,8 @@ impl Bucket {
     /// use relay_metrics::{Bucket, UnixTimestamp};
     ///
     /// let data = br#"
-    /// endpoint.response_time@millisecond:57|d
-    /// endpoint.hits:1|c
+    /// transactions/endpoint.response_time@millisecond:57|d
+    /// transactions/endpoint.hits:1|c
     /// "#;
     ///
     /// for metric_result in Bucket::parse_all(data, UnixTimestamp::now()) {
@@ -1111,28 +1110,11 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_implicit_namespace() {
+    fn test_parse_missing_namespace() {
         let s = "foo:42|c";
         let timestamp = UnixTimestamp::from_secs(4711);
-        let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-        insta::assert_debug_snapshot!(metric, @r###"
-        Bucket {
-            timestamp: UnixTimestamp(4711),
-            width: 0,
-            name: MetricName(
-                "c:custom/foo@none",
-            ),
-            value: Counter(
-                42.0,
-            ),
-            tags: {},
-            metadata: BucketMetadata {
-                merges: 1,
-                received_at: None,
-                extracted_from_indexed: false,
-            },
-        }
-        "###);
+        let metric = Bucket::parse(s.as_bytes(), timestamp);
+        assert!(metric.is_err());
     }
 
     #[test]
@@ -1196,10 +1178,10 @@ mod tests {
 
     #[test]
     fn test_parse_invalid_name() {
-        let s = "foo#bar:42|c";
+        let s = "transactions/foo#bar:42|c";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-        assert_eq!(metric.name.as_ref(), "c:custom/foo_bar@none");
+        assert_eq!(metric.name.as_ref(), "c:transactions/foo_bar@none");
     }
 
     #[test]
@@ -1220,7 +1202,7 @@ mod tests {
 
     #[test]
     fn test_parse_all() {
-        let s = "transactions/foo:42|c\nbar:17|c";
+        let s = "transactions/foo:42|c\nspans/bar:17|c";
         let timestamp = UnixTimestamp::from_secs(4711);
 
         let metrics: Vec<Bucket> = Bucket::parse_all(s.as_bytes(), timestamp)
@@ -1232,7 +1214,7 @@ mod tests {
 
     #[test]
     fn test_parse_all_crlf() {
-        let s = "transactions/foo:42|c\r\nbar:17|c";
+        let s = "transactions/foo:42|c\r\nspans/bar:17|c";
         let timestamp = UnixTimestamp::from_secs(4711);
 
         let metrics: Vec<Bucket> = Bucket::parse_all(s.as_bytes(), timestamp)
@@ -1244,7 +1226,7 @@ mod tests {
 
     #[test]
     fn test_parse_all_empty_lines() {
-        let s = "transactions/foo:42|c\n\n\nbar:17|c";
+        let s = "transactions/foo:42|c\n\n\nspans/bar:17|c";
         let timestamp = UnixTimestamp::from_secs(4711);
 
         let metric_count = Bucket::parse_all(s.as_bytes(), timestamp).count();
@@ -1253,7 +1235,7 @@ mod tests {
 
     #[test]
     fn test_parse_all_trailing() {
-        let s = "transactions/foo:42|c\nbar:17|c\n";
+        let s = "transactions/foo:42|c\nspans/bar:17|c\n";
         let timestamp = UnixTimestamp::from_secs(4711);
 
         let metric_count = Bucket::parse_all(s.as_bytes(), timestamp).count();

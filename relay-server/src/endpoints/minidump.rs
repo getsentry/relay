@@ -1,14 +1,10 @@
-use axum::RequestExt;
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
-use bzip2::read::BzDecoder;
-use flate2::read::GzDecoder;
 use futures::{self, Stream, StreamExt, TryStreamExt};
-use liblzma::read::XzDecoder;
 use multer::{Field, Multipart};
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::EventId;
 use relay_quotas::{DataCategory, RateLimits};
@@ -16,12 +12,9 @@ use relay_system::Addr;
 use smallvec::smallvec;
 use std::convert::Infallible;
 use std::error::Error;
-use std::io::Cursor;
-use std::io::Read;
 use tokio::io::BufReader;
 use tokio_util::io::{ReaderStream, StreamReader};
 use tower_http::limit::RequestBodyLimitLayer;
-use zstd::stream::Decoder as ZstdDecoder;
 
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse, upload_stream};
@@ -33,9 +26,9 @@ use crate::service::ServiceState;
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome};
 use crate::services::projects::project::ProjectState;
 use crate::services::upload::{ByteStream, ProjectContext, Upload};
-use crate::statsd::RelayCounters;
 use crate::utils::{
-    self, AttachmentStrategy, SizeSplit, read_bytes_into_item, read_field_into_item,
+    self, AttachmentStrategy, SizeSplit, find_error_source, is_length_limit_error, peek_n,
+    read_bytes_into_item, read_field_into_item,
 };
 
 /// The field name of a minidump in the multipart form-data upload.
@@ -57,6 +50,7 @@ const MINIDUMP_FILE_NAME: &str = "Minidump";
 /// Minidump attachments should have these magic bytes, little- and big-endian.
 const MINIDUMP_MAGIC_HEADER_LE: &[u8] = b"MDMP";
 const MINIDUMP_MAGIC_HEADER_BE: &[u8] = b"PMDM";
+const MINIDUMP_MAGIC_HEADER_LENGTH: usize = MINIDUMP_MAGIC_HEADER_LE.len();
 
 /// Magic bytes for gzip compressed minidump containers.
 const GZIP_MAGIC_HEADER: &[u8] = b"\x1F\x8B";
@@ -100,6 +94,23 @@ where
     Ok(decoded)
 }
 
+async fn decode_and_validate_stream<S, E>(stream: S) -> Result<ByteStream, BadStoreRequest>
+where
+    S: Stream<Item = Result<Bytes, E>> + Send + 'static,
+    E: Into<Box<dyn Error + Send + Sync>> + Send + 'static,
+{
+    let stream = decode_stream(stream)
+        .await
+        .map_err(|_| BadStoreRequest::InvalidMinidump)?;
+
+    let (head, stream) = peek_n(stream, MINIDUMP_MAGIC_HEADER_LENGTH)
+        .await
+        .map_err(|_| BadStoreRequest::InvalidMinidump)?;
+
+    validate_minidump(&head)?;
+    Ok(stream.boxed())
+}
+
 fn validate_minidump(data: &[u8]) -> Result<(), BadStoreRequest> {
     if !data.starts_with(MINIDUMP_MAGIC_HEADER_LE) && !data.starts_with(MINIDUMP_MAGIC_HEADER_BE) {
         relay_log::trace!("invalid minidump file");
@@ -107,16 +118,6 @@ fn validate_minidump(data: &[u8]) -> Result<(), BadStoreRequest> {
     }
 
     Ok(())
-}
-
-/// Convenience wrapper to let a decoder decode its full input into a buffer.
-///
-/// Stops reading once `max_size` is exceeded and returns an error. This prevents
-/// decompression bombs from exhausting memory.
-fn run_decoder(mut decoder: impl Read) -> std::io::Result<Vec<u8>> {
-    let mut buffer = Vec::new();
-    decoder.read_to_end(&mut buffer)?;
-    Ok(buffer)
 }
 
 /// Types of compression we support for minidump payloads.
@@ -144,46 +145,24 @@ impl Compression {
     }
 }
 
-/// Creates a decoder based on the magic bytes in the minidump payload.
-fn decoder_from(minidump_data: Bytes) -> Option<Box<dyn Read>> {
-    match Compression::from(&minidump_data) {
-        Compression::None => None,
-        Compression::Gzip => Some(Box::new(GzDecoder::new(Cursor::new(minidump_data)))),
-        Compression::Xz => Some(Box::new(XzDecoder::new(Cursor::new(minidump_data)))),
-        Compression::Bzip2 => Some(Box::new(BzDecoder::new(Cursor::new(minidump_data)))),
-        Compression::Zstd => match ZstdDecoder::new(Cursor::new(minidump_data)) {
-            Ok(decoder) => Some(Box::new(decoder)),
-            Err(ref err) => {
-                relay_log::error!(error = err as &dyn Error, "failed to create ZstdDecoder");
-                None
-            }
-        },
-    }
-}
-
 /// Tries to decode a minidump using any of the supported compression formats
 /// or returns the provided minidump payload untouched if no format where detected.
 ///
 /// Returns an `Overflow` error if the decompressed size exceeds `max_size`.
-fn decode_minidump(minidump_data: Bytes, max_size: usize) -> Result<Bytes, BadStoreRequest> {
-    let Some(decoder) = decoder_from(minidump_data.clone()) else {
-        // this means we haven't detected any compression container
-        // proceed to process the payload untouched (as a plain minidump).
+async fn decode_minidump(minidump_data: Bytes, max_size: usize) -> Result<Bytes, BadStoreRequest> {
+    if matches!(Compression::from(&minidump_data), Compression::None) {
         return Ok(minidump_data);
-    };
+    }
+    let stream = futures::stream::once(async move { Ok::<_, Infallible>(minidump_data) });
+    let decoded = decode_stream(stream)
+        .await
+        .map_err(BadStoreRequest::InvalidCompression)?;
 
-    // Determine if this is a niche use-case of if this happens frequently.
-    relay_statsd::metric!(counter(RelayCounters::CompressedMinidump) += 1);
-
-    let decoder = decoder.take(max_size.saturating_add(1) as u64);
-
-    match run_decoder(decoder) {
-        Ok(decoded) => {
-            if decoded.len() > max_size {
-                let item_type = DiscardItemType::Attachment(DiscardAttachmentType::Minidump);
-                return Err(BadStoreRequest::ItemTooLarge(item_type));
-            }
-            Ok(Bytes::from(decoded))
+    match utils::stream::split_by_size(decoded, max_size.saturating_add(1)).await {
+        Ok(SizeSplit::Small(decoded)) => Ok(decoded),
+        Ok(SizeSplit::Large(_)) => {
+            let item_type = DiscardItemType::Attachment(DiscardAttachmentType::Minidump);
+            Err(BadStoreRequest::ItemTooLarge(item_type))
         }
         Err(err) => {
             // we detected a compression container but failed to decode it
@@ -252,13 +231,20 @@ struct UploadContext<'a> {
     upload_attachments: UploadDecision,
     upload_minidumps: UploadDecision,
     inline_limit: usize,
+    gpu_crash_split: bool,
 }
 
 impl UploadContext<'_> {
     fn upload_decision(&self, attachment_type: Option<AttachmentType>) -> &UploadDecision {
         match attachment_type {
             Some(AttachmentType::Attachment) => &self.upload_attachments,
-            Some(AttachmentType::Minidump) => &self.upload_minidumps,
+            // GPU dumps are smaller than minidumps. We still stream them under the same
+            // decision instead of inlining them into the envelope.
+            Some(
+                AttachmentType::Minidump
+                | AttachmentType::NvGpuDump
+                | AttachmentType::NvShaderDebug,
+            ) => &self.upload_minidumps,
             _ => &UploadDecision::Inline,
         }
     }
@@ -276,7 +262,7 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
         &self,
         field: Field<'static>,
         item: Managed<Item>,
-        config: &Config,
+        config: &ConfigSnapshot,
     ) -> Result<Option<Managed<Item>>, BadStoreRequest> {
         let read_inline = async |field: Field<'static>, item: Managed<Item>| {
             let is_minidump = matches!(item.attachment_type(), Some(AttachmentType::Minidump));
@@ -337,6 +323,11 @@ impl<'a> AttachmentStrategy for MinidumpAttachmentStrategy<'a> {
     }
 
     fn infer_type(&self, field: &Field) -> AttachmentType {
+        match field.file_name() {
+            Some(name) if name.ends_with(".nv-gpudmp") => return AttachmentType::NvGpuDump,
+            Some(name) if name.ends_with(".nvdbg") => return AttachmentType::NvShaderDebug,
+            _ => {}
+        }
         match field.name().unwrap_or("") {
             MINIDUMP_FIELD_NAME => AttachmentType::Minidump,
             ITEM_NAME_BREADCRUMBS1 => AttachmentType::Breadcrumbs,
@@ -353,7 +344,7 @@ pub async fn upload_stream_checked<S, E>(
     stream: S,
     content_type: Option<String>,
     mut item: Managed<Item>,
-    config: &Config,
+    config: &ConfigSnapshot,
     project: ProjectContext,
     upload: &Addr<Upload>,
     referrer: &'static str,
@@ -373,10 +364,10 @@ where
             referrer,
         )
         .await
-        .map_err(|_| BadStoreRequest::UploadFailed);
+        .map_err(BadStoreRequest::from);
     }
 
-    let stream = match decode_stream(stream).await {
+    let stream = match decode_and_validate_stream(stream).await {
         Ok(decoded) => decoded,
         Err(_) => {
             let _ = item.reject_err(Outcome::Invalid(DiscardReason::InvalidMinidump));
@@ -403,7 +394,7 @@ where
         referrer,
     )
     .await
-    .map_err(|_| BadStoreRequest::UploadFailed)
+    .map_err(BadStoreRequest::from)
 }
 
 async fn multipart_to_items(
@@ -417,7 +408,7 @@ async fn multipart_to_items(
 
     let mut items = utils::multipart_items(
         multipart,
-        config,
+        &config,
         minidump_attachment_strategy,
         meta,
         state.outcome_aggregator(),
@@ -441,7 +432,9 @@ async fn multipart_to_items(
             .await
             .reject(&items)?
             .unwrap_or(payload);
-        let payload = decode_minidump(payload, config.max_attachment_size()).reject(&items)?;
+        let payload = decode_minidump(payload, config.max_attachment_size())
+            .await
+            .reject(&items)?;
 
         items.try_modify(|items, records| -> Result<(), BadStoreRequest> {
             let minidump_item = items
@@ -511,8 +504,6 @@ async fn upload_context<'a>(
 
     let upload_attachments = if matches!(upload_minidumps, UploadDecision::Drop(_)) {
         UploadDecision::Drop(rate_limits)
-    } else if !project_config.has_feature(Feature::MinidumpAttachmentUploads) {
-        UploadDecision::Inline
     } else if attachment_rate_limits.is_limited() {
         UploadDecision::Drop(attachment_rate_limits)
     } else {
@@ -524,10 +515,12 @@ async fn upload_context<'a>(
         project: ProjectContext {
             scoping,
             upstream: project_config.upstream.clone(),
+            retention: project_config.event_retention(),
         },
         upload_attachments,
         upload_minidumps,
         inline_limit: global_config.options.attachment_inline_limit,
+        gpu_crash_split: project_config.has_feature(Feature::NvGpuCrashSplit),
     }))
 }
 
@@ -556,8 +549,10 @@ async fn raw_minidump_to_item(
             .map_err(|e| BadStoreRequest::InvalidBody(std::io::Error::other(e)))?
         {
             SizeSplit::Small(bytes) => {
+                let payload = decode_minidump(bytes, state.config().max_attachment_size())
+                    .await
+                    .reject(&item)?;
                 item.try_modify(|inner, records| -> Result<(), BadStoreRequest> {
-                    let payload = decode_minidump(bytes, state.config().max_attachment_size())?;
                     inner.set_payload(ContentType::Minidump, payload);
                     records.lenient(DataCategory::Attachment); // decoding changes its size
                     validate_minidump(&inner.payload())?;
@@ -565,27 +560,36 @@ async fn raw_minidump_to_item(
                 })?;
             }
             SizeSplit::Large(stream) => {
-                let stream = decode_stream(stream)
-                    .await
-                    .map_err(|_| BadStoreRequest::InvalidMinidump)?;
+                let stream = decode_and_validate_stream(stream).await?;
 
                 item = upload_stream(
                     stream,
                     Some(ContentType::Minidump.to_string()),
                     item,
-                    state.config(),
+                    &state.config(),
                     upload_context.project,
                     upload_context.upload,
                     "minidump",
                 )
                 .await
-                .map_err(|_| BadStoreRequest::UploadFailed)?;
+                .map_err(BadStoreRequest::from)?;
             }
         }
     } else {
-        let minidump_data = request.extract().await?;
+        let minidump_data =
+            axum::body::to_bytes(request.into_body(), state.config().max_attachment_size())
+                .await
+                .map_err(|e| match find_error_source(&e, is_length_limit_error) {
+                    Some(_) => BadStoreRequest::ItemTooLarge(DiscardItemType::Attachment(
+                        DiscardAttachmentType::Minidump,
+                    )),
+                    None => BadStoreRequest::InvalidBody(std::io::Error::other(e)),
+                })?;
+
+        let payload = decode_minidump(minidump_data, state.config().max_attachment_size())
+            .await
+            .reject(&item)?;
         item.try_modify(|inner, records| -> Result<(), BadStoreRequest> {
-            let payload = decode_minidump(minidump_data, state.config().max_attachment_size())?;
             inner.set_payload(ContentType::Minidump, payload);
             records.lenient(DataCategory::Attachment); // decoding the minidump changes its size
             validate_minidump(&inner.payload())?;
@@ -612,22 +616,6 @@ async fn items(
         multipart_to_items(multipart, meta, state, upload_context).await?
     };
     Ok(items)
-}
-
-fn envelope(
-    items: Managed<Items>,
-    meta: RequestMeta,
-    managed_err: Managed<(DataCategory, usize)>,
-) -> Result<Managed<Box<Envelope>>, BadStoreRequest> {
-    let event_id = common::event_id_from_items(&items)
-        .reject2(&items, &managed_err)?
-        .unwrap_or_else(EventId::new);
-    let envelope = items.map(|items, records| {
-        managed_err.accept(|_| ()); // There will be an envelope with (DataCategory::Error, 1) now
-        records.modify_by(DataCategory::Error, 1);
-        Box::new(Envelope::from_request(Some(event_id), meta).with_items(items))
-    });
-    Ok(envelope)
 }
 
 async fn handle(
@@ -659,10 +647,37 @@ async fn handle(
         ));
         return Ok(TextResponse(Some(EventId::new())));
     }
+
+    let gpu_crash_split = upload_context
+        .as_ref()
+        .is_some_and(|ctx| ctx.gpu_crash_split);
+
     let items = items(upload_context, &state, &meta, content_type, request)
         .await
         .reject(&managed_err)?;
-    let envelope = envelope(items, meta, managed_err)?;
+
+    let mut envelope = Managed::zip(managed_err, items).try_map(|(_, items), _| {
+        let event_id = common::event_id_from_items(&items)?.unwrap_or_default();
+        let envelope = Envelope::from_request(Some(event_id), meta).with_items(items);
+        Ok::<_, BadStoreRequest>(Box::new(envelope))
+    })?;
+    if gpu_crash_split {
+        let (cpu, gpu) = utils::gpu::split_crash(envelope);
+        if let Some(gpu) = gpu {
+            // The GPU crash is a best-effort duplicate: a failure submitting it must
+            // not drop the CPU crash, which clients do not retry.
+            match common::handle_managed_envelope(&state, gpu).await {
+                Ok(handled) => {
+                    handled.ignore_rate_limits();
+                }
+                Err(rejected) => relay_log::debug!(
+                    error = &rejected.into_inner() as &dyn std::error::Error,
+                    "failed to submit split-off GPU crash envelope",
+                ),
+            }
+        }
+        envelope = cpu;
+    }
 
     let id = envelope.event_id();
 
@@ -676,7 +691,7 @@ async fn handle(
     Ok(TextResponse(id))
 }
 
-pub fn route(config: &Config) -> MethodRouter<ServiceState> {
+pub fn route(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
     post(handle)
         .route_layer(RequestBodyLimitLayer::new(
             config.max_upload_size() + config.max_attachments_size(),
@@ -740,44 +755,76 @@ mod tests {
         Ok(Bytes::from(compressed))
     }
 
-    #[test]
-    fn test_validate_encoded_minidump() -> Result<(), Box<dyn std::error::Error>> {
+    fn stream_of(data: Bytes) -> impl Stream<Item = Result<Bytes, Infallible>> + Send + 'static {
+        futures::stream::once(async move { Ok(data) })
+    }
+
+    #[tokio::test]
+    async fn test_decode_and_validate_minidump() -> Result<(), Box<dyn std::error::Error>> {
         let encoders: Vec<EncodeFunction> = vec![encode_gzip, encode_zst, encode_bzip, encode_xz];
         for encoder in &encoders {
             let be_minidump = b"PMDMxxxxxx";
             let compressed = encoder(be_minidump)?;
-            let decoder = decoder_from(compressed).unwrap();
-            assert!(run_decoder(decoder).is_ok());
+            assert!(
+                decode_and_validate_stream(stream_of(compressed))
+                    .await
+                    .is_ok()
+            );
 
             let le_minidump = b"MDMPxxxxxx";
             let compressed = encoder(le_minidump)?;
-            let decoder = decoder_from(compressed).unwrap();
-            assert!(run_decoder(decoder).is_ok());
+            assert!(
+                decode_and_validate_stream(stream_of(compressed))
+                    .await
+                    .is_ok()
+            );
 
             let garbage = b"xxxxxx";
             let compressed = encoder(garbage)?;
-            let decoder = decoder_from(compressed).unwrap();
-            let decoded = run_decoder(decoder);
-            assert!(decoded.is_ok());
-            assert!(validate_minidump(&decoded.unwrap()).is_err());
+            assert!(matches!(
+                decode_and_validate_stream(stream_of(compressed)).await,
+                Err(BadStoreRequest::InvalidMinidump)
+            ));
         }
+
+        let plain = Bytes::from_static(b"MDMPxxxxxx");
+        assert!(decode_and_validate_stream(stream_of(plain)).await.is_ok());
+
+        let plain = Bytes::from_static(b"xxxxxxxxxx");
+        assert!(matches!(
+            decode_and_validate_stream(stream_of(plain)).await,
+            Err(BadStoreRequest::InvalidMinidump)
+        ));
+
+        let short = stream_of(Bytes::from_static(b"MD"));
+        assert!(matches!(
+            decode_and_validate_stream(short).await,
+            Err(BadStoreRequest::InvalidMinidump)
+        ));
+
+        let chunked = futures::stream::iter([
+            Ok::<_, Infallible>(Bytes::from_static(b"MD")),
+            Ok(Bytes::from_static(b"MP")),
+            Ok(Bytes::from_static(b"rest")),
+        ]);
+        assert!(decode_and_validate_stream(chunked).await.is_ok());
 
         Ok(())
     }
 
-    #[test]
-    fn test_decode_minidump_size_limit() -> Result<(), Box<dyn std::error::Error>> {
+    #[tokio::test]
+    async fn test_decode_minidump_size_limit() -> Result<(), Box<dyn std::error::Error>> {
         // Create a minidump that will decompress to 100 bytes
         let minidump_data = b"xxxxxxxxxx".repeat(10);
         let compressed = encode_gzip(&minidump_data)?;
 
         // With a limit larger than the decompressed size, decoding should succeed
-        let result = decode_minidump(compressed.clone(), 200);
+        let result = decode_minidump(compressed.clone(), 200).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap().len(), 100);
 
         // With a limit smaller than the decompressed size, decoding should fail with Overflow
-        let result = decode_minidump(compressed, 50);
+        let result = decode_minidump(compressed, 50).await;
         assert!(matches!(result, Err(BadStoreRequest::ItemTooLarge(_))));
 
         Ok(())
@@ -847,6 +894,7 @@ mod tests {
             .body(Body::from(multipart_body)).unwrap();
 
         let config = Config::default();
+        let config = config.current();
 
         let request_meta = RequestMeta::new(
             "https://a94ae32be2582e0bbd7a4cbb95971fee:@sentry.io/42"

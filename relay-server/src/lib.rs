@@ -293,17 +293,18 @@ use crate::services::server::HttpServer;
 /// the `config` passed into this funciton.
 pub fn run(config: Config) -> anyhow::Result<()> {
     let config = Arc::new(config);
+    let current_config = config.current();
     relay_log::info!("relay server starting");
 
     // Creates the main runtime.
-    let runtime = crate::service::create_runtime("main-rt", config.cpu_concurrency());
+    let runtime = crate::service::create_runtime("main-rt", current_config.cpu_concurrency());
     let handle = runtime.handle().clone();
 
     // Run the system and block until a shutdown signal is sent to this process. Inside, start a
     // web server and run all relevant services. See the `actors` module documentation for more
     // information on all services.
     runtime.block_on(async {
-        Controller::start(config.shutdown_timeout());
+        Controller::start(current_config.shutdown_timeout());
 
         let mut services = handle.service_set();
 

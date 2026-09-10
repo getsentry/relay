@@ -795,7 +795,7 @@ mod tests {
 
     #[test]
     fn test_bucket_view_select_counter() {
-        let bucket = Bucket::parse(b"b0:1|c", UnixTimestamp::from_secs(5000)).unwrap();
+        let bucket = Bucket::parse(b"spans/b0:1|c", UnixTimestamp::from_secs(5000)).unwrap();
 
         let view = BucketView::new(&bucket).select(0..1).unwrap();
         assert_eq!(view.len(), 1);
@@ -807,7 +807,7 @@ mod tests {
 
     #[test]
     fn test_bucket_view_select_invalid_counter() {
-        let bucket = Bucket::parse(b"b0:1|c", UnixTimestamp::from_secs(5000)).unwrap();
+        let bucket = Bucket::parse(b"spans/b0:1|c", UnixTimestamp::from_secs(5000)).unwrap();
 
         assert!(BucketView::new(&bucket).select(0..0).is_none());
         assert!(BucketView::new(&bucket).select(0..2).is_none());
@@ -816,13 +816,14 @@ mod tests {
 
     #[test]
     fn test_bucket_view_counter_metadata() {
-        let bucket = Bucket::parse(b"b0:1|c", UnixTimestamp::from_secs(5000)).unwrap();
+        let bucket = Bucket::parse(b"spans/b0:1|c", UnixTimestamp::from_secs(5000)).unwrap();
         assert_eq!(bucket.metadata, BucketView::new(&bucket).metadata());
     }
 
     #[test]
     fn test_bucket_view_select_distribution() {
-        let bucket = Bucket::parse(b"b2:1:2:3:5:5|d", UnixTimestamp::from_secs(5000)).unwrap();
+        let bucket =
+            Bucket::parse(b"spans/b2:1:2:3:5:5|d", UnixTimestamp::from_secs(5000)).unwrap();
 
         let view = BucketView::new(&bucket).select(0..3).unwrap();
         assert_eq!(view.len(), 3);
@@ -846,7 +847,8 @@ mod tests {
 
     #[test]
     fn test_bucket_view_select_invalid_distribution() {
-        let bucket = Bucket::parse(b"b2:1:2:3:5:5|d", UnixTimestamp::from_secs(5000)).unwrap();
+        let bucket =
+            Bucket::parse(b"spans/b2:1:2:3:5:5|d", UnixTimestamp::from_secs(5000)).unwrap();
 
         assert!(BucketView::new(&bucket).select(0..6).is_none());
         assert!(BucketView::new(&bucket).select(5..6).is_none());
@@ -855,7 +857,8 @@ mod tests {
 
     #[test]
     fn test_bucket_view_distribution_metadata() {
-        let bucket = Bucket::parse(b"b2:1:2:3:5:5|d", UnixTimestamp::from_secs(5000)).unwrap();
+        let bucket =
+            Bucket::parse(b"spans/b2:1:2:3:5:5|d", UnixTimestamp::from_secs(5000)).unwrap();
         assert_eq!(bucket.metadata, BucketView::new(&bucket).metadata());
 
         assert_eq!(
@@ -875,7 +878,7 @@ mod tests {
 
     #[test]
     fn test_bucket_view_select_set() {
-        let bucket = Bucket::parse(b"b3:42:75|s", UnixTimestamp::from_secs(5000)).unwrap();
+        let bucket = Bucket::parse(b"spans/b3:42:75|s", UnixTimestamp::from_secs(5000)).unwrap();
         let s = [42, 75].into();
 
         let view = BucketView::new(&bucket).select(0..2).unwrap();
@@ -891,7 +894,7 @@ mod tests {
 
     #[test]
     fn test_bucket_view_select_invalid_set() {
-        let bucket = Bucket::parse(b"b3:42:75|s", UnixTimestamp::from_secs(5000)).unwrap();
+        let bucket = Bucket::parse(b"spans/b3:42:75|s", UnixTimestamp::from_secs(5000)).unwrap();
 
         assert!(BucketView::new(&bucket).select(0..3).is_none());
         assert!(BucketView::new(&bucket).select(2..5).is_none());
@@ -900,7 +903,8 @@ mod tests {
 
     #[test]
     fn test_bucket_view_set_metadata() {
-        let bucket = Bucket::parse(b"b2:1:2:3:5:5|s", UnixTimestamp::from_secs(5000)).unwrap();
+        let bucket =
+            Bucket::parse(b"spans/b2:1:2:3:5:5|s", UnixTimestamp::from_secs(5000)).unwrap();
         assert_eq!(bucket.metadata, BucketView::new(&bucket).metadata());
 
         assert_eq!(
@@ -920,8 +924,11 @@ mod tests {
 
     #[test]
     fn test_bucket_view_select_gauge() {
-        let bucket =
-            Bucket::parse(b"b4:25:17:42:220:85|g", UnixTimestamp::from_secs(5000)).unwrap();
+        let bucket = Bucket::parse(
+            b"spans/b4:25:17:42:220:85|g",
+            UnixTimestamp::from_secs(5000),
+        )
+        .unwrap();
 
         let view = BucketView::new(&bucket).select(0..5).unwrap();
         assert_eq!(view.len(), 5);
@@ -939,8 +946,11 @@ mod tests {
 
     #[test]
     fn test_bucket_view_select_invalid_gauge() {
-        let bucket =
-            Bucket::parse(b"b4:25:17:42:220:85|g", UnixTimestamp::from_secs(5000)).unwrap();
+        let bucket = Bucket::parse(
+            b"spans/b4:25:17:42:220:85|g",
+            UnixTimestamp::from_secs(5000),
+        )
+        .unwrap();
 
         assert!(BucketView::new(&bucket).select(0..1).is_none());
         assert!(BucketView::new(&bucket).select(0..4).is_none());
@@ -950,8 +960,11 @@ mod tests {
 
     #[test]
     fn test_bucket_view_gauge_metadata() {
-        let bucket =
-            Bucket::parse(b"b4:25:17:42:220:85|g", UnixTimestamp::from_secs(5000)).unwrap();
+        let bucket = Bucket::parse(
+            b"spans/b4:25:17:42:220:85|g",
+            UnixTimestamp::from_secs(5000),
+        )
+        .unwrap();
         assert_eq!(BucketView::new(&bucket).metadata(), bucket.metadata);
     }
 
@@ -976,26 +989,28 @@ mod tests {
 
     #[test]
     fn test_buckets_view_iter_full() {
-        let buckets: Vec<_> = buckets(b"b0:1|c\nb1:12|c\nb2:1:2:3:5:5|d\nb3:42:75|s");
+        let buckets: Vec<_> =
+            buckets(b"spans/b0:1|c\nspans/b1:12|c\nspans/b2:1:2:3:5:5|d\nspans/b3:42:75|s");
 
         let view = BucketsView::from(&buckets);
         assert_eq!(view.len(), 4);
         assert!(!view.is_empty());
         let partials = view.iter().collect::<Vec<_>>();
         assert_eq!(partials.len(), 4);
-        assert_eq!(partials[0].name(), "c:custom/b0@none");
+        assert_eq!(partials[0].name(), "c:spans/b0@none");
         assert_eq!(partials[0].len(), 1);
-        assert_eq!(partials[1].name(), "c:custom/b1@none");
+        assert_eq!(partials[1].name(), "c:spans/b1@none");
         assert_eq!(partials[1].len(), 1);
-        assert_eq!(partials[2].name(), "d:custom/b2@none");
+        assert_eq!(partials[2].name(), "d:spans/b2@none");
         assert_eq!(partials[2].len(), 5);
-        assert_eq!(partials[3].name(), "s:custom/b3@none");
+        assert_eq!(partials[3].name(), "s:spans/b3@none");
         assert_eq!(partials[3].len(), 2);
     }
 
     #[test]
     fn test_buckets_view_iter_partial_end() {
-        let buckets: Vec<_> = buckets(b"b0:1|c\nb1:12|c\nb2:1:2:3:5:5|d\nb3:42:75|s");
+        let buckets: Vec<_> =
+            buckets(b"spans/b0:1|c\nspans/b1:12|c\nspans/b2:1:2:3:5:5|d\nspans/b3:42:75|s");
 
         let mut view = BucketsView::new(&buckets);
         view.end.slice = 2;
@@ -1005,17 +1020,18 @@ mod tests {
 
         let partials = view.iter().collect::<Vec<_>>();
         assert_eq!(partials.len(), 3);
-        assert_eq!(partials[0].name(), "c:custom/b0@none");
+        assert_eq!(partials[0].name(), "c:spans/b0@none");
         assert_eq!(partials[0].len(), 1);
-        assert_eq!(partials[1].name(), "c:custom/b1@none");
+        assert_eq!(partials[1].name(), "c:spans/b1@none");
         assert_eq!(partials[1].len(), 1);
-        assert_eq!(partials[2].name(), "d:custom/b2@none");
+        assert_eq!(partials[2].name(), "d:spans/b2@none");
         assert_eq!(partials[2].len(), 3);
     }
 
     #[test]
     fn test_buckets_view_iter_partial_start() {
-        let buckets: Vec<_> = buckets(b"b0:1|c\nb1:12|c\nb2:1:2:3:5:5|d\nb3:42:75|s");
+        let buckets: Vec<_> =
+            buckets(b"spans/b0:1|c\nspans/b1:12|c\nspans/b2:1:2:3:5:5|d\nspans/b3:42:75|s");
 
         let mut view = BucketsView::new(buckets);
         view.start.slice = 2;
@@ -1025,15 +1041,16 @@ mod tests {
 
         let partials = view.iter().collect::<Vec<_>>();
         assert_eq!(partials.len(), 2);
-        assert_eq!(partials[0].name(), "d:custom/b2@none");
+        assert_eq!(partials[0].name(), "d:spans/b2@none");
         assert_eq!(partials[0].len(), 2);
-        assert_eq!(partials[1].name(), "s:custom/b3@none");
+        assert_eq!(partials[1].name(), "s:spans/b3@none");
         assert_eq!(partials[1].len(), 2);
     }
 
     #[test]
     fn test_buckets_view_iter_partial_start_and_end() {
-        let buckets: Vec<_> = buckets(b"b0:1|c\nb1:12|c\nb2:1:2:3:5:5|d\nb3:42:75|s");
+        let buckets: Vec<_> =
+            buckets(b"spans/b0:1|c\nspans/b1:12|c\nspans/b2:1:2:3:5:5|d\nspans/b3:42:75|s");
 
         let mut view = BucketsView::from(&buckets);
         view.start.slice = 2;
@@ -1045,15 +1062,16 @@ mod tests {
 
         let partials = view.iter().collect::<Vec<_>>();
         assert_eq!(partials.len(), 2);
-        assert_eq!(partials[0].name(), "d:custom/b2@none");
+        assert_eq!(partials[0].name(), "d:spans/b2@none");
         assert_eq!(partials[0].len(), 4);
-        assert_eq!(partials[1].name(), "s:custom/b3@none");
+        assert_eq!(partials[1].name(), "s:spans/b3@none");
         assert_eq!(partials[1].len(), 1);
     }
 
     #[test]
     fn test_buckets_view_by_size_small() {
-        let buckets: Vec<_> = buckets(b"b0:1|c\nb1:12|c\nb2:1:2:3:5:5|d\nb3:42:75|s");
+        let buckets: Vec<_> =
+            buckets(b"spans/b0:1|c\nspans/b1:12|c\nspans/b2:1:2:3:5:5|d\nspans/b3:42:75|s");
 
         let view = BucketsView::from(&buckets);
         let partials = view
@@ -1065,12 +1083,13 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        assert_eq!(partials, vec![(1, 74), (1, 74), (4, 98), (1, 74), (2, 82),]);
+        assert_eq!(partials, vec![(1, 73), (1, 73), (4, 97), (1, 73), (2, 81),]);
     }
 
     #[test]
     fn test_buckets_view_by_size_small_as_arc() {
-        let buckets: Arc<_> = buckets(b"b0:1|c\nb1:12|c\nb2:1:2:3:5:5|d\nb3:42:75|s");
+        let buckets: Arc<_> =
+            buckets(b"spans/b0:1|c\nspans/b1:12|c\nspans/b2:1:2:3:5:5|d\nspans/b3:42:75|s");
 
         let view = BucketsView::new(buckets);
         let partials = view
@@ -1082,12 +1101,13 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        assert_eq!(partials, vec![(1, 74), (1, 74), (4, 98), (1, 74), (2, 82),]);
+        assert_eq!(partials, vec![(1, 73), (1, 73), (4, 97), (1, 73), (2, 81),]);
     }
 
     #[test]
     fn test_buckets_view_by_size_one_split() {
-        let buckets: Vec<_> = buckets(b"b0:1|c\nb1:12|c\nb2:1:2:3:5:5|d\nb3:42:75|s");
+        let buckets: Vec<_> =
+            buckets(b"spans/b0:1|c\nspans/b1:12|c\nspans/b2:1:2:3:5:5|d\nspans/b3:42:75|s");
 
         let view = BucketsView::from(&buckets);
         let partials = view
@@ -1099,12 +1119,13 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        assert_eq!(partials, vec![(6, 246), (3, 156)]);
+        assert_eq!(partials, vec![(6, 243), (3, 154)]);
     }
 
     #[test]
     fn test_buckets_view_by_size_no_split() {
-        let buckets: Vec<_> = buckets(b"b0:1|c\nb1:12|c\nb2:1:2:3:5:5|d\nb3:42:75|s");
+        let buckets: Vec<_> =
+            buckets(b"spans/b0:1|c\nspans/b1:12|c\nspans/b2:1:2:3:5:5|d\nspans/b3:42:75|s");
 
         let view = BucketsView::from(&buckets);
         let partials = view
@@ -1116,12 +1137,13 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        assert_eq!(partials, vec![(9, 336)]);
+        assert_eq!(partials, vec![(9, 332)]);
     }
 
     #[test]
     fn test_buckets_view_by_size_no_too_small_no_bucket_fits() {
-        let buckets: Vec<_> = buckets(b"b0:1|c\nb1:12|c\nb2:1:2:3:5:5|d\nb3:42:75|s");
+        let buckets: Vec<_> =
+            buckets(b"spans/b0:1|c\nspans/b1:12|c\nspans/b2:1:2:3:5:5|d\nspans/b3:42:75|s");
 
         let view = BucketsView::from(&buckets);
         let partials = view
@@ -1145,7 +1167,7 @@ mod tests {
 
     #[test]
     fn test_buckets_view_serialize_full() {
-        let buckets: Vec<_> = buckets(b"b0:1|c\nb1:12|c|#foo,bar:baz\nb2:1:2:3:5:5|d|#foo,bar:baz b3:42:75|s\ntransactions/foo:25:17:42:220:85|g");
+        let buckets: Vec<_> = buckets(b"spans/b0:1|c\nspans/b1:12|c|#foo,bar:baz\nspans/b2:1:2:3:5:5|d|#foo,bar:baz b3:42:75|s\ntransactions/foo:25:17:42:220:85|g");
 
         assert_eq!(
             serde_json::to_string(&BucketsView::from(&buckets)).unwrap(),
@@ -1156,7 +1178,7 @@ mod tests {
     #[test]
     fn test_buckets_view_serialize_partial() {
         let buckets: Arc<[_]> = buckets(
-            b"b1:12|c|#foo,bar:baz\nb2:1:2:3:5:5|d|#foo,bar:baz\nb3:42:75|s\nb4:25:17:42:220:85|g",
+            b"spans/b1:12|c|#foo,bar:baz\nspans/b2:1:2:3:5:5|d|#foo,bar:baz\nspans/b3:42:75|s\nspans/b4:25:17:42:220:85|g",
         );
 
         let view = BucketsView::new(buckets);
@@ -1169,7 +1191,8 @@ mod tests {
 
     #[test]
     fn test_split_repeatedly() {
-        let bucket = Bucket::parse(b"b2:1:2:3:5:5|d", UnixTimestamp::from_secs(5000)).unwrap();
+        let bucket =
+            Bucket::parse(b"spans/b2:1:2:3:5:5|d", UnixTimestamp::from_secs(5000)).unwrap();
         let view = BucketView::new(&bucket);
 
         // construct this so that we can take 2 values per split and result in 3 parts.

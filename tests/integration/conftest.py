@@ -6,7 +6,6 @@ from typing import Optional
 import json
 import redis
 from flask import Response, request
-
 import pytest
 
 # all tests fixtures must be imported so that pytest finds them
@@ -47,7 +46,10 @@ from .fixtures.processing import (  # noqa
     objectstore,
 )
 
-from .consts import DUMMY_UPLOAD_LOCATION, ZSTD_MAGIC_HEADER
+from .consts import (
+    DUMMY_UPLOAD_LOCATION,
+    ZSTD_MAGIC_HEADER,
+)
 
 
 @pytest.fixture(scope="session")

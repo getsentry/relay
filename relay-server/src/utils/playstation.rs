@@ -1,3 +1,6 @@
+use crate::services::outcome::{DiscardAttachmentType, DiscardItemType};
+use crate::services::processor::ProcessingError;
+use bytes::Bytes;
 use relay_event_schema::protocol::{
     AppContext, ClientSdkInfo, Context, Contexts, DeviceContext, LenientString, OsContext,
     RuntimeContext, Tags,
@@ -71,10 +74,6 @@ pub fn legacy_userdata_extraction(event: &mut Event, prospero: &ProsperoDump) {
         add_tag!("runtime", system_version);
         add_tag!("runtime.version", system_version);
     }
-
-    if let Some(app_info) = &prospero.app_info {
-        add_tag!("titleId", app_info.title_id);
-    }
 }
 
 pub fn merge_playstation_context(event: &mut Event, prospero: &ProsperoDump) {
@@ -94,13 +93,21 @@ pub fn merge_playstation_context(event: &mut Event, prospero: &ProsperoDump) {
         event.server_name = Annotated::new(hardware_id);
     }
 
-    if let Some(app_info) = &prospero.app_info
-        && !contexts.contains::<AppContext>()
-    {
-        contexts.add(AppContext {
-            app_version: Annotated::new(app_info.version.to_owned()),
-            ..Default::default()
-        });
+    if let Some(app_info) = &prospero.app_info {
+        if !contexts.contains::<AppContext>() {
+            contexts.add(AppContext {
+                app_version: Annotated::new(app_info.version.to_owned()),
+                ..Default::default()
+            });
+        }
+
+        let tags = event.tags.value_mut().get_or_insert_with(Tags::default);
+        if tags.get("titleId").is_none() {
+            tags.0.insert(
+                "titleId".into(),
+                Annotated::new(app_info.title_id.to_owned()),
+            );
+        }
     }
 
     if !contexts.contains::<DeviceContext>() {
@@ -154,6 +161,47 @@ pub fn infer_content_type(filename: &str) -> ContentType {
         Some("xml") => ContentType::Xml,
         _ => ContentType::OctetStream,
     }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum CompressionError {
+    #[error("failed to decompress dump")]
+    Decode(#[from] std::io::Error),
+    #[error("decompressed dump exceeds size limit")]
+    TooLarge,
+}
+
+impl From<CompressionError> for ProcessingError {
+    fn from(err: CompressionError) -> Self {
+        match err {
+            CompressionError::Decode(err) => {
+                ProcessingError::InvalidPlaystationDump(format!("Failed to extract data: {err}"))
+            }
+            CompressionError::TooLarge => ProcessingError::PayloadTooLarge(
+                DiscardItemType::Attachment(DiscardAttachmentType::Prosperodump),
+            ),
+        }
+    }
+}
+
+pub fn uncompress(bytes: Bytes, limit: usize) -> Result<Bytes, CompressionError> {
+    use std::io::{Cursor, Read};
+
+    const LZ4_MAGIC_HEADER: &[u8] = b"\x04\x22\x4D\x18";
+    if !bytes.starts_with(LZ4_MAGIC_HEADER) {
+        return Ok(bytes);
+    }
+
+    let decoder = lz4_flex::frame::FrameDecoder::new(Cursor::new(bytes));
+    let mut decoder = decoder.take(limit.saturating_add(1) as u64);
+
+    let mut buffer = Vec::new();
+    decoder.read_to_end(&mut buffer)?;
+
+    if buffer.len() > limit {
+        return Err(CompressionError::TooLarge);
+    }
+    Ok(buffer.into())
 }
 
 #[cfg(test)]

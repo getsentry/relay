@@ -6,21 +6,26 @@ use relay_pii::PiiProcessor;
 use relay_protocol::Annotated;
 use relay_replays::recording::RecordingScrubber;
 use relay_statsd::metric;
+use serde::Deserialize;
 
 use crate::envelope::Item;
 use crate::managed::{Managed, Rejected};
 use crate::processing::replays::{
-    Error, ExpandedReplay, ReplayPayload, ReplayVideoEvent, SerializedReplays,
+    Error, ExpandedReplay, ReplayPayload, ReplayVideoEvent, Result, SerializedReplays,
 };
 use crate::processing::{Context, utils};
 use crate::statsd::RelayTimers;
+use crate::utils::rmp;
 
 fn expand_video(item: &Item) -> Result<ReplayPayload, Error> {
+    let payload = item.payload();
+    let mut deserializer = rmp::slice_deserializer(&payload);
     let ReplayVideoEvent {
         replay_event: event,
         replay_recording: recording,
         replay_video: video,
-    } = rmp_serde::from_slice(&item.payload()).map_err(|_| Error::InvalidReplayVideoEvent)?;
+    } = ReplayVideoEvent::deserialize(&mut deserializer)
+        .map_err(|_| Error::InvalidReplayVideoEvent)?;
 
     if video.is_empty() {
         return Err(Error::InvalidReplayVideoEvent);
@@ -98,7 +103,7 @@ pub fn normalize(
     replay: &mut Managed<ExpandedReplay>,
     geoip_lookup: &GeoIpLookup,
     ctx: Context<'_>,
-) {
+) -> Result<(), Rejected<Error>> {
     let meta = replay.headers.meta();
     let client_addr = meta.client_addr();
     let time_config = utils::normalize::time_config(&replay.headers, |_| None, ctx);
@@ -107,11 +112,12 @@ pub fn normalize(
         client_hints: meta.client_hints().to_owned(),
     };
 
-    replay.modify(|replay, _| {
+    replay.try_modify(|replay, _| -> Result<(), Error> {
         if let Some(event) = replay.payload.event_mut() {
-            eap::time::normalize(event, time_config);
-            replay::normalize(event, client_addr, &user_agent.as_deref(), geoip_lookup)
+            eap::time::normalize(event, time_config)?;
+            replay::normalize(event, client_addr, &user_agent.as_deref(), geoip_lookup);
         }
+        Ok(())
     })
 }
 

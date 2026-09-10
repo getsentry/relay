@@ -6,9 +6,11 @@ import json
 
 from requests.exceptions import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
+from sentry_relay.consts import DataCategory
 
 from .asserts import matches_any
 from .test_store import make_transaction
+from .consts import Outcome
 
 
 def test_attachments_400(mini_sentry, relay_with_processing, attachments_consumer):
@@ -167,6 +169,8 @@ def test_attachments_with_objectstore(
             "id": matches_any(),
             "name": "foo.txt",
             "rate_limited": False,
+            # Uploads guess the content type from the file name.
+            "content_type": "text/plain",
             "attachment_type": "event.attachment",
             "size": len(chunked_contents),
             "retention_days": 90,
@@ -175,8 +179,8 @@ def test_attachments_with_objectstore(
         "project_id": project_id,
     }
 
-    # Empty attachments are still transmitted with zero chunks,
-    # and not stored on objectstore
+    # Empty attachments are still transmitted with zero chunks, and not stored on
+    # objectstore, so their content type remains unset
     empty = attachments_by_name["foobar.txt"]
     assert empty == {
         "type": "attachment",
@@ -444,7 +448,7 @@ Dana White dana.white@example.co.uk +1029384756 6011 0009 9013 9424
 path=c:\Users\yan\mylogfile.txt
 password=mysupersecretpassword123"""
 
-    envelope = Envelope()
+    envelope = Envelope(headers={"event_id": "515539018c9b4260a6f999572f1661ee"})
     item = Item(
         payload=attachment, type="attachment", headers={"filename": "logfile.txt"}
     )
@@ -650,6 +654,8 @@ def test_event_with_attachment(
         Item(
             type="attachment",
             payload=PayloadRef(bytes=b"event attachment"),
+            filename="event.txt",
+            content_type="text/plain",
         )
     )
 
@@ -664,9 +670,9 @@ def test_event_with_attachment(
     assert event_message["attachments"][0].pop("id")
     assert list(event_message["attachments"]) == [
         {
-            "name": "Unnamed Attachment",
+            "name": "event.txt",
             "rate_limited": False,
-            "content_type": "application/octet-stream",
+            "content_type": "text/plain",
             "attachment_type": "event.attachment",
             "size": len(b"event attachment"),
             "retention_days": 90,
@@ -676,7 +682,11 @@ def test_event_with_attachment(
 
     if use_objectstore:
         stored_id = event_message["attachments"][0]["stored_id"]
-        assert objectstore.get(stored_id).payload.read() == b"event attachment"
+        stored = objectstore.get(stored_id)
+        assert stored.payload.read() == b"event attachment"
+        # The file name is required for `Content-Disposition` on downloads.
+        assert stored.metadata.filename == "event.txt"
+        assert stored.metadata.content_type == "text/plain"
 
     # transaction attachments are sent as individual attachments,
     # either using chunks by default, or contents inlined
@@ -686,15 +696,17 @@ def test_event_with_attachment(
         Item(
             type="attachment",
             payload=PayloadRef(bytes=b"transaction attachment"),
+            filename="transaction.txt",
         )
     )
 
     relay.send_envelope(project_id, envelope)
 
     expected_attachment = {
-        "name": "Unnamed Attachment",
+        "name": "transaction.txt",
         "rate_limited": False,
-        "content_type": "application/octet-stream",
+        # Uploads normalize the generic content type by guessing from the file name.
+        "content_type": "text/plain" if use_objectstore else "application/octet-stream",
         "attachment_type": "event.attachment",
         "size": len(b"transaction attachment"),
         "retention_days": 90,
@@ -710,7 +722,10 @@ def test_event_with_attachment(
 
     if use_objectstore:
         stored_id = attachment["attachment"]["stored_id"]
-        assert objectstore.get(stored_id).payload.read() == b"transaction attachment"
+        stored = objectstore.get(stored_id)
+        assert stored.payload.read() == b"transaction attachment"
+        assert stored.metadata.filename == "transaction.txt"
+        assert stored.metadata.content_type == "text/plain"
 
     assert attachment == {
         "type": "attachment",
@@ -721,6 +736,53 @@ def test_event_with_attachment(
 
     _, event = transactions_consumer.get_event()
     assert event["event_id"] == event_id
+
+
+def test_attachment_without_event_id(
+    mini_sentry,
+    relay_with_processing,
+    outcomes_consumer,
+):
+    project_id = 42
+
+    mini_sentry.add_full_project_config(project_id)
+    outcomes_consumer = outcomes_consumer()
+
+    relay = relay_with_processing()
+
+    envelope = Envelope(headers=[])
+    envelope.add_item(
+        Item(
+            type="attachment",
+            payload=PayloadRef(bytes=b"event attachment"),
+            filename="event.txt",
+            content_type="text/plain",
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
+    assert outcomes == [
+        {
+            "category": DataCategory.ATTACHMENT,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": Outcome.INVALID,
+            "project_id": 42,
+            "quantity": 16,
+            "reason": "invalid_event_id",
+        },
+        {
+            "category": DataCategory.ATTACHMENT_ITEM,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": Outcome.INVALID,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "invalid_event_id",
+        },
+    ]
 
 
 def test_form_data_is_rejected(

@@ -1,6 +1,6 @@
 use bytes::Bytes;
 use chrono::{TimeZone, Utc};
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use relay_event_schema::protocol::{
     AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DeviceContext, Event, EventId,
     GpuContext, LenientString, Level, LogEntry, Message, OsContext, TagEntry, Tags, Timestamp,
@@ -24,11 +24,11 @@ const MAX_NUM_UNREAL_LOGS: usize = 40;
 const CLIENT_SDK_NAME: &str = "unreal.crashreporter";
 
 /// Extracts the items from an Unreal 4 crash report payload.
-pub fn extract_items(payload: Bytes, config: &Config) -> Result<Items, ProcessingError> {
+fn extract_items(payload: Bytes, config: &ConfigSnapshot) -> Result<Items, ProcessingError> {
     let mut items = Items::new();
     let crash = Unreal4Crash::parse_with_limit(&payload, config.max_envelope_size())?;
 
-    for file in crash.files() {
+    for file in crash.files().take(config.max_attachment_count()) {
         let (content_type, attachment_type) = match file.ty() {
             Unreal4FileType::Minidump => (ContentType::Minidump, AttachmentType::Minidump),
             Unreal4FileType::AppleCrashReport => {
@@ -55,8 +55,13 @@ pub fn extract_items(payload: Bytes, config: &Config) -> Result<Items, Processin
     Ok(items)
 }
 
-/// Expands items previously extracted from a report in to the [`UnrealExpansion`] representation.
-pub fn expand_unreal_items(items: Items) -> Result<UnrealExpansion, ProcessingError> {
+/// Expands an Unreal 4 crash report payload and returns the expanded items.
+pub fn expand_unreal(
+    payload: Bytes,
+    config: &ConfigSnapshot,
+) -> Result<UnrealExpansion, ProcessingError> {
+    let items = extract_items(payload, config)?;
+
     let mut context = items
         .iter()
         .find(|&item| matches!(item.attachment_type(), Some(AttachmentType::UnrealContext)))
@@ -72,25 +77,15 @@ pub fn expand_unreal_items(items: Items) -> Result<UnrealExpansion, ProcessingEr
     })
 }
 
-/// Expands an Unreal 4 crash report payload and returns the expanded items.
-#[cfg_attr(not(feature = "processing"), expect(unused))]
-pub fn expand_unreal(payload: Bytes, config: &Config) -> Result<UnrealExpansion, ProcessingError> {
-    let attachments = extract_items(payload, config)?;
-    expand_unreal_items(attachments)
-}
-
 /// Expansion from an Unreal 4 report.
 pub struct UnrealExpansion {
     /// The error event if the crash contained one.
-    #[cfg_attr(not(feature = "processing"), expect(unused))]
     pub event: Option<Item>,
     /// The parsed unreal context.
     ///
     /// Note: the raw unreal context may still be in [`Self::attachments`].
-    #[cfg_attr(not(feature = "processing"), expect(unused))]
     pub context: Option<Unreal4Context>,
     /// Files of the report as attachments.
-    #[cfg_attr(not(feature = "processing"), expect(unused))]
     pub attachments: Items,
 }
 
@@ -352,7 +347,6 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
 /// Processes an unreal crash report.
 ///
 /// The `user_header` should be extracted from the [`crate::constants::UNREAL_USER_HEADER`] envelope header.
-#[cfg_attr(not(feature = "processing"), expect(unused))]
 pub fn process_unreal<'a>(
     context: Option<Unreal4Context>,
     event_id: EventId,
@@ -394,7 +388,6 @@ pub fn process_unreal<'a>(
 }
 
 /// Result when processing an unreal report.
-#[cfg_attr(not(feature = "processing"), expect(unused))]
 pub struct ProcessedUnrealReport {
     /// User reports contained in the report.
     pub user_reports: Items,
@@ -403,6 +396,7 @@ pub struct ProcessedUnrealReport {
 #[cfg(test)]
 mod tests {
 
+    use relay_config::Config;
     use relay_protocol::SerializableAnnotated;
 
     use super::*;
@@ -474,6 +468,28 @@ mod tests {
 "#;
 
         Unreal4Context::parse(raw_context).unwrap()
+    }
+
+    #[test]
+    fn test_extract_items_limits_attachment_count() {
+        let bytes = include_bytes!("../../../tests/integration/fixtures/native/unreal_crash");
+        let payload = Bytes::from_static(bytes);
+
+        // Everything parses with default config:
+        let config = Config::default().current();
+        let items = extract_items(payload.clone(), &config).unwrap();
+        assert_eq!(items.len(), 4);
+
+        // Extraction honors the attachment limit:
+        let config = Config::from_json_value(serde_json::json!({
+            "limits": {
+                "max_attachment_count": 3
+            }
+        }))
+        .unwrap()
+        .current();
+        let items = extract_items(payload, &config).unwrap();
+        assert_eq!(items.len(), 3);
     }
 
     #[test]

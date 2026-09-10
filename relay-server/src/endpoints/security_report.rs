@@ -6,7 +6,7 @@ use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
 use itertools::Either;
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use relay_event_schema::protocol::EventId;
 use serde::Deserialize;
 use serde_json::value::RawValue;
@@ -81,9 +81,6 @@ fn is_security_mime(mime: Mime) -> bool {
         (ty, subty, suffix),
         ("application", "json", None)
             | ("application", "csp-report", None)
-            | ("application", "expect-ct-report", None)
-            | ("application", "expect-ct-report", Some("json"))
-            | ("application", "expect-staple-report", None)
             | ("application", "reports", Some("json"))
     )
 }
@@ -109,6 +106,6 @@ async fn handle(
     Ok(().into_response())
 }
 
-pub fn route(config: &Config) -> MethodRouter<ServiceState> {
+pub fn route(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
     post(handle).route_layer(DefaultBodyLimit::max(config.max_event_size()))
 }

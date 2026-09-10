@@ -89,9 +89,8 @@ where
     let mut pos = 0;
 
     for remark in remarks {
-        let (from, to) = match remark.range() {
-            Some(range) => *range,
-            None => continue,
+        let Some((from, to)) = remark.range().cloned() else {
+            continue;
         };
 
         if from > pos {
@@ -102,6 +101,10 @@ where
             } else {
                 break;
             }
+            pos = from;
+        } else if from < pos {
+            // A lower `from` would duplicate parts of the string and is therefore illegal.
+            break;
         }
         if let Some(piece) = text.get(from..to) {
             rv.push(Chunk::Redaction {

@@ -395,6 +395,7 @@ impl syn::parse::Parse for Required {
 enum Size {
     Static(usize),
     Dynamic(ExprPath),
+    Const(ExprPath),
 }
 
 impl syn::parse::Parse for Size {
@@ -404,12 +405,16 @@ impl syn::parse::Parse for Size {
             return Ok(Self::Static(lit.base10_parse()?));
         }
 
-        let head = input.fork();
-        let path = input
-            .parse::<LitStr>()?
-            .parse()
-            .map_err(|_| head.error("Expected a function name"))?;
-        Ok(Self::Dynamic(path))
+        if input.peek(LitStr) {
+            let head = input.fork();
+            let path = input
+                .parse::<LitStr>()?
+                .parse()
+                .map_err(|_| head.error("Expected a function name"))?;
+            return Ok(Self::Dynamic(path));
+        }
+
+        Ok(Self::Const(input.parse::<ExprPath>()?))
     }
 }
 
@@ -418,6 +423,9 @@ impl Size {
         match self {
             Self::Static(n) => quote!(::relay_event_schema::processor::SizeMode::Static(Some(#n))),
             Self::Dynamic(fun) => quote!(::relay_event_schema::processor::SizeMode::Dynamic(#fun)),
+            Self::Const(path) => {
+                quote!(::relay_event_schema::processor::SizeMode::Static(Some(#path)))
+            }
         }
     }
 }

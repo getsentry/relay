@@ -726,7 +726,7 @@ mod tests {
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
-            namespaces: smallvec![MetricNamespace::Custom],
+            namespaces: smallvec![MetricNamespace::Transactions],
         };
 
         let scoping = Scoping {
@@ -739,7 +739,7 @@ mod tests {
         assert!(rate_limit.matches(ItemScoping {
             category: DataCategory::MetricBucket,
             scoping,
-            namespace: MetricNamespaceScoping::Some(MetricNamespace::Custom),
+            namespace: MetricNamespaceScoping::Some(MetricNamespace::Transactions),
         }));
 
         assert!(!rate_limit.matches(ItemScoping {
@@ -957,7 +957,7 @@ mod tests {
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
-            namespaces: smallvec![MetricNamespace::Custom],
+            namespaces: smallvec![MetricNamespace::Transactions],
         });
 
         // Same category but different namespaces
@@ -980,7 +980,7 @@ mod tests {
               reason_code: None,
               retry_after: RetryAfter(1),
               namespaces: [
-                "custom",
+                "transactions",
               ],
             ),
             RateLimit(

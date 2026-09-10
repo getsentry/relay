@@ -7,7 +7,7 @@ use uuid::{Error as UuidError, Uuid};
 use crate::utils;
 
 /// The type of a debug image.
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Copy, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum ImageType {
     MachO,

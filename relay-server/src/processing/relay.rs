@@ -2,7 +2,6 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use relay_cogs::{Cogs, ResourceId};
-use relay_dynamic_config::Feature;
 use relay_event_normalization::GeoIpLookup;
 use relay_system::Addr;
 
@@ -14,7 +13,6 @@ use crate::processing::client_reports::ClientReportsProcessor;
 use crate::processing::errors::ErrorsProcessor;
 use crate::processing::forward_unknown::ForwardUnknownProcessor;
 use crate::processing::invalid::InvalidUnhandledProcessor;
-use crate::processing::legacy_spans::LegacySpansProcessor;
 use crate::processing::logs::LogsProcessor;
 use crate::processing::profile_chunks::ProfileChunksProcessor;
 use crate::processing::profiles::ProfilesProcessor;
@@ -41,7 +39,6 @@ pub struct RelayProcessor {
     errors: ErrorsProcessor,
     forward_unknown: ForwardUnknownProcessor,
     invalid: InvalidUnhandledProcessor,
-    legacy_spans: LegacySpansProcessor,
     logs: LogsProcessor,
     profile_chunks: ProfileChunksProcessor,
     profiles: ProfilesProcessor,
@@ -74,7 +71,6 @@ impl RelayProcessor {
             errors: ErrorsProcessor::new(ql(), geoip_lookup.clone()),
             forward_unknown: ForwardUnknownProcessor::new(),
             invalid: InvalidUnhandledProcessor::new(),
-            legacy_spans: LegacySpansProcessor::new(ql(), geoip_lookup.clone()),
             logs: LogsProcessor::new(ql()),
             profile_chunks: ProfileChunksProcessor::new(ql()),
             profiles: ProfilesProcessor::new(ql()),
@@ -99,8 +95,6 @@ impl RelayProcessor {
     ) -> Vec<Output<Outputs>> {
         let mut outputs = Vec::with_capacity(5);
 
-        let pi = ctx.project_info;
-
         macro_rules! run {
             ($processor:expr) => {{
                 if let Some(output) = self.run_one(&$processor, &mut envelope, ctx).await {
@@ -124,10 +118,6 @@ impl RelayProcessor {
 
         // Primary item types.
         run!(self.replays);
-        if !pi.has_feature(Feature::SpanV2ExperimentalProcessing) {
-            // To be fully replaced with the npn-legacy span processor.
-            run!(self.legacy_spans);
-        }
         run!(self.spans);
         run!(self.logs);
         run!(self.trace_metrics);

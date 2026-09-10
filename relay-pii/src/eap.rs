@@ -872,7 +872,7 @@ mod tests {
 
                 eap::scrub(ValueType::Span, &mut span, Some(&config), scrubbing_config.as_ref()).unwrap();
 
-                insta::allow_duplicates!(insta::assert_json_snapshot!(SerializableAnnotated(&span.value().unwrap().attributes), @$snapshot));
+                insta::allow_duplicates!(insta::assert_json_snapshot!(SerializableAnnotated(&span.value().unwrap().attributes), @$snapshot););
 
                 let log_json = format!(r#"{{
                     "timestamp": 1544719860.0,
@@ -898,7 +898,7 @@ mod tests {
 
                 eap::scrub(ValueType::OurLog, &mut log, Some(&config), scrubbing_config.as_ref()).unwrap();
 
-                insta::allow_duplicates!(insta::assert_json_snapshot!(SerializableAnnotated(&log.value().unwrap().attributes), @$snapshot));
+                insta::allow_duplicates!(insta::assert_json_snapshot!(SerializableAnnotated(&log.value().unwrap().attributes), @$snapshot););
 
                 let metric_json = format!(r#"{{
                     "timestamp": 1544719860.0,
@@ -924,7 +924,7 @@ mod tests {
 
                 eap::scrub(ValueType::TraceMetric, &mut metric, Some(&config), scrubbing_config.as_ref()).unwrap();
 
-                insta::allow_duplicates!(insta::assert_json_snapshot!(SerializableAnnotated(&metric.value().unwrap().attributes), @$snapshot));
+                insta::allow_duplicates!(insta::assert_json_snapshot!(SerializableAnnotated(&metric.value().unwrap().attributes), @$snapshot););
             }
         };
     }

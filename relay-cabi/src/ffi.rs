@@ -59,7 +59,7 @@ impl RelayErrorCode {
                 return match err {
                     UnpackError::BadSignature => RelayErrorCode::UnpackErrorBadSignature,
                     UnpackError::BadPayload(..) => RelayErrorCode::UnpackErrorBadPayload,
-                    UnpackError::SignatureExpired => RelayErrorCode::UnpackErrorSignatureExpired,
+                    UnpackError::Time(_) => RelayErrorCode::UnpackErrorSignatureExpired,
                     UnpackError::BadEncoding => RelayErrorCode::UnpackErrorBadEncoding,
                 };
             }

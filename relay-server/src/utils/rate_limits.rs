@@ -1413,7 +1413,7 @@ mod tests {
             scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: Some(ReasonCode::new("my_limit")),
             retry_after: RetryAfter::from_secs(42),
-            namespaces: smallvec![MetricNamespace::Custom, MetricNamespace::Spans],
+            namespaces: smallvec![MetricNamespace::Transactions, MetricNamespace::Spans],
         });
 
         // Rate limit without reason code.
@@ -1426,7 +1426,7 @@ mod tests {
         });
 
         let formatted = format_rate_limits(&rate_limits);
-        let expected = "42:metric_bucket:organization:my_limit:custom;spans, 42:metric_bucket:organization::spans";
+        let expected = "42:metric_bucket:organization:my_limit:transactions;spans, 42:metric_bucket:organization::spans";
         assert_eq!(formatted, expected);
     }
 
@@ -1497,7 +1497,7 @@ mod tests {
             key_id: Some(17),
         };
 
-        let formatted = "42:metric_bucket:organization::custom;spans";
+        let formatted = "42:metric_bucket:organization::transactions;spans";
         let rate_limits: Vec<RateLimit> =
             parse_rate_limits(&scoping, formatted).into_iter().collect();
 
@@ -1508,7 +1508,7 @@ mod tests {
                 scope: RateLimitScope::Organization(OrganizationId::new(42)),
                 reason_code: None,
                 retry_after: rate_limits[0].retry_after,
-                namespaces: smallvec![MetricNamespace::Custom, MetricNamespace::Spans],
+                namespaces: smallvec![MetricNamespace::Transactions, MetricNamespace::Spans],
             }]
         );
     }

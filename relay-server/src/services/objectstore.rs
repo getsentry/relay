@@ -1,5 +1,6 @@
 //! Objectstore service for uploading attachments.
 use std::array::TryFromSliceError;
+use std::borrow::Cow;
 use std::fmt;
 use std::num::NonZeroU16;
 use std::sync::Arc;
@@ -8,9 +9,12 @@ use std::time::Duration;
 use bytes::Bytes;
 use futures::StreamExt;
 use http::StatusCode;
+use mime::Mime;
 use objectstore_client::{
     Client, ExpirationPolicy, SecretKey as SigningKey, Session, TokenGenerator, Usecase,
 };
+
+use objectstore_types::multipart::{InvalidUploadId, UploadId};
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_config::ObjectstoreServiceConfig;
@@ -18,11 +22,12 @@ use relay_quotas::Scoping;
 use relay_system::{
     Addr, AsyncResponse, FromMessage, Interface, LoadShed, NoResponse, Sender, SimpleService,
 };
-use sentry_protos::snuba::v1::TraceItem;
+use sentry_protos::snuba::v1::{AnyValue, TraceItem, any_value};
 
 use crate::constants::DEFAULT_ATTACHMENT_RETENTION;
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::managed::{Counted, Managed, ManagedResult, OutcomeError, Quantities, Rejected};
+use crate::processing::trace_attachments::store::CONTENT_TYPE_ATTRIBUTE;
 use crate::processing::utils::store::item_id_to_uuid;
 use crate::services::outcome::DiscardReason;
 use crate::services::store::{
@@ -40,6 +45,7 @@ pub enum Objectstore {
     TraceAttachment(Managed<StoreTraceAttachment>),
     EventAttachment(Managed<StoreAttachment>),
     RawProfile(Managed<StoreRawProfile>),
+    Create(Create, Sender<Result<UploadRef, Error>>),
     Stream(Stream, Sender<Result<ObjectstoreKey, Error>>),
 }
 
@@ -51,6 +57,7 @@ impl Objectstore {
             Self::EventAttachment(_) => MessageKind::EventAttachment,
             Self::RawProfile(_) => MessageKind::RawProfile,
             Self::Stream { .. } => MessageKind::Stream,
+            Self::Create { .. } => MessageKind::Create,
         }
     }
 
@@ -61,6 +68,7 @@ impl Objectstore {
             Self::EventAttachment(_) => 1,
             Self::RawProfile(_) => 1,
             Self::Stream { .. } => 1,
+            Self::Create { .. } => 0,
         }
     }
 }
@@ -107,6 +115,7 @@ enum MessageKind {
     TraceAttachment,
     RawProfile,
     Stream,
+    Create,
 }
 
 impl MessageKind {
@@ -117,7 +126,28 @@ impl MessageKind {
             Self::TraceAttachment => "attachment_v2",
             Self::RawProfile => "profile_raw",
             Self::Stream => "stream",
+            Self::Create => "create",
         }
+    }
+}
+
+/// A request to create a new objectstore multipart upload.
+pub struct Create {
+    /// The sentry org.
+    pub organization_id: OrganizationId,
+    /// The sentry project.
+    pub project_id: ProjectId,
+    /// The desired objectstore key.
+    pub key: String,
+    /// Retention for the uploaded object (in days).
+    pub retention: u16,
+}
+
+impl FromMessage<Create> for Objectstore {
+    type Response = AsyncResponse<Result<UploadRef, Error>>;
+
+    fn from_message(message: Create, sender: Sender<Result<UploadRef, Error>>) -> Self {
+        Self::Create(message, sender)
     }
 }
 
@@ -125,7 +155,8 @@ impl MessageKind {
 pub struct Stream {
     pub organization_id: OrganizationId,
     pub project_id: ProjectId,
-    pub key: String,
+    pub upload_ref: UploadRef,
+    pub retention: u16,
     pub stream: BoundedStream<MeteredStream<ByteStream>>,
 }
 
@@ -143,6 +174,10 @@ pub struct StoreTraceAttachment {
     pub body: Bytes,
     /// The trace item to be published via Kafka.
     pub trace_item: TraceItem,
+    /// The content type of the attachment body.
+    pub content_type: Option<String>,
+    /// The file name that downloads of this attachment are named after.
+    pub filename: Option<String>,
     /// Data retention in days for this attachment.
     pub retention: u16,
 }
@@ -293,6 +328,27 @@ impl ObjectstoreKey {
     }
 }
 
+/// Identifier needed to resume an existing upload.
+#[derive(Debug, Clone)]
+pub struct UploadRef {
+    /// They key of the file (chosen by relay).
+    pub key: String,
+    /// The ID of the multipart upload session (chosen by objectstore).
+    /// `None` if the upload is not a resumable session.
+    pub upload_id: Option<UploadId>,
+}
+
+impl UploadRef {
+    /// Validates the upload ID and returns a new upload reference.
+    pub fn new(key: String, upload_id: Option<String>) -> Result<Self, InvalidUploadId> {
+        let upload_id = match upload_id {
+            Some(s) => Some(UploadId::new(s)?),
+            None => None,
+        };
+        Ok(Self { key, upload_id })
+    }
+}
+
 impl fmt::Display for ObjectstoreKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
@@ -332,22 +388,11 @@ impl ObjectstoreService {
             let mut builder = Client::builder(objectstore_url);
 
             if let Some(auth) = auth {
-                // TODO(FS-313): when Objectstore starts enforcing auth, propagate error with ?
                 let token_generator = TokenGenerator::new(SigningKey {
                     kid: auth.key_id.clone(),
                     secret_key: auth.signing_key.clone(),
-                });
-
-                builder = match token_generator {
-                    Ok(token_generator) => builder.token(token_generator),
-                    Err(error) => {
-                        relay_log::error!(
-                            error = &error as &dyn std::error::Error,
-                            "failed to configure objectstore auth"
-                        );
-                        builder
-                    }
-                };
+                })?;
+                builder = builder.token(token_generator);
             }
 
             builder.build()?
@@ -415,6 +460,9 @@ impl LoadShed<Objectstore> for ObjectstoreService {
             Objectstore::Stream(_, sender) => {
                 sender.send(Err(error));
             }
+            Objectstore::Create(_, sender) => {
+                sender.send(Err(error));
+            }
         }
     }
 }
@@ -453,6 +501,13 @@ impl ObjectstoreServiceInner {
             }
             Objectstore::RawProfile(profile) => {
                 self.handle_raw_profile(profile).await;
+            }
+            Objectstore::Create(create, sender) => {
+                let result = self.handle_create(create).await;
+                if let Err(error) = &result {
+                    error.log(MessageKind::Create);
+                }
+                sender.send(result);
             }
             Objectstore::Stream(stream, sender) => {
                 let result = self.handle_stream(stream).await;
@@ -496,14 +551,23 @@ impl ObjectstoreServiceInner {
         });
 
         for mut attachment in attachments.split(|e| e) {
+            let content_type =
+                normalize_content_type(attachment.raw_content_type(), attachment.filename());
+            attachment.modify(|a, _| a.set_raw_content_type(content_type.clone()));
+
+            let attributes = ObjectAttributes {
+                content_type: Some(content_type),
+                filename: attachment.filename().map(String::from),
+                ..Default::default()
+            };
+
             let result = self
                 .upload_bytes(
                     MessageKind::Event,
                     &session,
                     attachment.payload(),
                     event.retention_days,
-                    None,
-                    None,
+                    attributes,
                 )
                 .await;
 
@@ -546,16 +610,27 @@ impl ObjectstoreServiceInner {
             scoping.project_id,
         );
 
+        let content_type = normalize_content_type(
+            attachment.attachment.raw_content_type(),
+            attachment.attachment.filename(),
+        );
+        attachment.modify(|a, _| a.attachment.set_raw_content_type(content_type.clone()));
+
         let upload_result = match session {
             Err(error) => Err(error),
             Ok(session) => {
+                let attributes = ObjectAttributes {
+                    content_type: Some(content_type),
+                    filename: attachment.attachment.filename().map(String::from),
+                    ..Default::default()
+                };
+
                 self.upload_bytes(
                     MessageKind::EventAttachment,
                     &session,
                     attachment.attachment.payload(),
                     attachment.retention,
-                    None,
-                    None,
+                    attributes,
                 )
                 .await
             }
@@ -596,16 +671,30 @@ impl ObjectstoreServiceInner {
 
         let body = Bytes::clone(&managed.body);
         let retention = managed.retention;
+        let filename = managed.filename.clone();
+        let content_type =
+            normalize_content_type(managed.content_type.as_deref(), filename.as_deref());
 
         // Make sure that the attachment can be converted into a trace item:
-        let trace_item = managed.try_map(|attachment, _record_keeper| {
+        let mut trace_item = managed.try_map(|attachment, _record_keeper| {
             let StoreTraceAttachment {
                 trace_item,
                 body: _,
+                content_type: _,
+                filename: _,
                 retention: _,
             } = attachment;
             Ok::<_, Error>(StoreTraceItem { trace_item })
         })?;
+
+        // Write back the normalized content type for the `Store` service:
+        trace_item.modify(|item, _| {
+            let value = any_value::Value::StringValue(content_type.clone().into_owned());
+            item.trace_item.attributes.insert(
+                CONTENT_TYPE_ATTRIBUTE.to_owned(),
+                AnyValue { value: Some(value) },
+            );
+        });
 
         // Upload the attachment:
         if !body.is_empty() {
@@ -619,14 +708,19 @@ impl ObjectstoreServiceInner {
             #[cfg(debug_assertions)]
             let original_key = key.clone();
 
+            let attributes = ObjectAttributes {
+                key: Some(key),
+                content_type: Some(content_type),
+                filename,
+            };
+
             let _stored_key = self
                 .upload_bytes(
                     MessageKind::TraceAttachment,
                     &session,
                     body,
                     retention,
-                    Some(key),
-                    None,
+                    attributes,
                 )
                 .await
                 .reject(&trace_item)?;
@@ -690,25 +784,48 @@ impl ObjectstoreServiceInner {
             .for_project(scoping.organization_id.value(), scoping.project_id.value())
             .session(&self.objectstore_client)?;
 
+        let attributes = ObjectAttributes {
+            content_type: Some(Cow::Borrowed(content_type.as_str())),
+            ..Default::default()
+        };
+
         let stored_key = self
             .upload_bytes(
                 MessageKind::RawProfile,
                 &session,
                 payload,
                 retention,
-                None,
-                Some(content_type),
+                attributes,
             )
             .await?;
 
         Ok(Some(stored_key))
     }
 
+    async fn handle_create(&self, create: Create) -> Result<UploadRef, Error> {
+        let Create {
+            organization_id,
+            project_id,
+            key,
+            retention: _,
+        } = create;
+        let _session = self.session(&self.event_attachments, organization_id, project_id)?;
+
+        // This is intentionally a stub. Once Objectstore implements resumable uploads,
+        // create an upload session here.
+
+        Ok(UploadRef {
+            key,
+            upload_id: None,
+        })
+    }
+
     async fn handle_stream(&self, stream: Stream) -> Result<ObjectstoreKey, Error> {
         let Stream {
             organization_id,
             project_id,
-            key,
+            upload_ref,
+            retention,
             stream,
         } = stream;
         let session = self.session(&self.event_attachments, organization_id, project_id)?;
@@ -716,10 +833,11 @@ impl ObjectstoreServiceInner {
         self.upload(
             MessageKind::Stream,
             &session,
-            Some(key),
-            Body::Stream(TakeOnce::new(stream)),
-            None,
-            None,
+            Upload::Stream {
+                body: TakeOnce::new(stream),
+                upload_ref,
+                retention,
+            },
         )
         .await
     }
@@ -730,17 +848,24 @@ impl ObjectstoreServiceInner {
         session: &Session,
         payload: Bytes,
         retention: u16,
-        key: Option<String>,
-        content_type: Option<ContentType>,
+        attributes: ObjectAttributes,
     ) -> Result<ObjectstoreKey, Error> {
+        let ObjectAttributes {
+            key,
+            content_type,
+            filename,
+        } = attributes;
         let retention_hours = retention.checked_mul(24);
         self.upload(
             kind,
             session,
-            key,
-            Body::Bytes(payload),
-            retention_hours,
-            content_type,
+            Upload::Bytes {
+                body: payload,
+                key,
+                retention_hours,
+                content_type,
+                filename,
+            },
         )
         .await
     }
@@ -749,15 +874,12 @@ impl ObjectstoreServiceInner {
         &self,
         kind: MessageKind,
         session: &Session,
-        key: Option<String>,
-        body: Body,
-        retention_hours: Option<u16>,
-        content_type: Option<ContentType>,
+        body: Upload,
     ) -> Result<ObjectstoreKey, Error> {
         let mut attempts = 0;
         let timeout = match &body {
-            Body::Bytes(_) => self.timeout,
-            Body::Stream(_) => self.stream_timeout,
+            Upload::Bytes { .. } => self.timeout,
+            Upload::Stream { .. } => self.stream_timeout,
         };
         let result = tokio::time::timeout(timeout, async {
             let mut result = None;
@@ -766,17 +888,7 @@ impl ObjectstoreServiceInner {
                     break;
                 };
                 attempts += 1;
-                result.replace(
-                    self.attempt_upload(
-                        kind,
-                        session,
-                        key.clone(),
-                        body,
-                        retention_hours,
-                        content_type,
-                    )
-                    .await,
-                );
+                result.replace(self.attempt_upload(kind, session, body).await);
 
                 if attempts < self.max_attempts.get()
                     && matches!(&result, Some(Err(e)) if is_retryable(e))
@@ -811,37 +923,58 @@ impl ObjectstoreServiceInner {
         &self,
         kind: MessageKind,
         session: &Session,
-        key: Option<String>,
-        body: BodyAttempt,
-        retention_hours: Option<u16>,
-        content_type: Option<ContentType>,
+        body: UploadAttempt,
     ) -> Result<ObjectstoreKey, objectstore_client::Error> {
-        let mut request = match body {
-            BodyAttempt::Bytes(bytes) => session.put(bytes),
-            BodyAttempt::Stream(stream) => session.put_stream(stream.boxed()),
-        };
+        match body {
+            UploadAttempt::Bytes {
+                body,
+                key,
+                retention_hours,
+                content_type,
+                filename,
+            } => {
+                let mut request = session.put(body);
+                if let Some(content_type) = content_type {
+                    request = request.content_type(content_type);
+                }
+                if let Some(filename) = filename {
+                    request = request.filename(filename);
+                }
+                if let Some(retention_hours) = retention_hours {
+                    request = request.expiration_policy(ExpirationPolicy::TimeToLive(
+                        Duration::from_hours(retention_hours.into()),
+                    ));
+                }
+                if let Some(key) = key {
+                    request = request.key(key);
+                }
+                let response = relay_statsd::metric!(
+                    timer(RelayTimers::AttachmentUploadDuration),
+                    type = kind.as_str(),
+                {
+                    request.send().await?
+                });
 
-        if let Some(content_type) = content_type {
-            request = request.content_type(content_type.as_str());
-        }
-        if let Some(retention_hours) = retention_hours {
-            request = request.expiration_policy(ExpirationPolicy::TimeToLive(
-                Duration::from_hours(retention_hours.into()),
-            ));
-        }
-        if let Some(key) = key {
-            request = request.key(key);
-        }
-
-        let response = relay_statsd::metric!(
-            timer(RelayTimers::AttachmentUploadDuration),
-            type = kind.as_str(),
-            {
-                request.send().await
+                Ok(ObjectstoreKey(response.key))
             }
-        )?;
+            UploadAttempt::Stream {
+                body,
+                upload_ref,
+                retention,
+            } => {
+                let UploadRef { key, upload_id: _ } = upload_ref;
 
-        Ok(ObjectstoreKey(response.key))
+                let request = session.put_stream(body.boxed()).key(key);
+                let response = request
+                    .expiration_policy(ExpirationPolicy::TimeToLive(Duration::from_hours(
+                        u64::from(retention) * 24,
+                    )))
+                    .send()
+                    .await?;
+
+                Ok(ObjectstoreKey(response.key))
+            }
+        }
     }
 
     fn session(
@@ -860,19 +993,67 @@ impl ObjectstoreServiceInner {
     }
 }
 
+/// Optional attributes of an object stored in objectstore.
+#[derive(Debug, Default)]
+struct ObjectAttributes {
+    /// The key to store the object under.
+    ///
+    /// If this is `None`, objectstore assigns a random key.
+    key: Option<String>,
+    /// The content type of the payload.
+    ///
+    /// If this is `None`, objectstore assumes `application/octet-stream`.
+    content_type: Option<Cow<'static, str>>,
+    /// The file name that downloads of this object are named after.
+    ///
+    /// Objectstore only sends a `Content-Disposition` header for objects that were stored with a
+    /// file name.
+    filename: Option<String>,
+}
+
 /// Common interface for calls to [`ObjectstoreServiceInner::upload`].
 ///
 /// This type is shared across retries.
-enum Body {
-    Bytes(Bytes),
-    Stream(TakeOnce<BoundedStream<MeteredStream<ByteStream>>>),
+enum Upload {
+    Bytes {
+        body: Bytes,
+        key: Option<String>,
+        retention_hours: Option<u16>,
+        content_type: Option<Cow<'static, str>>,
+        filename: Option<String>,
+    },
+    Stream {
+        body: TakeOnce<BoundedStream<MeteredStream<ByteStream>>>,
+        upload_ref: UploadRef,
+        retention: u16,
+    },
 }
 
-impl Body {
-    fn try_clone(&self) -> Option<BodyAttempt> {
+impl Upload {
+    fn try_clone(&self) -> Option<UploadAttempt> {
         match self {
-            Self::Bytes(bytes) => Some(BodyAttempt::Bytes(bytes.clone())),
-            Self::Stream(stream) => RetryableStream::new(stream.clone()).map(BodyAttempt::Stream),
+            Self::Bytes {
+                body,
+                key,
+                retention_hours,
+                content_type,
+                filename,
+            } => Some(UploadAttempt::Bytes {
+                body: body.clone(),
+                key: key.clone(),
+                retention_hours: *retention_hours,
+                content_type: content_type.clone(),
+                filename: filename.clone(),
+            }),
+            Self::Stream {
+                body,
+                upload_ref,
+                retention,
+            } => RetryableStream::new(body.clone()).map(|body| UploadAttempt::Stream {
+                body,
+                upload_ref: upload_ref.clone(),
+                retention: *retention,
+            }),
         }
     }
 }
@@ -880,9 +1061,19 @@ impl Body {
 /// Common interface for calls to [`ObjectstoreServiceInner::attempt_upload`].
 ///
 /// This type is instantiated for every retry.
-enum BodyAttempt {
-    Bytes(Bytes),
-    Stream(RetryableStream<BoundedStream<MeteredStream<ByteStream>>>),
+enum UploadAttempt {
+    Bytes {
+        body: Bytes,
+        key: Option<String>,
+        retention_hours: Option<u16>,
+        content_type: Option<Cow<'static, str>>,
+        filename: Option<String>,
+    },
+    Stream {
+        body: RetryableStream<BoundedStream<MeteredStream<ByteStream>>>,
+        upload_ref: UploadRef,
+        retention: u16,
+    },
 }
 
 fn is_retryable(error: &objectstore_client::Error) -> bool {
@@ -916,6 +1107,30 @@ fn is_user_error(error: &(dyn std::error::Error + 'static)) -> bool {
     })
 }
 
+/// Normalizes the content type of an attachment into an IANA media type.
+///
+/// Content types of attachments are arbitrary strings supplied by SDKs, and most SDKs default to
+/// the generic `application/octet-stream`. Media type parameters such as `charset` are stripped,
+/// and the type is guessed from the file name if it is missing, generic, or not a valid media
+/// type. This matches how Sentry normalizes content types when it serves attachments.
+fn normalize_content_type(raw: Option<&str>, filename: Option<&str>) -> Cow<'static, str> {
+    let octet_stream = ContentType::OctetStream.as_str();
+
+    // Parsing as a media type validates the content type and strips parameters such as `charset`.
+    let declared = raw
+        .and_then(|content_type| content_type.parse::<Mime>().ok())
+        .map(|media_type| media_type.essence_str().to_ascii_lowercase())
+        .filter(|essence| essence != octet_stream);
+
+    match declared {
+        Some(content_type) => Cow::Owned(content_type),
+        None => filename
+            .and_then(|filename| mime_guess::from_path(filename).first_raw())
+            .unwrap_or(octet_stream)
+            .into(),
+    }
+}
+
 fn should_upload(item: &Item) -> bool {
     *item.ty() == ItemType::Attachment
         && item.stored_key().is_none()
@@ -940,6 +1155,7 @@ mod tests {
     use relay_quotas::DataCategory;
     use relay_system::Service;
 
+    use crate::constants::DEFAULT_EVENT_RETENTION;
     use crate::managed::ManagedTestHandle;
 
     use super::*;
@@ -961,7 +1177,11 @@ mod tests {
             .send(Stream {
                 organization_id: OrganizationId::new(0),
                 project_id: ProjectId::new(1),
-                key: "my_file".into(),
+                upload_ref: UploadRef {
+                    key: "my_file".to_owned(),
+                    upload_id: Some(UploadId::new("my_upload".to_owned()).unwrap()),
+                },
+                retention: DEFAULT_EVENT_RETENTION,
                 stream,
             })
             .await
@@ -1055,6 +1275,47 @@ mod tests {
             &Outcome::Invalid(DiscardReason::UploadFailed),
             DataCategory::AttachmentItem,
             1,
+        );
+    }
+
+    #[test]
+    fn content_type_normalizes_declared() {
+        assert_eq!(normalize_content_type(Some("Image/PNG"), None), "image/png");
+        assert_eq!(
+            normalize_content_type(Some("text/plain; charset=utf-8"), None),
+            "text/plain"
+        );
+    }
+
+    #[test]
+    fn content_type_guessed_from_filename() {
+        // Most SDKs send the generic octet stream, which is less specific than the file name.
+        let declared = Some("application/octet-stream");
+        assert_eq!(
+            normalize_content_type(declared, Some("screenshot.png")),
+            "image/png"
+        );
+        assert_eq!(normalize_content_type(None, Some("view.txt")), "text/plain");
+    }
+
+    #[test]
+    fn content_type_falls_back_to_octet_stream() {
+        assert_eq!(
+            normalize_content_type(None, None),
+            ContentType::OctetStream.as_str()
+        );
+        assert_eq!(
+            normalize_content_type(None, Some("crash.unknown-extension")),
+            ContentType::OctetStream.as_str()
+        );
+        // Content types are arbitrary strings from SDKs, invalid ones must not reach objectstore.
+        assert_eq!(
+            normalize_content_type(Some("not a media type"), Some("view.txt")),
+            "text/plain"
+        );
+        assert_eq!(
+            normalize_content_type(Some("image"), None),
+            ContentType::OctetStream.as_str()
         );
     }
 

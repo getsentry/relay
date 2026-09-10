@@ -30,7 +30,7 @@ pipelines:
               tasks:
                 - script: |
                     checks-gocd-pipeline-status \
-                    deploy-relay-processing \
+                    deploy-region-relay \
                     deploy-edge-relay
       - deploy-relay:
           approval:
@@ -47,7 +47,7 @@ pipelines:
               tasks:
                 - script: |
                     gocd-trigger-pipeline \
-                    --pipeline-name=deploy-relay-processing \
+                    --pipeline-name=deploy-region-relay \
                     --pipeline-name=deploy-edge-relay \
                     --material-name=relay_repo \
                     --sha="${GO_REVISION_RELAY_REPO}"

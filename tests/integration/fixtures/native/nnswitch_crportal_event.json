@@ -1,0 +1,115 @@
+{
+  "event_id": "9938e40988cdd00b8b46c1d525f8abea",
+  "platform": "native",
+  "logger": "SentryNintendo@3.0.0",
+  "level": "error",
+  "timestamp": "2026-07-30T12:55:06+00:00",
+  "exception": {
+    "values": [
+      {
+        "type": "2168-0002 ResultAccessViolationData",
+        "value": "Data access to an invalid memory region was performed. (2: Access Violation Data)",
+        "mechanism": {
+          "type": "2168-0002",
+          "handled": false
+        },
+        "thread_id": 8440,
+        "stacktrace": {
+          "frames": [
+            {
+              "package": "nnrtld",
+              "instruction_addr": "0x00000077616ba2e4"
+            },
+            {
+              "package": "nnSdk",
+              "function": "nn::init::Start",
+              "instruction_addr": "0x0000007761723f10"
+            },
+            {
+              "package": "SentryIntegrationTest.nss",
+              "filename": "main.cpp",
+              "function": "nnMain",
+              "lineno": 173,
+              "instruction_addr": "0x00000077601010a8",
+              "vars": {
+                "affinity_mask": "0x0000000000000001",
+                "current_core": 0,
+                "exception_address": "0x0000000000000000",
+                "exception_code": 2,
+                "exception_code_description": "Access Violation Data",
+                "exception_thread": "8440",
+                "ideal_core": 0,
+                "lr_called": true,
+                "priority": 16,
+                "stack_bottom": "0x000000775fce6000",
+                "stack_top": "0x000000775fde6000"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "threads": {
+    "values": [
+      {
+        "id": 8440,
+        "crashed": true,
+        "state": "Runnable",
+        "stacktrace": {
+          "frames": [
+            {
+              "package": "nnrtld",
+              "instruction_addr": "0x00000077616ba2e4"
+            },
+            {
+              "package": "nnSdk",
+              "function": "nn::init::Start",
+              "instruction_addr": "0x0000007761723f10"
+            },
+            {
+              "package": "SentryIntegrationTest.nss",
+              "filename": "main.cpp",
+              "function": "nnMain",
+              "lineno": 173,
+              "instruction_addr": "0x00000077601010a8"
+            }
+          ]
+        }
+      },
+      {
+        "id": 8451,
+        "crashed": false,
+        "state": "Waiting"
+      }
+    ]
+  },
+  "user": {
+    "id": "2d0a3a3c0acd2ac5ab32276ab14091dceb78884b",
+    "username": "2d0a3a3c",
+    "ip_address": "0.0.0.0"
+  },
+  "contexts": {
+    "app": {
+      "app_name": "SentryIntegrationTest",
+      "app_version": "1.0.0",
+      "app_build": "1"
+    },
+    "device": {
+      "name": "Nintendo Switch",
+      "family": "Nintendo Switch",
+      "model": "Nintendo Switch",
+      "manufacturer": "Nintendo"
+    },
+    "os": {
+      "name": "Nintendo OS",
+      "version": "22.1.0"
+    }
+  },
+  "extra": {
+    "application_total_active_time": "1",
+    "occurrence_timestamp_net": "2026-07-30T12:55:06+00:00",
+    "posted_at": "2026-07-30T12:55:08+00:00",
+    "report_identifier": "efed2050-fb20-4f0f-9c7f-635767eed654"
+  }
+}

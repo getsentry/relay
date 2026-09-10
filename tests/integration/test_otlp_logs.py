@@ -7,6 +7,7 @@ from sentry_relay.consts import DataCategory
 
 from .test_spansv2_otel import parse_google_rpc_status
 from .asserts import matches_any, time_within_delta, time_within, only_items
+from .consts import Outcome
 
 TEST_CONFIG = {
     "outcomes": {
@@ -273,6 +274,7 @@ def test_otlp_logs_conversion(
                 },
                 "sentry.origin": {"stringValue": "auto.otlp.logs"},
                 "sentry.payload_size_bytes": {"intValue": matches_any()},
+                "sentry.relay.ingress": {"stringValue": "integration"},
                 "sentry.severity_text": {"stringValue": "info"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
                 "sentry.timestamp_precise": {
@@ -299,12 +301,12 @@ def test_otlp_logs_conversion(
             "outcomes": {
                 "categoryCount": [
                     {
-                        "dataCategory": DataCategory.LOG_ITEM.value,
+                        "dataCategory": DataCategory.LOG_ITEM,
                         "quantity": "1",
                     },
                     {
-                        "dataCategory": DataCategory.LOG_BYTE.value,
-                        "quantity": "318",
+                        "dataCategory": DataCategory.LOG_BYTE,
+                        "quantity": "349",
                     },
                 ],
                 "keyId": "123",
@@ -376,6 +378,7 @@ def test_otlp_logs_multiple_records(
                 },
                 "sentry.origin": {"stringValue": "auto.otlp.logs"},
                 "sentry.payload_size_bytes": {"intValue": matches_any()},
+                "sentry.relay.ingress": {"stringValue": "integration"},
                 "sentry.severity_text": {"stringValue": "error"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
                 "sentry.timestamp_precise": {
@@ -401,12 +404,12 @@ def test_otlp_logs_multiple_records(
             "outcomes": {
                 "categoryCount": [
                     {
-                        "dataCategory": DataCategory.LOG_ITEM.value,
+                        "dataCategory": DataCategory.LOG_ITEM,
                         "quantity": "1",
                     },
                     {
-                        "dataCategory": DataCategory.LOG_BYTE.value,
-                        "quantity": "92",
+                        "dataCategory": DataCategory.LOG_BYTE,
+                        "quantity": "123",
                     },
                 ],
                 "keyId": "123",
@@ -420,6 +423,7 @@ def test_otlp_logs_multiple_records(
                 },
                 "sentry.origin": {"stringValue": "auto.otlp.logs"},
                 "sentry.payload_size_bytes": {"intValue": matches_any()},
+                "sentry.relay.ingress": {"stringValue": "integration"},
                 "sentry.severity_text": {"stringValue": "debug"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
                 "sentry.timestamp_precise": {
@@ -445,12 +449,12 @@ def test_otlp_logs_multiple_records(
             "outcomes": {
                 "categoryCount": [
                     {
-                        "dataCategory": DataCategory.LOG_ITEM.value,
+                        "dataCategory": DataCategory.LOG_ITEM,
                         "quantity": "1",
                     },
                     {
-                        "dataCategory": DataCategory.LOG_BYTE.value,
-                        "quantity": "93",
+                        "dataCategory": DataCategory.LOG_BYTE,
+                        "quantity": "124",
                     },
                 ],
                 "keyId": "123",
@@ -506,13 +510,13 @@ def test_otlp_logs_size_limits(mini_sentry, relay):
     assert mini_sentry.get_aggregated_outcomes() == [
         {
             "category": DataCategory.LOG_ITEM,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "quantity": 1,
             "reason": "too_large:log",
         },
         {
             "category": DataCategory.LOG_BYTE,
-            "outcome": 3,
+            "outcome": Outcome.INVALID,
             "quantity": 127,
             "reason": "too_large:log",
         },

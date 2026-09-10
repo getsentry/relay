@@ -394,10 +394,24 @@ macro_rules! metric {
 
     // timed block
     (timer($id:expr), $($($k:ident).* = $v:expr,)* $block:block) => {{
-        let now = std::time::Instant::now();
-        let rv = {$block};
-        $crate::metric!(timer($id) = now.elapsed() $(, $($k).* = $v)*);
-        rv
+        struct TimerOnDrop {
+            start: std::time::Instant,
+            key: $crate::_metrics::Key,
+        }
+        impl Drop for TimerOnDrop {
+            fn drop(&mut self) {
+                let elapsed = self.start.elapsed();
+                let metadata = $crate::_metrics::metadata_var!(::std::module_path!(), $crate::_metrics::Level::INFO);
+                 $crate::_metrics::with_recorder(|recorder| recorder.register_histogram(&self.key, metadata))
+                    .record(elapsed.as_nanos() as f64 / 1e6);
+            }
+        }
+
+        let _timer = TimerOnDrop {
+            start: std::time::Instant::now(),
+            key: $crate::key_var!($crate::TimerMetric::name(&$id) $(, stringify!($($k).*) => $v)*),
+        };
+        {$block}
     }};
 }
 
@@ -552,7 +566,7 @@ mod tests {
     }
 
     #[test]
-    fn nanos_rounding_error() {
+    fn test_timer_nanos_rounding_error() {
         let one_day = Duration::from_secs(60 * 60 * 24);
         let captures = with_capturing_test_client(|| {
             metric!(timer(TestTimer) = one_day + Duration::from_nanos(1),);
@@ -568,5 +582,19 @@ mod tests {
 
         // for very long durations, precision is lost:
         assert_eq!(captures, ["timer:31536000000|d|#"]);
+    }
+
+    #[test]
+    fn test_timer_early_return() {
+        #[expect(unreachable_code)]
+        let captures = with_capturing_test_client(|| {
+            metric!(timer(TestTimer), {
+                // An early return still needs to capture the timer.
+                return;
+            });
+            // This shouldn't be reached due to the `return`.
+            unreachable!()
+        });
+        assert_eq!(captures.len(), 1);
     }
 }

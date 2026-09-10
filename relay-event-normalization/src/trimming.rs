@@ -422,7 +422,12 @@ fn slim_frame_data(frames: &mut Array<Frame>, frame_allowance: usize) {
 
     // TODO: Which annotation to set?
 
-    for i in system_frames_to_remove.iter().chain(app_frames_to_remove) {
+    let top_frame_index = frames_len.saturating_sub(1);
+    for i in system_frames_to_remove
+        .iter()
+        .chain(app_frames_to_remove)
+        .filter(|&&i| i != top_frame_index)
+    {
         if let Some(frame) = frames.get_mut(*i)
             && let Some(ref mut frame) = frame.value_mut().as_mut()
         {
@@ -441,7 +446,7 @@ mod tests {
     use chrono::DateTime;
     use relay_event_schema::protocol::{
         Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, FlagsContext, PairList,
-        SentryTags, Span, SpanId, TagEntry, Tags, Timestamp, TraceId, Values,
+        SentryTags, Span, SpanData, SpanId, TagEntry, Tags, Timestamp, TraceId, Values,
     };
     use relay_protocol::{FromValue, IntoValue, Map, Remark, SerializableAnnotated, get_value};
     use similar_asserts::assert_eq;
@@ -1057,6 +1062,39 @@ mod tests {
     }
 
     #[test]
+    fn test_slim_frame_data_does_not_trim_top_frame_metadata() {
+        let mut frames: Array<Frame> = (0..50)
+            .map(|n| {
+                Annotated::new(Frame {
+                    filename: Annotated::new(format!("system {n}").into()),
+                    ..Default::default()
+                })
+            })
+            .collect();
+        frames.push(Annotated::new(Frame {
+            filename: Annotated::new("raising".into()),
+            pre_context: Annotated::new(vec![Annotated::new("before".to_owned())]),
+            context_line: Annotated::new("current".to_owned()),
+            post_context: Annotated::new(vec![Annotated::new("after".to_owned())]),
+            vars: Annotated::new({
+                let mut vars = Object::new();
+                vars.insert("local".to_owned(), Annotated::new("value".into()));
+                vars.into()
+            }),
+            in_app: Annotated::new(true),
+            ..Default::default()
+        }));
+
+        slim_frame_data(&mut frames, 50);
+
+        let top_frame = frames.last().unwrap().value().unwrap();
+        assert!(top_frame.vars.value().is_some());
+        assert!(top_frame.pre_context.value().is_some());
+        assert!(top_frame.context_line.value().is_some());
+        assert!(top_frame.post_context.value().is_some());
+    }
+
+    #[test]
     fn test_too_many_spans_trimmed() {
         let span = Span {
             platform: Annotated::new("a".repeat(1024 * 90)),
@@ -1083,6 +1121,37 @@ mod tests {
 
         // The actual spans were not touched:
         assert_eq!(trimmed_spans.as_slice(), &spans[0..5]);
+    }
+
+    #[test]
+    fn test_span_data_not_partially_trimmed() {
+        let span_data = SpanData::from([(
+            "large_attribute".to_owned(),
+            Annotated::new(Value::String("a".repeat(100 * 1024))),
+        )]);
+        let span = Span {
+            data: Annotated::new(span_data.clone()),
+            ..Default::default()
+        };
+        let spans: Vec<_> = std::iter::repeat_with(|| Annotated::new(span.clone()))
+            .take(10)
+            .collect();
+
+        let mut event = Annotated::new(Event {
+            spans: Annotated::new(spans.clone()),
+            ..Default::default()
+        });
+
+        let mut processor = TrimmingProcessor::new();
+        processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        let trimmed = event.value().unwrap().spans.value().unwrap();
+        assert!(trimmed.len() < spans.len());
+        assert!(trimmed.iter().all(|span| {
+            span.value()
+                .and_then(|span| span.data.value())
+                .is_some_and(|data| data == &span_data)
+        }));
     }
 
     #[test]
@@ -1367,7 +1436,7 @@ mod tests {
         // Make sure flags contexts has its own limit applied.
         let values = &contexts.get::<FlagsContext>().unwrap().values;
 
-        assert_eq!(values.value().unwrap().len(), 292);
+        assert_eq!(values.value().unwrap().len(), 584);
         assert_eq!(values.meta().original_length(), Some(original_flags_count));
 
         // Make sure the custom context is trimmed to 8192.

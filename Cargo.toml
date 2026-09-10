@@ -68,6 +68,7 @@ relay-quotas = { path = "relay-quotas" }
 relay-redis = { path = "relay-redis" }
 relay-replays = { path = "relay-replays" }
 relay-sampling = { path = "relay-sampling" }
+relay-serialization = { path = "relay-serialization" }
 relay-server = { path = "relay-server" }
 relay-spans = { path = "relay-spans" }
 relay-statsd = { path = "relay-statsd" }
@@ -89,7 +90,15 @@ android_trace_log = { version = "0.3", features = ["serde"] }
 # Keep it pinned until it's possible to disable backtrace.
 anyhow = "=1.0.69"
 arc-swap = "1"
-async-compression = { version = "0.4", features = ["tokio", "gzip", "brotli", "deflate", "zstd", "bzip2", "xz"] }
+async-compression = { version = "0.4", features = [
+    "brotli",
+    "bzip2",
+    "deflate",
+    "gzip",
+    "tokio",
+    "xz",
+    "zstd",
+] }
 async-trait = "0.1"
 axum = "0.8"
 axum-extra = "0.12"
@@ -113,7 +122,7 @@ deadpool = "0.12"
 debugid = "0.8"
 dialoguer = "0.11"
 dircpy = "0.3"
-dynfmt = "0.1"
+dynfmt = "0.2"
 ed25519-dalek = { version = "2", features = ["digest", "pem", "pkcs8"] }
 enumset = "1"
 either = "1"
@@ -139,19 +148,22 @@ json-forensics = "0.1"
 libc = "0.2"
 liblzma = "0.4"
 lru = "0.16"
+lz4_flex = "0.13.1"
 maxminddb = "0.27"
 md5 = "0.8"
 memchr = "2"
 mimalloc = { version = "0.1", features = ["v3"] }
 mime = "0.3"
+mime_guess = "2.0.5"
 minidump = "0.26"
-minidumper-child = "0.4.1" 
+minidumper-child = "0.4.1"
 multer = "3"
 metrics = "0.24"
 metrics-exporter-dogstatsd = "0.9"
 num-traits = "0.2"
 num_cpus = "1"
-objectstore-client = "0.1"
+objectstore-client = { version = "0.2" }
+objectstore-types = { version = "0.2" }
 opentelemetry-semantic-conventions = "0.31"
 opentelemetry-proto = { version = "0.31", default-features = false }
 papaya = "0.2"
@@ -171,8 +183,10 @@ psl = "2"
 quote = "1"
 rand = "0.9"
 rand_pcg = "0.9"
-rdkafka = "0.39"
-rdkafka-sys = "4"
+# Downgraded versions for rdkafka and rdkafka-sys to fix librdkafka 2.12 regression
+# https://github.com/confluentinc/librdkafka/issues/5301
+rdkafka = "=0.38"
+rdkafka-sys = "=4.9.0+2.10.0"
 redis = { version = "1", default-features = false }
 matchit = "0.8"
 regex = "1"
@@ -199,7 +213,7 @@ sentry-types = "0.41"
 sentry_protos = "0.7"
 serde = { version = "=1.0.228", features = ["derive", "rc"] }
 serde-transcode = "1"
-serde-vars = "0.3"
+serde-vars = "0.4"
 serde_bytes = "0.11"
 serde_json = "1"
 serde_path_to_error = "0.1"
@@ -213,8 +227,8 @@ smallvec = { version = "1", features = ["serde"] }
 socket2 = "0.6"
 sqlparser = "0.62"
 sqlx = { version = "0.8", default-features = false }
-symbolic-common = { version = "12", default-features = false }
-symbolic-unreal = { version = "12", default-features = false }
+symbolic-common = { git = "https://github.com/getsentry/symbolic", rev = "c1a4ce020b5e384635a65aae63098935da8d7f84", default-features = false }
+symbolic-unreal = { git = "https://github.com/getsentry/symbolic", rev = "c1a4ce020b5e384635a65aae63098935da8d7f84", default-features = false }
 syn = "2"
 sync_wrapper = "1"
 synstructure = "0.13"

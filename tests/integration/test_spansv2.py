@@ -1,5 +1,6 @@
 from datetime import datetime, timezone, timedelta
 
+from requests import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 
@@ -10,6 +11,7 @@ from .test_dynamic_sampling import add_sampling_config
 import uuid
 import json
 import pytest
+from .consts import Outcome
 
 TEST_CONFIG = {
     "outcomes": {
@@ -128,11 +130,14 @@ def test_spansv2_basic(
                 "type": "string",
                 "value": "5b8efff798038103d269b633813fc60c",
             },
+            "sentry.client_sample_rate": {"type": "double", "value": 1.0},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
             },
             "sentry.op": {"type": "string", "value": "default"},
+            "sentry.relay.ingress": {"type": "string", "value": "container"},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "sentry.trace.status": {"type": "string", "value": "ok"},
         },
         "_meta": {
@@ -200,18 +205,18 @@ def test_spansv2_basic(
 
     assert outcomes_consumer.get_aggregated_outcomes(n=2) == [
         {
-            "category": DataCategory.TRANSACTION.value,
+            "category": DataCategory.TRANSACTION,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 1,
         },
         {
-            "category": DataCategory.SPAN.value,
+            "category": DataCategory.SPAN,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 1,
         },
@@ -243,7 +248,7 @@ def test_spansv2_trimming_basic(
             # This is sufficient for all builtin attributes not
             # to be trimmed. The span fields that aren't trimmed
             # also still count for the size limit.
-            "trimming": {"span": {"maxSize": 513}},
+            "trimming": {"span": {"maxSize": 603}},
         }
     )
 
@@ -336,16 +341,19 @@ def test_spansv2_trimming_basic(
                 "type": "string",
                 "value": "5b8efff798038103d269b633813fc60c",
             },
+            "sentry.client_sample_rate": {"type": "double", "value": 1.0},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
             },
             "sentry.op": {"type": "string", "value": "default"},
+            "sentry.relay.ingress": {"type": "string", "value": "container"},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "sentry.trace.status": {"type": "string", "value": "ok"},
         },
         "_meta": {
             "attributes": {
-                "": {"len": 586},
+                "": {"len": 676},
                 "custom.array.attribute": {
                     "value": {
                         "1": {
@@ -444,7 +452,6 @@ def test_spansv2_ds_drop(mini_sentry, relay, span, rule_type):
     """
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = ["projects:span-v2-experimental-processing"]
     # A transaction rule should never apply.
     add_sampling_config(project_config, sample_rate=1, rule_type="transaction")
     # Setup the actual rule we want to test against.
@@ -495,8 +502,8 @@ def test_spansv2_ds_drop(mini_sentry, relay, span, rule_type):
 
     assert mini_sentry.get_aggregated_outcomes() == [
         {
-            "category": DataCategory.SPAN_INDEXED.value,
-            "outcome": 1,
+            "category": DataCategory.SPAN_INDEXED,
+            "outcome": Outcome.FILTERED,
             "quantity": 1,
             "reason": "Sampled:0",
         },
@@ -579,8 +586,8 @@ def test_spansv2_rate_limits(mini_sentry, relay, rate_limit):
         *(
             [
                 {
-                    "category": 12,
-                    "outcome": 2,
+                    "category": DataCategory.SPAN,
+                    "outcome": Outcome.RATE_LIMITED,
                     "quantity": 1,
                     "reason": "rate_limit_exceeded",
                 }
@@ -589,8 +596,8 @@ def test_spansv2_rate_limits(mini_sentry, relay, rate_limit):
             else []
         ),
         {
-            "category": DataCategory.SPAN_INDEXED.value,
-            "outcome": 2,
+            "category": DataCategory.SPAN_INDEXED,
+            "outcome": Outcome.RATE_LIMITED,
             "quantity": 1,
             "reason": "rate_limit_exceeded",
         },
@@ -627,6 +634,85 @@ def test_spansv2_rate_limits(mini_sentry, relay, rate_limit):
 
     assert mini_sentry.captured_envelopes.empty()
     assert mini_sentry.captured_outcomes.empty()
+
+
+def test_spansv2_client_sample_rate(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    spans_consumer,
+):
+    """
+    The client sample rate is always set on stored spans:
+
+    - an SDK-provided `sentry.client_sample_rate` attribute takes precedence over the DSC,
+    - the DSC `sample_rate` is used when the attribute is absent,
+    - it falls back to 1.0 when neither is present.
+    """
+    spans_consumer = spans_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).extend(
+        ["organizations:relay-generate-billing-outcome"]
+    )
+
+    trace_id = "5b8efff798038103d269b633813fc60c"
+    public_key = project_config["publicKeys"][0]["publicKey"]
+
+    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+
+    ts = datetime.now(timezone.utc)
+
+    def span(span_id, **attributes):
+        return {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": trace_id,
+            "span_id": span_id,
+            "is_segment": False,
+            "name": "some op",
+            "status": "ok",
+            "attributes": {
+                name: {"value": value, "type": "double"}
+                for name, value in attributes.items()
+            },
+        }
+
+    # The SDK-provided attribute wins over the DSC sample_rate.
+    envelope = envelope_with_spans(
+        span("aaaaaaaaaaaaaaaa", **{"sentry.client_sample_rate": 0.1}),
+        # No attribute: the DSC sample_rate is used.
+        span("bbbbbbbbbbbbbbbb"),
+        trace_info={
+            "trace_id": trace_id,
+            "public_key": public_key,
+            "sample_rate": "0.5",
+        },
+    )
+    relay.send_envelope(project_id, envelope)
+
+    # No DSC sample_rate and no attribute: falls back to 1.0.
+    envelope = envelope_with_spans(
+        span("cccccccccccccccc"),
+        trace_info={
+            "trace_id": trace_id,
+            "public_key": public_key,
+        },
+    )
+    relay.send_envelope(project_id, envelope)
+
+    client_sample_rates = {
+        span["span_id"]: span["attributes"]["sentry.client_sample_rate"]["value"]
+        for span in spans_consumer.get_spans(n=3)
+    }
+    assert client_sample_rates == {
+        "aaaaaaaaaaaaaaaa": 0.1,
+        "bbbbbbbbbbbbbbbb": 0.5,
+        "cccccccccccccccc": 1.0,
+    }
+
+    spans_consumer.assert_empty()
 
 
 def test_spansv2_ds_sampled(
@@ -689,6 +775,7 @@ def test_spansv2_ds_sampled(
             "trace_id": trace_id,
             "public_key": sampling_config["publicKeys"][0]["publicKey"],
             "transaction": "tx_from_root",
+            "sample_rate": "0.5",
         },
     )
 
@@ -697,6 +784,7 @@ def test_spansv2_ds_sampled(
     for span in spans_consumer.get_spans(n=2):
         assert span["span_id"] in ("aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbb")
         assert span["attributes"]["sentry.server_sample_rate"]["value"] == 0.9
+        assert span["attributes"]["sentry.client_sample_rate"]["value"] == 0.5
         assert span["attributes"]["sentry.dsc.trace_id"]["value"] == trace_id
         assert span["attributes"]["sentry.dsc.transaction"]["value"] == "tx_from_root"
         assert span["attributes"]["sentry.dsc.project_id"]["value"] == "43"
@@ -767,18 +855,18 @@ def test_spansv2_ds_sampled(
 
     assert outcomes_consumer.get_aggregated_outcomes(n=2) == [
         {
-            "category": DataCategory.TRANSACTION.value,
+            "category": DataCategory.TRANSACTION,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 1,
         },
         {
-            "category": DataCategory.SPAN.value,
+            "category": DataCategory.SPAN,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 2,
         },
@@ -875,20 +963,20 @@ def test_spansv2_ds_root_in_different_org(
 
     assert outcomes_consumer.get_outcomes(n=2) == [
         {
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN_INDEXED,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "project_id": 42,
             "quantity": 1,
             "reason": "Sampled:0",
             "timestamp": time_within_delta(),
         },
         {
-            "category": DataCategory.SPAN.value,
+            "category": DataCategory.SPAN,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 1,
             "timestamp": time_within_delta(),
@@ -912,6 +1000,29 @@ def test_spansv2_ds_root_in_different_org(
             {"ignoreTransactions": {"isEnabled": True, "patterns": ["*health*"]}},
             {},
             id="transaction",
+        ),
+        pytest.param(
+            "localhost",
+            {"localhost": {"isEnabled": True}},
+            {
+                "attributes": {
+                    "client.address": {"value": "127.0.0.1", "type": "string"}
+                }
+            },
+            id="localhost-ip",
+        ),
+        pytest.param(
+            "localhost",
+            {"localhost": {"isEnabled": True}},
+            {
+                "attributes": {
+                    "url.full": {
+                        "value": "http://localhost:8000/foo",
+                        "type": "string",
+                    }
+                }
+            },
+            id="localhost-url",
         ),
         pytest.param(
             "legacy-browsers",
@@ -994,11 +1105,13 @@ def test_spanv2_inbound_filters(
                 "some_integer": {"value": 123, "type": "integer"},
                 "sentry.release": {"value": "foobar@1.0", "type": "string"},
                 "sentry.segment.name": {"value": "/foo/healthz", "type": "string"},
+                **args.get("attributes", {}),
             },
         },
         metadata={
             "version": 2,
             "ingest_settings": {
+                "infer_ip": "never",
                 "infer_user_agent": "auto",
             },
         },
@@ -1016,15 +1129,15 @@ def test_spanv2_inbound_filters(
 
     assert mini_sentry.get_outcomes(n=2) == [
         {
-            "category": DataCategory.SPAN.value,
-            "outcome": 1,  # Filtered
+            "category": DataCategory.SPAN,
+            "outcome": Outcome.FILTERED,
             "reason": filter_name,
             "quantity": 1,
             "timestamp": time_within_delta(ts),
         },
         {
-            "category": DataCategory.SPAN_INDEXED.value,
-            "outcome": 1,
+            "category": DataCategory.SPAN_INDEXED,
+            "outcome": Outcome.FILTERED,
             "quantity": 1,
             "reason": filter_name,
             "timestamp": time_within_delta(ts),
@@ -1071,22 +1184,23 @@ def test_spans_v2_multiple_containers_not_allowed(
         )
     )
 
-    relay.send_envelope(project_id, envelope)
+    with pytest.raises(HTTPError, match="413 Client Error"):
+        relay.send_envelope(project_id, envelope)
 
     assert mini_sentry.get_outcomes(n=2) == [
         {
-            "category": DataCategory.SPAN.value,
+            "category": DataCategory.SPAN,
             "timestamp": time_within_delta(),
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "quantity": 3,
-            "reason": "duplicate_item",
+            "reason": "too_large:span",
         },
         {
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN_INDEXED,
             "timestamp": time_within_delta(),
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "quantity": 3,
-            "reason": "duplicate_item",
+            "reason": "too_large:span",
         },
     ]
 
@@ -1145,16 +1259,16 @@ def test_spans_v2_dsc_validations(
 
     assert mini_sentry.get_outcomes(n=2) == [
         {
-            "category": DataCategory.SPAN.value,
+            "category": DataCategory.SPAN,
             "timestamp": time_within_delta(),
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "quantity": 2,
             "reason": validation,
         },
         {
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN_INDEXED,
             "timestamp": time_within_delta(),
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "quantity": 2,
             "reason": validation,
         },
@@ -1210,6 +1324,9 @@ def test_spanv2_with_string_pii_scrubbing(
                 "value": "5b8efff798038103d269b633813fc60c",
             },
             "test_pii": {"type": "string", "value": expected_scrubbed},
+            "sentry.client_sample_rate": {"type": "double", "value": 1.0},
+            "sentry.relay.ingress": {"type": "string", "value": "container"},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
@@ -1349,6 +1466,9 @@ def test_spanv2_meta_pii_scrubbing_complex_attribute(mini_sentry, relay):
                 "type": "string",
                 "value": "5b8efff798038103d269b633813fc60c",
             },
+            "sentry.client_sample_rate": {"type": "double", "value": 1.0},
+            "sentry.relay.ingress": {"type": "string", "value": "container"},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "sentry.observed_timestamp_nanos": {
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
@@ -1484,7 +1604,6 @@ def test_spansv2_attribute_normalization(
         "attributes": {
             "sentry.category": {"type": "string", "value": "db"},
             "sentry.op": {"type": "string", "value": "db"},
-            "db.system": {"type": "string", "value": "mysql"},
             "db.system.name": {"type": "string", "value": "mysql"},
             "db.operation.name": {"type": "string", "value": "SELECT"},
             "sentry.action": {"type": "string", "value": "SELECT"},
@@ -1520,6 +1639,9 @@ def test_spansv2_attribute_normalization(
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
             },
+            "sentry.relay.ingress": {"type": "string", "value": "container"},
+            "sentry.client_sample_rate": {"type": "double", "value": 1.0},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
         },
     }
 
@@ -1546,6 +1668,9 @@ def test_spansv2_attribute_normalization(
                 "type": "string",
                 "value": time_within(ts, expect_resolution="ns"),
             },
+            "sentry.relay.ingress": {"type": "string", "value": "container"},
+            "sentry.client_sample_rate": {"type": "double", "value": 1.0},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "http.request.method": {"type": "string", "value": "GET"},
             "sentry.action": {"type": "string", "value": "GET"},
             "server.address": {"type": "string", "value": "*.service.io"},
@@ -1638,38 +1763,38 @@ def test_invalid_spans(mini_sentry, relay):
     outcomes = mini_sentry.get_aggregated_outcomes(timeout=5)
     assert outcomes == [
         {
-            "category": DataCategory.SPAN.value,
-            "outcome": 3,
+            "category": DataCategory.SPAN,
+            "outcome": Outcome.INVALID,
             "quantity": 3,
             "reason": "invalid_span",
         },
         {
-            "category": DataCategory.SPAN.value,
-            "outcome": 3,
+            "category": DataCategory.SPAN,
+            "outcome": Outcome.INVALID,
             "reason": "no_data",
             "quantity": 4,
         },
         {
-            "category": DataCategory.SPAN.value,
-            "outcome": 3,
+            "category": DataCategory.SPAN,
+            "outcome": Outcome.INVALID,
             "reason": "timestamp",
             "quantity": 6,
         },
         {
-            "category": DataCategory.SPAN_INDEXED.value,
-            "outcome": 3,
+            "category": DataCategory.SPAN_INDEXED,
+            "outcome": Outcome.INVALID,
             "quantity": 3,
             "reason": "invalid_span",
         },
         {
-            "category": DataCategory.SPAN_INDEXED.value,
-            "outcome": 3,
+            "category": DataCategory.SPAN_INDEXED,
+            "outcome": Outcome.INVALID,
             "reason": "no_data",
             "quantity": 4,
         },
         {
-            "category": DataCategory.SPAN_INDEXED.value,
-            "outcome": 3,
+            "category": DataCategory.SPAN_INDEXED,
+            "outcome": Outcome.INVALID,
             "reason": "timestamp",
             "quantity": 6,
         },
@@ -1714,33 +1839,50 @@ def test_time_corrections(mini_sentry, relay, delta, error):
 
     relay.send_envelope(project_id, envelope)
 
-    envelope = mini_sentry.get_captured_envelope()
-    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
-    assert item_payload["items"][0] == {
-        "_meta": {
-            "start_timestamp": {
-                "": {
-                    "err": [
-                        [
-                            error,
-                            {
-                                "sdk_time": time_within_delta(ts + delta),
-                                "server_time": time_within_delta(ts),
-                            },
+    if error == "past_timestamp":
+        assert mini_sentry.get_aggregated_outcomes() == [
+            {
+                "category": DataCategory.SPAN,
+                "outcome": Outcome.INVALID,
+                "quantity": 1,
+                "reason": "timestamp",
+            },
+            {
+                "category": DataCategory.SPAN_INDEXED,
+                "outcome": Outcome.INVALID,
+                "quantity": 1,
+                "reason": "timestamp",
+            },
+        ]
+        assert mini_sentry.captured_envelopes.empty()
+    else:
+        envelope = mini_sentry.get_captured_envelope()
+        item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+        assert item_payload["items"][0] == {
+            "_meta": {
+                "start_timestamp": {
+                    "": {
+                        "err": [
+                            [
+                                error,
+                                {
+                                    "sdk_time": time_within_delta(ts + delta),
+                                    "server_time": time_within_delta(ts),
+                                },
+                            ]
                         ]
-                    ]
+                    }
                 }
-            }
-        },
-        "attributes": matches_any(),
-        "status": "ok",
-        "is_segment": True,
-        "name": "some op",
-        "start_timestamp": time_within_delta(ts),
-        "end_timestamp": time_within_delta(ts),
-        "trace_id": "5b8efff798038103d269b633813fc60c",
-        "span_id": "eee19b7ec3c1b175",
-    }
+            },
+            "attributes": matches_any(),
+            "status": "ok",
+            "is_segment": True,
+            "name": "some op",
+            "start_timestamp": time_within_delta(ts),
+            "end_timestamp": time_within_delta(ts),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+        }
 
 
 # This test's performance score logic has been ported
@@ -1997,6 +2139,9 @@ def test_spansv2_lcp_segment(mini_sentry, relay_with_processing, spans_consumer)
                 "type": "string",
                 "value": "ui.webvital.lcp",
             },
+            "sentry.relay.ingress": {"type": "string", "value": "container"},
+            "sentry.client_sample_rate": {"type": "double", "value": 1.0},
+            "sentry.relay.pipeline": {"type": "string", "value": "span_v2"},
             "sentry.segment.name": {
                 "type": "string",
                 "value": "/issues/",
@@ -2004,10 +2149,6 @@ def test_spansv2_lcp_segment(mini_sentry, relay_with_processing, spans_consumer)
             "sentry.segment.id": {
                 "type": "string",
                 "value": "a84cb30362883928",
-            },
-            "sentry.transaction": {
-                "type": "string",
-                "value": "/issues/",
             },
             "user_agent.original": {
                 "type": "string",

@@ -7,23 +7,16 @@ use smallvec::smallvec;
 
 use crate::Envelope;
 use crate::envelope::{EnvelopeHeaders, Item, ItemType, Items};
-use crate::managed::{
-    Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
-};
+use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
 use crate::processing::{
     Context, CountRateLimited, Forward, ForwardContext, Output, Processor, QuotaRateLimiter,
 };
 use crate::services::outcome::{DiscardReason, Outcome};
 
-mod filter;
 mod process;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// Profiles filtered because of a missing feature flag.
-    #[error("profile feature flag missing")]
-    FeatureDisabled,
-
     /// No profiles to expand.
     ///
     /// Internal error that should never happen if `prepare_envelope` works correctly.
@@ -46,7 +39,6 @@ impl OutcomeError for Error {
 
     fn consume(self) -> (Option<Outcome>, Self::Error) {
         let outcome = match &self {
-            Error::FeatureDisabled => None,
             Error::NoProfiles => Some(Outcome::Invalid(DiscardReason::Internal)),
             Error::InvalidProfile(err) => Some(Outcome::Invalid(DiscardReason::Profiling(
                 relay_profiling::discard_reason(err),
@@ -107,8 +99,6 @@ impl Processor for ProfilesProcessor {
         profiles: Managed<Self::Input>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
-        filter::feature_flag(ctx).reject(&profiles)?;
-
         let profile = process::expand(profiles)?;
 
         let profile = self.limiter.enforce_quotas(profile, ctx).await?;

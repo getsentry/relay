@@ -4,6 +4,9 @@ use std::collections::BTreeSet;
 use crate::builtin::BUILTIN_RULES_MAP;
 use crate::{PiiConfig, PiiConfigError, Redaction, RuleSpec, RuleType, SelectorSpec};
 
+/// Maximum depth for recursive rules;
+const MAX_DEPTH: usize = 200;
+
 /// A representation of `PiiConfig` that is more (CPU-)efficient for use in `PiiProcessor`.
 ///
 /// It is lossy in the sense that it cannot be consumed by downstream Relays, so both versions have
@@ -20,8 +23,9 @@ impl CompiledPiiConfig {
         for (selector, rules) in &config.applications {
             #[allow(clippy::mutable_key_type)]
             let mut rule_set = BTreeSet::default();
+            let mut seen_ids = BTreeSet::default();
             for rule_id in rules {
-                collect_rules(config, &mut rule_set, rule_id, None);
+                collect_rules(config, &mut rule_set, &mut seen_ids, rule_id, None, 0);
             }
             applications.push((selector.clone(), rule_set));
         }
@@ -78,15 +82,21 @@ fn get_rule(config: &PiiConfig, id: &str) -> Option<RuleRef> {
 fn collect_rules(
     config: &PiiConfig,
     rules: &mut BTreeSet<RuleRef>,
+    seen_ids: &mut BTreeSet<Box<str>>,
     rule_id: &str,
     parent: Option<RuleRef>,
+    depth: usize,
 ) {
+    if depth > MAX_DEPTH {
+        return;
+    }
+
     let rule = match get_rule(config, rule_id) {
         Some(rule) => rule,
         None => return,
     };
 
-    if rules.contains(&rule) {
+    if !seen_ids.insert(rule_id.into()) {
         return;
     }
 
@@ -103,7 +113,7 @@ fn collect_rules(
                 None
             };
             for rule_id in &m.rules {
-                collect_rules(config, rules, rule_id, parent.clone());
+                collect_rules(config, rules, seen_ids, rule_id, parent.clone(), depth + 1);
             }
         }
         RuleType::Alias(ref a) => {
@@ -112,7 +122,7 @@ fn collect_rules(
             } else {
                 None
             };
-            collect_rules(config, rules, &a.rule, parent);
+            collect_rules(config, rules, seen_ids, &a.rule, parent, depth + 1);
         }
         RuleType::Unknown(_) => {}
         _ => {
@@ -170,5 +180,216 @@ impl PartialOrd for RuleRef {
 impl Ord for RuleRef {
     fn cmp(&self, other: &Self) -> Ordering {
         self.id.cmp(&other.id)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use crate::AliasRule;
+
+    use super::*;
+
+    #[test]
+    fn cycle_singleton() {
+        // a -> a
+        let config = PiiConfig {
+            rules: BTreeMap::from([(
+                "a".to_owned(),
+                RuleSpec {
+                    ty: RuleType::Alias(AliasRule {
+                        rule: "a".to_owned(),
+                        hide_inner: false,
+                    }),
+                    redaction: Redaction::Default,
+                },
+            )]),
+            ..Default::default()
+        };
+        #[allow(clippy::mutable_key_type)]
+        let mut collected_rules = Default::default();
+        let mut seen_ids = Default::default();
+        collect_rules(&config, &mut collected_rules, &mut seen_ids, "a", None, 0);
+
+        // The cycle has been removed:
+        assert!(collected_rules.is_empty());
+    }
+
+    #[test]
+    fn cycle_pair() {
+        // a -> b -> a
+        let config = PiiConfig {
+            rules: BTreeMap::from([
+                (
+                    "a".to_owned(),
+                    RuleSpec {
+                        ty: RuleType::Alias(AliasRule {
+                            rule: "b".to_owned(),
+                            hide_inner: false,
+                        }),
+                        redaction: Redaction::Default,
+                    },
+                ),
+                (
+                    "b".to_owned(),
+                    RuleSpec {
+                        ty: RuleType::Alias(AliasRule {
+                            rule: "a".to_owned(),
+                            hide_inner: false,
+                        }),
+                        redaction: Redaction::Default,
+                    },
+                ),
+            ]),
+            ..Default::default()
+        };
+        #[allow(clippy::mutable_key_type)]
+        let mut collected_rules = Default::default();
+        let mut seen_ids = Default::default();
+        collect_rules(&config, &mut collected_rules, &mut seen_ids, "a", None, 0);
+
+        // The cycle has been removed:
+        assert!(collected_rules.is_empty());
+    }
+
+    #[test]
+    fn only_one_shared_rule_survives() {
+        // When multiple aliases point to the same rule, only one of their names survives.
+        // a -> c
+        // b -> c
+        let config = PiiConfig {
+            rules: BTreeMap::from([
+                (
+                    "a".to_owned(),
+                    RuleSpec {
+                        ty: RuleType::Alias(AliasRule {
+                            rule: "c".to_owned(),
+                            hide_inner: true,
+                        }),
+                        redaction: Redaction::Default,
+                    },
+                ),
+                (
+                    "b".to_owned(),
+                    RuleSpec {
+                        ty: RuleType::Alias(AliasRule {
+                            rule: "c".to_owned(),
+                            hide_inner: true,
+                        }),
+                        redaction: Redaction::Default,
+                    },
+                ),
+                (
+                    "c".to_owned(),
+                    RuleSpec {
+                        ty: RuleType::Anything,
+                        redaction: Redaction::Default,
+                    },
+                ),
+            ]),
+            ..Default::default()
+        };
+        #[allow(clippy::mutable_key_type)]
+        let mut collected_rules = BTreeSet::new();
+        let mut seen_ids = BTreeSet::new();
+        collect_rules(&config, &mut collected_rules, &mut seen_ids, "a", None, 0);
+        collect_rules(&config, &mut collected_rules, &mut seen_ids, "b", None, 0);
+
+        let collected_rules: Vec<_> = collected_rules
+            .into_iter()
+            .map(|rr| (rr.origin, rr.id))
+            .collect();
+
+        insta::assert_debug_snapshot!(collected_rules, @r#"
+        [
+            (
+                "a",
+                "c",
+            ),
+        ]
+        "#);
+    }
+
+    #[test]
+    fn double_origin() {
+        // a -> b -> c
+        let config = PiiConfig {
+            rules: BTreeMap::from([
+                (
+                    "a".to_owned(),
+                    RuleSpec {
+                        ty: RuleType::Alias(AliasRule {
+                            rule: "b".to_owned(),
+                            hide_inner: true,
+                        }),
+                        redaction: Redaction::Default,
+                    },
+                ),
+                (
+                    "b".to_owned(),
+                    RuleSpec {
+                        ty: RuleType::Alias(AliasRule {
+                            rule: "c".to_owned(),
+                            hide_inner: true,
+                        }),
+                        redaction: Redaction::Default,
+                    },
+                ),
+                (
+                    "c".to_owned(),
+                    RuleSpec {
+                        ty: RuleType::Anything,
+                        redaction: Redaction::Default,
+                    },
+                ),
+            ]),
+            ..Default::default()
+        };
+        #[allow(clippy::mutable_key_type)]
+        let mut collected_rules = Default::default();
+        let mut seen_ids = Default::default();
+        collect_rules(&config, &mut collected_rules, &mut seen_ids, "a", None, 0);
+
+        let collected_rules: Vec<_> = collected_rules
+            .into_iter()
+            .map(|rr| (rr.origin, rr.id))
+            .collect();
+
+        insta::assert_debug_snapshot!(collected_rules, @r#"
+        [
+            (
+                "a",
+                "c",
+            ),
+        ]
+        "#);
+    }
+
+    #[test]
+    fn depth_bound() {
+        // 0 -> 1 -> 2 ...
+        let rule_fn = |i: usize| {
+            (
+                i.to_string(),
+                RuleSpec {
+                    ty: RuleType::Alias(AliasRule {
+                        rule: (i + 1).to_string(),
+                        hide_inner: false,
+                    }),
+                    redaction: Redaction::Default,
+                },
+            )
+        };
+        let config = PiiConfig {
+            rules: BTreeMap::from_iter((0..1000).map(rule_fn)),
+            ..Default::default()
+        };
+        #[allow(clippy::mutable_key_type)]
+        let mut collected_rules = Default::default();
+        let mut seen_ids = Default::default();
+        collect_rules(&config, &mut collected_rules, &mut seen_ids, "0", None, 0);
+
+        assert!(collected_rules.is_empty()); // does not crash
     }
 }

@@ -16,9 +16,8 @@ use serde::{Deserialize, Serialize};
 ///
 ///  - **Error monitoring events** (`default`, `error`): Processed and grouped into unique issues
 ///    based on their exception stack traces and error messages.
-///  - **Security events** (`csp`, `hpkp`, `expectct`, `expectstaple`): Derived from Browser
-///    security violation reports and grouped into unique issues based on the endpoint and
-///    violation. SDKs do not send such events.
+///  - **Security events** (`csp`): Derived from Browser security violation reports and grouped into
+///    unique issues based on the endpoint and violation. SDKs do not send such events.
 ///  - **Transaction events** (`transaction`): Contain operation spans and collected into traces for
 ///    performance monitoring.
 #[derive(
@@ -30,12 +29,6 @@ pub enum EventType {
     Error,
     /// A CSP violation payload.
     Csp,
-    /// An HPKP violation payload.
-    Hpkp,
-    /// An ExpectCT violation payload.
-    ExpectCt,
-    /// An ExpectStaple violation payload.
-    ExpectStaple,
     /// Performance monitoring transactions carrying spans.
     Transaction,
     /// User feedback payload.
@@ -55,9 +48,6 @@ impl EventType {
             EventType::Default => "default",
             EventType::Error => "error",
             EventType::Csp => "csp",
-            EventType::Hpkp => "hpkp",
-            EventType::ExpectCt => "expectct",
-            EventType::ExpectStaple => "expectstaple",
             EventType::Transaction => "transaction",
             EventType::UserReportV2 => "feedback",
         }
@@ -84,9 +74,6 @@ impl FromStr for EventType {
             "default" => EventType::Default,
             "error" => EventType::Error,
             "csp" => EventType::Csp,
-            "hpkp" => EventType::Hpkp,
-            "expectct" => EventType::ExpectCt,
-            "expectstaple" => EventType::ExpectStaple,
             "transaction" => EventType::Transaction,
             "feedback" => EventType::UserReportV2,
             _ => return Err(ParseEventTypeError),

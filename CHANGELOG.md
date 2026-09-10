@@ -2,19 +2,118 @@
 
 ## Unreleased
 
+**Breaking Changes**:
+
+- Stop accepting the deprecated Expect-CT, HPKP, and Expect-Staple security reports and remove their
+  event types and event schema fields. Such reports are now rejected at ingest with an `invalid`
+  outcome (`security_report_type`), including events which an older upstream Relay already classified
+  as `hpkp`, `expectct`, or `expectstaple`. ([#6230](https://github.com/getsentry/relay/pull/6230))
+
 **Features**:
 
-- Switches the container base image from distroless to docker hardened. ([#6117](https://github.com/getsentry/relay/pull/6117))
+- Switch the container base image from distroless to docker hardened. ([#6335](https://github.com/getsentry/relay/pull/6335))
+- Extract OTLP spans' client sample rate from TraceState. ([#6312](https://github.com/getsentry/relay/pull/6312))
+- Raise the size limit for the flags context to 128 KiB. ([#6310](https://github.com/getsentry/relay/pull/6310))
+- Add support for more inbound filters for logs, trace metrics and spans. ([#6306](https://github.com/getsentry/relay/pull/6306))
+- Raise the size limit for logs to 2 MiB. ([#6316](https://github.com/getsentry/relay/pull/6316))
+- Include the environment in the cron check-in routing key so a monitor's environments no longer share a single Kafka partition. ([#6331](https://github.com/getsentry/relay/pull/6331))
+- Set the `titleId` tag on all PlayStation events. ([#6352](https://github.com/getsentry/relay/pull/6352))
+
+**Bug Fixes**:
+
+- Bump symbolic so Unreal crash parsing no longer pre-allocates from untrusted counts. ([#6347](https://github.com/getsentry/relay/pull/6347))
+- Don't trim metadata on the top frame when slimming stacktraces. ([#6340](https://github.com/getsentry/relay/pull/6340))
+- Store a normalized attachment content type in objectstore so that downloads are served with the correct type. ([#6319](https://github.com/getsentry/relay/pull/6319))
+- Reshape Nintendo Switch crashes so the issue title falls back to the crashing function instead of the raw abort result code, and raise their level to `fatal`. ([#6253](https://github.com/getsentry/relay/pull/6253))
+- Reject Nintendo Switch dying message attachments with an invalid magic number instead of panicking on a short payload. ([#6253](https://github.com/getsentry/relay/pull/6253))
+- Downgrade Kafka to prevent producers from getting stuck. ([#6336](https://github.com/getsentry/relay/pull/6336))
+- Use async instead of sync decompression in minidump endpoint. ([#6341](https://github.com/getsentry/relay/pull/6341))
+- Prevent memory bomb in PII processor's `split_chunks`. ([#6343](https://github.com/getsentry/relay/pull/6343))
+- Prevent stack overflow in PII rule compilation. ([#6344](https://github.com/getsentry/relay/pull/6344))
+- Fill in missing event IDs only if items would create events. ([#6350](https://github.com/getsentry/relay/pull/6350))
+
+**Internal**:
+
+- Implement `Getter` for sessions so generic inbound filters can match them by `event.release` and `event.environment`. ([#6325](https://github.com/getsentry/relay/pull/6325))
+
+**Internal**:
+
+- Update sentry-conventions to 0.21.0. Resource size sentry tags and measurements now use `http.response.body.size`, `http.response.body.decoded_size`, and `http.response.size`. ([#6339](https://github.com/getsentry/relay/pull/6339), [#6315](https://github.com/getsentry/relay/pull/6315))
+
+## 26.8.0
+
+**Features**:
+
+- Reject spans, logs, trace metrics, replays when they are too old instead of shifting their timestamp. ([#6272](https://github.com/getsentry/relay/pull/6272))
+- Extract nvgpu dumps and create GPU events. ([#6242](https://github.com/getsentry/relay/pull/6242))
+- Preserve transaction `contexts`, `extra`, and `breadcrumbs` on the segment span as serialized attributes. ([#6286](https://github.com/getsentry/relay/pull/6286))
+
+**Bug Fixes**:
+
+- Store the attachment file name in objectstore so that downloads are named after the attachment. ([#6276](https://github.com/getsentry/relay/pull/6276))
+- Add compression limit for playstation dumps. ([#6211](https://github.com/getsentry/relay/pull/6211))
+- OTLP logs being rejected or ingested with an incorrect timestamp if they only contain an observed time. ([#6290](https://github.com/getsentry/relay/pull/6290))
+- Fix streamed attachments having wrong retention. ([#6268](https://github.com/getsentry/relay/pull/6268))
+- Re-parameterize a DSC when it is computed from a transaction. ([#6279](https://github.com/getsentry/relay/pull/6279))
+- Correct error and outcome for too large streams. ([#6291](https://github.com/getsentry/relay/pull/6291))
+- Validate streamed minidumps and correctly enforce size limit for buffered minidumps. ([#6282](https://github.com/getsentry/relay/pull/6282))
+- Improve `gen_ai` span op inference. ([#6307](https://github.com/getsentry/relay/pull/6307))
+- Always set `sentry.client_sample_rate` on span v2 spans, preferring the SDK-provided attribute over the DSC and falling back to `1.0`. ([#6299](https://github.com/getsentry/relay/pull/6299))
+
+**Internal**:
+
+- Graduate the profiling feature flag. ([#6300](https://github.com/getsentry/relay/pull/6300))
+- Allow signatures slightly in the future. ([#6308](https://github.com/getsentry/relay/pull/6308))
+- Limit interpolated `formatted` message for `LogEntry`. ([#6303](https://github.com/getsentry/relay/pull/6303))
+
+## 26.7.2
+
+**Features**:
+
+- Make the V2 standalone span pipeline the default. ([#6262](https://github.com/getsentry/relay/pull/6262))
+
+**Bug Fixes**:
+
+- Fix Android trace and ANR profile parsing. Serialize Android trace chunks with `version: "2.android-trace"`. Custom
+  Android trace `profile_chunk` producers should send `version: "2.android-trace"`; legacy `version: "2"` is accepted
+  only for Android `sampled_profile` payloads. `version: "1"` and versionless Android trace chunks are rejected.
+  ([#6183](https://github.com/getsentry/relay/pull/6183))
+- Defer dynamic sampling until metrics config is valid. ([#6246](https://github.com/getsentry/relay/pull/6246))
+
+## 26.7.1
+
+**Features**:
+
+- Emit web-vitals as metrics. ([#6118](https://github.com/getsentry/relay/pull/6118))
+- No longer write the deprecated `sentry.transaction` and `db.system` attributes. ([#6237](https://github.com/getsentry/relay/pull/6237), [#6238](https://github.com/getsentry/relay/pull/6238))
+- Allow additional exceptions in minidump and apple crash report events. ([#6241](https://github.com/getsentry/relay/pull/6241))
+
+**Bug Fixes**:
+
+- Consistently enforces envelope size limits for all items. ([#6250](https://github.com/getsentry/relay/pull/6250))
+- Prevent partially trimmed transaction spans. ([#6256](https://github.com/getsentry/relay/pull/6256))
+
+**Internal**:
+
+- Limit the maximum amount of items in an envelope to 500. ([#6251](https://github.com/getsentry/relay/pull/6251))
+
+## 26.7.0
+
+**Features**:
+
 - Infer span descriptions via `sentry-conventions`. ([#6093](https://github.com/getsentry/relay/pull/6093))
 - Raises the size limit for the flags context to 64KiB. ([#6137](https://github.com/getsentry/relay/pull/6137))
 - Add segment_names field to Replay events. ([#6134](https://github.com/getsentry/relay/pull/6134))
 - Use a out of process solution for catching crashes. ([#6158](https://github.com/getsentry/relay/pull/6158))
 - Accept a `charset=utf-8` parameters on JSON and XML content types. ([#6184](https://github.com/getsentry/relay/pull/6184))
 - Support PEM file format for signing / verification keys. ([#6155](https://github.com/getsentry/relay/pull/6155))
-- GA the `upload-endpoint` feature. ([#6171](https://github.com/getsentry/relay/pull/6171))
+- Graduate the upload endpoint and streaming attachments on the minidump endpoint. ([#6171](https://github.com/getsentry/relay/pull/6171), [#6222](https://github.com/getsentry/relay/pull/6222))
+- Add Lightpanda to web crawler filter. ([#6143](https://github.com/getsentry/relay/pull/6143))
+- Add `sentry.relay.ingress` and `sentry.relay.pipeline` attributes to some EAP items. ([#6224](https://github.com/getsentry/relay/pull/6224))
 
 **Bug Fixes**:
 
+- Bound the recursion depth when deserializing MessagePack payloads to prevent stack overflows. ([#6212](https://github.com/getsentry/relay/pull/6212))
 - Wider type support for OTel log bodies. ([#6106](https://github.com/getsentry/relay/pull/6106))
 - Align OTLP endpoint responses with the specification. ([#6182](https://github.com/getsentry/relay/pull/6182))
 - Don't reject attributes that don't have values, but do have metadata. ([#6098](https://github.com/getsentry/relay/pull/6098))
@@ -23,10 +122,16 @@
 - Set sentry.trace.status on segment spans. ([#6140](https://github.com/getsentry/relay/pull/6140))
 - Don't modify segment information for V2 web vital spans. ([#6160](https://github.com/getsentry/relay/pull/6160))
 - Support compressed minidumps when the `relay-minidump-uploads` feature is enabled. ([#6151](https://github.com/getsentry/relay/pull/6151))
+- Make `--log-level` and `--log-format` take effect again and accept them on all subcommands. ([#6198](https://github.com/getsentry/relay/pull/6198))
 - Parse two-component versions in iOS and iPadOS `raw_description` into `version` instead of `kernel_version`. ([#6197](https://github.com/getsentry/relay/pull/6197))
+- Normalize segment names for standalone spans in the experimental pipeline. ([#6163](https://github.com/getsentry/relay/pull/6163))
+- Limit nested form-data entry keys. ([#6179](https://github.com/getsentry/relay/pull/6179))
+- Retain client-supplied debug images when parsing Perfetto profile chunks, instead of overwriting them with images extracted from the trace. ([#6232](https://github.com/getsentry/relay/pull/6232))
 
 **Internal**:
 
+- Apply convention normalizations to transaction spans. ([#6223](https://github.com/getsentry/relay/pull/6223))
+- Remove all remainders of custom metrics, including the `custom` metric namespace. ([#6210](https://github.com/getsentry/relay/pull/6210))
 - Rename objectstore use-case from `profiles_raw` to `profile_attachments`. ([#6108](https://github.com/getsentry/relay/pull/6108))
 - Require timestamps and verification in auth signatures. ([#6069](https://github.com/getsentry/relay/pull/6069))
 - Match patterns iteratively instead of recursively. ([#6188](https://github.com/getsentry/relay/pull/6188))
@@ -34,8 +139,7 @@
 - Internally handle outcomes as metrics. ([#6107](https://github.com/getsentry/relay/pull/6107))
 - Re-introduce `projects:discard-transaction` feature flag. ([#6199](https://github.com/getsentry/relay/pull/6199))
 - Have relay generate metric billing outcomes. ([#6066](https://github.com/getsentry/relay/pull/6066))
-- Update sentry-conventions to 0.12.0.
-- Update sentry-conventions to 0.13.0. ([#6139](https://github.com/getsentry/relay/pull/6139))
+- Update sentry-conventions to 0.16.0. ([#6215](https://github.com/getsentry/relay/pull/6215))
 - Upgrade release image to Debian 13. ([#6110](https://github.com/getsentry/relay/pull/6110))
 - No longer serialize transactions into envelopes when storing them. ([#6193](https://github.com/getsentry/relay/pull/6193))
 - No longer serialize check-ins into envelopes when storing them. ([#6196](https://github.com/getsentry/relay/pull/6196))
@@ -46,7 +150,8 @@
 - Use dedicated secret to sign upload URLs. ([#6132](https://github.com/getsentry/relay/pull/6132))
 - Inline small attachments instead of uploading to objectstore. ([#6165](https://github.com/getsentry/relay/pull/6165))
 - Retry 500 responses from objectstore. ([#6162](https://github.com/getsentry/relay/pull/6162))
-- Remove the `metrics_extracted` flag from the transactions processing pipeline. ([#6190](https://github.com/getsentry/relay/pull/6190))
+- Remove the `metrics_extracted` and `spans_extracted` flags from the transactions processing pipeline. ([#6190](https://github.com/getsentry/relay/pull/6190), [#6200](https://github.com/getsentry/relay/pull/6200))
+- Convert TUS uploads to Objectstore multipart uploads. ([#6172](https://github.com/getsentry/relay/pull/6172))
 
 ## 26.6.0
 
@@ -71,7 +176,7 @@
 **Internal**:
 
 - Handle outcomes as metrics. ([#6082](https://github.com/getsentry/relay/pull/6082))
-- Restore top-level _performance_issues_spans. ([#6045](https://github.com/getsentry/relay/pull/6045))
+- Restore top-level \_performance_issues_spans. ([#6045](https://github.com/getsentry/relay/pull/6045))
 - Update sentry-conventions to 0.11.0, migrating deprecated `gen_ai` attribute constants. ([#6068](https://github.com/getsentry/relay/pull/6068))
 
 ## 26.5.2

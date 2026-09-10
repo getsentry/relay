@@ -23,6 +23,10 @@ impl Chunk {
     ///
     /// Note: if the parsed `sample` already contains profiling information, the frames in the
     /// Perfetto profile are not extracted again.
+    ///
+    /// Any debug images supplied in the `sample` metadata (e.g. a Proguard image for Android
+    /// deobfuscation) are retained; debug images extracted from the Perfetto profile are
+    /// appended to them.
     pub fn parse(sample: &[u8], perfetto: Bytes) -> Result<Self, ProfileError> {
         let mut inner: v2::ProfileChunk = {
             let deserializer = &mut serde_json::Deserializer::from_slice(sample);
@@ -32,7 +36,7 @@ impl Chunk {
         if inner.profile.is_empty() {
             let (profile_data, debug_images) = convert::convert(&perfetto)?;
             inner.profile = profile_data;
-            inner.metadata.debug_meta.images = debug_images;
+            inner.metadata.debug_meta.images.extend(debug_images);
         }
 
         Ok(Self { inner, perfetto })
@@ -75,6 +79,7 @@ impl relay_protocol::Getter for Chunk {
 mod tests {
     use super::*;
 
+    use crate::debug_image::ImageType;
     use crate::{ProfileChunk, ProfileType};
 
     const PERFETTO_ANDROID: Bytes = Bytes::from_static(include_bytes!(
@@ -90,6 +95,14 @@ mod tests {
             "platform": "android",
             "content_type": "perfetto",
             "client_sdk": {"name": "sentry-android", "version": "1.0"},
+            "debug_meta": {
+                "images": [
+                    {
+                        "uuid": "32420279-25e2-34e6-8bc7-8a006a8f2425",
+                        "type": "proguard",
+                    },
+                ],
+            },
         });
         let metadata_bytes = serde_json::to_vec(&metadata_json).unwrap();
 
@@ -98,6 +111,12 @@ mod tests {
         assert_eq!(chunk.inner.metadata.platform, "android");
         assert_eq!(chunk.profile_type(), ProfileType::Ui);
 
+        let images = &chunk.inner.metadata.debug_meta.images;
+        assert_eq!(images[0].image_type, ImageType::Proguard);
+        assert!(
+            images.len() > 1,
+            "expected native images to be appended after the Proguard image"
+        );
         insta::assert_json_snapshot!(chunk.inner);
     }
 

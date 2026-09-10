@@ -31,8 +31,7 @@
 //! ```
 //!
 //! Note that the name format used in the statsd protocol is different from the MRI: Metric names
-//! are not prefixed with `<ty>:` as the type is somewhere else in the protocol. If no metric
-//! namespace is specified, the `"custom"` namespace is assumed.
+//! are not prefixed with `<ty>:` as the type is somewhere else in the protocol.
 //!
 //! Optionally, a timestamp can be added to every line of the submitted envelope. The timestamp has
 //! to be a valid Unix timestamp (UTC) and must be prefixed with `T`. If it is omitted, the

@@ -8,9 +8,11 @@ from pathlib import Path
 
 import pytest
 import requests
+from requests import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 from .asserts import time_within_delta
+from .consts import Outcome
 
 RELAY_ROOT = Path(__file__).parent.parent.parent
 
@@ -94,7 +96,7 @@ def test_outcomes_processing(relay_with_processing, mini_sentry, outcomes_consum
         "category": DataCategory.ERROR,
         "key_id": 123,
         "org_id": 1,
-        "outcome": 2,
+        "outcome": Outcome.RATE_LIMITED,
         "project_id": 42,
         "quantity": 1,
         "reason": "rate_limited",
@@ -149,7 +151,7 @@ def test_outcomes_custom_topic(
         "category": DataCategory.ERROR,
         "key_id": 123,
         "org_id": 1,
-        "outcome": 1,
+        "outcome": Outcome.FILTERED,
         "project_id": 42,
         "quantity": 1,
         "reason": "error-message",
@@ -186,7 +188,7 @@ def test_outcomes_non_processing(relay, mini_sentry, event_type):
 
     assert mini_sentry.get_aggregated_outcomes() == [
         {
-            "outcome": 2,  # rate limited
+            "outcome": Outcome.RATE_LIMITED,
             "reason": "rate_limited",
             "source": "my-layer",
             "category": category,
@@ -284,7 +286,7 @@ def test_outcome_forwarding(
             "project_id": 42,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 1,  # filtered
+            "outcome": Outcome.FILTERED,
             "source": "downstream-layer",
             "reason": "release-version",
             "category": category,
@@ -355,10 +357,10 @@ def test_outcomes_forwarding_rate_limited(
         "reason": "rate_limited",
         "org_id": 1,
         "key_id": 123,
-        "outcome": 2,
+        "outcome": Outcome.RATE_LIMITED,
         "project_id": 42,
         "source": "processing-layer",
-        "category": 1,
+        "category": DataCategory.ERROR,
         "quantity": 1,
     }
     assert outcome == expected_outcome
@@ -573,13 +575,13 @@ def test_outcome_to_client_report(relay, mini_sentry):
 
     assert mini_sentry.get_aggregated_outcomes(n=2) == [
         {
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:3000",
             "category": DataCategory.TRANSACTION_INDEXED,
             "quantity": 1,
         },
         {
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:3000",
             "category": DataCategory.SPAN_INDEXED,
             "quantity": 1,
@@ -650,15 +652,15 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
 
     assert mini_sentry.get_aggregated_outcomes(n=2) == [
         {
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:3000",
-            "category": DataCategory.TRANSACTION_INDEXED.value,
+            "category": DataCategory.TRANSACTION_INDEXED,
             "quantity": 2,
         },
         {
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:3000",
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN_INDEXED,
             "quantity": 2,
         },
     ]
@@ -691,9 +693,9 @@ def test_outcomes_aggregate_inbound_filters(
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "release-version",
-            "category": 1,
+            "category": DataCategory.ERROR,
             "quantity": 2,
         }
     ]
@@ -739,15 +741,15 @@ def test_graceful_shutdown(relay, mini_sentry):
 
     assert mini_sentry.get_aggregated_outcomes(n=2) == [
         {
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:3000",
-            "category": DataCategory.TRANSACTION_INDEXED.value,
+            "category": DataCategory.TRANSACTION_INDEXED,
             "quantity": 1,
         },
         {
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "reason": "Sampled:3000",
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN_INDEXED,
             "quantity": 1,
         },
     ]
@@ -777,8 +779,8 @@ def test_profile_outcomes(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
 
-    project_config.setdefault("features", []).extend(
-        ["organizations:profiling", "organizations:relay-generate-billing-outcome"]
+    project_config.setdefault("features", []).append(
+        "organizations:relay-generate-billing-outcome"
     )
     project_config["sampling"] = {
         "version": 2,
@@ -856,58 +858,58 @@ def test_profile_outcomes(
     }[num_intermediate_relays]
     expected_outcomes = [
         {
-            "category": DataCategory.TRANSACTION.value,
+            "category": DataCategory.TRANSACTION,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 2,
             "source": "processing-relay",
         },
         {
-            "category": DataCategory.ATTACHMENT.value,  # attachment
+            "category": DataCategory.ATTACHMENT,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "project_id": 42,
             "quantity": 6,  # len(b"foobar")
             "reason": "Sampled:3000",
             "source": expected_source,
         },
         {
-            "category": DataCategory.TRANSACTION_INDEXED.value,
+            "category": DataCategory.TRANSACTION_INDEXED,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 1,  # Filtered
+            "outcome": Outcome.FILTERED,
             "project_id": 42,
             "quantity": 1,
             "reason": "Sampled:3000",
             "source": expected_source,
         },
         {
-            "category": DataCategory.SPAN.value,
+            "category": DataCategory.SPAN,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 4,
             "source": "processing-relay",
         },
         {
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN_INDEXED,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 1,  # Filtered
+            "outcome": Outcome.FILTERED,
             "project_id": 42,
             "quantity": 2,
             "reason": "Sampled:3000",
             "source": expected_source,
         },
         {
-            "category": DataCategory.ATTACHMENT_ITEM.value,
+            "category": DataCategory.ATTACHMENT_ITEM,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 1,
+            "outcome": Outcome.FILTERED,
             "project_id": 42,
             "quantity": 1,  # number of attachments
             "reason": "Sampled:3000",
@@ -915,12 +917,7 @@ def test_profile_outcomes(
         },
     ]
 
-    num_messages = 6
-    if num_intermediate_relays > 0:
-        num_messages = 8
-
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=num_messages)
-
+    outcomes = outcomes_consumer.get_aggregated_outcomes()
     assert outcomes == expected_outcomes, outcomes
 
     metrics = [
@@ -960,8 +957,8 @@ def test_profile_outcomes_invalid(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
-    project_config.setdefault("features", []).extend(
-        ["organizations:profiling", "organizations:relay-generate-billing-outcome"]
+    project_config.setdefault("features", []).append(
+        "organizations:relay-generate-billing-outcome"
     )
 
     config = {
@@ -995,39 +992,39 @@ def test_profile_outcomes_invalid(
 
     assert outcomes == [
         {
-            "category": DataCategory.TRANSACTION.value,
+            "category": DataCategory.TRANSACTION,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 1,
             "timestamp": time_within_delta(),
         },
         {
-            "category": DataCategory.PROFILE.value,
+            "category": DataCategory.PROFILE,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,  # Invalid
-            "project_id": 42,
-            "quantity": 1,
-            "reason": expected_outcome,
-            "timestamp": time_within_delta(),
-        },
-        {
-            "category": DataCategory.PROFILE_INDEXED.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": 1,
             "reason": expected_outcome,
             "timestamp": time_within_delta(),
         },
         {
-            "category": DataCategory.SPAN.value,
+            "category": DataCategory.PROFILE_INDEXED,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.INVALID,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": expected_outcome,
+            "timestamp": time_within_delta(),
+        },
+        {
+            "category": DataCategory.SPAN,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 2,
             "timestamp": time_within_delta(),
@@ -1050,8 +1047,8 @@ def test_profile_outcomes_too_many(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
 
-    project_config.setdefault("features", []).extend(
-        ["organizations:profiling", "organizations:relay-generate-billing-outcome"]
+    project_config.setdefault("features", []).append(
+        "organizations:relay-generate-billing-outcome"
     )
 
     config = {
@@ -1084,54 +1081,68 @@ def test_profile_outcomes_too_many(
         return envelope
 
     envelope = make_envelope()
-    upstream.send_envelope(project_id, envelope)
+    with pytest.raises(HTTPError, match="413 Client Error"):
+        upstream.send_envelope(project_id, envelope)
 
-    outcomes = outcomes_consumer.get_outcomes(n=4)
-    outcomes.sort(key=lambda o: sorted(o.items()))
-
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=6)
     assert outcomes == [
         {
-            "category": DataCategory.TRANSACTION.value,
+            "category": DataCategory.TRANSACTION,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": 1,
-            "timestamp": time_within_delta(),
+            "reason": "too_large:profile",
         },
         {
-            "category": DataCategory.PROFILE.value,
+            "category": DataCategory.PROFILE,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,  # Invalid
-            "project_id": 42,
-            "quantity": 1,
-            "reason": "profiling_too_many_profiles",
-            "timestamp": time_within_delta(),
-        },
-        {
-            "category": DataCategory.PROFILE_INDEXED.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 3,  # Invalid
-            "project_id": 42,
-            "quantity": 1,
-            "reason": "profiling_too_many_profiles",
-            "timestamp": time_within_delta(),
-        },
-        {
-            "category": DataCategory.SPAN.value,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": 2,
-            "timestamp": time_within_delta(),
+            "reason": "too_large:profile",
+        },
+        {
+            "category": DataCategory.TRANSACTION_INDEXED,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": Outcome.INVALID,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "too_large:profile",
+        },
+        {
+            "category": DataCategory.PROFILE_INDEXED,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": Outcome.INVALID,
+            "project_id": 42,
+            "quantity": 2,
+            "reason": "too_large:profile",
+        },
+        {
+            "category": DataCategory.SPAN,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": Outcome.INVALID,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "too_large:profile",
+        },
+        {
+            "category": DataCategory.SPAN_INDEXED,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": Outcome.INVALID,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "too_large:profile",
         },
     ]
 
-    # One profile was accepted
-    assert profiles_consumer.get_profile()
+    profiles_consumer.assert_empty()
 
 
 @pytest.mark.parametrize(
@@ -1155,8 +1166,8 @@ def test_profile_outcomes_rate_limited(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
 
-    project_config.setdefault("features", []).extend(
-        ["organizations:profiling", "organizations:relay-generate-billing-outcome"]
+    project_config.setdefault("features", []).append(
+        "organizations:relay-generate-billing-outcome"
     )
     project_config["quotas"] = [
         {
@@ -1201,14 +1212,14 @@ def test_profile_outcomes_rate_limited(
     outcomes = outcomes_consumer.get_outcomes()
 
     expected_categories = [
-        (DataCategory.PROFILE.value, 1),
-        (DataCategory.PROFILE_INDEXED.value, 1),
+        (DataCategory.PROFILE, 1),
+        (DataCategory.PROFILE_INDEXED, 1),
     ]
     # If the platform header is set, the outcome can be emitted in the fast path, for all limits,
     # if the header is missing, it can only be enforced with consistent rate limiting, which only
     # happens for the `profile_ui` category (as the rate limit can't be enforced in the fast path).
     if with_platform_header or quota_category == "profile_ui":
-        expected_categories.append((DataCategory.PROFILE_UI.value, 1))
+        expected_categories.append((DataCategory.PROFILE_UI, 1))
 
     if quota_category == "transaction":
         # Transaction got rate limited as well:
@@ -1224,7 +1235,7 @@ def test_profile_outcomes_rate_limited(
             "category": category,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 2,  # RateLimited
+            "outcome": Outcome.RATE_LIMITED,
             "project_id": 42,
             "quantity": quantity,
             "reason": "profiles_exceeded",
@@ -1235,10 +1246,10 @@ def test_profile_outcomes_rate_limited(
     if quota_category != "transaction":
         expected_outcomes.append(
             {
-                "category": DataCategory.TRANSACTION.value,
+                "category": DataCategory.TRANSACTION,
                 "key_id": 123,
                 "org_id": 1,
-                "outcome": 0,
+                "outcome": Outcome.ACCEPTED,
                 "project_id": 42,
                 "quantity": 1,
             }
@@ -1246,10 +1257,10 @@ def test_profile_outcomes_rate_limited(
 
         expected_outcomes.append(
             {
-                "category": DataCategory.SPAN.value,
+                "category": DataCategory.SPAN,
                 "key_id": 123,
                 "org_id": 1,
-                "outcome": 0,
+                "outcome": Outcome.ACCEPTED,
                 "project_id": 42,
                 "quantity": 2,
             }
@@ -1273,7 +1284,6 @@ def test_profile_outcomes_rate_limited_when_dynamic_sampling_drops(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
 
-    project_config.setdefault("features", []).append("organizations:profiling")
     project_config["quotas"] = [
         {
             "id": f"test_rate_limiting_{uuid.uuid4().hex}",
@@ -1308,13 +1318,13 @@ def test_profile_outcomes_rate_limited_when_dynamic_sampling_drops(
         assert mini_sentry.get_aggregated_outcomes() == [
             {
                 "category": DataCategory.PROFILE,
-                "outcome": 2,
+                "outcome": Outcome.RATE_LIMITED,
                 "quantity": 1,
                 "reason": "profiles_exceeded",
             },
             {
                 "category": DataCategory.PROFILE_INDEXED,
-                "outcome": 2,
+                "outcome": Outcome.RATE_LIMITED,
                 "quantity": 1,
                 "reason": "profiles_exceeded",
             },
@@ -1347,8 +1357,8 @@ def test_span_outcomes(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
-    project_config.setdefault("features", []).extend(
-        ["organizations:profiling", "organizations:relay-generate-billing-outcome"]
+    project_config.setdefault("features", []).append(
+        "organizations:relay-generate-billing-outcome"
     )
     project_config["sampling"] = {
         "version": 2,
@@ -1414,46 +1424,41 @@ def test_span_outcomes(
         2: "pop-relay",
     }[num_intermediate_relays]
 
-    num_messages = 4
-    if num_intermediate_relays > 0:
-        num_messages = 6
-
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=num_messages)
-
+    outcomes = outcomes_consumer.get_aggregated_outcomes()
     assert outcomes == [
         {
-            "category": DataCategory.TRANSACTION.value,
+            "category": DataCategory.TRANSACTION,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 2,
             "source": "processing-relay",
         },
         {
-            "category": DataCategory.TRANSACTION_INDEXED.value,
+            "category": DataCategory.TRANSACTION_INDEXED,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 1,  # Filtered
+            "outcome": Outcome.FILTERED,
             "project_id": 42,
             "quantity": 1,
             "reason": "Sampled:3000",
             "source": expected_source,
         },
         {
-            "category": DataCategory.SPAN.value,
+            "category": DataCategory.SPAN,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,
+            "outcome": Outcome.ACCEPTED,
             "project_id": 42,
             "quantity": 4,
             "source": "processing-relay",
         },
         {
-            "category": DataCategory.SPAN_INDEXED.value,
+            "category": DataCategory.SPAN_INDEXED,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 1,  # Filtered
+            "outcome": Outcome.FILTERED,
             "project_id": 42,
             "quantity": 2,
             "reason": "Sampled:3000",
@@ -1515,7 +1520,7 @@ def test_span_outcomes_invalid(
             "category": category,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 3,  # Invalid
+            "outcome": Outcome.INVALID,
             "project_id": 42,
             "quantity": quantity,
             "reason": reason,
@@ -1577,9 +1582,9 @@ def test_replay_outcomes_item_failed(
     assert len(outcomes) == 1
 
     expected = {
-        "category": 7,
+        "category": DataCategory.REPLAY,
         "key_id": 123,
-        "outcome": 3,
+        "outcome": Outcome.INVALID,
         "project_id": 42,
         "quantity": 2,
         "reason": "invalid_replay",
@@ -1613,7 +1618,7 @@ def test_outcomes_as_metrics_forwarded_as_metrics(relay, mini_sentry):
     assert mini_sentry.get_outcomes(n=1) == [
         {
             "category": DataCategory.ERROR,
-            "outcome": 5,
+            "outcome": Outcome.CLIENT_DISCARD,
             "quantity": 42,
             "reason": "queue_overflow",
             "timestamp": time_within_delta(),
@@ -1698,10 +1703,10 @@ def test_outcomes_as_metrics_forwarded_to_kafka_billing(
     relay.send_event(42, {"message": "this is rate limited"})
     assert consumer_with_outcome.get_aggregated_outcomes(n=1) == [
         {
-            "category": 1,
+            "category": DataCategory.ERROR,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 2,
+            "outcome": Outcome.RATE_LIMITED,
             "project_id": 42,
             "quantity": 1,
             "reason": "static_disabled_quota",
@@ -1714,10 +1719,10 @@ def test_outcomes_as_metrics_forwarded_to_kafka_billing(
         relay.send_event(42, {"message": "this is rate limited"})
     assert consumer_with_outcome.get_aggregated_outcomes(n=1) == [
         {
-            "category": 1,
+            "category": DataCategory.ERROR,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 2,
+            "outcome": Outcome.RATE_LIMITED,
             "project_id": 42,
             "quantity": 1,
             "reason": "static_disabled_quota",

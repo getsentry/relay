@@ -21,8 +21,6 @@ pub struct ByNamespace<T> {
     pub spans: T,
     /// Value for the [`MetricNamespace::Transactions`] namespace.
     pub transactions: T,
-    /// Value for the [`MetricNamespace::Custom`] namespace.
-    pub custom: T,
     /// Value for the [`MetricNamespace::Outcomes`] namespace.
     pub outcomes: T,
     /// Value for the [`MetricNamespace::Unsupported`] namespace.
@@ -36,7 +34,6 @@ impl<T> ByNamespace<T> {
             MetricNamespace::Sessions => &self.sessions,
             MetricNamespace::Spans => &self.spans,
             MetricNamespace::Transactions => &self.transactions,
-            MetricNamespace::Custom => &self.custom,
             MetricNamespace::Outcomes => &self.outcomes,
             MetricNamespace::Unsupported => &self.unsupported,
         }
@@ -48,7 +45,6 @@ impl<T> ByNamespace<T> {
             MetricNamespace::Sessions => &mut self.sessions,
             MetricNamespace::Spans => &mut self.spans,
             MetricNamespace::Transactions => &mut self.transactions,
-            MetricNamespace::Custom => &mut self.custom,
             MetricNamespace::Outcomes => &mut self.outcomes,
             MetricNamespace::Unsupported => &mut self.unsupported,
         }
@@ -57,14 +53,13 @@ impl<T> ByNamespace<T> {
 
 impl<T> IntoIterator for ByNamespace<T> {
     type Item = (MetricNamespace, T);
-    type IntoIter = std::array::IntoIter<(MetricNamespace, T), 6>;
+    type IntoIter = std::array::IntoIter<(MetricNamespace, T), 5>;
 
     fn into_iter(self) -> Self::IntoIter {
         let Self {
             sessions,
             spans,
             transactions,
-            custom,
             outcomes,
             unsupported,
         } = self;
@@ -73,7 +68,6 @@ impl<T> IntoIterator for ByNamespace<T> {
             (MetricNamespace::Sessions, sessions),
             (MetricNamespace::Spans, spans),
             (MetricNamespace::Transactions, transactions),
-            (MetricNamespace::Custom, custom),
             (MetricNamespace::Outcomes, outcomes),
             (MetricNamespace::Unsupported, unsupported),
         ]
@@ -117,7 +111,6 @@ macro_rules! impl_op {
                     sessions,
                     spans,
                     transactions,
-                    custom,
                     outcomes,
                     unsupported,
                 } = self;
@@ -125,7 +118,6 @@ macro_rules! impl_op {
                 $op::$opfn(sessions, rhs.sessions);
                 $op::$opfn(spans, rhs.spans);
                 $op::$opfn(transactions, rhs.transactions);
-                $op::$opfn(custom, rhs.custom);
                 $op::$opfn(outcomes, rhs.outcomes);
                 $op::$opfn(unsupported, rhs.unsupported);
             }

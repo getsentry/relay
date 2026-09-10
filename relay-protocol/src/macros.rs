@@ -135,7 +135,7 @@ macro_rules! get_value {
         let $root = $root.and_then(|v| v.$field.value());
         get_value!(@access $root, $($tail)*);
     };
-    (@access $root:ident, [ $index:literal ] $( $tail:tt )*) => {
+    (@access $root:ident, [ $index:expr ] $( $tail:tt )*) => {
         let $root = $root.and_then(|v| v.get($index)).and_then(|a| a.value());
         get_value!(@access $root, $($tail)*);
     };

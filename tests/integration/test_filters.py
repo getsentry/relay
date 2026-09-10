@@ -7,6 +7,7 @@ import pytest
 
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
+from .consts import Outcome
 
 RELAY_ROOT = Path(__file__).parent.parent.parent
 
@@ -594,11 +595,8 @@ def test_filters_are_applied_to_profiles(
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"].setdefault("features", []).extend(
-        [
-            "organizations:profiling",
-            "organizations:continuous-profiling",
-        ]
+    project_config["config"].setdefault("features", []).append(
+        "organizations:continuous-profiling"
     )
     filter_settings = project_config["config"]["filterSettings"]
     for key in filter_config.keys():
@@ -620,7 +618,7 @@ def test_filters_are_applied_to_profiles(
                 "org_id": 1,
                 "project_id": 42,
                 "key_id": 123,
-                "outcome": 1,  # Filtered
+                "outcome": Outcome.FILTERED,
                 "reason": "release-version",
                 "quantity": 1,
             },

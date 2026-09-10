@@ -12,10 +12,10 @@ use uuid::Uuid;
 use crate::processor::ProcessValue;
 use crate::protocol::{
     AppContext, Breadcrumb, Breakdowns, BrowserContext, ClientSdkInfo, Contexts, Csp, DebugMeta,
-    DefaultContext, DeviceContext, EventType, Exception, ExpectCt, ExpectStaple, Fingerprint,
-    GpuContext, Hpkp, LenientString, Level, LogEntry, Measurements, Metrics, MonitorContext,
-    OsContext, ProfileContext, RelayInfo, Request, ResponseContext, RuntimeContext, Span, SpanId,
-    Stacktrace, Tags, TemplateInfo, Thread, Timestamp, TraceContext, TransactionInfo, User, Values,
+    DefaultContext, DeviceContext, EventType, Exception, Fingerprint, GpuContext, LenientString,
+    Level, LogEntry, Measurements, Metrics, MonitorContext, OsContext, ProfileContext, RelayInfo,
+    Request, ResponseContext, RuntimeContext, Span, SpanId, Stacktrace, Tags, TemplateInfo, Thread,
+    Timestamp, TraceContext, TransactionInfo, User, Values,
 };
 
 /// Wrapper around a UUID with slightly different formatting.
@@ -443,21 +443,6 @@ pub struct Event {
     #[metastructure(legacy_alias = "sentry.interfaces.Csp")]
     #[metastructure(omit_from_schema)] // we only document error events for now
     pub csp: Annotated<Csp>,
-
-    /// HPKP (security) reports.
-    #[metastructure(pii = "true", legacy_alias = "sentry.interfaces.Hpkp")]
-    #[metastructure(omit_from_schema)] // we only document error events for now
-    pub hpkp: Annotated<Hpkp>,
-
-    /// ExpectCT (security) reports.
-    #[metastructure(pii = "true", legacy_alias = "sentry.interfaces.ExpectCT")]
-    #[metastructure(omit_from_schema)] // we only document error events for now
-    pub expectct: Annotated<ExpectCt>,
-
-    /// ExpectStaple (security) reports.
-    #[metastructure(pii = "true", legacy_alias = "sentry.interfaces.ExpectStaple")]
-    #[metastructure(omit_from_schema)] // we only document error events for now
-    pub expectstaple: Annotated<ExpectStaple>,
 
     /// Spans for tracing.
     #[metastructure(max_bytes = 819200)]

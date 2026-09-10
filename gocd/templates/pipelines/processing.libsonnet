@@ -1,17 +1,25 @@
 local utils = import '../libs/utils.libsonnet';
 local gocdtasks = import 'github.com/getsentry/gocd-jsonnet/libs/gocd-tasks.libsonnet';
 
-// List of datadog monitors to check during the soak time in the different regions
-local soak_monitors = {
-  // (The Number of Pending Projects is High), (Service Queues are Backlogging), (CrashLoopBackoff Count is High)
-  us: '14146876 154096671 237862997',
-  // (The Number of Pending Projects is High)
+// List of datadog monitors to check during the canary and soak stages in the different regions
+local datadog_monitors = {
+  // (The Number of Pending Projects is High), (Service Queues are Backlogging), (CrashLoopBackoff Count is High), (Canary Traffic is Low or Missing)
+  us: '14146876 154096671 237862997 307281718',
+  // (The Number of Pending Projects is High), (Canary Traffic is Low or Missing)
+  de: '14146876 307281733',
+  us2: '14146876 307281731',
+  s4s2: '14146876 307281734',
   default: '14146876',
 };
 
+local monitors_for(region) =
+  if std.objectHas(datadog_monitors, region) then datadog_monitors[region] else datadog_monitors.default;
+
+local canary_regions = ['us', 'de', 'us2', 's4s2'];
+
 local sentry_deploy_vars(region) = {
   SENTRY_REGION: region,
-  SENTRY_SINGLE_TENANT: 'false',
+  SENTRY_SINGLE_TENANT: if region == 's4s2' then 'true' else 'false',
   SENTRY_BASE: 'https://sentry.io/api/0',
   SENTRY_AUTH_TOKEN: if region == 's4s2' then '{{SECRET:[devinfra-sentryst][token]}}' else '{{SECRET:[devinfra-temp][relay_sentry_s4s2_auth_token]}}',
   // Sentry projects to check for errors <project_id>:<project_slug>:<service>
@@ -41,7 +49,7 @@ local soak_time(region) =
                 DATADOG_API_KEY: '{{SECRET:[devinfra][sentry_datadog_api_key]}}',
                 DATADOG_APP_KEY: '{{SECRET:[devinfra][sentry_datadog_app_key]}}',
                 // Datadog monitor IDs for the soak time
-                DATADOG_MONITOR_IDS: if std.objectHas(soak_monitors, region) then soak_monitors[region] else soak_monitors.default,
+                DATADOG_MONITOR_IDS: monitors_for(region),
                 // TODO: Set a proper error limit
                 ERROR_LIMIT: 500,
                 PAUSE_MESSAGE: 'Detecting issues in the deployment. Pausing pipeline.',
@@ -67,7 +75,7 @@ local soak_time(region) =
 // The purpose of this stage is to deploy a canary for a given region and wait for a few minutes
 // to see if there are any issues.
 local deploy_canary(region) =
-  if region == 'us' then
+  if std.member(canary_regions, region) then
     [
       {
         'deploy-canary': {
@@ -89,7 +97,7 @@ local deploy_canary(region) =
                 DATADOG_API_KEY: '{{SECRET:[devinfra][sentry_datadog_api_key]}}',
                 DATADOG_APP_KEY: '{{SECRET:[devinfra][sentry_datadog_app_key]}}',
                 // Datadog monitor IDs for the canary deployment
-                DATADOG_MONITOR_IDS: '14146876 154096671 237862997',
+                DATADOG_MONITOR_IDS: monitors_for(region),
                 // TODO: Set a proper error limit
                 ERROR_LIMIT: 500,
                 PAUSE_MESSAGE: 'Pausing pipeline due to canary failure.',

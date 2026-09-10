@@ -18,7 +18,7 @@ use relay_auth::SignatureError;
 #[cfg(feature = "processing")]
 use relay_auth::SignatureHeader;
 use relay_base_schema::project::ProjectId;
-use relay_config::{Config, HttpEncoding, UpstreamDescriptor};
+use relay_config::{Config, ConfigSnapshot, HttpEncoding, UpstreamDescriptor};
 use relay_quotas::Scoping;
 use relay_system::{
     Addr, AsyncResponse, ConcurrentService, FromMessage, Interface, LoadShed, SendError, Sender,
@@ -60,6 +60,9 @@ pub enum Error {
     Upstream(#[source] reqwest::Error),
     #[error("upstream provided invalid location: {0:?}")]
     InvalidLocation(Option<HeaderValue>),
+    #[cfg(feature = "processing")]
+    #[error(transparent)]
+    InvalidUploadId(#[from] objectstore_types::multipart::InvalidUploadId),
     #[error("serializing location failed: {0}")]
     SerializeFailed(#[from] serde_urlencoded::ser::Error),
     #[error("failed to sign location")]
@@ -69,7 +72,7 @@ pub enum Error {
     #[error("objectstore service unavailable: {0}")]
     ObjectstoreServiceUnavailable(#[source] SendError),
     #[cfg(feature = "processing")]
-    #[error("objectstore service: {0}")]
+    #[error(transparent)]
     Objectstore(#[from] objectstore::Error),
     #[error("loadshed")]
     LoadShed,
@@ -85,6 +88,8 @@ impl Error {
             Error::Timeout(_) => "timeout",
             Error::Upstream(_) => "upstream_response",
             Error::InvalidLocation(_) => "invalid_location",
+            #[cfg(feature = "processing")]
+            Error::InvalidUploadId(_) => "invalid_upload_id",
             Error::SigningFailed => "signing_failed",
             Error::SerializeFailed(_) => "serialize_failed",
             Error::InvalidSignature(_) => "invalid_signature",
@@ -119,6 +124,8 @@ pub struct ProjectContext {
     pub scoping: Scoping,
     /// Where to send the request.
     pub upstream: Option<UpstreamDescriptor>,
+    /// The retention to use for the uploaded object (in days).
+    pub retention: u16,
 }
 
 /// Request to create an upload resource.
@@ -127,7 +134,7 @@ pub struct Create {
     pub project: ProjectContext,
     /// The size of the intended upload in bytes, as specified in the `Upload-Length` header.
     ///
-    /// Trusted clients (i.e. PoP Relays) are allowed to omit the length (see `Upload-Defer-Length: 1`).
+    /// `None` indicates that the length is not yet known (see `Upload-Defer-Length: 1`).
     pub length: Option<usize>,
     /// The attachment type of the upload.
     pub attachment_type: Option<AttachmentType>,
@@ -185,6 +192,7 @@ pub fn create_service(
     upstream: &Addr<UpstreamRelay>,
     #[cfg(feature = "processing")] objectstore: &Option<Addr<Objectstore>>,
 ) -> ConcurrentService<Service> {
+    let current_config = config.current();
     let backend = create_backend(
         config,
         upstream,
@@ -192,12 +200,12 @@ pub fn create_service(
         objectstore,
     );
     let service = Service {
-        timeout: Duration::from_secs(config.upload().timeout),
+        timeout: Duration::from_secs(current_config.upload().timeout),
         backend,
     };
     ConcurrentService::new(service)
         .with_backlog_limit(0)
-        .with_concurrency_limit(config.upload().max_concurrent_requests)
+        .with_concurrency_limit(current_config.upload().max_concurrent_requests)
 }
 
 fn create_backend(
@@ -272,16 +280,47 @@ impl Service {
                 SignedLocation::try_from_response(response)
             }
             #[cfg(feature = "processing")]
-            Backend::Objectstore { addr: _, config } => {
-                // We can create & sign a location right here, no need to query the objectstore service.
+            Backend::Objectstore { addr, config } => {
+                use crate::services::objectstore::UploadRef;
+                let config = config.current();
+
+                // Create the key:
                 let key = Uuid::now_v7().as_simple().to_string();
+                #[cfg(debug_assertions)]
+                let original_key = key.clone();
+
+                let Scoping {
+                    organization_id,
+                    project_id,
+                    ..
+                } = project.scoping;
+
+                let (key, upload_id) = match length {
+                    Some(0) => (key, None), // multipart does not allow empty uploads
+                    _ => {
+                        let UploadRef { key, upload_id } = addr
+                            .send(objectstore::Create {
+                                organization_id,
+                                project_id,
+                                key,
+                                retention: project.retention,
+                            })
+                            .await
+                            .map_err(Error::ObjectstoreServiceUnavailable)??;
+                        #[cfg(debug_assertions)]
+                        debug_assert_eq!(&key, &original_key);
+                        (key, upload_id)
+                    }
+                };
+
                 Location {
                     project_id: project.scoping.project_id,
                     key,
                     length: Provisional(length),
+                    upload_id: upload_id.map(|s| s.to_string()),
                     other: Default::default(),
                 }
-                .try_sign(config)
+                .try_sign(&config)
             }
         }
     }
@@ -303,23 +342,29 @@ impl Service {
             }
             #[cfg(feature = "processing")]
             Backend::Objectstore { addr, config } => {
+                use crate::services::objectstore::UploadRef;
+                let config = config.current();
+
                 let Location {
                     project_id,
                     key,
                     length,
+                    upload_id,
                     other,
-                } = location.verify(received, config)?;
+                } = location.verify(received, &config)?;
 
                 let scoping = project.scoping;
                 debug_assert_eq!(scoping.project_id, project_id);
                 debug_assert!(stream.length().is_none_or(|l| Some(l) == length.value()));
                 let byte_counter = stream.byte_counter();
 
+                let upload_ref = UploadRef::new(key, upload_id)?;
                 let key = addr
                     .send(objectstore::Stream {
                         organization_id: scoping.organization_id,
                         project_id,
-                        key,
+                        upload_ref,
+                        retention: project.retention,
                         stream,
                     })
                     .await
@@ -331,9 +376,10 @@ impl Service {
                     project_id,
                     key,
                     length,
+                    upload_id: None,
                     other,
                 }
-                .try_sign(config)
+                .try_sign(&config)
             }
         }
     }
@@ -425,6 +471,8 @@ pub struct Location<L> {
     pub key: String,
     /// Value of the `Upload-Length` header. `None` if `Upload-Defer-Length: 1`.
     pub length: L,
+    /// Identifies the upload in case the created location has a multipart upload assigned to it.
+    pub upload_id: Option<String>,
     pub other: UploadParams,
 }
 
@@ -434,16 +482,19 @@ impl<L: UploadLength> Location<L> {
             project_id,
             key,
             length,
+            upload_id,
             other,
         } = self;
         #[derive(Debug, Serialize)]
         struct QueryParams<'a> {
             pub upload_length: Option<usize>,
+            pub upload_id: Option<&'a str>,
             #[serde(flatten)]
             pub other: &'a UploadParams,
         }
         let params = QueryParams {
             upload_length: length.value(),
+            upload_id: upload_id.as_deref(),
             other,
         };
         let query = serde_urlencoded::to_string(params)?;
@@ -454,7 +505,7 @@ impl<L: UploadLength> Location<L> {
     }
 
     #[cfg(feature = "processing")]
-    fn try_sign(self, config: &Config) -> Result<SignedLocation<L>, Error> {
+    fn try_sign(self, config: &ConfigSnapshot) -> Result<SignedLocation<L>, Error> {
         let uri = self.try_to_uri()?;
         let secret_key = config.upload_signing_key().ok_or(Error::SigningFailed)?;
         let signature = secret_key.sign_with_header(
@@ -485,6 +536,7 @@ pub struct LocationPath {
 pub struct LocationQueryParams<L: UploadLength> {
     #[serde(alias = "length")]
     pub upload_length: L,
+    pub upload_id: Option<String>,
     #[serde(alias = "signature")]
     pub upload_signature: String,
     #[serde(flatten)]
@@ -545,6 +597,7 @@ impl<L: UploadLength> SignedLocation<L> {
         project_id: ProjectId,
         key: String,
         length: L,
+        upload_id: Option<String>,
         signature: String,
         other: UploadParams,
     ) -> Self {
@@ -553,6 +606,7 @@ impl<L: UploadLength> SignedLocation<L> {
                 project_id,
                 key,
                 length,
+                upload_id,
                 other,
             },
             signature: Signature(signature),
@@ -564,7 +618,8 @@ impl<L: UploadLength> SignedLocation<L> {
         HeaderValue::from_str(&self.try_to_uri()?).map_err(Error::Internal)
     }
 
-    fn try_to_uri(&self) -> Result<String, Error> {
+    /// Converts the location into a URI.
+    pub fn try_to_uri(&self) -> Result<String, Error> {
         let Self {
             location,
             signature,
@@ -581,7 +636,11 @@ impl<L: UploadLength> SignedLocation<L> {
     ///
     /// Fails if the signature is outdated or incorrect.
     #[cfg(feature = "processing")]
-    pub fn verify(self, received: DateTime<Utc>, config: &Config) -> Result<Location<L>, Error> {
+    pub fn verify(
+        self,
+        received: DateTime<Utc>,
+        config: &ConfigSnapshot,
+    ) -> Result<Location<L>, Error> {
         let location = self.location.try_to_uri()?;
         let max_age = chrono::Duration::seconds(config.upload().max_age);
         let public_key = config
@@ -636,6 +695,7 @@ where
         // Parse query parameters.
         let LocationQueryParams {
             upload_length,
+            upload_id,
             upload_signature,
             other,
         } = serde_urlencoded::from_str(query).ok()?;
@@ -644,6 +704,7 @@ where
             project_id,
             key,
             upload_length,
+            upload_id,
             upload_signature,
             other,
         ))
@@ -812,7 +873,7 @@ impl UpstreamRequest for UploadRequest {
         Ok(())
     }
 
-    fn configure(&mut self, config: &Config) {
+    fn configure(&mut self, config: &ConfigSnapshot) {
         if let RequestKind::Upload { encoding, .. } = &mut self.kind {
             *encoding = config.http_encoding();
         }
@@ -851,6 +912,7 @@ mod tests {
                 project_id: ProjectId::new(42),
                 key: "upload-key".to_owned(),
                 length: Provisional(Some(123)),
+                upload_id: None,
                 other: UploadParams::default(),
             }
         }
@@ -858,7 +920,7 @@ mod tests {
         fn config(
             relay_credentials: Credentials,
             credentials: Option<UploadCredentials>,
-        ) -> Config {
+        ) -> ConfigSnapshot {
             let mut config = Config::from_json_value(serde_json::json!({
                 "upload": {
                     "credentials": credentials,
@@ -873,7 +935,7 @@ mod tests {
                     ..Default::default()
                 })
                 .unwrap();
-            config
+            config.current()
         }
 
         #[test]
@@ -963,6 +1025,46 @@ mod tests {
     }
 
     #[test]
+    fn parse_location_complete_with_upload_id() {
+        let json = r#"signature=foo&length=123&upload_id=bar"#;
+
+        let provisional: LocationQueryParams<Provisional> =
+            serde_urlencoded::from_str(json).unwrap();
+        insta::assert_debug_snapshot!(provisional, @r#"
+        LocationQueryParams {
+            upload_length: Provisional(
+                Some(
+                    123,
+                ),
+            ),
+            upload_id: Some(
+                "bar",
+            ),
+            upload_signature: "foo",
+            other: UploadParams(
+                {},
+            ),
+        }
+        "#);
+
+        let full: LocationQueryParams<Final> = serde_urlencoded::from_str(json).unwrap();
+        insta::assert_debug_snapshot!(full, @r#"
+        LocationQueryParams {
+            upload_length: Final(
+                123,
+            ),
+            upload_id: Some(
+                "bar",
+            ),
+            upload_signature: "foo",
+            other: UploadParams(
+                {},
+            ),
+        }
+        "#);
+    }
+
+    #[test]
     fn parse_location_with_other() {
         let json =
             r#"upload_signature=foo&upload_length=123&not_an_upload_param=123&upload_type=bar"#;
@@ -976,6 +1078,7 @@ mod tests {
                     123,
                 ),
             ),
+            upload_id: None,
             upload_signature: "foo",
             other: UploadParams(
                 {
@@ -990,6 +1093,7 @@ mod tests {
             upload_length: Final(
                 123,
             ),
+            upload_id: None,
             upload_signature: "foo",
             other: UploadParams(
                 {

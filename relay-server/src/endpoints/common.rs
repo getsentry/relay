@@ -8,7 +8,7 @@ use bytes::Bytes;
 use chrono::Utc;
 use futures::TryStreamExt;
 use futures::stream::BoxStream;
-use relay_config::{Config, RelayMode};
+use relay_config::{ConfigSnapshot, RelayMode};
 use relay_event_schema::protocol::{EventId, EventType};
 use relay_quotas::{DataCategory, RateLimits};
 use relay_statsd::metric;
@@ -19,16 +19,16 @@ use crate::envelope::{
     AttachmentPlaceholder, AttachmentType, ContentType, Envelope, EnvelopeError, Item, ItemType,
     Items,
 };
-use crate::managed::{Managed, ManagedResult, Rejected};
+use crate::managed::{Managed, Rejected};
 use crate::service::ServiceState;
 use crate::services::buffer::{ProjectKeyPair, PushError};
-use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
+use crate::services::outcome::{DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome};
 use crate::services::processor::{BucketSource, MetricData, ProcessMetrics};
 use crate::services::upload::{Create, ProjectContext, Stream, Upload};
 use crate::statsd::{RelayCounters, RelayDistributions};
 use crate::utils::{
     self, ApiErrorResponse, BoundedStream, FormDataIter, MeteredStream, find_error_source,
-    is_length_limit_error,
+    is_length_limit_error, rmp,
 };
 
 #[derive(Clone, Copy, Debug, thiserror::Error)]
@@ -80,9 +80,6 @@ pub enum BadStoreRequest {
 
     #[error("missing minidump")]
     MissingMinidump,
-
-    #[error("invalid unreal crash report")]
-    InvalidUnrealReport,
 
     #[cfg(sentry)]
     #[error("invalid prosperodump")]
@@ -136,7 +133,6 @@ impl BadStoreRequest {
             Self::InvalidMultipart(_) => DiscardReason::InvalidMultipart,
             Self::InvalidMinidump => DiscardReason::InvalidMinidump,
             Self::MissingMinidump => DiscardReason::MissingMinidump,
-            Self::InvalidUnrealReport => DiscardReason::InvalidUnrealReport,
             #[cfg(sentry)]
             Self::InvalidProsperodump => DiscardReason::InvalidProsperodump,
             #[cfg(sentry)]
@@ -292,7 +288,8 @@ pub fn event_id_from_json(data: &[u8]) -> Result<Option<EventId>, BadStoreReques
 /// the provided is valid and returns an `Err` on parse errors. If the event id itself is malformed,
 /// an `Err` is returned.
 pub fn event_id_from_msgpack(data: &[u8]) -> Result<Option<EventId>, BadStoreRequest> {
-    rmp_serde::from_slice(data)
+    let mut deserializer = rmp::slice_deserializer(data);
+    MinimalEvent::deserialize(&mut deserializer)
         .map(|MinimalEvent { id, .. }| id)
         .map_err(BadStoreRequest::InvalidMsgpack)
 }
@@ -440,10 +437,12 @@ pub async fn handle_managed_envelope(
         )));
     };
 
+    let config = state.config();
+
     // If configured, remove unknown items at the very beginning. If the envelope is
     // empty, we fail the request with a special control flow error to skip checks and
     // queueing, that still results in a `200 OK` response.
-    utils::remove_unknown_items(state.config(), &mut envelope);
+    utils::remove_unknown_items(&config, &mut envelope);
 
     let event_id = envelope.event_id();
     if envelope.is_empty() {
@@ -469,7 +468,7 @@ pub async fn handle_managed_envelope(
         });
     }
 
-    if let Err(offender) = utils::check_envelope_size_limits(state.config(), &envelope) {
+    if let Err(offender) = utils::check_envelope_size_limits(&config, &envelope) {
         return Err(envelope.reject_err((
             Outcome::Invalid(DiscardReason::ItemTooLarge(offender)),
             BadStoreRequest::ItemTooLarge(offender),
@@ -551,11 +550,11 @@ pub async fn upload_stream<S, E>(
     stream: S,
     content_type: Option<String>,
     mut item: Managed<Item>,
-    config: &Config,
+    config: &ConfigSnapshot,
     project: ProjectContext,
     upload: &Addr<Upload>,
     referrer: &'static str,
-) -> Result<Managed<Item>, Rejected<()>>
+) -> Result<Managed<Item>, Rejected<BadStoreRequest>>
 where
     S: futures::Stream<Item = Result<Bytes, E>> + Send + 'static,
     E: Into<Box<dyn std::error::Error + Send + Sync>> + 'static,
@@ -571,8 +570,8 @@ where
     )
     .await;
     match res {
-        Some(()) => Ok(item),
-        None => Err(Outcome::Invalid(DiscardReason::Internal)).reject(&item),
+        Ok(()) => Ok(item),
+        Err(e) => Err(item.reject_err(e)),
     }
 }
 
@@ -580,11 +579,11 @@ async fn upload_stream_inner<S, E>(
     stream: S,
     content_type: Option<String>,
     item: &mut Managed<Item>,
-    config: &Config,
+    config: &ConfigSnapshot,
     project: ProjectContext,
     upload: &Addr<Upload>,
     referrer: &'static str,
-) -> Option<()>
+) -> Result<(), BadStoreRequest>
 where
     S: futures::Stream<Item = Result<Bytes, E>> + Send + 'static,
     E: Into<Box<dyn std::error::Error + Send + Sync>> + 'static,
@@ -601,8 +600,8 @@ where
             attachment_type: item.attachment_type(),
         })
         .await
-        .ok()?
-        .ok()?;
+        .map_err(|_| BadStoreRequest::UploadFailed)?
+        .map_err(|_| BadStoreRequest::UploadFailed)?;
 
     let scoping = project.scoping;
 
@@ -614,7 +613,7 @@ where
             stream,
         })
         .await
-        .ok()?;
+        .map_err(|_| BadStoreRequest::UploadFailed)?;
 
     let location = result
         .inspect_err(|e| {
@@ -627,21 +626,33 @@ where
                 "multipart item upload failed",
             );
         })
-        .ok()?;
-    let location = location.into_header_value().ok()?;
-    let location = location.to_str().ok()?;
+        .map_err(|_| {
+            if byte_counter.get() > config.max_upload_size() {
+                BadStoreRequest::ItemTooLarge(DiscardItemType::Attachment(
+                    item.attachment_type()
+                        .map_or(DiscardAttachmentType::Attachment, Into::into),
+                ))
+            } else {
+                BadStoreRequest::UploadFailed
+            }
+        })?;
+
+    let location = location
+        .try_to_uri()
+        .map_err(|_| BadStoreRequest::UploadFailed)?;
+
     let placeholder = serde_json::to_vec(&AttachmentPlaceholder {
-        location,
+        location: &location,
         content_type,
     })
-    .ok()?;
+    .map_err(|_| BadStoreRequest::UploadFailed)?;
 
     item.modify(|inner, records| {
         inner.set_payload(ContentType::AttachmentRef, placeholder);
         inner.set_attachment_length(byte_counter.get());
         records.lenient(DataCategory::Attachment); // item was empty before
     });
-    Some(())
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -692,13 +703,13 @@ mod tests {
 
     #[test]
     fn test_minimal_event_type() {
-        let json = r#"{"type": "expectct"}"#;
+        let json = r#"{"type": "csp"}"#;
         let minimal = minimal_event_from_json(json.as_ref()).unwrap();
         assert_eq!(
             minimal,
             MinimalEvent {
                 id: None,
-                ty: EventType::ExpectCt,
+                ty: EventType::Csp,
             }
         );
     }

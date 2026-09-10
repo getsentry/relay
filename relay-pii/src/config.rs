@@ -149,6 +149,13 @@ pub struct AliasRule {
 #[serde(rename_all = "camelCase")]
 pub struct RedactPairRule {
     /// A pattern to match for keys.
+    ///
+    /// Note: despite the name, this is matched against both the
+    /// key and value. The reason is that the value may itself
+    /// be (the string representation of) a complex object with
+    /// keys of its own, and we explicitly want to match those
+    /// keys as well. See the `test_breadcrumb_message` test
+    /// for an example of this.
     pub key_pattern: LazyPattern,
 }
 

@@ -5,7 +5,6 @@ use crate::processing::attachments::AttachmentProcessor;
 use crate::processing::check_ins::CheckInsProcessor;
 use crate::processing::errors::ErrorsProcessor;
 use crate::processing::forward_unknown::ForwardUnknownProcessor;
-use crate::processing::legacy_spans::LegacySpansProcessor;
 use crate::processing::logs::LogsProcessor;
 use crate::processing::profile_chunks::ProfileChunksProcessor;
 use crate::processing::profiles::ProfilesProcessor;
@@ -67,7 +66,6 @@ outputs!(
     CheckIns => CheckInsProcessor,
     Errors => ErrorsProcessor,
     ForwardUnknown => ForwardUnknownProcessor,
-    LegacySpans => LegacySpansProcessor,
     Logs => LogsProcessor,
     ProfileChunks => ProfileChunksProcessor,
     Profiles => ProfilesProcessor,

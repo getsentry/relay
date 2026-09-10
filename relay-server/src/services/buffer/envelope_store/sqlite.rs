@@ -14,7 +14,7 @@ use chrono::{DateTime, Utc};
 use futures::stream::StreamExt;
 use hashbrown::HashSet;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
 use serde::{Deserialize, Serialize};
 use sqlx::migrate::MigrateError;
 use sqlx::query::Query;
@@ -313,7 +313,7 @@ impl SqliteEnvelopeStore {
     /// the folders where data will be stored.
     pub async fn prepare(
         partition_id: u8,
-        config: &Config,
+        config: &ConfigSnapshot,
     ) -> Result<SqliteEnvelopeStore, SqliteEnvelopeStoreError> {
         // If no path is provided, we can't do disk spooling.
         let Some(path) = config.spool_envelopes_path(partition_id) else {

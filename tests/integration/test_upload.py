@@ -5,11 +5,20 @@ Tests for the TUS upload endpoint (/api/{project_id}/upload/).
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import timedelta
+from urllib.parse import urlparse
 
 from flask import Response
 import pytest
 
-from .consts import DUMMY_UPLOAD_PATH, DUMMY_UPLOAD_LOCATION
+from sentry_relay.auth import SecretKey
+from objectstore_client.metadata import TimeToLive
+
+from .consts import (
+    DUMMY_UPLOAD_PATH,
+    DUMMY_UPLOAD_LOCATION,
+)
+from .consts import Outcome
 
 
 @pytest.fixture
@@ -71,7 +80,10 @@ def test_forward_patch(
     data = b"hello world"
     response = relay.patch(
         "%s&sentry_key=%s"
-        % (DUMMY_UPLOAD_LOCATION, mini_sentry.get_dsn_public_key(project_id)),
+        % (
+            DUMMY_UPLOAD_LOCATION,
+            mini_sentry.get_dsn_public_key(project_id),
+        ),
         headers={
             "Tus-Resumable": "1.0.0",
             "Content-Type": "application/offset+octet-stream",
@@ -250,7 +262,10 @@ def test_upload_body_size(
     data = "x" * size
     response = relay.patch(
         "%s&sentry_key=%s"
-        % (DUMMY_UPLOAD_LOCATION, mini_sentry.get_dsn_public_key(project_id)),
+        % (
+            DUMMY_UPLOAD_LOCATION,
+            mini_sentry.get_dsn_public_key(project_id),
+        ),
         headers={
             "Tus-Resumable": "1.0.0",
             "Content-Type": "application/offset+octet-stream",
@@ -337,7 +352,10 @@ def test_timeout(
     data = b"hello world"
     response = relay.patch(
         "%s&sentry_key=%s"
-        % (DUMMY_UPLOAD_LOCATION, mini_sentry.get_dsn_public_key(project_id)),
+        % (
+            DUMMY_UPLOAD_LOCATION,
+            mini_sentry.get_dsn_public_key(project_id),
+        ),
         headers={
             "Tus-Resumable": "1.0.0",
             "Upload-Offset": "0",
@@ -550,12 +568,6 @@ def test_concurrency_limit(mini_sentry, relay, project_config):
 
 
 def test_objectstore_retries(mini_sentry, relay_with_processing, project_config):
-    """Upload succeeds after a transient connection failure thanks to stream retries.
-
-    The first objectstore connection attempt fails (nothing listening yet).
-    The retry delay gives time for the mock objectstore to start, and the
-    second attempt succeeds because the stream has not been consumed yet.
-    """
     project_id = 42
     project_key = mini_sentry.get_dsn_public_key(project_id)
 
@@ -563,7 +575,7 @@ def test_objectstore_retries(mini_sentry, relay_with_processing, project_config)
         options={
             "processing": {
                 "objectstore": {
-                    "objectstore_url": "http://127.0.0.1:8889/",  # wrong port
+                    "objectstore_url": "http://localhost:1337",  # invalid port
                     "retry_delay": 1.0,
                     "max_attempts": 3,
                 }
@@ -571,7 +583,25 @@ def test_objectstore_retries(mini_sentry, relay_with_processing, project_config)
         }
     )
 
-    response = upload_something(relay, project_id, project_key)
+    location = f"/api/{project_id}/upload/019cdc82ed6c7761ba21fd34b86481c2/"
+    sep = "?"
+    signature = SecretKey.parse(relay.secret_key).sign(location.encode())
+    signed_location = (
+        f"{location}{sep}sentry_key={project_key}&upload_signature={signature}"
+    )
+
+    data = b"hello world"
+    response = relay.patch(
+        signed_location,
+        headers={
+            "Content-Length": str(len(data)),
+            "Content-Type": "application/offset+octet-stream",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Offset": "0",
+        },
+        data=data,
+    )
+    print(response.text)
 
     failure = mini_sentry.test_failures.get(timeout=10)
     assert "failed to upload 1 attachment(s) to objectstore in 3 attempt(s)" in str(
@@ -581,7 +611,7 @@ def test_objectstore_retries(mini_sentry, relay_with_processing, project_config)
 
 
 def test_objectstore_timeout(
-    mini_sentry, relay_with_processing, project_config, objectstore
+    mini_sentry, relay_with_processing, project_config, dummy_upload
 ):
     mini_sentry.allow_chunked = True
     mini_sentry.fail_on_relay_error = False
@@ -589,7 +619,7 @@ def test_objectstore_timeout(
     project_key = mini_sentry.get_dsn_public_key(project_id)
 
     @mini_sentry.app.route("/v1/objects/attachments/<scope>/<key>", methods=["PUT"])
-    def slow_objectstore(**opts):
+    def slow_upload(**opts):
         time.sleep(2)
         raise NotImplementedError
 
@@ -598,7 +628,7 @@ def test_objectstore_timeout(
             "processing": {
                 "objectstore": {
                     "objectstore_url": mini_sentry.url,
-                    "timeout": 1,
+                    "stream_timeout": 1,
                 }
             }
         }
@@ -606,11 +636,10 @@ def test_objectstore_timeout(
 
     response = upload_something(relay, project_id, project_key)
 
-    assert response.status_code == 500  # not 504
+    assert response.status_code == 504
 
 
 def upload_something(relay, project_id, project_key):
-    # Create the upload (this does NOT contact objectstore).
     data = b"hello world"
     response = relay.post(
         f"/api/{project_id}/upload/?sentry_key={project_key}",
@@ -620,7 +649,7 @@ def upload_something(relay, project_id, project_key):
             "Upload-Length": str(len(data)),
         },
     )
-    assert response.status_code == 201
+    assert response.status_code == 201, response.json()
 
     return relay.patch(
         f"{response.headers['Location']}&sentry_key={project_key}",
@@ -632,6 +661,43 @@ def upload_something(relay, project_id, project_key):
         },
         data=data,
     )
+
+
+def test_objectstore_retention(mini_sentry, relay_with_processing, objectstore):
+    project_id = 42
+    config = mini_sentry.add_full_project_config(project_id)["config"]
+    config["eventRetention"] = 20
+    project_key = mini_sentry.get_dsn_public_key(project_id)
+
+    relay = relay_with_processing()
+
+    data = b"hello world"
+    create = relay.post(
+        f"/api/{project_id}/upload/?sentry_key={project_key}",
+        headers={
+            "Content-Length": "0",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": str(len(data)),
+        },
+    )
+    assert create.status_code == 201, create.text
+    location = create.headers["Location"]
+    key = urlparse(location).path.rstrip("/").split("/")[-1]
+
+    patch = relay.patch(
+        f"{location}&sentry_key={project_key}",
+        headers={
+            "Content-Length": str(len(data)),
+            "Content-Type": "application/offset+octet-stream",
+            "Tus-Resumable": "1.0.0",
+            "Upload-Offset": "0",
+        },
+        data=data,
+    )
+    assert patch.status_code == 204, patch.text
+
+    meta = objectstore("attachments", project_id).head(key)
+    assert meta.expiration_policy == TimeToLive(timedelta(days=20))
 
 
 @pytest.mark.parametrize(
@@ -692,7 +758,8 @@ def test_upload_minidump_opt_in(
         )
         outcomes = mini_sentry.get_outcomes(n=1)
         assert any(
-            o["outcome"] == 3 and o["reason"] == "feature_disabled" for o in outcomes
+            o["outcome"] == Outcome.INVALID and o["reason"] == "feature_disabled"
+            for o in outcomes
         )
     else:
         assert mini_sentry.captured_outcomes.empty()

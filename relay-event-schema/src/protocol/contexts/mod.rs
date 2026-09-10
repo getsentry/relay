@@ -84,7 +84,7 @@ pub enum Context {
     /// Information related to Replay.
     Replay(#[metastructure(max_bytes = 8192)] Box<ReplayContext>),
     /// Information related to Feature flags.
-    Flags(#[metastructure(max_bytes = 65_536)] Box<flags::FlagsContext>),
+    Flags(#[metastructure(max_bytes = 131_072)] Box<flags::FlagsContext>),
     /// Information related to User Report V2. TODO:(jferg): rename to UserFeedbackContext
     #[metastructure(tag = "feedback")]
     UserReportV2(#[metastructure(max_bytes = 8192)] Box<UserReportV2Context>),

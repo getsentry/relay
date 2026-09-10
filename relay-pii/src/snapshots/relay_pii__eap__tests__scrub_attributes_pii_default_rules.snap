@@ -69,7 +69,7 @@ expression: SerializableAnnotated(&data)
   },
   "sentry.description": {
     "type": "string",
-    "value": "[Filtered]"
+    "value": "secret123"
   },
   "sentry.release": {
     "type": "string",
@@ -293,21 +293,6 @@ expression: SerializableAnnotated(&data)
       }
     },
     "secret": {
-      "value": {
-        "": {
-          "rem": [
-            [
-              "@password:filter",
-              "s",
-              0,
-              10
-            ]
-          ],
-          "len": 9
-        }
-      }
-    },
-    "sentry.description": {
       "value": {
         "": {
           "rem": [

@@ -3,7 +3,8 @@ use std::error::Error;
 use crate::processing;
 use crate::processing::utils::event::event_type;
 use relay_base_schema::events::EventType;
-use relay_config::Config;
+use relay_config::ConfigSnapshot;
+use relay_event_normalization::eap::{Ingress, Pipeline};
 use relay_event_schema::protocol::{Event, Measurement, Measurements, Span, SpanV2, TraceContext};
 use relay_metrics::MetricNamespace;
 use relay_metrics::{FractionUnit, MetricUnit};
@@ -13,7 +14,7 @@ use relay_sampling::DynamicSamplingContext;
 pub fn extract_from_event(
     dsc: Option<&DynamicSamplingContext>,
     event: &Annotated<Event>,
-    config: &Config,
+    config: &ConfigSnapshot,
     server_sample_rate: Option<f64>,
 ) -> Vec<Result<Annotated<SpanV2>, ()>> {
     // Only extract spans from transactions (not errors).
@@ -113,9 +114,19 @@ fn make_span_item(
         })
         .map_err(|_| ())?;
 
-    // It's ok to enable `infer_name` here—the span has gone through the transaction pipeline,
-    // so PII has been scrubbed.
-    Ok(span.map_value(|span| relay_spans::span_v1_to_span_v2(span, true)))
+    Ok(span.map_value(|span| {
+        // It's ok to enable `infer_name` here—the span has gone through the transaction pipeline,
+        // so PII has been scrubbed.
+        let mut span = relay_spans::span_v1_to_span_v2(span, true);
+
+        relay_event_normalization::eap::normalize_pipeline_attributes(
+            &mut span.attributes,
+            Some(&Ingress::Legacy),
+            Some(&Pipeline::Transaction),
+        );
+
+        span
+    }))
 }
 
 /// Any violation of the span schema.

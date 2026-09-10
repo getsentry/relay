@@ -15,12 +15,13 @@ use axum::routing::{MethodRouter, patch, post};
 use chrono::Utc;
 use futures::StreamExt;
 use http::header;
-use relay_config::{Config, UpstreamDescriptor};
+use relay_config::{ConfigSnapshot, UpstreamDescriptor};
 use relay_dynamic_config::Feature;
 use relay_system::SendError;
 use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::Envelope;
+use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::endpoints::common::BadStoreRequest;
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
 use crate::extractors::RequestMeta;
@@ -39,13 +40,13 @@ use crate::statsd::RelayCounters;
 use crate::utils::{ApiErrorResponse, MeteredStream};
 use crate::utils::{BoundedStream, find_error_source, tus};
 
-pub fn route_post(config: &Config) -> MethodRouter<ServiceState> {
+pub fn route_post(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
     post(handle_post)
         .route_layer(RequestBodyLimitLayer::new(config.max_upload_size()))
         .route_layer(DefaultBodyLimit::disable())
 }
 
-pub fn route_patch(config: &Config) -> MethodRouter<ServiceState> {
+pub fn route_patch(config: &ConfigSnapshot) -> MethodRouter<ServiceState> {
     patch(handle_patch)
         .route_layer(RequestBodyLimitLayer::new(config.max_upload_size()))
         .route_layer(DefaultBodyLimit::disable())
@@ -103,6 +104,8 @@ impl IntoResponse for Error {
                 upload::Error::InvalidLocation(_) | upload::Error::SigningFailed => {
                     StatusCode::INTERNAL_SERVER_ERROR
                 }
+                #[cfg(feature = "processing")]
+                upload::Error::InvalidUploadId(_) => StatusCode::BAD_REQUEST,
                 upload::Error::SerializeFailed(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 upload::Error::InvalidSignature(_) => StatusCode::BAD_REQUEST,
                 upload::Error::ObjectstoreServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
@@ -112,10 +115,13 @@ impl IntoResponse for Error {
                     objectstore::ErrorKind::Timeout(_) => StatusCode::GATEWAY_TIMEOUT,
                     objectstore::ErrorKind::LoadShed => StatusCode::SERVICE_UNAVAILABLE,
                     objectstore::ErrorKind::UploadFailed(error) => match error {
+                        objectstore_client::Error::Io(error) if is_upload_length_error(&error) => {
+                            StatusCode::BAD_REQUEST
+                        }
                         objectstore_client::Error::Reqwest(error) => match error.status() {
                             _ if error.is_timeout() => StatusCode::GATEWAY_TIMEOUT,
                             Some(status) => status,
-                            None if find_error_source(&error, is_hyper_user_error).is_some() => {
+                            None if find_error_source(&error, is_request_body_error).is_some() => {
                                 StatusCode::BAD_REQUEST
                             }
                             None => StatusCode::INTERNAL_SERVER_ERROR,
@@ -204,6 +210,7 @@ async fn handle_patch(
     Path(upload::LocationPath { project_id, key }): Path<upload::LocationPath>,
     Query(LocationQueryParams {
         upload_length,
+        upload_id,
         upload_signature,
         other,
     }): Query<LocationQueryParams<Provisional>>,
@@ -214,8 +221,14 @@ async fn handle_patch(
     relay_log::trace!("Validating headers");
     tus::validate_patch_headers(&headers).map_err(Error::from)?;
 
-    let location =
-        SignedLocation::from_parts(project_id, key, upload_length, upload_signature, other);
+    let location = SignedLocation::from_parts(
+        project_id,
+        key,
+        upload_length,
+        upload_id,
+        upload_signature,
+        other,
+    );
 
     let config = state.config();
 
@@ -369,7 +382,11 @@ async fn validate_and_limit(
     let scoping = envelope.scoping();
     let upstream = project_upstream(&project);
     envelope.accept(|x| x);
-    Ok(ProjectContext { scoping, upstream })
+    Ok(ProjectContext {
+        scoping,
+        upstream,
+        retention: event_retention(&project),
+    })
 }
 
 /// Returns the feature a project must have enabled to upload attachments with the given type.
@@ -397,7 +414,11 @@ async fn validate(
     let scoping = envelope.scoping();
     let upstream = project_upstream(&project);
     envelope.accept(|x| x);
-    Ok(ProjectContext { scoping, upstream })
+    Ok(ProjectContext {
+        scoping,
+        upstream,
+        retention: event_retention(&project),
+    })
 }
 
 fn project_upstream(project: &Project<'_>) -> Option<UpstreamDescriptor> {
@@ -407,8 +428,32 @@ fn project_upstream(project: &Project<'_>) -> Option<UpstreamDescriptor> {
     }
 }
 
+fn event_retention(project: &Project<'_>) -> u16 {
+    match project.state() {
+        ProjectState::Enabled(info) => info.event_retention(),
+        ProjectState::Dummy | ProjectState::Disabled | ProjectState::Pending => {
+            DEFAULT_EVENT_RETENTION
+        }
+    }
+}
+
 fn is_hyper_user_error(error: &(dyn std::error::Error + 'static)) -> bool {
     error
         .downcast_ref::<hyper::Error>()
         .is_some_and(hyper::Error::is_user)
+}
+
+#[cfg(feature = "processing")]
+fn is_request_body_error(error: &(dyn std::error::Error + 'static)) -> bool {
+    is_hyper_user_error(error) || is_upload_length_error(error)
+}
+
+#[cfg(feature = "processing")]
+fn is_upload_length_error(error: &(dyn std::error::Error + 'static)) -> bool {
+    error.downcast_ref::<io::Error>().is_some_and(|error| {
+        matches!(
+            error.kind(),
+            io::ErrorKind::FileTooLarge | io::ErrorKind::UnexpectedEof
+        )
+    })
 }

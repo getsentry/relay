@@ -112,8 +112,6 @@ pub enum MetricNamespace {
     Spans,
     /// Metrics extracted from transactions.
     Transactions,
-    /// User-defined metrics directly sent by SDKs and applications.
-    Custom,
     /// Relay's outcomes forwarded as metrics.
     ///
     /// Usage of this transport is restricted to trusted Relays.
@@ -132,12 +130,11 @@ pub enum MetricNamespace {
 
 impl MetricNamespace {
     /// Returns all namespaces/variants of this enum.
-    pub fn all() -> [Self; 6] {
+    pub fn all() -> [Self; 5] {
         [
             Self::Sessions,
             Self::Spans,
             Self::Transactions,
-            Self::Custom,
             Self::Outcomes,
             Self::Unsupported,
         ]
@@ -149,7 +146,6 @@ impl MetricNamespace {
             Self::Sessions => "sessions",
             Self::Spans => "spans",
             Self::Transactions => "transactions",
-            Self::Custom => "custom",
             Self::Outcomes => "outcomes",
             Self::Unsupported => "unsupported",
         }
@@ -164,7 +160,6 @@ impl std::str::FromStr for MetricNamespace {
             "sessions" => Ok(Self::Sessions),
             "spans" => Ok(Self::Spans),
             "transactions" => Ok(Self::Transactions),
-            "custom" => Ok(Self::Custom),
             "outcomes" => Ok(Self::Outcomes),
             _ => Ok(Self::Unsupported),
         }
@@ -187,10 +182,8 @@ impl fmt::Display for MetricNamespace {
 /// # Statsd Format
 ///
 /// In the statsd submission payload, MRIs are sent in a more relaxed format:
-/// `[<namespace>/]<name>[@<unit>]`. The differences to the internal MRI format are:
-///  - Types are not part of metric naming. Instead, the type is declared in a separate field
-///    following the value.
-///  - The namespace is optional. If missing, `"custom"` is assumed.
+/// `<namespace>/<name>[@<unit>]`. The difference to the internal MRI format is that types are not
+/// part of metric naming. Instead, the type is declared in a separate field following the value.
 ///
 /// # Background
 ///
@@ -210,7 +203,7 @@ impl fmt::Display for MetricNamespace {
 /// ```
 /// use relay_base_schema::metrics::MetricResourceIdentifier;
 ///
-/// let string = "c:custom/test@second";
+/// let string = "c:spans/test@second";
 /// let mri = MetricResourceIdentifier::parse(string).expect("should parse");
 /// assert_eq!(mri.to_string(), string);
 /// ```
@@ -223,9 +216,6 @@ pub struct MetricResourceIdentifier<'a> {
     pub ty: MetricType,
 
     /// The namespace for this metric.
-    ///
-    /// In statsd submissions payloads, the namespace is optional and defaults to `"custom"`.
-    /// Otherwise, the namespace must be declared explicitly.
     ///
     /// Note that in Sentry the namespace is also referred to as "use case" or "usecase". There is a
     /// list of known and enabled namespaces. Metrics of unknown or disabled namespaces are dropped
@@ -254,7 +244,7 @@ impl<'a> MetricResourceIdentifier<'a> {
     /// Parses an MRI from a string and a separate type.
     ///
     /// The given string must be a part of the MRI, including the following components:
-    ///  - (optional) The namespace. If missing, it is defaulted to `"custom"`
+    ///  - (required) The namespace.
     ///  - (required) The metric name.
     ///  - (optional) The unit. If missing, it is defaulted to "none".
     ///
@@ -264,7 +254,7 @@ impl<'a> MetricResourceIdentifier<'a> {
 
         let (namespace, name) = match name_and_namespace.split_once('/') {
             Some((raw_namespace, name)) => (raw_namespace.parse()?, name),
-            None => (MetricNamespace::Custom, name_and_namespace),
+            None => return Err(ParseMetricError),
         };
 
         let name = crate::metrics::try_normalize_metric_name(name).ok_or(ParseMetricError)?;
@@ -363,38 +353,25 @@ mod tests {
 
     #[test]
     fn test_parse_mri_lenient() {
+        assert!(MetricResourceIdentifier::parse("c:foo@none").is_err());
+        assert!(MetricResourceIdentifier::parse("c:foo").is_err());
+        assert!(MetricResourceIdentifier::parse("c:foo@something").is_err());
+        assert!(MetricResourceIdentifier::parse("foo").is_err());
+
         assert_eq!(
-            MetricResourceIdentifier::parse("c:foo@none").unwrap(),
+            MetricResourceIdentifier::parse("c:transactions/foo").unwrap(),
             MetricResourceIdentifier {
                 ty: MetricType::Counter,
-                namespace: MetricNamespace::Custom,
+                namespace: MetricNamespace::Transactions,
                 name: "foo".into(),
                 unit: MetricUnit::None,
             },
         );
         assert_eq!(
-            MetricResourceIdentifier::parse("c:foo").unwrap(),
+            MetricResourceIdentifier::parse("c:transactions/foo@millisecond").unwrap(),
             MetricResourceIdentifier {
                 ty: MetricType::Counter,
-                namespace: MetricNamespace::Custom,
-                name: "foo".into(),
-                unit: MetricUnit::None,
-            },
-        );
-        assert_eq!(
-            MetricResourceIdentifier::parse("c:custom/foo").unwrap(),
-            MetricResourceIdentifier {
-                ty: MetricType::Counter,
-                namespace: MetricNamespace::Custom,
-                name: "foo".into(),
-                unit: MetricUnit::None,
-            },
-        );
-        assert_eq!(
-            MetricResourceIdentifier::parse("c:custom/foo@millisecond").unwrap(),
-            MetricResourceIdentifier {
-                ty: MetricType::Counter,
-                namespace: MetricNamespace::Custom,
+                namespace: MetricNamespace::Transactions,
                 name: "foo".into(),
                 unit: MetricUnit::Duration(DurationUnit::MilliSecond),
             },
@@ -409,60 +386,43 @@ mod tests {
             },
         );
         assert_eq!(
-            MetricResourceIdentifier::parse("c:foo@something").unwrap(),
+            MetricResourceIdentifier::parse("c:spans/foo@something").unwrap(),
             MetricResourceIdentifier {
                 ty: MetricType::Counter,
-                namespace: MetricNamespace::Custom,
+                namespace: MetricNamespace::Spans,
                 name: "foo".into(),
                 unit: MetricUnit::Custom(CustomUnit::parse("something").unwrap()),
             },
         );
-        assert!(MetricResourceIdentifier::parse("foo").is_err());
     }
 
     #[test]
     fn test_invalid_names_should_normalize() {
         assert_eq!(
-            MetricResourceIdentifier::parse("c:f?o").unwrap().name,
+            MetricResourceIdentifier::parse("c:spans/f?o").unwrap().name,
             "f_o"
         );
         assert_eq!(
-            MetricResourceIdentifier::parse("c:f??o").unwrap().name,
-            "f_o"
-        );
-        assert_eq!(
-            MetricResourceIdentifier::parse("c:föo").unwrap().name,
-            "f_o"
-        );
-        assert_eq!(
-            MetricResourceIdentifier::parse("c:custom/f?o")
+            MetricResourceIdentifier::parse("c:spans/f??o")
                 .unwrap()
                 .name,
             "f_o"
         );
         assert_eq!(
-            MetricResourceIdentifier::parse("c:custom/f??o")
-                .unwrap()
-                .name,
-            "f_o"
-        );
-        assert_eq!(
-            MetricResourceIdentifier::parse("c:custom/föo")
-                .unwrap()
-                .name,
+            MetricResourceIdentifier::parse("c:spans/föo").unwrap().name,
             "f_o"
         );
     }
 
     #[test]
     fn test_normalize_name_length() {
-        let long_mri = "c:custom/ThisIsACharacterLongStringForTestingPurposesToEnsureThatWeHaveEnoughCharactersToWorkWithAndToCheckIfOurFunctionProperlyHandlesSlicingAndNormalizationWithoutErrors";
+        let long_mri = "c:spans/ThisIsACharacterLongStringForTestingPurposesToEnsureThatWeHaveEnoughCharactersToWorkWithAndToCheckIfOurFunctionProperlyHandlesSlicingAndNormalizationWithoutErrors";
         assert_eq!(
             MetricResourceIdentifier::parse(long_mri).unwrap().name,
             "ThisIsACharacterLongStringForTestingPurposesToEnsureThatWeHaveEnoughCharactersToWorkWithAndToCheckIfOurFunctionProperlyHandlesSlicingAndNormalizationW"
         );
 
-        let long_mri_with_replacement = "c:custom/ThisIsÄÂÏCharacterLongStringForŤestingPurposesToEnsureThatWeHaveEnoughCharactersToWorkWithAndToCheckIfOurFunctionProperlyHandlesSlicingAndNormalizationWithoutErrors";
+        let long_mri_with_replacement = "c:spans/ThisIsÄÂÏCharacterLongStringForŤestingPurposesToEnsureThatWeHaveEnoughCharactersToWorkWithAndToCheckIfOurFunctionProperlyHandlesSlicingAndNormalizationWithoutErrors";
         assert_eq!(
             MetricResourceIdentifier::parse(long_mri_with_replacement)
                 .unwrap()
@@ -470,7 +430,7 @@ mod tests {
             "ThisIs_CharacterLongStringFor_estingPurposesToEnsureThatWeHaveEnoughCharactersToWorkWithAndToCheckIfOurFunctionProperlyHandlesSlicingAndNormalizationW"
         );
 
-        let short_mri = "c:custom/ThisIsAShortName";
+        let short_mri = "c:spans/ThisIsAShortName";
         assert_eq!(
             MetricResourceIdentifier::parse(short_mri).unwrap().name,
             "ThisIsAShortName"
@@ -480,10 +440,10 @@ mod tests {
     #[test]
     fn test_normalize_dash_to_underscore() {
         assert_eq!(
-            MetricResourceIdentifier::parse("d:foo.bar.blob-size@second").unwrap(),
+            MetricResourceIdentifier::parse("d:spans/foo.bar.blob-size@second").unwrap(),
             MetricResourceIdentifier {
                 ty: MetricType::Distribution,
-                namespace: MetricNamespace::Custom,
+                namespace: MetricNamespace::Spans,
                 name: "foo.bar.blob_size".into(),
                 unit: MetricUnit::Duration(DurationUnit::Second),
             },
@@ -494,12 +454,12 @@ mod tests {
     fn test_deserialize_mri() {
         assert_eq!(
             serde_json::from_str::<MetricResourceIdentifier<'static>>(
-                "\"c:custom/foo@millisecond\""
+                "\"c:transactions/foo@millisecond\""
             )
             .unwrap(),
             MetricResourceIdentifier {
                 ty: MetricType::Counter,
-                namespace: MetricNamespace::Custom,
+                namespace: MetricNamespace::Transactions,
                 name: "foo".into(),
                 unit: MetricUnit::Duration(DurationUnit::MilliSecond),
             },
@@ -511,12 +471,12 @@ mod tests {
         assert_eq!(
             serde_json::to_string(&MetricResourceIdentifier {
                 ty: MetricType::Counter,
-                namespace: MetricNamespace::Custom,
+                namespace: MetricNamespace::Transactions,
                 name: "foo".into(),
                 unit: MetricUnit::Duration(DurationUnit::MilliSecond),
             })
             .unwrap(),
-            "\"c:custom/foo@millisecond\"".to_owned(),
+            "\"c:transactions/foo@millisecond\"".to_owned(),
         );
     }
 }

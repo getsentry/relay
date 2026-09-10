@@ -86,6 +86,7 @@ def upload_and_make_ref(
         data=data,
     )
     assert patch_response.status_code == 204
+    location = patch_response.headers["Location"]
 
     payload = json.dumps({"location": location, "content_type": content_type})
     return Item(
