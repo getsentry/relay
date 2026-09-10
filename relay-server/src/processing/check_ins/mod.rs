@@ -1,11 +1,13 @@
 use std::sync::Arc;
 
 use relay_cogs::{AppFeature, FeatureWeights};
+use relay_monitors::{CheckIn, ProcessCheckInError};
 use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
-use crate::envelope::{EnvelopeHeaders, Item, ItemType, Items};
+use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
+use crate::processing::check_ins::process::expand_check_in;
 use crate::processing::{self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
 
@@ -21,6 +23,14 @@ pub enum Error {
     /// Failed to process the check-in.
     #[error("failed to process checkin: {0}")]
     Processing(#[from] relay_monitors::ProcessCheckInError),
+}
+
+/// An expanded/deserialized CheckIn, including the originating item.
+#[derive(Debug)]
+pub struct ExpandedCheckIn {
+    headers: EnvelopeHeaders,
+    check_in: CheckIn,
+    item: Item,
 }
 
 impl OutcomeError for Error {
@@ -86,31 +96,52 @@ impl processing::Processor for CheckInsProcessor {
 
     async fn process(
         &self,
-        mut check_ins: Managed<Self::Input>,
+        input: Managed<Self::Input>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
+        let mut ex_check_in = input.try_map(expand_check_in)?;
+
+        process::normalize(&mut ex_check_in)?;
+
         if ctx.is_processing() {
-            process::normalize(&mut check_ins);
+            let routing_hint = relay_monitors::routing_hint(
+                &ex_check_in.check_in,
+                &ex_check_in.scoping().project_id,
+            );
+
+            ex_check_in.try_modify(|e, _| {
+                e.item.set_routing_hint(routing_hint);
+                let s = serde_json::to_vec(&e.check_in)
+                    .map_err(ProcessCheckInError::from)
+                    .map_err(Error::from)?;
+                e.item.set_payload(ContentType::Json, s);
+
+                Ok::<_, Error>(())
+            })?;
         }
+        let ex_check_in = self.limiter.enforce_quotas(ex_check_in, ctx).await?;
 
-        let check_ins = self.limiter.enforce_quotas(check_ins, ctx).await?;
-
-        Ok(Output::just(CheckInsOutput(check_ins)))
+        Ok(Output::just(CheckInsOutput(ex_check_in)))
     }
 }
 
 /// Output produced by the [`CheckInsProcessor`].
 #[derive(Debug)]
-pub struct CheckInsOutput(Managed<SerializedCheckIns>);
+pub struct CheckInsOutput(Managed<ExpandedCheckIn>);
 
 impl Forward for CheckInsOutput {
     fn serialize_envelope(
         self,
         _: processing::ForwardContext<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
-        let envelope = self.0.map(|SerializedCheckIns { headers, check_ins }, _| {
-            Envelope::from_parts(headers, Items::from_vec(check_ins))
-        });
+        let envelope = self.0.map(
+            |ExpandedCheckIn {
+                 headers,
+                 check_in: _,
+                 item,
+             },
+             _| { Envelope::from_parts(headers, smallvec::smallvec![item]) },
+        );
 
         Ok(envelope)
     }
@@ -126,13 +157,11 @@ impl Forward for CheckInsOutput {
         let sdk = self.0.headers.meta().client().map(str::to_owned);
         let retention_days = ctx.event_retention().standard;
 
-        for check_in in self.0.split(|work| work.check_ins.into_iter()) {
-            s.send_to_store(check_in.map(|check_in, _| StoreCheckIn {
-                check_in,
-                sdk: sdk.clone(),
-                retention_days,
-            }));
-        }
+        s.send_to_store(self.0.map(|ser_check_in, _| StoreCheckIn {
+            check_in: ser_check_in.item,
+            sdk: sdk.clone(),
+            retention_days,
+        }));
 
         Ok(())
     }
@@ -156,6 +185,16 @@ impl Counted for SerializedCheckIns {
     }
 }
 
+impl Counted for ExpandedCheckIn {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![(DataCategory::Monitor, 1)]
+    }
+}
+
 impl CountRateLimited for Managed<SerializedCheckIns> {
+    type Error = Error;
+}
+
+impl CountRateLimited for Managed<ExpandedCheckIn> {
     type Error = Error;
 }
