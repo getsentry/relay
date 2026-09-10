@@ -29,7 +29,7 @@ const SLUG_LENGTH: usize = 50;
 /// Maximum length of environment names.
 const ENVIRONMENT_LENGTH: usize = 64;
 
-/// Error returned from [`process_check_in`].
+/// Error returned during monitor normalization/processing.
 #[derive(Debug, thiserror::Error)]
 pub enum ProcessCheckInError {
     /// Failed to deserialize the payload.
