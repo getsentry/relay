@@ -463,7 +463,14 @@ def test_global_metrics_batching(mini_sentry, relay):
     ]
 
 
-def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_consumer):
+@pytest.mark.parametrize("generic_metrics_disabled", [False, True])
+def test_metrics_with_processing(
+    mini_sentry, relay_with_processing, metrics_consumer, generic_metrics_disabled
+):
+    mini_sentry.global_config["options"][
+        "relay.generic-metrics.disabled"
+    ] = generic_metrics_disabled
+
     relay = relay_with_processing(options=TEST_CONFIG)
     metrics_consumer = metrics_consumer()
 
@@ -473,6 +480,10 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
     metrics_payload = f"spans/foo:42|c\ntransactions/bar@second:17|c|T{timestamp}"
     relay.send_metrics(project_id, metrics_payload)
+
+    if generic_metrics_disabled:
+        assert metrics_consumer.poll(timeout=2) is None
+        return
 
     metrics = metrics_by_name(metrics_consumer, 2)
 
