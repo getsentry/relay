@@ -40,6 +40,7 @@
 
 - Update sentry-conventions to 0.21.0. Resource size sentry tags and measurements now use `http.response.body.size`, `http.response.body.decoded_size`, and `http.response.size`. ([#6339](https://github.com/getsentry/relay/pull/6339), [#6315](https://github.com/getsentry/relay/pull/6315))
 - Update sentry-conventions to 0.23.0. `db.query.text` is now scrubbed automatically instead of only via explicit path selectors, the `navigation.*` attributes backfill into `router.navigation.*`, and span names and descriptions are now inferred for `browser`, `cache`, `faas`, `function`, and `graphql` operations. ([#6368](https://github.com/getsentry/relay/pull/6368))
+- Accept the `organizations:relay-automatic-json-expansion` feature flag from project configs, which will control whether attributes containing a JSON object are expanded into a key-value list on EAP items. ([#6372](https://github.com/getsentry/relay/pull/6372))(#6372)
 
 ## 26.8.0
 
