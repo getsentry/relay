@@ -89,8 +89,7 @@ fn write_native_placeholder(
     // Client exceptions are ordered oldest to newest; only the last selects a thread.
     let source = (placeholder.mechanism_type == "minidump")
         .then(|| exceptions.last().and_then(Annotated::value))
-        .flatten()
-        .filter(|exc| exc.thread_id.value().is_some());
+        .flatten();
     let thread_id = source.map(|exc| exc.thread_id.clone()).unwrap_or_default();
     let stacktrace = source.map(|exc| exc.stacktrace.clone()).unwrap_or_default();
     let handled = source
@@ -409,10 +408,12 @@ mod tests {
         let mut event = Annotated::<Event>::from_json(
             r#"{"exception":{"values":[
                 {"thread_id":1},
-                {"stacktrace":{"frames":[{"function":"other"}]}}
+                {"mechanism":{"type":"AppHang","handled":true},
+                 "stacktrace":{"frames":[{"function":"other"}]}}
             ]}}"#,
         )
         .unwrap();
+        let source = get_value!(event.exceptions.values[1]!).clone();
 
         process_minidump(
             event.value_mut().as_mut().unwrap(),
@@ -422,10 +423,10 @@ mod tests {
 
         let placeholder = get_value!(event.exceptions.values[0]!);
         assert!(placeholder.thread_id.value().is_none());
-        assert!(placeholder.stacktrace.value().is_none());
+        assert_eq!(placeholder.stacktrace, source.stacktrace);
         assert_eq!(
             get_value!(event.exceptions.values[0].mechanism.handled),
-            Some(&false)
+            Some(&true)
         );
     }
 
