@@ -15,6 +15,7 @@ use axum::routing::{MethodRouter, patch, post};
 use chrono::Utc;
 use futures::StreamExt;
 use http::header;
+use objectstore_types::metadata::Compression;
 use relay_config::{ConfigSnapshot, UpstreamDescriptor};
 use relay_dynamic_config::Feature;
 use relay_system::SendError;
@@ -65,6 +66,9 @@ enum Error {
 
     #[error("upload error: {0}")]
     Upload(#[from] upload::Error),
+
+    #[error("unsupported content encoding: {0}")]
+    UnsupportedEncoding(String),
 }
 
 impl IntoResponse for Error {
@@ -81,6 +85,7 @@ impl IntoResponse for Error {
 
         let status = match self {
             Error::Tus(_) => StatusCode::BAD_REQUEST,
+            Error::UnsupportedEncoding(_) => StatusCode::UNSUPPORTED_MEDIA_TYPE,
             Error::Request(error) => return error.into_response(),
             Error::SendError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Error::Upload(error) => match error {
@@ -220,6 +225,7 @@ async fn handle_patch(
 
     relay_log::trace!("Validating headers");
     tus::validate_patch_headers(&headers).map_err(Error::from)?;
+    let compression = body_compression(&headers)?;
 
     let location = SignedLocation::from_parts(
         project_id,
@@ -261,7 +267,7 @@ async fn handle_patch(
     let byte_counter = stream.byte_counter();
 
     relay_log::trace!("Uploading");
-    let result = upload(&state, project_context, location, stream).await;
+    let result = upload(&state, project_context, location, stream, compression).await;
     let location = result.inspect_err(|e| {
         relay_log::warn!(error = e as &dyn std::error::Error, "upload failed");
     })?;
@@ -285,6 +291,27 @@ async fn handle_patch(
         .insert(tus::UPLOAD_OFFSET, upload_offset.into());
 
     Ok(response)
+}
+
+/// Reads the compression of the request body from the `Content-Encoding` header.
+///
+/// The upload endpoint never decompresses request bodies. It passes them on verbatim and records the algorithm
+/// as an annotation on the stored object, which limits the accepted encodings to [`Compression`].
+fn body_compression(headers: &HeaderMap) -> Result<Option<Compression>, Error> {
+    let Some(encoding) = headers.get(header::CONTENT_ENCODING) else {
+        return Ok(None);
+    };
+
+    let encoding = encoding.to_str().unwrap_or_default().trim();
+    if encoding.is_empty() || encoding.eq_ignore_ascii_case("identity") {
+        return Ok(None);
+    }
+
+    match encoding.to_ascii_lowercase().parse() {
+        Ok(compression) => Ok(Some(compression)),
+        // FIXME: do current clients use gzip?
+        Err(_) => Err(Error::UnsupportedEncoding(encoding.to_owned())),
+    }
 }
 
 fn check_kill_switch(state: &ServiceState) -> Result<(), StatusCode> {
@@ -331,6 +358,7 @@ async fn upload(
     project: ProjectContext,
     location: SignedLocation<Provisional>,
     stream: BoundedStream<MeteredStream<ByteStream>>,
+    compression: Option<Compression>,
 ) -> Result<SignedLocation<Final>, Error> {
     let location = state
         .upload()
@@ -339,6 +367,7 @@ async fn upload(
             project,
             location,
             stream,
+            compression,
         })
         .await??;
 
