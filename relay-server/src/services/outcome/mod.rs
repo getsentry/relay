@@ -411,6 +411,9 @@ pub enum DiscardReason {
 
     /// (Relay) The payload's data is too deeply nested.
     NestingTooDeep,
+
+    /// (Relay) Too many items in the envelope.
+    TooManyItems,
 }
 
 impl DiscardReason {
@@ -480,6 +483,7 @@ impl DiscardReason {
             DiscardReason::InvalidDynamicSamplingContext => "invalid_dsc",
             DiscardReason::UploadFailed => "upload_failed",
             DiscardReason::NestingTooDeep => "nesting_too_deep",
+            DiscardReason::TooManyItems => "too_many_items",
         }
     }
 }
