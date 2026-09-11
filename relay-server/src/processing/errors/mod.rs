@@ -118,7 +118,7 @@ impl processing::Processor for ErrorsProcessor {
         error: Managed<Self::Input>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
-        let mut error = process::expand(error, ctx)?;
+        let (mut error, unprocessable) = process::expand(error, ctx)?;
 
         attachments::validate_attachments(&mut error, |e| &mut e.attachments, ctx);
 
@@ -135,7 +135,11 @@ impl processing::Processor for ErrorsProcessor {
 
         process::scrub(&mut error, ctx)?;
 
-        Ok(Output::just(ErrorOutput(error)))
+        Ok(Output {
+            main: Some(ErrorOutput(error)),
+            metrics: None,
+            unprocessed: unprocessable,
+        })
     }
 }
 

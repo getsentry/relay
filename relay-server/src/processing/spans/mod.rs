@@ -215,6 +215,7 @@ impl processing::Processor for SpansProcessor {
             Either::Right((spans, metrics)) => Ok(Output {
                 main: Some(SpanOutput::Indexed(spans)),
                 metrics: Some(metrics),
+                unprocessed: None,
             }),
         }
     }

@@ -150,6 +150,7 @@ impl SentryError for Playstation {
             event,
             attachments,
             user_reports,
+            unprocessable: vec![],
             error: Self {
                 prosperodump,
                 minidump,
