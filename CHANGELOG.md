@@ -34,6 +34,7 @@
 
 **Internal**:
 
+- Avoid writing trace attachment attribute metadata twice. ([#6373](https://github.com/getsentry/relay/pull/6373))
 - Implement `Getter` for sessions so generic inbound filters can match them by `event.release` and `event.environment`. ([#6325](https://github.com/getsentry/relay/pull/6325))
 
 **Internal**:

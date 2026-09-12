@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 use relay_event_schema::protocol::{Attributes, SpanId, TraceAttachmentMeta};
-use relay_protocol::{Annotated, IntoValue, Value};
+use relay_protocol::{Annotated, Value};
 use relay_quotas::Scoping;
 use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType, any_value};
 
@@ -10,7 +10,7 @@ use crate::managed::{Counted, Managed, Quantities, Rejected};
 use crate::processing::Retention;
 use crate::processing::trace_attachments::types::ExpandedAttachment;
 use crate::processing::utils::store::{
-    AttributeMeta, extract_client_sample_rate, extract_meta_attributes, proto_timestamp,
+    extract_client_sample_rate, extract_meta_attributes, proto_timestamp,
     quantities_to_trace_item_outcomes, uuid_to_item_id,
 };
 use crate::services::objectstore::StoreTraceAttachment;
@@ -134,13 +134,6 @@ fn convert_attributes(
     result.reserve(attributes.0.len() + 5);
 
     for (name, attribute) in attributes {
-        let meta = AttributeMeta {
-            meta: IntoValue::extract_meta_tree(&attribute),
-        };
-        if let Some(meta) = meta.to_any_value() {
-            result.insert(format!("sentry._meta.fields.attributes.{name}"), meta);
-        }
-
         let value = attribute
             .into_value()
             .and_then(|v| v.value.value.into_value());
