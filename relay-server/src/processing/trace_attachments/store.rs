@@ -134,13 +134,6 @@ fn convert_attributes(
     result.reserve(attributes.0.len() + 5);
 
     for (name, attribute) in attributes {
-        let meta = AttributeMeta {
-            meta: IntoValue::extract_meta_tree(&attribute),
-        };
-        if let Some(meta) = meta.to_any_value() {
-            result.insert(format!("sentry._meta.fields.attributes.{name}"), meta);
-        }
-
         let value = attribute
             .into_value()
             .and_then(|v| v.value.value.into_value());
