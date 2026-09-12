@@ -65,6 +65,10 @@ pub mod attributes {
         // TODO(buenaflor): Add as sentry convention once mobile SDKs can migrate to it.
         // Tracking issue: https://github.com/getsentry/sentry-conventions/issues/318
         pub const APP__VITALS__START__VALUE: &str = "app.vitals.start.value";
+
+        // TODO: Add as sentry convention. Stores the event's `_meta` (remarks/errors) for the
+        // preserved `contexts`, `extra`, and `breadcrumbs`.
+        pub const SENTRY__EVENT__SERIALIZED_META: &str = "sentry.event.serialized_meta";
     }
     pub use self::not_yet_defined::*;
 }
