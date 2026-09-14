@@ -245,6 +245,13 @@ pub enum DataCategory {
     ///
     /// This is the category for trace metrics for which we store total bytes for users.
     TraceMetricByte = 37,
+    /// Snapshot image
+    ///
+    /// This is the data category to count the number of images accepted by the preprod snapshot
+    /// upload API. It counts uploaded images, not builds, comparisons, diffs, or downloads.
+    ///
+    /// SDK rate limiting behavior: ignore.
+    SnapshotImage = 38,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -294,6 +301,7 @@ impl DataCategory {
             "installable_build" => Self::InstallableBuild,
             "trace_metric" => Self::TraceMetric,
             "trace_metric_byte" => Self::TraceMetricByte,
+            "snapshot_image" => Self::SnapshotImage,
             "seer_user" => Self::SeerUser,
             "profile_backend" => Self::ProfileBackend,
             "profile_ui" => Self::ProfileUi,
@@ -339,6 +347,7 @@ impl DataCategory {
             Self::InstallableBuild => "installable_build",
             Self::TraceMetric => "trace_metric",
             Self::TraceMetricByte => "trace_metric_byte",
+            Self::SnapshotImage => "snapshot_image",
             Self::SeerUser => "seer_user",
             Self::ProfileBackend => "profile_backend",
             Self::ProfileUi => "profile_ui",
@@ -449,6 +458,7 @@ impl TryFrom<u8> for DataCategory {
             35 => Ok(Self::ProfileBackend),
             36 => Ok(Self::ProfileUi),
             37 => Ok(Self::TraceMetricByte),
+            38 => Ok(Self::SnapshotImage),
             other => Err(UnknownDataCategory(other as u32)),
         }
     }
@@ -547,7 +557,8 @@ impl CategoryUnit {
             | DataCategory::TraceMetric
             | DataCategory::SeerUser
             | DataCategory::ProfileBackend
-            | DataCategory::ProfileUi => Some(Self::Count),
+            | DataCategory::ProfileUi
+            | DataCategory::SnapshotImage => Some(Self::Count),
 
             DataCategory::Attachment | DataCategory::LogByte | DataCategory::TraceMetricByte => {
                 Some(Self::Bytes)
@@ -586,10 +597,10 @@ mod tests {
         // maps to the last variant in the enum and the second assertion produces an error
         // that the DataCategory does not exist.
         assert_eq!(
-            DataCategory::try_from(37u8),
-            Ok(DataCategory::TraceMetricByte)
+            DataCategory::try_from(38u8),
+            Ok(DataCategory::SnapshotImage)
         );
-        assert_eq!(DataCategory::try_from(38u8), Err(UnknownDataCategory(38)));
+        assert_eq!(DataCategory::try_from(39u8), Err(UnknownDataCategory(39)));
     }
 
     #[test]
@@ -644,6 +655,10 @@ mod tests {
         );
         assert_eq!(
             CategoryUnit::from_category(DataCategory::Span),
+            Some(CategoryUnit::Count)
+        );
+        assert_eq!(
+            CategoryUnit::from_category(DataCategory::SnapshotImage),
             Some(CategoryUnit::Count)
         );
 
