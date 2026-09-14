@@ -1,7 +1,8 @@
 use relay_event_normalization::GeoIpLookup;
 use relay_quotas::DataCategory;
 
-use crate::managed::{Managed, RecordKeeper, Rejected};
+use crate::Envelope;
+use crate::managed::{Managed, ManagedEnvelope, RecordKeeper, Rejected};
 use crate::processing::errors::errors::{self, ErrorKind, SentryError as _};
 use crate::processing::errors::{Error, ExpandedError, Result, SerializedError};
 use crate::processing::utils::event::EventFullyNormalized;
@@ -14,18 +15,25 @@ use crate::services::processor::ProcessingError;
 ///
 /// For example an crash report attachment may be expanded into an error event, multiple other
 /// attachments and some user feedback.
+///
+/// This function may also optionally return an envelope containing "unprocessable" items that
+/// should be returned back to the envelope processor for another round through the pipeline.
 pub fn expand(
     error: Managed<SerializedError>,
     ctx: Context<'_>,
-) -> Result<Managed<ExpandedError>, Rejected<Error>> {
-    error.try_map(|error, records| do_expand(error, ctx, records))
+) -> Result<(Managed<ExpandedError>, Option<ManagedEnvelope>), Rejected<Error>> {
+    let (error, unprocessable) = error
+        .try_map(|error, records| do_expand(error, ctx, records))?
+        .split_once(|(error, unprocessable), _| (error, unprocessable));
+    let unprocessable = unprocessable.transpose().map(ManagedEnvelope::from);
+    Ok((error, unprocessable))
 }
 
 fn do_expand(
     mut error: SerializedError,
     ctx: Context<'_>,
     records: &mut RecordKeeper<'_>,
-) -> Result<ExpandedError> {
+) -> Result<(ExpandedError, Option<Box<Envelope>>)> {
     let is_trusted = error.headers.meta().request_trust().is_trusted();
 
     // Certain attachment types are dissolved into different types (Nintendo Switch),
@@ -34,6 +42,8 @@ fn do_expand(
     records.lenient(DataCategory::AttachmentItem);
     // User feedback is extracted from unreal reports.
     records.lenient(DataCategory::UserReportV2);
+    // Session updates are extracted from Switch crashes
+    records.lenient(DataCategory::Session);
 
     let Some(parsed) = ErrorKind::try_expand(
         &mut error.items,
@@ -64,7 +74,16 @@ fn do_expand(
         }
     }
 
-    Ok(ExpandedError {
+    let unprocessable = if !parsed.unprocessable.is_empty() {
+        Some(Envelope::from_parts(
+            error.headers.clone(),
+            parsed.unprocessable.into(),
+        ))
+    } else {
+        None
+    };
+
+    let expanded_error = ExpandedError {
         headers: error.headers,
         fully_normalized: EventFullyNormalized(is_trusted && parsed.fully_normalized),
         metrics: parsed.metrics,
@@ -73,7 +92,9 @@ fn do_expand(
         user_reports: parsed.user_reports,
         data: parsed.error,
         other: error.items,
-    })
+    };
+
+    Ok((expanded_error, unprocessable))
 }
 
 pub fn process(error: &mut Managed<ExpandedError>) -> Result<(), Rejected<Error>> {

@@ -731,22 +731,36 @@ impl EnvelopeProcessorService {
             }
         });
 
-        let outputs = metric!(timer(RelayTimers::EnvelopeProcessingTime), {
-            self.process(message.envelope, ctx).await
-        });
+        let mut envelopes: smallvec::SmallVec<[ManagedEnvelope; 1]> =
+            smallvec::smallvec![message.envelope];
 
-        let ctx = ctx.to_forward();
-        for Output { main, metrics } in outputs {
-            if let Some(metrics) = metrics {
-                let agg = &self.inner.addrs.aggregator;
-                metrics.accept(|metrics| {
-                    send_metrics(metrics, project_key, sampling_key, agg);
-                });
-            }
+        while let Some(envelope) = envelopes.pop() {
+            let outputs = metric!(timer(RelayTimers::EnvelopeProcessingTime), {
+                self.process(envelope, ctx).await
+            });
 
-            if let Some(output) = main {
-                // Only counting processing time for COGS at the moment.
-                self.submit_upstream(&mut Token::noop(), output, ctx);
+            let ctx = ctx.to_forward();
+            for Output {
+                main,
+                metrics,
+                unprocessed,
+            } in outputs
+            {
+                if let Some(metrics) = metrics {
+                    let agg = &self.inner.addrs.aggregator;
+                    metrics.accept(|metrics| {
+                        send_metrics(metrics, project_key, sampling_key, agg);
+                    });
+                }
+
+                if let Some(output) = main {
+                    // Only counting processing time for COGS at the moment.
+                    self.submit_upstream(&mut Token::noop(), output, ctx);
+                }
+
+                if let Some(unprocessed) = unprocessed {
+                    envelopes.push(unprocessed)
+                }
             }
         }
     }
@@ -1896,7 +1910,11 @@ mod tests {
         let mut outputs = processor.process(envelope, ctx).await;
         assert_eq!(outputs.len(), 1);
 
-        let Output { main, metrics } = outputs.pop().unwrap();
+        let Output {
+            main,
+            metrics,
+            unprocessed: _,
+        } = outputs.pop().unwrap();
 
         if let Some(metrics) = metrics {
             metrics.accept(drop);

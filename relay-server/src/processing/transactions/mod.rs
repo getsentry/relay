@@ -162,6 +162,7 @@ impl Processor for TransactionProcessor {
                 return Ok(Output {
                     main: profile.map(TransactionOutput::Profile),
                     metrics: Some(metrics),
+                    unprocessed: None,
                 });
             }
         };
@@ -179,10 +180,7 @@ impl Processor for TransactionProcessor {
         };
 
         if !ctx.is_processing() {
-            return Ok(Output {
-                main: Some(TransactionOutput::Full(tx)),
-                metrics: None,
-            });
+            return Ok(Output::just(TransactionOutput::Full(tx)));
         }
 
         debug_assert!(tx.flags.fully_normalized);
@@ -196,6 +194,7 @@ impl Processor for TransactionProcessor {
         Ok(Output {
             main: Some(TransactionOutput::Indexed { spans, transaction }),
             metrics: Some(metrics),
+            unprocessed: None,
         })
     }
 }
