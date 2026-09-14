@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 use std::num::NonZeroUsize;
+use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Utc};
 use relay_base_schema::project::ProjectKey;
@@ -42,6 +43,10 @@ pub struct SqliteEnvelopeStack {
     check_disk: bool,
     /// The tag value of this partition which is used for reporting purposes.
     partition_tag: String,
+    /// Time after which to flush the buffer to disk, regardless of batch size.
+    flush_timeout: Duration,
+    /// Time of last flush to disk.
+    last_flush: Option<Instant>,
 }
 
 impl SqliteEnvelopeStack {
@@ -53,6 +58,7 @@ impl SqliteEnvelopeStack {
         own_key: ProjectKey,
         sampling_key: ProjectKey,
         check_disk: bool,
+        flush_timeout: Duration,
     ) -> Self {
         Self {
             envelope_store,
@@ -63,12 +69,20 @@ impl SqliteEnvelopeStack {
             batch: vec![],
             check_disk,
             partition_tag: partition_id.to_string(),
+            flush_timeout,
+            last_flush: None,
         }
     }
 
     /// Threshold above which the [`SqliteEnvelopeStack`] will spool data from the `buffer` to disk.
-    fn above_spool_threshold(&self) -> bool {
-        self.batch.iter().map(|e| e.len()).sum::<usize>() > self.batch_size_bytes.get()
+    fn should_spool_to_disk(&self) -> bool {
+        let batch_size = self.batch.iter().map(|e| e.len()).sum::<usize>();
+        if batch_size > self.batch_size_bytes.get() {
+            return true;
+        }
+
+        self.last_flush
+            .is_none_or(|last_flush| last_flush.elapsed() > self.flush_timeout)
     }
 
     /// Spools to disk a batch of envelopes from the `batch`.
@@ -88,7 +102,7 @@ impl SqliteEnvelopeStack {
         );
 
         // When early return here, we are acknowledging that the elements that we popped from
-        // the buffer are lost in case of failure. We are doing this on purposes, since if we were
+        // the buffer are lost in case of failure. We are doing this on purpose, since if we were
         // to have a database corruption during runtime, and we were to put the values back into
         // the buffer we will end up with an infinite cycle.
         relay_statsd::metric!(
@@ -154,7 +168,7 @@ impl EnvelopeStack for SqliteEnvelopeStack {
     async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), Self::Error> {
         debug_assert!(self.validate_envelope(&envelope));
 
-        if self.above_spool_threshold() {
+        if self.should_spool_to_disk() {
             self.spool_to_disk().await?;
         }
 
@@ -226,6 +240,7 @@ mod tests {
             0,
             envelope_store,
             10,
+            Duration::MAX,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("c25ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
@@ -250,6 +265,7 @@ mod tests {
             0,
             envelope_store,
             threshold_size,
+            Duration::MAX,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
@@ -291,6 +307,7 @@ mod tests {
             0,
             envelope_store,
             2,
+            Duration::MAX,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
@@ -311,6 +328,7 @@ mod tests {
             0,
             envelope_store,
             2,
+            Duration::MAX,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
@@ -329,6 +347,7 @@ mod tests {
             0,
             envelope_store,
             9999,
+            Duration::MAX,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
@@ -375,6 +394,7 @@ mod tests {
             0,
             envelope_store,
             threshold_size,
+            Duration::MAX,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
@@ -443,6 +463,7 @@ mod tests {
             0,
             envelope_store.clone(),
             10 * COMPRESSED_ENVELOPE_SIZE,
+            Duration::MAX,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
