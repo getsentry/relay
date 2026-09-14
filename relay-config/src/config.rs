@@ -632,6 +632,9 @@ pub struct Limits {
     /// The maximum combined size for all attachments in an envelope or request.
     pub max_attachments_size: ByteSize,
     /// The maximum size for a TUS upload request body.
+    ///
+    /// The upload endpoint does **not** transparently decompress the request body, so this limit
+    /// applies to the number of compressed bytes when `Content-Encoding` is set.
     pub max_upload_size: ByteSize,
     /// The maximum combined size for all client reports in an envelope or request.
     pub max_client_reports_size: ByteSize,

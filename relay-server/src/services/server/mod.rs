@@ -17,7 +17,7 @@ use tower_http::compression::{CompressionLayer, DefaultPredicate, Predicate};
 use tower_http::set_header::SetResponseHeaderLayer;
 
 use crate::constants;
-use crate::middlewares::{self, CatchPanicLayer, NormalizePath, RequestDecompressionLayer};
+use crate::middlewares::{self, CatchPanicLayer, NormalizePath};
 use crate::service::ServiceState;
 use crate::statsd::{RelayCounters, RelayGauges};
 
@@ -79,7 +79,6 @@ fn make_app(
         .layer(SentryHttpLayer::new().enable_transaction())
         .layer(middlewares::trace_http_layer())
         .map_request(middlewares::remove_empty_encoding)
-        .layer(RequestDecompressionLayer::new())
         .layer(
             CompressionLayer::new()
                 .compress_when(SizeAbove::new(COMPRESSION_MIN_SIZE).and(DefaultPredicate::new())),
