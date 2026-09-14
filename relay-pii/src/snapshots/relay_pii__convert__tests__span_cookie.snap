@@ -6,7 +6,7 @@ expression: data
   "contexts": {
     "trace": {
       "data": {
-        "http.request.header.cookie": "[Filtered]",
+        "http.request.header.cookie": "session=[Filtered], language=en",
         "http.request.header.cookie.__session": "[Filtered]",
         "http.request.header.cookie._csrf": "[Filtered]",
         "http.request.header.cookie._iris_csrf": "[Filtered]",
@@ -37,7 +37,7 @@ expression: data
   "spans": [
     {
       "data": {
-        "http.request.header.cookie": "[Filtered]",
+        "http.request.header.cookie": "session=[Filtered]",
         "http.request.header.cookie.__session": "[Filtered]",
         "http.request.header.cookie._csrf": "[Filtered]",
         "http.request.header.cookie._iris_csrf": "[Filtered]",
@@ -72,13 +72,13 @@ expression: data
             "": {
               "rem": [
                 [
-                  "@anything:filter",
+                  "@cookies:filter",
                   "s",
-                  0,
-                  10
+                  8,
+                  18
                 ]
               ],
-              "len": 14
+              "len": 27
             }
           },
           "http.request.header.cookie.__session": {
@@ -377,10 +377,10 @@ expression: data
             "": {
               "rem": [
                 [
-                  "@anything:filter",
+                  "@cookies:filter",
                   "s",
-                  0,
-                  10
+                  8,
+                  18
                 ]
               ],
               "len": 14
