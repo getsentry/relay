@@ -1,13 +1,11 @@
-use std::collections::HashMap;
-
 use chrono::{DateTime, Utc};
 use prost_types::Timestamp;
 use relay_base_schema::metrics::MetricUnit;
 use relay_event_schema::protocol::trace_metric;
-use relay_event_schema::protocol::{Attributes, MetricType, SpanId, TraceMetric};
+use relay_event_schema::protocol::{Attribute, Attributes, MetricType, SpanId, TraceMetric};
 use relay_protocol::{Annotated, Value};
 use relay_quotas::Scoping;
-use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType, any_value};
+use sentry_protos::snuba::v1::{TraceItem, TraceItemType};
 use uuid::Uuid;
 
 use crate::envelope::WithHeader;
@@ -15,7 +13,7 @@ use crate::managed::Managed;
 use crate::processing::trace_metrics::{Error, Result};
 use crate::processing::trace_metrics::{store, utils};
 use crate::processing::utils::store::{
-    extract_client_sample_rate, extract_meta_attributes, quantities_to_trace_item_outcomes,
+    attributes_with_meta, extract_client_sample_rate, quantities_to_trace_item_outcomes,
     uuid_to_item_id,
 };
 use crate::processing::{self, Counted, Retention};
@@ -25,7 +23,7 @@ use crate::services::store::StoreTraceItem;
 macro_rules! required {
     ($value:expr) => {{
         match $value {
-            Annotated(Some(value), _) => value,
+            value @ Annotated(Some(_), _) => value,
             Annotated(None, meta) => {
                 relay_log::debug!(
                     "dropping trace metric because of missing required field {} with meta {meta:?}",
@@ -55,22 +53,27 @@ pub fn convert(metric: WithHeader<TraceMetric>, ctx: &Context) -> Result<StoreTr
         .and_then(|h| h.byte_size)
         .unwrap_or_default();
 
-    let metric = required!(metric.value);
+    let metric = required!(metric.value).into_value().unwrap();
     let timestamp = required!(metric.timestamp);
-
-    let meta = extract_meta_attributes(&metric, &metric.attributes);
-    let attrs = metric.attributes.0.unwrap_or_default();
+    let trace_id = required!(metric.trace_id);
+    let client_sample_rate = metric
+        .attributes
+        .value()
+        .and_then(extract_client_sample_rate)
+        .unwrap_or(1.0);
+    let value = required!(metric.value);
+    let numeric_value = extract_numeric_value(value.value().unwrap().clone())?;
     let fields = FieldAttributes {
         metric_name: required!(metric.name),
         metric_type: required!(metric.ty),
-        metric_unit: metric.unit.into_value(),
-        value: extract_numeric_value(required!(metric.value))?,
-        timestamp,
-        span_id: metric.span_id.into_value(),
+        metric_unit: metric.unit,
+        value: value.map_value(|_| numeric_value),
+        timestamp: timestamp.clone(),
+        span_id: metric.span_id,
         payload_size_bytes,
     };
-
-    let client_sample_rate = extract_client_sample_rate(&attrs).unwrap_or(1.0);
+    let timestamp_value = timestamp.value().unwrap();
+    let attributes = attributes(metric.attributes, fields);
 
     let trace_item = TraceItem {
         item_type: TraceItemType::Metric.into(),
@@ -79,10 +82,10 @@ pub fn convert(metric: WithHeader<TraceMetric>, ctx: &Context) -> Result<StoreTr
         received: Some(ts(ctx.received_at)),
         retention_days: ctx.retention.standard.into(),
         downsampled_retention_days: ctx.retention.downsampled.into(),
-        timestamp: Some(ts(timestamp.0)),
-        trace_id: required!(metric.trace_id).to_string(),
-        item_id: uuid_to_item_id(Uuid::new_v7(timestamp.into())),
-        attributes: attributes(meta, attrs, fields),
+        timestamp: Some(ts(timestamp_value.0)),
+        trace_id: trace_id.value().unwrap().to_string(),
+        item_id: uuid_to_item_id(Uuid::new_v7((*timestamp_value).into())),
+        attributes: attributes_with_meta(attributes, Some(&timestamp), Some(&trace_id), None),
         client_sample_rate,
         server_sample_rate: 1.0,
         outcomes: Some(quantities_to_trace_item_outcomes(quantities, ctx.scoping)),
@@ -99,12 +102,12 @@ fn ts(dt: DateTime<Utc>) -> Timestamp {
 }
 
 struct FieldAttributes {
-    metric_name: String,
-    metric_type: MetricType,
-    metric_unit: Option<MetricUnit>,
-    value: f64,
-    timestamp: relay_event_schema::protocol::Timestamp,
-    span_id: Option<SpanId>,
+    metric_name: Annotated<String>,
+    metric_type: Annotated<MetricType>,
+    metric_unit: Annotated<MetricUnit>,
+    value: Annotated<f64>,
+    timestamp: Annotated<relay_event_schema::protocol::Timestamp>,
+    span_id: Annotated<SpanId>,
     payload_size_bytes: u64,
 }
 
@@ -117,17 +120,7 @@ fn extract_numeric_value(value: Value) -> Result<f64> {
     }
 }
 
-fn attributes(
-    meta: HashMap<String, AnyValue>,
-    attributes: Attributes,
-    fields: FieldAttributes,
-) -> HashMap<String, AnyValue> {
-    let mut result = meta;
-    // +N, one for each field attribute added and some extra for potential meta.
-    result.reserve(attributes.0.len() + 15);
-
-    processing::utils::store::convert_attributes_into(&mut result, attributes);
-
+fn attributes(mut result: Annotated<Attributes>, fields: FieldAttributes) -> Annotated<Attributes> {
     let FieldAttributes {
         metric_name,
         metric_type,
@@ -138,83 +131,56 @@ fn attributes(
         payload_size_bytes,
     } = fields;
 
-    result.insert(
+    let metric_name_value = metric_name.value().unwrap().clone();
+    let metric_type_value = metric_type.value().unwrap().to_string();
+    let metric_unit_value = metric_unit.value().map(ToString::to_string);
+
+    let attributes = &mut result.get_or_insert_with(Attributes::default).0;
+    attributes.insert(
         "sentry.metric_name".to_owned(),
-        AnyValue {
-            value: Some(any_value::Value::StringValue(metric_name.clone())),
-        },
+        metric_name.map_value(Attribute::from),
     );
-
-    result.insert(
+    attributes.insert(
         "sentry.metric_type".to_owned(),
-        AnyValue {
-            value: Some(any_value::Value::StringValue(metric_type.to_string())),
-        },
+        metric_type.map_value(|metric_type| Attribute::from(metric_type.to_string())),
     );
-
-    // Add key names matching metric name and type to workaround current co-occuring attributes limitations.
-    result.insert(
-        format!("sentry._internal.cooccuring.name.{metric_name}"),
-        AnyValue {
-            value: Some(any_value::Value::BoolValue(true)),
-        },
+    attributes.insert(
+        format!("sentry._internal.cooccuring.name.{metric_name_value}"),
+        Annotated::new(Attribute::from(true)),
     );
-    result.insert(
-        format!("sentry._internal.cooccuring.type.{metric_type}"),
-        AnyValue {
-            value: Some(any_value::Value::BoolValue(true)),
-        },
+    attributes.insert(
+        format!("sentry._internal.cooccuring.type.{metric_type_value}"),
+        Annotated::new(Attribute::from(true)),
     );
-
-    if let Some(metric_unit) = metric_unit {
-        result.insert(
-            "sentry.metric_unit".to_owned(),
-            AnyValue {
-                value: Some(any_value::Value::StringValue(metric_unit.to_string())),
-            },
-        );
-
-        result.insert(
-            format!("sentry._internal.cooccuring.unit.{metric_unit}"),
-            AnyValue {
-                value: Some(any_value::Value::BoolValue(true)),
-            },
+    if let Some(metric_unit_value) = metric_unit_value {
+        attributes.insert(
+            format!("sentry._internal.cooccuring.unit.{metric_unit_value}"),
+            Annotated::new(Attribute::from(true)),
         );
     }
-
-    result.insert(
-        "sentry.value".to_owned(),
-        AnyValue {
-            value: Some(any_value::Value::DoubleValue(value)),
-        },
+    attributes.insert(
+        "sentry.metric_unit".to_owned(),
+        metric_unit.map_value(|metric_unit| Attribute::from(metric_unit.to_string())),
     );
-
-    let timestamp_nanos = timestamp
-        .into_inner()
-        .timestamp_nanos_opt()
-        .unwrap_or_default();
-
-    result.insert(
+    attributes.insert("sentry.value".to_owned(), value.map_value(Attribute::from));
+    attributes.insert(
         "sentry.timestamp_precise".to_owned(),
-        AnyValue {
-            value: Some(any_value::Value::IntValue(timestamp_nanos)),
-        },
+        timestamp.map_value(|timestamp| {
+            Attribute::from(
+                timestamp
+                    .into_inner()
+                    .timestamp_nanos_opt()
+                    .unwrap_or_default(),
+            )
+        }),
     );
-
-    if let Some(span_id) = span_id {
-        result.insert(
-            "sentry.span_id".to_owned(),
-            AnyValue {
-                value: Some(any_value::Value::StringValue(span_id.to_string())),
-            },
-        );
-    }
-
-    result.insert(
+    attributes.insert(
+        "sentry.span_id".to_owned(),
+        span_id.map_value(|span_id| Attribute::from(span_id.to_string())),
+    );
+    attributes.insert(
         "sentry.payload_size_bytes".to_owned(),
-        AnyValue {
-            value: Some(any_value::Value::IntValue(payload_size_bytes as i64)),
-        },
+        Annotated::new(Attribute::from(payload_size_bytes as i64)),
     );
 
     result
@@ -264,9 +230,8 @@ mod tests {
 
     use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::ProjectId;
-    use relay_event_schema::protocol::{Attribute, AttributeType, AttributeValue};
-    use relay_protocol::FromValue;
-    use relay_protocol::Object;
+    use relay_event_schema::protocol::{Attribute, AttributeType, AttributeValue, Attributes};
+    use relay_protocol::{Error as MetaError, FromValue, Object};
     use relay_quotas::Scoping;
 
     use crate::processing::Retention;
@@ -334,6 +299,65 @@ mod tests {
         assert!(attributes.contains_key("sentry.value"));
         assert!(attributes.contains_key("http.method"));
         assert!(attributes.contains_key("http.status_code"));
+    }
+
+    #[test]
+    fn test_trace_metric_meta() {
+        let mut metric = trace_metric!({
+            "timestamp": 946684800.0,
+            "trace_id": "5B8EFFF798038103D269B633813FC60C",
+            "span_id": "EEE19B7EC3C1B174",
+            "name": "http.request.duration",
+            "type": "distribution",
+            "unit": "millisecond",
+            "value": 123.45
+        });
+
+        let metric_value = metric.value.value_mut().as_mut().unwrap();
+        metric_value
+            .timestamp
+            .meta_mut()
+            .add_error(MetaError::invalid("timestamp"));
+        metric_value
+            .trace_id
+            .meta_mut()
+            .add_error(MetaError::invalid("trace_id"));
+        metric_value
+            .span_id
+            .meta_mut()
+            .add_error(MetaError::invalid("span_id"));
+        metric_value
+            .name
+            .meta_mut()
+            .add_error(MetaError::invalid("name"));
+        metric_value
+            .ty
+            .meta_mut()
+            .add_error(MetaError::invalid("type"));
+        metric_value
+            .unit
+            .meta_mut()
+            .add_error(MetaError::invalid("unit"));
+        metric_value
+            .value
+            .meta_mut()
+            .add_error(MetaError::invalid("value"));
+
+        let result = convert(metric, &test_context()).unwrap();
+        let attributes = result.trace_item.attributes;
+
+        for key in [
+            "sentry._meta.fields.timestamp",
+            "sentry._meta.fields.attributes.sentry.trace_id",
+            "sentry._meta.fields.attributes.sentry.timestamp_precise",
+            "sentry._meta.fields.attributes.sentry.span_id",
+            "sentry._meta.fields.attributes.sentry.metric_name",
+            "sentry._meta.fields.attributes.sentry.metric_type",
+            "sentry._meta.fields.attributes.sentry.metric_unit",
+            "sentry._meta.fields.attributes.sentry.value",
+        ] {
+            assert!(attributes.contains_key(key), "missing {key}");
+        }
     }
 
     #[test]

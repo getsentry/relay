@@ -1,16 +1,14 @@
-use std::collections::HashMap;
-
 use chrono::{DateTime, Utc};
-use relay_event_schema::protocol::{Attributes, SpanId, TraceAttachmentMeta};
-use relay_protocol::{Annotated, IntoValue, Value};
+use relay_event_schema::protocol::{Attribute, Attributes, SpanId, TraceAttachmentMeta};
+use relay_protocol::Annotated;
 use relay_quotas::Scoping;
-use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType, any_value};
+use sentry_protos::snuba::v1::{TraceItem, TraceItemType};
 
 use crate::managed::{Counted, Managed, Quantities, Rejected};
 use crate::processing::Retention;
 use crate::processing::trace_attachments::types::ExpandedAttachment;
 use crate::processing::utils::store::{
-    AttributeMeta, extract_client_sample_rate, extract_meta_attributes, proto_timestamp,
+    attributes_with_meta, extract_client_sample_rate, proto_timestamp,
     quantities_to_trace_item_outcomes, uuid_to_item_id,
 };
 use crate::services::objectstore::StoreTraceAttachment;
@@ -79,35 +77,34 @@ fn attachment_to_trace_item(
     ctx: Context,
 ) -> Option<TraceItem> {
     let meta = meta.into_value()?;
-    let annotated_meta = extract_meta_attributes(&meta, &meta.attributes);
-    let TraceAttachmentMeta {
-        trace_id,
-        attachment_id,
-        timestamp,
-        filename,
-        content_type,
-        attributes,
-        other: _,
-    } = meta;
-
+    let client_sample_rate = meta
+        .attributes
+        .value()
+        .and_then(extract_client_sample_rate)
+        .unwrap_or(1.0);
+    let trace_id = meta.trace_id.value()?;
+    let attachment_id = meta.attachment_id.value()?;
+    let timestamp = meta.timestamp.value()?;
+    meta.content_type.value()?;
     let fields = Fields {
-        content_type: content_type.into_value()?,
-        filename: filename.into_value(),
-        span_id: ctx.span_id,
+        content_type: meta.content_type,
+        filename: meta.filename,
+        span_id: ctx.span_id.into(),
     };
-
-    let attributes = attributes.into_value().unwrap_or_default();
-
-    let client_sample_rate = extract_client_sample_rate(&attributes).unwrap_or(1.0);
 
     let trace_item = TraceItem {
         organization_id: ctx.scoping.organization_id.value(),
         project_id: ctx.scoping.project_id.value(),
-        trace_id: trace_id.into_value()?.to_string(),
-        item_id: uuid_to_item_id(*attachment_id.into_value()?),
+        trace_id: trace_id.to_string(),
+        item_id: uuid_to_item_id(**attachment_id),
         item_type: TraceItemType::Attachment.into(),
-        timestamp: Some(proto_timestamp(timestamp.into_value()?.0)),
-        attributes: convert_attributes(annotated_meta, attributes, fields),
+        timestamp: Some(proto_timestamp(timestamp.0)),
+        attributes: attributes_with_meta(
+            attachment_attributes(meta.attributes, fields),
+            Some(&meta.timestamp),
+            Some(&meta.trace_id),
+            Some(&meta.attachment_id),
+        ),
         client_sample_rate,
         server_sample_rate: ctx.server_sample_rate.unwrap_or(1.0),
         retention_days: ctx.retention.standard as u32,
@@ -115,90 +112,105 @@ fn attachment_to_trace_item(
         downsampled_retention_days: ctx.retention.downsampled as u32,
         outcomes: Some(quantities_to_trace_item_outcomes(quantities, ctx.scoping)),
     };
+
     Some(trace_item)
 }
 
 struct Fields {
-    content_type: String,
-    filename: Option<String>,
-    span_id: Option<SpanId>,
+    content_type: Annotated<String>,
+    filename: Annotated<String>,
+    span_id: Annotated<SpanId>,
 }
 
-// TODO: remove code-duplication between logs, trace metrics and attachments.
-fn convert_attributes(
-    meta: HashMap<String, AnyValue>,
-    attributes: Attributes,
+fn attachment_attributes(
+    mut result: Annotated<Attributes>,
     fields: Fields,
-) -> HashMap<String, AnyValue> {
-    let mut result = meta;
-    result.reserve(attributes.0.len() + 5);
-
-    for (name, attribute) in attributes {
-        let meta = AttributeMeta {
-            meta: IntoValue::extract_meta_tree(&attribute),
-        };
-        if let Some(meta) = meta.to_any_value() {
-            result.insert(format!("sentry._meta.fields.attributes.{name}"), meta);
-        }
-
-        let value = attribute
-            .into_value()
-            .and_then(|v| v.value.value.into_value());
-
-        let Some(value) = value else {
-            continue;
-        };
-
-        let Some(value) = (match value {
-            Value::Bool(v) => Some(any_value::Value::BoolValue(v)),
-            Value::I64(v) => Some(any_value::Value::IntValue(v)),
-            Value::U64(v) => i64::try_from(v).ok().map(any_value::Value::IntValue),
-            Value::F64(v) => Some(any_value::Value::DoubleValue(v)),
-            Value::String(v) => Some(any_value::Value::StringValue(v)),
-            Value::Array(_) | Value::Object(_) => {
-                debug_assert!(false, "unsupported attachment attribute value");
-                None
-            }
-        }) else {
-            continue;
-        };
-
-        result.insert(name, AnyValue { value: Some(value) });
-    }
-
+) -> Annotated<Attributes> {
     let Fields {
         content_type,
         filename,
         span_id,
     } = fields;
 
-    result.insert(
+    let attributes = &mut result.get_or_insert_with(Attributes::default).0;
+    attributes.insert(
         CONTENT_TYPE_ATTRIBUTE.to_owned(),
-        AnyValue {
-            value: Some(any_value::Value::StringValue(
-                content_type.as_str().to_owned(),
-            )),
-        },
+        content_type.map_value(Attribute::from),
+    );
+    attributes.insert("file.name".to_owned(), filename.map_value(Attribute::from));
+    attributes.insert(
+        "sentry.span_id".to_owned(),
+        span_id.map_value(|span_id| Attribute::from(span_id.to_string())),
     );
 
-    // See https://opentelemetry.io/docs/specs/semconv/registry/attributes/file/#file-name.
-    if let Some(filename) = filename {
-        result.insert(
-            "file.name".to_owned(),
-            AnyValue {
-                value: Some(any_value::Value::StringValue(filename)),
-            },
-        );
-    }
-
-    if let Some(span_id) = span_id {
-        result.insert(
-            "sentry.span_id".to_owned(),
-            AnyValue {
-                value: Some(any_value::Value::StringValue(span_id.to_string())),
-            },
-        );
-    }
-
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use relay_base_schema::organization::OrganizationId;
+    use relay_base_schema::project::ProjectId;
+    use relay_event_schema::protocol::AttachmentId;
+    use relay_protocol::Error as MetaError;
+
+    use super::*;
+
+    #[test]
+    fn test_attachment_meta() {
+        let mut meta = TraceAttachmentMeta {
+            trace_id: Annotated::new("5B8EFFF798038103D269B633813FC60C".parse().unwrap()),
+            attachment_id: Annotated::new(AttachmentId::random()),
+            timestamp: Annotated::new(DateTime::from_timestamp(946684800, 0).unwrap().into()),
+            filename: Annotated::new("attachment.txt".to_owned()),
+            content_type: Annotated::new("text/plain".to_owned()),
+            ..Default::default()
+        };
+
+        meta.trace_id
+            .meta_mut()
+            .add_error(MetaError::invalid("trace_id"));
+        meta.attachment_id
+            .meta_mut()
+            .add_error(MetaError::invalid("attachment_id"));
+        meta.timestamp
+            .meta_mut()
+            .add_error(MetaError::invalid("timestamp"));
+        meta.filename
+            .meta_mut()
+            .add_error(MetaError::invalid("filename"));
+        meta.content_type
+            .meta_mut()
+            .add_error(MetaError::invalid("content_type"));
+
+        let trace_item = attachment_to_trace_item(
+            Annotated::new(meta),
+            Quantities::new(),
+            Context {
+                received_at: DateTime::from_timestamp(1, 0).unwrap(),
+                scoping: Scoping {
+                    organization_id: OrganizationId::new(1),
+                    project_id: ProjectId::new(42),
+                    project_key: "12333333333333333333333333333333".parse().unwrap(),
+                    key_id: Some(3),
+                },
+                retention: Retention {
+                    standard: 42,
+                    downsampled: 43,
+                },
+                server_sample_rate: None,
+                span_id: None,
+            },
+        )
+        .unwrap();
+
+        for key in [
+            "sentry._meta.fields.attributes.sentry.trace_id",
+            "sentry._meta.fields.item_id",
+            "sentry._meta.fields.timestamp",
+            "sentry._meta.fields.attributes.file.name",
+            "sentry._meta.fields.attributes.sentry.content-type",
+        ] {
+            assert!(trace_item.attributes.contains_key(key), "missing {key}");
+        }
+    }
 }

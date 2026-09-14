@@ -1,25 +1,23 @@
-use std::collections::HashMap;
-
 use chrono::{DateTime, Utc};
-use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId};
+use relay_event_schema::protocol::{Attribute, Attributes, OurLog, OurLogLevel, SpanId};
 use relay_protocol::Annotated;
 use relay_quotas::Scoping;
-use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType, any_value};
+use sentry_protos::snuba::v1::{TraceItem, TraceItemType};
 use uuid::Uuid;
 
 use crate::envelope::WithHeader;
 use crate::processing::logs::{Error, Result};
 use crate::processing::utils::store::{
-    extract_meta_attributes, proto_timestamp, quantities_to_trace_item_outcomes, uuid_to_item_id,
+    attributes_with_meta, proto_timestamp, quantities_to_trace_item_outcomes, uuid_to_item_id,
 };
-use crate::processing::{self, Counted, Retention};
+use crate::processing::{Counted, Retention};
 use crate::services::outcome::DiscardReason;
 use crate::services::store::StoreTraceItem;
 
 macro_rules! required {
     ($value:expr) => {{
         match $value {
-            Annotated(Some(value), _) => value,
+            value @ Annotated(Some(_), _) => value,
             Annotated(None, meta) => {
                 relay_log::debug!(
                     "dropping log because of missing required field {} with meta {meta:?}",
@@ -50,18 +48,18 @@ pub fn convert(log: WithHeader<OurLog>, ctx: &Context) -> Result<StoreTraceItem>
         .and_then(|h| h.byte_size)
         .unwrap_or_default();
 
-    let log = required!(log.value);
+    let log = required!(log.value).into_value().unwrap();
     let timestamp = required!(log.timestamp);
-
-    let meta = extract_meta_attributes(&log, &log.attributes);
-    let attrs = log.attributes.0.unwrap_or_default();
+    let trace_id = required!(log.trace_id);
     let fields = FieldAttributes {
         level: required!(log.level),
-        timestamp,
+        timestamp: timestamp.clone(),
         body: required!(log.body),
-        span_id: log.span_id.into_value(),
+        span_id: log.span_id,
         payload_size_bytes,
     };
+    let timestamp_value = timestamp.value().unwrap();
+    let attributes = attributes(log.attributes, fields);
 
     let trace_item = TraceItem {
         item_type: TraceItemType::Log.into(),
@@ -70,10 +68,10 @@ pub fn convert(log: WithHeader<OurLog>, ctx: &Context) -> Result<StoreTraceItem>
         received: Some(proto_timestamp(ctx.received_at)),
         retention_days: ctx.retention.standard.into(),
         downsampled_retention_days: ctx.retention.downsampled.into(),
-        timestamp: Some(proto_timestamp(timestamp.0)),
-        trace_id: required!(log.trace_id).to_string(),
-        item_id: uuid_to_item_id(Uuid::new_v7(timestamp.into())),
-        attributes: attributes(meta, attrs, fields),
+        timestamp: Some(proto_timestamp(timestamp_value.0)),
+        trace_id: trace_id.value().unwrap().to_string(),
+        item_id: uuid_to_item_id(Uuid::new_v7((*timestamp_value).into())),
+        attributes: attributes_with_meta(attributes, Some(&timestamp), Some(&trace_id), None),
         client_sample_rate: 1.0,
         server_sample_rate: 1.0,
         outcomes: Some(quantities_to_trace_item_outcomes(quantities, ctx.scoping)),
@@ -87,35 +85,25 @@ struct FieldAttributes {
     /// The log level.
     ///
     /// See: [`OurLog::level`].
-    level: OurLogLevel,
+    level: Annotated<OurLogLevel>,
     /// The original timestamp when the log was created.
     ///
     /// See: [`OurLog::timestamp`].
-    timestamp: relay_event_schema::protocol::Timestamp,
+    timestamp: Annotated<relay_event_schema::protocol::Timestamp>,
     /// The log body.
     ///
     /// See: [`OurLog::body`].
-    body: String,
+    body: Annotated<String>,
     /// The optionally associated span id.
     ///
     /// See: [`OurLog::span_id`].
-    span_id: Option<SpanId>,
+    span_id: Annotated<SpanId>,
     /// Payload size as it is ingested.
     payload_size_bytes: u64,
 }
 
 /// Extracts all attributes of a log, combines it with extracted meta attributes.
-fn attributes(
-    meta: HashMap<String, AnyValue>,
-    attributes: Attributes,
-    fields: FieldAttributes,
-) -> HashMap<String, AnyValue> {
-    let mut result = meta;
-    // +N, one for each field attribute added and some extra for potential meta.
-    result.reserve(attributes.0.len() + 5 + 3);
-
-    processing::utils::store::convert_attributes_into(&mut result, attributes);
-
+fn attributes(mut result: Annotated<Attributes>, fields: FieldAttributes) -> Annotated<Attributes> {
     let FieldAttributes {
         level,
         timestamp,
@@ -129,47 +117,30 @@ fn attributes(
     //
     // Ideally these attributes are marked as private in sentry-conventions and potentially
     // validated against.
-    result.insert(
+    let attributes = &mut result.get_or_insert_with(Attributes::default).0;
+    attributes.insert(
         "sentry.severity_text".to_owned(),
-        AnyValue {
-            value: Some(any_value::Value::StringValue(level.to_string())),
-        },
+        level.map_value(|level| Attribute::from(level.to_string())),
     );
-
-    let timestamp_nanos = timestamp
-        .into_inner()
-        .timestamp_nanos_opt()
-        // We can expect valid timestamps at this point, clock drift correction / normalization
-        // should've taken care of this already.
-        .unwrap_or_default();
-
-    result.insert(
+    attributes.insert(
         "sentry.timestamp_precise".to_owned(),
-        AnyValue {
-            value: Some(any_value::Value::IntValue(timestamp_nanos)),
-        },
+        timestamp.map_value(|timestamp| {
+            Attribute::from(
+                timestamp
+                    .into_inner()
+                    .timestamp_nanos_opt()
+                    .unwrap_or_default(),
+            )
+        }),
     );
-    result.insert(
-        "sentry.body".to_owned(),
-        AnyValue {
-            value: Some(any_value::Value::StringValue(body)),
-        },
+    attributes.insert("sentry.body".to_owned(), body.map_value(Attribute::from));
+    attributes.insert(
+        "sentry.span_id".to_owned(),
+        span_id.map_value(|span_id| Attribute::from(span_id.to_string())),
     );
-
-    if let Some(span_id) = span_id {
-        result.insert(
-            "sentry.span_id".to_owned(),
-            AnyValue {
-                value: Some(any_value::Value::StringValue(span_id.to_string())),
-            },
-        );
-    }
-
-    result.insert(
+    attributes.insert(
         "sentry.payload_size_bytes".to_owned(),
-        AnyValue {
-            value: Some(any_value::Value::IntValue(payload_size_bytes as i64)),
-        },
+        Annotated::new(Attribute::from(payload_size_bytes as i64)),
     );
 
     result
@@ -283,17 +254,17 @@ mod tests {
                     ),
                 ),
             },
+            "sentry._meta.fields.attributes.sentry.body": AnyValue {
+                value: Some(
+                    StringValue(
+                        "{\"meta\":{\"\":{\"err\":[[\"invalid_data\",{\"reason\":\"expected something in the body\"}]]}}}",
+                    ),
+                ),
+            },
             "sentry._meta.fields.attributes.value_meta": AnyValue {
                 value: Some(
                     StringValue(
                         "{\"meta\":{\"value\":{\"\":{\"err\":[[\"invalid_data\",{\"reason\":\"expected something else\"}]]}}}}",
-                    ),
-                ),
-            },
-            "sentry._meta.fields.body": AnyValue {
-                value: Some(
-                    StringValue(
-                        "{\"meta\":{\"\":{\"err\":[[\"invalid_data\",{\"reason\":\"expected something in the body\"}]]}}}",
                     ),
                 ),
             },
