@@ -240,10 +240,10 @@ mod tests {
             0,
             envelope_store,
             10,
-            Duration::MAX,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("c25ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
+            Duration::MAX,
         );
 
         let envelope = mock_envelope(Utc::now());
@@ -265,10 +265,10 @@ mod tests {
             0,
             envelope_store,
             threshold_size,
-            Duration::MAX,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
+            Duration::MAX,
         );
 
         // We push the 4 envelopes without errors because they are below the threshold.
@@ -307,10 +307,10 @@ mod tests {
             0,
             envelope_store,
             2,
-            Duration::MAX,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
+            Duration::MAX,
         );
 
         // We pop with an invalid db.
@@ -328,10 +328,10 @@ mod tests {
             0,
             envelope_store,
             2,
-            Duration::MAX,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
+            Duration::MAX,
         );
 
         // We pop with no elements.
@@ -347,10 +347,10 @@ mod tests {
             0,
             envelope_store,
             9999,
-            Duration::MAX,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
+            Duration::MAX,
         );
 
         let envelopes = mock_envelopes(5);
@@ -394,10 +394,10 @@ mod tests {
             0,
             envelope_store,
             threshold_size,
-            Duration::MAX,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
+            Duration::MAX,
         );
 
         // We push 7 envelopes.
@@ -463,10 +463,10 @@ mod tests {
             0,
             envelope_store.clone(),
             10 * COMPRESSED_ENVELOPE_SIZE,
-            Duration::MAX,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
+            Duration::MAX,
         );
 
         let envelopes = mock_envelopes(5);
