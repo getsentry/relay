@@ -7,7 +7,6 @@ use relay_quotas::{DataCategory, RateLimits};
 use crate::Envelope;
 use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
 use crate::managed::{Counted, Managed, ManagedEnvelope, OutcomeError, Quantities, Rejected};
-use crate::processing::check_ins::process::expand_check_in;
 use crate::processing::{self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
 
@@ -70,7 +69,7 @@ impl CheckInsProcessor {
 }
 
 impl processing::Processor for CheckInsProcessor {
-    type Input = SerializedCheckIns;
+    type Input = SerializedCheckIn;
     type Output = CheckInsOutput;
     type Error = Error;
 
@@ -81,16 +80,11 @@ impl processing::Processor for CheckInsProcessor {
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
 
-        let check_ins = envelope
+        let check_in = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::CheckIn))
-            .into_vec();
+            .take_item_by(|item| matches!(*item.ty(), ItemType::CheckIn))?;
 
-        if check_ins.is_empty() {
-            return None;
-        }
-
-        let work = SerializedCheckIns { headers, check_ins };
+        let work = SerializedCheckIn { headers, check_in };
         Some(Managed::with_meta_from_managed_envelope(envelope, work))
     }
 
@@ -99,18 +93,12 @@ impl processing::Processor for CheckInsProcessor {
         input: Managed<Self::Input>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>> {
-        let mut ex_check_in = input.try_map(expand_check_in)?;
+        let mut ex_check_in = process::expand(input)?;
 
         process::normalize(&mut ex_check_in)?;
 
         if ctx.is_processing() {
-            let routing_hint = relay_monitors::routing_hint(
-                &ex_check_in.check_in,
-                &ex_check_in.scoping().project_id,
-            );
-
             ex_check_in.try_modify(|e, _| {
-                e.item.set_routing_hint(routing_hint);
                 let s = serde_json::to_vec(&e.check_in)
                     .map_err(ProcessCheckInError::from)
                     .map_err(Error::from)?;
@@ -156,11 +144,17 @@ impl Forward for CheckInsOutput {
 
         let sdk = self.0.headers.meta().client().map(str::to_owned);
         let retention_days = ctx.event_retention().standard;
+        let project_id = self.0.scoping().project_id;
 
-        s.send_to_store(self.0.map(|ser_check_in, _| StoreCheckIn {
-            check_in: ser_check_in.item,
-            sdk: sdk.clone(),
-            retention_days,
+        s.send_to_store(self.0.map(|mut ser_check_in, _| {
+            let routing_hint = relay_monitors::routing_hint(&ser_check_in.check_in, &project_id);
+
+            ser_check_in.item.set_routing_hint(routing_hint);
+            StoreCheckIn {
+                check_in: ser_check_in.item,
+                sdk: sdk.clone(),
+                retention_days,
+            }
         }));
 
         Ok(())
@@ -169,19 +163,17 @@ impl Forward for CheckInsOutput {
 
 /// Check-Ins in their serialized state, as transported in an envelope.
 #[derive(Debug)]
-pub struct SerializedCheckIns {
+pub struct SerializedCheckIn {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
 
-    /// A list of check-ins waiting to be processed.
-    ///
-    /// All items contained here must be check-ins.
-    check_ins: Vec<Item>,
+    /// The check-in waiting to be processed.
+    check_in: Item,
 }
 
-impl Counted for SerializedCheckIns {
+impl Counted for SerializedCheckIn {
     fn quantities(&self) -> Quantities {
-        smallvec::smallvec![(DataCategory::Monitor, self.check_ins.len())]
+        smallvec::smallvec![(DataCategory::Monitor, 1)]
     }
 }
 
@@ -191,7 +183,7 @@ impl Counted for ExpandedCheckIn {
     }
 }
 
-impl CountRateLimited for Managed<SerializedCheckIns> {
+impl CountRateLimited for Managed<SerializedCheckIn> {
     type Error = Error;
 }
 
