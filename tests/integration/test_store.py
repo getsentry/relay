@@ -284,12 +284,19 @@ def make_error(event):
 
 
 @pytest.mark.parametrize("event_type", ["default", "transaction"])
+@pytest.mark.parametrize("use_arroyo", [False, True], ids=["rdkafka", "arroyo"])
+@pytest.mark.parametrize(
+    "broker_list_param", ["bootstrap.servers", "metadata.broker.list"]
+)
 def test_processing(
     mini_sentry,
     relay_with_processing,
     events_consumer,
     transactions_consumer,
+    processing_config,
     event_type,
+    use_arroyo,
+    broker_list_param,
 ):
     """
     Test that relay normalizes messages when processing is enabled and sends them via Kafka queues
@@ -300,7 +307,11 @@ def test_processing(
     else:
         events_consumer = transactions_consumer()
 
-    relay = relay_with_processing()
+    options = processing_config({"processing": {"use_arroyo": use_arroyo}})
+    for param in options["processing"]["kafka_config"]:
+        if param["name"] == "bootstrap.servers":
+            param["name"] = broker_list_param
+    relay = relay_with_processing(options=options)
     project_id = 42
     mini_sentry.add_full_project_config(42)
 

@@ -1143,6 +1143,8 @@ pub struct Processing {
     pub max_session_secs_in_past: u32,
     /// Kafka producer configurations.
     pub kafka_config: Vec<KafkaConfigParam>,
+    /// Whether to use Arroyo's KafkaProducer. Defaults to `false`.
+    pub use_arroyo: bool,
     /// Additional kafka producer configurations.
     ///
     /// The `kafka_config` is the default producer configuration used for all topics. A secondary
@@ -1207,6 +1209,7 @@ impl Default for Processing {
             max_secs_in_future: 60,                  // 1 minute
             max_session_secs_in_past: 5 * 24 * 3600, // 5 days
             kafka_config: Vec::new(),
+            use_arroyo: false,
             secondary_kafka_configs: BTreeMap::new(),
             topics: TopicAssignments::default(),
             kafka_validate_topics: false,
@@ -2794,6 +2797,11 @@ impl ConfigSnapshot {
     /// Whether to validate the topics against Kafka.
     pub fn kafka_validate_topics(&self) -> bool {
         self.inner.values.processing.kafka_validate_topics
+    }
+
+    /// Whether to use Arroyo's KafkaProducer.
+    pub fn use_arroyo(&self) -> bool {
+        self.inner.values.processing.use_arroyo
     }
 
     /// All unused but configured topic assignments.

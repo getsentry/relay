@@ -21,6 +21,7 @@ rmp-serde = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 thiserror = { workspace = true }
+sentry_arroyo = { workspace = true, optional = true }
 sentry-kafka-schemas = { workspace = true, default-features = false }
 parking_lot = { workspace = true }
 hashbrown = { workspace = true }
@@ -37,6 +38,7 @@ producer = [
   "dep:relay-log",
   "dep:relay-statsd",
   "dep:rmp-serde",
+  "dep:sentry_arroyo",
   "dep:serde_json",
   "rdkafka-sys/cmake-build",
 ]
