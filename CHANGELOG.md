@@ -31,6 +31,7 @@
 - Prevent memory bomb in PII processor's `split_chunks`. ([#6343](https://github.com/getsentry/relay/pull/6343))
 - Prevent stack overflow in PII rule compilation. ([#6344](https://github.com/getsentry/relay/pull/6344))
 - Fill in missing event IDs only if items would create events. ([#6350](https://github.com/getsentry/relay/pull/6350))
+- Preserve the client exception thread ID, handled status, and fallback stack when preparing minidump events. ([#6369](https://github.com/getsentry/relay/pull/6369))
 
 **Internal**:
 
