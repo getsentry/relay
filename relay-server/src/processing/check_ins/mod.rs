@@ -69,7 +69,7 @@ impl CheckInsProcessor {
 }
 
 impl processing::Processor for CheckInsProcessor {
-    type Input = SerializedCheckIn;
+    type Input = SerializedCheckIns;
     type Output = CheckInsOutput;
     type Error = Error;
 
@@ -80,11 +80,16 @@ impl processing::Processor for CheckInsProcessor {
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope) -> Option<Managed<Self::Input>> {
         let headers = envelope.envelope().headers().clone();
 
-        let check_in = envelope
+        let check_ins = envelope
             .envelope_mut()
-            .take_item_by(|item| matches!(*item.ty(), ItemType::CheckIn))?;
+            .take_items_by(|item| matches!(*item.ty(), ItemType::CheckIn))
+            .into_vec();
 
-        let work = SerializedCheckIn { headers, check_in };
+        if check_ins.is_empty() {
+            return None;
+        }
+
+        let work = SerializedCheckIns { headers, check_ins };
         Some(Managed::with_meta_from_managed_envelope(envelope, work))
     }
 
@@ -163,17 +168,19 @@ impl Forward for CheckInsOutput {
 
 /// Check-Ins in their serialized state, as transported in an envelope.
 #[derive(Debug)]
-pub struct SerializedCheckIn {
+pub struct SerializedCheckIns {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
 
-    /// The check-in waiting to be processed.
-    check_in: Item,
+    /// A list of check-ins waiting to be processed.
+    ///
+    /// All items contained here must be check-ins.
+    check_ins: Vec<Item>,
 }
 
-impl Counted for SerializedCheckIn {
+impl Counted for SerializedCheckIns {
     fn quantities(&self) -> Quantities {
-        smallvec::smallvec![(DataCategory::Monitor, 1)]
+        smallvec::smallvec![(DataCategory::Monitor, self.check_ins.len())]
     }
 }
 
@@ -183,7 +190,7 @@ impl Counted for ExpandedCheckIn {
     }
 }
 
-impl CountRateLimited for Managed<SerializedCheckIn> {
+impl CountRateLimited for Managed<SerializedCheckIns> {
     type Error = Error;
 }
 

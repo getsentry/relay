@@ -43,6 +43,10 @@ pub enum ProcessCheckInError {
     /// Environment name was invalid.
     #[error("the environment is invalid")]
     InvalidEnvironment,
+
+    /// Relay error (somehow, an envelope was missing a check-in).
+    #[error("envelope missing a check-in")]
+    MissingCheckIn,
 }
 
 /// Describes the status of the incoming CheckIn.
