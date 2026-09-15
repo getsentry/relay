@@ -1693,7 +1693,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "contexts": {
                   "trace": {
                     "data": {
-                        "http.request.header.cookie": "session=foobar, language=en",
+                        "http.request.header.cookie": "baz=quux; session=foobar; language=en; csrf=u32t4o3tb3gg43; foo=bar",
                         "http.request.header.cookie.sentrysid": "foobar",
                         "http.request.header.cookie.sudo": "foobar",
                         "http.request.header.cookie.su": "foobar",

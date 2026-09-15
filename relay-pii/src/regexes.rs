@@ -175,7 +175,7 @@ pub static SENSITIVE_COOKIE_NAMES: &[&str] = &[
 
 static COOKIE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     let variants = SENSITIVE_COOKIE_NAMES.join("|");
-    let r = format!("(?:{variants})=([^,]+)");
+    let r = format!("(?i)\\b(?:{variants})=([^;]+)");
     Regex::new(&r).unwrap()
 });
 

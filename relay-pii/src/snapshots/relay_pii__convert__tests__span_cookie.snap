@@ -6,7 +6,7 @@ expression: data
   "contexts": {
     "trace": {
       "data": {
-        "http.request.header.cookie": "session=[Filtered], language=en",
+        "http.request.header.cookie": "baz=quux; session=[Filtered]; language=en; csrf=[Filtered]; foo=bar",
         "http.request.header.cookie.__session": "[Filtered]",
         "http.request.header.cookie._csrf": "[Filtered]",
         "http.request.header.cookie._iris_csrf": "[Filtered]",
@@ -74,11 +74,17 @@ expression: data
                 [
                   "@cookies:filter",
                   "s",
-                  8,
-                  18
+                  18,
+                  28
+                ],
+                [
+                  "@cookies:filter",
+                  "s",
+                  48,
+                  58
                 ]
               ],
-              "len": 27
+              "len": 67
             }
           },
           "http.request.header.cookie.__session": {
