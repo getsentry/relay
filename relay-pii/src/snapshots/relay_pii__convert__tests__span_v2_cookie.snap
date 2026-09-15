@@ -5,7 +5,10 @@ expression: data
 {
   "attributes": {
     "http.request.header.cookie": {
-      "value": "[Filtered]"
+      "value": [
+        "session=[Filtered]",
+        "language=en"
+      ]
     },
     "http.request.header.cookie.__session": {
       "value": "[Filtered]"
@@ -81,16 +84,18 @@ expression: data
     "attributes": {
       "http.request.header.cookie": {
         "value": {
-          "": {
-            "rem": [
-              [
-                "@anything:filter",
-                "s",
-                0,
-                10
-              ]
-            ],
-            "len": 14
+          "0": {
+            "": {
+              "rem": [
+                [
+                  "@cookies:filter",
+                  "s",
+                  8,
+                  18
+                ]
+              ],
+              "len": 14
+            }
           }
         }
       },

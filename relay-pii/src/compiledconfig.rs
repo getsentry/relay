@@ -59,6 +59,7 @@ impl CompiledPiiConfig {
                 | RuleType::UsSsn
                 | RuleType::Bearer
                 | RuleType::Password
+                | RuleType::Cookies
                 | RuleType::Multiple(_)
                 | RuleType::Alias(_)
                 | RuleType::Unknown(_) => {}

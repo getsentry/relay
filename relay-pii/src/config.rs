@@ -193,6 +193,8 @@ pub enum RuleType {
     Bearer,
     /// Keys that look like passwords
     Password,
+    /// Known sensitive cookies
+    Cookies,
     /// When a regex matches a key, a value is removed
     #[serde(alias = "redactPair")]
     RedactPair(RedactPairRule),
