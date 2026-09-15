@@ -33,6 +33,7 @@
 - Prevent stack overflow in PII rule compilation. ([#6344](https://github.com/getsentry/relay/pull/6344))
 - Fill in missing event IDs only if items would create events. ([#6350](https://github.com/getsentry/relay/pull/6350))
 - PII scrub cookies individually if sent as a list or string. ([#6380](https://github.com/getsentry/relay/pull/6380))
+- Enforce `max_event_size` limit on form data. ([#6384](https://github.com/getsentry/relay/pull/6384))
 
 **Internal**:
 
