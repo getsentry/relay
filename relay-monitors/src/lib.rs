@@ -16,11 +16,13 @@
 )]
 #![warn(missing_docs)]
 
+use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
 use relay_base_schema::project::ProjectId;
 use relay_event_schema::protocol::{EventId, TraceId};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use uuid::Uuid;
 
 /// Maximum length of monitor slugs.
@@ -166,6 +168,10 @@ pub struct CheckIn {
     /// Only supports trace for now.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub contexts: Option<CheckInContexts>,
+
+    /// Unknown fields, for forwards-compatibility.
+    #[serde(flatten, default)]
+    pub other: BTreeMap<String, Value>,
 }
 
 /// Normalizes a monitor check-in payload.

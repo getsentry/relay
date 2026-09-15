@@ -29,7 +29,6 @@ pub enum Error {
 pub struct ExpandedCheckIn {
     headers: EnvelopeHeaders,
     check_in: CheckIn,
-    item: Item,
 }
 
 impl OutcomeError for Error {
@@ -102,16 +101,6 @@ impl processing::Processor for CheckInsProcessor {
 
         process::normalize(&mut ex_check_in)?;
 
-        if ctx.is_processing() {
-            ex_check_in.try_modify(|e, _| {
-                let s = serde_json::to_vec(&e.check_in)
-                    .map_err(ProcessCheckInError::from)
-                    .map_err(Error::from)?;
-                e.item.set_payload(ContentType::Json, s);
-
-                Ok::<_, Error>(())
-            })?;
-        }
         let ex_check_in = self.limiter.enforce_quotas(ex_check_in, ctx).await?;
 
         Ok(Output::just(CheckInsOutput(ex_check_in)))
@@ -127,16 +116,18 @@ impl Forward for CheckInsOutput {
         self,
         _: processing::ForwardContext<'_>,
     ) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
-        let envelope = self.0.map(
-            |ExpandedCheckIn {
-                 headers,
-                 check_in: _,
-                 item,
-             },
-             _| { Envelope::from_parts(headers, smallvec::smallvec![item]) },
-        );
+        let envelope = self.0.try_map(|ExpandedCheckIn { headers, check_in }, _| {
+            let mut item = Item::new(ItemType::CheckIn);
+            item.set_payload(
+                ContentType::Json,
+                serde_json::to_vec(&check_in)
+                    .map_err(ProcessCheckInError::from)
+                    .map_err(Error::from)?,
+            );
+            Ok::<Box<Envelope>, Error>(Envelope::from_parts(headers, smallvec::smallvec![item]))
+        });
 
-        Ok(envelope)
+        envelope.map_err(|e| e.map(|_| ()))
     }
 
     #[cfg(feature = "processing")]
@@ -151,16 +142,28 @@ impl Forward for CheckInsOutput {
         let retention_days = ctx.event_retention().standard;
         let project_id = self.0.scoping().project_id;
 
-        s.send_to_store(self.0.map(|mut ser_check_in, _| {
-            let routing_hint = relay_monitors::routing_hint(&ser_check_in.check_in, &project_id);
+        s.send_to_store(
+            self.0
+                .try_map(|expanded_check_in, _| {
+                    let routing_hint =
+                        relay_monitors::routing_hint(&expanded_check_in.check_in, &project_id);
+                    let mut item = Item::new(ItemType::CheckIn);
+                    item.set_payload(
+                        ContentType::Json,
+                        serde_json::to_vec(&expanded_check_in.check_in)
+                            .map_err(ProcessCheckInError::from)
+                            .map_err(Error::from)?,
+                    );
 
-            ser_check_in.item.set_routing_hint(routing_hint);
-            StoreCheckIn {
-                check_in: ser_check_in.item,
-                sdk: sdk.clone(),
-                retention_days,
-            }
-        }));
+                    item.set_routing_hint(routing_hint);
+                    Ok::<StoreCheckIn, Error>(StoreCheckIn {
+                        check_in: item,
+                        sdk: sdk.clone(),
+                        retention_days,
+                    })
+                })
+                .map_err(|e| e.map(|_| ()))?,
+        );
 
         Ok(())
     }

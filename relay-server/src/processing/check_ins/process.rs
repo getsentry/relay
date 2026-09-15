@@ -48,9 +48,5 @@ fn expand_check_in(
         .map_err(ProcessCheckInError::from)
         .map_err(Error::from)?;
 
-    Ok(ExpandedCheckIn {
-        headers,
-        check_in,
-        item,
-    })
+    Ok(ExpandedCheckIn { headers, check_in })
 }
