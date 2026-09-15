@@ -111,6 +111,10 @@ impl FormDataWriter {
     pub fn into_inner(self) -> Vec<u8> {
         self.data
     }
+
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
 }
 
 /// Iterates through serialized form data written with `FormDataWriter`.
@@ -203,6 +207,16 @@ pub fn read_bytes_into_item(
     item
 }
 
+async fn read_field_data(field: Field<'static>, limit: usize) -> Result<Vec<u8>, multer::Error> {
+    let mut buf = Vec::new();
+    StreamReader::new(field.map_err(io::Error::other))
+        .take((limit + 1) as u64) // Extra byte needed to determine if limit was exceeded.
+        .read_to_end(&mut buf)
+        .await
+        .map_err(|e| multer::Error::StreamReadFailed(Box::new(e)))?;
+    Ok(buf)
+}
+
 pub async fn read_field_into_item(
     field: Field<'static>,
     mut item: Managed<Item>,
@@ -213,13 +227,7 @@ pub async fn read_field_into_item(
         .map(|ct| ct.as_ref().parse().unwrap_or(ContentType::OctetStream));
     let field_name = field.name().map(String::from);
     let limit = config.max_attachment_size();
-    let mut buf = Vec::new();
-    StreamReader::new(field.map_err(io::Error::other))
-        .take((limit + 1) as u64) // Extra byte needed to determine if limit was exceeded.
-        .read_to_end(&mut buf)
-        .await
-        .map_err(|e| multer::Error::StreamReadFailed(Box::new(e)))?;
-    let bytes = Bytes::from(buf);
+    let bytes = Bytes::from(read_field_data(field, limit).await?);
     let n_bytes = bytes.len();
     item.modify(|inner, records| {
         if let Some(content_type) = content_type {
@@ -291,10 +299,20 @@ pub async fn multipart_items(
                 }
             }
         } else if let Some(field_name) = field.name().map(str::to_owned) {
+            // Need to ensure both that the individual fields are limited as well as the size of all
+            // fields combined. Since the form data ends up
+            let limit = config.max_event_size();
+            let data = read_field_data(field, limit).await?;
             // Ensure to decode this SAFELY to match Django's POST data behavior. This allows us to
             // process sentry event payloads even if they contain invalid encoding.
-            let string = field.text().await?;
+            let string = String::from_utf8_lossy(&data);
             form_data.append(&field_name, &string);
+            if form_data.len() > limit {
+                let _ = items.reject_err(Outcome::Invalid(DiscardReason::ItemTooLarge(
+                    DiscardItemType::FormData,
+                )));
+                return Err(BadStoreRequest::RequestTooLarge);
+            }
         } else {
             relay_log::trace!("multipart content without name or file_name");
         }

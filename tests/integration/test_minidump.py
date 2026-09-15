@@ -1055,6 +1055,52 @@ def test_size_limits(mini_sentry, relay, limit, expected_status_code):
 
 
 @pytest.mark.parametrize(
+    "params",
+    [[("A", "x" * 20)], [("A", "x" * 10), ("B", "x" * 10)]],
+    ids=["single", "combined"],
+)
+def test_form_data_size_limit(mini_sentry, relay, params):
+    project_id = 42
+    relay = relay(
+        mini_sentry,
+        {
+            "limits": {"max_event_size": 20},
+            "outcomes": {"emit_outcomes": True, "batch_size": 1, "batch_interval": 1},
+        },
+    )
+    mini_sentry.add_full_project_config(project_id)
+
+    response = relay.send_minidump(
+        project_id=project_id,
+        files=[(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", "MDMP content")],
+        params=params,
+        raise_for_status=False,
+    )
+
+    assert response.status_code == 413
+    assert mini_sentry.get_aggregated_outcomes() == [
+        {
+            "category": DataCategory.ERROR,
+            "outcome": Outcome.INVALID,
+            "reason": "request_too_large",
+            "quantity": 1,
+        },
+        {
+            "category": DataCategory.ATTACHMENT,
+            "outcome": Outcome.INVALID,
+            "reason": "too_large:form_data",
+            "quantity": 12,
+        },
+        {
+            "category": DataCategory.ATTACHMENT_ITEM,
+            "outcome": Outcome.INVALID,
+            "reason": "too_large:form_data",
+            "quantity": 1,
+        },
+    ]
+
+
+@pytest.mark.parametrize(
     "config_fetch,upload_minidump",
     [
         (False, True),  # if the option is not set we don't check the features
