@@ -53,6 +53,7 @@ class DataCategory(IntEnum):
     PROFILE_BACKEND = 35
     PROFILE_UI = 36
     TRACE_METRIC_BYTE = 37
+    SNAPSHOT_IMAGE = 38
     UNKNOWN = -1
     # end generated
 
