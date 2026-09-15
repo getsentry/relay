@@ -81,7 +81,7 @@ EXPECTED_ITEMS = [
             "vercel.build_id": {"stringValue": "bld_cotnkcr76"},
             "sentry.payload_size_bytes": {"intValue": matches_any()},
             "vercel.project_id": {"stringValue": "gdufoJxB6b9b1fEqr1jUtFkyavUU"},
-            "sentry._meta.fields.trace_id": {
+            "sentry._meta.fields.attributes.sentry.trace_id": {
                 "stringValue": '{"meta":{"":{"rem":[["trace_id.missing","s"]]}}}'
             },
         },

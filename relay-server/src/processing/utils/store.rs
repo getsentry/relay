@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use chrono::Utc;
 use relay_conventions::attributes::SENTRY__CLIENT_SAMPLE_RATE;
-use relay_event_schema::protocol::Attributes;
+use relay_event_schema::protocol::{AttachmentId, Attributes, Timestamp, TraceId};
 use relay_protocol::{Annotated, IntoValue, MetaTree, Value};
 
 use relay_quotas::Scoping;
@@ -50,149 +50,101 @@ impl AttributeMeta {
     }
 }
 
-/// Extracts TraceItem meta attributes from any structure that implements IntoValue.
-///
-/// The implementation piggy backs on [`IntoValue::extract_child_meta`],
-/// a lighter implementation using a [`relay_event_schema::processor::Processor`]
-/// which removes the meta instead of cloning.
-///
-/// All extracted metadata is converted into [`Attributes`] compatible values,
-/// by building a metadata representation for each top level field and attribute,
-/// serializing the result into JSON and building an appropriate metadata key.
-///
-/// The schema for metadata keys follows the format `sentry._meta.fields.{key}`,
-/// for attributes respectively `sentry._meta.fields.attributes.{key}`.
-pub fn extract_meta_attributes<T: IntoValue>(
-    item: &T,
-    attributes: &Annotated<Attributes>,
+fn convert_attribute_value(value: Value) -> Option<any_value::Value> {
+    match value {
+        Value::Bool(v) => Some(any_value::Value::BoolValue(v)),
+        Value::I64(v) => Some(any_value::Value::IntValue(v)),
+        Value::U64(v) => i64::try_from(v).ok().map(any_value::Value::IntValue),
+        Value::F64(v) => Some(any_value::Value::DoubleValue(v)),
+        Value::String(v) => Some(any_value::Value::StringValue(v)),
+        Value::Array(v) => Some(any_value::Value::ArrayValue(ArrayValue {
+            values: v
+                .into_iter()
+                .filter_map(|v| {
+                    let Some(v) = v.into_value() else {
+                        return Some(AnyValue { value: None });
+                    };
+
+                    let v = match v {
+                        Value::Bool(v) => any_value::Value::BoolValue(v),
+                        Value::I64(v) => any_value::Value::IntValue(v),
+                        Value::U64(v) => any_value::Value::IntValue(v as i64),
+                        Value::F64(v) => any_value::Value::DoubleValue(v),
+                        Value::String(v) => any_value::Value::StringValue(v),
+                        Value::Array(_) | Value::Object(_) => {
+                            debug_assert!(
+                                false,
+                                "arrays and objects nested in arrays is not yet supported"
+                            );
+                            return None;
+                        }
+                    };
+
+                    Some(AnyValue { value: Some(v) })
+                })
+                .collect(),
+        })),
+        Value::Object(_) => {
+            debug_assert!(false, "objects are not yet supported");
+            None
+        }
+    }
+}
+
+pub fn attributes_with_meta(
+    attributes: Annotated<Attributes>,
+    timestamp: Option<&Annotated<Timestamp>>,
+    trace_id: Option<&Annotated<TraceId>>,
+    item_id: Option<&Annotated<AttachmentId>>,
 ) -> HashMap<String, AnyValue> {
-    let mut meta = IntoValue::extract_child_meta(item);
-    // Attributes are the only 'nested' meta we allow.
-    let attributes_meta = meta.remove("attributes");
+    let Annotated(attributes, meta) = attributes;
+    let attributes = attributes.unwrap_or_default();
+    let mut result = HashMap::with_capacity(attributes.0.len() * 2 + 4);
 
-    let mut result = HashMap::with_capacity(
-        meta.len()
-            + attributes_meta.as_ref().map_or(0, size_of_meta_tree)
-            + attributes.value().map_or(0, |a| a.0.len()),
-    );
-
-    for (key, meta) in meta {
-        let attr = AttributeMeta { meta };
-        if let Some(value) = attr.to_any_value() {
-            let key = format!("sentry._meta.fields.{key}");
-            result.insert(key, value);
+    for (name, attribute) in attributes {
+        let meta = IntoValue::extract_meta_tree(&attribute);
+        let value = attribute
+            .into_value()
+            .and_then(|v| v.value.value.into_value())
+            .and_then(convert_attribute_value);
+        if let Some(value) = value {
+            result.insert(name.clone(), AnyValue { value: Some(value) });
+        }
+        if let Some(meta) = (AttributeMeta { meta }).to_any_value() {
+            result.insert(format!("sentry._meta.fields.attributes.{name}"), meta);
         }
     }
 
-    let Some(mut attributes_meta) = attributes_meta else {
-        return result;
-    };
-
-    for (key, meta) in std::mem::take(&mut attributes_meta.children) {
-        let attr = AttributeMeta { meta };
-        if let Some(value) = attr.to_any_value() {
-            let key = format!("sentry._meta.fields.attributes.{key}");
-            result.insert(key, value);
+    let fields = [
+        // `timestamp` and `item_id` are always returned as top-level fields by EAP RPC
+        timestamp.map(|value| ("timestamp", IntoValue::extract_meta_tree(value))),
+        item_id.map(|value| ("item_id", IntoValue::extract_meta_tree(value))),
+        // `trace_id` is returned as the `sentry.trace_id` attribute by EAP RPC
+        trace_id.map(|value| {
+            (
+                "attributes.sentry.trace_id",
+                IntoValue::extract_meta_tree(value),
+            )
+        }),
+    ];
+    for (name, meta) in fields.into_iter().flatten() {
+        if let Some(meta) = (AttributeMeta { meta }).to_any_value() {
+            result.insert(format!("sentry._meta.fields.{name}"), meta);
         }
     }
 
-    // The `attributes` field itself can have metadata attached,
-    // we already took out all the metadata of the children, so now just emit
-    // the remaining metadata on the `attributes`.
-    let meta = AttributeMeta {
-        meta: attributes_meta,
-    };
-    if let Some(value) = meta.to_any_value() {
-        result.insert("sentry._meta.fields.attributes".to_owned(), value);
+    if let Some(meta) = (AttributeMeta {
+        meta: MetaTree {
+            meta,
+            children: Default::default(),
+        },
+    })
+    .to_any_value()
+    {
+        result.insert("sentry._meta.fields.attributes".to_owned(), meta);
     }
 
     result
-}
-
-/// Calculates the immediate size of the meta tree passed in.
-///
-/// This only counts non empty meta elements of the passed in meta tree and its children,
-/// it does not recursively traverse the children.
-fn size_of_meta_tree(meta: &MetaTree) -> usize {
-    let mut size = 0;
-
-    if !meta.meta.is_empty() {
-        size += 1;
-    }
-    for meta in meta.children.values() {
-        if !meta.meta.is_empty() {
-            size += 1;
-        }
-    }
-
-    size
-}
-
-/// Converts [`Attributes`] into EAP compatible values.
-pub fn convert_attributes_into(result: &mut HashMap<String, AnyValue>, attributes: Attributes) {
-    for (name, attribute) in attributes {
-        let meta = AttributeMeta {
-            meta: IntoValue::extract_meta_tree(&attribute),
-        };
-        if let Some(meta) = meta.to_any_value() {
-            result.insert(format!("sentry._meta.fields.attributes.{name}"), meta);
-        }
-
-        let value = attribute
-            .into_value()
-            .and_then(|v| v.value.value.into_value());
-
-        let Some(value) = value else {
-            // Meta has already been handled, no value -> skip.
-            // There are also no current plans to handle `null` in EAP.
-            continue;
-        };
-
-        // Assertions for invalid types should never happen as Relay filters and validates
-        // attributes beforehand already.
-        let Some(value) = (match value {
-            Value::Bool(v) => Some(any_value::Value::BoolValue(v)),
-            Value::I64(v) => Some(any_value::Value::IntValue(v)),
-            Value::U64(v) => i64::try_from(v).ok().map(any_value::Value::IntValue),
-            Value::F64(v) => Some(any_value::Value::DoubleValue(v)),
-            Value::String(v) => Some(any_value::Value::StringValue(v)),
-            Value::Array(v) => Some(any_value::Value::ArrayValue(ArrayValue {
-                values: v
-                    .into_iter()
-                    .filter_map(|v| {
-                        let Some(v) = v.into_value() else {
-                            return Some(AnyValue { value: None });
-                        };
-
-                        let v = match v {
-                            Value::Bool(v) => any_value::Value::BoolValue(v),
-                            Value::I64(v) => any_value::Value::IntValue(v),
-                            Value::U64(v) => any_value::Value::IntValue(v as i64),
-                            Value::F64(v) => any_value::Value::DoubleValue(v),
-                            Value::String(v) => any_value::Value::StringValue(v),
-                            Value::Array(_) | Value::Object(_) => {
-                                debug_assert!(
-                                    false,
-                                    "arrays and objects nested in arrays is not yet supported"
-                                );
-                                return None;
-                            }
-                        };
-
-                        Some(AnyValue { value: Some(v) })
-                    })
-                    .collect(),
-            })),
-            Value::Object(_) => {
-                debug_assert!(false, "objects are not yet supported");
-                None
-            }
-        }) else {
-            continue;
-        };
-
-        result.insert(name, AnyValue { value: Some(value) });
-    }
 }
 
 /// Converts a [`chrono::DateTime`] into a [`prost_types::Timestamp`]

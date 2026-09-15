@@ -1216,6 +1216,9 @@ def test_time_sequence_shift(mini_sentry, relay_with_processing, items_consumer)
             "sentry._meta.fields.timestamp": {
                 "stringValue": '{"meta":{"":{"rem":[["timestamp.sequence","s"]]}}}',
             },
+            "sentry._meta.fields.attributes.sentry.timestamp_precise": {
+                "stringValue": '{"meta":{"":{"rem":[["timestamp.sequence","s"]]}}}',
+            },
             "sentry.body": {
                 "stringValue": "foo",
             },
