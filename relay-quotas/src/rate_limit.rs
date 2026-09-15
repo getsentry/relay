@@ -569,6 +569,7 @@ fn inherited_categories(category: &DataCategory) -> &'static [DataCategory] {
 
 #[cfg(test)]
 mod tests {
+
     use smallvec::smallvec;
 
     use super::*;
@@ -639,6 +640,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: None,
         }));
 
         assert!(!rate_limit.matches(&ItemScoping {
@@ -650,6 +652,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: None,
         }));
     }
 
@@ -672,6 +675,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: None,
         }));
 
         assert!(!rate_limit.matches(&ItemScoping {
@@ -683,6 +687,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: None,
         }));
     }
 
@@ -705,6 +710,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: None,
         }));
 
         assert!(!rate_limit.matches(&ItemScoping {
@@ -716,6 +722,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: None,
         }));
     }
 
@@ -740,12 +747,14 @@ mod tests {
             category: DataCategory::MetricBucket,
             scoping,
             namespace: MetricNamespaceScoping::Some(MetricNamespace::Transactions),
+            dimensions: None,
         }));
 
         assert!(!rate_limit.matches(&ItemScoping {
             category: DataCategory::MetricBucket,
             scoping,
             namespace: MetricNamespaceScoping::Some(MetricNamespace::Spans),
+            dimensions: None,
         }));
 
         let general_rate_limit = RateLimit {
@@ -760,12 +769,14 @@ mod tests {
             category: DataCategory::MetricBucket,
             scoping,
             namespace: MetricNamespaceScoping::Some(MetricNamespace::Spans),
+            dimensions: None,
         }));
 
         assert!(general_rate_limit.matches(&ItemScoping {
             category: DataCategory::MetricBucket,
             scoping,
             namespace: MetricNamespaceScoping::None,
+            dimensions: None,
         }));
     }
 
@@ -790,6 +801,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: None,
         }));
 
         assert!(!rate_limit.matches(&ItemScoping {
@@ -801,6 +813,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: None,
         }));
     }
 
@@ -1117,6 +1130,7 @@ mod tests {
             window: None,
             reason_code: Some(ReasonCode::new("zero")),
             namespace: None,
+            dimensions: None,
         }];
 
         assert!(
@@ -1170,6 +1184,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: None,
         });
 
         // Check that the error limit is applied
@@ -1221,6 +1236,7 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: None,
         };
 
         let quotas = &[Quota {
@@ -1232,6 +1248,7 @@ mod tests {
             window: None,
             reason_code: Some(ReasonCode::new("zero")),
             namespace: None,
+            dimensions: None,
         }];
 
         let applied_limits = rate_limits.check_with_quotas(quotas, &item_scoping);

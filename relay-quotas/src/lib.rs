@@ -11,6 +11,9 @@
 /// typically happens for disabled keys, projects, or organizations.
 const REJECT_ALL_SECS: u64 = 60;
 
+/// The string key for a rate-limitable item with no dimensions.
+const EMPTY_DIMENSIONS: &str = "_";
+
 mod quota;
 mod rate_limit;
 
