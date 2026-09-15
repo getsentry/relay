@@ -210,7 +210,7 @@ pub fn read_bytes_into_item(
 async fn read_field_data(field: Field<'static>, limit: usize) -> Result<Vec<u8>, multer::Error> {
     let mut buf = Vec::new();
     StreamReader::new(field.map_err(io::Error::other))
-        .take((limit + 1) as u64) // Extra byte needed to determine if limit was exceeded.
+        .take((limit) as u64)
         .read_to_end(&mut buf)
         .await
         .map_err(|e| multer::Error::StreamReadFailed(Box::new(e)))?;
@@ -227,7 +227,7 @@ pub async fn read_field_into_item(
         .map(|ct| ct.as_ref().parse().unwrap_or(ContentType::OctetStream));
     let field_name = field.name().map(String::from);
     let limit = config.max_attachment_size();
-    let bytes = Bytes::from(read_field_data(field, limit).await?);
+    let bytes = Bytes::from(read_field_data(field, limit + 1).await?); // Extra byte needed to determine if limit was exceeded.
     let n_bytes = bytes.len();
     item.modify(|inner, records| {
         if let Some(content_type) = content_type {
@@ -299,19 +299,19 @@ pub async fn multipart_items(
                 }
             }
         } else if let Some(field_name) = field.name().map(str::to_owned) {
-            // Need to ensure both that the individual fields are limited as well as the size of all
-            // fields combined. Since the form data ends up
+            // Since the FormData ends up in an event use the event size limit.
             let limit = config.max_event_size();
-            let data = read_field_data(field, limit).await?;
+            // Extra byte needed to determine if limit was exceeded.
+            let data = read_field_data(field, limit + 1).await?;
             // Ensure to decode this SAFELY to match Django's POST data behavior. This allows us to
             // process sentry event payloads even if they contain invalid encoding.
             let string = String::from_utf8_lossy(&data);
             form_data.append(&field_name, &string);
+
             if form_data.len() > limit {
-                let _ = items.reject_err(Outcome::Invalid(DiscardReason::ItemTooLarge(
-                    DiscardItemType::FormData,
-                )));
-                return Err(BadStoreRequest::RequestTooLarge);
+                return Err(items
+                    .reject_err(BadStoreRequest::ItemTooLarge(DiscardItemType::FormData))
+                    .into());
             }
         } else {
             relay_log::trace!("multipart content without name or file_name");

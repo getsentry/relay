@@ -1082,7 +1082,7 @@ def test_form_data_size_limit(mini_sentry, relay, params):
         {
             "category": DataCategory.ERROR,
             "outcome": Outcome.INVALID,
-            "reason": "request_too_large",
+            "reason": "too_large:form_data",
             "quantity": 1,
         },
         {
