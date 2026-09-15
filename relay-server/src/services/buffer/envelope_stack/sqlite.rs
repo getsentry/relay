@@ -387,6 +387,53 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_push_with_flush_timeout() {
+        let db = setup_db(true).await;
+        let envelope_store = SqliteEnvelopeStore::new(0, db, Duration::from_millis(100));
+        let envelopes = mock_envelopes(5);
+        let timeout = Duration::from_secs(3600);
+        let mut stack = SqliteEnvelopeStack::new(
+            0,
+            envelope_store.clone(),
+            calculate_compressed_size(&envelopes),
+            ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
+            false,
+            Some(timeout),
+        );
+
+        // With no previous flush, the second push spools the first envelope to disk.
+        stack.push(envelopes[0].clone()).await.unwrap();
+        assert_eq!(envelope_store.total_count().await.unwrap(), 0);
+        stack.push(envelopes[1].clone()).await.unwrap();
+        assert_eq!(envelope_store.total_count().await.unwrap(), 1);
+        assert_eq!(stack.batch.len(), 1);
+
+        // Further pushes remain in memory until the timeout expires.
+        stack.push(envelopes[2].clone()).await.unwrap();
+        assert_eq!(envelope_store.total_count().await.unwrap(), 1);
+        assert_eq!(stack.batch.len(), 2);
+
+        // Backdate the last flush to expire the timeout without sleeping.
+        stack.last_flush = Some(Instant::now() - timeout - Duration::from_secs(1));
+        stack.push(envelopes[3].clone()).await.unwrap();
+        assert_eq!(envelope_store.total_count().await.unwrap(), 3);
+        assert_eq!(stack.batch.len(), 1);
+
+        // Flushing resets the timeout, so the next push stays in memory again.
+        stack.push(envelopes[4].clone()).await.unwrap();
+        assert_eq!(envelope_store.total_count().await.unwrap(), 3);
+        assert_eq!(stack.batch.len(), 2);
+
+        // Envelopes from memory and disk are still returned in stack order.
+        for envelope in envelopes.iter().rev() {
+            let popped = stack.pop().await.unwrap().unwrap();
+            assert_eq!(popped.event_id().unwrap(), envelope.event_id().unwrap());
+        }
+        assert!(stack.pop().await.unwrap().is_none());
+    }
+
+    #[tokio::test]
     async fn test_push_above_threshold_and_pop() {
         let db = setup_db(true).await;
         let envelope_store = SqliteEnvelopeStore::new(0, db, Duration::from_millis(100));
