@@ -19,6 +19,7 @@
 - Raise the size limit for logs to 2 MiB. ([#6316](https://github.com/getsentry/relay/pull/6316))
 - Include the environment in the cron check-in routing key so a monitor's environments no longer share a single Kafka partition. ([#6331](https://github.com/getsentry/relay/pull/6331))
 - Set the `titleId` tag on all PlayStation events. ([#6352](https://github.com/getsentry/relay/pull/6352))
+- Introduce dimension-based rate-limiting. ([#6387](https://github.com/getsentry/relay/pull/6387))
 
 **Bug Fixes**:
 
