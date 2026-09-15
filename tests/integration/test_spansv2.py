@@ -169,40 +169,6 @@ def test_spansv2_basic(
         "project_id": 42,
     }
 
-    assert metrics_consumer.get_metrics(n=2, with_headers=False) == [
-        {
-            "name": "c:spans/count_per_root_project@none",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "decision": "keep",
-                "is_segment": "true",
-                "target_project_id": "42",
-                "transaction": "/my/fancy/endpoint",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-        {
-            "name": "c:spans/usage@none",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "was_transaction": "false",
-                "is_segment": "true",
-                "billing_outcome_emitted": "true",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-    ]
-
     assert outcomes_consumer.get_aggregated_outcomes(n=2) == [
         {
             "category": DataCategory.TRANSACTION,
@@ -402,39 +368,6 @@ def test_spansv2_trimming_basic(
         "project_id": 42,
     }
 
-    assert metrics_consumer.get_metrics(n=2, with_headers=False) == [
-        {
-            "name": "c:spans/count_per_root_project@none",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "decision": "keep",
-                "is_segment": "true",
-                "target_project_id": "42",
-                "transaction": "/my/fancy/endpoint",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-        {
-            "name": "c:spans/usage@none",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "was_transaction": "false",
-                "is_segment": "true",
-                "billing_outcome_emitted": "true",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-    ]
 
 
 @pytest.mark.parametrize(
@@ -789,70 +722,6 @@ def test_spansv2_ds_sampled(
         assert span["attributes"]["sentry.dsc.transaction"]["value"] == "tx_from_root"
         assert span["attributes"]["sentry.dsc.project_id"]["value"] == "43"
 
-    assert metrics_consumer.get_metrics(n=4, with_headers=False) == [
-        {
-            "name": "c:spans/count_per_root_project@none",
-            "org_id": 1,
-            "project_id": 43,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "decision": "keep",
-                "is_segment": "false",
-                "target_project_id": "42",
-                "transaction": "tx_from_root",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-        {
-            "name": "c:spans/count_per_root_project@none",
-            "org_id": 1,
-            "project_id": 43,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "decision": "keep",
-                "is_segment": "true",
-                "target_project_id": "42",
-                "transaction": "tx_from_root",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-        {
-            "name": "c:spans/usage@none",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "is_segment": "false",
-                "billing_outcome_emitted": "true",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-        {
-            "name": "c:spans/usage@none",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "was_transaction": "false",
-                "is_segment": "true",
-                "billing_outcome_emitted": "true",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-    ]
-
     assert outcomes_consumer.get_aggregated_outcomes(n=2) == [
         {
             "category": DataCategory.TRANSACTION,
@@ -928,38 +797,6 @@ def test_spansv2_ds_root_in_different_org(
     )
 
     relay.send_envelope(project_id, envelope)
-
-    assert metrics_consumer.get_metrics(n=2, with_headers=False) == [
-        {
-            "name": "c:spans/count_per_root_project@none",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "decision": "drop",
-                "is_segment": "false",
-                "target_project_id": "42",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-        {
-            "name": "c:spans/usage@none",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_within(ts, precision="s"),
-            "retention_days": 90,
-            "tags": {
-                "is_segment": "false",
-                "billing_outcome_emitted": "true",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-    ]
 
     assert outcomes_consumer.get_outcomes(n=2) == [
         {

@@ -301,39 +301,6 @@ def test_span_ingestion(
         "trace_id": "89143b0763095bd9c9955e8175d1fb24",
     }
 
-    assert metrics_consumer.get_metrics(n=2, with_headers=False) == [
-        {
-            "name": "c:spans/count_per_root_project@none",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_within_delta(),
-            "retention_days": 90,
-            "tags": {
-                "decision": "keep",
-                "is_segment": "true",
-                "target_project_id": "42",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-        {
-            "name": "c:spans/usage@none",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_within_delta(),
-            "retention_days": 90,
-            "tags": {
-                "is_segment": "true",
-                "was_transaction": "false",
-                "billing_outcome_emitted": "true",
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-    ]
-
     assert outcomes_consumer.get_aggregated_outcomes(n=2) == [
         {
             "category": DataCategory.TRANSACTION,

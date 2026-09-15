@@ -70,7 +70,6 @@ def processing_config(get_topic_name):
                 "outcomes": outcomes_topic,
                 "outcomes_billing": outcomes_topic,
                 "metrics_sessions": metrics_topic,
-                "metrics_generic": metrics_topic,
                 "replay_recordings": get_topic_name("replay_recordings"),
                 "monitors": get_topic_name("monitors"),
                 "spans": get_topic_name("spans"),

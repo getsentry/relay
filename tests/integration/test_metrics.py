@@ -463,14 +463,9 @@ def test_global_metrics_batching(mini_sentry, relay):
     ]
 
 
-@pytest.mark.parametrize("generic_metrics_disabled", [False, True])
 def test_metrics_with_processing(
-    mini_sentry, relay_with_processing, metrics_consumer, generic_metrics_disabled
+    mini_sentry, relay_with_processing, metrics_consumer
 ):
-    mini_sentry.global_config["options"][
-        "relay.generic-metrics.disabled"
-    ] = generic_metrics_disabled
-
     relay = relay_with_processing(options=TEST_CONFIG)
     metrics_consumer = metrics_consumer()
 
@@ -481,39 +476,7 @@ def test_metrics_with_processing(
     metrics_payload = f"spans/foo:42|c\ntransactions/bar@second:17|c|T{timestamp}"
     relay.send_metrics(project_id, metrics_payload)
 
-    if generic_metrics_disabled:
-        assert metrics_consumer.poll(timeout=2) is None
-        return
-
-    metrics = metrics_by_name(metrics_consumer, 2)
-
-    assert metrics["headers"]["c:spans/foo@none"] == [("namespace", b"spans")]
-    assert metrics["c:spans/foo@none"] == {
-        "org_id": 1,
-        "project_id": project_id,
-        "retention_days": 90,
-        "name": "c:spans/foo@none",
-        "tags": {},
-        "value": 42.0,
-        "type": "c",
-        "timestamp": time_after(timestamp),
-        "received_at": time_after(timestamp),
-    }
-
-    assert metrics["headers"]["c:transactions/bar@second"] == [
-        ("namespace", b"transactions")
-    ]
-    assert metrics["c:transactions/bar@second"] == {
-        "org_id": 1,
-        "project_id": project_id,
-        "retention_days": 90,
-        "name": "c:transactions/bar@second",
-        "tags": {},
-        "value": 17.0,
-        "type": "c",
-        "timestamp": time_after(timestamp),
-        "received_at": time_after(timestamp),
-    }
+    assert metrics_consumer.poll(timeout=2) is None
 
 
 def test_global_metrics_with_processing(
@@ -537,35 +500,7 @@ def test_global_metrics_with_processing(
     )
     relay.send_metrics(project_id, metrics_payload)
 
-    metrics = metrics_by_name(metrics_consumer, 2)
-
-    assert metrics["headers"]["c:spans/foo@none"] == [("namespace", b"spans")]
-    assert metrics["c:spans/foo@none"] == {
-        "org_id": 1,
-        "project_id": project_id,
-        "retention_days": 90,
-        "name": "c:spans/foo@none",
-        "tags": {},
-        "value": 42.0,
-        "type": "c",
-        "timestamp": time_after(timestamp),
-        "received_at": time_after(timestamp),
-    }
-
-    assert metrics["headers"]["c:transactions/bar@second"] == [
-        ("namespace", b"transactions")
-    ]
-    assert metrics["c:transactions/bar@second"] == {
-        "org_id": 1,
-        "project_id": project_id,
-        "retention_days": 90,
-        "name": "c:transactions/bar@second",
-        "tags": {},
-        "value": 17.0,
-        "type": "c",
-        "timestamp": time_after(timestamp),
-        "received_at": time_after(timestamp),
-    }
+    assert metrics_consumer.poll(timeout=2) is None
 
 
 def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consumer):
@@ -593,20 +528,7 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
 
     upstream.send_metrics(project_id, f"spans/foo:3|c|T{timestamp}")
 
-    metric, _ = metrics_consumer.get_metric(timeout=6)
-    assert metric == {
-        "org_id": 1,
-        "project_id": project_id,
-        "retention_days": 90,
-        "name": "c:spans/foo@none",
-        "tags": {},
-        "value": 15.0,
-        "type": "c",
-        "timestamp": time_after(timestamp),
-        "received_at": time_after(timestamp),
-    }
-
-    metrics_consumer.assert_empty()
+    assert metrics_consumer.poll(timeout=6) is None
 
 
 def test_session_metrics_extracted_only_once(
@@ -774,12 +696,6 @@ def test_transaction_metrics_extraction_processing_relays(
     assert tx["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
     tx_consumer.assert_empty()
 
-    metrics = metrics_by_name(metrics_consumer, 4)
-    metric_usage = metrics["c:spans/usage@none"]
-    assert metric_usage["value"] == 1.0
-    metric_count_per_project = metrics["c:spans/count_per_root_project@none"]
-    assert metric_count_per_project["value"] == 1.0
-
     metrics_consumer.assert_empty()
 
 
@@ -849,10 +765,7 @@ def test_transaction_name_too_long(
     transaction, _ = tx_consumer.get_event()
     assert transaction["transaction"] == expected_transaction_name
 
-    metrics = metrics_consumer.get_metrics()
-    for metric, _ in metrics:
-        if "transaction" in metric["tags"]:
-            assert metric["tags"]["transaction"] == expected_transaction_name
+    metrics_consumer.assert_empty()
 
 
 def test_graceful_shutdown(mini_sentry, relay):
@@ -957,15 +870,7 @@ def test_limit_custom_measurements(
     event, _ = transactions_consumer.get_event()
     assert len(event["measurements"]) == 2
 
-    expected_metrics = {
-        "c:spans/usage@none",
-        "c:spans/count_per_root_project@none",
-    }
-
-    metrics = metrics_by_name(metrics_consumer, 4)
-    metrics.pop("headers")
-
-    assert metrics.keys() == expected_metrics
+    metrics_consumer.assert_empty()
 
 
 def test_generic_metric_extraction(mini_sentry, relay):
@@ -1084,8 +989,7 @@ def test_relay_forwards_events_without_extracting_metrics_on_broken_global_filte
     if is_processing_relay:
         tx, _ = tx_consumer.get_event()
         assert tx is not None
-        # Processing Relays extract metrics even on broken global filters.
-        assert metrics_consumer.get_metrics(timeout=2)
+        metrics_consumer.assert_empty()
     else:
         assert mini_sentry.get_captured_envelope() is not None
         assert mini_sentry.captured_metrics.empty()
@@ -1141,8 +1045,7 @@ def test_relay_forwards_events_without_extracting_metrics_on_unsupported_project
     if is_processing_relay:
         tx, _ = tx_consumer.get_event()
         assert tx is not None
-        # Processing Relays extract metrics even on unsupported project filters.
-        assert metrics_consumer.get_metrics(timeout=2)
+        metrics_consumer.assert_empty()
     else:
         assert mini_sentry.get_captured_envelope()
         assert mini_sentry.captured_metrics.empty()
@@ -1178,7 +1081,7 @@ def test_missing_global_filters_enables_metric_extraction(
 
     tx, _ = tx_consumer.get_event()
     assert tx is not None
-    assert metrics_consumer.get_metrics()
+    metrics_consumer.assert_empty()
 
 
 @pytest.mark.parametrize("mode", ["default", "chain"])
@@ -1206,21 +1109,9 @@ def test_metrics_received_at(
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
 
-    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
     relay.send_metrics(project_id, "spans/foo:1337|d")
 
-    metric, _ = metrics_consumer.get_metric()
-    assert metric == {
-        "org_id": 0,
-        "project_id": 42,
-        "name": "d:spans/foo@none",
-        "type": "d",
-        "value": [1337.0],
-        "timestamp": time_after(timestamp),
-        "tags": {},
-        "retention_days": 90,
-        "received_at": time_after(timestamp),
-    }
+    assert metrics_consumer.poll(timeout=2) is None
 
 
 def test_histogram_outliers(mini_sentry, relay):
@@ -1361,20 +1252,6 @@ def test_metrics_extraction_with_computed_context_filters(
     assert event["contexts"]["runtime"]["runtime"] == "Python 3.9.0"
     assert event["contexts"]["browser"]["browser"] == "Firefox 89.0"
 
-    # Define list of extracted metrics to check
-    metric_names = [
-        "c:spans/on_demand_os@none",
-        "c:spans/on_demand_runtime@none",
-        "c:spans/on_demand_browser@none",
-    ]
-
-    # Verify that all three metrics were extracted
-    metrics = metrics_by_name(metrics_consumer, 7)
-
-    # Check each extracted metric
-    for metric_name in metric_names:
-        assert metrics[metric_name]["value"] == 1.0
-
     # Send another transaction with non-matching contexts
     transaction["contexts"].update(
         {
@@ -1389,10 +1266,7 @@ def test_metrics_extraction_with_computed_context_filters(
     event, _ = transactions_consumer.get_event()
     assert event["contexts"]["os"]["os"] == "Linux 5.4"
 
-    # Verify no new metrics were extracted for the specified contexts
-    metrics = metrics_consumer.get_metrics()
-    for metric, _ in metrics:
-        assert metric["name"] not in metric_names
+    metrics_consumer.assert_empty()
 
 
 def test_profiles_metrics(mini_sentry, relay):

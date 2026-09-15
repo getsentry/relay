@@ -270,35 +270,6 @@ def test_lcp_span(
         "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
     }
 
-    assert metrics_consumer.get_metrics(with_headers=False) == [
-        {
-            "org_id": 1,
-            "project_id": 42,
-            "name": "c:spans/count_per_root_project@none",
-            "type": "c",
-            "value": 1.0,
-            "timestamp": time_within_delta(ts),
-            "tags": {
-                "decision": "keep",
-                "is_segment": "false",
-                "target_project_id": "42",
-                "transaction": "/insights/projects/",
-            },
-            "retention_days": 90,
-            "received_at": time_within(ts, precision="s"),
-        },
-        {
-            "org_id": 1,
-            "project_id": 42,
-            "name": "c:spans/usage@none",
-            "type": "c",
-            "value": 1.0,
-            "timestamp": time_within_delta(ts),
-            "tags": {"is_segment": "false", "billing_outcome_emitted": "true"},
-            "retention_days": 90,
-            "received_at": time_within(ts, precision="s"),
-        },
-    ]
 
 
 @pytest.mark.parametrize("is_segment", [False, True])
@@ -478,35 +449,6 @@ def test_cls_span(
         "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
     }
 
-    assert metrics_consumer.get_metrics(with_headers=False) == [
-        {
-            "org_id": 1,
-            "project_id": 42,
-            "name": "c:spans/count_per_root_project@none",
-            "type": "c",
-            "value": 1.0,
-            "timestamp": time_within_delta(ts),
-            "tags": {
-                "decision": "keep",
-                "is_segment": "false",
-                "target_project_id": "42",
-                "transaction": "/insights/projects/",
-            },
-            "retention_days": 90,
-            "received_at": time_within(ts, precision="s"),
-        },
-        {
-            "org_id": 1,
-            "project_id": 42,
-            "name": "c:spans/usage@none",
-            "type": "c",
-            "value": 1.0,
-            "timestamp": time_within_delta(ts),
-            "tags": {"is_segment": "false", "billing_outcome_emitted": "true"},
-            "retention_days": 90,
-            "received_at": time_within(ts, precision="s"),
-        },
-    ]
 
 
 @pytest.mark.parametrize("is_segment", [False, True])
@@ -649,35 +591,6 @@ def test_inp_span(
         "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
     }
 
-    assert metrics_consumer.get_metrics(with_headers=False) == [
-        {
-            "org_id": 1,
-            "project_id": 42,
-            "name": "c:spans/count_per_root_project@none",
-            "type": "c",
-            "value": 1.0,
-            "timestamp": time_within_delta(ts),
-            "tags": {
-                "decision": "keep",
-                "is_segment": "false",
-                "target_project_id": "42",
-                "transaction": "/insights/projects/",
-            },
-            "retention_days": 90,
-            "received_at": time_within(ts, precision="s"),
-        },
-        {
-            "org_id": 1,
-            "project_id": 42,
-            "name": "c:spans/usage@none",
-            "type": "c",
-            "value": 1.0,
-            "timestamp": time_within_delta(ts),
-            "tags": {"is_segment": "false", "billing_outcome_emitted": "true"},
-            "retention_days": 90,
-            "received_at": time_within(ts, precision="s"),
-        },
-    ]
 
 
 def test_spans_standalone_dsc_normalization(
