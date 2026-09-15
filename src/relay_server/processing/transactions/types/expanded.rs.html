@@ -179,7 +179,7 @@
 <a href=#179 id=179 data-nosnippet>179</a>        <span class="comment">// If there is a transaction limit, drop everything.
 <a href=#180 id=180 data-nosnippet>180</a>        // This also affects profiles that lost their transaction due to sampling.
 <a href=#181 id=181 data-nosnippet>181</a>        </span><span class="kw">let </span>limits = rate_limiter
-<a href=#182 id=182 data-nosnippet>182</a>            .try_consume(scoping.item(DataCategory::Transaction), <span class="number">1</span>)
+<a href=#182 id=182 data-nosnippet>182</a>            .try_consume(<span class="kw-2">&amp;</span>scoping.item(DataCategory::Transaction), <span class="number">1</span>)
 <a href=#183 id=183 data-nosnippet>183</a>            .<span class="kw">await</span>;
 <a href=#184 id=184 data-nosnippet>184</a>        <span class="kw">if </span>!limits.is_empty() {
 <a href=#185 id=185 data-nosnippet>185</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.reject_err(Error::from(limits)));
@@ -188,7 +188,7 @@
 <a href=#188 id=188 data-nosnippet>188</a>        <span class="comment">// There is no limit on "total", but if metrics have already been extracted then
 <a href=#189 id=189 data-nosnippet>189</a>        // also check the "indexed" limit:
 <a href=#190 id=190 data-nosnippet>190</a>        </span><span class="kw">let </span>limits = rate_limiter
-<a href=#191 id=191 data-nosnippet>191</a>            .try_consume(scoping.item(DataCategory::TransactionIndexed), <span class="number">1</span>)
+<a href=#191 id=191 data-nosnippet>191</a>            .try_consume(<span class="kw-2">&amp;</span>scoping.item(DataCategory::TransactionIndexed), <span class="number">1</span>)
 <a href=#192 id=192 data-nosnippet>192</a>            .<span class="kw">await</span>;
 <a href=#193 id=193 data-nosnippet>193</a>        <span class="kw">if </span>!limits.is_empty() {
 <a href=#194 id=194 data-nosnippet>194</a>            <span class="kw">let </span>error = Error::from(limits);
@@ -207,7 +207,7 @@
 <a href=#207 id=207 data-nosnippet>207</a>        <span class="comment">// Check profile limits:
 <a href=#208 id=208 data-nosnippet>208</a>        </span><span class="kw">for </span>(category, quantity) <span class="kw">in </span><span class="self">self</span>.profile.quantities() {
 <a href=#209 id=209 data-nosnippet>209</a>            <span class="kw">let </span>limits = rate_limiter
-<a href=#210 id=210 data-nosnippet>210</a>                .try_consume(scoping.item(category), quantity)
+<a href=#210 id=210 data-nosnippet>210</a>                .try_consume(<span class="kw-2">&amp;</span>scoping.item(category), quantity)
 <a href=#211 id=211 data-nosnippet>211</a>                .<span class="kw">await</span>;
 <a href=#212 id=212 data-nosnippet>212</a>
 <a href=#213 id=213 data-nosnippet>213</a>            <span class="kw">if </span>!limits.is_empty() {
@@ -221,7 +221,7 @@
 <a href=#221 id=221 data-nosnippet>221</a>        <span class="comment">// Check attachment limits:
 <a href=#222 id=222 data-nosnippet>222</a>        </span><span class="kw">for </span>(category, quantity) <span class="kw">in </span>attachment_quantities {
 <a href=#223 id=223 data-nosnippet>223</a>            <span class="kw">let </span>limits = rate_limiter
-<a href=#224 id=224 data-nosnippet>224</a>                .try_consume(scoping.item(category), quantity)
+<a href=#224 id=224 data-nosnippet>224</a>                .try_consume(<span class="kw-2">&amp;</span>scoping.item(category), quantity)
 <a href=#225 id=225 data-nosnippet>225</a>                .<span class="kw">await</span>;
 <a href=#226 id=226 data-nosnippet>226</a>
 <a href=#227 id=227 data-nosnippet>227</a>            <span class="kw">if </span>!limits.is_empty() {

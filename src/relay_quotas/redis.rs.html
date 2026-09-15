@@ -333,7 +333,7 @@
 <a href=#333 id=333 data-nosnippet>333</a>    </span><span class="kw">pub async fn </span>is_rate_limited&lt;<span class="lifetime">'a</span>&gt;(
 <a href=#334 id=334 data-nosnippet>334</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
 <a href=#335 id=335 data-nosnippet>335</a>        quotas: <span class="kw">impl </span>IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Quota&gt;,
-<a href=#336 id=336 data-nosnippet>336</a>        item_scoping: ItemScoping,
+<a href=#336 id=336 data-nosnippet>336</a>        item_scoping: <span class="kw-2">&amp;</span>ItemScoping,
 <a href=#337 id=337 data-nosnippet>337</a>        quantity: usize,
 <a href=#338 id=338 data-nosnippet>338</a>        over_accept_once: bool,
 <a href=#339 id=339 data-nosnippet>339</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;RateLimits, RateLimitingError&gt; {
@@ -352,9 +352,9 @@
 <a href=#352 id=352 data-nosnippet>352</a>                // increment any keys, as one quota has reached capacity (this is how regular quotas
 <a href=#353 id=353 data-nosnippet>353</a>                // behave as well).
 <a href=#354 id=354 data-nosnippet>354</a>                </span><span class="kw">let </span>retry_after = <span class="self">self</span>.retry_after(REJECT_ALL_SECS);
-<a href=#355 id=355 data-nosnippet>355</a>                rate_limits.add(RateLimit::from_quota(quota, <span class="kw-2">*</span>item_scoping, retry_after));
+<a href=#355 id=355 data-nosnippet>355</a>                rate_limits.add(RateLimit::from_quota(quota, item_scoping, retry_after));
 <a href=#356 id=356 data-nosnippet>356</a>            } <span class="kw">else if let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>quota) =
-<a href=#357 id=357 data-nosnippet>357</a>                RedisQuota::new(quota, quantity, item_scoping, timestamp)
+<a href=#357 id=357 data-nosnippet>357</a>                RedisQuota::new(quota, quantity, <span class="kw-2">*</span>item_scoping, timestamp)
 <a href=#358 id=358 data-nosnippet>358</a>            {
 <a href=#359 id=359 data-nosnippet>359</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(cache) = <span class="kw-2">&amp;</span><span class="self">self</span>.cache {
 <a href=#360 id=360 data-nosnippet>360</a>                    quota.quantity = <span class="kw">match </span>cache.check_quota(quota.for_cache(), quantity) {
@@ -414,7 +414,7 @@
 <a href=#414 id=414 data-nosnippet>414</a>                );
 <a href=#415 id=415 data-nosnippet>415</a>
 <a href=#416 id=416 data-nosnippet>416</a>                <span class="kw">let </span>retry_after = <span class="self">self</span>.retry_after((quota.expiry() - timestamp).as_secs());
-<a href=#417 id=417 data-nosnippet>417</a>                rate_limits.add(RateLimit::from_quota(quota, <span class="kw-2">*</span>item_scoping, retry_after));
+<a href=#417 id=417 data-nosnippet>417</a>                rate_limits.add(RateLimit::from_quota(quota, item_scoping, retry_after));
 <a href=#418 id=418 data-nosnippet>418</a>            } <span class="kw">else if let </span><span class="prelude-val">Some</span>(cache) = <span class="kw-2">&amp;</span><span class="self">self</span>.cache {
 <a href=#419 id=419 data-nosnippet>419</a>                <span class="comment">// Only update the cache if it's really necessary. Quotas which are being rejected,
 <a href=#420 id=420 data-nosnippet>420</a>                // will not be able to be handled from the cache anyways.
@@ -550,7 +550,7 @@
 <a href=#550 id=550 data-nosnippet>550</a>        };
 <a href=#551 id=551 data-nosnippet>551</a>
 <a href=#552 id=552 data-nosnippet>552</a>        <span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; = build_rate_limiter()
-<a href=#553 id=553 data-nosnippet>553</a>            .is_rate_limited(quotas, scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
+<a href=#553 id=553 data-nosnippet>553</a>            .is_rate_limited(quotas, <span class="kw-2">&amp;</span>scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
 <a href=#554 id=554 data-nosnippet>554</a>            .<span class="kw">await
 <a href=#555 id=555 data-nosnippet>555</a>            </span>.expect(<span class="string">"rate limiting failed"</span>)
 <a href=#556 id=556 data-nosnippet>556</a>            .into_iter()
@@ -604,7 +604,7 @@
 <a href=#604 id=604 data-nosnippet>604</a>        <span class="comment">// First confirm normal behaviour without namespace.
 <a href=#605 id=605 data-nosnippet>605</a>        </span><span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">10 </span>{
 <a href=#606 id=606 data-nosnippet>606</a>            <span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; = rate_limiter
-<a href=#607 id=607 data-nosnippet>607</a>                .is_rate_limited(quotas, scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
+<a href=#607 id=607 data-nosnippet>607</a>                .is_rate_limited(quotas, <span class="kw-2">&amp;</span>scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
 <a href=#608 id=608 data-nosnippet>608</a>                .<span class="kw">await
 <a href=#609 id=609 data-nosnippet>609</a>                </span>.expect(<span class="string">"rate limiting failed"</span>)
 <a href=#610 id=610 data-nosnippet>610</a>                .into_iter()
@@ -623,7 +623,7 @@
 <a href=#623 id=623 data-nosnippet>623</a>        <span class="comment">// Then, send identical quota with namespace and confirm it counts separately.
 <a href=#624 id=624 data-nosnippet>624</a>        </span><span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">10 </span>{
 <a href=#625 id=625 data-nosnippet>625</a>            <span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; = rate_limiter
-<a href=#626 id=626 data-nosnippet>626</a>                .is_rate_limited(quota_with_namespace, scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
+<a href=#626 id=626 data-nosnippet>626</a>                .is_rate_limited(quota_with_namespace, <span class="kw-2">&amp;</span>scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
 <a href=#627 id=627 data-nosnippet>627</a>                .<span class="kw">await
 <a href=#628 id=628 data-nosnippet>628</a>                </span>.expect(<span class="string">"rate limiting failed"</span>)
 <a href=#629 id=629 data-nosnippet>629</a>                .into_iter()
@@ -668,7 +668,7 @@
 <a href=#668 id=668 data-nosnippet>668</a>
 <a href=#669 id=669 data-nosnippet>669</a>        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">10 </span>{
 <a href=#670 id=670 data-nosnippet>670</a>            <span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; = rate_limiter
-<a href=#671 id=671 data-nosnippet>671</a>                .is_rate_limited(quotas, scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
+<a href=#671 id=671 data-nosnippet>671</a>                .is_rate_limited(quotas, <span class="kw-2">&amp;</span>scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
 <a href=#672 id=672 data-nosnippet>672</a>                .<span class="kw">await
 <a href=#673 id=673 data-nosnippet>673</a>                </span>.expect(<span class="string">"rate limiting failed"</span>)
 <a href=#674 id=674 data-nosnippet>674</a>                .into_iter()
@@ -720,7 +720,7 @@
 <a href=#720 id=720 data-nosnippet>720</a>        <span class="comment">// limit is 1, so first call not rate limited
 <a href=#721 id=721 data-nosnippet>721</a>        </span><span class="macro">assert!</span>(
 <a href=#722 id=722 data-nosnippet>722</a>            !rate_limiter
-<a href=#723 id=723 data-nosnippet>723</a>                .is_rate_limited(quotas, scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
+<a href=#723 id=723 data-nosnippet>723</a>                .is_rate_limited(quotas, <span class="kw-2">&amp;</span>scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
 <a href=#724 id=724 data-nosnippet>724</a>                .<span class="kw">await
 <a href=#725 id=725 data-nosnippet>725</a>                </span>.unwrap()
 <a href=#726 id=726 data-nosnippet>726</a>                .is_limited()
@@ -729,7 +729,7 @@
 <a href=#729 id=729 data-nosnippet>729</a>        <span class="comment">// quota is now exhausted
 <a href=#730 id=730 data-nosnippet>730</a>        </span><span class="macro">assert!</span>(
 <a href=#731 id=731 data-nosnippet>731</a>            rate_limiter
-<a href=#732 id=732 data-nosnippet>732</a>                .is_rate_limited(quotas, scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
+<a href=#732 id=732 data-nosnippet>732</a>                .is_rate_limited(quotas, <span class="kw-2">&amp;</span>scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
 <a href=#733 id=733 data-nosnippet>733</a>                .<span class="kw">await
 <a href=#734 id=734 data-nosnippet>734</a>                </span>.unwrap()
 <a href=#735 id=735 data-nosnippet>735</a>                .is_limited()
@@ -738,7 +738,7 @@
 <a href=#738 id=738 data-nosnippet>738</a>        <span class="comment">// quota is exhausted, regardless of the quantity
 <a href=#739 id=739 data-nosnippet>739</a>        </span><span class="macro">assert!</span>(
 <a href=#740 id=740 data-nosnippet>740</a>            rate_limiter
-<a href=#741 id=741 data-nosnippet>741</a>                .is_rate_limited(quotas, scoping, <span class="number">0</span>, <span class="bool-val">false</span>)
+<a href=#741 id=741 data-nosnippet>741</a>                .is_rate_limited(quotas, <span class="kw-2">&amp;</span>scoping, <span class="number">0</span>, <span class="bool-val">false</span>)
 <a href=#742 id=742 data-nosnippet>742</a>                .<span class="kw">await
 <a href=#743 id=743 data-nosnippet>743</a>                </span>.unwrap()
 <a href=#744 id=744 data-nosnippet>744</a>                .is_limited()
@@ -747,7 +747,7 @@
 <a href=#747 id=747 data-nosnippet>747</a>        <span class="comment">// quota is exhausted, regardless of the quantity
 <a href=#748 id=748 data-nosnippet>748</a>        </span><span class="macro">assert!</span>(
 <a href=#749 id=749 data-nosnippet>749</a>            rate_limiter
-<a href=#750 id=750 data-nosnippet>750</a>                .is_rate_limited(quotas, scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
+<a href=#750 id=750 data-nosnippet>750</a>                .is_rate_limited(quotas, <span class="kw-2">&amp;</span>scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
 <a href=#751 id=751 data-nosnippet>751</a>                .<span class="kw">await
 <a href=#752 id=752 data-nosnippet>752</a>                </span>.unwrap()
 <a href=#753 id=753 data-nosnippet>753</a>                .is_limited()
@@ -782,7 +782,7 @@
 <a href=#782 id=782 data-nosnippet>782</a>
 <a href=#783 id=783 data-nosnippet>783</a>        <span class="comment">// limit is 2, so first call not rate limited
 <a href=#784 id=784 data-nosnippet>784</a>        </span><span class="kw">let </span>is_limited = rate_limiter
-<a href=#785 id=785 data-nosnippet>785</a>            .is_rate_limited(quotas, scoping, <span class="number">1</span>, <span class="bool-val">true</span>)
+<a href=#785 id=785 data-nosnippet>785</a>            .is_rate_limited(quotas, <span class="kw-2">&amp;</span>scoping, <span class="number">1</span>, <span class="bool-val">true</span>)
 <a href=#786 id=786 data-nosnippet>786</a>            .<span class="kw">await
 <a href=#787 id=787 data-nosnippet>787</a>            </span>.unwrap()
 <a href=#788 id=788 data-nosnippet>788</a>            .is_limited();
@@ -790,7 +790,7 @@
 <a href=#790 id=790 data-nosnippet>790</a>
 <a href=#791 id=791 data-nosnippet>791</a>        <span class="comment">// go over limit, but first call is over-accepted
 <a href=#792 id=792 data-nosnippet>792</a>        </span><span class="kw">let </span>is_limited = rate_limiter
-<a href=#793 id=793 data-nosnippet>793</a>            .is_rate_limited(quotas, scoping, <span class="number">2</span>, <span class="bool-val">true</span>)
+<a href=#793 id=793 data-nosnippet>793</a>            .is_rate_limited(quotas, <span class="kw-2">&amp;</span>scoping, <span class="number">2</span>, <span class="bool-val">true</span>)
 <a href=#794 id=794 data-nosnippet>794</a>            .<span class="kw">await
 <a href=#795 id=795 data-nosnippet>795</a>            </span>.unwrap()
 <a href=#796 id=796 data-nosnippet>796</a>            .is_limited();
@@ -798,7 +798,7 @@
 <a href=#798 id=798 data-nosnippet>798</a>
 <a href=#799 id=799 data-nosnippet>799</a>        <span class="comment">// quota is exhausted, regardless of the quantity
 <a href=#800 id=800 data-nosnippet>800</a>        </span><span class="kw">let </span>is_limited = rate_limiter
-<a href=#801 id=801 data-nosnippet>801</a>            .is_rate_limited(quotas, scoping, <span class="number">0</span>, <span class="bool-val">true</span>)
+<a href=#801 id=801 data-nosnippet>801</a>            .is_rate_limited(quotas, <span class="kw-2">&amp;</span>scoping, <span class="number">0</span>, <span class="bool-val">true</span>)
 <a href=#802 id=802 data-nosnippet>802</a>            .<span class="kw">await
 <a href=#803 id=803 data-nosnippet>803</a>            </span>.unwrap()
 <a href=#804 id=804 data-nosnippet>804</a>            .is_limited();
@@ -806,7 +806,7 @@
 <a href=#806 id=806 data-nosnippet>806</a>
 <a href=#807 id=807 data-nosnippet>807</a>        <span class="comment">// quota is exhausted, regardless of the quantity
 <a href=#808 id=808 data-nosnippet>808</a>        </span><span class="kw">let </span>is_limited = rate_limiter
-<a href=#809 id=809 data-nosnippet>809</a>            .is_rate_limited(quotas, scoping, <span class="number">1</span>, <span class="bool-val">true</span>)
+<a href=#809 id=809 data-nosnippet>809</a>            .is_rate_limited(quotas, <span class="kw-2">&amp;</span>scoping, <span class="number">1</span>, <span class="bool-val">true</span>)
 <a href=#810 id=810 data-nosnippet>810</a>            .<span class="kw">await
 <a href=#811 id=811 data-nosnippet>811</a>            </span>.unwrap()
 <a href=#812 id=812 data-nosnippet>812</a>            .is_limited();
@@ -827,7 +827,7 @@
 <a href=#827 id=827 data-nosnippet>827</a>        };
 <a href=#828 id=828 data-nosnippet>828</a>
 <a href=#829 id=829 data-nosnippet>829</a>        <span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; = build_rate_limiter()
-<a href=#830 id=830 data-nosnippet>830</a>            .is_rate_limited(<span class="kw-2">&amp;</span>[], scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
+<a href=#830 id=830 data-nosnippet>830</a>            .is_rate_limited(<span class="kw-2">&amp;</span>[], <span class="kw-2">&amp;</span>scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
 <a href=#831 id=831 data-nosnippet>831</a>            .<span class="kw">await
 <a href=#832 id=832 data-nosnippet>832</a>            </span>.expect(<span class="string">"rate limiting failed"</span>)
 <a href=#833 id=833 data-nosnippet>833</a>            .into_iter()
@@ -876,7 +876,7 @@
 <a href=#876 id=876 data-nosnippet>876</a>
 <a href=#877 id=877 data-nosnippet>877</a>        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">1 </span>{
 <a href=#878 id=878 data-nosnippet>878</a>            <span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; = rate_limiter
-<a href=#879 id=879 data-nosnippet>879</a>                .is_rate_limited(quotas, scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
+<a href=#879 id=879 data-nosnippet>879</a>                .is_rate_limited(quotas, <span class="kw-2">&amp;</span>scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
 <a href=#880 id=880 data-nosnippet>880</a>                .<span class="kw">await
 <a href=#881 id=881 data-nosnippet>881</a>                </span>.expect(<span class="string">"rate limiting failed"</span>)
 <a href=#882 id=882 data-nosnippet>882</a>                .into_iter()
@@ -927,7 +927,7 @@
 <a href=#927 id=927 data-nosnippet>927</a>
 <a href=#928 id=928 data-nosnippet>928</a>        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">10 </span>{
 <a href=#929 id=929 data-nosnippet>929</a>            <span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; = rate_limiter
-<a href=#930 id=930 data-nosnippet>930</a>                .is_rate_limited(quotas, scoping, <span class="number">100</span>, <span class="bool-val">false</span>)
+<a href=#930 id=930 data-nosnippet>930</a>                .is_rate_limited(quotas, <span class="kw-2">&amp;</span>scoping, <span class="number">100</span>, <span class="bool-val">false</span>)
 <a href=#931 id=931 data-nosnippet>931</a>                .<span class="kw">await
 <a href=#932 id=932 data-nosnippet>932</a>                </span>.expect(<span class="string">"rate limiting failed"</span>)
 <a href=#933 id=933 data-nosnippet>933</a>                .into_iter()
@@ -1310,7 +1310,7 @@
 <a href=#1310 id=1310 data-nosnippet>1310</a>
 <a href=#1311 id=1311 data-nosnippet>1311</a>        <span class="kw">for _ in </span><span class="number">0</span>..<span class="number">50 </span>{
 <a href=#1312 id=1312 data-nosnippet>1312</a>            <span class="kw">let </span>rate_limits = rate_limiter
-<a href=#1313 id=1313 data-nosnippet>1313</a>                .is_rate_limited(quotas, scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
+<a href=#1313 id=1313 data-nosnippet>1313</a>                .is_rate_limited(quotas, <span class="kw-2">&amp;</span>scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
 <a href=#1314 id=1314 data-nosnippet>1314</a>                .<span class="kw">await
 <a href=#1315 id=1315 data-nosnippet>1315</a>                </span>.unwrap();
 <a href=#1316 id=1316 data-nosnippet>1316</a>
@@ -1318,7 +1318,7 @@
 <a href=#1318 id=1318 data-nosnippet>1318</a>        }
 <a href=#1319 id=1319 data-nosnippet>1319</a>
 <a href=#1320 id=1320 data-nosnippet>1320</a>        <span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; = rate_limiter
-<a href=#1321 id=1321 data-nosnippet>1321</a>            .is_rate_limited(quotas, scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
+<a href=#1321 id=1321 data-nosnippet>1321</a>            .is_rate_limited(quotas, <span class="kw-2">&amp;</span>scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
 <a href=#1322 id=1322 data-nosnippet>1322</a>            .<span class="kw">await
 <a href=#1323 id=1323 data-nosnippet>1323</a>            </span>.expect(<span class="string">"rate limiting failed"</span>)
 <a href=#1324 id=1324 data-nosnippet>1324</a>            .into_iter()
@@ -1369,34 +1369,34 @@
 <a href=#1369 id=1369 data-nosnippet>1369</a>
 <a href=#1370 id=1370 data-nosnippet>1370</a>        <span class="comment">// Prime the cache.
 <a href=#1371 id=1371 data-nosnippet>1371</a>        </span><span class="kw">let </span>rate_limits = rate_limiter1
-<a href=#1372 id=1372 data-nosnippet>1372</a>            .is_rate_limited(quotas, scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
+<a href=#1372 id=1372 data-nosnippet>1372</a>            .is_rate_limited(quotas, <span class="kw-2">&amp;</span>scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
 <a href=#1373 id=1373 data-nosnippet>1373</a>            .<span class="kw">await
 <a href=#1374 id=1374 data-nosnippet>1374</a>            </span>.unwrap();
 <a href=#1375 id=1375 data-nosnippet>1375</a>        <span class="macro">assert!</span>(rate_limits.is_empty());
 <a href=#1376 id=1376 data-nosnippet>1376</a>        <span class="comment">// Reserve 3 out 5 in the cache.
 <a href=#1377 id=1377 data-nosnippet>1377</a>        </span><span class="kw">let </span>rate_limits = rate_limiter1
-<a href=#1378 id=1378 data-nosnippet>1378</a>            .is_rate_limited(quotas, scoping, <span class="number">3</span>, <span class="bool-val">false</span>)
+<a href=#1378 id=1378 data-nosnippet>1378</a>            .is_rate_limited(quotas, <span class="kw-2">&amp;</span>scoping, <span class="number">3</span>, <span class="bool-val">false</span>)
 <a href=#1379 id=1379 data-nosnippet>1379</a>            .<span class="kw">await
 <a href=#1380 id=1380 data-nosnippet>1380</a>            </span>.unwrap();
 <a href=#1381 id=1381 data-nosnippet>1381</a>        <span class="macro">assert!</span>(rate_limits.is_empty());
 <a href=#1382 id=1382 data-nosnippet>1382</a>
 <a href=#1383 id=1383 data-nosnippet>1383</a>        <span class="comment">// Consume right up to the limit on the other limiter
 <a href=#1384 id=1384 data-nosnippet>1384</a>        </span><span class="kw">let </span>rate_limits = rate_limiter2
-<a href=#1385 id=1385 data-nosnippet>1385</a>            .is_rate_limited(quotas, scoping, limit <span class="kw">as </span>usize - <span class="number">1</span>, <span class="bool-val">false</span>)
+<a href=#1385 id=1385 data-nosnippet>1385</a>            .is_rate_limited(quotas, <span class="kw-2">&amp;</span>scoping, limit <span class="kw">as </span>usize - <span class="number">1</span>, <span class="bool-val">false</span>)
 <a href=#1386 id=1386 data-nosnippet>1386</a>            .<span class="kw">await
 <a href=#1387 id=1387 data-nosnippet>1387</a>            </span>.unwrap();
 <a href=#1388 id=1388 data-nosnippet>1388</a>        <span class="macro">assert!</span>(rate_limits.is_empty());
 <a href=#1389 id=1389 data-nosnippet>1389</a>
 <a href=#1390 id=1390 data-nosnippet>1390</a>        <span class="comment">// There is still one more slot in the cache.
 <a href=#1391 id=1391 data-nosnippet>1391</a>        </span><span class="kw">let </span>rate_limits = rate_limiter1
-<a href=#1392 id=1392 data-nosnippet>1392</a>            .is_rate_limited(quotas, scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
+<a href=#1392 id=1392 data-nosnippet>1392</a>            .is_rate_limited(quotas, <span class="kw-2">&amp;</span>scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
 <a href=#1393 id=1393 data-nosnippet>1393</a>            .<span class="kw">await
 <a href=#1394 id=1394 data-nosnippet>1394</a>            </span>.unwrap();
 <a href=#1395 id=1395 data-nosnippet>1395</a>        <span class="macro">assert!</span>(rate_limits.is_empty());
 <a href=#1396 id=1396 data-nosnippet>1396</a>
 <a href=#1397 id=1397 data-nosnippet>1397</a>        <span class="comment">// This should now rate limit, as the cache is exhausted and Redis is checked.
 <a href=#1398 id=1398 data-nosnippet>1398</a>        </span><span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; = rate_limiter1
-<a href=#1399 id=1399 data-nosnippet>1399</a>            .is_rate_limited(quotas, scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
+<a href=#1399 id=1399 data-nosnippet>1399</a>            .is_rate_limited(quotas, <span class="kw-2">&amp;</span>scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
 <a href=#1400 id=1400 data-nosnippet>1400</a>            .<span class="kw">await
 <a href=#1401 id=1401 data-nosnippet>1401</a>            </span>.unwrap()
 <a href=#1402 id=1402 data-nosnippet>1402</a>            .into_iter()

@@ -535,7 +535,7 @@
 <a href=#535 id=535 data-nosnippet>535</a>    ///  - there is no `scope_id` constraint
 <a href=#536 id=536 data-nosnippet>536</a>    ///  - the `scope_id` constraint is not numeric
 <a href=#537 id=537 data-nosnippet>537</a>    ///  - the scope identifier matches the one from ascoping and the scope is known
-<a href=#538 id=538 data-nosnippet>538</a>    </span><span class="kw">fn </span>matches_scope(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: ItemScoping) -&gt; bool {
+<a href=#538 id=538 data-nosnippet>538</a>    </span><span class="kw">fn </span>matches_scope(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: <span class="kw-2">&amp;</span>ItemScoping) -&gt; bool {
 <a href=#539 id=539 data-nosnippet>539</a>        <span class="comment">// Check for a scope identifier constraint. If there is no constraint, this means that the
 <a href=#540 id=540 data-nosnippet>540</a>        // quota matches any scope. In case the scope is unknown, it will be coerced to the most
 <a href=#541 id=541 data-nosnippet>541</a>        // specific scope later.
@@ -557,7 +557,7 @@
 <a href=#557 id=557 data-nosnippet>557</a>    ///
 <a href=#558 id=558 data-nosnippet>558</a>    /// This method determines if this quota should be applied to a given item
 <a href=#559 id=559 data-nosnippet>559</a>    /// based on its scope, categories, and namespace.
-<a href=#560 id=560 data-nosnippet>560</a>    </span><span class="kw">pub fn </span>matches(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: ItemScoping) -&gt; bool {
+<a href=#560 id=560 data-nosnippet>560</a>    </span><span class="kw">pub fn </span>matches(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: <span class="kw-2">&amp;</span>ItemScoping) -&gt; bool {
 <a href=#561 id=561 data-nosnippet>561</a>        <span class="self">self</span>.matches_scope(scoping)
 <a href=#562 id=562 data-nosnippet>562</a>            &amp;&amp; scoping.matches_categories(<span class="self">self</span>.categories)
 <a href=#563 id=563 data-nosnippet>563</a>            &amp;&amp; scoping.matches_namespaces(<span class="kw-2">&amp;</span><span class="self">self</span>.namespace)
@@ -866,7 +866,7 @@
 <a href=#866 id=866 data-nosnippet>866</a>            namespace: <span class="prelude-val">None</span>,
 <a href=#867 id=867 data-nosnippet>867</a>        };
 <a href=#868 id=868 data-nosnippet>868</a>
-<a href=#869 id=869 data-nosnippet>869</a>        <span class="macro">assert!</span>(quota.matches(ItemScoping {
+<a href=#869 id=869 data-nosnippet>869</a>        <span class="macro">assert!</span>(quota.matches(<span class="kw-2">&amp;</span>ItemScoping {
 <a href=#870 id=870 data-nosnippet>870</a>            category: DataCategory::Error,
 <a href=#871 id=871 data-nosnippet>871</a>            scoping: Scoping {
 <a href=#872 id=872 data-nosnippet>872</a>                organization_id: OrganizationId::new(<span class="number">42</span>),
@@ -891,7 +891,7 @@
 <a href=#891 id=891 data-nosnippet>891</a>            namespace: <span class="prelude-val">None</span>,
 <a href=#892 id=892 data-nosnippet>892</a>        };
 <a href=#893 id=893 data-nosnippet>893</a>
-<a href=#894 id=894 data-nosnippet>894</a>        <span class="macro">assert!</span>(!quota.matches(ItemScoping {
+<a href=#894 id=894 data-nosnippet>894</a>        <span class="macro">assert!</span>(!quota.matches(<span class="kw-2">&amp;</span>ItemScoping {
 <a href=#895 id=895 data-nosnippet>895</a>            category: DataCategory::Error,
 <a href=#896 id=896 data-nosnippet>896</a>            scoping: Scoping {
 <a href=#897 id=897 data-nosnippet>897</a>                organization_id: OrganizationId::new(<span class="number">42</span>),
@@ -916,7 +916,7 @@
 <a href=#916 id=916 data-nosnippet>916</a>            namespace: <span class="prelude-val">None</span>,
 <a href=#917 id=917 data-nosnippet>917</a>        };
 <a href=#918 id=918 data-nosnippet>918</a>
-<a href=#919 id=919 data-nosnippet>919</a>        <span class="macro">assert!</span>(quota.matches(ItemScoping {
+<a href=#919 id=919 data-nosnippet>919</a>        <span class="macro">assert!</span>(quota.matches(<span class="kw-2">&amp;</span>ItemScoping {
 <a href=#920 id=920 data-nosnippet>920</a>            category: DataCategory::Error,
 <a href=#921 id=921 data-nosnippet>921</a>            scoping: Scoping {
 <a href=#922 id=922 data-nosnippet>922</a>                organization_id: OrganizationId::new(<span class="number">42</span>),
@@ -927,7 +927,7 @@
 <a href=#927 id=927 data-nosnippet>927</a>            namespace: MetricNamespaceScoping::None,
 <a href=#928 id=928 data-nosnippet>928</a>        }));
 <a href=#929 id=929 data-nosnippet>929</a>
-<a href=#930 id=930 data-nosnippet>930</a>        <span class="macro">assert!</span>(!quota.matches(ItemScoping {
+<a href=#930 id=930 data-nosnippet>930</a>        <span class="macro">assert!</span>(!quota.matches(<span class="kw-2">&amp;</span>ItemScoping {
 <a href=#931 id=931 data-nosnippet>931</a>            category: DataCategory::Transaction,
 <a href=#932 id=932 data-nosnippet>932</a>            scoping: Scoping {
 <a href=#933 id=933 data-nosnippet>933</a>                organization_id: OrganizationId::new(<span class="number">42</span>),
@@ -952,7 +952,7 @@
 <a href=#952 id=952 data-nosnippet>952</a>            namespace: <span class="prelude-val">None</span>,
 <a href=#953 id=953 data-nosnippet>953</a>        };
 <a href=#954 id=954 data-nosnippet>954</a>
-<a href=#955 id=955 data-nosnippet>955</a>        <span class="macro">assert!</span>(!quota.matches(ItemScoping {
+<a href=#955 id=955 data-nosnippet>955</a>        <span class="macro">assert!</span>(!quota.matches(<span class="kw-2">&amp;</span>ItemScoping {
 <a href=#956 id=956 data-nosnippet>956</a>            category: DataCategory::Error,
 <a href=#957 id=957 data-nosnippet>957</a>            scoping: Scoping {
 <a href=#958 id=958 data-nosnippet>958</a>                organization_id: OrganizationId::new(<span class="number">42</span>),
@@ -977,7 +977,7 @@
 <a href=#977 id=977 data-nosnippet>977</a>            namespace: <span class="prelude-val">None</span>,
 <a href=#978 id=978 data-nosnippet>978</a>        };
 <a href=#979 id=979 data-nosnippet>979</a>
-<a href=#980 id=980 data-nosnippet>980</a>        <span class="macro">assert!</span>(quota.matches(ItemScoping {
+<a href=#980 id=980 data-nosnippet>980</a>        <span class="macro">assert!</span>(quota.matches(<span class="kw-2">&amp;</span>ItemScoping {
 <a href=#981 id=981 data-nosnippet>981</a>            category: DataCategory::Error,
 <a href=#982 id=982 data-nosnippet>982</a>            scoping: Scoping {
 <a href=#983 id=983 data-nosnippet>983</a>                organization_id: OrganizationId::new(<span class="number">42</span>),
@@ -988,7 +988,7 @@
 <a href=#988 id=988 data-nosnippet>988</a>            namespace: MetricNamespaceScoping::None,
 <a href=#989 id=989 data-nosnippet>989</a>        }));
 <a href=#990 id=990 data-nosnippet>990</a>
-<a href=#991 id=991 data-nosnippet>991</a>        <span class="macro">assert!</span>(!quota.matches(ItemScoping {
+<a href=#991 id=991 data-nosnippet>991</a>        <span class="macro">assert!</span>(!quota.matches(<span class="kw-2">&amp;</span>ItemScoping {
 <a href=#992 id=992 data-nosnippet>992</a>            category: DataCategory::Error,
 <a href=#993 id=993 data-nosnippet>993</a>            scoping: Scoping {
 <a href=#994 id=994 data-nosnippet>994</a>                organization_id: OrganizationId::new(<span class="number">0</span>),
@@ -1013,7 +1013,7 @@
 <a href=#1013 id=1013 data-nosnippet>1013</a>            namespace: <span class="prelude-val">None</span>,
 <a href=#1014 id=1014 data-nosnippet>1014</a>        };
 <a href=#1015 id=1015 data-nosnippet>1015</a>
-<a href=#1016 id=1016 data-nosnippet>1016</a>        <span class="macro">assert!</span>(quota.matches(ItemScoping {
+<a href=#1016 id=1016 data-nosnippet>1016</a>        <span class="macro">assert!</span>(quota.matches(<span class="kw-2">&amp;</span>ItemScoping {
 <a href=#1017 id=1017 data-nosnippet>1017</a>            category: DataCategory::Error,
 <a href=#1018 id=1018 data-nosnippet>1018</a>            scoping: Scoping {
 <a href=#1019 id=1019 data-nosnippet>1019</a>                organization_id: OrganizationId::new(<span class="number">42</span>),
@@ -1024,7 +1024,7 @@
 <a href=#1024 id=1024 data-nosnippet>1024</a>            namespace: MetricNamespaceScoping::None,
 <a href=#1025 id=1025 data-nosnippet>1025</a>        }));
 <a href=#1026 id=1026 data-nosnippet>1026</a>
-<a href=#1027 id=1027 data-nosnippet>1027</a>        <span class="macro">assert!</span>(!quota.matches(ItemScoping {
+<a href=#1027 id=1027 data-nosnippet>1027</a>        <span class="macro">assert!</span>(!quota.matches(<span class="kw-2">&amp;</span>ItemScoping {
 <a href=#1028 id=1028 data-nosnippet>1028</a>            category: DataCategory::Error,
 <a href=#1029 id=1029 data-nosnippet>1029</a>            scoping: Scoping {
 <a href=#1030 id=1030 data-nosnippet>1030</a>                organization_id: OrganizationId::new(<span class="number">42</span>),
@@ -1049,7 +1049,7 @@
 <a href=#1049 id=1049 data-nosnippet>1049</a>            namespace: <span class="prelude-val">None</span>,
 <a href=#1050 id=1050 data-nosnippet>1050</a>        };
 <a href=#1051 id=1051 data-nosnippet>1051</a>
-<a href=#1052 id=1052 data-nosnippet>1052</a>        <span class="macro">assert!</span>(quota.matches(ItemScoping {
+<a href=#1052 id=1052 data-nosnippet>1052</a>        <span class="macro">assert!</span>(quota.matches(<span class="kw-2">&amp;</span>ItemScoping {
 <a href=#1053 id=1053 data-nosnippet>1053</a>            category: DataCategory::Error,
 <a href=#1054 id=1054 data-nosnippet>1054</a>            scoping: Scoping {
 <a href=#1055 id=1055 data-nosnippet>1055</a>                organization_id: OrganizationId::new(<span class="number">42</span>),
@@ -1060,7 +1060,7 @@
 <a href=#1060 id=1060 data-nosnippet>1060</a>            namespace: MetricNamespaceScoping::None,
 <a href=#1061 id=1061 data-nosnippet>1061</a>        }));
 <a href=#1062 id=1062 data-nosnippet>1062</a>
-<a href=#1063 id=1063 data-nosnippet>1063</a>        <span class="macro">assert!</span>(!quota.matches(ItemScoping {
+<a href=#1063 id=1063 data-nosnippet>1063</a>        <span class="macro">assert!</span>(!quota.matches(<span class="kw-2">&amp;</span>ItemScoping {
 <a href=#1064 id=1064 data-nosnippet>1064</a>            category: DataCategory::Error,
 <a href=#1065 id=1065 data-nosnippet>1065</a>            scoping: Scoping {
 <a href=#1066 id=1066 data-nosnippet>1066</a>                organization_id: OrganizationId::new(<span class="number">42</span>),
@@ -1071,7 +1071,7 @@
 <a href=#1071 id=1071 data-nosnippet>1071</a>            namespace: MetricNamespaceScoping::None,
 <a href=#1072 id=1072 data-nosnippet>1072</a>        }));
 <a href=#1073 id=1073 data-nosnippet>1073</a>
-<a href=#1074 id=1074 data-nosnippet>1074</a>        <span class="macro">assert!</span>(!quota.matches(ItemScoping {
+<a href=#1074 id=1074 data-nosnippet>1074</a>        <span class="macro">assert!</span>(!quota.matches(<span class="kw-2">&amp;</span>ItemScoping {
 <a href=#1075 id=1075 data-nosnippet>1075</a>            category: DataCategory::Error,
 <a href=#1076 id=1076 data-nosnippet>1076</a>            scoping: Scoping {
 <a href=#1077 id=1077 data-nosnippet>1077</a>                organization_id: OrganizationId::new(<span class="number">42</span>),

@@ -152,7 +152,7 @@
 <a href=#152 id=152 data-nosnippet>152</a>    ///
 <a href=#153 id=153 data-nosnippet>153</a>    /// This extracts the appropriate scope identifier based on the quota's scope type.
 <a href=#154 id=154 data-nosnippet>154</a>    /// For unknown scopes, it assumes the most specific scope (Key).
-<a href=#155 id=155 data-nosnippet>155</a>    </span><span class="kw">pub fn </span>for_quota(scoping: Scoping, scope: QuotaScope) -&gt; <span class="self">Self </span>{
+<a href=#155 id=155 data-nosnippet>155</a>    </span><span class="kw">pub fn </span>for_quota(scoping: <span class="kw-2">&amp;</span>Scoping, scope: QuotaScope) -&gt; <span class="self">Self </span>{
 <a href=#156 id=156 data-nosnippet>156</a>        <span class="kw">match </span>scope {
 <a href=#157 id=157 data-nosnippet>157</a>            QuotaScope::Organization =&gt; <span class="self">Self</span>::Organization(scoping.organization_id),
 <a href=#158 id=158 data-nosnippet>158</a>            QuotaScope::Project =&gt; <span class="self">Self</span>::Project(scoping.project_id),
@@ -208,7 +208,7 @@
 <a href=#208 id=208 data-nosnippet>208</a>    ///
 <a href=#209 id=209 data-nosnippet>209</a>    /// This builds a rate limit with the appropriate scope derived from the quota and scoping
 <a href=#210 id=210 data-nosnippet>210</a>    /// information. The categories and other properties are copied from the quota.
-<a href=#211 id=211 data-nosnippet>211</a>    </span><span class="kw">pub fn </span>from_quota(quota: <span class="kw-2">&amp;</span>Quota, scoping: Scoping, retry_after: RetryAfter) -&gt; <span class="self">Self </span>{
+<a href=#211 id=211 data-nosnippet>211</a>    </span><span class="kw">pub fn </span>from_quota(quota: <span class="kw-2">&amp;</span>Quota, scoping: <span class="kw-2">&amp;</span>Scoping, retry_after: RetryAfter) -&gt; <span class="self">Self </span>{
 <a href=#212 id=212 data-nosnippet>212</a>        <span class="self">Self </span>{
 <a href=#213 id=213 data-nosnippet>213</a>            categories: quota.categories,
 <a href=#214 id=214 data-nosnippet>214</a>            scope: RateLimitScope::for_quota(scoping, quota.scope),
@@ -222,14 +222,14 @@
 <a href=#222 id=222 data-nosnippet>222</a>    ///
 <a href=#223 id=223 data-nosnippet>223</a>    /// A rate limit applies if its scope matches the item's scope, and the item's
 <a href=#224 id=224 data-nosnippet>224</a>    /// category and namespace match those of the rate limit.
-<a href=#225 id=225 data-nosnippet>225</a>    </span><span class="kw">pub fn </span>matches(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: ItemScoping) -&gt; bool {
+<a href=#225 id=225 data-nosnippet>225</a>    </span><span class="kw">pub fn </span>matches(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: <span class="kw-2">&amp;</span>ItemScoping) -&gt; bool {
 <a href=#226 id=226 data-nosnippet>226</a>        <span class="self">self</span>.matches_scope(scoping)
 <a href=#227 id=227 data-nosnippet>227</a>            &amp;&amp; scoping.matches_categories(<span class="self">self</span>.categories)
 <a href=#228 id=228 data-nosnippet>228</a>            &amp;&amp; scoping.matches_namespaces(<span class="kw-2">&amp;</span><span class="self">self</span>.namespaces)
 <a href=#229 id=229 data-nosnippet>229</a>    }
 <a href=#230 id=230 data-nosnippet>230</a>
 <a href=#231 id=231 data-nosnippet>231</a>    <span class="doccomment">/// Returns `true` if the rate limiting scope matches the given item.
-<a href=#232 id=232 data-nosnippet>232</a>    </span><span class="kw">fn </span>matches_scope(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: ItemScoping) -&gt; bool {
+<a href=#232 id=232 data-nosnippet>232</a>    </span><span class="kw">fn </span>matches_scope(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: <span class="kw-2">&amp;</span>ItemScoping) -&gt; bool {
 <a href=#233 id=233 data-nosnippet>233</a>        <span class="kw">match </span><span class="self">self</span>.scope {
 <a href=#234 id=234 data-nosnippet>234</a>            RateLimitScope::Organization(org_id) =&gt; scoping.organization_id == org_id,
 <a href=#235 id=235 data-nosnippet>235</a>            RateLimitScope::Project(project_id) =&gt; scoping.project_id == project_id,
@@ -337,7 +337,7 @@
 <a href=#337 id=337 data-nosnippet>337</a>    ) -&gt; bool {
 <a href=#338 id=338 data-nosnippet>338</a>        <span class="kw">for </span>quota <span class="kw">in </span>quotas {
 <a href=#339 id=339 data-nosnippet>339</a>            <span class="kw">for </span>scoping <span class="kw">in </span>scopings {
-<a href=#340 id=340 data-nosnippet>340</a>                <span class="kw">if </span>quota.limit == <span class="prelude-val">Some</span>(<span class="number">0</span>) &amp;&amp; quota.matches(<span class="kw-2">*</span>scoping) {
+<a href=#340 id=340 data-nosnippet>340</a>                <span class="kw">if </span>quota.limit == <span class="prelude-val">Some</span>(<span class="number">0</span>) &amp;&amp; quota.matches(scoping) {
 <a href=#341 id=341 data-nosnippet>341</a>                    <span class="kw">return </span><span class="bool-val">true</span>;
 <a href=#342 id=342 data-nosnippet>342</a>                }
 <a href=#343 id=343 data-nosnippet>343</a>            }
@@ -346,7 +346,7 @@
 <a href=#346 id=346 data-nosnippet>346</a>        <span class="kw">let </span>now = Instant::now();
 <a href=#347 id=347 data-nosnippet>347</a>        <span class="kw">for </span>scoping <span class="kw">in </span>scopings {
 <a href=#348 id=348 data-nosnippet>348</a>            <span class="kw">for </span>limit <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.limits {
-<a href=#349 id=349 data-nosnippet>349</a>                <span class="kw">if </span>limit.matches(<span class="kw-2">*</span>scoping) &amp;&amp; !limit.retry_after.expired_at(now) {
+<a href=#349 id=349 data-nosnippet>349</a>                <span class="kw">if </span>limit.matches(scoping) &amp;&amp; !limit.retry_after.expired_at(now) {
 <a href=#350 id=350 data-nosnippet>350</a>                    <span class="kw">return </span><span class="bool-val">true</span>;
 <a href=#351 id=351 data-nosnippet>351</a>                }
 <a href=#352 id=352 data-nosnippet>352</a>            }
@@ -369,7 +369,7 @@
 <a href=#369 id=369 data-nosnippet>369</a>    /// Returns a new [`RateLimits`] instance containing only the rate limits that match
 <a href=#370 id=370 data-nosnippet>370</a>    /// the provided [`ItemScoping`]. If no limits match, the returned instance will be empty
 <a href=#371 id=371 data-nosnippet>371</a>    /// and [`is_ok`](Self::is_ok) will return `true`.
-<a href=#372 id=372 data-nosnippet>372</a>    </span><span class="kw">pub fn </span>check(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: ItemScoping) -&gt; <span class="self">Self </span>{
+<a href=#372 id=372 data-nosnippet>372</a>    </span><span class="kw">pub fn </span>check(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: <span class="kw-2">&amp;</span>ItemScoping) -&gt; <span class="self">Self </span>{
 <a href=#373 id=373 data-nosnippet>373</a>        <span class="self">self</span>.check_with_quotas(<span class="kw-2">&amp;</span>[], scoping)
 <a href=#374 id=374 data-nosnippet>374</a>    }
 <a href=#375 id=375 data-nosnippet>375</a>
@@ -383,14 +383,14 @@
 <a href=#383 id=383 data-nosnippet>383</a>    </span><span class="kw">pub fn </span>check_with_quotas&lt;<span class="lifetime">'a</span>&gt;(
 <a href=#384 id=384 data-nosnippet>384</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
 <a href=#385 id=385 data-nosnippet>385</a>        quotas: <span class="kw">impl </span>IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Quota&gt;,
-<a href=#386 id=386 data-nosnippet>386</a>        scoping: ItemScoping,
+<a href=#386 id=386 data-nosnippet>386</a>        scoping: <span class="kw-2">&amp;</span>ItemScoping,
 <a href=#387 id=387 data-nosnippet>387</a>    ) -&gt; <span class="self">Self </span>{
 <a href=#388 id=388 data-nosnippet>388</a>        <span class="kw">let </span><span class="kw-2">mut </span>applied_limits = <span class="self">Self</span>::new();
 <a href=#389 id=389 data-nosnippet>389</a>
 <a href=#390 id=390 data-nosnippet>390</a>        <span class="kw">for </span>quota <span class="kw">in </span>quotas {
 <a href=#391 id=391 data-nosnippet>391</a>            <span class="kw">if </span>quota.limit == <span class="prelude-val">Some</span>(<span class="number">0</span>) &amp;&amp; quota.matches(scoping) {
 <a href=#392 id=392 data-nosnippet>392</a>                <span class="kw">let </span>retry_after = RetryAfter::from_secs(REJECT_ALL_SECS);
-<a href=#393 id=393 data-nosnippet>393</a>                applied_limits.add(RateLimit::from_quota(quota, <span class="kw-2">*</span>scoping, retry_after));
+<a href=#393 id=393 data-nosnippet>393</a>                applied_limits.add(RateLimit::from_quota(quota, scoping, retry_after));
 <a href=#394 id=394 data-nosnippet>394</a>            }
 <a href=#395 id=395 data-nosnippet>395</a>        }
 <a href=#396 id=396 data-nosnippet>396</a>
@@ -630,7 +630,7 @@
 <a href=#630 id=630 data-nosnippet>630</a>            namespaces: <span class="macro">smallvec!</span>[],
 <a href=#631 id=631 data-nosnippet>631</a>        };
 <a href=#632 id=632 data-nosnippet>632</a>
-<a href=#633 id=633 data-nosnippet>633</a>        <span class="macro">assert!</span>(rate_limit.matches(ItemScoping {
+<a href=#633 id=633 data-nosnippet>633</a>        <span class="macro">assert!</span>(rate_limit.matches(<span class="kw-2">&amp;</span>ItemScoping {
 <a href=#634 id=634 data-nosnippet>634</a>            category: DataCategory::Error,
 <a href=#635 id=635 data-nosnippet>635</a>            scoping: Scoping {
 <a href=#636 id=636 data-nosnippet>636</a>                organization_id: OrganizationId::new(<span class="number">42</span>),
@@ -641,7 +641,7 @@
 <a href=#641 id=641 data-nosnippet>641</a>            namespace: MetricNamespaceScoping::None,
 <a href=#642 id=642 data-nosnippet>642</a>        }));
 <a href=#643 id=643 data-nosnippet>643</a>
-<a href=#644 id=644 data-nosnippet>644</a>        <span class="macro">assert!</span>(!rate_limit.matches(ItemScoping {
+<a href=#644 id=644 data-nosnippet>644</a>        <span class="macro">assert!</span>(!rate_limit.matches(<span class="kw-2">&amp;</span>ItemScoping {
 <a href=#645 id=645 data-nosnippet>645</a>            category: DataCategory::Transaction,
 <a href=#646 id=646 data-nosnippet>646</a>            scoping: Scoping {
 <a href=#647 id=647 data-nosnippet>647</a>                organization_id: OrganizationId::new(<span class="number">42</span>),
@@ -663,7 +663,7 @@
 <a href=#663 id=663 data-nosnippet>663</a>            namespaces: <span class="macro">smallvec!</span>[],
 <a href=#664 id=664 data-nosnippet>664</a>        };
 <a href=#665 id=665 data-nosnippet>665</a>
-<a href=#666 id=666 data-nosnippet>666</a>        <span class="macro">assert!</span>(rate_limit.matches(ItemScoping {
+<a href=#666 id=666 data-nosnippet>666</a>        <span class="macro">assert!</span>(rate_limit.matches(<span class="kw-2">&amp;</span>ItemScoping {
 <a href=#667 id=667 data-nosnippet>667</a>            category: DataCategory::Error,
 <a href=#668 id=668 data-nosnippet>668</a>            scoping: Scoping {
 <a href=#669 id=669 data-nosnippet>669</a>                organization_id: OrganizationId::new(<span class="number">42</span>),
@@ -674,7 +674,7 @@
 <a href=#674 id=674 data-nosnippet>674</a>            namespace: MetricNamespaceScoping::None,
 <a href=#675 id=675 data-nosnippet>675</a>        }));
 <a href=#676 id=676 data-nosnippet>676</a>
-<a href=#677 id=677 data-nosnippet>677</a>        <span class="macro">assert!</span>(!rate_limit.matches(ItemScoping {
+<a href=#677 id=677 data-nosnippet>677</a>        <span class="macro">assert!</span>(!rate_limit.matches(<span class="kw-2">&amp;</span>ItemScoping {
 <a href=#678 id=678 data-nosnippet>678</a>            category: DataCategory::Error,
 <a href=#679 id=679 data-nosnippet>679</a>            scoping: Scoping {
 <a href=#680 id=680 data-nosnippet>680</a>                organization_id: OrganizationId::new(<span class="number">0</span>),
@@ -696,7 +696,7 @@
 <a href=#696 id=696 data-nosnippet>696</a>            namespaces: <span class="macro">smallvec!</span>[],
 <a href=#697 id=697 data-nosnippet>697</a>        };
 <a href=#698 id=698 data-nosnippet>698</a>
-<a href=#699 id=699 data-nosnippet>699</a>        <span class="macro">assert!</span>(rate_limit.matches(ItemScoping {
+<a href=#699 id=699 data-nosnippet>699</a>        <span class="macro">assert!</span>(rate_limit.matches(<span class="kw-2">&amp;</span>ItemScoping {
 <a href=#700 id=700 data-nosnippet>700</a>            category: DataCategory::Error,
 <a href=#701 id=701 data-nosnippet>701</a>            scoping: Scoping {
 <a href=#702 id=702 data-nosnippet>702</a>                organization_id: OrganizationId::new(<span class="number">42</span>),
@@ -707,7 +707,7 @@
 <a href=#707 id=707 data-nosnippet>707</a>            namespace: MetricNamespaceScoping::None,
 <a href=#708 id=708 data-nosnippet>708</a>        }));
 <a href=#709 id=709 data-nosnippet>709</a>
-<a href=#710 id=710 data-nosnippet>710</a>        <span class="macro">assert!</span>(!rate_limit.matches(ItemScoping {
+<a href=#710 id=710 data-nosnippet>710</a>        <span class="macro">assert!</span>(!rate_limit.matches(<span class="kw-2">&amp;</span>ItemScoping {
 <a href=#711 id=711 data-nosnippet>711</a>            category: DataCategory::Error,
 <a href=#712 id=712 data-nosnippet>712</a>            scoping: Scoping {
 <a href=#713 id=713 data-nosnippet>713</a>                organization_id: OrganizationId::new(<span class="number">42</span>),
@@ -736,13 +736,13 @@
 <a href=#736 id=736 data-nosnippet>736</a>            key_id: <span class="prelude-val">None</span>,
 <a href=#737 id=737 data-nosnippet>737</a>        };
 <a href=#738 id=738 data-nosnippet>738</a>
-<a href=#739 id=739 data-nosnippet>739</a>        <span class="macro">assert!</span>(rate_limit.matches(ItemScoping {
+<a href=#739 id=739 data-nosnippet>739</a>        <span class="macro">assert!</span>(rate_limit.matches(<span class="kw-2">&amp;</span>ItemScoping {
 <a href=#740 id=740 data-nosnippet>740</a>            category: DataCategory::MetricBucket,
 <a href=#741 id=741 data-nosnippet>741</a>            scoping,
 <a href=#742 id=742 data-nosnippet>742</a>            namespace: MetricNamespaceScoping::Some(MetricNamespace::Transactions),
 <a href=#743 id=743 data-nosnippet>743</a>        }));
 <a href=#744 id=744 data-nosnippet>744</a>
-<a href=#745 id=745 data-nosnippet>745</a>        <span class="macro">assert!</span>(!rate_limit.matches(ItemScoping {
+<a href=#745 id=745 data-nosnippet>745</a>        <span class="macro">assert!</span>(!rate_limit.matches(<span class="kw-2">&amp;</span>ItemScoping {
 <a href=#746 id=746 data-nosnippet>746</a>            category: DataCategory::MetricBucket,
 <a href=#747 id=747 data-nosnippet>747</a>            scoping,
 <a href=#748 id=748 data-nosnippet>748</a>            namespace: MetricNamespaceScoping::Some(MetricNamespace::Spans),
@@ -756,13 +756,13 @@
 <a href=#756 id=756 data-nosnippet>756</a>            namespaces: <span class="macro">smallvec!</span>[], <span class="comment">// all namespaces
 <a href=#757 id=757 data-nosnippet>757</a>        </span>};
 <a href=#758 id=758 data-nosnippet>758</a>
-<a href=#759 id=759 data-nosnippet>759</a>        <span class="macro">assert!</span>(general_rate_limit.matches(ItemScoping {
+<a href=#759 id=759 data-nosnippet>759</a>        <span class="macro">assert!</span>(general_rate_limit.matches(<span class="kw-2">&amp;</span>ItemScoping {
 <a href=#760 id=760 data-nosnippet>760</a>            category: DataCategory::MetricBucket,
 <a href=#761 id=761 data-nosnippet>761</a>            scoping,
 <a href=#762 id=762 data-nosnippet>762</a>            namespace: MetricNamespaceScoping::Some(MetricNamespace::Spans),
 <a href=#763 id=763 data-nosnippet>763</a>        }));
 <a href=#764 id=764 data-nosnippet>764</a>
-<a href=#765 id=765 data-nosnippet>765</a>        <span class="macro">assert!</span>(general_rate_limit.matches(ItemScoping {
+<a href=#765 id=765 data-nosnippet>765</a>        <span class="macro">assert!</span>(general_rate_limit.matches(<span class="kw-2">&amp;</span>ItemScoping {
 <a href=#766 id=766 data-nosnippet>766</a>            category: DataCategory::MetricBucket,
 <a href=#767 id=767 data-nosnippet>767</a>            scoping,
 <a href=#768 id=768 data-nosnippet>768</a>            namespace: MetricNamespaceScoping::None,
@@ -781,7 +781,7 @@
 <a href=#781 id=781 data-nosnippet>781</a>            namespaces: <span class="macro">smallvec!</span>[],
 <a href=#782 id=782 data-nosnippet>782</a>        };
 <a href=#783 id=783 data-nosnippet>783</a>
-<a href=#784 id=784 data-nosnippet>784</a>        <span class="macro">assert!</span>(rate_limit.matches(ItemScoping {
+<a href=#784 id=784 data-nosnippet>784</a>        <span class="macro">assert!</span>(rate_limit.matches(<span class="kw-2">&amp;</span>ItemScoping {
 <a href=#785 id=785 data-nosnippet>785</a>            category: DataCategory::Error,
 <a href=#786 id=786 data-nosnippet>786</a>            scoping: Scoping {
 <a href=#787 id=787 data-nosnippet>787</a>                organization_id: OrganizationId::new(<span class="number">42</span>),
@@ -792,7 +792,7 @@
 <a href=#792 id=792 data-nosnippet>792</a>            namespace: MetricNamespaceScoping::None,
 <a href=#793 id=793 data-nosnippet>793</a>        }));
 <a href=#794 id=794 data-nosnippet>794</a>
-<a href=#795 id=795 data-nosnippet>795</a>        <span class="macro">assert!</span>(!rate_limit.matches(ItemScoping {
+<a href=#795 id=795 data-nosnippet>795</a>        <span class="macro">assert!</span>(!rate_limit.matches(<span class="kw-2">&amp;</span>ItemScoping {
 <a href=#796 id=796 data-nosnippet>796</a>            category: DataCategory::Error,
 <a href=#797 id=797 data-nosnippet>797</a>            scoping: Scoping {
 <a href=#798 id=798 data-nosnippet>798</a>                organization_id: OrganizationId::new(<span class="number">0</span>),
@@ -1161,7 +1161,7 @@
 <a href=#1161 id=1161 data-nosnippet>1161</a>            namespaces: <span class="macro">smallvec!</span>[],
 <a href=#1162 id=1162 data-nosnippet>1162</a>        });
 <a href=#1163 id=1163 data-nosnippet>1163</a>
-<a href=#1164 id=1164 data-nosnippet>1164</a>        <span class="kw">let </span>applied_limits = rate_limits.check(ItemScoping {
+<a href=#1164 id=1164 data-nosnippet>1164</a>        <span class="kw">let </span>applied_limits = rate_limits.check(<span class="kw-2">&amp;</span>ItemScoping {
 <a href=#1165 id=1165 data-nosnippet>1165</a>            category: DataCategory::Error,
 <a href=#1166 id=1166 data-nosnippet>1166</a>            scoping: Scoping {
 <a href=#1167 id=1167 data-nosnippet>1167</a>                organization_id: OrganizationId::new(<span class="number">42</span>),
@@ -1234,7 +1234,7 @@
 <a href=#1234 id=1234 data-nosnippet>1234</a>            namespace: <span class="prelude-val">None</span>,
 <a href=#1235 id=1235 data-nosnippet>1235</a>        }];
 <a href=#1236 id=1236 data-nosnippet>1236</a>
-<a href=#1237 id=1237 data-nosnippet>1237</a>        <span class="kw">let </span>applied_limits = rate_limits.check_with_quotas(quotas, item_scoping);
+<a href=#1237 id=1237 data-nosnippet>1237</a>        <span class="kw">let </span>applied_limits = rate_limits.check_with_quotas(quotas, <span class="kw-2">&amp;</span>item_scoping);
 <a href=#1238 id=1238 data-nosnippet>1238</a>
 <a href=#1239 id=1239 data-nosnippet>1239</a>        <span class="macro">insta::assert_ron_snapshot!</span>(applied_limits, @<span class="string">r#"
 <a href=#1240 id=1240 data-nosnippet>1240</a>        RateLimits(

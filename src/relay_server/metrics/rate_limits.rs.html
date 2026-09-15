@@ -165,7 +165,7 @@
 <a href=#165 id=165 data-nosnippet>165</a>        metric_outcomes: <span class="kw-2">&amp;</span>MetricOutcomes,
 <a href=#166 id=166 data-nosnippet>166</a>    ) -&gt; bool {
 <a href=#167 id=167 data-nosnippet>167</a>        <span class="kw">let </span>active_rate_limits = rate_limits
-<a href=#168 id=168 data-nosnippet>168</a>            .check_with_quotas(<span class="self">self</span>.quotas.as_ref(), <span class="self">self</span>.scoping.item(DataCategory::Span));
+<a href=#168 id=168 data-nosnippet>168</a>            .check_with_quotas(<span class="self">self</span>.quotas.as_ref(), <span class="kw-2">&amp;</span><span class="self">self</span>.scoping.item(DataCategory::Span));
 <a href=#169 id=169 data-nosnippet>169</a>
 <a href=#170 id=170 data-nosnippet>170</a>        <span class="comment">// If a rate limit is active, discard relevant buckets.
 <a href=#171 id=171 data-nosnippet>171</a>        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(limit) = active_rate_limits.longest() {

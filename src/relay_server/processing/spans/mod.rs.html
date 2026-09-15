@@ -598,7 +598,7 @@
 <a href=#598 id=598 data-nosnippet>598</a>
 <a href=#599 id=599 data-nosnippet>599</a>        <span class="comment">// Always check span limits, all items depend on spans.
 <a href=#600 id=600 data-nosnippet>600</a>        </span><span class="kw">let </span>limits = rate_limiter
-<a href=#601 id=601 data-nosnippet>601</a>            .try_consume(scoping.item(DataCategory::Span), span)
+<a href=#601 id=601 data-nosnippet>601</a>            .try_consume(<span class="kw-2">&amp;</span>scoping.item(DataCategory::Span), span)
 <a href=#602 id=602 data-nosnippet>602</a>            .<span class="kw">await</span>;
 <a href=#603 id=603 data-nosnippet>603</a>        <span class="kw">if </span>!limits.is_empty() {
 <a href=#604 id=604 data-nosnippet>604</a>            <span class="comment">// If there is a span quota reject all the spans and the associated attachments.
@@ -606,7 +606,7 @@
 <a href=#606 id=606 data-nosnippet>606</a>        }
 <a href=#607 id=607 data-nosnippet>607</a>
 <a href=#608 id=608 data-nosnippet>608</a>        <span class="kw">let </span>limits = rate_limiter
-<a href=#609 id=609 data-nosnippet>609</a>            .try_consume(scoping.item(DataCategory::SpanIndexed), span)
+<a href=#609 id=609 data-nosnippet>609</a>            .try_consume(<span class="kw-2">&amp;</span>scoping.item(DataCategory::SpanIndexed), span)
 <a href=#610 id=610 data-nosnippet>610</a>            .<span class="kw">await</span>;
 <a href=#611 id=611 data-nosnippet>611</a>        <span class="kw">if </span>!limits.is_empty() {
 <a href=#612 id=612 data-nosnippet>612</a>            <span class="comment">// If there is an indexed span quota reject all the spans and the associated attachments,
@@ -650,7 +650,7 @@
 <a href=#650 id=650 data-nosnippet>650</a>        </span>T: processing::RateLimiter,
 <a href=#651 id=651 data-nosnippet>651</a>    {
 <a href=#652 id=652 data-nosnippet>652</a>        <span class="kw">let </span>limits = rate_limiter
-<a href=#653 id=653 data-nosnippet>653</a>            .try_consume(scoping.item(category), quantity)
+<a href=#653 id=653 data-nosnippet>653</a>            .try_consume(<span class="kw-2">&amp;</span>scoping.item(category), quantity)
 <a href=#654 id=654 data-nosnippet>654</a>            .<span class="kw">await</span>;
 <a href=#655 id=655 data-nosnippet>655</a>
 <a href=#656 id=656 data-nosnippet>656</a>        <span class="kw">if </span>!limits.is_empty() {

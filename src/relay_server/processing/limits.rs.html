@@ -103,7 +103,7 @@
 <a href=#103 id=103 data-nosnippet>103</a>    /// Rate limits must always apply the passed `scope`.
 <a href=#104 id=104 data-nosnippet>104</a>    ///
 <a href=#105 id=105 data-nosnippet>105</a>    /// If there are no (empty) rate limits returned, the item shall not be rate limited.
-<a href=#106 id=106 data-nosnippet>106</a>    </span><span class="kw">async fn </span>try_consume(<span class="kw-2">&amp;mut </span><span class="self">self</span>, scope: ItemScoping, quantity: usize) -&gt; RateLimits;
+<a href=#106 id=106 data-nosnippet>106</a>    </span><span class="kw">async fn </span>try_consume(<span class="kw-2">&amp;mut </span><span class="self">self</span>, scope: <span class="kw-2">&amp;</span>ItemScoping, quantity: usize) -&gt; RateLimits;
 <a href=#107 id=107 data-nosnippet>107</a>}
 <a href=#108 id=108 data-nosnippet>108</a>
 <a href=#109 id=109 data-nosnippet>109</a><span class="doccomment">/// An item which can be rate limited with a [`RateLimiter`].
@@ -132,7 +132,7 @@
 <a href=#132 id=132 data-nosnippet>132</a><span class="kw">where
 <a href=#133 id=133 data-nosnippet>133</a>    </span>T: RateLimiter,
 <a href=#134 id=134 data-nosnippet>134</a>{
-<a href=#135 id=135 data-nosnippet>135</a>    <span class="kw">async fn </span>try_consume(<span class="kw-2">&amp;mut </span><span class="self">self</span>, scope: ItemScoping, quantity: usize) -&gt; RateLimits {
+<a href=#135 id=135 data-nosnippet>135</a>    <span class="kw">async fn </span>try_consume(<span class="kw-2">&amp;mut </span><span class="self">self</span>, scope: <span class="kw-2">&amp;</span>ItemScoping, quantity: usize) -&gt; RateLimits {
 <a href=#136 id=136 data-nosnippet>136</a>        <span class="kw">match </span><span class="self">self</span>.as_mut() {
 <a href=#137 id=137 data-nosnippet>137</a>            <span class="prelude-val">Some</span>(limiter) =&gt; limiter.try_consume(scope, quantity).<span class="kw">await</span>,
 <a href=#138 id=138 data-nosnippet>138</a>            <span class="prelude-val">None </span>=&gt; RateLimits::default(),
@@ -168,7 +168,7 @@
 <a href=#168 id=168 data-nosnippet>168</a>
 <a href=#169 id=169 data-nosnippet>169</a>        <span class="kw">for </span>(category, quantity) <span class="kw">in </span><span class="self">self</span>.quantities() {
 <a href=#170 id=170 data-nosnippet>170</a>            <span class="kw">let </span>limits = rate_limiter
-<a href=#171 id=171 data-nosnippet>171</a>                .try_consume(scoping.item(category), quantity)
+<a href=#171 id=171 data-nosnippet>171</a>                .try_consume(<span class="kw-2">&amp;</span>scoping.item(category), quantity)
 <a href=#172 id=172 data-nosnippet>172</a>                .<span class="kw">await</span>;
 <a href=#173 id=173 data-nosnippet>173</a>
 <a href=#174 id=174 data-nosnippet>174</a>            <span class="kw">if </span>!limits.is_empty() {
@@ -188,7 +188,7 @@
 <a href=#188 id=188 data-nosnippet>188</a>}
 <a href=#189 id=189 data-nosnippet>189</a>
 <a href=#190 id=190 data-nosnippet>190</a><span class="kw">impl </span>RateLimiter <span class="kw">for </span>CachedRateLimiter&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#191 id=191 data-nosnippet>191</a>    <span class="kw">async fn </span>try_consume(<span class="kw-2">&amp;mut </span><span class="self">self</span>, scope: ItemScoping, _quantity: usize) -&gt; RateLimits {
+<a href=#191 id=191 data-nosnippet>191</a>    <span class="kw">async fn </span>try_consume(<span class="kw-2">&amp;mut </span><span class="self">self</span>, scope: <span class="kw-2">&amp;</span>ItemScoping, _quantity: usize) -&gt; RateLimits {
 <a href=#192 id=192 data-nosnippet>192</a>        <span class="self">self</span>.cached.check_with_quotas(<span class="self">self</span>.quotas, scope)
 <a href=#193 id=193 data-nosnippet>193</a>    }
 <a href=#194 id=194 data-nosnippet>194</a>}
@@ -208,7 +208,7 @@
 <a href=#208 id=208 data-nosnippet>208</a>    }
 <a href=#209 id=209 data-nosnippet>209</a>
 <a href=#210 id=210 data-nosnippet>210</a>    <span class="kw">impl </span>RateLimiter <span class="kw">for </span>RedisRateLimiter&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#211 id=211 data-nosnippet>211</a>        <span class="kw">async fn </span>try_consume(<span class="kw-2">&amp;mut </span><span class="self">self</span>, scope: ItemScoping, quantity: usize) -&gt; RateLimits {
+<a href=#211 id=211 data-nosnippet>211</a>        <span class="kw">async fn </span>try_consume(<span class="kw-2">&amp;mut </span><span class="self">self</span>, scope: <span class="kw-2">&amp;</span>ItemScoping, quantity: usize) -&gt; RateLimits {
 <a href=#212 id=212 data-nosnippet>212</a>            <span class="kw">let </span>limits = <span class="self">self
 <a href=#213 id=213 data-nosnippet>213</a>                </span>.redis
 <a href=#214 id=214 data-nosnippet>214</a>                .is_rate_limited(<span class="self">self</span>.quotas, scope, quantity, <span class="bool-val">false</span>)
@@ -242,7 +242,7 @@
 <a href=#242 id=242 data-nosnippet>242</a>        </span>T: RateLimiter,
 <a href=#243 id=243 data-nosnippet>243</a>        S: RateLimiter,
 <a href=#244 id=244 data-nosnippet>244</a>    {
-<a href=#245 id=245 data-nosnippet>245</a>        <span class="kw">async fn </span>try_consume(<span class="kw-2">&amp;mut </span><span class="self">self</span>, scope: ItemScoping, quantity: usize) -&gt; RateLimits {
+<a href=#245 id=245 data-nosnippet>245</a>        <span class="kw">async fn </span>try_consume(<span class="kw-2">&amp;mut </span><span class="self">self</span>, scope: <span class="kw-2">&amp;</span>ItemScoping, quantity: usize) -&gt; RateLimits {
 <a href=#246 id=246 data-nosnippet>246</a>            <span class="kw">let </span>limits = <span class="self">self</span>.<span class="number">0</span>.try_consume(scope, quantity).<span class="kw">await</span>;
 <a href=#247 id=247 data-nosnippet>247</a>            <span class="kw">if </span>!limits.is_empty() {
 <a href=#248 id=248 data-nosnippet>248</a>                <span class="kw">return </span>limits;

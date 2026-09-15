@@ -233,7 +233,7 @@
 <a href=#233 id=233 data-nosnippet>233</a>        <span class="kw">let </span>scoping = <span class="self">self</span>.scoping();
 <a href=#234 id=234 data-nosnippet>234</a>
 <a href=#235 id=235 data-nosnippet>235</a>        <span class="kw">let </span>limits = rate_limiter
-<a href=#236 id=236 data-nosnippet>236</a>            .try_consume(scoping.item(<span class="self">self</span>.data.event_category()), <span class="number">1</span>)
+<a href=#236 id=236 data-nosnippet>236</a>            .try_consume(<span class="kw-2">&amp;</span>scoping.item(<span class="self">self</span>.data.event_category()), <span class="number">1</span>)
 <a href=#237 id=237 data-nosnippet>237</a>            .<span class="kw">await</span>;
 <a href=#238 id=238 data-nosnippet>238</a>
 <a href=#239 id=239 data-nosnippet>239</a>        <span class="kw">if </span>!limits.is_empty() {
@@ -242,7 +242,7 @@
 <a href=#242 id=242 data-nosnippet>242</a>
 <a href=#243 id=243 data-nosnippet>243</a>        <span class="kw">for </span>(category, quantity) <span class="kw">in </span><span class="self">self</span>.data.quantities() {
 <a href=#244 id=244 data-nosnippet>244</a>            <span class="kw">let </span>limits = rate_limiter
-<a href=#245 id=245 data-nosnippet>245</a>                .try_consume(scoping.item(category), quantity)
+<a href=#245 id=245 data-nosnippet>245</a>                .try_consume(<span class="kw-2">&amp;</span>scoping.item(category), quantity)
 <a href=#246 id=246 data-nosnippet>246</a>                .<span class="kw">await</span>;
 <a href=#247 id=247 data-nosnippet>247</a>
 <a href=#248 id=248 data-nosnippet>248</a>            <span class="kw">if </span>!limits.is_empty() {
@@ -255,7 +255,7 @@
 <a href=#255 id=255 data-nosnippet>255</a>
 <a href=#256 id=256 data-nosnippet>256</a>        <span class="kw">for </span>(category, quantity) <span class="kw">in </span><span class="self">self</span>.attachments.quantities() {
 <a href=#257 id=257 data-nosnippet>257</a>            <span class="kw">let </span>limits = rate_limiter
-<a href=#258 id=258 data-nosnippet>258</a>                .try_consume(scoping.item(category), quantity)
+<a href=#258 id=258 data-nosnippet>258</a>                .try_consume(<span class="kw-2">&amp;</span>scoping.item(category), quantity)
 <a href=#259 id=259 data-nosnippet>259</a>                .<span class="kw">await</span>;
 <a href=#260 id=260 data-nosnippet>260</a>
 <a href=#261 id=261 data-nosnippet>261</a>            <span class="kw">if </span>!limits.is_empty() {
@@ -271,7 +271,7 @@
 <a href=#271 id=271 data-nosnippet>271</a>
 <a href=#272 id=272 data-nosnippet>272</a>        <span class="kw">for </span>(category, quantity) <span class="kw">in </span><span class="self">self</span>.user_reports.quantities() {
 <a href=#273 id=273 data-nosnippet>273</a>            <span class="kw">let </span>limits = rate_limiter
-<a href=#274 id=274 data-nosnippet>274</a>                .try_consume(scoping.item(category), quantity)
+<a href=#274 id=274 data-nosnippet>274</a>                .try_consume(<span class="kw-2">&amp;</span>scoping.item(category), quantity)
 <a href=#275 id=275 data-nosnippet>275</a>                .<span class="kw">await</span>;
 <a href=#276 id=276 data-nosnippet>276</a>
 <a href=#277 id=277 data-nosnippet>277</a>            <span class="kw">if </span>!limits.is_empty() {

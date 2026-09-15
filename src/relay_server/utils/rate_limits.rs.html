@@ -78,7 +78,7 @@
 <a href=#78 id=78 data-nosnippet>78</a>            .collect();
 <a href=#79 id=79 data-nosnippet>79</a>
 <a href=#80 id=80 data-nosnippet>80</a>        <span class="kw">let </span>quota_scope = QuotaScope::from_name(components.next().unwrap_or(<span class="string">""</span>));
-<a href=#81 id=81 data-nosnippet>81</a>        <span class="kw">let </span>scope = RateLimitScope::for_quota(<span class="kw-2">*</span>scoping, quota_scope);
+<a href=#81 id=81 data-nosnippet>81</a>        <span class="kw">let </span>scope = RateLimitScope::for_quota(scoping, quota_scope);
 <a href=#82 id=82 data-nosnippet>82</a>
 <a href=#83 id=83 data-nosnippet>83</a>        <span class="kw">let </span>reason_code = components
 <a href=#84 id=84 data-nosnippet>84</a>            .next()
