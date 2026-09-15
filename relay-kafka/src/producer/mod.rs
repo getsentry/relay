@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 
 use rdkafka::ClientConfig;
-use rdkafka::message::Header;
+use rdkafka::message::{Header, ToBytes};
 use rdkafka::producer::{BaseRecord, Producer as _};
 use relay_statsd::metric;
 use sentry_arroyo::backends::ProducerError;
@@ -161,23 +161,7 @@ impl TopicProducers {
     /// Validates the topic by fetching the metadata of the topic directly from Kafka.
     fn validate_topic(&self) -> Result<(), ClientError> {
         for tp in &self.producers {
-            match tp.producer.as_ref() {
-                ProducerBackend::Rdkafka(producer) => {
-                    let metadata = producer
-                        .client()
-                        .fetch_metadata(Some(&tp.topic_name), KAFKA_FETCH_METADATA_TIMEOUT)
-                        .map_err(ClientError::MetadataFetchError)?;
-
-                    for topic in metadata.topics() {
-                        if let Some(error) = topic.error() {
-                            return Err(ClientError::TopicError(topic.name().to_owned(), error));
-                        }
-                    }
-                }
-                ProducerBackend::Arroyo(producer) => producer
-                    .validate_topic(Topic::new(&tp.topic_name), KAFKA_FETCH_METADATA_TIMEOUT)
-                    .map_err(|error| ClientError::ArroyoTopicError(tp.topic_name.clone(), error))?,
-            }
+            tp.producer.validate_topic(&tp.topic_name)?;
         }
 
         Ok(())
@@ -202,6 +186,50 @@ impl ProducerBackend {
             Self::Rdkafka(producer) => producer.context(),
             Self::Arroyo(producer) => producer.context(),
         }
+    }
+
+    fn in_flight_count(&self) -> i32 {
+        match self {
+            Self::Rdkafka(producer) => producer.in_flight_count(),
+            Self::Arroyo(producer) => producer.in_flight_count(),
+        }
+    }
+
+    fn send<K, P>(&self, record: BaseRecord<'_, K, P>) -> Result<(), ClientError>
+    where
+        K: ToBytes + ?Sized,
+        P: ToBytes + ?Sized,
+    {
+        match self {
+            Self::Rdkafka(producer) => producer
+                .send(record)
+                .map_err(|(error, _)| ClientError::SendFailed(error)),
+            Self::Arroyo(producer) => producer
+                .produce_record(record)
+                .map_err(ClientError::ArroyoSendFailed),
+        }
+    }
+
+    fn validate_topic(&self, topic_name: &str) -> Result<(), ClientError> {
+        match self {
+            Self::Rdkafka(producer) => {
+                let metadata = producer
+                    .client()
+                    .fetch_metadata(Some(topic_name), KAFKA_FETCH_METADATA_TIMEOUT)
+                    .map_err(ClientError::MetadataFetchError)?;
+
+                for topic in metadata.topics() {
+                    if let Some(error) = topic.error() {
+                        return Err(ClientError::TopicError(topic.name().to_owned(), error));
+                    }
+                }
+            }
+            Self::Arroyo(producer) => producer
+                .validate_topic(Topic::new(topic_name), KAFKA_FETCH_METADATA_TIMEOUT)
+                .map_err(|error| ClientError::ArroyoTopicError(topic_name.to_owned(), error))?,
+        }
+
+        Ok(())
     }
 }
 
@@ -299,27 +327,15 @@ impl Producer {
         }
 
         self.metrics.debounce(now, || {
-            let in_flight_count = match producer.as_ref() {
-                ProducerBackend::Rdkafka(producer) => producer.in_flight_count(),
-                ProducerBackend::Arroyo(producer) => producer.in_flight_count(),
-            };
             metric!(
-                gauge(KafkaGauges::InFlightCount) = in_flight_count as u64,
+                gauge(KafkaGauges::InFlightCount) = producer.in_flight_count() as u64,
                 variant = variant,
                 topic = topic_name,
                 producer_name = producer_name
             );
         });
 
-        let result = match producer.as_ref() {
-            ProducerBackend::Rdkafka(producer) => producer
-                .send(record)
-                .map_err(|(error, _)| ClientError::SendFailed(error)),
-            ProducerBackend::Arroyo(producer) => producer
-                .produce_record(record)
-                .map_err(ClientError::ArroyoSendFailed),
-        };
-        result.inspect_err(|_| {
+        producer.send(record).inspect_err(|_| {
             metric!(
                 counter(KafkaCounters::ProducerEnqueueError) += 1,
                 variant = variant,
