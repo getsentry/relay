@@ -324,8 +324,7 @@ enum RelayDataCategory {
   /**
    * Snapshot image
    *
-   * This is the data category to count the number of images accepted by the preprod snapshot
-   * upload API. It counts uploaded images, not builds, comparisons, diffs, or downloads.
+   * Counts images accepted by the preprod snapshot upload API.
    *
    * SDK rate limiting behavior: ignore.
    */
