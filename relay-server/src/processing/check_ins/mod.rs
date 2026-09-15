@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use relay_cogs::{AppFeature, FeatureWeights};
 use relay_monitors::{CheckIn, ProcessCheckInError};
-use relay_quotas::{DataCategory, RateLimits};
+use relay_quotas::{DataCategory, Dimension, RateLimits};
 
 use crate::Envelope;
 use crate::envelope::{ContentType, EnvelopeHeaders, Item, ItemType};
@@ -193,10 +193,101 @@ impl Counted for ExpandedCheckIn {
     }
 }
 
-impl CountRateLimited for Managed<SerializedCheckIns> {
-    type Error = Error;
-}
-
 impl CountRateLimited for Managed<ExpandedCheckIn> {
     type Error = Error;
+
+    fn dimensions(&self) -> Option<Arc<[(Dimension, String)]>> {
+        let dims = [
+            (
+                relay_quotas::Dimension::CheckInEnvironment,
+                self.check_in.environment.clone().unwrap_or_default(),
+            ),
+            (
+                relay_quotas::Dimension::CheckInSlug,
+                self.check_in.monitor_slug.clone(),
+            ),
+        ];
+
+        Some(dims.into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use relay_event_schema::protocol::EventId;
+
+    use crate::extractors::RequestMeta;
+    use crate::managed::ManagedTestHandle;
+    use crate::processing::limits::CountRateLimited;
+
+    use super::*;
+
+    /// Builds a [`Managed<ExpandedCheckIn>`] from the passed check-in payload.
+    fn expanded_check_in(payload: &str) -> (Managed<ExpandedCheckIn>, ManagedTestHandle) {
+        let dsn = "https://a94ae32be2584e0bbd7a4cbb95971fee:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let envelope = Envelope::from_request(Some(EventId::new()), RequestMeta::new(dsn));
+
+        let mut item = Item::new(ItemType::CheckIn);
+        item.set_payload(ContentType::Json, payload.to_owned());
+
+        let check_in = ExpandedCheckIn {
+            headers: envelope.headers().to_owned(),
+            check_in: serde_json::from_str(payload).unwrap(),
+        };
+
+        Managed::for_test(check_in).build()
+    }
+
+    #[test]
+    fn test_check_in_dimensions() {
+        let (check_in, mut handle) = expanded_check_in(
+            r#"{
+                "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
+                "monitor_slug": "my-monitor",
+                "status": "ok",
+                "environment": "production"
+            }"#,
+        );
+
+        assert_eq!(
+            check_in.dimensions().as_deref(),
+            Some(
+                &[
+                    (Dimension::CheckInEnvironment, "production".to_owned()),
+                    (Dimension::CheckInSlug, "my-monitor".to_owned()),
+                ][..]
+            )
+        );
+
+        drop(check_in);
+        handle.assert_internal_outcome(DataCategory::Monitor, 1);
+    }
+
+    #[test]
+    fn test_check_in_dimensions_without_environment() {
+        let (check_in, mut handle) = expanded_check_in(
+            r#"{
+                "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
+                "monitor_slug": "my-monitor",
+                "status": "ok"
+            }"#,
+        );
+
+        // A check-in without an environment still has to produce a dimension for it, otherwise
+        // it would not match a quota which keys on the environment.
+        assert_eq!(
+            check_in.dimensions().as_deref(),
+            Some(
+                &[
+                    (Dimension::CheckInEnvironment, String::new()),
+                    (Dimension::CheckInSlug, "my-monitor".to_owned()),
+                ][..]
+            )
+        );
+
+        drop(check_in);
+        handle.assert_internal_outcome(DataCategory::Monitor, 1);
+    }
 }
