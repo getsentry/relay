@@ -271,7 +271,6 @@ def test_lcp_span(
     }
 
 
-
 @pytest.mark.parametrize("is_segment", [False, True])
 def test_cls_span(
     mini_sentry,
@@ -450,7 +449,6 @@ def test_cls_span(
     }
 
 
-
 @pytest.mark.parametrize("is_segment", [False, True])
 def test_inp_span(
     mini_sentry,
@@ -590,7 +588,6 @@ def test_inp_span(
         "status": "ok",
         "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
     }
-
 
 
 def test_spans_standalone_dsc_normalization(

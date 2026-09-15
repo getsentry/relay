@@ -19,7 +19,7 @@ from opentelemetry.proto.trace.v1.trace_pb2 import (
 )
 from sentry_relay.consts import DataCategory
 
-from .asserts import time_within_delta, time_within
+from .asserts import time_within
 from .consts import Outcome
 
 GRPC_INVALID_ARGUMENT = 3

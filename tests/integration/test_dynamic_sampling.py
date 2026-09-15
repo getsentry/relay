@@ -7,7 +7,6 @@ import pytest
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 import queue
-from .asserts import time_within_delta
 from .consts import Outcome
 
 

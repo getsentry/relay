@@ -463,9 +463,7 @@ def test_global_metrics_batching(mini_sentry, relay):
     ]
 
 
-def test_metrics_with_processing(
-    mini_sentry, relay_with_processing, metrics_consumer
-):
+def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_consumer):
     relay = relay_with_processing(options=TEST_CONFIG)
     metrics_consumer = metrics_consumer()
 

@@ -369,7 +369,6 @@ def test_spansv2_trimming_basic(
     }
 
 
-
 @pytest.mark.parametrize(
     "span",
     ["v2", "legacy"],
