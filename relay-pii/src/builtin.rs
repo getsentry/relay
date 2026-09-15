@@ -409,6 +409,12 @@ declare_builtin_rules! {
         ty: RuleType::Password,
         redaction: Redaction::Remove,
     };
+    "@cookies:filter" => RuleSpec {
+        ty: RuleType::Cookies,
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[Filtered]".into(),
+        }),
+    };
 }
 
 // TODO: Move these tests to /tests
