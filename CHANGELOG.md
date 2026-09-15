@@ -35,6 +35,7 @@
 **Internal**:
 
 - Implement `Getter` for sessions so generic inbound filters can match them by `event.release` and `event.environment`. ([#6325](https://github.com/getsentry/relay/pull/6325))
+- Add an opt-in Arroyo Kafka producer backend for processing mode, enabled with `processing.use_arroyo`. ([#6383](https://github.com/getsentry/relay/pull/6383))
 
 **Internal**:
 
