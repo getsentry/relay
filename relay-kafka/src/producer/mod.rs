@@ -503,13 +503,7 @@ impl KafkaClientBuilder {
                 let producer = if self.use_arroyo {
                     let params = config_params
                         .iter()
-                        .map(|param| {
-                            let name = match param.name.as_str() {
-                                "metadata.broker.list" => "bootstrap.servers",
-                                name => name,
-                            };
-                            (name.to_owned(), param.value.clone())
-                        })
+                        .map(|param| (param.name.clone(), param.value.clone()))
                         .collect();
                     let config = KafkaConfig::new_config(Vec::new(), Some(params));
                     ArroyoKafkaProducer::new_with_context(config, context)
