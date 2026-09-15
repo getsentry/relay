@@ -1,4 +1,6 @@
-use std::fmt;
+use std::collections::HashSet;
+use std::fmt::{self};
+use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -11,6 +13,8 @@ use smallvec::SmallVec;
 
 #[doc(inline)]
 pub use relay_base_schema::data_category::{CategoryUnit, DataCategory};
+
+use crate::EMPTY_DIMENSIONS;
 
 /// Data scoping information for rate limiting and quota enforcement.
 ///
@@ -43,6 +47,21 @@ impl Scoping {
             category,
             scoping: *self,
             namespace: MetricNamespaceScoping::None,
+            dimensions: None,
+        }
+    }
+
+    /// Creates an [`ItemScoping`] for a specific data category, along with specified dimensions
+    pub fn item_with_dimensions(
+        &self,
+        category: DataCategory,
+        dimensions: Arc<[(Dimension, String)]>,
+    ) -> ItemScoping {
+        ItemScoping {
+            category,
+            scoping: *self,
+            namespace: MetricNamespaceScoping::None,
+            dimensions: Some(dimensions),
         }
     }
 
@@ -56,6 +75,7 @@ impl Scoping {
             category: DataCategory::MetricBucket,
             scoping: *self,
             namespace: MetricNamespaceScoping::Some(namespace),
+            dimensions: None,
         }
     }
 }
@@ -107,7 +127,7 @@ impl From<MetricNamespace> for MetricNamespaceScoping {
 ///
 /// [`ItemScoping`] combines a data category, scoping information, and optional
 /// metric namespace to fully define an item for rate limiting purposes.
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ItemScoping {
     /// The data category of the item.
     pub category: DataCategory,
@@ -117,6 +137,9 @@ pub struct ItemScoping {
 
     /// Namespace for metric items, requiring [`DataCategory::MetricBucket`].
     pub namespace: MetricNamespaceScoping,
+
+    /// Dimensions this quota will be matched on.
+    pub dimensions: Option<Arc<[(Dimension, String)]>>,
 }
 
 impl std::ops::Deref for ItemScoping {
@@ -141,6 +164,44 @@ impl ItemScoping {
         }
     }
 
+    /// Converts the dimensions of this item scoping, for the supplied quota, into a string of the
+    /// dimension name and hashed value.  This looks like ':key1:hash1:key2:hash2'.
+    /// This function assumes that the quota passed to it already matches this ItemScoping.
+    pub fn dimensions_as_string(&self, quota: &Quota) -> String {
+        let mut result = String::new();
+
+        let Some(item_dimensions) = &self.dimensions else {
+            return EMPTY_DIMENSIONS.to_owned();
+        };
+
+        let Some(quota_dimensions) = &quota.dimensions else {
+            return EMPTY_DIMENSIONS.to_owned();
+        };
+
+        for dim in quota_dimensions.dimensions.iter() {
+            for item in item_dimensions.iter() {
+                if item.0 == *dim {
+                    let mut hasher = fnv::FnvHasher::with_key(1);
+                    item.1.hash(&mut hasher);
+                    let h = &hasher.finish();
+
+                    result.push(':');
+                    result += &item.0.to_string();
+                    result.push(':');
+                    result += &h.to_string();
+
+                    break;
+                }
+            }
+        }
+
+        if result.is_empty() {
+            result = EMPTY_DIMENSIONS.to_owned();
+        }
+
+        result
+    }
+
     /// Checks whether the category matches any of the quota's categories.
     pub(crate) fn matches_categories(&self, categories: DataCategories) -> bool {
         // An empty list of categories means that this quota matches all categories. Note that we
@@ -148,6 +209,28 @@ impl ItemScoping {
         // we do **not** match, since apparently the quota is meant for some data this Relay does
         // not support yet.
         categories.is_empty() || categories.contains(&self.category)
+    }
+
+    /// Checks wether this item matches all of the supplied quota's dimensions.
+    pub(crate) fn matches_dimensions(&self, dimensions: &Option<Dimensions>) -> bool {
+        let Some(quota_dims) = dimensions else {
+            // If the quota has no dimensions, we trivially match it.
+            return true;
+        };
+
+        let Some(item_dims) = &self.dimensions else {
+            // If the quota has dimensions, but we do not, we trivially do not match it.
+            return false;
+        };
+
+        // Ensure each of the quota's required dimensions are present in us.
+        for dim in quota_dims.dimensions.iter() {
+            if item_dims.iter().find(|i| i.0 == *dim).is_none() {
+                return false;
+            }
+        }
+
+        true
     }
 
     /// Returns `true` if the rate limit namespace matches the namespace of the item.
@@ -498,6 +581,44 @@ pub struct Quota {
     /// unlimited quotas can never be exceeded.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason_code: Option<ReasonCode>,
+
+    /// The optional list of dimensions that this quota will use.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dimensions: Option<Dimensions>,
+}
+
+/// The dimensions that a quota can key on--this is for things like monitors, that require even
+/// more fine-grained rate-limiting.
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Dimensions {
+    /// The maximum number combinations of dimensions on this quota to allow.  Set to None
+    /// for "infinite".
+    pub max_cardinality: Option<u32>,
+
+    /// The list of dimensions this quota will use.
+    pub dimensions: Arc<[Dimension]>,
+}
+
+/// The kinds of dimensions that can be applied to a given quota.
+#[derive(Copy, Clone, Debug, Deserialize, Serialize, Eq, PartialEq, PartialOrd, Ord, Hash)]
+#[serde(rename_all = "camelCase")]
+pub enum Dimension {
+    /// The environment used in a monitor check-in.
+    CheckInEnvironment = 1,
+
+    /// The slug used in a monitor check-in.
+    CheckInSlug = 2,
+
+    /// An unknown dimension.
+    #[serde(other)]
+    Unknown = 0,
+}
+
+impl fmt::Display for Dimension {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("{}", *self as u32))
+    }
 }
 
 impl Quota {
@@ -507,9 +628,30 @@ impl Quota {
     ///  - The quota only applies to [`DataCategory::Unknown`] data categories.
     ///  - The quota is counted (not limit `0`) but specifies categories with different units.
     ///  - The quota references an unsupported namespace.
+    ///  - The dimensions contain Unknown, or are not distinct, or is empty.
     pub fn is_valid(&self) -> bool {
         if self.namespace == Some(MetricNamespace::Unsupported) {
             return false;
+        }
+
+        if let Some(dims) = &self.dimensions {
+            // A non-none dimension set should also be non-empty.
+            if dims.dimensions.is_empty() {
+                return false;
+            }
+
+            let mut distinct = HashSet::new();
+            for dim in dims.dimensions.iter() {
+                if *dim == Dimension::Unknown {
+                    return false;
+                }
+
+                distinct.insert(dim);
+            }
+
+            if distinct.len() != dims.dimensions.len() {
+                return false;
+            }
         }
 
         let mut units = self
@@ -561,6 +703,23 @@ impl Quota {
         self.matches_scope(scoping)
             && scoping.matches_categories(self.categories)
             && scoping.matches_namespaces(&self.namespace)
+            && scoping.matches_dimensions(&self.dimensions)
+    }
+
+    /// Builds the dimensions key for this quota, which is a colon-separated list of the tags of
+    /// the dimensions on this quota.
+    pub fn dimensions_key(&self) -> String {
+        let mut result = String::new();
+        if let Some(dims) = &self.dimensions {
+            for dim in dims.dimensions.iter() {
+                result += &dim.to_string();
+                result.push(':');
+            }
+        } else {
+            result = EMPTY_DIMENSIONS.to_owned();
+        }
+
+        result
     }
 }
 
@@ -782,6 +941,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            dimensions: None,
         };
 
         assert!(quota.is_valid());
@@ -798,6 +958,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            dimensions: None,
         };
 
         assert!(!quota.is_valid());
@@ -814,6 +975,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            dimensions: None,
         };
 
         assert!(quota.is_valid());
@@ -830,6 +992,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            dimensions: None,
         };
 
         // This category is limited and counted, but has multiple units.
@@ -847,6 +1010,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            dimensions: None,
         };
 
         // This category is unlimited and counted, but has multiple units.
@@ -864,6 +1028,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            dimensions: None,
         };
 
         assert!(quota.matches(&ItemScoping {
@@ -875,6 +1040,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: None,
         }));
     }
 
@@ -889,6 +1055,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            dimensions: None,
         };
 
         assert!(!quota.matches(&ItemScoping {
@@ -900,6 +1067,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: None,
         }));
     }
 
@@ -914,6 +1082,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            dimensions: None,
         };
 
         assert!(quota.matches(&ItemScoping {
@@ -925,6 +1094,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: None,
         }));
 
         assert!(!quota.matches(&ItemScoping {
@@ -936,6 +1106,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: None,
         }));
     }
 
@@ -950,6 +1121,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            dimensions: None,
         };
 
         assert!(!quota.matches(&ItemScoping {
@@ -961,6 +1133,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: None,
         }));
     }
 
@@ -975,6 +1148,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            dimensions: None,
         };
 
         assert!(quota.matches(&ItemScoping {
@@ -986,6 +1160,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: None,
         }));
 
         assert!(!quota.matches(&ItemScoping {
@@ -997,6 +1172,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: None,
         }));
     }
 
@@ -1011,6 +1187,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            dimensions: None,
         };
 
         assert!(quota.matches(&ItemScoping {
@@ -1022,6 +1199,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: None,
         }));
 
         assert!(!quota.matches(&ItemScoping {
@@ -1033,6 +1211,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: None,
         }));
     }
 
@@ -1047,6 +1226,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            dimensions: None,
         };
 
         assert!(quota.matches(&ItemScoping {
@@ -1058,6 +1238,7 @@ mod tests {
                 key_id: Some(17),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: None,
         }));
 
         assert!(!quota.matches(&ItemScoping {
@@ -1069,6 +1250,7 @@ mod tests {
                 key_id: Some(0),
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: None,
         }));
 
         assert!(!quota.matches(&ItemScoping {
@@ -1080,7 +1262,296 @@ mod tests {
                 key_id: None,
             },
             namespace: MetricNamespaceScoping::None,
+            dimensions: None,
         }));
+    }
+
+    /// Builds a monitor quota with the passed dimensions.
+    fn dimensioned_quota(dimensions: Option<Dimensions>) -> Quota {
+        Quota {
+            id: Some("q".into()),
+            categories: [DataCategory::Monitor].into(),
+            scope: QuotaScope::Project,
+            scope_id: None,
+            limit: Some(10),
+            window: Some(60),
+            reason_code: None,
+            namespace: None,
+            dimensions,
+        }
+    }
+
+    /// Builds a monitor item scoping with the passed dimensions.
+    fn dimensioned_scoping(dimensions: Option<&[(Dimension, &str)]>) -> ItemScoping {
+        let scoping = Scoping {
+            organization_id: OrganizationId::new(42),
+            project_id: ProjectId::new(21),
+            project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            key_id: Some(17),
+        };
+
+        match dimensions {
+            None => scoping.item(DataCategory::Monitor),
+            Some(dims) => scoping.item_with_dimensions(
+                DataCategory::Monitor,
+                dims.iter().map(|(d, v)| (*d, (*v).to_owned())).collect(),
+            ),
+        }
+    }
+
+    #[test]
+    fn test_quota_valid_dimensions() {
+        let quota = dimensioned_quota(Some(Dimensions {
+            max_cardinality: Some(100),
+            dimensions: [Dimension::CheckInSlug, Dimension::CheckInEnvironment].into(),
+        }));
+
+        assert!(quota.is_valid());
+    }
+
+    #[test]
+    fn test_quota_invalid_empty_dimensions() {
+        let quota = dimensioned_quota(Some(Dimensions {
+            max_cardinality: None,
+            dimensions: [].into(),
+        }));
+
+        // A dimension set which is present must not be empty.
+        assert!(!quota.is_valid());
+    }
+
+    #[test]
+    fn test_quota_invalid_unknown_dimension() {
+        let quota = dimensioned_quota(Some(Dimensions {
+            max_cardinality: None,
+            dimensions: [Dimension::CheckInSlug, Dimension::Unknown].into(),
+        }));
+
+        assert!(!quota.is_valid());
+    }
+
+    #[test]
+    fn test_quota_invalid_duplicate_dimensions() {
+        let quota = dimensioned_quota(Some(Dimensions {
+            max_cardinality: None,
+            dimensions: [Dimension::CheckInSlug, Dimension::CheckInSlug].into(),
+        }));
+
+        assert!(!quota.is_valid());
+    }
+
+    #[test]
+    fn test_quota_matches_dimensions() {
+        let quota = dimensioned_quota(Some(Dimensions {
+            max_cardinality: None,
+            dimensions: [Dimension::CheckInEnvironment, Dimension::CheckInSlug].into(),
+        }));
+
+        // Exactly the required dimensions, in either order.
+        assert!(quota.matches(&dimensioned_scoping(Some(&[
+            (Dimension::CheckInEnvironment, "prod"),
+            (Dimension::CheckInSlug, "cron1"),
+        ]))));
+        assert!(quota.matches(&dimensioned_scoping(Some(&[
+            (Dimension::CheckInSlug, "cron1"),
+            (Dimension::CheckInEnvironment, "prod"),
+        ]))));
+
+        // A subset of the required dimensions does not match.
+        assert!(!quota.matches(&dimensioned_scoping(Some(&[(
+            Dimension::CheckInSlug,
+            "cron1"
+        )]))));
+
+        // Neither does an empty or absent dimension set.
+        assert!(!quota.matches(&dimensioned_scoping(Some(&[]))));
+        assert!(!quota.matches(&dimensioned_scoping(None)));
+    }
+
+    #[test]
+    fn test_quota_without_dimensions_matches_any_item() {
+        let quota = dimensioned_quota(None);
+
+        // A quota without dimensions applies to every item, dimensioned or not.
+        assert!(quota.matches(&dimensioned_scoping(None)));
+        assert!(quota.matches(&dimensioned_scoping(Some(&[
+            (Dimension::CheckInEnvironment, "prod"),
+            (Dimension::CheckInSlug, "cron1"),
+        ]))));
+    }
+
+    #[test]
+    fn test_dimensions_as_string() {
+        let quota = dimensioned_quota(Some(Dimensions {
+            max_cardinality: None,
+            dimensions: [Dimension::CheckInEnvironment, Dimension::CheckInSlug].into(),
+        }));
+
+        let key = dimensioned_scoping(Some(&[
+            (Dimension::CheckInEnvironment, "prod"),
+            (Dimension::CheckInSlug, "cron1"),
+        ]))
+        .dimensions_as_string(&quota);
+
+        // `:<dimension>:<hash>` per dimension, ordered by the quota's dimensions.
+        let parts = key.split(':').collect::<Vec<_>>();
+        assert_eq!(parts.len(), 5);
+        assert_eq!(parts[0], "");
+        assert_eq!(parts[1], Dimension::CheckInEnvironment.to_string());
+        assert_eq!(parts[3], Dimension::CheckInSlug.to_string());
+        assert!(parts[2].parse::<u64>().is_ok());
+        assert!(parts[4].parse::<u64>().is_ok());
+    }
+
+    #[test]
+    fn test_dimensions_as_string_ignores_extra_dimensions() {
+        let quota = dimensioned_quota(Some(Dimensions {
+            max_cardinality: None,
+            dimensions: [Dimension::CheckInSlug].into(),
+        }));
+
+        let expected = dimensioned_scoping(Some(&[(Dimension::CheckInSlug, "cron1")]))
+            .dimensions_as_string(&quota);
+
+        assert_eq!(
+            dimensioned_scoping(Some(&[
+                (Dimension::CheckInSlug, "cron1"),
+                (Dimension::CheckInEnvironment, "prod"),
+            ]))
+            .dimensions_as_string(&quota),
+            expected
+        );
+    }
+
+    #[test]
+    fn test_dimensions_as_string_without_dimensions() {
+        let dimensions = Some(Dimensions {
+            max_cardinality: None,
+            dimensions: [Dimension::CheckInSlug].into(),
+        });
+
+        let dimensioned_item =
+            dimensioned_scoping(Some(&[(Dimension::CheckInEnvironment, "prod")]));
+
+        // Neither side having dimensions, or only one side having them, collapses to the
+        // single "no dimensions" bucket.
+        assert_eq!(
+            dimensioned_scoping(None).dimensions_as_string(&dimensioned_quota(None)),
+            "_"
+        );
+        assert_eq!(
+            dimensioned_scoping(None).dimensions_as_string(&dimensioned_quota(dimensions.clone())),
+            "_"
+        );
+        assert_eq!(
+            dimensioned_item.dimensions_as_string(&dimensioned_quota(None)),
+            "_"
+        );
+
+        // So does an item which shares no dimension with the quota.
+        assert_eq!(
+            dimensioned_item.dimensions_as_string(&dimensioned_quota(dimensions)),
+            "_"
+        );
+    }
+
+    #[test]
+    fn test_dimensions_key() {
+        assert_eq!(dimensioned_quota(None).dimensions_key(), "_");
+
+        assert_eq!(
+            dimensioned_quota(Some(Dimensions {
+                max_cardinality: None,
+                dimensions: [Dimension::CheckInEnvironment, Dimension::CheckInSlug].into(),
+            }))
+            .dimensions_key(),
+            "1:2:"
+        );
+
+        // The key follows the quota's dimension order.
+        assert_eq!(
+            dimensioned_quota(Some(Dimensions {
+                max_cardinality: None,
+                dimensions: [Dimension::CheckInSlug, Dimension::CheckInEnvironment].into(),
+            }))
+            .dimensions_key(),
+            "2:1:"
+        );
+    }
+
+    #[test]
+    fn test_parse_quota_dimensions() {
+        let json = r#"{
+            "id": "o",
+            "categories": ["monitor"],
+            "limit": 4711,
+            "window": 42,
+            "dimensions": {
+                "maxCardinality": 100,
+                "dimensions": ["checkInSlug", "checkInEnvironment"]
+            }
+        }"#;
+
+        let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
+
+        insta::assert_ron_snapshot!(quota, @r#"
+        Quota(
+          id: Some("o"),
+          categories: [
+            "monitor",
+          ],
+          scope: organization,
+          limit: Some(4711),
+          window: Some(42),
+          namespace: None,
+          dimensions: Some(Dimensions(
+            maxCardinality: Some(100),
+            dimensions: [
+              checkInSlug,
+              checkInEnvironment,
+            ],
+          )),
+        )
+        "#);
+
+        assert!(quota.is_valid());
+    }
+
+    #[test]
+    fn test_parse_quota_dimensions_unknown() {
+        let json = r#"{
+            "id": "o",
+            "limit": 4711,
+            "window": 42,
+            "dimensions": {
+                "maxCardinality": null,
+                "dimensions": ["checkInSlug", "somethingNew"]
+            }
+        }"#;
+
+        let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
+
+        // Unknown dimensions parse, but invalidate the quota, since we cannot bucket by a
+        // dimension we do not understand.
+        insta::assert_ron_snapshot!(quota, @r#"
+        Quota(
+          id: Some("o"),
+          categories: [],
+          scope: organization,
+          limit: Some(4711),
+          window: Some(42),
+          namespace: None,
+          dimensions: Some(Dimensions(
+            maxCardinality: None,
+            dimensions: [
+              checkInSlug,
+              unknown,
+            ],
+          )),
+        )
+        "#);
+
+        assert!(!quota.is_valid());
     }
 
     #[test]

@@ -19,6 +19,7 @@ workspace = true
 [dependencies]
 ahash = { workspace = true }
 async-trait = { workspace = true }
+fnv = { workspace = true }
 hashbrown = { workspace = true }
 papaya = { workspace = true }
 itertools = { workspace = true }

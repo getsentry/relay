@@ -207,6 +207,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
+            dimensions: None,
         }]
     }
 
