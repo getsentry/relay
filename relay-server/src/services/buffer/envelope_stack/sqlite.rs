@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 use std::num::NonZeroUsize;
+use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Utc};
 use relay_base_schema::project::ProjectKey;
@@ -42,6 +43,10 @@ pub struct SqliteEnvelopeStack {
     check_disk: bool,
     /// The tag value of this partition which is used for reporting purposes.
     partition_tag: String,
+    /// Time after which to flush the buffer to disk, regardless of batch size.
+    flush_timeout: Option<Duration>,
+    /// Time of last flush to disk.
+    last_flush: Option<Instant>,
 }
 
 impl SqliteEnvelopeStack {
@@ -53,6 +58,7 @@ impl SqliteEnvelopeStack {
         own_key: ProjectKey,
         sampling_key: ProjectKey,
         check_disk: bool,
+        flush_timeout: Option<Duration>,
     ) -> Self {
         Self {
             envelope_store,
@@ -63,12 +69,25 @@ impl SqliteEnvelopeStack {
             batch: vec![],
             check_disk,
             partition_tag: partition_id.to_string(),
+            flush_timeout,
+            last_flush: None,
         }
     }
 
     /// Threshold above which the [`SqliteEnvelopeStack`] will spool data from the `buffer` to disk.
-    fn above_spool_threshold(&self) -> bool {
-        self.batch.iter().map(|e| e.len()).sum::<usize>() > self.batch_size_bytes.get()
+    fn should_spool_to_disk(&self) -> bool {
+        let batch_size = self.batch.iter().map(|e| e.len()).sum::<usize>();
+        if batch_size > self.batch_size_bytes.get() {
+            return true;
+        }
+
+        if let Some(timeout) = self.flush_timeout {
+            return self
+                .last_flush
+                .is_none_or(|last_flush| last_flush.elapsed() > timeout);
+        }
+
+        false
     }
 
     /// Spools to disk a batch of envelopes from the `batch`.
@@ -88,7 +107,7 @@ impl SqliteEnvelopeStack {
         );
 
         // When early return here, we are acknowledging that the elements that we popped from
-        // the buffer are lost in case of failure. We are doing this on purposes, since if we were
+        // the buffer are lost in case of failure. We are doing this on purpose, since if we were
         // to have a database corruption during runtime, and we were to put the values back into
         // the buffer we will end up with an infinite cycle.
         relay_statsd::metric!(
@@ -104,6 +123,7 @@ impl SqliteEnvelopeStack {
 
         // If we successfully spooled to disk, we know that data should be there.
         self.check_disk = true;
+        self.last_flush = Some(Instant::now());
 
         Ok(())
     }
@@ -154,7 +174,7 @@ impl EnvelopeStack for SqliteEnvelopeStack {
     async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), Self::Error> {
         debug_assert!(self.validate_envelope(&envelope));
 
-        if self.above_spool_threshold() {
+        if self.should_spool_to_disk() {
             self.spool_to_disk().await?;
         }
 
@@ -229,6 +249,7 @@ mod tests {
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("c25ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
+            None,
         );
 
         let envelope = mock_envelope(Utc::now());
@@ -253,6 +274,7 @@ mod tests {
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
+            None,
         );
 
         // We push the 4 envelopes without errors because they are below the threshold.
@@ -294,6 +316,7 @@ mod tests {
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
+            None,
         );
 
         // We pop with an invalid db.
@@ -314,6 +337,7 @@ mod tests {
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
+            None,
         );
 
         // We pop with no elements.
@@ -332,6 +356,7 @@ mod tests {
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
+            None,
         );
 
         let envelopes = mock_envelopes(5);
@@ -362,6 +387,53 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_push_with_flush_timeout() {
+        let db = setup_db(true).await;
+        let envelope_store = SqliteEnvelopeStore::new(0, db, Duration::from_millis(100));
+        let envelopes = mock_envelopes(5);
+        let timeout = Duration::from_secs(3600);
+        let mut stack = SqliteEnvelopeStack::new(
+            0,
+            envelope_store.clone(),
+            calculate_compressed_size(&envelopes),
+            ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
+            false,
+            Some(timeout),
+        );
+
+        // With no previous flush, the second push spools the first envelope to disk.
+        stack.push(envelopes[0].clone()).await.unwrap();
+        assert_eq!(envelope_store.total_count().await.unwrap(), 0);
+        stack.push(envelopes[1].clone()).await.unwrap();
+        assert_eq!(envelope_store.total_count().await.unwrap(), 1);
+        assert_eq!(stack.batch.len(), 1);
+
+        // Further pushes remain in memory until the timeout expires.
+        stack.push(envelopes[2].clone()).await.unwrap();
+        assert_eq!(envelope_store.total_count().await.unwrap(), 1);
+        assert_eq!(stack.batch.len(), 2);
+
+        // Backdate the last flush to expire the timeout without sleeping.
+        stack.last_flush = Some(Instant::now() - timeout - Duration::from_secs(1));
+        stack.push(envelopes[3].clone()).await.unwrap();
+        assert_eq!(envelope_store.total_count().await.unwrap(), 3);
+        assert_eq!(stack.batch.len(), 1);
+
+        // Flushing resets the timeout, so the next push stays in memory again.
+        stack.push(envelopes[4].clone()).await.unwrap();
+        assert_eq!(envelope_store.total_count().await.unwrap(), 3);
+        assert_eq!(stack.batch.len(), 2);
+
+        // Envelopes from memory and disk are still returned in stack order.
+        for envelope in envelopes.iter().rev() {
+            let popped = stack.pop().await.unwrap().unwrap();
+            assert_eq!(popped.event_id().unwrap(), envelope.event_id().unwrap());
+        }
+        assert!(stack.pop().await.unwrap().is_none());
+    }
+
+    #[tokio::test]
     async fn test_push_above_threshold_and_pop() {
         let db = setup_db(true).await;
         let envelope_store = SqliteEnvelopeStore::new(0, db, Duration::from_millis(100));
@@ -378,6 +450,7 @@ mod tests {
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
+            None,
         );
 
         // We push 7 envelopes.
@@ -446,6 +519,7 @@ mod tests {
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
+            None,
         );
 
         let envelopes = mock_envelopes(5);
