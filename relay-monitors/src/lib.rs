@@ -121,6 +121,10 @@ pub struct MonitorConfig {
     /// [0]: https://github.com/getsentry/sentry/blob/3644f5c4f2a99073bf925181b5237a6e05c1d6c2/src/sentry/utils/actor.py#L17
     #[serde(default, skip_serializing_if = "Option::is_none")]
     owner: Option<String>,
+
+    /// Unknown fields, for forwards-compatibility.
+    #[serde(flatten, default)]
+    pub other: BTreeMap<String, Value>,
 }
 
 /// The trace context sent with a check-in.
@@ -128,6 +132,10 @@ pub struct MonitorConfig {
 pub struct CheckInTrace {
     /// Trace-ID of the check-in.
     trace_id: TraceId,
+
+    /// Unknown fields, for forwards-compatibility.
+    #[serde(flatten, default)]
+    pub other: BTreeMap<String, Value>,
 }
 
 /// Any contexts sent in the check-in payload.
@@ -136,6 +144,10 @@ pub struct CheckInContexts {
     /// Trace context sent with a check-in.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     trace: Option<CheckInTrace>,
+
+    /// Unknown fields, for forwards-compatibility.
+    #[serde(flatten, default)]
+    pub other: BTreeMap<String, Value>,
 }
 
 /// The monitor check-in payload.
