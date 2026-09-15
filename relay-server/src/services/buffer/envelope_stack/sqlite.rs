@@ -44,7 +44,7 @@ pub struct SqliteEnvelopeStack {
     /// The tag value of this partition which is used for reporting purposes.
     partition_tag: String,
     /// Time after which to flush the buffer to disk, regardless of batch size.
-    flush_timeout: Duration,
+    flush_timeout: Option<Duration>,
     /// Time of last flush to disk.
     last_flush: Option<Instant>,
 }
@@ -58,7 +58,7 @@ impl SqliteEnvelopeStack {
         own_key: ProjectKey,
         sampling_key: ProjectKey,
         check_disk: bool,
-        flush_timeout: Duration,
+        flush_timeout: Option<Duration>,
     ) -> Self {
         Self {
             envelope_store,
@@ -81,8 +81,13 @@ impl SqliteEnvelopeStack {
             return true;
         }
 
-        self.last_flush
-            .is_none_or(|last_flush| last_flush.elapsed() > self.flush_timeout)
+        if let Some(timeout) = self.flush_timeout {
+            return self
+                .last_flush
+                .is_none_or(|last_flush| last_flush.elapsed() > timeout);
+        }
+
+        false
     }
 
     /// Spools to disk a batch of envelopes from the `batch`.
@@ -118,6 +123,7 @@ impl SqliteEnvelopeStack {
 
         // If we successfully spooled to disk, we know that data should be there.
         self.check_disk = true;
+        self.last_flush = Some(Instant::now());
 
         Ok(())
     }
@@ -243,7 +249,7 @@ mod tests {
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("c25ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
-            Duration::MAX,
+            None,
         );
 
         let envelope = mock_envelope(Utc::now());
@@ -268,7 +274,7 @@ mod tests {
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
-            Duration::MAX,
+            None,
         );
 
         // We push the 4 envelopes without errors because they are below the threshold.
@@ -310,7 +316,7 @@ mod tests {
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
-            Duration::MAX,
+            None,
         );
 
         // We pop with an invalid db.
@@ -331,7 +337,7 @@ mod tests {
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
-            Duration::MAX,
+            None,
         );
 
         // We pop with no elements.
@@ -350,7 +356,7 @@ mod tests {
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
-            Duration::MAX,
+            None,
         );
 
         let envelopes = mock_envelopes(5);
@@ -397,7 +403,7 @@ mod tests {
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
-            Duration::MAX,
+            None,
         );
 
         // We push 7 envelopes.
@@ -466,7 +472,7 @@ mod tests {
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
-            Duration::MAX,
+            None,
         );
 
         let envelopes = mock_envelopes(5);

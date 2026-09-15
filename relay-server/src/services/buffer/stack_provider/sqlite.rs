@@ -18,7 +18,7 @@ use crate::{EnvelopeStack, SqliteEnvelopeStack};
 pub struct SqliteStackProvider {
     envelope_store: SqliteEnvelopeStore,
     batch_size_bytes: usize,
-    flush_timeout: Duration,
+    flush_timeout: Option<Duration>,
     max_disk_size: usize,
     partition_id: u8,
     ephemeral: bool,

@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
-use std::{env, fmt, fs, io, u64};
+use std::{env, fmt, fs, io};
 
 use anyhow::Context;
 use arc_swap::ArcSwap;
@@ -991,7 +991,7 @@ pub struct EnvelopeSpool {
     /// The age of the batch is only checked when a new envelope comes in, but in practice this
     /// has the desired effect: High-volume projects always form full batches, low-volume batches
     /// flush individual envelopes to keep memory usage low.
-    pub flush_timeout_secs: u64,
+    pub flush_timeout_secs: Option<u64>,
     /// Maximum time between receiving the envelope and processing it.
     ///
     /// When envelopes spend too much time in the buffer (e.g. because their project cannot be loaded),
@@ -1068,7 +1068,7 @@ impl Default for EnvelopeSpool {
             partitions: NonZeroU8::new(1).unwrap(),
             partitioning: EnvelopeSpoolPartitioning::default(),
             ephemeral: false,
-            flush_timeout_secs: u64::MAX,
+            flush_timeout_secs: None,
         }
     }
 }
@@ -2496,8 +2496,13 @@ impl ConfigSnapshot {
     }
 
     /// Time after which a batch of envelopes is flushed to disk, regardless of its size.
-    pub fn spool_envelopes_flush_timeout(&self) -> Duration {
-        Duration::from_secs(self.inner.values.spool.envelopes.flush_timeout_secs)
+    pub fn spool_envelopes_flush_timeout(&self) -> Option<Duration> {
+        self.inner
+            .values
+            .spool
+            .envelopes
+            .flush_timeout_secs
+            .map(Duration::from_secs)
     }
 
     /// Returns the time after which we drop envelopes as a [`Duration`] object.
