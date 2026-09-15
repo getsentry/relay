@@ -128,9 +128,6 @@ def test_span_extraction(
     assert received_event.get("_performance_issues_spans") == (
         performance_issues_spans or None
     )
-    assert {headers[0] for _, headers in metrics_consumer.get_metrics()} == {
-        ("namespace", b"spans"),
-    }
 
     expected_child_spans = [
         {
@@ -899,13 +896,6 @@ def test_rate_limit_consistent_extracted(
         (DataCategory.SPAN, Outcome.ACCEPTED): 2,
         (DataCategory.TRANSACTION, Outcome.ACCEPTED): 1,
     }
-    # A limit only for span_indexed does not affect extracted metrics
-    metrics = metrics_consumer.get_metrics(n=4)
-    span_count = sum(
-        [m[0]["value"] for m in metrics if m[0]["name"] == "c:spans/usage@none"]
-    )
-    assert span_count == 2
-
     # Second send should be rejected immediately.
     relay.send_event(project_id, event)
     outcomes = summarize_outcomes()
@@ -1006,13 +996,6 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     outcomes_consumer = outcomes_consumer()
     metrics_consumer = metrics_consumer()
 
-    def span_usage_metric():
-        metrics = metrics_consumer.get_metrics()
-        span_count = sum(
-            m[0]["value"] for m in metrics if m[0]["name"] == "c:spans/usage@none"
-        )
-        return span_count
-
     def summarize_outcomes():
         counter = Counter()
         for outcome in outcomes_consumer.get_outcomes(timeout=10):
@@ -1038,7 +1021,6 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
         (DataCategory.TRANSACTION, Outcome.ACCEPTED): 1,
         (DataCategory.SPAN, Outcome.ACCEPTED): 2,
     }
-    assert span_usage_metric() == 2
 
     # Second batch nothing passes
     relay.send_envelope(project_id, envelope)
@@ -1052,7 +1034,6 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
             (DataCategory.SPAN, Outcome.RATE_LIMITED): 2,
             (DataCategory.SPAN_INDEXED, Outcome.RATE_LIMITED): 2,
         }
-        assert span_usage_metric() == 0
     elif category == "transaction_indexed":
         assert summarize_outcomes() == {
             (DataCategory.TRANSACTION, Outcome.ACCEPTED): 1,
@@ -1060,7 +1041,6 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
             (DataCategory.SPAN, Outcome.ACCEPTED): 2,
             (DataCategory.SPAN_INDEXED, Outcome.RATE_LIMITED): 2,
         }
-        assert span_usage_metric() == 2
 
     # Third batch might raise 429 since it hits the fast path
     maybe_raises = (
@@ -1081,7 +1061,6 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
             (DataCategory.SPAN, Outcome.RATE_LIMITED): expected_span_count,
             (DataCategory.SPAN_INDEXED, Outcome.RATE_LIMITED): expected_span_count,
         }
-        assert span_usage_metric() == 0
     elif category == "transaction_indexed":
         # We do not check indexed limits on the fast path,
         # so we count the correct number of spans (ignoring the span_count header):
@@ -1091,8 +1070,6 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
             (DataCategory.SPAN, Outcome.ACCEPTED): 2,
             (DataCategory.SPAN_INDEXED, Outcome.RATE_LIMITED): 2,
         }
-        # Metrics are always correct:
-        assert span_usage_metric() == 2
 
 
 def test_discard_transaction(
