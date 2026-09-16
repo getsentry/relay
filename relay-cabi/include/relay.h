@@ -322,6 +322,14 @@ enum RelayDataCategory {
    */
   RELAY_DATA_CATEGORY_TRACE_METRIC_BYTE = 37,
   /**
+   * Snapshot image
+   *
+   * Counts images accepted by the preprod snapshot upload API.
+   *
+   * SDK rate limiting behavior: ignore.
+   */
+  RELAY_DATA_CATEGORY_SNAPSHOT_IMAGE = 38,
+  /**
    * Any other data category not known by this Relay.
    */
   RELAY_DATA_CATEGORY_UNKNOWN = -1,

@@ -66,6 +66,13 @@ pub enum Feature {
     /// Serialized as `organizations:tracemetrics-ingestion`.
     #[serde(rename = "organizations:tracemetrics-ingestion")]
     TraceMetricsIngestion,
+    /// Expand attributes containing a JSON object into a key-value list on EAP items.
+    ///
+    /// Enabling/disabling controls how these are sent to EAP.
+    ///
+    /// Serialized as `organizations:relay-automatic-json-expansion`.
+    #[serde(rename = "organizations:relay-automatic-json-expansion")]
+    AutomaticJsonExpansion,
     /// This feature has graduated ant is hard-coded for external Relays.
     #[doc(hidden)]
     #[serde(rename = "projects:profiling-ingest-unsampled-profiles")]
