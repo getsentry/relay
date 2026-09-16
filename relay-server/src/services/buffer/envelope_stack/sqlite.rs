@@ -1,9 +1,10 @@
 use std::fmt::Debug;
 use std::num::NonZeroUsize;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use relay_base_schema::project::ProjectKey;
+use tokio::time::Instant;
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
@@ -411,8 +412,10 @@ mod tests {
         assert_eq!(stack.batch.len(), 2);
         assert_eq!(envelope_store.total_count().await.unwrap(), 0);
 
+        tokio::time::pause();
+        tokio::time::advance(timeout + timeout).await;
+
         // Third push (after timeout): spool
-        stack.last_flush = Instant::now() - timeout - Duration::from_secs(1);
         stack.push(envelopes[2].clone()).await.unwrap();
         assert_eq!(stack.batch.len(), 1);
         assert_eq!(envelope_store.total_count().await.unwrap(), 2);
