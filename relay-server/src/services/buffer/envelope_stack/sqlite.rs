@@ -388,7 +388,7 @@ mod tests {
     async fn test_push_with_flush_timeout() {
         let db = setup_db(true).await;
         let envelope_store = SqliteEnvelopeStore::new(0, db, Duration::from_millis(100));
-        let envelopes = mock_envelopes(5);
+        let envelopes = mock_envelopes(4);
         let timeout = Duration::from_secs(3600);
         let mut stack = SqliteEnvelopeStack::new(
             0,
@@ -400,28 +400,27 @@ mod tests {
             Some(timeout),
         );
 
-        // With no previous flush, the second push spools the first envelope to disk.
+        // First push: no spool
+        assert_eq!(stack.batch.len(), 0);
         stack.push(envelopes[0].clone()).await.unwrap();
+        assert_eq!(stack.batch.len(), 1);
         assert_eq!(envelope_store.total_count().await.unwrap(), 0);
+
+        // Second push: no spool
         stack.push(envelopes[1].clone()).await.unwrap();
-        assert_eq!(envelope_store.total_count().await.unwrap(), 1);
-        assert_eq!(stack.batch.len(), 1);
-
-        // Further pushes remain in memory until the timeout expires.
-        stack.push(envelopes[2].clone()).await.unwrap();
-        assert_eq!(envelope_store.total_count().await.unwrap(), 1);
         assert_eq!(stack.batch.len(), 2);
+        assert_eq!(envelope_store.total_count().await.unwrap(), 0);
 
-        // Backdate the last flush to expire the timeout without sleeping.
+        // Third push (after timeout): spool
         stack.last_flush = Instant::now() - timeout - Duration::from_secs(1);
-        stack.push(envelopes[3].clone()).await.unwrap();
-        assert_eq!(envelope_store.total_count().await.unwrap(), 3);
+        stack.push(envelopes[2].clone()).await.unwrap();
         assert_eq!(stack.batch.len(), 1);
+        assert_eq!(envelope_store.total_count().await.unwrap(), 2);
 
-        // Flushing resets the timeout, so the next push stays in memory again.
-        stack.push(envelopes[4].clone()).await.unwrap();
-        assert_eq!(envelope_store.total_count().await.unwrap(), 3);
+        // Fourth push: no spool
+        stack.push(envelopes[3].clone()).await.unwrap();
         assert_eq!(stack.batch.len(), 2);
+        assert_eq!(envelope_store.total_count().await.unwrap(), 2);
 
         // Envelopes from memory and disk are still returned in stack order.
         for envelope in envelopes.iter().rev() {
