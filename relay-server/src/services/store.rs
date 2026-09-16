@@ -706,7 +706,11 @@ impl StoreService {
                 .and_then(|v| v.as_str())
             {
                 // This will trigger an error log in handle_message.
-                let _: SpanId = segment_id.parse()?;
+                let _: SpanId = segment_id.parse().inspect_err(|_| {
+                    relay_log::configure_scope(|scope| {
+                        scope.set_tag("sentry_project_id", scoping.project_id);
+                    });
+                })?;
             }
 
             let item = Annotated::new(span.item);
