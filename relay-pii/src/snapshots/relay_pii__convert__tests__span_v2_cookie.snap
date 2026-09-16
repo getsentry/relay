@@ -43,43 +43,43 @@ expression: data
     "http.request.header.cookie.user_session": {
       "value": "[Filtered]"
     },
-    "http.response.header.cookie._csrf": {
+    "http.response.header.set-cookie._csrf": {
       "value": "[Filtered]"
     },
-    "http.response.header.cookie._iris_csrf": {
+    "http.response.header.set-cookie._iris_csrf": {
       "value": "[Filtered]"
     },
-    "http.response.header.cookie._xsrf": {
+    "http.response.header.set-cookie._xsrf": {
       "value": "[Filtered]"
     },
-    "http.response.header.cookie.csrf": {
+    "http.response.header.set-cookie.csrf": {
       "value": "[Filtered]"
     },
-    "http.response.header.cookie.csrf-token": {
+    "http.response.header.set-cookie.csrf-token": {
       "value": "[Filtered]"
     },
-    "http.response.header.cookie.csrf_token": {
+    "http.response.header.set-cookie.csrf_token": {
       "value": "[Filtered]"
     },
-    "http.response.header.cookie.dark-mode": {
+    "http.response.header.set-cookie.dark-mode": {
       "value": "foobar"
     },
-    "http.response.header.cookie.fastcsrf": {
+    "http.response.header.set-cookie.fastcsrf": {
       "value": "[Filtered]"
     },
-    "http.response.header.cookie.irissessionid": {
+    "http.response.header.set-cookie.irissessionid": {
       "value": "[Filtered]"
     },
-    "http.response.header.cookie.mysession": {
+    "http.response.header.set-cookie.mysession": {
       "value": "[Filtered]"
     },
-    "http.response.header.cookie.xsrf": {
+    "http.response.header.set-cookie.xsrf": {
       "value": "[Filtered]"
     },
-    "http.response.header.cookie.xsrf-token": {
+    "http.response.header.set-cookie.xsrf-token": {
       "value": "[Filtered]"
     },
-    "http.response.header.cookie.xsrf_token": {
+    "http.response.header.set-cookie.xsrf_token": {
       "value": "[Filtered]"
     }
   },
@@ -265,7 +265,7 @@ expression: data
           }
         }
       },
-      "http.response.header.cookie._csrf": {
+      "http.response.header.set-cookie._csrf": {
         "value": {
           "": {
             "rem": [
@@ -280,7 +280,7 @@ expression: data
           }
         }
       },
-      "http.response.header.cookie._iris_csrf": {
+      "http.response.header.set-cookie._iris_csrf": {
         "value": {
           "": {
             "rem": [
@@ -295,7 +295,7 @@ expression: data
           }
         }
       },
-      "http.response.header.cookie._xsrf": {
+      "http.response.header.set-cookie._xsrf": {
         "value": {
           "": {
             "rem": [
@@ -310,7 +310,7 @@ expression: data
           }
         }
       },
-      "http.response.header.cookie.csrf": {
+      "http.response.header.set-cookie.csrf": {
         "value": {
           "": {
             "rem": [
@@ -325,7 +325,7 @@ expression: data
           }
         }
       },
-      "http.response.header.cookie.csrf-token": {
+      "http.response.header.set-cookie.csrf-token": {
         "value": {
           "": {
             "rem": [
@@ -340,7 +340,7 @@ expression: data
           }
         }
       },
-      "http.response.header.cookie.csrf_token": {
+      "http.response.header.set-cookie.csrf_token": {
         "value": {
           "": {
             "rem": [
@@ -355,7 +355,7 @@ expression: data
           }
         }
       },
-      "http.response.header.cookie.fastcsrf": {
+      "http.response.header.set-cookie.fastcsrf": {
         "value": {
           "": {
             "rem": [
@@ -370,7 +370,7 @@ expression: data
           }
         }
       },
-      "http.response.header.cookie.irissessionid": {
+      "http.response.header.set-cookie.irissessionid": {
         "value": {
           "": {
             "rem": [
@@ -385,7 +385,7 @@ expression: data
           }
         }
       },
-      "http.response.header.cookie.mysession": {
+      "http.response.header.set-cookie.mysession": {
         "value": {
           "": {
             "rem": [
@@ -400,7 +400,7 @@ expression: data
           }
         }
       },
-      "http.response.header.cookie.xsrf": {
+      "http.response.header.set-cookie.xsrf": {
         "value": {
           "": {
             "rem": [
@@ -415,7 +415,7 @@ expression: data
           }
         }
       },
-      "http.response.header.cookie.xsrf-token": {
+      "http.response.header.set-cookie.xsrf-token": {
         "value": {
           "": {
             "rem": [
@@ -430,7 +430,7 @@ expression: data
           }
         }
       },
-      "http.response.header.cookie.xsrf_token": {
+      "http.response.header.set-cookie.xsrf_token": {
         "value": {
           "": {
             "rem": [

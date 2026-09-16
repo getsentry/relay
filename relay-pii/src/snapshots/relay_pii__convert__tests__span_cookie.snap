@@ -44,30 +44,30 @@ expression: data
           "csrf=[Filtered]",
           "foo=bar"
         ],
-        "http.response.header.cookie": "session=[Filtered]",
-        "http.response.header.cookie.__session": "[Filtered]",
-        "http.response.header.cookie._csrf": "[Filtered]",
-        "http.response.header.cookie._iris_csrf": "[Filtered]",
-        "http.response.header.cookie._xsrf": "[Filtered]",
-        "http.response.header.cookie.csrf": "[Filtered]",
-        "http.response.header.cookie.csrf-token": "[Filtered]",
-        "http.response.header.cookie.csrf_token": "[Filtered]",
-        "http.response.header.cookie.dark-mode": "foobar",
-        "http.response.header.cookie.fastcsrf": "[Filtered]",
-        "http.response.header.cookie.fasthttpsessionid": "[Filtered]",
-        "http.response.header.cookie.irissessionid": "[Filtered]",
-        "http.response.header.cookie.mysession": "[Filtered]",
-        "http.response.header.cookie.phpsessid": "[Filtered]",
-        "http.response.header.cookie.sentrysid": "[Filtered]",
-        "http.response.header.cookie.session": "[Filtered]",
-        "http.response.header.cookie.sessionid": "[Filtered]",
-        "http.response.header.cookie.su": "[Filtered]",
-        "http.response.header.cookie.sudo": "[Filtered]",
-        "http.response.header.cookie.symfony": "[Filtered]",
-        "http.response.header.cookie.user_session": "[Filtered]",
-        "http.response.header.cookie.xsrf": "[Filtered]",
-        "http.response.header.cookie.xsrf-token": "[Filtered]",
-        "http.response.header.cookie.xsrf_token": "[Filtered]"
+        "http.response.header.set-cookie": "session=[Filtered]",
+        "http.response.header.set-cookie.__session": "[Filtered]",
+        "http.response.header.set-cookie._csrf": "[Filtered]",
+        "http.response.header.set-cookie._iris_csrf": "[Filtered]",
+        "http.response.header.set-cookie._xsrf": "[Filtered]",
+        "http.response.header.set-cookie.csrf": "[Filtered]",
+        "http.response.header.set-cookie.csrf-token": "[Filtered]",
+        "http.response.header.set-cookie.csrf_token": "[Filtered]",
+        "http.response.header.set-cookie.dark-mode": "foobar",
+        "http.response.header.set-cookie.fastcsrf": "[Filtered]",
+        "http.response.header.set-cookie.fasthttpsessionid": "[Filtered]",
+        "http.response.header.set-cookie.irissessionid": "[Filtered]",
+        "http.response.header.set-cookie.mysession": "[Filtered]",
+        "http.response.header.set-cookie.phpsessid": "[Filtered]",
+        "http.response.header.set-cookie.sentrysid": "[Filtered]",
+        "http.response.header.set-cookie.session": "[Filtered]",
+        "http.response.header.set-cookie.sessionid": "[Filtered]",
+        "http.response.header.set-cookie.su": "[Filtered]",
+        "http.response.header.set-cookie.sudo": "[Filtered]",
+        "http.response.header.set-cookie.symfony": "[Filtered]",
+        "http.response.header.set-cookie.user_session": "[Filtered]",
+        "http.response.header.set-cookie.xsrf": "[Filtered]",
+        "http.response.header.set-cookie.xsrf-token": "[Filtered]",
+        "http.response.header.set-cookie.xsrf_token": "[Filtered]"
       }
     }
   ],
@@ -414,7 +414,7 @@ expression: data
               }
             }
           },
-          "http.response.header.cookie": {
+          "http.response.header.set-cookie": {
             "": {
               "rem": [
                 [
@@ -427,7 +427,7 @@ expression: data
               "len": 14
             }
           },
-          "http.response.header.cookie.__session": {
+          "http.response.header.set-cookie.__session": {
             "": {
               "rem": [
                 [
@@ -440,7 +440,7 @@ expression: data
               "len": 6
             }
           },
-          "http.response.header.cookie._csrf": {
+          "http.response.header.set-cookie._csrf": {
             "": {
               "rem": [
                 [
@@ -453,7 +453,7 @@ expression: data
               "len": 6
             }
           },
-          "http.response.header.cookie._iris_csrf": {
+          "http.response.header.set-cookie._iris_csrf": {
             "": {
               "rem": [
                 [
@@ -466,7 +466,7 @@ expression: data
               "len": 6
             }
           },
-          "http.response.header.cookie._xsrf": {
+          "http.response.header.set-cookie._xsrf": {
             "": {
               "rem": [
                 [
@@ -479,7 +479,7 @@ expression: data
               "len": 6
             }
           },
-          "http.response.header.cookie.csrf": {
+          "http.response.header.set-cookie.csrf": {
             "": {
               "rem": [
                 [
@@ -492,7 +492,7 @@ expression: data
               "len": 6
             }
           },
-          "http.response.header.cookie.csrf-token": {
+          "http.response.header.set-cookie.csrf-token": {
             "": {
               "rem": [
                 [
@@ -505,7 +505,7 @@ expression: data
               "len": 6
             }
           },
-          "http.response.header.cookie.csrf_token": {
+          "http.response.header.set-cookie.csrf_token": {
             "": {
               "rem": [
                 [
@@ -518,7 +518,7 @@ expression: data
               "len": 6
             }
           },
-          "http.response.header.cookie.fastcsrf": {
+          "http.response.header.set-cookie.fastcsrf": {
             "": {
               "rem": [
                 [
@@ -531,7 +531,7 @@ expression: data
               "len": 6
             }
           },
-          "http.response.header.cookie.fasthttpsessionid": {
+          "http.response.header.set-cookie.fasthttpsessionid": {
             "": {
               "rem": [
                 [
@@ -544,7 +544,7 @@ expression: data
               "len": 6
             }
           },
-          "http.response.header.cookie.irissessionid": {
+          "http.response.header.set-cookie.irissessionid": {
             "": {
               "rem": [
                 [
@@ -557,7 +557,7 @@ expression: data
               "len": 6
             }
           },
-          "http.response.header.cookie.mysession": {
+          "http.response.header.set-cookie.mysession": {
             "": {
               "rem": [
                 [
@@ -570,7 +570,7 @@ expression: data
               "len": 6
             }
           },
-          "http.response.header.cookie.phpsessid": {
+          "http.response.header.set-cookie.phpsessid": {
             "": {
               "rem": [
                 [
@@ -583,7 +583,7 @@ expression: data
               "len": 6
             }
           },
-          "http.response.header.cookie.sentrysid": {
+          "http.response.header.set-cookie.sentrysid": {
             "": {
               "rem": [
                 [
@@ -596,7 +596,7 @@ expression: data
               "len": 6
             }
           },
-          "http.response.header.cookie.session": {
+          "http.response.header.set-cookie.session": {
             "": {
               "rem": [
                 [
@@ -609,7 +609,7 @@ expression: data
               "len": 6
             }
           },
-          "http.response.header.cookie.sessionid": {
+          "http.response.header.set-cookie.sessionid": {
             "": {
               "rem": [
                 [
@@ -622,7 +622,7 @@ expression: data
               "len": 6
             }
           },
-          "http.response.header.cookie.su": {
+          "http.response.header.set-cookie.su": {
             "": {
               "rem": [
                 [
@@ -635,7 +635,7 @@ expression: data
               "len": 6
             }
           },
-          "http.response.header.cookie.sudo": {
+          "http.response.header.set-cookie.sudo": {
             "": {
               "rem": [
                 [
@@ -648,7 +648,7 @@ expression: data
               "len": 6
             }
           },
-          "http.response.header.cookie.symfony": {
+          "http.response.header.set-cookie.symfony": {
             "": {
               "rem": [
                 [
@@ -661,7 +661,7 @@ expression: data
               "len": 6
             }
           },
-          "http.response.header.cookie.user_session": {
+          "http.response.header.set-cookie.user_session": {
             "": {
               "rem": [
                 [
@@ -674,7 +674,7 @@ expression: data
               "len": 6
             }
           },
-          "http.response.header.cookie.xsrf": {
+          "http.response.header.set-cookie.xsrf": {
             "": {
               "rem": [
                 [
@@ -687,7 +687,7 @@ expression: data
               "len": 6
             }
           },
-          "http.response.header.cookie.xsrf-token": {
+          "http.response.header.set-cookie.xsrf-token": {
             "": {
               "rem": [
                 [
@@ -700,7 +700,7 @@ expression: data
               "len": 6
             }
           },
-          "http.response.header.cookie.xsrf_token": {
+          "http.response.header.set-cookie.xsrf_token": {
             "": {
               "rem": [
                 [
