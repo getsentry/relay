@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::time::Duration;
 
 use relay_config::ConfigSnapshot;
 
@@ -17,6 +18,7 @@ use crate::{EnvelopeStack, SqliteEnvelopeStack};
 pub struct SqliteStackProvider {
     envelope_store: SqliteEnvelopeStore,
     batch_size_bytes: usize,
+    flush_timeout: Option<Duration>,
     max_disk_size: usize,
     partition_id: u8,
     ephemeral: bool,
@@ -33,6 +35,7 @@ impl SqliteStackProvider {
         Ok(Self {
             envelope_store,
             batch_size_bytes: config.spool_envelopes_batch_size_bytes(),
+            flush_timeout: config.spool_envelopes_flush_timeout(),
             max_disk_size: config.spool_envelopes_max_disk_size(),
             partition_id,
             ephemeral: config.spool_ephemeral(),
@@ -83,6 +86,7 @@ impl StackProvider for SqliteStackProvider {
             // it was empty, or we never had data on disk for that stack, so we assume by default
             // that there is no need to check disk until some data is spooled.
             Self::assume_data_on_disk(stack_creation_type),
+            self.flush_timeout,
         );
 
         CachingEnvelopeStack::new(inner)
