@@ -5,6 +5,7 @@
 **Features**:
 
 - Extend cookie scrubbing to response cookies. ([#6391](https://github.com/getsentry/relay/pull/6391))
+- Scrub numbered variants of sensitive cookies. ([#6392](https://github.com/getsentry/relay/pull/6392))
 
 **Internal**:
 

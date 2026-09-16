@@ -1698,7 +1698,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "contexts": {
                   "trace": {
                     "data": {
-                        "http.request.header.cookie": "baz=quux; session=foobar; language=en; csrf=u32t4o3tb3gg43; foo=bar",
+                        "http.request.header.cookie": "baz=quux; session__0=foobar; language=en; csrf=u32t4o3tb3gg43; foo=bar",
                         "http.request.header.cookie.sentrysid": "foobar",
                         "http.request.header.cookie.sudo": "foobar",
                         "http.request.header.cookie.su": "foobar",
@@ -1752,7 +1752,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               },
               "spans": [{
                 "data": {
-                    "http.request.header.cookie": "baz=quux; session=foobar; language=en; csrf=u32t4o3tb3gg43; foo=bar",
+                    "http.request.header.cookie": "baz=quux; session__0=foobar; language=en; csrf=u32t4o3tb3gg43; foo=bar",
                     "http.request.header.cookie.sentrysid": "foobar",
                     "http.request.header.cookie.sudo": "foobar",
                     "http.request.header.cookie.su": "foobar",
@@ -1817,7 +1817,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let mut data = SpanV2::from_value(
             serde_json::json!({
               "attributes": {
-                "http.request.header.cookie": {"value": ["baz=quux", "session=foobar", "language=en", "csrf=u32t4o3tb3gg43", "foo=bar"]},
+                "http.request.header.cookie": {"value": ["baz=quux", "session__0=foobar", "language=en", "csrf=u32t4o3tb3gg43", "foo=bar"]},
                 "http.request.header.cookie.sentrysid": {"value": "foobar"},
                 "http.request.header.cookie.sudo": {"value": "foobar"},
                 "http.request.header.cookie.su": {"value": "foobar"},

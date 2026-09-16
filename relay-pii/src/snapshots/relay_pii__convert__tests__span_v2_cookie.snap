@@ -7,7 +7,7 @@ expression: data
     "http.request.header.cookie": {
       "value": [
         "baz=quux",
-        "session=[Filtered]",
+        "session__0=[Filtered]",
         "language=en",
         "csrf=[Filtered]",
         "foo=bar"
@@ -171,11 +171,11 @@ expression: data
                 [
                   "@cookies:filter",
                   "s",
-                  8,
-                  18
+                  11,
+                  21
                 ]
               ],
-              "len": 14
+              "len": 17
             }
           },
           "3": {
