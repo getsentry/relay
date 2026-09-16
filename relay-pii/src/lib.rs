@@ -5,6 +5,8 @@
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
+// Needed for some JSON tests
+#![cfg_attr(test, recursion_limit = "256")]
 
 mod attachments;
 mod builtin;

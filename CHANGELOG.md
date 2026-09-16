@@ -8,6 +8,15 @@
   `metrics_generic` / `ingest-performance-metrics` topic. Session (release health) metrics are
   unchanged. ([#6388](https://github.com/getsentry/relay/pull/6388))
 
+**Features**:
+
+- Extend cookie scrubbing to response cookies. ([#6391](https://github.com/getsentry/relay/pull/6391))
+- Scrub numbered variants of sensitive cookies. ([#6392](https://github.com/getsentry/relay/pull/6392))
+
+**Internal**:
+
+- Add a flush timeout to the envelope buffer's in-memory queues. ([#6375](https://github.com/getsentry/relay/pull/6375))
+
 ## 26.9.0
 
 **Breaking Changes**:
