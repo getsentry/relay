@@ -103,6 +103,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
                                 true,
+                                None,
                             );
 
                             let mut envelopes = Vec::with_capacity(size);
@@ -140,6 +141,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                                     ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
                                     ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
                                     true,
+                                    None,
                                 );
 
                                 // Pre-fill the stack
@@ -181,6 +183,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
                                 true,
+                                None,
                             );
 
                             // Pre-generate envelopes
