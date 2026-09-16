@@ -7,7 +7,6 @@ import pytest
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 import queue
-from .asserts import time_within_delta
 from .consts import Outcome
 
 
@@ -1208,7 +1207,7 @@ def test_dsc_normalization(
     spans_consumer = spans_consumer()
     metrics_consumer = metrics_consumer()
     # Expected results based on the parameters
-    expected_tx, expected_project_id, expected_root_org_id = {
+    expected_tx, expected_project_id, _ = {
         # DSC with tx + same org
         ("dsc_with_tx", "same_org", "tx"): ("/dsc/", sampling_project_id, org_id),
         ("dsc_with_tx", "same_org", "v2"): ("/dsc/", sampling_project_id, org_id),
@@ -1254,13 +1253,10 @@ def test_dsc_normalization(
     )
 
     relay.send_envelope(project_id, envelope)
-    metrics = metrics_consumer.get_metrics(with_headers=False)
-    metrics = [m for m in metrics if "count_per_root_project" in m["name"]]
     spans = {s["span_id"]: s for s in spans_consumer.get_spans()}
 
     if dsc == "no_dsc" and span_type == "v2":
         assert len(spans) == 0
-        assert len(metrics) == 0
         return
 
     def get_dsc_attr(attr: str, span_id: str):
@@ -1283,41 +1279,6 @@ def test_dsc_normalization(
     assert get_dsc_attr("transaction", child_id_2) == expected_tx
     assert get_dsc_attr("project_id", child_id_2) == str(expected_project_id)
     assert get_dsc_attr("trace_id", child_id_2) == trace_id
-
-    assert metrics == [
-        {
-            "name": "c:spans/count_per_root_project@none",
-            "org_id": expected_root_org_id,
-            "project_id": expected_project_id,
-            "received_at": time_within_delta(),
-            "retention_days": 90,
-            "tags": {
-                "decision": "keep",
-                "is_segment": "false",
-                "target_project_id": str(project_id),
-                **({"transaction": expected_tx} if expected_tx else {}),
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 2.0,
-        },
-        {
-            "name": "c:spans/count_per_root_project@none",
-            "org_id": expected_root_org_id,
-            "project_id": expected_project_id,
-            "received_at": time_within_delta(),
-            "retention_days": 90,
-            "tags": {
-                "decision": "keep",
-                "is_segment": "true",
-                "target_project_id": str(project_id),
-                **({"transaction": expected_tx} if expected_tx else {}),
-            },
-            "timestamp": time_within_delta(),
-            "type": "c",
-            "value": 1.0,
-        },
-    ]
 
 
 @pytest.mark.parametrize(

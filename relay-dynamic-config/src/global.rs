@@ -177,14 +177,6 @@ pub struct Options {
     )]
     pub attachment_inline_limit: usize,
 
-    /// Kill-switch for suppressing generic metrics.
-    #[serde(
-        rename = "relay.generic-metrics.disabled",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub generic_metrics_disabled: bool,
-
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,

@@ -1135,21 +1135,16 @@ impl StoreService {
             MetricNamespace::Outcomes => {
                 return self.send_metric_based_outcome(message);
             }
+            MetricNamespace::Spans | MetricNamespace::Transactions => {
+                // Generic metrics (spans/transactions) are no longer ingested.
+                return Ok(());
+            }
             MetricNamespace::Unsupported => {
                 relay_log::error!(
                     metric_message.name = message.name.as_ref(),
                     "store service dropping unknown metric usecase"
                 );
                 return Ok(());
-            }
-
-            MetricNamespace::Spans | MetricNamespace::Transactions => {
-                if let Some(global_config) = self.global_config.current()
-                    && global_config.options.generic_metrics_disabled
-                {
-                    return Ok(());
-                }
-                KafkaTopic::MetricsGeneric
             }
         };
 

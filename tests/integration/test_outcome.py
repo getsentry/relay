@@ -930,13 +930,6 @@ def test_profile_outcomes(
     outcomes = outcomes_consumer.get_aggregated_outcomes()
     assert outcomes == expected_outcomes, outcomes
 
-    metrics = [
-        m
-        for m, _ in metrics_consumer.get_metrics()
-        if m["name"] == "c:spans/usage@none" and m["tags"].get("is_segment") == "true"
-    ]
-    assert sum(metric["value"] for metric in metrics) == 2
-
     assert profiles_consumer.get_profile()
     assert profiles_consumer.get_profile()
 

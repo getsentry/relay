@@ -31,8 +31,6 @@ pub enum KafkaTopic {
     OutcomesBilling,
     /// Any metric that is extracted from sessions.
     MetricsSessions,
-    /// Generic metrics topic, excluding sessions (release health).
-    MetricsGeneric,
     /// Profiles
     Profiles,
     /// ReplayRecordings, large blobs sent by the replay sdk
@@ -52,14 +50,13 @@ impl KafkaTopic {
     /// It will have to be adjusted if the new variants are added.
     pub fn iter() -> std::slice::Iter<'static, Self> {
         use KafkaTopic::*;
-        static TOPICS: [KafkaTopic; 13] = [
+        static TOPICS: [KafkaTopic; 12] = [
             Events,
             Attachments,
             Transactions,
             Outcomes,
             OutcomesBilling,
             MetricsSessions,
-            MetricsGeneric,
             Profiles,
             ReplayRecordings,
             Monitors,
@@ -134,7 +131,6 @@ define_topic_assignments! {
     outcomes: (KafkaTopic::Outcomes, "outcomes", "Outcomes topic name."),
     outcomes_billing: (KafkaTopic::OutcomesBilling, "outcomes-billing", "Outcomes topic name for billing critical outcomes."),
     metrics_sessions: (KafkaTopic::MetricsSessions, "ingest-metrics", "Topic name for metrics extracted from sessions, aka release health."),
-    metrics_generic: (KafkaTopic::MetricsGeneric, "ingest-performance-metrics", "Topic name for all other kinds of metrics."),
     profiles: (KafkaTopic::Profiles, "profiles", "Stacktrace topic name"),
     replay_recordings: (KafkaTopic::ReplayRecordings, "ingest-replay-recordings", "Recordings topic name."),
     monitors: (KafkaTopic::Monitors, "ingest-monitors", "Monitor check-ins."),
@@ -395,15 +391,6 @@ transactions: "ingest-transactions-kafka-topic"
                 [
                     TopicConfig {
                         topic_name: "ingest-metrics-3",
-                        kafka_config_name: None,
-                        key_rate_limit: None,
-                    },
-                ],
-            ),
-            metrics_generic: TopicAssignment(
-                [
-                    TopicConfig {
-                        topic_name: "ingest-performance-metrics",
                         kafka_config_name: None,
                         key_rate_limit: None,
                     },
