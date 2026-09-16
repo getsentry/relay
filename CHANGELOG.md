@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Scrub numbered variants of sensitive cookies. ([#6392](https://github.com/getsentry/relay/pull/6392))
+
 ## 26.9.0
 
 **Breaking Changes**:

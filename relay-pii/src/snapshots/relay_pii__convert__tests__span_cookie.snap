@@ -6,7 +6,7 @@ expression: data
   "contexts": {
     "trace": {
       "data": {
-        "http.request.header.cookie": "baz=quux; session=[Filtered]; language=en; csrf=[Filtered]; foo=bar",
+        "http.request.header.cookie": "baz=quux; session__0=[Filtered]; language=en; csrf=[Filtered]; foo=bar",
         "http.request.header.cookie.__session": "[Filtered]",
         "http.request.header.cookie._csrf": "[Filtered]",
         "http.request.header.cookie._iris_csrf": "[Filtered]",
@@ -37,7 +37,13 @@ expression: data
   "spans": [
     {
       "data": {
-        "http.request.header.cookie": "session=[Filtered]",
+        "http.request.header.cookie": [
+          "baz=quux",
+          "session__0=[Filtered]",
+          "language=en",
+          "csrf=[Filtered]",
+          "foo=bar"
+        ],
         "http.request.header.cookie.__session": "[Filtered]",
         "http.request.header.cookie._csrf": "[Filtered]",
         "http.request.header.cookie._iris_csrf": "[Filtered]",
@@ -74,17 +80,17 @@ expression: data
                 [
                   "@cookies:filter",
                   "s",
-                  18,
-                  28
+                  21,
+                  31
                 ],
                 [
                   "@cookies:filter",
                   "s",
-                  48,
-                  58
+                  51,
+                  61
                 ]
               ],
-              "len": 67
+              "len": 70
             }
           },
           "http.request.header.cookie.__session": {
@@ -380,16 +386,31 @@ expression: data
       "0": {
         "data": {
           "http.request.header.cookie": {
-            "": {
-              "rem": [
-                [
-                  "@cookies:filter",
-                  "s",
-                  8,
-                  18
-                ]
-              ],
-              "len": 14
+            "1": {
+              "": {
+                "rem": [
+                  [
+                    "@cookies:filter",
+                    "s",
+                    11,
+                    21
+                  ]
+                ],
+                "len": 17
+              }
+            },
+            "3": {
+              "": {
+                "rem": [
+                  [
+                    "@cookies:filter",
+                    "s",
+                    5,
+                    15
+                  ]
+                ],
+                "len": 19
+              }
             }
           },
           "http.request.header.cookie.__session": {

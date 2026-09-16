@@ -6,8 +6,11 @@ expression: data
   "attributes": {
     "http.request.header.cookie": {
       "value": [
-        "session=[Filtered]",
-        "language=en"
+        "baz=quux",
+        "session__0=[Filtered]",
+        "language=en",
+        "csrf=[Filtered]",
+        "foo=bar"
       ]
     },
     "http.request.header.cookie.__session": {
@@ -84,17 +87,30 @@ expression: data
     "attributes": {
       "http.request.header.cookie": {
         "value": {
-          "0": {
+          "1": {
             "": {
               "rem": [
                 [
                   "@cookies:filter",
                   "s",
-                  8,
-                  18
+                  11,
+                  21
                 ]
               ],
-              "len": 14
+              "len": 17
+            }
+          },
+          "3": {
+            "": {
+              "rem": [
+                [
+                  "@cookies:filter",
+                  "s",
+                  5,
+                  15
+                ]
+              ],
+              "len": 19
             }
           }
         }
