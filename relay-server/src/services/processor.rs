@@ -1874,7 +1874,7 @@ mod tests {
     use relay_pii::DataScrubbingConfig;
     use relay_protocol::Annotated;
     #[cfg(feature = "processing")]
-    use relay_quotas::DataCategory;
+    use relay_quotas::{DataCategory, GroupBy};
     use similar_asserts::assert_eq;
 
     use crate::testutils::{create_test_processor, create_test_processor_with_addrs};
@@ -1919,7 +1919,7 @@ mod tests {
             window: None,
             reason_code: None,
             namespace: None,
-            dimensions: None,
+            group_by: GroupBy::default(),
         }
     }
 
@@ -1972,7 +1972,7 @@ mod tests {
                     window: None,
                     reason_code: Some(ReasonCode::new("test")),
                     namespace: None,
-                    dimensions: None,
+                    group_by: GroupBy::default(),
                 };
 
                 let mut config = ProjectConfig::default();

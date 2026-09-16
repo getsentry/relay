@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use relay_cogs::{AppFeature, FeatureWeights};
@@ -196,10 +197,10 @@ impl Counted for ExpandedCheckIn {
 impl CountRateLimited for Managed<ExpandedCheckIn> {
     type Error = Error;
 
-    fn dimensions(&self) -> Option<Arc<[(Dimension, String)]>> {
+    fn dimensions(&self) -> Option<Arc<BTreeMap<Dimension, String>>> {
         let dims = [
             (
-                relay_quotas::Dimension::CheckInEnvironment,
+                relay_quotas::Dimension::Environment,
                 self.check_in.environment.clone().unwrap_or_default(),
             ),
             (
@@ -208,7 +209,7 @@ impl CountRateLimited for Managed<ExpandedCheckIn> {
             ),
         ];
 
-        Some(dims.into())
+        Some(BTreeMap::from(dims).into())
     }
 }
 
@@ -252,12 +253,13 @@ mod tests {
         );
 
         assert_eq!(
-            check_in.dimensions().as_deref(),
+            check_in.dimensions(),
             Some(
-                &[
-                    (Dimension::CheckInEnvironment, "production".to_owned()),
+                BTreeMap::from([
+                    (Dimension::Environment, "production".to_owned()),
                     (Dimension::CheckInSlug, "my-monitor".to_owned()),
-                ][..]
+                ])
+                .into()
             )
         );
 
@@ -278,12 +280,13 @@ mod tests {
         // A check-in without an environment still has to produce a dimension for it, otherwise
         // it would not match a quota which keys on the environment.
         assert_eq!(
-            check_in.dimensions().as_deref(),
+            check_in.dimensions(),
             Some(
-                &[
-                    (Dimension::CheckInEnvironment, String::new()),
+                BTreeMap::from([
+                    (Dimension::Environment, String::new()),
                     (Dimension::CheckInSlug, "my-monitor".to_owned()),
-                ][..]
+                ])
+                .into()
             )
         );
 
