@@ -6,44 +6,17 @@ expression: data
   "attributes": {
     "http.request.header.cookie": {
       "value": [
+        "baz=quux",
         "session=[Filtered]",
-        "language=en"
+        "language=en",
+        "csrf=[Filtered]",
+        "foo=bar"
       ]
     },
     "http.request.header.cookie.__session": {
       "value": "[Filtered]"
     },
-    "http.request.header.cookie._csrf": {
-      "value": "[Filtered]"
-    },
-    "http.request.header.cookie._iris_csrf": {
-      "value": "[Filtered]"
-    },
-    "http.request.header.cookie._xsrf": {
-      "value": "[Filtered]"
-    },
-    "http.request.header.cookie.csrf": {
-      "value": "[Filtered]"
-    },
-    "http.request.header.cookie.csrf-token": {
-      "value": "[Filtered]"
-    },
-    "http.request.header.cookie.csrf_token": {
-      "value": "[Filtered]"
-    },
-    "http.request.header.cookie.dark-mode": {
-      "value": "foobar"
-    },
-    "http.request.header.cookie.fastcsrf": {
-      "value": "[Filtered]"
-    },
     "http.request.header.cookie.fasthttpsessionid": {
-      "value": "[Filtered]"
-    },
-    "http.request.header.cookie.irissessionid": {
-      "value": "[Filtered]"
-    },
-    "http.request.header.cookie.mysession": {
       "value": "[Filtered]"
     },
     "http.request.header.cookie.phpsessid": {
@@ -70,13 +43,43 @@ expression: data
     "http.request.header.cookie.user_session": {
       "value": "[Filtered]"
     },
-    "http.request.header.cookie.xsrf": {
+    "http.response.header.cookie._csrf": {
       "value": "[Filtered]"
     },
-    "http.request.header.cookie.xsrf-token": {
+    "http.response.header.cookie._iris_csrf": {
       "value": "[Filtered]"
     },
-    "http.request.header.cookie.xsrf_token": {
+    "http.response.header.cookie._xsrf": {
+      "value": "[Filtered]"
+    },
+    "http.response.header.cookie.csrf": {
+      "value": "[Filtered]"
+    },
+    "http.response.header.cookie.csrf-token": {
+      "value": "[Filtered]"
+    },
+    "http.response.header.cookie.csrf_token": {
+      "value": "[Filtered]"
+    },
+    "http.response.header.cookie.dark-mode": {
+      "value": "foobar"
+    },
+    "http.response.header.cookie.fastcsrf": {
+      "value": "[Filtered]"
+    },
+    "http.response.header.cookie.irissessionid": {
+      "value": "[Filtered]"
+    },
+    "http.response.header.cookie.mysession": {
+      "value": "[Filtered]"
+    },
+    "http.response.header.cookie.xsrf": {
+      "value": "[Filtered]"
+    },
+    "http.response.header.cookie.xsrf-token": {
+      "value": "[Filtered]"
+    },
+    "http.response.header.cookie.xsrf_token": {
       "value": "[Filtered]"
     }
   },
@@ -84,7 +87,7 @@ expression: data
     "attributes": {
       "http.request.header.cookie": {
         "value": {
-          "0": {
+          "1": {
             "": {
               "rem": [
                 [
@@ -95,6 +98,19 @@ expression: data
                 ]
               ],
               "len": 14
+            }
+          },
+          "3": {
+            "": {
+              "rem": [
+                [
+                  "@cookies:filter",
+                  "s",
+                  5,
+                  15
+                ]
+              ],
+              "len": 19
             }
           }
         }
@@ -114,142 +130,7 @@ expression: data
           }
         }
       },
-      "http.request.header.cookie._csrf": {
-        "value": {
-          "": {
-            "rem": [
-              [
-                "@anything:filter",
-                "s",
-                0,
-                10
-              ]
-            ],
-            "len": 6
-          }
-        }
-      },
-      "http.request.header.cookie._iris_csrf": {
-        "value": {
-          "": {
-            "rem": [
-              [
-                "@anything:filter",
-                "s",
-                0,
-                10
-              ]
-            ],
-            "len": 6
-          }
-        }
-      },
-      "http.request.header.cookie._xsrf": {
-        "value": {
-          "": {
-            "rem": [
-              [
-                "@anything:filter",
-                "s",
-                0,
-                10
-              ]
-            ],
-            "len": 6
-          }
-        }
-      },
-      "http.request.header.cookie.csrf": {
-        "value": {
-          "": {
-            "rem": [
-              [
-                "@anything:filter",
-                "s",
-                0,
-                10
-              ]
-            ],
-            "len": 6
-          }
-        }
-      },
-      "http.request.header.cookie.csrf-token": {
-        "value": {
-          "": {
-            "rem": [
-              [
-                "@password:filter",
-                "s",
-                0,
-                10
-              ]
-            ],
-            "len": 6
-          }
-        }
-      },
-      "http.request.header.cookie.csrf_token": {
-        "value": {
-          "": {
-            "rem": [
-              [
-                "@password:filter",
-                "s",
-                0,
-                10
-              ]
-            ],
-            "len": 6
-          }
-        }
-      },
-      "http.request.header.cookie.fastcsrf": {
-        "value": {
-          "": {
-            "rem": [
-              [
-                "@anything:filter",
-                "s",
-                0,
-                10
-              ]
-            ],
-            "len": 6
-          }
-        }
-      },
       "http.request.header.cookie.fasthttpsessionid": {
-        "value": {
-          "": {
-            "rem": [
-              [
-                "@anything:filter",
-                "s",
-                0,
-                10
-              ]
-            ],
-            "len": 6
-          }
-        }
-      },
-      "http.request.header.cookie.irissessionid": {
-        "value": {
-          "": {
-            "rem": [
-              [
-                "@anything:filter",
-                "s",
-                0,
-                10
-              ]
-            ],
-            "len": 6
-          }
-        }
-      },
-      "http.request.header.cookie.mysession": {
         "value": {
           "": {
             "rem": [
@@ -384,7 +265,7 @@ expression: data
           }
         }
       },
-      "http.request.header.cookie.xsrf": {
+      "http.response.header.cookie._csrf": {
         "value": {
           "": {
             "rem": [
@@ -399,7 +280,52 @@ expression: data
           }
         }
       },
-      "http.request.header.cookie.xsrf-token": {
+      "http.response.header.cookie._iris_csrf": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.response.header.cookie._xsrf": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.response.header.cookie.csrf": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.response.header.cookie.csrf-token": {
         "value": {
           "": {
             "rem": [
@@ -414,7 +340,97 @@ expression: data
           }
         }
       },
-      "http.request.header.cookie.xsrf_token": {
+      "http.response.header.cookie.csrf_token": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@password:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.response.header.cookie.fastcsrf": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.response.header.cookie.irissessionid": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.response.header.cookie.mysession": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.response.header.cookie.xsrf": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@anything:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.response.header.cookie.xsrf-token": {
+        "value": {
+          "": {
+            "rem": [
+              [
+                "@password:filter",
+                "s",
+                0,
+                10
+              ]
+            ],
+            "len": 6
+          }
+        }
+      },
+      "http.response.header.cookie.xsrf_token": {
         "value": {
           "": {
             "rem": [
