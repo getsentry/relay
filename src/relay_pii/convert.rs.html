@@ -1698,7 +1698,7 @@
 <a href=#1698 id=1698 data-nosnippet>1698</a>              <span class="string">"contexts"</span>: {
 <a href=#1699 id=1699 data-nosnippet>1699</a>                  <span class="string">"trace"</span>: {
 <a href=#1700 id=1700 data-nosnippet>1700</a>                    <span class="string">"data"</span>: {
-<a href=#1701 id=1701 data-nosnippet>1701</a>                        <span class="string">"http.request.header.cookie"</span>: <span class="string">"baz=quux; session=foobar; language=en; csrf=u32t4o3tb3gg43; foo=bar"</span>,
+<a href=#1701 id=1701 data-nosnippet>1701</a>                        <span class="string">"http.request.header.cookie"</span>: <span class="string">"baz=quux; session__0=foobar; language=en; csrf=u32t4o3tb3gg43; foo=bar"</span>,
 <a href=#1702 id=1702 data-nosnippet>1702</a>                        <span class="string">"http.request.header.cookie.sentrysid"</span>: <span class="string">"foobar"</span>,
 <a href=#1703 id=1703 data-nosnippet>1703</a>                        <span class="string">"http.request.header.cookie.sudo"</span>: <span class="string">"foobar"</span>,
 <a href=#1704 id=1704 data-nosnippet>1704</a>                        <span class="string">"http.request.header.cookie.su"</span>: <span class="string">"foobar"</span>,
@@ -1752,7 +1752,7 @@
 <a href=#1752 id=1752 data-nosnippet>1752</a>              },
 <a href=#1753 id=1753 data-nosnippet>1753</a>              <span class="string">"spans"</span>: [{
 <a href=#1754 id=1754 data-nosnippet>1754</a>                <span class="string">"data"</span>: {
-<a href=#1755 id=1755 data-nosnippet>1755</a>                    <span class="string">"http.request.header.cookie"</span>: <span class="string">"baz=quux; session=foobar; language=en; csrf=u32t4o3tb3gg43; foo=bar"</span>,
+<a href=#1755 id=1755 data-nosnippet>1755</a>                    <span class="string">"http.request.header.cookie"</span>: <span class="string">"baz=quux; session__0=foobar; language=en; csrf=u32t4o3tb3gg43; foo=bar"</span>,
 <a href=#1756 id=1756 data-nosnippet>1756</a>                    <span class="string">"http.request.header.cookie.sentrysid"</span>: <span class="string">"foobar"</span>,
 <a href=#1757 id=1757 data-nosnippet>1757</a>                    <span class="string">"http.request.header.cookie.sudo"</span>: <span class="string">"foobar"</span>,
 <a href=#1758 id=1758 data-nosnippet>1758</a>                    <span class="string">"http.request.header.cookie.su"</span>: <span class="string">"foobar"</span>,
@@ -1817,7 +1817,7 @@
 <a href=#1817 id=1817 data-nosnippet>1817</a>        <span class="kw">let </span><span class="kw-2">mut </span>data = SpanV2::from_value(
 <a href=#1818 id=1818 data-nosnippet>1818</a>            <span class="macro">serde_json::json!</span>({
 <a href=#1819 id=1819 data-nosnippet>1819</a>              <span class="string">"attributes"</span>: {
-<a href=#1820 id=1820 data-nosnippet>1820</a>                <span class="string">"http.request.header.cookie"</span>: {<span class="string">"value"</span>: [<span class="string">"baz=quux"</span>, <span class="string">"session=foobar"</span>, <span class="string">"language=en"</span>, <span class="string">"csrf=u32t4o3tb3gg43"</span>, <span class="string">"foo=bar"</span>]},
+<a href=#1820 id=1820 data-nosnippet>1820</a>                <span class="string">"http.request.header.cookie"</span>: {<span class="string">"value"</span>: [<span class="string">"baz=quux"</span>, <span class="string">"session__0=foobar"</span>, <span class="string">"language=en"</span>, <span class="string">"csrf=u32t4o3tb3gg43"</span>, <span class="string">"foo=bar"</span>]},
 <a href=#1821 id=1821 data-nosnippet>1821</a>                <span class="string">"http.request.header.cookie.sentrysid"</span>: {<span class="string">"value"</span>: <span class="string">"foobar"</span>},
 <a href=#1822 id=1822 data-nosnippet>1822</a>                <span class="string">"http.request.header.cookie.sudo"</span>: {<span class="string">"value"</span>: <span class="string">"foobar"</span>},
 <a href=#1823 id=1823 data-nosnippet>1823</a>                <span class="string">"http.request.header.cookie.su"</span>: {<span class="string">"value"</span>: <span class="string">"foobar"</span>},

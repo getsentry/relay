@@ -175,7 +175,7 @@
 <a href=#175 id=175 data-nosnippet>175</a>
 <a href=#176 id=176 data-nosnippet>176</a><span class="kw">static </span>COOKIE_REGEX: LazyLock&lt;Regex&gt; = LazyLock::new(|| {
 <a href=#177 id=177 data-nosnippet>177</a>    <span class="kw">let </span>variants = SENSITIVE_COOKIE_NAMES.join(<span class="string">"|"</span>);
-<a href=#178 id=178 data-nosnippet>178</a>    <span class="kw">let </span>r = <span class="macro">format!</span>(<span class="string">"(?i)\\b(?:{variants})=([^;]+)"</span>);
+<a href=#178 id=178 data-nosnippet>178</a>    <span class="kw">let </span>r = <span class="macro">format!</span>(<span class="string">"(?i)\\b(?:(?:{variants})(?:__\\d+)?)=([^;]+)"</span>);
 <a href=#179 id=179 data-nosnippet>179</a>    Regex::new(<span class="kw-2">&amp;</span>r).unwrap()
 <a href=#180 id=180 data-nosnippet>180</a>});
 <a href=#181 id=181 data-nosnippet>181</a>
