@@ -986,6 +986,12 @@ pub struct EnvelopeSpool {
     ///
     /// Defaults to 10 KiB.
     pub batch_size_bytes: ByteSize,
+    /// Time after which a batch is flushed, regardless of batch size.
+    ///
+    /// The age of the batch is only checked when a new envelope comes in, but in practice this
+    /// has the desired effect: High-volume projects always form full batches, low-volume batches
+    /// flush individual envelopes to keep memory usage low.
+    pub flush_timeout_secs: Option<u64>,
     /// Maximum time between receiving the envelope and processing it.
     ///
     /// When envelopes spend too much time in the buffer (e.g. because their project cannot be loaded),
@@ -1062,6 +1068,7 @@ impl Default for EnvelopeSpool {
             partitions: NonZeroU8::new(1).unwrap(),
             partitioning: EnvelopeSpoolPartitioning::default(),
             ephemeral: false,
+            flush_timeout_secs: None,
         }
     }
 }
@@ -2486,6 +2493,16 @@ impl ConfigSnapshot {
             .envelopes
             .batch_size_bytes
             .as_bytes()
+    }
+
+    /// Time after which a batch of envelopes is flushed to disk, regardless of its size.
+    pub fn spool_envelopes_flush_timeout(&self) -> Option<Duration> {
+        self.inner
+            .values
+            .spool
+            .envelopes
+            .flush_timeout_secs
+            .map(Duration::from_secs)
     }
 
     /// Returns the time after which we drop envelopes as a [`Duration`] object.
