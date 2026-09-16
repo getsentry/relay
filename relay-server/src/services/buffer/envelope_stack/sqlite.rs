@@ -45,8 +45,8 @@ pub struct SqliteEnvelopeStack {
     partition_tag: String,
     /// Time after which to flush the buffer to disk, regardless of batch size.
     flush_timeout: Option<Duration>,
-    /// Time of last flush to disk.
-    last_flush: Option<Instant>,
+    /// Time of last flush to disk (or creation time of the envelope stack).
+    last_flush: Instant,
 }
 
 impl SqliteEnvelopeStack {
@@ -70,7 +70,7 @@ impl SqliteEnvelopeStack {
             check_disk,
             partition_tag: partition_id.to_string(),
             flush_timeout,
-            last_flush: None,
+            last_flush: Instant::now(),
         }
     }
 
@@ -82,9 +82,7 @@ impl SqliteEnvelopeStack {
         }
 
         if let Some(timeout) = self.flush_timeout {
-            return self
-                .last_flush
-                .is_none_or(|last_flush| last_flush.elapsed() > timeout);
+            return self.last_flush.elapsed() > timeout;
         }
 
         false
@@ -123,7 +121,7 @@ impl SqliteEnvelopeStack {
 
         // If we successfully spooled to disk, we know that data should be there.
         self.check_disk = true;
-        self.last_flush = Some(Instant::now());
+        self.last_flush = Instant::now();
 
         Ok(())
     }
@@ -415,7 +413,7 @@ mod tests {
         assert_eq!(stack.batch.len(), 2);
 
         // Backdate the last flush to expire the timeout without sleeping.
-        stack.last_flush = Some(Instant::now() - timeout - Duration::from_secs(1));
+        stack.last_flush = Instant::now() - timeout - Duration::from_secs(1);
         stack.push(envelopes[3].clone()).await.unwrap();
         assert_eq!(envelope_store.total_count().await.unwrap(), 3);
         assert_eq!(stack.batch.len(), 1);
