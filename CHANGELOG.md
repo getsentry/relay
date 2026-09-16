@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 26.9.0
 
 **Breaking Changes**:
 
@@ -11,6 +11,7 @@
 
 **Features**:
 
+- Add the `SnapshotImage` data category for tracking preprod snapshot image uploads. ([#6378](https://github.com/getsentry/relay/pull/6378))
 - Switch the container base image from distroless to docker hardened. ([#6335](https://github.com/getsentry/relay/pull/6335))
 - Extract OTLP spans' client sample rate from TraceState. ([#6312](https://github.com/getsentry/relay/pull/6312))
 - Raise the size limit for the flags context to 128 KiB. ([#6310](https://github.com/getsentry/relay/pull/6310))
@@ -31,9 +32,12 @@
 - Prevent memory bomb in PII processor's `split_chunks`. ([#6343](https://github.com/getsentry/relay/pull/6343))
 - Prevent stack overflow in PII rule compilation. ([#6344](https://github.com/getsentry/relay/pull/6344))
 - Fill in missing event IDs only if items would create events. ([#6350](https://github.com/getsentry/relay/pull/6350))
+- PII scrub cookies individually if sent as a list or string. ([#6380](https://github.com/getsentry/relay/pull/6380))
+- Enforce `max_event_size` limit on form data. ([#6384](https://github.com/getsentry/relay/pull/6384))
 
 **Internal**:
 
+- Avoid writing trace attachment attribute metadata twice. ([#6373](https://github.com/getsentry/relay/pull/6373))
 - Implement `Getter` for sessions so generic inbound filters can match them by `event.release` and `event.environment`. ([#6325](https://github.com/getsentry/relay/pull/6325))
 - Add an opt-in Arroyo Kafka producer backend for processing mode, enabled with `processing.use_arroyo`. ([#6383](https://github.com/getsentry/relay/pull/6383))
 
@@ -41,6 +45,7 @@
 
 - Update sentry-conventions to 0.21.0. Resource size sentry tags and measurements now use `http.response.body.size`, `http.response.body.decoded_size`, and `http.response.size`. ([#6339](https://github.com/getsentry/relay/pull/6339), [#6315](https://github.com/getsentry/relay/pull/6315))
 - Update sentry-conventions to 0.23.0. `db.query.text` is now scrubbed automatically instead of only via explicit path selectors, the `navigation.*` attributes backfill into `router.navigation.*`, and span names and descriptions are now inferred for `browser`, `cache`, `faas`, `function`, and `graphql` operations. ([#6368](https://github.com/getsentry/relay/pull/6368))
+- Accept the `organizations:relay-automatic-json-expansion` feature flag from project configs, which will control whether attributes containing a JSON object are expanded into a key-value list on EAP items. ([#6372](https://github.com/getsentry/relay/pull/6372))(#6372)
 
 ## 26.8.0
 

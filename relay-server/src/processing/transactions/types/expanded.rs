@@ -179,7 +179,7 @@ impl RateLimited for Managed<Box<ExpandedTransaction<TotalAndIndexed>>> {
         // If there is a transaction limit, drop everything.
         // This also affects profiles that lost their transaction due to sampling.
         let limits = rate_limiter
-            .try_consume(scoping.item(DataCategory::Transaction), 1)
+            .try_consume(&scoping.item(DataCategory::Transaction), 1)
             .await;
         if !limits.is_empty() {
             return Err(self.reject_err(Error::from(limits)));
@@ -188,7 +188,7 @@ impl RateLimited for Managed<Box<ExpandedTransaction<TotalAndIndexed>>> {
         // There is no limit on "total", but if metrics have already been extracted then
         // also check the "indexed" limit:
         let limits = rate_limiter
-            .try_consume(scoping.item(DataCategory::TransactionIndexed), 1)
+            .try_consume(&scoping.item(DataCategory::TransactionIndexed), 1)
             .await;
         if !limits.is_empty() {
             let error = Error::from(limits);
@@ -207,7 +207,7 @@ impl RateLimited for Managed<Box<ExpandedTransaction<TotalAndIndexed>>> {
         // Check profile limits:
         for (category, quantity) in self.profile.quantities() {
             let limits = rate_limiter
-                .try_consume(scoping.item(category), quantity)
+                .try_consume(&scoping.item(category), quantity)
                 .await;
 
             if !limits.is_empty() {
@@ -221,7 +221,7 @@ impl RateLimited for Managed<Box<ExpandedTransaction<TotalAndIndexed>>> {
         // Check attachment limits:
         for (category, quantity) in attachment_quantities {
             let limits = rate_limiter
-                .try_consume(scoping.item(category), quantity)
+                .try_consume(&scoping.item(category), quantity)
                 .await;
 
             if !limits.is_empty() {
