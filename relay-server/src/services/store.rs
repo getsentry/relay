@@ -12,6 +12,8 @@ use bytes::Bytes;
 use chrono::{DateTime, SecondsFormat, Utc};
 use prost::Message as _;
 use relay_base_schema::events::EventType;
+use relay_conventions::attributes::SENTRY__SEGMENT__ID;
+use sentry::protocol::SpanId;
 use sentry_protos::snuba::v1::{TraceItem, TraceItemType};
 use serde::Serialize;
 use uuid::Uuid;
@@ -62,6 +64,8 @@ pub enum StoreError {
     NoEventId,
     #[error("invalid attachment reference")]
     InvalidAttachmentRef,
+    #[error("invalid span id: {0}")]
+    InvalidSpanId(#[from] hex::FromHexError),
 }
 
 impl OutcomeError for StoreError {
@@ -76,6 +80,7 @@ impl OutcomeError for StoreError {
             StoreError::InvalidAttachmentRef => {
                 Some(Outcome::Invalid(DiscardReason::InvalidAttachmentRef))
             }
+            StoreError::InvalidSpanId(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
         };
         (outcome, self)
     }
@@ -692,6 +697,18 @@ impl StoreService {
         };
 
         message.try_accept(|span| {
+            // Temporary validation of the segment ID.
+            if let Some(segment_id) = span
+                .item
+                .attributes
+                .value()
+                .and_then(|a| a.get_value(SENTRY__SEGMENT__ID))
+                .and_then(|v| v.as_str())
+            {
+                // This will trigger an error log in handle_message.
+                let _: SpanId = segment_id.parse()?;
+            }
+
             let item = Annotated::new(span.item);
             let message = KafkaMessage::SpanV2 {
                 routing_key: span.routing_key,

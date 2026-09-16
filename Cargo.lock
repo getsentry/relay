@@ -5016,6 +5016,7 @@ dependencies = [
  "flate2",
  "futures",
  "hashbrown 0.15.5",
+ "hex",
  "http",
  "http-body-util",
  "hyper",
