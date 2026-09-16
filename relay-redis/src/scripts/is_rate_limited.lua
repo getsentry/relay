@@ -37,11 +37,22 @@ assert(#KEYS % NUM_KEYS == 0, "there must be 2 keys per quota")
 assert(#ARGV % NUM_ARGS == 0, "there must be 6 args per quota")
 assert(#KEYS / NUM_KEYS == #ARGV / NUM_ARGS, "incorrect number of keys and arguments provided")
 
-local results = {}
-local failed = false
 local num_quotas = #KEYS / NUM_KEYS
+
+-- Split the KEYS table, allowing us to do an MGET on the refund keys
+local refund_keys = {}
+local redis_keys = {}
 for i = 0, num_quotas - 1 do
     local k = i * NUM_KEYS + 1
+    table.insert(redis_keys, KEYS[k])
+    table.insert(refund_keys, KEYS[k + 1])
+end
+
+local refund_values = redis.call('MGET', unpack(refund_keys))
+
+local results = {}
+local failed = false
+for i = 0, num_quotas - 1 do
     local v = i * NUM_ARGS + 1
 
     local limit = tonumber(ARGV[v])
@@ -50,21 +61,18 @@ for i = 0, num_quotas - 1 do
     local dims_key = ARGV[v + 4]
     local cardinality_limit = tonumber(ARGV[v + 5])
 
-    local redis_key = KEYS[k]
-    local refund_key = KEYS[k + 1]
-
-    local main_value = redis.call('HGET', redis_key, dims_key)
+    local main_value = redis.call('HGET', redis_keys[i + 1], dims_key)
     local rejected = false
 
     if not main_value then
         -- If we see a new key, check to see if we have sufficient cardinality for it
         if cardinality_limit >= 0 then
-            rejected = redis.call('HLEN', redis_key) >= cardinality_limit
+            rejected = redis.call('HLEN', redis_keys[i + 1]) >= cardinality_limit
         end
         main_value = 0
     end
 
-    local refund_value = redis.call('GET', refund_key) or 0
+    local refund_value = refund_values[i + 1] or 0
     local consumed = main_value - refund_value
 
     -- limit=-1 means "no limit"
@@ -96,11 +104,10 @@ if not failed then
         local quantity = tonumber(ARGV[v + 2])
         local expiry = ARGV[v + 1]
         local dims = ARGV[v + 4]
-        local redis_key = KEYS[k]
 
         if quantity > 0 then
-            if redis.call('HINCRBY', redis_key, dims, quantity) == quantity then
-                redis.call('EXPIREAT', redis_key, expiry)
+            if redis.call('HINCRBY', redis_keys[i + 1], dims, quantity) == quantity then
+                redis.call('EXPIREAT', redis_keys[i + 1], expiry)
             end
 
             -- Adjust the consumed value with the just increased quantity.

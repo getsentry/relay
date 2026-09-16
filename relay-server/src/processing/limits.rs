@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 
@@ -148,7 +149,7 @@ where
 pub trait CountRateLimited {
     type Error: From<RateLimits> + OutcomeError;
 
-    fn dimensions(&self) -> Option<Arc<[(Dimension, String)]>> {
+    fn dimensions(&self) -> Option<Arc<BTreeMap<Dimension, String>>> {
         None
     }
 }

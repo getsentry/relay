@@ -75,7 +75,7 @@ impl OwnedRedisQuota {
     pub fn build_ref(&self) -> RedisQuota<'_> {
         RedisQuota {
             quota: &self.quota,
-            scoping: self.scoping.clone(),
+            scoping: &self.scoping,
             prefix: Arc::clone(&self.prefix),
             window: self.window,
             quantity: self.quantity,
@@ -90,7 +90,7 @@ pub struct RedisQuota<'a> {
     /// The original quota.
     quota: &'a Quota,
     /// Scopes of the item being tracked.
-    scoping: ItemScoping,
+    scoping: &'a ItemScoping,
     /// The Redis key prefix mapped from the quota id.
     prefix: Arc<str>,
     /// The Redis window in seconds mapped from the quota.
@@ -110,7 +110,7 @@ impl<'a> RedisQuota<'a> {
     pub fn new(
         quota: &'a Quota,
         quantity: u64,
-        scoping: ItemScoping,
+        scoping: &'a ItemScoping,
         timestamp: UnixTimestamp,
     ) -> Option<Self> {
         // These fields indicate that we *can* track this quota.
@@ -210,18 +210,16 @@ impl<'a> RedisQuota<'a> {
             subscope,
             namespace: self.namespace,
             slot: self.slot(),
-            dimension_hash: self.quota.dimensions_key(),
+            dimension_key: self.quota.dimensions_key(),
         }
     }
 
     /// Returns the maximum cardinality of the quota dimensions that we will support.  This is an
     /// arbitrary value, but necessary to ensure we don't end up with huge numbers of buckets
-    /// for some set of dimensions.  None implies no limit.
-    pub fn max_dimensions_cardinality(&self) -> Option<u32> {
-        match &self.dimensions {
-            Some(dims) => dims.max_cardinality,
-            None => None,
-        }
+    /// for some set of dimensions.  If we don't have any dimensions, than all values will hash
+    /// to the same bucket, so we can just say the cardinality is 1 in that case.
+    pub fn max_dimensions_cardinality(&self) -> u32 {
+        self.group_by.max_cardinality
     }
 
     /// Returns a [`cache::Quota`] built from this [`RedisQuota`].
@@ -255,7 +253,7 @@ pub struct QuotaCacheKey {
     subscope: Option<u64>,
     namespace: Option<MetricNamespace>,
     slot: u64,
-    dimension_hash: String,
+    dimension_key: String,
 }
 
 impl fmt::Display for QuotaCacheKey {
@@ -368,7 +366,7 @@ impl RedisRateLimiter {
                 let retry_after = self.retry_after(REJECT_ALL_SECS);
                 rate_limits.add(RateLimit::from_quota(quota, item_scoping, retry_after));
             } else if let Some(mut quota) =
-                RedisQuota::new(quota, quantity, item_scoping.clone(), timestamp)
+                RedisQuota::new(quota, quantity, item_scoping, timestamp)
             {
                 if let Some(cache) = &self.cache {
                     quota.quantity = match cache.check_quota(quota.for_cache(), quantity) {
@@ -389,11 +387,7 @@ impl RedisRateLimiter {
 
                 let redis_dims_key = item_scoping.dimensions_as_string(&quota);
 
-                // Map -1 to infinity.
-                let max_cardinality = match quota.max_dimensions_cardinality() {
-                    Some(max) => max as i32,
-                    None => -1,
-                };
+                let max_cardinality = quota.max_dimensions_cardinality();
 
                 invocation.key(redis_key);
                 invocation.key(refund_key);
@@ -516,12 +510,13 @@ struct QuotaState {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::{BTreeMap, BTreeSet};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use super::*;
     use crate::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
     use crate::rate_limit::RateLimitScope;
-    use crate::{Dimension, Dimensions, EMPTY_DIMENSIONS, MetricNamespaceScoping};
+    use crate::{Dimension, EMPTY_DIMENSIONS, GroupBy, MetricNamespaceScoping};
     use relay_base_schema::metrics::MetricNamespace;
     use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::{ProjectId, ProjectKey};
@@ -555,7 +550,7 @@ mod tests {
                 window: None,
                 reason_code: Some(ReasonCode::new("get_lost")),
                 namespace: None,
-                dimensions: None,
+                group_by: GroupBy::default(),
             },
             Quota {
                 id: Some("42".into()),
@@ -566,7 +561,7 @@ mod tests {
                 window: Some(42),
                 reason_code: Some(ReasonCode::new("unlimited")),
                 namespace: None,
-                dimensions: None,
+                group_by: GroupBy::default(),
             },
         ];
 
@@ -579,7 +574,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
-            dimensions: None,
+            dimensions: Arc::default(),
         };
 
         let rate_limits: Vec<RateLimit> = build_rate_limiter()
@@ -615,7 +610,7 @@ mod tests {
                 window: Some(600),
                 reason_code: Some(ReasonCode::new(format!("ns: {namespace:?}"))),
                 namespace,
-                dimensions: None,
+                group_by: GroupBy::default(),
             }
         };
 
@@ -631,7 +626,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::Some(MetricNamespace::Sessions),
-            dimensions: None,
+            dimensions: Arc::default(),
         };
 
         let rate_limiter = build_rate_limiter();
@@ -686,7 +681,7 @@ mod tests {
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
             namespace: None,
-            dimensions: None,
+            group_by: GroupBy::default(),
         }];
 
         let scoping = ItemScoping {
@@ -698,7 +693,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
-            dimensions: None,
+            dimensions: Arc::default(),
         };
 
         let rate_limiter = build_rate_limiter();
@@ -739,7 +734,7 @@ mod tests {
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
             namespace: None,
-            dimensions: None,
+            group_by: GroupBy::default(),
         }];
 
         let scoping = ItemScoping {
@@ -751,7 +746,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
-            dimensions: None,
+            dimensions: Arc::default(),
         };
 
         let rate_limiter = build_rate_limiter();
@@ -804,7 +799,7 @@ mod tests {
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
             namespace: None,
-            dimensions: None,
+            group_by: GroupBy::default(),
         }];
 
         let scoping = ItemScoping {
@@ -816,7 +811,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
-            dimensions: None,
+            dimensions: Arc::default(),
         };
 
         let rate_limiter = build_rate_limiter();
@@ -865,7 +860,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
-            dimensions: None,
+            dimensions: Arc::default(),
         };
 
         let rate_limits: Vec<RateLimit> = build_rate_limiter()
@@ -890,7 +885,7 @@ mod tests {
                 window: Some(1),
                 reason_code: Some(ReasonCode::new("project_quota0")),
                 namespace: None,
-                dimensions: None,
+                group_by: GroupBy::default(),
             },
             Quota {
                 id: Some("q1".into()),
@@ -901,7 +896,7 @@ mod tests {
                 window: Some(1),
                 reason_code: Some(ReasonCode::new("project_quota1")),
                 namespace: None,
-                dimensions: None,
+                group_by: GroupBy::default(),
             },
         ];
 
@@ -914,7 +909,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
-            dimensions: None,
+            dimensions: Arc::default(),
         };
 
         let rate_limiter = build_rate_limiter();
@@ -955,7 +950,7 @@ mod tests {
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
             namespace: None,
-            dimensions: None,
+            group_by: GroupBy::default(),
         }];
 
         let scoping = ItemScoping {
@@ -967,7 +962,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
-            dimensions: None,
+            dimensions: Arc::default(),
         };
 
         let rate_limiter = build_rate_limiter();
@@ -1008,7 +1003,7 @@ mod tests {
             limit: Some(0),
             reason_code: None,
             namespace: None,
-            dimensions: None,
+            group_by: GroupBy::default(),
         };
 
         let scoping = ItemScoping {
@@ -1020,11 +1015,11 @@ mod tests {
                 key_id: Some(4711),
             },
             namespace: MetricNamespaceScoping::None,
-            dimensions: None,
+            dimensions: Arc::default(),
         };
 
         let timestamp = UnixTimestamp::from_secs(123_123_123);
-        let redis_quota = RedisQuota::new(&quota, 0, scoping, timestamp).unwrap();
+        let redis_quota = RedisQuota::new(&quota, 0, &scoping, timestamp).unwrap();
         assert_eq!(redis_quota.key().to_string(), "quota:foo{69420}42:61561561");
     }
 
@@ -1039,7 +1034,7 @@ mod tests {
             limit: Some(0),
             reason_code: None,
             namespace: None,
-            dimensions: None,
+            group_by: GroupBy::default(),
         };
 
         let scoping = ItemScoping {
@@ -1051,11 +1046,11 @@ mod tests {
                 key_id: Some(4711),
             },
             namespace: MetricNamespaceScoping::None,
-            dimensions: None,
+            dimensions: Arc::default(),
         };
 
         let timestamp = UnixTimestamp::from_secs(234_531);
-        let redis_quota = RedisQuota::new(&quota, 0, scoping, timestamp).unwrap();
+        let redis_quota = RedisQuota::new(&quota, 0, &scoping, timestamp).unwrap();
         assert_eq!(redis_quota.key().to_string(), "quota:foo{69420}:23453");
     }
 
@@ -1070,7 +1065,7 @@ mod tests {
             limit: Some(9223372036854775808), // i64::MAX + 1
             reason_code: None,
             namespace: None,
-            dimensions: None,
+            group_by: GroupBy::default(),
         };
 
         let scoping = ItemScoping {
@@ -1082,11 +1077,11 @@ mod tests {
                 key_id: Some(4711),
             },
             namespace: MetricNamespaceScoping::None,
-            dimensions: None,
+            dimensions: Arc::default(),
         };
 
         let timestamp = UnixTimestamp::from_secs(234_531);
-        let redis_quota = RedisQuota::new(&quota, 0, scoping, timestamp).unwrap();
+        let redis_quota = RedisQuota::new(&quota, 0, &scoping, timestamp).unwrap();
         assert_eq!(redis_quota.limit(), -1);
     }
 
@@ -1592,7 +1587,7 @@ mod tests {
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
             namespace: None,
-            dimensions: None,
+            group_by: GroupBy::default(),
         }];
 
         let scoping = ItemScoping {
@@ -1604,7 +1599,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
-            dimensions: None,
+            dimensions: Arc::default(),
         };
 
         // For this test, with only a single rate limiter accessing Redis and always a quantity of
@@ -1653,7 +1648,7 @@ mod tests {
             window: Some(window),
             reason_code: Some(ReasonCode::new("get_lost")),
             namespace: None,
-            dimensions: None,
+            group_by: GroupBy::default(),
         }];
 
         let scoping = ItemScoping {
@@ -1665,7 +1660,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
-            dimensions: None,
+            dimensions: Arc::default(),
         };
 
         // 10% Quota cache.
@@ -1731,10 +1726,11 @@ mod tests {
                 window: Some(60),
                 reason_code: Some(ReasonCode::new("get_lost")),
                 namespace: None,
-                dimensions: Some(Dimensions {
-                    max_cardinality: None,
-                    dimensions: [Dimension::CheckInEnvironment, Dimension::CheckInSlug].into(),
-                }),
+                group_by: GroupBy {
+                    max_cardinality: 999,
+                    dimensions: BTreeSet::from([Dimension::Environment, Dimension::CheckInSlug])
+                        .into(),
+                },
             },
             Quota {
                 id: Some(format!("test_quota_wont_go_over{}", uuid::Uuid::new_v4()).into()),
@@ -1745,7 +1741,7 @@ mod tests {
                 window: Some(60),
                 reason_code: Some(ReasonCode::new("get_lost")),
                 namespace: None,
-                dimensions: None,
+                group_by: GroupBy::default(),
             },
         ];
 
@@ -1758,13 +1754,11 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
-            dimensions: Some(
-                [
-                    (Dimension::CheckInEnvironment, "us".to_owned()),
-                    (Dimension::CheckInSlug, "cron1".to_owned()),
-                ]
-                .into(),
-            ),
+            dimensions: BTreeMap::from([
+                (Dimension::Environment, "us".to_owned()),
+                (Dimension::CheckInSlug, "cron1".to_owned()),
+            ])
+            .into(),
         };
 
         let no_dims_scoping = ItemScoping {
@@ -1776,7 +1770,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
-            dimensions: None,
+            dimensions: Arc::default(),
         };
 
         let rate_limiter = build_rate_limiter();
@@ -1814,7 +1808,7 @@ mod tests {
     }
 
     /// Builds a project-scoped monitor quota with the passed dimensions and limit.
-    fn monitor_quota(limit: u64, dimensions: Option<Dimensions>) -> Quota {
+    fn monitor_quota(limit: u64, dimensions: GroupBy) -> Quota {
         Quota {
             id: Some(format!("test_dimensions_{}", uuid::Uuid::new_v4()).into()),
             categories: DataCategories::new().add(DataCategory::Monitor).unwrap(),
@@ -1824,12 +1818,16 @@ mod tests {
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
             namespace: None,
-            dimensions,
+            group_by: dimensions,
         }
     }
 
     /// Builds a monitor item scoping with the passed dimensions.
-    fn monitor_scoping(dimensions: Option<&[(Dimension, &str)]>) -> ItemScoping {
+    fn monitor_scoping(dimensions: &[(Dimension, &str)]) -> ItemScoping {
+        let mut owned_dims: Vec<_> = dimensions
+            .iter()
+            .map(|(d, v)| (*d, (*v).to_owned()))
+            .collect();
         ItemScoping {
             category: DataCategory::Monitor,
             scoping: Scoping {
@@ -1839,8 +1837,7 @@ mod tests {
                 key_id: Some(44),
             },
             namespace: MetricNamespaceScoping::None,
-            dimensions: dimensions
-                .map(|dims| dims.iter().map(|(d, v)| (*d, (*v).to_owned())).collect()),
+            dimensions: BTreeMap::from_iter(owned_dims.drain(..)).into(),
         }
     }
 
@@ -1849,10 +1846,10 @@ mod tests {
     async fn test_quota_dimensions_are_independent_buckets() {
         let quotas = &[monitor_quota(
             1,
-            Some(Dimensions {
-                max_cardinality: None,
-                dimensions: [Dimension::CheckInEnvironment, Dimension::CheckInSlug].into(),
-            }),
+            GroupBy {
+                max_cardinality: 999,
+                dimensions: BTreeSet::from([Dimension::Environment, Dimension::CheckInSlug]).into(),
+            },
         )];
 
         let rate_limiter = build_rate_limiter();
@@ -1861,21 +1858,21 @@ mod tests {
         // gets the full limit of 1 for itself.
         let distinct = [
             [
-                (Dimension::CheckInEnvironment, "prod"),
+                (Dimension::Environment, "prod"),
                 (Dimension::CheckInSlug, "cron1"),
             ],
             [
-                (Dimension::CheckInEnvironment, "prod"),
+                (Dimension::Environment, "prod"),
                 (Dimension::CheckInSlug, "cron2"),
             ],
             [
-                (Dimension::CheckInEnvironment, "dev"),
+                (Dimension::Environment, "dev"),
                 (Dimension::CheckInSlug, "cron1"),
             ],
         ];
 
         for dims in &distinct {
-            let scoping = monitor_scoping(Some(dims));
+            let scoping = monitor_scoping(dims);
 
             let rate_limits = rate_limiter
                 .is_rate_limited(quotas, &scoping, 1, false)
@@ -1910,24 +1907,24 @@ mod tests {
     async fn test_quota_dimensions_ignores_unrelated_dimensions() {
         let quotas = &[monitor_quota(
             2,
-            Some(Dimensions {
-                max_cardinality: None,
-                dimensions: [Dimension::CheckInSlug].into(),
-            }),
+            GroupBy {
+                max_cardinality: 999,
+                dimensions: BTreeSet::from([Dimension::CheckInSlug]).into(),
+            },
         )];
 
         let rate_limiter = build_rate_limiter();
 
         // The quota only keys on the slug, so these two items share a bucket despite their
         // differing environments.
-        let prod = monitor_scoping(Some(&[
-            (Dimension::CheckInEnvironment, "prod"),
+        let prod = monitor_scoping(&[
+            (Dimension::Environment, "prod"),
             (Dimension::CheckInSlug, "cron1"),
-        ]));
-        let dev = monitor_scoping(Some(&[
-            (Dimension::CheckInEnvironment, "dev"),
+        ]);
+        let dev = monitor_scoping(&[
+            (Dimension::Environment, "dev"),
             (Dimension::CheckInSlug, "cron1"),
-        ]));
+        ]);
 
         assert!(
             !rate_limiter
@@ -1966,10 +1963,10 @@ mod tests {
     async fn test_quota_dimensions_skipped_for_undimensioned_item() {
         let quotas = &[monitor_quota(
             1,
-            Some(Dimensions {
-                max_cardinality: None,
-                dimensions: [Dimension::CheckInSlug].into(),
-            }),
+            GroupBy {
+                max_cardinality: 999,
+                dimensions: BTreeSet::from([Dimension::CheckInSlug]).into(),
+            },
         )];
 
         let rate_limiter = build_rate_limiter();
@@ -1978,7 +1975,7 @@ mod tests {
         for _ in 0..5 {
             assert!(
                 !rate_limiter
-                    .is_rate_limited(quotas, &monitor_scoping(None), 1, false)
+                    .is_rate_limited(quotas, &monitor_scoping(&[]), 1, false)
                     .await
                     .unwrap()
                     .is_limited()
@@ -1988,10 +1985,10 @@ mod tests {
         // An item missing only one of two required dimensions is skipped the same way.
         let quotas = &[monitor_quota(
             1,
-            Some(Dimensions {
-                max_cardinality: None,
-                dimensions: [Dimension::CheckInEnvironment, Dimension::CheckInSlug].into(),
-            }),
+            GroupBy {
+                max_cardinality: 999,
+                dimensions: BTreeSet::from([Dimension::Environment, Dimension::CheckInSlug]).into(),
+            },
         )];
 
         for _ in 0..5 {
@@ -1999,7 +1996,7 @@ mod tests {
                 !rate_limiter
                     .is_rate_limited(
                         quotas,
-                        &monitor_scoping(Some(&[(Dimension::CheckInSlug, "cron1")])),
+                        &monitor_scoping(&[(Dimension::CheckInSlug, "cron1")]),
                         1,
                         false
                     )
@@ -2016,17 +2013,17 @@ mod tests {
     async fn test_quota_dimensions_max_cardinality() {
         let quotas = &[monitor_quota(
             100,
-            Some(Dimensions {
-                max_cardinality: Some(2),
-                dimensions: [Dimension::CheckInSlug].into(),
-            }),
+            GroupBy {
+                max_cardinality: 2,
+                dimensions: BTreeSet::from([Dimension::CheckInSlug]).into(),
+            },
         )];
 
         let rate_limiter = build_rate_limiter();
 
-        let cron1 = monitor_scoping(Some(&[(Dimension::CheckInSlug, "cron1")]));
-        let cron2 = monitor_scoping(Some(&[(Dimension::CheckInSlug, "cron2")]));
-        let cron3 = monitor_scoping(Some(&[(Dimension::CheckInSlug, "cron3")]));
+        let cron1 = monitor_scoping(&[(Dimension::CheckInSlug, "cron1")]);
+        let cron2 = monitor_scoping(&[(Dimension::CheckInSlug, "cron2")]);
+        let cron3 = monitor_scoping(&[(Dimension::CheckInSlug, "cron3")]);
 
         // Two distinct slugs fit into the cardinality of 2.
         assert!(
@@ -2085,10 +2082,10 @@ mod tests {
     async fn test_quota_dimensions_zero_cardinality() {
         let quotas = &[monitor_quota(
             100,
-            Some(Dimensions {
-                max_cardinality: Some(0),
-                dimensions: [Dimension::CheckInSlug].into(),
-            }),
+            GroupBy {
+                max_cardinality: 0,
+                dimensions: BTreeSet::from([Dimension::CheckInSlug]).into(),
+            },
         )];
 
         let rate_limiter = build_rate_limiter();
@@ -2097,7 +2094,7 @@ mod tests {
             rate_limiter
                 .is_rate_limited(
                     quotas,
-                    &monitor_scoping(Some(&[(Dimension::CheckInSlug, "cron1")])),
+                    &monitor_scoping(&[(Dimension::CheckInSlug, "cron1")]),
                     1,
                     false
                 )
@@ -2118,17 +2115,17 @@ mod tests {
 
         let quotas = &[monitor_quota(
             limit,
-            Some(Dimensions {
-                max_cardinality: None,
-                dimensions: [Dimension::CheckInSlug].into(),
-            }),
+            GroupBy {
+                max_cardinality: 999,
+                dimensions: BTreeSet::from([Dimension::CheckInSlug]).into(),
+            },
         )];
 
         let rate_limiter = build_rate_limiter().cache(Some(0.1), Some(0.9));
 
         let crons = [
-            monitor_scoping(Some(&[(Dimension::CheckInSlug, "cron1")])),
-            monitor_scoping(Some(&[(Dimension::CheckInSlug, "cron2")])),
+            monitor_scoping(&[(Dimension::CheckInSlug, "cron1")]),
+            monitor_scoping(&[(Dimension::CheckInSlug, "cron2")]),
         ];
 
         // Interleave the two slugs, so that both of them go through the shared cache entry, and
@@ -2166,20 +2163,20 @@ mod tests {
         let quotas = &[
             monitor_quota(
                 1,
-                Some(Dimensions {
-                    max_cardinality: None,
-                    dimensions: [Dimension::CheckInSlug].into(),
-                }),
+                GroupBy {
+                    max_cardinality: 999,
+                    dimensions: BTreeSet::from([Dimension::CheckInSlug]).into(),
+                },
             ),
-            monitor_quota(3, None),
+            monitor_quota(3, GroupBy::default()),
         ];
 
         let rate_limiter = build_rate_limiter();
 
-        let cron1 = monitor_scoping(Some(&[(Dimension::CheckInSlug, "cron1")]));
-        let cron2 = monitor_scoping(Some(&[(Dimension::CheckInSlug, "cron2")]));
-        let cron3 = monitor_scoping(Some(&[(Dimension::CheckInSlug, "cron3")]));
-        let cron4 = monitor_scoping(Some(&[(Dimension::CheckInSlug, "cron4")]));
+        let cron1 = monitor_scoping(&[(Dimension::CheckInSlug, "cron1")]);
+        let cron2 = monitor_scoping(&[(Dimension::CheckInSlug, "cron2")]);
+        let cron3 = monitor_scoping(&[(Dimension::CheckInSlug, "cron3")]);
+        let cron4 = monitor_scoping(&[(Dimension::CheckInSlug, "cron4")]);
 
         // Each new slug has its own per-dimension bucket, and all of them share the
         // undimensioned one.
