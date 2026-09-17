@@ -4904,6 +4904,7 @@ name = "relay-protocol"
 version = "26.9.0"
 dependencies = [
  "insta",
+ "ipnetwork",
  "num-traits",
  "relay-common",
  "relay-pattern",

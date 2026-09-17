@@ -4,11 +4,54 @@
 //! first one that matches, will result in the event being discarded with a [`FilterStatKey`]
 //! identifying the matching filter.
 
+use std::cell::OnceCell;
 use std::iter::FusedIterator;
+use std::net::IpAddr;
 
 use crate::{FilterStatKey, GenericFilterConfig, GenericFiltersConfig, GenericFiltersMap};
 
-use relay_protocol::{Getter, RuleCondition};
+use relay_protocol::{Getter, GetterIter, RuleCondition, Val};
+
+/// Path under which conditions read the IP address of the client that sent the envelope.
+///
+/// This is the same address the `clientIps` filter uses, not the user IP stored in the item.
+const CLIENT_IP_PATH: &str = "envelope.client_ip";
+
+/// An item together with the envelope data that conditions can reference.
+///
+/// Fields of the item resolve through its own [`Getter`]. [`CLIENT_IP_PATH`] resolves to the
+/// client IP of the envelope, which no item type carries itself.
+struct WithClientIp<'a, F> {
+    item: &'a F,
+    client_ip: Option<IpAddr>,
+    client_ip_str: OnceCell<String>,
+}
+
+impl<'a, F> WithClientIp<'a, F> {
+    fn new(item: &'a F, client_ip: Option<IpAddr>) -> Self {
+        Self {
+            item,
+            client_ip,
+            client_ip_str: OnceCell::new(),
+        }
+    }
+}
+
+impl<F: Getter> Getter for WithClientIp<'_, F> {
+    fn get_value(&self, path: &str) -> Option<Val<'_>> {
+        if path == CLIENT_IP_PATH {
+            let client_ip = self.client_ip?;
+            let s = self.client_ip_str.get_or_init(|| client_ip.to_string());
+            return Some(Val::String(s));
+        }
+
+        self.item.get_value(path)
+    }
+
+    fn get_iter(&self, path: &str) -> Option<GetterIter<'_>> {
+        self.item.get_iter(path)
+    }
+}
 
 /// Maximum supported version of the generic filters schema.
 ///
@@ -36,11 +79,16 @@ fn matches<F: Getter>(item: &F, condition: Option<&RuleCondition>) -> bool {
 /// Note that conditions may have type-specific getter strings, e.g. `"event.some_field"`. In order
 /// to make such a generic filter apply to non-Event types, make sure that the [`Getter`] implementation
 /// for that type maps `"event.some_field"` to the corresponding field on that type.
+///
+/// Conditions can also read `envelope.client_ip`, the IP address of the client that sent the
+/// envelope, for every item type.
 pub(crate) fn should_filter<F: Getter>(
     item: &F,
+    client_ip: Option<IpAddr>,
     project_filters: &GenericFiltersConfig,
     global_filters: Option<&GenericFiltersConfig>,
 ) -> Result<(), FilterStatKey> {
+    let item = WithClientIp::new(item, client_ip);
     let filters = merge_generic_filters(
         project_filters,
         global_filters,
@@ -49,7 +97,7 @@ pub(crate) fn should_filter<F: Getter>(
     );
 
     for filter_config in filters {
-        if filter_config.is_enabled && matches(item, filter_config.condition) {
+        if filter_config.is_enabled && matches(&item, filter_config.condition) {
             return Err(FilterStatKey::GenericFilter(filter_config.id.to_owned()));
         }
     }
@@ -209,7 +257,7 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(
-            should_filter(&event, &config, None),
+            should_filter(&event, None, &config, None),
             Err(FilterStatKey::GenericFilter("firstReleases".to_owned()))
         );
 
@@ -219,7 +267,7 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(
-            should_filter(&event, &config, None),
+            should_filter(&event, None, &config, None),
             Err(FilterStatKey::GenericFilter("helloTransactions".to_owned()))
         );
     }
@@ -238,7 +286,7 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(
-            should_filter(&event, &config, None),
+            should_filter(&event, None, &config, None),
             Err(FilterStatKey::GenericFilter("firstReleases".to_owned()))
         );
     }
@@ -255,7 +303,7 @@ mod tests {
             transaction: Annotated::new("/world".to_owned()),
             ..Default::default()
         };
-        assert_eq!(should_filter(&event, &config, None), Ok(()));
+        assert_eq!(should_filter(&event, None, &config, None), Ok(()));
     }
 
     #[test]
@@ -271,7 +319,7 @@ mod tests {
             transaction: Annotated::new("/hello".to_owned()),
             ..Default::default()
         };
-        assert_eq!(should_filter(&event, &config, None), Ok(()));
+        assert_eq!(should_filter(&event, None, &config, None), Ok(()));
     }
 
     #[test]
@@ -302,9 +350,77 @@ mod tests {
         };
 
         assert_eq!(
-            should_filter(&event, &project, Some(&global)),
+            should_filter(&event, None, &project, Some(&global)),
             Err(FilterStatKey::GenericFilter("helloTransactions".to_owned()))
         );
+    }
+
+    #[test]
+    fn test_should_filter_by_client_ip() {
+        let config = GenericFiltersConfig {
+            version: 1,
+            filters: vec![GenericFilterConfig {
+                id: "blockedIps".to_owned(),
+                is_enabled: true,
+                condition: Some(RuleCondition::cidr(
+                    "envelope.client_ip",
+                    &["10.0.0.0/8", "2001:db8::1"][..],
+                )),
+            }]
+            .into(),
+        };
+
+        let event = Event::default();
+
+        let inside_range = Some("10.1.2.3".parse().unwrap());
+        assert_eq!(
+            should_filter(&event, inside_range, &config, None),
+            Err(FilterStatKey::GenericFilter("blockedIps".to_owned()))
+        );
+
+        let exact_v6 = Some("2001:db8::1".parse().unwrap());
+        assert_eq!(
+            should_filter(&event, exact_v6, &config, None),
+            Err(FilterStatKey::GenericFilter("blockedIps".to_owned()))
+        );
+
+        let outside_range = Some("192.168.0.1".parse().unwrap());
+        assert_eq!(should_filter(&event, outside_range, &config, None), Ok(()));
+
+        assert_eq!(should_filter(&event, None, &config, None), Ok(()));
+    }
+
+    #[test]
+    fn test_client_ip_does_not_shadow_item_fields() {
+        let config = GenericFiltersConfig {
+            version: 1,
+            filters: vec![GenericFilterConfig {
+                id: "releaseAndIp".to_owned(),
+                is_enabled: true,
+                condition: Some(
+                    RuleCondition::eq("event.release", "1.0")
+                        & RuleCondition::cidr("envelope.client_ip", "10.0.0.0/8"),
+                ),
+            }]
+            .into(),
+        };
+
+        let client_ip = Some("10.1.2.3".parse().unwrap());
+
+        let event = Event {
+            release: Annotated::new(LenientString("1.0".to_owned())),
+            ..Default::default()
+        };
+        assert_eq!(
+            should_filter(&event, client_ip, &config, None),
+            Err(FilterStatKey::GenericFilter("releaseAndIp".to_owned()))
+        );
+
+        let event = Event {
+            release: Annotated::new(LenientString("2.0".to_owned())),
+            ..Default::default()
+        };
+        assert_eq!(should_filter(&event, client_ip, &config, None), Ok(()));
     }
 
     fn empty_filter() -> GenericFiltersConfig {
@@ -823,7 +939,7 @@ mod tests {
             };
 
             assert_eq!(
-                should_filter(event.value().unwrap(), &config, None),
+                should_filter(event.value().unwrap(), None, &config, None),
                 expected
             );
         }
@@ -877,20 +993,20 @@ mod tests {
         let config = catch_all_release_filter("1.0.0");
 
         assert_eq!(
-            should_filter(&session_update("1.0.0"), &config, None),
+            should_filter(&session_update("1.0.0"), None, &config, None),
             Err(FilterStatKey::GenericFilter("catchAllRelease".to_owned()))
         );
         assert_eq!(
-            should_filter(&session_aggregates("1.0.0"), &config, None),
+            should_filter(&session_aggregates("1.0.0"), None, &config, None),
             Err(FilterStatKey::GenericFilter("catchAllRelease".to_owned()))
         );
 
         assert_eq!(
-            should_filter(&session_update("2.0.0"), &config, None),
+            should_filter(&session_update("2.0.0"), None, &config, None),
             Ok(())
         );
         assert_eq!(
-            should_filter(&session_aggregates("2.0.0"), &config, None),
+            should_filter(&session_aggregates("2.0.0"), None, &config, None),
             Ok(())
         );
     }
@@ -916,11 +1032,11 @@ mod tests {
         };
 
         assert_eq!(
-            should_filter(&session_update("1.0.0"), &config, None),
+            should_filter(&session_update("1.0.0"), None, &config, None),
             Ok(())
         );
         assert_eq!(
-            should_filter(&session_aggregates("1.0.0"), &config, None),
+            should_filter(&session_aggregates("1.0.0"), None, &config, None),
             Ok(())
         );
     }
