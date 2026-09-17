@@ -354,11 +354,7 @@ mod tests {
       ],
       "scope": "organization",
       "limit": 0,
-      "namespace": null,
-      "groupBy": {
-        "maxCardinality": 1,
-        "dimensions": []
-      }
+      "namespace": null
     },
     {
       "id": "bar",
@@ -367,11 +363,7 @@ mod tests {
       ],
       "scope": "organization",
       "limit": 0,
-      "namespace": null,
-      "groupBy": {
-        "maxCardinality": 1,
-        "dimensions": []
-      }
+      "namespace": null
     }
   ],
   "filters": {

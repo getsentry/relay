@@ -1,4 +1,5 @@
-use std::fmt::{self, Debug};
+use std::borrow::Cow;
+use std::fmt::{self, Debug, Write};
 use std::sync::Arc;
 
 use itertools::Itertools;
@@ -14,7 +15,7 @@ use crate::cache::OpportunisticQuotaCache;
 use crate::quota::{ItemScoping, Quota, QuotaScope};
 use crate::rate_limit::{RateLimit, RateLimits, RetryAfter};
 use crate::statsd::{QuotaCounters, QuotaTimers};
-use crate::{REJECT_ALL_SECS, cache};
+use crate::{EMPTY_DIMENSIONS, REJECT_ALL_SECS, cache};
 
 /// The `grace` period allows accommodating for clock drift in TTL
 /// calculation since the clock on the Redis instance used to store quota
@@ -210,13 +211,13 @@ impl<'a> RedisQuota<'a> {
             subscope,
             namespace: self.namespace,
             slot: self.slot(),
-            dimension_key: self.quota.dimensions_key(),
+            dimensions: self.scoping.dimensions_as_string(self.quota),
         }
     }
 
-    /// Returns the maximum cardinality of the quota dimensions that we will support.  This is an
+    /// Returns the maximum cardinality of the quota dimensions that we will support. This is an
     /// arbitrary value, but necessary to ensure we don't end up with huge numbers of buckets
-    /// for some set of dimensions.  If we don't have any dimensions, than all values will hash
+    /// for some set of dimensions. If we don't have any dimensions, than all values will hash
     /// to the same bucket, so we can just say the cardinality is 1 in that case.
     pub fn max_dimensions_cardinality(&self) -> u32 {
         self.group_by.max_cardinality
@@ -253,15 +254,16 @@ pub struct QuotaCacheKey {
     subscope: Option<u64>,
     namespace: Option<MetricNamespace>,
     slot: u64,
-    dimension_key: String,
+    dimensions: Cow<'static, str>,
 }
 
-impl fmt::Display for QuotaCacheKey {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl QuotaCacheKey {
+    fn to_redis_key(&self) -> String {
+        let mut result = String::new();
         // Note: do _not_ include dimension_hash for the display, as it does not form part of the
-        // redis key.  It's used as an index into the hash stored at the redis key.
+        // redis key. It's used as an index into the hash stored at the redis key.
         write!(
-            f,
+            &mut result,
             "quota:{id}{{{org}}}{subscope}{namespace}:{slot}",
             id = self.id,
             org = self.org,
@@ -269,6 +271,8 @@ impl fmt::Display for QuotaCacheKey {
             namespace = OptionalDisplay(self.namespace),
             slot = self.slot,
         )
+        .expect("should be infallible");
+        result
     }
 }
 
@@ -375,17 +379,14 @@ impl RedisRateLimiter {
                     };
                 }
 
-                let mut redis_key = quota.key().to_string();
+                let mut redis_key = quota.key().to_redis_key();
                 // Remaining quotas are expected to be track-able in Redis.
                 let refund_key = get_refunded_quota_key(&redis_key);
 
-                // TODO: for the meantime, during rollout of the new dimensioned rate-limits,
-                // append a signifier to the redis key, so that we don't have conflicts with the
-                // old redis-key approach.  Make sure that the refund_key remains the same, as this
-                // is used by Sentry.
-                redis_key += ":hash";
-
                 let redis_dims_key = item_scoping.dimensions_as_string(&quota);
+                if redis_dims_key != EMPTY_DIMENSIONS {
+                    redis_key += ":hash";
+                }
 
                 let max_cardinality = quota.max_dimensions_cardinality();
 
@@ -1020,7 +1021,10 @@ mod tests {
 
         let timestamp = UnixTimestamp::from_secs(123_123_123);
         let redis_quota = RedisQuota::new(&quota, 0, &scoping, timestamp).unwrap();
-        assert_eq!(redis_quota.key().to_string(), "quota:foo{69420}42:61561561");
+        assert_eq!(
+            redis_quota.key().to_redis_key(),
+            "quota:foo{69420}42:61561561"
+        );
     }
 
     #[tokio::test]
@@ -1051,7 +1055,7 @@ mod tests {
 
         let timestamp = UnixTimestamp::from_secs(234_531);
         let redis_quota = RedisQuota::new(&quota, 0, &scoping, timestamp).unwrap();
-        assert_eq!(redis_quota.key().to_string(), "quota:foo{69420}:23453");
+        assert_eq!(redis_quota.key().to_redis_key(), "quota:foo{69420}:23453");
     }
 
     #[tokio::test]
@@ -1128,13 +1132,13 @@ mod tests {
             .arg(1) // quantity
             .arg(false) // over accept once
             .arg(EMPTY_DIMENSIONS) // dimensions
-            .arg(-1) // max cardinality
+            .arg(1) // max cardinality
             .arg(2) // limit
             .arg(now + 120) // expiry
             .arg(1) // quantity
             .arg(false) // over accept once
             .arg(EMPTY_DIMENSIONS) // dimensions
-            .arg(-1); // max cardinality
+            .arg(1); // max cardinality
 
         // Craft a new invocation similar to the previous one, but it only applies to the quota
         // with a higher limit (2).
@@ -1147,7 +1151,7 @@ mod tests {
             .arg(1) // quantity
             .arg(false) // over accept once
             .arg(EMPTY_DIMENSIONS) // dimensions
-            .arg(-1); // max cardinality
+            .arg(1); // max cardinality
 
         // 1 quantity used from both quotas.
         assert_invocation!(invocation, @r"
@@ -1245,23 +1249,14 @@ mod tests {
         "
         );
 
-        // Counters live in a hash, keyed by the dimensions of the quota.
-        assert_eq!(
-            conn.hget::<_, _, String>(&foo, EMPTY_DIMENSIONS)
-                .await
-                .unwrap(),
-            "1"
-        );
+        assert_eq!(conn.get::<_, String>(&foo).await.unwrap(), "1");
+
         let ttl: u64 = conn.ttl(&foo).await.unwrap();
         assert!(ttl >= 59);
         assert!(ttl <= 60);
 
-        assert_eq!(
-            conn.hget::<_, _, String>(&bar, EMPTY_DIMENSIONS)
-                .await
-                .unwrap(),
-            "2"
-        );
+        assert_eq!(conn.get::<_, String>(&bar).await.unwrap(), "2");
+
         let ttl: u64 = conn.ttl(&bar).await.unwrap();
         assert!(ttl >= 119);
         assert!(ttl <= 120);
@@ -1282,7 +1277,7 @@ mod tests {
             .arg(1) // quantity
             .arg(false) // over accept once
             .arg(EMPTY_DIMENSIONS) // dimensions
-            .arg(-1); // max cardinality
+            .arg(1); // max cardinality
 
         // increment, current quota usage is 1.
         assert_invocation!(invocation, @r"
@@ -1332,7 +1327,7 @@ mod tests {
             .arg(1) // quantity
             .arg(false) // over accept once
             .arg(EMPTY_DIMENSIONS) // dimensions
-            .arg(-1); // max cardinality
+            .arg(1); // max cardinality
 
         // test that refund key is used
         assert_invocation!(invocation, @r"
@@ -1367,6 +1362,12 @@ mod tests {
         // A single quota with a limit of 1, invoked for two different dimension values.
         let invoke = |dims: &str| {
             let mut invocation = script.prepare_invoke();
+
+            let mut key = key.clone();
+            if dims == EMPTY_DIMENSIONS {
+                key += ":hash";
+            }
+
             invocation
                 .key(&key) // key
                 .key(&refund_key) // refund key
@@ -1375,7 +1376,7 @@ mod tests {
                 .arg(1) // quantity
                 .arg(false) // over accept once
                 .arg(dims) // dimensions
-                .arg(-1); // max cardinality
+                .arg(999); // max cardinality
             invocation
         };
 
@@ -1416,11 +1417,7 @@ mod tests {
         fields.sort();
         assert_eq!(
             fields,
-            vec![
-                (":2:a".to_owned(), 1),
-                (":2:b".to_owned(), 1),
-                (EMPTY_DIMENSIONS.to_owned(), 1),
-            ]
+            vec![(":2:a".to_owned(), 1), (":2:b".to_owned(), 1),]
         );
 
         let ttl: u64 = conn.ttl(&key).await.unwrap();
@@ -1556,7 +1553,7 @@ mod tests {
                 .arg(1) // quantity
                 .arg(false) // over accept once
                 .arg(dims) // dimensions
-                .arg(-1); // max cardinality
+                .arg(999); // max cardinality
 
             invocation
                 .invoke_async::<ScriptResult>(conn)
