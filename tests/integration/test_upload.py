@@ -59,6 +59,29 @@ def test_forward_create(
     assert response.status_code == expected_status_code, response.text
 
 
+@pytest.mark.parametrize("upload_chunk_size", [0, 1_000_000_000])
+def test_header(mini_sentry, relay, dummy_upload, upload_chunk_size):
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    mini_sentry.global_config["options"]["relay.upload-chunk.size"] = upload_chunk_size
+    relay = relay(mini_sentry)
+
+    response = relay.post(
+        "/api/%s/upload/?sentry_key=%s"
+        % (project_id, mini_sentry.get_dsn_public_key(project_id)),
+        headers={
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": "11",
+        },
+    )
+
+    assert response.status_code == 201, response.text
+    if upload_chunk_size != 0:
+        assert int(response.headers["Upload-Chunk-Size"]) == upload_chunk_size
+    else:
+        assert "Upload-Chunk-Size" not in response.headers
+
+
 @pytest.mark.parametrize(
     "killswitched,expected_status_code",
     [

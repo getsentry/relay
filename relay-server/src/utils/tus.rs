@@ -86,6 +86,9 @@ pub const EXPECTED_CONTENT_TYPE: HeaderValue = HeaderValue::from_static(EXPECTED
 
 const EXPECTED_CONTENT_TYPE_STR: &str = "application/offset+octet-stream";
 
+/// Non-standard header advertising the maximum/recommended chunk size to clients.
+pub const UPLOAD_CHUNK_SIZE: &str = "Upload-Chunk-Size";
+
 /// Sentry-specific metadata extracted from the TUS `Upload-Metadata` header.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Metadata {

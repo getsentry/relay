@@ -200,6 +200,15 @@ async fn handle_post(
         .headers_mut()
         .insert(tus::TUS_RESUMABLE, tus::TUS_VERSION);
 
+    // Communicate desired chunk size to the client, if set.
+    let global_config = state.global_config_handle().current().unwrap_or_default();
+    let upload_chunk_size = global_config.options.upload_chunk_size;
+    if upload_chunk_size > 0 {
+        response
+            .headers_mut()
+            .insert(tus::UPLOAD_CHUNK_SIZE, upload_chunk_size.into());
+    }
+
     Ok(response)
 }
 
