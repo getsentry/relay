@@ -582,8 +582,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1aa79e62e7697b8e29b513a68abacf485adcd1fe8284a4316c5ae868e6633327"
 dependencies = [
  "iana-time-zone",
+ "js-sys",
  "num-traits",
  "serde",
+ "wasm-bindgen",
  "windows-link 0.2.1",
 ]
 
@@ -671,6 +673,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c0f78a02292a74a88ac736019ab962ece0bc380e3f977bf72e376c5d78ff0678"
 dependencies = [
  "cc",
+]
+
+[[package]]
+name = "coarsetime"
+version = "0.1.37"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e58eb270476aa4fc7843849f8a35063e8743b4dbcdf6dd0f8ea0886980c204c2"
+dependencies = [
+ "libc",
+ "wasix",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -4702,6 +4715,7 @@ dependencies = [
  "relay-statsd",
  "rmp-serde",
  "sentry-kafka-schemas",
+ "sentry_arroyo",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -5694,6 +5708,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "sentry_arroyo"
+version = "2.44.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e009b8cb35c0ccb43b0bc86db7bbb253aad9e530b23e9dae42e391b5cad5acad"
+dependencies = [
+ "chrono",
+ "coarsetime",
+ "metrics",
+ "once_cell",
+ "parking_lot",
+ "rand 0.8.6",
+ "rdkafka",
+ "sentry-core",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "sentry_protos"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6518,6 +6554,7 @@ dependencies = [
  "bytes",
  "libc",
  "mio",
+ "parking_lot",
  "pin-project-lite",
  "signal-hook-registry",
  "socket2",
@@ -7054,6 +7091,15 @@ name = "wasite"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b8dad83b4f25e74f184f64c43b150b91efe7647395b42289f38e50566d82855b"
+
+[[package]]
+name = "wasix"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae86f02046da16a333a9129d31451423e1657737ecdafed4193838a5f54c5cfe"
+dependencies = [
+ "wasi",
+]
 
 [[package]]
 name = "wasm-bindgen"
