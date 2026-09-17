@@ -128,8 +128,7 @@ pub fn init(config: MetricsConfig) -> Result<(), Error> {
     let recorder = Arc::new(statsd.build()?);
 
     // Metrics routed through this layer have the configured prefix prepended.
-    let prefix_layer = PrefixLayer::new(config.prefix)
-        .layer(Arc::clone(&recorder));
+    let prefix_layer = PrefixLayer::new(config.prefix).layer(Arc::clone(&recorder));
 
     // Router decides if metrics go through the prefix layer or directly to the DogStatsD recorder.
     let mut router = RouterBuilder::from_recorder(prefix_layer);
